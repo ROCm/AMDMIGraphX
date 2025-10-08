@@ -59,66 +59,86 @@ struct parse_depthtospace : op_parser<parse_depthtospace>
         // In the dynamic case, we need to compute the n, h, and w values at runtime.
         // However, currently we don't have a way to represent them symbollically.
         // Instead, we can use the "dimensions_of" op to represent the actual n,h,w values
-        // at runtime and perform the corresponding arithmetic (multiplying or dividing by blocksize).
+        // at runtime and perform the corresponding arithmetic (multiplying or dividing by
+        // blocksize).
         if(s.dynamic())
         {
-            auto dyn_dims1 = s.dyn_dims();
-            auto dyn_dims2 = s.dyn_dims();
-            int64_t divisor = blocksize * blocksize;
+            auto dyn_dims1              = s.dyn_dims();
+            auto dyn_dims2              = s.dyn_dims();
+            int64_t divisor             = blocksize * blocksize;
             uint64_t blocksize_unsigned = blocksize;
-            auto blocksize_literal = info.add_literal({blocksize});
+            auto blocksize_literal      = info.add_literal({blocksize});
 
             auto n = info.add_instruction(make_op("dimensions_of", {{"end", 1}}), args[0]);
-            assert(dyn_dims[1].is_fixed()); // for now, there may not be a use case where channels would also be dynamic
+            assert(dyn_dims[1].is_fixed()); // for now, there may not be a use case where channels
+                                            // would also be dynamic
             int64_t c = dyn_dims1[1].max;
-            auto dims_of = info.add_instruction(make_op("dimensions_of", {{"start", 2}, {"end", 4}}), args[0]);
-            auto h = info.add_instruction(make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), dims_of);
-            auto w = info.add_instruction(make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), dims_of);
-            
-            auto c_div = info.add_literal({c / divisor});
-            
+            auto dims_of =
+                info.add_instruction(make_op("dimensions_of", {{"start", 2}, {"end", 4}}), args[0]);
+            auto h = info.add_instruction(
+                make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), dims_of);
+            auto w = info.add_instruction(
+                make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), dims_of);
 
-            dyn_dims2[1] = {dyn_dims2[1].min / divisor , dyn_dims2[1].max / divisor};
+            auto c_div = info.add_literal({c / divisor});
+
+            dyn_dims2[1] = {dyn_dims2[1].min / divisor, dyn_dims2[1].max / divisor};
             dyn_dims1.push_back(dyn_dims1[2]);
             dyn_dims1.push_back(dyn_dims1[3]);
             dyn_dims2[2] = dyn_dims2[2] * blocksize_unsigned;
             dyn_dims2[3] = dyn_dims2[3] * blocksize_unsigned;
-            dyn_dims1[2] = {blocksize_unsigned,blocksize_unsigned,{}};
+            dyn_dims1[2] = {blocksize_unsigned, blocksize_unsigned, {}};
 
             std::vector<int64_t> perm;
             instruction_ref new_shape1;
             instruction_ref new_shape_alloc1;
             if(mode == "DCR")
             {
-                dyn_dims1[3] = {dyn_dims1[1].min / divisor, dyn_dims1[1].max / divisor, {} };
-                dyn_dims1[1] = {blocksize_unsigned,blocksize_unsigned,{}};
-                perm = {0, 3, 4, 1, 5, 2};
-                new_shape1 = info.add_instruction(make_op("concat"), n, blocksize_literal, blocksize_literal, c_div, h, w);
-                new_shape_alloc1 = info.add_instruction(make_op("allocate", {{"shape", to_value(migraphx::shape{s.type(), dyn_dims1})}}), new_shape1);
+                dyn_dims1[3] = {dyn_dims1[1].min / divisor, dyn_dims1[1].max / divisor, {}};
+                dyn_dims1[1] = {blocksize_unsigned, blocksize_unsigned, {}};
+                perm         = {0, 3, 4, 1, 5, 2};
+                new_shape1   = info.add_instruction(
+                    make_op("concat"), n, blocksize_literal, blocksize_literal, c_div, h, w);
+                new_shape_alloc1 = info.add_instruction(
+                    make_op("allocate",
+                            {{"shape", to_value(migraphx::shape{s.type(), dyn_dims1})}}),
+                    new_shape1);
                 auto reshape1 = info.add_instruction(make_op("reshape"), args[0], new_shape_alloc1);
-                auto transpose = info.add_instruction(make_op("transpose", {{"permutation", perm}}), reshape1);
+                auto transpose =
+                    info.add_instruction(make_op("transpose", {{"permutation", perm}}), reshape1);
                 auto h_blocksize = info.add_instruction(make_op("mul"), h, blocksize_literal);
                 auto w_blocksize = info.add_instruction(make_op("mul"), w, blocksize_literal);
-                auto new_shape2 = info.add_instruction(make_op("concat"), n, c_div, h_blocksize, w_blocksize);
-                auto new_shape_alloc2 = info.add_instruction(make_op("allocate", {{"shape", to_value(migraphx::shape{s.type(), dyn_dims2})}}), new_shape2);
+                auto new_shape2 =
+                    info.add_instruction(make_op("concat"), n, c_div, h_blocksize, w_blocksize);
+                auto new_shape_alloc2 = info.add_instruction(
+                    make_op("allocate",
+                            {{"shape", to_value(migraphx::shape{s.type(), dyn_dims2})}}),
+                    new_shape2);
                 return info.add_instruction(make_op("reshape"), transpose, new_shape_alloc2);
-
             }
             else if(mode == "CRD")
             {
-                dyn_dims1[1] = {dyn_dims1[1].min / divisor, dyn_dims1[1].max / divisor, {} };
-                dyn_dims1[3] = {blocksize_unsigned,blocksize_unsigned,{}};
-                perm = {0, 1, 4, 2, 5, 3};
-                new_shape1 = info.add_instruction(make_op("concat"), n, c_div, blocksize_literal, blocksize_literal, h, w);
-                new_shape_alloc1 = info.add_instruction(make_op("allocate", {{"shape", to_value(migraphx::shape{s.type(), dyn_dims1})}}), new_shape1);
+                dyn_dims1[1] = {dyn_dims1[1].min / divisor, dyn_dims1[1].max / divisor, {}};
+                dyn_dims1[3] = {blocksize_unsigned, blocksize_unsigned, {}};
+                perm         = {0, 1, 4, 2, 5, 3};
+                new_shape1   = info.add_instruction(
+                    make_op("concat"), n, c_div, blocksize_literal, blocksize_literal, h, w);
+                new_shape_alloc1 = info.add_instruction(
+                    make_op("allocate",
+                            {{"shape", to_value(migraphx::shape{s.type(), dyn_dims1})}}),
+                    new_shape1);
                 auto reshape1 = info.add_instruction(make_op("reshape"), args[0], new_shape_alloc1);
-                auto transpose = info.add_instruction(make_op("transpose", {{"permutation", perm}}), reshape1);
+                auto transpose =
+                    info.add_instruction(make_op("transpose", {{"permutation", perm}}), reshape1);
                 auto h_blocksize = info.add_instruction(make_op("mul"), h, blocksize_literal);
                 auto w_blocksize = info.add_instruction(make_op("mul"), w, blocksize_literal);
-                auto new_shape2 = info.add_instruction(make_op("concat"), n, c_div, h_blocksize, w_blocksize);
-                auto new_shape_alloc2 = info.add_instruction(make_op("allocate", {{"shape", to_value(migraphx::shape{s.type(), dyn_dims2})}}), new_shape2);
+                auto new_shape2 =
+                    info.add_instruction(make_op("concat"), n, c_div, h_blocksize, w_blocksize);
+                auto new_shape_alloc2 = info.add_instruction(
+                    make_op("allocate",
+                            {{"shape", to_value(migraphx::shape{s.type(), dyn_dims2})}}),
+                    new_shape2);
                 return info.add_instruction(make_op("reshape"), transpose, new_shape_alloc2);
-
             }
         }
         // calculate dimensions

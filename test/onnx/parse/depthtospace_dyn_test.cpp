@@ -28,34 +28,45 @@ TEST_CASE(depthtospace_dyn_dcr_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto x  = mm->add_parameter("x", {migraphx::shape::float_type, {{2, 4}, {16, 16}, {5, 10}, {5, 10}}});
+    auto x =
+        mm->add_parameter("x", {migraphx::shape::float_type, {{2, 4}, {16, 16}, {5, 10}, {5, 10}}});
     auto blocksize_literal = mm->add_literal(static_cast<int64_t>(2));
     auto n = mm->add_instruction(migraphx::make_op("dimensions_of", {{"start", 0}, {"end", 1}}), x);
-    auto dims_of = mm->add_instruction(migraphx::make_op("dimensions_of", {{"start", 2}, {"end", 4}}), x);
-    auto h = mm->add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), dims_of);
-    auto w = mm->add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), dims_of);
+    auto dims_of =
+        mm->add_instruction(migraphx::make_op("dimensions_of", {{"start", 2}, {"end", 4}}), x);
+    auto h = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), dims_of);
+    auto w = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), dims_of);
     auto c_div = mm->add_literal(static_cast<int64_t>(4));
 
+    auto new_shape1 = mm->add_instruction(
+        migraphx::make_op("concat"), n, blocksize_literal, blocksize_literal, c_div, h, w);
 
-    auto new_shape1 = mm->add_instruction(migraphx::make_op("concat"), n, blocksize_literal, blocksize_literal, c_div, h, w);
-
-    auto dyn_dims1 = migraphx::shape{migraphx::shape::float_type, {{2, 4}, {2, 2}, {2, 2}, {4, 4}, {5, 10}, {5, 10}}};
-    auto new_shape_alloc1 = mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(dyn_dims1)}}), new_shape1);
+    auto dyn_dims1        = migraphx::shape{migraphx::shape::float_type,
+                                            {{2, 4}, {2, 2}, {2, 2}, {4, 4}, {5, 10}, {5, 10}}};
+    auto new_shape_alloc1 = mm->add_instruction(
+        migraphx::make_op("allocate", {{"shape", to_value(dyn_dims1)}}), new_shape1);
 
     auto reshape1 = mm->add_instruction(migraphx::make_op("reshape"), x, new_shape_alloc1);
 
     std::vector<int64_t> perm = {0, 3, 4, 1, 5, 2};
-    auto transpose = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), reshape1);
+    auto transpose =
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), reshape1);
     auto h_blocksize = mm->add_instruction(migraphx::make_op("mul"), h, blocksize_literal);
     auto w_blocksize = mm->add_instruction(migraphx::make_op("mul"), w, blocksize_literal);
-    auto new_shape2 = mm->add_instruction(migraphx::make_op("concat"), n, c_div, h_blocksize, w_blocksize);
+    auto new_shape2 =
+        mm->add_instruction(migraphx::make_op("concat"), n, c_div, h_blocksize, w_blocksize);
 
-    auto dyn_dims2 = migraphx::shape{migraphx::shape::float_type, {{2, 4}, {4, 4}, {10, 20}, {10, 20}}};
+    auto dyn_dims2 =
+        migraphx::shape{migraphx::shape::float_type, {{2, 4}, {4, 4}, {10, 20}, {10, 20}}};
 
-    auto new_shape_alloc2 = mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(dyn_dims2)}}), new_shape2);
+    auto new_shape_alloc2 = mm->add_instruction(
+        migraphx::make_op("allocate", {{"shape", to_value(dyn_dims2)}}), new_shape2);
     mm->add_instruction(migraphx::make_op("reshape"), transpose, new_shape_alloc2);
-    
-    auto prog = optimize_onnx("depthtospace_dyn_dcr_test.onnx", false, {{"x", {{2, 4}, {16, 16}, {5, 10}, {5, 10}}}});
+
+    auto prog = optimize_onnx(
+        "depthtospace_dyn_dcr_test.onnx", false, {{"x", {{2, 4}, {16, 16}, {5, 10}, {5, 10}}}});
     EXPECT(p == prog);
 }
 
@@ -63,33 +74,44 @@ TEST_CASE(depthtospace_dyn_crd_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto x  = mm->add_parameter("x", {migraphx::shape::float_type, {{2, 4}, {16, 16}, {5, 10}, {5, 10}}});
+    auto x =
+        mm->add_parameter("x", {migraphx::shape::float_type, {{2, 4}, {16, 16}, {5, 10}, {5, 10}}});
     auto blocksize_literal = mm->add_literal(static_cast<int64_t>(2));
     auto n = mm->add_instruction(migraphx::make_op("dimensions_of", {{"start", 0}, {"end", 1}}), x);
-    auto dims_of = mm->add_instruction(migraphx::make_op("dimensions_of", {{"start", 2}, {"end", 4}}), x);
-    auto h = mm->add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), dims_of);
-    auto w = mm->add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), dims_of);
+    auto dims_of =
+        mm->add_instruction(migraphx::make_op("dimensions_of", {{"start", 2}, {"end", 4}}), x);
+    auto h = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), dims_of);
+    auto w = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), dims_of);
     auto c_div = mm->add_literal(static_cast<int64_t>(4));
 
+    auto new_shape1 = mm->add_instruction(
+        migraphx::make_op("concat"), n, c_div, blocksize_literal, blocksize_literal, h, w);
 
-    auto new_shape1 = mm->add_instruction(migraphx::make_op("concat"), n, c_div, blocksize_literal, blocksize_literal, h, w);
-
-    auto dyn_dims1 = migraphx::shape{migraphx::shape::float_type, {{2, 4}, {4, 4}, {2, 2}, {2, 2}, {5, 10}, {5, 10}}};
-    auto new_shape_alloc1 = mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(dyn_dims1)}}), new_shape1);
+    auto dyn_dims1        = migraphx::shape{migraphx::shape::float_type,
+                                            {{2, 4}, {4, 4}, {2, 2}, {2, 2}, {5, 10}, {5, 10}}};
+    auto new_shape_alloc1 = mm->add_instruction(
+        migraphx::make_op("allocate", {{"shape", to_value(dyn_dims1)}}), new_shape1);
 
     auto reshape1 = mm->add_instruction(migraphx::make_op("reshape"), x, new_shape_alloc1);
 
     std::vector<int64_t> perm = {0, 1, 4, 2, 5, 3};
-    auto transpose = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), reshape1);
+    auto transpose =
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), reshape1);
     auto h_blocksize = mm->add_instruction(migraphx::make_op("mul"), h, blocksize_literal);
     auto w_blocksize = mm->add_instruction(migraphx::make_op("mul"), w, blocksize_literal);
-    auto new_shape2 = mm->add_instruction(migraphx::make_op("concat"), n, c_div, h_blocksize, w_blocksize);
+    auto new_shape2 =
+        mm->add_instruction(migraphx::make_op("concat"), n, c_div, h_blocksize, w_blocksize);
 
-    auto dyn_dims2 = migraphx::shape{migraphx::shape::float_type, {{2, 4}, {4, 4}, {10, 20}, {10, 20}}};
+    auto dyn_dims2 =
+        migraphx::shape{migraphx::shape::float_type, {{2, 4}, {4, 4}, {10, 20}, {10, 20}}};
 
-    auto new_shape_alloc2 = mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(dyn_dims2)}}), new_shape2);
+    auto new_shape_alloc2 = mm->add_instruction(
+        migraphx::make_op("allocate", {{"shape", to_value(dyn_dims2)}}), new_shape2);
     mm->add_instruction(migraphx::make_op("reshape"), transpose, new_shape_alloc2);
-    
-    auto prog = optimize_onnx("depthtospace_dyn_crd_test.onnx", false, {{"x", {{2, 4}, {16, 16}, {5, 10}, {5, 10}}}});
+
+    auto prog = optimize_onnx(
+        "depthtospace_dyn_crd_test.onnx", false, {{"x", {{2, 4}, {16, 16}, {5, 10}, {5, 10}}}});
     EXPECT(p == prog);
 }

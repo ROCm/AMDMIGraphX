@@ -595,31 +595,30 @@ void remove_zero_point(module& m)
     }
 }
 
-void remove_zero_scales(module& m)    
-{    
-    for(auto ins : iterator_for(m))    
-    {    
-        if(ins->name() != "dequantizelinear")    
-            continue;    
-        if(ins->inputs().size() < 2)    
-            continue;    
-        auto scale = ins->inputs().at(1);    
-        if(not scale->can_eval())    
-            continue;    
-        auto a = scale->eval();    
-        bool has_zero = false;    
-        a.visit([&](auto t) {    
-            has_zero = std::all_of(t.begin(), t.end(), [](auto x) { return float_equal(x, 0); });    
-        });    
-        if(not has_zero)    
-            continue;    
-  
-        // Replace entire dequantizelinear with zero literal  
-        auto zero_literal = m.add_literal(literal{ins->get_shape(), {0.0f}});  
-        m.replace_instruction(ins, zero_literal);  
-    }    
-}
+void remove_zero_scales(module& m)
+{
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() != "dequantizelinear")
+            continue;
+        if(ins->inputs().size() < 2)
+            continue;
+        auto scale = ins->inputs().at(1);
+        if(not scale->can_eval())
+            continue;
+        auto a        = scale->eval();
+        bool has_zero = false;
+        a.visit([&](auto t) {
+            has_zero = std::all_of(t.begin(), t.end(), [](auto x) { return float_equal(x, 0); });
+        });
+        if(not has_zero)
+            continue;
 
+        // Replace entire dequantizelinear with zero literal
+        auto zero_literal = m.add_literal(literal{ins->get_shape(), {0.0f}});
+        m.replace_instruction(ins, zero_literal);
+    }
+}
 
 void add_int4_pack_unpack_pair(module& m)
 {

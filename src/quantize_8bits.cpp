@@ -68,26 +68,30 @@ void quantize_8bits_pass::apply(module& m) const // NOLINT
         {
             auto zero_point =
                 m.add_literal(migraphx::literal{migraphx::shape{precision}, {param.second}});
-                
+
             float inverted_scale = 1.0f / param.first;
- 
+
             float epsilon;
             float max_val;
-            if(s.type() == shape::half_type) {  
-                epsilon = 1e-4f;  
+            if(s.type() == shape::half_type)
+            {
+                epsilon = 1e-4f;
                 max_val = 1e4f;
-            } else if(s.type() == shape::float_type) {  
-                epsilon = 1e-8f;  
-                max_val = 1e8f;  
-            } else {  
-                epsilon = 1e-6f;  
-                max_val = 1e6f;  
+            }
+            else if(s.type() == shape::float_type)
+            {
+                epsilon = 1e-8f;
+                max_val = 1e8f;
+            }
+            else
+            {
+                epsilon = 1e-6f;
+                max_val = 1e6f;
             }
 
-            inverted_scale = std::max(epsilon, std::min(max_val, inverted_scale));  
-            auto scale = m.add_literal(literal({s.type()}, {inverted_scale}));
+            inverted_scale = std::max(epsilon, std::min(max_val, inverted_scale));
+            auto scale     = m.add_literal(literal({s.type()}, {inverted_scale}));
 
-            //auto scale       = m.add_literal(literal({s.type()}, {1.0f / param.first}));
             const auto& lens = s.lens();
             scale =
                 m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", lens}}), scale);

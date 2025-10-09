@@ -1413,17 +1413,18 @@ struct index_segment
         // divide the array size. Strategy:
         // 1. Try full length first (handles RTR, contiguous, constant patterns)
         // 2. Try divisors from largest to smallest (covers all valid segment sizes)
-        
+
         auto try_pattern = [&](std::size_t len) -> bool {
             return constant_segment_meta::detect(indices, pos, len).has_value() or
                    contiguous_segment_meta::detect(indices, pos, len).has_value() or
                    arithmetic_segment_meta::detect(indices, pos, len).has_value() or
-                   rtr_window_segment_meta::detect(indices, pos, len, factor_candidates).has_value();
+                   rtr_window_segment_meta::detect(indices, pos, len, factor_candidates)
+                       .has_value();
         };
 
         std::size_t segment_length = 1;
-        std::size_t n = indices.size();
-        
+        std::size_t n              = indices.size();
+
         // Step 1: Try full length first (common case: single segment)
         if(try_pattern(n))
         {
@@ -1441,7 +1442,7 @@ struct index_segment
                     break;
                 }
             }
-            
+
             // Try small common segment sizes (16 down to 1)
             if(segment_length == 1)
             {

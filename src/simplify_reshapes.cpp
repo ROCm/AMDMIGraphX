@@ -1376,14 +1376,14 @@ struct rtr_window_segment_meta
 /// Index segment with pattern metadata
 struct index_segment
 {
-    using meta_type = std::variant<std::monostate,
-                 constant_segment_meta,
-                 contiguous_segment_meta,
-                 arithmetic_segment_meta,
-                 rtr_window_segment_meta>;
+    using meta_type       = std::variant<std::monostate,
+                                         constant_segment_meta,
+                                         contiguous_segment_meta,
+                                         arithmetic_segment_meta,
+                                         rtr_window_segment_meta>;
     std::size_t start_pos = 0;
-    std::size_t length = 0;
-    meta_type metadata = std::monostate{};
+    std::size_t length    = 0;
+    meta_type metadata    = std::monostate{};
 
     template <class T>
     bool has_type() const
@@ -1391,16 +1391,12 @@ struct index_segment
         return std::holds_alternative<T>(metadata);
     }
 
-    bool empty() const
-    {
-        return std::holds_alternative<std::monostate>(metadata);
-    }
+    bool empty() const { return std::holds_alternative<std::monostate>(metadata); }
 
-    static index_segment
-    detect(const std::vector<int64_t>& indices,
-           std::size_t pos,
-           std::size_t len,
-           const std::vector<std::vector<std::size_t>>& factor_candidates)
+    static index_segment detect(const std::vector<int64_t>& indices,
+                                std::size_t pos,
+                                std::size_t len,
+                                const std::vector<std::vector<std::size_t>>& factor_candidates)
     {
         if(auto meta = constant_segment_meta::detect(indices, pos, len))
         {
@@ -1422,15 +1418,16 @@ struct index_segment
         return {};
     }
 
-    static index_segment find_first_segment(const std::vector<int64_t>& indices,
-           const std::vector<std::vector<std::size_t>>& factor_candidates)
+    static index_segment
+    find_first_segment(const std::vector<int64_t>& indices,
+                       const std::vector<std::vector<std::size_t>>& factor_candidates)
     {
-        std::size_t n = 2 + indices.size()/2;
-        for(auto i:range(1,n))
+        std::size_t n = 2 + indices.size() / 2;
+        for(auto i : range(1, n))
         {
             if(indices.size() % i != 0)
                 continue;
-            auto seg = detect(indices, 0, indices.size()/i, factor_candidates);
+            auto seg = detect(indices, 0, indices.size() / i, factor_candidates);
             if(not seg.empty())
                 return seg;
         }
@@ -1449,10 +1446,14 @@ struct index_segment
         segments.push_back(find_first_segment(indices, factor_candidates));
         if(segments.front().empty())
             return {};
-        transform(range(1,indices.size() / segments[0].length), std::back_inserter(segments), [&](auto i) {
-            return detect(indices, i * segments[0].length, segments[0].length, factor_candidates);
-        });
-        if(std::all_of(segments.begin(), segments.end(), [](const auto& s) { return not s.empty(); }))
+        transform(range(1, indices.size() / segments[0].length),
+                  std::back_inserter(segments),
+                  [&](auto i) {
+                      return detect(
+                          indices, i * segments[0].length, segments[0].length, factor_candidates);
+                  });
+        if(std::all_of(
+               segments.begin(), segments.end(), [](const auto& s) { return not s.empty(); }))
             return segments;
         return {};
     }
@@ -1798,31 +1799,35 @@ try_segment_based_optimization_1d(const gather_context& ctx,
     // Try single-segment patterns
     if(segments.size() == 1)
     {
-        return std::visit([&](const auto& m) -> std::optional<instruction_ref> {
-            if constexpr (not std::is_same<std::decay_t<decltype(m)>, std::monostate>{}) {
-                return m.transform(ctx, builder, target_shape);
-            } else {
-                return std::nullopt;
-            }
-        }, segments[0].metadata);
+        return std::visit(
+            [&](const auto& m) -> std::optional<instruction_ref> {
+                if constexpr(not std::is_same<std::decay_t<decltype(m)>, std::monostate>{})
+                {
+                    return m.transform(ctx, builder, target_shape);
+                }
+                else
+                {
+                    return std::nullopt;
+                }
+            },
+            segments[0].metadata);
     }
-        
+
     // Try multi-segment patterns
     if(auto split = split_pattern::detect(segments, ctx.axis_len))
     {
         return split->transform(ctx, builder, target_shape);
     }
-    
+
     if(auto tiled = tiled_pattern::detect(segments))
     {
         return tiled->transform(ctx, builder, target_shape);
     }
-    
+
     if(auto rectangular = rectangular_pattern::detect(ctx, segments))
     {
         return rectangular->transform(ctx, builder, target_shape);
     }
-    
 
     return std::nullopt;
 } /// Try segment-based optimization with multi-dimensional normalization

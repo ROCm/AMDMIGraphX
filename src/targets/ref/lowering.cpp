@@ -555,6 +555,7 @@ struct remove_qdq_pairs
             "slice",
             "reshape",
             "reshape_lazy",
+            "contiguous",
             "pad",
         };
         // clang-format on

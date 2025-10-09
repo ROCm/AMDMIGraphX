@@ -1219,6 +1219,10 @@ struct find_unpack_fp4_mlir_op
     {
         auto mlir_op  = mr.result;
         auto* mm      = mlir_op->module_inputs().front();
+        if(std::none_of(mm.begin(). mm.end(), [](auto ins){ ins->() == "quant_dot"; }))
+        {
+            return;
+        }
         module_ref nm = mpm.create_module("fp4:" + mm->name());
         nm->set_bypass();
         std::vector<instruction_ref> new_mlir_op_args;

@@ -583,8 +583,8 @@ struct remove_qdq_pairs
 
 void lowering::apply(module& m) const
 {
-    match::find_matches(m, remove_qdq_pairs{});
-    migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+    //match::find_matches(m, remove_qdq_pairs{});
+    //migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
     ref_apply{&m}.apply();
 }
 } // namespace ref

@@ -1108,16 +1108,6 @@ struct gather_context
 // Segment-Based Gather Optimization
 // ============================================================================
 
-/// Segment type for pattern detection
-enum class segment_type
-{
-    constant,   // All indices same value
-    contiguous, // Sequential run
-    arithmetic, // Arithmetic progression (stride > 1)
-    rtr_window, // Reshape-transpose-reshape window
-    general     // No pattern
-};
-
 namespace {
 
 /// Metadata for constant segment
@@ -1386,7 +1376,6 @@ struct rtr_window_segment_meta
 /// Index segment with pattern metadata
 struct index_segment
 {
-    segment_type type;
     std::size_t start_pos;
     std::size_t length;
     std::variant<std::monostate,
@@ -1395,6 +1384,12 @@ struct index_segment
                  arithmetic_segment_meta,
                  rtr_window_segment_meta>
         metadata;
+
+    template<class T>
+    bool has_type() const
+    {
+        return std::holds_alternative<T>(metadata);
+    }
 
     /// Analyze indices into segments
     static std::vector<index_segment>
@@ -1462,7 +1457,6 @@ struct index_segment
         {
             std::size_t len = std::min(segment_length, indices.size() - pos);
 
-            segment_type best_type = segment_type::general;
             std::variant<std::monostate,
                          constant_segment_meta,
                          contiguous_segment_meta,
@@ -1473,27 +1467,23 @@ struct index_segment
             // Try each pattern type with the fixed length
             if(auto meta = constant_segment_meta::detect(indices, pos, len))
             {
-                best_type     = segment_type::constant;
                 best_metadata = *meta;
             }
             else if(auto meta_cont = contiguous_segment_meta::detect(indices, pos, len))
             {
-                best_type     = segment_type::contiguous;
                 best_metadata = *meta_cont;
             }
             else if(auto meta_arith = arithmetic_segment_meta::detect(indices, pos, len))
             {
-                best_type     = segment_type::arithmetic;
                 best_metadata = *meta_arith;
             }
             else if(auto meta_rtr =
                         rtr_window_segment_meta::detect(indices, pos, len, factor_candidates))
             {
-                best_type     = segment_type::rtr_window;
                 best_metadata = *meta_rtr;
             }
 
-            segments.push_back(index_segment{best_type, pos, len, std::move(best_metadata)});
+            segments.push_back(index_segment{pos, len, std::move(best_metadata)});
             pos += len;
         }
         return segments;
@@ -1511,8 +1501,8 @@ struct split_pattern
     {
         if(segments.size() != 2)
             return std::nullopt;
-        if(segments[0].type != segment_type::contiguous or
-           segments[1].type != segment_type::contiguous)
+        if(not segments[0].has_type<contiguous_segment_meta>() or
+           not segments[1].has_type<contiguous_segment_meta>())
             return std::nullopt;
         auto meta0 = std::get<contiguous_segment_meta>(segments[0].metadata);
         auto meta1 = std::get<contiguous_segment_meta>(segments[1].metadata);
@@ -1556,7 +1546,7 @@ struct tiled_pattern
         if(segments.size() < 2)
             return std::nullopt;
         if(not std::all_of(segments.begin(), segments.end(), [](const auto& seg) {
-               return seg.type == segment_type::arithmetic;
+               return seg.template has_type<arithmetic_segment_meta>();
            }))
             return std::nullopt;
         auto first_meta = std::get<arithmetic_segment_meta>(segments[0].metadata);
@@ -1618,7 +1608,7 @@ struct rectangular_pattern
             return std::nullopt;
 
         if(not std::all_of(segments.begin(), segments.end(), [](const index_segment& seg) {
-               return seg.type == segment_type::constant;
+               return seg.has_type<constant_segment_meta>();
            }))
             return std::nullopt;
 
@@ -1858,21 +1848,25 @@ try_segment_based_optimization_1d(const gather_context& ctx,
     {
         const auto& seg = segments[0];
 
-        switch(seg.type)
+        if(seg.has_type<constant_segment_meta>())
         {
-        case segment_type::constant:
             return std::get<constant_segment_meta>(seg.metadata)
                 .transform(ctx, builder, target_shape);
-        case segment_type::contiguous:
+        }
+        else if(seg.has_type<contiguous_segment_meta>())
+        {
             return std::get<contiguous_segment_meta>(seg.metadata)
                 .transform(ctx, builder, target_shape);
-        case segment_type::arithmetic:
+        }
+        else if(seg.has_type<arithmetic_segment_meta>())
+        {
             return std::get<arithmetic_segment_meta>(seg.metadata)
                 .transform(ctx, builder, target_shape);
-        case segment_type::rtr_window:
+        }
+        else if(seg.has_type<rtr_window_segment_meta>())
+        {
             return std::get<rtr_window_segment_meta>(seg.metadata)
                 .transform(ctx, builder, target_shape);
-        case segment_type::general: return std::nullopt;
         }
     }
 

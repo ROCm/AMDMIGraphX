@@ -471,6 +471,48 @@ struct ref_apply
     }
 };
 
+bool compare_literals(instruction_ref ins1, instruction_ref ins2)
+{
+    if(ins1->name() == "broadcast" or ins1->name() == "multibroadcast")
+        ins1 = ins1->inputs().front();
+    auto x = ins1->eval();
+    if(x.empty())
+        return false;
+    auto literal1 = ins1->get_literal();
+    if(ins2->name() == "broadcast" or ins2->name() == "multibroadcast")
+        ins2 = ins2->inputs().front();
+    auto y = ins2->eval();
+    if(y.empty())
+        return false;
+    auto literal2 = ins2->get_literal();
+
+    bool diff_shapes_equal_vals = false;
+    visit_all(ins1->get_literal(), ins2->get_literal())([&](const auto l1, const auto l2) {
+        diff_shapes_equal_vals =
+            std::all_of(l1.begin() + 1,
+                        l1.end(),
+                        [&](auto v) {
+                            return ((float_equal(v, l1.front())) or
+                                    (std::isinf(static_cast<double>(l1.front())) and
+                                     std::isinf(static_cast<double>(v))));
+                        }) and
+            std::all_of(l2.begin(), l2.end(), [&](auto v) {
+                return ((float_equal(v, l1.front())) or
+                        (std::isinf(static_cast<double>(l1.front())) and
+                         std::isinf(static_cast<double>(v))));
+            });
+    });
+
+    return (x == y) or diff_shapes_equal_vals;
+}
+
+bool is_same_value(instruction_ref a, instruction_ref b)
+{
+    if(a == b)
+        return true;
+    return compare_literals(a, b);
+}
+
 bool is_same_scale_zero(instruction_ref a, instruction_ref b)
 {
     if(a->inputs().size() != b->inputs().size())

@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y software-properties-common gnupg2 --no-
     curl -sL http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add -
 
 # Add rocm repository
-RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/6.4.2/ jammy main > /etc/apt/sources.list.d/rocm.list'
+RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/7.0/ jammy main > /etc/apt/sources.list.d/rocm.list'
 
 # From docs.amd.com for installing rocm. Needed to install properly
 RUN sh -c "echo 'Package: *\nPin: release o=repo.radeon.com\nPin-priority: 600' > /etc/apt/preferences.d/rocm-pin-600"
@@ -36,6 +36,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     python3 \
     python3-dev \
     python3-pip \
+    python3-full \
     libpython3.8 \
     wget \
     rocm-device-libs \
@@ -45,9 +46,11 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     libomp-dev \
     rocblas \
     hipfft \
+    hipsolver \
     rocthrust \
     rocrand \
     hipsparse \
+    rccl \
     rocm-smi-lib \
     rocm-dev \
     roctracer-dev \
@@ -61,6 +64,10 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+# Install pytorch
+RUN pip3 install https://repo.radeon.com/rocm/manylinux/rocm-rel-7.0/torch-2.6.0%2Brocm7.0.0.lw.git2e48b21f-cp310-cp310-linux_x86_64.whl \
+                 https://repo.radeon.com/rocm/manylinux/rocm-rel-7.0/torchvision-0.21.0%2Brocm7.0.0.git4040d51f-cp310-cp310-linux_x86_64.whl \
+                 https://repo.radeon.com/rocm/manylinux/rocm-rel-7.0/pytorch_triton_rocm-3.2.0%2Brocm7.0.0.git20943800-cp310-cp310-linux_x86_64.whl 
 
 # add this for roctracer dependancies
 RUN pip3 install CppHeaderParser
@@ -121,6 +128,8 @@ RUN git clone --single-branch --branch ${ONNXRUNTIME_BRANCH} --recursive ${ONNXR
 
 
 ADD tools/build_and_test_onnxrt.sh /onnxruntime/build_and_test_onnxrt.sh
+ADD tools/pai_test_launcher.sh /onnxruntime/tools/ci_build/github/pai/pai_test_launcher.sh
+ADD tools/pai_provider_test_launcher.sh /onnxruntime/tools/ci_build/github/pai/pai_provider_test_launcher.sh
 
 ENV MIOPEN_FIND_DB_PATH=/tmp/miopen/find-db
 ENV MIOPEN_USER_DB_PATH=/tmp/miopen/user-db

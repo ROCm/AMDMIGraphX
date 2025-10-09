@@ -831,6 +831,7 @@ shape::type_t get_type(int dtype)
     case 18: return shape::fp8e4m3fnuz_type;
     case 21: return shape::uint8_type;
     case 22: return shape::int8_type;
+    case 23: return shape::fp4x2_type;
     case 14:
     case 15:
     case 16: return shape::bf16_type;

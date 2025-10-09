@@ -160,6 +160,15 @@ F for_each_iterator(Iterator first, Iterator last, F f)
     return f;
 }
 
+/// Like std::for_each but can pass in another range like std::transform
+template <class Iterator1, class Iterator2, class F>
+F for_each(Iterator1 first1, Iterator1 last1, Iterator2 first2, F f)
+{
+    for(; first1 != last1; ++first1, ++first2)
+        f(*first1, *first2);
+    return f;
+}
+
 template <class Iterator1, class Iterator2>
 std::ptrdiff_t
 levenshtein_distance(Iterator1 first1, Iterator1 last1, Iterator2 first2, Iterator2 last2)

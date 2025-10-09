@@ -1385,7 +1385,7 @@ struct index_segment
                  rtr_window_segment_meta>
         metadata;
 
-    template<class T>
+    template <class T>
     bool has_type() const
     {
         return std::holds_alternative<T>(metadata);

@@ -42,25 +42,28 @@ enum class qkv_fomat_t
 
 enum class key_mask_mode_t
 {
-    direct    = 0,
-    left_pad  = 1,
-    right_pad = 2
+    none          = -1,
+    direct_2d_pad = 0,
+    left_pad      = 1,
+    right_pad     = 2,
+    direct_3d_pad = 3
 };
 
 struct multi_head_attention_parameters
 {
-    int64_t batch_size;
-    int64_t q_sequence_length;
-    int64_t kv_sequence_length;
-    int64_t hidden_size;
-    int64_t hidden_size_v;
-    int64_t head_size;
-    int64_t head_size_v;
-    int64_t num_heads;
-    qkv_fomat_t qkv_fomat;
-    bool qkv_biased;
-    float mask_filter_value;
-    key_mask_mode_t key_pad_mode;
+    int64_t batch_size = 0;
+    int64_t q_sequence_length = 0;
+    int64_t kv_sequence_length = 0;
+    int64_t total_sequence_length = 0;
+    int64_t hidden_size = 0;
+    int64_t hidden_size_v = 0;
+    int64_t head_size = 0;
+    int64_t head_size_v = 0;
+    int64_t num_heads = 0;
+    qkv_fomat_t qkv_fomat = qkv_fomat_t::q_k_v;
+    bool qkv_biased = false;
+    float mask_filter_value = -10000.0f;
+    key_mask_mode_t key_pad_mode = key_mask_mode_t::none;
 };
 
 struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
@@ -207,6 +210,57 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         }
     }
 
+    void check_key_padding_mask(const std::vector<instruction_ref>& args,
+                multi_head_attention_parameters& params) const
+    {
+        if(args.size() > 4)
+        {
+            const auto key_pad_lens = args[3]->get_shape().lens();
+            const auto key_pad_len_size = key_pad_lens.size();
+
+            if(key_pad_len_size > 3 or key_pad_len_size < 1)
+                MIGRAPHX_THROW("MultiHeadAttention: Key_pad_mask must be either 1D, 2D or 3D shape tensor");
+
+            if(key_pad_len_size  == 1)
+            {
+                auto key_pad_batch = key_pad_lens.at(0);
+                if(key_pad_batch != params.batch_size and key_pad_batch != (3* params.batch_size + 2))
+                    MIGRAPHX_THROW("MultiHeadAttention: Key Padding Mask must be either batch or 3 x Batch + 2 for 1D key pads");
+
+                if(key_pad_batch == params.batch_size)
+                {
+                    params.key_pad_mode = key_mask_mode_t::right_pad;
+                }
+                else
+                {
+                    params.key_pad_mode = key_mask_mode_t::left_pad;
+                }
+            }
+            else if(key_pad_len_size == 2)
+            {
+                const auto key_pad_batch = key_pad_lens.at(0);
+                const auto key_pad_total_seq_len = key_pad_lens.at(1);
+
+                if(key_pad_batch != params.batch_size or key_pad_total_seq_len != params.kv_sequence_length)
+                {
+                    MIGRAPHX_THROW("MultiHeadAttention: 2D Keypad mask must have either (batch, kv_sequence_length) or (batch, total_sequence_length)");
+                }
+                params.key_pad_mode = key_mask_mode_t::direct_2d_pad;
+            }
+            else // key_pad_len_size == 3 here
+            {
+                const auto key_pad_batch = key_pad_lens.at(0);
+                const auto key_pad_seq_len = key_pad_lens.at(1);
+                const auto key_pad_total_seq_len = key_pad_lens.at(2);
+                if(key_pad_batch != params.batch_size or key_pad_seq_len != params.kv_sequence_length or key_pad_total_seq_len != params.total_sequence_length)
+                {
+                    MIGRAPHX_THROW("MultiHeadAttention: 3D Keypad mask must have either (batch, kv_sequence_length, total_sequence_length) or (batch, total_sequence_length)");
+                }
+                params.key_pad_mode = key_mask_mode_t::direct_3d_pad;
+            }
+        }
+    }
+
     void check_bias(const std::vector<instruction_ref>& args,
                     multi_head_attention_parameters& params) const
     {
@@ -237,6 +291,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         // This must be used first to extract hidden size, batch, etc
         check_query_dim(args, params);
         check_bias(args, params);
+        check_key_padding_mask(args, params);
     }
 
     std::tuple<instruction_ref, instruction_ref, instruction_ref>
@@ -414,7 +469,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
                           const onnx_parser::node_info& info,
                           const std::vector<instruction_ref>& args) const
     {
-        multi_head_attention_parameters params = handle_attributes(info, parser);
+        auto params = handle_attributes(info, parser);
         check_inputs(args, params);
 
         // Handle packing mode of qkv inputs

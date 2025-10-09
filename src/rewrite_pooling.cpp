@@ -222,12 +222,11 @@ void rewrite_pooling::apply(module& m) const
     {
         if(ins->inputs().empty())
             continue;
-        if(ins->name() == "lrn")
+        if(rewrite_lrn and ins->name() == "lrn")
         {
             lower_lrn_to_pooling(m, ins);
             continue;
         }
-
         if(ins->name() != "pooling")
             continue;
 

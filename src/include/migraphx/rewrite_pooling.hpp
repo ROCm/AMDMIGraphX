@@ -38,6 +38,7 @@ struct module;
  */
 struct MIGRAPHX_EXPORT rewrite_pooling
 {
+    bool rewrite_lrn = false;
     std::string name() const { return "rewrite_pooling"; }
     void apply(module& m) const;
 };

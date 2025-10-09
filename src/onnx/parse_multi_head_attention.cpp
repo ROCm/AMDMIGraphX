@@ -49,6 +49,7 @@ struct multi_head_attention_parameters
     int64_t hidden_size_v;
     int64_t head_size;
     int64_t head_size_v;
+    int64_t num_heads;
     qkv_fomat_t qkv_fomat;
     bool qkv_biased;
 };
@@ -95,7 +96,6 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
     }
 
     void check_query_dim(const std::vector<instruction_ref>& args,
-                         const int64_t num_heads,
                          multi_head_attention_parameters& params) const
     {
         auto query_dim  = args[0]->get_shape().ndim();
@@ -110,15 +110,15 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
 
         if(query_dim == 5)
         {
-            if(query_lens[2] != num_heads or query_lens[3] != 3)
+            if(query_lens[2] != params.num_heads or query_lens[3] != 3)
                 MIGRAPHX_THROW("MultiHeadAttention: Input 'query' shape needs to be (batch_size, "
                                "q_sequence_length, num_heads, 3, head_size) for packed input.");
 
             params.kv_sequence_length = query_lens[1];
             params.head_size          = query_lens[4];
             params.head_size_v        = query_lens[4];
-            params.hidden_size        = num_heads * query_lens[4];
-            params.hidden_size_v      = num_heads * query_lens[4];
+            params.hidden_size        = params.num_heads * query_lens[4];
+            params.hidden_size_v      = params.num_heads * query_lens[4];
             params.qkv_fomat          = qkv_fomat_t::qkv_packed;
         }
         else // query_dim == 3
@@ -127,7 +127,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
                 MIGRAPHX_THROW("MultiHeadAttention: Wrong number of inputs, 'key' is missing.");
 
             params.hidden_size = query_lens[2];
-            params.head_size   = query_lens[2] / num_heads;
+            params.head_size   = query_lens[2] / params.num_heads;
 
             auto key_dim  = args[1]->get_shape().ndim();
             auto key_lens = args[1]->get_shape().lens();
@@ -139,7 +139,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
 
             if(key_dim == 5)
             {
-                if(key_lens[0] != params.batch_size or key_lens[2] != num_heads or
+                if(key_lens[0] != params.batch_size or key_lens[2] != params.num_heads or
                    key_lens[3] != 2 or key_lens[4] != params.head_size)
                     MIGRAPHX_THROW("MultiHeadAttention: Input 'key' shape needs to be (batch_size, "
                                    "kv_sequence_length, num_heads, 2, head_size)");
@@ -174,23 +174,23 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
 
                     params.kv_sequence_length = key_lens[1];
                     params.hidden_size_v      = value_lens[2];
-                    params.head_size_v        = value_lens[2] / num_heads;
+                    params.head_size_v        = value_lens[2] / params.num_heads;
                     params.qkv_fomat          = qkv_fomat_t::q_k_v;
                 }
                 else // key_dim == 4
                 {
-                    if(key_lens[0] != params.batch_size or key_lens[1] != num_heads or
+                    if(key_lens[0] != params.batch_size or key_lens[1] != params.num_heads or
                        key_lens[3] != params.head_size)
                         MIGRAPHX_THROW("MultiHeadAttention: Input 'key' shape needs to be "
                                        "(batch_size, num_heads, kv_sequence_length, head_size)");
 
-                    if(value_lens[0] != params.batch_size or value_lens[1] != num_heads or
+                    if(value_lens[0] != params.batch_size or value_lens[1] != params.num_heads or
                        value_lens[2] != key_lens[2])
                         MIGRAPHX_THROW("MultiHeadAttention: Input 'value' shape needs to be "
                                        "(batch_size, num_heads, kv_sequence_length, head_size_v)");
 
                     params.kv_sequence_length = key_lens[2];
-                    params.hidden_size_v      = value_lens[3] * num_heads;
+                    params.hidden_size_v      = value_lens[3] * params.num_heads;
                     params.head_size_v        = value_lens[3];
                     params.qkv_fomat          = qkv_fomat_t::q_k_v_cross;
                 }
@@ -217,7 +217,6 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
     }
 
     void check_inputs(const std::vector<instruction_ref>& args,
-                      const int64_t num_heads,
                       multi_head_attention_parameters& params) const
     {
         if(args.empty() or args.size() > 4)
@@ -226,8 +225,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
 
         // Order matters here. Most parameters defined by input query, key, value parameters
         // This must be used first to extract hidden size, batch, etc
-        check_query_dim(args, num_heads, params);
-
+        check_query_dim(args, params);
         check_bias(args, params);
     }
 
@@ -246,26 +244,11 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
             make_op("slice", {{"axes", {0}}, {"starts", {params.hidden_size}}, {"ends", {2 * params.hidden_size}}}), bias);
 
         auto v_bias = info.add_instruction(
-            make_op("slice", {{"axes", {0}}, {"starts", {2*params.hidden_size}}, {"ends", {params.hidden_size_v}}}), bias);
-
-        query = info.add_common_op("add", query, q_bias);
-        key   = info.add_common_op("add", key, k_bias);
-        value = info.add_common_op("add", value, v_bias);
-    }
-
-    instruction_ref parse(const op_desc& /*opd*/,
-                          const onnx_parser& parser,
-                          const onnx_parser::node_info& info,
+    std::tuple<instruction_ref, instruction_ref, instruction_ref>
+    handle_qkv_packing(const onnx_parser::node_info& info,
+                       const multi_head_attention_parameters& params,
                           const std::vector<instruction_ref>& args) const
     {
-        if(not contains(info.attributes, "num_heads"))
-            MIGRAPHX_THROW("MultiHeadAttention: num_heads attribute is required");
-
-        int64_t num_heads = parser.parse_value(info.attributes.at("num_heads")).at<int>();
-
-        multi_head_attention_parameters params;
-        check_inputs(args, num_heads, params);
-
         auto query = args[0];
         instruction_ref key;
         instruction_ref value;
@@ -279,7 +262,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         {
             // Query: (batch_size, q_sequence_length, hidden_size)
             std::vector<int64_t> q_dims{
-                params.batch_size, params.q_sequence_length, num_heads, params.head_size};
+                params.batch_size, params.q_sequence_length, params.num_heads, params.head_size};
             query = info.add_instruction(make_op("reshape", {{"dims", q_dims}}), query);
 
             key = args[1];
@@ -297,16 +280,38 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
                     // Key: (batch_size, kv_sequence_length, hidden_size)
                     // Value: (batch_size, kv_sequence_length, hidden_size_v)
                     std::vector<int64_t> k_dims{
-                        params.batch_size, params.kv_sequence_length, num_heads, params.head_size};
+                        params.batch_size, params.kv_sequence_length, params.num_heads, params.head_size};
                     std::vector<int64_t> v_dims{params.batch_size,
                                                 params.kv_sequence_length,
-                                                num_heads,
+                                                params.num_heads,
                                                 params.head_size_v};
                     key   = info.add_instruction(make_op("reshape", {{"dims", k_dims}}), key);
                     value = info.add_instruction(make_op("reshape", {{"dims", v_dims}}), value);
                 }
             }
         }
+
+        return std::make_tuple(query, key, value);
+    }
+
+    instruction_ref parse(const op_desc& /*opd*/,
+                          const onnx_parser& parser,
+                          const onnx_parser::node_info& info,
+                          const std::vector<instruction_ref>& args) const
+    {
+        if(not contains(info.attributes, "num_heads"))
+            MIGRAPHX_THROW("MultiHeadAttention: num_heads attribute is required");
+
+        int64_t num_heads = parser.parse_value(info.attributes.at("num_heads")).at<int>();
+
+        multi_head_attention_parameters params;
+        params.num_heads = num_heads;
+        check_inputs(args, params);
+
+        // Handle packing mode of qkv inputs
+        // Output should be (batch, sequence_length, num_heads, head_size) for each QKV
+        // Depending on attention mode these will change the sequence length / hidden size
+        auto [query, key, value] = handle_qkv_packing(info, params, args);
 
         // Apply bias to QKV inputs after unpacking
         if(params.qkv_biased)

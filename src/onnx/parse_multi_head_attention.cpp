@@ -52,6 +52,7 @@ struct multi_head_attention_parameters
     int64_t num_heads;
     qkv_fomat_t qkv_fomat;
     bool qkv_biased;
+    float mask_filter_value;
 };
 
 struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
@@ -378,18 +379,34 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         return std::make_tuple(query, key, value);
     }
 
+    multi_head_attention_parameters 
+    handle_attributes(const onnx_parser::node_info& info,
+                      const onnx_parser& parser) const
+    {
+        if(not contains(info.attributes, "num_heads"))
+            MIGRAPHX_THROW("MultiHeadAttention: num_heads attribute is required");
+
+        multi_head_attention_parameters params;
+        params.num_heads = parser.parse_value(info.attributes.at("num_heads")).at<int>();
+
+        if(contains(info.attributes, "mask_filter_value"))
+        {
+            params.mask_filter_value = parser.parse_value(info.attributes.at("mask_filter_value")).at<float>();
+        }
+        else
+        {
+            params.mask_filter_value = -10000.0f;
+        }
+
+        return params; 
+    }
+
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,
                           const onnx_parser::node_info& info,
                           const std::vector<instruction_ref>& args) const
     {
-        if(not contains(info.attributes, "num_heads"))
-            MIGRAPHX_THROW("MultiHeadAttention: num_heads attribute is required");
-
-        int64_t num_heads = parser.parse_value(info.attributes.at("num_heads")).at<int>();
-
-        multi_head_attention_parameters params;
-        params.num_heads = num_heads;
+        multi_head_attention_parameters params = handle_attributes(info, parser);
         check_inputs(args, params);
 
         // Handle packing mode of qkv inputs

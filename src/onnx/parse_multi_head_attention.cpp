@@ -40,6 +40,13 @@ enum class qkv_fomat_t
     qkv_packed  = 3
 };
 
+enum class key_mask_mode_t
+{
+    direct    = 0,
+    left_pad  = 1,
+    right_pad = 2
+};
+
 struct multi_head_attention_parameters
 {
     int64_t batch_size;
@@ -53,6 +60,7 @@ struct multi_head_attention_parameters
     qkv_fomat_t qkv_fomat;
     bool qkv_biased;
     float mask_filter_value;
+    key_mask_mode_t key_pad_mode;
 };
 
 struct parse_multi_head_attention : op_parser<parse_multi_head_attention>

@@ -287,6 +287,19 @@ struct find_group_query_attention
     std::size_t* counter = nullptr;
 
     auto matcher() const { return match::name("group_query_attention"); }
+    // auto concat_keys = match::name("concat")(match::args(match::name("@param").bind("past_key"), match::name("add").bind("pres_key"))).bind("concat_k");
+    //     auto concat_values = match::name("concat")(match::args(match::name("@param").bind("past_value"), match::name("transpose").bind("pres_value"))).bind("concat_v");
+    //     auto k_transpose = match::name("transpose")(match::arg(0)(concat_keys));
+
+    //     auto gemm1 = match::name("dot")(match::args(match::name("add").bind("q"), k_transpose));
+    //     auto mul = match::name("mul")(
+    //         match::nargs(2), match::either_arg(0, 1)(match::is_constant().bind("scale"), gemm1));
+    //     auto add = match::name("add")(match::nargs(2),
+    //         match::either_arg(0, 1)(match::skip_broadcasts(match::name("@param").bind("attn_mask")).bind("bias"), mul));
+    //     auto softmax = match::name("softmax")(match::arg(0)(match::any_of(mul, add, gemm1)));
+    //     auto gemm2 = match::name("dot")(match::args(softmax, concat_values));
+    //     auto transpose = match::name("transpose")(match::arg(0)(gemm2));
+    //     return match::name("reshape")(match::arg(0)(transpose));
 
     auto finalize_attention_module(module_ref m) const
     {

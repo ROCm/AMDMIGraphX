@@ -221,20 +221,26 @@ const auto& reshaper_names()
 
 bool is_fusable_input_op(const std::string& name)
 {
-    return contains(reshaper_names(), name) or contains({"slice"}, name);
+    return contains(reshaper_names(), name) or contains({"slice"}, name) or contains({"pointwise"}, name);
 }
 
 std::tuple<instruction_ref, std::vector<operation>>
 get_fusable_input_op_stream(instruction_ref lower_input)
 {
     instruction_ref upper_input = lower_input;
+    
+    std::cout << "Starting at ";
+    upper_input->debug_print();
+    upper_input->
     std::vector<operation> op_stream;
     while(is_fusable_input_op(upper_input->name()))
     {
+        std::cout << upper_input->name() << ": fusible" << std::endl;
         operation op = upper_input->get_operator();
         op_stream.push_back(op);
         upper_input = upper_input->inputs().at(0);
     }
+    std::cout << upper_input->name() << ": not fusible" << std::endl;
     return {upper_input, op_stream};
 }
 
@@ -315,6 +321,7 @@ auto is_mlir_dot(mlir_mode mode)
         // Skipping GEMMs with a K dimension greater than 2048 is a course-grained strategy
         // to avoid poor-performing GEMM kernels from MLIR
         // To-do: Investigate a more precise strategy
+        // return true;
         if(k > 1535)
             return false;
         if(k < 1024)
@@ -422,9 +429,18 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
                                                          type_t::int32_type,
                                                          type_t::uint32_type,
                                                          type_t::bool_type};
+    bool is_where = name == "where";
+    if(is_where)
+    {
+        std::cout << "Checking on a where op..." << std::endl;
+    }
     // Preliminary type check.
     if(not contains(allowed_types, result_type))
     {
+        if(is_where)
+        {
+            std::cout << "1st false" << std::endl;
+        }
         return false;
     }
     const std::initializer_list<std::string> any_type_ops = {"@literal", "@param", "@return"};
@@ -467,24 +483,44 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
                                            type_t::fp8e4m3fn_type,
                                            type_t::fp8e5m2_type};
     bool is_float                       = contains(float_types, result_type);
+    if(is_where)
+        {
+            std::cout << "Pre-trues" << std::endl;
+        }
     if(contains(any_type_ops, name))
         return true;
     if(result_type != type_t::bool_type and contains(no_bool_ops, name))
         return true;
     if(is_float and contains(fp_only_ops, name))
         return true;
+    if(is_where)
+        {
+            std::cout << "Post-trues" << std::endl;
+        }
     // Only conversions between floating types are known to be unambigiously
     // supported.
     if(is_float and name == "convert")
     {
         if(contains(fp8_types{}.get(), result_type))
         {
+            if(is_where)
+            {
+                std::cout << "2nd false" << std::endl;
+            }
             return false;
         } // else
+        if(is_where)
+        {
+            std::cout << "3rd false" << std::endl;
+        }
         return std::all_of(i.inputs().begin(), i.inputs().end(), [](const auto& arg) {
             return contains({type_t::float_type, type_t::half_type, type_t::bf16_type},
                             arg->get_shape().type());
         });
+    }
+    if(is_where)
+    {
+        std::cout << "False at end" << std::endl;
     }
     return false;
 }
@@ -843,6 +879,8 @@ struct find_mlir_standalone_attention_op
         std::unordered_map<instruction_ref, instruction_ref> map_main_to_mattn;
 
         // Add first gemm and fuse any input shape ops
+        auto all_inputs = gemm1->inputs();
+        all_inputs.insert(all_inputs.end(), fused_reduce->inputs().begin(), fused_reduce->inputs().end());
         module fuse_gemm1;
         auto [anchor_op, top_inputs] =
             fuse_input_ops_and_gemm_based_op(&fuse_gemm1, gemm1->inputs(), gemm1->get_operator());
@@ -882,7 +920,12 @@ struct find_mlir_standalone_attention_op
 
         // all preceeding ops should be fusable ops
         if(not std::all_of(m_gemm1, softmax, [](const instruction& i) {
-               return (is_pointwise_op_supported_by_mlir(i) or is_fusable_input_op(i.name()));
+                // if(not is_pointwise_op_supported_by_mlir(i) or not is_fusable_input_op(i.name()))
+                // {
+                //     i.debug_print();
+                //     std::cout << "  Not supported" << std::endl;
+                // }
+                return (is_pointwise_op_supported_by_mlir(i) or is_fusable_input_op(i.name()));
            }))
             return;
 
@@ -929,6 +972,8 @@ struct find_mlir_standalone_attention_op
 
         mpm.get_module().replace_instruction(
             r.result, mlir_op{gemm1->get_operator()}, mlir_contiguous(mpm, new_inputs), {mpm_attn});
+        std::cout << "Fused attention: " << mpm_attn->name() << std::endl;
+        mpm_attn->debug_print();
     }
 };
 
@@ -1092,6 +1137,7 @@ struct find_unpack_int4_mlir_op
 
 void fuse_mlir::apply(module_pass_manager& mpm) const
 {
+    mpm.get_module().debug_print();
 #ifdef MIGRAPHX_MLIR
     std::size_t counter     = 0;
     const auto& device_name = ctx == nullptr ? "" : ctx->get_current_device().get_gfx_name();

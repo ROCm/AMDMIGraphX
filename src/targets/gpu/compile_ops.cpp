@@ -316,6 +316,8 @@ struct compile_manager
 
 void compile_ops::apply(module& m) const
 {
+    // std::cout << "Compile ops" << std::endl;
+    // m.debug_print();
     compile_manager cm;
     cm.exhaustive = exhaustive_tune;
     // Find all precompile ops

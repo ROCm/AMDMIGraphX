@@ -21,49 +21,43 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-
-#include <migraphx/ref/target.hpp>
-#include <migraphx/ref/lowering.hpp>
-#include <migraphx/register_target.hpp>
-#include <migraphx/pass.hpp>
-#include <migraphx/auto_contiguous.hpp>
-#include <migraphx/rewrite_rnn.hpp>
-#include <migraphx/eliminate_convert.hpp>
-#include <migraphx/eliminate_pad.hpp>
-#include <migraphx/eliminate_zero_dim.hpp>
-#include <migraphx/insert_pad.hpp>
-#include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/normalize_ops.hpp>
-#include <migraphx/eliminate_data_type.hpp>
+#include <migraphx/eliminate_scatternd.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/stringutils.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/matcher.hpp>
+#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace ref {
 
-std::string target::name() const { return "ref"; }
-
-std::vector<pass> target::get_passes(migraphx::context&, const compile_options&) const
+struct find_where_scatternd
 {
-    return {normalize_ops{},
-            eliminate_pad{},
-            dead_code_elimination{},
-            insert_pad{},
-            dead_code_elimination{},
-            rewrite_rnn{},
-            dead_code_elimination{},
-            auto_contiguous{},
-            // dead_code_elimination{},
-            // eliminate_zero_dim{},
-            dead_code_elimination{},
-            lowering{},
-            dead_code_elimination{}};
+    auto matcher() const { return match::name("scatternd_none")(match::arg(2)(match::name("where").bind("where"))); }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        // std::cout << "Matched where->scatternd" <<std::endl;
+        auto where = mr.instructions["where"];
+        auto scatternd = mr.result;
+        
+        // To do: more robust check
+
+        m.replace_instruction(scatternd, where);
+        // std::cout << "Replaced" << std::endl;
+        // m.remove_instruction(scatternd);
+        // m.debug_print();
+    }
+};
+
+void eliminate_scatternd::apply(module& m) const
+{
+    // std::cout << "Eliminate scatternd" << std::endl;
+    // m.debug_print();
+    match::find_matches(m, find_where_scatternd{});
 }
 
-argument target::allocate(const shape& s) const { return fill_argument(s, 0); }
-
-MIGRAPHX_REGISTER_TARGET(target);
-
-} // namespace ref
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

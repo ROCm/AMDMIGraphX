@@ -616,9 +616,16 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
                     std::cout << "Output has " << to_string_range(classify_argument(buffer))
                               << std::endl;
                     std::cout << "Output: ";
-                    preview_argument(std::cout, buffer);
-                    std::cout << std::endl;
-                    print_statistics(std::cout, buffer);
+                    if(buffer.get_shape().elements() > 0)
+                    {
+                        preview_argument(std::cout, buffer);
+                        std::cout << std::endl;
+                        print_statistics(std::cout, buffer);
+                    }
+                    else
+                    {
+                        std::cout << std::endl;
+                    }
                 }
                 else
                 {

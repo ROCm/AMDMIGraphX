@@ -380,6 +380,11 @@ parse_inputs(const onnx_parser& parser,
             else
             {
                 s = parser.parse_type(input.type());
+                // auto lens = s.lens();
+                // if(std::any_of(lens.begin(), lens.end(), [](auto l){ return l == 0; }))
+                // {
+                //     s = s.with_type(shape::half_type);
+                // }
             }
             mod_insts[name] = mod->add_parameter(name, s);
         }

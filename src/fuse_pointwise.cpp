@@ -126,6 +126,14 @@ static void create_pointwise_modules(module_pass_manager& mpm)
         if(pointwise_inputs.empty())
             continue;
 
+        
+        // auto lens = ins->get_shape().lens();
+        // if(ins->name() == "convert" or std::any_of(lens.begin(), lens.end(), [](auto l){ return l == 0; }))
+        // {
+        //     std::cout << "Skipping zero-dim op" << std::endl;
+        //     continue;
+        // }
+
         std::vector<instruction_ref> inputs;
         std::transform(ins->inputs().begin(),
                        ins->inputs().end(),

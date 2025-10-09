@@ -1376,19 +1376,65 @@ struct rtr_window_segment_meta
 /// Index segment with pattern metadata
 struct index_segment
 {
-    std::size_t start_pos;
-    std::size_t length;
-    std::variant<std::monostate,
+    using meta_type = std::variant<std::monostate,
                  constant_segment_meta,
                  contiguous_segment_meta,
                  arithmetic_segment_meta,
-                 rtr_window_segment_meta>
-        metadata;
+                 rtr_window_segment_meta>;
+    std::size_t start_pos = 0;
+    std::size_t length = 0;
+    meta_type metadata = std::monostate{};
 
     template <class T>
     bool has_type() const
     {
         return std::holds_alternative<T>(metadata);
+    }
+
+    bool empty() const
+    {
+        return std::holds_alternative<std::monostate>(metadata);
+    }
+
+    static index_segment
+    detect(const std::vector<int64_t>& indices,
+           std::size_t pos,
+           std::size_t len,
+           const std::vector<std::vector<std::size_t>>& factor_candidates)
+    {
+        if(auto meta = constant_segment_meta::detect(indices, pos, len))
+        {
+            return index_segment{pos, len, *meta};
+        }
+        else if(auto meta_cont = contiguous_segment_meta::detect(indices, pos, len))
+        {
+            return index_segment{pos, len, *meta_cont};
+        }
+        else if(auto meta_arith = arithmetic_segment_meta::detect(indices, pos, len))
+        {
+            return index_segment{pos, len, *meta_arith};
+        }
+        else if(auto meta_rtr =
+                    rtr_window_segment_meta::detect(indices, pos, len, factor_candidates))
+        {
+            return index_segment{pos, len, *meta_rtr};
+        }
+        return {};
+    }
+
+    static index_segment find_first_segment(const std::vector<int64_t>& indices,
+           const std::vector<std::vector<std::size_t>>& factor_candidates)
+    {
+        std::size_t n = 2 + indices.size()/2;
+        for(auto i:range(1,n))
+        {
+            if(indices.size() % i != 0)
+                continue;
+            auto seg = detect(indices, 0, indices.size()/i, factor_candidates);
+            if(not seg.empty())
+                return seg;
+        }
+        return {};
     }
 
     /// Analyze indices into segments
@@ -1400,93 +1446,15 @@ struct index_segment
         std::vector<index_segment> segments;
         if(indices.empty())
             return segments;
-
-        std::size_t pos = 0;
-
-        // Find the largest segment length that matches any pattern
-        // Since segments must be uniform (same length), the segment length must evenly
-        // divide the array size. Strategy:
-        // 1. Try full length first (handles RTR, contiguous, constant patterns)
-        // 2. Try divisors from largest to smallest (covers all valid segment sizes)
-
-        auto try_pattern = [&](std::size_t len) -> bool {
-            return constant_segment_meta::detect(indices, pos, len).has_value() or
-                   contiguous_segment_meta::detect(indices, pos, len).has_value() or
-                   arithmetic_segment_meta::detect(indices, pos, len).has_value() or
-                   rtr_window_segment_meta::detect(indices, pos, len, factor_candidates)
-                       .has_value();
-        };
-
-        std::size_t segment_length = 1;
-        std::size_t n              = indices.size();
-
-        // Step 1: Try full length first (common case: single segment)
-        if(try_pattern(n))
-        {
-            segment_length = n;
-        }
-        else
-        {
-            // Step 2: Try divisors in descending order (largest to smallest)
-            // First try large divisors, then small common sizes
-            for(std::size_t d = n / 2; d > 16; --d)
-            {
-                if(n % d == 0 and try_pattern(d))
-                {
-                    segment_length = d;
-                    break;
-                }
-            }
-
-            // Try small common segment sizes (16 down to 1)
-            if(segment_length == 1)
-            {
-                for(std::size_t d = 16; d >= 1; --d)
-                {
-                    if(n % d == 0 and try_pattern(d))
-                    {
-                        segment_length = d;
-                        break;
-                    }
-                }
-            }
-        }
-
-        // Now apply this segment length uniformly across all indices
-        while(pos < indices.size())
-        {
-            std::size_t len = std::min(segment_length, indices.size() - pos);
-
-            std::variant<std::monostate,
-                         constant_segment_meta,
-                         contiguous_segment_meta,
-                         arithmetic_segment_meta,
-                         rtr_window_segment_meta>
-                best_metadata;
-
-            // Try each pattern type with the fixed length
-            if(auto meta = constant_segment_meta::detect(indices, pos, len))
-            {
-                best_metadata = *meta;
-            }
-            else if(auto meta_cont = contiguous_segment_meta::detect(indices, pos, len))
-            {
-                best_metadata = *meta_cont;
-            }
-            else if(auto meta_arith = arithmetic_segment_meta::detect(indices, pos, len))
-            {
-                best_metadata = *meta_arith;
-            }
-            else if(auto meta_rtr =
-                        rtr_window_segment_meta::detect(indices, pos, len, factor_candidates))
-            {
-                best_metadata = *meta_rtr;
-            }
-
-            segments.push_back(index_segment{pos, len, std::move(best_metadata)});
-            pos += len;
-        }
-        return segments;
+        segments.push_back(find_first_segment(indices, factor_candidates));
+        if(segments.front().empty())
+            return {};
+        transform(range(1,indices.size() / segments[0].length), std::back_inserter(segments), [&](auto i) {
+            return detect(indices, i * segments[0].length, segments[0].length, factor_candidates);
+        });
+        if(std::all_of(segments.begin(), segments.end(), [](const auto& s) { return not s.empty(); }))
+            return segments;
+        return {};
     }
 };
 
@@ -1827,48 +1795,34 @@ try_segment_based_optimization_1d(const gather_context& ctx,
     if(segments.empty())
         return std::nullopt;
 
+    // Try single-segment patterns
+    if(segments.size() == 1)
+    {
+        return std::visit([&](const auto& m) -> std::optional<instruction_ref> {
+            if constexpr (not std::is_same<std::decay_t<decltype(m)>, std::monostate>{}) {
+                return m.transform(ctx, builder, target_shape);
+            } else {
+                return std::nullopt;
+            }
+        }, segments[0].metadata);
+    }
+        
     // Try multi-segment patterns
     if(auto split = split_pattern::detect(segments, ctx.axis_len))
     {
         return split->transform(ctx, builder, target_shape);
     }
-
+    
     if(auto tiled = tiled_pattern::detect(segments))
     {
         return tiled->transform(ctx, builder, target_shape);
     }
-
+    
     if(auto rectangular = rectangular_pattern::detect(ctx, segments))
     {
         return rectangular->transform(ctx, builder, target_shape);
     }
-
-    // Try single-segment patterns
-    if(segments.size() == 1)
-    {
-        const auto& seg = segments[0];
-
-        if(seg.has_type<constant_segment_meta>())
-        {
-            return std::get<constant_segment_meta>(seg.metadata)
-                .transform(ctx, builder, target_shape);
-        }
-        else if(seg.has_type<contiguous_segment_meta>())
-        {
-            return std::get<contiguous_segment_meta>(seg.metadata)
-                .transform(ctx, builder, target_shape);
-        }
-        else if(seg.has_type<arithmetic_segment_meta>())
-        {
-            return std::get<arithmetic_segment_meta>(seg.metadata)
-                .transform(ctx, builder, target_shape);
-        }
-        else if(seg.has_type<rtr_window_segment_meta>())
-        {
-            return std::get<rtr_window_segment_meta>(seg.metadata)
-                .transform(ctx, builder, target_shape);
-        }
-    }
+    
 
     return std::nullopt;
 } /// Try segment-based optimization with multi-dimensional normalization

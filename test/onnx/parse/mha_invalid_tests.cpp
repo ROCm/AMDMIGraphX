@@ -98,3 +98,28 @@ TEST_CASE(multi_head_attention_invalid_bias_dimensions)
 {
     EXPECT(test::throws([&] { read_onnx("mha_invalid_bias_dimensions_test.onnx"); }));
 }
+
+TEST_CASE(multi_head_attention_invalid_key_pad_dims_shape)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_key_pad_dimensions_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_key_pad_size_shape)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_key_pad_shape_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_key_pad_size2_shape)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_key_pad_shape2_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_key_pad_size3_shape)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_key_pad_shape3_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_key_pad_shape_type)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_key_pad_type_test.onnx"); }));
+}

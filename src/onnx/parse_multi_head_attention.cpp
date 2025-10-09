@@ -215,8 +215,12 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
     {
         if(args.size() > 4)
         {
-            const auto key_pad_lens = args[3]->get_shape().lens();
+            const auto key_pad_lens = args.at(4)->get_shape().lens();
             const auto key_pad_len_size = key_pad_lens.size();
+            const auto key_pad_type = args.at(4)->get_shape().type();
+
+            if(key_pad_type != shape::int32_type)
+                MIGRAPHX_THROW("MultiHeadAttention: Key padding mask must be a int32 tensor");
 
             if(key_pad_len_size > 3 or key_pad_len_size < 1)
                 MIGRAPHX_THROW("MultiHeadAttention: Key_pad_mask must be either 1D, 2D or 3D shape tensor");

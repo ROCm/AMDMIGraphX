@@ -52,5 +52,3 @@ template struct test_lrn<32, 3>;
 template struct test_lrn<32, 4>;
 template struct test_lrn<32, 5>;
 template struct test_lrn<32, 6>;
-
-

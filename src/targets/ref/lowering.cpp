@@ -48,6 +48,9 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/tune_axis.hpp>
 #include <migraphx/pad_calc.hpp>
+#include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/matcher.hpp>
+#include <migraphx/pass_manager.hpp>
 
 #include <unordered_map>
 #include <utility>
@@ -468,8 +471,79 @@ struct ref_apply
     }
 };
 
-void lowering::apply(module& m) const { ref_apply{&m}.apply(); }
+bool is_same_scale_zero(instruction_ref a, instruction_ref b)
+{
+    if(a->inputs().size() != b->inputs().size())
+        return false;
+    if(not is_same_value(a->inputs().at(1), b->inputs().at(1)))
+        return false;
+    if(a->inputs().size() == 2)
+        return true;
+    return is_same_value(a->inputs().at(2), b->inputs().at(2));
+}
 
+/** Used to remove fake quantization pairs quantizelinear -> dequantizelinear.
+ *
+ * Extended to remove the fake quantization pattern for MXFP4:
+ *      quantizelinear
+ *              ▼
+ *       pad (optional)
+ *              ▼
+ *          pack_fp4
+ *              ▼
+ *           unpack_fp4
+ *              ▼
+ *        slice (optional)
+ *              ▼
+ *      dequantizelinear
+ *
+ *  Doesn't match the pack/unpack and reshapes explicitly, instead skips instructions
+ *  that match the name with one input recursively.
+ *  Use this after selected quantizations have been made into real quantized instructions.
+ */
+struct remove_qdq_pairs
+{
+    auto matcher() const
+    {
+        // clang-format off
+        static const std::unordered_set<std::string> skip_set = {
+            "pack_fp4",
+            "unpack_fp4",
+            "broadcast",
+            "slice",
+            "reshape",
+            "reshape_lazy",
+            "pad",
+        };
+        // clang-format on
+        auto q_ins =
+            match::skip(match::name(skip_set))(match::name("quantizelinear").bind("q_ins"));
+        return match::name("dequantizelinear")(match::arg(0)(q_ins));
+    }
+
+    auto apply(module&, const match::matcher_result& r) const
+    {
+        auto dq_ins = r.result;
+        auto q_ins  = r.instructions["q_ins"];
+        if(not is_same_scale_zero(dq_ins, q_ins))
+        {
+            return;
+        }
+        // Need to copy outputs since will be modifying dq_ins outputs
+        std::vector<instruction_ref> dq_outputs = dq_ins->outputs();
+        for(auto out : dq_outputs)
+        {
+            instruction::replace_argument(out, dq_ins, q_ins->inputs().front());
+        }
+    }
+};
+
+void lowering::apply(module& m) const
+{
+    match::find_matches(m, remove_qdq_pairs{});
+    migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+    ref_apply{&m}.apply();
+}
 } // namespace ref
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

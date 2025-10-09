@@ -53,30 +53,64 @@ TEST_CASE(multi_head_bias_attention_test)
     // slice out piece of bias data for each qkv
 
     auto q_bias = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {hidden_size}}}), bias_unsq);
-    auto q_bias_bc = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, sequence_length, hidden_size}}}), q_bias);
+        migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {hidden_size}}}),
+        bias_unsq);
+    auto q_bias_bc = mm->add_instruction(
+        migraphx::make_op("multibroadcast",
+                          {{"out_lens", {batch_size, sequence_length, hidden_size}}}),
+        q_bias);
 
     auto k_bias = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {2}}, {"starts", {hidden_size}}, {"ends", {2 * hidden_size}}}), bias_unsq);
-    auto k_bias_bc = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, sequence_length, hidden_size}}}), k_bias);
+        migraphx::make_op("slice",
+                          {{"axes", {2}}, {"starts", {hidden_size}}, {"ends", {2 * hidden_size}}}),
+        bias_unsq);
+    auto k_bias_bc = mm->add_instruction(
+        migraphx::make_op("multibroadcast",
+                          {{"out_lens", {batch_size, sequence_length, hidden_size}}}),
+        k_bias);
 
     auto v_bias = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {2}}, {"starts", {2*hidden_size}}, {"ends", {3 * hidden_size}}}), bias_unsq);
-    auto v_bias_bc = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, sequence_length, hidden_size}}}), v_bias);
+        migraphx::make_op(
+            "slice", {{"axes", {2}}, {"starts", {2 * hidden_size}}, {"ends", {3 * hidden_size}}}),
+        bias_unsq);
+    auto v_bias_bc = mm->add_instruction(
+        migraphx::make_op("multibroadcast",
+                          {{"out_lens", {batch_size, sequence_length, hidden_size}}}),
+        v_bias);
 
-    // Need to reshape this to get back to hidden dimension since biases are shaped with respect to each qkv hidden dimension length
-    auto q_reshaped = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {batch_size, sequence_length, num_heads * head_size}}}), q);
-    auto k_reshaped = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {batch_size, sequence_length, num_heads * head_size}}}), k);
-    auto v_reshaped = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {batch_size, sequence_length, num_heads * head_size}}}), v);
+    // Need to reshape this to get back to hidden dimension since biases are shaped with respect to
+    // each qkv hidden dimension length
+    auto q_reshaped = mm->add_instruction(
+        migraphx::make_op("reshape",
+                          {{"dims", {batch_size, sequence_length, num_heads * head_size}}}),
+        q);
+    auto k_reshaped = mm->add_instruction(
+        migraphx::make_op("reshape",
+                          {{"dims", {batch_size, sequence_length, num_heads * head_size}}}),
+        k);
+    auto v_reshaped = mm->add_instruction(
+        migraphx::make_op("reshape",
+                          {{"dims", {batch_size, sequence_length, num_heads * head_size}}}),
+        v);
 
     auto biased_query = mm->add_instruction(migraphx::make_op("add"), q_bias_bc, q_reshaped);
     auto biased_key   = mm->add_instruction(migraphx::make_op("add"), k_bias_bc, k_reshaped);
     auto biased_value = mm->add_instruction(migraphx::make_op("add"), v_bias_bc, v_reshaped);
 
-    // reshape this back out to (Batch, sequence_length, num_heads, head_size) once we've done the proper add.
-    q = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {batch_size, sequence_length, num_heads, head_size}}}), biased_query);
-    k   = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {batch_size, sequence_length, num_heads, head_size}}}), biased_key);
-    v = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {batch_size, sequence_length, num_heads, head_size}}}), biased_value);
+    // reshape this back out to (Batch, sequence_length, num_heads, head_size) once we've done the
+    // proper add.
+    q = mm->add_instruction(
+        migraphx::make_op("reshape",
+                          {{"dims", {batch_size, sequence_length, num_heads, head_size}}}),
+        biased_query);
+    k = mm->add_instruction(
+        migraphx::make_op("reshape",
+                          {{"dims", {batch_size, sequence_length, num_heads, head_size}}}),
+        biased_key);
+    v = mm->add_instruction(
+        migraphx::make_op("reshape",
+                          {{"dims", {batch_size, sequence_length, num_heads, head_size}}}),
+        biased_value);
 
     q = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", permutation}}), q);
     k = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", permutation}}), k);

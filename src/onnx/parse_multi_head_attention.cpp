@@ -52,7 +52,6 @@ struct multi_head_attention_parameters
     int64_t num_heads;
     qkv_fomat_t qkv_fomat;
     bool qkv_biased;
-    
 };
 
 struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
@@ -200,18 +199,19 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
     }
 
     void check_bias(const std::vector<instruction_ref>& args,
-               multi_head_attention_parameters& params) const
+                    multi_head_attention_parameters& params) const
     {
         if(args.size() > 3)
         {
-            auto bias = args.at(3);
+            auto bias      = args.at(3);
             auto bias_lens = bias->get_shape().lens();
 
             if(bias_lens.size() != 1)
                 MIGRAPHX_THROW("MultiHeadAttention: Bias must be 1D shape");
 
-            if(bias_lens[0] != params.hidden_size_v + (2 *  params.hidden_size))
-                MIGRAPHX_THROW("MultiheadAttention: Bias must be of size hidden_size + hidden_size + v_hidden_size");
+            if(bias_lens[0] != params.hidden_size_v + (2 * params.hidden_size))
+                MIGRAPHX_THROW("MultiheadAttention: Bias must be of size hidden_size + hidden_size "
+                               "+ v_hidden_size");
 
             params.qkv_biased = true;
         }
@@ -230,43 +230,98 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         check_bias(args, params);
     }
 
-    std::tuple<instruction_ref, instruction_ref, instruction_ref> 
+    std::tuple<instruction_ref, instruction_ref, instruction_ref>
     apply_qkv_bias(const onnx_parser::node_info& info,
                    const multi_head_attention_parameters& params,
-                    instruction_ref bias,
-                    instruction_ref query,
-                    instruction_ref key,
-                    instruction_ref value) const
+                   instruction_ref bias,
+                   instruction_ref query,
+                   instruction_ref key,
+                   instruction_ref value) const
     {
         auto bias_unsq = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), bias);
-        bias_unsq = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), bias_unsq);
+        bias_unsq      = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), bias_unsq);
         // slice out piece of bias data for each qkv
 
         auto q_bias = info.add_instruction(
-            make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {params.hidden_size}}}), bias_unsq);
-        auto q_bias_bc = info.add_instruction(make_op("multibroadcast", {{"out_lens", {params.batch_size, params.q_sequence_length, params.hidden_size}}}), q_bias);
+            make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {params.hidden_size}}}),
+            bias_unsq);
+        auto q_bias_bc = info.add_instruction(
+            make_op(
+                "multibroadcast",
+                {{"out_lens", {params.batch_size, params.q_sequence_length, params.hidden_size}}}),
+            q_bias);
 
-        auto k_bias = info.add_instruction(
-            make_op("slice", {{"axes", {2}}, {"starts", {params.hidden_size}}, {"ends", {2 * params.hidden_size}}}), bias_unsq);
-        auto k_bias_bc = info.add_instruction(make_op("multibroadcast", {{"out_lens", {params.batch_size, params.kv_sequence_length, params.hidden_size}}}), k_bias);
+        auto k_bias    = info.add_instruction(make_op("slice",
+                                                      {{"axes", {2}},
+                                                       {"starts", {params.hidden_size}},
+                                                       {"ends", {2 * params.hidden_size}}}),
+                                           bias_unsq);
+        auto k_bias_bc = info.add_instruction(
+            make_op(
+                "multibroadcast",
+                {{"out_lens", {params.batch_size, params.kv_sequence_length, params.hidden_size}}}),
+            k_bias);
 
         auto v_bias = info.add_instruction(
-            make_op("slice", {{"axes", {2}}, {"starts", {2*params.hidden_size}}, {"ends", {2*params.hidden_size + params.hidden_size_v}}}), bias_unsq);
-        auto v_bias_bc = info.add_instruction(make_op("multibroadcast", {{"out_lens", {params.batch_size, params.kv_sequence_length, params.hidden_size_v}}}), v_bias);
+            make_op("slice",
+                    {{"axes", {2}},
+                     {"starts", {2 * params.hidden_size}},
+                     {"ends", {2 * params.hidden_size + params.hidden_size_v}}}),
+            bias_unsq);
+        auto v_bias_bc = info.add_instruction(
+            make_op("multibroadcast",
+                    {{"out_lens",
+                      {params.batch_size, params.kv_sequence_length, params.hidden_size_v}}}),
+            v_bias);
 
-        // Need to reshape this to get back to hidden dimension since biases are shaped with respect to each qkv hidden dimension length
-        auto q_reshaped = info.add_instruction(make_op("reshape", {{"dims", {params.batch_size, params.q_sequence_length, params.num_heads * params.head_size}}}), query);
-        auto k_reshaped = info.add_instruction(make_op("reshape", {{"dims", {params.batch_size, params.kv_sequence_length, params.num_heads * params.head_size}}}), key);
-        auto v_reshaped = info.add_instruction(make_op("reshape", {{"dims", {params.batch_size, params.kv_sequence_length, params.num_heads * params.head_size_v}}}), value);
+        // Need to reshape this to get back to hidden dimension since biases are shaped with respect
+        // to each qkv hidden dimension length
+        auto q_reshaped = info.add_instruction(make_op("reshape",
+                                                       {{"dims",
+                                                         {params.batch_size,
+                                                          params.q_sequence_length,
+                                                          params.num_heads * params.head_size}}}),
+                                               query);
+        auto k_reshaped = info.add_instruction(make_op("reshape",
+                                                       {{"dims",
+                                                         {params.batch_size,
+                                                          params.kv_sequence_length,
+                                                          params.num_heads * params.head_size}}}),
+                                               key);
+        auto v_reshaped = info.add_instruction(make_op("reshape",
+                                                       {{"dims",
+                                                         {params.batch_size,
+                                                          params.kv_sequence_length,
+                                                          params.num_heads * params.head_size_v}}}),
+                                               value);
 
         auto biased_query = info.add_instruction(make_op("add"), q_bias_bc, q_reshaped);
         auto biased_key   = info.add_instruction(make_op("add"), k_bias_bc, k_reshaped);
         auto biased_value = info.add_instruction(make_op("add"), v_bias_bc, v_reshaped);
 
-        // reshape this back out to (Batch, sequence_length, num_heads, head_size) once we've done the proper add.
-        biased_query = info.add_instruction(make_op("reshape", {{"dims", {params.batch_size, params.q_sequence_length, params.num_heads, params.head_size}}}), biased_query);
-        biased_key   = info.add_instruction(make_op("reshape", {{"dims", {params.batch_size, params.kv_sequence_length, params.num_heads, params.head_size}}}), biased_key);
-        biased_value = info.add_instruction(make_op("reshape", {{"dims", {params.batch_size, params.kv_sequence_length, params.num_heads, params.head_size_v}}}), biased_value);
+        // reshape this back out to (Batch, sequence_length, num_heads, head_size) once we've done
+        // the proper add.
+        biased_query = info.add_instruction(make_op("reshape",
+                                                    {{"dims",
+                                                      {params.batch_size,
+                                                       params.q_sequence_length,
+                                                       params.num_heads,
+                                                       params.head_size}}}),
+                                            biased_query);
+        biased_key   = info.add_instruction(make_op("reshape",
+                                                    {{"dims",
+                                                      {params.batch_size,
+                                                       params.kv_sequence_length,
+                                                       params.num_heads,
+                                                       params.head_size}}}),
+                                          biased_key);
+        biased_value = info.add_instruction(make_op("reshape",
+                                                    {{"dims",
+                                                      {params.batch_size,
+                                                       params.kv_sequence_length,
+                                                       params.num_heads,
+                                                       params.head_size_v}}}),
+                                            biased_value);
 
         return std::make_tuple(biased_query, biased_key, biased_value);
     }
@@ -306,8 +361,10 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
                 {
                     // Key: (batch_size, kv_sequence_length, hidden_size)
                     // Value: (batch_size, kv_sequence_length, hidden_size_v)
-                    std::vector<int64_t> k_dims{
-                        params.batch_size, params.kv_sequence_length, params.num_heads, params.head_size};
+                    std::vector<int64_t> k_dims{params.batch_size,
+                                                params.kv_sequence_length,
+                                                params.num_heads,
+                                                params.head_size};
                     std::vector<int64_t> v_dims{params.batch_size,
                                                 params.kv_sequence_length,
                                                 params.num_heads,
@@ -344,7 +401,8 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         if(params.qkv_biased)
         {
             auto bias = args[3];
-            auto [biased_query, biased_key, biased_value] = apply_qkv_bias(info, params, bias, query, key, value);
+            auto [biased_query, biased_key, biased_value] =
+                apply_qkv_bias(info, params, bias, query, key, value);
 
             query = biased_query;
             key   = biased_key;

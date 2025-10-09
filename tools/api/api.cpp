@@ -38,6 +38,7 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/convert_to_json.hpp>
+#include <migraphx/source_location.hpp>
 #include <array>
 #include <algorithm>
 #include <cstdarg>
@@ -54,7 +55,8 @@ extern "C" MIGRAPHX_C_EXPORT void migraphx_test_private_disable_exception_catch(
 #endif
 
 template <class F>
-migraphx_status try_(F f, bool output = true) // NOLINT
+migraphx_status
+try_(F f, bool output = true, source_location llc = source_location::current()) // NOLINT
 {
 #ifdef MIGRAPHX_BUILD_TESTING
     if(disable_exception_catch)
@@ -71,7 +73,7 @@ migraphx_status try_(F f, bool output = true) // NOLINT
         catch(const migraphx::exception& ex)
         {
             if(output)
-                std::cerr << "MIGraphX Error: " << ex.what() << std::endl;
+                std::cerr << llc.function_name() << ": Error: " << ex.what() << std::endl;
             if(ex.error > 0)
                 return migraphx_status(ex.error);
             else
@@ -80,7 +82,7 @@ migraphx_status try_(F f, bool output = true) // NOLINT
         catch(const std::exception& ex)
         {
             if(output)
-                std::cerr << "MIGraphX Error: " << ex.what() << std::endl;
+                std::cerr << llc.function_name() << ": Error: " << ex.what() << std::endl;
             return migraphx_status_unknown_error;
         }
         catch(...)
@@ -98,6 +100,7 @@ static shape::type_t to_shape_type(migraphx_shape_datatype_t t)
     switch(t)
     {
     case migraphx_shape_tuple_type: return shape::tuple_type;
+    case migraphx_shape_fp4x2_type: return shape::fp4x2_type;
 #define MIGRAPHX_DETAIL_SHAPE_CASE_CONVERT(x, y) \
     case migraphx_shape_##x: return shape::x;
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_DETAIL_SHAPE_CASE_CONVERT)
@@ -111,6 +114,7 @@ static migraphx_shape_datatype_t to_shape_type(shape::type_t t)
     switch(t)
     {
     case shape::tuple_type: return migraphx_shape_tuple_type;
+    case shape::fp4x2_type: return migraphx_shape_fp4x2_type;
 #define MIGRAPHX_DETAIL_SHAPE_CASE_CONVERT(x, y) \
     case shape::x: return migraphx_shape_##x;
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_DETAIL_SHAPE_CASE_CONVERT)

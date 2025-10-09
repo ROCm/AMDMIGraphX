@@ -419,6 +419,8 @@ static node_maps create_node_maps(const onnx::GraphProto& graph)
         // then we will have something like {"a_out": [node B, node C]} in our map.
         for(auto&& input : node.input())
         {
+            if(input.empty())
+                continue;
             maps.input_to_node_map[input].push_back(node_index);
         }
 
@@ -449,7 +451,7 @@ static void traverse(std::vector<size_t>& sorted_nodes,
     for(const auto& out_node_name : node_to_output_map.at(curr_node))
     {
         // check if node output is used in graph
-        if(contains(input_to_node_map, out_node_name))
+        if(not out_node_name.empty() and contains(input_to_node_map, out_node_name))
         {
             for(const auto& in_node_name : input_to_node_map.at(out_node_name))
                 traverse(sorted_nodes,
@@ -834,6 +836,7 @@ shape::type_t get_type(int dtype)
     case 18: return shape::fp8e4m3fnuz_type;
     case 21: return shape::uint8_type;
     case 22: return shape::int8_type;
+    case 23: return shape::fp4x2_type;
     case 14:
     case 15:
     case 16: return shape::bf16_type;

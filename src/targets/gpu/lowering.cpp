@@ -94,6 +94,7 @@ struct miopen_apply
 
         add_extend_op("argmax");
         add_extend_op("argmin");
+        add_extend_op("fixed_pad");
         add_extend_op("logsoftmax");
         add_extend_op("multinomial");
         add_extend_op("nonzero");
@@ -542,15 +543,7 @@ struct miopen_apply
                 new_inputs);
         });
 
-        apply_map.emplace("gpu::concat_past_present_k", [=](instruction_ref ins) {
-            return mod->replace_instruction(ins,
-                                            make_op("gpu::precompile_op",
-                                                    {{"op", to_value(ins->get_operator())},
-                                                     {"output_shape", to_value(ins->get_shape())}}),
-                                            ins->inputs());
-        });
-
-        apply_map.emplace("gpu::concat_past_present_v", [=](instruction_ref ins) {
+        apply_map.emplace("gpu::concat_past_present", [=](instruction_ref ins) {
             return mod->replace_instruction(ins,
                                             make_op("gpu::precompile_op",
                                                     {{"op", to_value(ins->get_operator())},

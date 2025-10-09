@@ -31,6 +31,7 @@
 #include <migraphx/module.hpp>
 #include <migraphx/optional.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/stringutils.hpp>
 #include <migraphx/type_name.hpp>
 #include <migraphx/source_location.hpp>
 #include <migraphx/config.hpp>
@@ -410,9 +411,9 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TIME_MATCHERS)
 template <class Mod, class... Ms>
 void find_matches_for(source_location location, Mod& mod, instruction_ref ins, Ms&&... ms)
 {
-    const int trace         = value_of(MIGRAPHX_TRACE_MATCHES{});
-    const bool validate     = enabled(MIGRAPHX_VALIDATE_MATCHES{});
-    const auto trace_filter = string_value_of(MIGRAPHX_TRACE_MATCHES_FOR{});
+    const int trace          = value_of(MIGRAPHX_TRACE_MATCHES{});
+    const bool validate      = enabled(MIGRAPHX_VALIDATE_MATCHES{});
+    const auto trace_filter  = string_value_of(MIGRAPHX_TRACE_MATCHES_FOR{});
     const bool time_matchers = enabled(MIGRAPHX_TIME_MATCHERS{});
     bool match               = false;
     each_args(
@@ -563,7 +564,7 @@ struct match_fold_f
     template <class... Ts>
     auto operator()(Ts... ms) const
     {
-        return make_bf_matcher(
+        return make_basic_fun_matcher(
             [=](matcher_context& ctx, instruction_ref ins) -> optional<instruction_ref> {
                 bool matches = match_fold_f::fold_matchers(ctx, ins, ms...);
                 if(matches == Matches)
@@ -578,7 +579,7 @@ struct match_fold_f
         return [=](auto... ms) {
             // Workaround ICE on gcc by packing matchers into an object
             auto mpack = pack(ms...);
-            return make_bf_matcher(
+            return make_basic_fun_matcher(
                 [=](matcher_context& ctx, instruction_ref start) -> optional<instruction_ref> {
                     Op op;
                     bool matches = Start;
@@ -686,11 +687,17 @@ MIGRAPHX_PRED_MATCHER(transpose_shape, instruction_ref ins)
 {
     return ins->get_shape().transposed();
 }
+
+inline auto ndim(std::size_t n)
+{
+    return make_basic_pred_matcher(
+        [=](instruction_ref ins) { return ins->get_shape().ndim() == n; });
+}
+
 MIGRAPHX_PRED_MATCHER(not_tuple, instruction_ref ins)
 {
     return ins->get_shape().type() != shape::tuple_type;
 }
-
 MIGRAPHX_PRED_MATCHER(same_input_shapes, instruction_ref ins)
 {
     if(ins->inputs().empty())
@@ -1013,7 +1020,7 @@ inline auto has_value(T x, std::size_t atol_mult = 10, std::size_t rtol_mult = 1
         bool b = false;
         l.visit([&](auto v) {
             // cast to the literal's data type before comparing
-            using type = typename decltype(v)::value_type;
+            using type     = typename decltype(v)::value_type;
             auto tolerance = atol_mult + rtol_mult * std::fabs(x);
             if(migraphx::float_equal(tolerance, 0) or std::is_integral<type>{})
             {
@@ -1041,11 +1048,22 @@ inline auto has_attribute(const std::string& name)
         [=](instruction_ref ins) { return ins->get_operator().attributes().contains(name); });
 }
 
+template <class T>
+inline auto has_op_value(const std::string& name, const T& value)
+{
+    return make_basic_pred_matcher([=](instruction_ref ins) {
+        auto op_val = ins->get_operator().to_value();
+        return op_val.contains(name) and op_val[name].to<value::literal_to_string<T>>() == value;
+    });
+}
+
 template <class... Ms>
 auto pointwise(Ms... ms)
 {
     return match::has_attribute("pointwise")(ms...);
 }
+
+MIGRAPHX_PRED_MATCHER(reduce, instruction_ref ins) { return starts_with(ins->name(), "reduce_"); }
 
 } // namespace match
 } // namespace MIGRAPHX_INLINE_NS

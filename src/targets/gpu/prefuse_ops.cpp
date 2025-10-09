@@ -266,19 +266,13 @@ struct gpu_gqa_rotary_embedding : base_group_query_attention
 };
 MIGRAPHX_REGISTER_OP(gpu_gqa_rotary_embedding);
 
-struct gpu_concat_past_present_k : base_group_query_attention
-{
-    std::string name() const { return "gpu::concat_past_present_k"; }
-
-    shape compute_shape(std::vector<shape> inputs) const { return inputs.back(); }
-};
-MIGRAPHX_REGISTER_OP(gpu_concat_past_present_k);
-
-struct gpu_concat_past_present_v : base_group_query_attention
+struct gpu_concat_past_present : base_group_query_attention
 {
     std::string name() const { return "gpu::concat_past_present_v"; }
 
     shape compute_shape(std::vector<shape> inputs) const { return inputs.back(); }
+
+    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };
 MIGRAPHX_REGISTER_OP(gpu_concat_past_present_v);
 
@@ -300,6 +294,19 @@ struct find_group_query_attention
     //     auto gemm2 = match::name("dot")(match::args(softmax, concat_values));
     //     auto transpose = match::name("transpose")(match::arg(0)(gemm2));
     //     return match::name("reshape")(match::arg(0)(transpose));
+
+    auto finalize_attention_module(module_ref m) const
+    {
+        eliminate_common_subexpression{}.apply(*m);
+        dead_code_elimination{}.apply(*m);
+    }
+
+    std::string get_count() const
+    {
+        if(counter == nullptr)
+            MIGRAPHX_THROW("Invalid counter");
+        return std::to_string((*counter)++);
+    }
 
     auto finalize_attention_module(module_ref m) const
     {
@@ -379,26 +386,25 @@ struct find_group_query_attention
 
         pres_k = mpm.get_module().insert_instruction(
             ins,
-            gpu_concat_past_present_k{
+            gpu_concat_past_present{
                 do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale},
             concat_k_inputs);
         pres_v = mpm.get_module().insert_instruction(
             ins,
-            gpu_concat_past_present_v{
+            gpu_concat_past_present{
                 do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale},
             concat_v_inputs);
 
         // Adding 1 to seq_lens_k, aka past_seq_lens, to allow range literals to start at 0.
         // Putting the add inside the mlir module currently causes an error on their side,
         // so we're leaving it here until that can be solved.
+        auto past_sl = mpm.get_module().insert_instruction(
+            ins, make_op("convert", {{"target_type", shape::int32_type}}), inputs.at(5));
         auto one_lit = mpm.get_module().insert_literal(
-            ins, literal{shape{inputs.at(5)->get_shape().type(), {1}}, {1}});
+            ins, literal{shape{past_sl->get_shape().type(), {1}}, {1}});
         one_lit = mpm.get_module().insert_instruction(
-            ins,
-            make_op("multibroadcast", {{"out_lens", inputs.at(5)->get_shape().lens()}}),
-            one_lit);
-        auto total_sl =
-            mpm.get_module().insert_instruction(ins, make_op("add"), inputs.at(5), one_lit);
+            ins, make_op("multibroadcast", {{"out_lens", past_sl->get_shape().lens()}}), one_lit);
+        auto total_sl = mpm.get_module().insert_instruction(ins, make_op("add"), past_sl, one_lit);
 
         auto get_tuple_elm_0 = std::next(ins);
         auto get_tuple_elm_1 = std::next(get_tuple_elm_0);

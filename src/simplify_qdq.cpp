@@ -625,7 +625,7 @@ void simplify_qdq::apply(module& m) const
     match::find_matches(m, match_find_mx_quantizable_ops{});
     migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
     // NOTE: disabled for testing against ref verify
-    //match::find_matches(m, remove_qdq_pairs{});
+    // match::find_matches(m, remove_qdq_pairs{});
     migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
     match::find_matches(m, match_qlinear_reused{});
     migraphx::run_passes(m, {migraphx::dead_code_elimination{}});

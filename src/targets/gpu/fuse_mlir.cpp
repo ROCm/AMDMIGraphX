@@ -1219,7 +1219,7 @@ struct find_unpack_fp4_mlir_op
     {
         auto mlir_op  = mr.result;
         auto* mm      = mlir_op->module_inputs().front();
-        if(std::none_of(mm.begin(). mm.end(), [](auto ins){ ins->() == "quant_dot"; }))
+        if(std::none_of(mm->begin(), mm->end(), [](auto ins) { return ins.name() == "quant_dot"; }))
         {
             return;
         }

@@ -77,7 +77,7 @@ struct mlir_compiler : compiler<mlir_compiler>
     std::optional<instruction_ref> input_is_param(const instruction_ref& ins) const
     {
         auto cur = instruction::get_output_alias(ins);
-        while(contains({"reshape", "contiguos"}, cur->name()))
+        while(contains({"reshape", "contiguous"}, cur->name()))
         {
             cur = instruction::get_output_alias(cur->inputs().at(0));
         }

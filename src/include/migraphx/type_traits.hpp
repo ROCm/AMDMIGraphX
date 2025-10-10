@@ -30,6 +30,7 @@
 #include <migraphx/bf16.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/float8.hpp>
+#include <migraphx/fp8e8m0.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -73,6 +74,9 @@ MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_arithmetic, migraphx::fp8::fp8e4m3fn)
 MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_floating_point, migraphx::fp8::fp8e5m2)
 MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_signed, migraphx::fp8::fp8e5m2)
 MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_arithmetic, migraphx::fp8::fp8e5m2)
+
+MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_floating_point, fp8e8m0)
+MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_arithmetic, fp8e8m0)
 
 template <class T>
 using accumulator_type =

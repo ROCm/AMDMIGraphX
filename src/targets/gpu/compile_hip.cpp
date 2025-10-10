@@ -212,7 +212,7 @@ std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_sr
     if(std::none_of(options.begin(), options.end(), [](const std::string& s) {
            return starts_with(s, "--std=") or starts_with(s, "-std=");
        }))
-        options.push_back("-std=c++17");
+        options.push_back("-std=c++23");
     options.push_back("-fno-gpu-rdc");
     options.push_back("-O" + string_value_of(MIGRAPHX_GPU_OPTIMIZE{}, "3"));
     options.push_back("-Wno-cuda-compat");
@@ -329,7 +329,7 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
     if(std::none_of(params.begin(), params.end(), [](const std::string& s) {
            return starts_with(s, "--std=") or starts_with(s, "-std=");
        }))
-        compiler.flags.emplace_back("--std=c++17");
+        compiler.flags.emplace_back("--std=c++23");
     compiler.flags.emplace_back(" -fno-gpu-rdc");
     if(enabled(MIGRAPHX_GPU_DEBUG_SYM{}))
         compiler.flags.emplace_back("-g");

@@ -446,6 +446,80 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         return std::make_tuple(query, key, value);
     }
 
+    // Slice, mul, convert and concat until we get a mask matrix useful prior to the where
+    instruction_ref generate_raw_mask_per_batch(const onnx_parser::node_info& info,
+                                                const instruction_ref mask_index,
+                                                const migraphx::shape input_shape,
+                                                const multi_head_attention_parameters& attention) const
+    {
+        auto batch_size    = attention.batch_size;
+        auto total_seq_len = attention.kv_sequence_length;
+        auto num_heads     = attention.num_heads;
+
+        // Other two cases require us to generate masks from sequence or total sequence length pads.
+        auto pass_value_lit = info.add_literal(
+            migraphx::literal{migraphx::shape{input_shape.type(), {1}, {1}}, {0}});
+        auto mask_value_lit = info.add_literal(
+            migraphx::literal{migraphx::shape{input_shape.type(), {1}, {1}},
+                              {attention.mask_filter_value}});
+
+        // For dim = 2 or dim =3 generate the apporiate mask across batches
+        // We need to handle the batch case since raw masking involes shape [batch, seq_len] or
+        // [batch, seq_len, total_seq_len],
+        auto bc_pass = info.add_instruction(
+            make_op("multibroadcast",
+                    {{"out_lens", {batch_size, num_heads, total_seq_len, total_seq_len}}}),
+            pass_value_lit);
+        auto bc_mask = info.add_instruction(
+            make_op("multibroadcast",
+                    {{"out_lens", {batch_size, num_heads, total_seq_len, total_seq_len}}}),
+            mask_value_lit);
+
+        // For raw masks we just need to mask out key value padding thus the 3d mask isn't needed
+        // here.
+        auto raw_mask = info.add_instruction(
+            make_op("reshape", {{"dims", {batch_size, 1, 1, total_seq_len}}}), mask_index);
+        raw_mask = info.add_instruction(
+            make_op("multibroadcast",
+                    {{"out_lens", {batch_size, num_heads, total_seq_len, total_seq_len}}}),
+            raw_mask);
+        raw_mask = info.add_instruction(
+            make_op("reshape", {{"dims", {batch_size, num_heads, total_seq_len, total_seq_len}}}),
+            raw_mask);
+
+        // Reuse "0" broadcasted converted to int32 to check if input mask is greater than 0 for
+        // where condition
+        auto in_pass = info.add_instruction(
+            make_op("convert",
+                    {{"target_type", input_shape.type()}}),
+            bc_pass);
+        auto in_bool = info.add_instruction(make_op("equal"), raw_mask, in_pass);
+        in_bool      = info.add_instruction(
+            make_op("convert", {{"target_type", migraphx::shape::bool_type}}), in_bool);
+        return info.add_instruction(make_op("where"), in_bool, bc_mask, bc_pass);
+    }
+
+    std::optional<instruction_ref> create_input_mask(const onnx_parser::node_info& info,
+                                                     const instruction_ref mask_index,
+                                                     const migraphx::shape input_shape,
+                                                     const multi_head_attention_parameters& attention) const
+    {
+        // Shape Scale dot attention prior to mask will be in (batch, num_heads, query_size,
+        // query_size) thus mask needs to handle batch and query_size We should return mask of
+        // batch, 1, query_size, query_size so that this per-batch masked can be broadcasted across
+        // each attention head
+
+        if((attention.key_pad_mode == key_mask_mode_t::direct_2d_pad) or 
+           (attention.key_pad_mode == key_mask_mode_t::direct_3d_pad))
+        { // Raw Mask - 0 means mask, 1 means pass through. Apply mask_filter_val to mask indicies
+          // and zero otherwise
+            // Need to generate from 2 dims or 3 dim cases
+            return generate_raw_mask_per_batch(info, mask_index, input_shape, attention);
+        }
+
+        return nullopt;
+    }
+
     multi_head_attention_parameters 
     handle_attributes(const onnx_parser::node_info& info,
                       const onnx_parser& parser) const
@@ -501,6 +575,11 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
             key   = info.add_instruction(make_op("transpose", {{"permutation", perm}}), key);
             value = info.add_instruction(make_op("transpose", {{"permutation", perm}}), value);
         }
+
+        // Set attention mask and bias when detected on input
+        std::optional<instruction_ref> attn_mask;
+        if(args.size() > 4)
+            attn_mask = create_input_mask(info, args.at(4), query->get_shape(), params);
 
         float scale = 1 / std::sqrt(params.head_size);
         if(contains(info.attributes, "scale"))

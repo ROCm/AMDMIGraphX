@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -41,7 +41,7 @@ struct parse_pad : op_parser<parse_pad>
                           const tf_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-        size_t ndims = args.front()->get_shape().lens().size();
+        size_t ndims = args.front()->get_shape().ndim();
 
         // in tf, the paddings are arranged as a 2d shape (ndims, 2),
         // the last dim contains the left padding and right padding respectively

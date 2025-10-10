@@ -201,6 +201,13 @@ set_input_parameter_shape(tf_options& options, const char* name, std::vector<std
     options.map_input_dims[std::string(name)] = std::move(dims);
 }
 
+static void set_dyn_input_parameter_shape(tf_options& options,
+                                          const char* name,
+                                          std::vector<shape::dynamic_dimension> dyn_dims)
+{
+    options.map_dyn_input_dims[std::string(name)] = std::move(dyn_dims);
+}
+
 static void set_output_names(tf_options& options, std::vector<const char*> names)
 {
     options.output_node_names = std::vector<std::string>(names.begin(), names.end());
@@ -2155,6 +2162,19 @@ extern "C" migraphx_status migraphx_tf_options_set_input_parameter_shape(
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter dims: Null pointer");
         migraphx::set_input_parameter_shape(
             (tf_options->object), (name), (std::vector<size_t>(dims, dims + dims_size)));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_tf_options_set_dyn_input_parameter_shape(
+    migraphx_tf_options_t tf_options, const char* name, migraphx_dynamic_dimensions_t dims)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(tf_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter tf_options: Null pointer");
+        if(dims == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter dims: Null pointer");
+        migraphx::set_dyn_input_parameter_shape((tf_options->object), (name), (dims->object));
     });
     return api_error_result;
 }

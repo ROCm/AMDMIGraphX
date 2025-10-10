@@ -148,7 +148,7 @@ static std::vector<T> read_from_gpu(const void* x, std::size_t sz)
     return result;
 }
 
-static std::shared_ptr<void> write_to_gpu(const void* x, std::size_t sz, bool host = false)
+std::shared_ptr<void> write_to_gpu(const void* x, std::size_t sz, bool host)
 {
     gpu_sync();
     auto result = allocate_gpu(sz, host);

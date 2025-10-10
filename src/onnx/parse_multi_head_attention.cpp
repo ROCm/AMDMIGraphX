@@ -51,19 +51,19 @@ enum class key_mask_mode_t
 
 struct multi_head_attention_parameters
 {
-    int64_t batch_size = 0;
-    int64_t q_sequence_length = 0;
-    int64_t kv_sequence_length = 0;
+    int64_t batch_size            = 0;
+    int64_t q_sequence_length     = 0;
+    int64_t kv_sequence_length    = 0;
     int64_t total_sequence_length = 0;
-    int64_t hidden_size = 0;
-    int64_t hidden_size_v = 0;
-    int64_t head_size = 0;
-    int64_t head_size_v = 0;
-    int64_t num_heads = 0;
-    qkv_fomat_t qkv_fomat = qkv_fomat_t::q_k_v;
-    bool qkv_biased = false;
-    float mask_filter_value = -10000.0f;
-    key_mask_mode_t key_pad_mode = key_mask_mode_t::none;
+    int64_t hidden_size           = 0;
+    int64_t hidden_size_v         = 0;
+    int64_t head_size             = 0;
+    int64_t head_size_v           = 0;
+    int64_t num_heads             = 0;
+    qkv_fomat_t qkv_fomat         = qkv_fomat_t::q_k_v;
+    bool qkv_biased               = false;
+    float mask_filter_value       = -10000.0f;
+    key_mask_mode_t key_pad_mode  = key_mask_mode_t::none;
 };
 
 struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
@@ -211,25 +211,28 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
     }
 
     void check_key_padding_mask(const std::vector<instruction_ref>& args,
-                multi_head_attention_parameters& params) const
+                                multi_head_attention_parameters& params) const
     {
         if(args.size() > 4)
         {
-            const auto key_pad_lens = args.at(4)->get_shape().lens();
+            const auto key_pad_lens     = args.at(4)->get_shape().lens();
             const auto key_pad_len_size = key_pad_lens.size();
-            const auto key_pad_type = args.at(4)->get_shape().type();
+            const auto key_pad_type     = args.at(4)->get_shape().type();
 
             if(key_pad_type != shape::int32_type)
                 MIGRAPHX_THROW("MultiHeadAttention: Key padding mask must be a int32 tensor");
 
             if(key_pad_len_size > 3 or key_pad_len_size < 1)
-                MIGRAPHX_THROW("MultiHeadAttention: Key_pad_mask must be either 1D, 2D or 3D shape tensor");
+                MIGRAPHX_THROW(
+                    "MultiHeadAttention: Key_pad_mask must be either 1D, 2D or 3D shape tensor");
 
-            if(key_pad_len_size  == 1)
+            if(key_pad_len_size == 1)
             {
                 auto key_pad_batch = key_pad_lens.at(0);
-                if(key_pad_batch != params.batch_size and key_pad_batch != (3* params.batch_size + 2))
-                    MIGRAPHX_THROW("MultiHeadAttention: Key Padding Mask must be either batch or 3 x Batch + 2 for 1D key pads");
+                if(key_pad_batch != params.batch_size and
+                   key_pad_batch != (3 * params.batch_size + 2))
+                    MIGRAPHX_THROW("MultiHeadAttention: Key Padding Mask must be either batch or 3 "
+                                   "x Batch + 2 for 1D key pads");
 
                 if(key_pad_batch == params.batch_size)
                 {
@@ -242,23 +245,29 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
             }
             else if(key_pad_len_size == 2)
             {
-                const auto key_pad_batch = key_pad_lens.at(0);
+                const auto key_pad_batch         = key_pad_lens.at(0);
                 const auto key_pad_total_seq_len = key_pad_lens.at(1);
 
-                if(key_pad_batch != params.batch_size or key_pad_total_seq_len != params.kv_sequence_length)
+                if(key_pad_batch != params.batch_size or
+                   key_pad_total_seq_len != params.kv_sequence_length)
                 {
-                    MIGRAPHX_THROW("MultiHeadAttention: 2D Keypad mask must have either (batch, kv_sequence_length) or (batch, total_sequence_length)");
+                    MIGRAPHX_THROW("MultiHeadAttention: 2D Keypad mask must have either (batch, "
+                                   "kv_sequence_length) or (batch, total_sequence_length)");
                 }
                 params.key_pad_mode = key_mask_mode_t::direct_2d_pad;
             }
             else // key_pad_len_size == 3 here
             {
-                const auto key_pad_batch = key_pad_lens.at(0);
-                const auto key_pad_seq_len = key_pad_lens.at(1);
+                const auto key_pad_batch         = key_pad_lens.at(0);
+                const auto key_pad_seq_len       = key_pad_lens.at(1);
                 const auto key_pad_total_seq_len = key_pad_lens.at(2);
-                if(key_pad_batch != params.batch_size or key_pad_seq_len != params.kv_sequence_length or key_pad_total_seq_len != params.total_sequence_length)
+                if(key_pad_batch != params.batch_size or
+                   key_pad_seq_len != params.kv_sequence_length or
+                   key_pad_total_seq_len != params.total_sequence_length)
                 {
-                    MIGRAPHX_THROW("MultiHeadAttention: 3D Keypad mask must have either (batch, kv_sequence_length, total_sequence_length) or (batch, total_sequence_length)");
+                    MIGRAPHX_THROW("MultiHeadAttention: 3D Keypad mask must have either (batch, "
+                                   "kv_sequence_length, total_sequence_length) or (batch, "
+                                   "total_sequence_length)");
                 }
                 params.key_pad_mode = key_mask_mode_t::direct_3d_pad;
             }
@@ -447,21 +456,21 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
     }
 
     // Slice, mul, convert and concat until we get a mask matrix useful prior to the where
-    instruction_ref generate_raw_mask_per_batch(const onnx_parser::node_info& info,
-                                                const instruction_ref mask_index,
-                                                const migraphx::shape input_shape,
-                                                const multi_head_attention_parameters& attention) const
+    instruction_ref
+    generate_raw_mask_per_batch(const onnx_parser::node_info& info,
+                                const instruction_ref mask_index,
+                                const migraphx::shape input_shape,
+                                const multi_head_attention_parameters& attention) const
     {
         auto batch_size    = attention.batch_size;
         auto total_seq_len = attention.kv_sequence_length;
         auto num_heads     = attention.num_heads;
 
         // Other two cases require us to generate masks from sequence or total sequence length pads.
-        auto pass_value_lit = info.add_literal(
-            migraphx::literal{migraphx::shape{input_shape.type(), {1}, {1}}, {0}});
-        auto mask_value_lit = info.add_literal(
-            migraphx::literal{migraphx::shape{input_shape.type(), {1}, {1}},
-                              {attention.mask_filter_value}});
+        auto pass_value_lit =
+            info.add_literal(migraphx::literal{migraphx::shape{input_shape.type(), {1}, {1}}, {0}});
+        auto mask_value_lit = info.add_literal(migraphx::literal{
+            migraphx::shape{input_shape.type(), {1}, {1}}, {attention.mask_filter_value}});
 
         // For dim = 2 or dim =3 generate the apporiate mask across batches
         // We need to handle the batch case since raw masking involes shape [batch, seq_len] or
@@ -490,26 +499,25 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         // Reuse "0" broadcasted converted to int32 to check if input mask is greater than 0 for
         // where condition
         auto in_pass = info.add_instruction(
-            make_op("convert",
-                    {{"target_type", input_shape.type()}}),
-            bc_pass);
+            make_op("convert", {{"target_type", input_shape.type()}}), bc_pass);
         auto in_bool = info.add_instruction(make_op("equal"), raw_mask, in_pass);
         in_bool      = info.add_instruction(
             make_op("convert", {{"target_type", migraphx::shape::bool_type}}), in_bool);
         return info.add_instruction(make_op("where"), in_bool, bc_mask, bc_pass);
     }
 
-    std::optional<instruction_ref> create_input_mask(const onnx_parser::node_info& info,
-                                                     const instruction_ref mask_index,
-                                                     const migraphx::shape input_shape,
-                                                     const multi_head_attention_parameters& attention) const
+    std::optional<instruction_ref>
+    create_input_mask(const onnx_parser::node_info& info,
+                      const instruction_ref mask_index,
+                      const migraphx::shape input_shape,
+                      const multi_head_attention_parameters& attention) const
     {
         // Shape Scale dot attention prior to mask will be in (batch, num_heads, query_size,
         // query_size) thus mask needs to handle batch and query_size We should return mask of
         // batch, 1, query_size, query_size so that this per-batch masked can be broadcasted across
         // each attention head
 
-        if((attention.key_pad_mode == key_mask_mode_t::direct_2d_pad) or 
+        if((attention.key_pad_mode == key_mask_mode_t::direct_2d_pad) or
            (attention.key_pad_mode == key_mask_mode_t::direct_3d_pad))
         { // Raw Mask - 0 means mask, 1 means pass through. Apply mask_filter_val to mask indicies
           // and zero otherwise
@@ -520,9 +528,8 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         return nullopt;
     }
 
-    multi_head_attention_parameters 
-    handle_attributes(const onnx_parser::node_info& info,
-                      const onnx_parser& parser) const
+    multi_head_attention_parameters handle_attributes(const onnx_parser::node_info& info,
+                                                      const onnx_parser& parser) const
     {
         if(not contains(info.attributes, "num_heads"))
             MIGRAPHX_THROW("MultiHeadAttention: num_heads attribute is required");
@@ -532,14 +539,15 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
 
         if(contains(info.attributes, "mask_filter_value"))
         {
-            params.mask_filter_value = parser.parse_value(info.attributes.at("mask_filter_value")).at<float>();
+            params.mask_filter_value =
+                parser.parse_value(info.attributes.at("mask_filter_value")).at<float>();
         }
         else
         {
             params.mask_filter_value = -10000.0f;
         }
 
-        return params; 
+        return params;
     }
 
     instruction_ref parse(const op_desc& /*opd*/,

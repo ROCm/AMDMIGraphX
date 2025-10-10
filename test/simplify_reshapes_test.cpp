@@ -2141,6 +2141,34 @@ TEST_CASE(gather_flatten_permutation)
     EXPECT(m == expected);
 }
 
+TEST_CASE(gather_flatten_channel_patch)
+{
+    migraphx::module m;
+    auto x            = m.add_parameter("X", {migraphx::shape::float_type, {1, 3, 4, 4}});
+    auto reshape_flat = m.add_instruction(migraphx::make_op("reshape", {{"dims", {48}}}), x);
+    migraphx::shape si{migraphx::shape::int32_type, {4, 3, 1, 1}};
+    std::vector<int32_t> indices = {5, 21, 37, 9, 25, 41, 6, 22, 38, 10, 26, 42};
+    auto li                      = m.add_literal(migraphx::literal{si, indices});
+    auto g                       = m.add_instruction(migraphx::make_op("gather"), reshape_flat, li);
+    m.add_return({g});
+
+    run_pass(m);
+
+    migraphx::module expected;
+    auto xe = expected.add_parameter("X", {migraphx::shape::float_type, {1, 3, 4, 4}});
+    auto slice_hw = expected.add_instruction(
+        migraphx::make_op("slice", {{"axes", {2, 3}}, {"starts", {1, 1}}, {"ends", {3, 3}}}), xe);
+    auto unsqueeze_hw = expected.add_instruction(
+        migraphx::make_op("unsqueeze", {{"axes", {2, 3}}}), slice_hw);
+    auto transpose = expected.add_instruction(
+        migraphx::make_op("transpose", {{"permutation", {5, 4, 0, 1, 2, 3}}}), unsqueeze_hw);
+    auto reshape_out = expected.add_instruction(
+        migraphx::make_op("reshape", {{"dims", {4, 3, 1, 1}}}), transpose);
+    expected.add_return({reshape_out});
+
+    EXPECT(m == expected);
+}
+
 // TODO: Update for segment-based optimization
 // // TODO: Update for segment-based optimization
 #if 0 // TODO: Update for segment-based optimization

@@ -1652,10 +1652,44 @@ struct tiled_pattern
         }
     };
 
-    std::variant<std::monostate, arithmetic_info, rectangular_info> info;
+    struct arithmetic_grid_info
+    {
+        std::vector<int64_t> slice_starts;
+        std::vector<int64_t> slice_ends;
+        std::vector<int64_t> perm;
+        std::vector<std::size_t> input_lens;
+
+        instruction_ref transform(const gather_context& ctx,
+                                  gather_instruction_builder& builder,
+                                  const std::vector<std::size_t>& target_shape) const
+        {
+            auto input_ins = ctx.data_ins->inputs().front();
+            instruction_ref current = input_ins;
+
+            for(std::size_t axis = 0; axis < slice_starts.size(); ++axis)
+            {
+                auto start = slice_starts[axis];
+                auto end   = slice_ends[axis];
+                if(start == 0 and end == static_cast<int64_t>(input_lens[axis]))
+                    continue;
+                current = builder.slice(current,
+                                        {static_cast<int64_t>(axis)},
+                                        {start},
+                                        {end});
+            }
+
+            if(not is_identity_perm(perm))
+                current = builder.transpose(current, perm);
+
+            return builder.reshape(current, to_int64_vec(target_shape));
+        }
+    };
+
+    std::variant<std::monostate, arithmetic_info, rectangular_info, arithmetic_grid_info> info;
 
     explicit tiled_pattern(arithmetic_info a) : info(std::move(a)) {}
     explicit tiled_pattern(rectangular_info r) : info(std::move(r)) {}
+    explicit tiled_pattern(arithmetic_grid_info g) : info(std::move(g)) {}
 
     static std::optional<arithmetic_info>
     detect_arithmetic(const std::vector<index_segment>& segments)
@@ -1809,12 +1843,242 @@ struct tiled_pattern
         return rectangular_info{std::move(input_lens), std::move(output_lens), std::move(scales)};
     }
 
+    static std::optional<arithmetic_grid_info>
+    detect_arithmetic_grid(const gather_context& ctx, const std::vector<index_segment>& segments)
+    {
+        if(ctx.axis_index != 0)
+            return std::nullopt;
+
+        if(segments.empty())
+            return std::nullopt;
+
+        if(not std::all_of(segments.begin(), segments.end(), [](const index_segment& seg) {
+               return seg.has_type<arithmetic_segment_meta>();
+           }))
+            return std::nullopt;
+
+        auto data_ins = ctx.data_ins;
+        if(data_ins->name() != "reshape" or data_ins->inputs().size() != 1)
+            return std::nullopt;
+
+        const auto& reshape_lens = data_ins->get_shape().lens();
+        if(reshape_lens.size() != 1)
+            return std::nullopt;
+
+        auto input_ins          = data_ins->inputs().front();
+        const auto& input_shape  = input_ins->get_shape();
+        const auto& input_lens   = input_shape.lens();
+        auto elements            = input_shape.elements();
+        if(elements != ctx.axis_len)
+            return std::nullopt;
+
+        auto first_meta = std::get<arithmetic_segment_meta>(segments.front().metadata);
+        auto tile_size  = static_cast<std::size_t>(first_meta.count);
+        auto stride     = static_cast<std::size_t>(first_meta.stride);
+
+        if(tile_size == 0 or stride == 0)
+            return std::nullopt;
+
+        if(tile_size * stride != ctx.axis_len)
+            return std::nullopt;
+
+        for(const auto& seg : segments)
+        {
+            const auto& meta = std::get<arithmetic_segment_meta>(seg.metadata);
+            if(static_cast<std::size_t>(meta.count) != tile_size or
+               static_cast<std::size_t>(meta.stride) != stride)
+                return std::nullopt;
+        }
+
+        if(ctx.indices_values.size() % tile_size != 0)
+            return std::nullopt;
+
+        std::size_t num_tiles = ctx.indices_values.size() / tile_size;
+        if(num_tiles != segments.size())
+            return std::nullopt;
+
+        std::vector<std::vector<std::size_t>> coords;
+        coords.reserve(ctx.indices_values.size());
+        for(auto idx : ctx.indices_values)
+        {
+            if(idx < 0 or static_cast<std::size_t>(idx) >= elements)
+                return std::nullopt;
+            coords.push_back(input_shape.multi(static_cast<std::size_t>(idx)));
+        }
+
+        if(coords.empty())
+            return std::nullopt;
+
+        auto ndims = input_lens.size();
+        std::vector<std::vector<std::size_t>> unique_vals(ndims);
+        for(std::size_t dim = 0; dim < ndims; ++dim)
+        {
+            std::set<std::size_t> dim_vals;
+            for(const auto& coord : coords)
+                dim_vals.insert(coord.at(dim));
+            unique_vals[dim] = std::vector<std::size_t>(dim_vals.begin(), dim_vals.end());
+        }
+
+        std::optional<std::size_t> tile_axis;
+        for(std::size_t dim = 0; dim < ndims; ++dim)
+        {
+            const auto& vals = unique_vals[dim];
+            if(vals.size() != tile_size)
+                continue;
+            if(vals.size() != input_lens[dim])
+                continue;
+            bool per_group_variation = true;
+            for(std::size_t g = 0; g < num_tiles and per_group_variation; ++g)
+            {
+                std::set<std::size_t> group_vals;
+                for(std::size_t t = 0; t < tile_size; ++t)
+                    group_vals.insert(coords[g * tile_size + t][dim]);
+                if(group_vals.size() != vals.size())
+                    per_group_variation = false;
+            }
+            if(per_group_variation)
+            {
+                tile_axis = dim;
+                break;
+            }
+        }
+
+        if(not tile_axis.has_value())
+            return std::nullopt;
+
+        auto axis = *tile_axis;
+
+        for(std::size_t dim = 0; dim < ndims; ++dim)
+        {
+            if(dim == axis)
+                continue;
+            for(std::size_t g = 0; g < num_tiles; ++g)
+            {
+                auto reference = coords[g * tile_size][dim];
+                for(std::size_t t = 1; t < tile_size; ++t)
+                {
+                    if(coords[g * tile_size + t][dim] != reference)
+                        return std::nullopt;
+                }
+            }
+        }
+
+        std::size_t expected_tiles = 1;
+        for(std::size_t dim = 0; dim < ndims; ++dim)
+        {
+            if(dim == axis)
+                continue;
+            expected_tiles *= unique_vals[dim].size();
+        }
+
+        if(expected_tiles != num_tiles)
+            return std::nullopt;
+
+        for(std::size_t dim = 0; dim < ndims; ++dim)
+        {
+            if(dim == axis)
+                continue;
+            const auto& vals = unique_vals[dim];
+            if(vals.size() > 1)
+            {
+                bool contiguous = true;
+                for(std::size_t i = 1; i < vals.size(); ++i)
+                {
+                    if(vals[i] != vals[i - 1] + 1)
+                    {
+                        contiguous = false;
+                        break;
+                    }
+                }
+                if(not contiguous)
+                    return std::nullopt;
+            }
+        }
+
+        std::vector<int64_t> slice_starts(ndims);
+        std::vector<int64_t> slice_ends(ndims);
+        for(std::size_t dim = 0; dim < ndims; ++dim)
+        {
+            if(unique_vals[dim].empty())
+                return std::nullopt;
+            auto start = unique_vals[dim].front();
+            auto end   = unique_vals[dim].back() + 1;
+            if(dim == axis && unique_vals[dim].size() == input_lens[dim])
+            {
+                start = 0;
+                end   = input_lens[dim];
+            }
+            slice_starts[dim] = static_cast<int64_t>(start);
+            slice_ends[dim]   = static_cast<int64_t>(end);
+        }
+
+        std::vector<std::pair<std::size_t, std::size_t>> partial_dims;
+        std::vector<std::size_t> constant_dims;
+        for(std::size_t dim = 0; dim < ndims; ++dim)
+        {
+            if(dim == axis)
+                continue;
+            auto count = unique_vals[dim].size();
+            if(count <= 1)
+            {
+                constant_dims.push_back(dim);
+                continue;
+            }
+            std::size_t transitions = 0;
+            for(std::size_t g = 1; g < num_tiles; ++g)
+            {
+                auto prev = coords[(g - 1) * tile_size][dim];
+                auto curr = coords[g * tile_size][dim];
+                if(curr != prev)
+                    transitions++;
+            }
+            partial_dims.push_back({transitions, dim});
+        }
+
+        std::sort(partial_dims.begin(), partial_dims.end(), [](const auto& x, const auto& y) {
+            if(x.first == y.first)
+                return x.second < y.second;
+            return x.first < y.first;
+        });
+
+        std::vector<int64_t> perm;
+        perm.reserve(ndims);
+        for(const auto& pd : partial_dims)
+            perm.push_back(static_cast<int64_t>(pd.second));
+        perm.push_back(static_cast<int64_t>(axis));
+        for(auto dim : constant_dims)
+            perm.push_back(static_cast<int64_t>(dim));
+
+        if(perm.size() != ndims)
+        {
+            std::vector<bool> seen(ndims, false);
+            for(auto p : perm)
+                if(p >= 0 and static_cast<std::size_t>(p) < ndims)
+                    seen[static_cast<std::size_t>(p)] = true;
+            for(std::size_t dim = 0; dim < ndims; ++dim)
+                if(not seen[dim])
+                    perm.push_back(static_cast<int64_t>(dim));
+        }
+
+        if(perm.size() != ndims)
+            return std::nullopt;
+
+        return arithmetic_grid_info{std::move(slice_starts),
+                                    std::move(slice_ends),
+                                    std::move(perm),
+                                    std::vector<std::size_t>(input_lens.begin(),
+                                                             input_lens.end())};
+    }
+
     /// Detect tiled pattern
     static std::optional<tiled_pattern> detect(const gather_context& ctx,
                                                const std::vector<index_segment>& segments)
     {
         if(auto rectangular = detect_rectangular(ctx, segments))
             return tiled_pattern{std::move(*rectangular)};
+
+        if(auto grid = detect_arithmetic_grid(ctx, segments))
+            return tiled_pattern{std::move(*grid)};
 
         if(auto arithmetic = detect_arithmetic(segments))
             return tiled_pattern{std::move(*arithmetic)};
@@ -1830,7 +2094,11 @@ struct tiled_pattern
         assert(not std::holds_alternative<std::monostate>(info));
         if(auto arithmetic = std::get_if<arithmetic_info>(&info))
             return arithmetic->transform(ctx, builder, target_shape);
-        return std::get<rectangular_info>(info).transform(ctx, builder, target_shape);
+        if(auto rectangular = std::get_if<rectangular_info>(&info))
+            return rectangular->transform(ctx, builder, target_shape);
+        if(auto grid = std::get_if<arithmetic_grid_info>(&info))
+            return grid->transform(ctx, builder, target_shape);
+        MIGRAPHX_THROW("tiled_pattern: unsupported pattern variant");
     }
 };
 

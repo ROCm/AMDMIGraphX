@@ -287,9 +287,9 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
     void check_inputs(const std::vector<instruction_ref>& args,
                       multi_head_attention_parameters& params) const
     {
-        if(args.empty() or args.size() > 4)
+        if(args.empty() or args.size() > 5)
             MIGRAPHX_THROW("MultiHeadAttention: Wrong number of inputs. Only 'query', 'key' and "
-                           "'value', bias inputs are supported.");
+                           "'value', bias and key_padding_mask inputs are supported.");
 
         // Order matters here. Most parameters defined by input query, key, value parameters
         // This must be used first to extract hidden size, batch, etc

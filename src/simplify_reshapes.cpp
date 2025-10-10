@@ -1046,6 +1046,7 @@ struct gather_context
     std::vector<std::size_t> index_dims;
     std::vector<std::size_t> idims;
     std::vector<std::vector<std::size_t>> factor_candidates;
+    std::vector<std::size_t> target_shape;
 
     gather_context(const match::matcher_result& r,
                    const std::vector<int64_t>& indices,
@@ -1076,6 +1077,11 @@ struct gather_context
                 index_dims.push_back(idims[i]);
             }
         }
+
+        // Compute target_shape: pre_lens + idims + post_lens
+        target_shape = pre_lens;
+        target_shape.insert(target_shape.end(), idims.begin(), idims.end());
+        target_shape.insert(target_shape.end(), post_lens.begin(), post_lens.end());
     }
 };
 
@@ -1109,8 +1115,7 @@ struct constant_segment_meta
 
     /// Transform constant segment into instructions
     instruction_ref transform(const gather_context& ctx,
-                              gather_instruction_builder& builder,
-                              const std::vector<std::size_t>& target_shape) const
+                              gather_instruction_builder& builder) const
     {
         auto moved  = builder.move_axis_to_front(ctx.data_ins, ctx.axis_index);
         auto sliced = builder.slice(moved, {0}, {value}, {value + 1});
@@ -1130,7 +1135,7 @@ struct constant_segment_meta
         auto with_dim = builder.reshape(reshaped, with_axis_dim);
 
         // Now match_shape will broadcast the 1 to the index count
-        return builder.match_shape(with_dim, target_shape);
+        return builder.match_shape(with_dim, ctx.target_shape);
     }
 };
 
@@ -1157,14 +1162,13 @@ struct contiguous_segment_meta
 
     /// Transform contiguous segment into instructions
     instruction_ref transform(const gather_context& ctx,
-                              gather_instruction_builder& builder,
-                              const std::vector<std::size_t>& target_shape) const
+                              gather_instruction_builder& builder) const
     {
         auto moved  = builder.move_axis_to_front(ctx.data_ins, ctx.axis_index);
         auto sliced = builder.slice(moved, {0}, {start}, {start + count});
         auto restored =
             builder.restore_axis_position(sliced, ctx.pre_lens.size(), 1, ctx.post_lens.size());
-        return builder.match_shape(restored, target_shape);
+        return builder.match_shape(restored, ctx.target_shape);
     }
 };
 
@@ -1195,8 +1199,7 @@ struct arithmetic_segment_meta
 
     /// Transform arithmetic segment into instructions
     instruction_ref transform(const gather_context& ctx,
-                              gather_instruction_builder& builder,
-                              const std::vector<std::size_t>& target_shape) const
+                              gather_instruction_builder& builder) const
     {
         auto moved = builder.move_axis_to_front(ctx.data_ins, ctx.axis_index);
 
@@ -1214,7 +1217,7 @@ struct arithmetic_segment_meta
 
         auto restored =
             builder.restore_axis_position(reshaped, ctx.pre_lens.size(), 1, ctx.post_lens.size());
-        return builder.match_shape(restored, target_shape);
+        return builder.match_shape(restored, ctx.target_shape);
     }
 };
 
@@ -1323,8 +1326,7 @@ struct rtr_window_segment_meta
 
     /// Transform RTR window segment into instructions
     instruction_ref transform(const gather_context& ctx,
-                              gather_instruction_builder& builder,
-                              const std::vector<std::size_t>& target_shape) const
+                              gather_instruction_builder& builder) const
     {
         auto moved = builder.move_axis_to_front(ctx.data_ins, ctx.axis_index);
         std::vector<int64_t> reshape_dims;
@@ -1350,7 +1352,7 @@ struct rtr_window_segment_meta
         auto final_reshape = builder.reshape(transposed, final_dims);
         auto restored      = builder.restore_axis_position(
             final_reshape, ctx.pre_lens.size(), 1, ctx.post_lens.size());
-        return builder.match_shape(restored, target_shape);
+        return builder.match_shape(restored, ctx.target_shape);
     }
 };
 
@@ -1452,27 +1454,26 @@ static std::vector<std::size_t> make_segment_target_shape(const gather_context& 
 
 static instruction_ref apply_segment_transform(const index_segment& segment,
                                                const gather_context& ctx,
-                                               gather_instruction_builder& builder,
-                                               const std::vector<std::size_t>& target_shape)
+                                               gather_instruction_builder& builder)
 {
     assert(not segment.empty());
     auto ensure_shape = [&](instruction_ref result) {
         assert(result != instruction_ref{});
-        assert(result->get_shape().lens() == target_shape);
+        assert(result->get_shape().lens() == ctx.target_shape);
         return result;
     };
     if(segment.has_type<constant_segment_meta>())
         return ensure_shape(std::get<constant_segment_meta>(segment.metadata)
-                                .transform(ctx, builder, target_shape));
+                                .transform(ctx, builder));
     if(segment.has_type<contiguous_segment_meta>())
         return ensure_shape(std::get<contiguous_segment_meta>(segment.metadata)
-                                .transform(ctx, builder, target_shape));
+                                .transform(ctx, builder));
     if(segment.has_type<arithmetic_segment_meta>())
         return ensure_shape(std::get<arithmetic_segment_meta>(segment.metadata)
-                                .transform(ctx, builder, target_shape));
+                                .transform(ctx, builder));
     if(segment.has_type<rtr_window_segment_meta>())
         return ensure_shape(std::get<rtr_window_segment_meta>(segment.metadata)
-                                .transform(ctx, builder, target_shape));
+                                .transform(ctx, builder));
     assert(false && "Unsupported segment type for transform");
     return instruction_ref{};
 }
@@ -1513,19 +1514,20 @@ struct split_pattern
 
     /// Transform split pattern into instructions
     instruction_ref transform(const gather_context& ctx,
-                              gather_instruction_builder& builder,
-                              const std::vector<std::size_t>& target_shape) const
+                              gather_instruction_builder& builder) const
     {
         std::vector<instruction_ref> parts;
         parts.reserve(segments.size());
         for(const auto& segment : segments)
         {
-            parts.push_back(apply_segment_transform(
-                segment, ctx, builder, make_segment_target_shape(ctx, segment.length)));
+            // Create a temporary context with the target shape for this segment
+            auto segment_ctx             = ctx;
+            segment_ctx.target_shape = make_segment_target_shape(ctx, segment.length);
+            parts.push_back(apply_segment_transform(segment, segment_ctx, builder));
         }
         auto axis         = static_cast<int64_t>(ctx.pre_lens.size());
         auto concatenated = builder.concat(parts, axis);
-        return builder.match_shape(concatenated, target_shape);
+        return builder.match_shape(concatenated, ctx.target_shape);
     }
 };
 
@@ -1539,8 +1541,7 @@ struct tiled_pattern
         std::size_t stride;
 
         instruction_ref transform(const gather_context& ctx,
-                                  gather_instruction_builder& builder,
-                                  const std::vector<std::size_t>& target_shape) const
+                                  gather_instruction_builder& builder) const
         {
             auto moved = builder.move_axis_to_front(ctx.data_ins, ctx.axis_index);
             std::vector<int64_t> reshape_dims = {static_cast<int64_t>(stride),
@@ -1558,7 +1559,7 @@ struct tiled_pattern
             auto final_reshape = builder.reshape(transposed, final_dims);
             auto restored      = builder.restore_axis_position(
                 final_reshape, ctx.pre_lens.size(), 1, ctx.post_lens.size());
-            return builder.match_shape(restored, target_shape);
+            return builder.match_shape(restored, ctx.target_shape);
         }
     };
 
@@ -1569,8 +1570,7 @@ struct tiled_pattern
         std::vector<std::size_t> scales;
 
         instruction_ref transform(const gather_context& ctx,
-                                  gather_instruction_builder& builder,
-                                  const std::vector<std::size_t>& target_shape) const
+                                  gather_instruction_builder& builder) const
         {
             auto input_ins           = ctx.data_ins->inputs().front();
             instruction_ref expanded = input_ins;
@@ -1649,7 +1649,7 @@ struct tiled_pattern
             auto reshaped = builder.reshape(first_mb, reshape_dims);
             auto final_mb = builder.multibroadcast(reshaped, to_int64_vec(output_lens));
 
-            return builder.match_shape(final_mb, target_shape);
+            return builder.match_shape(final_mb, ctx.target_shape);
         }
     };
 
@@ -1661,8 +1661,7 @@ struct tiled_pattern
         std::vector<std::size_t> input_lens;
 
         instruction_ref transform(const gather_context& ctx,
-                                  gather_instruction_builder& builder,
-                                  const std::vector<std::size_t>& target_shape) const
+                                  gather_instruction_builder& builder) const
         {
             auto input_ins          = ctx.data_ins->inputs().front();
             instruction_ref current = input_ins;
@@ -1679,7 +1678,7 @@ struct tiled_pattern
             if(not is_identity_perm(perm))
                 current = builder.transpose(current, perm);
 
-            return builder.reshape(current, to_int64_vec(target_shape));
+            return builder.reshape(current, to_int64_vec(ctx.target_shape));
         }
     };
 
@@ -1692,8 +1691,7 @@ struct tiled_pattern
         std::vector<int64_t> perm;
 
         instruction_ref transform(const gather_context& ctx,
-                                  gather_instruction_builder& builder,
-                                  const std::vector<std::size_t>& target_shape) const
+                                  gather_instruction_builder& builder) const
         {
             auto input_ins          = ctx.data_ins->inputs().front();
             auto reshaped           = builder.reshape(input_ins, to_int64_vec(reshape_dims));
@@ -1706,7 +1704,7 @@ struct tiled_pattern
             {
                 current = builder.transpose(current, perm);
             }
-            return builder.reshape(current, to_int64_vec(target_shape));
+            return builder.reshape(current, to_int64_vec(ctx.target_shape));
         }
     };
 
@@ -2485,18 +2483,17 @@ struct tiled_pattern
 
     /// Transform tiled pattern into instructions
     instruction_ref transform(const gather_context& ctx,
-                              gather_instruction_builder& builder,
-                              const std::vector<std::size_t>& target_shape) const
+                              gather_instruction_builder& builder) const
     {
         assert(not std::holds_alternative<std::monostate>(info));
         if(auto arithmetic = std::get_if<arithmetic_info>(&info))
-            return arithmetic->transform(ctx, builder, target_shape);
+            return arithmetic->transform(ctx, builder);
         if(auto rectangular = std::get_if<rectangular_info>(&info))
-            return rectangular->transform(ctx, builder, target_shape);
+            return rectangular->transform(ctx, builder);
         if(auto grid = std::get_if<arithmetic_grid_info>(&info))
-            return grid->transform(ctx, builder, target_shape);
+            return grid->transform(ctx, builder);
         if(auto multi = std::get_if<multi_axis_stride_info>(&info))
-            return multi->transform(ctx, builder, target_shape);
+            return multi->transform(ctx, builder);
         MIGRAPHX_THROW("tiled_pattern: unsupported pattern variant");
     }
 };
@@ -2505,14 +2502,13 @@ struct tiled_pattern
 /// Returns the optimized instruction if successful, nullopt otherwise
 inline std::optional<instruction_ref>
 try_segment_based_optimization_1d(const gather_context& ctx,
-                                  gather_instruction_builder& builder,
-                                  const std::vector<std::size_t>& target_shape)
+                                  gather_instruction_builder& builder)
 {
     auto segments = index_segment::analyze(ctx.indices_values, ctx.axis_len, ctx.factor_candidates);
     if(segments.empty())
     {
         if(auto tiled = tiled_pattern::detect(ctx))
-            return tiled->transform(ctx, builder, target_shape);
+            return tiled->transform(ctx, builder);
         return std::nullopt;
     }
 
@@ -2523,7 +2519,7 @@ try_segment_based_optimization_1d(const gather_context& ctx,
             [&](const auto& m) -> std::optional<instruction_ref> {
                 if constexpr(not std::is_same<std::decay_t<decltype(m)>, std::monostate>{})
                 {
-                    return m.transform(ctx, builder, target_shape);
+                    return m.transform(ctx, builder);
                 }
                 else
                 {
@@ -2536,16 +2532,16 @@ try_segment_based_optimization_1d(const gather_context& ctx,
     // Try multi-segment patterns
     if(auto split = split_pattern::detect(segments))
     {
-        return split->transform(ctx, builder, target_shape);
+        return split->transform(ctx, builder);
     }
 
     if(auto tiled = tiled_pattern::detect(ctx, segments))
     {
-        return tiled->transform(ctx, builder, target_shape);
+        return tiled->transform(ctx, builder);
     }
 
     if(auto tiled = tiled_pattern::detect(ctx))
-        return tiled->transform(ctx, builder, target_shape);
+        return tiled->transform(ctx, builder);
 
     return std::nullopt;
 } /// Try segment-based optimization with multi-dimensional normalization
@@ -2556,7 +2552,7 @@ inline bool try_segment_based_optimization(module& m,
     // For 1D or scalar indices, use direct optimization
     if(ctx.idims.size() <= 1)
     {
-        auto result = try_segment_based_optimization_1d(ctx, builder, ctx.ins->get_shape().lens());
+        auto result = try_segment_based_optimization_1d(ctx, builder);
         if(not result.has_value())
             return false;
 
@@ -2578,24 +2574,20 @@ inline bool try_segment_based_optimization(module& m,
     ctx_1d.index_positions.push_back(ctx.pre_lens.size());
     ctx_1d.index_dims = {total_indices};
 
-    // Step 3: Compute the target 1D output shape
+    // Step 3: Update target shape for 1D context
     // Output shape is: pre_lens + [total_indices] + post_lens
-    std::vector<std::size_t> target_1d_shape = ctx.pre_lens;
-    target_1d_shape.push_back(total_indices);
-    target_1d_shape.insert(target_1d_shape.end(), ctx.post_lens.begin(), ctx.post_lens.end());
+    ctx_1d.target_shape = ctx.pre_lens;
+    ctx_1d.target_shape.push_back(total_indices);
+    ctx_1d.target_shape.insert(ctx_1d.target_shape.end(), ctx.post_lens.begin(), ctx.post_lens.end());
 
-    // Step 4: Try optimization with 1D context and target shape
-    auto result_1d = try_segment_based_optimization_1d(ctx_1d, builder, target_1d_shape);
+    // Step 4: Try optimization with 1D context
+    auto result_1d = try_segment_based_optimization_1d(ctx_1d, builder);
     if(not result_1d.has_value())
         return false;
 
     // Step 5: Reshape back to multi-dimensional output shape
-    // Final output shape is: pre_lens + idims + post_lens
-    std::vector<std::size_t> final_shape = ctx.pre_lens;
-    final_shape.insert(final_shape.end(), ctx.idims.begin(), ctx.idims.end());
-    final_shape.insert(final_shape.end(), ctx.post_lens.begin(), ctx.post_lens.end());
-
-    auto final_result = builder.reshape(*result_1d, to_int64_vec(final_shape));
+    // Final output shape is: pre_lens + idims + post_lens (this is ctx.target_shape)
+    auto final_result = builder.reshape(*result_1d, to_int64_vec(ctx.target_shape));
     m.replace_instruction(ctx.ins, final_result);
     return true;
 }

@@ -43,8 +43,9 @@
 #include <migraphx/shape_transform_descriptor.hpp>
 #include <migraphx/instruction_traversal.hpp>
 
+#include <array>
 #include <map>
-#include <limits>
+#include <cassert>
 #include <numeric>
 #include <set>
 #include <variant>
@@ -1023,31 +1024,6 @@ class gather_instruction_builder
     }
 };
 
-/// Check if indices form a valid permutation
-inline bool is_valid_permutation(const std::vector<int64_t>& indices)
-{
-    if(indices.empty())
-        return false;
-
-    std::vector<std::size_t> sorted;
-    sorted.reserve(indices.size());
-    std::transform(indices.begin(), indices.end(), std::back_inserter(sorted), [](auto v) {
-        return v >= 0 ? static_cast<std::size_t>(v) : std::size_t{0};
-    });
-    std::sort(sorted.begin(), sorted.end());
-
-    return std::adjacent_find(sorted.begin(), sorted.end()) == sorted.end() and
-           sorted.front() == 0 and sorted.back() == sorted.size() - 1;
-}
-
-/// Check if indices form identity permutation
-inline bool is_identity_indices(const std::vector<int64_t>& indices)
-{
-    return std::all_of(indices.begin(), indices.end(), [i = std::size_t{0}](auto v) mutable {
-        return static_cast<std::size_t>(v) == i++;
-    });
-}
-
 // ============================================================================
 // Gather Optimization - Context and Pattern Classes
 // ============================================================================
@@ -1139,8 +1115,12 @@ struct constant_segment_meta
         auto sliced = builder.slice(moved, {0}, {value}, {value + 1});
 
         // Reshape to remove the sliced 1-dimension, giving us rest_lens shape
-        std::vector<int64_t> rest_shape(ctx.rest_lens.begin(), ctx.rest_lens.end());
-        auto reshaped = builder.reshape(sliced, rest_shape);
+        instruction_ref reshaped = sliced;
+        if(not ctx.rest_lens.empty())
+        {
+            std::vector<int64_t> rest_shape(ctx.rest_lens.begin(), ctx.rest_lens.end());
+            reshaped = builder.reshape(sliced, rest_shape);
+        }
 
         // Insert a 1-dimension at the axis position for broadcasting
         std::vector<int64_t> with_axis_dim = to_int64_vec(ctx.pre_lens);
@@ -1459,30 +1439,75 @@ struct index_segment
     }
 };
 
+static std::vector<std::size_t> make_segment_target_shape(const gather_context& ctx,
+                                                          std::size_t segment_length)
+{
+    assert(segment_length != 0);
+    std::vector<std::size_t> result = ctx.pre_lens;
+    result.push_back(segment_length);
+    result.insert(result.end(), ctx.post_lens.begin(), ctx.post_lens.end());
+    return result;
+}
+
+static instruction_ref apply_segment_transform(const index_segment& segment,
+                                               const gather_context& ctx,
+                                               gather_instruction_builder& builder,
+                                               const std::vector<std::size_t>& target_shape)
+{
+    assert(not segment.empty());
+    auto ensure_shape = [&](instruction_ref result) {
+        assert(result != instruction_ref{});
+        assert(result->get_shape().lens() == target_shape);
+        return result;
+    };
+    if(segment.has_type<constant_segment_meta>())
+        return ensure_shape(
+            std::get<constant_segment_meta>(segment.metadata).transform(ctx, builder, target_shape));
+    if(segment.has_type<contiguous_segment_meta>())
+        return ensure_shape(
+            std::get<contiguous_segment_meta>(segment.metadata).transform(ctx, builder, target_shape));
+    if(segment.has_type<arithmetic_segment_meta>())
+        return ensure_shape(
+            std::get<arithmetic_segment_meta>(segment.metadata).transform(ctx, builder, target_shape));
+    if(segment.has_type<rtr_window_segment_meta>())
+        return ensure_shape(
+            std::get<rtr_window_segment_meta>(segment.metadata).transform(ctx, builder, target_shape));
+    assert(false && "Unsupported segment type for transform");
+    return instruction_ref{};
+}
+
 /// Pattern: 2-way split
 struct split_pattern
 {
-    std::size_t split_point;
+    std::array<index_segment, 2> segments;
 
     /// Detect split pattern (2-way only)
-    static std::optional<split_pattern> detect(const std::vector<index_segment>& segments,
-                                               std::size_t axis_len)
+    static std::optional<split_pattern> detect(const std::vector<index_segment>& segments_vec)
     {
-        if(segments.size() != 2)
+        if(segments_vec.size() != 2)
             return std::nullopt;
-        if(not segments[0].has_type<contiguous_segment_meta>() or
-           not segments[1].has_type<contiguous_segment_meta>())
+        const auto& first  = segments_vec[0];
+        const auto& second = segments_vec[1];
+        if(first.empty() or second.empty())
             return std::nullopt;
-        auto meta0 = std::get<contiguous_segment_meta>(segments[0].metadata);
-        auto meta1 = std::get<contiguous_segment_meta>(segments[1].metadata);
-        if(meta0.count + meta1.count != static_cast<int64_t>(axis_len))
+        auto first_index  = first.metadata.index();
+        auto second_index = second.metadata.index();
+        if(first_index == 0 or second_index == 0)
             return std::nullopt;
-        // Split pattern: second segment at start, first segment at end
-        // e.g., indices {2,3,0,1} → seg0: [2,3] (start=2, count=2), seg1: [0,1] (start=0, count=2)
-        // Validation: first segment starts where second ends, second starts at 0
-        if(meta0.start != meta1.count or meta1.start != 0)
+
+        if(first_index == second_index)
+        {
+            if(first.has_type<contiguous_segment_meta>() and
+               second.has_type<contiguous_segment_meta>())
+            {
+                const auto& first_meta  = std::get<contiguous_segment_meta>(first.metadata);
+                const auto& second_meta = std::get<contiguous_segment_meta>(second.metadata);
+                if(first_meta.start != second_meta.start)
+                    return split_pattern{{first, second}};
+            }
             return std::nullopt;
-        return split_pattern{static_cast<std::size_t>(meta1.count)};
+        }
+        return split_pattern{{first, second}};
     }
 
     /// Transform split pattern into instructions
@@ -1490,35 +1515,158 @@ struct split_pattern
                               gather_instruction_builder& builder,
                               const std::vector<std::size_t>& target_shape) const
     {
-        auto moved        = builder.move_axis_to_front(ctx.data_ins, ctx.axis_index);
-        auto half         = static_cast<int64_t>(split_point);
-        auto first_half   = builder.slice(moved, {0}, {0}, {half});
-        auto second_half  = builder.slice(moved, {0}, {half}, {static_cast<int64_t>(ctx.axis_len)});
-        auto concatenated = builder.concat({second_half, first_half}, 0);
-        auto restored     = builder.restore_axis_position(
-            concatenated, ctx.pre_lens.size(), 1, ctx.post_lens.size());
-        return builder.match_shape(restored, target_shape);
+        std::vector<instruction_ref> parts;
+        parts.reserve(segments.size());
+        for(const auto& segment : segments)
+        {
+            parts.push_back(
+                apply_segment_transform(segment, ctx, builder, make_segment_target_shape(ctx, segment.length)));
+        }
+        auto axis        = static_cast<int64_t>(ctx.pre_lens.size());
+        auto concatenated = builder.concat(parts, axis);
+        return builder.match_shape(concatenated, target_shape);
     }
 };
 
-/// Pattern: tiled with arithmetic progression
+/// Pattern: tiled segments along gather axis (including rectangular resize)
 struct tiled_pattern
 {
-    std::size_t tile_size;
-    std::size_t num_tiles;
-    std::size_t stride;
-
-    /// Detect tiled pattern
-    static std::optional<tiled_pattern> detect(const std::vector<index_segment>& segments)
+    struct arithmetic_info
     {
-        // Need at least 2 segments for a tile pattern
+        std::size_t tile_size;
+        std::size_t num_tiles;
+        std::size_t stride;
+
+        instruction_ref transform(const gather_context& ctx,
+                                  gather_instruction_builder& builder,
+                                  const std::vector<std::size_t>& target_shape) const
+        {
+            auto moved = builder.move_axis_to_front(ctx.data_ins, ctx.axis_index);
+            std::vector<int64_t> reshape_dims = {static_cast<int64_t>(stride),
+                                                 static_cast<int64_t>(tile_size)};
+            reshape_dims.insert(reshape_dims.end(), ctx.rest_lens.begin(), ctx.rest_lens.end());
+            auto reshaped = builder.reshape(moved, reshape_dims);
+
+            std::vector<int64_t> perm = {1, 0};
+            for(std::size_t i = 2; i < reshape_dims.size(); ++i)
+                perm.push_back(static_cast<int64_t>(i));
+            auto transposed = builder.transpose(reshaped, perm);
+
+            std::vector<int64_t> final_dims = {static_cast<int64_t>(tile_size * stride)};
+            final_dims.insert(final_dims.end(), ctx.rest_lens.begin(), ctx.rest_lens.end());
+            auto final_reshape = builder.reshape(transposed, final_dims);
+            auto restored      = builder.restore_axis_position(
+                final_reshape, ctx.pre_lens.size(), 1, ctx.post_lens.size());
+            return builder.match_shape(restored, target_shape);
+        }
+    };
+
+    struct rectangular_info
+    {
+        std::vector<std::size_t> input_lens;
+        std::vector<std::size_t> output_lens;
+        std::vector<std::size_t> scales;
+
+        instruction_ref transform(const gather_context& ctx,
+                                  gather_instruction_builder& builder,
+                                  const std::vector<std::size_t>& target_shape) const
+        {
+            auto input_ins           = ctx.data_ins->inputs().front();
+            instruction_ref expanded = input_ins;
+
+            std::vector<int64_t> unsqueeze_axes;
+            unsqueeze_axes.reserve(input_lens.size());
+            std::vector<int64_t> first_broadcast_lens;
+            first_broadcast_lens.reserve(input_lens.size() * 2);
+            std::vector<int64_t> reshape_dims;
+            reshape_dims.reserve(input_lens.size());
+
+            bool need_unsqueeze = false;
+
+            // Step 1: Determine which positions need splitting
+            std::vector<bool> needs_split_flags(input_lens.size());
+            std::transform(input_lens.begin(),
+                           input_lens.end(),
+                           scales.begin(),
+                           needs_split_flags.begin(),
+                           [](auto len, auto scale) { return len > 1 and scale > 1; });
+
+            // Step 2: Compute prefix count of splits (how many splits occurred before each
+            // position)
+            std::vector<std::size_t> prefix_split_count(input_lens.size());
+            transform_partial_sum(needs_split_flags.begin(),
+                                  needs_split_flags.end(),
+                                  prefix_split_count.begin(),
+                                  std::plus<>{},
+                                  [](bool flag) { return flag ? std::size_t{1} : std::size_t{0}; });
+
+            // Step 3a: Build first_broadcast_lens with proper interleaving using accumulate
+            // For each index, add len and conditionally add scale
+            first_broadcast_lens =
+                std::accumulate(range(input_lens.size()).begin(),
+                                range(input_lens.size()).end(),
+                                std::vector<int64_t>{},
+                                [&](std::vector<int64_t> acc, auto i) {
+                                    acc.push_back(static_cast<int64_t>(input_lens[i]));
+                                    if(needs_split_flags[i])
+                                        acc.push_back(static_cast<int64_t>(scales[i]));
+                                    return acc;
+                                });
+
+            // Step 3b: Build unsqueeze_axes using transform_if for positions where needs_split is
+            // true
+            transform_if(
+                range(input_lens.size()).begin(),
+                range(input_lens.size()).end(),
+                std::back_inserter(unsqueeze_axes),
+                [&needs_split_flags](auto i) { return needs_split_flags[i]; },
+                [&prefix_split_count](auto i) {
+                    auto inserted = (i > 0) ? prefix_split_count[i - 1] : std::size_t{0};
+                    return static_cast<int64_t>(i + 1 + inserted);
+                });
+
+            // Step 3c: Update need_unsqueeze flag
+            need_unsqueeze = std::any_of(
+                needs_split_flags.begin(), needs_split_flags.end(), [](bool flag) { return flag; });
+
+            // Step 4: Build reshape_dims by transforming indices
+            std::transform(range(input_lens.size()).begin(),
+                           range(input_lens.size()).end(),
+                           std::back_inserter(reshape_dims),
+                           [&](auto i) {
+                               auto len            = input_lens[i];
+                               auto scale          = scales[i];
+                               auto needs_split    = needs_split_flags[i];
+                               auto reshape_factor = needs_split ? scale : std::size_t{1};
+                               return static_cast<int64_t>(len * reshape_factor);
+                           });
+
+            if(need_unsqueeze)
+                expanded = builder.unsqueeze(expanded, unsqueeze_axes);
+
+            auto first_mb = builder.multibroadcast(expanded, first_broadcast_lens);
+            auto reshaped = builder.reshape(first_mb, reshape_dims);
+            auto final_mb = builder.multibroadcast(reshaped, to_int64_vec(output_lens));
+
+            return builder.match_shape(final_mb, target_shape);
+        }
+    };
+
+    std::variant<std::monostate, arithmetic_info, rectangular_info> info;
+
+    explicit tiled_pattern(arithmetic_info a) : info(std::move(a)) {}
+    explicit tiled_pattern(rectangular_info r) : info(std::move(r)) {}
+
+    static std::optional<arithmetic_info>
+    detect_arithmetic(const std::vector<index_segment>& segments)
+    {
         if(segments.size() < 2)
             return std::nullopt;
         if(not std::all_of(segments.begin(), segments.end(), [](const auto& seg) {
                return seg.template has_type<arithmetic_segment_meta>();
            }))
             return std::nullopt;
-        auto first_meta = std::get<arithmetic_segment_meta>(segments[0].metadata);
+        auto first_meta = std::get<arithmetic_segment_meta>(segments.front().metadata);
         auto stride     = first_meta.stride;
         for(const auto& seg : segments)
         {
@@ -1532,43 +1680,13 @@ struct tiled_pattern
             if(meta.base != static_cast<int64_t>(i))
                 return std::nullopt;
         }
-        return tiled_pattern{first_meta.count, segments.size(), static_cast<std::size_t>(stride)};
+        return arithmetic_info{static_cast<std::size_t>(first_meta.count),
+                               segments.size(),
+                               static_cast<std::size_t>(stride)};
     }
 
-    /// Transform tiled pattern into instructions
-    instruction_ref transform(const gather_context& ctx,
-                              gather_instruction_builder& builder,
-                              const std::vector<std::size_t>& target_shape) const
-    {
-        auto moved = builder.move_axis_to_front(ctx.data_ins, ctx.axis_index);
-        std::vector<int64_t> reshape_dims = {static_cast<int64_t>(stride),
-                                             static_cast<int64_t>(tile_size)};
-        reshape_dims.insert(reshape_dims.end(), ctx.rest_lens.begin(), ctx.rest_lens.end());
-        auto reshaped = builder.reshape(moved, reshape_dims);
-
-        std::vector<int64_t> perm = {1, 0};
-        for(std::size_t i = 2; i < reshape_dims.size(); ++i)
-            perm.push_back(static_cast<int64_t>(i));
-        auto transposed = builder.transpose(reshaped, perm);
-
-        std::vector<int64_t> final_dims = {static_cast<int64_t>(tile_size * stride)};
-        final_dims.insert(final_dims.end(), ctx.rest_lens.begin(), ctx.rest_lens.end());
-        auto final_reshape = builder.reshape(transposed, final_dims);
-        auto restored      = builder.restore_axis_position(
-            final_reshape, ctx.pre_lens.size(), 1, ctx.post_lens.size());
-        return builder.match_shape(restored, target_shape);
-    }
-};
-
-/// Pattern: rectangular grid of constant segments produced by reshape-based resize
-struct rectangular_pattern
-{
-    std::vector<std::size_t> input_lens;
-    std::vector<std::size_t> output_lens;
-    std::vector<std::size_t> scales;
-
-    static std::optional<rectangular_pattern> detect(const gather_context& ctx,
-                                                     const std::vector<index_segment>& segments)
+    static std::optional<rectangular_info>
+    detect_rectangular(const gather_context& ctx, const std::vector<index_segment>& segments)
     {
         if(ctx.axis_index != 0)
             return std::nullopt;
@@ -1638,28 +1756,22 @@ struct rectangular_pattern
             scales[i] = out_dim / in_dim;
         }
 
-        // Validate all segment indices
         auto validate_segment_indices = [&](const index_segment& seg, std::size_t offset) {
             const auto& meta = std::get<constant_segment_meta>(seg.metadata);
 
-            // Check all indices in this segment
             return std::all_of(
                 range(seg.length).begin(), range(seg.length).end(), [&](std::size_t j) {
                     auto idx = offset + j;
 
-                    // Validate index bounds
                     if(static_cast<std::size_t>(ctx.indices_values[idx]) >= ctx.axis_len)
                         return false;
 
-                    // Validate index matches segment metadata
                     if(ctx.indices_values[idx] != meta.value)
                         return false;
 
-                    // Compute and validate multi-dimensional indexing
                     auto out_idx = output_shape.multi(idx);
                     auto in_idx  = out_idx;
 
-                    // Apply scale transformation to each dimension
                     std::transform(in_idx.begin(),
                                    in_idx.end(),
                                    scales.begin(),
@@ -1673,7 +1785,6 @@ struct rectangular_pattern
                 });
         };
 
-        // Compute cumulative offsets for each segment
         std::vector<std::size_t> segment_offsets(segments.size());
         transform_partial_sum(segments.begin(),
                               segments.end(),
@@ -1681,13 +1792,10 @@ struct rectangular_pattern
                               std::plus<>(),
                               [](const auto& seg) { return seg.length; });
 
-        // Validate all segments
         bool all_valid = std::equal(segments.begin(),
                                     segments.end(),
                                     segment_offsets.begin(),
                                     [&](const auto& seg, std::size_t cumulative_offset) {
-                                        // Offset for this segment is cumulative_offset minus
-                                        // current segment length
                                         std::size_t offset = cumulative_offset - seg.length;
                                         return validate_segment_indices(seg, offset);
                                     });
@@ -1698,90 +1806,31 @@ struct rectangular_pattern
         std::vector<std::size_t> input_lens(in_lens_ref.begin(), in_lens_ref.end());
         std::vector<std::size_t> output_lens(out_lens_ref.begin(), out_lens_ref.end());
 
-        return rectangular_pattern{
-            std::move(input_lens), std::move(output_lens), std::move(scales)};
+        return rectangular_info{std::move(input_lens), std::move(output_lens), std::move(scales)};
     }
 
+    /// Detect tiled pattern
+    static std::optional<tiled_pattern>
+    detect(const gather_context& ctx, const std::vector<index_segment>& segments)
+    {
+        if(auto rectangular = detect_rectangular(ctx, segments))
+            return tiled_pattern{std::move(*rectangular)};
+
+        if(auto arithmetic = detect_arithmetic(segments))
+            return tiled_pattern{std::move(*arithmetic)};
+
+        return std::nullopt;
+    }
+
+    /// Transform tiled pattern into instructions
     instruction_ref transform(const gather_context& ctx,
                               gather_instruction_builder& builder,
                               const std::vector<std::size_t>& target_shape) const
     {
-        auto input_ins           = ctx.data_ins->inputs().front();
-        instruction_ref expanded = input_ins;
-
-        std::vector<int64_t> unsqueeze_axes;
-        unsqueeze_axes.reserve(input_lens.size());
-        std::vector<int64_t> first_broadcast_lens;
-        first_broadcast_lens.reserve(input_lens.size() * 2);
-        std::vector<int64_t> reshape_dims;
-        reshape_dims.reserve(input_lens.size());
-
-        bool need_unsqueeze = false;
-
-        // Step 1: Determine which positions need splitting
-        std::vector<bool> needs_split_flags(input_lens.size());
-        std::transform(input_lens.begin(),
-                       input_lens.end(),
-                       scales.begin(),
-                       needs_split_flags.begin(),
-                       [](auto len, auto scale) { return len > 1 and scale > 1; });
-
-        // Step 2: Compute prefix count of splits (how many splits occurred before each position)
-        std::vector<std::size_t> prefix_split_count(input_lens.size());
-        transform_partial_sum(needs_split_flags.begin(),
-                              needs_split_flags.end(),
-                              prefix_split_count.begin(),
-                              std::plus<>{},
-                              [](bool flag) { return flag ? std::size_t{1} : std::size_t{0}; });
-
-        // Step 3a: Build first_broadcast_lens with proper interleaving using accumulate
-        // For each index, add len and conditionally add scale
-        first_broadcast_lens =
-            std::accumulate(range(input_lens.size()).begin(),
-                            range(input_lens.size()).end(),
-                            std::vector<int64_t>{},
-                            [&](std::vector<int64_t> acc, auto i) {
-                                acc.push_back(static_cast<int64_t>(input_lens[i]));
-                                if(needs_split_flags[i])
-                                    acc.push_back(static_cast<int64_t>(scales[i]));
-                                return acc;
-                            });
-
-        // Step 3b: Build unsqueeze_axes using transform_if for positions where needs_split is true
-        transform_if(
-            range(input_lens.size()).begin(),
-            range(input_lens.size()).end(),
-            std::back_inserter(unsqueeze_axes),
-            [&needs_split_flags](auto i) { return needs_split_flags[i]; },
-            [&prefix_split_count](auto i) {
-                auto inserted = (i > 0) ? prefix_split_count[i - 1] : std::size_t{0};
-                return static_cast<int64_t>(i + 1 + inserted);
-            });
-
-        // Step 3c: Update need_unsqueeze flag
-        need_unsqueeze = std::any_of(
-            needs_split_flags.begin(), needs_split_flags.end(), [](bool flag) { return flag; });
-
-        // Step 4: Build reshape_dims by transforming indices
-        std::transform(range(input_lens.size()).begin(),
-                       range(input_lens.size()).end(),
-                       std::back_inserter(reshape_dims),
-                       [&](auto i) {
-                           auto len            = input_lens[i];
-                           auto scale          = scales[i];
-                           auto needs_split    = needs_split_flags[i];
-                           auto reshape_factor = needs_split ? scale : std::size_t{1};
-                           return static_cast<int64_t>(len * reshape_factor);
-                       });
-
-        if(need_unsqueeze)
-            expanded = builder.unsqueeze(expanded, unsqueeze_axes);
-
-        auto first_mb = builder.multibroadcast(expanded, first_broadcast_lens);
-        auto reshaped = builder.reshape(first_mb, reshape_dims);
-        auto final_mb = builder.multibroadcast(reshaped, to_int64_vec(output_lens));
-
-        return builder.match_shape(final_mb, target_shape);
+        assert(not std::holds_alternative<std::monostate>(info));
+        if(auto arithmetic = std::get_if<arithmetic_info>(&info))
+            return arithmetic->transform(ctx, builder, target_shape);
+        return std::get<rectangular_info>(info).transform(ctx, builder, target_shape);
     }
 };
 
@@ -1814,19 +1863,14 @@ try_segment_based_optimization_1d(const gather_context& ctx,
     }
 
     // Try multi-segment patterns
-    if(auto split = split_pattern::detect(segments, ctx.axis_len))
+    if(auto split = split_pattern::detect(segments))
     {
         return split->transform(ctx, builder, target_shape);
     }
 
-    if(auto tiled = tiled_pattern::detect(segments))
+    if(auto tiled = tiled_pattern::detect(ctx, segments))
     {
         return tiled->transform(ctx, builder, target_shape);
-    }
-
-    if(auto rectangular = rectangular_pattern::detect(ctx, segments))
-    {
-        return rectangular->transform(ctx, builder, target_shape);
     }
 
     return std::nullopt;

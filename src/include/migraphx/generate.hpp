@@ -53,7 +53,7 @@ template <class T, MIGRAPHX_REQUIRES(is_signed<T>{} and not is_floating_point<T>
 constexpr T normalize(unsigned long z, random_mode m)
 {
     const long long max =
-        (m == random_mode::legacy) ? 1ULL << (sizeof(T) * 5) : 1ULL << (sizeof(T) * 6 - 1);
+        (m == random_mode::legacy) ? 1ULL << (sizeof(T) * 5) : 1ULL << (sizeof(T) * 8 - 2);
     const auto half_max = max / 2;
     auto result         = half_max - (z % max);
     // Expected output: between -half_max and half_max
@@ -123,7 +123,7 @@ struct xorshift_generator
 template <class T>
 auto generate_tensor_data(const migraphx::shape& s,
                           unsigned long seed,
-                          random_mode m = random_mode::legacy)
+                          random_mode m = random_mode::random)
 {
     auto result = make_shared_array<T>(s.element_space());
     std::generate(result.get(), result.get() + s.element_space(), xorshf96_generator<T>{seed, m});
@@ -142,7 +142,7 @@ MIGRAPHX_EXPORT argument fill_argument(shape s, double value = 0);
 
 MIGRAPHX_EXPORT argument generate_argument(shape s,
                                            unsigned long seed = 0,
-                                           random_mode m      = random_mode::legacy);
+                                           random_mode m      = random_mode::random);
 
 MIGRAPHX_EXPORT literal generate_literal(shape s, unsigned long seed = 0);
 

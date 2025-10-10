@@ -40,7 +40,6 @@ Full documentation for MIGraphX is available at
 * Updated MXFP4 passes for `simplify_qdq`, `quant_dot`, and `quant_conv`.
 * Restricted FP8 quantization to `dot` and `convolution` operators.
 * Changed `unpack_fp4` output to `fp8e4m3fn` type.
-* Removed extra FP4 conversion array to improve compile performance.
 * Moved ONNX Runtime launcher script into MIGraphX and updated build scripts.
 * Simplified Resize operator parser for correctness and maintainability.
 * Updated `any_ptr` assertion to avoid failure on default HIP stream.
@@ -74,6 +73,7 @@ Full documentation for MIGraphX is available at
 
 ### Removed
 
+* Removed extra FP4 conversion array to improve compile performance.
 * Removed Perl dependency from SLES builds.
 * Removed redundant includes and unused internal dependencies.
 

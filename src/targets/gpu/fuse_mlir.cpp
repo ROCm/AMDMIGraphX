@@ -48,6 +48,7 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_EXTRA_MLIR);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_GEG_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MLIR);
 /**
  * @brief Declares a new MIGraphX environment variable which forces to generate
@@ -779,6 +780,152 @@ struct find_mlir_fused_ops
     }
 };
 
+/**
+ * Fuses rocMLIR conv/dot -> pointwise -> dot chain
+ * into a mlir_op with submodule.
+ */
+struct find_mlir_fused_geg_ops
+{
+    mlir_mode conv_mode = mlir_mode::none;
+    mlir_mode dot_mode  = mlir_mode::none;
+
+    /*
+     * Matches:
+     * mlir_dot_or_conv <binds to "first_gemm_based_op"> ->
+     * pointwise <binds to "pointwise_op"> ->
+     * dot <matcher result, binds to "second_gemm_op">
+     */
+    auto matcher() const
+    {
+        auto first_dot_or_conv = match::any_of(is_mlir_dot(dot_mode), is_mlir_conv(conv_mode))
+                                     .bind("first_gemm_based_op");
+        auto elemwise =
+            mlir_pointwise()(match::any_of[match::inputs()](first_dot_or_conv)).bind("elemwise");
+        return is_mlir_dot(dot_mode)(match::any_of[match::inputs()](elemwise))
+            .bind("second_gemm_op");
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto second_gemm_ins = r.result;
+        auto elemwise_ins    = r.instructions["elemwise"];
+        auto first_gemm_ins  = r.instructions["first_gemm_based_op"];
+
+        auto* elemwise_module = elemwise_ins->module_inputs().front();
+        auto elemwise_inputs  = elemwise_ins->inputs();
+
+        // only one input to elemwise should depend on first_gemm
+        if(std::any_of(elemwise_inputs.begin(), elemwise_inputs.end(), [&](const auto& i) {
+               return i != first_gemm_ins and reaches(first_gemm_ins, i);
+           }))
+            return;
+
+        // only one input to second_gemm should depend on elemwise
+        auto second_gemm_inputs = second_gemm_ins->inputs();
+        if(std::any_of(second_gemm_inputs.begin(), second_gemm_inputs.end(), [&](const auto& i) {
+               return i != elemwise_ins and reaches(elemwise_ins, i);
+           }))
+            return;
+
+        std::unordered_map<instruction_ref, instruction_ref> map_ins;
+        module_ref mm =
+            mpm.create_module("mlir_" + elemwise_ins->module_inputs().front()->name() + "_geg");
+        mm->set_bypass();
+        fuse_input_ops(mm, first_gemm_ins->inputs(), &map_ins);
+
+        // need to track multi-user scenarios for both intermediates
+        bool first_gemm_has_multi_outs = first_gemm_ins->outputs().size() > 1;
+        bool elemwise_has_multi_outs   = elemwise_ins->outputs().size() > 1;
+
+        // add the first gemm to the module
+        std::vector<instruction_ref> first_gemm_mapped_inputs;
+        first_gemm_mapped_inputs.reserve(first_gemm_ins->inputs().size());
+        std::transform(first_gemm_ins->inputs().begin(),
+                       first_gemm_ins->inputs().end(),
+                       std::back_inserter(first_gemm_mapped_inputs),
+                       [&](auto input) { return map_ins.at(input); });
+        auto first_gemm_in_module =
+            mm->add_instruction(first_gemm_ins->get_operator(), first_gemm_mapped_inputs);
+        map_ins[first_gemm_ins] = first_gemm_in_module;
+
+        // fuse external inputs for the elemwise operation
+        fuse_input_ops(mm, elemwise_inputs, &map_ins);
+
+        // fuse elemwise submodule
+        auto elemwise_rins =
+            mm->fuse(*elemwise_module, elemwise_inputs, &map_ins, &insert_pointwise);
+        assert(elemwise_rins.size() == 1);
+        map_ins[elemwise_ins] = elemwise_rins.front();
+
+        // fuse external inputs for the second gemm
+        fuse_input_ops(mm, second_gemm_inputs, &map_ins);
+
+        // add the second gemm to the new module
+        std::vector<instruction_ref> second_gemm_mapped_inputs;
+        second_gemm_mapped_inputs.reserve(second_gemm_inputs.size());
+        std::transform(second_gemm_inputs.begin(),
+                       second_gemm_inputs.end(),
+                       std::back_inserter(second_gemm_mapped_inputs),
+                       [&](auto input) { return map_ins.at(input); });
+        auto second_gemm_in_module =
+            mm->add_instruction(second_gemm_ins->get_operator(), second_gemm_mapped_inputs);
+        map_ins[second_gemm_ins] = second_gemm_in_module;
+
+        // primary output is the last gemm, which should be the first output
+        std::vector<instruction_ref> return_vals;
+        return_vals.push_back(second_gemm_in_module);
+
+        if(elemwise_has_multi_outs)
+        {
+            return_vals.push_back(map_ins[elemwise_ins]);
+        }
+        if(first_gemm_has_multi_outs)
+        {
+            return_vals.push_back(map_ins[first_gemm_ins]);
+        }
+        mm->add_return(return_vals);
+        auto inputs = find_inputs(map_ins, &mpm.get_module(), mm);
+
+        // sort fusion section of module such that any external inputs are moved before the fusion
+        // so that we can safely place the fused mod in the multi-out case at the beginning of the
+        // chain
+        mpm.get_module().localized_sort(first_gemm_ins, second_gemm_ins);
+
+        auto fused_ins =
+            mpm.get_module().insert_instruction(first_gemm_ins,
+                                                mlir_op{second_gemm_ins->get_operator()},
+                                                mlir_contiguous(mpm, inputs),
+                                                {mm});
+
+        if(first_gemm_has_multi_outs or elemwise_has_multi_outs)
+        {
+            std::size_t output_idx = 0;
+            if(elemwise_has_multi_outs)
+            {
+                auto elemwise_result = mpm.get_module().insert_instruction(
+                    first_gemm_ins,
+                    migraphx::make_op("get_tuple_elem", {{"index", ++output_idx}}),
+                    fused_ins);
+                mpm.get_module().replace_instruction(elemwise_ins, elemwise_result);
+            }
+            if(first_gemm_has_multi_outs)
+            {
+                mpm.get_module().replace_instruction(
+                    first_gemm_ins,
+                    migraphx::make_op("get_tuple_elem", {{"index", ++output_idx}}),
+                    fused_ins);
+            }
+            mpm.get_module().replace_instruction(
+                second_gemm_ins, migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused_ins);
+        }
+        else
+        {
+            // simple single output case
+            mpm.get_module().replace_instruction(second_gemm_ins, fused_ins);
+        }
+    }
+};
+
 template <auto Matcher>
 struct find_mlir_standalone_op
 {
@@ -1299,6 +1446,15 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
 
     match::find_matches(mpm, find_mlir_attention_op{});
     mpm.run_pass(dead_code_elimination{});
+
+    if(enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}))
+    {
+        match::find_matches(
+            mpm,
+            find_mlir_fused_geg_ops{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
+                                    .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
+        mpm.run_pass(dead_code_elimination{});
+    }
 
     match::find_matches(
         mpm,

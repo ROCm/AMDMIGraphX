@@ -27,18 +27,25 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_relu_lrn : verify_program<test_relu_lrn>
+template <migraphx::shape::type_t DType>
+struct test_dot_add_dot : verify_program<test_dot_add_dot<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 5, 2, 2}});
-        auto y = mm->add_instruction(migraphx::make_op("relu"), x);
-        mm->add_instruction(
-            migraphx::make_op("lrn",
-                              {{"alpha", 0.0001}, {"beta", 0.75}, {"bias", 1.0}, {"size", 5}}),
-            y);
+        migraphx::shape s{DType, {256, 256}};
+        auto a    = mm->add_parameter("a", s);
+        auto b    = mm->add_parameter("b", s);
+        auto c    = mm->add_parameter("c", s);
+        auto d    = mm->add_parameter("d", s);
+        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto add  = mm->add_instruction(migraphx::make_op("add"), dot1, c);
+        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, d);
+        mm->add_return({dot2});
         return p;
     }
 };
+
+template struct test_dot_add_dot<migraphx::shape::half_type>;
+template struct test_dot_add_dot<migraphx::shape::bf16_type>;

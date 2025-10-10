@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -42,3 +42,7 @@ foreach(SECTION general reduce rnn conv gemm)
         )
     endif()
 endforeach()
+
+# TODO: remove this when MIGraphX disables attn-like offloading to rocMLIR
+# f32 not supported on navi3x
+set_tests_properties(test_verify_rnn PROPERTIES ENVIRONMENT "MIGRAPHX_ENABLE_MLIR_GEG_FUSION=0")

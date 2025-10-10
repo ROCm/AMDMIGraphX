@@ -47,7 +47,6 @@ Full documentation for MIGraphX is available at
 * Fixed ONNX `Resize` parsing when input and output shapes are identical (#4133, #4161).
 * Fixed issue with MHA in attention refactor (#4152).
 * Fixed synchronization issue from upstream ONNX Runtime (#4189).
-* Fixed rocMLIR tuning to check `hipblaslt` workspace size (#4182).
 * Fixed spelling error in “Contiguous” (#4287).
 * Fixed tidy complaint about duplicate header (#4245).
 * Fixed `reshape`, `transpose`, and `broadcast` rewrites between pointwise and reduce operators (#3978).
@@ -62,6 +61,7 @@ Full documentation for MIGraphX is available at
 * Removed redundant NOP instructions for GFX11/12 platforms.
 * Improved `Graphviz` output (node color and layout updates).
 * Optimized interdependency checking during compilation.
+* Skip hipBLASLt solutions requiring workspace size larger than 128 MB for efficient memory utilization.
 
 ### Removed
 

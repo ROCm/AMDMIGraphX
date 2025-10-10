@@ -48,6 +48,7 @@
 #include <cassert>
 #include <numeric>
 #include <set>
+#include <limits>
 #include <variant>
 
 namespace migraphx {
@@ -1682,11 +1683,412 @@ struct tiled_pattern
         }
     };
 
-    std::variant<std::monostate, arithmetic_info, rectangular_info, arithmetic_grid_info> info;
+    struct multi_axis_stride_info
+    {
+        std::vector<std::size_t> reshape_dims;
+        std::vector<int64_t> slice_axes;
+        std::vector<int64_t> slice_starts;
+        std::vector<int64_t> slice_ends;
+        std::vector<int64_t> perm;
+
+        instruction_ref transform(const gather_context& ctx,
+                                  gather_instruction_builder& builder,
+                                  const std::vector<std::size_t>& target_shape) const
+        {
+            auto input_ins = ctx.data_ins->inputs().front();
+            auto reshaped  = builder.reshape(input_ins, to_int64_vec(reshape_dims));
+            instruction_ref current = reshaped;
+            if(not slice_axes.empty())
+            {
+                current =
+                    builder.slice(current, slice_axes, slice_starts, slice_ends);
+            }
+            if(not is_identity_perm(perm))
+            {
+                current = builder.transpose(current, perm);
+            }
+            return builder.reshape(current, to_int64_vec(target_shape));
+        }
+    };
+
+    std::variant<std::monostate,
+                 arithmetic_info,
+                 rectangular_info,
+                 arithmetic_grid_info,
+                 multi_axis_stride_info>
+        info;
 
     explicit tiled_pattern(arithmetic_info a) : info(std::move(a)) {}
     explicit tiled_pattern(rectangular_info r) : info(std::move(r)) {}
     explicit tiled_pattern(arithmetic_grid_info g) : info(std::move(g)) {}
+    explicit tiled_pattern(multi_axis_stride_info m) : info(std::move(m)) {}
+
+    static bool is_contiguous_range(const std::vector<std::size_t>& values)
+    {
+        if(values.empty())
+            return true;
+        for(std::size_t i = 1; i < values.size(); ++i)
+        {
+            if(values[i] != values[i - 1] + 1)
+                return false;
+        }
+        return true;
+    }
+
+    static std::vector<std::size_t> compute_divisors(std::size_t value)
+    {
+        std::vector<std::size_t> divisors;
+        for(std::size_t i = 1; i <= value; ++i)
+        {
+            if(value % i == 0)
+                divisors.push_back(i);
+        }
+        return divisors;
+    }
+
+    struct split_candidate
+    {
+        std::size_t inner_size    = 0;
+        std::size_t outer_size    = 0;
+        std::size_t outer_start   = 0;
+        std::size_t outer_count   = 0;
+        std::size_t inner_start   = 0;
+        std::size_t inner_count   = 0;
+    };
+
+    static std::optional<split_candidate>
+    find_split_candidate(std::size_t lens, const std::vector<std::size_t>& unique_vals)
+    {
+        auto divisors = compute_divisors(lens);
+        for(auto inner_size : divisors)
+        {
+            if(inner_size <= 1 or inner_size >= lens)
+                continue;
+            if(lens % inner_size != 0)
+                continue;
+            auto outer_size = lens / inner_size;
+            std::map<std::size_t, std::set<std::size_t>> remainder_sets;
+            for(auto v : unique_vals)
+            {
+                auto outer = v / inner_size;
+                auto rem   = v % inner_size;
+                if(outer >= outer_size)
+                {
+                    remainder_sets.clear();
+                    break;
+                }
+                remainder_sets[outer].insert(rem);
+            }
+            if(remainder_sets.empty())
+                continue;
+            auto outer_min = remainder_sets.begin()->first;
+            auto outer_max = remainder_sets.rbegin()->first;
+            if(outer_max - outer_min + 1 != remainder_sets.size())
+                continue;
+            const auto& base = remainder_sets.begin()->second;
+            if(base.empty())
+                continue;
+            std::vector<std::size_t> base_vec(base.begin(), base.end());
+            if(not is_contiguous_range(base_vec))
+                continue;
+            auto inner_start = base_vec.front();
+            auto inner_end   = base_vec.back() + 1;
+            auto inner_count = inner_end - inner_start;
+            if(inner_end > inner_size or inner_count <= 1)
+                continue;
+            bool consistent = std::all_of(remainder_sets.begin(),
+                                           remainder_sets.end(),
+                                           [&](const auto& kv) {
+                                               if(kv.second.size() != base.size())
+                                                   return false;
+                                               return std::equal(base.begin(), base.end(), kv.second.begin());
+                                           });
+            if(not consistent)
+                continue;
+            auto outer_count = remainder_sets.size();
+            if(inner_count * outer_count != unique_vals.size())
+                continue;
+            return split_candidate{inner_size,
+                                   outer_size,
+                                   outer_min,
+                                   outer_count,
+                                   inner_start,
+                                   inner_count};
+        }
+        return std::nullopt;
+    }
+
+    static std::optional<multi_axis_stride_info> detect_multi_axis_stride(const gather_context& ctx)
+    {
+        if(ctx.axis_index != 0)
+            return std::nullopt;
+
+        auto data_ins = ctx.data_ins;
+        if(data_ins->name() != "reshape" or data_ins->inputs().size() != 1)
+            return std::nullopt;
+
+        auto input_ins          = data_ins->inputs().front();
+        const auto& input_shape  = input_ins->get_shape();
+        const auto& input_lens   = input_shape.lens();
+        auto target_shape        = ctx.ins->get_shape().lens();
+        auto ndims               = input_lens.size();
+        if(ndims == 0 or target_shape.empty())
+            return std::nullopt;
+
+        std::vector<std::vector<std::size_t>> coords;
+        coords.reserve(ctx.indices_values.size());
+        for(auto idx : ctx.indices_values)
+        {
+            if(idx < 0)
+                return std::nullopt;
+            auto uidx = static_cast<std::size_t>(idx);
+            if(uidx >= input_shape.elements())
+                return std::nullopt;
+            coords.push_back(input_shape.multi(uidx));
+        }
+        if(coords.empty())
+            return std::nullopt;
+
+        std::vector<std::vector<std::size_t>> unique_vals(ndims);
+        for(std::size_t dim = 0; dim < ndims; ++dim)
+        {
+            std::set<std::size_t> dim_vals;
+            for(const auto& coord : coords)
+                dim_vals.insert(coord[dim]);
+            unique_vals[dim] = std::vector<std::size_t>(dim_vals.begin(), dim_vals.end());
+        }
+
+        struct dim_info
+        {
+            std::size_t original_dim   = 0;
+            std::size_t lens           = 0;
+            bool include_in_reshape    = false;
+            bool use_split             = false;
+            std::size_t outer_size     = 0;
+            std::size_t inner_size     = 0;
+            std::size_t outer_start    = 0;
+            std::size_t outer_count    = 0;
+            std::size_t inner_start    = 0;
+            std::size_t inner_count    = 0;
+            std::size_t outer_axis     = std::numeric_limits<std::size_t>::max();
+            std::optional<std::size_t> inner_axis;
+            std::optional<std::size_t> constant_value;
+        };
+
+        std::vector<dim_info> dims;
+        dims.reserve(ndims);
+        std::vector<std::size_t> reshape_dims;
+        std::size_t next_axis = 0;
+
+        for(std::size_t dim = 0; dim < ndims; ++dim)
+        {
+            dim_info info;
+            info.original_dim        = dim;
+            info.lens                = input_lens[dim];
+            info.include_in_reshape  = (info.lens > 1);
+            const auto& vals         = unique_vals[dim];
+
+            if(info.lens == 1)
+            {
+                info.outer_start = vals.empty() ? 0 : vals.front();
+                info.outer_count = 1;
+                dims.push_back(info);
+                continue;
+            }
+
+            if(vals.empty())
+                return std::nullopt;
+
+            if(vals.size() == info.lens)
+            {
+                info.outer_start = 0;
+                info.outer_count = info.lens;
+                info.outer_axis  = next_axis++;
+                reshape_dims.push_back(info.lens);
+                dims.push_back(info);
+                continue;
+            }
+
+            if(vals.size() == 1)
+            {
+                info.constant_value = vals.front();
+                info.outer_start    = vals.front();
+                info.outer_count    = 1;
+                info.outer_axis     = next_axis++;
+                reshape_dims.push_back(info.lens);
+                dims.push_back(info);
+                continue;
+            }
+
+            auto candidate = find_split_candidate(info.lens, vals);
+            if(candidate.has_value())
+            {
+                info.use_split   = true;
+                info.outer_size  = candidate->outer_size;
+                info.inner_size  = candidate->inner_size;
+                info.outer_start = candidate->outer_start;
+                info.outer_count = candidate->outer_count;
+                info.inner_start = candidate->inner_start;
+                info.inner_count = candidate->inner_count;
+                info.outer_axis  = next_axis++;
+                reshape_dims.push_back(info.outer_size);
+                info.inner_axis = next_axis++;
+                reshape_dims.push_back(info.inner_size);
+                dims.push_back(info);
+                continue;
+            }
+
+            if(not is_contiguous_range(vals))
+                return std::nullopt;
+
+            info.outer_start = vals.front();
+            info.outer_count = vals.size();
+            info.outer_axis  = next_axis++;
+            reshape_dims.push_back(info.lens);
+            dims.push_back(info);
+        }
+
+        if(reshape_dims.empty())
+            return std::nullopt;
+
+        struct inner_axis_info
+        {
+            std::size_t original_dim;
+            std::size_t axis;
+            std::size_t count;
+        };
+
+        std::vector<inner_axis_info> inner_axes;
+        for(const auto& info : dims)
+        {
+            if(info.use_split and info.inner_axis.has_value() and info.inner_count > 1)
+            {
+                inner_axes.push_back({info.original_dim, info.inner_axis.value(), info.inner_count});
+            }
+        }
+        if(inner_axes.empty())
+            return std::nullopt;
+
+        std::vector<std::tuple<int64_t, int64_t, int64_t>> slice_specs;
+        for(const auto& info : dims)
+        {
+            if(info.lens == 1)
+                continue;
+            if(info.constant_value.has_value())
+            {
+                slice_specs.emplace_back(static_cast<int64_t>(info.outer_axis),
+                                         static_cast<int64_t>(info.constant_value.value()),
+                                         static_cast<int64_t>(info.constant_value.value() + 1));
+                continue;
+            }
+            if(info.use_split)
+            {
+                if(info.outer_count < info.outer_size)
+                {
+                    slice_specs.emplace_back(static_cast<int64_t>(info.outer_axis),
+                                             static_cast<int64_t>(info.outer_start),
+                                             static_cast<int64_t>(info.outer_start + info.outer_count));
+                }
+                slice_specs.emplace_back(static_cast<int64_t>(info.inner_axis.value()),
+                                         static_cast<int64_t>(info.inner_start),
+                                         static_cast<int64_t>(info.inner_start + info.inner_count));
+            }
+            else if(info.outer_count < info.lens)
+            {
+                slice_specs.emplace_back(static_cast<int64_t>(info.outer_axis),
+                                         static_cast<int64_t>(info.outer_start),
+                                         static_cast<int64_t>(info.outer_start + info.outer_count));
+            }
+        }
+
+        std::sort(slice_specs.begin(), slice_specs.end(), [](const auto& x, const auto& y) {
+            return std::get<0>(x) < std::get<0>(y);
+        });
+
+        std::vector<std::size_t> axis_lengths = reshape_dims;
+        for(const auto& spec : slice_specs)
+        {
+            auto axis  = static_cast<std::size_t>(std::get<0>(spec));
+            auto start = static_cast<std::size_t>(std::get<1>(spec));
+            auto end   = static_cast<std::size_t>(std::get<2>(spec));
+            if(axis >= axis_lengths.size() or end <= start or end > reshape_dims[axis])
+                return std::nullopt;
+            axis_lengths[axis] = end - start;
+        }
+
+        std::sort(inner_axes.begin(), inner_axes.end(), [](const auto& x, const auto& y) {
+            return x.original_dim > y.original_dim;
+        });
+
+        std::vector<int64_t> perm;
+        perm.reserve(axis_lengths.size());
+        std::vector<bool> used(axis_lengths.size(), false);
+        std::size_t inner_product = 1;
+        for(const auto& ia : inner_axes)
+        {
+            if(ia.axis >= axis_lengths.size())
+                return std::nullopt;
+            perm.push_back(static_cast<int64_t>(ia.axis));
+            used[ia.axis] = true;
+            inner_product *= axis_lengths[ia.axis];
+        }
+
+        for(std::size_t axis = 0; axis < axis_lengths.size(); ++axis)
+        {
+            if(not used[axis])
+                perm.push_back(static_cast<int64_t>(axis));
+        }
+
+        if(perm.size() != axis_lengths.size())
+            return std::nullopt;
+
+        std::vector<std::size_t> transposed_dims;
+        transposed_dims.reserve(axis_lengths.size());
+        for(auto axis : perm)
+        {
+            auto idx = static_cast<std::size_t>(axis);
+            if(idx >= axis_lengths.size())
+                return std::nullopt;
+            transposed_dims.push_back(axis_lengths[idx]);
+        }
+
+        std::size_t computed_elements = 1;
+        for(auto len : axis_lengths)
+            computed_elements *= len;
+        if(computed_elements != ctx.indices_values.size())
+            return std::nullopt;
+
+        if(inner_product != target_shape.front())
+            return std::nullopt;
+        if(target_shape.size() != (transposed_dims.size() - inner_axes.size()) + 1)
+            return std::nullopt;
+        for(std::size_t i = 0; i < target_shape.size() - 1; ++i)
+        {
+            auto dim_index = inner_axes.size() + i;
+            if(dim_index >= transposed_dims.size())
+                return std::nullopt;
+            if(target_shape[i + 1] != transposed_dims[dim_index])
+                return std::nullopt;
+        }
+
+        multi_axis_stride_info result;
+        result.reshape_dims = std::move(reshape_dims);
+        for(const auto& spec : slice_specs)
+        {
+            result.slice_axes.push_back(std::get<0>(spec));
+            result.slice_starts.push_back(std::get<1>(spec));
+            result.slice_ends.push_back(std::get<2>(spec));
+        }
+        result.perm = std::move(perm);
+        return result;
+    }
+
+    static std::optional<tiled_pattern> detect(const gather_context& ctx)
+    {
+        if(auto info = detect_multi_axis_stride(ctx))
+            return tiled_pattern{std::move(*info)};
+        return std::nullopt;
+    }
 
     static std::optional<arithmetic_info>
     detect_arithmetic(const std::vector<index_segment>& segments)
@@ -2079,6 +2481,9 @@ struct tiled_pattern
         if(auto arithmetic = detect_arithmetic(segments))
             return tiled_pattern{std::move(*arithmetic)};
 
+        if(auto multi = detect_multi_axis_stride(ctx))
+            return tiled_pattern{std::move(*multi)};
+
         return std::nullopt;
     }
 
@@ -2094,6 +2499,8 @@ struct tiled_pattern
             return rectangular->transform(ctx, builder, target_shape);
         if(auto grid = std::get_if<arithmetic_grid_info>(&info))
             return grid->transform(ctx, builder, target_shape);
+        if(auto multi = std::get_if<multi_axis_stride_info>(&info))
+            return multi->transform(ctx, builder, target_shape);
         MIGRAPHX_THROW("tiled_pattern: unsupported pattern variant");
     }
 };
@@ -2107,7 +2514,11 @@ try_segment_based_optimization_1d(const gather_context& ctx,
 {
     auto segments = index_segment::analyze(ctx.indices_values, ctx.axis_len, ctx.factor_candidates);
     if(segments.empty())
+    {
+        if(auto tiled = tiled_pattern::detect(ctx))
+            return tiled->transform(ctx, builder, target_shape);
         return std::nullopt;
+    }
 
     // Try single-segment patterns
     if(segments.size() == 1)
@@ -2136,6 +2547,9 @@ try_segment_based_optimization_1d(const gather_context& ctx,
     {
         return tiled->transform(ctx, builder, target_shape);
     }
+
+    if(auto tiled = tiled_pattern::detect(ctx))
+        return tiled->transform(ctx, builder, target_shape);
 
     return std::nullopt;
 } /// Try segment-based optimization with multi-dimensional normalization

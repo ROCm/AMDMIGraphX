@@ -592,6 +592,13 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
             info.add_instruction(make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), key);
 
         auto result = info.add_instruction(make_op("dot"), query, key_transposed);
+
+        // Must apply mask only before scaling
+        if(attn_mask.has_value())
+        {
+            result = info.add_common_op("add", result, attn_mask.value());
+        }
+
         result      = info.add_common_op("mul", result, scale_literal);
         result      = info.add_instruction(make_op("softmax", {{"axis", -1}}), result);
         result      = info.add_instruction(make_op("dot"), result, value);

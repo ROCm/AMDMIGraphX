@@ -1461,17 +1461,17 @@ static instruction_ref apply_segment_transform(const index_segment& segment,
         return result;
     };
     if(segment.has_type<constant_segment_meta>())
-        return ensure_shape(
-            std::get<constant_segment_meta>(segment.metadata).transform(ctx, builder, target_shape));
+        return ensure_shape(std::get<constant_segment_meta>(segment.metadata)
+                                .transform(ctx, builder, target_shape));
     if(segment.has_type<contiguous_segment_meta>())
-        return ensure_shape(
-            std::get<contiguous_segment_meta>(segment.metadata).transform(ctx, builder, target_shape));
+        return ensure_shape(std::get<contiguous_segment_meta>(segment.metadata)
+                                .transform(ctx, builder, target_shape));
     if(segment.has_type<arithmetic_segment_meta>())
-        return ensure_shape(
-            std::get<arithmetic_segment_meta>(segment.metadata).transform(ctx, builder, target_shape));
+        return ensure_shape(std::get<arithmetic_segment_meta>(segment.metadata)
+                                .transform(ctx, builder, target_shape));
     if(segment.has_type<rtr_window_segment_meta>())
-        return ensure_shape(
-            std::get<rtr_window_segment_meta>(segment.metadata).transform(ctx, builder, target_shape));
+        return ensure_shape(std::get<rtr_window_segment_meta>(segment.metadata)
+                                .transform(ctx, builder, target_shape));
     assert(false && "Unsupported segment type for transform");
     return instruction_ref{};
 }
@@ -1519,10 +1519,10 @@ struct split_pattern
         parts.reserve(segments.size());
         for(const auto& segment : segments)
         {
-            parts.push_back(
-                apply_segment_transform(segment, ctx, builder, make_segment_target_shape(ctx, segment.length)));
+            parts.push_back(apply_segment_transform(
+                segment, ctx, builder, make_segment_target_shape(ctx, segment.length)));
         }
-        auto axis        = static_cast<int64_t>(ctx.pre_lens.size());
+        auto axis         = static_cast<int64_t>(ctx.pre_lens.size());
         auto concatenated = builder.concat(parts, axis);
         return builder.match_shape(concatenated, target_shape);
     }
@@ -1810,8 +1810,8 @@ struct tiled_pattern
     }
 
     /// Detect tiled pattern
-    static std::optional<tiled_pattern>
-    detect(const gather_context& ctx, const std::vector<index_segment>& segments)
+    static std::optional<tiled_pattern> detect(const gather_context& ctx,
+                                               const std::vector<index_segment>& segments)
     {
         if(auto rectangular = detect_rectangular(ctx, segments))
             return tiled_pattern{std::move(*rectangular)};

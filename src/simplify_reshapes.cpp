@@ -1114,8 +1114,7 @@ struct constant_segment_meta
     }
 
     /// Transform constant segment into instructions
-    instruction_ref transform(const gather_context& ctx,
-                              gather_instruction_builder& builder) const
+    instruction_ref transform(const gather_context& ctx, gather_instruction_builder& builder) const
     {
         auto moved  = builder.move_axis_to_front(ctx.data_ins, ctx.axis_index);
         auto sliced = builder.slice(moved, {0}, {value}, {value + 1});
@@ -1161,8 +1160,7 @@ struct contiguous_segment_meta
     }
 
     /// Transform contiguous segment into instructions
-    instruction_ref transform(const gather_context& ctx,
-                              gather_instruction_builder& builder) const
+    instruction_ref transform(const gather_context& ctx, gather_instruction_builder& builder) const
     {
         auto moved  = builder.move_axis_to_front(ctx.data_ins, ctx.axis_index);
         auto sliced = builder.slice(moved, {0}, {start}, {start + count});
@@ -1198,8 +1196,7 @@ struct arithmetic_segment_meta
     }
 
     /// Transform arithmetic segment into instructions
-    instruction_ref transform(const gather_context& ctx,
-                              gather_instruction_builder& builder) const
+    instruction_ref transform(const gather_context& ctx, gather_instruction_builder& builder) const
     {
         auto moved = builder.move_axis_to_front(ctx.data_ins, ctx.axis_index);
 
@@ -1325,8 +1322,7 @@ struct rtr_window_segment_meta
     }
 
     /// Transform RTR window segment into instructions
-    instruction_ref transform(const gather_context& ctx,
-                              gather_instruction_builder& builder) const
+    instruction_ref transform(const gather_context& ctx, gather_instruction_builder& builder) const
     {
         auto moved = builder.move_axis_to_front(ctx.data_ins, ctx.axis_index);
         std::vector<int64_t> reshape_dims;
@@ -1463,17 +1459,17 @@ static instruction_ref apply_segment_transform(const index_segment& segment,
         return result;
     };
     if(segment.has_type<constant_segment_meta>())
-        return ensure_shape(std::get<constant_segment_meta>(segment.metadata)
-                                .transform(ctx, builder));
+        return ensure_shape(
+            std::get<constant_segment_meta>(segment.metadata).transform(ctx, builder));
     if(segment.has_type<contiguous_segment_meta>())
-        return ensure_shape(std::get<contiguous_segment_meta>(segment.metadata)
-                                .transform(ctx, builder));
+        return ensure_shape(
+            std::get<contiguous_segment_meta>(segment.metadata).transform(ctx, builder));
     if(segment.has_type<arithmetic_segment_meta>())
-        return ensure_shape(std::get<arithmetic_segment_meta>(segment.metadata)
-                                .transform(ctx, builder));
+        return ensure_shape(
+            std::get<arithmetic_segment_meta>(segment.metadata).transform(ctx, builder));
     if(segment.has_type<rtr_window_segment_meta>())
-        return ensure_shape(std::get<rtr_window_segment_meta>(segment.metadata)
-                                .transform(ctx, builder));
+        return ensure_shape(
+            std::get<rtr_window_segment_meta>(segment.metadata).transform(ctx, builder));
     assert(false && "Unsupported segment type for transform");
     return instruction_ref{};
 }
@@ -1513,15 +1509,14 @@ struct split_pattern
     }
 
     /// Transform split pattern into instructions
-    instruction_ref transform(const gather_context& ctx,
-                              gather_instruction_builder& builder) const
+    instruction_ref transform(const gather_context& ctx, gather_instruction_builder& builder) const
     {
         std::vector<instruction_ref> parts;
         parts.reserve(segments.size());
         for(const auto& segment : segments)
         {
             // Create a temporary context with the target shape for this segment
-            auto segment_ctx             = ctx;
+            auto segment_ctx         = ctx;
             segment_ctx.target_shape = make_segment_target_shape(ctx, segment.length);
             parts.push_back(apply_segment_transform(segment, segment_ctx, builder));
         }
@@ -2482,8 +2477,7 @@ struct tiled_pattern
     }
 
     /// Transform tiled pattern into instructions
-    instruction_ref transform(const gather_context& ctx,
-                              gather_instruction_builder& builder) const
+    instruction_ref transform(const gather_context& ctx, gather_instruction_builder& builder) const
     {
         assert(not std::holds_alternative<std::monostate>(info));
         if(auto arithmetic = std::get_if<arithmetic_info>(&info))
@@ -2501,8 +2495,7 @@ struct tiled_pattern
 /// Try segment-based optimization (assumes 1D indices in context)
 /// Returns the optimized instruction if successful, nullopt otherwise
 inline std::optional<instruction_ref>
-try_segment_based_optimization_1d(const gather_context& ctx,
-                                  gather_instruction_builder& builder)
+try_segment_based_optimization_1d(const gather_context& ctx, gather_instruction_builder& builder)
 {
     auto segments = index_segment::analyze(ctx.indices_values, ctx.axis_len, ctx.factor_candidates);
     if(segments.empty())
@@ -2578,7 +2571,8 @@ inline bool try_segment_based_optimization(module& m,
     // Output shape is: pre_lens + [total_indices] + post_lens
     ctx_1d.target_shape = ctx.pre_lens;
     ctx_1d.target_shape.push_back(total_indices);
-    ctx_1d.target_shape.insert(ctx_1d.target_shape.end(), ctx.post_lens.begin(), ctx.post_lens.end());
+    ctx_1d.target_shape.insert(
+        ctx_1d.target_shape.end(), ctx.post_lens.begin(), ctx.post_lens.end());
 
     // Step 4: Try optimization with 1D context
     auto result_1d = try_segment_based_optimization_1d(ctx_1d, builder);

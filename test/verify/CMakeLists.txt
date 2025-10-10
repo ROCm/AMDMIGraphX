@@ -42,7 +42,3 @@ foreach(SECTION general reduce rnn conv gemm)
         )
     endif()
 endforeach()
-
-# TODO: remove this when MIGraphX disables attn-like offloading to rocMLIR
-# f32 not supported on navi3x
-set_tests_properties(test_verify_rnn PROPERTIES ENVIRONMENT "MIGRAPHX_ENABLE_MLIR_GEG_FUSION=0")

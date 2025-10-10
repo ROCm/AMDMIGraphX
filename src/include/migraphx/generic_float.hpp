@@ -71,7 +71,26 @@ struct unsigned_type<8>
     using type = std::uint64_t;
 };
 
-// CRTP base for operators
+struct float32_parts
+{
+    unsigned int mantissa : 23;
+    unsigned int exponent : 8;
+    unsigned int sign : 1;
+
+    static constexpr unsigned int exponent_width() { return 8; }
+
+    static constexpr unsigned int mantissa_width() { return 23; }
+
+    static constexpr unsigned int max_exponent() { return all_ones<8>(); }
+
+    static constexpr int exponent_bias() { return all_ones<7>(); }
+
+    constexpr float to_float() const noexcept { return migraphx::bit_cast<float>(*this); }
+};
+
+constexpr float32_parts get_parts(float f) { return migraphx::bit_cast<float32_parts>(f); }
+
+// CRTP base for float operators
 template <class Derived>
 struct generic_float_operators
 {
@@ -118,25 +137,12 @@ struct generic_float_operators
     generic_float_operators() = default;
 };
 
-struct float32_parts
-{
-    unsigned int mantissa : 23;
-    unsigned int exponent : 8;
-    unsigned int sign : 1;
-
-    static constexpr unsigned int exponent_width() { return 8; }
-
-    static constexpr unsigned int mantissa_width() { return 23; }
-
-    static constexpr unsigned int max_exponent() { return all_ones<8>(); }
-
-    static constexpr int exponent_bias() { return all_ones<7>(); }
-
-    constexpr float to_float() const noexcept { return migraphx::bit_cast<float>(*this); }
-};
-
-constexpr float32_parts get_parts(float f) { return migraphx::bit_cast<float32_parts>(f); }
-
+/**
+ * Flags definition:
+ * 1 : no infinity (FN), RNE, saturation clipping
+ * 2 : no infinity, no negative zero (FNUZ), RNE, saturation clipping
+ * See https://onnx.ai/onnx/technical/float8.html for more information.
+ */
 template <unsigned int MantissaSize, unsigned int ExponentSize, unsigned int Flags = 0>
 struct __attribute__((packed, may_alias)) generic_float
     : generic_float_operators<generic_float<MantissaSize, ExponentSize, Flags>>
@@ -148,7 +154,15 @@ struct __attribute__((packed, may_alias)) generic_float
     type exponent : ExponentSize;
     type sign : 1;
 
-    static constexpr int exponent_bias() { return all_ones<ExponentSize - 1>(); }
+    static constexpr int exponent_bias()
+    {
+        int base_bias = all_ones<ExponentSize - 1>();
+        if constexpr(Flags == 2)
+        {
+            return base_bias + 1;
+        }
+        return base_bias;
+    }
 
     explicit constexpr generic_float(float f = 0.0) noexcept { from_float(get_parts(f)); }
 
@@ -174,7 +188,6 @@ struct __attribute__((packed, may_alias)) generic_float
 
         if(exponent == 0 and ExponentSize != float32_parts::exponent_width()) // subnormal fps
         {
-
             if(mantissa == 0)
             {
                 f.exponent = 0;
@@ -332,9 +345,24 @@ struct __attribute__((packed, may_alias)) generic_float
     static constexpr generic_float max()
     {
         generic_float x{};
-        x.exponent = all_ones<ExponentSize>() - 1;
-        x.mantissa = all_ones<MantissaSize>();
-        x.sign     = 0;
+        if constexpr(Flags == 1)
+        {
+            // FN
+            x.exponent = all_ones<ExponentSize>();
+            x.mantissa = all_ones<MantissaSize>() - 1;
+        }
+        else if constexpr(Flags == 2)
+        {
+            // FNUZ
+            x.exponent = all_ones<ExponentSize>();
+            x.mantissa = all_ones<MantissaSize>();
+        }
+        else
+        {
+            x.exponent = all_ones<ExponentSize>() - 1;
+            x.mantissa = all_ones<MantissaSize>();
+        }
+        x.sign = 0;
         return x;
     }
 
@@ -377,6 +405,7 @@ struct __attribute__((packed, may_alias)) generic_float
     }
 };
 
+/// Partial specialization for E8M0 type that has no sign or mantissa
 template <unsigned int Flags>
 struct __attribute__((packed, may_alias)) generic_float<0, 8, Flags>
     : generic_float_operators<generic_float<0, 8, Flags>>

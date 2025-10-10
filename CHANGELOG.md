@@ -11,55 +11,49 @@ Full documentation for MIGraphX is available at
 * Added Python 3.13 support.
 * Added PyTorch wheels to the Dockerfile.
 * Added Python API for returning serialized bytes.
-* Added `fixed_pad` operator.
-* Added matcher to upcast base Softmax operations.
-* Added standalone `Convolution_backwards` operator for MLIR.
+* Added `fixed_pad` operator for padding dynamic shapes to the maximum static shape.
+* Added matcher to upcast base `Softmax` operations.
+* Added support for the `convolution_backwards` operator through rocMLIR.
 * Added `LSE` output to attention fusion.
 * Added flags to `EnableControlFlowGuard` due to BinSkim errors.
 * Added new environment variable documentation and reorganized structure.
-* Added test case for parsing Resize when input and output shapes are the same.
-* Added `stash_type` attribute for LayerNorm and expanded test coverage.
+* Added `stash_type` attribute for `LayerNorm` and expanded test coverage.
 * Added operator builders (phase 2).
 
 ### Changed
 
 * Updated C API to include `current()` caller information in error reporting.
-* Updated multiple submodules:
-  * **rocMLIR main** – synchronized with latest commits.
-  * **onnxruntime main** – synchronized with latest commits.
 * Updated documentation dependencies:
   * **rocm-docs-core** bumped from 1.21.1 → 1.25.0 across releases.
   * **Doxygen** updated to 1.14.0.
   * **urllib3** updated from 2.2.2 → 2.5.0.
-* Updated `mxfixneuron` parse behavior.
 * Updated `MIGRAPHX_GPU_HIP_FLAGS` to allow extra HIP compile flags.
 * Updated `src/CMakeLists.txt` to support `msgpack` 6.x (`msgpack-cxx`).
 * Updated model zoo test generator to fix test issues and add summary logging.
 * Updated `rocMLIR` and `ONNXRuntime` mainline references across commits.
 * Updated module sorting algorithm for improved reliability.
-* Updated MXFP4 passes for `simplify_qdq`, `quant_dot`, and `quant_conv`.
 * Restricted FP8 quantization to `dot` and `convolution` operators.
-* Changed `unpack_fp4` output to `fp8e4m3fn` type.
 * Moved ONNX Runtime launcher script into MIGraphX and updated build scripts.
-* Simplified Resize operator parser for correctness and maintainability.
+* Simplified ONNX `Resize` operator parser for correctness and maintainability.
 * Updated `any_ptr` assertion to avoid failure on default HIP stream.
 * Print kernel and module information on compile failure.
 
 ### Fixed
 
-* Fixed error in `MIGRAPHX_GPU_COMPILE_PARALLEL` documentation.
-* Fixed MLIR `rewrite_reduce` issue.
-* Fixed bug with `invert_permutation` on GPU.
-* Fixed compile error when `MIOPEN` is disabled (missing `std` includes).
-* Fixed Resize parsing when input and output shapes are identical.
-* Fixed issue with MHA in attention refactor.
-* Fixed synchronization issue from upstream ONNX Runtime.
-* Fixed MLIR tuning to check `hipblaslt` workspace size.
-* Fixed spelling error in “Contiguous”.
-* Fixed tidy complaint about duplicate header.
-* Fixed `reshape`, `transpose`, and `broadcast` rewrites between pointwise and reduce operators.
-* Fixed extraneous include file in HIPRTC-based compilation.
-* Fixed CI Perl dependency issue for SLES builds.
+* Fixed error in `MIGRAPHX_GPU_COMPILE_PARALLEL` documentation (#4337).
+* Fixed rocMLIR `rewrite_reduce` issue (#4218).
+* Fixed bug with `invert_permutation` on GPU (#4194).
+* Fixed compile error when `MIOPEN` is disabled (missing `std` includes) (#4281).
+* Fixed ONNX `Resize` parsing when input and output shapes are identical (#4133, #4161).
+* Fixed issue with MHA in attention refactor (#4152).
+* Fixed synchronization issue from upstream ONNX Runtime (#4189).
+* Fixed rocMLIR tuning to check `hipblaslt` workspace size (#4182).
+* Fixed spelling error in “Contiguous” (#4287).
+* Fixed tidy complaint about duplicate header (#4245).
+* Fixed `reshape`, `transpose`, and `broadcast` rewrites between pointwise and reduce operators (#3978).
+* Fixed extraneous include file in HIPRTC-based compilation (#4130).
+* Fixed CI Perl dependency issue for SLES builds (#4254).
+* Fixed compiler warnings for ROCm 7.0 of ``error: unknown warning option '-Wnrvo'``(#4192).
 
 ### Optimized
 
@@ -67,13 +61,10 @@ Full documentation for MIGraphX is available at
 * Avoided dynamic memory allocation during kernel launches.
 * Removed redundant NOP instructions for GFX11/12 platforms.
 * Improved `Graphviz` output (node color and layout updates).
-* Improved MXFP4 GPU pack/unpack performance and fusion efficiency.
 * Optimized interdependency checking during compilation.
-* Addressed compiler warnings for ROCm 7.0.
 
 ### Removed
 
-* Removed extra FP4 conversion array to improve compile performance.
 * Removed Perl dependency from SLES builds.
 * Removed redundant includes and unused internal dependencies.
 

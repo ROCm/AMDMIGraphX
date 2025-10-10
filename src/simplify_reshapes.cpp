@@ -1695,13 +1695,12 @@ struct tiled_pattern
                                   gather_instruction_builder& builder,
                                   const std::vector<std::size_t>& target_shape) const
         {
-            auto input_ins = ctx.data_ins->inputs().front();
-            auto reshaped  = builder.reshape(input_ins, to_int64_vec(reshape_dims));
+            auto input_ins          = ctx.data_ins->inputs().front();
+            auto reshaped           = builder.reshape(input_ins, to_int64_vec(reshape_dims));
             instruction_ref current = reshaped;
             if(not slice_axes.empty())
             {
-                current =
-                    builder.slice(current, slice_axes, slice_starts, slice_ends);
+                current = builder.slice(current, slice_axes, slice_starts, slice_ends);
             }
             if(not is_identity_perm(perm))
             {
@@ -1748,12 +1747,12 @@ struct tiled_pattern
 
     struct split_candidate
     {
-        std::size_t inner_size    = 0;
-        std::size_t outer_size    = 0;
-        std::size_t outer_start   = 0;
-        std::size_t outer_count   = 0;
-        std::size_t inner_start   = 0;
-        std::size_t inner_count   = 0;
+        std::size_t inner_size  = 0;
+        std::size_t outer_size  = 0;
+        std::size_t outer_start = 0;
+        std::size_t outer_count = 0;
+        std::size_t inner_start = 0;
+        std::size_t inner_count = 0;
     };
 
     static std::optional<split_candidate>
@@ -1796,24 +1795,19 @@ struct tiled_pattern
             auto inner_count = inner_end - inner_start;
             if(inner_end > inner_size or inner_count <= 1)
                 continue;
-            bool consistent = std::all_of(remainder_sets.begin(),
-                                           remainder_sets.end(),
-                                           [&](const auto& kv) {
-                                               if(kv.second.size() != base.size())
-                                                   return false;
-                                               return std::equal(base.begin(), base.end(), kv.second.begin());
-                                           });
+            bool consistent =
+                std::all_of(remainder_sets.begin(), remainder_sets.end(), [&](const auto& kv) {
+                    if(kv.second.size() != base.size())
+                        return false;
+                    return std::equal(base.begin(), base.end(), kv.second.begin());
+                });
             if(not consistent)
                 continue;
             auto outer_count = remainder_sets.size();
             if(inner_count * outer_count != unique_vals.size())
                 continue;
-            return split_candidate{inner_size,
-                                   outer_size,
-                                   outer_min,
-                                   outer_count,
-                                   inner_start,
-                                   inner_count};
+            return split_candidate{
+                inner_size, outer_size, outer_min, outer_count, inner_start, inner_count};
         }
         return std::nullopt;
     }
@@ -1828,10 +1822,10 @@ struct tiled_pattern
             return std::nullopt;
 
         auto input_ins          = data_ins->inputs().front();
-        const auto& input_shape  = input_ins->get_shape();
-        const auto& input_lens   = input_shape.lens();
-        auto target_shape        = ctx.ins->get_shape().lens();
-        auto ndims               = input_lens.size();
+        const auto& input_shape = input_ins->get_shape();
+        const auto& input_lens  = input_shape.lens();
+        auto target_shape       = ctx.ins->get_shape().lens();
+        auto ndims              = input_lens.size();
         if(ndims == 0 or target_shape.empty())
             return std::nullopt;
 
@@ -1860,17 +1854,17 @@ struct tiled_pattern
 
         struct dim_info
         {
-            std::size_t original_dim   = 0;
-            std::size_t lens           = 0;
-            bool include_in_reshape    = false;
-            bool use_split             = false;
-            std::size_t outer_size     = 0;
-            std::size_t inner_size     = 0;
-            std::size_t outer_start    = 0;
-            std::size_t outer_count    = 0;
-            std::size_t inner_start    = 0;
-            std::size_t inner_count    = 0;
-            std::size_t outer_axis     = std::numeric_limits<std::size_t>::max();
+            std::size_t original_dim = 0;
+            std::size_t lens         = 0;
+            bool include_in_reshape  = false;
+            bool use_split           = false;
+            std::size_t outer_size   = 0;
+            std::size_t inner_size   = 0;
+            std::size_t outer_start  = 0;
+            std::size_t outer_count  = 0;
+            std::size_t inner_start  = 0;
+            std::size_t inner_count  = 0;
+            std::size_t outer_axis   = std::numeric_limits<std::size_t>::max();
             std::optional<std::size_t> inner_axis;
             std::optional<std::size_t> constant_value;
         };
@@ -1883,10 +1877,10 @@ struct tiled_pattern
         for(std::size_t dim = 0; dim < ndims; ++dim)
         {
             dim_info info;
-            info.original_dim        = dim;
-            info.lens                = input_lens[dim];
-            info.include_in_reshape  = (info.lens > 1);
-            const auto& vals         = unique_vals[dim];
+            info.original_dim       = dim;
+            info.lens               = input_lens[dim];
+            info.include_in_reshape = (info.lens > 1);
+            const auto& vals        = unique_vals[dim];
 
             if(info.lens == 1)
             {
@@ -1963,7 +1957,8 @@ struct tiled_pattern
         {
             if(info.use_split and info.inner_axis.has_value() and info.inner_count > 1)
             {
-                inner_axes.push_back({info.original_dim, info.inner_axis.value(), info.inner_count});
+                inner_axes.push_back(
+                    {info.original_dim, info.inner_axis.value(), info.inner_count});
             }
         }
         if(inner_axes.empty())
@@ -1985,9 +1980,10 @@ struct tiled_pattern
             {
                 if(info.outer_count < info.outer_size)
                 {
-                    slice_specs.emplace_back(static_cast<int64_t>(info.outer_axis),
-                                             static_cast<int64_t>(info.outer_start),
-                                             static_cast<int64_t>(info.outer_start + info.outer_count));
+                    slice_specs.emplace_back(
+                        static_cast<int64_t>(info.outer_axis),
+                        static_cast<int64_t>(info.outer_start),
+                        static_cast<int64_t>(info.outer_start + info.outer_count));
                 }
                 slice_specs.emplace_back(static_cast<int64_t>(info.inner_axis.value()),
                                          static_cast<int64_t>(info.inner_start),

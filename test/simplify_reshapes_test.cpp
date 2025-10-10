@@ -1897,25 +1897,24 @@ TEST_CASE(gather_constant_single_index)
 TEST_CASE(gather_flatten_multi_axis_stride)
 {
     migraphx::module m;
-    auto x = m.add_parameter("X", {migraphx::shape::float_type, {1, 3, 4, 4}});
+    auto x       = m.add_parameter("X", {migraphx::shape::float_type, {1, 3, 4, 4}});
     auto flatten = m.add_instruction(migraphx::make_op("reshape", {{"dims", {48}}}), x);
 
     migraphx::shape indices_shape{migraphx::shape::int32_type, {2, 3, 1, 4}};
-    std::vector<int32_t> indices = {0,  1,  2,  3,  16, 17, 18, 19, 32, 33, 34, 35,
-                                    4,  5,  6,  7,  20, 21, 22, 23, 36, 37, 38, 39};
-    auto li = m.add_literal(migraphx::literal{indices_shape, indices});
-    auto gather = m.add_instruction(migraphx::make_op("gather"), flatten, li);
+    std::vector<int32_t> indices = {0, 1, 2, 3, 16, 17, 18, 19, 32, 33, 34, 35,
+                                    4, 5, 6, 7, 20, 21, 22, 23, 36, 37, 38, 39};
+    auto li                      = m.add_literal(migraphx::literal{indices_shape, indices});
+    auto gather                  = m.add_instruction(migraphx::make_op("gather"), flatten, li);
     m.add_return({gather});
 
     run_pass(m);
 
     migraphx::module expected;
     auto xe = expected.add_parameter("X", {migraphx::shape::float_type, {1, 3, 4, 4}});
-    auto reshaped = expected.add_instruction(
-        migraphx::make_op("reshape", {{"dims", {3, 2, 2, 4}}}), xe);
+    auto reshaped =
+        expected.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 2, 2, 4}}}), xe);
     auto sliced = expected.add_instruction(
-        migraphx::make_op("slice",
-                          {{"axes", {1, 2}}, {"starts", {0, 0}}, {"ends", {1, 2}}}),
+        migraphx::make_op("slice", {{"axes", {1, 2}}, {"starts", {0, 0}}, {"ends", {1, 2}}}),
         reshaped);
     auto transposed = expected.add_instruction(
         migraphx::make_op("transpose", {{"permutation", {2, 0, 1, 3}}}), sliced);

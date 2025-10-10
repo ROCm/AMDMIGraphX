@@ -6,25 +6,28 @@ Overview
 ========
 
 Op Builders simplify the creation of complex operations by composing multiple operators together. 
-Op builders serve as a bridge between high-level operations (e.g. GEMM, Convolution, MatMul) and the low-level instruction graph that MIGraphX operates on.
+They act as a bridge between high-level operations (e.g. GEMM, Convolution, MatMul) and the low-level instruction graph that MIGraphX operates on.
 
 What are Op Builders?
 =====================
 
 Op Builders encapsulate the logic for creating complex operations from individual MIGraphX primitive operators 
-(a primitive operator being an operator that has its own reference and/or gpu implementation e.g. dot, multibroadcast, slice, add).
+(where a primitive operator is that which has its own reference and/or GPU implementation e.g., dot, multibroadcast, slice, add).
 
-It is important to note that Op Builders do not introduce new constructs in the MIGraphX IR, they merely insert multiple instructions into the module.
 
-The primary objective of Op Builders is to minimize code duplication across code locations which need to utilize the same complex operations. 
-Take for example a TensorFlow and ONNX parser implementations for an operator like Einsum. Having the builder for Einsum enables us to simply perform the necessary 
-parsing of attributes and then call the builder, instead of performing the graph building in situ in both parsers, thus duplicating code.
+.. note::
 
-This example makes it clear that an op builder such as the one mentioned must be a superset of both TF and ONNX operation functionality if it is to satisfy both. 
-The parsers have to configure the builder calls appropriately via the builder attributes.
+   Op Builders do not introduce new constructs in the MIGraphX IR, 
+   they merely insert multiple instructions into the module.
 
-Builders may use other builders as well. Taking again the example of Einsum, a quite complex operation, which might utilize a MatMul. 
-Instead of inserting all the instructions that constitute a MatMul, the Einsum builder would just call the MatMul builder.
+The primary goal of Op Builders is to reduce code duplication in places where the same complex operations are needed. 
+For example, TensorFlow and ONNX parser implementations for an operator like Einsum can use a shared builder. 
+Each parser simply parses attributes and calls the builder, instead of duplicating graph construction logic in multiple locations.
+
+Because of this, a builder must be a superset of the functionality needed for all parsers that use it. 
+Parsers configure the builder appropriately using its attributes.
+
+Builders can also call other builders. For instance, the Einsum builder may internally use the MatMul builder rather than manually inserting all instructions for a MatMul operation.
 
 
 Usage 
@@ -49,8 +52,9 @@ Usage
     auto result = migraphx::op::builder::insert("gemm", module, insert_location, {a, b}, options);
 
 Builders are intended to be used via two helper functions, with two overloads each:
- * add - builder will insert instructions at the end of the module
- * insert - builder will insert instructions at the provided insertion location
+
+* **add** – inserts instructions at the end of the module 
+* **insert** – inserts instructions at a specified location
 
 .. code-block:: cpp
 
@@ -79,12 +83,12 @@ Builders are intended to be used via two helper functions, with two overloads ea
                                      const value& options);
 
 
-* name - specify the name of the builder that is to be used
-* m - module into which the builder will insert instructions
-* ins - location in module at which the builder will insert instructions
-* args - inputs for the builder operation
-* module_args - submodule inputs for the builder operations
-* options - dictionary of key-value pairs with which the builder attributes will be initialized. The attribute name is the key of the pair. 
+* **name** – the builder name to use
+* **m** – module where instructions are inserted
+* **ins** – insertion location within the module
+* **args** – input instructions for the operation
+* **module_args** – submodule inputs for the operation
+* **options** – key-value pairs initializing the builder attributes, where the attribute name is the key of the pair
 
 Details
 ============
@@ -104,8 +108,8 @@ Details
     }
  };
 
-The base class that all op builders must inherit from. It wraps builder registration into the builder registry and a 
-default implementation of the name() method that all builders need to provide. It is nearly identical to the operator base class.
+All op builders must inherit from this base class. It handles registration in the builder registry and 
+provides a default ``name()`` method. This class is nearly identical to the operator base class. 
 
 2. Builder  Implementation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -134,13 +138,13 @@ default implementation of the name() method that all builders need to provide. I
     }
  };
 
-Each builder must provide a reflect, name and insert method.
+Each builder must implement ``reflect``, ``name``, and ``insert`` methods:
 
-A default implementation of the name method is provided by the op_builder base class. The string it returns will be the same as the name of the builder struct.
+* **name** – provided by the base class; returns the builder struct name 
 
-The reflect method is used for serialization. All struct members that need to be serialized must be referenced in the implementation.
+* **reflect** – used for serialization; all members to be serialized must be referenced here
 
-The insert method is used by all builder wrapper functions. It implements the graph building that the builder performs. If the builder requires any submodules as inputs, the method signature can be:
+* **insert** – implements the graph-building logic of the builder. If submodules are required, the signature can be as follows:
 
 .. code-block:: cpp
 

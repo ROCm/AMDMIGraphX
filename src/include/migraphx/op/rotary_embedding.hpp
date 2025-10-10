@@ -170,10 +170,7 @@ struct rotary_embedding
                                                                               : 1);
                     if(params.position_ids_use_batch)
                     {
-                        std::transform(seqlens_k.begin(),
-                                       seqlens_k.end(),
-                                       pos_ids.begin(),
-                                       [](auto len) { return len - 1; });
+                        std::copy(seqlens_k.begin(), seqlens_k.end(), pos_ids.begin());
                     }
                     else
                     {

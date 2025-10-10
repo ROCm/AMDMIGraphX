@@ -201,7 +201,7 @@ TEST_CASE(rotary_embedding_test)
         -2.51687f, -1.04707f, -0.63970f, -0.70438f, 0.59782f,  0.74183f,  0.31749f,  -0.28442f,
         -1.95803f, -1.79381f, 0.46461f,  -0.17142f, 0.41181f,  0.27836f,  -0.02363f, 0.93865f};
 
-    std::vector<int> ktsl_val(key_total_sequence_lens_shape.elements(), total_sequence_length);
+    std::vector<int> ktsl_val(key_total_sequence_lens_shape.elements(), total_sequence_length - 1);
 
     std::vector<float> cos_cache_val{
         0.60305f,  0.94544f,  0.59646f,  -0.94253f, -0.92642f, 0.19489f,  -0.97555f, -0.99972f,
@@ -444,7 +444,7 @@ TEST_CASE(rotary_embedding_interleaved_test)
         0.50709f,  -0.39303f, -0.94137f, 0.54072f,  -0.17975f, 0.04328f,  0.37207f,  2.18807f,
         -0.53601f, -0.44769f, 2.41322f,  -1.96112f, -0.13698f, 0.57829f,  -1.85719f, 0.77514f};
 
-    std::vector<int> ktsl_val(key_total_sequence_lens_shape.elements(), total_sequence_length);
+    std::vector<int> ktsl_val(key_total_sequence_lens_shape.elements(), total_sequence_length - 1);
 
     std::vector<float> cos_cache_val{
         0.15911f,  -0.05395f, -0.59862f, 0.98028f,  -0.55443f, -0.81122f, -0.47045f, 0.91331f,

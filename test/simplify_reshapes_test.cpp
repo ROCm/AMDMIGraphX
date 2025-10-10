@@ -2155,15 +2155,15 @@ TEST_CASE(gather_flatten_channel_patch)
     run_pass(m);
 
     migraphx::module expected;
-    auto xe = expected.add_parameter("X", {migraphx::shape::float_type, {1, 3, 4, 4}});
+    auto xe       = expected.add_parameter("X", {migraphx::shape::float_type, {1, 3, 4, 4}});
     auto slice_hw = expected.add_instruction(
         migraphx::make_op("slice", {{"axes", {2, 3}}, {"starts", {1, 1}}, {"ends", {3, 3}}}), xe);
-    auto unsqueeze_hw = expected.add_instruction(
-        migraphx::make_op("unsqueeze", {{"axes", {2, 3}}}), slice_hw);
+    auto unsqueeze_hw =
+        expected.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2, 3}}}), slice_hw);
     auto transpose = expected.add_instruction(
         migraphx::make_op("transpose", {{"permutation", {5, 4, 0, 1, 2, 3}}}), unsqueeze_hw);
-    auto reshape_out = expected.add_instruction(
-        migraphx::make_op("reshape", {{"dims", {4, 3, 1, 1}}}), transpose);
+    auto reshape_out =
+        expected.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 3, 1, 1}}}), transpose);
     expected.add_return({reshape_out});
 
     EXPECT(m == expected);

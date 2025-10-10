@@ -1663,7 +1663,7 @@ struct tiled_pattern
                                   gather_instruction_builder& builder,
                                   const std::vector<std::size_t>& target_shape) const
         {
-            auto input_ins = ctx.data_ins->inputs().front();
+            auto input_ins          = ctx.data_ins->inputs().front();
             instruction_ref current = input_ins;
 
             for(std::size_t axis = 0; axis < slice_starts.size(); ++axis)
@@ -1672,10 +1672,7 @@ struct tiled_pattern
                 auto end   = slice_ends[axis];
                 if(start == 0 and end == static_cast<int64_t>(input_lens[axis]))
                     continue;
-                current = builder.slice(current,
-                                        {static_cast<int64_t>(axis)},
-                                        {start},
-                                        {end});
+                current = builder.slice(current, {static_cast<int64_t>(axis)}, {start}, {end});
             }
 
             if(not is_identity_perm(perm))
@@ -1866,9 +1863,9 @@ struct tiled_pattern
             return std::nullopt;
 
         auto input_ins          = data_ins->inputs().front();
-        const auto& input_shape  = input_ins->get_shape();
-        const auto& input_lens   = input_shape.lens();
-        auto elements            = input_shape.elements();
+        const auto& input_shape = input_ins->get_shape();
+        const auto& input_lens  = input_shape.lens();
+        auto elements           = input_shape.elements();
         if(elements != ctx.axis_len)
             return std::nullopt;
 
@@ -2066,8 +2063,7 @@ struct tiled_pattern
         return arithmetic_grid_info{std::move(slice_starts),
                                     std::move(slice_ends),
                                     std::move(perm),
-                                    std::vector<std::size_t>(input_lens.begin(),
-                                                             input_lens.end())};
+                                    std::vector<std::size_t>(input_lens.begin(), input_lens.end())};
     }
 
     /// Detect tiled pattern

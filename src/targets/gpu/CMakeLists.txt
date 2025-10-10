@@ -114,7 +114,7 @@ target_compile_definitions(compile_migraphx_gpu_kernels INTERFACE -DMIGRAPHX_WAV
 target_include_directories(compile_migraphx_gpu_kernels INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/>)
 target_link_libraries(compile_migraphx_gpu_kernels INTERFACE compile_for_gpu)
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)
-    target_link_libraries(compile_migraphx_gpu_kernels composable_kernel::jit_library)
+    target_link_libraries(compile_migraphx_gpu_kernels INTERFACE composable_kernel::jit_library)
 endif()
 
 add_library(migraphx_gpu_kernel_file_check EXCLUDE_FROM_ALL)

@@ -1460,7 +1460,7 @@ struct tf_options : MIGRAPHX_HANDLE_BASE(tf_options)
 };
 
 /// Parse a tf file into a migraphx program
-inline program parse_tf(const char* filename, const migraphx::tf_options& options)
+inline program parse_tf(const char* filename, const migraphx::tf_options& options->data())
 {
     return program(make<migraphx_program>(&migraphx_parse_tf, filename, options.get_handle_ptr()),
                    own{});
@@ -1641,6 +1641,20 @@ void register_experimental_custom_op(T& obj)
 {
     experimental_custom_op op{obj};
     op.register_op();
+}
+
+std::vector<const char *> get_onnx_operators()
+{
+    auto size = get_onnx_operators_size();
+    std::vector<const char *> result(size, "");
+
+    size_t index = 0;
+    for(auto &name: result)
+    {
+        name= get_onnx_operator_name_at_index(index);
+        index++;
+    }
+    return result;
 }
 
 #ifndef DOXYGEN

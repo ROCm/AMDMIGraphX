@@ -76,7 +76,7 @@ MIGRAPHX_ONNX_EXPORT program parse_onnx_buffer(const void* data,
                                                std::size_t size,
                                                const onnx_options& options);
 
-MIGRAPHX_ONNX_EXPORT std::vector<std::string> get_onnx_operators();
+MIGRAPHX_ONNX_EXPORT const std::vector<std::string>& get_onnx_operators();
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

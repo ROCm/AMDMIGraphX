@@ -498,8 +498,8 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
 
         // Reuse "0" broadcasted converted to int32 to check if input mask is greater than 0 for
         // where condition
-        auto in_pass = info.add_instruction(
-            make_op("convert", {{"target_type", shape::int32_type}}), bc_pass);
+        auto in_pass =
+            info.add_instruction(make_op("convert", {{"target_type", shape::int32_type}}), bc_pass);
         auto in_bool = info.add_instruction(make_op("equal"), raw_mask, in_pass);
         in_bool      = info.add_instruction(
             make_op("convert", {{"target_type", migraphx::shape::bool_type}}), in_bool);

@@ -209,6 +209,20 @@ struct find_attention
     }
 };
 
+struct find_flash_decoding
+{
+    std::size_t* G;
+
+    auto matcher() const
+    {
+        return match::name("group")(match::has_op_value("tag", "attention")).bind("group");
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+    }
+};
+
 } // namespace
 
 void fuse_attention::apply(module_pass_manager& mpm) const
@@ -216,6 +230,10 @@ void fuse_attention::apply(module_pass_manager& mpm) const
     std::size_t counter = 0;
     match::find_matches(mpm, find_attention{.counter = &counter});
     mpm.get_module().sort();
+    mpm.run_pass(dead_code_elimination{});
+
+    std::size_t G = 1;
+    match::find_matches(mpm, find_flash_decoding{.G = &G});
     mpm.run_pass(dead_code_elimination{});
 }
 

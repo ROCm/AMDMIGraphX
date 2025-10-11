@@ -9405,6 +9405,7 @@ def mha_bias_asym_mask_2d_scale_test():
                             inputs=['q', 'k', 'v', 'bias', 'key_padding_mask'],
                             outputs=['out'],
                             num_heads=2,
+                            scale=float(0.1234),
                             domain='com.microsoft')
 
     return ([node], [query, key, value, bias, key_padding_mask], [out])

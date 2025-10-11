@@ -463,7 +463,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
                                 const multi_head_attention_parameters& attention) const
     {
         auto batch_size    = attention.batch_size;
-        auto total_seq_len = attention.kv_sequence_length;
+        auto total_seq_len = attention.q_sequence_length;
         auto num_heads     = attention.num_heads;
 
         // Other two cases require us to generate masks from sequence or total sequence length pads.

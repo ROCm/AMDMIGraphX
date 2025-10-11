@@ -40,12 +40,11 @@ TEST_CASE(mha_double_head_biased_batch1_test)
 
     migraphx::shape k_shape{migraphx::shape::float_type, {1, 2, 4}};
     // Taken from attention_op_test.cc from Onnxruntime repo
-    std::vector<float> k_data = { 2.78, 2.54, 2.3, 3.96, -0.21, -1.1, -0.72, -2.2};
+    std::vector<float> k_data = {2.78, 2.54, 2.3, 3.96, -0.21, -1.1, -0.72, -2.2};
 
     migraphx::shape v_shape{migraphx::shape::float_type, {1, 2, 4}};
     // Taken from attention_op_test.cc from Onnxruntime repo
     std::vector<float> v_data = {8.19, -0.53, 3.95, 4.45, -4.59, 0.02, -0.41, -0.63};
-
 
     migraphx::shape bias_shape{migraphx::shape::float_type, {12}};
     std::vector<float> bias_data = {
@@ -56,10 +55,10 @@ TEST_CASE(mha_double_head_biased_batch1_test)
     migraphx::literal value{v_shape, v_data};
     migraphx::literal bias{bias_shape, bias_data};
 
-    pp["q"]       = query.get_argument();
-    pp["k"]       = key.get_argument();
-    pp["v"]       = value.get_argument();
-    pp["bias"]    = bias.get_argument();
+    pp["q"]    = query.get_argument();
+    pp["k"]    = key.get_argument();
+    pp["v"]    = value.get_argument();
+    pp["bias"] = bias.get_argument();
 
     auto result = p.eval(pp).back();
     std::vector<float> result_vector;

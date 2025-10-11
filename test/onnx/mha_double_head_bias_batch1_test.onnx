@@ -1,0 +1,31 @@
+	 mha_double_head_bias_batch1_test:ç
+I
+q
+k
+v
+biasout"MultiHeadAttention*
+	num_heads :com.microsoft mha_double_head_bias_batch1_testZ
+q
+
+
+
+Z
+k
+
+
+
+Z
+v
+
+
+
+Z
+bias
+
+
+b
+out
+
+
+
+B

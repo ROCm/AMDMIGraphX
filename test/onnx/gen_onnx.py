@@ -9358,6 +9358,23 @@ def mha_bias_test():
 
 
 @onnx_test()
+def mha_double_head_bias_batch1_test():
+    query = helper.make_tensor_value_info("q", TensorProto.FLOAT, [1, 2, 4])
+    key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 2, 4])
+    value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 2, 4])
+    bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
+    out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 2, 4])
+
+    node = helper.make_node('MultiHeadAttention',
+                            inputs=['q', 'k', 'v', 'bias'],
+                            outputs=['out'],
+                            num_heads=2,
+                            domain='com.microsoft')
+
+    return ([node], [query, key, value, bias], [out])
+
+
+@onnx_test()
 def mha_double_head_bias_mask_batch1_test():
     query = helper.make_tensor_value_info("q", TensorProto.FLOAT, [1, 2, 4])
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 2, 4])
@@ -9377,12 +9394,12 @@ def mha_double_head_bias_mask_batch1_test():
 
 @onnx_test()
 def mha_bias_asym_mask_2d_scale_test():
-    query = helper.make_tensor_value_info("q", TensorProto.FLOAT, [1, 2, 4])
-    key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 2, 2, 2])
-    value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 2, 2, 2])
+    query = helper.make_tensor_value_info("q", TensorProto.FLOAT, [2, 3, 4])
+    key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [2, 3, 4])
+    value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [2, 3, 4])
     bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
     key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [2, 3])
-    out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 2, 4])
+    out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [2, 3, 4])
 
     node = helper.make_node('MultiHeadAttention',
                             inputs=['q', 'k', 'v', 'bias', 'key_padding_mask'],

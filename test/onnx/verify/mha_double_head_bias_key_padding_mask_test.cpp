@@ -87,15 +87,15 @@ TEST_CASE(mha_double_head_bias_mask_batch1_last_mask_test)
 
     migraphx::shape q_shape{migraphx::shape::float_type, {1, 2, 4}};
     std::vector<float> query_data = {
-        1.42192, 1.42665, 1.21449, 0.959491, 1.18012, 1.21737, 0.973761, 0.659853};
+        0.860191, 1.08888, 0.962536, 0.75226, 0.618388, 0.879605, 0.721811, 0.452622};
 
     migraphx::shape k_shape{migraphx::shape::float_type, {1, 2, 4}};
     std::vector<float> key_data = {
-        1.30758, 1.16746, 1.10112, 1.77517, 1.26305, 1.09709, 0.983969, 1.63047};
+        0.742495, 0.819491, 0.90261, 1.1095, 0.697966, 0.749119, 0.785458, 0.964789};
 
     migraphx::shape value_shape{migraphx::shape::float_type, {1, 2, 4}};
     std::vector<float> value_data = {
-        0.7423, 1.56581, 1.2923, 1.38868, 0.546948, 1.41101, 1.24849, 1.23179};
+        0.388977, 0.991311, 0.706223, 0.627108, 0.193625, 0.836511, 0.662411, 0.470219};
 
     migraphx::shape bias_shape{migraphx::shape::float_type, {12}};
     std::vector<float> bias_data = {0.561730f,
@@ -147,15 +147,15 @@ TEST_CASE(mha_double_head_bias_mask_batch1_first_mask_test)
 
     migraphx::shape q_shape{migraphx::shape::float_type, {1, 2, 4}};
     std::vector<float> query_data = {
-        1.16918, 1.28233, 0.941054, 1.00275, 1.74152, 1.74252, 1.14048, 1.14762};
+        0.45279, 0.583924, 0.299485, 0.444288, 1.02513, 1.04411, 0.498912, 0.589157};
 
     migraphx::shape k_shape{migraphx::shape::float_type, {1, 2, 4}};
     std::vector<float> key_data = {
-        0.993029, 1.62161, 1.56195, 0.45243, 1.06582, 2.15747, 2.22264, 0.966104};
+        0.185166, 0.669398, 0.596961, 0.398788, 0.257954, 1.20526, 1.25765, 0.912461};
 
     migraphx::shape value_shape{migraphx::shape::float_type, {1, 2, 4}};
     std::vector<float> value_data = {
-        1.28486, 1.35648, 1.34486, 1.52285, 1.66392, 1.54765, 1.69621, 1.65823};
+        0.63615, 0.431616, 0.608435, 0.667559, 1.01521, 0.622788, 0.959786, 0.802939};
 
     migraphx::shape bias_shape{migraphx::shape::float_type, {12}};
     std::vector<float> bias_data = {0.71639f,
@@ -206,15 +206,15 @@ TEST_CASE(mha_double_head_bias_mask_batch1_all_mask_test)
 
     migraphx::shape q_shape{migraphx::shape::float_type, {1, 2, 4}};
     std::vector<float> query_data = {
-        2.21325, 2.02489, 1.72693, 1.08797, 2.42754, 1.86212, 1.88447, 1.08512};
+        1.46175, 1.4676, 1.05493, 0.900047, 1.67605, 1.30483, 1.21247, 0.897198};
 
     migraphx::shape k_shape{migraphx::shape::float_type, {1, 2, 4}};
     std::vector<float> key_data = {
-        2.07036, 2.64231, 1.94134, 2.36241, 1.98163, 2.67183, 1.85018, 2.60435};
+        1.71781, 2.04228, 1.88613, 1.76649, 1.62908, 2.07181, 1.79497, 2.00843};
 
     migraphx::shape value_shape{migraphx::shape::float_type, {1, 2, 4}};
     std::vector<float> value_data = {
-        1.10809, 1.5582, 1.5385, 2.20247, 1.22999, 1.75193, 1.28318, 2.40112};
+        1.06769, 1.36994, 1.26663, 1.35326, 1.18959, 1.56367, 1.01132, 1.55191};
 
     migraphx::shape bias_shape{migraphx::shape::float_type, {12}};
     std::vector<float> bias_data = {0.751496f,

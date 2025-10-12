@@ -37,27 +37,20 @@ struct binary : op_builder<binary>
     uint64_t broadcasted = 0;
     uint64_t axis = 0;
     bool is_broadcasted = false;
-    std::string op_name = "";
 
-    static std::string name() { return "binary"; }
+    static std::vector<std::string> names() { return {"add", "div", "logical_and", "logical_or", "logical_xor", "bitwise_and", "mul", "prelu", "sub"}; }
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
         return pack(f(self.broadcasted, "broadcasted"),
                     f(self.axis, "axis"),
-                    f(self.is_broadcasted, "is_broadcasted"),
-                    f(self.op_name, "op_name"));
+                    f(self.is_broadcasted, "is_broadcasted"));
     }
 
     std::vector<instruction_ref>
-    insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
+    insert(const std::string& op_name, module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
     {
-        if (op_name.empty())
-        {
-            MIGRAPHX_THROW("Binary op missing op_name attribute");
-        }
-
         if (is_broadcasted)
         {
             if (broadcasted != 0)

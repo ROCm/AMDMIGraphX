@@ -66,7 +66,7 @@ struct binary : op_builder<binary>
         }
         else
         {
-            return {insert_common_op(m, ins, migraphx::make_op(op_name), {args[0], args[1]})};
+            return {insert_common_op(m, ins, migraphx::make_op(op_name), args)};
         }
     }
 };

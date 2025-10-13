@@ -156,7 +156,7 @@ struct module_pm : module_pass_manager
         validate_pass(*mod, p, *t);
     }
 
-    template<class F>
+    template <class F>
     void try_and_dump_on_error(const pass& p, F f) const
     {
         if(not prog)
@@ -172,7 +172,7 @@ struct module_pm : module_pass_manager
         catch(const std::exception& e)
         {
             std::cerr << "Error " << p.name() << ": " << e.what() << std::endl;
-            auto clk = std::chrono::steady_clock::now().time_since_epoch().count();
+            auto clk       = std::chrono::steady_clock::now().time_since_epoch().count();
             fs::path fname = fs::temp_directory_path() / (p.name() + std::to_string(clk) + ".mxr");
             std::cerr << "Dump: " << fname << std::endl;
             save(*prog, fname.string());

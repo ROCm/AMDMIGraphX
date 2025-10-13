@@ -65,6 +65,20 @@ TEST_CASE(binary_not_broadcasted_test)
     EXPECT(mm == make_op_module(op_name, {}, mm.get_parameters()));
 }
 
+TEST_CASE(binary_not_broadcasted_implicit_broadcast)
+{
+    migraphx::module mm;
+    const std::string& op_name = pick_op_name();
+
+    auto a_arg = mm.add_parameter("a", {migraphx::shape::float_type, {2, 4}});
+    auto b_arg = mm.add_parameter("b", {migraphx::shape::float_type, {2, 1}});
+
+    add_common_op(mm, migraphx::make_op(op_name), {a_arg, b_arg});
+
+    EXPECT(mm == make_op_module(op_name, {}, mm.get_parameters()));
+}
+
+
 TEST_CASE(binary_zero_broadcasted_test)
 {
     migraphx::module mm;

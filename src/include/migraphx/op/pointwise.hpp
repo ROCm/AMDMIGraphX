@@ -49,11 +49,14 @@ struct pointwise
             MIGRAPHX_THROW("pointwise should have at least one input");
         auto* pm    = mods.front();
         auto pnames = pm->get_parameter_names();
-        check_shapes{inputs, *this}.has(pnames.size()).same_dims();
+        check_shapes{inputs, *this, true}.has(pnames.size()).same_dims();
+
+        std::vector<std::size_t> scalar_const_out_lens =
+            inputs.front().dynamic() ? std::vector<std::size_t>{} : inputs.front().lens();
 
         auto result = pm->compute_shapes(
             inputs,
-            {.name = name(), .strict_type = true, .scalar_const_out_lens = inputs.front().lens()});
+            {.name = name(), .strict_type = true, .scalar_const_out_lens = scalar_const_out_lens});
         if(result.size() == 1)
             return result.front();
         return shape{result};

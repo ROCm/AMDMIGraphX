@@ -184,8 +184,6 @@ struct matmul_base : op_builder<Derived>
 
 struct dot : matmul_base<dot>
 {
-    static std::string name() { return "dot"; }
-
     template <class Self, class F>
     static auto reflect(Self&, F)
     {
@@ -238,8 +236,6 @@ struct dot : matmul_base<dot>
 
 struct quant_dot : matmul_base<quant_dot>
 {
-    static std::string name() { return "quant_dot"; }
-
     template <class Self, class F>
     static auto reflect(Self&, F)
     {
@@ -352,8 +348,6 @@ struct quant_dot : matmul_base<quant_dot>
 
 struct quant_dot_scaled : matmul_base<quant_dot_scaled>
 {
-    static std::string name() { return "quant_dot_scaled"; }
-
     template <class Self, class F>
     static auto reflect(Self&, F)
     {

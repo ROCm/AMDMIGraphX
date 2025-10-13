@@ -34,8 +34,6 @@ namespace builder {
 
 struct mat_mul_n_bits : op_builder<mat_mul_n_bits>
 {
-    static std::string name() { return "mat_mul_n_bits"; }
-
     size_t m_n;
     size_t m_k;
     size_t m_bits;

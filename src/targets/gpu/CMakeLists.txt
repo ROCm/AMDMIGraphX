@@ -254,8 +254,11 @@ if(MIGRAPHX_ENABLE_MLIR)
     message(STATUS "Build with rocMLIR::rockCompiler ${rocMLIR_VERSION}")
     target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_MLIR")
     # Make this private to avoid multiple inclusions of LLVM symbols.
-    # TODO: Fix rocMLIR's library to hide LLVM internals.
     target_link_libraries(migraphx_gpu PRIVATE rocMLIR::rockCompiler)
+    # Hide LLVM internals that come from rocMLIR.
+    if(NOT WIN32 AND NOT APPLE AND BUILD_SHARED_LIBS)
+        target_link_options(migraphx_gpu PRIVATE "LINKER:--exclude-libs,ALL")
+    endif()
 endif()
 
 if(MIGRAPHX_USE_HIPRTC)

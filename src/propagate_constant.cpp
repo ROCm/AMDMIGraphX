@@ -40,7 +40,7 @@ static bool skip_propagate(instruction_ref ins)
 {
     if(contains({"contiguous", "dequantizelinear", "reshape"}, ins->name()))
         return skip_propagate(ins->inputs().front());
-    if(ins->name() == "unpack_int4")
+    if(contains({"unpack_int4", "unpack_fp4"}, ins->name()))
         return true;
     auto&& s = ins->get_shape();
     if(s.broadcasted() and s.element_space() < s.elements())

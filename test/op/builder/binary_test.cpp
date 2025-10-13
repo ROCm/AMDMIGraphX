@@ -23,19 +23,21 @@
  */
 
 #include <op_builder_test_utils.hpp>
+#include <random>
 
-TEST_CASE(binary_no_op_name_specified_test)
+std::string pick_op_name()
 {
-    migraphx::module mm;
-
-    EXPECT(test::throws<migraphx::exception>(
-            [&] { make_op_module("binary", {}, mm.get_parameters()); },
-            "Binary op missing op_name attribute"));    
+    static const std::vector<std::string> op_names_set{"add", "div", "logical_and", "logical_or", "logical_xor", "bitwise_and", "mul", "prelu", "sub"};
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    static std::uniform_int_distribution<> dis(0, op_names_set.size() - 1);
+    return op_names_set[dis(gen)];
 }
 
 TEST_CASE(binary_dynamic_input_shape_test)
 {
     migraphx::module mm;
+    const std::string& op_name = pick_op_name();    
 
     migraphx::shape::dynamic_dimension dd{1, 4};
     std::vector<migraphx::shape::dynamic_dimension> dyn_dims{dd, dd};
@@ -44,8 +46,8 @@ TEST_CASE(binary_dynamic_input_shape_test)
     mm.add_parameter("b", {migraphx::shape::float_type, dyn_dims});
 
     EXPECT(test::throws<migraphx::exception>(
-            [&] { make_op_module("binary", 
-                {{"op_name", "DONTCARE"}, {"is_broadcasted", true}, {"broadcasted", 1}}, 
+            [&] { make_op_module(op_name, 
+                {{"is_broadcasted", true}, {"broadcasted", 1}}, 
                 mm.get_parameters()); },
             "Binary op broadcast attribute not supported for dynamic input shapes"));    
 }
@@ -53,39 +55,43 @@ TEST_CASE(binary_dynamic_input_shape_test)
 TEST_CASE(binary_not_broadcasted_test)
 {
     migraphx::module mm;
+    const std::string& op_name = pick_op_name();
+
     auto a_arg = mm.add_parameter("a", {migraphx::shape::float_type, {2, 4}});
     auto b_arg = mm.add_parameter("b", {migraphx::shape::float_type, {2, 4}});
 
-    add_common_op(mm, migraphx::make_op("add"), {a_arg, b_arg});
+    add_common_op(mm, migraphx::make_op(op_name), {a_arg, b_arg});
 
-        EXPECT(mm == make_op_module("binary",
-                                {{"op_name", "add"}},
-                                mm.get_parameters()));
+    EXPECT(mm == make_op_module(op_name, {}, mm.get_parameters()));
 }
 
 TEST_CASE(binary_zero_broadcasted_test)
 {
     migraphx::module mm;
+    const std::string& op_name = pick_op_name();
+
     auto a_arg = mm.add_parameter("a", {migraphx::shape::float_type, {2, 4}});
     auto b_arg = mm.add_parameter("b", {migraphx::shape::float_type, {2, 4}});
 
-    mm.add_instruction(migraphx::make_op("add"), {a_arg, b_arg});
+    mm.add_instruction(migraphx::make_op(op_name), {a_arg, b_arg});
 
-    EXPECT(mm == make_op_module("binary",
-                            {{"op_name", "add"}, {"is_broadcasted", true}, {"broadcasted", 0}},
+    EXPECT(mm == make_op_module(op_name,
+                            {{"is_broadcasted", true}, {"broadcasted", 0}},
                             mm.get_parameters()));
 }
 
 TEST_CASE(binary_non_zero_broadcasted_test)
 {
     migraphx::module mm;
-    auto a_arg = mm.add_parameter("a", {migraphx::shape::float_type, {2, 4}});
-    auto b_arg = mm.add_parameter("b", {migraphx::shape::float_type, {2, 4}});
+    const std::string& op_name = pick_op_name();
 
-    auto l = mm.add_instruction(migraphx::make_op("broadcast",{{"axis", 0}, {"out_lens", {2, 4}}}), b_arg);
-    mm.add_instruction(migraphx::make_op("add"), {a_arg, l});
+    auto a_arg = mm.add_parameter("a", {migraphx::shape::float_type, {2, 3, 4, 5}});
+    auto b_arg = mm.add_parameter("b", {migraphx::shape::float_type, {3, 4}});
 
-    EXPECT(mm == make_op_module("binary",
-                            {{"op_name", "add"}, {"is_broadcasted", true}, {"broadcasted", 1}, {"axis", 0}},
+    auto l = mm.add_instruction(migraphx::make_op("broadcast",{{"axis", 1}, {"out_lens", {2, 3, 4, 5}}}), b_arg);
+    mm.add_instruction(migraphx::make_op(op_name), {a_arg, l});
+
+    EXPECT(mm == make_op_module(op_name,
+                            {{"is_broadcasted", true}, {"broadcasted", 1}, {"axis", 1}},
                             mm.get_parameters()));
 }

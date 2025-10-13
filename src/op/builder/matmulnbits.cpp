@@ -32,9 +32,9 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 namespace builder {
 
-struct matmulnbits : op_builder<matmulnbits>
+struct mat_mul_n_bits : op_builder<mat_mul_n_bits>
 {
-    static std::string name() { return "matmulnbits"; }
+    static std::string name() { return "mat_mul_n_bits"; }
 
     size_t m_n;
     size_t m_k;

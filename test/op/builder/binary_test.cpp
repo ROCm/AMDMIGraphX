@@ -27,7 +27,15 @@
 
 std::string pick_op_name()
 {
-    static const std::vector<std::string> op_names_set{"add", "div", "logical_and", "logical_or", "logical_xor", "bitwise_and", "mul", "prelu", "sub"};
+    static const std::vector<std::string> op_names_set{"add",
+                                                       "div",
+                                                       "logical_and",
+                                                       "logical_or",
+                                                       "logical_xor",
+                                                       "bitwise_and",
+                                                       "mul",
+                                                       "prelu",
+                                                       "sub"};
     static std::random_device rd;
     static std::mt19937 gen(rd());
     static std::uniform_int_distribution<> dis(0, op_names_set.size() - 1);
@@ -68,7 +76,8 @@ TEST_CASE(binary_non_zero_broadcasted_test)
     auto a_arg = mm.add_parameter("a", {migraphx::shape::float_type, {2, 3, 4, 5}});
     auto b_arg = mm.add_parameter("b", {migraphx::shape::float_type, {3, 4}});
 
-    auto l = mm.add_instruction(migraphx::make_op("broadcast",{{"axis", 1}, {"out_lens", {2, 3, 4, 5}}}), b_arg);
+    auto l = mm.add_instruction(
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 3, 4, 5}}}), b_arg);
     mm.add_instruction(migraphx::make_op(op_name), {a_arg, l});
 
     EXPECT(mm == make_op_module(op_name, {{"broadcasted_axis", 1}}, mm.get_parameters()));

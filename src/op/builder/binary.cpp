@@ -36,7 +36,18 @@ struct binary : op_builder<binary>
 {
     std::optional<uint64_t> broadcasted_axis = std::nullopt;
 
-    static std::vector<std::string> names() { return {"add", "div", "logical_and", "logical_or", "logical_xor", "bitwise_and", "mul", "prelu", "sub"}; }
+    static std::vector<std::string> names()
+    {
+        return {"add",
+                "div",
+                "logical_and",
+                "logical_or",
+                "logical_xor",
+                "bitwise_and",
+                "mul",
+                "prelu",
+                "sub"};
+    }
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -44,12 +55,18 @@ struct binary : op_builder<binary>
         return pack(f(self.broadcasted_axis, "broadcasted_axis"));
     }
 
-    std::vector<instruction_ref>
-    insert(const std::string& op_name, module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
+    std::vector<instruction_ref> insert(const std::string& op_name,
+                                        module& m,
+                                        instruction_ref ins,
+                                        const std::vector<instruction_ref>& args) const
     {
-        if (broadcasted_axis.has_value())
+        if(broadcasted_axis.has_value())
         {
-            auto l = m.add_instruction(migraphx::make_op("broadcast",{{"axis", broadcasted_axis.value()}, {"out_lens", args[0]->get_shape().lens()}}),args[1]);
+            auto l =
+                m.add_instruction(migraphx::make_op("broadcast",
+                                                    {{"axis", broadcasted_axis.value()},
+                                                     {"out_lens", args[0]->get_shape().lens()}}),
+                                  args[1]);
             return {m.add_instruction(migraphx::make_op(op_name), args[0], l)};
         }
         else

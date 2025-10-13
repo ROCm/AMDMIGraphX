@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -52,19 +52,22 @@ struct parse_binary_op : op_parser<parse_binary_op>
     {
         if(args.size() != 2)
             MIGRAPHX_THROW("binary operators should have 2 operands");
-        
+
         value options = {};
         if(contains(info.attributes, "broadcast") and contains(info.attributes, "axis"))
         {
-            const uint64_t broadcasted = parser.parse_value(info.attributes.at("broadcast")).at<uint64_t>();
+            uint64_t broadcasted =
+                parser.parse_value(info.attributes.at("broadcast")).at<uint64_t>();
             if(broadcasted != 0)
             {
-                if (std::any_of(args.cbegin(), args.cend(), [](auto a) { return a->get_shape().dynamic(); }))
+                if(std::any_of(
+                       args.cbegin(), args.cend(), [](auto a) { return a->get_shape().dynamic(); }))
                 {
-                    MIGRAPHX_THROW("Binary op broadcast attribute not supported for dynamic input shapes");
+                    MIGRAPHX_THROW(
+                        "Binary op broadcast attribute not supported for dynamic input shapes");
                 }
 
-                const uint64_t axis = parser.parse_value(info.attributes.at("axis")).at<uint64_t>();
+                uint64_t axis = parser.parse_value(info.attributes.at("axis")).at<uint64_t>();
                 options.insert({"broadcasted_axis", axis});
             }
         }

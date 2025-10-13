@@ -507,7 +507,7 @@ auto make_match_runner(Finder& f)
 }
 
 template <class Mod, class RunnerPack>
-void find_matches_for(Mod& mod, instruction_ref ins, RunnerPack rp)
+void find_matches_for(Mod& mod, instruction_ref ins, const RunnerPack& rp)
 {
     rp([&](auto&&... rs) {
         bool matched = false;

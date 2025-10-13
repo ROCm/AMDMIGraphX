@@ -34,24 +34,6 @@ std::string pick_op_name()
     return op_names_set[dis(gen)];
 }
 
-TEST_CASE(binary_dynamic_input_shape_test)
-{
-    migraphx::module mm;
-    const std::string& op_name = pick_op_name();    
-
-    migraphx::shape::dynamic_dimension dd{1, 4};
-    std::vector<migraphx::shape::dynamic_dimension> dyn_dims{dd, dd};
-
-    mm.add_parameter("a", {migraphx::shape::float_type, dyn_dims});
-    mm.add_parameter("b", {migraphx::shape::float_type, dyn_dims});
-
-    EXPECT(test::throws<migraphx::exception>(
-            [&] { make_op_module(op_name, 
-                {{"is_broadcasted", true}, {"broadcasted", 1}}, 
-                mm.get_parameters()); },
-            "Binary op broadcast attribute not supported for dynamic input shapes"));    
-}
-
 TEST_CASE(binary_not_broadcasted_test)
 {
     migraphx::module mm;
@@ -78,22 +60,6 @@ TEST_CASE(binary_not_broadcasted_implicit_broadcast)
     EXPECT(mm == make_op_module(op_name, {}, mm.get_parameters()));
 }
 
-
-TEST_CASE(binary_zero_broadcasted_test)
-{
-    migraphx::module mm;
-    const std::string& op_name = pick_op_name();
-
-    auto a_arg = mm.add_parameter("a", {migraphx::shape::float_type, {2, 4}});
-    auto b_arg = mm.add_parameter("b", {migraphx::shape::float_type, {2, 4}});
-
-    mm.add_instruction(migraphx::make_op(op_name), {a_arg, b_arg});
-
-    EXPECT(mm == make_op_module(op_name,
-                            {{"is_broadcasted", true}, {"broadcasted", 0}},
-                            mm.get_parameters()));
-}
-
 TEST_CASE(binary_non_zero_broadcasted_test)
 {
     migraphx::module mm;
@@ -105,7 +71,5 @@ TEST_CASE(binary_non_zero_broadcasted_test)
     auto l = mm.add_instruction(migraphx::make_op("broadcast",{{"axis", 1}, {"out_lens", {2, 3, 4, 5}}}), b_arg);
     mm.add_instruction(migraphx::make_op(op_name), {a_arg, l});
 
-    EXPECT(mm == make_op_module(op_name,
-                            {{"is_broadcasted", true}, {"broadcasted", 1}, {"axis", 1}},
-                            mm.get_parameters()));
+    EXPECT(mm == make_op_module(op_name, {{"broadcasted_axis", 1}}, mm.get_parameters()));
 }

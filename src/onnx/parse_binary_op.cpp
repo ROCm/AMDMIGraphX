@@ -24,6 +24,7 @@
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/op/builder/insert.hpp>
+#include <migraphx/instruction.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -55,15 +56,16 @@ struct parse_binary_op : op_parser<parse_binary_op>
         value options = {};
         if(contains(info.attributes, "broadcast") and contains(info.attributes, "axis"))
         {
-            options.insert({"is_broadcasted", true});
-
             const uint64_t broadcasted = parser.parse_value(info.attributes.at("broadcast")).at<uint64_t>();
-            options.insert({"broadcasted", broadcasted});
-
             if(broadcasted != 0)
             {
+                if (std::any_of(args.cbegin(), args.cend(), [](auto a) { return a->get_shape().dynamic(); }))
+                {
+                    MIGRAPHX_THROW("Binary op broadcast attribute not supported for dynamic input shapes");
+                }
+
                 const uint64_t axis = parser.parse_value(info.attributes.at("axis")).at<uint64_t>();
-                options.insert({"axis", axis});
+                options.insert({"broadcasted_axis", axis});
             }
         }
 

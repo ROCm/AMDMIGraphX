@@ -34,35 +34,23 @@ namespace builder {
 
 struct binary : op_builder<binary>
 {
-    uint64_t broadcasted = 0;
-    uint64_t axis = 0;
-    bool is_broadcasted = false;
+    std::optional<uint64_t> broadcasted_axis = std::nullopt;
 
     static std::vector<std::string> names() { return {"add", "div", "logical_and", "logical_or", "logical_xor", "bitwise_and", "mul", "prelu", "sub"}; }
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.broadcasted, "broadcasted"),
-                    f(self.axis, "axis"),
-                    f(self.is_broadcasted, "is_broadcasted"));
+        return pack(f(self.broadcasted_axis, "broadcasted_axis"));
     }
 
     std::vector<instruction_ref>
     insert(const std::string& op_name, module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
     {
-        if (is_broadcasted)
+        if (broadcasted_axis.has_value())
         {
-            if (broadcasted != 0)
-            {
-                if(std::any_of(args.cbegin(), args.cend(), [](auto a) { return a->get_shape().dynamic(); }))
-                {
-                    MIGRAPHX_THROW("Binary op broadcast attribute not supported for dynamic input shapes");
-                }
-                auto l = m.add_instruction(migraphx::make_op("broadcast",{{"axis", axis}, {"out_lens", args[0]->get_shape().lens()}}),args[1]);
-                return {m.add_instruction(migraphx::make_op(op_name), args[0], l)};
-            }
-            return {m.add_instruction(migraphx::make_op(op_name), args)};
+            auto l = m.add_instruction(migraphx::make_op("broadcast",{{"axis", broadcasted_axis.value()}, {"out_lens", args[0]->get_shape().lens()}}),args[1]);
+            return {m.add_instruction(migraphx::make_op(op_name), args[0], l)};
         }
         else
         {

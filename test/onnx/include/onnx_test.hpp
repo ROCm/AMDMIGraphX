@@ -81,7 +81,7 @@ optimize_onnx(const std::string& name,
 {
     migraphx::onnx_options options;
     options.skip_unknown_operators = true;
-    options.map_dyn_input_dims     = map_dyn_input_dims;
+    options.map_dyn_input_dims     = std::move(map_dyn_input_dims);
     auto prog                      = read_onnx(name, options);
     auto* mm                       = prog.get_main_module();
     if(run_passes)

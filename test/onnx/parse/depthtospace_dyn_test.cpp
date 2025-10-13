@@ -32,12 +32,10 @@ TEST_CASE(depthtospace_dyn_dcr_test)
         mm->add_parameter("x", {migraphx::shape::float_type, {{2, 4}, {16, 16}, {5, 10}, {5, 10}}});
     auto blocksize_literal = mm->add_literal(static_cast<int64_t>(2));
     auto n = mm->add_instruction(migraphx::make_op("dimensions_of", {{"start", 0}, {"end", 1}}), x);
-    auto dims_of =
-        mm->add_instruction(migraphx::make_op("dimensions_of", {{"start", 2}, {"end", 4}}), x);
-    auto h = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), dims_of);
-    auto w = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), dims_of);
+    auto h =
+        mm->add_instruction(migraphx::make_op("dimensions_of", {{"start", 2}, {"end", 3}}), x);
+    auto w =
+        mm->add_instruction(migraphx::make_op("dimensions_of", {{"start", 3}, {"end", 4}}), x);
     auto c_div = mm->add_literal(static_cast<int64_t>(4));
 
     auto new_shape1 = mm->add_instruction(
@@ -78,12 +76,10 @@ TEST_CASE(depthtospace_dyn_crd_test)
         mm->add_parameter("x", {migraphx::shape::float_type, {{2, 4}, {16, 16}, {5, 10}, {5, 10}}});
     auto blocksize_literal = mm->add_literal(static_cast<int64_t>(2));
     auto n = mm->add_instruction(migraphx::make_op("dimensions_of", {{"start", 0}, {"end", 1}}), x);
-    auto dims_of =
-        mm->add_instruction(migraphx::make_op("dimensions_of", {{"start", 2}, {"end", 4}}), x);
-    auto h = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), dims_of);
-    auto w = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), dims_of);
+    auto h =
+        mm->add_instruction(migraphx::make_op("dimensions_of", {{"start", 2}, {"end", 3}}), x);
+    auto w =
+        mm->add_instruction(migraphx::make_op("dimensions_of", {{"start", 3}, {"end", 4}}), x);
     auto c_div = mm->add_literal(static_cast<int64_t>(4));
 
     auto new_shape1 = mm->add_instruction(

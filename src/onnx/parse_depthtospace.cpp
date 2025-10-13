@@ -70,15 +70,15 @@ struct parse_depthtospace : op_parser<parse_depthtospace>
             auto blocksize_literal      = info.add_literal({blocksize});
 
             auto n = info.add_instruction(make_op("dimensions_of", {{"end", 1}}), args[0]);
-            assert(dyn_dims1[1].is_fixed()); // for now, there may not be a use case where channels
-                                             // would also be dynamic
+            if(not dyn_dims1[1].is_fixed())
+            {
+                MIGRAPHX_THROW("DepthToSpace: dynamic channels are not supported");
+            }
             int64_t c = dyn_dims1[1].max;
-            auto dims_of =
-                info.add_instruction(make_op("dimensions_of", {{"start", 2}, {"end", 4}}), args[0]);
-            auto h = info.add_instruction(
-                make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), dims_of);
-            auto w = info.add_instruction(
-                make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), dims_of);
+            auto h =
+                info.add_instruction(make_op("dimensions_of", {{"start", 2}, {"end", 3}}), args[0]);
+            auto w =
+                info.add_instruction(make_op("dimensions_of", {{"start", 3}, {"end", 4}}), args[0]);
 
             auto c_div = info.add_literal({c / divisor});
 

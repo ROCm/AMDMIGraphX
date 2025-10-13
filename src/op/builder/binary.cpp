@@ -45,7 +45,9 @@ struct binary : op_builder<binary>
                 "logical_xor",
                 "bitwise_and",
                 "mul",
+                "pow",
                 "prelu",
+                "sqdiff",
                 "sub"};
     }
 

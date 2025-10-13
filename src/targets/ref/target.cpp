@@ -35,6 +35,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/normalize_ops.hpp>
 #include <migraphx/eliminate_data_type.hpp>
+#include <migraphx/simplify_qdq.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -50,6 +51,8 @@ std::vector<pass> target::get_passes(migraphx::context&, const compile_options&)
             insert_pad{},
             dead_code_elimination{},
             rewrite_rnn{},
+            dead_code_elimination{},
+            simplify_qdq{.remove_qdq_only = true},
             dead_code_elimination{},
             auto_contiguous{},
             dead_code_elimination{},

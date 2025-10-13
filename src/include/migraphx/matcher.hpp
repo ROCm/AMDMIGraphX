@@ -31,6 +31,7 @@
 #include <migraphx/module.hpp>
 #include <migraphx/optional.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/stringutils.hpp>
 #include <migraphx/type_name.hpp>
 #include <migraphx/source_location.hpp>
 #include <migraphx/config.hpp>
@@ -507,7 +508,7 @@ auto make_match_runner(Finder& f)
 }
 
 template <class Mod, class RunnerPack>
-void find_matches_for(Mod& mod, instruction_ref ins, RunnerPack rp)
+void find_matches_for(Mod& mod, instruction_ref ins, const RunnerPack& rp)
 {
     rp([&](auto&&... rs) {
         bool matched = false;
@@ -694,7 +695,7 @@ struct match_fold_f
     template <class... Ts>
     auto operator()(Ts... ms) const
     {
-        return make_bf_matcher(
+        return make_basic_fun_matcher(
             [=](matcher_context& ctx, instruction_ref ins) -> optional<instruction_ref> {
                 bool matches = match_fold_f::fold_matchers(ctx, ins, ms...);
                 if(matches == Matches)
@@ -709,7 +710,7 @@ struct match_fold_f
         return [=](auto... ms) {
             // Workaround ICE on gcc by packing matchers into an object
             auto mpack = pack(ms...);
-            return make_bf_matcher(
+            return make_basic_fun_matcher(
                 [=](matcher_context& ctx, instruction_ref start) -> optional<instruction_ref> {
                     Op op;
                     bool matches = Start;
@@ -1192,6 +1193,8 @@ auto pointwise(Ms... ms)
 {
     return match::has_attribute("pointwise")(ms...);
 }
+
+MIGRAPHX_PRED_MATCHER(reduce, instruction_ref ins) { return starts_with(ins->name(), "reduce_"); }
 
 } // namespace match
 } // namespace MIGRAPHX_INLINE_NS

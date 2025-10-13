@@ -84,6 +84,7 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_REWRITE_DOT)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_REWRITE_LRN)
 #ifndef _WIN32
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
@@ -204,7 +205,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         insert_pad{{"convolution"}},
         dead_code_elimination{},
         inline_module{},
-        enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), rewrite_pooling{}),
+        enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), rewrite_pooling{.rewrite_lrn = enabled(MIGRAPHX_REWRITE_LRN{})}),
         dead_code_elimination{},
         rewrite_gelu{options.fast_math},
         optimize_module{},
@@ -221,6 +222,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         enable_pass(enabled(MIGRAPHX_ENABLE_REWRITE_DOT{}), rewrite_dot{}),
         dead_code_elimination{},
         propagate_precision{},
+        dead_code_elimination{},
+        simplify_reshapes{.enable_op_shape_transform_op=true},
         dead_code_elimination{},
         enable_pass(mlir_attention_enabled(&ctx), fuse_attention{}),
         dead_code_elimination{},

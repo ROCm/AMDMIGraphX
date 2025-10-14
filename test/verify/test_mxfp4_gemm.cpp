@@ -118,6 +118,7 @@ struct test_mxfp4_gemm : verify_program<test_mxfp4_gemm>
         auto quant_dot = mmain->add_instruction(migraphx::make_op("quant_dot"), input, weights, input_scales, weight_scales);
         auto bias_add = mmain->add_instruction(migraphx::make_op("add"), quant_dot, bias);
         mmain->add_return({bias_add});
+        return p;
     }
     std::string section() const { return "gemm"; }
 };

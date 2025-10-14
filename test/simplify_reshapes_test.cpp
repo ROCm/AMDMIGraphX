@@ -1513,7 +1513,6 @@ TEST_CASE(optimize_resize)
     auto create_optimized_module = [&] {
         migraphx::module m;
         auto inx                  = m.add_parameter("X", sx);
-        std::vector<int64_t> dims = {1, 1, 2, 1, 2, 1};
         auto rspx = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3, 5}}}), inx);
         auto mbx  = m.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 2, 2, 2, 3}}}), rspx);
@@ -1522,6 +1521,46 @@ TEST_CASE(optimize_resize)
         auto rmbb = m.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 4, 6}}}), rmb);
         auto r = m.add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), rmbb);
+        m.add_return({r});
+
+        return m;
+    };
+
+    EXPECT(m1 == create_optimized_module());
+}
+
+TEST_CASE(optimize_resize_flatten)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {4}};
+    auto create_resize_module = [&] {
+        migraphx::module m;
+        auto inx = m.add_parameter("X", sx);
+
+        migraphx::shape si{migraphx::shape::int32_type, {48}};
+        std::vector<int> ind = {0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3,
+                                3, 3, 2, 2, 2, 3, 3, 3, 0, 0, 0, 1, 1, 1, 0, 0,
+                                0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 3, 3};
+        auto li              = m.add_literal(migraphx::literal(si, ind));
+
+        auto gr   = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), inx, li);
+        auto r    = m.add_instruction(migraphx::make_op("softmax", {{"axis", 0}}), gr);
+        m.add_return({r});
+
+        return m;
+    };
+
+    auto m1 = create_resize_module();
+    run_pass(m1);
+
+    auto create_optimized_module = [&] {
+        migraphx::module m;
+        auto inx                  = m.add_parameter("X", sx);
+        auto rspx = m.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 1, 2, 1}}}), inx);
+        auto mbx  = m.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 2, 3}}}), rspx);
+        std::vector<int64_t> orig_dims = {1, 2, 4, 6};
+        auto rmb  = m.add_instruction(migraphx::make_op("reshape", {{"dims", {48}}}), mbx);
+        auto r = m.add_instruction(migraphx::make_op("softmax", {{"axis", 0}}), rmb);
         m.add_return({r});
 
         return m;
@@ -1830,10 +1869,7 @@ TEST_CASE(gather_1d_nd_indices)
     EXPECT(m == expected);
 }
 
-// TODO: Update for segment-based optimization
-// // TODO: Update for segment-based optimization
-#if 0 // TODO: Update for segment-based optimization
-// TEST_CASE(gather_axis_slice_broadcast)
+TEST_CASE(gather_axis_slice_broadcast)
 {
     migraphx::module m;
     auto x = m.add_parameter("x", {migraphx::shape::float_type, {2, 4}});
@@ -1859,7 +1895,6 @@ TEST_CASE(gather_1d_nd_indices)
 
     EXPECT(m == expected);
 }
-#endif
 
 TEST_CASE(gather_constant_single_index)
 {
@@ -1894,31 +1929,67 @@ TEST_CASE(gather_constant_single_index)
     }));
 }
 
-TEST_CASE(gather_flatten_multi_axis_stride)
+TEST_CASE(gather_multi_axis_stride)
 {
     migraphx::module m;
-    auto x       = m.add_parameter("X", {migraphx::shape::float_type, {1, 3, 4, 4}});
-    auto flatten = m.add_instruction(migraphx::make_op("reshape", {{"dims", {48}}}), x);
+    {
+        auto x       = m.add_parameter("X", {migraphx::shape::float_type, {1, 3, 4, 4}});
+        auto flatten = m.add_instruction(migraphx::make_op("reshape", {{"dims", {48}}}), x);
 
-    migraphx::shape indices_shape{migraphx::shape::int32_type, {2, 3, 1, 4}};
-    std::vector<int32_t> indices = {0, 1, 2, 3, 16, 17, 18, 19, 32, 33, 34, 35,
-                                    4, 5, 6, 7, 20, 21, 22, 23, 36, 37, 38, 39};
-    auto li                      = m.add_literal(migraphx::literal{indices_shape, indices});
-    auto gather                  = m.add_instruction(migraphx::make_op("gather"), flatten, li);
-    m.add_return({gather});
+        migraphx::shape indices_shape{migraphx::shape::int32_type, {2, 3, 1, 4}};
+        std::vector<int32_t> indices = {0, 1, 2, 3, 16, 17, 18, 19, 32, 33, 34, 35,
+                                        4, 5, 6, 7, 20, 21, 22, 23, 36, 37, 38, 39};
+        auto li                      = m.add_literal(migraphx::literal{indices_shape, indices});
+        auto gather                  = m.add_instruction(migraphx::make_op("gather"), flatten, li);
+        m.add_return({gather});
+    }
 
     run_pass(m);
 
     migraphx::module expected;
-    auto xe = expected.add_parameter("X", {migraphx::shape::float_type, {1, 3, 4, 4}});
-    auto reshaped =
-        expected.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 2, 2, 4}}}), xe);
-    auto sliced = expected.add_instruction(
-        migraphx::make_op("slice", {{"axes", {1, 2}}, {"starts", {0, 0}}, {"ends", {1, 2}}}),
-        reshaped);
-    auto transposed = expected.add_instruction(
-        migraphx::make_op("transpose", {{"permutation", {2, 0, 1, 3}}}), sliced);
-    expected.add_return({transposed});
+    {
+        auto x = expected.add_parameter("X", {migraphx::shape::float_type, {1, 3, 4, 4}});
+        auto reshaped =
+            expected.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 2, 2, 4}}}), x);
+        auto sliced = expected.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1, 2}}, {"starts", {0, 0}}, {"ends", {1, 2}}}),
+            reshaped);
+        auto transposed = expected.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {2, 0, 1, 3}}}), sliced);
+        expected.add_return({transposed});
+    }
+
+    EXPECT(m == expected);
+}
+
+TEST_CASE(gather_flatten_multi_axis_stride)
+{
+    migraphx::module m;
+    {
+        auto x       = m.add_parameter("X", {migraphx::shape::float_type, {48}});
+
+        migraphx::shape indices_shape{migraphx::shape::int32_type, {24}};
+        std::vector<int32_t> indices = {0, 1, 2, 3, 16, 17, 18, 19, 32, 33, 34, 35,
+                                        4, 5, 6, 7, 20, 21, 22, 23, 36, 37, 38, 39};
+        auto li                      = m.add_literal(migraphx::literal{indices_shape, indices});
+        auto gather                  = m.add_instruction(migraphx::make_op("gather"), x, li);
+        m.add_return({gather});
+    }
+
+    migraphx::module expected;
+    {
+        auto x = expected.add_parameter("X", {migraphx::shape::float_type, {48}});
+        auto reshaped1 =
+            expected.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 2, 2, 4}}}), x);
+        auto sliced = expected.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1, 2}}, {"starts", {0, 0}}, {"ends", {1, 2}}}),
+            reshaped1);
+        auto transposed = expected.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {2, 0, 1, 3}}}), sliced);
+        auto reshaped2 =
+            expected.add_instruction(migraphx::make_op("reshape", {{"dims", {24}}}), transposed);
+        expected.add_return({reshaped2});
+    }
 
     EXPECT(m == expected);
 }
@@ -2006,10 +2077,7 @@ TEST_CASE(gather_axis0_half_split_concat)
     }));
 }
 
-// TODO: Update for segment-based optimization
-// // TODO: Update for segment-based optimization
-#if 0 // TODO: Update for segment-based optimization
-// TEST_CASE(gather_flatten_stride_slice)
+TEST_CASE(gather_flatten_stride_slice)
 {
     migraphx::module m;
     auto x            = m.add_parameter("X", {migraphx::shape::float_type, {1, 8}});
@@ -2036,12 +2104,8 @@ TEST_CASE(gather_axis0_half_split_concat)
 
     EXPECT(m == expected);
 }
-#endif
 
-// TODO: Update for segment-based optimization
-// // TODO: Update for segment-based optimization
-#if 0 // TODO: Update for segment-based optimization
-// TEST_CASE(gather_flatten_stride_first)
+TEST_CASE(gather_flatten_stride_first)
 {
     migraphx::module m;
     auto x            = m.add_parameter("X", {migraphx::shape::float_type, {1, 8}});
@@ -2070,12 +2134,8 @@ TEST_CASE(gather_axis0_half_split_concat)
 
     EXPECT(m == expected);
 }
-#endif
 
-// TODO: Update for segment-based optimization
-// // TODO: Update for segment-based optimization
-#if 0 // TODO: Update for segment-based optimization
-// TEST_CASE(gather_flatten_stride_offset)
+TEST_CASE(gather_flatten_stride_offset)
 {
     migraphx::module m;
     auto x            = m.add_parameter("X", {migraphx::shape::float_type, {1, 16}});
@@ -2104,12 +2164,8 @@ TEST_CASE(gather_axis0_half_split_concat)
 
     EXPECT(m == expected);
 }
-#endif
 
-// TODO: Update for segment-based optimization
-// // TODO: Update for segment-based optimization
-#if 0 // TODO: Update for segment-based optimization
-// TEST_CASE(gather_flatten_stride_grid)
+TEST_CASE(gather_flatten_stride_grid)
 {
     migraphx::module m;
     auto x            = m.add_parameter("X", {migraphx::shape::float_type, {1, 3, 16, 16}});
@@ -2142,7 +2198,6 @@ TEST_CASE(gather_axis0_half_split_concat)
 
     EXPECT(m == expected);
 }
-#endif
 
 TEST_CASE(gather_flatten_permutation)
 {
@@ -2198,10 +2253,7 @@ TEST_CASE(gather_flatten_channel_patch)
     EXPECT(m == expected);
 }
 
-// TODO: Update for segment-based optimization
-// // TODO: Update for segment-based optimization
-#if 0 // TODO: Update for segment-based optimization
-// TEST_CASE(gather_flatten_channel_parity_permutation)
+TEST_CASE(gather_flatten_channel_parity_permutation)
 {
     migraphx::module m;
     auto x            = m.add_parameter("X", {migraphx::shape::float_type, {1, 3, 4, 4}});
@@ -2228,12 +2280,8 @@ TEST_CASE(gather_flatten_channel_patch)
 
     EXPECT(m == expected);
 }
-#endif
 
-// TODO: Update for segment-based optimization
-// // TODO: Update for segment-based optimization
-#if 0 // TODO: Update for segment-based optimization
-// TEST_CASE(gather_axis1_factorized_grid_const)
+TEST_CASE(gather_axis1_factorized_grid_const)
 {
     migraphx::module m;
     auto data = m.add_parameter("data", {migraphx::shape::float_type, {3, 8, 5}});
@@ -2270,12 +2318,8 @@ TEST_CASE(gather_flatten_channel_patch)
 
     EXPECT(m == expected);
 }
-#endif
 
-// TODO: Update for segment-based optimization
-// // TODO: Update for segment-based optimization
-#if 0 // TODO: Update for segment-based optimization
-// TEST_CASE(gather_axis1_factorized_grid_multi_const)
+TEST_CASE(gather_axis1_factorized_grid_multi_const)
 {
     migraphx::module m;
     auto data = m.add_parameter("data", {migraphx::shape::float_type, {2, 27, 4}});
@@ -2312,7 +2356,6 @@ TEST_CASE(gather_flatten_channel_patch)
 
     EXPECT(m == expected);
 }
-#endif
 
 // TEST_CASE(gather_constant_scalar_index)
 // {

@@ -42,7 +42,7 @@ struct parse_matmul : op_parser<parse_matmul>
                           const onnx_parser::node_info& info,
                           const std::vector<instruction_ref>& args) const
     {
-        return op::builder::add(opd.op_name, *info.mod, args, {}).at(0);
+        return op::builder::add(opd.op_name, *info.mod, args).at(0);
     }
 };
 

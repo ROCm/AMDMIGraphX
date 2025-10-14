@@ -39,25 +39,25 @@ MIGRAPHX_EXPORT std::vector<instruction_ref> insert(const std::string& name,
                                                     module& m,
                                                     instruction_ref ins,
                                                     const std::vector<instruction_ref>& args,
-                                                    const value& options);
+                                                    const value& options = value("", {}, false));
 
 MIGRAPHX_EXPORT std::vector<instruction_ref> insert(const std::string& name,
                                                     module& m,
                                                     instruction_ref ins,
                                                     const std::vector<instruction_ref>& args,
                                                     const std::vector<module_ref>& module_args,
-                                                    const value& options);
+                                                    const value& options = value("", {}, false) );
 
 MIGRAPHX_EXPORT std::vector<instruction_ref> add(const std::string& name,
                                                  module& m,
                                                  const std::vector<instruction_ref>& args,
-                                                 const value& options);
+                                                 const value& options = value("", {}, false));
 
 MIGRAPHX_EXPORT std::vector<instruction_ref> add(const std::string& name,
                                                  module& m,
                                                  const std::vector<instruction_ref>& args,
                                                  const std::vector<module_ref>& module_args,
-                                                 const value& options);
+                                                 const value& options = value("", {}, false));
 template <class... Ins>
 instruction_ref
 insert_common_op(module& m, instruction_ref ins, const std::string& op_name, Ins... args)

@@ -98,7 +98,7 @@ migraphx::instruction_ref add_dyn_scale_calc(migraphx::module_ref m, migraphx::i
 }
 
 /**
- * Designed to be a quant_dot with MX block scales after the simplify_qdq pass.
+ * Designed to be like the final GEMM of resnet50.
  */
 struct test_mxfp4_gemm : verify_program<test_mxfp4_gemm>
 {
@@ -106,17 +106,22 @@ struct test_mxfp4_gemm : verify_program<test_mxfp4_gemm>
     {
         migraphx::program p;
         migraphx::module_ref mmain = p.get_main_module();
-        auto input =
-            mmain->add_parameter("x1", migraphx::shape{migraphx::shape::fp4x2_type, {1, 1024}});
+        auto input = mmain->add_parameter("x1", migraphx::shape{migraphx::shape::float_type, {1, 2048}});
         auto input_scales = add_dyn_scale_calc(mmain, input, 1, 32);
-        auto bias = mmain->add_literal(migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1, 1000}}, 0));
-        auto weights = mmain->add_literal(migraphx::generate_literal(migraphx::shape{migraphx::shape::fp4x2_type, {1000, 1024}}, 2));
-        auto weight_scales = add_dyn_scale_calc(mmain, weights, 1, 32);
+        input = mmain->add_instruction(migraphx::make_op("quantizelinear", {{"out_type", migraphx::shape::float_type}}), input, input_scales);
+        input = mmain->add_instruction(migraphx::make_op("pack_fp4", {{"axis", 1}}), input);
         input = mmain->add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 1}}), input);
+        input = mmain->add_instruction(migraphx::make_op("dequantizelinear"), input, input_scales);
+        auto weights = mmain->add_literal(migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1000, 2048}}, 2));
+        auto weight_scales = add_dyn_scale_calc(mmain, weights, 1, 32);
+        weights = mmain->add_instruction(migraphx::make_op("quantizelinear", {{"out_type", migraphx::shape::float_type}}), weights, weight_scales);
+        weights = mmain->add_instruction(migraphx::make_op("pack_fp4", {{"axis", 1}}), weights);
         weights = mmain->add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 1}}), weights);
+        weights = mmain->add_instruction(migraphx::make_op("dequantizelinear"), weights, weight_scales);
         weights = mmain->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), weights);
-        auto quant_dot = mmain->add_instruction(migraphx::make_op("quant_dot"), input, weights, input_scales, weight_scales);
-        auto bias_add = mmain->add_instruction(migraphx::make_op("add"), quant_dot, bias);
+        auto bias = mmain->add_literal(migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1, 1000}}, 0));
+        auto dot = mmain->add_instruction(migraphx::make_op("dot"), input, weights);
+        auto bias_add = mmain->add_instruction(migraphx::make_op("add"), dot, bias);
         mmain->add_return({bias_add});
         return p;
     }

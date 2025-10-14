@@ -1,4 +1,4 @@
-###################################################################################
+#####################################################################################
 # The MIT License (MIT)
 #
 # Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
@@ -20,7 +20,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-###################################################################################
+#####################################################################################
 abseil/abseil-cpp@20250512.0 -DABSL_ENABLE_INSTALL=ON -DCMAKE_POSITION_INDEPENDENT_CODE=ON
 google/protobuf@v30.0 -DCMAKE_POSITION_INDEPENDENT_CODE=On -Dprotobuf_BUILD_TESTS=Off -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 nlohmann/json@v3.8.0 -DCMAKE_POLICY_VERSION_MINIMUM=3.5

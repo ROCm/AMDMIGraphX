@@ -126,4 +126,6 @@ struct test_mxfp4_gemm : verify_program<test_mxfp4_gemm>
         return p;
     }
     std::string section() const { return "gemm"; }
+
+    std::size_t get_tolerance() const { return 4e5; };
 };

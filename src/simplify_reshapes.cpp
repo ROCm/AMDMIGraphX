@@ -1505,7 +1505,7 @@ struct index_segment
                 else if constexpr(std::is_same_v<T, contiguous_segment_meta>)
                     return m.start;
                 else if constexpr(std::is_same_v<T, arithmetic_segment_meta>)
-                    return m.base;  // arithmetic uses 'base' not 'start'
+                    return m.base; // arithmetic uses 'base' not 'start'
                 else if constexpr(std::is_same_v<T, rtr_window_segment_meta>)
                     return std::nullopt; // RTR doesn't have a simple representative
                 else
@@ -1678,13 +1678,13 @@ struct inter_segment_variation
 {
     enum class pattern_type
     {
-        identical,      // All segments have identical metadata
-        contiguous,     // Segments form contiguous sequence
-        arithmetic,     // Segments follow arithmetic pattern (for arithmetic segments)
-        heterogeneous   // Different patterns (use split or custom)
+        identical,    // All segments have identical metadata
+        contiguous,   // Segments form contiguous sequence
+        arithmetic,   // Segments follow arithmetic pattern (for arithmetic segments)
+        heterogeneous // Different patterns (use split or custom)
     };
 
-    pattern_type type = pattern_type::heterogeneous;
+    pattern_type type  = pattern_type::heterogeneous;
     std::size_t stride = 0; // For arithmetic pattern
 
     /// Detect variation pattern for segments of the same type
@@ -1725,14 +1725,14 @@ struct inter_segment_variation
         else if constexpr(std::is_same_v<SegmentMeta, contiguous_segment_meta>)
         {
             // Check if segments form a contiguous sequence
-            auto first_meta = std::get<contiguous_segment_meta>(segments.front().metadata);
+            auto first_meta    = std::get<contiguous_segment_meta>(segments.front().metadata);
             bool is_contiguous = true;
             for(std::size_t i = 1; i < segments.size() and is_contiguous; ++i)
             {
-                auto meta = std::get<contiguous_segment_meta>(segments[i].metadata);
+                auto meta      = std::get<contiguous_segment_meta>(segments[i].metadata);
                 auto prev_meta = std::get<contiguous_segment_meta>(segments[i - 1].metadata);
-                is_contiguous =
-                    (meta.start == prev_meta.start + prev_meta.count and meta.count == first_meta.count);
+                is_contiguous  = (meta.start == prev_meta.start + prev_meta.count and
+                                 meta.count == first_meta.count);
             }
             if(is_contiguous)
                 return inter_segment_variation{pattern_type::contiguous, 0};
@@ -1743,11 +1743,11 @@ struct inter_segment_variation
         {
             // Check if all arithmetic segments have same stride/count, bases are 0,1,2,...
             auto first_meta = std::get<arithmetic_segment_meta>(segments.front().metadata);
-            auto stride = first_meta.stride;
-            auto count = first_meta.count;
+            auto stride     = first_meta.stride;
+            auto count      = first_meta.count;
 
-            bool is_arithmetic_tiled = std::all_of(
-                segments.begin(), segments.end(), [stride, count](const auto& seg) {
+            bool is_arithmetic_tiled =
+                std::all_of(segments.begin(), segments.end(), [stride, count](const auto& seg) {
                     auto meta = std::get<arithmetic_segment_meta>(seg.metadata);
                     return meta.stride == stride and meta.count == count;
                 });
@@ -1758,12 +1758,12 @@ struct inter_segment_variation
                 bool bases_sequential = true;
                 for(std::size_t i = 0; i < segments.size() and bases_sequential; ++i)
                 {
-                    auto meta = std::get<arithmetic_segment_meta>(segments[i].metadata);
+                    auto meta        = std::get<arithmetic_segment_meta>(segments[i].metadata);
                     bases_sequential = (meta.base == static_cast<int64_t>(i));
                 }
                 if(bases_sequential)
                     return inter_segment_variation{pattern_type::arithmetic,
-                                                    static_cast<std::size_t>(stride)};
+                                                   static_cast<std::size_t>(stride)};
             }
 
             return inter_segment_variation{pattern_type::heterogeneous, 0};
@@ -1802,8 +1802,8 @@ struct inter_segment_variation
             return std::nullopt;
 
         // Check if all identical
-        bool all_same = std::all_of(values.begin(), values.end(),
-                                     [&](int64_t v) { return v == values[0]; });
+        bool all_same =
+            std::all_of(values.begin(), values.end(), [&](int64_t v) { return v == values[0]; });
         if(all_same)
             return inter_segment_variation{pattern_type::identical, 0};
 
@@ -1811,7 +1811,7 @@ struct inter_segment_variation
         bool is_contiguous = true;
         for(std::size_t i = 1; i < values.size(); ++i)
         {
-            if(values[i] != values[i-1] + 1)
+            if(values[i] != values[i - 1] + 1)
             {
                 is_contiguous = false;
                 break;
@@ -1823,11 +1823,11 @@ struct inter_segment_variation
         // Check if arithmetic progression
         if(values.size() >= 2)
         {
-            int64_t stride = values[1] - values[0];
+            int64_t stride     = values[1] - values[0];
             bool is_arithmetic = true;
             for(std::size_t i = 2; i < values.size(); ++i)
             {
-                if(values[i] - values[i-1] != stride)
+                if(values[i] - values[i - 1] != stride)
                 {
                     is_arithmetic = false;
                     break;
@@ -1849,7 +1849,8 @@ struct repeated_segment_transformer
     std::vector<index_segment> segments;
     inter_segment_variation variation;
 
-    static std::optional<repeated_segment_transformer> detect(const std::vector<index_segment>& segs)
+    static std::optional<repeated_segment_transformer>
+    detect(const std::vector<index_segment>& segs)
     {
         if(segs.size() < 2)
             return std::nullopt;
@@ -1863,20 +1864,20 @@ struct repeated_segment_transformer
 
     instruction_ref transform(const gather_context& ctx, gather_instruction_builder& builder) const
     {
-        auto N = segments.size();        // Number of segments
+        auto N = segments.size();         // Number of segments
         auto S = segments.front().length; // Segment length
 
         // Step 1: Handle based on variation type
         if(variation.type == inter_segment_variation::pattern_type::identical)
         {
             // All segments identical - transform one and broadcast
-            auto segment_ctx = gather_context::with_reshaped_indices(ctx, {S});
+            auto segment_ctx   = gather_context::with_reshaped_indices(ctx, {S});
             auto single_result = apply_segment_transform(segments.front(), segment_ctx, builder);
 
             // The single result has shape [pre_lens, S, post_lens]
             // We need [pre_lens, N*S, post_lens]
             // Insert 1-dim at axis position and broadcast
-            auto pre_lens = ctx.pre_lens();
+            auto pre_lens                   = ctx.pre_lens();
             std::vector<int64_t> with_n_dim = to_int64_vec(pre_lens);
             with_n_dim.push_back(1);
             with_n_dim.push_back(static_cast<int64_t>(S));
@@ -1902,7 +1903,7 @@ struct repeated_segment_transformer
         {
             // Segments form contiguous sequence - can optimize with single slice
             auto first_meta = std::get<contiguous_segment_meta>(segments.front().metadata);
-            auto last_meta = std::get<contiguous_segment_meta>(segments.back().metadata);
+            auto last_meta  = std::get<contiguous_segment_meta>(segments.back().metadata);
 
             auto moved = builder.move_axis_to_front(ctx.data_ins(), ctx.axis_index());
             auto sliced =
@@ -1915,8 +1916,8 @@ struct repeated_segment_transformer
         {
             // Arithmetic tiling: reshape data to [stride, S] and transpose
             auto stride = variation.stride;
-            auto moved = builder.move_axis_to_front(ctx.data_ins(), ctx.axis_index());
-            auto rest = ctx.rest_lens();
+            auto moved  = builder.move_axis_to_front(ctx.data_ins(), ctx.axis_index());
+            auto rest   = ctx.rest_lens();
 
             std::vector<int64_t> reshape_dims = {static_cast<int64_t>(stride),
                                                  static_cast<int64_t>(S)};
@@ -1951,11 +1952,12 @@ struct repeated_segment_transformer
 struct two_level_segment_transformer
 {
     std::vector<index_segment> segments;
-    std::vector<int64_t> representatives;  // Representative values from each segment
-    inter_segment_variation level2_variation;  // Pattern of the representatives
+    std::vector<int64_t> representatives;     // Representative values from each segment
+    inter_segment_variation level2_variation; // Pattern of the representatives
 
     /// Detect 2-level pattern from segments
-    static std::optional<two_level_segment_transformer> detect(const std::vector<index_segment>& segs)
+    static std::optional<two_level_segment_transformer>
+    detect(const std::vector<index_segment>& segs)
     {
         if(segs.empty() || segs.size() == 1)
             return std::nullopt;
@@ -1975,7 +1977,7 @@ struct two_level_segment_transformer
         {
             auto rep = seg.representative_value();
             if(not rep.has_value())
-                return std::nullopt;  // Can't analyze segments without representatives
+                return std::nullopt; // Can't analyze segments without representatives
             reps.push_back(*rep);
         }
 
@@ -1990,8 +1992,8 @@ struct two_level_segment_transformer
 
     /// Transform using 2-level analysis on 1D flattened data
     instruction_ref transform(const gather_context& ctx,
-                               gather_instruction_builder& builder,
-                               const std::vector<std::size_t>& original_target_shape) const
+                              gather_instruction_builder& builder,
+                              const std::vector<std::size_t>& original_target_shape) const
     {
         // Dispatch based on level-1 segment type
         // All segments must have the same type (checked in detect())
@@ -2011,18 +2013,18 @@ struct two_level_segment_transformer
         return instruction_ref{};
     }
 
-private:
+    private:
     /// Transform pattern with all constant segments (resize/broadcast pattern)
     instruction_ref transform_constant_segments(const gather_context& ctx,
-                                                 gather_instruction_builder& builder,
-                                                 const std::vector<std::size_t>& target_shape) const
+                                                gather_instruction_builder& builder,
+                                                const std::vector<std::size_t>& target_shape) const
     {
         // Constant segments: each segment accesses the same value repeatedly
         // This is a broadcast/resize pattern in 1D
         // Goal: gather the unique values, then broadcast to output shape
 
-        auto seg_len = segments.front().length;
-        auto num_segs = segments.size();
+        auto seg_len   = segments.front().length;
+        auto num_segs  = segments.size();
         auto flat_data = ctx.data_ins();
 
         // Extract the constant values from each segment
@@ -2047,17 +2049,18 @@ private:
     }
 
     /// Transform pattern with all contiguous segments (multi-axis stride pattern)
-    instruction_ref transform_contiguous_segments(const gather_context& ctx,
-                                                   gather_instruction_builder& builder,
-                                                   const std::vector<std::size_t>& target_shape) const
+    instruction_ref
+    transform_contiguous_segments(const gather_context& ctx,
+                                  gather_instruction_builder& builder,
+                                  const std::vector<std::size_t>& target_shape) const
     {
         // Multi-axis stride: N contiguous segments of length L accessing 1D flattened data
         // Pattern: starts tell us how segments are distributed
         // Goal: Factor the 1D access into N×L structure, then reshape/slice/transpose
 
-        auto seg_len = segments.front().length;
-        auto num_segs = segments.size();
-        auto flat_data = ctx.data_ins();
+        auto seg_len           = segments.front().length;
+        auto num_segs          = segments.size();
+        auto flat_data         = ctx.data_ins();
         std::size_t total_size = ctx.axis_len();
 
         // Extract starts from contiguous segments
@@ -2076,7 +2079,7 @@ private:
         std::vector<int64_t> diffs;
         for(std::size_t i = 1; i < sorted_starts.size(); ++i)
         {
-            auto diff = sorted_starts[i] - sorted_starts[i-1];
+            auto diff = sorted_starts[i] - sorted_starts[i - 1];
             if(diff > 0)
                 diffs.push_back(diff);
         }
@@ -2094,8 +2097,8 @@ private:
 
         std::size_t num_interleaved = unique_offsets.size();
 
-        // Factorize: total_size = F1 × num_interleaved × min_stride / (min_stride / seg_len) × seg_len
-        // Simplify based on pattern: we want reshape to [F1, num_interleaved, F2, seg_len]
+        // Factorize: total_size = F1 × num_interleaved × min_stride / (min_stride / seg_len) ×
+        // seg_len Simplify based on pattern: we want reshape to [F1, num_interleaved, F2, seg_len]
         // where F1 * num_interleaved * F2 * seg_len = total_size
 
         if(total_size % (num_interleaved * seg_len) != 0)
@@ -2105,7 +2108,8 @@ private:
 
         // Try factoring remaining into F1 × F2 where F2 relates to the stride pattern
         std::size_t f2 = static_cast<std::size_t>(min_stride) / seg_len;
-        if(f2 == 0) f2 = 1;
+        if(f2 == 0)
+            f2 = 1;
 
         if(remaining % f2 != 0)
             return instruction_ref{};
@@ -2113,12 +2117,10 @@ private:
         std::size_t f1 = remaining / f2;
 
         // Reshape to [f1, num_interleaved, f2, seg_len]
-        std::vector<int64_t> reshape_dims = {
-            static_cast<int64_t>(f1),
-            static_cast<int64_t>(num_interleaved),
-            static_cast<int64_t>(f2),
-            static_cast<int64_t>(seg_len)
-        };
+        std::vector<int64_t> reshape_dims = {static_cast<int64_t>(f1),
+                                             static_cast<int64_t>(num_interleaved),
+                                             static_cast<int64_t>(f2),
+                                             static_cast<int64_t>(seg_len)};
 
         auto reshaped = builder.reshape(flat_data, reshape_dims);
 
@@ -2127,7 +2129,8 @@ private:
         if(num_output_elems < total_size)
         {
             // Calculate slice bounds from the access pattern
-            // We're extracting num_segs out of possible (f1 * num_interleaved * f2) segment positions
+            // We're extracting num_segs out of possible (f1 * num_interleaved * f2) segment
+            // positions
             std::size_t total_seg_positions = f1 * num_interleaved * f2;
 
             // Slice dimensions that are being subsampled
@@ -2138,7 +2141,7 @@ private:
             // Determine which dimensions to slice based on coverage
             for(std::size_t dim = 0; dim < 3; ++dim)
             {
-                std::size_t dim_size = static_cast<std::size_t>(reshape_dims[dim]);
+                std::size_t dim_size    = static_cast<std::size_t>(reshape_dims[dim]);
                 std::size_t dim_covered = dim_size; // Default: use full dimension
 
                 // Check if this dimension needs slicing
@@ -2176,23 +2179,25 @@ private:
         // The segments appear in a specific order in the gather output
         // We need to move the seg_len dimension and reorder based on how segments were accessed
         std::vector<int64_t> perm = {2, 0, 1, 3}; // Move f2 to front, keep order
-        reshaped = builder.transpose(reshaped, perm);
+        reshaped                  = builder.transpose(reshaped, perm);
 
         return builder.match_shape(reshaped, target_shape);
     }
 
     /// Transform pattern with all arithmetic segments (channel patch pattern)
-    instruction_ref transform_arithmetic_segments(const gather_context& ctx,
-                                                   gather_instruction_builder& builder,
-                                                   const std::vector<std::size_t>& target_shape) const
+    instruction_ref
+    transform_arithmetic_segments(const gather_context& ctx,
+                                  gather_instruction_builder& builder,
+                                  const std::vector<std::size_t>& target_shape) const
     {
-        // Arithmetic segments: N segments with arithmetic pattern (base, base+stride, base+2*stride, ...)
-        // Goal: Factor the 1D access into a structure that can be reshaped/sliced/transposed
+        // Arithmetic segments: N segments with arithmetic pattern (base, base+stride,
+        // base+2*stride, ...) Goal: Factor the 1D access into a structure that can be
+        // reshaped/sliced/transposed
 
         const auto& first_meta = std::get<arithmetic_segment_meta>(segments.front().metadata);
-        auto stride = first_meta.stride;
-        auto count = first_meta.count;
-        auto num_segs = segments.size();
+        auto stride            = first_meta.stride;
+        auto count             = first_meta.count;
+        auto num_segs          = segments.size();
 
         // Verify all segments have same stride and count
         for(const auto& seg : segments)
@@ -2211,7 +2216,7 @@ private:
             bases.push_back(meta.base);
         }
 
-        auto flat_data = ctx.data_ins();
+        auto flat_data         = ctx.data_ins();
         std::size_t total_size = ctx.axis_len();
 
         // The stride tells us the periodicity in the 1D array
@@ -2254,38 +2259,35 @@ private:
         // Then slice to extract accessed elements
         // Then reshape/transpose to target
 
-        std::vector<int64_t> reshape_dims = {
-            static_cast<int64_t>(period_count),
-            static_cast<int64_t>(stride)
-        };
+        std::vector<int64_t> reshape_dims = {static_cast<int64_t>(period_count),
+                                             static_cast<int64_t>(stride)};
 
         auto reshaped = builder.reshape(flat_data, reshape_dims);
 
         // Slice to extract the base span
-        std::vector<int64_t> slice_axes = {1};
+        std::vector<int64_t> slice_axes   = {1};
         std::vector<int64_t> slice_starts = {min_base};
-        std::vector<int64_t> slice_ends = {min_base + static_cast<int64_t>(base_span)};
+        std::vector<int64_t> slice_ends   = {min_base + static_cast<int64_t>(base_span)};
         auto sliced = builder.slice(reshaped, slice_axes, slice_starts, slice_ends);
 
         // Now we have [period_count, base_span]
         // Reshape to [period_count, f1, f2] where f1 * f2 = base_span
-        std::vector<int64_t> expanded_dims = {
-            static_cast<int64_t>(period_count),
-            static_cast<int64_t>(base_factors[0]),
-            static_cast<int64_t>(base_factors[1])
-        };
-        auto expanded = builder.reshape(sliced, expanded_dims);
+        std::vector<int64_t> expanded_dims = {static_cast<int64_t>(period_count),
+                                              static_cast<int64_t>(base_factors[0]),
+                                              static_cast<int64_t>(base_factors[1])};
+        auto expanded                      = builder.reshape(sliced, expanded_dims);
 
         // Unsqueeze to separate dimensions for transpose
         std::vector<int64_t> unsqueeze_axes = {1, 2};
-        auto unsqueezed = builder.unsqueeze(expanded, unsqueeze_axes);
+        auto unsqueezed                     = builder.unsqueeze(expanded, unsqueeze_axes);
 
         // Transpose to reorder dimensions
         // Result has shape [period_count, 1, base_factors[0], 1, base_factors[1]]
         // Transpose to move factors to front
-        std::size_t ndim = 2 + unsqueeze_axes.size() + 2; // period + unsq + factors
-        std::vector<int64_t> perm = {4, 2, 0, 1, 3}; // Move last two to front
-        while(perm.size() < ndim) perm.push_back(static_cast<int64_t>(perm.size()));
+        std::size_t ndim          = 2 + unsqueeze_axes.size() + 2; // period + unsq + factors
+        std::vector<int64_t> perm = {4, 2, 0, 1, 3};               // Move last two to front
+        while(perm.size() < ndim)
+            perm.push_back(static_cast<int64_t>(perm.size()));
 
         auto transposed = builder.transpose(unsqueezed, perm);
 

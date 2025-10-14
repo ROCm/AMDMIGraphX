@@ -27,9 +27,8 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-instruction_ref add_dyn_scale_calc(module_ref m, instruction_ref input, int block_axis, int block_size)
+instruction_ref add_dyn_scale_calc(migraphx::module_ref m, migraphx::instruction_ref input, int block_axis, int block_size)
 {
-
     using migraphx::instruction_ref;
     using migraphx::module_ref;
     using migraphx::make_op;
@@ -115,7 +114,7 @@ struct test_mxfp4_gemm : verify_program<test_mxfp4_gemm>
         input = mmain->add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 1}}), input);
         weights = mmain->add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 1}}), weights);
         weights = mmain->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), weights);
-        auto quant_dot = mmain->add_instruction(migraphx::make_op("quant_dot"), input, weights, x_9, weight_scales);
+        auto quant_dot = mmain->add_instruction(migraphx::make_op("quant_dot"), input, weights, input_scales, weight_scales);
         auto bias_add = mmain->add_instruction(migraphx::make_op("add"), quant_dot, bias);
         mmain->add_return({bias_add});
     }

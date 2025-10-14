@@ -28,7 +28,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
 
-instruction_ref add_dyn_scale_calc(migraphx::module_ref m, migraphx::instruction_ref input, int block_axis, int block_size)
+migraphx::instruction_ref add_dyn_scale_calc(migraphx::module_ref m, migraphx::instruction_ref input, int block_axis, int block_size)
 {
     using migraphx::instruction_ref;
     using migraphx::module_ref;

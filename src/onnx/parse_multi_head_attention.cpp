@@ -229,8 +229,9 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
             if(key_pad_len_size == 1)
             {
                 auto key_pad_batch = key_pad_lens.at(0);
-                // For left padding mode, the key padding mask is expected to have a size of (3 * batch_size + 2).
-                // This format is required by certain ONNX models for compatibility with specific left-padding implementations.
+                // For left padding mode, the key padding mask is expected to have a size of (3 *
+                // batch_size + 2). This format is required by certain ONNX models for compatibility
+                // with specific left-padding implementations.
                 if(key_pad_batch != params.batch_size and
                    key_pad_batch != (3 * params.batch_size + 2))
                     MIGRAPHX_THROW("MultiHeadAttention: Key Padding Mask must be either batch or 3 "

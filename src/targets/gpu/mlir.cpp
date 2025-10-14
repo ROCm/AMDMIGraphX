@@ -508,15 +508,15 @@ struct mlir_program
         {
         }
 
-        void setOperandSegmentSizes(int numSegments, const int32_t* sizes)
+        void set_operand_segement_sizes(int num_segments, const int32_t* sizes)
         {
-            MlirAttribute segmentSizesAttr =
-                mlirDenseI32ArrayGet(prog->ctx.get(), numSegments, sizes);
-            MlirNamedAttribute namedAttr = mlirNamedAttributeGet(
+            MlirAttribute segment_sizes_attr =
+                mlirDenseI32ArrayGet(prog->ctx.get(), num_segments, sizes);
+            MlirNamedAttribute named_attr = mlirNamedAttributeGet(
                     mlirIdentifierGet(prog->ctx.get(),
                         mlirStringRefCreateFromCString("operandSegmentSizes")),
-                    segmentSizesAttr);
-            mlirOperationStateAddAttributes(&op_state, 1, &namedAttr);
+                    segment_sizes_attr);
+            mlirOperationStateAddAttributes(&op_state, 1, &named_attr);
         }
 
         mlir_operation_state& add_attributes(const std::vector<named_attribute_t>& named_attrs)
@@ -774,7 +774,7 @@ struct mlir_program
                 // Specify operand segment sizes BEFORE creating the operation so MLIR sees it.
                 // Use the canonical MLIR attribute name 'operandSegmentSizes'.
                 int32_t seg_sizes[] = {1, 1, 1, 1};
-                ops.setOperandSegmentSizes(4, seg_sizes);
+                ops.set_operand_segement_sizes(4, seg_sizes);
             }
             ops.add_operands(inputs);
 

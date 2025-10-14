@@ -1512,7 +1512,7 @@ TEST_CASE(optimize_resize)
 
     auto create_optimized_module = [&] {
         migraphx::module m;
-        auto inx                  = m.add_parameter("X", sx);
+        auto inx  = m.add_parameter("X", sx);
         auto rspx = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3, 5}}}), inx);
         auto mbx  = m.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 2, 2, 2, 3}}}), rspx);
@@ -1542,8 +1542,8 @@ TEST_CASE(optimize_resize_flatten)
                                 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 3, 3};
         auto li              = m.add_literal(migraphx::literal(si, ind));
 
-        auto gr   = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), inx, li);
-        auto r    = m.add_instruction(migraphx::make_op("softmax", {{"axis", 0}}), gr);
+        auto gr = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), inx, li);
+        auto r  = m.add_instruction(migraphx::make_op("softmax", {{"axis", 0}}), gr);
         m.add_return({r});
 
         return m;
@@ -1554,13 +1554,14 @@ TEST_CASE(optimize_resize_flatten)
 
     auto create_optimized_module = [&] {
         migraphx::module m;
-        auto inx                  = m.add_parameter("X", sx);
-        auto rspx = m.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 1, 2, 1}}}), inx);
-        auto mbx  = m.add_instruction(
+        auto inx = m.add_parameter("X", sx);
+        auto rspx =
+            m.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 1, 2, 1}}}), inx);
+        auto mbx = m.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 2, 3}}}), rspx);
         std::vector<int64_t> orig_dims = {1, 2, 4, 6};
-        auto rmb  = m.add_instruction(migraphx::make_op("reshape", {{"dims", {48}}}), mbx);
-        auto r = m.add_instruction(migraphx::make_op("softmax", {{"axis", 0}}), rmb);
+        auto rmb = m.add_instruction(migraphx::make_op("reshape", {{"dims", {48}}}), mbx);
+        auto r   = m.add_instruction(migraphx::make_op("softmax", {{"axis", 0}}), rmb);
         m.add_return({r});
 
         return m;
@@ -1966,7 +1967,7 @@ TEST_CASE(gather_flatten_multi_axis_stride)
 {
     migraphx::module m;
     {
-        auto x       = m.add_parameter("X", {migraphx::shape::float_type, {48}});
+        auto x = m.add_parameter("X", {migraphx::shape::float_type, {48}});
 
         migraphx::shape indices_shape{migraphx::shape::int32_type, {24}};
         std::vector<int32_t> indices = {0, 1, 2, 3, 16, 17, 18, 19, 32, 33, 34, 35,

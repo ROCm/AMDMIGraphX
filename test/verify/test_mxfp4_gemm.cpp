@@ -29,6 +29,11 @@
 
 instruction_ref add_dyn_scale_calc(module_ref m, instruction_ref input, int block_axis, int block_size)
 {
+
+    using migraphx::instruction_ref;
+    using migraphx::module_ref;
+    using migraphx::make_op;
+
     // Code similar to that in parse_mxfixneruon
     // make reduction axes for calculating block scales
     // tmp_lens != input_lens if runt block is padded
@@ -43,7 +48,7 @@ instruction_ref add_dyn_scale_calc(module_ref m, instruction_ref input, int bloc
     {
         std::vector<std::size_t> pads_vec(2 * tmp_lens.size(), 0);
         pads_vec.at(block_axis + tmp_lens.size()) = block_padding;
-        tmp_in   = m.add_instruction(make_op("pad", {{"pads", pads_vec}}), tmp_in);
+        tmp_in   = m->add_instruction(make_op("pad", {{"pads", pads_vec}}), tmp_in);
         tmp_lens = tmp_in->get_shape().lens();
     }
     // reshape block dimension to {num_blocks, block_size}
@@ -51,41 +56,41 @@ instruction_ref add_dyn_scale_calc(module_ref m, instruction_ref input, int bloc
     std::vector<std::size_t> reduct_dims = tmp_lens;
     reduct_dims.at(block_axis)           = block_size;
     reduct_dims.insert(reduct_dims.begin() + block_axis, num_blocks);
-    instruction_ref reshape_ins = m.add_instruction(make_op("reshape", {{"dims", reduct_dims}}), tmp_in);
+    instruction_ref reshape_ins = m->add_instruction(make_op("reshape", {{"dims", reduct_dims}}), tmp_in);
 
     // dynamic quantization for MX types:
     // V_k = fp32 vector input of block size k
     // B_k = pow(2, floor(log2(reduce_max(abs(V_k))))) # largest power of 2 less than V
     // X_k = block scale k = B_k / (largest power of 2 in fp4e2m1) = B_k / 4
-    auto abs_ins = m.add_instruction(make_op("abs"), reshape_ins);
+    auto abs_ins = m->add_instruction(make_op("abs"), reshape_ins);
     auto reduce_max_ins =
-        m.add_instruction(make_op("reduce_max", {{"axes", {block_axis + 1}}}), abs_ins);
-    auto log2_ins  = m.add_instruction(make_op("log2"), reduce_max_ins);
-    auto floor_ins = m.add_instruction(make_op("floor"), log2_ins);
-    auto lit_2_ins = m.add_literal(
+        m->add_instruction(make_op("reduce_max", {{"axes", {block_axis + 1}}}), abs_ins);
+    auto log2_ins  = m->add_instruction(make_op("log2"), reduce_max_ins);
+    auto floor_ins = m->add_instruction(make_op("floor"), log2_ins);
+    auto lit_2_ins = m->add_literal(
             migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {2.f}});
-    auto broadcast_lit_2_ins = m.add_instruction(
+    auto broadcast_lit_2_ins = m->add_instruction(
             make_op("multibroadcast", {{"out_lens", reduce_max_ins->get_shape().lens()}}),
             lit_2_ins);
-    auto pow_ins   = m.add_instruction(make_op("pow"), broadcast_lit_2_ins, floor_ins);
-    auto lit_4_ins = m.add_literal(
+    auto pow_ins   = m->add_instruction(make_op("pow"), broadcast_lit_2_ins, floor_ins);
+    auto lit_4_ins = m->add_literal(
             migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {4.f}});
-    auto broadcast_lit_4_ins = m.add_instruction(
+    auto broadcast_lit_4_ins = m->add_instruction(
             make_op("multibroadcast", {{"out_lens", reduce_max_ins->get_shape().lens()}}),
             lit_4_ins);
-    auto block_scales_ins = m.add_instruction(make_op("div"), pow_ins, broadcast_lit_4_ins);
+    auto block_scales_ins = m->add_instruction(make_op("div"), pow_ins, broadcast_lit_4_ins);
 
     // broadcast scales for use in quantizelinear
-    block_scales_ins = m.add_instruction(
+    block_scales_ins = m->add_instruction(
             make_op("multibroadcast", {{"out_lens", reduct_dims}}), block_scales_ins);
     block_scales_ins =
-        m.add_instruction(make_op("reshape", {{"dims", tmp_lens}}), block_scales_ins);
+        m->add_instruction(make_op("reshape", {{"dims", tmp_lens}}), block_scales_ins);
 
     // if padded runt block do slicing
     if(tmp_lens != input_lens)
     {
         std::size_t slice_size = input_lens.at(block_axis);
-        block_scales_ins       = m.add_instruction(
+        block_scales_ins       = m->add_instruction(
                 make_op("slice", {{"axes", {block_axis}}, {"starts", {0}}, {"ends", {slice_size}}}),
                 block_scales_ins);
     }

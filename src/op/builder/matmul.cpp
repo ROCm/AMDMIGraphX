@@ -36,21 +36,6 @@ namespace builder {
 template <typename Derived>
 struct matmul_base : op_builder<Derived>
 {
-    instruction_ref m_a0;
-    instruction_ref m_a1;
-    instruction_ref m_dot_res;
-
-    const std::set<migraphx::shape::type_t> supported_types = {migraphx::shape::uint8_type,
-                                                               migraphx::shape::int8_type};
-
-    void set_args(const std::vector<instruction_ref>& args)
-    {
-        m_a0 = args[0];
-        m_a1 = args[1];
-    }
-
-    bool is_dynamic() const { return m_a0->get_shape().dynamic() or m_a1->get_shape().dynamic(); }
-
     static bool is_symmetric_zero_point(instruction_ref zp)
     {
         if(not zp->can_eval())
@@ -140,152 +125,148 @@ struct matmul_base : op_builder<Derived>
     instruction_ref
     insert_impl(module& m, instruction_ref ins, const std::vector<instruction_ref>& args)
     {
-        set_args(args);
+        auto a0 = args[0];
+        auto a1 = args[1];
+        auto s0 = a0->get_shape();
+        auto s1 = a1->get_shape();
+
+        instruction_ref dot_res;
+
         bool is_a_prepended = false;
         bool is_b_appended  = false;
 
-        if(m_a0->get_shape().ndim() == 1)
+        if(s0.ndim() == 1)
         {
             is_a_prepended = true;
-            m_a0           = m.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), m_a0);
+            a0           = m.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), a0);
         }
-        if(m_a1->get_shape().ndim() == 1)
+        if(s1.ndim() == 1)
         {
             is_b_appended = true;
-            m_a1          = m.add_instruction(make_op("unsqueeze", {{"axes", {1}}}), m_a1);
+            a1          = m.add_instruction(make_op("unsqueeze", {{"axes", {1}}}), a1);
         }
 
-        if(is_dynamic())
+        if(s0.dynamic() or s1.dynamic())
         {
-            static_cast<Derived*>(this)->handle_dynamic(m);
+            dot_res = static_cast<Derived*>(this)->handle_dynamic(m, a0, a1);
         }
         else
         {
-            static_cast<Derived*>(this)->handle_static(m, ins, args);
+            dot_res = static_cast<Derived*>(this)->handle_static(m, ins, args, a0, a1);
         }
 
-        int64_t num_axis = m_dot_res->get_shape().ndim();
+        int64_t num_axis = dot_res->get_shape().ndim();
 
         if(is_a_prepended)
         {
-            m_dot_res =
-                m.add_instruction(make_op("squeeze", {{"axes", {num_axis - 2}}}), m_dot_res);
+            dot_res =
+                m.add_instruction(make_op("squeeze", {{"axes", {num_axis - 2}}}), dot_res);
             --num_axis;
         }
         if(is_b_appended)
         {
-            m_dot_res =
-                m.add_instruction(make_op("squeeze", {{"axes", {num_axis - 1}}}), m_dot_res);
+            dot_res =
+                m.add_instruction(make_op("squeeze", {{"axes", {num_axis - 1}}}), dot_res);
         }
 
-        return m_dot_res;
+        return dot_res;
     }
 };
 
 struct dot : matmul_base<dot>
 {
-    template <class Self, class F>
-    static auto reflect(Self&, F)
-    {
-        return pack();
-    }
-
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args)
     {
         return {insert_impl(m, ins, args)};
     }
 
-    void handle_dynamic(module& m)
+    instruction_ref handle_dynamic(module& m, const instruction_ref a0, const instruction_ref a1)
     {
-        auto s0_dds = m_a0->get_shape().to_dynamic().dyn_dims();
-        auto s1_dds = m_a1->get_shape().to_dynamic().dyn_dims();
+        auto s0_dds = a0->get_shape().to_dynamic().dyn_dims();
+        auto s1_dds = a1->get_shape().to_dynamic().dyn_dims();
 
         if(not std::equal(s0_dds.rbegin() + 2, s0_dds.rend(), s1_dds.rbegin() + 2, s1_dds.rend()))
         {
-            auto broadcasted_a0 = m.add_instruction(make_op("broadcast_for_dot"), m_a0, m_a1);
-            auto broadcasted_a1 = m.add_instruction(make_op("broadcast_for_dot"), m_a1, m_a0);
-            m_dot_res = m.add_instruction(make_op(name()), broadcasted_a0, broadcasted_a1);
+            auto broadcasted_a0 = m.add_instruction(make_op("broadcast_for_dot"), a0, a1);
+            auto broadcasted_a1 = m.add_instruction(make_op("broadcast_for_dot"), a1, a0);
+            return m.add_instruction(make_op(name()), broadcasted_a0, broadcasted_a1);
         }
         else
         {
-            m_dot_res = m.add_instruction(make_op(name()), m_a0, m_a1);
+            return m.add_instruction(make_op(name()), a0, a1);
         }
     }
 
-    void handle_static(module& m, instruction_ref, const std::vector<instruction_ref>& args)
+    instruction_ref handle_static(module& m, instruction_ref, const std::vector<instruction_ref>& args, instruction_ref& a0, instruction_ref& a1)
     {
         if(args.size() > 2)
         {
             MIGRAPHX_THROW(name() + ": Bias Args not supported");
         }
 
-        instruction_ref ba0 = set_bias_arg(name(), args, a0_zp_index, m_a0);
-        instruction_ref ba1 = set_bias_arg(name(), args, a1_zp_index, m_a1);
+        const int a0_zp_index = 2;
+        const int a1_zp_index = 3;
+
+        instruction_ref ba0 = set_bias_arg(name(), args, a0_zp_index, a0);
+        instruction_ref ba1 = set_bias_arg(name(), args, a1_zp_index, a1);
 
         broadcast_dimensions(
-            m, m_a0->get_shape().lens(), m_a1->get_shape().lens(), m_a0, m_a1, ba0, ba1);
+            m, a0->get_shape().lens(), a1->get_shape().lens(), a0, a1, ba0, ba1);
 
-        m_dot_res = m.add_instruction(make_op(name()), ba0, ba1);
+        return m.add_instruction(make_op(name()), ba0, ba1);
     }
-
-    private:
-    const int a0_zp_index = 2;
-    const int a1_zp_index = 3;
 };
 
 struct quant_dot : matmul_base<quant_dot>
 {
-    template <class Self, class F>
-    static auto reflect(Self&, F)
-    {
-        return pack();
-    }
-
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args)
     {
         return {insert_impl(m, ins, args)};
     }
 
-    [[noreturn]] void handle_dynamic(module&)
+    [[noreturn]] instruction_ref handle_dynamic(module&, const instruction_ref /*a0*/, const instruction_ref /*a1*/)
     {
         MIGRAPHX_THROW(name() + ": dynamic inputs not supported");
     }
 
-    void handle_static(module& m, instruction_ref ins, const std::vector<instruction_ref>& args)
+    instruction_ref handle_static(module& m, instruction_ref ins, const std::vector<instruction_ref>& args, instruction_ref& a0, instruction_ref& a1)
     {
         bool has_ba0 = false;
         bool has_ba1 = false;
 
-        instruction_ref ba0 = set_bias_arg(name(), args, a0_zp_index, m_a0, has_ba0);
-        instruction_ref ba1 = set_bias_arg(name(), args, a1_zp_index, m_a1, has_ba1);
+        const int a0_zp_index = 2;
+        const int a1_zp_index = 3;
+
+        instruction_ref ba0 = set_bias_arg(name(), args, a0_zp_index, a0, has_ba0);
+        instruction_ref ba1 = set_bias_arg(name(), args, a1_zp_index, a1, has_ba1);
+
+        const std::set<migraphx::shape::type_t> supported_types = {migraphx::shape::uint8_type, migraphx::shape::int8_type};
 
         // Only INT8 or UINT8 type currently supported
-        if((not contains(supported_types, m_a0->get_shape().type()) or
-            not contains(supported_types, m_a1->get_shape().type())))
+        if((not contains(supported_types, a0->get_shape().type()) or
+            not contains(supported_types, a1->get_shape().type())))
         {
             MIGRAPHX_THROW(name() + ": Unsupported type");
         }
 
-        if((m_a0->get_shape().type() == migraphx::shape::uint8_type) or
-           (m_a1->get_shape().type() == migraphx::shape::uint8_type))
+        if((a0->get_shape().type() == migraphx::shape::uint8_type) or
+           (a1->get_shape().type() == migraphx::shape::uint8_type))
         {
             auto offset_op = m.add_literal(
                 migraphx::literal{migraphx::shape{migraphx::shape::half_type}, {-128}});
-            handle_uint8_input(m, ins, has_ba0, offset_op, m_a0, ba0);
-            handle_uint8_input(m, ins, has_ba1, offset_op, m_a1, ba1);
+            handle_uint8_input(m, ins, has_ba0, offset_op, a0, ba0);
+            handle_uint8_input(m, ins, has_ba1, offset_op, a1, ba1);
         }
 
         broadcast_dimensions(
-            m, m_a0->get_shape().lens(), m_a1->get_shape().lens(), m_a0, m_a1, ba0, ba1);
+            m, a0->get_shape().lens(), a1->get_shape().lens(), a0, a1, ba0, ba1);
 
-        m_dot_res = m.add_instruction(make_op(name()), ba0, ba1);
+        return m.add_instruction(make_op(name()), ba0, ba1);
     }
 
     private:
-    const int a0_zp_index = 2;
-    const int a1_zp_index = 3;
 
     // Convert to half prior to a shift to ensure we preserve accuracy here then
     // convert back to int8
@@ -348,59 +329,56 @@ struct quant_dot : matmul_base<quant_dot>
 
 struct quant_dot_scaled : matmul_base<quant_dot_scaled>
 {
-    template <class Self, class F>
-    static auto reflect(Self&, F)
-    {
-        return pack();
-    }
-
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args)
     {
         return {insert_impl(m, ins, args)};
     }
 
-    [[noreturn]] void handle_dynamic(module&)
+    [[noreturn]] instruction_ref handle_dynamic(module&, const instruction_ref /*a0*/, const instruction_ref /*a1*/)
     {
         MIGRAPHX_THROW(name() + ": dynamic inputs not supported");
     }
 
-    void handle_static(module& m, instruction_ref ins, const std::vector<instruction_ref>& args)
+    instruction_ref handle_static(module& m, instruction_ref ins, const std::vector<instruction_ref>& args, instruction_ref& a0, instruction_ref& a1)
     {
         // Handles case with for when scales are present in operator
-        instruction_ref scale_a0 = set_scale_arg(m, args, m_a0, 2);
-        instruction_ref scale_a1 = set_scale_arg(m, args, m_a1, 3);
+        instruction_ref scale_a0 = set_scale_arg(m, args, a0, 2);
+        instruction_ref scale_a1 = set_scale_arg(m, args, a1, 3);
         if(scale_a0->get_shape().type() != scale_a1->get_shape().type())
         {
             MIGRAPHX_THROW(name() + ": Scales must be the same type");
         }
 
-        instruction_ref ba0 = set_bias_arg(name(), args, a0_zp_index, m_a0);
-        instruction_ref ba1 = set_bias_arg(name(), args, a1_zp_index, m_a1);
+        const int a0_zp_index = 4;
+        const int a1_zp_index = 5;
+
+        instruction_ref ba0 = set_bias_arg(name(), args, a0_zp_index, a0);
+        instruction_ref ba1 = set_bias_arg(name(), args, a1_zp_index, a1);
 
         // handle optional bias arg to the result
         bool has_scale_bias = false;
         auto scaled_index   = 6;
         instruction_ref scaled_bias =
-            set_scale_bias(args, scaled_index, scale_a1->get_shape(), m_a1, has_scale_bias);
+            set_scale_bias(args, scaled_index, scale_a1->get_shape(), a1, has_scale_bias);
+
+        const std::set<migraphx::shape::type_t> supported_types = {migraphx::shape::uint8_type, migraphx::shape::int8_type};
 
         // Only INT8 or UINT8 type currently supported
-        if((not contains(supported_types, m_a0->get_shape().type()) or
-            not contains(supported_types, m_a1->get_shape().type())))
+        if((not contains(supported_types, a0->get_shape().type()) or
+            not contains(supported_types, a1->get_shape().type())))
         {
             MIGRAPHX_THROW(name() + ": Unsupported type");
         }
 
         broadcast_dimensions(
-            m, m_a0->get_shape().lens(), m_a1->get_shape().lens(), m_a0, m_a1, ba0, ba1);
+            m, a0->get_shape().lens(), a1->get_shape().lens(), a0, a1, ba0, ba1);
 
-        m_dot_res = handle_scaled_output(
-            m, ins, m_a0, m_a1, scale_a0, scale_a1, ba0, ba1, scaled_bias, has_scale_bias);
+        return handle_scaled_output(
+            m, ins, a0, a1, scale_a0, scale_a1, ba0, ba1, scaled_bias, has_scale_bias);
     }
 
     private:
-    const int a0_zp_index = 4;
-    const int a1_zp_index = 5;
 
     static instruction_ref set_scale_arg(module& m,
                                          const std::vector<instruction_ref>& args,

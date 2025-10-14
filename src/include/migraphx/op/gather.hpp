@@ -134,8 +134,7 @@ struct gather
                         data_idx[axis]  = in_index;
                         if(data_idx[axis] < 0 or data_idx[axis] >= axis_dim_size)
                         {
-                            output[out_idx] = 0;
-                            return;
+                            MIGRAPHX_THROW("Gather: Out of bounds index detected");
                         }
                         output[out_idx] = data(data_idx.begin(), data_idx.end());
                     });

@@ -27,22 +27,19 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/literal.hpp>
 
-struct test_gather_flatten_stride_first
-    : verify_program<test_gather_flatten_stride_first>
+struct test_gather_flatten_stride_first : verify_program<test_gather_flatten_stride_first>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
 
-        auto x = mm->add_parameter("X", {migraphx::shape::float_type, {1, 8}});
-        auto reshape =
-            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), x);
+        auto x       = mm->add_parameter("X", {migraphx::shape::float_type, {1, 8}});
+        auto reshape = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), x);
 
         migraphx::shape indices_shape{migraphx::shape::int32_type, {1, 4}};
         std::vector<int32_t> indices = {0, 2, 4, 6};
-        auto indices_literal =
-            mm->add_literal(migraphx::literal{indices_shape, indices});
+        auto indices_literal         = mm->add_literal(migraphx::literal{indices_shape, indices});
 
         auto gather = mm->add_instruction(migraphx::make_op("gather"), reshape, indices_literal);
         mm->add_return({gather});

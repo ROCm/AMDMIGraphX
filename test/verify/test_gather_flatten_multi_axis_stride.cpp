@@ -27,8 +27,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/literal.hpp>
 
-struct test_gather_flatten_multi_axis_stride
-    : verify_program<test_gather_flatten_multi_axis_stride>
+struct test_gather_flatten_multi_axis_stride : verify_program<test_gather_flatten_multi_axis_stride>
 {
     migraphx::program create_program() const
     {
@@ -39,9 +38,9 @@ struct test_gather_flatten_multi_axis_stride
         auto reshape_flat = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {48}}}), x);
 
         migraphx::shape indices_shape{migraphx::shape::int32_type, {2, 3, 1, 4}};
-        std::vector<int32_t> indices = {0,  1,  2,  3,  16, 17, 18, 19, 32, 33, 34, 35,
-                                        4,  5,  6,  7,  20, 21, 22, 23, 36, 37, 38, 39};
-        auto indices_literal = mm->add_literal(migraphx::literal{indices_shape, indices});
+        std::vector<int32_t> indices = {0, 1, 2, 3, 16, 17, 18, 19, 32, 33, 34, 35,
+                                        4, 5, 6, 7, 20, 21, 22, 23, 36, 37, 38, 39};
+        auto indices_literal         = mm->add_literal(migraphx::literal{indices_shape, indices});
 
         auto gather =
             mm->add_instruction(migraphx::make_op("gather"), reshape_flat, indices_literal);

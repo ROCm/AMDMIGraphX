@@ -28,29 +28,24 @@
 #include <migraphx/program.hpp>
 #include <migraphx/literal.hpp>
 
-struct test_gather_flatten_stride_grid
-    : verify_program<test_gather_flatten_stride_grid>
+struct test_gather_flatten_stride_grid : verify_program<test_gather_flatten_stride_grid>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
 
-        auto data =
-            mm->add_parameter("X", {migraphx::shape::float_type, {1, 3, 16, 16}});
-        auto flatten =
-            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {768}}}), data);
+        auto data    = mm->add_parameter("X", {migraphx::shape::float_type, {1, 3, 16, 16}});
+        auto flatten = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {768}}}), data);
 
         migraphx::shape indices_shape{migraphx::shape::int32_type, {1, 3, 4, 4}};
         std::vector<int32_t> indices = {17,  21,  25,  29,  81,  85,  89,  93,  145, 149, 153, 157,
                                         209, 213, 217, 221, 273, 277, 281, 285, 337, 341, 345, 349,
                                         401, 405, 409, 413, 465, 469, 473, 477, 529, 533, 537, 541,
                                         593, 597, 601, 605, 657, 661, 665, 669, 721, 725, 729, 733};
-        auto indices_literal =
-            mm->add_literal(migraphx::literal{indices_shape, indices});
+        auto indices_literal         = mm->add_literal(migraphx::literal{indices_shape, indices});
 
-        auto gather =
-            mm->add_instruction(migraphx::make_op("gather"), flatten, indices_literal);
+        auto gather = mm->add_instruction(migraphx::make_op("gather"), flatten, indices_literal);
         mm->add_return({gather});
 
         return p;

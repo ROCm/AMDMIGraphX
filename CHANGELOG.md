@@ -19,6 +19,7 @@ Full documentation for MIGraphX is available at
 * Added new environment variable documentation and reorganized structure.
 * Added `stash_type` attribute for `LayerNorm` and expanded test coverage.
 * Added operator builders (phase 2).
+* Added `MIGRAPHX_GPU_HIP_FLAGS` to allow extra HIP compile flags.
 
 ### Changed
 
@@ -27,7 +28,6 @@ Full documentation for MIGraphX is available at
   * **rocm-docs-core** bumped from 1.21.1 → 1.25.0 across releases.
   * **Doxygen** updated to 1.14.0.
   * **urllib3** updated from 2.2.2 → 2.5.0.
-* Updated `MIGRAPHX_GPU_HIP_FLAGS` to allow extra HIP compile flags.
 * Updated `src/CMakeLists.txt` to support `msgpack` 6.x (`msgpack-cxx`).
 * Updated model zoo test generator to fix test issues and add summary logging.
 * Updated `rocMLIR` and `ONNXRuntime` mainline references across commits.

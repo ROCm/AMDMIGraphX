@@ -29,6 +29,7 @@
 #include <migraphx/instruction.hpp>
 #include <test.hpp>
 #include <migraphx/op/builder/insert.hpp>
+#include <migraphx/ranges.hpp>
 
 inline migraphx::module make_op_module(const std::string& op_builder_name,
                                        const migraphx::value& options,
@@ -36,12 +37,11 @@ inline migraphx::module make_op_module(const std::string& op_builder_name,
 {
     migraphx::module mm_op_built;
 
-    std::for_each(
-        params.rbegin(), params.rend(), [&mm_op_built](const migraphx::instruction_ref& i_ref) {
-            auto param_name =
-                migraphx::any_cast<migraphx::builtin::param>(i_ref->get_operator()).parameter;
-            mm_op_built.add_parameter(param_name, i_ref->get_shape());
-        });
+    for(auto param : migraphx::range(params.rbegin(), params.rend()))
+    {
+        auto param_name = migraphx::any_cast<migraphx::builtin::param>(param->get_operator()).parameter;
+        mm_op_built.add_parameter(param_name, param->get_shape());
+    }
 
     const auto& params2 = mm_op_built.get_parameters();
     const std::vector<migraphx::instruction_ref>& args2{params2.rbegin(), params2.rend()};

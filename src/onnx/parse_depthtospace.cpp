@@ -63,8 +63,8 @@ struct parse_depthtospace : op_parser<parse_depthtospace>
         // blocksize).
         if(s.dynamic())
         {
-            auto dyn_dims1              = s.dyn_dims();
-            auto dyn_dims2              = s.dyn_dims();
+            auto dyn_dims1              = s.dyn_dims(); // the expanded dims vector (6d)
+            auto dyn_dims2              = s.dyn_dims(); // the final transformed vector (4d)
             int64_t divisor             = blocksize * blocksize;
             uint64_t blocksize_unsigned = blocksize;
             auto blocksize_literal      = info.add_literal({blocksize});
@@ -83,17 +83,19 @@ struct parse_depthtospace : op_parser<parse_depthtospace>
             auto c_div = info.add_literal({c / divisor});
 
             dyn_dims2[1] = {dyn_dims2[1].min / divisor, dyn_dims2[1].max / divisor};
-            dyn_dims1.push_back(dyn_dims1[2]);
-            dyn_dims1.push_back(dyn_dims1[3]);
             dyn_dims2[2] = dyn_dims2[2] * blocksize_unsigned;
             dyn_dims2[3] = dyn_dims2[3] * blocksize_unsigned;
             dyn_dims1[2] = {blocksize_unsigned, blocksize_unsigned, {}};
+            // push back h and w to expand the vector to 6d
+            dyn_dims1.push_back(dyn_dims1[2]);
+            dyn_dims1.push_back(dyn_dims1[3]);
 
             std::vector<int64_t> perm;
             instruction_ref new_shape1;
             instruction_ref new_shape_alloc1;
             if(mode == "DCR")
             {
+                // expanded vector = n, blocksize, blocksize, c // (blocksize**2), h, w
                 dyn_dims1[3] = {dyn_dims1[1].min / divisor, dyn_dims1[1].max / divisor, {}};
                 dyn_dims1[1] = {blocksize_unsigned, blocksize_unsigned, {}};
                 perm         = {0, 3, 4, 1, 5, 2};
@@ -118,6 +120,7 @@ struct parse_depthtospace : op_parser<parse_depthtospace>
             }
             else if(mode == "CRD")
             {
+                // expanded vector = b, c // (blocksize ** 2), blocksize, blocksize, h, w
                 dyn_dims1[1] = {dyn_dims1[1].min / divisor, dyn_dims1[1].max / divisor, {}};
                 dyn_dims1[3] = {blocksize_unsigned, blocksize_unsigned, {}};
                 perm         = {0, 1, 4, 2, 5, 3};

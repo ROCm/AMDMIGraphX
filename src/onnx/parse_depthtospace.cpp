@@ -85,10 +85,11 @@ struct parse_depthtospace : op_parser<parse_depthtospace>
             dyn_dims2[1] = {dyn_dims2[1].min / divisor, dyn_dims2[1].max / divisor};
             dyn_dims2[2] = dyn_dims2[2] * blocksize_unsigned;
             dyn_dims2[3] = dyn_dims2[3] * blocksize_unsigned;
-            dyn_dims1[2] = {blocksize_unsigned, blocksize_unsigned, {}};
             // push back h and w to expand the vector to 6d
             dyn_dims1.push_back(dyn_dims1[2]);
             dyn_dims1.push_back(dyn_dims1[3]);
+            dyn_dims1[2] = {blocksize_unsigned, blocksize_unsigned, {}};
+            
 
             std::vector<int64_t> perm;
             instruction_ref new_shape1;

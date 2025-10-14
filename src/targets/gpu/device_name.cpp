@@ -75,6 +75,11 @@ bool gfx_has_bf16_intrinsics()
     return not(starts_with(device_name, "gfx1030"));
 }
 
+bool gfx_has_mx_intrinsics()
+{
+    return starts_with(device_name, "gfx9") and device_name >= "gfx950";
+}
+
 #if MIGRAPHX_USE_HIPBLASLT
 // Archs that support hipBLASLt but are defaulted to use rocBLAS.
 bool gfx_default_rocblas()

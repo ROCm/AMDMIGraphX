@@ -39,6 +39,7 @@ struct module;
 struct MIGRAPHX_EXPORT simplify_qdq
 {
     bool remove_qdq_only = false;
+    bool use_mx_quant = false;
     std::string name() const { return "simplify_qdq"; }
     void apply(module& m) const;
 };

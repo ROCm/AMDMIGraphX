@@ -628,8 +628,11 @@ void simplify_qdq::apply(module& m) const
         add_int4_pack_unpack_pair(m);
         match::find_matches(m, match_find_quantizable_ops{});
         migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
-        match::find_matches(m, match_find_mx_quantizable_ops{});
-        migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+        if(use_mx_quant)
+        {
+            match::find_matches(m, match_find_mx_quantizable_ops{});
+            migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+        }
         match::find_matches(m, remove_qdq_pairs{});
         migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
         match::find_matches(m, match_qlinear_reused{});

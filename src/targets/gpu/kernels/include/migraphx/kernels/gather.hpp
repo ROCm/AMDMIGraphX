@@ -58,6 +58,7 @@ __device__ void gather(Input input, Indices indices, Output output)
 
         if(idx[Axis] < 0 or idx[Axis] >= axis_dim_size)
         {   // Don't gather on this just exit
+            MIGRAPHX_ASSERT(idx[Axis] < axis_dim_size);
             output[i] = static_cast<typename Output::type>(0);
             return;
         }

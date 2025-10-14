@@ -144,6 +144,14 @@ Model performance tunable variables change the compilation behavior of a model. 
 
       | Default: Reduction fusions are turned off.
 
+  * - | ``MIGRAPHX_ENABLE_MLIR_GEG_FUSION``
+      | Turns on GEMM+GEMM fusions in MLIR.
+    
+    - | ``1``: Turns on G+G fusions.
+      | ``0``: Returns to default behavior.
+
+      | Default: GEMM+GEMM fusions are turned off.
+
   * - | ``MIGRAPHX_MLIR_ENABLE_SPLITK``
       | Turns on Split-k performance configurations during MLIR tuning.
       
@@ -213,6 +221,13 @@ Model performance tunable variables change the compilation behavior of a model. 
 
       | Default: No tuning is done for composable kernels.
 
+  * - | ``MIGRAPHX_REWRITE_LRN``
+      | Turns on LRN-to-pooling lowering in the rewrite_pooling pass.
+      
+    - | ``1``: Turns on LRN-to-pooling lowering.
+      | ``0``: Returns to default behavior.
+
+      | Default: LRN-to-pooling lowering is turned off.
                
 Matching
 **********
@@ -593,7 +608,7 @@ Advanced settings
       | Sets the number of threads to use for parallel GPU code compilation. 
       
     - | Takes a positive integer value.
-      | Default: Compilation is not run in parallel.
+      | Default: Number of threads is equal to number of processing units (`nproc`).
 
   * - | ``MIGRAPHX_TRACE_NARY``
       | When set, the nary device functions used during execution are printed out.
@@ -648,3 +663,4 @@ Advanced settings
       | Sets the number of timing runs for each configuration bundle being benchmarked. 
       
     - Takes a positive integer.
+

@@ -173,8 +173,9 @@ struct module_pm : module_pass_manager
         {
             std::cerr << "Error " << p.name() << ": " << e.what() << std::endl;
             auto clk = std::chrono::steady_clock::now().time_since_epoch().count();
-            fs::path fname =
-                fs::temp_directory_path() / "migraphx" / (p.name() + std::to_string(clk) + ".mxr");
+            fs::path dirname = fs::temp_directory_path() / "migraphx";
+            fs::create_directories(dirname);
+            fs::path fname = dirname / (p.name() + std::to_string(clk) + ".mxr");
             std::cerr << "Dump: " << fname << std::endl;
             save(*prog, fname.string());
             throw;

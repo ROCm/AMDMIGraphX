@@ -77,6 +77,7 @@ bool gfx_has_bf16_intrinsics()
 
 bool gfx_has_mx_intrinsics()
 {
+    const auto device_name = trim(split_string(get_device_name(), ':').front());
     return starts_with(device_name, "gfx9") and device_name >= "gfx950";
 }
 

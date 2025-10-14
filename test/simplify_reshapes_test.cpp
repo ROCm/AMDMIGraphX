@@ -2177,11 +2177,9 @@ TEST_CASE(gather_flatten_stride_first)
     run_pass(m);
 
     migraphx::module expected;
-    auto xe = expected.add_parameter("X", {migraphx::shape::float_type, {1, 8}});
+    auto xe = expected.add_parameter("X", {migraphx::shape::float_type, {8}});
     auto reshape_block =
         expected.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 2}}}), xe);
-    // auto squeeze =
-    //     expected.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), reshape_block);
     auto slice = expected.add_instruction(
         migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), reshape_block);
     auto result = expected.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), slice);

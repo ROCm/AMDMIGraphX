@@ -89,7 +89,6 @@ struct parse_depthtospace : op_parser<parse_depthtospace>
             dyn_dims1.push_back(dyn_dims1[2]);
             dyn_dims1.push_back(dyn_dims1[3]);
             dyn_dims1[2] = {blocksize_unsigned, blocksize_unsigned, {}};
-            
 
             std::vector<int64_t> perm;
             instruction_ref new_shape1;

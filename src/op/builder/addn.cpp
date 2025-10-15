@@ -21,27 +21,30 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/tf/op_parser.hpp>
+
+#include <migraphx/op/builder/op_builder.hpp>
 #include <migraphx/op/builder/insert.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace tf {
+namespace op {
+namespace builder {
 
-struct parse_addn : op_parser<parse_addn>
+struct addn : op_builder<addn>
 {
-    bool transpose() const { return true; }
-    std::vector<op_desc> operators() const { return {{"AddN"}}; }
-
-    instruction_ref parse(const op_desc& /*opd*/,
-                          const tf_parser& /*parser*/,
-                          const tf_parser::node_info& info,
-                          std::vector<instruction_ref> args) const
+    std::vector<instruction_ref>
+    insert(module& m, instruction_ref /*ins*/, const std::vector<instruction_ref>& args) const
     {
-        return op::builder::add("addn", *info.mm, args).at(0);
+        instruction_ref sum = args[0];
+        for(auto i = 1; i < args.size(); i++)
+        {
+            sum = op::builder::add("add", m, {sum, args[i]}).at(0);
+        }
+        return {sum};
     }
 };
 
-} // namespace tf
+} // namespace builder
+} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

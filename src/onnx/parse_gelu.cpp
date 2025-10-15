@@ -88,7 +88,7 @@ struct parse_gelu : op_parser<parse_gelu>
         {
             // add should've been inserted from previous conditional statement
             assert(args.size() == 2);
-            return op::builder::add("gelu_split", *info.mod, {x}, {}).at(0);
+            return op::builder::add("gelu_split", *info.mod, {x}).at(0);
         }
 
         if(approximate == "tanh")
@@ -97,7 +97,7 @@ struct parse_gelu : op_parser<parse_gelu>
         }
         else
         {
-            return op::builder::add("gelu_erf", *info.mod, {x}, {}).at(0);
+            return op::builder::add("gelu_erf", *info.mod, {x}).at(0);
         }
     }
 };

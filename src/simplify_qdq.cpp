@@ -365,11 +365,15 @@ bool compare_literals(instruction_ref ins1, instruction_ref ins2)
     auto x = ins1->eval();
     if(x.empty())
         return false;
+    if(ins1->name() != "@literal")
+        return false;
     auto literal1 = ins1->get_literal();
     if(ins2->name() == "broadcast" or ins2->name() == "multibroadcast")
         ins2 = ins2->inputs().front();
     auto y = ins2->eval();
     if(y.empty())
+        return false;
+    if(ins2->name() != "@literal")
         return false;
     auto literal2 = ins2->get_literal();
 

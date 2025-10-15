@@ -843,7 +843,7 @@ struct find_mlir_fused_geg_ops
         // only one input to second_gemm should depend on elemwise or first_gemm
         auto second_gemm_inputs = second_gemm_ins->inputs();
         if(std::any_of(second_gemm_inputs.begin(), second_gemm_inputs.end(), [&](const auto& i) {
-               return (i != elemwise_ins and reaches(elemwise_ins, i)) or
+               return (i != elemwise_ins and reaches(elemwise_ins, i)) and
                       (i != first_gemm_ins and reaches(first_gemm_ins, i));
            }))
             return;

@@ -43,8 +43,8 @@ struct cache_parameters
     std::size_t batch_size      = 0;         // Batch size used by input
     std::size_t sequence_length = 0;         // Sequence length used by input
     std::size_t head_size       = 0;         // Head size
-    std::size_t num_heads       = 0;         // num_heads = hidden_size / head_size
-    std::size_t seqlen_present_kv_cache = 0; // Sequence length of present kv-cache
+    std::size_t num_heads               = 0;         // num_heads = hidden_size / head_size
+    std::size_t seqlen_present_kv_cache = 0;         // Sequence length of present kv-cache
 };
 
 struct concat_past_present
@@ -55,8 +55,7 @@ struct concat_past_present
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.kv_num_heads, "kv_num_heads"),
-                    f(self.num_heads, "num_heads"));
+        return pack(f(self.kv_num_heads, "kv_num_heads"), f(self.num_heads, "num_heads"));
     }
 
     std::string name() const { return "concat_past_present"; }
@@ -87,7 +86,8 @@ struct concat_past_present
     }
 
     template <class T, class U>
-    void update_cache(T past_key, const U seqlens_k, const T present_key, cache_parameters params) const
+    void
+    update_cache(T past_key, const U seqlens_k, const T present_key, cache_parameters params) const
     {
         const std::size_t batch_size                     = params.batch_size;
         const std::size_t sequence_length                = params.sequence_length;
@@ -99,7 +99,7 @@ struct concat_past_present
         const std::size_t packed_batch_stride =
             (num_heads + 2 * kv_num_heads) * sequence_length * head_size;
         const std::size_t kv_num_heads_factor    = num_heads / kv_num_heads;
-        const std::size_t kv_input_chunk_length  = sequence_length * head_size;             // L x H
+        const std::size_t kv_input_chunk_length  = sequence_length * head_size; // L x H
         const std::size_t present_buff_chunk_length =
             present_buffer_sequence_length * head_size; // T x H
 

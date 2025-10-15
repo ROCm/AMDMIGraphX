@@ -54,14 +54,14 @@ struct gqa_parameters
     T5 num_heads;                // num_heads = hidden_size / head_size
     T6 max_sequence_length;      // Sequence length used by cos/sin cache
     T7 head_stride;              // Head stride
-    T8 seq_stride;              // Sequence stride
-    T9 batch_stride;            // Batch stride
+    T8 seq_stride;               // Sequence stride
+    T9 batch_stride;             // Batch stride
     T10 position_ids_format;     // Format of position ids - 0 is (1), 1 is (batch_size,
                                  // sequence_length)
     T11 seqlen_present_kv_cache; // Sequence length of present kv-cache (4096 when using
                                  // shared buffer)
     T12 kv_num_heads;            // Number of attention heads for k and v
-    T13 rotary_interleaved; // Rotate using interleaved pattern. Default value is 0 (False).
+    T13 rotary_interleaved;      // Rotate using interleaved pattern. Default value is 0 (False).
 };
 
 template <class... Ts>

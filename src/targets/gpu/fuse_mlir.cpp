@@ -983,7 +983,7 @@ struct find_mlir_kv_cache_attention_op
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        auto group = r.result;
+        auto group   = r.result;
         auto* m_attn = group->module_inputs()[0];
         mpm.get_module().replace_instruction(
             group, mlir_op{group->get_operator()}, mlir_contiguous(mpm, group->inputs()), {m_attn});

@@ -37,9 +37,9 @@ namespace op {
 
 struct gqa_rotary_embedding
 {
-    size_t num_heads    = 1;
-    size_t kv_num_heads = 1;
-    bool rotary_interleaved    = false;
+    size_t num_heads        = 1;
+    size_t kv_num_heads     = 1;
+    bool rotary_interleaved = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -87,9 +87,9 @@ struct gqa_rotary_embedding
             auto input_data  = input + block_offset;
             auto output_data = output + block_offset;
 
-            const size_t position_id  = params.position_ids_use_batch
-                                            ? pos_ids[b * params.sequence_length + s]
-                                            : pos_ids[0] + s;
+            const size_t position_id = params.position_ids_use_batch
+                                           ? pos_ids[b * params.sequence_length + s]
+                                           : pos_ids[0] + s;
 
             const size_t cache_offset = position_id * half_rotary_emb_dim;
             auto cos_data             = cos_cache + cache_offset;

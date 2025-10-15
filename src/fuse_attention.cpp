@@ -216,14 +216,13 @@ struct find_kv_cache_attention
     auto matcher() const
     {
         static const std::unordered_set<std::string> skip_set = {
-            "multibroadcast",
-            "reshape",
-            "unsqueeze"
-        };
+            "multibroadcast", "reshape", "unsqueeze"};
 
         auto transpose1 = match::skip(match::name(skip_set))(match::name("transpose")(
-            match::arg(0)(match::skip(match::name(skip_set))(match::name("concat_past_present")).bind("pres_k"))));
-        auto gemm1       = match::name("dot")(match::arg(0)(match::name("slice")), match::arg(1)(transpose1));
+            match::arg(0)(match::skip(match::name(skip_set))(match::name("concat_past_present"))
+                              .bind("pres_k"))));
+        auto gemm1 =
+            match::name("dot")(match::arg(0)(match::name("slice")), match::arg(1)(transpose1));
         auto scale       = match::name("mul")(match::any_arg(0, 1)(gemm1));
         auto causal_mask = match::name("where")(
             match::arg(0)(match::name("multibroadcast")(match::arg(0)(match::is_constant()))),
@@ -234,9 +233,10 @@ struct find_kv_cache_attention
                                           match::arg(2)(match::any_of(causal_mask, scale, gemm1)));
         auto softmax = match::skip(match::name("convert"))(
             match::softmax_input(match::skip(match::name("convert"))(where)));
-        auto gemm2 =
-            match::name("dot")(match::arg(0)(softmax),
-                               match::arg(1)(match::skip(match::name(skip_set))(match::name("concat_past_present")).bind("pres_v")));
+        auto gemm2 = match::name("dot")(
+            match::arg(0)(softmax),
+            match::arg(1)(match::skip(match::name(skip_set))(match::name("concat_past_present"))
+                              .bind("pres_v")));
         auto transpose2 = match::name("transpose")(match::arg(0)(gemm2));
         return match::name("reshape")(match::arg(0)(transpose2));
     }
@@ -362,7 +362,7 @@ struct find_kv_cache_attention
 
         module_ref mpm_attn = mpm.create_module("attn" + get_count(), std::move(m_attn));
         mpm_attn->set_bypass();
-        
+
         // Construct group op with the attention module
         auto group_ins =
             mpm.get_module().insert_instruction(required_outputs.back(),
@@ -391,7 +391,7 @@ void fuse_attention::apply(module_pass_manager& mpm) const
         match::find_matches(mpm, find_attention{.counter = &counter});
         mpm.get_module().sort();
         mpm.run_pass(dead_code_elimination{});
-    }    
+    }
 }
 
 } // namespace MIGRAPHX_INLINE_NS

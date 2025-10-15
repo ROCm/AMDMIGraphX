@@ -120,8 +120,8 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
                                               rotary_inputs);
         }
 
-        auto k   = args.at(3);
-        auto v   = args.at(4);
+        auto k        = args.at(3);
+        auto v        = args.at(4);
         auto slk      = args.at(5);
         auto rotary_k = info.add_instruction(
             make_op("slice",

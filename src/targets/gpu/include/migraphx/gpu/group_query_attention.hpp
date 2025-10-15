@@ -47,13 +47,12 @@ struct gqa_parameters
                                            // sequence_length)
     std::uint32_t seqlen_present_kv_cache; // Sequence length of present kv-cache (4096 when using
                                            // shared buffer)
-    std::uint32_t kv_num_heads; // Number of attention heads for k and v
-    bool rotary_interleaved;    // Rotate using interleaved pattern. Default value is 0 (False).
+    std::uint32_t kv_num_heads;            // Number of attention heads for k and v
+    bool rotary_interleaved; // Rotate using interleaved pattern. Default value is 0 (False).
 
     std::string make_init_str() const
     {
-        return 
-               "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(batch_size) + "}), " +
+        return "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(batch_size) + "}), " +
                "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(sequence_length) + "}), " +
                "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(head_size) + "}), " +
                "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(rotary_embedding_dim) + "}), " +
@@ -64,8 +63,7 @@ struct gqa_parameters
                "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(batch_stride) + "}), " +
                "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(position_ids_format) + "}), " +
                "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(seqlen_present_kv_cache) +
-               "}), " +
-               "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(kv_num_heads) + "}), " +
+               "}), " + "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(kv_num_heads) + "}), " +
                "MIGRAPHX_MAKE_CONSTANT(bool{" +
                std::to_string(static_cast<int>(rotary_interleaved)) + "})";
     }

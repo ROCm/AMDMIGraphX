@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,31 +21,36 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/tf/op_parser.hpp>
-#include <migraphx/tf/tf_parser.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/op/builder/insert.hpp>
+
+#include <migraphx/op/builder/op_builder.hpp>
+#include <migraphx/make_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace tf {
+namespace op {
+namespace builder {
 
-struct parse_concat : op_parser<parse_concat>
+struct concat : op_builder<concat>
 {
-    std::vector<op_desc> operators() const { return {{"ConcatV2"}}; }
+    int64_t axis;
 
-    instruction_ref parse(const op_desc& /*opd*/,
-                          const tf_parser& /*parser*/,
-                          tf_parser::node_info info,
-                          std::vector<instruction_ref> args) const
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
     {
-        // get index for axis within args
-        size_t axis_idx = info.attributes.at("N").i();
-        int64_t axis    = args[axis_idx]->eval().at<int64_t>();
-        return op::builder::add("concat", *info.mm, args, {{"axis", axis}}).at(0);
+        return pack(f(self.axis, "axis"));
+    }
+
+    std::vector<instruction_ref>
+    insert(module& m, instruction_ref /*ins*/, const std::vector<instruction_ref>& args) const
+    {
+        // return only first N arguments (assuming last index is the axis value)
+        return {m.add_instruction(
+            migraphx::make_op("concat", {{"axis", axis}}),
+            std::vector<instruction_ref>(args.begin(), args.begin() + args.size() - 1))};
     }
 };
 
-} // namespace tf
+} // namespace builder
+} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

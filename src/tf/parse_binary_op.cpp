@@ -48,7 +48,7 @@ struct parse_binary_op : op_parser<parse_binary_op>
     {
         if(args.size() != 2)
             MIGRAPHX_THROW("binary operators should have 2 operands");
-        return op::builder::add(opd.op_name, *info.mm, args, {}).at(0);
+        return op::builder::add(opd.op_name, *info.mm, args).at(0);
     }
 };
 

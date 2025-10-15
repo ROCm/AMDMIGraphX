@@ -1614,15 +1614,34 @@ void module::localized_sort(instruction_ref start_ins, instruction_ref end_ins)
     {
         if(fusion_ins.count(it) == 0)
         {
-            auto next = std::next(it); // move_instruction updates the iterator
-            this->move_instruction(it, start_ins);
-            it = next;
+            // only move if none of its inputs are after
+            bool has_input_in_range = std::any_of(it->inputs().begin(), it->inputs().end(),
+                [&](instruction_ref input) {
+                    if(!has_instruction(input))
+                        return false;
+                    auto input_pos = std::distance(this->begin(), input);
+                    auto start_pos = std::distance(this->begin(), start_ins);
+                    auto curr_pos = std::distance(this->begin(), it);
+                    return input_pos > start_pos && input_pos < curr_pos;
+                });
+            
+            if(!has_input_in_range)
+            {
+                auto next = std::next(it);
+                this->move_instruction(it, start_ins);
+                it = next;
+            }
+            else
+            {
+                ++it;
+            }
         }
         else
         {
             ++it;
         }
     }
+    assert(this->validate() == this->end());
 }
 
 bool operator==(const module& x, const module& y) { return to_string(x) == to_string(y); }

@@ -56,7 +56,8 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         }
         else
         {
-            MIGRAPHX_THROW("GroupQueryAttention: Attribute 'kv_num_heads' is required but was not provided.");
+            MIGRAPHX_THROW(
+                "GroupQueryAttention: Attribute 'kv_num_heads' is required but was not provided.");
         }
         if(contains(info.attributes, "local_window_size"))
         {
@@ -69,7 +70,8 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         }
         else
         {
-            MIGRAPHX_THROW("GroupQueryAttention: Attribute 'num_heads' is required but was not provided.");
+            MIGRAPHX_THROW(
+                "GroupQueryAttention: Attribute 'num_heads' is required but was not provided.");
         }
         if(contains(info.attributes, "rotary_interleaved"))
         {
@@ -110,8 +112,7 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         std::vector<std::size_t> bsnh{
             batch_size, sequence_length, num_heads + 2 * kv_num_heads, head_size};
 
-        auto transposed_qkv =
-            info.add_instruction(make_op("reshape", {{"dims", bsnh}}), qkv);
+        auto transposed_qkv = info.add_instruction(make_op("reshape", {{"dims", bsnh}}), qkv);
 
         transposed_qkv = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}),
                                               transposed_qkv);

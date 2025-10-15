@@ -29,16 +29,16 @@
 #include <migraphx/float_equal.hpp>
 
 migraphx::program create_gqa_program(const size_t batch_size,
-                                   const size_t num_heads,
-                                   const size_t kv_num_heads,
-                                   const size_t sequence_length,
-                                   const size_t head_size,
-                                   const size_t past_sequence_length,
-                                   const size_t max_sequence_length,
-                                   const bool do_rotary,
-                                   const float scale,
-                                   const bool test_rotary = false,
-                                   const bool test_concat = false)
+                                     const size_t num_heads,
+                                     const size_t kv_num_heads,
+                                     const size_t sequence_length,
+                                     const size_t head_size,
+                                     const size_t past_sequence_length,
+                                     const size_t max_sequence_length,
+                                     const bool do_rotary,
+                                     const float scale,
+                                     const bool test_rotary = false,
+                                     const bool test_concat = false)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -116,13 +116,13 @@ migraphx::program create_gqa_program(const size_t batch_size,
         migraphx::make_op("concat_past_present",
                           {{"kv_num_heads", kv_num_heads}, {"num_heads", num_heads}}),
         concat_v_inputs);
-    
+
     if(test_concat)
     {
         mm->add_return({k, v});
         return p;
     }
-    
+
     // Adding 1 to seq_lens_k, aka past_seq_lens, to allow range literals to start at 0.
     // Putting the add inside the mlir module currently causes an error on their side,
     // so we're leaving it here until that can be solved.
@@ -221,14 +221,14 @@ struct test_group_query_attention_decode_small
     migraphx::program create_program() const
     {
         return create_gqa_program(/* batch_size=         */ 1,
-                                /* num_heads=            */ 2,
-                                /* kv_num_heads=         */ 2,
-                                /* sequence_length=      */ 1,
-                                /* head_size=            */ 2,
-                                /* past_sequence_length= */ 3,
-                                /* max_sequence_length=  */ 4,
-                                /* do_rotary_embedding=  */ true,
-                                /* scale=                */ 0.5);
+                                  /* num_heads=            */ 2,
+                                  /* kv_num_heads=         */ 2,
+                                  /* sequence_length=      */ 1,
+                                  /* head_size=            */ 2,
+                                  /* past_sequence_length= */ 3,
+                                  /* max_sequence_length=  */ 4,
+                                  /* do_rotary_embedding=  */ true,
+                                  /* scale=                */ 0.5);
     }
 };
 
@@ -237,14 +237,14 @@ struct test_group_query_attention_decode : verify_program<test_group_query_atten
     migraphx::program create_program() const
     {
         return create_gqa_program(/* batch_size=         */ 1,
-                                /* num_heads=            */ 32,
-                                /* kv_num_heads=         */ 32,
-                                /* sequence_length=      */ 1,
-                                /* head_size=            */ 128,
-                                /* past_sequence_length= */ 15,
-                                /* max_sequence_length=  */ 2048,
-                                /* do_rotary_embedding=  */ true,
-                                /* scale=                */ 1.0 / sqrt(128.0));
+                                  /* num_heads=            */ 32,
+                                  /* kv_num_heads=         */ 32,
+                                  /* sequence_length=      */ 1,
+                                  /* head_size=            */ 128,
+                                  /* past_sequence_length= */ 15,
+                                  /* max_sequence_length=  */ 2048,
+                                  /* do_rotary_embedding=  */ true,
+                                  /* scale=                */ 1.0 / sqrt(128.0));
     }
 };
 
@@ -254,14 +254,14 @@ struct test_group_query_attention_prefill_small
     migraphx::program create_program() const
     {
         return create_gqa_program(/* batch_size=         */ 1,
-                                /* num_heads=            */ 2,
-                                /* kv_num_heads=         */ 2,
-                                /* sequence_length=      */ 2,
-                                /* head_size=            */ 2,
-                                /* past_sequence_length= */ 2,
-                                /* max_sequence_length=  */ 4,
-                                /* do_rotary_embedding=  */ true,
-                                /* scale=                */ 0.5);
+                                  /* num_heads=            */ 2,
+                                  /* kv_num_heads=         */ 2,
+                                  /* sequence_length=      */ 2,
+                                  /* head_size=            */ 2,
+                                  /* past_sequence_length= */ 2,
+                                  /* max_sequence_length=  */ 4,
+                                  /* do_rotary_embedding=  */ true,
+                                  /* scale=                */ 0.5);
     }
 };
 
@@ -270,14 +270,14 @@ struct test_group_query_attention_prefill : verify_program<test_group_query_atte
     migraphx::program create_program() const
     {
         return create_gqa_program(/* batch_size=         */ 1,
-                                /* num_heads=            */ 32,
-                                /* kv_num_heads=         */ 32,
-                                /* sequence_length=      */ 5,
-                                /* head_size=            */ 128,
-                                /* past_sequence_length= */ 55,
-                                /* max_sequence_length=  */ 2048,
-                                /* do_rotary_embedding=  */ true,
-                                /* scale=                */ 1.0);
+                                  /* num_heads=            */ 32,
+                                  /* kv_num_heads=         */ 32,
+                                  /* sequence_length=      */ 5,
+                                  /* head_size=            */ 128,
+                                  /* past_sequence_length= */ 55,
+                                  /* max_sequence_length=  */ 2048,
+                                  /* do_rotary_embedding=  */ true,
+                                  /* scale=                */ 1.0);
     }
 };
 
@@ -286,14 +286,14 @@ struct test_group_query_attention_no_rotary : verify_program<test_group_query_at
     migraphx::program create_program() const
     {
         return create_gqa_program(/* batch_size=         */ 1,
-                                /* num_heads=            */ 32,
-                                /* kv_num_heads=         */ 32,
-                                /* sequence_length=      */ 5,
-                                /* head_size=            */ 128,
-                                /* past_sequence_length= */ 5,
-                                /* max_sequence_length=  */ 1024,
-                                /* do_rotary_embedding=  */ false,
-                                /* scale=                */ 1.0 / sqrt(128.0));
+                                  /* num_heads=            */ 32,
+                                  /* kv_num_heads=         */ 32,
+                                  /* sequence_length=      */ 5,
+                                  /* head_size=            */ 128,
+                                  /* past_sequence_length= */ 5,
+                                  /* max_sequence_length=  */ 1024,
+                                  /* do_rotary_embedding=  */ false,
+                                  /* scale=                */ 1.0 / sqrt(128.0));
     }
 };
 
@@ -302,49 +302,51 @@ struct test_group_query_attention_grouped : verify_program<test_group_query_atte
     migraphx::program create_program() const
     {
         return create_gqa_program(/* batch_size=         */ 1,
-                                /* num_heads=            */ 32,
-                                /* kv_num_heads=         */ 8,
-                                /* sequence_length=      */ 1,
-                                /* head_size=            */ 128,
-                                /* past_sequence_length= */ 15,
-                                /* max_sequence_length=  */ 2048,
-                                /* do_rotary_embedding=  */ true,
-                                /* scale=                */ 1.0 / sqrt(128.0));
+                                  /* num_heads=            */ 32,
+                                  /* kv_num_heads=         */ 8,
+                                  /* sequence_length=      */ 1,
+                                  /* head_size=            */ 128,
+                                  /* past_sequence_length= */ 15,
+                                  /* max_sequence_length=  */ 2048,
+                                  /* do_rotary_embedding=  */ true,
+                                  /* scale=                */ 1.0 / sqrt(128.0));
     }
 };
 
-struct test_group_query_attention_rotary_only : verify_program<test_group_query_attention_rotary_only>
+struct test_group_query_attention_rotary_only
+    : verify_program<test_group_query_attention_rotary_only>
 {
     migraphx::program create_program() const
     {
         return create_gqa_program(/* batch_size=         */ 1,
-                                /* num_heads=            */ 32,
-                                /* kv_num_heads=         */ 32,
-                                /* sequence_length=      */ 1,
-                                /* head_size=            */ 128,
-                                /* past_sequence_length= */ 15,
-                                /* max_sequence_length=  */ 2048,
-                                /* do_rotary_embedding=  */ true,
-                                /* scale=                */ 1.0 / sqrt(128.0),
-                                /* test_rotary=          */ true,
-                                /* test_concat=          */ false);
+                                  /* num_heads=            */ 32,
+                                  /* kv_num_heads=         */ 32,
+                                  /* sequence_length=      */ 1,
+                                  /* head_size=            */ 128,
+                                  /* past_sequence_length= */ 15,
+                                  /* max_sequence_length=  */ 2048,
+                                  /* do_rotary_embedding=  */ true,
+                                  /* scale=                */ 1.0 / sqrt(128.0),
+                                  /* test_rotary=          */ true,
+                                  /* test_concat=          */ false);
     }
 };
 
-struct test_group_query_attention_concat_only : verify_program<test_group_query_attention_concat_only>
+struct test_group_query_attention_concat_only
+    : verify_program<test_group_query_attention_concat_only>
 {
     migraphx::program create_program() const
     {
         return create_gqa_program(/* batch_size=         */ 1,
-                                /* num_heads=            */ 32,
-                                /* kv_num_heads=         */ 32,
-                                /* sequence_length=      */ 1,
-                                /* head_size=            */ 128,
-                                /* past_sequence_length= */ 15,
-                                /* max_sequence_length=  */ 2048,
-                                /* do_rotary_embedding=  */ true,
-                                /* scale=                */ 1.0 / sqrt(128.0),
-                                /* test_rotary=          */ false,
-                                /* test_concat=          */ true);
+                                  /* num_heads=            */ 32,
+                                  /* kv_num_heads=         */ 32,
+                                  /* sequence_length=      */ 1,
+                                  /* head_size=            */ 128,
+                                  /* past_sequence_length= */ 15,
+                                  /* max_sequence_length=  */ 2048,
+                                  /* do_rotary_embedding=  */ true,
+                                  /* scale=                */ 1.0 / sqrt(128.0),
+                                  /* test_rotary=          */ false,
+                                  /* test_concat=          */ true);
     }
 };

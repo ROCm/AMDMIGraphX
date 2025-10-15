@@ -27,7 +27,7 @@
 
 TEST_CASE(group_query_attention_non_packed_qkv_test)
 {
-    auto p = create_gqa_program(1, 32, 32, 1, 128, 1, 4096, true, 1.0, true);
+    auto p    = create_gqa_program(1, 32, 32, 1, 128, 1, 4096, true, 1.0, true);
     auto prog = optimize_onnx("group_query_attention_non_packed_qkv_test.onnx");
     EXPECT(p == prog);
 }

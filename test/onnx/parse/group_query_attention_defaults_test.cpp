@@ -27,7 +27,7 @@
 
 TEST_CASE(group_query_attention_defaults_test)
 {
-    auto p = create_gqa_program(1, 32, 32, 1, 128, 1, 4096, false, 1.0/sqrt(128.0));
+    auto p    = create_gqa_program(1, 32, 32, 1, 128, 1, 4096, false, 1.0 / sqrt(128.0));
     auto prog = optimize_onnx("group_query_attention_defaults_test.onnx");
     EXPECT(p == prog);
 }

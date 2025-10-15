@@ -205,15 +205,15 @@ make_attention_program(const uint64_t batch,
 }
 
 inline migraphx::program create_gqa_program(const size_t batch_size,
-                                   const size_t num_heads,
-                                   const size_t kv_num_heads,
-                                   const size_t sequence_length,
-                                   const size_t head_size,
-                                   const size_t past_sequence_length,
-                                   const size_t max_sequence_length,
-                                   const bool do_rotary,
-                                   const float scale,
-                                   bool non_packed = false)
+                                            const size_t num_heads,
+                                            const size_t kv_num_heads,
+                                            const size_t sequence_length,
+                                            const size_t head_size,
+                                            const size_t past_sequence_length,
+                                            const size_t max_sequence_length,
+                                            const bool do_rotary,
+                                            const float scale,
+                                            bool non_packed = false)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -226,28 +226,28 @@ inline migraphx::program create_gqa_program(const size_t batch_size,
     auto dtype = migraphx::shape::half_type;
     migraphx::shape query_s{dtype, query_lens};
     migraphx::shape kv_s{dtype, kv_lens};
-    migraphx::shape key_value_s{non_packed ? dtype : migraphx::shape::float_type, non_packed ? query_lens : key_value_lens};
+    migraphx::shape key_value_s{non_packed ? dtype : migraphx::shape::float_type,
+                                non_packed ? query_lens : key_value_lens};
     migraphx::shape slk_s{migraphx::shape::int32_type, slk_lens};
     migraphx::shape cs_cache_s{dtype, cs_cache_lens};
     std::vector<int> slk_vec(slk_s.elements(), past_sequence_length);
     std::vector<int> tsl_vec(slk_s.elements(), max_sequence_length);
     std::vector<float> cs_max_vec(cs_cache_s.elements(), 1.0);
-    
-    auto slk_lit   = mm->add_literal(slk_s, slk_vec);
+
+    auto slk_lit = mm->add_literal(slk_s, slk_vec);
     mm->add_literal(slk_s, tsl_vec);
-    auto cos_cache    = mm->add_literal(cs_cache_s, cs_max_vec);
-    auto sin_cache    = mm->add_literal(cs_cache_s, cs_max_vec);
-    
+    auto cos_cache = mm->add_literal(cs_cache_s, cs_max_vec);
+    auto sin_cache = mm->add_literal(cs_cache_s, cs_max_vec);
+
     auto query = mm->add_parameter(non_packed ? "query" : "qkv", query_s);
-    auto key = mm->add_parameter("key", key_value_s);
+    auto key   = mm->add_parameter("key", key_value_s);
     auto value = mm->add_parameter("value", key_value_s);
-    auto k         = mm->add_parameter("past_key_values_key", kv_s);
-    auto v         = mm->add_parameter("past_key_values_value", kv_s);
+    auto k     = mm->add_parameter("past_key_values_key", kv_s);
+    auto v     = mm->add_parameter("past_key_values_value", kv_s);
 
     if(non_packed)
     {
-        query = mm->add_instruction(
-                migraphx::make_op("concat", {{"axis", 2}}), query, key, value);
+        query = mm->add_instruction(migraphx::make_op("concat", {{"axis", 2}}), query, key, value);
     }
 
     std::vector<std::size_t> bsnh{
@@ -293,7 +293,7 @@ inline migraphx::program create_gqa_program(const size_t batch_size,
         migraphx::make_op("concat_past_present",
                           {{"kv_num_heads", kv_num_heads}, {"num_heads", num_heads}}),
         concat_v_inputs);
-    
+
     // Adding 1 to seq_lens_k, aka past_seq_lens, to allow range literals to start at 0.
     // Putting the add inside the mlir module currently causes an error on their side,
     // so we're leaving it here until that can be solved.

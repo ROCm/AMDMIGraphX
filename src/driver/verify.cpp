@@ -44,7 +44,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 /**
  * Gives tolerances based on user input (`rms_tol`, `atol`, `rtol` parameters) and defaults.
  * Sets to fp4 tolerances if any fp4x2_type is found.
- * Else sets to fp16 tolerances if `quantize` input is fp16 or any fp16 instruction in found in the
+ * Else sets to fp16 tolerances if `quantize` input is fp16 or any fp16 instruction is found in the
  * model.
  */
 verify::tolerance get_tolerances(const program& p,

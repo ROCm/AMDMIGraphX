@@ -1614,6 +1614,7 @@ void module::localized_sort(instruction_ref start_ins, instruction_ref end_ins)
     {
         if(fusion_ins.count(it) == 0)
         {
+            // only move if none of its inputs are after start_ins
             bool has_input_in_range =
                 std::any_of(it->inputs().begin(), it->inputs().end(), [&](instruction_ref input) {
                     if(!has_instruction(input))

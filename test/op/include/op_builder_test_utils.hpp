@@ -39,7 +39,8 @@ inline migraphx::module make_op_module(const std::string& op_builder_name,
 
     for(auto param : migraphx::range(params.rbegin(), params.rend()))
     {
-        auto param_name = migraphx::any_cast<migraphx::builtin::param>(param->get_operator()).parameter;
+        auto param_name =
+            migraphx::any_cast<migraphx::builtin::param>(param->get_operator()).parameter;
         mm_op_built.add_parameter(param_name, param->get_shape());
     }
 

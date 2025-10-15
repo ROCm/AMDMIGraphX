@@ -220,7 +220,7 @@ struct test_group_query_attention_decode_small
 {
     migraphx::program create_program() const
     {
-        return create_gqa_program(/* batch_size=         */ 1,
+        return create_gqa_program(/* batch_size=           */ 1,
                                   /* num_heads=            */ 2,
                                   /* kv_num_heads=         */ 2,
                                   /* sequence_length=      */ 1,
@@ -236,7 +236,7 @@ struct test_group_query_attention_decode : verify_program<test_group_query_atten
 {
     migraphx::program create_program() const
     {
-        return create_gqa_program(/* batch_size=         */ 1,
+        return create_gqa_program(/* batch_size=           */ 1,
                                   /* num_heads=            */ 32,
                                   /* kv_num_heads=         */ 32,
                                   /* sequence_length=      */ 1,
@@ -253,7 +253,7 @@ struct test_group_query_attention_prefill_small
 {
     migraphx::program create_program() const
     {
-        return create_gqa_program(/* batch_size=         */ 1,
+        return create_gqa_program(/* batch_size=           */ 1,
                                   /* num_heads=            */ 2,
                                   /* kv_num_heads=         */ 2,
                                   /* sequence_length=      */ 2,
@@ -269,7 +269,7 @@ struct test_group_query_attention_prefill : verify_program<test_group_query_atte
 {
     migraphx::program create_program() const
     {
-        return create_gqa_program(/* batch_size=         */ 1,
+        return create_gqa_program(/* batch_size=           */ 1,
                                   /* num_heads=            */ 32,
                                   /* kv_num_heads=         */ 32,
                                   /* sequence_length=      */ 5,
@@ -285,7 +285,7 @@ struct test_group_query_attention_no_rotary : verify_program<test_group_query_at
 {
     migraphx::program create_program() const
     {
-        return create_gqa_program(/* batch_size=         */ 1,
+        return create_gqa_program(/* batch_size=           */ 1,
                                   /* num_heads=            */ 32,
                                   /* kv_num_heads=         */ 32,
                                   /* sequence_length=      */ 5,
@@ -301,7 +301,7 @@ struct test_group_query_attention_grouped : verify_program<test_group_query_atte
 {
     migraphx::program create_program() const
     {
-        return create_gqa_program(/* batch_size=         */ 1,
+        return create_gqa_program(/* batch_size=           */ 1,
                                   /* num_heads=            */ 32,
                                   /* kv_num_heads=         */ 8,
                                   /* sequence_length=      */ 1,
@@ -318,7 +318,7 @@ struct test_group_query_attention_rotary_only
 {
     migraphx::program create_program() const
     {
-        return create_gqa_program(/* batch_size=         */ 1,
+        return create_gqa_program(/* batch_size=           */ 1,
                                   /* num_heads=            */ 32,
                                   /* kv_num_heads=         */ 32,
                                   /* sequence_length=      */ 1,
@@ -337,7 +337,7 @@ struct test_group_query_attention_concat_only
 {
     migraphx::program create_program() const
     {
-        return create_gqa_program(/* batch_size=         */ 1,
+        return create_gqa_program(/* batch_size=           */ 1,
                                   /* num_heads=            */ 32,
                                   /* kv_num_heads=         */ 32,
                                   /* sequence_length=      */ 1,

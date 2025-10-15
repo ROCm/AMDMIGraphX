@@ -275,7 +275,8 @@ struct find_kv_cache_attention
                                                                        "reduce_max",
                                                                        "broadcast",
                                                                        "multibroadcast",
-                                                                       "@literal"};
+                                                                       "@literal",
+                                                                       "unsqueeze"};
 
         auto is_valid_attn_op = [&](auto i) {
             return i->get_operator().attributes().get("pointwise", false) or

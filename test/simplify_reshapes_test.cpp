@@ -2041,8 +2041,8 @@ TEST_CASE(gather_constant_same_indices_1d)
         auto data  = m2.add_parameter("data", s);
         auto slice = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), data);
-        auto mb = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3}}}),
-                                     slice);
+        auto mb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3}}}), slice);
         m2.add_return({mb});
     }
 

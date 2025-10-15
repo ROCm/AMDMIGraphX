@@ -92,9 +92,7 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
                 make_op("concat", {{"axis", 2}}), args.at(0), args.at(1), args.at(2));
         }
 
-        auto inputs = args;
-
-        auto q_shape                      = inputs[0]->get_shape();
+        auto q_shape                      = args[0]->get_shape();
         const auto& q_lens                = q_shape.lens();
         const std::size_t batch_size      = q_lens[0];
         const std::size_t sequence_length = q_lens[1];
@@ -105,7 +103,7 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
             batch_size, sequence_length, num_heads + 2 * kv_num_heads, head_size};
 
         auto transposed_qkv =
-            info.add_instruction(make_op("reshape", {{"dims", bsnh}}), inputs.at(0));
+            info.add_instruction(make_op("reshape", {{"dims", bsnh}}), args.at(0));
 
         transposed_qkv = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}),
                                               transposed_qkv);
@@ -114,7 +112,7 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         if(do_rotary)
         {
             std::vector<instruction_ref> rotary_inputs{
-                transposed_qkv, inputs.at(5), inputs.at(7), inputs.at(8)};
+                transposed_qkv, args.at(5), args.at(7), args.at(8)};
             rotary_qkv = info.add_instruction(make_op("gqa_rotary_embedding",
                                                       {{"kv_num_heads", kv_num_heads},
                                                        {"num_heads", num_heads},
@@ -122,9 +120,9 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
                                               rotary_inputs);
         }
 
-        auto pres_k   = inputs.at(3);
-        auto pres_v   = inputs.at(4);
-        auto slk      = inputs.at(5);
+        auto k   = args.at(3);
+        auto v   = args.at(4);
+        auto slk      = args.at(5);
         auto rotary_k = info.add_instruction(
             make_op("slice",
                     {{"axes", {1}}, {"starts", {num_heads}}, {"ends", {num_heads + kv_num_heads}}}),
@@ -134,14 +132,14 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
                                                       {"starts", {num_heads + kv_num_heads}},
                                                       {"ends", {num_heads + (2 * kv_num_heads)}}}),
                                              rotary_qkv);
-        std::vector<instruction_ref> concat_k_inputs{rotary_k, slk, pres_k};
-        std::vector<instruction_ref> concat_v_inputs{rotary_v, slk, pres_v};
+        std::vector<instruction_ref> concat_k_inputs{rotary_k, slk, k};
+        std::vector<instruction_ref> concat_v_inputs{rotary_v, slk, v};
 
-        pres_k = info.add_instruction(
+        k = info.add_instruction(
             make_op("concat_past_present",
                     {{"kv_num_heads", kv_num_heads}, {"num_heads", num_heads}}),
             concat_k_inputs);
-        pres_v = info.add_instruction(
+        v = info.add_instruction(
             make_op("concat_past_present",
                     {{"kv_num_heads", kv_num_heads}, {"num_heads", num_heads}}),
             concat_v_inputs);
@@ -149,20 +147,19 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         // Adding 1 to seq_lens_k, aka past_seq_lens, to allow range literals to start at 0.
         // Putting the add inside the mlir module currently causes an error on their side,
         // so we're leaving it here until that can be solved.
-        auto one_lit = info.add_literal(literal{shape{inputs.at(5)->get_shape().type(), {1}}, {1}});
+        auto one_lit = info.add_literal(literal{shape{args.at(5)->get_shape().type(), {1}}, {1}});
         one_lit      = info.add_instruction(
-            make_op("multibroadcast", {{"out_lens", inputs.at(5)->get_shape().lens()}}), one_lit);
-        auto total_sl = info.add_instruction(make_op("add"), inputs.at(5), one_lit);
+            make_op("multibroadcast", {{"out_lens", args.at(5)->get_shape().lens()}}), one_lit);
+        auto total_sl = info.add_instruction(make_op("add"), args.at(5), one_lit);
 
         auto kv_num_heads_factor = num_heads / kv_num_heads;
-        auto max_seq_len         = pres_k->get_shape().lens()[2];
+        auto max_seq_len         = k->get_shape().lens()[2];
         total_sl                 = info.add_instruction(
             make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), total_sl);
 
         auto q = info.add_instruction(
             make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {num_heads}}}), rotary_qkv);
-        auto k = pres_k;
-        auto v = pres_v;
+
         if(kv_num_heads_factor != 1)
         {
             auto kv_new_lens  = k->get_shape().lens();
@@ -233,7 +230,7 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
             make_op("reshape", {{"dims", {batch_size, sequence_length, head_size * num_heads}}}),
             out);
 
-        return {out, pres_k, pres_v};
+        return {out, k, v};
     }
 };
 

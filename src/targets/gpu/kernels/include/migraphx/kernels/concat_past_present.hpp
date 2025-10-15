@@ -42,29 +42,15 @@ __device__ void copy_data(Dest destination, const Src source, index_int n, index
 struct concat_state_chunk
 {
     index_int present_buff_chunk_length;
-    index_int past_buff_chunk_length;
     index_int past_chunk_length;
     index_int new_chunk_length;
-    bool is_prompt;
-    bool past_present_share_buffer;
     std::ptrdiff_t i;
 
-    template <class Past, class Chunk, class Present>
-    __device__ Present compute(Past past, const Chunk chunk, Present present, index_int idx)
+    template <class Chunk, class Present>
+    __device__ Present compute(const Chunk chunk, Present present, index_int idx)
     {
         auto start = present + i * present_buff_chunk_length;
-
-        auto p = start;
-        if(not is_prompt)
-        {
-            if(not past_present_share_buffer)
-            {
-                const auto src_past = past + i * past_buff_chunk_length;
-                copy_data(p, src_past, past_chunk_length, idx);
-            }
-            p += past_chunk_length;
-        }
-        copy_data(p, chunk, new_chunk_length, idx);
+        copy_data(start + past_chunk_length, chunk, new_chunk_length, idx);
         return start;
     }
 };
@@ -85,7 +71,6 @@ update_cache(const Present present, SeqLensK seqlens_k, Cache cache, Params para
         (num_heads + 2 * kv_num_heads) * sequence_length * head_size;
     const index_int kv_num_heads_factor       = num_heads / kv_num_heads;
     const index_int kv_input_chunk_length     = sequence_length * head_size;                // L x H
-    const index_int past_buff_chunk_length    = past_buffer_sequence_length * head_size;    // L x H
     const index_int present_buff_chunk_length = present_buffer_sequence_length * head_size; // T x H
 
     const index_int loop_len = batch_size * num_heads;
@@ -98,19 +83,16 @@ update_cache(const Present present, SeqLensK seqlens_k, Cache cache, Params para
         const index_int past_seqlen       = sequence_length == 1
                                                 ? static_cast<index_int>(seqlens_k[batch_index])
                                                 : past_buffer_sequence_length;
-        const index_int past_chunk_length = past_seqlen * head_size;
+        const index_int past_chunk_length = is_prompt ? 0 : past_seqlen * head_size;
 
         auto current = present + packed_batch_stride * batch_index +
                        kv_input_chunk_length * (head_index / kv_num_heads_factor);
 
         concat_state_chunk concat{present_buff_chunk_length,
-                                  past_buff_chunk_length,
                                   past_chunk_length,
                                   kv_input_chunk_length,
-                                  is_prompt,
-                                  params.past_present_share_buffer,
                                   i / kv_num_heads_factor};
-        concat.compute(cache, current, cache, inner_i);
+        concat.compute(current, cache, inner_i);
     }
 }
 

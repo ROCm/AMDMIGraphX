@@ -215,24 +215,28 @@ struct find_kv_cache_attention
 
     auto matcher() const
     {
-        auto slice =
-            match::name("slice")(match::arg(0)(match::name("gqa_rotary_embedding").bind("query")));
-        auto transpose1 = match::name("transpose")(
-            match::arg(0)(match::name("concat_past_present").bind("pres_k")));
-        auto gemm1       = match::name("dot")(match::arg(0)(slice), match::arg(1)(transpose1));
+        static const std::unordered_set<std::string> skip_set = {
+            "multibroadcast",
+            "reshape",
+            "unsqueeze"
+        };
+
+        auto transpose1 = match::skip(match::name(skip_set))(match::name("transpose")(
+            match::arg(0)(match::skip(match::name(skip_set))(match::name("concat_past_present")).bind("pres_k"))));
+        auto gemm1       = match::name("dot")(match::arg(0)(match::name("slice")), match::arg(1)(transpose1));
         auto scale       = match::name("mul")(match::any_arg(0, 1)(gemm1));
         auto causal_mask = match::name("where")(
             match::arg(0)(match::name("multibroadcast")(match::arg(0)(match::is_constant()))),
-            match::arg(2)(scale));
+            match::arg(2)(match::any_of(scale, gemm1)));
         auto greater = match::name("multibroadcast")(match::arg(0)(match::name("convert")(
             match::arg(0)(match::name("greater")(match::arg(1)(match::any().bind("total_sl")))))));
         auto where   = match::name("where")(match::arg(0)(greater),
-                                          match::arg(2)(match::any_of(causal_mask, scale)));
+                                          match::arg(2)(match::any_of(causal_mask, scale, gemm1)));
         auto softmax = match::skip(match::name("convert"))(
             match::softmax_input(match::skip(match::name("convert"))(where)));
         auto gemm2 =
             match::name("dot")(match::arg(0)(softmax),
-                               match::arg(1)(match::name("concat_past_present").bind("pres_v")));
+                               match::arg(1)(match::skip(match::name(skip_set))(match::name("concat_past_present")).bind("pres_v")));
         auto transpose2 = match::name("transpose")(match::arg(0)(gemm2));
         return match::name("reshape")(match::arg(0)(transpose2));
     }
@@ -264,6 +268,7 @@ struct find_kv_cache_attention
                                                                        "slice",
                                                                        "transpose",
                                                                        "greater",
+                                                                       "convert",
                                                                        "where",
                                                                        "reshape",
                                                                        "reduce_sum",
@@ -301,9 +306,6 @@ struct find_kv_cache_attention
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        auto query    = r.instructions["query"];
-        auto pres_k   = r.instructions["pres_k"];
-        auto pres_v   = r.instructions["pres_v"];
         auto total_sl = r.instructions["total_sl"];
         auto reshape  = r.result;
 
@@ -352,8 +354,7 @@ struct find_kv_cache_attention
                        required_outputs.end(),
                        std::back_inserter(m_attn_outputs),
                        [&](auto i) { return map_mm_to_mattn.at(i); });
-
-        auto outs = m_attn.add_return({m_attn_outputs.back()});
+        m_attn.add_return({m_attn_outputs.back()});
 
         // Define inputs to m_attn
         auto map_mattn_to_mm = invert_map_ins(map_mm_to_mattn);
@@ -361,7 +362,7 @@ struct find_kv_cache_attention
 
         module_ref mpm_attn = mpm.create_module("attn" + get_count(), std::move(m_attn));
         mpm_attn->set_bypass();
-
+        
         // Construct group op with the attention module
         auto group_ins =
             mpm.get_module().insert_instruction(required_outputs.back(),
@@ -377,12 +378,20 @@ struct find_kv_cache_attention
 
 void fuse_attention::apply(module_pass_manager& mpm) const
 {
-    mpm.get_module().debug_print();
     std::size_t counter = 0;
+
+    // Fuse kv-cache attention by default
     match::find_matches(mpm, find_kv_cache_attention{.counter = &counter});
-    match::find_matches(mpm, find_attention{.counter = &counter});
     mpm.get_module().sort();
     mpm.run_pass(dead_code_elimination{});
+
+    // Only fuse plain attention when requested
+    if(attn_enabled)
+    {
+        match::find_matches(mpm, find_attention{.counter = &counter});
+        mpm.get_module().sort();
+        mpm.run_pass(dead_code_elimination{});
+    }    
 }
 
 } // namespace MIGRAPHX_INLINE_NS

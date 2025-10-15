@@ -2124,6 +2124,60 @@ TEST_CASE(gather_constant_stride_indices_1d)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(gather_constant_stride_indices_1d2)
+{
+    migraphx::module m1;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {30}};
+        auto data = m1.add_parameter("data", s);
+        migraphx::shape si{migraphx::shape::int32_type, {3}};
+        auto indices = m1.add_literal(migraphx::literal{si, {0, 5, 10}});
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+        m1.add_return({gather});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto s     = migraphx::shape{migraphx::shape::float_type, {30}};
+        auto data  = m2.add_parameter("data", s);
+        auto reshape = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3, 5}}}), data);
+        auto slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0, 2}}, {"starts", {0, 0}}, {"ends", {1, 1}}}), reshape);
+        auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0, 2}}}), slice);
+        m2.add_return({squeeze});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_constant_stride_indices_1d3)
+{
+    migraphx::module m1;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {15}};
+        auto data = m1.add_parameter("data", s);
+        migraphx::shape si{migraphx::shape::int32_type, {3}};
+        auto indices = m1.add_literal(migraphx::literal{si, {0, 5, 10}});
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+        m1.add_return({gather});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto s     = migraphx::shape{migraphx::shape::float_type, {15}};
+        auto data  = m2.add_parameter("data", s);
+        auto reshape = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 5}}}), data);
+        auto slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), reshape);
+        auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), slice);
+        m2.add_return({squeeze});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(gather_axis0_half_split_concat)
 {
     migraphx::module m;

@@ -1776,10 +1776,10 @@ TEST_CASE(unpack_fp4_dot_odd)
 
 TEST_CASE(dot_add_dot)
 {
-    migraphx::shape s1{migraphx::shape::float_type, {2, 3}};
-    migraphx::shape s2{migraphx::shape::float_type, {3, 4}};
-    migraphx::shape s3{migraphx::shape::float_type, {2, 4}};
-    migraphx::shape s4{migraphx::shape::float_type, {4, 2}};
+    migraphx::shape s1{migraphx::shape::half_type, {2, 3}};
+    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
+    migraphx::shape s3{migraphx::shape::half_type, {2, 4}};
+    migraphx::shape s4{migraphx::shape::half_type, {4, 2}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -1817,7 +1817,7 @@ TEST_CASE(dot_add_dot)
 
 TEST_CASE(dot_add_dot_square)
 {
-    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::shape s{migraphx::shape::half_type, {1, 3, 3}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -1854,9 +1854,9 @@ TEST_CASE(dot_add_dot_square)
 
 TEST_CASE(dot_mul_dot)
 {
-    migraphx::shape s1{migraphx::shape::float_type, {3, 3}};
-    migraphx::shape s2{migraphx::shape::float_type, {3, 4}};
-    migraphx::shape s3{migraphx::shape::float_type, {4, 5}};
+    migraphx::shape s1{migraphx::shape::half_type, {3, 3}};
+    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
+    migraphx::shape s3{migraphx::shape::half_type, {4, 5}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -1931,10 +1931,10 @@ TEST_CASE(conv_add)
 
 TEST_CASE(conv_add_dot)
 {
-    migraphx::shape is{migraphx::shape::float_type, {2, 4, 8, 8}};
-    migraphx::shape ys{migraphx::shape::float_type, {2, 8, 8, 8}};
-    migraphx::shape ws{migraphx::shape::float_type, {8, 4, 1, 1}};
-    migraphx::shape zs{migraphx::shape::float_type, {2, 8, 8, 4}};
+    migraphx::shape is{migraphx::shape::half_type, {2, 4, 8, 8}};
+    migraphx::shape ys{migraphx::shape::half_type, {2, 8, 8, 8}};
+    migraphx::shape ws{migraphx::shape::half_type, {8, 4, 1, 1}};
+    migraphx::shape zs{migraphx::shape::half_type, {2, 8, 8, 4}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -2020,9 +2020,9 @@ TEST_CASE(dot_multi_user_add)
 TEST_CASE(dot_add_multi_user_dot)
 // GEG fusion has two outputs, E has external user
 {
-    migraphx::shape s1{migraphx::shape::float_type, {3, 3}};
-    migraphx::shape s2{migraphx::shape::float_type, {3, 5}};
-    migraphx::shape s3{migraphx::shape::float_type, {5, 2}};
+    migraphx::shape s1{migraphx::shape::half_type, {3, 3}};
+    migraphx::shape s2{migraphx::shape::half_type, {3, 5}};
+    migraphx::shape s3{migraphx::shape::half_type, {5, 2}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -2069,7 +2069,7 @@ TEST_CASE(dot_add_multi_user_dot)
 TEST_CASE(dot_add_multi_user_dot_with_transpose)
 // GEG fusion has two outputs, E has external user
 {
-    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::shape s{migraphx::shape::half_type, {1, 3, 3}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -2120,7 +2120,7 @@ TEST_CASE(dot_add_multi_user_dot_with_transpose)
 TEST_CASE(dot_add_multi_user_dot_two_externals)
 // GEG fusion has two outputs, E has external user
 {
-    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::shape s{migraphx::shape::half_type, {1, 3, 3}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -2174,7 +2174,7 @@ TEST_CASE(dot_add_multi_user_dot_input_used_before)
 // of will-be-fused ops
 // This also shows the relu being fused, since it is a unary op
 {
-    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::shape s{migraphx::shape::half_type, {1, 3, 3}};
     migraphx::program p1;
     {
         auto* mm = p1.get_main_module();
@@ -2231,7 +2231,7 @@ TEST_CASE(dot_add_multi_user_dot_input_used_after)
 // This also shows the relu being fused, since it is a unary op.
 // Result should be, and is, equivalent to the previous test
 {
-    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::shape s{migraphx::shape::half_type, {1, 3, 3}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -2286,7 +2286,7 @@ TEST_CASE(dot_add_multi_user_dot_input_used_before_in_chain)
 // longer chain of logic, for both cases of input fusion. When enabled,
 // the mul gets fused into the GEG fusion.
 {
-    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::shape s{migraphx::shape::half_type, {1, 3, 3}};
     migraphx::program p1;
     {
         auto* mm = p1.get_main_module();
@@ -2378,7 +2378,7 @@ TEST_CASE(dot_add_multi_user_dot_input_used_after_in_chain)
 // Testing inputs being defined within the span of will-be-fused ops, including
 // longer chain of logic
 {
-    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::shape s{migraphx::shape::half_type, {1, 3, 3}};
     migraphx::program p1;
     {
         auto* mm = p1.get_main_module();
@@ -2467,7 +2467,7 @@ TEST_CASE(dot_add_multi_user_dot_input_used_after_in_chain)
 TEST_CASE(dot_pw_multi_user_dot)
 // GEG fusion has two outputs, E has external user, E is multiple elemwise ops
 {
-    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::shape s{migraphx::shape::half_type, {1, 3, 3}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -2522,7 +2522,7 @@ TEST_CASE(dot_pw_multi_user_dot)
 TEST_CASE(dot_multi_user_add_dot)
 // GEG fusion has two outputs (first G has external user)
 {
-    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::shape s{migraphx::shape::half_type, {1, 3, 3}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -2569,7 +2569,7 @@ TEST_CASE(dot_multi_user_add_dot)
 TEST_CASE(dot_add_dot_both_multi_user)
 // GEG fusion has three outputs (first G has external user, E has external user)
 {
-    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::shape s{migraphx::shape::half_type, {1, 3, 3}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();

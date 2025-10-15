@@ -1022,10 +1022,79 @@ class gather_instruction_builder
         if(curr_lens == target_lens)
             return input;
 
-        if(input->get_shape().elements() == product_of(target_lens))
+        const auto curr_elements = input->get_shape().elements();
+        const auto target_elements = product_of(target_lens);
+        
+        if(curr_elements == target_elements)
+        {
+            // Check if we can use squeeze (removing dimensions of size 1)
+            if(curr_lens.size() > target_lens.size())
+            {
+                // Potential squeeze - check if we're just removing 1s
+                std::vector<int64_t> axes_to_squeeze;
+                std::size_t target_idx = 0;
+                for(std::size_t curr_idx = 0; curr_idx < curr_lens.size(); ++curr_idx)
+                {
+                    if(curr_lens[curr_idx] == 1)
+                    {
+                        axes_to_squeeze.push_back(static_cast<int64_t>(curr_idx));
+                    }
+                    else
+                    {
+                        if(target_idx >= target_lens.size() || curr_lens[curr_idx] != target_lens[target_idx])
+                        {
+                            axes_to_squeeze.clear();
+                            break;
+                        }
+                        ++target_idx;
+                    }
+                }
+                if(not axes_to_squeeze.empty() && target_idx == target_lens.size())
+                {
+                    return m.insert_instruction(
+                        insert_before, make_op("squeeze", {{"axes", axes_to_squeeze}}), input);
+                }
+            }
+            // Check if we can use unsqueeze (adding dimensions of size 1)
+            else if(curr_lens.size() < target_lens.size())
+            {
+                // Potential unsqueeze - check if we're just adding 1s
+                std::vector<int64_t> axes_to_unsqueeze;
+                std::size_t curr_idx = 0;
+                for(std::size_t target_idx = 0; target_idx < target_lens.size(); ++target_idx)
+                {
+                    if(target_lens[target_idx] == 1)
+                    {
+                        axes_to_unsqueeze.push_back(static_cast<int64_t>(target_idx));
+                    }
+                    else
+                    {
+                        if(curr_idx >= curr_lens.size() || target_lens[target_idx] != curr_lens[curr_idx])
+                        {
+                            axes_to_unsqueeze.clear();
+                            break;
+                        }
+                        ++curr_idx;
+                    }
+                }
+                if(not axes_to_unsqueeze.empty() && curr_idx == curr_lens.size())
+                {
+                    return unsqueeze(input, axes_to_unsqueeze);
+                }
+            }
+            
+            // Elements match - fallback to reshape
             return reshape(input, to_int64_vec(target_lens));
+        }
 
-        return multibroadcast(input, to_int64_vec(target_lens));
+        // Only use multibroadcast if we're actually broadcasting (target has more elements)
+        if(target_elements > curr_elements)
+            return multibroadcast(input, to_int64_vec(target_lens));
+        
+        // Element count mismatch - this shouldn't happen
+        MIGRAPHX_THROW("match_shape: Cannot match shape with " + 
+                      std::to_string(curr_elements) + " elements to shape with " + 
+                      std::to_string(target_elements) + " elements");
     }
 };
 

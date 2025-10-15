@@ -35,7 +35,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/normalize_ops.hpp>
 #include <migraphx/eliminate_data_type.hpp>
-#include <migraphx/simplify_qdq.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

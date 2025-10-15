@@ -35,6 +35,7 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/verify_args.hpp>
+#include <migraphx/simplify_qdq.hpp>
 #include <utility>
 
 namespace migraphx {

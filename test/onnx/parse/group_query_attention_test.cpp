@@ -23,48 +23,11 @@
  */
 
 #include <onnx_test.hpp>
+#include <onnx_test_utils.hpp>
 
 TEST_CASE(group_query_attention_test)
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::shape qkvs{migraphx::shape::half_type, {1, 1, 12288}};
-    migraphx::shape pkvs{migraphx::shape::half_type, {1, 32, 4096, 128}};
-    migraphx::shape kvs{migraphx::shape::float_type, {1}};
-    migraphx::shape consts{migraphx::shape::int32_type, {1}};
-    migraphx::shape cs{migraphx::shape::half_type, {4096, 64}};
-    migraphx::shape outs{migraphx::shape::half_type, {1, 1, 4096}};
-
-    std::vector<float> cs_data(cs.elements(), 1.0);
-    auto slk   = mm->add_literal(migraphx::literal{consts, {1}});
-    auto tsl   = mm->add_literal(migraphx::literal{consts, {2}});
-    auto cc    = mm->add_literal(migraphx::literal{cs, cs_data});
-    auto sc    = mm->add_literal(migraphx::literal{cs, cs_data});
-    auto qkv   = mm->add_parameter("qkv", qkvs);
-    auto key   = mm->add_parameter("key", kvs);
-    auto value = mm->add_parameter("value", kvs);
-    auto pk    = mm->add_parameter("past_key_values_key", pkvs);
-    auto pv    = mm->add_parameter("past_key_values_value", pkvs);
-
-    auto gqa = mm->add_instruction(migraphx::make_op("group_query_attention",
-                                                     {{"do_rotary", 1},
-                                                      {"kv_num_heads", 32},
-                                                      {"local_window_size", -1},
-                                                      {"num_heads", 32},
-                                                      {"rotary_interleaved", 0},
-                                                      {"scale", 1.0}}),
-                                   qkv,
-                                   key,
-                                   value,
-                                   pk,
-                                   pv,
-                                   slk,
-                                   tsl,
-                                   cc,
-                                   sc);
-    mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), gqa);
-    mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), gqa);
-    mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 2}}), gqa);
+    auto p = create_gqa_program(1, 32, 32, 1, 128, 1, 4096, true, 1.0);
 
     auto prog = optimize_onnx("group_query_attention_test.onnx");
     EXPECT(p == prog);

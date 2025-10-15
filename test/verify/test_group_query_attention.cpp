@@ -28,7 +28,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/float_equal.hpp>
 
-migraphx::program make_gqa_program(const size_t batch_size,
+migraphx::program create_gqa_program(const size_t batch_size,
                                    const size_t num_heads,
                                    const size_t kv_num_heads,
                                    const size_t sequence_length,
@@ -37,7 +37,8 @@ migraphx::program make_gqa_program(const size_t batch_size,
                                    const size_t max_sequence_length,
                                    const bool do_rotary,
                                    const float scale,
-                                   const bool only_helpers = false)
+                                   const bool test_rotary = false,
+                                   const bool test_concat = false)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -86,6 +87,11 @@ migraphx::program make_gqa_program(const size_t batch_size,
                                                             {"num_heads", num_heads},
                                                             {"rotary_interleaved", false}}),
                                          rotary_inputs);
+        if(test_rotary)
+        {
+            mm->add_return({rotary_qkv});
+            return p;
+        }
     }
 
     auto rotary_k = mm->add_instruction(
@@ -110,11 +116,13 @@ migraphx::program make_gqa_program(const size_t batch_size,
         migraphx::make_op("concat_past_present",
                           {{"kv_num_heads", kv_num_heads}, {"num_heads", num_heads}}),
         concat_v_inputs);
-    if(only_helpers)
+    
+    if(test_concat)
     {
-        mm->add_return({rotary_qkv, k, v});
+        mm->add_return({k, v});
         return p;
     }
+    
     // Adding 1 to seq_lens_k, aka past_seq_lens, to allow range literals to start at 0.
     // Putting the add inside the mlir module currently causes an error on their side,
     // so we're leaving it here until that can be solved.
@@ -212,7 +220,7 @@ struct test_group_query_attention_decode_small
 {
     migraphx::program create_program() const
     {
-        return make_gqa_program(/* batch_size=           */ 1,
+        return create_gqa_program(/* batch_size=         */ 1,
                                 /* num_heads=            */ 2,
                                 /* kv_num_heads=         */ 2,
                                 /* sequence_length=      */ 1,
@@ -228,7 +236,7 @@ struct test_group_query_attention_decode : verify_program<test_group_query_atten
 {
     migraphx::program create_program() const
     {
-        return make_gqa_program(/* batch_size=           */ 1,
+        return create_gqa_program(/* batch_size=         */ 1,
                                 /* num_heads=            */ 32,
                                 /* kv_num_heads=         */ 32,
                                 /* sequence_length=      */ 1,
@@ -245,7 +253,7 @@ struct test_group_query_attention_prefill_small
 {
     migraphx::program create_program() const
     {
-        return make_gqa_program(/* batch_size=           */ 1,
+        return create_gqa_program(/* batch_size=         */ 1,
                                 /* num_heads=            */ 2,
                                 /* kv_num_heads=         */ 2,
                                 /* sequence_length=      */ 2,
@@ -261,7 +269,7 @@ struct test_group_query_attention_prefill : verify_program<test_group_query_atte
 {
     migraphx::program create_program() const
     {
-        return make_gqa_program(/* batch_size=           */ 1,
+        return create_gqa_program(/* batch_size=         */ 1,
                                 /* num_heads=            */ 32,
                                 /* kv_num_heads=         */ 32,
                                 /* sequence_length=      */ 5,
@@ -277,7 +285,7 @@ struct test_group_query_attention_no_rotary : verify_program<test_group_query_at
 {
     migraphx::program create_program() const
     {
-        return make_gqa_program(/* batch_size=           */ 1,
+        return create_gqa_program(/* batch_size=         */ 1,
                                 /* num_heads=            */ 32,
                                 /* kv_num_heads=         */ 32,
                                 /* sequence_length=      */ 5,
@@ -293,7 +301,7 @@ struct test_group_query_attention_grouped : verify_program<test_group_query_atte
 {
     migraphx::program create_program() const
     {
-        return make_gqa_program(/* batch_size=           */ 1,
+        return create_gqa_program(/* batch_size=         */ 1,
                                 /* num_heads=            */ 32,
                                 /* kv_num_heads=         */ 8,
                                 /* sequence_length=      */ 1,
@@ -302,5 +310,41 @@ struct test_group_query_attention_grouped : verify_program<test_group_query_atte
                                 /* max_sequence_length=  */ 2048,
                                 /* do_rotary_embedding=  */ true,
                                 /* scale=                */ 1.0 / sqrt(128.0));
+    }
+};
+
+struct test_group_query_attention_rotary_only : verify_program<test_group_query_attention_rotary_only>
+{
+    migraphx::program create_program() const
+    {
+        return create_gqa_program(/* batch_size=         */ 1,
+                                /* num_heads=            */ 32,
+                                /* kv_num_heads=         */ 32,
+                                /* sequence_length=      */ 1,
+                                /* head_size=            */ 128,
+                                /* past_sequence_length= */ 15,
+                                /* max_sequence_length=  */ 2048,
+                                /* do_rotary_embedding=  */ true,
+                                /* scale=                */ 1.0 / sqrt(128.0),
+                                /* test_rotary=          */ true,
+                                /* test_concat=          */ false);
+    }
+};
+
+struct test_group_query_attention_concat_only : verify_program<test_group_query_attention_concat_only>
+{
+    migraphx::program create_program() const
+    {
+        return create_gqa_program(/* batch_size=         */ 1,
+                                /* num_heads=            */ 32,
+                                /* kv_num_heads=         */ 32,
+                                /* sequence_length=      */ 1,
+                                /* head_size=            */ 128,
+                                /* past_sequence_length= */ 15,
+                                /* max_sequence_length=  */ 2048,
+                                /* do_rotary_embedding=  */ true,
+                                /* scale=                */ 1.0 / sqrt(128.0),
+                                /* test_rotary=          */ false,
+                                /* test_concat=          */ true);
     }
 };

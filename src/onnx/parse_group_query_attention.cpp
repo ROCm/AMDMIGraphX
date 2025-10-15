@@ -43,7 +43,7 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         bool do_rotary           = false;
         std::size_t kv_num_heads = 0;
         int local_window_size    = -1;
-        std::size_t num_heads    = 1;
+        std::size_t num_heads    = 0;
         bool rotary_interleaved  = false;
         float scale              = 0.0;
         if(contains(info.attributes, "do_rotary"))
@@ -54,6 +54,10 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         {
             kv_num_heads = parser.parse_value(info.attributes.at("kv_num_heads")).at<std::size_t>();
         }
+        else
+        {
+            MIGRAPHX_THROW("GroupQueryAttention: Attribute 'kv_num_heads' is required but was not provided.");
+        }
         if(contains(info.attributes, "local_window_size"))
         {
             local_window_size =
@@ -62,6 +66,10 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         if(contains(info.attributes, "num_heads"))
         {
             num_heads = parser.parse_value(info.attributes.at("num_heads")).at<std::size_t>();
+        }
+        else
+        {
+            MIGRAPHX_THROW("GroupQueryAttention: Attribute 'num_heads' is required but was not provided.");
         }
         if(contains(info.attributes, "rotary_interleaved"))
         {
@@ -85,14 +93,14 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
             MIGRAPHX_THROW("GroupQueryAttention: Wrong number of inputs provided");
         }
 
-        auto new_args = args;
+        auto qkv = args.at(0);
         if(args.at(1)->get_shape().lens().size() > 1)
         {
-            new_args[0] = info.add_instruction(
+            qkv = info.add_instruction(
                 make_op("concat", {{"axis", 2}}), args.at(0), args.at(1), args.at(2));
         }
 
-        auto q_shape                      = args[0]->get_shape();
+        auto q_shape                      = qkv->get_shape();
         const auto& q_lens                = q_shape.lens();
         const std::size_t batch_size      = q_lens[0];
         const std::size_t sequence_length = q_lens[1];
@@ -103,7 +111,7 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
             batch_size, sequence_length, num_heads + 2 * kv_num_heads, head_size};
 
         auto transposed_qkv =
-            info.add_instruction(make_op("reshape", {{"dims", bsnh}}), args.at(0));
+            info.add_instruction(make_op("reshape", {{"dims", bsnh}}), qkv);
 
         transposed_qkv = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}),
                                               transposed_qkv);

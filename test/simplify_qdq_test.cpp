@@ -44,7 +44,7 @@ static bool is_dot(const migraphx::instruction& ins) { return ins.name() == "dot
 
 static void run_pass(migraphx::module& m)
 {
-    run_passes(m, {migraphx::simplify_qdq{}, migraphx::dead_code_elimination{}});
+    run_passes(m, {migraphx::simplify_qdq{.remove_qdq_only=false, .use_mx_quant=true}, migraphx::dead_code_elimination{}});
 }
 
 static void run_cse(migraphx::module& m)

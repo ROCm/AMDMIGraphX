@@ -1124,7 +1124,10 @@ struct gather_context
     std::size_t axis_index() const { return axis_index_; }
     const argument& indices_arg() const { return indices_arg_; }
 
-    std::vector<int64_t> indices_values() const { return indices_arg().to_vector<int64_t>(); }
+    std::vector<int64_t> indices_values() const
+    {
+        return indices_arg().to_vector<int64_t>();
+    }
 
     std::size_t axis_len() const { return data_ins_->get_shape().lens().at(axis_index_); }
 
@@ -1136,10 +1139,16 @@ struct gather_context
         lens.insert(lens.begin() + axis_index(), ind_lens.begin(), ind_lens.end());
         return lens;
     }
+    
+    const std::vector<std::size_t>& idims() const
+    {
+        return indices_arg_.get_shape().lens();
+    }
 
-    const std::vector<std::size_t>& idims() const { return indices_arg_.get_shape().lens(); }
-
-    const std::vector<std::size_t>& data_dims() const { return data_ins()->get_shape().lens(); }
+    const std::vector<std::size_t>& data_dims() const
+    {
+        return data_ins()->get_shape().lens();
+    }
 
     std::vector<std::size_t> pre_lens() const
     {
@@ -1160,6 +1169,7 @@ struct gather_context
         result.insert(result.end(), post.begin(), post.end());
         return result;
     }
+
 
     std::vector<std::size_t> index_positions() const
     {
@@ -1270,13 +1280,12 @@ struct gather_context
                       idx_multi.begin());
 
             // 3) look up the actual index value (may be negative)
-            const std::int64_t idx_lin  = indices_arg().get_shape().index(idx_multi);
-            const std::int64_t axis_len = data_ins()->get_shape().lens().at(axis_index());
-            auto idx_val                = indices.at(idx_lin);
+            const std::int64_t idx_lin   = indices_arg().get_shape().index(idx_multi);
+            const std::int64_t  axis_len = data_ins()->get_shape().lens().at(axis_index());
+            auto        idx_val  = indices.at(idx_lin);
 
             // Normalize negative indices into [0, axis_len)
-            if(idx_val < 0)
-                idx_val += axis_len;
+            if(idx_val < 0) idx_val += axis_len;
 
             assert(idx_val >= 0 and idx_val < axis_len);
 
@@ -1284,7 +1293,9 @@ struct gather_context
             std::vector<std::size_t> in_multi(r_in);
 
             // copy dims before axis
-            std::copy(out_multi.begin(), out_multi.begin() + axis_index(), in_multi.begin());
+            std::copy(out_multi.begin(),
+                      out_multi.begin() + axis_index(),
+                      in_multi.begin());
 
             // axis coordinate from indices
             in_multi.at(axis_index()) = idx_val;
@@ -1335,47 +1346,30 @@ struct constant_segment_meta
     int64_t value;
 
     /// Detect constant segment pattern
+    template<class Iterator>
+    static std::optional<constant_segment_meta>
+    detect(Iterator begin, Iterator end)
+    {
+        if(begin == end)
+            return std::nullopt;
+        auto value = *begin;
+        if(std::all_of(std::next(begin), end, [&](auto idx) { return idx == value; }))
+            return constant_segment_meta{value};
+        return std::nullopt;
+    }
+
     static std::optional<constant_segment_meta>
     detect(const std::vector<int64_t>& indices, std::size_t start, std::size_t length)
     {
-        if(length == 0)
-            return std::nullopt;
-        auto value = indices[start];
-        for(std::size_t i = start + 1; i < start + length; ++i)
-        {
-            if(indices[i] != value)
-                return std::nullopt;
-        }
-        return constant_segment_meta{value};
+        return detect(indices.begin() + start, indices.begin() + start + length);
     }
 
     /// Transform constant segment into instructions
     instruction_ref transform(const gather_context& ctx, gather_instruction_builder& builder) const
     {
         auto di = ctx.data_ins();
-        auto rl = ctx.rest_lens();
-
-        auto moved  = builder.move_axis_to_front(di, ctx.axis_index());
-        auto sliced = builder.slice(moved, {0}, {value}, {value + 1});
-
-        // Reshape to remove the sliced 1-dimension, giving us rest_lens shape
-        instruction_ref reshaped = sliced;
-        if(not rl.empty())
-        {
-            std::vector<int64_t> rest_shape(rl.begin(), rl.end());
-            reshaped = builder.reshape(sliced, rest_shape);
-        }
-
-        // Insert a 1-dimension at the axis position for broadcasting
-        std::vector<int64_t> with_axis_dim = to_int64_vec(ctx.pre_lens());
-        with_axis_dim.push_back(1);
-        auto post = ctx.post_lens(); // Store the result to ensure it lives long enough
-        with_axis_dim.insert(with_axis_dim.end(), post.begin(), post.end());
-        auto with_dim = builder.reshape(reshaped, with_axis_dim);
-
-        // Now match_shape will broadcast the 1 to the index count
-        auto target = ctx.output_dims();
-        return builder.match_shape(with_dim, target);
+        auto sliced = builder.slice(di, {0}, {value}, {value + 1});
+        return builder.match_shape(sliced, ctx.output_dims());
     }
 };
 
@@ -1385,29 +1379,33 @@ struct contiguous_segment_meta
     int64_t start;
     int64_t count;
 
+    template<class Iterator>
+    static std::optional<contiguous_segment_meta>
+    detect(Iterator begin, Iterator end)
+    {
+        if(begin == end)
+            return std::nullopt;
+        auto diff = std::adjacent_find(begin, end, [&](auto x, auto y) {
+            return y - x != 1;
+        });
+        if(diff != end)
+            return std::nullopt;
+        return contiguous_segment_meta{*begin, (end - begin)};
+
+    }
+
     /// Detect contiguous segment pattern
     static std::optional<contiguous_segment_meta>
     detect(const std::vector<int64_t>& indices, std::size_t start, std::size_t length)
     {
-        if(length == 0)
-            return std::nullopt;
-        auto first = indices[start];
-        for(std::size_t i = 1; i < length; ++i)
-        {
-            if(indices[start + i] != first + static_cast<int64_t>(i))
-                return std::nullopt;
-        }
-        return contiguous_segment_meta{first, static_cast<int64_t>(length)};
+        return detect(indices.begin() + start, indices.begin() + start + length);
     }
 
     /// Transform contiguous segment into instructions
     instruction_ref transform(const gather_context& ctx, gather_instruction_builder& builder) const
     {
-        auto moved  = builder.move_axis_to_front(ctx.data_ins(), ctx.axis_index());
-        auto sliced = builder.slice(moved, {0}, {start}, {start + count});
-        auto restored =
-            builder.restore_axis_position(sliced, ctx.pre_lens().size(), 1, ctx.post_lens().size());
-        return builder.match_shape(restored, ctx.output_dims());
+        auto sliced = builder.slice(ctx.data_ins(), {0}, {start}, {start + count});
+        return builder.match_shape(sliced, ctx.output_dims());
     }
 };
 
@@ -1419,33 +1417,39 @@ struct arithmetic_segment_meta
     std::size_t count;
 
     /// Detect arithmetic segment pattern
+    template<class Iterator>
+    static std::optional<arithmetic_segment_meta>
+    detect(Iterator begin, Iterator end)
+    {
+        std::size_t length = std::distance(begin, end);
+        if(length < 2)
+            return std::nullopt;
+        auto base   = *begin;
+        auto stride = *(std::next(begin)) - base;
+        if(stride <= 1 or base < 0 or base >= stride)
+            return std::nullopt;
+        auto diff = std::adjacent_find(begin, end, [&](auto x, auto y) {
+            return y - x != stride;
+        });
+        if(diff != end)
+            return std::nullopt;
+        return arithmetic_segment_meta{base, stride, length};
+    }
+
     static std::optional<arithmetic_segment_meta>
     detect(const std::vector<int64_t>& indices, std::size_t start, std::size_t length)
     {
-        if(length < 2)
-            return std::nullopt;
-        auto base   = indices[start];
-        auto stride = indices[start + 1] - base;
-        if(stride <= 1 or base < 0 or base >= stride)
-            return std::nullopt;
-        for(std::size_t i = 0; i < length; ++i)
-        {
-            if(indices[start + i] != base + static_cast<int64_t>(i) * stride)
-                return std::nullopt;
-        }
-        return arithmetic_segment_meta{base, stride, length};
+        return detect(indices.begin() + start, indices.begin() + start + length);
     }
 
     /// Transform arithmetic segment into instructions
     instruction_ref transform(const gather_context& ctx, gather_instruction_builder& builder) const
     {
-        auto moved = builder.move_axis_to_front(ctx.data_ins(), ctx.axis_index());
-
         // For arithmetic patterns: indices = base + k*stride for k in [0, count)
         // We need to extract every stride-th element starting from base
         // Use slice + step: start=base, end=base+count*stride, step=stride
         auto max_index = base + static_cast<int64_t>(count) * stride;
-        auto sliced    = builder.slice_with_step(moved, {0}, {base}, {max_index}, {stride});
+        auto sliced    = builder.slice_with_step(ctx.data_ins(), {0}, {base}, {max_index}, {stride});
 
         // After slice + step with stride, we have exactly `count` elements along axis 0
         // Reshape to final dimensions
@@ -1454,9 +1458,7 @@ struct arithmetic_segment_meta
         final_dims.insert(final_dims.end(), rest.begin(), rest.end());
         auto reshaped = builder.reshape(sliced, final_dims);
 
-        auto restored = builder.restore_axis_position(
-            reshaped, ctx.pre_lens().size(), 1, ctx.post_lens().size());
-        return builder.match_shape(restored, ctx.output_dims());
+        return builder.match_shape(reshaped, ctx.output_dims());
     }
 };
 
@@ -1566,7 +1568,6 @@ struct rtr_window_segment_meta
     /// Transform RTR window segment into instructions
     instruction_ref transform(const gather_context& ctx, gather_instruction_builder& builder) const
     {
-        auto moved = builder.move_axis_to_front(ctx.data_ins(), ctx.axis_index());
         std::vector<int64_t> reshape_dims;
         std::transform(factors.begin(),
                        factors.end(),
@@ -1574,7 +1575,7 @@ struct rtr_window_segment_meta
                        [](auto f) { return static_cast<int64_t>(f); });
         auto rest = ctx.rest_lens(); // Store to ensure lifetime
         reshape_dims.insert(reshape_dims.end(), rest.begin(), rest.end());
-        auto reshaped = builder.reshape(moved, reshape_dims);
+        auto reshaped = builder.reshape(ctx.data_ins(), reshape_dims);
 
         std::vector<int64_t> full_perm;
         std::transform(permutation.begin(),
@@ -1589,9 +1590,7 @@ struct rtr_window_segment_meta
             std::accumulate(factors.begin(), factors.end(), std::size_t{1}, std::multiplies<>{}))};
         final_dims.insert(final_dims.end(), rest.begin(), rest.end()); // Reuse 'rest' from above
         auto final_reshape = builder.reshape(transposed, final_dims);
-        auto restored      = builder.restore_axis_position(
-            final_reshape, ctx.pre_lens().size(), 1, ctx.post_lens().size());
-        return builder.match_shape(restored, ctx.output_dims());
+        return builder.match_shape(final_reshape, ctx.output_dims());
     }
 };
 
@@ -2051,7 +2050,8 @@ struct tiled_pattern
         return std::nullopt;
     }
 
-    static std::optional<multi_axis_stride_info> detect_multi_axis_stride(const gather_context& ctx)
+    static std::optional<multi_axis_stride_info>
+    detect_multi_axis_stride(const gather_context& ctx)
     {
         if(ctx.axis_index() != 0)
             return std::nullopt;
@@ -2355,7 +2355,8 @@ struct tiled_pattern
     }
 
     static std::optional<rectangular_info>
-    detect_rectangular(const gather_context& ctx, const std::vector<index_segment>& segments)
+    detect_rectangular(const gather_context& ctx,
+                       const std::vector<index_segment>& segments)
     {
         if(segments.empty())
             return std::nullopt;
@@ -2679,8 +2680,9 @@ struct tiled_pattern
     }
 
     /// Detect tiled pattern
-    static std::optional<tiled_pattern> detect(const gather_context& ctx,
-                                               const std::vector<index_segment>& segments)
+    static std::optional<tiled_pattern>
+    detect(const gather_context& ctx,
+           const std::vector<index_segment>& segments)
     {
         if(auto rectangular = detect_rectangular(ctx, segments))
         {
@@ -2724,7 +2726,8 @@ struct tiled_pattern
 /// Try segment-based optimization (assumes 1D indices in context)
 /// Returns the optimized instruction if successful, nullopt otherwise
 inline std::optional<instruction_ref>
-try_segment_based_optimization_1d(const gather_context& ctx, gather_instruction_builder& builder)
+try_segment_based_optimization_1d(const gather_context& ctx,
+                                  gather_instruction_builder& builder)
 {
     auto segments =
         index_segment::analyze(ctx.indices_values(), ctx.axis_len(), ctx.factor_candidates());
@@ -2789,8 +2792,7 @@ inline bool try_segment_based_optimization(module& m,
 
     auto new_indices = ctx.build_flat_gather_indices();
 
-    gather_context ctx_1d(
-        data_1d, 0, argument{shape{shape::int64_type, {new_indices.size()}}, new_indices.data()});
+    gather_context ctx_1d(data_1d, 0, argument{shape{shape::int64_type, {new_indices.size()}}, new_indices.data()});
 
     auto result = try_segment_based_optimization_1d(ctx_1d, builder);
     if(not result.has_value())

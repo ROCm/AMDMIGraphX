@@ -2022,6 +2022,33 @@ TEST_CASE(gather_constant_same_indices)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(gather_constant_same_indices_1d)
+{
+    migraphx::module m1;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {12}};
+        auto data = m1.add_parameter("data", s);
+        migraphx::shape si{migraphx::shape::int32_type, {3}};
+        auto indices = m1.add_literal(migraphx::literal{si, {1, 1, 1}});
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+        m1.add_return({gather});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto s     = migraphx::shape{migraphx::shape::float_type, {12}};
+        auto data  = m2.add_parameter("data", s);
+        auto slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), data);
+        auto mb = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3}}}),
+                                     slice);
+        m2.add_return({mb});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(gather_constant_sequential_indices)
 {
     migraphx::module m1;
@@ -2038,6 +2065,56 @@ TEST_CASE(gather_constant_sequential_indices)
     migraphx::module m2;
     {
         auto s     = migraphx::shape{migraphx::shape::float_type, {5, 6}};
+        auto data  = m2.add_parameter("data", s);
+        auto slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {4}}}), data);
+        m2.add_return({slice});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_constant_sequential_indices_1d)
+{
+    migraphx::module m1;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {30}};
+        auto data = m1.add_parameter("data", s);
+        migraphx::shape si{migraphx::shape::int32_type, {3}};
+        auto indices = m1.add_literal(migraphx::literal{si, {1, 2, 3}});
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+        m1.add_return({gather});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto s     = migraphx::shape{migraphx::shape::float_type, {30}};
+        auto data  = m2.add_parameter("data", s);
+        auto slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {4}}}), data);
+        m2.add_return({slice});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_constant_stride_indices_1d)
+{
+    migraphx::module m1;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {30}};
+        auto data = m1.add_parameter("data", s);
+        migraphx::shape si{migraphx::shape::int32_type, {3}};
+        auto indices = m1.add_literal(migraphx::literal{si, {1, 5, 9}});
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+        m1.add_return({gather});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto s     = migraphx::shape{migraphx::shape::float_type, {30}};
         auto data  = m2.add_parameter("data", s);
         auto slice = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {4}}}), data);

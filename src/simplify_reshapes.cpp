@@ -985,22 +985,24 @@ class gather_instruction_builder
                                     const std::vector<int64_t>& steps)
     {
         auto input_shape = input->get_shape().lens();
-        
-        // Check if we can optimize: reshape->slice->squeeze instead of slice->reshape->slice->squeeze
+
+        // Check if we can optimize: reshape->slice->squeeze instead of
+        // slice->reshape->slice->squeeze
         bool can_optimize = std::all_of(axes.begin(), axes.end(), [&](int64_t axis) {
-            auto idx = static_cast<std::size_t>(std::find(axes.begin(), axes.end(), axis) - axes.begin());
+            auto idx =
+                static_cast<std::size_t>(std::find(axes.begin(), axes.end(), axis) - axes.begin());
             auto start_val = starts[idx];
-            auto end_val = ends[idx];
-            auto step_val = steps[idx];
-            auto length = end_val - start_val;
-            auto axis_idx = static_cast<std::size_t>(axis);
-            
+            auto end_val   = ends[idx];
+            auto step_val  = steps[idx];
+            auto length    = end_val - start_val;
+            auto axis_idx  = static_cast<std::size_t>(axis);
+
             // Can optimize if: start is divisible by step, and length is divisible by step
             // This means we can reshape the entire axis and then slice cleanly
-            return (start_val % step_val == 0) && (length % step_val == 0) && 
+            return (start_val % step_val == 0) && (length % step_val == 0) &&
                    (end_val <= static_cast<int64_t>(input_shape[axis_idx]));
         });
-        
+
         if(can_optimize)
         {
             // Optimized path: reshape->slice->squeeze
@@ -1008,36 +1010,38 @@ class gather_instruction_builder
             std::vector<int64_t> final_slice_axes;
             std::vector<int64_t> final_slice_starts;
             std::vector<int64_t> final_slice_ends;
-            
+
             std::size_t reshape_dim_idx = 0;
             for(std::size_t axis_idx = 0; axis_idx < input_shape.size(); ++axis_idx)
             {
                 auto it = std::find(axes.begin(), axes.end(), static_cast<int64_t>(axis_idx));
                 if(it != axes.end())
                 {
-                    auto i = static_cast<std::size_t>(it - axes.begin());
+                    auto i         = static_cast<std::size_t>(it - axes.begin());
                     auto start_val = starts[i];
-                    auto end_val = ends[i];
-                    auto step_val = steps[i];
-                    auto length = end_val - start_val;
-                    
+                    auto end_val   = ends[i];
+                    auto step_val  = steps[i];
+                    auto length    = end_val - start_val;
+
                     if(step_val == 1)
                     {
                         reshape_dims.push_back(length);
                     }
                     else
                     {
-                        // Reshape this axis into [num_blocks, step_val] where blocks start at multiples of step
+                        // Reshape this axis into [num_blocks, step_val] where blocks start at
+                        // multiples of step
                         auto num_blocks = static_cast<int64_t>(input_shape[axis_idx]) / step_val;
                         reshape_dims.push_back(num_blocks);
                         reshape_dims.push_back(step_val);
-                        
-                        // Slice to get the range we want: [start/step, end/step) on the blocks dimension
+
+                        // Slice to get the range we want: [start/step, end/step) on the blocks
+                        // dimension
                         final_slice_axes.push_back(static_cast<int64_t>(reshape_dim_idx));
                         final_slice_starts.push_back(start_val / step_val);
                         final_slice_ends.push_back(end_val / step_val);
                         reshape_dim_idx++; // Account for the block dimension
-                        
+
                         // Slice to keep only index 0 of the step dimension
                         final_slice_axes.push_back(static_cast<int64_t>(reshape_dim_idx));
                         final_slice_starts.push_back(0);
@@ -1051,21 +1055,23 @@ class gather_instruction_builder
                     reshape_dim_idx++;
                 }
             }
-            
+
             auto reshaped = reshape(input, reshape_dims);
-            
+
             if(not final_slice_axes.empty())
             {
-                auto final_sliced = slice(reshaped, final_slice_axes, final_slice_starts, final_slice_ends);
-                
+                auto final_sliced =
+                    slice(reshaped, final_slice_axes, final_slice_starts, final_slice_ends);
+
                 // Squeeze out the sliced dimensions (which are now size 1)
                 std::vector<int64_t> squeeze_axes = final_slice_axes;
-                return m.insert_instruction(insert_before, make_op("squeeze", {{"axes", squeeze_axes}}), final_sliced);
+                return m.insert_instruction(
+                    insert_before, make_op("squeeze", {{"axes", squeeze_axes}}), final_sliced);
             }
-            
+
             return reshaped;
         }
-        
+
         // Original path: slice->reshape->slice->squeeze
         auto sliced = slice(input, axes, starts, ends);
         auto sliced_shape = sliced->get_shape().lens();
@@ -1073,52 +1079,55 @@ class gather_instruction_builder
         std::vector<int64_t> final_slice_axes;
         std::vector<int64_t> final_slice_starts;
         std::vector<int64_t> final_slice_ends;
-        
+
         for(std::size_t i = 0; i < axes.size(); ++i)
         {
             auto axis_idx = static_cast<std::size_t>(axes[i]);
-            auto length = ends[i] - starts[i];
+            auto length   = ends[i] - starts[i];
             auto step_val = steps[i];
-            
+
             if(step_val == 1)
             {
-            reshape_dims.push_back(sliced_shape[axis_idx]);
-            continue;
+                reshape_dims.push_back(sliced_shape[axis_idx]);
+                continue;
             }
-            
+
             // Compute output length: ceil(length / step_val)
             auto out_len = (length + step_val - 1) / step_val;
-            
-            // Reshape this axis into [out_len, step_val], then slice to keep only first of each group
+
+            // Reshape this axis into [out_len, step_val], then slice to keep only first of each
+            // group
             reshape_dims.push_back(out_len);
             reshape_dims.push_back(step_val);
-            
+
             // After reshape, we'll slice along the new axis to keep only index 0
             final_slice_axes.push_back(static_cast<int64_t>(reshape_dims.size() - 1));
             final_slice_starts.push_back(0);
             final_slice_ends.push_back(1);
         }
-        
+
         // Add remaining dimensions
         for(std::size_t i = 0; i < sliced_shape.size(); ++i)
         {
             if(std::find(axes.begin(), axes.end(), static_cast<int64_t>(i)) == axes.end())
             {
-            reshape_dims.push_back(static_cast<int64_t>(sliced_shape[i]));
+                reshape_dims.push_back(static_cast<int64_t>(sliced_shape[i]));
             }
         }
-        
+
         auto reshaped = reshape(sliced, reshape_dims);
-        
+
         if(not final_slice_axes.empty())
         {
-            auto final_sliced = slice(reshaped, final_slice_axes, final_slice_starts, final_slice_ends);
-            
+            auto final_sliced =
+                slice(reshaped, final_slice_axes, final_slice_starts, final_slice_ends);
+
             // Squeeze out the sliced dimensions (which are now size 1)
             std::vector<int64_t> squeeze_axes = final_slice_axes;
-            return m.insert_instruction(insert_before, make_op("squeeze", {{"axes", squeeze_axes}}), final_sliced);
+            return m.insert_instruction(
+                insert_before, make_op("squeeze", {{"axes", squeeze_axes}}), final_sliced);
         }
-        
+
         return reshaped;
     }
 

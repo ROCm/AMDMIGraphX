@@ -21,33 +21,43 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/onnx/op_parser.hpp>
-#include <migraphx/onnx/checks.hpp>
-#include <migraphx/instruction.hpp>
+
+#include <migraphx/op/builder/op_builder.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/op/builder/insert.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace onnx {
+namespace op {
+namespace builder {
 
-struct parse_tile : op_parser<parse_tile>
+struct tile : op_builder<tile>
 {
-    std::vector<op_desc> operators() const { return {{"Tile"}}; }
+    std::vector<std::int64_t> repeats;
 
-    instruction_ref parse(const op_desc& /*opd*/,
-                          const onnx_parser& /*parser*/,
-                          const onnx_parser::node_info& info,
-                          std::vector<instruction_ref> args) const
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
     {
-        migraphx::argument arg_s = args[1]->eval();
-        check_arg_empty(arg_s, "PARSE_TILE: dynamic shape is not supported");
-        std::vector<std::int64_t> repeats;
-        arg_s.visit([&](auto input) { repeats.assign(input.begin(), input.end()); });
+        return pack(f(self.repeats, "repeats"));
+    }
 
-        return op::builder::add("tile", *info.mod, args, {{"repeats", repeats}}).at(0);
+    std::vector<instruction_ref>
+    insert(module& m, instruction_ref /*ins*/, const std::vector<instruction_ref>& args) const
+    {
+        auto l0 = args[0];
+        for(int i = 0; i < repeats.size(); i++)
+        {
+            auto l1 = l0;
+            for(int j = 1; j < repeats[i]; j++)
+            {
+                l0 = op::builder::add("concat", m, {l0, l1, {}}, {{"axis", i}}).at(0);
+            }
+        }
+        return {l0};
     }
 };
 
-} // namespace onnx
+} // namespace builder
+} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -1022,9 +1022,9 @@ class gather_instruction_builder
         if(curr_lens == target_lens)
             return input;
 
-        const auto curr_elements = input->get_shape().elements();
+        const auto curr_elements   = input->get_shape().elements();
         const auto target_elements = product_of(target_lens);
-        
+
         if(curr_elements == target_elements)
         {
             // Check if we can use squeeze (removing dimensions of size 1)
@@ -1041,7 +1041,8 @@ class gather_instruction_builder
                     }
                     else
                     {
-                        if(target_idx >= target_lens.size() || curr_lens[curr_idx] != target_lens[target_idx])
+                        if(target_idx >= target_lens.size() ||
+                           curr_lens[curr_idx] != target_lens[target_idx])
                         {
                             axes_to_squeeze.clear();
                             break;
@@ -1069,7 +1070,8 @@ class gather_instruction_builder
                     }
                     else
                     {
-                        if(curr_idx >= curr_lens.size() || target_lens[target_idx] != curr_lens[curr_idx])
+                        if(curr_idx >= curr_lens.size() ||
+                           target_lens[target_idx] != curr_lens[curr_idx])
                         {
                             axes_to_unsqueeze.clear();
                             break;
@@ -1082,7 +1084,7 @@ class gather_instruction_builder
                     return unsqueeze(input, axes_to_unsqueeze);
                 }
             }
-            
+
             // Elements match - fallback to reshape
             return reshape(input, to_int64_vec(target_lens));
         }
@@ -1090,11 +1092,10 @@ class gather_instruction_builder
         // Only use multibroadcast if we're actually broadcasting (target has more elements)
         if(target_elements > curr_elements)
             return multibroadcast(input, to_int64_vec(target_lens));
-        
+
         // Element count mismatch - this shouldn't happen
-        MIGRAPHX_THROW("match_shape: Cannot match shape with " + 
-                      std::to_string(curr_elements) + " elements to shape with " + 
-                      std::to_string(target_elements) + " elements");
+        MIGRAPHX_THROW("match_shape: Cannot match shape with " + std::to_string(curr_elements) +
+                       " elements to shape with " + std::to_string(target_elements) + " elements");
     }
 };
 

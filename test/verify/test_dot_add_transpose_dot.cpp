@@ -41,11 +41,13 @@ struct test_dot_add_transpose_dot : verify_program<test_dot_add_transpose_dot<DT
         auto b    = mm->add_parameter("b", s2); // 256, 32
         auto c    = mm->add_parameter("c", s3); // 512, 32
         auto d    = mm->add_parameter("d", s3); // 512, 32
-        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b); // (512, 256) x (256, 32) = (512, 32)
-        auto add  = mm->add_instruction(migraphx::make_op("add"), dot1, c); // (512, 32)
+        auto dot1 = mm->add_instruction(
+            migraphx::make_op("dot"), a, b); // (512, 256) x (256, 32) = (512, 32)
+        auto add       = mm->add_instruction(migraphx::make_op("add"), dot1, c); // (512, 32)
         auto transpose =
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), d); // (32, 512)
-        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, transpose); // (512, 32) x (32, 512)
+        auto dot2 = 
+            mm->add_instruction(migraphx::make_op("dot"), add, transpose); // (512, 32) x (32, 512)
         mm->add_return({dot2});
         return p;
     }

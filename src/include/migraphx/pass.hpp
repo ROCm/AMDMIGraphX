@@ -62,8 +62,9 @@ MIGRAPHX_EXPORT module& get_module(module_pass_manager& mpm);
 namespace detail {
 
 template <class T>
-auto module_pass_manager_apply(rank<1>, const T& x, module_pass_manager& mpm)
-    -> decltype(x.apply(get_module(mpm)))
+auto module_pass_manager_apply(rank<1>,
+                               const T& x,
+                               module_pass_manager& mpm) -> decltype(x.apply(get_module(mpm)))
 {
     return x.apply(get_module(mpm));
 }

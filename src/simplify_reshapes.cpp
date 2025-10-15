@@ -1024,6 +1024,8 @@ class gather_instruction_builder
 
         const auto curr_elements   = input->get_shape().elements();
         const auto target_elements = product_of(target_lens);
+        assert(curr_elements > 0);
+        assert(target_elements > 0);
 
         if(curr_elements == target_elements)
         {
@@ -1118,25 +1120,35 @@ struct gather_context
     {
     }
 
-    // Accessors for stored values
     instruction_ref data_ins() const { return data_ins_; }
     std::size_t axis_index() const { return axis_index_; }
     const argument& indices_arg() const { return indices_arg_; }
 
-    // Computed properties
     std::vector<int64_t> indices_values() const
     {
-        std::vector<std::int64_t> values;
-        indices_arg_.visit([&](auto v) {
-            values.resize(v.size());
-            std::transform(v.begin(), v.end(), values.begin(), [](auto x) {
-                return static_cast<std::int64_t>(x);
-            });
-        });
-        return values;
+        return indices_arg().to_vector<int64_t>();
     }
 
     std::size_t axis_len() const { return data_ins_->get_shape().lens().at(axis_index_); }
+
+    std::vector<std::size_t> output_dims() const
+    {
+        auto lens = data_ins()->get_shape().lens();
+        lens.erase(lens.begin() + axis_index());
+        auto ind_lens = indices_arg().get_shape().lens();
+        lens.insert(lens.begin() + axis_index(), ind_lens.begin(), ind_lens.end());
+        return lens;
+    }
+    
+    const std::vector<std::size_t>& idims() const
+    {
+        return indices_arg_.get_shape().lens();
+    }
+
+    const std::vector<std::size_t>& data_dims() const
+    {
+        return data_ins()->get_shape().lens();
+    }
 
     std::vector<std::size_t> pre_lens() const
     {
@@ -1158,12 +1170,6 @@ struct gather_context
         return result;
     }
 
-    std::vector<std::size_t> idims() const
-    {
-        auto result = indices_arg_.get_shape().lens();
-        assert(not result.empty() && "idims() returned empty vector!");
-        return result;
-    }
 
     std::vector<std::size_t> index_positions() const
     {
@@ -1250,6 +1256,63 @@ struct gather_context
         factor_candidates_ = std::move(candidates);
     }
 
+    std::vector<std::int64_t> build_flat_gather_indices() const
+    {
+        const auto r_in  = data_ins()->get_shape().lens().size();
+        const auto r_idx = indices_arg().get_shape().lens().size();
+        assert(axis_index() < r_in);
+
+        shape output_s{shape::float_type, output_dims()}; // element type doesn't matter here
+        const auto out_n = output_s.elements();
+        std::vector<std::int64_t> flat(out_n);
+        std::iota(flat.begin(), flat.end(), 0);
+
+        auto indices = indices_values();
+
+        transform(flat, flat.begin(), [&](std::size_t out_lin) -> std::int64_t {
+            // 1) output linear -> output multi-index
+            auto out_multi = output_s.multi(out_lin);
+
+            // 2) isolate the "indices" coordinates from the output coords (inserted at `axis`)
+            std::vector<std::size_t> idx_multi(r_idx);
+            std::copy(out_multi.begin() + axis_index(),
+                      out_multi.begin() + axis_index() + r_idx,
+                      idx_multi.begin());
+
+            // 3) look up the actual index value (may be negative)
+            const std::int64_t idx_lin   = indices_arg().get_shape().index(idx_multi);
+            const std::int64_t  axis_len = data_ins()->get_shape().lens().at(axis_index());
+            auto        idx_val  = indices.at(idx_lin);
+
+            // Normalize negative indices into [0, axis_len)
+            if(idx_val < 0) idx_val += axis_len;
+
+            assert(idx_val >= 0 and idx_val < axis_len);
+
+            // 4) construct corresponding INPUT multi-index
+            std::vector<std::size_t> in_multi(r_in);
+
+            // copy dims before axis
+            std::copy(out_multi.begin(),
+                      out_multi.begin() + axis_index(),
+                      in_multi.begin());
+
+            // axis coordinate from indices
+            in_multi.at(axis_index()) = idx_val;
+
+            // copy dims after axis; they are shifted by r_idx in output
+            std::copy(out_multi.begin() + axis_index() + r_idx,
+                      out_multi.end(),
+                      in_multi.begin() + axis_index() + 1);
+
+            // 5) map input multi-index -> flat offset in contiguous buffer
+            const auto in_lin = data_ins()->get_shape().index(in_multi);
+            return in_lin;
+        });
+
+        return flat;
+    }
+
     // Factory method to create a context with reshaped indices (for 1D normalization or segments)
     static gather_context with_reshaped_indices(const gather_context& base,
                                                 const std::vector<std::size_t>& new_indices_shape)
@@ -1322,7 +1385,7 @@ struct constant_segment_meta
         auto with_dim = builder.reshape(reshaped, with_axis_dim);
 
         // Now match_shape will broadcast the 1 to the index count
-        auto target = ctx.target_shape();
+        auto target = ctx.output_dims();
         return builder.match_shape(with_dim, target);
     }
 };
@@ -1355,7 +1418,7 @@ struct contiguous_segment_meta
         auto sliced = builder.slice(moved, {0}, {start}, {start + count});
         auto restored =
             builder.restore_axis_position(sliced, ctx.pre_lens().size(), 1, ctx.post_lens().size());
-        return builder.match_shape(restored, ctx.target_shape());
+        return builder.match_shape(restored, ctx.output_dims());
     }
 };
 
@@ -1404,7 +1467,7 @@ struct arithmetic_segment_meta
 
         auto restored = builder.restore_axis_position(
             reshaped, ctx.pre_lens().size(), 1, ctx.post_lens().size());
-        return builder.match_shape(restored, ctx.target_shape());
+        return builder.match_shape(restored, ctx.output_dims());
     }
 };
 
@@ -1539,7 +1602,7 @@ struct rtr_window_segment_meta
         auto final_reshape = builder.reshape(transposed, final_dims);
         auto restored      = builder.restore_axis_position(
             final_reshape, ctx.pre_lens().size(), 1, ctx.post_lens().size());
-        return builder.match_shape(restored, ctx.target_shape());
+        return builder.match_shape(restored, ctx.output_dims());
     }
 };
 
@@ -1647,7 +1710,7 @@ static instruction_ref apply_segment_transform(const index_segment& segment,
     assert(not segment.empty());
     auto ensure_shape = [&](instruction_ref result) {
         assert(result != instruction_ref{});
-        assert(result->get_shape().lens() == ctx.target_shape());
+        assert(result->get_shape().lens() == ctx.output_dims());
         return result;
     };
     if(segment.has_type<constant_segment_meta>())
@@ -1714,7 +1777,7 @@ struct split_pattern
         }
         auto axis         = static_cast<int64_t>(ctx.pre_lens().size());
         auto concatenated = builder.concat(parts, axis);
-        return builder.match_shape(concatenated, ctx.target_shape());
+        return builder.match_shape(concatenated, ctx.output_dims());
     }
 };
 
@@ -1748,7 +1811,7 @@ struct tiled_pattern
             auto final_reshape = builder.reshape(transposed, final_dims);
             auto restored      = builder.restore_axis_position(
                 final_reshape, ctx.pre_lens().size(), 1, ctx.post_lens().size());
-            return builder.match_shape(restored, ctx.target_shape());
+            return builder.match_shape(restored, ctx.output_dims());
         }
     };
 
@@ -1838,7 +1901,7 @@ struct tiled_pattern
             auto reshaped = builder.reshape(first_mb, reshape_dims);
             auto final_mb = builder.multibroadcast(reshaped, to_int64_vec(output_lens));
 
-            return builder.match_shape(final_mb, ctx.target_shape());
+            return builder.match_shape(final_mb, ctx.output_dims());
         }
     };
 
@@ -1867,7 +1930,7 @@ struct tiled_pattern
             if(not is_identity_perm(perm))
                 current = builder.transpose(current, perm);
 
-            return builder.reshape(current, to_int64_vec(ctx.target_shape()));
+            return builder.reshape(current, to_int64_vec(ctx.output_dims()));
         }
     };
 
@@ -1893,7 +1956,7 @@ struct tiled_pattern
             {
                 current = builder.transpose(current, perm);
             }
-            return builder.reshape(current, to_int64_vec(ctx.target_shape()));
+            return builder.reshape(current, to_int64_vec(ctx.output_dims()));
         }
     };
 
@@ -2000,8 +2063,7 @@ struct tiled_pattern
     }
 
     static std::optional<multi_axis_stride_info>
-    detect_multi_axis_stride(const gather_context& ctx,
-                             const std::vector<std::size_t>& original_target_shape)
+    detect_multi_axis_stride(const gather_context& ctx)
     {
         if(ctx.axis_index() != 0)
             return std::nullopt;
@@ -2014,7 +2076,7 @@ struct tiled_pattern
         const auto& input_shape = input_ins->get_shape();
         const auto& input_lens  = input_shape.lens();
         // Use the original multi-dimensional target shape passed as parameter
-        auto target_shape       = original_target_shape;
+        auto target_shape       = ctx.output_dims();
         auto ndims              = input_lens.size();
         if(ndims == 0 or target_shape.empty())
             return std::nullopt;
@@ -2271,8 +2333,7 @@ struct tiled_pattern
 
     static std::optional<tiled_pattern> detect(const gather_context& ctx)
     {
-        // Use ctx.target_shape() as the original shape for this overload (no normalization)
-        if(auto info = detect_multi_axis_stride(ctx, ctx.target_shape()))
+        if(auto info = detect_multi_axis_stride(ctx))
             return tiled_pattern{std::move(*info)};
         return std::nullopt;
     }
@@ -2307,12 +2368,8 @@ struct tiled_pattern
 
     static std::optional<rectangular_info>
     detect_rectangular(const gather_context& ctx,
-                       const std::vector<index_segment>& segments,
-                       const std::vector<std::size_t>& original_target_shape)
+                       const std::vector<index_segment>& segments)
     {
-        if(ctx.axis_index() != 0)
-            return std::nullopt;
-
         if(segments.empty())
             return std::nullopt;
 
@@ -2321,22 +2378,8 @@ struct tiled_pattern
            }))
             return std::nullopt;
 
-        auto data_ins = ctx.data_ins();
-        if(data_ins->name() != "reshape" or data_ins->inputs().size() != 1)
-            return std::nullopt;
-
-        const auto& reshape_lens = data_ins->get_shape().lens();
-        if(reshape_lens.size() != 1)
-            return std::nullopt;
-
-        auto input_ins           = data_ins->inputs().front();
-        const auto& input_shape  = input_ins->get_shape();
-        const auto& in_lens_ref  = input_shape.lens();
-
-        // Use the original multi-dimensional target shape passed as parameter
-        // This is needed because when indices are normalized to 1D, ctx.target_shape()
-        // returns 1D shape, but we need the original multi-dimensional shape for validation
-        const auto& out_lens_ref = original_target_shape;
+        const auto& in_lens_ref  = ctx.data_dims();
+        const auto& out_lens_ref = ctx.output_dims();
 
         // Create output_shape from the original dimensions
         shape output_shape{ctx.indices_arg().get_shape().type(), out_lens_ref};
@@ -2439,9 +2482,6 @@ struct tiled_pattern
     static std::optional<arithmetic_grid_info>
     detect_arithmetic_grid(const gather_context& ctx, const std::vector<index_segment>& segments)
     {
-        if(ctx.axis_index() != 0)
-            return std::nullopt;
-
         if(segments.empty())
             return std::nullopt;
 
@@ -2450,20 +2490,9 @@ struct tiled_pattern
            }))
             return std::nullopt;
 
-        auto data_ins = ctx.data_ins();
-        if(data_ins->name() != "reshape" or data_ins->inputs().size() != 1)
-            return std::nullopt;
-
-        const auto& reshape_lens = data_ins->get_shape().lens();
-        if(reshape_lens.size() != 1)
-            return std::nullopt;
-
-        auto input_ins          = data_ins->inputs().front();
-        const auto& input_shape = input_ins->get_shape();
+        const auto& input_shape = ctx.data_ins()->get_shape();
         const auto& input_lens  = input_shape.lens();
         auto elements           = input_shape.elements();
-        if(elements != ctx.axis_len())
-            return std::nullopt;
 
         auto first_meta = std::get<arithmetic_segment_meta>(segments.front().metadata);
         auto tile_size  = static_cast<std::size_t>(first_meta.count);
@@ -2665,10 +2694,9 @@ struct tiled_pattern
     /// Detect tiled pattern
     static std::optional<tiled_pattern>
     detect(const gather_context& ctx,
-           const std::vector<index_segment>& segments,
-           const std::vector<std::size_t>& original_target_shape)
+           const std::vector<index_segment>& segments)
     {
-        if(auto rectangular = detect_rectangular(ctx, segments, original_target_shape))
+        if(auto rectangular = detect_rectangular(ctx, segments))
         {
             return tiled_pattern{std::move(*rectangular)};
         }
@@ -2683,7 +2711,7 @@ struct tiled_pattern
             return tiled_pattern{std::move(*arithmetic)};
         }
 
-        if(auto multi = detect_multi_axis_stride(ctx, original_target_shape))
+        if(auto multi = detect_multi_axis_stride(ctx))
         {
             return tiled_pattern{std::move(*multi)};
         }
@@ -2711,8 +2739,7 @@ struct tiled_pattern
 /// Returns the optimized instruction if successful, nullopt otherwise
 inline std::optional<instruction_ref>
 try_segment_based_optimization_1d(const gather_context& ctx,
-                                  gather_instruction_builder& builder,
-                                  const std::vector<std::size_t>& original_target_shape)
+                                  gather_instruction_builder& builder)
 {
     auto segments =
         index_segment::analyze(ctx.indices_values(), ctx.axis_len(), ctx.factor_candidates());
@@ -2747,7 +2774,7 @@ try_segment_based_optimization_1d(const gather_context& ctx,
         return split->transform(ctx, builder);
     }
 
-    if(auto tiled = tiled_pattern::detect(ctx, segments, original_target_shape))
+    if(auto tiled = tiled_pattern::detect(ctx, segments))
     {
         return tiled->transform(ctx, builder);
     }
@@ -2763,9 +2790,9 @@ inline bool try_segment_based_optimization(module& m,
                                            gather_instruction_builder& builder)
 {
     // For 1D or scalar indices, use direct optimization
-    if(ctx.idims().size() <= 1)
+    if(ctx.idims().size() == 1 and ctx.data_dims().size() == 1)
     {
-        auto result = try_segment_based_optimization_1d(ctx, builder, ctx.target_shape());
+        auto result = try_segment_based_optimization_1d(ctx, builder);
         if(not result.has_value())
             return false;
 
@@ -2773,25 +2800,18 @@ inline bool try_segment_based_optimization(module& m,
         return true;
     }
 
-    // For multi-dimensional indices, normalize to 1D
-    // Step 1: Flatten indices to 1D
-    std::size_t total_indices = product_of(ctx.idims());
+    auto data_1d = builder.match_shape(ctx.data_ins(), {ctx.data_ins()->get_shape().elements()});
 
-    // Step 2: Save the original multi-dimensional target shape before normalization
-    auto original_target_shape = ctx.target_shape();
+    auto new_indices = ctx.build_flat_gather_indices();
 
-    // Step 3: Create 1D context with reshaped indices
-    auto ctx_1d = gather_context::with_reshaped_indices(ctx, {total_indices});
+    gather_context ctx_1d(data_1d, 0, argument{shape{shape::int64_type, {new_indices.size()}}, new_indices.data()});
 
-    // Step 4: Try optimization with 1D context, passing the original shape
-    auto result_1d = try_segment_based_optimization_1d(ctx_1d, builder, original_target_shape);
-    if(not result_1d.has_value())
+    auto result = try_segment_based_optimization_1d(ctx_1d, builder);
+    if(not result.has_value())
         return false;
 
-    // Step 5: Reshape back to multi-dimensional output shape
-    // Final output shape is: pre_lens + idims + post_lens (this is ctx.target_shape())
-    auto final_result = builder.reshape(*result_1d, to_int64_vec(original_target_shape));
-    m.replace_instruction(ins, final_result);
+    auto reshaped = builder.match_shape(*result, ctx.output_dims());
+    m.replace_instruction(ins, reshaped);
     return true;
 }
 

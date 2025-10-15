@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,28 +21,36 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/tf/op_parser.hpp>
-#include <migraphx/tf/tf_parser.hpp>
-#include <migraphx/op/builder/insert.hpp>
+
+#include <migraphx/instruction.hpp>
+#include <migraphx/op/builder/op_builder.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/common.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace tf {
+namespace op {
+namespace builder {
 
-struct parse_cast : op_parser<parse_cast>
+struct convert : op_builder<convert>
 {
-    std::vector<op_desc> operators() const { return {{"Cast"}}; }
+    shape::type_t target_type;
 
-    instruction_ref parse(const op_desc& /*opd*/,
-                          const tf_parser& parser,
-                          tf_parser::node_info info,
-                          const std::vector<instruction_ref>& args) const
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
     {
-        shape::type_t type = parser.parse_type(info.attributes.at("DstT").type());
-        return op::builder::add("convert", *info.mm, args, {{"target_type", type}}).at(0);
+        return pack(f(self.target_type, "target_type"));
+    }
+
+    std::vector<instruction_ref>
+    insert(module& m, instruction_ref /*ins*/, const std::vector<instruction_ref>& args) const
+    {
+        return {
+            m.add_instruction(migraphx::make_op("convert", {{"target_type", target_type}}), args)};
     }
 };
 
-} // namespace tf
+} // namespace builder
+} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

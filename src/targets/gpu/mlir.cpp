@@ -767,8 +767,7 @@ struct mlir_program
             transform(
                 ins->inputs(), std::back_inserter(inputs), [&](auto i) { return ins_map.at(i); });
 
-            if(ins->name() == "quant_dot" and
-               ins->inputs().size() == 4 and
+            if(ins->name() == "quant_dot" and ins->inputs().size() == 4 and
                ins->inputs().front()->get_shape().type() == shape::fp8e4m3fn_type)
             {
                 // Specify operand segment sizes BEFORE creating the operation so MLIR sees it.

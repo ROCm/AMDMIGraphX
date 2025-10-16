@@ -1605,7 +1605,8 @@ struct arithmetic_segment_meta
             // We need to extract every stride-th element starting from base
             // Use slice + step: start=base, end=base+count*stride, step=stride
             int64_t max_index = base + count * stride;
-            auto sliced = builder.slice_with_step(ctx.data_ins(), {0}, {base}, {max_index}, {stride});
+            auto sliced =
+                builder.slice_with_step(ctx.data_ins(), {0}, {base}, {max_index}, {stride});
 
             // After slice + step with stride, we have exactly `count` elements along axis 0
             // Reshape to final dimensions
@@ -1618,7 +1619,6 @@ struct arithmetic_segment_meta
         return builder.match_shape(reshaped, ctx.output_dims());
     }
 };
-
 
 /// Metadata for RTR window segment
 struct rtr_window_segment_meta

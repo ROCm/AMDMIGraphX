@@ -2119,7 +2119,7 @@ TEST_CASE(gather_constant_stride_indices_1d)
         auto slice1 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {13}}}), data);
         auto reshape = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 4}}}), slice1);
-        auto slice2 = m2.add_instruction(
+        auto slice2  = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), reshape);
         auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), slice2);
         m2.add_return({squeeze});
@@ -2143,11 +2143,12 @@ TEST_CASE(gather_constant_stride_divisible_indices_1d)
 
     migraphx::module m2;
     {
-        auto s     = migraphx::shape{migraphx::shape::float_type, {30}};
-        auto data  = m2.add_parameter("data", s);
+        auto s       = migraphx::shape{migraphx::shape::float_type, {30}};
+        auto data    = m2.add_parameter("data", s);
         auto reshape = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {6, 5}}}), data);
-        auto slice = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {0, 0}}, {"ends", {3, 1}}}), reshape);
+        auto slice   = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {0, 0}}, {"ends", {3, 1}}}),
+            reshape);
         auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), slice);
         m2.add_return({squeeze});
     }
@@ -2170,10 +2171,10 @@ TEST_CASE(gather_constant_stride_divisible_both_indices_1d)
 
     migraphx::module m2;
     {
-        auto s     = migraphx::shape{migraphx::shape::float_type, {15}};
-        auto data  = m2.add_parameter("data", s);
+        auto s       = migraphx::shape{migraphx::shape::float_type, {15}};
+        auto data    = m2.add_parameter("data", s);
         auto reshape = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 5}}}), data);
-        auto slice = m2.add_instruction(
+        auto slice   = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), reshape);
         auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), slice);
         m2.add_return({squeeze});

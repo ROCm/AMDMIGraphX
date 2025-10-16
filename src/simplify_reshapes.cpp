@@ -984,6 +984,12 @@ class gather_instruction_builder
                                     const std::vector<int64_t>& ends,
                                     const std::vector<int64_t>& steps)
     {
+        if(std::all_of(steps.begin(), steps.end(), [](int64_t step) { return step == 1; }))
+        {
+            // No steps, just do a slice
+            return slice(input, axes, starts, ends);
+        }
+
         auto input_shape = input->get_shape().lens();
 
         // Check if we can optimize: reshape->slice->squeeze instead of
@@ -1571,7 +1577,7 @@ struct arithmetic_segment_meta
             return std::nullopt;
         auto base   = *begin;
         auto stride = *(std::next(begin)) - base;
-        if(stride <= 1 or base < 0 or base >= stride)
+        if(base < 0)
             return std::nullopt;
         auto diff = std::adjacent_find(begin, end, [&](auto x, auto y) { return y - x != stride; });
         if(diff != end)
@@ -1588,22 +1594,31 @@ struct arithmetic_segment_meta
     /// Transform arithmetic segment into instructions
     instruction_ref transform(const gather_context& ctx, gather_instruction_builder& builder) const
     {
-        // For arithmetic patterns: indices = base + k*stride for k in [0, count)
-        // We need to extract every stride-th element starting from base
-        // Use slice + step: start=base, end=base+count*stride, step=stride
-        auto max_index = base + static_cast<int64_t>(count) * stride;
-        auto sliced = builder.slice_with_step(ctx.data_ins(), {0}, {base}, {max_index}, {stride});
+        instruction_ref reshaped;
+        if(stride == 0)
+        {
+            reshaped = builder.slice(ctx.data_ins(), {0}, {base}, {base + 1});
+        }
+        else
+        {
+            // For arithmetic patterns: indices = base + k*stride for k in [0, count)
+            // We need to extract every stride-th element starting from base
+            // Use slice + step: start=base, end=base+count*stride, step=stride
+            int64_t max_index = base + count * stride;
+            auto sliced = builder.slice_with_step(ctx.data_ins(), {0}, {base}, {max_index}, {stride});
 
-        // After slice + step with stride, we have exactly `count` elements along axis 0
-        // Reshape to final dimensions
-        std::vector<int64_t> final_dims = {static_cast<int64_t>(count)};
-        auto rest                       = ctx.rest_lens(); // Store to ensure lifetime
-        final_dims.insert(final_dims.end(), rest.begin(), rest.end());
-        auto reshaped = builder.reshape(sliced, final_dims);
+            // After slice + step with stride, we have exactly `count` elements along axis 0
+            // Reshape to final dimensions
+            std::vector<int64_t> final_dims = {static_cast<int64_t>(count)};
+            auto rest                       = ctx.rest_lens(); // Store to ensure lifetime
+            final_dims.insert(final_dims.end(), rest.begin(), rest.end());
+            reshaped = builder.reshape(sliced, final_dims);
+        }
 
         return builder.match_shape(reshaped, ctx.output_dims());
     }
 };
+
 
 /// Metadata for RTR window segment
 struct rtr_window_segment_meta
@@ -1762,15 +1777,7 @@ struct index_segment
                                 std::size_t len,
                                 const std::vector<std::vector<std::size_t>>& factor_candidates)
     {
-        if(auto meta = constant_segment_meta::detect(indices, pos, len))
-        {
-            return index_segment{pos, len, *meta};
-        }
-        else if(auto meta_cont = contiguous_segment_meta::detect(indices, pos, len))
-        {
-            return index_segment{pos, len, *meta_cont};
-        }
-        else if(auto meta_arith = arithmetic_segment_meta::detect(indices, pos, len))
+        if(auto meta_arith = arithmetic_segment_meta::detect(indices, pos, len))
         {
             return index_segment{pos, len, *meta_arith};
         }

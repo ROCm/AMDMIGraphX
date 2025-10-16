@@ -53,7 +53,7 @@ TEST_CASE(mha_double_head_bias_mask_batch1_passthrough_mask_test)
     std::vector<float> bias_data(12, 0.0f);
 
     migraphx::shape mask_shape{migraphx::shape::int32_type, {1, 2}};
-    std::vector<float> mask_data = {1, 1};
+    std::vector<int32_t> mask_data = {1, 1};
 
     migraphx::literal query{q_shape, query_data};
     migraphx::literal key{k_shape, key_data};
@@ -113,7 +113,7 @@ TEST_CASE(mha_double_head_bias_mask_batch1_last_mask_test)
 
     // 0 = mask,1  = pass through
     migraphx::shape mask_shape{migraphx::shape::int32_type, {1, 2}};
-    std::vector<float> mask_data = {1, 0};
+    std::vector<int32_t> mask_data = {1, 0};
 
     migraphx::literal query{q_shape, query_data};
     migraphx::literal key{k_shape, key_data};
@@ -172,7 +172,7 @@ TEST_CASE(mha_double_head_bias_mask_batch1_first_mask_test)
                                     0.85529f};
 
     migraphx::shape mask_shape{migraphx::shape::int32_type, {1, 2}};
-    std::vector<float> mask_data = {0, 1};
+    std::vector<int32_t> mask_data = {0, 1};
 
     migraphx::literal query{q_shape, query_data};
     migraphx::literal key{k_shape, key_data};
@@ -231,7 +231,7 @@ TEST_CASE(mha_double_head_bias_mask_batch1_all_mask_test)
                                     0.84921235f};
 
     migraphx::shape mask_shape{migraphx::shape::int32_type, {1, 2}};
-    std::vector<float> mask_data = {0, 0};
+    std::vector<int32_t> mask_data = {0, 0};
 
     migraphx::literal query{q_shape, query_data};
     migraphx::literal key{k_shape, key_data};

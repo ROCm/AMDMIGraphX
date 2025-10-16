@@ -153,18 +153,10 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
                     {{"kv_num_heads", kv_num_heads}, {"num_heads", num_heads}}),
             concat_v_inputs);
 
-        // Adding 1 to seq_lens_k, aka past_seq_lens, to allow range literals to start at 0.
-        // Putting the add inside the mlir module currently causes an error on their side,
-        // so we're leaving it here until that can be solved.
-        auto one_lit = info.add_literal(literal{shape{args.at(5)->get_shape().type(), {1}}, {1}});
-        one_lit      = info.add_instruction(
-            make_op("multibroadcast", {{"out_lens", args.at(5)->get_shape().lens()}}), one_lit);
-        auto total_sl = info.add_instruction(make_op("add"), args.at(5), one_lit);
-
         auto kv_num_heads_factor = num_heads / kv_num_heads;
         auto max_seq_len         = k->get_shape().lens()[2];
-        total_sl                 = info.add_instruction(
-            make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), total_sl);
+        auto past_sl                 = info.add_instruction(
+            make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), slk);
 
         auto q = info.add_instruction(
             make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {num_heads}}}), rotary_qkv);
@@ -189,7 +181,7 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
 
         std::vector<int> range_vec(max_seq_len);
         std::iota(range_vec.begin(), range_vec.end(), 0);
-        shape range_s{total_sl->get_shape().type(), {max_seq_len}};
+        shape range_s{past_sl->get_shape().type(), {max_seq_len}};
         auto range = info.add_literal(range_s, range_vec);
         std::vector<std::size_t> bnsm{batch_size, num_heads, sequence_length, max_seq_len};
         auto bc_range =
@@ -208,12 +200,13 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
             info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), scale_ins);
         auto mul = info.add_instruction(make_op("mul"), gemm1, scale_ins);
 
+        instruction_ref seq_range;
         if(sequence_length > 1)
         {
             std::vector<int> seq_range_vec(sequence_length);
             std::iota(seq_range_vec.begin(), seq_range_vec.end(), 0);
-            shape seq_range_s{total_sl->get_shape().type(), {sequence_length}};
-            auto seq_range = info.add_literal(seq_range_s, seq_range_vec);
+            shape seq_range_s{past_sl->get_shape().type(), {sequence_length}};
+            seq_range = info.add_literal(seq_range_s, seq_range_vec);
             seq_range = info.add_instruction(make_op("reshape", {{"dims", {sequence_length, 1}}}),
                                              seq_range);
             seq_range =
@@ -224,10 +217,21 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
             mul = info.add_instruction(make_op("where"), causal_mask, ninf, mul);
         }
 
-        auto bc_total_sl = info.add_instruction(
-            make_op("reshape", {{"dims", {batch_size, num_heads, 1, 1}}}), total_sl);
+        auto bc_past_sl = info.add_instruction(
+            make_op("reshape", {{"dims", {batch_size, num_heads, 1, 1}}}), past_sl);
         auto mask_comp =
-            info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), bc_total_sl);
+            info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), bc_past_sl);
+        if(local_window_size > 0)
+        {
+            bool is_prompt = sequence_length > 1;
+            auto window_size_lit = info.add_literal(migraphx::literal{migraphx::shape{past_sl->get_shape().type(), {1}}, {is_prompt ? -local_window_size : -(local_window_size+1)}});
+            window_size_lit = info.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}), window_size_lit);
+            auto window_comp = info.add_instruction(migraphx::make_op("add"), is_prompt ? seq_range : mask_comp, window_size_lit);
+            auto window_mask = info.add_instruction(migraphx::make_op("greater"), window_comp, bc_range);
+            window_mask      = info.add_instruction(
+                migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), window_mask);
+            mul   = info.add_instruction(migraphx::make_op("where"), window_mask, ninf, mul);
+        }
         auto mask = info.add_instruction(make_op("greater"), bc_range, mask_comp);
         mask = info.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), mask);
         auto where   = info.add_instruction(make_op("where"), mask, ninf, mul);

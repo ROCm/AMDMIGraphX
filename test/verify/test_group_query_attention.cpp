@@ -38,7 +38,8 @@ migraphx::program create_gqa_program(const size_t batch_size,
                                      const bool do_rotary,
                                      const float scale,
                                      const bool test_rotary = false,
-                                     const bool test_concat = false)
+                                     const bool test_concat = false,
+                                     const int local_window_size = -1)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -123,18 +124,10 @@ migraphx::program create_gqa_program(const size_t batch_size,
         return p;
     }
 
-    // Adding 1 to seq_lens_k, aka past_seq_lens, to allow range literals to start at 0.
-    // Putting the add inside the mlir module currently causes an error on their side,
-    // so we're leaving it here until that can be solved.
-    auto one_lit = mm->add_literal(migraphx::literal{migraphx::shape{slk_s.type(), {1}}, {1}});
-    one_lit = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", slk_s.lens()}}),
-                                  one_lit);
-    auto total_sl = mm->add_instruction(migraphx::make_op("add"), slk, one_lit);
-
     auto kv_num_heads_factor = num_heads / kv_num_heads;
     auto max_seq_len         = kv_s.lens()[2];
-    total_sl                 = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), total_sl);
+    auto past_sl                 = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), slk);
 
     auto q = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {num_heads}}}),
@@ -177,12 +170,13 @@ migraphx::program create_gqa_program(const size_t batch_size,
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}), scale_ins);
     auto mul = mm->add_instruction(migraphx::make_op("mul"), gemm1, scale_ins);
 
+    migraphx::instruction_ref seq_range;
     if(sequence_length > 1)
     {
         std::vector<int> seq_range_vec(sequence_length);
         std::iota(seq_range_vec.begin(), seq_range_vec.end(), 0);
         migraphx::shape seq_range_s{slk_s.type(), {sequence_length}};
-        auto seq_range = mm->add_literal(seq_range_s, seq_range_vec);
+        seq_range = mm->add_literal(seq_range_s, seq_range_vec);
         seq_range      = mm->add_instruction(
             migraphx::make_op("reshape", {{"dims", {sequence_length, 1}}}), seq_range);
         seq_range = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}),
@@ -194,10 +188,23 @@ migraphx::program create_gqa_program(const size_t batch_size,
         mul = mm->add_instruction(migraphx::make_op("where"), causal_mask, ninf, mul);
     }
 
-    auto bc_total_sl = mm->add_instruction(
-        migraphx::make_op("reshape", {{"dims", {batch_size, num_heads, 1, 1}}}), total_sl);
+    auto bc_past_sl = mm->add_instruction(
+        migraphx::make_op("reshape", {{"dims", {batch_size, num_heads, 1, 1}}}), past_sl);
     auto mask_comp =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}), bc_total_sl);
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}), bc_past_sl);
+
+    if(local_window_size > 0)
+    {
+        bool is_prompt = sequence_length > 1;
+        auto window_size_lit = mm->add_literal(migraphx::literal{migraphx::shape{slk_s.type(), {1}}, {is_prompt ? -local_window_size : -(local_window_size+1)}});
+        window_size_lit = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}), window_size_lit);
+        auto window_comp = mm->add_instruction(migraphx::make_op("add"), is_prompt ? seq_range : mask_comp, window_size_lit);
+        auto window_mask = mm->add_instruction(migraphx::make_op("greater"), window_comp, bc_range);
+        window_mask      = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), window_mask);
+        mul   = mm->add_instruction(migraphx::make_op("where"), window_mask, ninf, mul);
+    }
+
     auto mask = mm->add_instruction(migraphx::make_op("greater"), bc_range, mask_comp);
     mask      = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), mask);
@@ -348,5 +355,46 @@ struct test_group_query_attention_concat_only
                                   /* scale=                */ 1.0 / sqrt(128.0),
                                   /* test_rotary=          */ false,
                                   /* test_concat=          */ true);
+    }
+};
+
+struct test_group_query_attention_prefill_local
+    : verify_program<test_group_query_attention_prefill_local>
+{
+    migraphx::program create_program() const
+    {
+        return create_gqa_program(/* batch_size=           */ 1,
+                                  /* num_heads=            */ 2,
+                                  /* kv_num_heads=         */ 2,
+                                  /* sequence_length=      */ 4,
+                                  /* head_size=            */ 2,
+                                  /* past_sequence_length= */ 4,
+                                  /* max_sequence_length=  */ 6,
+                                  /* do_rotary_embedding=  */ true,
+                                  /* scale=                */ 0.5,
+                                  /* test_rotary=          */ false,
+                                  /* test_concat=          */ false,
+                                  /* local_window_size=    */ 2);
+    }
+};
+
+
+struct test_group_query_attention_decode_local
+    : verify_program<test_group_query_attention_decode_local>
+{
+    migraphx::program create_program() const
+    {
+        return create_gqa_program(/* batch_size=           */ 1,
+                                  /* num_heads=            */ 2,
+                                  /* kv_num_heads=         */ 2,
+                                  /* sequence_length=      */ 1,
+                                  /* head_size=            */ 2,
+                                  /* past_sequence_length= */ 4,
+                                  /* max_sequence_length=  */ 8,
+                                  /* do_rotary_embedding=  */ true,
+                                  /* scale=                */ 0.5,
+                                  /* test_rotary=          */ false,
+                                  /* test_concat=          */ false,
+                                  /* local_window_size=    */ 2);
     }
 };

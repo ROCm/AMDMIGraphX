@@ -52,7 +52,7 @@ Full documentation for MIGraphX is available at
 * Fixed `reshape`, `transpose`, and `broadcast` rewrites between pointwise and reduce operators (#3978).
 * Fixed extraneous include file in HIPRTC-based compilation (#4130).
 * Fixed CI Perl dependency issue for SLES builds (#4254).
-* Fixed compiler warnings for ROCm 7.0 of ``error: unknown warning option '-Wnrvo'``(#4192).
+* Fixed compiler warnings for ROCm 7.0 of ``error: unknown warning option '-Wnrvo'`` (#4192).
 
 ### Optimized
 

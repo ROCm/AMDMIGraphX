@@ -44,7 +44,9 @@ static bool is_dot(const migraphx::instruction& ins) { return ins.name() == "dot
 
 static void run_pass(migraphx::module& m)
 {
-    run_passes(m, {migraphx::simplify_qdq{.remove_qdq_only=false, .use_mx_quant=true}, migraphx::dead_code_elimination{}});
+    run_passes(m,
+               {migraphx::simplify_qdq{.remove_qdq_only = false, .use_mx_quant = true},
+                migraphx::dead_code_elimination{}});
 }
 
 static void run_cse(migraphx::module& m)
@@ -1456,7 +1458,7 @@ TEST_CASE(dot_reused)
         auto out_scale2 = add_scale_mul(m2, scale, scale, 1, 1, sh.lens());
         auto d2         = add_quantize_op(m2, "dequantizelinear", dot2, out_scale2);
         auto d3         = add_quantize_op(m2, "dequantizelinear", q3, q3->inputs()[1]);
-        auto add2 = m2.add_instruction(migraphx::make_op("add"), d2, d3);
+        auto add2       = m2.add_instruction(migraphx::make_op("add"), d2, d3);
         m2.add_return({add2});
     }
 

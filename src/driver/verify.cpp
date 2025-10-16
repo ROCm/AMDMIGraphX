@@ -35,6 +35,7 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/verify_args.hpp>
+#include <migraphx/simplify_qdq.hpp>
 #include <utility>
 
 namespace migraphx {
@@ -97,11 +98,8 @@ static std::vector<argument> run_ref(program p,
 {
     if(vo.ref_use_double)
     {
-        run_passes(p, {
-            fp_to_double{},
-            simplify_qdq{.remove_qdq_only = true},
-            dead_code_elimination{}
-        });
+        run_passes(
+            p, {fp_to_double{}, simplify_qdq{.remove_qdq_only = true}, dead_code_elimination{}});
     }
     p.compile(migraphx::make_target("ref"), options);
     auto out = p.eval(inputs);

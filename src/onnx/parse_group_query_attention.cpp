@@ -155,7 +155,7 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
 
         auto kv_num_heads_factor = num_heads / kv_num_heads;
         auto max_seq_len         = k->get_shape().lens()[2];
-        auto past_sl                 = info.add_instruction(
+        auto past_sl             = info.add_instruction(
             make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), slk);
 
         auto q = info.add_instruction(
@@ -223,14 +223,20 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
             info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), bc_past_sl);
         if(local_window_size > 0)
         {
-            bool is_prompt = sequence_length > 1;
-            auto window_size_lit = info.add_literal(migraphx::literal{migraphx::shape{past_sl->get_shape().type(), {1}}, {is_prompt ? -local_window_size : -(local_window_size+1)}});
-            window_size_lit = info.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}), window_size_lit);
-            auto window_comp = info.add_instruction(migraphx::make_op("add"), is_prompt ? seq_range : mask_comp, window_size_lit);
-            auto window_mask = info.add_instruction(migraphx::make_op("greater"), window_comp, bc_range);
-            window_mask      = info.add_instruction(
-                migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), window_mask);
-            mul   = info.add_instruction(migraphx::make_op("where"), window_mask, ninf, mul);
+            bool is_prompt       = sequence_length > 1;
+            auto window_size_lit = info.add_literal(
+                migraphx::literal{migraphx::shape{past_sl->get_shape().type(), {1}},
+                                  {is_prompt ? -local_window_size : -(local_window_size + 1)}});
+            window_size_lit = info.add_instruction(
+                migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}), window_size_lit);
+            auto window_comp = info.add_instruction(
+                migraphx::make_op("add"), is_prompt ? seq_range : mask_comp, window_size_lit);
+            auto window_mask =
+                info.add_instruction(migraphx::make_op("greater"), window_comp, bc_range);
+            window_mask = info.add_instruction(
+                migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}),
+                window_mask);
+            mul = info.add_instruction(migraphx::make_op("where"), window_mask, ninf, mul);
         }
         auto mask = info.add_instruction(make_op("greater"), bc_range, mask_comp);
         mask = info.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), mask);

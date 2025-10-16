@@ -37,8 +37,8 @@ migraphx::program create_gqa_program(const size_t batch_size,
                                      const size_t max_sequence_length,
                                      const bool do_rotary,
                                      const float scale,
-                                     const bool test_rotary = false,
-                                     const bool test_concat = false,
+                                     const bool test_rotary      = false,
+                                     const bool test_concat      = false,
                                      const int local_window_size = -1)
 {
     migraphx::program p;
@@ -126,7 +126,7 @@ migraphx::program create_gqa_program(const size_t batch_size,
 
     auto kv_num_heads_factor = num_heads / kv_num_heads;
     auto max_seq_len         = kv_s.lens()[2];
-    auto past_sl                 = mm->add_instruction(
+    auto past_sl             = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), slk);
 
     auto q = mm->add_instruction(
@@ -176,7 +176,7 @@ migraphx::program create_gqa_program(const size_t batch_size,
         std::vector<int> seq_range_vec(sequence_length);
         std::iota(seq_range_vec.begin(), seq_range_vec.end(), 0);
         migraphx::shape seq_range_s{slk_s.type(), {sequence_length}};
-        seq_range = mm->add_literal(seq_range_s, seq_range_vec);
+        seq_range      = mm->add_literal(seq_range_s, seq_range_vec);
         seq_range      = mm->add_instruction(
             migraphx::make_op("reshape", {{"dims", {sequence_length, 1}}}), seq_range);
         seq_range = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}),
@@ -195,14 +195,19 @@ migraphx::program create_gqa_program(const size_t batch_size,
 
     if(local_window_size > 0)
     {
-        bool is_prompt = sequence_length > 1;
-        auto window_size_lit = mm->add_literal(migraphx::literal{migraphx::shape{slk_s.type(), {1}}, {is_prompt ? -local_window_size : -(local_window_size+1)}});
-        window_size_lit = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}), window_size_lit);
-        auto window_comp = mm->add_instruction(migraphx::make_op("add"), is_prompt ? seq_range : mask_comp, window_size_lit);
+        bool is_prompt       = sequence_length > 1;
+        auto window_size_lit = mm->add_literal(
+            migraphx::literal{migraphx::shape{slk_s.type(), {1}},
+                              {is_prompt ? -local_window_size : -(local_window_size + 1)}});
+        window_size_lit = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}), window_size_lit);
+        auto window_comp = mm->add_instruction(
+            migraphx::make_op("add"), is_prompt ? seq_range : mask_comp, window_size_lit);
         auto window_mask = mm->add_instruction(migraphx::make_op("greater"), window_comp, bc_range);
         window_mask      = mm->add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), window_mask);
-        mul   = mm->add_instruction(migraphx::make_op("where"), window_mask, ninf, mul);
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}),
+            window_mask);
+        mul = mm->add_instruction(migraphx::make_op("where"), window_mask, ninf, mul);
     }
 
     auto mask = mm->add_instruction(migraphx::make_op("greater"), bc_range, mask_comp);
@@ -377,7 +382,6 @@ struct test_group_query_attention_prefill_local
                                   /* local_window_size=    */ 2);
     }
 };
-
 
 struct test_group_query_attention_decode_local
     : verify_program<test_group_query_attention_decode_local>

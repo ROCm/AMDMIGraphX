@@ -1026,6 +1026,7 @@ class gather_instruction_builder
                     if(step_val == 1)
                     {
                         reshape_dims.push_back(length);
+                        reshape_dim_idx++;
                     }
                     else
                     {
@@ -1035,19 +1036,24 @@ class gather_instruction_builder
                         reshape_dims.push_back(num_blocks);
                         reshape_dims.push_back(step_val);
 
-                        // Slice to get the range we want: [start/step, end/step) on the blocks
-                        // dimension
-                        final_slice_axes.push_back(static_cast<int64_t>(reshape_dim_idx));
-                        final_slice_starts.push_back(start_val / step_val);
-                        final_slice_ends.push_back(end_val / step_val);
+                        auto block_start = start_val / step_val;
+                        auto block_end   = end_val / step_val;
+
+                        // Only slice the block dimension if we don't want all blocks
+                        if(block_start != 0 or block_end != num_blocks)
+                        {
+                            final_slice_axes.push_back(static_cast<int64_t>(reshape_dim_idx));
+                            final_slice_starts.push_back(block_start);
+                            final_slice_ends.push_back(block_end);
+                        }
                         reshape_dim_idx++; // Account for the block dimension
 
                         // Slice to keep only index 0 of the step dimension
                         final_slice_axes.push_back(static_cast<int64_t>(reshape_dim_idx));
                         final_slice_starts.push_back(0);
                         final_slice_ends.push_back(1);
+                        reshape_dim_idx++; // Account for the step dimension
                     }
-                    reshape_dim_idx++;
                 }
                 else
                 {
@@ -1063,10 +1069,23 @@ class gather_instruction_builder
                 auto final_sliced =
                     slice(reshaped, final_slice_axes, final_slice_starts, final_slice_ends);
 
-                // Squeeze out the sliced dimensions (which are now size 1)
-                std::vector<int64_t> squeeze_axes = final_slice_axes;
-                return m.insert_instruction(
-                    insert_before, make_op("squeeze", {{"axes", squeeze_axes}}), final_sliced);
+                // Squeeze out only the dimensions that were sliced to size 1
+                // (i.e., the step dimension slices where end - start == 1)
+                std::vector<int64_t> squeeze_axes;
+                for(std::size_t i = 0; i < final_slice_axes.size(); ++i)
+                {
+                    if(final_slice_ends[i] - final_slice_starts[i] == 1)
+                    {
+                        squeeze_axes.push_back(final_slice_axes[i]);
+                    }
+                }
+
+                if(not squeeze_axes.empty())
+                {
+                    return m.insert_instruction(
+                        insert_before, make_op("squeeze", {{"axes", squeeze_axes}}), final_sliced);
+                }
+                return final_sliced;
             }
 
             return reshaped;

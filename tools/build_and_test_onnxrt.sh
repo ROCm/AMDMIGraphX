@@ -26,6 +26,10 @@ set -e
 
 ulimit -c unlimited
 
+# Copy these over in local runs but silence them in CI
+cp tools/pai_test_launcher.sh /onnxruntime/tools/ci_build/github/pai/pai_test_launcher.sh 2>/dev/null || :
+[ -f tools/pai_provider_test_launcher.sh ] && cp tools/pai_provider_test_launcher.sh /onnxruntime/tools/ci_build/github/pai/pai_provider_test_launcher.sh
+
 cd /onnxruntime
 pip3 install -r requirements-dev.txt
 # Add newer cmake to the path
@@ -43,3 +47,4 @@ echo 'InferenceSessionTests.CheckRunProfilerWithSessionOptions2' >> ../../../too
 echo 'InferenceSessionTests.Test3LayerNestedSubgraph' >> ../../../tools/ci_build/github/pai/migraphx-excluded-tests.txt
 echo 'InferenceSessionTests.Test2LayerNestedSubgraph' >> ../../../tools/ci_build/github/pai/migraphx-excluded-tests.txt
 ../../../tools/ci_build/github/pai/pai_test_launcher.sh || (gdb ./onnxruntime_test_all core -batch -ex bt && exit 1)
+../../../tools/ci_build/github/pai/pai_provider_test_launcher.sh || (gdb ./onnxruntime_provider_test core -batch -ex bt && exit 1)

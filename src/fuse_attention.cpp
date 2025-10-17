@@ -313,6 +313,7 @@ struct find_flash_decoding
         const std::unordered_map<instruction_ref, instruction_ref>& param_map) const {
         // map from instructions in the old module to the new ones in the target module
         std::unordered_map<instruction_ref, instruction_ref> map_old_to_new = param_map;
+        std::unordered_map<std::string, instruction_ref> softmax_parts;
 
         for(auto it = source_mod.begin(); it != source_mod.end(); ++it)
         {
@@ -365,16 +366,23 @@ struct find_flash_decoding
 
             auto new_ins = target_mod.add_instruction(op, new_inputs);
             map_old_to_new[ins] = new_ins;
+
+            // store key softmax components for LSE calculation
+            if(op.name() == "reduce_max") softmax_parts["max"] = new_ins;
+            if(op.name() == "reduce_sum") softmax_parts["sum_exp"] = new_ins;
         }
 
-        auto orig_return = std::prev(source_mod.end());
-        std::vector<instruction_ref> new_return_inputs;
-        std::transform(orig_return->inputs().begin(),
-                    orig_return->inputs().end(),
-                    std::back_inserter(new_return_inputs),
-                    [&](auto i) { return map_old_to_new.at(i); });
+        // get the final partial output (O')
+        auto orig_return_ins = std::prev(source_mod.end())->inputs().front();
+        auto partial_output_O_prime = map_old_to_new.at(orig_return_ins);
 
-        target_mod.add_return(new_return_inputs);
+        // calculate LSE = max(S) + log(sum(exp(S - max(S))))
+        assert(contains(softmax_parts, "max") and contains(softmax_parts, "sum_exp"));
+        auto log_sum_exp = target_mod.add_instruction(make_op("log"), softmax_parts["sum_exp"]);
+        auto lse = target_mod.add_instruction(make_op("add"), softmax_parts["max"], log_sum_exp);
+
+        // return a tuple of {O', LSE}
+        target_mod.add_return({partial_output_O_prime, lse});
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
@@ -430,22 +438,24 @@ struct find_flash_decoding
         auto V = map_param_to_main.at(V_param);
 
         // insert reshape operations before group, for Q, K, V
+        auto q_ndim = Q->get_shape().lens().size();
+        int64_t G_axis = q_ndim - 2;
+
         auto Q_unsqueeze = mm.insert_instruction(
             attn_group_ins,
-            make_op("unsqueeze", {{"axes", {-3}}}), // spatial are last 2
+            make_op("unsqueeze", {{"axes", {G_axis}}}),
             Q);
-
 
         auto Q_reshaped = mm.insert_instruction(
             attn_group_ins,
             make_op("multibroadcast", {{"out_lens", Qp_shape}}),
             Q_unsqueeze);
-            
+                
         auto K_reshaped = mm.insert_instruction(
             attn_group_ins,
             make_op("reshape", {{"dims", Kp_shape}}),
             K);
-            
+                
         auto V_reshaped = mm.insert_instruction(
             attn_group_ins,
             make_op("reshape", {{"dims", Vp_shape}}),
@@ -488,33 +498,66 @@ struct find_flash_decoding
         
         // don't simply fuse, need to update lots
         rebuild_attention_submodule(m_flash_decode, *submod, map_old_params_to_new);
-        
-        std::cout << "flash decoding, new attn mod with rebuilt logic:\n";
+
+        std::cout << "flash decoding, new attn mod with {O', LSE} output:\n";
         m_flash_decode.debug_print();
 
-        auto original_submod = attn_group_ins->module_inputs().front();
-        std::string new_mod_name = original_submod->name() + "_flash_decoding";
+        auto original_submod_name = attn_group_ins->module_inputs().front()->name();
+        std::string new_mod_name = original_submod_name + "_flash_decoding";
 
         module_ref mpm_flash_mod = mpm.create_module(new_mod_name, std::move(m_flash_decode));
         mpm_flash_mod->set_bypass();
 
+        // insert the new group op, which now returns a tuple
         auto new_group_ins = mm.insert_instruction(
             attn_group_ins,
             make_op("group", {{"tag", "attention"}}),
             new_group_inputs,
-            {mpm_flash_mod} 
-        );
+            {mpm_flash_mod});
 
-        std::cout << "flash decoding, inserted new group:\n";
-        mm.debug_print();
-        mm.replace_instruction(attn_group_ins, new_group_ins);
+        // unpack O' and LSE
+        auto partial_output_O_prime = mm.insert_instruction(
+            attn_group_ins, make_op("get_tuple_elem", {{"index", 0}}), new_group_ins);
+        auto lse = mm.insert_instruction(
+            attn_group_ins, make_op("get_tuple_elem", {{"index", 1}}), new_group_ins);
 
+        // kernel 2
 
-        // TODO need LSE and get_tuple_elem
-        // need kernel 2 instructions added to mm
+        // scale = softmax(L, axis=G_axis)
+        auto lse_max = mm.insert_instruction(
+            attn_group_ins, make_op("reduce_max", {{"axes", {G_axis}}}), lse);
+        auto lse_max_bcast = mm.insert_instruction(
+            attn_group_ins, make_op("multibroadcast", {{"out_lens", lse->get_shape().lens()}}), lse_max);
+        auto lse_sub = mm.insert_instruction(attn_group_ins, make_op("sub"), lse, lse_max_bcast);
+        auto lse_exp = mm.insert_instruction(attn_group_ins, make_op("exp"), lse_sub);
+        auto lse_sum = mm.insert_instruction(
+            attn_group_ins, make_op("reduce_sum", {{"axes", {G_axis}}}), lse_exp);
+        auto lse_sum_bcast = mm.insert_instruction(
+            attn_group_ins, make_op("multibroadcast", {{"out_lens", lse_exp->get_shape().lens()}}), lse_sum);
+        auto scale = mm.insert_instruction(attn_group_ins, make_op("div"), lse_exp, lse_sum_bcast);
 
+        auto scale_bcast = mm.insert_instruction(
+            attn_group_ins,
+            make_op("multibroadcast", {{"out_lens", partial_output_O_prime->get_shape().lens()}}),
+            scale);
+
+        // R = mul(O', broadcasted_scale)
+        auto scaled_R = mm.insert_instruction(attn_group_ins, make_op("mul"), partial_output_O_prime, scale_bcast);
+
+        // O = sum(R, axis=G_axis)
+        auto final_output_O = mm.insert_instruction(
+            attn_group_ins, make_op("reduce_sum", {{"axes", {G_axis}}}), scaled_R);
+
+        // squeeze G to match the original output shape
+        auto final_squeezed_O = mm.insert_instruction(
+            attn_group_ins, make_op("squeeze", {{"axes", {G_axis}}}), final_output_O);
+
+        // replace the original group instruction with the final result
+        mm.replace_instruction(attn_group_ins, final_squeezed_O);
+        
         std::cout << "flash decoding, final module:\n";
         mm.debug_print();
+
     }
 };
 

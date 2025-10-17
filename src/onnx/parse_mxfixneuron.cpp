@@ -147,9 +147,9 @@ struct parse_mxfixneuron : op_parser<parse_mxfixneuron>
             padding.at(fast_axis * 2 + 1) = 1;
             q_ins = info.add_instruction(make_op("pad", {{"pads", padding}}), q_ins);
         }
-        auto pack_ins   = info.add_instruction(make_op("pack_fp4", {{"axis", fast_axis}}),
+        auto pack_ins   = info.add_instruction(make_op("pack_fp4"),
                                              q_ins); // output is fp4x2_type
-        auto unpack_ins = info.add_instruction(make_op("unpack_fp4", {{"axis", fast_axis}}),
+        auto unpack_ins = info.add_instruction(make_op("unpack_fp4"),
                                                pack_ins); // output is fp8e4m3fn_type
         if(odd_fast_axis)
         {

@@ -119,8 +119,8 @@ struct test_mxfp4_gemm : verify_program<test_mxfp4_gemm>
             migraphx::make_op("quantizelinear", {{"out_type", migraphx::shape::float_type}}),
             input,
             input_scales);
-        input = mmain->add_instruction(migraphx::make_op("pack_fp4", {{"axis", 1}}), input);
-        input = mmain->add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 1}}), input);
+        input = mmain->add_instruction(migraphx::make_op("pack_fp4"), input);
+        input = mmain->add_instruction(migraphx::make_op("unpack_fp4"), input);
         input = mmain->add_instruction(migraphx::make_op("dequantizelinear"), input, input_scales);
         auto weights       = mmain->add_literal(migraphx::generate_literal(
             migraphx::shape{migraphx::shape::float_type, {1000, 2048}}, 2));
@@ -129,8 +129,8 @@ struct test_mxfp4_gemm : verify_program<test_mxfp4_gemm>
             migraphx::make_op("quantizelinear", {{"out_type", migraphx::shape::float_type}}),
             weights,
             weight_scales);
-        weights = mmain->add_instruction(migraphx::make_op("pack_fp4", {{"axis", 1}}), weights);
-        weights = mmain->add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 1}}), weights);
+        weights = mmain->add_instruction(migraphx::make_op("pack_fp4"), weights);
+        weights = mmain->add_instruction(migraphx::make_op("unpack_fp4"), weights);
         weights =
             mmain->add_instruction(migraphx::make_op("dequantizelinear"), weights, weight_scales);
         weights = mmain->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}),

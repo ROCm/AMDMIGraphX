@@ -36,6 +36,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/verify_args.hpp>
 #include <migraphx/simplify_qdq.hpp>
+#include <migraphx/dead_code_elimination.hpp>
 #include <utility>
 
 namespace migraphx {

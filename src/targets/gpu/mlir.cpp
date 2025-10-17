@@ -561,6 +561,11 @@ struct mlir_program
             return *this;
         }
 
+        mlir_operation_state& add_results(instruction_ref ins)
+        {
+            return add_results({mlir_program::get_shape(ins)});
+        }
+
         mlir_operation_state& add_operands(const std::vector<MlirValue>& inputs)
         {
             if(not inputs.empty())
@@ -663,8 +668,6 @@ struct mlir_program
             return "migraphx.literal";
         if(ins->name() == "unpack_int4")
             return "migraphx.unpack";
-        if(ins->name() == "unpack_fp4")
-            return "migraphx.unpack";
         if(ins->name() == "convolution_backwards")
             return "migraphx.backwards_data_convolution";
         if(is_reshape(ins->name()))
@@ -705,6 +708,16 @@ struct mlir_program
             assert(ins->inputs().size() == 1);
             return ins->inputs().front()->get_shape();
         }
+        if(instruction::get_output_alias(ins)->name() == "unpack_fp4")
+        {
+            shape out_shape = ins->get_shape();
+            int fast_axis =
+                std::min_element(out_shape.strides().cbegin(), out_shape.strides().cend()) -
+                out_shape.strides().cbegin();
+            auto out_lens = out_shape.lens();
+            out_lens.at(fast_axis) *= 2;
+            return out_shape.with_lens(out_lens);
+        }
         return ins->get_shape();
     }
 
@@ -734,7 +747,7 @@ struct mlir_program
         {
             if(ins->name() == "@param")
                 continue;
-            if(ins->name() == "contiguous")
+            if(contains({"contiguous", "unpack_fp4"}, ins->name()))
             {
                 ins_map[ins] = ins_map[ins->inputs().at(0)];
                 continue;
@@ -742,8 +755,10 @@ struct mlir_program
             auto name = get_name(ins);
             auto ops  = create_operation_state(name);
             ops.add_attribute_value(get_operator_value(ins));
+
+            // handles single output
             if(ins->name() != "@return")
-                ops.add_results({get_shape(ins)});
+                ops.add_results(ins);
 
             if(ins->name() == "@literal")
             {

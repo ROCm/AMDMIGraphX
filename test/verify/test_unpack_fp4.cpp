@@ -27,8 +27,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-template <int Axis = -1>
-struct test_unpack_fp4 : verify_program<test_unpack_fp4<Axis>>
+struct test_unpack_fp4 : verify_program<test_unpack_fp4>
 {
     migraphx::program create_program() const
     {
@@ -36,11 +35,8 @@ struct test_unpack_fp4 : verify_program<test_unpack_fp4<Axis>>
         auto* mm = p.get_main_module();
 
         auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::fp4x2_type, {32, 16}});
-        mm->add_instruction(migraphx::make_op("unpack_fp4", {{"axis", Axis}}), x);
+        mm->add_instruction(migraphx::make_op("unpack_fp4"), x);
 
         return p;
     }
 };
-
-template struct test_unpack_fp4<>;
-template struct test_unpack_fp4<0>;

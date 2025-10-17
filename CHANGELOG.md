@@ -4,6 +4,25 @@ Full documentation for MIGraphX is available at
 [https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/](https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/).
 
 
+## MIGraphX 2.14 for ROCm 7.1.1
+
+### Added
+
+
+### Changed
+
+
+### Fixed
+
+* Fixed error when running `make check` on systems running with a gfx1201 GPU (#4397)
+
+### Optimized
+
+
+### Removed
+
+
+
 ## MIGraphX 2.14 for ROCm 7.1.0
 
 ### Added

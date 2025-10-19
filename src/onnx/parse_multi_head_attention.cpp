@@ -229,6 +229,9 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
             if(key_pad_len_size == 1)
             {
                 auto key_pad_batch = key_pad_lens.at(0);
+                // For left padding mode, the key padding mask is expected to have a size of (3 *
+                // batch_size + 2). This format is required by certain ONNX models for compatibility
+                // with specific left-padding implementations.
                 if(key_pad_batch != params.batch_size and
                    key_pad_batch != (3 * params.batch_size + 2))
                     MIGRAPHX_THROW("MultiHeadAttention: Key Padding Mask must be either batch or 3 "
@@ -472,8 +475,8 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         auto mask_value_lit = info.add_literal(migraphx::literal{
             migraphx::shape{input_shape.type(), {1}, {1}}, {attention.mask_filter_value}});
 
-        // For dim = 2 or dim =3 generate the apporiate mask across batches
-        // We need to handle the batch case since raw masking involes shape [batch, seq_len] or
+        // For dim = 2 or dim =3 generate the appropriate mask across batches
+        // We need to handle the batch case since raw masking involves shape [batch, seq_len] or
         // [batch, seq_len, total_seq_len],
         auto bc_pass = info.add_instruction(
             make_op("multibroadcast",

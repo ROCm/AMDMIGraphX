@@ -2576,6 +2576,28 @@ def depthtospace_test():
     return ([node], [x], [y])
 
 
+def depthtospace_dyn_test(mode):
+
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['batch', 16, 'x', 'y'])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, ['batch', 2, 'x_2', 'y_2'])
+
+    node = onnx.helper.make_node('DepthToSpace',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 blocksize=2,
+                                 mode=mode)
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def depthtospace_dyn_dcr_test(): return depthtospace_dyn_test('DCR')
+
+
+@onnx_test()
+def depthtospace_dyn_crd_test(): return depthtospace_dyn_test('CRD')
+
+
 @onnx_test()
 def depthtospace_simple_test():
 

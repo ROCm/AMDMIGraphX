@@ -1,0 +1,37 @@
+	 mha_bias_asym_mask_2d_scale_test:®
+l
+q
+k
+v
+bias
+key_padding_maskout"MultiHeadAttention*
+	num_heads *
+scale$¹ü= :com.microsoft mha_bias_asym_mask_2d_scale_testZ
+q
+
+
+
+Z
+k
+
+
+
+Z
+v
+
+
+
+Z
+bias
+
+
+Z"
+key_padding_mask
+
+
+b
+out
+
+
+
+B

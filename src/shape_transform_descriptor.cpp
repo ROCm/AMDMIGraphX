@@ -1347,7 +1347,7 @@ std::vector<std::size_t> shape_transform_descriptor::get_dst_axes_from_src(std::
     for(auto i : range(dimensions.size()))
     {
         const auto& d = dimensions[i];
-        auto it = std::find_if(d.subdimensions.begin(), d.subdimensions.end(), [&](auto & s) {
+        auto it       = std::find_if(d.subdimensions.begin(), d.subdimensions.end(), [&](auto& s) {
             if(s.axis.empty())
                 return false;
             return s.axis.front() == axis;

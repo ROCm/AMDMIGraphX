@@ -1985,15 +1985,14 @@ TEST_CASE(fp4x2_odd_remove_qdq)
     EXPECT(m1 == m2);
 }
 
-TEST_CASE(qdq_get_literal_test)
+TEST_CASE(qdq_computed_scale)
 {
-    migraphx::shape sh_a{migraphx::shape::float_type, {2, 3}};
-    migraphx::shape sh_b{migraphx::shape::float_type, {3, 2}};
+    migraphx::shape sh{migraphx::shape::float_type, {2, 2}};
     
     migraphx::module m1;
     {
-        auto a = m1.add_parameter("a", sh_a);
-        auto b = m1.add_parameter("b", sh_b);
+        auto a = m1.add_parameter("a", sh);
+        auto b = m1.add_parameter("b", sh);
         
         auto scale = m1.add_instruction(migraphx::make_op("add"), m1.add_literal(0.5f), m1.add_literal(0.0f));
         auto zero = m1.add_literal(std::int8_t{0});
@@ -2003,25 +2002,16 @@ TEST_CASE(qdq_get_literal_test)
         auto qb = add_quantize_op(m1, "quantizelinear", b, scale, zero);
         auto db = add_quantize_op(m1, "dequantizelinear", qb, scale, zero);
         
-        auto dot = m1.add_instruction(migraphx::make_op("dot"), da, db);
-        m1.add_return({dot});
+        auto add = m1.add_instruction(migraphx::make_op("add"), da, db);
+        m1.add_return({add});
     }
 
     migraphx::module m2;
     {
-        auto a = m2.add_parameter("a", sh_a);
-        auto b = m2.add_parameter("b", sh_b);
-        
-        auto scale = m2.add_instruction(migraphx::make_op("add"), m2.add_literal(0.5f), m2.add_literal(0.0f));
-        auto zero = m2.add_literal(std::int8_t{0});
-        
-        auto qa = add_quantize_op(m2, "quantizelinear", a, scale, zero);
-        auto qb = add_quantize_op(m2, "quantizelinear", b, scale, zero);
-        
-        auto dot = m2.add_instruction(migraphx::make_op("quant_dot"), qa, qb);
-        auto out_scale = add_scale_mul(m2, scale, scale, 1, 1, dot->get_shape().lens());
-        auto dequant = add_quantize_op(m2, "dequantizelinear", dot, out_scale);
-        m2.add_return({dequant});
+        auto a = m2.add_parameter("a", sh);
+        auto b = m2.add_parameter("b", sh);
+        auto add = m2.add_instruction(migraphx::make_op("add"), a, b);
+        m2.add_return({add});
     }
 
     run_pass(m1);

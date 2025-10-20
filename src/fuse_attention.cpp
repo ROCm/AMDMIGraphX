@@ -45,7 +45,7 @@ static std::size_t get_num_splits()
     {
         return std::stoul(value);
     }
-    catch(const std::exception& e)
+    catch(const std::exception&)
     {
         return 0;
     }
@@ -260,9 +260,9 @@ struct find_flash_decoding
         QKV_shapes.push_back(K_shape);
         QKV_shapes.push_back(V_shape);
 
-        size_t ndim = Q_shape.lens().size();
-        assert((ndim == 3 || ndim == 4) && "Expected 3D or 4D Q, K, V shapes");
-        assert(K_shape.lens().size() == ndim && V_shape.lens().size() == ndim && 
+        assert((Q_shape.lens().size() == 3 || Q_shape.lens().size() == 4) && "Expected 3D or 4D Q, K, V shapes");
+        assert(K_shape.lens().size() == Q_shape.lens().size() && 
+               V_shape.lens().size() == Q_shape.lens().size() && 
                "Q, K, V must have same number of dimensions");
         return QKV_shapes;
     }
@@ -359,14 +359,11 @@ struct find_flash_decoding
             {
                 auto original_axes = op.to_value()["axes"].to_vector<int64_t>();
                 assert(original_axes.size() == 1 && "Expected single axis for reduction");
-                auto original_axis = original_axes.front();
 
-                const auto& original_input_shape = ins->inputs().front()->get_shape();
                 const auto& new_input_shape      = new_inputs.front()->get_shape();
-
-                assert(original_axis == 
-                           static_cast<int64_t>(original_input_shape.lens().size() - 1) or 
-                       original_axis == -1);
+                assert(original_axes.front() == 
+                           static_cast<int64_t>(ins->inputs().front()->get_shape().lens().size() - 1) or 
+                       original_axes.front() == -1);
                 op.from_value(
                     {{"axes", {static_cast<int64_t>(new_input_shape.lens().size() - 1)}}});
             }
@@ -414,17 +411,14 @@ struct find_flash_decoding
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        std::cout << "flash decoding, original mod:\n";
-        mpm.get_module().debug_print();
-
         auto& mm = mpm.get_module();
         auto attn_group_ins = r.instructions["group"];
         auto submod = attn_group_ins->module_inputs().front();
 
-        std::cout << "flash decoding, original mod group op:\n";
-        submod->debug_print();
-
-        // TODO: if LSE attn, do not do flash decoding
+        // TODO: for this pass of flash decoding, if LSE attn, do not do flash decoding
+        auto return_ins = std::prev(submod->end());
+        if(return_ins->inputs().size() > 1)
+            return;
 
         // get gemm1 and gemm2
         auto [gemm1, gemm2] = get_gemms(submod);
@@ -513,9 +507,6 @@ struct find_flash_decoding
         // don't simply fuse previous attn submod, need to rebuild all the ops
         rebuild_attention_submodule(m_flash_decode, *submod, map_old_params_to_new);
 
-        std::cout << "flash decoding, new attn mod with {O', LSE} output:\n";
-        m_flash_decode.debug_print();
-
         auto original_submod_name = attn_group_ins->module_inputs().front()->name();
         std::string new_mod_name = original_submod_name + "_flash_decoding";
 
@@ -571,9 +562,6 @@ struct find_flash_decoding
 
         // replace the original group instruction with the final result
         mm.replace_instruction(attn_group_ins, final_squeezed_O);
-
-        std::cout << "flash decoding, final module:\n";
-        mm.debug_print();
     }
 };
 

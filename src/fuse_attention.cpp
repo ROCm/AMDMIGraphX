@@ -323,7 +323,6 @@ struct find_flash_decoding
         // verify the mapping is correct
         auto expected_inputs = submod->get_inputs(map_param_to_main);
         assert(expected_inputs == group_inputs && "Mapped inputs don't match group inputs");
-
         return map_param_to_main;
     }
 
@@ -355,7 +354,6 @@ struct find_flash_decoding
             auto op = ins->get_operator();
 
             // transform operators that depend on tensor shape/rank
-
             // adjust reduction axes for the new rank
             if(op.name() == "reduce_max" or op.name() == "reduce_sum")
             {
@@ -420,11 +418,10 @@ struct find_flash_decoding
         mpm.get_module().debug_print();
 
         auto& mm = mpm.get_module();
-
         auto attn_group_ins = r.instructions["group"];
+        auto submod = attn_group_ins->module_inputs().front();
 
         std::cout << "flash decoding, original mod group op:\n";
-        auto submod = attn_group_ins->module_inputs().front();
         submod->debug_print();
 
         // TODO: if LSE attn, do not do flash decoding
@@ -432,7 +429,7 @@ struct find_flash_decoding
         // get gemm1 and gemm2
         auto [gemm1, gemm2] = get_gemms(submod);
 
-        // TODO: for this first pass at flash decoding, let's assume no input fusion
+        // TODO: for this first pass of flash decoding, assuming no input fusion / not suppporting
         auto Q_param = gemm1->inputs()[0];
         auto K_param = gemm1->inputs()[1];
         auto V_param = gemm2->inputs()[1];
@@ -448,14 +445,6 @@ struct find_flash_decoding
         auto& Qp_shape          = transformed_shapes[0];
         auto& Kp_shape          = transformed_shapes[1];
         auto& Vp_shape          = transformed_shapes[2];
-
-        // get Q, K, V ins
-        // the Q, K, V inputs to group op need to be inputs to the below reshapes
-        // the Q, K, V inputs to the group op need their argument indices mapped
-        // a new group op needs to be made, with the submodule of the original group op copied over
-        // the input list to the original group op needs to be copied, but the indices that map to Q, K, V 
-        // need to instead be the corresponding reshape ops below
-
 
         // create mapping from submodule params to main module inputs
         auto group_inputs      = attn_group_ins->inputs();
@@ -481,9 +470,6 @@ struct find_flash_decoding
                 
         auto V_reshaped = 
             mm.insert_instruction(attn_group_ins, make_op("reshape", {{"dims", Vp_shape}}), V);
-
-        std::cout << "flash decoding, mm with inserted reshapes:\n";
-        mm.debug_print();
 
         // create new input list by replacing Q, K, V with reshaped versions
         std::vector<instruction_ref> new_group_inputs = group_inputs;
@@ -524,7 +510,7 @@ struct find_flash_decoding
         map_old_params_to_new[K_param] = new_K_param;
         map_old_params_to_new[V_param] = new_V_param;
 
-        // don't simply fuse, need to update lots
+        // don't simply fuse previous attn submod, need to rebuild all the ops
         rebuild_attention_submodule(m_flash_decode, *submod, map_old_params_to_new);
 
         std::cout << "flash decoding, new attn mod with {O', LSE} output:\n";
@@ -536,7 +522,7 @@ struct find_flash_decoding
         module_ref mpm_flash_mod = mpm.create_module(new_mod_name, std::move(m_flash_decode));
         mpm_flash_mod->set_bypass();
 
-        // insert the new group op, which now returns a tuple
+        // insert the new group op, which returns a tuple of O' and LSE
         auto new_group_ins = mm.insert_instruction(attn_group_ins,
                                                    make_op("group", {{"tag", "attention"}}),
                                                    new_group_inputs,
@@ -549,7 +535,6 @@ struct find_flash_decoding
             attn_group_ins, make_op("get_tuple_elem", {{"index", 1}}), new_group_ins);
 
         // kernel 2
-
         // scale = softmax(L, axis=G_axis)
         auto lse_max = 
             mm.insert_instruction(attn_group_ins, make_op("reduce_max", {{"axes", {G_axis}}}), lse);
@@ -605,9 +590,6 @@ void fuse_attention::apply(module_pass_manager& mpm) const
     if(num_splits > 1) {
         match::find_matches(mpm, find_flash_decoding{.G = num_splits});
         mpm.run_pass(dead_code_elimination{});
-
-        std::cout << "flash decoding: after dead code elim:";
-        mpm.get_module().debug_print();
     }
 }
 

@@ -45,6 +45,7 @@
 #include <migraphx/tune_axis.hpp>
 #include <migraphx/shape_transform_descriptor.hpp>
 #include <migraphx/instruction_traversal.hpp>
+#include <migraphx/output_iterator.hpp>
 
 #include <array>
 #include <map>
@@ -374,6 +375,109 @@ struct find_op_shape_transform_op
         auto rins = reshape_input(ins, desc.to_dst_from_common())(pw);
         assert(ins->get_shape().lens() == rins->get_shape().lens());
         m.replace_instruction(ins, rins);
+    }
+};
+
+struct find_slice_shape_transforms
+{
+    static const auto& shape_transform_ops()
+    {
+        static const std::unordered_set<std::string> names = {
+            "reshape",
+            "squeeze",
+            "unsqueeze",
+            "flatten",
+            "transpose",
+            "contiguous",
+            "multibroadcast",
+            "broadcast",
+        };
+        return names;
+    }
+
+    // auto matcher() const
+    // {
+    //     auto reshapes = match::name(shape_transform_ops());
+    //     auto match_op = match::any_of(match::reduce(), match::pointwise());
+    //     auto x_op =
+    //         match_op(match::none_of(fusable_split()));
+    //     auto reshapes_x_op = reshapes(match::arg(0)(match::skip(reshapes())(x_op.bind("x"))));
+    //     return match_op(match::any_of[match::inputs()](reshapes_x_op.bind("input")));
+    // }
+
+    auto matcher() const
+    {
+        auto reshapes = match::name(shape_transform_ops());
+        auto slice_op = match::name("slice")(match::arg(0)(match::used_once()));
+        return reshapes(match::arg(0)(match::skip(reshapes())(slice_op.bind("slice"))));
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins = mr.result;
+        auto slice = mr.instructions["slice"];
+        auto slice_op = slice->get_operator().to_value();
+        auto axes = slice_op.at("axes").to_vector<std::size_t>();
+
+        std::vector<operation> ops;
+        auto x = ins;
+        while(contains(shape_transform_ops(), x->get_operator().name()))
+        {
+            ops.push_back(x->get_operator());
+            x = x->inputs().front();
+        }
+        if(x != slice)
+            return;
+        x = x->inputs().front();
+        std::reverse(ops.begin(), ops.end());
+        auto desc = shape_transform_descriptor::create(slice->get_shape().lens(), ops);
+
+        // std::cout << "desc: " << desc << std::endl;
+
+        std::vector<std::size_t> new_axes;
+        std::transform(axes.begin(), axes.end(), join_back_inserter(new_axes), [&](auto axis) -> std::vector<std::size_t> {
+            auto result = desc.get_dst_axes_from_src(axis);
+            if(result.size() != 1)
+                return {};
+            return result;
+        });
+
+        if(axes.size() != new_axes.size())
+            return;
+        slice_op["axes"] = new_axes;
+
+        auto new_desc = desc.rebase(slice->inputs().front()->get_shape().lens());
+        if(new_desc.empty())
+            return;
+        new_desc.simplify();
+
+        auto opt_ops = new_desc.generate();
+        auto y = x;
+        for(const auto& op : opt_ops)
+            y = m.insert_instruction(ins, op, y);
+        y = m.insert_instruction(ins, make_op("slice", slice_op), y);
+        m.replace_instruction(ins, y);
+
+        // auto opt_ops = optimize_shape_transforms(x->get_shape().lens(), ops);
+        // if(ops == opt_ops)
+        //     return;
+        // auto y = x;
+        // for(const auto& op : opt_ops)
+        //     y = m.insert_instruction(ins, op, y);
+        // m.replace_instruction(ins, y);
+        // if(x->get_shape().scalar())
+        // {
+        //     m.replace_instruction(
+        //         ins, make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}}), x);
+        // }
+        // else if(x->get_shape().elements() == 1 and ins->get_shape().elements() == 1)
+        // {
+        //     // TODO: Use squeeze or unsqueeze
+        //     m.replace_instruction(ins, make_op("reshape", {{"dims", ins->get_shape().lens()}}), x);
+        // }
+        // else
+        // {
+        // }
     }
 };
 
@@ -933,10 +1037,10 @@ inline void add_unique_factorization(std::vector<std::vector<std::size_t>>& cand
 /// Helper class to build instruction sequences with common patterns
 class gather_instruction_builder
 {
+    public:
     module& m;
     instruction_ref insert_before;
 
-    public:
     gather_instruction_builder(module& mod, instruction_ref ins) : m(mod), insert_before(ins) {}
 
     instruction_ref transpose(instruction_ref input, const std::vector<int64_t>& perm)
@@ -947,8 +1051,71 @@ class gather_instruction_builder
             insert_before, make_op("transpose", {{"permutation", perm}}), input);
     }
 
-    instruction_ref reshape(instruction_ref input, const std::vector<int64_t>& dims)
+    template<class Dims>
+    instruction_ref reshape(instruction_ref input, const Dims& dims)
     {
+        assert(std::all_of(dims.begin(), dims.end(), [](auto i) {
+            return i > 0;
+        }));
+        auto curr_lens = input->get_shape().lens();
+        // Check if we can use squeeze (removing dimensions of size 1)
+        if(curr_lens.size() > dims.size())
+        {
+            // Potential squeeze - check if we're just removing 1s
+            std::vector<int64_t> axes_to_squeeze;
+            std::size_t target_idx = 0;
+            for(std::size_t curr_idx = 0; curr_idx < curr_lens.size(); ++curr_idx)
+            {
+                if(curr_lens[curr_idx] == 1)
+                {
+                    axes_to_squeeze.push_back(curr_idx);
+                }
+                else
+                {
+                    if(target_idx >= dims.size() ||
+                       curr_lens[curr_idx] != dims[target_idx])
+                    {
+                        axes_to_squeeze.clear();
+                        break;
+                    }
+                    ++target_idx;
+                }
+            }
+            if(not axes_to_squeeze.empty() && target_idx == dims.size())
+            {
+                return m.insert_instruction(
+                    insert_before, make_op("squeeze", {{"axes", axes_to_squeeze}}), input);
+            }
+        }
+        // Check if we can use unsqueeze (adding dimensions of size 1)
+        else if(curr_lens.size() < dims.size())
+        {
+            // Potential unsqueeze - check if we're just adding 1s
+            std::vector<int64_t> axes_to_unsqueeze;
+            std::size_t curr_idx = 0;
+            for(std::size_t target_idx = 0; target_idx < dims.size(); ++target_idx)
+            {
+                if(dims[target_idx] == 1)
+                {
+                    axes_to_unsqueeze.push_back(target_idx);
+                }
+                else
+                {
+                    if(curr_idx >= curr_lens.size() ||
+                       dims[target_idx] != curr_lens[curr_idx])
+                    {
+                        axes_to_unsqueeze.clear();
+                        break;
+                    }
+                    ++curr_idx;
+                }
+            }
+            if(not axes_to_unsqueeze.empty() && curr_idx == curr_lens.size())
+            {
+                return unsqueeze(input, axes_to_unsqueeze);
+            }
+        }
+
         return m.insert_instruction(insert_before, make_op("reshape", {{"dims", dims}}), input);
     }
 
@@ -960,6 +1127,54 @@ class gather_instruction_builder
             insert_before, make_op("unsqueeze", {{"axes", axes}, {"steps", steps}}), input);
     }
 
+    instruction_ref slice(instruction_ref input,
+                          int64_t axis,
+                          int64_t start,
+                          int64_t end)
+    {
+        assert(end > start);
+        assert(axis < input->get_shape().ndim());
+        assert(start < input->get_shape().lens()[axis]);
+        assert(end <= input->get_shape().lens()[axis]);
+        if(input->get_shape().lens()[axis] == (end - start))
+            return input;
+        return m.insert_instruction(
+            insert_before,
+            make_op("slice", {{"axes", {axis}}, {"starts", {start}}, {"ends", {end}}}),
+            input);
+    }
+
+    instruction_ref slice(instruction_ref input, const std::vector<std::array<std::size_t, 3>>& slices) 
+    {
+        std::vector<std::size_t> axes;
+        std::vector<std::size_t> starts;
+        std::vector<std::size_t> ends;
+        for(auto slice:slices)
+        {
+            std::size_t axis  = slice[0];
+            std::size_t start = slice[1];
+            std::size_t end   = slice[2];
+            if(end == start)
+                continue;
+            assert(end > start);
+            assert(axis < input->get_shape().ndim());
+            assert(start < input->get_shape().lens()[axis]);
+            assert(end <= input->get_shape().lens()[axis]);
+            if(input->get_shape().lens()[axis] == (end - start))
+                continue;
+            axes.push_back(axis);
+            starts.push_back(start);
+            ends.push_back(end);
+        }
+        if(axes.empty())
+            return input;
+        return m.insert_instruction(
+            insert_before,
+            make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}),
+            input);
+    }
+
+#if 0
     instruction_ref slice(instruction_ref input,
                           const std::vector<int64_t>& axes,
                           const std::vector<int64_t>& starts,
@@ -1155,8 +1370,62 @@ class gather_instruction_builder
 
         return reshaped;
     }
+#endif
 
-    instruction_ref multibroadcast(instruction_ref input, const std::vector<int64_t>& out_lens)
+    instruction_ref expand_dim(instruction_ref input, const std::vector<std::size_t>& edim, std::size_t axis = 0)
+    {
+        auto dims = input->get_shape().lens();
+        dims[axis] = edim.back();
+        dims.insert(dims.begin() + axis, edim.begin(), edim.end() - 1);
+        return this->reshape(input, dims);
+    }
+
+    instruction_ref split_dim(instruction_ref input, std::size_t groups, std::size_t axis = 0)
+    {
+        assert(groups <= input->get_shape().lens()[axis]);
+        assert(input->get_shape().lens()[axis] % groups == 0);
+        std::vector<std::size_t> edim = {groups, input->get_shape().lens()[axis] / groups};
+        return this->expand_dim(input, edim, axis);
+    }
+
+    instruction_ref stride_dim(instruction_ref input, std::size_t stride, std::size_t axis = 0)
+    {
+        assert(stride <= input->get_shape().lens()[axis]);
+        assert(input->get_shape().lens()[axis] % stride == 0);
+        std::vector<std::size_t> edim = {input->get_shape().lens()[axis] / stride, stride};
+        return this->expand_dim(input, edim, axis);
+    }
+
+    instruction_ref repeat_dim(instruction_ref input, std::size_t n, std::size_t axis = 0)
+    {
+        std::vector<std::size_t> edim = {input->get_shape().lens()[axis], 1};
+        auto ins = this->expand_dim(input, edim, axis);
+        auto out_lens = ins->get_shape().lens();
+        out_lens[axis+1] = n;
+        return this->multibroadcast(ins, out_lens);
+    }
+
+    instruction_ref transpose_stride(instruction_ref input, std::size_t stride, std::size_t axis = 0)
+    {
+        std::vector<std::size_t> edim = {input->get_shape().lens()[axis] / stride, stride};
+        auto reshaped = this->expand_dim(input, edim, axis);
+        std::vector<int64_t> perm(reshaped->get_shape().ndim());
+        std::iota(perm.begin(), perm.end(), 0);
+        std::swap(perm[axis], perm[axis+1]);
+        return this->transpose(reshaped, perm);
+    }
+
+    instruction_ref transpose_group(instruction_ref input, std::size_t group, std::size_t axis = 0)
+    {
+        std::vector<std::size_t> edim = {group, input->get_shape().lens()[axis] / group};
+        auto reshaped = this->expand_dim(input, edim, axis);
+        std::vector<int64_t> perm(reshaped->get_shape().ndim());
+        std::iota(perm.begin(), perm.end(), 0);
+        std::swap(perm[axis], perm[axis+1]);
+        return this->transpose(reshaped, perm);
+    }
+
+    instruction_ref multibroadcast(instruction_ref input, const std::vector<std::size_t>& out_lens)
     {
         return m.insert_instruction(
             insert_before, make_op("multibroadcast", {{"out_lens", out_lens}}), input);
@@ -1197,71 +1466,13 @@ class gather_instruction_builder
 
         if(curr_elements == target_elements)
         {
-            // Check if we can use squeeze (removing dimensions of size 1)
-            if(curr_lens.size() > target_lens.size())
-            {
-                // Potential squeeze - check if we're just removing 1s
-                std::vector<int64_t> axes_to_squeeze;
-                std::size_t target_idx = 0;
-                for(std::size_t curr_idx = 0; curr_idx < curr_lens.size(); ++curr_idx)
-                {
-                    if(curr_lens[curr_idx] == 1)
-                    {
-                        axes_to_squeeze.push_back(static_cast<int64_t>(curr_idx));
-                    }
-                    else
-                    {
-                        if(target_idx >= target_lens.size() ||
-                           curr_lens[curr_idx] != target_lens[target_idx])
-                        {
-                            axes_to_squeeze.clear();
-                            break;
-                        }
-                        ++target_idx;
-                    }
-                }
-                if(not axes_to_squeeze.empty() && target_idx == target_lens.size())
-                {
-                    return m.insert_instruction(
-                        insert_before, make_op("squeeze", {{"axes", axes_to_squeeze}}), input);
-                }
-            }
-            // Check if we can use unsqueeze (adding dimensions of size 1)
-            else if(curr_lens.size() < target_lens.size())
-            {
-                // Potential unsqueeze - check if we're just adding 1s
-                std::vector<int64_t> axes_to_unsqueeze;
-                std::size_t curr_idx = 0;
-                for(std::size_t target_idx = 0; target_idx < target_lens.size(); ++target_idx)
-                {
-                    if(target_lens[target_idx] == 1)
-                    {
-                        axes_to_unsqueeze.push_back(static_cast<int64_t>(target_idx));
-                    }
-                    else
-                    {
-                        if(curr_idx >= curr_lens.size() ||
-                           target_lens[target_idx] != curr_lens[curr_idx])
-                        {
-                            axes_to_unsqueeze.clear();
-                            break;
-                        }
-                        ++curr_idx;
-                    }
-                }
-                if(not axes_to_unsqueeze.empty() && curr_idx == curr_lens.size())
-                {
-                    return unsqueeze(input, axes_to_unsqueeze);
-                }
-            }
-
             // Elements match - fallback to reshape
-            return reshape(input, to_int64_vec(target_lens));
+            return reshape(input, target_lens);
         }
 
         // Only use multibroadcast if we're actually broadcasting (target has more elements)
         if(target_elements > curr_elements)
-            return multibroadcast(input, to_int64_vec(target_lens));
+            return multibroadcast(input, target_lens);
 
         // Element count mismatch - this shouldn't happen
         MIGRAPHX_THROW("match_shape: Cannot match shape with " + std::to_string(curr_elements) +
@@ -1496,7 +1707,7 @@ struct gather_context
 // ============================================================================
 
 namespace {
-
+#if 0
 /// Metadata for constant segment
 struct constant_segment_meta
 {
@@ -1605,8 +1816,7 @@ struct arithmetic_segment_meta
             // We need to extract every stride-th element starting from base
             // Use slice + step: start=base, end=base+count*stride, step=stride
             int64_t max_index = base + count * stride;
-            auto sliced =
-                builder.slice_with_step(ctx.data_ins(), {0}, {base}, {max_index}, {stride});
+            auto sliced = builder.slice_with_step(ctx.data_ins(), {0}, {base}, {max_index}, {stride});
 
             // After slice + step with stride, we have exactly `count` elements along axis 0
             // Reshape to final dimensions
@@ -1619,6 +1829,7 @@ struct arithmetic_segment_meta
         return builder.match_shape(reshaped, ctx.output_dims());
     }
 };
+
 
 /// Metadata for RTR window segment
 struct rtr_window_segment_meta
@@ -1702,7 +1913,7 @@ struct rtr_window_segment_meta
         return false;
     }
 
-    /// Detect RTR window segment pattern
+    /// Detect RTR(reshape-transpose-reshape) window segment pattern
     static std::optional<rtr_window_segment_meta>
     detect(const std::vector<int64_t>& indices,
            std::size_t start,
@@ -1920,7 +2131,7 @@ struct split_pattern
 };
 
 /// Pattern: tiled segments along gather axis (including rectangular resize)
-struct tiled_pattern
+struct tiled_pattern2
 {
     struct arithmetic_info
     {
@@ -2105,10 +2316,10 @@ struct tiled_pattern
                  multi_axis_stride_info>
         info;
 
-    explicit tiled_pattern(arithmetic_info a) : info(std::move(a)) {}
-    explicit tiled_pattern(rectangular_info r) : info(std::move(r)) {}
-    explicit tiled_pattern(arithmetic_grid_info g) : info(std::move(g)) {}
-    explicit tiled_pattern(multi_axis_stride_info m) : info(std::move(m)) {}
+    explicit tiled_pattern2(arithmetic_info a) : info(std::move(a)) {}
+    explicit tiled_pattern2(rectangular_info r) : info(std::move(r)) {}
+    explicit tiled_pattern2(arithmetic_grid_info g) : info(std::move(g)) {}
+    explicit tiled_pattern2(multi_axis_stride_info m) : info(std::move(m)) {}
 
     static bool is_contiguous_range(const std::vector<std::size_t>& values)
     {
@@ -2468,10 +2679,10 @@ struct tiled_pattern
         return result;
     }
 
-    static std::optional<tiled_pattern> detect(const gather_context& ctx)
+    static std::optional<tiled_pattern2> detect(const gather_context& ctx)
     {
         if(auto info = detect_multi_axis_stride(ctx))
-            return tiled_pattern{std::move(*info)};
+            return tiled_pattern2{std::move(*info)};
         return std::nullopt;
     }
 
@@ -2828,27 +3039,27 @@ struct tiled_pattern
     }
 
     /// Detect tiled pattern
-    static std::optional<tiled_pattern> detect(const gather_context& ctx,
+    static std::optional<tiled_pattern2> detect(const gather_context& ctx,
                                                const std::vector<index_segment>& segments)
     {
         if(auto rectangular = detect_rectangular(ctx, segments))
         {
-            return tiled_pattern{std::move(*rectangular)};
+            return tiled_pattern2{std::move(*rectangular)};
         }
 
         if(auto grid = detect_arithmetic_grid(ctx, segments))
         {
-            return tiled_pattern{std::move(*grid)};
+            return tiled_pattern2{std::move(*grid)};
         }
 
         if(auto arithmetic = detect_arithmetic(segments))
         {
-            return tiled_pattern{std::move(*arithmetic)};
+            return tiled_pattern2{std::move(*arithmetic)};
         }
 
         if(auto multi = detect_multi_axis_stride(ctx))
         {
-            return tiled_pattern{std::move(*multi)};
+            return tiled_pattern2{std::move(*multi)};
         }
 
         return std::nullopt;
@@ -2869,54 +3080,188 @@ struct tiled_pattern
         MIGRAPHX_THROW("tiled_pattern: unsupported pattern variant");
     }
 };
+#endif
+
+struct arithmetic_segment
+{
+    int64_t base = 0;
+    int64_t stride = 0;
+    std::size_t count = 0;
+
+    bool empty() const
+    {
+        return count == 0;
+    }
+
+    std::size_t length() const
+    {
+        return std::max<std::size_t>(1, stride*count);
+    }
+
+    template <class Iterator>
+    static std::vector<arithmetic_segment> from_ints(Iterator begin, Iterator end)
+    {
+        std::vector<arithmetic_segment> result;
+        std::transform(begin, end, std::back_inserter(result), [](auto x) {
+            return arithmetic_segment{x, 1, 1};
+        });
+        return result;
+    }
+
+    static std::vector<arithmetic_segment> make_segments(const std::vector<arithmetic_segment>& segments)
+    {
+        std::vector<arithmetic_segment> result;
+        for(auto it = segments.begin(); it != segments.end();)
+        {
+            auto [seg, next_it] = find(it, segments.end());
+            result.push_back(seg);
+            it = next_it;
+        }    
+        return result;
+    }
+
+    static std::vector<arithmetic_segment> shift(const std::vector<arithmetic_segment>& segments, std::int64_t shift)
+    {
+        std::vector<arithmetic_segment> result;
+        std::transform(segments.begin(), segments.end(), std::back_inserter(result), [&](arithmetic_segment x) {
+            x.base += shift;
+            return x;
+        });
+        return result;
+    }
+
+    /// Detect arithmetic segment pattern
+    template <class Iterator>
+    static std::pair<arithmetic_segment, Iterator> find(Iterator begin, Iterator end)
+    {
+        std::size_t length = std::distance(begin, end);
+        if(length == 0)
+            return std::make_pair(arithmetic_segment{}, begin);
+        if(length == 1)
+            return std::make_pair(*begin, std::next(begin));
+        auto start = *begin;
+        // auto base   = *begin;
+        auto stride = std::next(begin)->base - start.base;
+        auto diff = std::adjacent_find(begin, end, [&](arithmetic_segment x, arithmetic_segment y) { return y.base - x.base != stride; });
+        return std::make_pair(arithmetic_segment{start.base, stride, std::size_t(std::distance(begin, diff))}, diff);
+    }
+
+    // instruction_ref transform(gather_instruction_builder& builder, instruction_ref input, std::size_t axis) const
+    // {
+    //     if(stride == 0)
+    //         return builder.repeat_dim(input, count, axis);
+    //     return builder.transpose_stride(input, stride, axis);
+    // }
+
+    // std::size_t base_start = seg.base/seg.stride;
+    // ins = builder.slice(ins, {{axis, 0, 1}, {axis+1, base_start, base_start+seg.count}});
+
+    instruction_ref transform(gather_instruction_builder& builder, instruction_ref input, std::size_t axis, std::size_t nsegments) const
+    {
+        if(stride == 0)
+        {
+            auto ins = builder.repeat_dim(input, count, axis);
+            return builder.slice(ins, {{axis, std::size_t(base), base+nsegments}});
+        }
+        else
+        {
+
+            auto ins = builder.transpose_stride(input, stride, axis);
+            std::size_t base_start = base/stride;
+            return builder.slice(ins, {{axis, 0, nsegments}, {axis+1, base_start, base_start+count}});
+        }
+    }
+
+    template<class Indices>
+    static auto transform_indices(const Indices& indices, gather_instruction_builder& builder, instruction_ref start)
+    {
+        auto isegments = from_ints(indices.begin(), indices.end());
+        return fix<std::optional<instruction_ref>>([&](auto self, const std::vector<arithmetic_segment>& segments, instruction_ref input) -> std::optional<instruction_ref> {
+            auto axis = input->get_shape().ndim() - 1;
+            if(segments.empty())
+                return input;
+            if(not std::all_of(segments.begin(), segments.end(), [&](const arithmetic_segment& seg){
+                return seg.stride == segments.front().stride and seg.count == segments.front().count;
+            }))
+                return std::nullopt;
+            auto seg = segments.front();
+            if(seg.empty())
+                return std::nullopt;
+            auto total_len = transform_accumulate(segments.begin(), segments.end(), 0, std::plus<>{}, [](const auto& s) {
+                return s.length();
+            });
+            instruction_ref rec = input;
+            auto base_rem = seg.stride == 0 ? 0 : seg.base % seg.stride;
+            auto len_rem = seg.stride == 0 ? 0 : rec->get_shape().lens()[axis] % seg.stride;
+            std::size_t delta = -base_rem;
+            if(base_rem != 0 or len_rem != 0)
+            {
+                rec = builder.slice(rec, axis, base_rem, base_rem + total_len);
+            }
+            seg.base += delta;
+            assert(axis < rec->get_shape().lens().size());
+            auto ins = seg.transform(builder, rec, axis, segments.size());
+
+            if(segments.size() == 1)
+                return ins;
+            return self(shift(make_segments(segments), delta), ins);
+        })(make_segments(isegments), start);
+    }
+};
 
 /// Try segment-based optimization (assumes 1D indices in context)
 /// Returns the optimized instruction if successful, nullopt otherwise
 inline std::optional<instruction_ref>
 try_segment_based_optimization_1d(const gather_context& ctx, gather_instruction_builder& builder)
 {
-    auto segments =
-        index_segment::analyze(ctx.indices_values(), ctx.axis_len(), ctx.factor_candidates());
-
-    if(segments.empty())
-    {
-        if(auto tiled = tiled_pattern::detect(ctx))
-            return tiled->transform(ctx, builder);
-        return std::nullopt;
+    if(auto r = arithmetic_segment::transform_indices(ctx.indices_values(), builder, ctx.data_ins())) {
+        builder.m.debug_print();
+        return builder.reshape(*r, ctx.output_dims());
     }
-
-    // Try single-segment patterns
-    if(segments.size() == 1)
-    {
-        return std::visit(
-            [&](const auto& m) -> std::optional<instruction_ref> {
-                if constexpr(not std::is_same<std::decay_t<decltype(m)>, std::monostate>{})
-                {
-                    return m.transform(ctx, builder);
-                }
-                else
-                {
-                    return std::nullopt;
-                }
-            },
-            segments[0].metadata);
-    }
-
-    // Try multi-segment patterns
-    if(auto split = split_pattern::detect(segments))
-    {
-        return split->transform(ctx, builder);
-    }
-
-    if(auto tiled = tiled_pattern::detect(ctx, segments))
-    {
-        return tiled->transform(ctx, builder);
-    }
-
-    if(auto tiled = tiled_pattern::detect(ctx))
-        return tiled->transform(ctx, builder);
-
     return std::nullopt;
+
+    // auto segments =
+    //     index_segment::analyze(ctx.indices_values(), ctx.axis_len(), ctx.factor_candidates());
+
+    // if(segments.empty())
+    // {
+    //     if(auto tiled = tiled_pattern2::detect(ctx))
+    //         return tiled->transform(ctx, builder);
+    //     return std::nullopt;
+    // }
+
+    // // Try single-segment patterns
+    // if(segments.size() == 1)
+    // {
+    //     return std::visit(
+    //         [&](const auto& m) -> std::optional<instruction_ref> {
+    //             if constexpr(not std::is_same<std::decay_t<decltype(m)>, std::monostate>{})
+    //             {
+    //                 return m.transform(ctx, builder);
+    //             }
+    //             else
+    //             {
+    //                 return std::nullopt;
+    //             }
+    //         },
+    //         segments[0].metadata);
+    // }
+
+    // // Try multi-segment patterns
+    // if(auto split = split_pattern::detect(segments))
+    // {
+    //     return split->transform(ctx, builder);
+    // }
+
+    // if(auto tiled = tiled_pattern2::detect(ctx, segments))
+    // {
+    //     return tiled->transform(ctx, builder);
+    // }
+
+    // if(auto tiled = tiled_pattern2::detect(ctx))
+    //     return tiled->transform(ctx, builder);
+
+    // return std::nullopt;
 } /// Try segment-based optimization with multi-dimensional normalization
 inline bool try_segment_based_optimization(module& m,
                                            instruction_ref ins,
@@ -3576,6 +3921,7 @@ void simplify_reshapes::apply(module& m) const
                             find_concat_multibroadcasts{},
                             find_nested_slice{},
                             find_nested_concat{},
+                            find_slice_shape_transforms{},
                             find_transpose_slice{},
                             find_slice_transpose{},
                             find_unary_shape_transforms{},

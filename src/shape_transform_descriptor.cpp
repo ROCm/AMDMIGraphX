@@ -1341,6 +1341,28 @@ std::vector<std::vector<std::size_t>> shape_transform_descriptor::common_axes_ma
     return result;
 }
 
+std::vector<std::size_t> shape_transform_descriptor::get_dst_axes_from_src(std::size_t axis) const
+{
+    std::vector<std::size_t> result;
+    for(auto i : range(dimensions.size()))
+    {
+        const auto& d = dimensions[i];
+        auto it = std::find_if(d.subdimensions.begin(), d.subdimensions.end(), [&](auto & s) {
+            if(s.axis.empty())
+                return false;
+            return s.axis.front() == axis;
+        });
+        if(it == d.subdimensions.end())
+            continue;
+        // If it maps to a subdimesion then exit as there isnt a clear mapping
+        if(d.len() != it->len)
+            return {};
+        result.push_back(i);
+    }
+    // TODO: Put it in the correct order if there is multiple axes
+    return result;
+}
+
 bool shape_transform_descriptor::empty() const { return dimensions.empty(); }
 
 std::vector<std::size_t> shape_transform_descriptor::lens() const

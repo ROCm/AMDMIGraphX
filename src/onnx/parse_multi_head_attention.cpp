@@ -532,7 +532,8 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         std::vector<size_t> indices_vec(kv_seq_length, 0);
         std::iota(indices_vec.begin(), indices_vec.end(), 0);
         auto indices    = info.add_literal(migraphx::literal{
-            migraphx::shape{migraphx::shape::int32_type, {static_cast<size_t>(kv_seq_length)}, {1}}, indices_vec});
+            migraphx::shape{migraphx::shape::int32_type, {static_cast<size_t>(kv_seq_length)}, {1}},
+            indices_vec});
         auto indices_bc = info.add_instruction(
             make_op("multibroadcast", {{"out_lens", {batch_size, kv_seq_length}}}), indices);
         auto right_mask_bc = info.add_instruction(

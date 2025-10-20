@@ -792,7 +792,7 @@ TEST_CASE(conv)
 
         auto q1        = add_quantize_op(m2, "quantizelinear", input, scale, zero);
         auto c1        = m2.add_instruction(migraphx::make_op("quant_convolution",
-                                                              {{"padding", {0, 0, 0, 0}},
+                                                       {{"padding", {0, 0, 0, 0}},
                                                                {"stride", {1, 1}},
                                                                {"dilation", {1, 1}},
                                                                {"group", 1},
@@ -844,7 +844,7 @@ TEST_CASE(conv_asymmetric_input)
 
         auto q1        = add_quantize_op(m2, "quantizelinear", input, scale, zp_in);
         auto c1        = m2.add_instruction(migraphx::make_op("quant_convolution",
-                                                              {{"padding", {0, 0, 0, 0}},
+                                                       {{"padding", {0, 0, 0, 0}},
                                                                {"stride", {1, 1}},
                                                                {"dilation", {1, 1}},
                                                                {"group", 1},
@@ -855,7 +855,7 @@ TEST_CASE(conv_asymmetric_input)
         auto out_zp    = init_zero_point(m2, c1);
         auto zp_in_bc  = broadcast_shift(m2, zp_in, input->get_shape().lens());
         auto zp_term   = m2.add_instruction(migraphx::make_op("quant_convolution",
-                                                              {{"padding", {0, 0, 0, 0}},
+                                                            {{"padding", {0, 0, 0, 0}},
                                                                {"stride", {1, 1}},
                                                                {"dilation", {1, 1}},
                                                                {"group", 1},
@@ -909,7 +909,7 @@ TEST_CASE(conv_multi_scale)
 
         auto q_inp     = add_quantize_op(m2, "quantizelinear", input, inp_scale, zero);
         auto c1        = m2.add_instruction(migraphx::make_op("quant_convolution",
-                                                              {{"padding", {0, 0, 0, 0}},
+                                                       {{"padding", {0, 0, 0, 0}},
                                                                {"stride", {1, 1}},
                                                                {"dilation", {1, 1}},
                                                                {"group", 1},
@@ -1018,7 +1018,7 @@ TEST_CASE(conv_bias_add)
         auto d2        = add_quantize_op(m2, "dequantizelinear", bias, scale);
         auto q1        = add_quantize_op(m2, "quantizelinear", input, scale, zero);
         auto c1        = m2.add_instruction(migraphx::make_op("quant_convolution",
-                                                              {{"padding", {0, 0, 0, 0}},
+                                                       {{"padding", {0, 0, 0, 0}},
                                                                {"stride", {1, 1}},
                                                                {"dilation", {1, 1}},
                                                                {"group", 1},
@@ -1063,7 +1063,7 @@ TEST_CASE(conv_pooling_dot)
         auto q1  = add_quantize_op(m1, "quantizelinear", input, scale, zero);
         auto d5  = add_quantize_op(m1, "dequantizelinear", q1, scale, zero);
         auto c1  = m1.add_instruction(migraphx::make_op("convolution",
-                                                        {{"padding", {0, 0, 0, 0}},
+                                                       {{"padding", {0, 0, 0, 0}},
                                                          {"stride", {1, 1}},
                                                          {"dilation", {1, 1}},
                                                          {"group", 1},
@@ -1108,7 +1108,7 @@ TEST_CASE(conv_pooling_dot)
         auto d3         = add_quantize_op(m2, "dequantizelinear", ab, scale);
         auto q1         = add_quantize_op(m2, "quantizelinear", input, scale, zero);
         auto c1         = m2.add_instruction(migraphx::make_op("quant_convolution",
-                                                               {{"padding", {0, 0, 0, 0}},
+                                                       {{"padding", {0, 0, 0, 0}},
                                                                 {"stride", {1, 1}},
                                                                 {"dilation", {1, 1}},
                                                                 {"group", 1},
@@ -1170,7 +1170,7 @@ TEST_CASE(mobilenet_snippet)
         auto q1  = add_quantize_op(mm, "quantizelinear", input, scale, zero);
         auto d5  = add_quantize_op(mm, "dequantizelinear", q1, scale, zero);
         auto c1  = mm.add_instruction(migraphx::make_op("convolution",
-                                                        {{"padding", {0, 0, 0, 0}},
+                                                       {{"padding", {0, 0, 0, 0}},
                                                          {"stride", {1, 1}},
                                                          {"dilation", {1, 1}},
                                                          {"group", 1},
@@ -1456,7 +1456,7 @@ TEST_CASE(dot_reused)
         auto out_scale2 = add_scale_mul(m2, scale, scale, 1, 1, sh.lens());
         auto d2         = add_quantize_op(m2, "dequantizelinear", dot2, out_scale2);
         auto d3         = add_quantize_op(m2, "dequantizelinear", q3, q3->inputs()[1]);
-        auto add2 = m2.add_instruction(migraphx::make_op("add"), d2, d3);
+        auto add2       = m2.add_instruction(migraphx::make_op("add"), d2, d3);
         m2.add_return({add2});
     }
 
@@ -1988,28 +1988,29 @@ TEST_CASE(fp4x2_odd_remove_qdq)
 TEST_CASE(qdq_computed_scale)
 {
     migraphx::shape sh{migraphx::shape::float_type, {2, 2}};
-    
+
     migraphx::module m1;
     {
         auto a = m1.add_parameter("a", sh);
         auto b = m1.add_parameter("b", sh);
-        
-        auto scale = m1.add_instruction(migraphx::make_op("add"), m1.add_literal(0.5f), m1.add_literal(0.0f));
+
+        auto scale = m1.add_instruction(
+            migraphx::make_op("add"), m1.add_literal(0.5f), m1.add_literal(0.0f));
         auto zero = m1.add_literal(std::int8_t{0});
-        
+
         auto qa = add_quantize_op(m1, "quantizelinear", a, scale, zero);
         auto da = add_quantize_op(m1, "dequantizelinear", qa, scale, zero);
         auto qb = add_quantize_op(m1, "quantizelinear", b, scale, zero);
         auto db = add_quantize_op(m1, "dequantizelinear", qb, scale, zero);
-        
+
         auto add = m1.add_instruction(migraphx::make_op("add"), da, db);
         m1.add_return({add});
     }
 
     migraphx::module m2;
     {
-        auto a = m2.add_parameter("a", sh);
-        auto b = m2.add_parameter("b", sh);
+        auto a   = m2.add_parameter("a", sh);
+        auto b   = m2.add_parameter("b", sh);
         auto add = m2.add_instruction(migraphx::make_op("add"), a, b);
         m2.add_return({add});
     }

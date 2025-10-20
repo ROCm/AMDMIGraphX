@@ -160,6 +160,14 @@ Model performance tunable variables change the compilation behavior of a model. 
 
       | Default: Split-k performance configurations are turned off.
 
+  * - | ``MIGRAPHX_ENABLE_FLASH_DECODING``
+      | Turns on flash decoding for attention fusion and sets the number of splits.
+    
+    - | ``0``: flash decoding is turned off (i.e. number of splits is 0)
+      | Number of splits must be an integer.
+
+      | Default: flash decoding is turned off.
+
   * - | ``MIGRAPHX_DISABLE_FP16_INSTANCENORM_CONVERT``
       | When set, FP16 is not converted to FP32 in the ``InstanceNormalization`` ONNX operator. 
 

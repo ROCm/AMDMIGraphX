@@ -38,6 +38,8 @@
 #include <reduce.hpp>
 #include <utility>
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_FLASH_DECODING);
+
 static void run_pass(migraphx::program& p)
 {
     migraphx::run_passes(p, {migraphx::fuse_attention{}, migraphx::dead_code_elimination{}});

@@ -36,6 +36,21 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_FLASH_DECODING);
+
+static std::size_t get_num_splits()
+{
+    std::string value = string_value_of(MIGRAPHX_ENABLE_FLASH_DECODING{}, "0");
+    try
+    {
+        return std::stoul(value);
+    }
+    catch(const std::exception& e)
+    {
+        return 0;
+    }
+}
+
 // TODO: Write this in matcher.hpp as a general matcher for iterating through inputs
 inline auto pointwise_inputs()
 {
@@ -219,14 +234,14 @@ struct find_flash_decoding
         return match::name("group")(match::has_op_value("tag", "attention")).bind("group");
     }
 
-    std::pair<instruction_ref, instruction_ref> get_gemms(module_ref submod) const {
+    std::pair<instruction_ref, instruction_ref> get_gemms(module_ref submod) const 
+    {
         std::vector<instruction_ref> gemms;
         for(auto it = submod->begin(); it != submod->end(); ++it)
         {
             if(it->name() == "dot")
                 gemms.push_back(it);
         }
-        
         assert(gemms.size() == 2 && "Expected exactly 2 gemm operations in attention submodule");
         
         // gemms[0] is Q@K, gemms[1] is P@V
@@ -234,7 +249,8 @@ struct find_flash_decoding
         return {gemms[0], gemms[1]};
     }
 
-    std::vector<shape> get_QKV_shapes(instruction_ref Q, instruction_ref K, instruction_ref V) const {
+    std::vector<shape> get_QKV_shapes(instruction_ref Q, instruction_ref K, instruction_ref V) const 
+    {
         std::vector<shape> QKV_shapes;
         auto Q_shape = Q->get_shape();
         auto K_shape = K->get_shape();
@@ -243,74 +259,79 @@ struct find_flash_decoding
         QKV_shapes.push_back(Q_shape);
         QKV_shapes.push_back(K_shape);
         QKV_shapes.push_back(V_shape);
-        
+
         size_t ndim = Q_shape.lens().size();
         assert((ndim == 3 || ndim == 4) && "Expected 3D or 4D Q, K, V shapes");
-        assert(K_shape.lens().size() == ndim && V_shape.lens().size() == ndim && "Q, K, V must have same number of dimensions");
+        assert(K_shape.lens().size() == ndim && V_shape.lens().size() == ndim && 
+               "Q, K, V must have same number of dimensions");
         return QKV_shapes;
     }
 
-    std::vector<std::vector<size_t>> get_transformed_shapes(const std::vector<shape>& input_shapes) const
+    std::vector<std::vector<size_t>> 
+    get_transformed_shapes(const std::vector<shape>& input_shapes) const
     {
         assert(input_shapes.size() == 3 && "Expected Q, K, V shapes");
-        
+
         auto Q_lens = input_shapes[0].lens();
         auto K_lens = input_shapes[1].lens();
         auto V_lens = input_shapes[2].lens();
-        
+
         // 3D: Q_lens = [B, M, k]
         // 4D: Q_lens = [B, H, M, k]
         size_t ndim = Q_lens.size();
-        size_t N = K_lens[ndim - 1];
+        size_t N    = K_lens[ndim - 1];
         
         // TODO: do we wanna support this differently? 
         assert(N % G == 0 && "N must be divisible by G");
         size_t N_split = N / G;
-        
+
         // batch_dims + G + spatial_dims
         auto insert_G = [&](const auto& lens) {
             std::vector<size_t> new_lens(lens.begin(), lens.begin() + ndim - 2);  // batch dims
-            new_lens.push_back(G);  // insert G
-            new_lens.insert(new_lens.end(), lens.begin() + ndim - 2, lens.end());  // last 2 dims
+            new_lens.push_back(G);                                                // insert G
+            new_lens.insert(new_lens.end(), lens.begin() + ndim - 2, lens.end()); // last 2 dims
             return new_lens;
         };
-        
+
         auto Q_new = insert_G(Q_lens);
         auto K_new = insert_G(K_lens);
         auto V_new = insert_G(V_lens);
-        
+
         // update N -> N/G in K and V
         K_new[K_new.size() - 1] = N_split;  // K: [..., G, k, N/G]
         V_new[V_new.size() - 2] = N_split;  // V: [..., G, N/G, D]
-        
+
         return {Q_new, K_new, V_new};
     }
 
-    std::unordered_map<instruction_ref, instruction_ref> map_submod_params_to_inputs(
-            module_ref submod, const std::vector<instruction_ref>& group_inputs) const {
+    std::unordered_map<instruction_ref, instruction_ref> 
+    map_submod_params_to_inputs(module_ref submod, 
+                                const std::vector<instruction_ref>& group_inputs) const 
+    {
         std::unordered_map<instruction_ref, instruction_ref> map_param_to_main;
-        
+
         auto param_names = submod->get_parameter_names();
         assert(param_names.size() == group_inputs.size() && 
                "Number of parameters must match number of inputs");
-        
-        for(size_t i = 0; i < param_names.size(); ++i) {
-            auto param_ins = submod->get_parameter(param_names[i]);
+
+        for(size_t i = 0; i < param_names.size(); ++i) 
+        {
+            auto param_ins               = submod->get_parameter(param_names[i]);
             map_param_to_main[param_ins] = group_inputs[i];
         }
-        
+
         // verify the mapping is correct
         auto expected_inputs = submod->get_inputs(map_param_to_main);
-        assert(expected_inputs == group_inputs && 
-               "Mapped inputs don't match group inputs");
-        
+        assert(expected_inputs == group_inputs && "Mapped inputs don't match group inputs");
+
         return map_param_to_main;
     }
 
     void rebuild_attention_submodule(
         module& target_mod,
         const module& source_mod,
-        const std::unordered_map<instruction_ref, instruction_ref>& param_map) const {
+        const std::unordered_map<instruction_ref, instruction_ref>& param_map) const 
+    {
         // map from instructions in the old module to the new ones in the target module
         std::unordered_map<instruction_ref, instruction_ref> map_old_to_new = param_map;
         std::unordered_map<std::string, instruction_ref> softmax_parts;
@@ -318,18 +339,18 @@ struct find_flash_decoding
         for(auto it = source_mod.begin(); it != source_mod.end(); ++it)
         {
             auto ins = it;
-                if(ins->name() == "@param" or ins->name() == "@return")
-                    continue;
+            if(ins->name() == "@param" or ins->name() == "@return")
+                continue;
 
             // gather inputs for the new instruction
             std::vector<instruction_ref> new_inputs;
             std::transform(ins->inputs().begin(),
-                        ins->inputs().end(),
-                        std::back_inserter(new_inputs),
-                        [&](auto i) {
-                            assert(contains(map_old_to_new, i) && "Input not found in map");
-                            return map_old_to_new.at(i);
-                        });
+                           ins->inputs().end(),
+                           std::back_inserter(new_inputs),
+                           [&](auto i) {
+                               assert(contains(map_old_to_new, i) && "Input not found in map");
+                               return map_old_to_new.at(i);
+                           });
 
             auto op = ins->get_operator();
 
@@ -341,12 +362,15 @@ struct find_flash_decoding
                 auto original_axes = op.to_value()["axes"].to_vector<int64_t>();
                 assert(original_axes.size() == 1 && "Expected single axis for reduction");
                 auto original_axis = original_axes.front();
-                
+
                 const auto& original_input_shape = ins->inputs().front()->get_shape();
                 const auto& new_input_shape      = new_inputs.front()->get_shape();
 
-                assert(original_axis == static_cast<int64_t>(original_input_shape.lens().size() - 1) or original_axis == -1);
-                op.from_value({{"axes", {static_cast<int64_t>(new_input_shape.lens().size() - 1)}}});
+                assert(original_axis == 
+                           static_cast<int64_t>(original_input_shape.lens().size() - 1) or 
+                       original_axis == -1);
+                op.from_value(
+                    {{"axes", {static_cast<int64_t>(new_input_shape.lens().size() - 1)}}});
             }
             // TODO make less reliant on ops around it
             else if(op.name() == "multibroadcast")
@@ -357,23 +381,28 @@ struct find_flash_decoding
                 assert(parent->name() == "sub" or parent->name() == "div");
 
                 // Find the sibling input that isn't the reduction result
-                auto sibling = std::find_if(parent->inputs().begin(), parent->inputs().end(), [&](auto i) { return i != ins; });
-                assert(sibling != parent->inputs().end() && "Could not find sibling for broadcast target");
+                auto sibling = std::find_if(parent->inputs().begin(), 
+                                            parent->inputs().end(), 
+                                            [&](auto i) { return i != ins; });
+                assert(sibling != parent->inputs().end() && 
+                       "Could not find sibling for broadcast target");
                 
                 const auto& target_shape = map_old_to_new.at(*sibling)->get_shape();
                 op.from_value({{"out_lens", target_shape.lens()}});
             }
 
-            auto new_ins = target_mod.add_instruction(op, new_inputs);
+            auto new_ins        = target_mod.add_instruction(op, new_inputs);
             map_old_to_new[ins] = new_ins;
 
             // store key softmax components for LSE calculation
-            if(op.name() == "reduce_max") softmax_parts["max"] = new_ins;
-            if(op.name() == "reduce_sum") softmax_parts["sum_exp"] = new_ins;
+            if(op.name() == "reduce_max") 
+                softmax_parts["max"] = new_ins;
+            if(op.name() == "reduce_sum") 
+                softmax_parts["sum_exp"] = new_ins;
         }
 
         // get the final partial output (O')
-        auto orig_return_ins = std::prev(source_mod.end())->inputs().front();
+        auto orig_return_ins        = std::prev(source_mod.end())->inputs().front();
         auto partial_output_O_prime = map_old_to_new.at(orig_return_ins);
 
         // calculate LSE = max(S) + log(sum(exp(S - max(S))))
@@ -416,62 +445,58 @@ struct find_flash_decoding
 
         // check shapes are ok and get flash decoding transformed shapes (Q', V', K')
         auto transformed_shapes = get_transformed_shapes(QKV_shapes);
-        auto& Qp_shape = transformed_shapes[0];
-        auto& Kp_shape = transformed_shapes[1];
-        auto& Vp_shape = transformed_shapes[2];
+        auto& Qp_shape          = transformed_shapes[0];
+        auto& Kp_shape          = transformed_shapes[1];
+        auto& Vp_shape          = transformed_shapes[2];
 
         // get Q, K, V ins
         // the Q, K, V inputs to group op need to be inputs to the below reshapes
         // the Q, K, V inputs to the group op need their argument indices mapped
         // a new group op needs to be made, with the submodule of the original group op copied over
-        // the input list to the original group op needs to be copied, but the indices that map to Q, K, V need to
-        //  instead be the corresponding reshape ops below
+        // the input list to the original group op needs to be copied, but the indices that map to Q, K, V 
+        // need to instead be the corresponding reshape ops below
 
 
         // create mapping from submodule params to main module inputs
-        auto group_inputs = attn_group_ins->inputs();
+        auto group_inputs      = attn_group_ins->inputs();
         auto map_param_to_main = map_submod_params_to_inputs(submod, group_inputs);
-        
+
         // get actual Q, K, V instructions from main module
         auto Q = map_param_to_main.at(Q_param);
         auto K = map_param_to_main.at(K_param);
         auto V = map_param_to_main.at(V_param);
 
         // insert reshape operations before group, for Q, K, V
-        auto q_ndim = Q->get_shape().lens().size();
+        auto q_ndim    = Q->get_shape().lens().size();
         int64_t G_axis = q_ndim - 2;
 
-        auto Q_unsqueeze = mm.insert_instruction(
-            attn_group_ins,
-            make_op("unsqueeze", {{"axes", {G_axis}}}),
-            Q);
+        auto Q_unsqueeze = 
+            mm.insert_instruction(attn_group_ins, make_op("unsqueeze", {{"axes", {G_axis}}}), Q);
 
-        auto Q_reshaped = mm.insert_instruction(
-            attn_group_ins,
-            make_op("multibroadcast", {{"out_lens", Qp_shape}}),
-            Q_unsqueeze);
+        auto Q_reshaped = 
+            mm.insert_instruction(attn_group_ins, make_op("multibroadcast", {{"out_lens", Qp_shape}}), Q_unsqueeze);
                 
-        auto K_reshaped = mm.insert_instruction(
-            attn_group_ins,
-            make_op("reshape", {{"dims", Kp_shape}}),
-            K);
+        auto K_reshaped = 
+            mm.insert_instruction(attn_group_ins, make_op("reshape", {{"dims", Kp_shape}}), K);
                 
-        auto V_reshaped = mm.insert_instruction(
-            attn_group_ins,
-            make_op("reshape", {{"dims", Vp_shape}}),
-            V);
+        auto V_reshaped = 
+            mm.insert_instruction(attn_group_ins, make_op("reshape", {{"dims", Vp_shape}}), V);
 
         std::cout << "flash decoding, mm with inserted reshapes:\n";
         mm.debug_print();
 
         // create new input list by replacing Q, K, V with reshaped versions
         std::vector<instruction_ref> new_group_inputs = group_inputs;
-        for(size_t i = 0; i < group_inputs.size(); ++i) {
-            if(group_inputs[i] == Q) {
+        for(size_t i = 0; i < group_inputs.size(); ++i) 
+        {
+            if(group_inputs[i] == Q) 
+            {
                 new_group_inputs[i] = Q_reshaped;
-            } else if(group_inputs[i] == K) {
+            } else if(group_inputs[i] == K) 
+            {
                 new_group_inputs[i] = K_reshaped;
-            } else if(group_inputs[i] == V) {
+            } else if(group_inputs[i] == V) 
+            {
                 new_group_inputs[i] = V_reshaped;
             }
         }
@@ -486,16 +511,19 @@ struct find_flash_decoding
         auto V_name = V_param->get_operator().to_value()["parameter"].to<std::string>();
 
         // new params added first
-        auto new_Q_param = m_flash_decode.add_parameter(Q_name, shape{QKV_shapes[0].type(), Qp_shape});
-        auto new_K_param = m_flash_decode.add_parameter(K_name, shape{QKV_shapes[1].type(), Kp_shape});
-        auto new_V_param = m_flash_decode.add_parameter(V_name, shape{QKV_shapes[2].type(), Vp_shape});
+        auto new_Q_param = 
+            m_flash_decode.add_parameter(Q_name, shape{QKV_shapes[0].type(), Qp_shape});
+        auto new_K_param = 
+            m_flash_decode.add_parameter(K_name, shape{QKV_shapes[1].type(), Kp_shape});
+        auto new_V_param = 
+            m_flash_decode.add_parameter(V_name, shape{QKV_shapes[2].type(), Vp_shape});
         
         // build mapping for old params -> new params
         std::unordered_map<instruction_ref, instruction_ref> map_old_params_to_new;
         map_old_params_to_new[Q_param] = new_Q_param;
         map_old_params_to_new[K_param] = new_K_param;
         map_old_params_to_new[V_param] = new_V_param;
-        
+
         // don't simply fuse, need to update lots
         rebuild_attention_submodule(m_flash_decode, *submod, map_old_params_to_new);
 
@@ -509,11 +537,10 @@ struct find_flash_decoding
         mpm_flash_mod->set_bypass();
 
         // insert the new group op, which now returns a tuple
-        auto new_group_ins = mm.insert_instruction(
-            attn_group_ins,
-            make_op("group", {{"tag", "attention"}}),
-            new_group_inputs,
-            {mpm_flash_mod});
+        auto new_group_ins = mm.insert_instruction(attn_group_ins,
+                                                   make_op("group", {{"tag", "attention"}}),
+                                                   new_group_inputs,
+                                                   {mpm_flash_mod});
 
         // unpack O' and LSE
         auto partial_output_O_prime = mm.insert_instruction(
@@ -524,16 +551,20 @@ struct find_flash_decoding
         // kernel 2
 
         // scale = softmax(L, axis=G_axis)
-        auto lse_max = mm.insert_instruction(
-            attn_group_ins, make_op("reduce_max", {{"axes", {G_axis}}}), lse);
+        auto lse_max = 
+            mm.insert_instruction(attn_group_ins, make_op("reduce_max", {{"axes", {G_axis}}}), lse);
         auto lse_max_bcast = mm.insert_instruction(
-            attn_group_ins, make_op("multibroadcast", {{"out_lens", lse->get_shape().lens()}}), lse_max);
+            attn_group_ins, 
+            make_op("multibroadcast", {{"out_lens", lse->get_shape().lens()}}), 
+            lse_max);
         auto lse_sub = mm.insert_instruction(attn_group_ins, make_op("sub"), lse, lse_max_bcast);
         auto lse_exp = mm.insert_instruction(attn_group_ins, make_op("exp"), lse_sub);
         auto lse_sum = mm.insert_instruction(
             attn_group_ins, make_op("reduce_sum", {{"axes", {G_axis}}}), lse_exp);
         auto lse_sum_bcast = mm.insert_instruction(
-            attn_group_ins, make_op("multibroadcast", {{"out_lens", lse_exp->get_shape().lens()}}), lse_sum);
+            attn_group_ins, 
+            make_op("multibroadcast", {{"out_lens", lse_exp->get_shape().lens()}}), 
+            lse_sum);
         auto scale = mm.insert_instruction(attn_group_ins, make_op("div"), lse_exp, lse_sum_bcast);
 
         auto scale_bcast = mm.insert_instruction(
@@ -542,7 +573,8 @@ struct find_flash_decoding
             scale);
 
         // R = mul(O', broadcasted_scale)
-        auto scaled_R = mm.insert_instruction(attn_group_ins, make_op("mul"), partial_output_O_prime, scale_bcast);
+        auto scaled_R = mm.insert_instruction(
+            attn_group_ins, make_op("mul"), partial_output_O_prime, scale_bcast);
 
         // O = sum(R, axis=G_axis)
         auto final_output_O = mm.insert_instruction(
@@ -554,10 +586,9 @@ struct find_flash_decoding
 
         // replace the original group instruction with the final result
         mm.replace_instruction(attn_group_ins, final_squeezed_O);
-        
+
         std::cout << "flash decoding, final module:\n";
         mm.debug_print();
-
     }
 };
 
@@ -570,13 +601,14 @@ void fuse_attention::apply(module_pass_manager& mpm) const
     mpm.get_module().sort();
     mpm.run_pass(dead_code_elimination{});
 
-    // TODO: env var with enabling/setting G?
-    std::size_t G = 2;
-    match::find_matches(mpm, find_flash_decoding{.G = G});
-    mpm.run_pass(dead_code_elimination{});
+    std::size_t num_splits = get_num_splits();
+    if(num_splits > 1) {
+        match::find_matches(mpm, find_flash_decoding{.G = num_splits});
+        mpm.run_pass(dead_code_elimination{});
 
-    std::cout << "flash decoding: after dead code elim:";
-    mpm.get_module().debug_print();
+        std::cout << "flash decoding: after dead code elim:";
+        mpm.get_module().debug_print();
+    }
 }
 
 } // namespace MIGRAPHX_INLINE_NS

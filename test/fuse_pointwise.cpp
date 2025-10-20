@@ -1091,19 +1091,16 @@ TEST_CASE(rewrite_broadcast_multi_output)
             mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), l0);
         auto pw0 =
             add_pointwise(p1, "main:pointwise0", {l0, l1}, [=](auto* pm, const auto& inputs) {
-                auto mul0 = pm->add_instruction(migraphx::make_op("mul"), inputs[0], inputs[1]);
-                return mul0;
+                return pm->add_instruction(migraphx::make_op("mul"), inputs[0], inputs[1]);
             });
         auto mb1 =
             mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), pw0);
         auto pw1 =
             add_pointwise(p1, "main:pointwise1", {mb0, mb1}, [=](auto* pm, const auto& inputs) {
-                auto mul0 = pm->add_instruction(migraphx::make_op("mul"), inputs[0], inputs[1]);
-                return mul0;
+                return pm->add_instruction(migraphx::make_op("mul"), inputs[0], inputs[1]);
             });
         auto pw2 = add_pointwise(p1, "main:pointwise2", {pw1}, [=](auto* pm, const auto& inputs) {
-            auto add0 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[0]);
-            return add0;
+            return pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[0]);
         });
         mm->add_return({pw1, pw2});
     }

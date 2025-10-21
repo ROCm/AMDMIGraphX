@@ -793,9 +793,9 @@ struct find_mlir_fused_geg_ops
     // check if individual GEMM meets architecture requirements
     bool is_gemm_supported(instruction_ref ins) const
     {
-        // on navi3x (gfx110x), wmma doesn't support fp32, so skip fp32 GEMMs
+        // on navis, wmma doesn't support fp32, so skip fp32 GEMMs
         // one gemm being f32 is sufficient to turn off this fusion
-        if(starts_with(gfx_name, "gfx110"))
+        if(starts_with(gfx_name, "gfx11") or starts_with(gfx_name, "gfx12"))
         {
             if(ins->get_shape().type() == shape::type_t::float_type)
             {

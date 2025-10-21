@@ -821,7 +821,7 @@ struct find_mlir_fused_geg_ops
                 .bind("first_gemm_based_op");
         auto elemwise =
             mlir_pointwise()(match::any_of[match::inputs()](first_dot_or_conv)).bind("elemwise");
-        return is_mlir_dot(dot_mode)(gemm_supported)(match::any_of[match::inputs()](elemwise))
+        return is_mlir_dot(dot_mode)(gemm_supported)(match::arg(0)(elemwise))
             .bind("second_gemm_op");
     }
 

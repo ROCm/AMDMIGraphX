@@ -1815,6 +1815,62 @@ TEST_CASE(dot_add_dot)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(dot_add_dot_ABC)
+// MLIR currently only supports (A*B)*C GEG patterns
+{
+    migraphx::shape s1{migraphx::shape::half_type, {2, 3}};
+    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
+    migraphx::shape s3{migraphx::shape::half_type, {2, 4}};
+    migraphx::shape s4{migraphx::shape::half_type, {4, 2}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto a    = mm->add_parameter("a", s1);
+        auto b    = mm->add_parameter("b", s2);
+        auto x    = mm->add_parameter("x", s3);
+        auto y    = mm->add_parameter("y", s4);
+        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b); // {2,4}
+        auto add =
+            add_pointwise(p1, "main:pointwise0", {dot1, x}, single_pointwise("add")); // {2, 4}
+        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, y);            // {2, 4}*{4, 2} = {2, 2}
+        mm->add_return({dot2});
+    }
+    run_pass(p1);
+    // ensure "geg" is present. Earlier tests ensure the fusion is correct. This is just to ensure it happens.
+    std::stringstream ss;
+    ss << p1;
+    std::string program_str = ss.str();
+    EXPECT(program_str.find("geg") != std::string::npos);
+}
+
+TEST_CASE(dot_add_dot_CAB)
+// MLIR currently does not support C*(A*B) GEG patterns
+{
+    migraphx::shape s1{migraphx::shape::half_type, {2, 3}};
+    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
+    migraphx::shape s3{migraphx::shape::half_type, {2, 4}};
+    migraphx::shape s4{migraphx::shape::half_type, {4, 2}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto a    = mm->add_parameter("a", s1);
+        auto b    = mm->add_parameter("b", s2);
+        auto x    = mm->add_parameter("x", s3);
+        auto y    = mm->add_parameter("y", s4);
+        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b); // {2,4}
+        auto add =
+            add_pointwise(p1, "main:pointwise0", {dot1, x}, single_pointwise("add")); // {2, 4}
+        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), y, add);            // {4, 2}*{2, 4} = {4, 4}
+        mm->add_return({dot2});
+    }
+    run_pass(p1);
+    // ensure "geg" is not in the fused program
+    std::stringstream ss;
+    ss << p1;
+    std::string program_str = ss.str();
+    EXPECT(program_str.find("geg") == std::string::npos);
+}
+
 TEST_CASE(dot_add_dot_square)
 {
     migraphx::shape s{migraphx::shape::half_type, {1, 3, 3}};

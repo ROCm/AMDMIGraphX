@@ -365,16 +365,14 @@ bool compare_literals(instruction_ref ins1, instruction_ref ins2)
     auto x = ins1->eval();
     if(x.empty())
         return false;
-    auto literal1 = ins1->get_literal();
     if(ins2->name() == "broadcast" or ins2->name() == "multibroadcast")
         ins2 = ins2->inputs().front();
     auto y = ins2->eval();
     if(y.empty())
         return false;
-    auto literal2 = ins2->get_literal();
 
     bool diff_shapes_equal_vals = false;
-    visit_all(ins1->get_literal(), ins2->get_literal())([&](const auto l1, const auto l2) {
+    visit_all(x, y)([&](const auto l1, const auto l2) {
         diff_shapes_equal_vals =
             std::all_of(l1.begin() + 1,
                         l1.end(),

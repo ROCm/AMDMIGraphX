@@ -2031,7 +2031,8 @@ TEST_CASE(gather_constant_same_indices_1d)
         migraphx::shape si{migraphx::shape::int32_type, {3}};
         auto indices = m1.add_literal(migraphx::literal{si, {1, 1, 1}});
         auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
-        auto unsqueeze = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), gather);
+        auto unsqueeze =
+            m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), gather);
         m1.add_return({unsqueeze});
     }
     run_pass(m1);
@@ -2040,8 +2041,8 @@ TEST_CASE(gather_constant_same_indices_1d)
     {
         auto s     = migraphx::shape{migraphx::shape::float_type, {12}};
         auto data  = m2.add_parameter("data", s);
-        auto broadcast =
-            m2.add_instruction(migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {12, 3}}}), data);
+        auto broadcast = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {12, 3}}}), data);
         auto slice = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), broadcast);
         m2.add_return({slice});
@@ -2109,7 +2110,8 @@ TEST_CASE(gather_constant_stride_indices_1d)
         migraphx::shape si{migraphx::shape::int32_type, {3}};
         auto indices = m1.add_literal(migraphx::literal{si, {1, 5, 9}});
         auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
-        // auto unsqueeze = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), gather);
+        // auto unsqueeze = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}),
+        // gather);
         m1.add_return({gather});
     }
     run_pass(m1);
@@ -2121,9 +2123,11 @@ TEST_CASE(gather_constant_stride_indices_1d)
         auto slice1 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {28}}}), data);
         auto reshape = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {7, 4}}}), slice1);
-        auto transpose = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), reshape);
+        auto transpose =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), reshape);
         auto slice2 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {1, 0}}, {"ends", {2, 3}}}), transpose);
+            migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {1, 0}}, {"ends", {2, 3}}}),
+            transpose);
         auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), slice2);
         m2.add_return({squeeze});
     }
@@ -2146,12 +2150,14 @@ TEST_CASE(gather_constant_stride_divisible_indices_1d)
 
     migraphx::module m2;
     {
-        auto s     = migraphx::shape{migraphx::shape::float_type, {30}};
-        auto data  = m2.add_parameter("data", s);
+        auto s       = migraphx::shape{migraphx::shape::float_type, {30}};
+        auto data    = m2.add_parameter("data", s);
         auto reshape = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {6, 5}}}), data);
-        auto transpose = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), reshape);
+        auto transpose =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), reshape);
         auto slice = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {0, 0}}, {"ends", {1, 3}}}), transpose);
+            migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {0, 0}}, {"ends", {1, 3}}}),
+            transpose);
         auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), slice);
         m2.add_return({squeeze});
     }
@@ -2174,12 +2180,14 @@ TEST_CASE(gather_constant_stride_divisible_indices_window_1d)
 
     migraphx::module m2;
     {
-        auto s     = migraphx::shape{migraphx::shape::float_type, {30}};
-        auto data  = m2.add_parameter("data", s);
+        auto s       = migraphx::shape{migraphx::shape::float_type, {30}};
+        auto data    = m2.add_parameter("data", s);
         auto reshape = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {6, 5}}}), data);
-        auto transpose = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), reshape);
+        auto transpose =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), reshape);
         auto slice = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {0, 1}}, {"ends", {1, 4}}}), transpose);
+            migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {0, 1}}, {"ends", {1, 4}}}),
+            transpose);
         auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), slice);
         m2.add_return({squeeze});
     }
@@ -2202,10 +2210,11 @@ TEST_CASE(gather_constant_stride_divisible_both_indices_1d)
 
     migraphx::module m2;
     {
-        auto s     = migraphx::shape{migraphx::shape::float_type, {15}};
-        auto data  = m2.add_parameter("data", s);
+        auto s       = migraphx::shape{migraphx::shape::float_type, {15}};
+        auto data    = m2.add_parameter("data", s);
         auto reshape = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 5}}}), data);
-        auto transpose = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), reshape);
+        auto transpose =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), reshape);
         auto slice = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), transpose);
         auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), slice);
@@ -2230,11 +2239,13 @@ TEST_CASE(gather_sequential_stride_rtr_1d)
 
     migraphx::module m2;
     {
-        auto s     = migraphx::shape{migraphx::shape::float_type, {8}};
-        auto data  = m2.add_parameter("data", s);
+        auto s        = migraphx::shape{migraphx::shape::float_type, {8}};
+        auto data     = m2.add_parameter("data", s);
         auto reshape1 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4}}}), data);
-        auto transpose = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), reshape1);
-        auto reshape2 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), transpose);
+        auto transpose =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), reshape1);
+        auto reshape2 =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), transpose);
         m2.add_return({reshape2});
     }
 
@@ -2256,10 +2267,12 @@ TEST_CASE(gather_sequential_stride_rtr_window_1d)
 
     migraphx::module m2;
     {
-        auto s     = migraphx::shape{migraphx::shape::float_type, {12}};
-        auto data  = m2.add_parameter("data", s);
-        auto reshape1 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 3}}}), data);
-        auto transpose = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), reshape1);
+        auto s    = migraphx::shape{migraphx::shape::float_type, {12}};
+        auto data = m2.add_parameter("data", s);
+        auto reshape1 =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 3}}}), data);
+        auto transpose = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), reshape1);
         auto slice = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {3}}}), transpose);
         auto reshape2 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), slice);

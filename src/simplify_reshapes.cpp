@@ -414,10 +414,10 @@ struct find_slice_shape_transforms
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto ins = mr.result;
-        auto slice = mr.instructions["slice"];
+        auto ins      = mr.result;
+        auto slice    = mr.instructions["slice"];
         auto slice_op = slice->get_operator().to_value();
-        auto axes = slice_op.at("axes").to_vector<std::size_t>();
+        auto axes     = slice_op.at("axes").to_vector<std::size_t>();
 
         std::vector<operation> ops;
         auto x = ins;
@@ -435,12 +435,15 @@ struct find_slice_shape_transforms
         // std::cout << "desc: " << desc << std::endl;
 
         std::vector<std::size_t> new_axes;
-        std::transform(axes.begin(), axes.end(), join_back_inserter(new_axes), [&](auto axis) -> std::vector<std::size_t> {
-            auto result = desc.get_dst_axes_from_src(axis);
-            if(result.size() != 1)
-                return {};
-            return result;
-        });
+        std::transform(axes.begin(),
+                       axes.end(),
+                       join_back_inserter(new_axes),
+                       [&](auto axis) -> std::vector<std::size_t> {
+                           auto result = desc.get_dst_axes_from_src(axis);
+                           if(result.size() != 1)
+                               return {};
+                           return result;
+                       });
 
         if(axes.size() != new_axes.size())
             return;
@@ -452,7 +455,7 @@ struct find_slice_shape_transforms
         new_desc.simplify();
 
         auto opt_ops = new_desc.generate();
-        auto y = x;
+        auto y       = x;
         for(const auto& op : opt_ops)
             y = m.insert_instruction(ins, op, y);
         y = m.insert_instruction(ins, make_op("slice", slice_op), y);
@@ -473,7 +476,8 @@ struct find_slice_shape_transforms
         // else if(x->get_shape().elements() == 1 and ins->get_shape().elements() == 1)
         // {
         //     // TODO: Use squeeze or unsqueeze
-        //     m.replace_instruction(ins, make_op("reshape", {{"dims", ins->get_shape().lens()}}), x);
+        //     m.replace_instruction(ins, make_op("reshape", {{"dims", ins->get_shape().lens()}}),
+        //     x);
         // }
         // else
         // {
@@ -1051,12 +1055,10 @@ class gather_instruction_builder
             insert_before, make_op("transpose", {{"permutation", perm}}), input);
     }
 
-    template<class Dims>
+    template <class Dims>
     instruction_ref reshape(instruction_ref input, const Dims& dims)
     {
-        assert(std::all_of(dims.begin(), dims.end(), [](auto i) {
-            return i > 0;
-        }));
+        assert(std::all_of(dims.begin(), dims.end(), [](auto i) { return i > 0; }));
         auto curr_lens = input->get_shape().lens();
         // Check if we can use squeeze (removing dimensions of size 1)
         if(curr_lens.size() > dims.size())
@@ -1072,8 +1074,7 @@ class gather_instruction_builder
                 }
                 else
                 {
-                    if(target_idx >= dims.size() ||
-                       curr_lens[curr_idx] != dims[target_idx])
+                    if(target_idx >= dims.size() || curr_lens[curr_idx] != dims[target_idx])
                     {
                         axes_to_squeeze.clear();
                         break;
@@ -1101,8 +1102,7 @@ class gather_instruction_builder
                 }
                 else
                 {
-                    if(curr_idx >= curr_lens.size() ||
-                       dims[target_idx] != curr_lens[curr_idx])
+                    if(curr_idx >= curr_lens.size() || dims[target_idx] != curr_lens[curr_idx])
                     {
                         axes_to_unsqueeze.clear();
                         break;
@@ -1127,10 +1127,7 @@ class gather_instruction_builder
             insert_before, make_op("unsqueeze", {{"axes", axes}, {"steps", steps}}), input);
     }
 
-    instruction_ref slice(instruction_ref input,
-                          int64_t axis,
-                          int64_t start,
-                          int64_t end)
+    instruction_ref slice(instruction_ref input, int64_t axis, int64_t start, int64_t end)
     {
         assert(end > start);
         assert(axis < input->get_shape().ndim());
@@ -1144,14 +1141,15 @@ class gather_instruction_builder
             input);
     }
 
-    instruction_ref slice(instruction_ref input, const std::vector<std::array<std::size_t, 3>>& slices) 
+    instruction_ref slice(instruction_ref input,
+                          const std::vector<std::array<std::size_t, 3>>& slices)
     {
         std::cout << "slice: ";
         m.debug_print(input);
         std::vector<std::size_t> axes;
         std::vector<std::size_t> starts;
         std::vector<std::size_t> ends;
-        for(auto slice:slices)
+        for(auto slice : slices)
         {
             std::size_t axis  = slice[0];
             std::size_t start = slice[1];
@@ -1377,9 +1375,10 @@ class gather_instruction_builder
     }
 #endif
 
-    instruction_ref expand_dim(instruction_ref input, const std::vector<std::size_t>& edim, std::size_t axis = 0)
+    instruction_ref
+    expand_dim(instruction_ref input, const std::vector<std::size_t>& edim, std::size_t axis = 0)
     {
-        auto dims = input->get_shape().lens();
+        auto dims  = input->get_shape().lens();
         dims[axis] = edim.back();
         dims.insert(dims.begin() + axis, edim.begin(), edim.end() - 1);
         return this->reshape(input, dims);
@@ -1404,29 +1403,30 @@ class gather_instruction_builder
     instruction_ref repeat_dim(instruction_ref input, std::size_t n, std::size_t axis = 0)
     {
         std::vector<std::size_t> edim = {input->get_shape().lens()[axis], 1};
-        auto ins = this->expand_dim(input, edim, axis);
-        auto out_lens = ins->get_shape().lens();
-        out_lens[axis+1] = n;
+        auto ins                      = this->expand_dim(input, edim, axis);
+        auto out_lens                 = ins->get_shape().lens();
+        out_lens[axis + 1]            = n;
         return this->multibroadcast(ins, out_lens);
     }
 
-    instruction_ref transpose_stride(instruction_ref input, std::size_t stride, std::size_t axis = 0)
+    instruction_ref
+    transpose_stride(instruction_ref input, std::size_t stride, std::size_t axis = 0)
     {
         std::vector<std::size_t> edim = {input->get_shape().lens()[axis] / stride, stride};
-        auto reshaped = this->expand_dim(input, edim, axis);
+        auto reshaped                 = this->expand_dim(input, edim, axis);
         std::vector<int64_t> perm(reshaped->get_shape().ndim());
         std::iota(perm.begin(), perm.end(), 0);
-        std::swap(perm[axis], perm[axis+1]);
+        std::swap(perm[axis], perm[axis + 1]);
         return this->transpose(reshaped, perm);
     }
 
     instruction_ref transpose_group(instruction_ref input, std::size_t group, std::size_t axis = 0)
     {
         std::vector<std::size_t> edim = {group, input->get_shape().lens()[axis] / group};
-        auto reshaped = this->expand_dim(input, edim, axis);
+        auto reshaped                 = this->expand_dim(input, edim, axis);
         std::vector<int64_t> perm(reshaped->get_shape().ndim());
         std::iota(perm.begin(), perm.end(), 0);
-        std::swap(perm[axis], perm[axis+1]);
+        std::swap(perm[axis], perm[axis + 1]);
         return this->transpose(reshaped, perm);
     }
 
@@ -3089,32 +3089,26 @@ struct tiled_pattern2
 
 struct arithmetic_segment
 {
-    int64_t base = 0;
-    int64_t stride = 0;
+    int64_t base      = 0;
+    int64_t stride    = 0;
     std::size_t count = 0;
 
-    bool empty() const
-    {
-        return count == 0;
-    }
+    bool empty() const { return count == 0; }
 
-    std::size_t length() const
-    {
-        return std::max<std::size_t>(1, stride*count);
-    }
+    std::size_t length() const { return std::max<std::size_t>(1, stride * count); }
 
     std::size_t total_length() const
     {
         if(stride == 0)
             return base + 1;
-        return stride*(count + base/stride);
+        return stride * (count + base / stride);
     }
 
     std::size_t last_index() const
     {
         if(empty())
             return 0;
-        return stride*(count - 1) + base;
+        return stride * (count - 1) + base;
     }
 
     template <class Iterator>
@@ -3127,7 +3121,8 @@ struct arithmetic_segment
         return result;
     }
 
-    static std::vector<arithmetic_segment> make_segments(const std::vector<arithmetic_segment>& segments)
+    static std::vector<arithmetic_segment>
+    make_segments(const std::vector<arithmetic_segment>& segments)
     {
         std::vector<arithmetic_segment> result;
         for(auto it = segments.begin(); it != segments.end();)
@@ -3135,17 +3130,21 @@ struct arithmetic_segment
             auto [seg, next_it] = find(it, segments.end());
             result.push_back(seg);
             it = next_it;
-        }    
+        }
         return result;
     }
 
-    static std::vector<arithmetic_segment> shift(const std::vector<arithmetic_segment>& segments, std::int64_t shift)
+    static std::vector<arithmetic_segment> shift(const std::vector<arithmetic_segment>& segments,
+                                                 std::int64_t shift)
     {
         std::vector<arithmetic_segment> result;
-        std::transform(segments.begin(), segments.end(), std::back_inserter(result), [&](arithmetic_segment x) {
-            x.base += shift;
-            return x;
-        });
+        std::transform(segments.begin(),
+                       segments.end(),
+                       std::back_inserter(result),
+                       [&](arithmetic_segment x) {
+                           x.base += shift;
+                           return x;
+                       });
         return result;
     }
 
@@ -3161,13 +3160,17 @@ struct arithmetic_segment
         auto start = *begin;
         // auto base   = *begin;
         auto stride = std::next(begin)->base - start.base;
-        auto diff = std::adjacent_find(begin, end, [&](arithmetic_segment x, arithmetic_segment y) { return y.base - x.base != stride; });
+        auto diff = std::adjacent_find(begin, end, [&](arithmetic_segment x, arithmetic_segment y) {
+            return y.base - x.base != stride;
+        });
         if(diff != end)
             diff++;
-        return std::make_pair(arithmetic_segment{start.base, stride, std::size_t(std::distance(begin, diff))}, diff);
+        return std::make_pair(
+            arithmetic_segment{start.base, stride, std::size_t(std::distance(begin, diff))}, diff);
     }
 
-    // instruction_ref transform(gather_instruction_builder& builder, instruction_ref input, std::size_t axis) const
+    // instruction_ref transform(gather_instruction_builder& builder, instruction_ref input,
+    // std::size_t axis) const
     // {
     //     if(stride == 0)
     //         return builder.repeat_dim(input, count, axis);
@@ -3177,20 +3180,25 @@ struct arithmetic_segment
     // std::size_t base_start = seg.base/seg.stride;
     // ins = builder.slice(ins, {{axis, 0, 1}, {axis+1, base_start, base_start+seg.count}});
 
-    instruction_ref transform(gather_instruction_builder& builder, instruction_ref input, std::size_t axis, std::size_t nsegments) const
+    instruction_ref transform(gather_instruction_builder& builder,
+                              instruction_ref input,
+                              std::size_t axis,
+                              std::size_t nsegments) const
     {
         if(stride == 0)
         {
             auto ins = builder.repeat_dim(input, count, axis);
-            return builder.slice(ins, {{axis, std::size_t(base), base+nsegments}});
+            return builder.slice(ins, {{axis, std::size_t(base), base + nsegments}});
         }
         else
         {
 
-            auto ins = builder.transpose_stride(input, stride, axis);
-            std::size_t base_start0 = base%stride;
-            std::size_t base_start1 = base/stride;
-            return builder.slice(ins, {{axis, base_start0, base_start0+nsegments}, {axis+1, base_start1, base_start1+count}});
+            auto ins                = builder.transpose_stride(input, stride, axis);
+            std::size_t base_start0 = base % stride;
+            std::size_t base_start1 = base / stride;
+            return builder.slice(ins,
+                                 {{axis, base_start0, base_start0 + nsegments},
+                                  {axis + 1, base_start1, base_start1 + count}});
         }
     }
 
@@ -3198,67 +3206,77 @@ struct arithmetic_segment
     {
         if(stride == 0)
             return 0;
-        return base%stride;
+        return base % stride;
     }
 
-    template<class Indices>
-    static auto transform_indices(const Indices& indices, gather_instruction_builder& builder, instruction_ref start)
+    template <class Indices>
+    static auto transform_indices(const Indices& indices,
+                                  gather_instruction_builder& builder,
+                                  instruction_ref start)
     {
         auto isegments = from_ints(indices.begin(), indices.end());
-        return fix<std::optional<instruction_ref>>([&](auto self, const std::vector<arithmetic_segment>& segments, instruction_ref input) -> std::optional<instruction_ref> {
-            builder.m.debug_print();
-            std::cout << "nsegments: " << segments.size() << std::endl;
-            for(auto segment:segments)
-                std::cout << "    {" << segment.base << ", " << segment.stride << ", " << segment.count << "}\n";
-            // auto axis = input->get_shape().ndim() - 1;
-            std::size_t axis = 0;
-            if(segments.empty())
-                return input;
-            if(not std::all_of(segments.begin(), segments.end(), [&](const arithmetic_segment& seg){
-                return seg.stride == segments.front().stride and seg.count == segments.front().count;
-            }))
-                return std::nullopt;
-            auto seg = segments.front();
-            if(seg.empty())
-                return std::nullopt;
-            // auto total_len = transform_accumulate(segments.begin(), segments.end(), 0, std::plus<>{}, [](const auto& s) {
-            //     return s.length();
-            // });
-            instruction_ref rec = input;
-            int64_t delta = 0;
-            // int64_t total_len = segments.back().total_length();
-            int64_t rem = seg.stride == 0 ? 0 : rec->get_shape().lens()[axis] % seg.stride;
-            if(rem != 0)
-            {
-                std::cout << "rem: " << rem << std::endl;
-                rec = builder.slice(rec, axis, 0, rec->get_shape().lens()[axis] - rem);
-            }
-            // int64_t delta = -rem;
-            // if(rem != 0)
-            // {
-            //     std::cout << "rem: " << rem << std::endl;
-            //     std::cout << "total_len: " << total_len << std::endl;
-            //     rec = builder.slice(rec, axis, rem, rec->get_shape().lens()[axis] - rem);
-            // }
-            // auto base_rem = seg.stride == 0 ? 0 : seg.base % seg.stride;
-            // auto len_rem = seg.stride == 0 ? 0 : rec->get_shape().lens()[axis] % seg.stride;
-            // std::size_t delta = -base_rem;
-            // if(base_rem != 0 or len_rem != 0)
-            // {
-            //     std::cout << "base_rem: " << base_rem << std::endl;
-            //     std::cout << "len_rem: " << len_rem << std::endl;
-            //     std::cout << "total_len: " << total_len << std::endl;
-            //     rec = builder.slice(rec, axis, base_rem, base_rem+segments.back().total_length());
-            // }
-            seg.base += delta;
-            assert(axis < rec->get_shape().lens().size());
-            auto ins = seg.transform(builder, rec, axis, segments.size());
+        return fix<std::optional<instruction_ref>>(
+            [&](auto self,
+                const std::vector<arithmetic_segment>& segments,
+                instruction_ref input) -> std::optional<instruction_ref> {
+                builder.m.debug_print();
+                std::cout << "nsegments: " << segments.size() << std::endl;
+                for(auto segment : segments)
+                    std::cout << "    {" << segment.base << ", " << segment.stride << ", "
+                              << segment.count << "}\n";
+                // auto axis = input->get_shape().ndim() - 1;
+                std::size_t axis = 0;
+                if(segments.empty())
+                    return input;
+                if(not std::all_of(
+                       segments.begin(), segments.end(), [&](const arithmetic_segment& seg) {
+                           return seg.stride == segments.front().stride and
+                                  seg.count == segments.front().count;
+                       }))
+                    return std::nullopt;
+                auto seg = segments.front();
+                if(seg.empty())
+                    return std::nullopt;
+                // auto total_len = transform_accumulate(segments.begin(), segments.end(), 0,
+                // std::plus<>{}, [](const auto& s) {
+                //     return s.length();
+                // });
+                instruction_ref rec = input;
+                int64_t delta       = 0;
+                // int64_t total_len = segments.back().total_length();
+                int64_t rem = seg.stride == 0 ? 0 : rec->get_shape().lens()[axis] % seg.stride;
+                if(rem != 0)
+                {
+                    std::cout << "rem: " << rem << std::endl;
+                    rec = builder.slice(rec, axis, 0, rec->get_shape().lens()[axis] - rem);
+                }
+                // int64_t delta = -rem;
+                // if(rem != 0)
+                // {
+                //     std::cout << "rem: " << rem << std::endl;
+                //     std::cout << "total_len: " << total_len << std::endl;
+                //     rec = builder.slice(rec, axis, rem, rec->get_shape().lens()[axis] - rem);
+                // }
+                // auto base_rem = seg.stride == 0 ? 0 : seg.base % seg.stride;
+                // auto len_rem = seg.stride == 0 ? 0 : rec->get_shape().lens()[axis] % seg.stride;
+                // std::size_t delta = -base_rem;
+                // if(base_rem != 0 or len_rem != 0)
+                // {
+                //     std::cout << "base_rem: " << base_rem << std::endl;
+                //     std::cout << "len_rem: " << len_rem << std::endl;
+                //     std::cout << "total_len: " << total_len << std::endl;
+                //     rec = builder.slice(rec, axis, base_rem,
+                //     base_rem+segments.back().total_length());
+                // }
+                seg.base += delta;
+                assert(axis < rec->get_shape().lens().size());
+                auto ins = seg.transform(builder, rec, axis, segments.size());
 
-            delta -= seg.shift_next_base();
-            if(segments.size() == 1)
-                return ins;
-            return self(shift(make_segments(segments), delta), ins);
-        })(make_segments(isegments), start);
+                delta -= seg.shift_next_base();
+                if(segments.size() == 1)
+                    return ins;
+                return self(shift(make_segments(segments), delta), ins);
+            })(make_segments(isegments), start);
     }
 };
 
@@ -3267,7 +3285,9 @@ struct arithmetic_segment
 inline std::optional<instruction_ref>
 try_segment_based_optimization_1d(const gather_context& ctx, gather_instruction_builder& builder)
 {
-    if(auto r = arithmetic_segment::transform_indices(ctx.indices_values(), builder, ctx.data_ins())) {
+    if(auto r =
+           arithmetic_segment::transform_indices(ctx.indices_values(), builder, ctx.data_ins()))
+    {
         builder.m.debug_print();
         return builder.reshape(*r, ctx.output_dims());
     }

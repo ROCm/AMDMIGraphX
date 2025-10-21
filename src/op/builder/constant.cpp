@@ -21,29 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/tf/op_parser.hpp>
-#include <migraphx/tf/tf_parser.hpp>
-#include <migraphx/op/builder/insert.hpp>
+
+#include <migraphx/op/builder/op_builder.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace tf {
+namespace op {
+namespace builder {
 
-struct parse_constant_op : op_parser<parse_constant_op>
+struct constant : op_builder<constant>
 {
-    bool transpose() const { return true; }
-    std::vector<op_desc> operators() const { return {{"Const"}}; }
+    literal lit;
 
-    instruction_ref parse(const op_desc& /*opd*/,
-                          const tf_parser& parser,
-                          tf_parser::node_info info,
-                          const std::vector<instruction_ref>& args) const
+    void from_value(const value& v) { lit = migraphx::from_value<literal>(v); }
+
+    std::vector<instruction_ref>
+    insert(module& m, instruction_ref /*ins*/, const std::vector<instruction_ref>& /*args*/) const
     {
-        literal v = parser.parse_tensor(info.attributes.at("value").tensor());
-        return op::builder::add("constant", *info.mm, args, migraphx::to_value(v)).at(0);
+        return {m.add_literal(lit)};
     }
 };
 
-} // namespace tf
+} // namespace builder
+} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

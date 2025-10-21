@@ -866,7 +866,8 @@ struct find_mlir_fused_geg_ops
         bool elemwise_has_multi_outs   = elemwise_ins->outputs().size() > 1;
 
         // if we have multi outs for either of the intermediates, check if this is supported first
-        if((first_gemm_has_multi_outs or elemwise_has_multi_outs) and not mlir_geg_multi_user_intermediates_supported())
+        if((first_gemm_has_multi_outs or elemwise_has_multi_outs) and
+           not mlir_geg_multi_user_intermediates_supported())
             return;
 
         // add the first gemm to the module

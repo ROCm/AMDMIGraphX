@@ -855,7 +855,7 @@ TEST_CASE(conv_asymmetric_input)
         auto out_zp    = init_zero_point(m2, c1);
         auto zp_in_bc  = broadcast_shift(m2, zp_in, input->get_shape().lens());
         auto zp_term   = m2.add_instruction(migraphx::make_op("quant_convolution",
-                                                            {{"padding", {0, 0, 0, 0}},
+                                                              {{"padding", {0, 0, 0, 0}},
                                                                {"stride", {1, 1}},
                                                                {"dilation", {1, 1}},
                                                                {"group", 1},

@@ -31,6 +31,7 @@
 #include <migraphx/eliminate_data_type.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
+#include <migraphx/eliminate_zero_dim.hpp>
 #include <migraphx/fp8_ocp_to_fnuz.hpp>
 #include <migraphx/fuse_attention.hpp>
 #include <migraphx/fuse_concat.hpp>
@@ -184,6 +185,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         simplify_dyn_ops{},
         dead_code_elimination{},
         normalize_ops{},
+        dead_code_elimination{},
+        eliminate_zero_dim{},
         dead_code_elimination{},
         eliminate_identity{},
         dead_code_elimination{},

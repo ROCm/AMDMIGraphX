@@ -3,6 +3,11 @@
 Full documentation for MIGraphX is available at
 [https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/](https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/).
 
+## Develop Branch
+
+### Added
+* Added MXFP4 support for Quark and Brevitas quantized models (GEMMs only) (#4343)
+
 
 ## MIGraphX 2.14 for ROCm 7.1.0
 

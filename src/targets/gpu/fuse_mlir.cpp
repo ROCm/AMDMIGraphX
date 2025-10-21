@@ -143,6 +143,13 @@ bool mlir_attention_enabled(context* ctx)
 #endif
 }
 
+// for g+g: check if multi-users for intermediates is supported
+bool mlir_geg_multi_user_intermediates_supported()
+{
+    // return no for now. TODO: have a toggle
+    return false;
+}
+
 #ifdef MIGRAPHX_MLIR
 
 struct mlir_op
@@ -857,6 +864,10 @@ struct find_mlir_fused_geg_ops
         // need to track multi-user scenarios for both intermediates
         bool first_gemm_has_multi_outs = first_gemm_ins->outputs().size() > 1;
         bool elemwise_has_multi_outs   = elemwise_ins->outputs().size() > 1;
+
+        // if we have multi outs for either of the intermediates, check if this is supported first
+        if((first_gemm_has_multi_outs or elemwise_has_multi_outs) and not mlir_geg_multi_user_intermediates_supported())
+            return;
 
         // add the first gemm to the module
         std::vector<instruction_ref> first_gemm_mapped_inputs;

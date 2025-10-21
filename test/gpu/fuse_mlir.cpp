@@ -2075,6 +2075,7 @@ TEST_CASE(dot_multi_user_add)
 
 TEST_CASE(dot_add_multi_user_dot)
 // GEG fusion has two outputs, E has external user
+// not currently supported in rocMLIR
 {
     migraphx::shape s1{migraphx::shape::half_type, {3, 3}};
     migraphx::shape s2{migraphx::shape::half_type, {3, 5}};
@@ -2117,13 +2118,14 @@ TEST_CASE(dot_add_multi_user_dot)
             migraphx::make_op("transpose", {{"permutation", {1, 0}}}), get_dot2);
         mm->add_return({get_add, transpose});
     }
-    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}))
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}) or not migraphx::gpu::mlir_geg_multi_user_intermediates_supported())
         return;
     EXPECT(p1.sort() == p2.sort());
 }
 
 TEST_CASE(dot_add_multi_user_dot_with_transpose)
 // GEG fusion has two outputs, E has external user
+// not currently supported in rocMLIR
 {
     migraphx::shape s{migraphx::shape::half_type, {1, 3, 3}};
     migraphx::program p1;
@@ -2168,13 +2170,14 @@ TEST_CASE(dot_add_multi_user_dot_with_transpose)
             migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), get_dot2);
         mm->add_return({get_add, transpose});
     }
-    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}))
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}) or not migraphx::gpu::mlir_geg_multi_user_intermediates_supported())
         return;
     EXPECT(p1.sort() == p2.sort());
 }
 
 TEST_CASE(dot_add_multi_user_dot_two_externals)
 // GEG fusion has two outputs, E has external user
+// not currently supported in rocMLIR
 {
     migraphx::shape s{migraphx::shape::half_type, {1, 3, 3}};
     migraphx::program p1;
@@ -2219,7 +2222,7 @@ TEST_CASE(dot_add_multi_user_dot_two_externals)
             migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), get_dot2);
         mm->add_return({get_add, external_t1, external_t2});
     }
-    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}))
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}) or not migraphx::gpu::mlir_geg_multi_user_intermediates_supported())
         return;
     EXPECT(p1.sort() == p2.sort());
 }
@@ -2229,6 +2232,7 @@ TEST_CASE(dot_add_multi_user_dot_input_used_before)
 // Base case for testing inputs being defined within the span
 // of will-be-fused ops
 // This also shows the relu being fused, since it is a unary op
+// currently not supported in rocMLIR
 {
     migraphx::shape s{migraphx::shape::half_type, {1, 3, 3}};
     migraphx::program p1;
@@ -2276,7 +2280,7 @@ TEST_CASE(dot_add_multi_user_dot_input_used_before)
             migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), get_dot2);
         mm->add_return({get_add, external_t});
     }
-    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}))
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}) or not migraphx::gpu::mlir_geg_multi_user_intermediates_supported())
         return;
     EXPECT(p1.sort() == p2.sort());
 }
@@ -2286,6 +2290,7 @@ TEST_CASE(dot_add_multi_user_dot_input_used_after)
 // Testing inputs being defined within the span of will-be-fused ops
 // This also shows the relu being fused, since it is a unary op.
 // Result should be, and is, equivalent to the previous test
+// currently not supported in rocMLIR
 {
     migraphx::shape s{migraphx::shape::half_type, {1, 3, 3}};
     migraphx::program p1;
@@ -2331,7 +2336,7 @@ TEST_CASE(dot_add_multi_user_dot_input_used_after)
             migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), get_dot2);
         mm->add_return({get_add, external_t});
     }
-    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}))
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}) or not migraphx::gpu::mlir_geg_multi_user_intermediates_supported())
         return;
     EXPECT(p1.sort() == p2.sort());
 }
@@ -2341,6 +2346,7 @@ TEST_CASE(dot_add_multi_user_dot_input_used_before_in_chain)
 // Base case for inputs being defined within the span of will-be-fused ops, including
 // longer chain of logic, for both cases of input fusion. When enabled,
 // the mul gets fused into the GEG fusion.
+// not currently supported in rocMLIR
 {
     migraphx::shape s{migraphx::shape::half_type, {1, 3, 3}};
     migraphx::program p1;
@@ -2421,7 +2427,7 @@ TEST_CASE(dot_add_multi_user_dot_input_used_before_in_chain)
             migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), get_dot2);
         mm->add_return({get_add, external_t});
     }
-    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}))
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}) or not migraphx::gpu::mlir_geg_multi_user_intermediates_supported())
         return;
     if(migraphx::enabled(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION{}))
         EXPECT(p1.sort() == p3.sort());
@@ -2433,6 +2439,7 @@ TEST_CASE(dot_add_multi_user_dot_input_used_after_in_chain)
 // GEG fusion has two outputs, E has external user
 // Testing inputs being defined within the span of will-be-fused ops, including
 // longer chain of logic
+// not currently supported in rocMLIR
 {
     migraphx::shape s{migraphx::shape::half_type, {1, 3, 3}};
     migraphx::program p1;
@@ -2512,7 +2519,7 @@ TEST_CASE(dot_add_multi_user_dot_input_used_after_in_chain)
             migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), get_dot2);
         mm->add_return({get_add, external_t});
     }
-    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}))
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}) or not migraphx::gpu::mlir_geg_multi_user_intermediates_supported())
         return;
     if(migraphx::enabled(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION{}))
         EXPECT(p1.sort() == p3.sort());
@@ -2522,6 +2529,7 @@ TEST_CASE(dot_add_multi_user_dot_input_used_after_in_chain)
 
 TEST_CASE(dot_pw_multi_user_dot)
 // GEG fusion has two outputs, E has external user, E is multiple elemwise ops
+// not currently supported in rocMLIR
 {
     migraphx::shape s{migraphx::shape::half_type, {1, 3, 3}};
     migraphx::program p1;
@@ -2570,13 +2578,14 @@ TEST_CASE(dot_pw_multi_user_dot)
             migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), get_dot2);
         mm->add_return({get_mul, transpose});
     }
-    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}))
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}) or not migraphx::gpu::mlir_geg_multi_user_intermediates_supported())
         return;
     EXPECT(p1.sort() == p2.sort());
 }
 
 TEST_CASE(dot_multi_user_add_dot)
 // GEG fusion has two outputs (first G has external user)
+// not currently supported in rocMLIR
 {
     migraphx::shape s{migraphx::shape::half_type, {1, 3, 3}};
     migraphx::program p1;
@@ -2617,13 +2626,14 @@ TEST_CASE(dot_multi_user_add_dot)
             migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), get_dot1);
         mm->add_return({get_dot2, transpose});
     }
-    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}))
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}) or not migraphx::gpu::mlir_geg_multi_user_intermediates_supported())
         return;
     EXPECT(p1.sort() == p2.sort());
 }
 
 TEST_CASE(dot_add_dot_both_multi_user)
 // GEG fusion has three outputs (first G has external user, E has external user)
+// not currently supported in rocMLIR
 {
     migraphx::shape s{migraphx::shape::half_type, {1, 3, 3}};
     migraphx::program p1;
@@ -2666,7 +2676,7 @@ TEST_CASE(dot_add_dot_both_multi_user)
             migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), get_dot1);
         mm->add_return({get_elemwise, get_dot2, transpose});
     }
-    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}))
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}) or not migraphx::gpu::mlir_geg_multi_user_intermediates_supported())
         return;
     EXPECT(p1.sort() == p2.sort());
 }

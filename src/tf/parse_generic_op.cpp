@@ -23,8 +23,8 @@
  */
 #include <migraphx/tf/op_parser.hpp>
 #include <migraphx/tf/tf_parser.hpp>
-#include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/op/builder/insert.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -50,7 +50,8 @@ struct parse_generic_op : op_parser<parse_generic_op>
                           const tf_parser::node_info& info,
                           const std::vector<instruction_ref>& args) const
     {
-        return info.add_instruction(make_op(opd.op_name), args);
+        const auto& op = make_op(opd.op_name);
+        return op::builder::add(opd.op_name, *info.mm, args, to_value(op)).at(0);
     }
 };
 

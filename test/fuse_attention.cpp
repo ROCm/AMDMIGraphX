@@ -513,7 +513,7 @@ TEST_CASE(gemm_softmax_gemm_flash_decoding)
         auto k2_mul = mm->add_instruction(migraphx::make_op("mul"), O_p, k2_broad3);
         auto k2_rsum2 =
             mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), k2_mul);
-        auto k2_squeeze = 
+        auto k2_squeeze =
             mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), k2_rsum2);
         mm->add_return({k2_squeeze});
     }

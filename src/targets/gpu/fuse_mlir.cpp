@@ -143,13 +143,6 @@ bool mlir_attention_enabled(context* ctx)
 #endif
 }
 
-// for g+g: check if multi-users for intermediates is supported
-bool mlir_geg_multi_user_intermediates_supported()
-{
-    // return no for now. TODO: have a toggle
-    return false;
-}
-
 #ifdef MIGRAPHX_MLIR
 
 struct mlir_op
@@ -796,6 +789,7 @@ struct find_mlir_fused_geg_ops
     mlir_mode conv_mode = mlir_mode::none;
     mlir_mode dot_mode  = mlir_mode::none;
     std::string gfx_name;
+    bool enable_geg_multi_out_intermediates = false;
 
     // check if individual GEMM meets architecture requirements
     bool is_gemm_supported(instruction_ref ins) const
@@ -867,7 +861,7 @@ struct find_mlir_fused_geg_ops
 
         // if we have multi outs for either of the intermediates, check if this is supported first
         if((first_gemm_has_multi_outs or elemwise_has_multi_outs) and
-           not mlir_geg_multi_user_intermediates_supported())
+           not enable_geg_multi_out_intermediates)
             return;
 
         // add the first gemm to the module
@@ -1484,7 +1478,9 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
             mpm,
             find_mlir_fused_geg_ops{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
                                     .dot_mode  = get_mode("fused_dot", mlir_mode::fast),
-                                    .gfx_name  = device_name});
+                                    .gfx_name  = device_name,
+                                    .enable_geg_multi_out_intermediates = enable_geg_multi_out_intermediates
+                                });
         mpm.run_pass(dead_code_elimination{});
     }
 

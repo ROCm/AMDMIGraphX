@@ -128,7 +128,7 @@ MIGRAPHX_DEVICE_CONSTEXPR auto assign(rank<0>, T& x, T y, Op op)
 
 template <class T, class Op>
 MIGRAPHX_DEVICE_CONSTEXPR auto assign(rank<1>, T& x, T y, Op op)
-    MIGRAPHX_RETURNS(builtin_assign(x, y, op));
+    MIGRAPHX_RETURNS(cas(cas_rank{}, x, y, op));
 
 } // namespace atomic
 

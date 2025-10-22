@@ -30,6 +30,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <queue>
+#include <optional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -574,7 +575,17 @@ void fuse_attention::apply(module_pass_manager& mpm) const
     mpm.get_module().sort();
     mpm.run_pass(dead_code_elimination{});
 
-    std::size_t num_splits = get_num_splits();
+    std::size_t num_splits = 0;
+    if (flash_decoding_num_splits.has_value())
+    {
+        // Use the value from the constructor (for testing)
+        num_splits = *flash_decoding_num_splits;
+    }
+    else
+    {
+        // Default behavior: read from the env var (for non-test use)
+        num_splits = get_num_splits();
+    }
     if(num_splits > 1) {
         match::find_matches(mpm, find_flash_decoding{.G = num_splits});
         mpm.run_pass(dead_code_elimination{});

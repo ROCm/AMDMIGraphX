@@ -402,7 +402,7 @@ struct find_flash_decoding
 
         // get the final partial output (O')
         auto orig_return_ins        = std::prev(source_mod.end())->inputs().front();
-        auto partial_output_O_prime = map_old_to_new.at(orig_return_ins);
+        auto partial_output_o_prime = map_old_to_new.at(orig_return_ins);
 
         // calculate LSE = max(S) + log(sum(exp(S - max(S))))
         assert(contains(softmax_parts, "max") and contains(softmax_parts, "sum_exp"));
@@ -410,14 +410,14 @@ struct find_flash_decoding
         auto lse = target_mod.add_instruction(make_op("add"), softmax_parts["max"], log_sum_exp);
 
         // return a tuple of {O', LSE}
-        target_mod.add_return({partial_output_O_prime, lse});
+        target_mod.add_return({partial_output_o_prime, lse});
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto& mm            = mpm.get_module();
         auto attn_group_ins = r.instructions["group"];
-        auto submod         = attn_group_ins->module_inputs().front();
+        auto *submod        = attn_group_ins->module_inputs().front();
 
         // TODO: for this pass of flash decoding, if LSE attn, do not do flash decoding
         auto return_ins = std::prev(submod->end());
@@ -526,7 +526,7 @@ struct find_flash_decoding
                                                    {mpm_flash_mod});
 
         // unpack O' and LSE
-        auto partial_output_O_prime = mm.insert_instruction(
+        auto partial_output_o_prime = mm.insert_instruction(
             attn_group_ins, make_op("get_tuple_elem", {{"index", 0}}), new_group_ins);
         auto lse = mm.insert_instruction(
             attn_group_ins, make_op("get_tuple_elem", {{"index", 1}}), new_group_ins);
@@ -551,23 +551,23 @@ struct find_flash_decoding
 
         auto scale_bcast = mm.insert_instruction(
             attn_group_ins,
-            make_op("multibroadcast", {{"out_lens", partial_output_O_prime->get_shape().lens()}}),
+            make_op("multibroadcast", {{"out_lens", partial_output_o_prime->get_shape().lens()}}),
             scale);
 
         // R = mul(O', broadcasted_scale)
-        auto scaled_R = mm.insert_instruction(
-            attn_group_ins, make_op("mul"), partial_output_O_prime, scale_bcast);
+        auto scaled_r = mm.insert_instruction(
+            attn_group_ins, make_op("mul"), partial_output_o_prime, scale_bcast);
 
         // O = sum(R, axis=G_axis)
-        auto final_output_O = mm.insert_instruction(
-            attn_group_ins, make_op("reduce_sum", {{"axes", {g_axis}}}), scaled_R);
+        auto final_output_o = mm.insert_instruction(
+            attn_group_ins, make_op("reduce_sum", {{"axes", {g_axis}}}), scaled_r);
 
         // squeeze G to match the original output shape
-        auto final_squeezed_O = mm.insert_instruction(
-            attn_group_ins, make_op("squeeze", {{"axes", {g_axis}}}), final_output_O);
+        auto final_squeezed_o = mm.insert_instruction(
+            attn_group_ins, make_op("squeeze", {{"axes", {g_axis}}}), final_output_o);
 
         // replace the original group instruction with the final result
-        mm.replace_instruction(attn_group_ins, final_squeezed_O);
+        mm.replace_instruction(attn_group_ins, final_squeezed_o);
     }
 };
 

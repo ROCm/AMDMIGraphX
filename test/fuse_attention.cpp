@@ -496,7 +496,7 @@ TEST_CASE(gemm_softmax_gemm_flash_decoding)
                 auto add   = gm->add_instruction(migraphx::make_op("add"), rmax, log);
                 return std::vector<migraphx::instruction_ref>{gemm2, add};
             });
-        auto O_p = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), group);
+        auto o_p = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), group);
         auto lse = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), group);
         auto k2_rmax   = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), lse);
         auto k2_broad1 = mm->add_instruction(
@@ -510,7 +510,7 @@ TEST_CASE(gemm_softmax_gemm_flash_decoding)
         auto k2_div    = mm->add_instruction(migraphx::make_op("div"), k2_exp, k2_broad2);
         auto k2_broad3 = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 12, 2, 256, 256}}}), k2_div);
-        auto k2_mul = mm->add_instruction(migraphx::make_op("mul"), O_p, k2_broad3);
+        auto k2_mul = mm->add_instruction(migraphx::make_op("mul"), o_p, k2_broad3);
         auto k2_rsum2 =
             mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), k2_mul);
         auto k2_squeeze =
@@ -603,7 +603,7 @@ TEST_CASE(flash_decoding_3d)
                 auto add   = gm->add_instruction(migraphx::make_op("add"), rmax, log);
                 return std::vector<migraphx::instruction_ref>{gemm2, add};
             });
-        auto O_p = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), group);
+        auto o_p = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), group);
         auto lse = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), group);
 
         // Kernel 2
@@ -620,7 +620,7 @@ TEST_CASE(flash_decoding_3d)
         auto k2_div    = mm->add_instruction(migraphx::make_op("div"), k2_exp, k2_broad2);
         auto k2_broad3 = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", q_prime_shape}}), k2_div);
-        auto k2_mul = mm->add_instruction(migraphx::make_op("mul"), O_p, k2_broad3);
+        auto k2_mul = mm->add_instruction(migraphx::make_op("mul"), o_p, k2_broad3);
         auto k2_rsum2 =
             mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {g_axis}}}), k2_mul);
         auto k2_squeeze =

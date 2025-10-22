@@ -123,7 +123,7 @@ def rocmnodename(name) {
     } else if(name == "navi32") {
         node_name = "${rocmtest_name} && gfx1101 && !vm";
     } else if(name == "navi4x") {
-        node_name = "${rocmtest_name} && gfx1201 && !vm";
+        node_name = "gfx1201 && !vm";
     } else if(name == "nogpu") {
         node_name = "${rocmtest_name} && nogpu";
     } else if(name == "onnxrt") {

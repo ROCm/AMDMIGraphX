@@ -261,10 +261,10 @@ struct find_flash_decoding
         qkv_shapes.push_back(k_shape);
         qkv_shapes.push_back(v_shape);
 
-        assert((q_shape.lens().size() == 3 or q_shape.lens().size() == 4) &&
+        assert((q_shape.lens().size() == 3 or q_shape.lens().size() == 4) and
                "Expected 3D or 4D Q, K, V shapes");
-        assert(k_shape.lens().size() == q_shape.lens().size() &&
-               v_shape.lens().size() == q_shape.lens().size() &&
+        assert(k_shape.lens().size() == q_shape.lens().size() and
+               v_shape.lens().size() == q_shape.lens().size() and
                "Q, K, V must have same number of dimensions");
         return qkv_shapes;
     }
@@ -272,7 +272,7 @@ struct find_flash_decoding
     std::vector<std::vector<size_t>>
     get_transformed_shapes(const std::vector<shape>& input_shapes) const
     {
-        assert(input_shapes.size() == 3 && "Expected Q, K, V shapes");
+        assert(input_shapes.size() == 3 and "Expected Q, K, V shapes");
 
         auto q_lens = input_shapes[0].lens();
         auto k_lens = input_shapes[1].lens();
@@ -281,17 +281,17 @@ struct find_flash_decoding
         // 3D: Q_lens = [B, M, k]
         // 4D: Q_lens = [B, H, M, k]
         size_t ndim = q_lens.size();
-        size_t N    = k_lens[ndim - 1];
-        size_t G    = groups;
+        size_t n    = k_lens[ndim - 1];
+        size_t g    = groups;
 
         // TODO: do we wanna support this differently?
-        assert(N % G == 0 && "N must be divisible by G");
-        size_t N_split = N / G;
+        assert(n % g == 0 and "N must be divisible by G");
+        size_t n_split = n / g;
 
         // batch_dims + G + spatial_dims
         auto insert_g = [&](const auto& lens) {
             std::vector<size_t> new_lens(lens.begin(), lens.begin() + ndim - 2);  // batch dims
-            new_lens.push_back(G);                                                // insert G
+            new_lens.push_back(g);                                                // insert G
             new_lens.insert(new_lens.end(), lens.begin() + ndim - 2, lens.end()); // last 2 dims
             return new_lens;
         };
@@ -301,8 +301,8 @@ struct find_flash_decoding
         auto v_new = insert_g(v_lens);
 
         // update N -> N/G in K and V
-        k_new[k_new.size() - 1] = N_split; // K: [..., G, k, N/G]
-        v_new[v_new.size() - 2] = N_split; // V: [..., G, N/G, D]
+        k_new[k_new.size() - 1] = n_split; // K: [..., G, k, N/G]
+        v_new[v_new.size() - 2] = n_split; // V: [..., G, N/G, D]
 
         return {q_new, k_new, v_new};
     }
@@ -314,7 +314,7 @@ struct find_flash_decoding
         std::unordered_map<instruction_ref, instruction_ref> map_param_to_main;
 
         auto param_names = submod->get_parameter_names();
-        assert(param_names.size() == group_inputs.size() &&
+        assert(param_names.size() == group_inputs.size() and
                "Number of parameters must match number of inputs");
 
         for(size_t i = 0; i < param_names.size(); ++i)
@@ -325,7 +325,7 @@ struct find_flash_decoding
 
         // verify the mapping is correct
         auto expected_inputs = submod->get_inputs(map_param_to_main);
-        assert(expected_inputs == group_inputs && "Mapped inputs don't match group inputs");
+        assert(expected_inputs == group_inputs and "Mapped inputs don't match group inputs");
         return map_param_to_main;
     }
 
@@ -350,7 +350,7 @@ struct find_flash_decoding
                            ins->inputs().end(),
                            std::back_inserter(new_inputs),
                            [&](auto i) {
-                               assert(contains(map_old_to_new, i) && "Input not found in map");
+                               assert(contains(map_old_to_new, i) and "Input not found in map");
                                return map_old_to_new.at(i);
                            });
 
@@ -361,7 +361,7 @@ struct find_flash_decoding
             if(op.name() == "reduce_max" or op.name() == "reduce_sum")
             {
                 auto original_axes = op.to_value()["axes"].to_vector<int64_t>();
-                assert(original_axes.size() == 1 && "Expected single axis for reduction");
+                assert(original_axes.size() == 1 and "Expected single axis for reduction");
 
                 const auto& new_input_shape = new_inputs.front()->get_shape();
                 assert(original_axes.front() ==
@@ -383,7 +383,7 @@ struct find_flash_decoding
                 auto sibling = std::find_if(parent->inputs().begin(),
                                             parent->inputs().end(),
                                             [&](auto i) { return i != ins; });
-                assert(sibling != parent->inputs().end() &&
+                assert(sibling != parent->inputs().end() and
                        "Could not find sibling for broadcast target");
 
                 const auto& target_shape = map_old_to_new.at(*sibling)->get_shape();
@@ -431,9 +431,9 @@ struct find_flash_decoding
         auto q_param = gemm1->inputs()[0];
         auto k_param = gemm1->inputs()[1];
         auto v_param = gemm2->inputs()[1];
-        assert(q_param->name() == "@param" && "Q should be a parameter");
-        assert(k_param->name() == "@param" && "K should be a parameter");
-        assert(v_param->name() == "@param" && "V should be a parameter");
+        assert(q_param->name() == "@param" and "Q should be a parameter");
+        assert(k_param->name() == "@param" and "K should be a parameter");
+        assert(v_param->name() == "@param" and "V should be a parameter");
 
         // get Q, V, K shapes from gemms
         auto qkv_shapes = get_qkv_shapes(q_param, k_param, v_param);

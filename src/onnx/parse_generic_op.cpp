@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -76,7 +76,7 @@ struct parse_generic_op : op_parser<parse_generic_op>
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-        auto op = parser.load(opd.op_name, info);
+        const auto& op = parser.load(opd.op_name, info);
         return op::builder::add(opd.op_name, *info.mod, args, to_value(op)).at(0);
     }
 };

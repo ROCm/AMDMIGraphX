@@ -317,7 +317,7 @@ struct mlir_program
         // non-computable type is not visit-able
         if(t == shape::fp4x2_type)
         {
-            return mlirFloat8E4M3FNTypeGet(ctx.get());
+            return mlirFloat4E2M1FNTypeGet(ctx.get());
         }
         MlirType result;
         shape::visit(t, [&](auto as) {
@@ -711,12 +711,7 @@ struct mlir_program
         if(instruction::get_output_alias(ins)->name() == "unpack_fp4")
         {
             shape out_shape = ins->get_shape();
-            int fast_axis =
-                std::min_element(out_shape.strides().cbegin(), out_shape.strides().cend()) -
-                out_shape.strides().cbegin();
-            auto out_lens = out_shape.lens();
-            out_lens.at(fast_axis) *= 2;
-            return out_shape.with_lens(out_lens);
+            return out_shape.with_type(shape::fp4x2_type);
         }
         return ins->get_shape();
     }
@@ -1319,8 +1314,13 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
     mlir_program mp;
     mp.set_gpu_properties(migraphx_ctx);
     mp.parse(m);
-    auto tc          = mp.get_tuning_config(exhaustive);
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
+    if(trace)
+    {
+        auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
+        std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
+    }
+    auto tc = mp.get_tuning_config(exhaustive);
     static std::mutex mutex;
     if(trace)
     {

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -42,7 +42,9 @@ struct parse_concat : op_parser<parse_concat>
         // get index for axis within args
         size_t axis_idx = info.attributes.at("N").i();
         int64_t axis    = args[axis_idx]->eval().at<int64_t>();
-        return op::builder::add("concat", *info.mm, args, {{"axis", axis}}).at(0);
+        const auto& concat_args =
+            std::vector<instruction_ref>{args.begin(), args.begin() + args.size() - 1};
+        return op::builder::add("concat", *info.mm, concat_args, {{"axis", axis}}).at(0);
     }
 };
 

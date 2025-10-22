@@ -43,10 +43,7 @@ struct concat : op_builder<concat>
     std::vector<instruction_ref>
     insert(module& m, instruction_ref /*ins*/, const std::vector<instruction_ref>& args) const
     {
-        // return only first N arguments (assuming last index is the axis value)
-        return {m.add_instruction(
-            migraphx::make_op("concat", {{"axis", axis}}),
-            std::vector<instruction_ref>(args.begin(), args.begin() + args.size() - 1))};
+        return {m.add_instruction(migraphx::make_op("concat", {{"axis", axis}}), args)};
     }
 };
 

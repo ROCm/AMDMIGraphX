@@ -1844,6 +1844,12 @@ TEST_CASE(dot_add_dot_abc)
     std::stringstream ss;
     ss << p1;
     std::string program_str = ss.str();
+
+    // regardless if the matmul is correctly oriented, geg should not happen on navi
+    auto device_name = migraphx::gpu::get_device_name();
+    bool is_navi = migraphx::starts_with(device_name, "gfx11") or migraphx::starts_with(device_name, "gfx12");
+    if(is_navi)
+        EXPECT(program_str.find("geg") == std::string::npos);
     EXPECT(program_str.find("geg") != std::string::npos);
 }
 

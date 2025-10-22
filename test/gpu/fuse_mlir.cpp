@@ -2119,7 +2119,7 @@ TEST_CASE(dot_add_multi_user_dot)
             migraphx::make_op("transpose", {{"permutation", {1, 0}}}), get_dot2);
         mm->add_return({get_add, transpose});
     }
-    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}) or 
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}) or
        not migraphx::gpu::mlir_geg_multi_user_intermediates_supported())
         return;
     EXPECT(p1.sort() == p2.sort());
@@ -2172,7 +2172,7 @@ TEST_CASE(dot_add_multi_user_dot_with_transpose)
             migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), get_dot2);
         mm->add_return({get_add, transpose});
     }
-    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}) or 
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}) or
        not migraphx::gpu::mlir_geg_multi_user_intermediates_supported())
         return;
     EXPECT(p1.sort() == p2.sort());
@@ -2225,7 +2225,7 @@ TEST_CASE(dot_add_multi_user_dot_two_externals)
             migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), get_dot2);
         mm->add_return({get_add, external_t1, external_t2});
     }
-    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}) or 
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}) or
        not migraphx::gpu::mlir_geg_multi_user_intermediates_supported())
         return;
     EXPECT(p1.sort() == p2.sort());
@@ -2284,7 +2284,7 @@ TEST_CASE(dot_add_multi_user_dot_input_used_before)
             migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), get_dot2);
         mm->add_return({get_add, external_t});
     }
-    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}) or 
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}) or
        not migraphx::gpu::mlir_geg_multi_user_intermediates_supported())
         return;
     EXPECT(p1.sort() == p2.sort());
@@ -2341,7 +2341,7 @@ TEST_CASE(dot_add_multi_user_dot_input_used_after)
             migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), get_dot2);
         mm->add_return({get_add, external_t});
     }
-    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}) or 
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}) or
        not migraphx::gpu::mlir_geg_multi_user_intermediates_supported())
         return;
     EXPECT(p1.sort() == p2.sort());
@@ -2433,7 +2433,7 @@ TEST_CASE(dot_add_multi_user_dot_input_used_before_in_chain)
             migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), get_dot2);
         mm->add_return({get_add, external_t});
     }
-    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}) or 
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}) or
        not migraphx::gpu::mlir_geg_multi_user_intermediates_supported())
         return;
     if(migraphx::enabled(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION{}))
@@ -2526,7 +2526,7 @@ TEST_CASE(dot_add_multi_user_dot_input_used_after_in_chain)
             migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), get_dot2);
         mm->add_return({get_add, external_t});
     }
-    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}) or 
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}) or
        not migraphx::gpu::mlir_geg_multi_user_intermediates_supported())
         return;
     if(migraphx::enabled(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION{}))
@@ -2586,7 +2586,7 @@ TEST_CASE(dot_pw_multi_user_dot)
             migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), get_dot2);
         mm->add_return({get_mul, transpose});
     }
-    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}) or 
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}) or
        not migraphx::gpu::mlir_geg_multi_user_intermediates_supported())
         return;
     EXPECT(p1.sort() == p2.sort());
@@ -2635,7 +2635,7 @@ TEST_CASE(dot_multi_user_add_dot)
             migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), get_dot1);
         mm->add_return({get_dot2, transpose});
     }
-    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}) or 
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}) or
        not migraphx::gpu::mlir_geg_multi_user_intermediates_supported())
         return;
     EXPECT(p1.sort() == p2.sort());
@@ -2686,7 +2686,7 @@ TEST_CASE(dot_add_dot_both_multi_user)
             migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), get_dot1);
         mm->add_return({get_elemwise, get_dot2, transpose});
     }
-    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}) or 
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}) or
        not migraphx::gpu::mlir_geg_multi_user_intermediates_supported())
         return;
     EXPECT(p1.sort() == p2.sort());

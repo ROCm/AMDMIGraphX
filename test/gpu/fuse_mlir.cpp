@@ -58,7 +58,7 @@ static void run_pass(migraphx::program& p, bool enable_geg_multi_user = false)
         p,
         {migraphx::gpu::fuse_mlir{.enable_extra                       = true,
                                   .enable_geg_multi_out_intermediates = enable_geg_multi_user},
-        migraphx::dead_code_elimination{}});
+         migraphx::dead_code_elimination{}});
 }
 
 template <class F>

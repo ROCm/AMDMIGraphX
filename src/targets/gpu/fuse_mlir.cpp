@@ -1479,8 +1479,8 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
             find_mlir_fused_geg_ops{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
                                     .dot_mode  = get_mode("fused_dot", mlir_mode::fast),
                                     .gfx_name  = device_name,
-                                    .enable_geg_multi_out_intermediates = enable_geg_multi_out_intermediates
-                                });
+                                    .enable_geg_multi_out_intermediates =
+                                        enable_geg_multi_out_intermediates});
         mpm.run_pass(dead_code_elimination{});
     }
 

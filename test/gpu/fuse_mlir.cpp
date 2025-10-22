@@ -56,10 +56,8 @@ static void run_pass(migraphx::program& p, bool enable_geg_multi_user = false)
 {
     migraphx::run_passes(
         p,
-        {migraphx::gpu::fuse_mlir{
-            .enable_extra = true,
-            .enable_geg_multi_out_intermediates = enable_geg_multi_user
-        },
+        {migraphx::gpu::fuse_mlir{.enable_extra                       = true,
+                                  .enable_geg_multi_out_intermediates = enable_geg_multi_user},
         migraphx::dead_code_elimination{}});
 }
 
@@ -1820,7 +1818,7 @@ TEST_CASE(dot_add_dot)
     EXPECT(p1.sort() == p2.sort());
 }
 
-TEST_CASE(dot_add_dot_ABC)
+TEST_CASE(dot_add_dot_abc)
 // MLIR currently only supports (A*B)*C GEG patterns
 {
     migraphx::shape s1{migraphx::shape::half_type, {2, 3}};
@@ -1849,7 +1847,7 @@ TEST_CASE(dot_add_dot_ABC)
     EXPECT(program_str.find("geg") != std::string::npos);
 }
 
-TEST_CASE(dot_add_dot_CAB)
+TEST_CASE(dot_add_dot_cab)
 // MLIR currently does not support C*(A*B) GEG patterns
 {
     migraphx::shape s1{migraphx::shape::half_type, {2, 3}};

@@ -3194,6 +3194,8 @@ struct arithmetic_segment
         {
 
             auto ins                = builder.transpose_stride(input, stride, axis);
+            // axis => stride
+            // axis+1 => group
             std::size_t base_start0 = base % stride;
             std::size_t base_start1 = base / stride;
             return builder.slice(ins,

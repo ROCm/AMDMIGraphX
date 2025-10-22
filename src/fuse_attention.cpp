@@ -417,7 +417,7 @@ struct find_flash_decoding
     {
         auto& mm            = mpm.get_module();
         auto attn_group_ins = r.instructions["group"];
-        auto *submod        = attn_group_ins->module_inputs().front();
+        auto* submod        = attn_group_ins->module_inputs().front();
 
         // TODO: for this pass of flash decoding, if LSE attn, do not do flash decoding
         auto return_ins = std::prev(submod->end());

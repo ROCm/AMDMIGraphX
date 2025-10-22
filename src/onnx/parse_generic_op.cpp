@@ -22,8 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/onnx/op_parser.hpp>
-#include <migraphx/ranges.hpp>
-#include <migraphx/make_op.hpp>
+#include <migraphx/op/builder/insert.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -72,24 +71,13 @@ struct parse_generic_op : op_parser<parse_generic_op>
         // clang-format on
     }
 
-    bool needs_contiguous(const std::string& op_name) const
-    {
-        return contains({"flatten", "gather", "scatter"}, op_name);
-    }
-
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& parser,
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
         auto op = parser.load(opd.op_name, info);
-        if(needs_contiguous(opd.op_name))
-        {
-            std::transform(args.begin(), args.end(), args.begin(), [&](auto arg) {
-                return info.make_contiguous(arg);
-            });
-        }
-        return info.add_instruction(op, args);
+        return op::builder::add(opd.op_name, *info.mod, args, to_value(op)).at(0);
     }
 };
 

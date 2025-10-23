@@ -31,8 +31,6 @@
 
 namespace migraphx {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_SILENT_GATHER_FAIL)
-
 template <int Axis, class Input, class Indices>
 constexpr auto gather_shape(Input input, Indices indices)
 {
@@ -59,13 +57,8 @@ __device__ void gather(Input input, Indices indices, Output output)
         idx[Axis] = new_in_index;
 
         if(idx[Axis] < 0 or idx[Axis] >= axis_dim_size)
-        {   // Don't gather on this just exit
-
-            if(value_of(MIGRAPHX_ENABLE_SILENT_GATHER_FAIL) > 0)
-                output[i] = static_cast<typename Output::type>(0);
-            else
-                MIGRAPHX_ASSERT(false && "Gather out of bounds access");
-
+        {   // Don't gather on this just throw and exit
+            MIGRAPHX_ASSERT(false && "Gather out of bounds access");
             return;
         }
 

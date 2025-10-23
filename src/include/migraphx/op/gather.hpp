@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -118,6 +118,10 @@ struct gather
                 {
                     auto in_index = indices.front();
                     in_index      = (in_index < 0) ? in_index + axis_dim_size : in_index;
+                    if(in_index < 0 or in_index >= axis_dim_size)
+                    {
+                        MIGRAPHX_THROW("Gather: Out of bounds index detected");
+                    }
                     output[0]     = data[in_index];
                 }
                 else

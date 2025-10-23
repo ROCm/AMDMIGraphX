@@ -35,6 +35,8 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/verify_args.hpp>
+#include <migraphx/simplify_qdq.hpp>
+#include <migraphx/dead_code_elimination.hpp>
 #include <utility>
 
 namespace migraphx {
@@ -43,7 +45,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 /**
  * Gives tolerances based on user input (`rms_tol`, `atol`, `rtol` parameters) and defaults.
- * Sets to fp16 tolerances if `quantize` input is fp16 or any fp16 instruction in found in the
+ * Sets to fp4 tolerances if any fp4x2_type is found.
+ * Else sets to fp16 tolerances if `quantize` input is fp16 or any fp16 instruction is found in the
  * model.
  */
 verify::tolerance get_tolerances(const program& p,
@@ -58,8 +61,17 @@ verify::tolerance get_tolerances(const program& p,
                     ins.get_shape().type() == shape::bf16_type);
         });
     });
+    bool has_fp4   = any_of(p.get_modules(), [](auto&& m) {
+        return any_of(*m, [](auto&& ins) { return (ins.get_shape().type() == shape::fp4x2_type); });
+    });
     migraphx::verify::tolerance result{};
-    if(has_16bit or vo.quantize == precision::fp16 or vo.quantize == precision::bf16)
+    if(has_fp4)
+    {
+        result.rms_tol = 8e-1;
+        result.atol    = 4e-1;
+        result.rtol    = 4e-1;
+    }
+    else if(has_16bit or vo.quantize == precision::fp16 or vo.quantize == precision::bf16)
     {
         result.rms_tol = 8e-2;
         result.atol    = 4e-2;
@@ -87,7 +99,8 @@ static std::vector<argument> run_ref(program p,
 {
     if(vo.ref_use_double)
     {
-        run_passes(p, {fp_to_double{}});
+        run_passes(
+            p, {fp_to_double{}, simplify_qdq{.remove_qdq_only = true}, dead_code_elimination{}});
     }
     p.compile(migraphx::make_target("ref"), options);
     auto out = p.eval(inputs);

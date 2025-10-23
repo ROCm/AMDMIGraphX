@@ -72,3 +72,6 @@ template struct test_topk<migraphx::shape::float_type, 100, 80000>;
 template struct test_topk<migraphx::shape::float_type, 1000, 1875>;
 template struct test_topk<migraphx::shape::float_type, 1000, 120000>;
 template struct test_topk<migraphx::shape::float_type, 1029, 80000>;
+
+template struct test_topk<migraphx::shape::int32_type, 1, 256>;
+template struct test_topk<migraphx::shape::int32_type, 1, 1024>;

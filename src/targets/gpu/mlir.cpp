@@ -314,6 +314,11 @@ struct mlir_program
 
     MlirType make_type(shape::type_t t) const
     {
+        // non-computable type is not visit-able
+        if(t == shape::fp4x2_type)
+        {
+            return mlirFloat8E4M3FNTypeGet(ctx.get());
+        }
         MlirType result;
         shape::visit(t, [&](auto as) {
             if(as.type_enum() == shape::float_type)
@@ -503,6 +508,17 @@ struct mlir_program
         {
         }
 
+        void set_operand_segment_sizes(int num_segments, const std::vector<int>& sizes)
+        {
+            MlirAttribute segment_sizes_attr =
+                mlirDenseI32ArrayGet(prog->ctx.get(), num_segments, sizes.data());
+            MlirNamedAttribute named_attr = mlirNamedAttributeGet(
+                mlirIdentifierGet(prog->ctx.get(),
+                                  mlirStringRefCreateFromCString("operandSegmentSizes")),
+                segment_sizes_attr);
+            mlirOperationStateAddAttributes(&op_state, 1, &named_attr);
+        }
+
         mlir_operation_state& add_attributes(const std::vector<named_attribute_t>& named_attrs)
         {
             auto attributes = prog->name_attributes(named_attrs);
@@ -647,6 +663,8 @@ struct mlir_program
             return "migraphx.literal";
         if(ins->name() == "unpack_int4")
             return "migraphx.unpack";
+        if(ins->name() == "unpack_fp4")
+            return "migraphx.unpack";
         if(ins->name() == "convolution_backwards")
             return "migraphx.backwards_data_convolution";
         if(is_reshape(ins->name()))
@@ -748,9 +766,29 @@ struct mlir_program
             std::vector<MlirValue> inputs;
             transform(
                 ins->inputs(), std::back_inserter(inputs), [&](auto i) { return ins_map.at(i); });
+	    if(ins->name() == "dot") {
+		    const std::vector<int> seg_sizes = {1, 1, 0, 0};
+		    ops.set_operand_segment_sizes(4, seg_sizes);
+	    }
+	    else if(ins->name() == "quant_dot")
+	    {
+		    if(ins->inputs().size() == 4 and ins->inputs().front()->get_shape().type() == shape::fp8e4m3fn_type)
+		    {
+			    // Specify operand segment sizes BEFORE creating the operation so MLIR sees it.
+			    // Use the canonical MLIR attribute name 'operandSegmentSizes'.
+			    const std::vector<int> seg_sizes = {1, 1, 1, 1};
+			    ops.set_operand_segment_sizes(4, seg_sizes);
+		    }
+		    else if(ins->inputs().size() == 2)
+		    {
+			    const std::vector<int> seg_sizes = {1, 1, 0, 0};
+			    ops.set_operand_segment_sizes(4, seg_sizes);
+		    }
+	    }
             ops.add_operands(inputs);
 
             auto outputs = insert(fbody, std::move(ops));
+
             if(ins->name() != "@return")
             {
                 assert(outputs.size() == 1);
@@ -1106,8 +1144,9 @@ std::string dump_mlir(module m, const std::vector<shape>& inputs)
 
 static void abbreviate_symbol_names(std::string& n)
 {
-    static const std::map<std::string, std::string> abbrs = {
+    static const std::vector<std::pair<std::string, std::string>> abbrs = {
         {"reduce_max_reshape_sub_exp_reshape_reduce_sum_reshape_div", "softmax"},
+        {"reduce_max_sub_exp_reduce_sum_div", "softmax"},
         {"reshape", "rsp"},
         {"transpose", "trp"},
         {"slice", "slc"}};
@@ -1132,17 +1171,18 @@ static std::string compute_dump_name(const module& m, const std::string& ext)
 
     // On most commonly used file systems, the max file name size is 255 characters
     const int max_file_length = 255;
-    auto cnt                  = "_" + std::to_string(dump_counter()++);
     std::string fname         = sym_names + shape_str;
     replace_string_inplace(fname, ", ", "_");
     replace_string_inplace(fname, ":", "s");
 
-    if(fname.length() + cnt.length() + ext.length() > max_file_length)
+    if(fname.length() + ext.length() > max_file_length)
     {
+        auto cnt    = "_" + std::to_string(dump_counter()++);
         auto cutoff = max_file_length - ext.length() - cnt.length();
         fname.resize(cutoff);
+        fname += cnt;
     }
-    fname += cnt + ext;
+    fname += ext;
 
     return fname;
 }
@@ -1199,6 +1239,7 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
         const std::lock_guard<std::mutex> lock(mutex);
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
+
     auto co = mp.compile(solution);
 
     co.expected_inputs = in_shapes;

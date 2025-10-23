@@ -276,6 +276,8 @@ struct __attribute__((packed, may_alias)) generic_float
         return exponent == all_ones<ExponentSize>() and mantissa != 0;
     }
 
+    constexpr bool has_infinity() const noexcept { return true; }
+
     constexpr bool is_finite() const noexcept { return exponent != all_ones<ExponentSize>(); }
 
     constexpr operator float() const noexcept { return this->to_float(); }
@@ -402,22 +404,47 @@ struct __attribute__((packed, may_alias)) generic_float<0, 8, Flags>
     {
         float32_parts f{};
         f.sign     = 0;
-        f.mantissa = 0;
+        if(exponent == 0)
+        {
+            // 2^(-127) is a fp32 denormal number
+            f.mantissa = 1;
+            f.mantissa = f.mantissa << (float32_parts::mantissa_width() - 1);
+        }
+        else if(exponent == all_ones<8>())
+        {
+            // setting to fp32 qNaN
+            f.mantissa = (1 << (float32_parts::mantissa_width() - 1)) + 1;
+        }
+        else
+        {
+            f.mantissa = 0;
+        }
         f.exponent = exponent;
         return f.to_float();
     }
 
-    // Extracts only exponent bits from float
+    /**
+     * Extracts only exponent bits from float.
+     * All fp32 denorm numbers will go to fp8e8m0{2^(-127)}.
+     * All fp32 NaN and infinity go to fp8e8m0{NaN}.
+     */
     constexpr void from_float(float32_parts f) noexcept { exponent = f.exponent; }
 
-    // No subnormal numbers
+    // No denorm numbers in fp8e8m0.
     constexpr bool is_normal() const noexcept { return not is_nan(); }
 
+    // No infinity numbers in fp8e8m0.
     constexpr bool is_inf() const noexcept { return false; }
 
     constexpr bool is_nan() const noexcept { return exponent == all_ones<8>(); }
 
     constexpr bool is_finite() const noexcept { return not is_nan(); }
+
+    constexpr bool has_infinity() const noexcept
+    {
+        return false;
+        ;
+    }
 
     constexpr operator float() const noexcept { return this->to_float(); }
 
@@ -448,7 +475,7 @@ struct __attribute__((packed, may_alias)) generic_float<0, 8, Flags>
         return x;
     }
 
-    // No subnormal numbers
+    // No subnormal numbers in FP8E8M0
     static constexpr generic_float denorm_min() { return min(); }
 
     static constexpr generic_float lowest() { return min(); }
@@ -504,7 +531,7 @@ template <unsigned int M, unsigned int E, unsigned int F>
 class numeric_limits<migraphx::generic_float<M, E, F>>
 {
     public:
-    static constexpr bool has_infinity = true;
+    static constexpr bool has_infinity = not(M == 0 and E == 0);
     static constexpr migraphx::generic_float<M, E, F> epsilon()
     {
         return migraphx::generic_float<M, E, F>::epsilon();

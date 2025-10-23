@@ -73,6 +73,7 @@ static hipDataType get_type_hipblas(shape::type_t type)
     case shape::int64_type:
     case shape::uint64_type: MIGRAPHX_THROW("HIPBLAS_GEMM: data type not supported!");
     case shape::bf16_type: return HIP_R_16BF;
+    case shape::fp8e8m0_type:
     }
 
     MIGRAPHX_THROW("HIPBLAS_GEMM: data type not supported!");

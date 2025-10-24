@@ -24,7 +24,7 @@ version.
 
 You have three options for building from source:
 
-* [ROCm build tool](#use-the-rocm-build-tool-rbuild): Uses
+* [ROCm build tool](#compile-using-the-rocm-build-tool-rbuild): Uses
   [rbuild](https://github.com/RadeonOpenCompute/rbuild) to install prerequisites, then you can build
   the libraries with a single command.
 
@@ -74,9 +74,9 @@ The following is a list of prerequisites for building MIGraphX.
 > You can deactivate the python virtual environment with `deactivate`.
 
 
-### Directly compile using the ROCm build tool [rbuild](https://github.com/RadeonOpenCompute/rbuild).
+### Compile using the ROCm build tool [rbuild](https://github.com/RadeonOpenCompute/rbuild).
 
-1. Follow instructions in [installing rbuild](#installing-the-rocm-build-tool)
+1. Follow instructions in [installing rbuild](#installing-the-rocm-build-tool-rbuild)
 
 2. Build MIGraphX source code:
 
@@ -227,7 +227,7 @@ This will build a local searchable web site inside the docs/html folder.
 
 Documentation is built using [Doxygen](http://www.stack.nl/~dimitri/doxygen/download.html) and [rocm-docs-core](https://github.com/RadeonOpenCompute/rocm-docs-core)
 
-Run the steps below to build documentation locally. You can reuse the same venv from [installing rbuild](#installing-the-rocm-build-tool).
+Run the steps below to build documentation locally. You can reuse the same venv from [installing rbuild](#installing-the-rocm-build-tool-rbuild).
 
 ```bash
 cd docs

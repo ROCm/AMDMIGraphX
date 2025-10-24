@@ -3,6 +3,22 @@
 Full documentation for MIGraphX is available at
 [https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/](https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/).
 
+## Develop Branch
+
+### Added
+
+
+### Changed
+* Updated README `rbuild` installation instructions to use python venv to avoid warning (##405)
+
+### Fixed
+
+
+### Optimized
+
+
+### Removed
+
 
 ## MIGraphX 2.14 for ROCm 7.1.0
 

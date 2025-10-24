@@ -9,7 +9,7 @@ Full documentation for MIGraphX is available at
 
 
 ### Changed
-* Updated README `rbuild` installation instructions to use python venv to avoid warning (##405)
+* Updated README `rbuild` installation instructions to use python venv to avoid warning (#4405)
 
 ### Fixed
 

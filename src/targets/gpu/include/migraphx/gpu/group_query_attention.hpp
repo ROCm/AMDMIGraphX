@@ -76,7 +76,7 @@ static inline gqa_parameters init_params(const std::vector<shape>& inputs, const
     auto rotary_interleaved = false;
     if(v.contains("rotary_interleaved"))
         rotary_interleaved = v.at("rotary_interleaved").to<bool>();
-    auto present_kv_seqlen  = inputs[1].lens().size() == 4 ? inputs[1].lens()[2] : 0;
+    auto present_kv_seqlen = inputs[1].lens().size() == 4 ? inputs[1].lens()[2] : 0;
 
     const auto& q_shape               = inputs[0];
     const auto& q_lens                = q_shape.lens();
@@ -89,25 +89,25 @@ static inline gqa_parameters init_params(const std::vector<shape>& inputs, const
     {
         present_kv_seqlen = inputs[2].lens()[2];
     }
-    auto seq_stride                = head_size;
-    auto head_stride               = sequence_length * seq_stride;
-    auto batch_stride              = (num_heads + 2 * kv_num_heads) * head_stride;
-    auto position_ids_format       = sequence_length == 1 ? 1 : 0;
+    auto seq_stride          = head_size;
+    auto head_stride         = sequence_length * seq_stride;
+    auto batch_stride        = (num_heads + 2 * kv_num_heads) * head_stride;
+    auto position_ids_format = sequence_length == 1 ? 1 : 0;
 
     gqa_parameters gqa_params;
-    gqa_params.batch_size                = batch_size;
-    gqa_params.sequence_length           = sequence_length;
-    gqa_params.head_size                 = head_size;
-    gqa_params.rotary_embedding_dim      = rotary_dim;
-    gqa_params.num_heads                 = num_heads;
-    gqa_params.max_sequence_length       = sequence_length;
-    gqa_params.seq_stride                = head_size;
-    gqa_params.head_stride               = head_stride;
-    gqa_params.batch_stride              = batch_stride;
-    gqa_params.position_ids_format       = position_ids_format;
-    gqa_params.seqlen_present_kv_cache   = present_kv_seqlen;
-    gqa_params.kv_num_heads              = kv_num_heads;
-    gqa_params.rotary_interleaved        = rotary_interleaved;
+    gqa_params.batch_size              = batch_size;
+    gqa_params.sequence_length         = sequence_length;
+    gqa_params.head_size               = head_size;
+    gqa_params.rotary_embedding_dim    = rotary_dim;
+    gqa_params.num_heads               = num_heads;
+    gqa_params.max_sequence_length     = sequence_length;
+    gqa_params.seq_stride              = head_size;
+    gqa_params.head_stride             = head_stride;
+    gqa_params.batch_stride            = batch_stride;
+    gqa_params.position_ids_format     = position_ids_format;
+    gqa_params.seqlen_present_kv_cache = present_kv_seqlen;
+    gqa_params.kv_num_heads            = kv_num_heads;
+    gqa_params.rotary_interleaved      = rotary_interleaved;
 
     return gqa_params;
 }

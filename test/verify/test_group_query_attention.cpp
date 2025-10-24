@@ -176,8 +176,8 @@ migraphx::program create_gqa_program(const size_t batch_size,
         std::vector<int> seq_range_vec(sequence_length);
         std::iota(seq_range_vec.begin(), seq_range_vec.end(), 0);
         migraphx::shape seq_range_s{slk_s.type(), {sequence_length}};
-        seq_range      = mm->add_literal(seq_range_s, seq_range_vec);
-        seq_range      = mm->add_instruction(
+        seq_range = mm->add_literal(seq_range_s, seq_range_vec);
+        seq_range = mm->add_instruction(
             migraphx::make_op("reshape", {{"dims", {sequence_length, 1}}}), seq_range);
         seq_range = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}),
                                         seq_range);

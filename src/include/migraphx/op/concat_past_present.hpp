@@ -40,11 +40,11 @@ namespace op {
 
 struct cache_parameters
 {
-    std::size_t batch_size      = 0;         // Batch size used by input
-    std::size_t sequence_length = 0;         // Sequence length used by input
-    std::size_t head_size       = 0;         // Head size
-    std::size_t num_heads               = 0;         // num_heads = hidden_size / head_size
-    std::size_t seqlen_present_kv_cache = 0;         // Sequence length of present kv-cache
+    std::size_t batch_size              = 0; // Batch size used by input
+    std::size_t sequence_length         = 0; // Sequence length used by input
+    std::size_t head_size               = 0; // Head size
+    std::size_t num_heads               = 0; // num_heads = hidden_size / head_size
+    std::size_t seqlen_present_kv_cache = 0; // Sequence length of present kv-cache
 };
 
 struct concat_past_present
@@ -98,8 +98,8 @@ struct concat_past_present
         const bool is_prompt = sequence_length != 1;
         const std::size_t packed_batch_stride =
             (num_heads + 2 * kv_num_heads) * sequence_length * head_size;
-        const std::size_t kv_num_heads_factor    = num_heads / kv_num_heads;
-        const std::size_t kv_input_chunk_length  = sequence_length * head_size; // L x H
+        const std::size_t kv_num_heads_factor   = num_heads / kv_num_heads;
+        const std::size_t kv_input_chunk_length = sequence_length * head_size; // L x H
         const std::size_t present_buff_chunk_length =
             present_buffer_sequence_length * head_size; // T x H
 
@@ -137,12 +137,12 @@ struct concat_past_present
         auto past_sequence_length         = past_kv_lens[2];
         std::size_t head_size             = present_lens[3];
 
-        cache_parameters cache_params          = {};
-        cache_params.batch_size                = batch_size;
-        cache_params.sequence_length           = sequence_length;
-        cache_params.head_size                 = head_size;
-        cache_params.num_heads                 = num_heads;
-        cache_params.seqlen_present_kv_cache   = past_sequence_length;
+        cache_parameters cache_params        = {};
+        cache_params.batch_size              = batch_size;
+        cache_params.sequence_length         = sequence_length;
+        cache_params.head_size               = head_size;
+        cache_params.num_heads               = num_heads;
+        cache_params.seqlen_present_kv_cache = past_sequence_length;
 
         visit_all(past, present)([&](auto past_kv, auto present_kv) {
             visit_all(seqlens)([&](auto seqlens_kv) {

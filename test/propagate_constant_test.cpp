@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,7 +30,7 @@
 
 #include <test.hpp>
 
-void run_pass(migraphx::module& m, const std::unordered_set<std::string>& skip_ops = {})
+static void run_pass(migraphx::module& m, const std::unordered_set<std::string>& skip_ops = {})
 {
     migraphx::run_passes(
         m, {migraphx::propagate_constant{skip_ops}, migraphx::dead_code_elimination{}});
@@ -533,6 +533,33 @@ TEST_CASE(block_dequantize_int4)
         m2.add_return({dot});
     }
     EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(pack_unpack_fp4)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {4}};
+    migraphx::shape s2{migraphx::shape::fp4x2_type, {2}};
+    migraphx::module m1;
+    {
+        const std::vector<float> vec = {1.f, 0.f, 2.f, 0.f};
+        auto l                       = m1.add_literal(migraphx::literal(s1, vec));
+        auto pack                    = m1.add_instruction(migraphx::make_op("pack_fp4"), l);
+        auto unpack                  = m1.add_instruction(migraphx::make_op("unpack_fp4"), pack);
+        m1.add_return({unpack});
+    }
+
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        using migraphx::shape;
+        const std::vector<uint8_t> vec = {0x2, 0x4};
+        auto l                         = m2.add_literal(migraphx::literal(s2, vec.data()));
+        auto unpack                    = m2.add_instruction(migraphx::make_op("unpack_fp4"), l);
+        m2.add_return({unpack});
+    }
+
+    EXPECT(m1 == m2);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

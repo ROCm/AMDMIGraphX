@@ -57,6 +57,7 @@ int get_onnx_type(shape::type_t s_type)
     case shape::fp8e5m2_type: return 19;
     case shape::fp8e5m2fnuz_type: return 20;
     case shape::tuple_type: return 0;
+    case shape::fp4x2_type: return 21; // TODO update this when the type is added
     }
     MIGRAPHX_THROW("MIGraphX type " + std::to_string(s_type) + " not supported");
 }
@@ -121,7 +122,7 @@ auto make_onnx_json_node(instruction_ref ins,
     node["opType"] = ins->name();
     value op_attribute_arr = value({});
     auto op_value = ins->get_operator().to_value();
-    std::for_each(op_value.begin(), op_value.end(), [&](auto v) {
+    std::for_each(op_value.begin(), op_value.end(), [&](const auto& v) {
         const std::string& attr_key = v.get_key();
         if(v.is_binary() or attr_key == "code_object")
         {
@@ -205,6 +206,10 @@ std::unordered_map<instruction_ref, std::string> make_ins_uids(const module& mod
         std::string var_name;
         var_name = mod.name() + ":";
         var_name.append(ins->name() + ":");
+        if(ins->name() == "@param")
+        {
+            var_name.append(any_cast<builtin::param>(ins->get_operator()).parameter + ":");
+        }
         var_name.append("@" + std::to_string(count));
         count++;
         ret.emplace(ins, var_name);

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -132,9 +132,12 @@ struct pooling
         return stride.size();
     }
 
-    value attributes() const { return {{"normalize_padding", "padding"}}; }
+    value attributes() const
+    {
+        return {{"normalize_padding", "padding"}, {"fillcolor", "#3CB371" /* medium sea green */}};
+    }
 
-    inline std::size_t dilate_dim(std::size_t dim, std::size_t dilation) const
+    std::size_t dilate_dim(std::size_t dim, std::size_t dilation) const
     {
         return 1 + dilation * (dim - 1);
     }
@@ -350,7 +353,7 @@ struct pooling
                 if(end < start)
                 {
                     // This error can be caused by misc. bad input combinations
-                    MIGRAPHX_THROW("POOLING:  invalid attributes");
+                    MIGRAPHX_THROW("POOLING: invalid attributes");
                 }
                 win_size.push_back(end - start);
             }

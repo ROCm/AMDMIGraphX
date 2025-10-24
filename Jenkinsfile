@@ -3,12 +3,17 @@ import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 DOCKER_IMAGE = 'rocm/migraphx-ci-jenkins-ubuntu'
 
 def getgputargets() {
-    targets="gfx906;gfx908;gfx90a;gfx1030;gfx1100;gfx1101;gfx1102"
+    targets="gfx906;gfx908;gfx90a;gfx1030;gfx1100;gfx1101;gfx1201"
     return targets
 }
 
 def getnavi3xtargets() {
-    targets="gfx1100;gfx1101;gfx1102"
+    targets="gfx1100;gfx1101"
+    return targets
+}
+
+def getnavi4xtargets() {
+    targets="gfx1201"
     return targets
 }
 
@@ -21,7 +26,7 @@ def rocmtestnode(Map conf) {
     def docker_args = conf.get("docker_args", "")
     def docker_build_args = conf.get("docker_build_args", "")
     def pre = conf.get("pre", {})
-    def ccache = "/home/jenkins/workspace/.cache/ccache"
+    def ccache = "/workspaces/.cache/ccache"
     def image = 'migraphxlib'
     env.CCACHE_COMPRESSLEVEL = 7
     env.CCACHE_DIR = ccache
@@ -35,9 +40,11 @@ def rocmtestnode(Map conf) {
             echo "leak:libtbb.so" >> suppressions.txt
             cat suppressions.txt
             export LSAN_OPTIONS="suppressions=\$(pwd)/suppressions.txt"
+            export ASAN_OPTIONS="detect_container_overflow=0"
             export MIGRAPHX_GPU_DEBUG=${gpu_debug}
             export CXX=${compiler}
             export CXXFLAGS='-Werror'
+            rocminfo
             env
             rm -rf build
             mkdir build
@@ -65,12 +72,18 @@ def rocmtestnode(Map conf) {
                 checkout scm
             }
 
+            def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3').trim()
+            def render_id = sh(returnStdout: true, script: 'getent group render | cut -d: -f3').trim()
+            def docker_opts = "--device=/dev/kfd --device=/dev/dri --cap-add SYS_PTRACE -v=${env.WORKSPACE}/../:/workspaces:rw,z"
+            docker_opts = docker_opts + " --group-add=${video_id} --group-add=${render_id} "
+            echo "Docker flags: ${docker_opts}"
+
             gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX') {
                 withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
                     sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
                     pre()
                     sh "docker pull ${DOCKER_IMAGE}:${env.IMAGE_TAG}"
-                    withDockerContainer(image: "${DOCKER_IMAGE}:${env.IMAGE_TAG}", args: "--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE -v=/home/jenkins/:/home/jenkins ${docker_args}") {
+                    withDockerContainer(image: "${DOCKER_IMAGE}:${env.IMAGE_TAG}", args: docker_opts + docker_args) {
                         timeout(time: 4, unit: 'HOURS') {
                             body(cmake_build)
                         }
@@ -103,12 +116,18 @@ def rocmnodename(name) {
         node_name = "${rocmtest_name} && navi21";
     } else if(name == "mi100+") {
         node_name = "${rocmtest_name} && (gfx908 || gfx90a) && !vm";
+    } else if(name == "mi200+") {
+        node_name = "${rocmtest_name} && (gfx90a || gfx942) && !vm";
     } else if(name == "cdna") {
         node_name = "${rocmtest_name} && (gfx908 || gfx90a || vega20) && !vm";
     } else if(name == "navi32") {
         node_name = "${rocmtest_name} && gfx1101 && !vm";
+    } else if(name == "navi4x") {
+        node_name = "gfx1201 && !vm";
     } else if(name == "nogpu") {
         node_name = "${rocmtest_name} && nogpu";
+    } else if(name == "onnxrt") {
+        node_name = "${rocmtest_name} && onnxrt";
     }
     return node_name
 }
@@ -134,7 +153,7 @@ node("(rocmtest || migraphx)") {
             checkout scm
             def calculateImageTagScript = """
                 shopt -s globstar
-                sha256sum **/Dockerfile **/*requirements.txt **/install_prereqs.sh **/rbuild.ini | sha256sum | cut -d " " -f 1
+                sha256sum **/Dockerfile **/*requirements.txt **/install_prereqs.sh **/rbuild.ini **/test/onnx/.onnxrt-commit | sha256sum | cut -d " " -f 1
             """
             env.IMAGE_TAG = sh(script: "bash -c '${calculateImageTagScript}'", returnStdout: true).trim()
             imageExists = sh(script: "docker manifest inspect ${DOCKER_IMAGE}:${IMAGE_TAG}", returnStatus: true) == 0
@@ -160,7 +179,7 @@ node("(rocmtest || migraphx)") {
     }
 }
 
-rocmtest clang_debug: rocmnode('mi100+') { cmake_build ->
+rocmtest clang_debug: rocmnode('mi200+') { cmake_build ->
     stage('hipRTC Debug') {
         // Disable MLIR since it doesnt work with all ub sanitizers
         withEnv(['MIGRAPHX_DISABLE_MLIR=1']) {
@@ -187,7 +206,7 @@ rocmtest clang_debug: rocmnode('mi100+') { cmake_build ->
     }
 }, mlir_debug: rocmnode('mi100+') { cmake_build ->
     stage('MLIR Debug') {
-        withEnv(['MIGRAPHX_ENABLE_EXTRA_MLIR=1', 'MIGRAPHX_MLIR_USE_SPECIFIC_OPS=fused,attention,convolution,dot', 'MIGRAPHX_ENABLE_MLIR_INPUT_FUSION=1', 'MIGRAPHX_MLIR_ENABLE_SPLITK=1', 'MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION=1', 'MIGRAPHX_ENABLE_SPLIT_REDUCE=1','MIGRAPHX_DISABLE_LAYERNORM_FUSION=1']) {
+        withEnv(['MIGRAPHX_ENABLE_EXTRA_MLIR=1', 'MIGRAPHX_MLIR_USE_SPECIFIC_OPS=fused,attention,convolution,dot,convolution_backwards', 'MIGRAPHX_ENABLE_MLIR_INPUT_FUSION=1', 'MIGRAPHX_MLIR_ENABLE_SPLITK=1', 'MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION=1', 'MIGRAPHX_ENABLE_MLIR_GEG_FUSION=1', 'MIGRAPHX_ENABLE_SPLIT_REDUCE=1','MIGRAPHX_DISABLE_LAYERNORM_FUSION=1']) {
             def sanitizers = "undefined"
             // Note: the -fno-sanitize= is copied from upstream LLVM_UBSAN_FLAGS.
             def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
@@ -204,19 +223,29 @@ rocmtest clang_debug: rocmnode('mi100+') { cmake_build ->
 //            cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_USE_HIPRTC=On -DGPU_TARGETS='${gpu_targets}'")
 //        }
 //    }
+}, clang_release_navi: rocmnode('navi32') { cmake_build ->
+    stage('HIP Clang Release Navi32') {
+        def gpu_targets = getnavi3xtargets()
+        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${gpu_targets}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On")
+    }
 }, clang_asan: rocmnode('nogpu') { cmake_build ->
     stage('Clang ASAN') {
         def sanitizers = "undefined,address"
         def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'", compiler:'/usr/bin/clang++-14')
     }
+}, debub_libstdcxx: rocmnode('nogpu') { cmake_build ->
+    stage('Debug libstdc++') {
+        def sanitizers = "undefined"
+        def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers} -D_GLIBCXX_DEBUG"
+        cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'", compiler:'/usr/bin/clang++-14')
+    }
+}, clang_release_navi4: rocmnode('navi4x') { cmake_build ->
+    stage('HIP Clang Release Navi4x') {
+        def gpu_targets = getnavi4xtargets()
+        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${gpu_targets}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On")
+    }
 }
-//, clang_release_navi: rocmnode('navi32') { cmake_build ->
-//    stage('HIP Clang Release Navi32') {
-//        def gpu_targets = getnavi3xtargets()
-//        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${gpu_targets}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On")
-//    }
-//}
 
 
 
@@ -229,7 +258,7 @@ def onnxnode(name, body) {
     }
 }
 
-rocmtest onnx: onnxnode('mi100+') { cmake_build ->
+rocmtest onnx: onnxnode('onnxrt') { cmake_build ->
     stage("Onnx runtime") {
         sh '''
             apt install half

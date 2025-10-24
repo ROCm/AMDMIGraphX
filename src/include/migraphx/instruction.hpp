@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,6 +32,7 @@
 #include <migraphx/erase.hpp>
 #include <migraphx/config.hpp>
 #include <string>
+#include <unordered_set>
 #include <utility>
 
 namespace migraphx {
@@ -46,6 +47,14 @@ MIGRAPHX_EXPORT std::vector<shape> try_compute_shape(const operation& op,
                                                      const std::vector<shape>& inputs);
 
 MIGRAPHX_EXPORT bool reaches(instruction_ref start, instruction_ref end);
+
+MIGRAPHX_EXPORT bool reaches(instruction_ref start, instruction_ref end, const_module_ref m);
+
+MIGRAPHX_EXPORT bool is_interdependent(const std::vector<instruction_ref>& instructions,
+                                       const_module_ref m,
+                                       instruction_ref root);
+MIGRAPHX_EXPORT std::unordered_set<instruction_ref>
+find_instructions_between(instruction_ref start, instruction_ref end, const_module_ref m);
 
 struct MIGRAPHX_EXPORT instruction
 {
@@ -72,7 +81,7 @@ struct MIGRAPHX_EXPORT instruction
 
     bool valid() const;
 
-    shape get_shape() const;
+    const shape& get_shape() const;
     const literal& get_literal() const;
 
     const operation& get_operator() const;
@@ -183,6 +192,7 @@ struct MIGRAPHX_EXPORT instruction
     bool normalized       = false;
     std::size_t target_id = 0;
 };
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

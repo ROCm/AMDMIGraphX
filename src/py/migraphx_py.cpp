@@ -139,6 +139,11 @@ namespace pybind11 {
 namespace detail {
 
 template <>
+struct type_caster<migraphx::value::binary> : list_caster<migraphx::value::binary, std::uint8_t>
+{
+};
+
+template <>
 struct npy_format_descriptor<half>
 {
     static std::string format()
@@ -360,6 +365,9 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             auto lens = v.get<std::size_t>("lens", {1});
             if(v.contains("strides"))
                 return migraphx::shape(t, lens, v.at("strides").to_vector<std::size_t>());
+            else if(v.contains("permutation"))
+                return migraphx::shape::from_permutation(
+                    t, lens, v.at("permutation").to_vector<int64_t>());
             else
                 return migraphx::shape(t, lens);
         }))
@@ -409,6 +417,19 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                  visit(x, [&](auto data) { l = py::cast(data.to_vector()); });
                  return l;
              })
+        .def_static(
+            "save",
+            [](const migraphx::argument& a, const std::string& filename) {
+                migraphx::save_argument(a, filename);
+            },
+            "Save argument to a file encoded in msgpack format",
+            py::arg("arg"),
+            py::arg("filename"))
+        .def_static(
+            "load",
+            [](const std::string& filename) { return migraphx::load_argument(filename); },
+            "Load argument from a file encoded in msgpack format",
+            py::arg("filename"))
         .def("__eq__", std::equal_to<migraphx::argument>{})
         .def("__ne__", std::not_equal_to<migraphx::argument>{})
         .def("__repr__", [](const migraphx::argument& x) { return migraphx::to_string(x); });
@@ -419,7 +440,10 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .def("shape", [](migraphx::instruction_ref i) { return i->get_shape(); })
         .def("op", [](migraphx::instruction_ref i) { return i->get_operator(); })
         .def("inputs", [](migraphx::instruction_ref i) { return i->inputs(); })
+        .def("outputs", [](migraphx::instruction_ref i) { return i->outputs(); })
         .def("name", [](migraphx::instruction_ref i) { return i->name(); })
+        .def("get_literal",
+             [](migraphx::instruction_ref i) { return i->get_literal().get_argument(); })
         .def(py::hash(py::self))
         .def(py::self == py::self)
         .def(py::self != py::self);
@@ -462,6 +486,12 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             "add_return",
             [](migraphx::module& mm, std::vector<migraphx::instruction_ref>& args) {
                 return mm.add_return(args);
+            },
+            py::arg("args"))
+        .def(
+            "replace_return",
+            [](migraphx::module& mm, std::vector<migraphx::instruction_ref>& args) {
+                return mm.replace_return(args);
             },
             py::arg("args"))
         .def("__repr__", [](const migraphx::module& mm) { return migraphx::to_string(mm); })
@@ -680,6 +710,25 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("p"),
         py::arg("filename"),
         py::arg("format") = "msgpack");
+
+    m.def(
+        "save_buffer",
+        [](const migraphx::program& p) {
+            auto buffer = migraphx::save_buffer(p);
+            return py::bytes(buffer.data(), buffer.size());
+        },
+        "Serialize MIGraphX program",
+        py::arg("p"));
+
+    m.def(
+        "load_buffer",
+        [](const py::bytes& b) {
+            std::string_view byte_str{b};
+            std::vector<char> char_arr(byte_str.begin(), byte_str.end());
+            return migraphx::load_buffer(char_arr);
+        },
+        "Deserialize MIGraphX program",
+        py::arg("b"));
 
     m.def("get_target", &migraphx::make_target);
     m.def("create_argument", [](const migraphx::shape& s, const std::vector<double>& values) {

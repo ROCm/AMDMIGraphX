@@ -42,6 +42,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/normalize_ops.hpp>
+#include <migraphx/rewrite_rnn.hpp>
 #include <set>
 #include <map>
 
@@ -51,7 +52,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_8BITS_QUANTIZATION_PARAMS)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_QUANTIZATION)
 
-tracer quant_tracer()
+static tracer quant_tracer()
 {
     if(enabled(MIGRAPHX_TRACE_QUANTIZATION{}))
         return tracer{std::cout};
@@ -84,15 +85,15 @@ void quantize_bf16(program& prog, const std::vector<std::string>& ins_names)
                quant_tracer());
 }
 
-void quantize_8bits(program& prog,
-                    const target& t,
-                    shape::type_t precision,
-                    const std::vector<parameter_map>& calibration,
-                    const std::unordered_set<std::string>& ins_names)
+static void quantize_8bits(program& prog,
+                           const target& t,
+                           shape::type_t precision,
+                           const std::vector<parameter_map>& calibration,
+                           const std::unordered_set<std::string>& ins_names)
 {
     // Run optimize_module() before converting to int8/fp8 to const eval and fold in FP32 to
     // avoid loss of precision.
-    run_passes(prog, {normalize_ops{}, optimize_module{}}, quant_tracer());
+    run_passes(prog, {rewrite_rnn{}, normalize_ops{}, optimize_module{}}, quant_tracer());
 
     std::shared_ptr<std::vector<std::pair<float, float>>> quant_8bit_params =
         std::make_shared<std::vector<std::pair<float, float>>>();
@@ -207,5 +208,6 @@ void quantize_fp8(program& prog, const target& t, const std::vector<parameter_ma
     }
     quantize_8bits(prog, t, shape::fp8e4m3fn_type, calibration, supported_ins_names);
 }
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

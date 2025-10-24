@@ -57,20 +57,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace ref {
 
-template <typename T>
-T zero(const T&)
-{
-    return T(0);
-}
-
-template <class T>
-typename std::conditional_t<std::is_integral<T>{}, std::make_signed<T>, std::enable_if<true, T>>::
-    type
-    make_signed(T x)
-{
-    return x;
-}
-
 struct ref_lrn
 {
     op::lrn op;
@@ -91,18 +77,19 @@ struct ref_lrn
             int channels        = output_shape.lens()[1];
             int height          = output_shape.lens()[2];
             int width           = output_shape.lens()[3];
-            float alphaoverarea = op.alpha / float(op.size);
+            double alphaoverarea = op.alpha / double(op.size);
             int radius_lower    = (op.size - 1) / 2;
             int radius_upper    = op.size / 2 + 1;
 
             par_dfor(n_batch, height, width)([&](int b, int h, int w) {
-                float scale = 0;
                 dfor(channels)([&](int c) {
+                    double scale = 0;
                     auto start = (c - radius_lower) < 0 ? 0 : (c - radius_lower);
                     auto end   = (c + radius_upper) > channels ? channels : (c + radius_upper);
                     for(auto k = start; k < end; ++k)
                     {
-                        scale += std::pow(input(b, k, h, w), 2);
+                        double x = input(b, k, h, w);
+                        scale += (x * x);
                     }
                     scale *= alphaoverarea;
                     scale += op.bias;
@@ -115,21 +102,6 @@ struct ref_lrn
     }
 };
 MIGRAPHX_REGISTER_OP(ref_lrn)
-
-template <class V, class T, class... Ts>
-void visit_quantize_impl(V&& v, T&& x, Ts&&... xs)
-{
-    x.visit([&](auto y) { visit_all(xs...)([&](auto... ys) { v(y, ys...); }); });
-}
-
-template <class T, class... Ts>
-auto visit_quantize(T&& x, Ts&&... xs)
-{
-    return [&](auto v) {
-        // Workaround for https://gcc.gnu.org/bugzilla/show_bug.cgi?id=70100
-        visit_quantize_impl(v, x, xs...);
-    };
-}
 
 struct ref_im2col
 {

@@ -1,0 +1,33 @@
+	(attention_invalid_mask_4d_last_dims_test:ˆ
+Q
+input
+weights
+bias
+
+mask_indexy"	Attention*
+	num_heads :com.microsoft(attention_invalid_mask_4d_last_dims_testZ
+input
+
+
+
+Z
+weights
+
+
+Z
+bias
+
+
+Z$
+
+mask_index
+
+
+	
+
+b
+y
+
+
+
+B

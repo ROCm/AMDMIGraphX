@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,8 +32,8 @@
 #include <migraphx/load_save.hpp>
 #include <migraphx/tmp_dir.hpp>
 #include <migraphx/verify_args.hpp>
-#include <set>
 
+#include <set>
 #include <future>
 #include <thread>
 #include <utility>
@@ -44,7 +44,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DUMP_TEST)
 
 // An improved async, that doesn't block
 template <class Function>
-std::future<std::invoke_result_t<Function>> detach_async(Function&& f, bool parallel = true)
+static std::future<std::invoke_result_t<Function>> detach_async(Function&& f, bool parallel = true)
 {
     if(parallel)
     {
@@ -57,7 +57,7 @@ std::future<std::invoke_result_t<Function>> detach_async(Function&& f, bool para
     return std::async(std::launch::deferred, std::forward<Function>(f));
 }
 
-inline void verify_load_save(const migraphx::program& p)
+inline static void verify_load_save(const migraphx::program& p)
 {
     migraphx::tmp_dir td{"migraphx_test"};
     auto path = td.path / "test.mxr";
@@ -66,10 +66,10 @@ inline void verify_load_save(const migraphx::program& p)
     EXPECT(p == loaded);
 }
 
-inline void compile_check(migraphx::program& p,
-                          const migraphx::target& t,
-                          migraphx::compile_options c_opts,
-                          bool show_trace = false)
+inline static void compile_check(migraphx::program& p,
+                                 const migraphx::target& t,
+                                 migraphx::compile_options c_opts,
+                                 bool show_trace = false)
 {
     auto name   = t.name();
     auto shapes = p.get_output_shapes();
@@ -125,14 +125,14 @@ void run_verify::validate(const migraphx::target& t,
 
 std::pair<migraphx::program, std::vector<migraphx::argument>>
 run_verify::run_ref(migraphx::program p,
-                    migraphx::parameter_map inputs,
+                    const migraphx::parameter_map& inputs,
                     const migraphx::compile_options& c_opts) const
 {
     migraphx::target t = migraphx::make_target("ref");
     auto_print pp{p, t.name()};
     auto trace_target = migraphx::string_value_of(MIGRAPHX_TRACE_TEST_COMPILE{});
     compile_check(p, t, c_opts, (trace_target == "ref"));
-    return std::make_pair(std::move(p), p.eval(std::move(inputs)));
+    return std::make_pair(std::move(p), p.eval(inputs));
 }
 
 std::pair<migraphx::program, std::vector<migraphx::argument>>
@@ -168,7 +168,7 @@ run_verify::run_target(const migraphx::target& t,
 }
 
 template <class T>
-auto get_hash(const T& x)
+static auto get_hash(const T& x)
 {
     return std::hash<T>{}(x);
 }

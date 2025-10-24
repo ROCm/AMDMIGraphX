@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -36,7 +36,7 @@
 #include <io.h>
 #endif
 
-std::vector<char> read_stdin()
+static std::vector<char> read_stdin()
 {
 #ifdef _WIN32
     // Set stream translation mode to BINARY to suppress translations.
@@ -73,20 +73,24 @@ int main(int argc, char const* argv[])
         std::exit(0);
     }
     std::string output_name = argv[1];
+    bool quiet              = false;
     try
     {
         auto v = migraphx::from_msgpack(read_stdin());
+        quiet  = v.at("quiet").to<bool>();
         std::vector<migraphx::gpu::hiprtc_src_file> srcs;
         migraphx::from_value(v.at("srcs"), srcs);
         auto out =
             migraphx::gpu::compile_hip_src_with_hiprtc(std::move(srcs),
                                                        v.at("params").to_vector<std::string>(),
-                                                       v.at("arch").to<std::string>());
+                                                       v.at("arch").to<std::string>(),
+                                                       quiet);
         if(not out.empty())
             migraphx::write_buffer(output_name, out.front());
     }
     catch(const std::exception& err)
     {
-        std::cout << err.what() << std::endl;
+        if(not quiet)
+            std::cerr << err.what() << std::endl;
     }
 }

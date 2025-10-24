@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,7 +30,7 @@
 
 #include <test.hpp>
 
-void run_pass(migraphx::program& p)
+static void run_pass(migraphx::program& p)
 {
     migraphx::run_passes(p, {migraphx::dead_code_elimination{}});
 }
@@ -281,6 +281,18 @@ TEST_CASE(tuple_test)
     auto two = mm->add_literal(2);
     mm->add_instruction(tuple_op{}, one, two);
     mm->add_return({one, two});
+    auto count = std::distance(mm->begin(), mm->end());
+    run_pass(p);
+    EXPECT(std::distance(mm->begin(), mm->end()) == (count - 1));
+}
+
+TEST_CASE(empty_literal)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_literal();
+    mm->add_instruction(migraphx::make_op("convert"), x);
+    mm->add_return({x});
     auto count = std::distance(mm->begin(), mm->end());
     run_pass(p);
     EXPECT(std::distance(mm->begin(), mm->end()) == (count - 1));

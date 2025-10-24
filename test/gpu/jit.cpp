@@ -39,7 +39,9 @@
 
 // NOLINTNEXTLINE
 const std::string write_2s = R"__migraphx__(
+#ifndef __HIPCC_RTC__
 #include <hip/hip_runtime.h>
+#endif
 
 extern "C" {
 __global__ void write(char* data) 
@@ -56,7 +58,9 @@ int main() {}
 
 // NOLINTNEXTLINE
 const std::string add_2s_binary = R"__migraphx__(
+#ifndef __HIPCC_RTC__
 #include <hip/hip_runtime.h>
+#endif
 
 extern "C" {
 __global__ void add_2(char* x, char* y) 
@@ -190,7 +194,7 @@ int main() {}
 
 )__migraphx__";
 
-migraphx::src_file make_src_file(const std::string& name, const std::string& content)
+static migraphx::src_file make_src_file(const std::string& name, const std::string& content)
 {
     return {name, content};
 }
@@ -212,7 +216,7 @@ TEST_CASE(simple_compile_hip)
     EXPECT(migraphx::all_of(data, [](auto x) { return x == 2; }));
 }
 
-auto check_target(const std::string& arch)
+static auto check_target(const std::string& arch)
 {
     auto define  = "__" + arch + "__";
     auto content = migraphx::replace_string(check_define, "__DEFINE__", define);

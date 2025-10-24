@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,6 +28,8 @@
 #include <migraphx/par_for.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/pass_manager.hpp>
+#include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/op/identity.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
@@ -95,6 +97,7 @@ struct compile_plan
     context* ctx;
     operation preop;
     instruction_ref ins;
+    module_ref mod;
     optional<tuning_config> config                 = nullopt;
     std::vector<optional<compiled_result>> results = {};
     void update_config(bool exhaustive)
@@ -131,7 +134,7 @@ struct compile_plan
             const auto& problem = config->problem;
             if(auto sol = ctx->get_problem_cache().get(preop.name(), problem))
             {
-                auto solution = sol.value();
+                const auto& solution = sol.value();
                 // No solution yet until benchmarked so skip for now
                 if(solution.is_null())
                     return;
@@ -144,7 +147,7 @@ struct compile_plan
                 const auto& solutions = config->solutions;
                 if(solutions.empty())
                     MIGRAPHX_THROW("No solutions provided for " + preop.name() + " with " +
-                                   to_string(problem));
+                                   problem_string() + "\n\n" + print_modules());
                 results.resize(solutions.size());
                 for(auto i : range(solutions.size()))
                 {
@@ -165,6 +168,34 @@ struct compile_plan
             return to_string(config->problem);
         return "<no problem key>";
     }
+    std::string print_modules() const
+    {
+        std::stringstream current_module;
+        for(auto* const m : ins->module_inputs())
+        {
+            current_module << to_string(*m) << "\n";
+        }
+        std::stringstream submodules;
+        for(auto* const m : ins->module_inputs())
+        {
+            for(auto* const sm : m->get_sub_modules())
+            {
+                submodules << to_string(*sm) << "\n";
+            }
+        }
+        return config->detailed_problem_info + "\n\nModule:\n" + current_module.str() +
+               (not submodules.str().empty() ? "\n" + submodules.str() : "") + "Input Shapes:\n" +
+               print_input_shapes();
+    }
+    std::string print_input_shapes() const
+    {
+        std::stringstream input_shapes;
+        for(const auto& i : ins->inputs())
+        {
+            input_shapes << i->get_shape() << "\n";
+        }
+        return input_shapes.str();
+    }
 
     const compiled_result& benchmark() const
     {
@@ -176,12 +207,12 @@ struct compile_plan
         }
         if(results.empty())
             MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
-                           problem_string());
+                           problem_string() + "\n\n" + print_modules());
         if(results.size() == 1)
         {
             if(not results.front().has_value())
                 MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
-                               problem_string());
+                               problem_string() + "\n\n" + print_modules());
             return *results.front();
         }
         if(not config)
@@ -225,21 +256,26 @@ struct compile_plan
                            auto bench_ins = bench_mm->add_instruction(
                                cr->ins->get_operator(), bench_ins_inputs, cr->ins->module_inputs());
                            cr->replace.replace(*bench_mm, bench_ins);
-                           // do dead code elimination by directly removing instruction
-                           bench_mm->remove_instruction(bench_ins);
-                           auto t = time_program(*ctx, bench_prog, 20);
+                           // do dead code elimination
+                           run_passes(*bench_mm, {dead_code_elimination{}});
+                           // by default, measure runtime with bundle of 1 benchmark config,
+                           // repeat 20 times
+                           auto t = time_program(*ctx, bench_prog, cr->replace.fill_map, 1, 20);
                            if(trace_level > 1)
                                std::cout << t << "ms" << std::endl;
                            return t;
                        });
         std::this_thread::sleep_for(std::chrono::milliseconds{50});
         auto i = std::distance(times.begin(), std::min_element(times.begin(), times.end()));
-        if(trace_level > 0)
-            std::cout << "Fastest solution: " << config->solutions.at(i) << std::endl;
         ctx->get_problem_cache().insert(preop.name(), config->problem, config->solutions.at(i));
+        if(trace_level > 0)
+        {
+            std::cout << "Fastest solution: " << config->solutions.at(i) << std::endl;
+            ctx->get_problem_cache().save();
+        }
         if(not results[i].has_value())
             MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
-                           problem_string());
+                           problem_string() + "\n\n" + print_modules());
         auto skipped = std::count_if(
             results.begin(), results.end(), [](const auto& cr) { return not cr.has_value(); });
         if(skipped > 0)
@@ -256,7 +292,7 @@ struct compile_plan
 };
 
 template <class F>
-void par_compile(std::size_t n, F f)
+static void par_compile(std::size_t n, F f)
 {
     if(n == 0)
         return;
@@ -317,7 +353,7 @@ void compile_ops::apply(module& m) const
         if(ins->name() != "gpu::precompile_op")
             continue;
         operation preop = any_cast<precompile_op>(ins->get_operator()).op;
-        cm.add_plan(ctx, preop, ins);
+        cm.add_plan(ctx, preop, ins, &m);
     }
     cm.update_configs();
     cm.compile(m);

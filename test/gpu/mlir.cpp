@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -51,7 +51,7 @@ struct mlir_gpu_target : migraphx::gpu::target
     }
 };
 
-std::string encode(const std::string& s)
+static std::string encode(const std::string& s)
 {
     std::stringstream ss;
     bool prespace = false;
@@ -72,7 +72,7 @@ std::string encode(const std::string& s)
     return migraphx::trim(ss.str());
 }
 
-migraphx::module create_mlir_submodule(const migraphx::module& mmlir)
+static migraphx::module create_mlir_submodule(const migraphx::module& mmlir)
 {
     migraphx::module m;
     std::unordered_map<migraphx::instruction_ref, migraphx::instruction_ref> map_ins;
@@ -87,7 +87,7 @@ migraphx::module create_mlir_submodule(const migraphx::module& mmlir)
     return m;
 }
 
-migraphx::program create_program_from_mlir(const migraphx::module& mmlir)
+static migraphx::program create_program_from_mlir(const migraphx::module& mmlir)
 {
     migraphx::program p;
     auto* mm   = p.get_main_module();
@@ -108,7 +108,7 @@ migraphx::program create_program_from_mlir(const migraphx::module& mmlir)
     return p;
 }
 
-migraphx::parameter_map generate_params(const migraphx::program& p)
+static migraphx::parameter_map generate_params(const migraphx::program& p)
 {
     migraphx::parameter_map m;
     std::size_t i = 0;
@@ -120,7 +120,7 @@ migraphx::parameter_map generate_params(const migraphx::program& p)
     return m;
 }
 
-migraphx::argument run_gpu(migraphx::program p, const migraphx::parameter_map& inputs)
+static migraphx::argument run_gpu(migraphx::program p, const migraphx::parameter_map& inputs)
 {
     mlir_gpu_target t;
     p.compile(t);
@@ -139,13 +139,13 @@ migraphx::argument run_gpu(migraphx::program p, const migraphx::parameter_map& i
     return t.copy_from(p.eval(m).front());
 }
 
-migraphx::argument run_ref(migraphx::program p, const migraphx::parameter_map& inputs)
+static migraphx::argument run_ref(migraphx::program p, const migraphx::parameter_map& inputs)
 {
     p.compile(migraphx::make_target("ref"));
     return p.eval(inputs).front();
 }
 
-bool verify_mlir(const migraphx::module& mmlir)
+static bool verify_mlir(const migraphx::module& mmlir)
 {
     migraphx::program ref;
     ref.get_main_module()->insert_instructions(ref.get_main_module()->end(), &mmlir);
@@ -157,7 +157,7 @@ bool verify_mlir(const migraphx::module& mmlir)
         "mlir", run_gpu(mlir, inputs), migraphx::verify::expected{run_ref(ref, inputs)});
 }
 
-std::string get_attrs()
+static std::string get_attrs()
 {
     if(migraphx::enabled(MIGRAPHX_MLIR_ENABLE_SPLITK{}))
     {
@@ -302,6 +302,33 @@ module {
         migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
     CHECK(encode(s) == encode(mlir_output_with_attrs));
     // EXPECT(verify_mlir(m));
+}
+
+TEST_CASE(conv_backwards)
+{
+    std::string mlir_output = R"__migraphx__(
+module {
+  func.func @mlir_convolution_backwards(%arg0: !migraphx.shaped<1x1x3x3xf32, 9x9x3x1>, %arg1: !migraphx.shaped<1x1x3x3xf32, 9x9x3x1>) -> !migraphx.shaped<1x1x5x5xf32, 25x25x5x1> attributes ${attrs} {
+    %0 = migraphx.backwards_data_convolution %arg1, %arg0 {dilation = [1, 1], group = 1 : i64, padding = [0, 0, 0, 0], padding_mode = 0 : i64, stride = [1, 1]} : <1x1x3x3xf32, 9x9x3x1>, <1x1x3x3xf32, 9x9x3x1> -> <1x1x5x5xf32, 25x25x5x1>
+    return %0 : !migraphx.shaped<1x1x5x5xf32, 25x25x5x1>
+  }
+}
+)__migraphx__";
+
+    migraphx::module m;
+    auto x      = m.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3}});
+    auto w      = m.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3}});
+    auto conv_b = m.add_instruction(migraphx::make_op("convolution_backwards"), x, w);
+    m.add_return({conv_b});
+
+    auto s = migraphx::gpu::dump_mlir(m);
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
+    EXPECT(verify_mlir(m));
 }
 
 TEST_CASE(quant_dot_add)

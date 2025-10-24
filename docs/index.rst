@@ -82,14 +82,21 @@ MIGraphX Documentation Links
 
   .. grid-item-card:: Reference
 
-    * :ref:`cpp-api-reference`
-    * :ref:`python-api-reference`
-    * :ref:`migraphx-driver`
-    * :doc:`Supported ONNX Operators <./dev/onnx_operators>`
+    * :doc:`MIGraphX user reference <./reference/MIGraphX-user-reference>`
+      
+      * :ref:`cpp-api-reference`
+      * :ref:`python-api-reference`
+      * :doc:`Supported ONNX Operators <./dev/onnx_operators>`
    
-  .. grid-item-card:: Contributing to the MIGraphX code base
+    * :doc:`MIGraphX contributor reference <./reference/MIGraphX-dev-reference>`
+   
+      * :doc:`Environment variables <./reference/MIGraphX-dev-env-vars>`
+      * :doc:`Develop for the MIGraphX code base <./dev/contributing-to-migraphx>` 
+      * :ref:`migraphx-driver`
+    
+  .. grid-item-card:: Examples  
 
-    * :doc:`Developing for MIGraphX <./dev/contributing-to-migraphx>` 
+    * :doc:`MIGraphX examples <./tutorials/MIGraphX-examples>` 
 
 To contribute to the documentation refer to
 `Contributing to ROCm <https://rocm.docs.amd.com/en/latest/contribute/contributing.html>`_.

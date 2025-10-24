@@ -286,7 +286,7 @@ struct test_group_query_attention_prefill : verify_program<test_group_query_atte
                                   /* kv_num_heads=         */ 32,
                                   /* sequence_length=      */ 5,
                                   /* head_size=            */ 128,
-                                  /* past_sequence_length= */ 55,
+                                  /* past_sequence_length= */ 5,
                                   /* max_sequence_length=  */ 2048,
                                   /* do_rotary_embedding=  */ true,
                                   /* scale=                */ 1.0);

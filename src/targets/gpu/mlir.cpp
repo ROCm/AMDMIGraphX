@@ -335,6 +335,8 @@ struct mlir_program
                 result = mlirFloat8E4M3FNTypeGet(ctx.get());
             else if(as.type_enum() == shape::fp8e5m2_type)
                 result = mlirFloat8E5M2TypeGet(ctx.get());
+            else if(as.type_enum() == shape::fp8e8m0_type)
+                result = mlirFloat8E8M0FNUTypeGet(ctx.get());
             else if(as.type_enum() == shape::double_type)
                 result = mlirF64TypeGet(ctx.get());
             else if(as.is_integral())

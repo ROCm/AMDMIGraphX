@@ -58,16 +58,23 @@ The following is a list of prerequisites for building MIGraphX.
     sudo apt install -y rocm-cmake python3-pip rocblas miopen-hip
     ```
 
-2. Install [rbuild](https://github.com/RadeonOpenCompute/rbuild) (sudo may be required):
+2. Install [rbuild](https://github.com/RadeonOpenCompute/rbuild) in a python venv:
 
     ```bash
-    pip3 install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
+    python3 -m venv venv_rbuild
+    source venv_rbuild/bin/activate
+    pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
     ```
 
 3. Build MIGraphX source code:
 
     ```bash
     rbuild build -d depend -B build -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*')
+    ```
+
+4. (Optional) Deactivate python venv when done:
+    ```bash
+    deactivate
     ```
 
 Once completed, all prerequisites are in the `depend` folder and MIGraphX is in the `build` directory.

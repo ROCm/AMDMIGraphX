@@ -1849,12 +1849,11 @@ TEST_CASE(dot_add_dot_abc)
     auto device_name = migraphx::gpu::get_device_name();
     bool is_navi =
         migraphx::starts_with(device_name, "gfx11") or migraphx::starts_with(device_name, "gfx12");
-    if(is_navi){
+    // fusion should not happen if the device is navi or the fusion flag is disabled
+    if(is_navi or not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}))
         EXPECT(program_str.find("geg") == std::string::npos);
-    }
-    else {
+    else
         EXPECT(program_str.find("geg") != std::string::npos);
-    }
 }
 
 TEST_CASE(dot_add_dot_cab)

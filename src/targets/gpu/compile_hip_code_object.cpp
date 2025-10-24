@@ -169,8 +169,7 @@ std::size_t compute_block_size(const context& ctx, std::size_t n, std::size_t ma
     return std::min(std::max(min_block_size, block_size), max_block_size);
 }
 
-operation
-compile_hip_code_object(context& ctx, const std::string& content, hip_compile_options options)
+std::vector<std::vector<char>> compile_hip_code_object_str(context& ctx, const std::string& content, hip_compile_options& options)
 {
     assert(options.global > 0);
     assert(options.local > 0);
@@ -205,6 +204,14 @@ compile_hip_code_object(context& ctx, const std::string& content, hip_compile_op
     auto cos = compile_hip_src(srcs, options.params, get_device_name());
     if(cos.size() != 1)
         MIGRAPHX_THROW("No code object");
+    return cos;    
+}
+
+operation
+compile_hip_code_object(context& ctx, const std::string& content, hip_compile_options options)
+{
+    auto cos = compile_hip_code_object_str(ctx, content, options);
+    
     return code_object_op{value::binary{cos.front()},
                           options.kernel_name,
                           options.global,

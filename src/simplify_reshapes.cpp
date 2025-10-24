@@ -3225,11 +3225,11 @@ struct arithmetic_segment
                           << segment.count << "}\n";
             auto seg = segments.front();
             if(not std::all_of(
-                       segments.begin(), segments.end(), [&](const arithmetic_segment& seg) {
-                           return seg.stride == segments.front().stride and
-                                  seg.count == segments.front().count;
-                       }))
-                    return {};
+                   segments.begin(), segments.end(), [&](const arithmetic_segment& seg) {
+                       return seg.stride == segments.front().stride and
+                              seg.count == segments.front().count;
+                   }))
+                return {};
             lens.push_back(seg.count);
             strides.push_back(seg.stride);
         } while(segments.size() > 1);
@@ -3243,15 +3243,15 @@ struct arithmetic_segment
     // Replace broadcasted dimensions with size 1, and set the stride to the previous stride
     static shape unbroadcast(const shape& s)
     {
-        std::vector<std::size_t> lens = s.lens();
+        std::vector<std::size_t> lens    = s.lens();
         std::vector<std::size_t> strides = s.strides();
-        std::size_t prev_stride = 1;
+        std::size_t prev_stride          = 1;
         for(std::size_t i = 0; i < lens.size(); ++i)
         {
             std::size_t idx = lens.size() - 1 - i;
             if(strides[idx] == 0)
             {
-                lens[idx] = 1;
+                lens[idx]    = 1;
                 strides[idx] = prev_stride;
             }
             else
@@ -3262,7 +3262,8 @@ struct arithmetic_segment
         return {s.type(), lens, strides};
     }
 
-    static std::optional<std::vector<operation>> make_ops(const std::vector<arithmetic_segment>& segments, std::int64_t offset, std::int64_t n)
+    static std::optional<std::vector<operation>>
+    make_ops(const std::vector<arithmetic_segment>& segments, std::int64_t offset, std::int64_t n)
     {
         std::vector<operation> result;
         auto s = make_strided_view(segments);
@@ -3270,23 +3271,30 @@ struct arithmetic_segment
             return std::nullopt;
         // assert(s.element_space() <= n);
         std::cout << "make_ops: " << s << std::endl;
-        auto blens = s.lens();
+        auto blens         = s.lens();
         auto pre_broadcast = unbroadcast(s);
-        auto perm = find_permutation(pre_broadcast);
+        auto perm          = find_permutation(pre_broadcast);
         auto pre_transpose = reorder_shape(pre_broadcast, perm);
 
-
         std::vector<std::size_t> stride_dim;
-        std::transform(pre_transpose.strides().begin(), pre_transpose.strides().end(), pre_transpose.lens().begin(), std::back_inserter(stride_dim), std::multiplies<>{});
+        std::transform(pre_transpose.strides().begin(),
+                       pre_transpose.strides().end(),
+                       pre_transpose.lens().begin(),
+                       std::back_inserter(stride_dim),
+                       std::multiplies<>{});
         stride_dim.push_back(1);
 
         std::vector<std::size_t> extra_stride;
-        std::transform(stride_dim.begin()+1, stride_dim.end(), pre_transpose.strides().begin(), std::back_inserter(extra_stride), [](auto next_stride_dim, auto stride) -> std::size_t {
-            assert(next_stride_dim != 0);
-            if((stride % next_stride_dim) != 0)
-                return 0;
-            return stride/next_stride_dim;
-        });
+        std::transform(stride_dim.begin() + 1,
+                       stride_dim.end(),
+                       pre_transpose.strides().begin(),
+                       std::back_inserter(extra_stride),
+                       [](auto next_stride_dim, auto stride) -> std::size_t {
+                           assert(next_stride_dim != 0);
+                           if((stride % next_stride_dim) != 0)
+                               return 0;
+                           return stride / next_stride_dim;
+                       });
 
         std::cout << "n: " << n << std::endl;
         std::cout << "stride_dim: " << to_string_range(stride_dim) << std::endl;
@@ -3297,27 +3305,39 @@ struct arithmetic_segment
             return std::nullopt;
 
         std::vector<std::size_t> new_lens;
-        std::transform(extra_stride.begin(), extra_stride.end(), pre_transpose.lens().begin(), join_back_inserter(new_lens), [](auto stride, auto len) -> std::vector<std::size_t> {
-            if(stride == 1)
-                return {len};
-            return {len, stride};
-        });
+        std::transform(extra_stride.begin(),
+                       extra_stride.end(),
+                       pre_transpose.lens().begin(),
+                       join_back_inserter(new_lens),
+                       [](auto stride, auto len) -> std::vector<std::size_t> {
+                           if(stride == 1)
+                               return {len};
+                           return {len, stride};
+                       });
 
         std::vector<std::size_t> axes_mask;
-        std::transform(extra_stride.begin(), extra_stride.end(), join_back_inserter(axes_mask), [](auto stride) -> std::vector<std::size_t> {
-            if(stride == 1)
-                return {0};
-            return {0, 1};
-        });
+        std::transform(extra_stride.begin(),
+                       extra_stride.end(),
+                       join_back_inserter(axes_mask),
+                       [](auto stride) -> std::vector<std::size_t> {
+                           if(stride == 1)
+                               return {0};
+                           return {0, 1};
+                       });
 
         std::vector<std::size_t> start_lens;
-        std::transform(new_lens.begin(), new_lens.end(), axes_mask.begin(), std::back_inserter(start_lens), [](auto len, auto axis_mask) -> std::size_t {
-            if(axis_mask == 1)
-                return 1;
-            return len;
-        });
+        std::transform(new_lens.begin(),
+                       new_lens.end(),
+                       axes_mask.begin(),
+                       std::back_inserter(start_lens),
+                       [](auto len, auto axis_mask) -> std::size_t {
+                           if(axis_mask == 1)
+                               return 1;
+                           return len;
+                       });
 
-        std::size_t nelements = std::accumulate(new_lens.begin(), new_lens.end(), std::size_t(1), std::multiplies<>());
+        std::size_t nelements =
+            std::accumulate(new_lens.begin(), new_lens.end(), std::size_t(1), std::multiplies<>());
 
         std::cout << "axes_mask: " << to_string_range(axes_mask) << std::endl;
         std::cout << "new_lens: " << to_string_range(new_lens) << std::endl;
@@ -3335,9 +3355,9 @@ struct arithmetic_segment
         desc.apply({make_op("reshape", {{"dims", desc.common_dims()}})});
         desc.simplify();
 
-
         if(offset != 0 or nelements != n)
-            result.push_back(make_op("slice", {{"axes", {0}}, {"starts", {offset}}, {"ends", {offset + nelements}}}));
+            result.push_back(make_op(
+                "slice", {{"axes", {0}}, {"starts", {offset}}, {"ends", {offset + nelements}}}));
 
         result.push_back(make_op("reshape", {{"dims", new_lens}}));
 
@@ -3345,35 +3365,40 @@ struct arithmetic_segment
         result.insert(result.end(), opt_ops.begin(), opt_ops.end());
 
         std::vector<std::size_t> axes;
-        std::transform(axes_mask.begin(), axes_mask.end(), range(axes_mask.size()).begin(), join_back_inserter(axes), [](std::size_t mask, std::size_t idx) -> std::vector<std::size_t> {
-            if(mask == 1)
-                return {idx};
-            return {};
-        });
+        std::transform(axes_mask.begin(),
+                       axes_mask.end(),
+                       range(axes_mask.size()).begin(),
+                       join_back_inserter(axes),
+                       [](std::size_t mask, std::size_t idx) -> std::vector<std::size_t> {
+                           if(mask == 1)
+                               return {idx};
+                           return {};
+                       });
 
         if(not axes.empty())
         {
             std::vector<std::size_t> starts(axes.size(), 0);
             std::vector<std::size_t> ends(axes.size(), 1);
-            result.push_back(make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}));
+            result.push_back(
+                make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}));
         }
         return result;
     }
 
     template <class Indices>
     static std::optional<instruction_ref> transform_indices(const Indices& indices,
-                                  gather_instruction_builder& builder,
-                                  instruction_ref start)
+                                                            gather_instruction_builder& builder,
+                                                            instruction_ref start)
     {
         std::cout << "transform_indices: ";
         builder.m.debug_print(start);
-        auto isegments = from_ints(indices.begin(), indices.end());
+        auto isegments      = from_ints(indices.begin(), indices.end());
         std::int64_t offset = isegments.front().base;
-        auto ops = make_ops(isegments, offset, indices.size());
+        auto ops            = make_ops(isegments, offset, indices.size());
         if(not ops.has_value())
             return std::nullopt;
         std::cout << "ops: " << to_string_range(*ops, "\n") << std::endl;
-        for(auto op : *ops) 
+        for(auto op : *ops)
             start = builder.m.insert_instruction(builder.insert_before, op, start);
         return start;
 
@@ -3406,7 +3431,8 @@ struct arithmetic_segment
         //     return std::nullopt;
 
         // std::vector<std::size_t> new_lens;
-        // std::transform(stride_ratios.begin(), stride_ratios.end(), pre_transpose.lens().begin(), join_back_inserter(new_lens), [](auto ratio, auto len) -> std::vector<std::size_t> {
+        // std::transform(stride_ratios.begin(), stride_ratios.end(), pre_transpose.lens().begin(),
+        // join_back_inserter(new_lens), [](auto ratio, auto len) -> std::vector<std::size_t> {
         //     auto stride = ratio / len;
         //     if(stride == 1)
         //         return {len};
@@ -3414,7 +3440,8 @@ struct arithmetic_segment
         // });
 
         // std::vector<std::size_t> axes_mask;
-        // std::transform(stride_ratios.begin(), stride_ratios.end(), pre_transpose.lens().begin(), join_back_inserter(axes_mask), [](auto ratio, auto len) -> std::vector<std::size_t> {
+        // std::transform(stride_ratios.begin(), stride_ratios.end(), pre_transpose.lens().begin(),
+        // join_back_inserter(axes_mask), [](auto ratio, auto len) -> std::vector<std::size_t> {
         //     if(ratio == len)
         //         return {0};
         //     return {0, 1};
@@ -3430,7 +3457,6 @@ struct arithmetic_segment
         // desc.apply({make_op("reshape", {{"dims", desc.common_dims()}})});
         // desc.simplify();
 
-
         // if(offset != 0 or s.elements() != start->get_shape().elements())
         //     start = builder.slice(start, 0, offset, offset + s.elements());
 
@@ -3443,7 +3469,9 @@ struct arithmetic_segment
         //     start = builder.m.insert_instruction(builder.insert_before, op, start);
 
         // std::vector<std::size_t> axes;
-        // std::transform(axes_mask.begin(), axes_mask.end(), range(axes_mask.size()).begin(), join_back_inserter(axes), [](std::size_t mask, std::size_t idx) -> std::vector<std::size_t> {
+        // std::transform(axes_mask.begin(), axes_mask.end(), range(axes_mask.size()).begin(),
+        // join_back_inserter(axes), [](std::size_t mask, std::size_t idx) ->
+        // std::vector<std::size_t> {
         //     if(mask == 1)
         //         return {idx};
         //     return {};
@@ -3453,7 +3481,8 @@ struct arithmetic_segment
         // {
         //     std::vector<std::size_t> starts(axes.size(), 0);
         //     std::vector<std::size_t> ends(axes.size(), 1);
-        //     start = builder.m.insert_instruction(builder.insert_before, make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}), start);
+        //     start = builder.m.insert_instruction(builder.insert_before, make_op("slice",
+        //     {{"axes", axes}, {"starts", starts}, {"ends", ends}}), start);
         // }
         // return start;
 
@@ -3500,7 +3529,8 @@ struct arithmetic_segment
         //         //     rec = builder.slice(rec, axis, rem, rec->get_shape().lens()[axis] - rem);
         //         // }
         //         // auto base_rem = seg.stride == 0 ? 0 : seg.base % seg.stride;
-        //         // auto len_rem = seg.stride == 0 ? 0 : rec->get_shape().lens()[axis] % seg.stride;
+        //         // auto len_rem = seg.stride == 0 ? 0 : rec->get_shape().lens()[axis] %
+        //         seg.stride;
         //         // std::size_t delta = -base_rem;
         //         // if(base_rem != 0 or len_rem != 0)
         //         // {

@@ -8,7 +8,7 @@
 MIGraphX introduction
 ********************************************************************
 
-What is a deep learning Compiler?
+What is a deep learning compiler?
 ====================================================================
 
 Deep learning (DL) compilers try to improve the performance of models by analyzing aspects of DL models and automatically applying optimizations.
@@ -24,14 +24,16 @@ Fusing the operations reduces kernel overhead and the number of redundant stores
 By applying graph optimizations and selecting or generating highly performant device kernels, MIGraphX achieves significant performance gains over uncompiled models and similar compiled solutions.
 
 
-.. image:: ../data/migraphx_compilation_flow.png
+.. figure:: ../data/migraphx_compilation_flow.png
+  :scale: 50%
   :alt: compilation flow chart for MIGraphX
   :name: compilation-label
 
   Simplified overview of the compilation process in MIGraphX.
 
 
-.. image:: ../data/attention_fusion.png
+.. figure:: ../data/attention_fusion.png
+  :scale: 50%
   :alt: attention fusion kernel
   :name: attention-label
 

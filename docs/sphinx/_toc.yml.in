@@ -7,6 +7,11 @@ subtrees:
     entries: 
     - file: install/installing_with_package
     - file: install/building_migraphx
+
+  - caption: Conceptual
+    entries:
+    - file: conceptual/migraphx_introduction.rst
+      title: MIGraphX introduction 
     
   - caption: Reference
     entries:

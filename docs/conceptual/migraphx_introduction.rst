@@ -5,10 +5,13 @@
 .. _what-is-migraphx:
 
 ********************************************************************
-What is a Deep Learning Compiler?
+MIGraphX introduction
 ********************************************************************
 
-DL compilers all look to improve the performance of models by analyzing aspects of DL models and automatically applying optimizations.
+What is a deep learning Compiler?
+====================================================================
+
+Deep learning (DL) compilers try to improve the performance of models by analyzing aspects of DL models and automatically applying optimizations.
 DL compilers can focus on different areas of the runtime.
 For example, there are projects that only optimize kernels commonly used in DL models without providing a way to run a model.
 MIGraphX provides an end-to-end solution for optimizing and executing DL models.
@@ -20,24 +23,23 @@ Kernel fusions merge compatible operations into the same kernel execution on the
 Fusing the operations reduces kernel overhead and the number of redundant stores and loads between the host and accelerator, thereby improving overall performance.
 By applying graph optimizations and selecting or generating highly performant device kernels, MIGraphX achieves significant performance gains over uncompiled models and similar compiled solutions.
 
-.. figure:: figures/migraphx_compilation_flow.svg
-  :scale: 50%
+
+.. image:: ../data/migraphx_compilation_flow.png
   :alt: compilation flow chart for MIGraphX
   :name: compilation-label
 
   Simplified overview of the compilation process in MIGraphX.
 
 
-.. figure:: figures/attention_fusion.svg
-  :scale: 50%
+.. image:: ../data/attention_fusion.png
   :alt: attention fusion kernel
   :name: attention-label
 
   Fusion of Attention operations into a single kernel.
 
-********************************************************************
-What does MIGraphX offer as a Deep Learning compiler?
-********************************************************************
+
+What does MIGraphX offer as a deep learning compiler?
+====================================================================
 
 * **Minimal development effort for an end-to-end solution that compiles DL models for improved inference performance on AMD hardware**
 * **Open source C++ codebase with Python and C++ APIs**

@@ -3121,15 +3121,48 @@ struct arithmetic_segment
         return result;
     }
 
+    template<class Iterator, class OutputIterator>
+    static Iterator
+    find_largest(Iterator start, Iterator last, OutputIterator out)
+    {
+        for(auto it = start; it != last;)
+        {
+            auto [seg, next_it] = find(it, last);
+            it = next_it;
+            *out = seg;
+            out++;
+        }
+        return last;
+    }
+
+    template<class Iterator, class OutputIterator>
+    static Iterator
+    find_n(Iterator start, Iterator last, std::size_t n, OutputIterator out)
+    {
+        for(auto it = start; it != last;)
+        {
+            auto [seg, next_it] = find(it, it+n);
+            if(next_it != it+n)
+                return next_it;
+            it = next_it;
+            *out = seg;
+            out++;
+        }
+        return last;
+    }
+
     static std::vector<arithmetic_segment>
     make_segments(const std::vector<arithmetic_segment>& segments)
     {
         std::vector<arithmetic_segment> result;
-        for(auto it = segments.begin(); it != segments.end();)
+        auto [first_seg, first_it] = find(segments.begin(), segments.end());
+        result.push_back(first_seg);
+        // Try to find segments that are the same size
+        auto it = find_n(first_it, segments.end(), first_seg.count, std::back_inserter(result));
+        if(it != segments.end())
         {
-            auto [seg, next_it] = find(it, segments.end());
-            result.push_back(seg);
-            it = next_it;
+            result.resize(1);
+            find_largest(first_it, segments.end(), std::back_inserter(result));
         }
         return result;
     }

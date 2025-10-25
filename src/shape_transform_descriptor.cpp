@@ -235,29 +235,36 @@ shape_transform_descriptor shape_transform_descriptor::rebase(const std::vector<
     result.simplify();
     if(broadcast)
     {
-        const bool broadcast_only_dims = std::equal(dimensions.begin(), dimensions.end(), result.dimensions.begin(), result.dimensions.end(), [](const auto& src_dim, const auto& dst_dim) {
-            if(src_dim.subdimensions.size() != dst_dim.subdimensions.size())
-                return false;
-            auto match_sub_dim = [](const dimension::sub& src_sub, const dimension::sub& dst_sub) {
-                                                        if(src_sub.len == 1)
-                                                            return true;
-                                                      return src_sub.len == dst_sub.len;
-                                                  };
-            auto [src_it, dst_it] = std::mismatch(src_dim.subdimensions.begin(),
-                                                  src_dim.subdimensions.end(),
-                                                  dst_dim.subdimensions.begin(),
-                                                  dst_dim.subdimensions.end(),
-                                                  match_sub_dim);
-            if(src_it == src_dim.subdimensions.end())
-                return true;
-            // One mismatch is fine as long as the dimension is still the same size
-            if(src_dim.len() != dst_dim.len())
-                return false;
-            return std::equal(std::next(src_it), src_dim.subdimensions.end(),
-                              std::next(dst_it),
-                              dst_dim.subdimensions.end(),
-                              match_sub_dim);
-        });
+        const bool broadcast_only_dims =
+            std::equal(dimensions.begin(),
+                       dimensions.end(),
+                       result.dimensions.begin(),
+                       result.dimensions.end(),
+                       [](const auto& src_dim, const auto& dst_dim) {
+                           if(src_dim.subdimensions.size() != dst_dim.subdimensions.size())
+                               return false;
+                           auto match_sub_dim = [](const dimension::sub& src_sub,
+                                                   const dimension::sub& dst_sub) {
+                               if(src_sub.len == 1)
+                                   return true;
+                               return src_sub.len == dst_sub.len;
+                           };
+                           auto [src_it, dst_it] = std::mismatch(src_dim.subdimensions.begin(),
+                                                                 src_dim.subdimensions.end(),
+                                                                 dst_dim.subdimensions.begin(),
+                                                                 dst_dim.subdimensions.end(),
+                                                                 match_sub_dim);
+                           if(src_it == src_dim.subdimensions.end())
+                               return true;
+                           // One mismatch is fine as long as the dimension is still the same size
+                           if(src_dim.len() != dst_dim.len())
+                               return false;
+                           return std::equal(std::next(src_it),
+                                             src_dim.subdimensions.end(),
+                                             std::next(dst_it),
+                                             dst_dim.subdimensions.end(),
+                                             match_sub_dim);
+                       });
         if(not broadcast_only_dims)
             return {};
     }

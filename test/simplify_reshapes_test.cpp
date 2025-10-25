@@ -2676,8 +2676,8 @@ TEST_CASE(reduce_transpose_broadcast_pointwise_diff_size)
         auto y = m1.add_parameter("y", s2);
         auto reduce_sum =
             m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1, 2}}}), x);
-        auto transpose =
-            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), reduce_sum);
+        auto transpose = m1.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), reduce_sum);
         auto broadcast = m1.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), transpose);
         auto add  = m1.add_instruction(migraphx::make_op("add"), broadcast, y);
@@ -2695,13 +2695,12 @@ TEST_CASE(reduce_transpose_broadcast_pointwise_diff_size)
             m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3}}}), transpose);
         auto broadcast = m2.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), reduce_sum);
-        auto add      = m2.add_instruction(migraphx::make_op("add"), broadcast, y);
-        auto relu     = m2.add_instruction(migraphx::make_op("relu"), add);
+        auto add  = m2.add_instruction(migraphx::make_op("add"), broadcast, y);
+        auto relu = m2.add_instruction(migraphx::make_op("relu"), add);
         m2.add_return({relu});
     }
     EXPECT(m1.sort() == m2.sort());
 }
-
 
 TEST_CASE(transpose_contiguous_reshape_binary_packed)
 {

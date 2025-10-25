@@ -3121,30 +3121,28 @@ struct arithmetic_segment
         return result;
     }
 
-    template<class Iterator, class OutputIterator>
-    static Iterator
-    find_largest(Iterator start, Iterator last, OutputIterator out)
+    template <class Iterator, class OutputIterator>
+    static Iterator find_largest(Iterator start, Iterator last, OutputIterator out)
     {
         for(auto it = start; it != last;)
         {
             auto [seg, next_it] = find(it, last);
-            it = next_it;
-            *out = seg;
+            it                  = next_it;
+            *out                = seg;
             out++;
         }
         return last;
     }
 
-    template<class Iterator, class OutputIterator>
-    static Iterator
-    find_n(Iterator start, Iterator last, std::size_t n, OutputIterator out)
+    template <class Iterator, class OutputIterator>
+    static Iterator find_n(Iterator start, Iterator last, std::size_t n, OutputIterator out)
     {
         for(auto it = start; it != last;)
         {
-            auto [seg, next_it] = find(it, it+n);
-            if(next_it != it+n)
+            auto [seg, next_it] = find(it, it + n);
+            if(next_it != it + n)
                 return next_it;
-            it = next_it;
+            it   = next_it;
             *out = seg;
             out++;
         }

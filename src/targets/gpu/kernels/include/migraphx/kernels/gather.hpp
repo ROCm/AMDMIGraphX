@@ -57,7 +57,7 @@ __device__ void gather(Input input, Indices indices, Output output)
         idx[Axis] = new_in_index;
 
         if(idx[Axis] < 0 or idx[Axis] >= axis_dim_size)
-        {   // Don't gather on this just throw and exit
+        { // Don't gather on this just throw and exit
             MIGRAPHX_ASSERT(false && "Gather out of bounds access");
             return;
         }

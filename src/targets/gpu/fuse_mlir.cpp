@@ -979,7 +979,10 @@ struct find_mlir_kv_cache_attention_op
 {
     mlir_mode dot_mode = mlir_mode::none;
 
-    auto matcher() const { return match::name("group")(match::has_op_value("tag", "kv_cache_attention")); }
+    auto matcher() const
+    {
+        return match::name("group")(match::has_op_value("tag", "kv_cache_attention"));
+    }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {

@@ -296,7 +296,7 @@ inline migraphx::program create_gqa_program(const size_t batch_size,
 
     auto kv_num_heads_factor = num_heads / kv_num_heads;
     auto max_seq_len         = kv_s.lens()[2];
-    auto past_sl                 = mm->add_instruction(
+    auto past_sl             = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), slk_lit);
 
     auto q = mm->add_instruction(

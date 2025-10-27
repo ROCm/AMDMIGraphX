@@ -40,7 +40,7 @@
 
 static void run_pass(migraphx::program& p)
 {
-    migraphx::run_passes(p, {migraphx::fuse_attention{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(p, {migraphx::fuse_attention{true}, migraphx::dead_code_elimination{}});
 }
 
 TEST_CASE(gemm_softmax_gemm)

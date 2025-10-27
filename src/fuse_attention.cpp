@@ -367,7 +367,7 @@ struct find_kv_cache_attention
         // Construct group op with the attention module
         auto group_ins =
             mpm.get_module().insert_instruction(required_outputs.back(),
-                                                make_op("group", {{"tag", "attention"}}),
+                                                make_op("group", {{"tag", "kv_cache_attention"}}),
                                                 new_inputs,
                                                 {mpm_attn});
 

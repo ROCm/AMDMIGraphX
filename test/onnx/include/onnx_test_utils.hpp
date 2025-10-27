@@ -294,18 +294,10 @@ inline migraphx::program create_gqa_program(const size_t batch_size,
                           {{"kv_num_heads", kv_num_heads}, {"num_heads", num_heads}}),
         concat_v_inputs);
 
-    // Adding 1 to seq_lens_k, aka past_seq_lens, to allow range literals to start at 0.
-    // Putting the add inside the mlir module currently causes an error on their side,
-    // so we're leaving it here until that can be solved.
-    auto one_lit = mm->add_literal(migraphx::literal{migraphx::shape{slk_s.type(), {1}}, {1}});
-    one_lit = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", slk_s.lens()}}),
-                                  one_lit);
-    auto total_sl = mm->add_instruction(migraphx::make_op("add"), slk_lit, one_lit);
-
     auto kv_num_heads_factor = num_heads / kv_num_heads;
     auto max_seq_len         = kv_s.lens()[2];
-    total_sl                 = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), total_sl);
+    auto past_sl                 = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), slk_lit);
 
     auto q = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {num_heads}}}),
@@ -365,10 +357,10 @@ inline migraphx::program create_gqa_program(const size_t batch_size,
         mul = mm->add_instruction(migraphx::make_op("where"), causal_mask, ninf, mul);
     }
 
-    auto bc_total_sl = mm->add_instruction(
-        migraphx::make_op("reshape", {{"dims", {batch_size, num_heads, 1, 1}}}), total_sl);
+    auto bc_past_sl = mm->add_instruction(
+        migraphx::make_op("reshape", {{"dims", {batch_size, num_heads, 1, 1}}}), past_sl);
     auto mask_comp =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}), bc_total_sl);
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}), bc_past_sl);
     auto mask = mm->add_instruction(migraphx::make_op("greater"), bc_range, mask_comp);
     mask      = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), mask);

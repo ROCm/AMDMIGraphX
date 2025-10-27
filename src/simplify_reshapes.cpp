@@ -1707,7 +1707,6 @@ struct gather_context
 
 } // namespace
 
-
 namespace {
 
 // ============================================================================
@@ -1885,9 +1884,7 @@ struct arithmetic_segment
         std::reverse(lens.begin(), lens.end());
         std::reverse(strides.begin(), strides.end());
 
-        if(std::none_of(strides.begin(), strides.end(), [](auto stride) {
-            return stride == 0;
-        }))
+        if(std::none_of(strides.begin(), strides.end(), [](auto stride) { return stride == 0; }))
         {
             lens.push_back(1);
             strides.push_back(1);
@@ -1930,7 +1927,7 @@ struct arithmetic_segment
         // auto blens         = s.lens();
         auto pre_broadcast = unbroadcast(s);
         auto perm          = find_permutation(pre_broadcast);
-        auto iperm = invert_permutation(perm);
+        auto iperm         = invert_permutation(perm);
         auto pre_transpose = reorder_shape(pre_broadcast, perm);
 
         std::cout << "pre_broadcast: " << pre_broadcast << std::endl;
@@ -1938,10 +1935,10 @@ struct arithmetic_segment
 
         std::vector<std::size_t> start_lens;
         std::adjacent_difference(pre_transpose.strides().begin(),
-                       pre_transpose.strides().end(),
+                                 pre_transpose.strides().end(),
                                  std::back_inserter(start_lens),
                                  [](auto y, auto x) -> std::size_t {
-                                    assert(x >= y);
+                                     assert(x >= y);
                                      assert(y != 0);
                                      if((x % y) != 0)
                                          return 0;
@@ -1950,8 +1947,8 @@ struct arithmetic_segment
         start_lens.front() = pre_transpose.lens().front();
         std::cout << "start_lens: " << to_string_range(start_lens) << std::endl;
 
-        std::size_t nelements =
-            std::accumulate(start_lens.begin(), start_lens.end(), std::size_t(1), std::multiplies<>());
+        std::size_t nelements = std::accumulate(
+            start_lens.begin(), start_lens.end(), std::size_t(1), std::multiplies<>());
 
         std::vector<std::size_t> slice_mask;
         std::transform(start_lens.begin(),
@@ -1968,11 +1965,15 @@ struct arithmetic_segment
         std::cout << "slice_mask: " << to_string_range(slice_mask) << std::endl;
 
         std::vector<std::size_t> blens = reorder_dims(start_lens, iperm);
-        std::transform(s.lens().begin(), s.lens().end(), blens.begin(), blens.begin(), [](auto len, auto blen) -> std::size_t {
-            if(blen == 1)
-                return len;
-            return blen;
-        });
+        std::transform(s.lens().begin(),
+                       s.lens().end(),
+                       blens.begin(),
+                       blens.begin(),
+                       [](auto len, auto blen) -> std::size_t {
+                           if(blen == 1)
+                               return len;
+                           return blen;
+                       });
         std::cout << "blens: " << to_string_range(blens) << std::endl;
 
         std::vector<operation> ops;
@@ -1994,10 +1995,10 @@ struct arithmetic_segment
             if(end > n)
             {
                 result.push_back(make_op("broadcast", {{"axis", 1}, {"out_lens", {2, n}}}));
-                result.push_back(make_op("reshape", {{"dims", {2*n}}}));
+                result.push_back(make_op("reshape", {{"dims", {2 * n}}}));
             }
-            result.push_back(make_op(
-                "slice", {{"axes", {0}}, {"starts", {offset}}, {"ends", {end}}}));
+            result.push_back(
+                make_op("slice", {{"axes", {0}}, {"starts", {offset}}, {"ends", {end}}}));
         }
 
         // result.push_back(make_op("reshape", {{"dims", new_lens}}));
@@ -2023,12 +2024,16 @@ struct arithmetic_segment
         {
             std::vector<std::size_t> starts(axes.size(), 0);
             std::vector<std::size_t> ends;
-            std::transform(slice_mask.begin(), slice_mask.end(), s.lens().begin(), join_back_inserter(ends), [](std::size_t mask, std::size_t len) -> std::vector<std::size_t> {
-                if(mask == 0)
-                    return {};
-                return {len};
-            });
-            
+            std::transform(slice_mask.begin(),
+                           slice_mask.end(),
+                           s.lens().begin(),
+                           join_back_inserter(ends),
+                           [](std::size_t mask, std::size_t len) -> std::vector<std::size_t> {
+                               if(mask == 0)
+                                   return {};
+                               return {len};
+                           });
+
             result.push_back(
                 make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}));
         }
@@ -2044,7 +2049,7 @@ struct arithmetic_segment
         builder.m.debug_print(start);
         auto isegments      = from_ints(indices.begin(), indices.end());
         std::int64_t offset = isegments.front().base;
-        auto ops            = make_ops(shift(isegments, -offset), offset, start->get_shape().elements());
+        auto ops = make_ops(shift(isegments, -offset), offset, start->get_shape().elements());
         if(not ops.has_value())
             return std::nullopt;
         std::cout << "ops: " << to_string_range(*ops, "\n") << std::endl;

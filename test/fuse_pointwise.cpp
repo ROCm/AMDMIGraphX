@@ -1079,4 +1079,56 @@ TEST_CASE(add_broadcast_add)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(rewrite_broadcast_multi_output)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto l0  = mm->add_literal(1.0f);
+        auto l1  = mm->add_literal(2.0f);
+        auto mb0 =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), l0);
+        auto pw0 =
+            add_pointwise(p1, "main:pointwise0", {l0, l1}, [=](auto* pm, const auto& inputs) {
+                return pm->add_instruction(migraphx::make_op("mul"), inputs[0], inputs[1]);
+            });
+        auto mb1 =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), pw0);
+        auto pw1 =
+            add_pointwise(p1, "main:pointwise1", {mb0, mb1}, [=](auto* pm, const auto& inputs) {
+                return pm->add_instruction(migraphx::make_op("mul"), inputs[0], inputs[1]);
+            });
+        auto pw2 = add_pointwise(p1, "main:pointwise2", {pw1}, [=](auto* pm, const auto& inputs) {
+            return pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[0]);
+        });
+        mm->add_return({pw1, pw2});
+    }
+    run_pass(p1, {.enable_rewrite_broadcasts = true});
+    run_pass(p1, {.enable_multi_output = true});
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto l0  = mm->add_literal(1.0f);
+        auto l1  = mm->add_literal(2.0f);
+        auto mb0 =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), l0);
+        auto mb1 =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), l1);
+        auto pw0 =
+            add_pointwise(p2, "main:pointwise0", {mb0, mb1}, [=](auto* pm, const auto& inputs) {
+                auto mul0 = pm->add_instruction(migraphx::make_op("mul"), inputs[0], inputs[1]);
+                auto mul1 = pm->add_instruction(migraphx::make_op("mul"), inputs[0], mul0);
+                auto add0 = pm->add_instruction(migraphx::make_op("add"), mul1, mul1);
+                return std::vector<migraphx::instruction_ref>{add0, mul1};
+            });
+        auto get_elem1 =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), pw0);
+        auto get_elem0 =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), pw0);
+        mm->add_return({get_elem1, get_elem0});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

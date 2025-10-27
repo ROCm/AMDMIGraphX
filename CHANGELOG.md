@@ -3,6 +3,11 @@
 Full documentation for MIGraphX is available at
 [https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/](https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/).
 
+## Develop Branch
+
+### Fixed
+
+* Fixed `pointwise: Wrong number of arguments` error when quantizing certain models to `int8` [(#4398)](https://github.com/ROCm/AMDMIGraphX/pull/4398).
 
 ## MIGraphX 2.14 for ROCm 7.1.0
 

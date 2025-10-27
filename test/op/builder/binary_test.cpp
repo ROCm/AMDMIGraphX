@@ -47,8 +47,8 @@ TEST_CASE(binary_not_broadcasted_test)
     migraphx::module mm;
     const std::string& op_name = pick_op_name();
 
-    auto a_arg = mm.add_parameter("a", {migraphx::shape::float_type, {2, 4}});
-    auto b_arg = mm.add_parameter("b", {migraphx::shape::float_type, {2, 4}});
+    auto a_arg = mm.add_parameter("a", {migraphx::shape::int64_type, {2, 4}});
+    auto b_arg = mm.add_parameter("b", {migraphx::shape::int64_type, {2, 4}});
 
     add_common_op(mm, migraphx::make_op(op_name), {a_arg, b_arg});
 
@@ -60,8 +60,8 @@ TEST_CASE(binary_not_broadcasted_implicit_broadcast)
     migraphx::module mm;
     const std::string& op_name = pick_op_name();
 
-    auto a_arg = mm.add_parameter("a", {migraphx::shape::float_type, {2, 4}});
-    auto b_arg = mm.add_parameter("b", {migraphx::shape::float_type, {2, 1}});
+    auto a_arg = mm.add_parameter("a", {migraphx::shape::int64_type, {2, 4}});
+    auto b_arg = mm.add_parameter("b", {migraphx::shape::int64_type, {2, 1}});
 
     add_common_op(mm, migraphx::make_op(op_name), {a_arg, b_arg});
 
@@ -73,8 +73,8 @@ TEST_CASE(binary_non_zero_broadcasted_test)
     migraphx::module mm;
     const std::string& op_name = pick_op_name();
 
-    auto a_arg = mm.add_parameter("a", {migraphx::shape::float_type, {2, 3, 4, 5}});
-    auto b_arg = mm.add_parameter("b", {migraphx::shape::float_type, {3, 4}});
+    auto a_arg = mm.add_parameter("a", {migraphx::shape::int64_type, {2, 3, 4, 5}});
+    auto b_arg = mm.add_parameter("b", {migraphx::shape::int64_type, {3, 4}});
 
     auto l = mm.add_instruction(
         migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 3, 4, 5}}}), b_arg);

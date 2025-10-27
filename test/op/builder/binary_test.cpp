@@ -42,7 +42,7 @@ std::string pick_op_name()
     return op_names_set[dis(gen)];
 }
 
-TEST_CASE(binary_not_broadcasted_test)
+TEST_CASE(binary_not_broadcasted_op_builder_test)
 {
     migraphx::module mm;
     const std::string& op_name = pick_op_name();
@@ -55,7 +55,7 @@ TEST_CASE(binary_not_broadcasted_test)
     EXPECT(mm == make_op_module(op_name, {}, mm.get_parameters()));
 }
 
-TEST_CASE(binary_not_broadcasted_implicit_broadcast)
+TEST_CASE(binary_not_broadcasted_implicit_broadcast_op_builder_test)
 {
     migraphx::module mm;
     const std::string& op_name = pick_op_name();
@@ -68,7 +68,7 @@ TEST_CASE(binary_not_broadcasted_implicit_broadcast)
     EXPECT(mm == make_op_module(op_name, {}, mm.get_parameters()));
 }
 
-TEST_CASE(binary_non_zero_broadcasted_test)
+TEST_CASE(binary_non_zero_broadcasted_op_builder_test)
 {
     migraphx::module mm;
     const std::string& op_name = pick_op_name();

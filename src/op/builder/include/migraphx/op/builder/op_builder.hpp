@@ -72,7 +72,7 @@ auto invoke_builder(std::string /*name*/,
 }
 
 template <class T>
-auto invoke_builder(std::string name, 
+auto invoke_builder(std::string name,
                     module& m,
                     instruction_ref ins,
                     const std::vector<instruction_ref>& args,
@@ -100,13 +100,13 @@ auto invoke_builder(std::string name,
 template <class T>
 void register_builder()
 {
-    for(const auto& name:T::names())
+    for(const auto& name : T::names())
     {
         builder_func f = [=](module& m,
-                            instruction_ref ins,
-                            const std::vector<instruction_ref>& args,
-                            const std::vector<module_ref>& module_args,
-                            const value& options) {
+                             instruction_ref ins,
+                             const std::vector<instruction_ref>& args,
+                             const std::vector<module_ref>& module_args,
+                             const value& options) {
             return invoke_builder<T>(name, m, ins, args, module_args, options);
         };
         register_builder(name, std::move(f));

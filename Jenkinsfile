@@ -179,8 +179,8 @@ node("(rocmtest || migraphx)") {
     }
 }
 
-rocmtest clang_debug: rocmnode('mi200+') { cmake_build ->
-    stage('hipRTC Debug') {
+rocmtest clang_hiprtc_debug: rocmnode('mi200+') { cmake_build ->
+    stage('HIP Clang hipRTC Debug') {
         // Disable MLIR since it doesnt work with all ub sanitizers
         withEnv(['MIGRAPHX_DISABLE_MLIR=1']) {
             def sanitizers = "undefined"
@@ -190,7 +190,7 @@ rocmtest clang_debug: rocmnode('mi200+') { cmake_build ->
         }
     }
 }, clang_release: rocmnode('mi100+') { cmake_build ->
-    stage('Hip Clang Release') {
+    stage('HIP Clang Release') {
         def gpu_targets = getgputargets()
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${gpu_targets}'")
         stash includes: 'build/*.deb', name: 'migraphx-package'
@@ -199,8 +199,8 @@ rocmtest clang_debug: rocmnode('mi200+') { cmake_build ->
 //     stage('Hidden symbols') {
 //         cmake_build(flags: "-DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=On -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_VISIBILITY_PRESET=hidden -DCMAKE_C_VISIBILITY_PRESET=hidden")
 //     }
-}, all_targets_debug : rocmnode('mi100+') { cmake_build ->
-    stage('All targets Release') {
+}, all_targets_release : rocmnode('mi100+') { cmake_build ->
+    stage('All Targets Release') {
         def gpu_targets = getgputargets()
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_ENABLE_GPU=On -DMIGRAPHX_ENABLE_CPU=On -DMIGRAPHX_ENABLE_FPGA=On -DGPU_TARGETS='${gpu_targets}'")
     }
@@ -234,8 +234,8 @@ rocmtest clang_debug: rocmnode('mi200+') { cmake_build ->
         def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'", compiler:'/usr/bin/clang++-14')
     }
-}, debub_libstdcxx: rocmnode('nogpu') { cmake_build ->
-    stage('Debug libstdc++') {
+}, clang_libstdcxx_debug: rocmnode('nogpu') { cmake_build ->
+    stage('Clang libstdc++ Debug') {
         def sanitizers = "undefined"
         def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers} -D_GLIBCXX_DEBUG"
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'", compiler:'/usr/bin/clang++-14')

@@ -24,7 +24,7 @@
 
 #include <op_builder_test_utils.hpp>
 
-static const std::vector<std::string> op_names_set{
+const std::vector<std::string> op_names_set{
     "add", "div", "logical_and", "logical_or", "logical_xor", "bitwise_and", "mul", "prelu", "sub"};
 
 TEST_CASE(binary_not_broadcasted_op_builder_test)

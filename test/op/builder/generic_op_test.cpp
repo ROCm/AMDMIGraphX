@@ -24,7 +24,7 @@
 
 #include <op_builder_test_utils.hpp>
 
-static const std::vector<std::string> op_names_set{
+const std::vector<std::string> op_names_set{
     "abs",        "acos", "acosh", "asin", "asinh", "atan",  "atanh",     "ceil",
     "cos",        "cosh", "elu",   "erf",  "exp",   "floor", "identity",  "isnan",
     "leaky_relu", "log",  "lrn",   "neg",  "recip", "relu",  "nearbyint", "rsqrt",

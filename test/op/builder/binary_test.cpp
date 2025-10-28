@@ -24,12 +24,23 @@
 
 #include <op_builder_test_utils.hpp>
 
-const std::vector<std::string> op_names_set{
-    "add", "div", "logical_and", "logical_or", "logical_xor", "bitwise_and", "mul", "prelu", "sub"};
+std::vector<std::string> op_names()
+{
+    static const std::vector<std::string> op_names_set{"add",
+                                                       "div",
+                                                       "logical_and",
+                                                       "logical_or",
+                                                       "logical_xor",
+                                                       "bitwise_and",
+                                                       "mul",
+                                                       "prelu",
+                                                       "sub"};
+    return op_names_set;
+}
 
 TEST_CASE(binary_not_broadcasted_op_builder_test)
 {
-    std::for_each(op_names_set.begin(), op_names_set.end(), [&](const std::string& op_name) {
+    std::for_each(op_names().begin(), op_names().end(), [&](const std::string& op_name) {
         migraphx::module mm;
 
         auto a_arg = mm.add_parameter("a", {migraphx::shape::int64_type, {2, 4}});
@@ -43,7 +54,7 @@ TEST_CASE(binary_not_broadcasted_op_builder_test)
 
 TEST_CASE(binary_not_broadcasted_implicit_broadcast_op_builder_test)
 {
-    std::for_each(op_names_set.begin(), op_names_set.end(), [&](const std::string& op_name) {
+    std::for_each(op_names().begin(), op_names().end(), [&](const std::string& op_name) {
         migraphx::module mm;
 
         auto a_arg = mm.add_parameter("a", {migraphx::shape::int64_type, {2, 4}});
@@ -57,7 +68,7 @@ TEST_CASE(binary_not_broadcasted_implicit_broadcast_op_builder_test)
 
 TEST_CASE(binary_non_zero_broadcasted_op_builder_test)
 {
-    std::for_each(op_names_set.begin(), op_names_set.end(), [&](const std::string& op_name) {
+    std::for_each(op_names().begin(), op_names().end(), [&](const std::string& op_name) {
         migraphx::module mm;
 
         auto a_arg = mm.add_parameter("a", {migraphx::shape::int64_type, {2, 3, 4, 5}});

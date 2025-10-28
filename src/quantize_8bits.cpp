@@ -36,7 +36,6 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <numeric>
-#include <limits>
 #include <set>
 
 namespace migraphx {

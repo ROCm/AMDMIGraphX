@@ -2,7 +2,7 @@
   :description: Deep learning compilation with MIGraphX
   :keywords: MIGraphX, ROCm, library, API
 
-.. _what-is-migraphx:
+.. _deep-learning-compilation:
 
 ********************************************************************
 Deep learning compilation with MIGraphX

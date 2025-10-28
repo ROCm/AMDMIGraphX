@@ -30,17 +30,17 @@
 
 // NOLINTNEXTLINE(readability-function-size)
 static migraphx::program create_gqa_program(const size_t batch_size,
-                                     const size_t num_heads,
-                                     const size_t kv_num_heads,
-                                     const size_t sequence_length,
-                                     const size_t head_size,
-                                     const size_t past_sequence_length,
-                                     const size_t max_sequence_length,
-                                     const bool do_rotary,
-                                     const float scale,
-                                     const bool test_rotary      = false,
-                                     const bool test_concat      = false,
-                                     const int local_window_size = -1)
+                                            const size_t num_heads,
+                                            const size_t kv_num_heads,
+                                            const size_t sequence_length,
+                                            const size_t head_size,
+                                            const size_t past_sequence_length,
+                                            const size_t max_sequence_length,
+                                            const bool do_rotary,
+                                            const float scale,
+                                            const bool test_rotary      = false,
+                                            const bool test_concat      = false,
+                                            const int local_window_size = -1)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();

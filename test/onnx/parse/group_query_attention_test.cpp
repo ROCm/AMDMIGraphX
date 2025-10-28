@@ -27,7 +27,7 @@
 
 TEST_CASE(group_query_attention_test)
 {
-    auto p = create_gqa_program(/* batch_size=           */ 1,
+    auto p    = create_gqa_program(/* batch_size=           */ 1,
                                 /* num_heads=            */ 32,
                                 /* kv_num_heads=         */ 32,
                                 /* sequence_length=      */ 1,

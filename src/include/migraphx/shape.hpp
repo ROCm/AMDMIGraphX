@@ -369,6 +369,8 @@ struct MIGRAPHX_EXPORT shape
 
         type nan() const { return std::numeric_limits<type>::quiet_NaN(); }
 
+        type epsilon() const { return std::numeric_limits<type>::epsilon(); }
+
         template <class U>
         type operator()(U u) const
         {

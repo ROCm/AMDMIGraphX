@@ -24,19 +24,22 @@
 
 #include <op_builder_test_utils.hpp>
 
-std::vector<std::string> op_names()
+namespace
 {
-    static const std::vector<std::string> op_names_set{
-        "abs",        "acos", "acosh", "asin", "asinh", "atan",  "atanh",     "ceil",
-        "cos",        "cosh", "elu",   "erf",  "exp",   "floor", "identity",  "isnan",
-        "leaky_relu", "log",  "lrn",   "neg",  "recip", "relu",  "nearbyint", "rsqrt",
-        "sigmoid",    "sign", "sin",   "sinh", "sqrt",  "tan",   "tanh",      "not"};
-    return op_names_set;
+    const std::vector<std::string>& generic_op_names()
+    {
+        static const std::vector<std::string> op_names_set{
+            "abs",        "acos", "acosh", "asin", "asinh", "atan",  "atanh",     "ceil",
+            "cos",        "cosh", "elu",   "erf",  "exp",   "floor", "identity",  "isnan",
+            "leaky_relu", "log",  "lrn",   "neg",  "recip", "relu",  "nearbyint", "rsqrt",
+            "sigmoid",    "sign", "sin",   "sinh", "sqrt",  "tan",   "tanh",      "not"};
+        return op_names_set;
+    }
 }
 
 TEST_CASE(generic_not_continous_op_builder_test)
 {
-    std::for_each(op_names().begin(), op_names().end(), [&](const std::string& op_name) {
+    std::for_each(generic_op_names().begin(), generic_op_names().end(), [&](const std::string& op_name) {
         migraphx::module mm;
         auto a_arg     = mm.add_parameter("a", {migraphx::shape::int64_type, {2, 4, 3, 5}});
         const auto& op = migraphx::make_op(op_name);

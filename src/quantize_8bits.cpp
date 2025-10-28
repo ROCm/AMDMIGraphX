@@ -37,6 +37,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <numeric>
 #include <set>
+#include <limits>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -77,15 +78,6 @@ void quantize_8bits_pass::apply(module& m) const // NOLINT
             s.visit_type([&](auto as) {
                 epsilon = static_cast<float>(as.epsilon());
                 max_val = static_cast<float>(as.max());
-                
-                if(s.type() == shape::half_type)
-                {
-                    epsilon *= 1000.0f;
-                }
-                else if(s.type() != shape::float_type)
-                {
-                    epsilon *= 100.0f;
-                }
             });
 
             inverted_scale = std::max(epsilon, std::min(max_val, inverted_scale));

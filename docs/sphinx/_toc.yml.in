@@ -5,8 +5,12 @@ subtrees:
 
   - caption: Installation
     entries: 
-    - file: install/installing_with_package
-    - file: install/building_migraphx
+    - file: install/install-migraphx
+
+  - caption: Conceptual
+    entries:
+    - file: conceptual/deep-learning-compilation
+      title: Deep learning compilation with MIGraphX
     
   - caption: Reference
     entries:

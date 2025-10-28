@@ -24,63 +24,65 @@
 
 #include <op_builder_test_utils.hpp>
 
-namespace
+namespace {
+const std::vector<std::string>& binary_op_names()
 {
-    const std::vector<std::string>& binary_op_names()
-    {
-        static const std::vector<std::string> op_names_set{"add",
-                                                        "div",
-                                                        "logical_and",
-                                                        "logical_or",
-                                                        "logical_xor",
-                                                        "bitwise_and",
-                                                        "mul",
-                                                        "prelu",
-                                                        "sub"};
-        return op_names_set;
-    }
+    static const std::vector<std::string> op_names_set{"add",
+                                                       "div",
+                                                       "logical_and",
+                                                       "logical_or",
+                                                       "logical_xor",
+                                                       "bitwise_and",
+                                                       "mul",
+                                                       "prelu",
+                                                       "sub"};
+    return op_names_set;
 }
+} // namespace
 
 TEST_CASE(binary_not_broadcasted_op_builder_test)
 {
-    std::for_each(binary_op_names().begin(), binary_op_names().end(), [&](const std::string& op_name) {
-        migraphx::module mm;
+    std::for_each(
+        binary_op_names().begin(), binary_op_names().end(), [&](const std::string& op_name) {
+            migraphx::module mm;
 
-        auto a_arg = mm.add_parameter("a", {migraphx::shape::int64_type, {2, 4}});
-        auto b_arg = mm.add_parameter("b", {migraphx::shape::int64_type, {2, 4}});
+            auto a_arg = mm.add_parameter("a", {migraphx::shape::int64_type, {2, 4}});
+            auto b_arg = mm.add_parameter("b", {migraphx::shape::int64_type, {2, 4}});
 
-        add_common_op(mm, migraphx::make_op(op_name), {a_arg, b_arg});
+            add_common_op(mm, migraphx::make_op(op_name), {a_arg, b_arg});
 
-        EXPECT(mm == make_op_module(op_name, {}, mm.get_parameters()));
-    });
+            EXPECT(mm == make_op_module(op_name, {}, mm.get_parameters()));
+        });
 }
 
 TEST_CASE(binary_not_broadcasted_implicit_broadcast_op_builder_test)
 {
-    std::for_each(binary_op_names().begin(), binary_op_names().end(), [&](const std::string& op_name) {
-        migraphx::module mm;
+    std::for_each(
+        binary_op_names().begin(), binary_op_names().end(), [&](const std::string& op_name) {
+            migraphx::module mm;
 
-        auto a_arg = mm.add_parameter("a", {migraphx::shape::int64_type, {2, 4}});
-        auto b_arg = mm.add_parameter("b", {migraphx::shape::int64_type, {2, 1}});
+            auto a_arg = mm.add_parameter("a", {migraphx::shape::int64_type, {2, 4}});
+            auto b_arg = mm.add_parameter("b", {migraphx::shape::int64_type, {2, 1}});
 
-        add_common_op(mm, migraphx::make_op(op_name), {a_arg, b_arg});
+            add_common_op(mm, migraphx::make_op(op_name), {a_arg, b_arg});
 
-        EXPECT(mm == make_op_module(op_name, {}, mm.get_parameters()));
-    });
+            EXPECT(mm == make_op_module(op_name, {}, mm.get_parameters()));
+        });
 }
 
 TEST_CASE(binary_non_zero_broadcasted_op_builder_test)
 {
-    std::for_each(binary_op_names().begin(), binary_op_names().end(), [&](const std::string& op_name) {
-        migraphx::module mm;
+    std::for_each(
+        binary_op_names().begin(), binary_op_names().end(), [&](const std::string& op_name) {
+            migraphx::module mm;
 
-        auto a_arg = mm.add_parameter("a", {migraphx::shape::int64_type, {2, 3, 4, 5}});
-        auto b_arg = mm.add_parameter("b", {migraphx::shape::int64_type, {3, 4}});
+            auto a_arg = mm.add_parameter("a", {migraphx::shape::int64_type, {2, 3, 4, 5}});
+            auto b_arg = mm.add_parameter("b", {migraphx::shape::int64_type, {3, 4}});
 
-        auto l = mm.add_instruction(
-            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 3, 4, 5}}}), b_arg);
-        mm.add_instruction(migraphx::make_op(op_name), {a_arg, l});
+            auto l = mm.add_instruction(
+                migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 3, 4, 5}}}), b_arg);
+            mm.add_instruction(migraphx::make_op(op_name), {a_arg, l});
 
-        EXPECT(mm == make_op_module(op_name, {{"broadcasted_axis", 1}}, mm.get_parameters()));
-    });
+            EXPECT(mm == make_op_module(op_name, {{"broadcasted_axis", 1}}, mm.get_parameters()));
+        });
 }

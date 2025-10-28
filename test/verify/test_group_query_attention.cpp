@@ -28,7 +28,8 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/float_equal.hpp>
 
-migraphx::program create_gqa_program(const size_t batch_size,
+// NOLINTNEXTLINE(readability-function-size)
+static migraphx::program create_gqa_program(const size_t batch_size,
                                      const size_t num_heads,
                                      const size_t kv_num_heads,
                                      const size_t sequence_length,
@@ -239,7 +240,7 @@ struct test_group_query_attention_decode_small
                                   /* head_size=            */ 2,
                                   /* past_sequence_length= */ 3,
                                   /* max_sequence_length=  */ 4,
-                                  /* do_rotary_embedding=  */ true,
+                                  /* do_rotary=            */ true,
                                   /* scale=                */ 0.5);
     }
 };
@@ -255,7 +256,7 @@ struct test_group_query_attention_decode : verify_program<test_group_query_atten
                                   /* head_size=            */ 128,
                                   /* past_sequence_length= */ 15,
                                   /* max_sequence_length=  */ 2048,
-                                  /* do_rotary_embedding=  */ true,
+                                  /* do_rotary=            */ true,
                                   /* scale=                */ 1.0 / sqrt(128.0));
     }
 };
@@ -272,7 +273,7 @@ struct test_group_query_attention_prefill_small
                                   /* head_size=            */ 2,
                                   /* past_sequence_length= */ 2,
                                   /* max_sequence_length=  */ 4,
-                                  /* do_rotary_embedding=  */ true,
+                                  /* do_rotary=            */ true,
                                   /* scale=                */ 0.5);
     }
 };
@@ -288,7 +289,7 @@ struct test_group_query_attention_prefill : verify_program<test_group_query_atte
                                   /* head_size=            */ 128,
                                   /* past_sequence_length= */ 5,
                                   /* max_sequence_length=  */ 2048,
-                                  /* do_rotary_embedding=  */ true,
+                                  /* do_rotary=            */ true,
                                   /* scale=                */ 1.0);
     }
 };
@@ -304,7 +305,7 @@ struct test_group_query_attention_no_rotary : verify_program<test_group_query_at
                                   /* head_size=            */ 128,
                                   /* past_sequence_length= */ 5,
                                   /* max_sequence_length=  */ 1024,
-                                  /* do_rotary_embedding=  */ false,
+                                  /* do_rotary=            */ false,
                                   /* scale=                */ 1.0 / sqrt(128.0));
     }
 };
@@ -320,7 +321,7 @@ struct test_group_query_attention_grouped : verify_program<test_group_query_atte
                                   /* head_size=            */ 128,
                                   /* past_sequence_length= */ 15,
                                   /* max_sequence_length=  */ 2048,
-                                  /* do_rotary_embedding=  */ true,
+                                  /* do_rotary=            */ true,
                                   /* scale=                */ 1.0 / sqrt(128.0));
     }
 };
@@ -337,7 +338,7 @@ struct test_group_query_attention_rotary_only
                                   /* head_size=            */ 128,
                                   /* past_sequence_length= */ 15,
                                   /* max_sequence_length=  */ 2048,
-                                  /* do_rotary_embedding=  */ true,
+                                  /* do_rotary=            */ true,
                                   /* scale=                */ 1.0 / sqrt(128.0),
                                   /* test_rotary=          */ true,
                                   /* test_concat=          */ false);
@@ -356,7 +357,7 @@ struct test_group_query_attention_concat_only
                                   /* head_size=            */ 128,
                                   /* past_sequence_length= */ 15,
                                   /* max_sequence_length=  */ 2048,
-                                  /* do_rotary_embedding=  */ true,
+                                  /* do_rotary=            */ true,
                                   /* scale=                */ 1.0 / sqrt(128.0),
                                   /* test_rotary=          */ false,
                                   /* test_concat=          */ true);
@@ -375,7 +376,7 @@ struct test_group_query_attention_prefill_local
                                   /* head_size=            */ 2,
                                   /* past_sequence_length= */ 4,
                                   /* max_sequence_length=  */ 6,
-                                  /* do_rotary_embedding=  */ true,
+                                  /* do_rotary=            */ true,
                                   /* scale=                */ 0.5,
                                   /* test_rotary=          */ false,
                                   /* test_concat=          */ false,
@@ -395,7 +396,7 @@ struct test_group_query_attention_decode_local
                                   /* head_size=            */ 2,
                                   /* past_sequence_length= */ 4,
                                   /* max_sequence_length=  */ 8,
-                                  /* do_rotary_embedding=  */ true,
+                                  /* do_rotary=            */ true,
                                   /* scale=                */ 0.5,
                                   /* test_rotary=          */ false,
                                   /* test_concat=          */ false,

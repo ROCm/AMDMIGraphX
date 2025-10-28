@@ -213,7 +213,7 @@ inline migraphx::program create_gqa_program(const size_t batch_size,
                                             const size_t max_sequence_length,
                                             const bool do_rotary,
                                             const float scale,
-                                            bool non_packed = false)
+                                            const bool non_packed = false)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();

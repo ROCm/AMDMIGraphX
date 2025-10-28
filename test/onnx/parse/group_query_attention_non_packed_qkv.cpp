@@ -27,7 +27,16 @@
 
 TEST_CASE(group_query_attention_non_packed_qkv_test)
 {
-    auto p    = create_gqa_program(1, 32, 32, 1, 128, 1, 4096, true, 1.0, true);
+    auto p    = create_gqa_program(/* batch_size=           */ 1,
+                                   /* num_heads=            */ 32,
+                                   /* kv_num_heads=         */ 32,
+                                   /* sequence_length=      */ 1,
+                                   /* head_size=            */ 128,
+                                   /* past_sequence_length= */ 1,
+                                   /* max_sequence_length=  */ 4096,
+                                   /* do_rotary=            */ true,
+                                   /* scale=                */ 1.0,
+                                   /* non_packed=           */ true);
     auto prog = optimize_onnx("group_query_attention_non_packed_qkv_test.onnx");
     EXPECT(p == prog);
 }

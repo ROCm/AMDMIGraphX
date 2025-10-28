@@ -224,9 +224,11 @@ struct find_kv_cache_attention
         auto gemm1 =
             match::name("dot")(match::arg(0)(match::name("slice")), match::arg(1)(transpose1));
         auto scale       = match::name("mul")(match::any_arg(0, 1)(gemm1));
+        auto broadcasted_const = match::name("multibroadcast")(match::arg(0)(match::is_constant()));
+        auto attn_scores = match::any_of(scale, gemm1);
         auto causal_mask = match::name("where")(
-            match::arg(0)(match::name("multibroadcast")(match::arg(0)(match::is_constant()))),
-            match::arg(2)(match::any_of(scale, gemm1)));
+            match::arg(0)(broadcasted_const),
+            match::arg(2)(attn_scores));
         auto greater = match::name("multibroadcast")(match::arg(0)(match::name("convert")(
             match::arg(0)(match::name("greater")(match::arg(1)(match::any().bind("total_sl")))))));
         auto where   = match::name("where")(match::arg(0)(greater),

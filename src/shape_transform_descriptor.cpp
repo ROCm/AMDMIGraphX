@@ -185,6 +185,40 @@ shape_transform_descriptor shape_transform_descriptor::create(const std::vector<
     return result;
 }
 
+static bool is_broadcast_only(const std::vector<dimension>& src_dims,
+                              const std::vector<dimension>& dst_dims)
+{
+    return std::equal(src_dims.begin(),
+                      src_dims.end(),
+                      dst_dims.begin(),
+                      dst_dims.end(),
+                      [](const auto& src_dim, const auto& dst_dim) {
+                          if(src_dim.subdimensions.size() != dst_dim.subdimensions.size())
+                              return false;
+                          auto match_sub_dim = [](const dimension::sub& src_sub,
+                                                  const dimension::sub& dst_sub) {
+                              if(src_sub.len == 1)
+                                  return true;
+                              return src_sub.len == dst_sub.len;
+                          };
+                          auto [src_it, dst_it] = std::mismatch(src_dim.subdimensions.begin(),
+                                                                src_dim.subdimensions.end(),
+                                                                dst_dim.subdimensions.begin(),
+                                                                dst_dim.subdimensions.end(),
+                                                                match_sub_dim);
+                          if(src_it == src_dim.subdimensions.end())
+                              return true;
+                          // One mismatch is fine as long as the dimension is still the same size
+                          if(src_dim.len() != dst_dim.len())
+                              return false;
+                          return std::equal(std::next(src_it),
+                                            src_dim.subdimensions.end(),
+                                            std::next(dst_it),
+                                            dst_dim.subdimensions.end(),
+                                            match_sub_dim);
+                      });
+}
+
 shape_transform_descriptor shape_transform_descriptor::rebase(const std::vector<std::size_t>& dims,
                                                               bool broadcast) const
 {
@@ -233,6 +267,8 @@ shape_transform_descriptor shape_transform_descriptor::rebase(const std::vector<
     }
     // TODO: Only simplify if the subs was changed
     result.simplify();
+    if(broadcast and not is_broadcast_only(dimensions, result.dimensions))
+        return {};
 
     return result;
 }

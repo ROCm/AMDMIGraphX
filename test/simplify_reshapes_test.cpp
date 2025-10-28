@@ -2666,6 +2666,42 @@ TEST_CASE(reduce_broadcast_reshape_pointwise2)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(reduce_transpose_broadcast_pointwise_diff_size)
+{
+    auto s1 = migraphx::shape{migraphx::shape::float_type, {1, 128, 128, 3}};
+    auto s2 = migraphx::shape{migraphx::shape::float_type, {1, 3, 256, 256}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s1);
+        auto y = m1.add_parameter("y", s2);
+        auto reduce_sum =
+            m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1, 2}}}), x);
+        auto transpose = m1.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), reduce_sum);
+        auto broadcast = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), transpose);
+        auto add  = m1.add_instruction(migraphx::make_op("add"), broadcast, y);
+        auto relu = m1.add_instruction(migraphx::make_op("relu"), add);
+        m1.add_return({relu});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", s1);
+        auto y = m2.add_parameter("y", s2);
+        auto transpose =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), x);
+        auto reduce_sum =
+            m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3}}}), transpose);
+        auto broadcast = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), reduce_sum);
+        auto add  = m2.add_instruction(migraphx::make_op("add"), broadcast, y);
+        auto relu = m2.add_instruction(migraphx::make_op("relu"), add);
+        m2.add_return({relu});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(transpose_contiguous_reshape_binary_packed)
 {
     migraphx::module m1;

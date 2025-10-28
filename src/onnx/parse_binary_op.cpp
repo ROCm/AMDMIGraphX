@@ -48,7 +48,7 @@ struct parse_binary_op : op_parser<parse_binary_op>
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& parser,
                           onnx_parser::node_info info,
-                          std::vector<instruction_ref> args) const
+                          const std::vector<instruction_ref>& args) const
     {
         if(args.size() != 2)
             MIGRAPHX_THROW("binary operators should have 2 operands");

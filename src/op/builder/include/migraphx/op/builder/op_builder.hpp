@@ -46,7 +46,7 @@ using builder_func =
 MIGRAPHX_EXPORT void register_builder(const std::string& name, builder_func f);
 
 template <class T>
-auto invoke_builder(std::string /*name*/,
+auto invoke_builder(const std::string& /*name*/,
                     module& m,
                     instruction_ref ins,
                     const std::vector<instruction_ref>& args,
@@ -58,7 +58,7 @@ auto invoke_builder(std::string /*name*/,
 }
 
 template <class T>
-auto invoke_builder(std::string /*name*/,
+auto invoke_builder(const std::string& /*name*/,
                     module& m,
                     instruction_ref ins,
                     const std::vector<instruction_ref>& args,
@@ -72,7 +72,7 @@ auto invoke_builder(std::string /*name*/,
 }
 
 template <class T>
-auto invoke_builder(std::string name,
+auto invoke_builder(const std::string& name,
                     module& m,
                     instruction_ref ins,
                     const std::vector<instruction_ref>& args,
@@ -84,7 +84,7 @@ auto invoke_builder(std::string name,
 }
 
 template <class T>
-auto invoke_builder(std::string name,
+auto invoke_builder(const std::string& name,
                     module& m,
                     instruction_ref ins,
                     const std::vector<instruction_ref>& args,

@@ -320,7 +320,7 @@ void fuse_dots::apply(module_pass_manager& mpm) const
 {
     auto& m = mpm.get_module();
     // configurable threshold
-    size_t fuse_threshold = 40;
+    size_t fuse_threshold = 5;
     // 1) Build indegree map and initialize levels
     std::unordered_map<instruction_ref, std::size_t> indeg;
     indeg.reserve(std::distance(m.begin(), m.end()));

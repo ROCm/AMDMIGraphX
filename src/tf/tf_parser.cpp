@@ -240,7 +240,7 @@ static std::vector<T> get_data_vals(const google::protobuf::RepeatedField<T>& da
 template <class T>
 static literal create_literal(shape::type_t shape_type,
                               const std::vector<size_t>& dims,
-                              const std::vector<T>& data)
+                              const T& data)
 {
     // assume if explicit value is mentioned in protobuf and dim size <= 1, treat as scalar
     if(dims.empty() or (dims.size() == 1 and dims.front() == 1))
@@ -399,7 +399,6 @@ void tf_parser::parse_node(const std::string& name)
 {
     if(instructions.count(name) == 0)
     {
-        // std::cout << name << std::endl;
 
         auto&& node = nodes.at(name);
         if(not is_valid_op(node))
@@ -551,15 +550,15 @@ literal tf_parser::parse_tensor(const tensorflow::TensorProto& t) const
         const std::string& s = t.tensor_content();
         switch(t.dtype())
         {
-        case tensorflow::DataType::DT_FLOAT: return literal{{shape::float_type, dims}, s.data()};
+        case tensorflow::DataType::DT_FLOAT: return create_literal(shape::float_type, dims, s.data());
         case tensorflow::DataType::DT_BOOL:
-        case tensorflow::DataType::DT_INT8: return literal{{shape::int8_type, dims}, s.data()};
+        case tensorflow::DataType::DT_INT8: return create_literal(shape::int8_type, dims, s.data());
         case tensorflow::DataType::DT_UINT16:
-        case tensorflow::DataType::DT_INT16: return literal{{shape::int16_type, dims}, s.data()};
-        case tensorflow::DataType::DT_INT32: return literal{{shape::int32_type, dims}, s.data()};
-        case tensorflow::DataType::DT_INT64: return literal{{shape::int64_type, dims}, s.data()};
-        case tensorflow::DataType::DT_HALF: return literal{{shape::half_type, dims}, s.data()};
-        case tensorflow::DataType::DT_DOUBLE: return literal{{shape::double_type, dims}, s.data()};
+        case tensorflow::DataType::DT_INT16: return create_literal(shape::int16_type, dims, s.data());
+        case tensorflow::DataType::DT_INT32: return create_literal(shape::int32_type, dims, s.data());
+        case tensorflow::DataType::DT_INT64: return create_literal(shape::int64_type, dims, s.data());
+        case tensorflow::DataType::DT_HALF: return create_literal(shape::half_type, dims, s.data());
+        case tensorflow::DataType::DT_DOUBLE: return create_literal(shape::double_type, dims, s.data());
         case tensorflow::DataType::DT_INVALID:
         case tensorflow::DataType::DT_UINT8:
         case tensorflow::DataType::DT_STRING:

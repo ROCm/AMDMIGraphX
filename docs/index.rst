@@ -18,12 +18,11 @@ The MIGraphX public repository is located at `https://github.com/ROCm/AMDMIGraph
 
   .. grid-item-card:: Install
 
-    * :doc:`Installing MIGraphX with the package installer <./install/installing_with_package>`
-    * :doc:`Building and installing MIGraphX from source code <./install/building_migraphx>`
+    * :doc:`MIGraphX on ROCm installation <./install/install-migraphx>`
 
   .. grid-item-card:: Conceptual
 
-    * :doc:`MIGraphX introduction<./conceptual/migraphx_introduction>`
+    * :doc:`Deep learning compilation with MIGraphX <./conceptual/deep-learning-compilation>`
 
   .. grid-item-card:: Reference
 

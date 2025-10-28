@@ -25,19 +25,15 @@ An overview of the compilation process for MIGraphX is shown below in
 performs are kernel fusions such as the Attention fusion seen in 
 :numref:`attention-label`.
 
-.. figure:: ../data/migraphx_compilation_flow.png
-  :scale: 50%
-  :alt: compilation flow chart for MIGraphX
-  :name: compilation-label
+.. image:: ../data/migraphx_compilation_flow.png
+   :scale: 50%
+   :alt: Simplified overview of the MIGraphX compilation process
+   :name: compilation-label
 
-  Simplified overview of the MIGraphX compilation process.
-
-.. figure:: ../data/attention_fusion.png
-  :scale: 50%
-  :alt: attention fusion kernel
-  :name: attention-label
-
-  Attention operations fused into a single kernel.
+.. image:: ../data/attention_fusion.png
+   :scale: 50%
+   :alt: Attention operations fused into a single kernel
+   :name: attention-label
 
 What MIGraphX provides
 ====================================================================

@@ -781,6 +781,31 @@ struct parse_resize : op_parser<parse_resize>
         return info.add_literal(migraphx::literal(migraphx::shape{migraphx::shape::float_type, {result_rows, result_cols}}, result_mat));
     }
 
+    static instruction_ref
+    reshape_input_for_dot(const onnx_parser::node_info& info, resize_args& resize)
+    {
+        auto in_lens  = resize.in_s.lens();
+        auto batch    = in_lens.at(0);
+        auto channels = in_lens.at(1);
+        auto count = 0;
+        auto combined_channels = 1;
+
+        // Handle trailing dimensions to get final resize value
+        for (const auto& dim: in_lens)
+        {
+            count++;
+            if (count < 2)
+                continue;
+
+            combined_channels *= dim;    
+        }
+
+        // reshape input to one-dimension
+        std::vector<int64_t> rsp_lens{static_cast<int64_t>(batch*channels), 
+                                      static_cast<int64_t>(combined_channels)};
+        return info.add_instruction(make_op("reshape", {{"dims", rsp_lens}}), resize.x);
+    }
+
     // Cubic interpolation can be done by convolution of a fixed coefficients that are scaled based
     // on the sampleing (up/down) of the axis using the original image 
     // 
@@ -812,7 +837,8 @@ struct parse_resize : op_parser<parse_resize>
 
         auto interpolation_mat = build_n_cubic_interpolation_matrix(info, resize);
 
-        interpolation_mat->debug_print();
+        auto rsp = reshape_input_for_dot(info, resize);
+
         auto interpolated_output = info.add_instruction(make_op("dot"), rsp, interpolation_mat);
 
         // return output image to the proper output shape based on the output lengs

@@ -218,28 +218,29 @@ struct find_kv_cache_attention
         static const std::unordered_set<std::string> skip_set = {
             "multibroadcast", "reshape", "unsqueeze"};
 
-        auto transpose1 = match::skip(match::name(skip_set))(match::name("transpose")(
-            match::arg(0)(match::skip(match::name(skip_set))(match::name("concat_past_present"))
-                              .bind("pres_k"))));
-        auto gemm1 =
-            match::name("dot")(match::arg(0)(match::name("slice")), match::arg(1)(transpose1));
-        auto scale             = match::name("mul")(match::any_arg(0, 1)(gemm1));
+        auto keys =
+            match::skip(match::name(skip_set))(match::name("concat_past_present")).bind("pres_k");
+        auto k_transpose =
+            match::skip(match::name(skip_set))(match::name("transpose")(match::arg(0)(keys)));
+        auto queries = match::name("slice");
+        auto gemm1   = match::name("dot")(match::arg(0)(queries), match::arg(1)(k_transpose));
+        auto scale   = match::name("mul")(match::any_arg(0, 1)(gemm1));
         auto broadcasted_const = match::name("multibroadcast")(match::arg(0)(match::is_constant()));
         auto attn_scores       = match::any_of(scale, gemm1);
         auto causal_mask =
             match::name("where")(match::arg(0)(broadcasted_const), match::arg(2)(attn_scores));
-        auto greater = match::name("multibroadcast")(match::arg(0)(match::name("convert")(
-            match::arg(0)(match::name("greater")(match::arg(1)(match::any().bind("total_sl")))))));
-        auto where   = match::name("where")(match::arg(0)(greater),
-                                          match::arg(2)(match::any_of(causal_mask, scale, gemm1)));
-        auto softmax = match::skip(match::name("convert"))(
-            match::softmax_input(match::skip(match::name("convert"))(where)));
-        auto gemm2 = match::name("dot")(
-            match::arg(0)(softmax),
-            match::arg(1)(match::skip(match::name(skip_set))(match::name("concat_past_present"))
-                              .bind("pres_v")));
-        auto transpose2 = match::name("transpose")(match::arg(0)(gemm2));
-        return match::name("reshape")(match::arg(0)(transpose2));
+        auto greater      = match::name("greater")(match::arg(1)(match::any().bind("total_sl")));
+        auto conv_greater = match::arg(0)(match::name("convert")(match::arg(0)(greater)));
+        auto bc_greater   = match::name("multibroadcast")(conv_greater);
+        auto mask         = match::name("where")(match::arg(0)(bc_greater),
+                                         match::arg(2)(match::any_of(causal_mask, scale, gemm1)));
+        auto attn_probabilities = match::skip(match::name("convert"))(
+            match::softmax_input(match::skip(match::name("convert"))(mask)));
+        auto values =
+            match::skip(match::name(skip_set))(match::name("concat_past_present")).bind("pres_v");
+        auto gemm2 = match::name("dot")(match::arg(0)(attn_probabilities), match::arg(1)(values));
+        auto transpose_out = match::name("transpose")(match::arg(0)(gemm2));
+        return match::name("reshape")(match::arg(0)(transpose_out));
     }
 
     std::string get_count() const { return std::to_string((*counter)++); }

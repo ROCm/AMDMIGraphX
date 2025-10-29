@@ -32,7 +32,7 @@
 #include <vector>
 #include <map>
 #include <algorithm>
-#include <math.h>
+#include <cmath>
 #include <tuple>
 
 namespace migraphx {
@@ -599,7 +599,7 @@ struct parse_resize : op_parser<parse_resize>
         return 0.0f;
     }
 
-    // Generate the coefficent vector used for the desired scaling for a given dimension
+    // Generate the coefficient vector used for the desired scaling for a given dimension
     static std::vector<float> build_cubic_matrix(const size_t& input_size,
                                                  const size_t& output_size,
                                                  const float& scale, 
@@ -718,7 +718,6 @@ struct parse_resize : op_parser<parse_resize>
                                                               const resize_args& resize)
     {
     
-        auto in_s      = resize.in_s;
         auto in_lens   = resize.in_lens;
         auto out_lens  = resize.out_lens;
         auto vec_scale = resize.vec_scale;
@@ -732,7 +731,7 @@ struct parse_resize : op_parser<parse_resize>
 
         // Generate matrix per dimension thats used for the scaling
         size_t dim_index = 0;
-        for (auto& scale: vec_scale)
+        for (const auto& scale: vec_scale)
         {
             std::cout << scale << std::endl;
             // Perform identity of scale up based on value of input. 
@@ -775,8 +774,6 @@ struct parse_resize : op_parser<parse_resize>
             result_cols *= cols;
         }
         
-        std::cout << result_cols << std::endl;
-        std::cout << result_rows << std::endl;
         // Generate a final literal based on the optimized output to return
         return info.add_literal(migraphx::literal(migraphx::shape{migraphx::shape::float_type, {result_rows, result_cols}}, result_mat));
     }
@@ -828,12 +825,6 @@ struct parse_resize : op_parser<parse_resize>
         if(not resize.is_constant_scale_input())
             MIGRAPHX_THROW("PARSE_" + opd.onnx_name +
                            ": cubic mode not supported for non-constant inputs");
-
-        shape out_s{in_s.type(), out_lens};
-
-        // reshape input to one-dimension
-        std::vector<int64_t> rsp_lens = {static_cast<int64_t>(in_s.elements())};
-        auto rsp = info.add_instruction(make_op("reshape", {{"dims", rsp_lens}}), resize.x);
 
         auto interpolation_mat = build_n_cubic_interpolation_matrix(info, resize);
 

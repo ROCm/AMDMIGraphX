@@ -41,15 +41,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_FLASH_DECODING);
 
 std::size_t get_num_splits()
 {
-    std::string value = string_value_of(MIGRAPHX_ENABLE_FLASH_DECODING{}, "0");
-    try
-    {
-        return std::stoul(value);
-    }
-    catch(const std::exception&)
-    {
-        return 0;
-    }
+    return value_of(MIGRAPHX_ENABLE_FLASH_DECODING{}, 0);
 }
 
 // TODO: Write this in matcher.hpp as a general matcher for iterating through inputs

@@ -303,18 +303,7 @@ struct find_flash_decoding
     map_submod_params_to_inputs(module_ref submod,
                                 const std::vector<instruction_ref>& group_inputs) const
     {
-        std::unordered_map<instruction_ref, instruction_ref> map_param_to_main;
-
-        auto param_names = submod->get_parameter_names();
-        assert(param_names.size() == group_inputs.size() and
-               "Number of parameters must match number of inputs");
-
-        for(size_t i = 0; i < param_names.size(); ++i)
-        {
-            auto param_ins               = submod->get_parameter(param_names[i]);
-            map_param_to_main[param_ins] = group_inputs[i];
-        }
-
+        auto map_param_to_main = submod->get_ins_param_map(group_inputs, true);
         // verify the mapping is correct
         auto expected_inputs = submod->get_inputs(map_param_to_main);
         assert(expected_inputs == group_inputs and "Mapped inputs don't match group inputs");

@@ -135,10 +135,10 @@ pipeline {
                         sh 'printenv'
                         checkout scm
                         
-                        def calculateImageTagScript = '''
+                        def calculateImageTagScript = """
                             shopt -s globstar
                             sha256sum **/Dockerfile **/*requirements.txt **/install_prereqs.sh **/rbuild.ini **/test/onnx/.onnxrt-commit | sha256sum | cut -d " " -f 1
-                        '''
+                        """
                         env.IMAGE_TAG = sh(script: "bash -c '${calculateImageTagScript}'", returnStdout: true).trim()
                         env.imageExists = sh(script: "docker manifest inspect ${env.DOCKER_IMAGE}:${env.IMAGE_TAG}", returnStatus: true) == 0 ? 'true' : 'false'
                     }

@@ -72,8 +72,8 @@ void quantize_8bits_pass::apply(module& m) const // NOLINT
 
             float inverted_scale = 1.0f / param.first;
 
-            float epsilon;
-            float max_val;
+            float epsilon = 0.0f;
+            float max_val = std::numeric_limits<float>::max();
             
             s.visit_type([&](auto as) {
                 epsilon = static_cast<float>(as.epsilon());

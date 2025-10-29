@@ -446,7 +446,6 @@ TEST_CASE(gemm_softmax_gemm_flash_decoding)
         mm->add_return({gemm2});
     }
     run_pass(p1, {.flash_decoding_num_splits = 2});
-
     migraphx::program p2;
     {
         auto* mm         = p2.get_main_module();
@@ -504,7 +503,9 @@ TEST_CASE(gemm_softmax_gemm_flash_decoding)
         auto k2_div    = mm->add_instruction(migraphx::make_op("div"), k2_exp, k2_broad2);
         auto k2_broad3 = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 12, 2, 256, 256}}}), k2_div);
-        auto k2_mul = mm->add_instruction(migraphx::make_op("mul"), o_p, k2_broad3);
+        auto k2_convert = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), k2_broad3);
+        auto k2_mul = mm->add_instruction(migraphx::make_op("mul"), o_p, k2_convert);
         auto k2_rsum2 =
             mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), k2_mul);
         auto k2_squeeze =
@@ -614,7 +615,9 @@ TEST_CASE(flash_decoding_3d)
         auto k2_div    = mm->add_instruction(migraphx::make_op("div"), k2_exp, k2_broad2);
         auto k2_broad3 = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", q_prime_shape}}), k2_div);
-        auto k2_mul = mm->add_instruction(migraphx::make_op("mul"), o_p, k2_broad3);
+        auto k2_convert = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), k2_broad3);
+        auto k2_mul = mm->add_instruction(migraphx::make_op("mul"), o_p, k2_convert);
         auto k2_rsum2 =
             mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {g_axis}}}), k2_mul);
         auto k2_squeeze =

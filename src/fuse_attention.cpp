@@ -277,7 +277,7 @@ struct find_flash_decoding
         size_t g    = groups;
 
         // TODO: do we wanna support this differently?
-        assert(n % g == 0 and "N must be divisible by G");
+        assert(n % g == 0 and "Key-value sequence length must be divisible by number of splits/groups");
         size_t n_split = n / g;
 
         // batch_dims + G + spatial_dims
@@ -408,7 +408,7 @@ struct find_flash_decoding
         // get gemm1 and gemm2
         auto [gemm1, gemm2] = get_gemms(submod);
 
-        // TODO: for this first pass of flash decoding, assuming no input fusion / not suppporting
+        // TODO: for this first pass of flash decoding, assuming no input fusion / not supporting
         auto q_param = gemm1->inputs()[0];
         auto k_param = gemm1->inputs()[1];
         auto v_param = gemm2->inputs()[1];
@@ -535,9 +535,16 @@ struct find_flash_decoding
             make_op("multibroadcast", {{"out_lens", partial_output_o_prime->get_shape().lens()}}),
             scale);
 
+        // convert scale to match the type of partial_output_o_prime
+        auto output_type = partial_output_o_prime->get_shape().type();
+        auto scale_converted = mm.insert_instruction(
+            attn_group_ins,
+            make_op("convert", {{"target_type", output_type}}),
+            scale_bcast);
+
         // R = mul(O', broadcasted_scale)
         auto scaled_r = mm.insert_instruction(
-            attn_group_ins, make_op("mul"), partial_output_o_prime, scale_bcast);
+            attn_group_ins, make_op("mul"), partial_output_o_prime, scale_converted);
 
         // O = sum(R, axis=G_axis)
         auto final_output_o = mm.insert_instruction(

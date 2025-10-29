@@ -39,9 +39,6 @@ struct MIGRAPHX_EXPORT fuse_attention
 {
     std::optional<std::size_t> flash_decoding_num_splits = std::nullopt;
 
-    fuse_attention() = default;
-    explicit fuse_attention(std::size_t num_splits) : flash_decoding_num_splits(num_splits) {}
-
     std::string name() const { return "fuse_attention"; }
     void apply(module_pass_manager& mpm) const;
 };

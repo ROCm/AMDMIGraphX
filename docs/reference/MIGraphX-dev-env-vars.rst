@@ -161,10 +161,10 @@ Model performance tunable variables change the compilation behavior of a model. 
       | Default: Split-k performance configurations are turned off.
 
   * - | ``MIGRAPHX_ENABLE_FLASH_DECODING``
-      | Turns on flash decoding for attention fusion and sets the number of splits.
+      | Turns on flash decoding for attention fusion and sets the number of splits along the key-value sequence dimension.
     
-    - | ``0``: flash decoding is turned off (i.e. number of splits is 0)
-      | Number of splits must be an integer.
+    - | ``0``: Flash decoding is turned off (i.e., number of splits is 0).
+      | ``N`` (where N > 1): Enables flash decoding with N splits along the key-value sequence dimension. For example, ``2`` enables flash decoding with 2 splits, ``4`` with 4 splits, etc.
 
       | Default: flash decoding is turned off.
 

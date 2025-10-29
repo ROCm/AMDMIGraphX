@@ -40,15 +40,9 @@
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_FLASH_DECODING);
 
-static void run_pass(migraphx::program& p)
+static void run_pass(migraphx::program& p, migraphx::fuse_attention fa = {})
 {
-    migraphx::run_passes(p, {migraphx::fuse_attention{}, migraphx::dead_code_elimination{}});
-}
-
-static void run_pass(migraphx::program& p, std::size_t num_splits)
-{
-    migraphx::run_passes(p,
-                         {migraphx::fuse_attention{num_splits}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(p, {fa, migraphx::dead_code_elimination{}});
 }
 
 TEST_CASE(gemm_softmax_gemm)
@@ -451,7 +445,7 @@ TEST_CASE(gemm_softmax_gemm_flash_decoding)
         auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, b1);
         mm->add_return({gemm2});
     }
-    run_pass(p1, 2);
+    run_pass(p1, {.flash_decoding_num_splits = 2});
 
     migraphx::program p2;
     {
@@ -547,7 +541,7 @@ TEST_CASE(flash_decoding_3d)
         auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, b1);
         mm->add_return({gemm2});
     }
-    run_pass(p1, 2);
+    run_pass(p1, {.flash_decoding_num_splits = 2});
 
     migraphx::program p2;
     {
@@ -656,7 +650,7 @@ TEST_CASE(flash_decoding_disabled)
         auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, b1);
         mm->add_return({gemm2});
     }
-    run_pass(p1, 0);
+    run_pass(p1, {.flash_decoding_num_splits = 0});
 
     // Expected result: only attention fusion, no flash decoding
     migraphx::program p2;

@@ -30,6 +30,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/param_utils.hpp>
+#include <migraphx/load_save.hpp>
 #include <basic_ops.hpp>
 #include <group.hpp>
 #include <test.hpp>
@@ -52,13 +53,10 @@ struct non_mlir_op
     }
 };
 
-static void run_pass(migraphx::program& p, bool enable_geg_multi_user = false)
+static void run_pass(migraphx::program& p, migraphx::gpu::fuse_mlir fm = {})
 {
-    migraphx::run_passes(
-        p,
-        {migraphx::gpu::fuse_mlir{.enable_extra                       = true,
-                                  .enable_geg_multi_out_intermediates = enable_geg_multi_user},
-         migraphx::dead_code_elimination{}});
+    fm.enable_extra = true;
+    migraphx::run_passes(p, {fm, migraphx::dead_code_elimination{}});
 }
 
 template <class F>
@@ -1838,6 +1836,7 @@ TEST_CASE(dot_add_dot_abc)
         auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, y); // {2, 4}*{4, 2} = {2, 2}
         mm->add_return({dot2});
     }
+    save(p1, "testest.mgx");
     run_pass(p1);
     // ensure "geg" is present. Earlier tests ensure the fusion is correct. This is just to ensure
     // it happens.
@@ -2107,7 +2106,7 @@ TEST_CASE(dot_add_multi_user_dot)
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dot2);
         mm->add_return({add, transpose});
     }
-    run_pass(p1, true);
+    run_pass(p1, {.enable_geg_multi_out_intermediates = true});
     migraphx::program p2;
     {
         auto* mm   = p2.get_main_module();
@@ -2157,7 +2156,7 @@ TEST_CASE(dot_add_multi_user_dot_with_transpose)
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot2);
         mm->add_return({add, transpose});
     }
-    run_pass(p1, true);
+    run_pass(p1, {.enable_geg_multi_out_intermediates = true});
     migraphx::program p2;
     {
         auto* mm   = p2.get_main_module();
@@ -2209,7 +2208,7 @@ TEST_CASE(dot_add_multi_user_dot_two_externals)
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot2);
         mm->add_return({add, external_t1, external_t2});
     }
-    run_pass(p1, true);
+    run_pass(p1, {.enable_geg_multi_out_intermediates = true});
     migraphx::program p2;
     {
         auto* mm   = p2.get_main_module();
@@ -2265,7 +2264,7 @@ TEST_CASE(dot_add_multi_user_dot_input_used_before)
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot2);
         mm->add_return({add, transpose});
     }
-    run_pass(p1, true);
+    run_pass(p1, {.enable_geg_multi_out_intermediates = true});
     migraphx::program p2;
     {
         auto* mm   = p2.get_main_module();
@@ -2321,7 +2320,7 @@ TEST_CASE(dot_add_multi_user_dot_input_used_after)
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot2);
         mm->add_return({add, transpose});
     }
-    run_pass(p1, true);
+    run_pass(p1, {.enable_geg_multi_out_intermediates = true});
     migraphx::program p2;
     {
         auto* mm   = p2.get_main_module();
@@ -2381,7 +2380,7 @@ TEST_CASE(dot_add_multi_user_dot_input_used_before_in_chain)
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot2);
         mm->add_return({add, transpose});
     }
-    run_pass(p1, true);
+    run_pass(p1, {.enable_geg_multi_out_intermediates = true});
     migraphx::program p2;
     {
         auto* mm           = p2.get_main_module();
@@ -2473,7 +2472,7 @@ TEST_CASE(dot_add_multi_user_dot_input_used_after_in_chain)
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot2);
         mm->add_return({add, transpose});
     }
-    run_pass(p1, true);
+    run_pass(p1, {.enable_geg_multi_out_intermediates = true});
     migraphx::program p2;
     {
         auto* mm           = p2.get_main_module();
@@ -2565,7 +2564,7 @@ TEST_CASE(dot_pw_multi_user_dot)
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot2);
         mm->add_return({elemwise, transpose});
     }
-    run_pass(p1, true);
+    run_pass(p1, {.enable_geg_multi_out_intermediates = true});
     migraphx::program p2;
     {
         auto* mm   = p2.get_main_module();
@@ -2615,7 +2614,7 @@ TEST_CASE(dot_multi_user_add_dot)
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot1);
         mm->add_return({dot2, transpose});
     }
-    run_pass(p1, true);
+    run_pass(p1, {.enable_geg_multi_out_intermediates = true});
     migraphx::program p2;
     {
         auto* mm   = p2.get_main_module();
@@ -2663,7 +2662,7 @@ TEST_CASE(dot_add_dot_both_multi_user)
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot1);
         mm->add_return({add, dot2, transpose});
     }
-    run_pass(p1, true);
+    run_pass(p1, {.enable_geg_multi_out_intermediates = true});
     migraphx::program p2;
     {
         auto* mm   = p2.get_main_module();

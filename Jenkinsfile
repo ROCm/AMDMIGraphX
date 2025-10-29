@@ -53,20 +53,15 @@ def runBuildOnNode(String variant, String nodeLabel, String dockerArgs = "", Clo
             def docker_opts = "--device=/dev/kfd --device=/dev/dri --cap-add SYS_PTRACE -v=${env.WORKSPACE}/../:/workspaces:rw,z"
             docker_opts = docker_opts + " --group-add=${video_id} --group-add=${render_id} ${dockerArgs}"
             
-            gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", 
-                           gitHubContext: "Jenkins - ${variant}", 
-                           account: 'ROCmSoftwarePlatform', 
-                           repo: 'AMDMIGraphX') {
-                withCredentials([usernamePassword(credentialsId: 'docker_test_cred', 
-                                                passwordVariable: 'DOCKERHUB_PASS', 
-                                                usernameVariable: 'DOCKERHUB_USER')]) {
-                    sh "echo \$DOCKERHUB_PASS | docker login --username \$DOCKERHUB_USER --password-stdin"
-                    sh "docker pull ${env.DOCKER_IMAGE}:${env.IMAGE_TAG}"
-                    
-                    docker.image("${env.DOCKER_IMAGE}:${env.IMAGE_TAG}").inside(docker_opts) {
-                        timeout(time: 4, unit: 'HOURS') {
-                            body()
-                        }
+            withCredentials([usernamePassword(credentialsId: 'docker_test_cred', 
+                                            passwordVariable: 'DOCKERHUB_PASS', 
+                                            usernameVariable: 'DOCKERHUB_USER')]) {
+                sh "echo \$DOCKERHUB_PASS | docker login --username \$DOCKERHUB_USER --password-stdin"
+                sh "docker pull ${env.DOCKER_IMAGE}:${env.IMAGE_TAG}"
+                
+                docker.image("${env.DOCKER_IMAGE}:${env.IMAGE_TAG}").inside(docker_opts) {
+                    timeout(time: 4, unit: 'HOURS') {
+                        body()
                     }
                 }
             }

@@ -1600,9 +1600,9 @@ void module::repeat_while_changes(std::size_t n, const std::function<void()>& f)
     }
 }
 
-// For topologically sorting a region in a module, canonically, such that the
-// dependent chain between the two input instructions is last
-void module::localized_sort(instruction_ref start_ins, instruction_ref end_ins)
+// Hoists external inputs (instructions not in the dependency chain between start_ins and end_ins)
+// to before start_ins, while preserving topological order
+void module::hoist_external_inputs(instruction_ref start_ins, instruction_ref end_ins)
 {
     // get the chain of instructions between start_ins and end_ins, inclusive
     auto fusion_ins = find_instructions_between(start_ins, end_ins, this);

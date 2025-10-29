@@ -52,6 +52,7 @@ def runBuildOnNode(String variant, String nodeLabel, String dockerArgs = "", Clo
             def render_id = sh(returnStdout: true, script: 'getent group render | cut -d: -f3').trim()
             def docker_opts = "--device=/dev/kfd --device=/dev/dri --cap-add SYS_PTRACE -v=${env.WORKSPACE}/../:/workspaces:rw,z"
             docker_opts = docker_opts + " --group-add=${video_id} --group-add=${render_id} ${dockerArgs}"
+            echo "Docker flags: ${docker_opts}"
             
             withCredentials([usernamePassword(credentialsId: 'docker_test_cred', 
                                             passwordVariable: 'DOCKERHUB_PASS', 
@@ -74,36 +75,39 @@ def cmakeBuild(Map config = [:]) {
     def flags = config.get("flags", "")
     def gpu_debug = config.get("gpu_debug", "0")
     
-    sh """
-        ulimit -c unlimited
-        echo "leak:dnnl::impl::malloc" > suppressions.txt
-        echo "leak:libtbb.so" >> suppressions.txt
-        cat suppressions.txt
-        export LSAN_OPTIONS="suppressions=\$(pwd)/suppressions.txt"
-        export ASAN_OPTIONS="detect_container_overflow=0"
-        export MIGRAPHX_GPU_DEBUG=${gpu_debug}
-        export CXX=${compiler}
-        export CXXFLAGS='-Werror'
-        rocminfo
-        env
-        rm -rf build
-        mkdir build
-        cd build
-        cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_DEV=On -DCMAKE_EXECUTE_PROCESS_COMMAND_ECHO=STDOUT -DMIGRAPHX_DISABLE_VIRTUAL_ENV=ON ${flags} ..
-        git diff
-        git diff-index --quiet HEAD || (echo "Git repo is not clean after running cmake." && exit 1)
-        make -j\$(nproc) generate VERBOSE=1
-        git diff
-        git diff-index --quiet HEAD || (echo "Generated files are different. Please run make generate and commit the changes." && exit 1)
-        make -j\$(nproc) all package check VERBOSE=1
-        md5sum ./*.deb
-    """
+        def cmd = """
+            ulimit -c unlimited
+            echo "leak:dnnl::impl::malloc" > suppressions.txt
+            echo "leak:libtbb.so" >> suppressions.txt
+            cat suppressions.txt
+            export LSAN_OPTIONS="suppressions=\$(pwd)/suppressions.txt"
+            export ASAN_OPTIONS="detect_container_overflow=0"
+            export MIGRAPHX_GPU_DEBUG=${gpu_debug}
+            export CXX=${compiler}
+            export CXXFLAGS='-Werror'
+            rocminfo
+            env
+            rm -rf build
+            mkdir build
+            cd build
+            cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_DEV=On -DCMAKE_EXECUTE_PROCESS_COMMAND_ECHO=STDOUT -DMIGRAPHX_DISABLE_VIRTUAL_ENV=ON ${flags} ..
+            git diff
+            git diff-index --quiet HEAD || (echo "Git repo is not clean after running cmake." && exit 1)
+            make -j\$(nproc) generate VERBOSE=1
+            git diff
+            git diff-index --quiet HEAD || (echo "Generated files are different. Please run make generate and commit the changes." && exit 1)
+            make -j\$(nproc) all package check VERBOSE=1
+            md5sum ./*.deb
+        """
     
-    // Only archive from master or develop
-    if (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "master") {
-        archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
+        echo cmd
+        sh cmd
+    
+        // Only archive from master or develop
+        if (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "master") {
+            archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
+        }
     }
-}
 
 pipeline {
     agent none
@@ -131,8 +135,8 @@ pipeline {
                                                             passwordVariable: 'DOCKERHUB_PASS', 
                                                             usernameVariable: 'DOCKERHUB_USER')]) {
                                 sh "echo \$DOCKERHUB_PASS | docker login --username \$DOCKERHUB_USER --password-stdin"
-                                sh 'printenv'
-                                checkout scm
+                sh 'printenv'
+                checkout scm
                                 
                                 def calculateImageTagScript = """
                                     shopt -s globstar

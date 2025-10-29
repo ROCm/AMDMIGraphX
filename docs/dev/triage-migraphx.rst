@@ -129,15 +129,4 @@ Debugging and Tracing
 
 - ``MIGRAPHX_TRACE_BENCHMARKING=3``     # Kernel benchmarking process
 
-Systematic Workflow
-===================
-
-1. **Start with MLIR**: Test ``MIGRAPHX_DISABLE_MLIR=1``
-2. **Reduce complexity**: Use ``--reduce`` flag to find minimal case
-3. **Disable fusions**: Test each type individually
-4. **Check MIOpen**: Disable components if applicable
-5. **Test GEMM providers**: Try rocblas vs hipblaslt
-6. **Fine-tune MLIR**: Use operation-specific control
-7. **Enable tracing**: Add diagnostic variables
-
 This systematic approach helps maintainers quickly understand and fix root causes.

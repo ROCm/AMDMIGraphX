@@ -222,26 +222,20 @@ const auto& reshaper_names()
 
 bool is_fusable_input_op(const std::string& name)
 {
-    return contains(reshaper_names(), name) or contains({"slice"}, name) or contains({"pointwise"}, name);
+    return contains(reshaper_names(), name) or contains({"slice"}, name);
 }
 
 std::tuple<instruction_ref, std::vector<operation>>
 get_fusable_input_op_stream(instruction_ref lower_input)
 {
     instruction_ref upper_input = lower_input;
-    
-    std::cout << "Starting at ";
-    upper_input->debug_print();
-    upper_input->
     std::vector<operation> op_stream;
     while(is_fusable_input_op(upper_input->name()))
     {
-        std::cout << upper_input->name() << ": fusible" << std::endl;
         operation op = upper_input->get_operator();
         op_stream.push_back(op);
         upper_input = upper_input->inputs().at(0);
     }
-    std::cout << upper_input->name() << ": not fusible" << std::endl;
     return {upper_input, op_stream};
 }
 
@@ -462,18 +456,9 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
                                                          type_t::int32_type,
                                                          type_t::uint32_type,
                                                          type_t::bool_type};
-    bool is_where = name == "where";
-    if(is_where)
-    {
-        std::cout << "Checking on a where op..." << std::endl;
-    }
     // Preliminary type check.
     if(not contains(allowed_types, result_type))
     {
-        if(is_where)
-        {
-            std::cout << "1st false" << std::endl;
-        }
         return false;
     }
     const std::initializer_list<std::string> any_type_ops = {"@literal", "@param", "@return"};
@@ -516,44 +501,24 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
                                            type_t::fp8e4m3fn_type,
                                            type_t::fp8e5m2_type};
     bool is_float                       = contains(float_types, result_type);
-    if(is_where)
-        {
-            std::cout << "Pre-trues" << std::endl;
-        }
     if(contains(any_type_ops, name))
         return true;
     if(result_type != type_t::bool_type and contains(no_bool_ops, name))
         return true;
     if(is_float and contains(fp_only_ops, name))
         return true;
-    if(is_where)
-        {
-            std::cout << "Post-trues" << std::endl;
-        }
     // Only conversions between floating types are known to be unambigiously
     // supported.
     if(is_float and name == "convert")
     {
         if(contains(fp8_types{}.get(), result_type))
         {
-            if(is_where)
-            {
-                std::cout << "2nd false" << std::endl;
-            }
             return false;
         } // else
-        if(is_where)
-        {
-            std::cout << "3rd false" << std::endl;
-        }
         return std::all_of(i.inputs().begin(), i.inputs().end(), [](const auto& arg) {
             return contains({type_t::float_type, type_t::half_type, type_t::bf16_type},
                             arg->get_shape().type());
         });
-    }
-    if(is_where)
-    {
-        std::cout << "False at end" << std::endl;
     }
     return false;
 }
@@ -1115,6 +1080,28 @@ struct find_mlir_attention_op
     }
 };
 
+struct find_mlir_causal_attention_op
+{
+    mlir_mode dot_mode = mlir_mode::none;
+
+    auto matcher() const { return match::name("group"); }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto group = r.result;
+        auto tag   = group->get_operator().to_value().get("tag", "");
+        std::cout << "Replacing group op " << std::endl;
+        if(tag != "attention")
+        {
+            return;
+        }
+        std::cout << "Replacing group op " << std::endl;
+        auto* m_attn = group->module_inputs()[0];
+        mpm.get_module().replace_instruction(
+            group, mlir_op{group->get_operator()}, mlir_contiguous(mpm, group->inputs()), {m_attn});
+    }
+};
+
 /**
  * Input fusion of pointwise operators into a mlir_op.
  * Only fuses unary pointwise operators by default.
@@ -1461,7 +1448,6 @@ struct find_channel_slice_convolution
 
 void fuse_mlir::apply(module_pass_manager& mpm) const
 {
-    mpm.get_module().debug_print();
 #ifdef MIGRAPHX_MLIR
     std::size_t counter     = 0;
     const auto& device_name = ctx == nullptr ? "" : ctx->get_current_device().get_gfx_name();
@@ -1480,8 +1466,12 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     match::find_matches(mpm, find_channel_slice_convolution{});
     mpm.run_pass(dead_code_elimination{});
 
-    match::find_matches(mpm, find_mlir_attention_op{});
+    
+    match::find_matches(mpm, find_mlir_causal_attention_op{});
     mpm.run_pass(dead_code_elimination{});
+
+    // match::find_matches(mpm, find_mlir_attention_op{});
+    // mpm.run_pass(dead_code_elimination{});
 
     if(enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}))
     {
@@ -1491,9 +1481,6 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
                                     .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
         mpm.run_pass(dead_code_elimination{});
     }
-
-    match::find_matches(mpm, find_mlir_attention_op{mlir_mode::all});
-    mpm.run_pass(dead_code_elimination{});
 
     match::find_matches(
         mpm,

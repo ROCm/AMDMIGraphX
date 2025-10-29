@@ -268,13 +268,13 @@ MIGRAPHX_REGISTER_OP(gpu_gqa_rotary_embedding);
 
 struct gpu_concat_past_present : base_group_query_attention
 {
-    std::string name() const { return "gpu::concat_past_present_v"; }
+    std::string name() const { return "gpu::concat_past_present"; }
 
     shape compute_shape(std::vector<shape> inputs) const { return inputs.back(); }
 
     std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };
-MIGRAPHX_REGISTER_OP(gpu_concat_past_present_v);
+MIGRAPHX_REGISTER_OP(gpu_concat_past_present);
 
 struct find_group_query_attention
 {
@@ -294,19 +294,6 @@ struct find_group_query_attention
     //     auto gemm2 = match::name("dot")(match::args(softmax, concat_values));
     //     auto transpose = match::name("transpose")(match::arg(0)(gemm2));
     //     return match::name("reshape")(match::arg(0)(transpose));
-
-    auto finalize_attention_module(module_ref m) const
-    {
-        eliminate_common_subexpression{}.apply(*m);
-        dead_code_elimination{}.apply(*m);
-    }
-
-    std::string get_count() const
-    {
-        if(counter == nullptr)
-            MIGRAPHX_THROW("Invalid counter");
-        return std::to_string((*counter)++);
-    }
 
     auto finalize_attention_module(module_ref m) const
     {

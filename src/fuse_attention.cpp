@@ -275,7 +275,7 @@ struct find_flash_decoding
 
         // TODO: do we wanna support this differently?
         assert(n % g == 0 and
-            "Key-value sequence length must be divisible by number of splits/groups");
+               "Key-value sequence length must be divisible by number of splits/groups");
         size_t n_split = n / g;
 
         // batch_dims + G + spatial_dims

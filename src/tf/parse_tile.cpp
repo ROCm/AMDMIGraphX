@@ -76,16 +76,19 @@ struct parse_tile : op_parser<parse_tile>
         }
 
 
-        auto l0 = args[0];
-        for(int i = 0; i < repeats.size(); i++)
+        // Compute output lens by multiplying input dims by repeats
+        auto out_lens = args[0]->get_shape().lens();
+        if(not repeats.size() == out_lens.size())
         {
-            auto l1 = l0;
-            for(int j = 1; j < repeats[i]; j++)
-            {
-                l0 = info.add_instruction(make_op("concat", {{"axis", i}}), l0, l1);
-            }
+            MIGRAPHX_THROW("PARSE_TILE: repeats size mismatch with input shape");
         }
-        return l0;
+        for(int i = 0; i < out_lens.size(); i++)
+        {
+            out_lens[i] *= repeats[i];
+        }
+        
+        return info.add_instruction(
+            make_op("multibroadcast", {{"out_lens", out_lens}}), args[0]);
     }
 };
 

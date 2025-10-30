@@ -144,7 +144,7 @@ pipeline {
                                     sha256sum **/Dockerfile **/*requirements.txt **/install_prereqs.sh **/rbuild.ini **/test/onnx/.onnxrt-commit | sha256sum | cut -d " " -f 1
                                 ''', returnStdout: true).trim()
                                 echo "Calculated IMAGE_TAG: ${imageTag}"
-                                ${IMAGE_TAG} = imageTag
+                                IMAGE_TAG = imageTag
                                 echo "Set IMAGE_TAG: ${IMAGE_TAG}"
                                 env.imageExists = sh(script: "docker manifest inspect ${env.DOCKER_IMAGE}:${IMAGE_TAG}", returnStatus: true) == 0 ? 'true' : 'false'
                             }

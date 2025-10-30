@@ -122,53 +122,53 @@ pipeline {
     }
     
     stages {
-        stage('Check image') {
+        stage('Setup Docker Container') {
             agent {
                 label '(rocmtest || migraphx)'
             }
-            steps {
-                script {
-                    withCredentials([usernamePassword(credentialsId: 'docker_test_cred', 
-                                                    passwordVariable: 'DOCKERHUB_PASS', 
-                                                    usernameVariable: 'DOCKERHUB_USER')]) {
-                        sh "echo \$DOCKERHUB_PASS | docker login --username \$DOCKERHUB_USER --password-stdin"
-                        sh 'printenv'
-                        checkout scm
-                        
-                        def calculateImageTagScript = """
-                            shopt -s globstar
-                            sha256sum **/Dockerfile **/*requirements.txt **/install_prereqs.sh **/rbuild.ini **/test/onnx/.onnxrt-commit | sha256sum | cut -d " " -f 1
-                        """
-                        env.IMAGE_TAG = sh(script: "bash -c '${calculateImageTagScript}'", returnStdout: true).trim()
-                        env.imageExists = sh(script: "docker manifest inspect ${env.DOCKER_IMAGE}:${env.IMAGE_TAG}", returnStatus: true) == 0 ? 'true' : 'false'
+            stages {
+                stage('Check image') {
+                steps {
+                    script {
+                        withCredentials([usernamePassword(credentialsId: 'docker_test_cred', 
+                                                        passwordVariable: 'DOCKERHUB_PASS', 
+                                                        usernameVariable: 'DOCKERHUB_USER')]) {
+                            sh "echo \$DOCKERHUB_PASS | docker login --username \$DOCKERHUB_USER --password-stdin"
+                            sh 'printenv'
+                            checkout scm
+
+                            def calculateImageTagScript = """
+                                shopt -s globstar
+                                sha256sum **/Dockerfile **/*requirements.txt **/install_prereqs.sh **/rbuild.ini **/test/onnx/.onnxrt-commit | sha256sum | cut -d " " -f 1
+                            """
+                            env.IMAGE_TAG = sh(script: "bash -c '${calculateImageTagScript}'", returnStdout: true).trim()
+                            env.imageExists = sh(script: "docker manifest inspect ${env.DOCKER_IMAGE}:${env.IMAGE_TAG}", returnStatus: true) == 0 ? 'true' : 'false'
+                        }
                     }
                 }
             }
-        }
-        
-        stage('Build image') {
-            agent {
-                label '(rocmtest || migraphx)'
-            }
-            when {
-                expression { env.imageExists == 'false' || params.FORCE_DOCKER_IMAGE_BUILD }
-            }
-            steps {
-                script {
-                    withCredentials([usernamePassword(credentialsId: 'docker_test_cred', 
-                                                    passwordVariable: 'DOCKERHUB_PASS', 
-                                                    usernameVariable: 'DOCKERHUB_USER')]) {
-                        sh "echo \$DOCKERHUB_PASS | docker login --username \$DOCKERHUB_USER --password-stdin"
-                        
-                        def builtImage
-                        try {
-                            sh "docker pull ${env.DOCKER_IMAGE}:latest"
-                            builtImage = docker.build("${env.DOCKER_IMAGE}:${env.IMAGE_TAG}", "--cache-from ${env.DOCKER_IMAGE}:latest .")
-                        } catch(Exception ex) {
-                            builtImage = docker.build("${env.DOCKER_IMAGE}:${env.IMAGE_TAG}", "--no-cache .")
+            
+            stage('Build image') {
+                when {
+                    expression { env.imageExists == 'false' || params.FORCE_DOCKER_IMAGE_BUILD }
+                }
+                steps {
+                    script {
+                        withCredentials([usernamePassword(credentialsId: 'docker_test_cred', 
+                                                        passwordVariable: 'DOCKERHUB_PASS', 
+                                                        usernameVariable: 'DOCKERHUB_USER')]) {
+                            sh "echo \$DOCKERHUB_PASS | docker login --username \$DOCKERHUB_USER --password-stdin"
+                            
+                            def builtImage
+                            try {
+                                sh "docker pull ${env.DOCKER_IMAGE}:latest"
+                                builtImage = docker.build("${env.DOCKER_IMAGE}:${env.IMAGE_TAG}", "--cache-from ${env.DOCKER_IMAGE}:latest .")
+                            } catch(Exception ex) {
+                                builtImage = docker.build("${env.DOCKER_IMAGE}:${env.IMAGE_TAG}", "--no-cache .")
+                            }
+                            builtImage.push("${env.IMAGE_TAG}")
+                            builtImage.push("latest")
                         }
-                        builtImage.push("${env.IMAGE_TAG}")
-                        builtImage.push("latest")
                     }
                 }
             }

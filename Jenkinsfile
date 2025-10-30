@@ -58,9 +58,9 @@ def runBuildOnNode(String variant, String nodeLabel, String dockerArgs = "", Clo
                                             passwordVariable: 'DOCKERHUB_PASS', 
                                             usernameVariable: 'DOCKERHUB_USER')]) {
                 sh "echo \$DOCKERHUB_PASS | docker login --username \$DOCKERHUB_USER --password-stdin"
-                sh "docker pull ${env.DOCKER_IMAGE}:${env.IMAGE_TAG}"
+                sh "docker pull ${env.DOCKER_IMAGE}:${IMAGE_TAG}"
                 
-                docker.image("${env.DOCKER_IMAGE}:${env.IMAGE_TAG}").inside(docker_opts) {
+                docker.image("${env.DOCKER_IMAGE}:${IMAGE_TAG}").inside(docker_opts) {
                     timeout(time: 4, unit: 'HOURS') {
                         body()
                     }
@@ -109,6 +109,8 @@ def cmakeBuild(Map config = [:]) {
         }
     }
 
+def IMAGE_TAG = ''
+
 pipeline {
     agent none
     
@@ -118,7 +120,6 @@ pipeline {
     
     environment {
         DOCKER_IMAGE = 'rocm/migraphx-ci-jenkins-ubuntu'
-        IMAGE_TAG = ''
     }
     
     stages {
@@ -143,9 +144,9 @@ pipeline {
                                     sha256sum **/Dockerfile **/*requirements.txt **/install_prereqs.sh **/rbuild.ini **/test/onnx/.onnxrt-commit | sha256sum | cut -d " " -f 1
                                 ''', returnStdout: true).trim()
                                 echo "Calculated IMAGE_TAG: ${imageTag}"
-                                env.IMAGE_TAG = imageTag
-                                echo "Set env.IMAGE_TAG: ${env.IMAGE_TAG}"
-                                env.imageExists = sh(script: "docker manifest inspect ${env.DOCKER_IMAGE}:${env.IMAGE_TAG}", returnStatus: true) == 0 ? 'true' : 'false'
+                                ${IMAGE_TAG} = imageTag
+                                echo "Set IMAGE_TAG: ${IMAGE_TAG}"
+                                env.imageExists = sh(script: "docker manifest inspect ${env.DOCKER_IMAGE}:${IMAGE_TAG}", returnStatus: true) == 0 ? 'true' : 'false'
                             }
                         }
                     }
@@ -165,11 +166,11 @@ pipeline {
                                 def builtImage
                                 try {
                                     sh "docker pull ${env.DOCKER_IMAGE}:latest"
-                                    builtImage = docker.build("${env.DOCKER_IMAGE}:${env.IMAGE_TAG}", "--cache-from ${env.DOCKER_IMAGE}:latest .")
+                                    builtImage = docker.build("${env.DOCKER_IMAGE}:${IMAGE_TAG}", "--cache-from ${env.DOCKER_IMAGE}:latest .")
                                 } catch(Exception ex) {
-                                    builtImage = docker.build("${env.DOCKER_IMAGE}:${env.IMAGE_TAG}", "--no-cache .")
+                                    builtImage = docker.build("${env.DOCKER_IMAGE}:${IMAGE_TAG}", "--no-cache .")
                                 }
-                                builtImage.push("${env.IMAGE_TAG}")
+                                builtImage.push("${IMAGE_TAG}")
                                 builtImage.push("latest")
                             }
                         }

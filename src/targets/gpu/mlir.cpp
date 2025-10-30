@@ -274,6 +274,30 @@ MlirLogicalResult mlir_logger::handle(MlirDiagnostic diag)
     return mlirLogicalResultSuccess();
 }
 
+// struct to track if a shape is packed
+// struct packing_shape
+//{
+//    shape shape;
+//    bool packed = true;
+//
+//    packing_shape(shape s) : shape(s) {};
+//
+//    const shape& get_shape() const
+//    {
+//        return shape;
+//    }
+//
+//    bool packed() const
+//    {
+//        return packed;
+//    }
+//
+//    operator shape() const
+//    {
+//        return shape;
+//    }
+//}
+
 struct mlir_program
 {
     mlir_program()
@@ -364,17 +388,41 @@ struct mlir_program
             lens.size(), lens.data(), strides.data(), make_type(s.type()));
     }
 
+    MlirType make_mlir_shaped(instruction_ref ins) const
+    {
+        shape s = ins->get_shape();
+        if(ins->name() == "@return")
+        {
+            assert(ins->inputs().size() == 1);
+            s = ins->inputs().front()->get_shape();
+        }
+        else if(instruction::get_output_alias(ins)->name() == "unpack_fp4")
+        {
+            s = s.with_type(shape::fp4x2_type);
+        }
+        else if(ins->get_shape().type() == shape::fp4x2_type)
+        {
+            auto new_lens = s.lens();
+            int fast_axis =
+                std::min_element(s.strides().cbegin(), s.strides().cend()) - s.strides().cbegin();
+            new_lens[fast_axis] *= 2;
+            s = s.with_lens(new_lens);
+        }
+        return make_mlir_shaped(s);
+    }
+
     template <class Range>
     std::vector<MlirType> make_mlir_shapeds(const Range& r)
     {
         std::vector<MlirType> result;
-        std::transform(r.begin(), r.end(), std::back_inserter(result), [&](const auto& s) {
-            return make_mlir_shaped(s);
+        std::transform(r.begin(), r.end(), std::back_inserter(result), [&](const auto& i) {
+            return make_mlir_shaped(i);
         });
         return result;
     }
 
-    MlirType make_function_type(const std::vector<shape>& inputs, const std::vector<shape>& outputs)
+    MlirType make_function_type(const std::vector<instruction_ref>& inputs,
+                                const std::vector<shape>& outputs)
     {
         auto in  = make_mlir_shapeds(inputs);
         auto out = make_mlir_shapeds(outputs);
@@ -551,7 +599,7 @@ struct mlir_program
             return *this;
         }
 
-        mlir_operation_state& add_results(const std::vector<shape>& outputs)
+        mlir_operation_state& add_results(const std::vector<instruction_ref>& outputs)
         {
             auto x = prog->make_mlir_shapeds(outputs);
             if(not x.empty())
@@ -559,11 +607,6 @@ struct mlir_program
                 mlirOperationStateAddResults(&op_state, x.size(), x.data());
             }
             return *this;
-        }
-
-        mlir_operation_state& add_results(instruction_ref ins)
-        {
-            return add_results({mlir_program::get_shape(ins)});
         }
 
         mlir_operation_state& add_operands(const std::vector<MlirValue>& inputs)
@@ -623,22 +666,22 @@ struct mlir_program
     {
         auto names = m.get_parameter_names();
         std::sort(names.begin(), names.end());
-        std::vector<shape> inputs;
+        std::vector<instruction_ref> input_ins;
         std::transform(names.begin(),
                        names.end(),
-                       std::back_inserter(inputs),
-                       [&](const std::string& name) { return m.get_parameter_shape(name); });
+                       std::back_inserter(input_ins),
+                       [&](const std::string& name) { return m.get_parameter(name); });
         std::vector<shape> outputs = m.get_output_shapes();
 
-        std::vector<MlirLocation> arg_locs(inputs.size(), location);
-        auto body_inputs   = make_mlir_shapeds(inputs);
+        std::vector<MlirLocation> arg_locs(input_ins.size(), location);
+        auto body_inputs   = make_mlir_shapeds(input_ins);
         mlir_region region = mlirRegionCreate();
         mlir_block fbody = mlirBlockCreate(body_inputs.size(), body_inputs.data(), arg_locs.data());
         MlirBlock result = fbody.get();
         mlirRegionAppendOwnedBlock(region.get(), fbody.release());
 
         auto ops = create_operation_state("func.func");
-        ops.add_attributes({{"function_type", make_function_type(inputs, outputs)},
+        ops.add_attributes({{"function_type", make_function_type(input_ins, outputs)},
                             {"sym_name", sym_name},
                             {"kernel", std::string("mixr")},
                             {"arch", target_arch},
@@ -701,20 +744,24 @@ struct mlir_program
         return v;
     }
 
-    static shape get_shape(instruction_ref ins)
-    {
-        if(ins->name() == "@return")
-        {
-            assert(ins->inputs().size() == 1);
-            return ins->inputs().front()->get_shape();
-        }
-        if(instruction::get_output_alias(ins)->name() == "unpack_fp4")
-        {
-            shape out_shape = ins->get_shape();
-            return out_shape.with_type(shape::fp4x2_type);
-        }
-        return ins->get_shape();
-    }
+    // static shape get_shape(instruction_ref ins)
+    //{
+    //     if(ins->name() == "@return")
+    //     {
+    //         assert(ins->inputs().size() == 1);
+    //         return ins->inputs().front()->get_shape();
+    //     }
+    //     if(instruction::get_output_alias(ins)->name() == "unpack_fp4")
+    //     {
+    //         shape out_shape = ins->get_shape();
+    //         return out_shape.with_type(shape::fp4x2_type);
+    //     }
+    //     else if(ins->get_shape().type() == shape::fp4x2_type)
+    //     {
+    //         return double_fast_axis(ins->get_shape());
+    //     }
+    //     return ins->get_shape();
+    // }
 
     static std::string get_symbol_name(const module& m)
     {
@@ -753,14 +800,13 @@ struct mlir_program
 
             // handles single output
             if(ins->name() != "@return")
-                ops.add_results(ins);
+                ops.add_results({ins});
 
             if(ins->name() == "@literal")
             {
                 literal r = ins->get_literal();
-                auto sh   = ins->get_shape();
 
-                MlirType shaped_type = make_mlir_shaped(sh);
+                MlirType shaped_type = make_mlir_shaped(ins);
                 MlirType tensor_type = rocmlirMIXRShapedTypeAsTensor(shaped_type);
                 MlirAttribute mlir_value_attr =
                     mlirDenseElementsAttrRawBufferGet(tensor_type, r.get_shape().bytes(), r.data());

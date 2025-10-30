@@ -322,7 +322,6 @@ void tf_parser::parse_graph(const tensorflow::GraphDef& graph)
     for(auto&& name : input_nodes)
     {
         auto&& input = nodes[name];
-        // const std::string& name   = input.name();
         attribute_map input_attrs = get_attributes(input);
         shape::type_t shape_type;
         std::vector<size_t> dims{};

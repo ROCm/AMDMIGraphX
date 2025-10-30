@@ -127,8 +127,6 @@ struct concat
             return shape::from_permutation(type, new_lens, find_permutation(inputs));
         }
         else 
-        // if(std::all_of(
-        //             inputs.begin(), inputs.end(), [&](const shape& s) { return s.dynamic(); }))
         {
             // Compute concatenated dynamic shape with range intersection on non-axis dims
 

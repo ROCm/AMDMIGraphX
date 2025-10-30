@@ -219,23 +219,6 @@ struct find_nested_slice
     }
 };
 
-// struct find_static_multibroadcasts
-// {
-//     auto matcher() const
-//     {
-//         return match::name("multibroadcast")(match::nargs(2));
-//     }
-
-//     void apply(module& m, const match::matcher_result& mr) const
-//     {
-//         auto ins = mr.result;
-//         auto mbcast_shape = ins->inputs().back()->get_shape();
-//         if(mbcast_shape.dynamic())
-//             return;
-//         m.replace_instruction(ins, make_op("multibroadcast", {{"output_lens", mbcast_shape.lens()}}), ins->inputs().front());
-//     }
-// };
-
 /**
  *  Example case
  *  From:
@@ -1183,7 +1166,6 @@ void simplify_reshapes::apply(module& m) const
         match::find_matches(m,
                             find_where_op{},
                             find_resize{},
-                            // find_static_multibroadcasts{},
                             find_nop_reshapes{},
                             find_flatten{},
                             find_reshape_cont{},

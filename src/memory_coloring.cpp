@@ -297,19 +297,6 @@ static std::size_t find_max_alignment(const module& m, const std::string& alloca
     return alignment;
 }
 
-// static std::vector<instruction_ref> get_mod_input_inss(const module& m)
-// {
-//     std::vector<instruction_ref> mod_input_inss;
-//     for(auto ins : iterator_for(m))
-//     {
-//         if(not ins->module_inputs().empty())
-//         {
-//             mod_input_inss.push_back(ins);
-//         }
-//     }
-//     return mod_input_inss;
-// }
-
 void memory_coloring::apply(module& m) const
 {
     // check submodules if they have scratch params,

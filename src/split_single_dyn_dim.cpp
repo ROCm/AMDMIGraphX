@@ -158,19 +158,20 @@ static bool any_sm_next(const_module_ref mm, const std::vector<dynamic_dimension
 }
 /*
  * Returns a vector of all powers of 2 between min and max.
+ * Currently disabled for now.
  */
-static std::vector<size_t> powers_of_2_between(size_t min, size_t max)
-{
-    std::vector<size_t> result;
-    for(size_t p = bit_ceil(min + 1); p < max; p *= 2)
-    {
-        if(p > min)
-        {
-            result.push_back(p);
-        }
-    }
-    return result;
-}
+// static std::vector<size_t> powers_of_2_between(size_t min, size_t max)
+// {
+//     std::vector<size_t> result;
+//     for(size_t p = bit_ceil(min + 1); p < max; p *= 2)
+//     {
+//         if(p > min)
+//         {
+//             result.push_back(p);
+//         }
+//     }
+//     return result;
+// }
 
 static void insert_fixed_pad(module& m, const migraphx::shape::dynamic_dimension& dyn_dim)
 {
@@ -212,7 +213,7 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
             return;
         }
         // create submodules for the range of dimension sizes
-        // use min, max, and powers of 2 in between,
+        // use min, max, (and powers of 2 in between currently disabled),
         // and any user-supplied optimals
         std::vector<module_ref> submodules;
         std::set<size_t> dim_sizes{dyn_dim.min, dyn_dim.max};

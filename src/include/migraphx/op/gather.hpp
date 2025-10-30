@@ -113,8 +113,7 @@ struct gather
         std::size_t axis_dim_size = lens[axis];
         // max dimension in axis
 
-        auto check_index_range = [](auto in_index, auto axis_dim_size) 
-        {
+        auto check_index_range = [](auto in_index, auto axis_dim_size) {
             if(in_index < 0 or in_index >= axis_dim_size)
             {
                 MIGRAPHX_THROW("Gather: Out of bounds index detected");

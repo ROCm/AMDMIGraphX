@@ -2888,6 +2888,23 @@ TEST_CASE(gather_axis_1)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(gather_onnx_axis_one_ex)
+{
+    migraphx::module m1;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {3, 3}};
+        auto data = m1.add_parameter("data", s);
+        migraphx::shape si{migraphx::shape::int32_type, {2, 1}};
+        auto indices = m1.add_literal(migraphx::literal{si, {0, 2}});
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
+        m1.add_return({gather});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(reshape_cont)
 {
     auto create_module = [] {

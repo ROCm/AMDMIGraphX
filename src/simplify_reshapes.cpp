@@ -1944,11 +1944,16 @@ struct arithmetic_segment
                                          return 0;
                                      return x / y;
                                  });
+        if(std::any_of(start_lens.begin(), start_lens.end(), [](auto len) { return len == 0; }))
+            return std::nullopt;
         start_lens.front() = pre_transpose.lens().front();
         std::cout << "start_lens: " << to_string_range(start_lens) << std::endl;
 
         std::size_t nelements = std::accumulate(
             start_lens.begin(), start_lens.end(), std::size_t(1), std::multiplies<>());
+
+        if(nelements < pre_transpose.elements())
+            return std::nullopt;
 
         std::vector<std::size_t> slice_mask;
         std::transform(start_lens.begin(),
@@ -1982,6 +1987,7 @@ struct arithmetic_segment
         ops.push_back(make_op("reshape", {{"dims", start_lens}}));
         std::reverse(ops.begin(), ops.end());
 
+        std::cout << "nelements: " << nelements << std::endl;
         std::cout << "ops: " << to_string_range(ops) << std::endl;
         auto desc = shape_transform_descriptor::create({nelements}, ops);
 
@@ -2045,7 +2051,7 @@ struct arithmetic_segment
                                                             gather_instruction_builder& builder,
                                                             instruction_ref start)
     {
-        std::cout << "transform_indices: ";
+        std::cout << "transform_indices: " << to_string_range(indices) << std::endl;
         builder.m.debug_print(start);
         auto isegments      = from_ints(indices.begin(), indices.end());
         std::int64_t offset = isegments.front().base;

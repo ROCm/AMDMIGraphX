@@ -39,10 +39,7 @@ namespace {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_FLASH_DECODING);
 
-std::size_t get_num_splits()
-{
-    return value_of(MIGRAPHX_ENABLE_FLASH_DECODING{}, 0);
-}
+std::size_t get_num_splits() { return value_of(MIGRAPHX_ENABLE_FLASH_DECODING{}, 0); }
 
 // TODO: Write this in matcher.hpp as a general matcher for iterating through inputs
 inline auto pointwise_inputs()
@@ -277,7 +274,8 @@ struct find_flash_decoding
         size_t g    = groups;
 
         // TODO: do we wanna support this differently?
-        assert(n % g == 0 and "Key-value sequence length must be divisible by number of splits/groups");
+        assert(n % g == 0 and
+            "Key-value sequence length must be divisible by number of splits/groups");
         size_t n_split = n / g;
 
         // batch_dims + G + spatial_dims
@@ -536,11 +534,9 @@ struct find_flash_decoding
             scale);
 
         // convert scale to match the type of partial_output_o_prime
-        auto output_type = partial_output_o_prime->get_shape().type();
+        auto output_type     = partial_output_o_prime->get_shape().type();
         auto scale_converted = mm.insert_instruction(
-            attn_group_ins,
-            make_op("convert", {{"target_type", output_type}}),
-            scale_bcast);
+            attn_group_ins, make_op("convert", {{"target_type", output_type}}), scale_bcast);
 
         // R = mul(O', broadcasted_scale)
         auto scaled_r = mm.insert_instruction(

@@ -44,13 +44,13 @@ struct test_attention_flash_decoding_3d : verify_program<test_attention_flash_de
         b1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), b1);
         auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
         auto rmax  = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), gemm1);
-        rmax       = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", s_3d.lens()}}), rmax);
+        rmax = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s_3d.lens()}}),
+                                   rmax);
         auto sub  = mm->add_instruction(migraphx::make_op("sub"), gemm1, rmax);
         auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
         auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), exp);
-        rsum      = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", s_3d.lens()}}), rsum);
+        rsum = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s_3d.lens()}}),
+                                   rsum);
         auto div   = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
         auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, b1);
         mm->add_return({gemm2});
@@ -61,4 +61,3 @@ struct test_attention_flash_decoding_3d : verify_program<test_attention_flash_de
 // TODO: accuracy issue with fp16
 // template struct test_attention_flash_decoding_3d<migraphx::shape::half_type>;
 template struct test_attention_flash_decoding_3d<migraphx::shape::bf16_type>;
-

@@ -556,10 +556,10 @@ struct mlir_program
         {
         }
 
-        void set_operand_segment_sizes(int num_segments, const std::vector<int>& sizes)
+        void set_operand_segment_sizes(const std::vector<int>& sizes)
         {
             MlirAttribute segment_sizes_attr =
-                mlirDenseI32ArrayGet(prog->ctx.get(), num_segments, sizes.data());
+                mlirDenseI32ArrayGet(prog->ctx.get(), sizes.size(), sizes.data());
             MlirNamedAttribute named_attr = mlirNamedAttributeGet(
                 mlirIdentifierGet(prog->ctx.get(),
                                   mlirStringRefCreateFromCString("operandSegmentSizes")),
@@ -824,7 +824,7 @@ struct mlir_program
                 ins->inputs(), std::back_inserter(inputs), [&](auto i) { return ins_map.at(i); });
 	    if(ins->name() == "dot") {
 		    const std::vector<int> seg_sizes = {1, 1, 0, 0};
-		    ops.set_operand_segment_sizes(4, seg_sizes);
+		    ops.set_operand_segment_sizes(seg_sizes);
 	    }
 	    else if(ins->name() == "quant_dot")
 	    {
@@ -833,12 +833,12 @@ struct mlir_program
 			    // Specify operand segment sizes BEFORE creating the operation so MLIR sees it.
 			    // Use the canonical MLIR attribute name 'operandSegmentSizes'.
 			    const std::vector<int> seg_sizes = {1, 1, 1, 1};
-			    ops.set_operand_segment_sizes(4, seg_sizes);
+			    ops.set_operand_segment_sizes(seg_sizes);
 		    }
 		    else if(ins->inputs().size() == 2)
 		    {
 			    const std::vector<int> seg_sizes = {1, 1, 0, 0};
-			    ops.set_operand_segment_sizes(4, seg_sizes);
+			    ops.set_operand_segment_sizes(seg_sizes);
 		    }
 	    }
             ops.add_operands(inputs);

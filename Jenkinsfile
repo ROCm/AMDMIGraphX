@@ -38,33 +38,30 @@ def rocmnodename(name) {
     return node_name
 }
 
-def runBuildOnNode(String variant, String nodeLabel, String dockerArgs = "", Closure body) {
-    node(nodeLabel) {
-        withEnv(['HSA_ENABLE_SDMA=0', 
-                 'CCACHE_COMPRESSLEVEL=7', 
-                 'CCACHE_DIR=/workspaces/.cache/ccache']) {
-            stage("checkout ${variant}") {
-                sh 'printenv'
-                checkout scm
-            }
+def dockerBuildAndTest(String dockerArgs = "", Closure body) {
+    sh 'printenv'
+    checkout scm
+    
+    // Unstash and read IMAGE_TAG from Setup stage
+    unstash 'image-tag'
+    IMAGE_TAG = readFile('image-tag.txt').trim()
+    echo "Using IMAGE_TAG: ${IMAGE_TAG}"
 
-            def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3').trim()
-            def render_id = sh(returnStdout: true, script: 'getent group render | cut -d: -f3').trim()
-            def docker_opts = "--device=/dev/kfd --device=/dev/dri --cap-add SYS_PTRACE -v=${env.WORKSPACE}/../:/workspaces:rw,z"
-            docker_opts = docker_opts + " --group-add=${video_id} --group-add=${render_id} ${dockerArgs}"
-            echo "Docker flags: ${docker_opts}"
-            
-            withCredentials([usernamePassword(credentialsId: 'docker_test_cred', 
-                                            passwordVariable: 'DOCKERHUB_PASS', 
-                                            usernameVariable: 'DOCKERHUB_USER')]) {
-                sh "echo \$DOCKERHUB_PASS | docker login --username \$DOCKERHUB_USER --password-stdin"
-                sh "docker pull ${env.DOCKER_IMAGE}:${IMAGE_TAG}"
-                
-                docker.image("${env.DOCKER_IMAGE}:${IMAGE_TAG}").inside(docker_opts) {
-                    timeout(time: 4, unit: 'HOURS') {
-                        body()
-                    }
-                }
+    def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3').trim()
+    def render_id = sh(returnStdout: true, script: 'getent group render | cut -d: -f3').trim()
+    def docker_opts = "--device=/dev/kfd --device=/dev/dri --cap-add SYS_PTRACE -v=${env.WORKSPACE}/../:/workspaces:rw,z"
+    docker_opts = docker_opts + " --group-add=${video_id} --group-add=${render_id} ${dockerArgs}"
+    echo "Docker flags: ${docker_opts}"
+    
+    withCredentials([usernamePassword(credentialsId: 'docker_test_cred', 
+                                    passwordVariable: 'DOCKERHUB_PASS', 
+                                    usernameVariable: 'DOCKERHUB_USER')]) {
+        sh "echo \$DOCKERHUB_PASS | docker login --username \$DOCKERHUB_USER --password-stdin"
+        sh "docker pull ${env.DOCKER_IMAGE}:${IMAGE_TAG}"
+        
+        withDockerContainer(image: "${env.DOCKER_IMAGE}:${IMAGE_TAG}", args: docker_opts) {
+            timeout(time: 4, unit: 'HOURS') {
+                body()
             }
         }
     }
@@ -75,7 +72,7 @@ def cmakeBuild(Map config = [:]) {
     def flags = config.get("flags", "")
     def gpu_debug = config.get("gpu_debug", "0")
     
-        def cmd = '''
+        def cmd = """
             ulimit -c unlimited
             echo "leak:dnnl::impl::malloc" > suppressions.txt
             echo "leak:libtbb.so" >> suppressions.txt
@@ -98,7 +95,7 @@ def cmakeBuild(Map config = [:]) {
             git diff-index --quiet HEAD || (echo "Generated files are different. Please run make generate and commit the changes." && exit 1)
             make -j\$(nproc) all package check VERBOSE=1
             md5sum ./*.deb
-        '''
+        """
     
         echo cmd
         sh cmd
@@ -109,10 +106,14 @@ def cmakeBuild(Map config = [:]) {
         }
     }
 
-def IMAGE_TAG = ''
-
 pipeline {
-    agent none
+    agent {
+        label '(rocmtest || migraphx)'
+    }
+    
+    options { 
+        skipDefaultCheckout()
+    }
     
     parameters {
         booleanParam(name: 'FORCE_DOCKER_IMAGE_BUILD', defaultValue: false, description: 'Force rebuild of Docker image')
@@ -123,57 +124,60 @@ pipeline {
     }
     
     stages {
-        stage('Setup Docker Container') {
-            agent {
-                label '(rocmtest || migraphx)'
-            }
-            stages {
-                stage('Check image') {
-                    steps {
-                        script {
-                            withCredentials([usernamePassword(credentialsId: 'docker_test_cred', 
-                                                            passwordVariable: 'DOCKERHUB_PASS', 
-                                                            usernameVariable: 'DOCKERHUB_USER')]) {
-                                sh "echo \$DOCKERHUB_PASS | docker login --username \$DOCKERHUB_USER --password-stdin"
-                                sh 'printenv'
-                                checkout scm
+        stage('Check image') {
+            steps {
+                script {
+                    withCredentials([usernamePassword(credentialsId: 'docker_test_cred', 
+                                                    passwordVariable: 'DOCKERHUB_PASS', 
+                                                    usernameVariable: 'DOCKERHUB_USER')]) {
+                        sh "echo \$DOCKERHUB_PASS | docker login --username \$DOCKERHUB_USER --password-stdin"
+                        sh 'printenv'
+                        checkout scm
 
-                                // Calculate image tag based on file checksums
-                                def imageTag = sh(script: '''#!/bin/bash
-                                    shopt -s globstar
-                                    sha256sum **/Dockerfile **/*requirements.txt **/install_prereqs.sh **/rbuild.ini **/test/onnx/.onnxrt-commit | sha256sum | cut -d " " -f 1
-                                ''', returnStdout: true).trim()
-                                echo "Calculated IMAGE_TAG: ${imageTag}"
-                                IMAGE_TAG = imageTag
-                                echo "Set IMAGE_TAG: ${IMAGE_TAG}"
-                                env.imageExists = sh(script: "docker manifest inspect ${env.DOCKER_IMAGE}:${IMAGE_TAG}", returnStatus: true) == 0 ? 'true' : 'false'
-                            }
-                        }
+                        // Calculate image tag based on file checksums
+                        def imageTag = sh(script: '''#!/bin/bash
+                            shopt -s globstar
+                            sha256sum **/Dockerfile **/*requirements.txt **/install_prereqs.sh **/rbuild.ini **/test/onnx/.onnxrt-commit | sha256sum | cut -d " " -f 1
+                        ''', returnStdout: true).trim()
+                        echo "Calculated IMAGE_TAG: ${imageTag}"
+                        IMAGE_TAG = imageTag
+                        
+                        // Write to file and stash for other stages
+                        writeFile file: 'image-tag.txt', text: imageTag
+                        stash includes: 'image-tag.txt', name: 'image-tag'
+                        
+                        echo "Set IMAGE_TAG: ${IMAGE_TAG}"
+                        env.imageExists = sh(script: "docker manifest inspect ${env.DOCKER_IMAGE}:${IMAGE_TAG}", returnStatus: true) == 0 ? 'true' : 'false'
                     }
                 }
-            
-                stage('Build image') {
-                    when {
-                        expression { env.imageExists == 'false' || params.FORCE_DOCKER_IMAGE_BUILD }
-                    }
-                    steps {
-                        script {
-                            withCredentials([usernamePassword(credentialsId: 'docker_test_cred', 
-                                                            passwordVariable: 'DOCKERHUB_PASS', 
-                                                            usernameVariable: 'DOCKERHUB_USER')]) {
-                                sh "echo \$DOCKERHUB_PASS | docker login --username \$DOCKERHUB_USER --password-stdin"
-                                
-                                def builtImage
-                                try {
-                                    sh "docker pull ${env.DOCKER_IMAGE}:latest"
-                                    builtImage = docker.build("${env.DOCKER_IMAGE}:${IMAGE_TAG}", "--cache-from ${env.DOCKER_IMAGE}:latest .")
-                                } catch(Exception ex) {
-                                    builtImage = docker.build("${env.DOCKER_IMAGE}:${IMAGE_TAG}", "--no-cache .")
-                                }
-                                builtImage.push("${IMAGE_TAG}")
-                                builtImage.push("latest")
-                            }
+            }
+        }
+    
+        stage('Build image') {
+            when {
+                expression { env.imageExists == 'false' || params.FORCE_DOCKER_IMAGE_BUILD }
+            }
+            steps {
+                script {
+                    withCredentials([usernamePassword(credentialsId: 'docker_test_cred', 
+                                                    passwordVariable: 'DOCKERHUB_PASS', 
+                                                    usernameVariable: 'DOCKERHUB_USER')]) {
+                        sh "echo \$DOCKERHUB_PASS | docker login --username \$DOCKERHUB_USER --password-stdin"
+                        
+                        // Unstash and read IMAGE_TAG from Check image stage
+                        unstash 'image-tag'
+                        IMAGE_TAG = readFile('image-tag.txt').trim()
+                        echo "Using IMAGE_TAG for build: ${IMAGE_TAG}"
+                        
+                        def builtImage
+                        try {
+                            sh "docker pull ${env.DOCKER_IMAGE}:latest"
+                            builtImage = docker.build("${env.DOCKER_IMAGE}:${IMAGE_TAG}", "--cache-from ${env.DOCKER_IMAGE}:latest .")
+                        } catch(Exception ex) {
+                            builtImage = docker.build("${env.DOCKER_IMAGE}:${IMAGE_TAG}", "--no-cache .")
                         }
+                        builtImage.push("${IMAGE_TAG}")
+                        builtImage.push("latest")
                     }
                 }
             }
@@ -182,9 +186,17 @@ pipeline {
         stage('Parallel Tests') {
             parallel {
                 stage('All Targets Release') {
+                    agent {
+                        label rocmnodename('mi100+')
+                    }
+                    environment {
+                        HSA_ENABLE_SDMA = '0'
+                        CCACHE_COMPRESSLEVEL = '7'
+                        CCACHE_DIR = '/workspaces/.cache/ccache'
+                    }
                     steps {
                         script {
-                            runBuildOnNode('all_targets_release', rocmnodename('mi100+')) {
+                            dockerBuildAndTest('') {
                                 def gpu_targets = getgputargets()
                                 cmakeBuild(flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_ENABLE_GPU=On -DMIGRAPHX_ENABLE_CPU=On -DMIGRAPHX_ENABLE_FPGA=On -DGPU_TARGETS='${gpu_targets}'")
                             }
@@ -193,9 +205,17 @@ pipeline {
                 }
 
                 stage('Clang ASAN') {
+                    agent {
+                        label rocmnodename('nogpu')
+                    }
+                    environment {
+                        HSA_ENABLE_SDMA = '0'
+                        CCACHE_COMPRESSLEVEL = '7'
+                        CCACHE_DIR = '/workspaces/.cache/ccache'
+                    }
                     steps {
                         script {
-                            runBuildOnNode('clang_asan', rocmnodename('nogpu')) {
+                            dockerBuildAndTest('') {
                                 def sanitizers = "undefined,address"
                                 def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
                                 cmakeBuild(
@@ -208,9 +228,17 @@ pipeline {
                 }
                 
                 stage('Clang libstdc++ Debug') {
+                    agent {
+                        label rocmnodename('nogpu')
+                    }
+                    environment {
+                        HSA_ENABLE_SDMA = '0'
+                        CCACHE_COMPRESSLEVEL = '7'
+                        CCACHE_DIR = '/workspaces/.cache/ccache'
+                    }
                     steps {
                         script {
-                            runBuildOnNode('clang_libstdcxx_debug', rocmnodename('nogpu')) {
+                            dockerBuildAndTest('') {
                                 def sanitizers = "undefined"
                                 def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers} -D_GLIBCXX_DEBUG"
                                 cmakeBuild(
@@ -223,9 +251,17 @@ pipeline {
                 }
 
                 stage('HIP Clang Release') {
+                    agent {
+                        label rocmnodename('mi100+')
+                    }
+                    environment {
+                        HSA_ENABLE_SDMA = '0'
+                        CCACHE_COMPRESSLEVEL = '7'
+                        CCACHE_DIR = '/workspaces/.cache/ccache'
+                    }
                     steps {
                         script {
-                            runBuildOnNode('clang_release', rocmnodename('mi100+')) {
+                            dockerBuildAndTest('') {
                                 def gpu_targets = getgputargets()
                                 cmakeBuild(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${gpu_targets}'")
                                 stash includes: 'build/*.deb', name: 'migraphx-package'
@@ -235,9 +271,17 @@ pipeline {
                 }
                 
                 stage('HIP Clang Release Navi32') {
+                    agent {
+                        label rocmnodename('navi32')
+                    }
+                    environment {
+                        HSA_ENABLE_SDMA = '0'
+                        CCACHE_COMPRESSLEVEL = '7'
+                        CCACHE_DIR = '/workspaces/.cache/ccache'
+                    }
                     steps {
                         script {
-                            runBuildOnNode('clang_release_navi', rocmnodename('navi32')) {
+                            dockerBuildAndTest('') {
                                 def gpu_targets = getnavi3xtargets()
                                 cmakeBuild(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${gpu_targets}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On")
                             }
@@ -246,9 +290,17 @@ pipeline {
                 }
                 
                 stage('HIP Clang Release Navi4x') {
+                    agent {
+                        label rocmnodename('navi4x')
+                    }
+                    environment {
+                        HSA_ENABLE_SDMA = '0'
+                        CCACHE_COMPRESSLEVEL = '7'
+                        CCACHE_DIR = '/workspaces/.cache/ccache'
+                    }
                     steps {
                         script {
-                            runBuildOnNode('clang_release_navi4', rocmnodename('navi4x')) {
+                            dockerBuildAndTest('') {
                                 def gpu_targets = getnavi4xtargets()
                                 cmakeBuild(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${gpu_targets}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On")
                             }
@@ -257,9 +309,17 @@ pipeline {
                 }
 
                 stage('HIP RTC Debug') {
+                    agent {
+                        label rocmnodename('mi200+')
+                    }
+                    environment {
+                        HSA_ENABLE_SDMA = '0'
+                        CCACHE_COMPRESSLEVEL = '7'
+                        CCACHE_DIR = '/workspaces/.cache/ccache'
+                    }
                     steps {
                         script {
-                            runBuildOnNode('clang_hiprtc_debug', rocmnodename('mi200+')) {
+                            dockerBuildAndTest('') {
                                 withEnv(['MIGRAPHX_DISABLE_MLIR=1']) {
                                     def sanitizers = "undefined"
                                     def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
@@ -275,9 +335,17 @@ pipeline {
                 }
                 
                 stage('MLIR Debug') {
+                    agent {
+                        label rocmnodename('mi100+')
+                    }
+                    environment {
+                        HSA_ENABLE_SDMA = '0'
+                        CCACHE_COMPRESSLEVEL = '7'
+                        CCACHE_DIR = '/workspaces/.cache/ccache'
+                    }
                     steps {
                         script {
-                            runBuildOnNode('mlir_debug', rocmnodename('mi100+')) {
+                            dockerBuildAndTest('') {
                                 withEnv(['MIGRAPHX_ENABLE_EXTRA_MLIR=1', 
                                         'MIGRAPHX_MLIR_USE_SPECIFIC_OPS=fused,attention,convolution,dot,convolution_backwards', 
                                         'MIGRAPHX_ENABLE_MLIR_INPUT_FUSION=1', 
@@ -301,9 +369,17 @@ pipeline {
         }
 
         stage('ONNX Runtime Tests') {
+            agent {
+                label rocmnodename('onnxrt')
+            }
+            environment {
+                HSA_ENABLE_SDMA = '0'
+                CCACHE_COMPRESSLEVEL = '7'
+                CCACHE_DIR = '/workspaces/.cache/ccache'
+            }
             steps {
                 script {
-                    runBuildOnNode('onnx', rocmnodename('onnxrt'), '-u root') {
+                    dockerBuildAndTest('-u root') {
                         sh 'rm -rf ./build/*.deb'
                         unstash 'migraphx-package'
                         

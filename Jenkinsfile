@@ -138,7 +138,7 @@ pipeline {
                                 checkout scm
 
                                 // Calculate image tag based on file checksums
-                                def imageTag = sh(script: '''bash
+                                def imageTag = sh(script: '''#!/bin/bash
                                     shopt -s globstar
                                     sha256sum **/Dockerfile **/*requirements.txt **/install_prereqs.sh **/rbuild.ini **/test/onnx/.onnxrt-commit | sha256sum | cut -d " " -f 1
                                 ''', returnStdout: true).trim()

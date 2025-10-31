@@ -8,6 +8,20 @@ Full documentation for MIGraphX is available at
 ### Added
 * Added MXFP4 support for Quark and Brevitas quantized models (GEMMs only) (#4343)
 
+### Changed
+
+* Updated README `rbuild` installation instructions to use python venv to avoid warning (#4405)
+
+### Fixed
+
+* Fixed `pointwise: Wrong number of arguments` error when quantizing certain models to `int8` [(#4398)](https://github.com/ROCm/AMDMIGraphX/pull/4398).
+
+### Optimized
+
+
+### Removed
+
+
 
 ## MIGraphX 2.14 for ROCm 7.1.0
 

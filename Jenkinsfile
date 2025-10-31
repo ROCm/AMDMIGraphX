@@ -53,7 +53,7 @@ def dockerBuildAndTest(String dockerArgs = "", Closure body) {
     docker_opts = docker_opts + " --group-add=${video_id} --group-add=${render_id} ${dockerArgs}"
     echo "Docker flags: ${docker_opts}"
     
-    gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Waiting for status to be reported — Building stage', failureDescription: '— Failed to build stage', successDescription: '— Stage built successfully') {
+    gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "${env.STAGE_NAME}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Waiting for status to be reported — Building stage', failureDescription: '— Failed to build stage', successDescription: '— Stage built successfully') {
         withCredentials([usernamePassword(credentialsId: 'docker_test_cred', 
                                         passwordVariable: 'DOCKERHUB_PASS', 
                                         usernameVariable: 'DOCKERHUB_USER')]) {

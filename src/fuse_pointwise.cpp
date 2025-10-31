@@ -364,6 +364,7 @@ struct pointwise_broadcast_pointwise
 static void rewrite_broadcasts(module_pass_manager& mpm)
 {
     match::find_matches(mpm.get_module(), pointwise_broadcast_pointwise{});
+    mpm.run_pass(eliminate_common_subexpression{});
     mpm.run_pass(dead_code_elimination{});
 }
 

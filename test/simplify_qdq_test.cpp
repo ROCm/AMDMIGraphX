@@ -1987,4 +1987,38 @@ TEST_CASE(fp4x2_odd_remove_qdq)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(qdq_computed_scale)
+{
+    migraphx::shape sh{migraphx::shape::float_type, {2, 2}};
+
+    migraphx::module m1;
+    {
+        auto a = m1.add_parameter("a", sh);
+        auto b = m1.add_parameter("b", sh);
+
+        auto scale = m1.add_instruction(
+            migraphx::make_op("add"), m1.add_literal(0.5f), m1.add_literal(0.0f));
+        auto zero = m1.add_literal(std::int8_t{0});
+
+        auto qa = add_quantize_op(m1, "quantizelinear", a, scale, zero);
+        auto da = add_quantize_op(m1, "dequantizelinear", qa, scale, zero);
+        auto qb = add_quantize_op(m1, "quantizelinear", b, scale, zero);
+        auto db = add_quantize_op(m1, "dequantizelinear", qb, scale, zero);
+
+        auto add = m1.add_instruction(migraphx::make_op("add"), da, db);
+        m1.add_return({add});
+    }
+
+    migraphx::module m2;
+    {
+        auto a   = m2.add_parameter("a", sh);
+        auto b   = m2.add_parameter("b", sh);
+        auto add = m2.add_instruction(migraphx::make_op("add"), a, b);
+        m2.add_return({add});
+    }
+
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

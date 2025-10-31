@@ -966,40 +966,45 @@ TEST_CASE(generate_shape_transforms_for)
                make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}})});
 
     EXPECT(generate_for({3, 4, 5, 2}, {2, 0, 0, 1}, {6}) ==
-           ops{make_op("reshape", {{"dims", {3, 1, 1, 2}}}),
+           ops{
+               make_op("reshape", {{"dims", {3, 1, 1, 2}}}),
                make_op("multibroadcast", {{"out_lens", {3, 4, 5, 2}}}),
            });
     EXPECT(generate_for({3, 2}, {3, 0}, {9}) ==
-           ops{make_op("reshape", {{"dims", {3, 1, 3}}}),
+           ops{
+               make_op("reshape", {{"dims", {3, 1, 3}}}),
                make_op("multibroadcast", {{"out_lens", {3, 2, 3}}}),
                make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {1}}}),
            });
 
-    EXPECT(generate_for({3, 2}, {2, 1}, {6}) == ops{make_op("reshape", {{"dims", {3, 2}}}),
-    });
+    EXPECT(generate_for({3, 2}, {2, 1}, {6}) == ops{
+                                                    make_op("reshape", {{"dims", {3, 2}}}),
+                                                });
 
-    EXPECT(generate_for({3, 2}, {1, 3}, {6}) ==
-           ops{make_op("reshape", {{"dims", {2, 3}}}),
-               make_op("transpose", {{"permutation", {1, 0}}}),
-           });
+    EXPECT(generate_for({3, 2}, {1, 3}, {6}) == ops{
+                                                    make_op("reshape", {{"dims", {2, 3}}}),
+                                                    make_op("transpose", {{"permutation", {1, 0}}}),
+                                                });
 
     EXPECT(generate_for({2, 2, 2, 2, 3}, {0, 2, 0, 1, 0}, {4}) ==
-           ops{make_op("reshape", {{"dims", {1, 2, 1, 2, 1}}}),
+           ops{
+               make_op("reshape", {{"dims", {1, 2, 1, 2, 1}}}),
                make_op("multibroadcast", {{"out_lens", {2, 2, 2, 2, 3}}}),
            });
 
     EXPECT(generate_for({2, 2, 3}, {4, 1, 0}, {8}) ==
-           ops{make_op("reshape", {{"dims", {2, 4}}}),
+           ops{
+               make_op("reshape", {{"dims", {2, 4}}}),
                make_op("broadcast", {{"axis", 0}, {"out_lens", {2, 4, 3}}}),
                make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}}),
            });
 
     EXPECT(generate_for({2, 3, 4, 1}, {4, 16, 1, 1}, {48}) ==
-           ops{make_op("reshape", {{"dims", {3, 4, 4, 1}}}),
+           ops{
+               make_op("reshape", {{"dims", {3, 4, 4, 1}}}),
                make_op("transpose", {{"permutation", {1, 0, 2, 3}}}),
                make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}),
            });
-
 }
 
 TEST_CASE(generate_shape_transforms_for_overlap)
@@ -1011,11 +1016,12 @@ TEST_CASE(generate_shape_transforms_for_overlap)
 
 TEST_CASE(generate_shape_transforms_for_offset)
 {
-    EXPECT(generate_for({3, 1}, {4, 1}, {30}, 1) == ops{
-        make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {13}}}),
-        make_op("reshape", {{"dims", {3, 4}}}),
-        make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}),
-    });
+    EXPECT(generate_for({3, 1}, {4, 1}, {30}, 1) ==
+           ops{
+               make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {13}}}),
+               make_op("reshape", {{"dims", {3, 4}}}),
+               make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}),
+           });
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

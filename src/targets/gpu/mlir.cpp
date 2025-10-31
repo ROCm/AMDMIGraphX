@@ -772,7 +772,7 @@ struct mlir_program
 	    }
 	    else if(ins->name() == "quant_dot")
 	    {
-		    if(ins->inputs().size() == 4 and ins->inputs().front()->get_shape().type() == shape::fp8e4m3fn_type)
+		    if(ins->inputs().size() == 4)
 		    {
 			    // Specify operand segment sizes BEFORE creating the operation so MLIR sees it.
 			    // Use the canonical MLIR attribute name 'operandSegmentSizes'.

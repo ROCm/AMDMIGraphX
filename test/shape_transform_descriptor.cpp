@@ -135,7 +135,10 @@ static shape_transform_descriptor make_simple_descriptor(const std::vector<std::
 }
 
 std::optional<std::vector<migraphx::operation>>
-generate_for(const std::vector<std::size_t>& dims, const std::vector<std::size_t>& strides, const std::vector<std::size_t>& idims, std::int64_t offset)
+generate_for(const std::vector<std::size_t>& dims,
+             const std::vector<std::size_t>& strides,
+             const std::vector<std::size_t>& idims,
+             std::int64_t offset)
 {
     migraphx::shape s{migraphx::shape::int64_type, dims, strides};
     auto result = migraphx::generate_shape_transforms_for(s, idims, offset);
@@ -956,8 +959,9 @@ TEST_CASE(rebase_reshape_broadcast)
 
 TEST_CASE(generate_shape_transforms_for)
 {
-    EXPECT(generate_for({3, 2}, {1, 3}, {6}, 0) == ops{make_op("reshape", {{"dims", {2, 3}}}), make_op("transpose", {{"permutation", {1, 0}}})});
-
+    EXPECT(generate_for({3, 2}, {1, 3}, {6}, 0) ==
+           ops{make_op("reshape", {{"dims", {2, 3}}}),
+               make_op("transpose", {{"permutation", {1, 0}}})});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

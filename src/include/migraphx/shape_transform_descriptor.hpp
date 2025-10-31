@@ -162,8 +162,8 @@ MIGRAPHX_EXPORT std::vector<operation>
 optimize_shape_transforms(const std::vector<std::size_t>& dims, const std::vector<operation>& ops);
 
 // Generate the shape transforms for strided view
-MIGRAPHX_EXPORT optional<std::vector<operation>>
-generate_shape_transforms_for(const shape& s, const std::vector<std::size_t>& idims, std::int64_t offset);
+MIGRAPHX_EXPORT optional<std::vector<operation>> generate_shape_transforms_for(
+    const shape& s, const std::vector<std::size_t>& idims, std::int64_t offset);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

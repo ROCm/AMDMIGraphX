@@ -97,11 +97,11 @@ static std::vector<int64_t> run_shape_transforms(const std::vector<std::size_t>&
     return result.to_vector<int64_t>();
 }
 
-static std::vector<int64_t> run_strided_view(const migraphx::shape& s)
+static std::vector<int64_t> run_strided_view(const migraphx::shape& s, std::int64_t offset)
 {
     auto n = s.element_space();
     std::vector<int64_t> data(n);
-    std::iota(data.begin(), data.end(), 0);
+    std::iota(data.begin(), data.end(), offset);
     migraphx::literal l(migraphx::shape{migraphx::shape::int64_type, {n}}, data);
     return l.get_argument().reshape(s).to_vector<int64_t>();
 }
@@ -144,7 +144,7 @@ generate_for(const std::vector<std::size_t>& dims,
     auto result = migraphx::generate_shape_transforms_for(s, idims, offset);
     if(result)
     {
-        CHECK(run_strided_view(s) == run_shape_transforms(idims, result.value()));
+        CHECK(run_strided_view(s, offset) == run_shape_transforms(idims, result.value()));
     }
     return result;
 }
@@ -967,31 +967,55 @@ TEST_CASE(generate_shape_transforms_for)
 
     EXPECT(generate_for({3, 4, 5, 2}, {2, 0, 0, 1}, {6}) ==
            ops{make_op("reshape", {{"dims", {3, 1, 1, 2}}}),
-               make_op("multibroadcast", {{"out_lens", {3, 4, 5, 2}}})});
+               make_op("multibroadcast", {{"out_lens", {3, 4, 5, 2}}}),
+           });
     EXPECT(generate_for({3, 2}, {3, 0}, {9}) ==
            ops{make_op("reshape", {{"dims", {3, 1, 3}}}),
                make_op("multibroadcast", {{"out_lens", {3, 2, 3}}}),
-               make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {1}}})});
+               make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {1}}}),
+           });
 
-    EXPECT(generate_for({3, 2}, {2, 1}, {6}) == ops{make_op("reshape", {{"dims", {3, 2}}})});
+    EXPECT(generate_for({3, 2}, {2, 1}, {6}) == ops{make_op("reshape", {{"dims", {3, 2}}}),
+    });
 
     EXPECT(generate_for({3, 2}, {1, 3}, {6}) ==
            ops{make_op("reshape", {{"dims", {2, 3}}}),
-               make_op("transpose", {{"permutation", {1, 0}}})});
+               make_op("transpose", {{"permutation", {1, 0}}}),
+           });
 
     EXPECT(generate_for({2, 2, 2, 2, 3}, {0, 2, 0, 1, 0}, {4}) ==
            ops{make_op("reshape", {{"dims", {1, 2, 1, 2, 1}}}),
-               make_op("multibroadcast", {{"out_lens", {2, 2, 2, 2, 3}}})});
+               make_op("multibroadcast", {{"out_lens", {2, 2, 2, 2, 3}}}),
+           });
 
     EXPECT(generate_for({2, 2, 3}, {4, 1, 0}, {8}) ==
            ops{make_op("reshape", {{"dims", {2, 4}}}),
                make_op("broadcast", {{"axis", 0}, {"out_lens", {2, 4, 3}}}),
-               make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}})});
+               make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}}),
+           });
 
     EXPECT(generate_for({2, 3, 4, 1}, {4, 16, 1, 1}, {48}) ==
            ops{make_op("reshape", {{"dims", {3, 4, 4, 1}}}),
                make_op("transpose", {{"permutation", {1, 0, 2, 3}}}),
-               make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}})});
+               make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}),
+           });
+
+}
+
+TEST_CASE(generate_shape_transforms_for_overlap)
+{
+    // TODO: Overlaping strides not supported yet
+    EXPECT(generate_for({2, 3}, {1, 1}, {4}) == std::nullopt);
+    EXPECT(generate_for({3, 2, 1}, {3, 2, 1}, {8}) == std::nullopt);
+}
+
+TEST_CASE(generate_shape_transforms_for_offset)
+{
+    EXPECT(generate_for({3, 1}, {4, 1}, {30}, 1) == ops{
+        make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {13}}}),
+        make_op("reshape", {{"dims", {3, 4}}}),
+        make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}),
+    });
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

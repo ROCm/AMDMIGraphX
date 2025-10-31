@@ -81,15 +81,12 @@ struct parse_if : op_parser<parse_if>
         // parse_the else sub_graph
         (void)parser.parse_graph(else_mdl, else_graph);
 
-        auto then_out_shapes = then_mdl->get_output_shapes();
-        auto else_out_shapes = else_mdl->get_output_shapes();
-        if(not std::equal(then_out_shapes.begin(),
-                          then_out_shapes.end(),
-                          else_out_shapes.begin(),
-                          else_out_shapes.end()))
+        auto then_outputs = then_mdl->get_returns();
+        auto else_outputs = else_mdl->get_returns();
+        if(then_outputs.size() != else_outputs.size())
         {
             MIGRAPHX_THROW("PARSE_IF: " + info.name +
-                           " then and else sub_grahps must have same output shapes!");
+                           " then and else sub_grahps must have same number of outputs!");
         }
 
         auto if_ret = info.add_instruction(make_op("if"), args, {then_mdl, else_mdl});

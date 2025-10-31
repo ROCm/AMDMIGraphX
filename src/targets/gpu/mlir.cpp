@@ -274,30 +274,6 @@ MlirLogicalResult mlir_logger::handle(MlirDiagnostic diag)
     return mlirLogicalResultSuccess();
 }
 
-// struct to track if a shape is packed
-// struct packing_shape
-//{
-//    shape shape;
-//    bool packed = true;
-//
-//    packing_shape(shape s) : shape(s) {};
-//
-//    const shape& get_shape() const
-//    {
-//        return shape;
-//    }
-//
-//    bool packed() const
-//    {
-//        return packed;
-//    }
-//
-//    operator shape() const
-//    {
-//        return shape;
-//    }
-//}
-
 struct mlir_program
 {
     mlir_program()
@@ -743,25 +719,6 @@ struct mlir_program
 
         return v;
     }
-
-    // static shape get_shape(instruction_ref ins)
-    //{
-    //     if(ins->name() == "@return")
-    //     {
-    //         assert(ins->inputs().size() == 1);
-    //         return ins->inputs().front()->get_shape();
-    //     }
-    //     if(instruction::get_output_alias(ins)->name() == "unpack_fp4")
-    //     {
-    //         shape out_shape = ins->get_shape();
-    //         return out_shape.with_type(shape::fp4x2_type);
-    //     }
-    //     else if(ins->get_shape().type() == shape::fp4x2_type)
-    //     {
-    //         return double_fast_axis(ins->get_shape());
-    //     }
-    //     return ins->get_shape();
-    // }
 
     static std::string get_symbol_name(const module& m)
     {

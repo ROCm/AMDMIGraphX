@@ -1505,31 +1505,42 @@ static shape unbroadcast(const shape& s)
 {
     std::vector<std::size_t> lens    = s.lens();
     std::vector<std::size_t> strides = s.strides();
-    std::size_t prev_stride          = 1;
+    auto stride_it = std::find_if(s.strides().begin(), s.strides().end(), [](auto stride) { return stride != 0; });
+    std::size_t prev_stride = stride_it == s.strides().end() ? 1 : *stride_it;
     for(std::size_t i = 0; i < lens.size(); ++i)
     {
-        std::size_t idx = lens.size() - 1 - i;
-        if(strides[idx] == 0)
+        if(strides[i] == 0)
         {
-            lens[idx]    = 1;
-            strides[idx] = prev_stride;
+            lens[i]    = 1;
+            strides[i] = prev_stride;
         }
         else
         {
-            prev_stride = strides[idx];
+            prev_stride = strides[i];
         }
     }
     return {s.type(), lens, strides};
 }
 
+static void ensure_fastest_dim(shape& s)
+{
+    if(std::any_of(s.strides().begin(), s.strides().end(), [](auto stride) { return stride == 1; }) or std::all_of(s.strides().begin(), s.strides().end(), [](auto stride) { return stride == 0; }))
+        return;
+    auto lens = s.lens();
+    auto strides = s.strides();
+    lens.push_back(1);
+    strides.push_back(1);
+    s = shape(s.type(), lens, strides);
+}
+
 // Generate the shape transforms for strided view
 optional<std::vector<operation>> generate_shape_transforms_for(
-    const shape& s, const std::vector<std::size_t>& idims, std::int64_t offset)
+    shape s, const std::vector<std::size_t>& idims, std::int64_t offset)
 {
     std::vector<operation> result;
     if(s.lens().empty())
         return std::nullopt;
-
+    ensure_fastest_dim(s);
     std::size_t ielements =
         std::accumulate(idims.begin(), idims.end(), std::size_t(1), std::multiplies<>());
     // TODO: Improve handling of multiple dimensions, for now just reshape to 1 dimension

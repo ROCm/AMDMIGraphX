@@ -138,7 +138,7 @@ std::optional<std::vector<migraphx::operation>>
 generate_for(const std::vector<std::size_t>& dims,
              const std::vector<std::size_t>& strides,
              const std::vector<std::size_t>& idims,
-             std::int64_t offset)
+             std::int64_t offset = 0)
 {
     migraphx::shape s{migraphx::shape::int64_type, dims, strides};
     auto result = migraphx::generate_shape_transforms_for(s, idims, offset);
@@ -959,9 +959,35 @@ TEST_CASE(rebase_reshape_broadcast)
 
 TEST_CASE(generate_shape_transforms_for)
 {
-    EXPECT(generate_for({3, 2}, {1, 3}, {6}, 0) ==
+    EXPECT(generate_for({3}, {1}, {3}) == ops{});
+    EXPECT(generate_for({3}, {0}, {1}) == ops{make_op("multibroadcast", {{"out_lens", {3}}})});
+    EXPECT(generate_for({3}, {3}, {9}) == ops{make_op("reshape", {{"dims", {3, 3}}}), make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}})});
+    
+    EXPECT(generate_for({3, 4, 5, 2}, {2, 0, 0, 1}, {6}) == ops{make_op("reshape", {{"dims", {3, 1, 1, 2}}}), make_op("multibroadcast", {{"out_lens", {3, 4, 5, 2}}})});
+    EXPECT(generate_for({3, 2}, {3, 0}, {9}) == ops{make_op("reshape", {{"dims", {3, 1, 3}}}), make_op("multibroadcast", {{"out_lens", {3, 2, 3}}}), make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {1}}})});
+
+
+    EXPECT(generate_for({3, 2}, {2, 1}, {6}) == ops{make_op("reshape", {{"dims", {3, 2}}})});
+
+    EXPECT(generate_for({3, 2}, {1, 3}, {6}) ==
            ops{make_op("reshape", {{"dims", {2, 3}}}),
                make_op("transpose", {{"permutation", {1, 0}}})});
+
+    EXPECT(generate_for({2, 2, 2, 2, 3}, {0, 2, 0, 1, 0}, {4}) ==
+           ops{make_op("reshape", {{"dims", {1, 2, 1, 2, 1}}}),
+               make_op("multibroadcast", {{"out_lens", {2, 2, 2, 2, 3}}})});
+
+    EXPECT(generate_for({2, 2, 3}, {4, 1, 0}, {8}) ==
+               ops{make_op("reshape", {{"dims", {2, 4}}}),
+                   make_op("broadcast", {{"axis", 0}, {"out_lens", {2, 4, 3}}}),
+                   make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}})
+               });
+
+    EXPECT(generate_for({2, 3, 4, 1}, {4, 16, 1, 1}, {48}) ==
+               ops{make_op("reshape", {{"dims", {3, 4, 4, 1}}}),
+                   make_op("transpose", {{"permutation", {1, 0, 2, 3}}}),
+                   make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}})
+               });
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

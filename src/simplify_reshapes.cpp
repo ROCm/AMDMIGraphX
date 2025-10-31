@@ -1884,171 +1884,13 @@ struct arithmetic_segment
         std::reverse(lens.begin(), lens.end());
         std::reverse(strides.begin(), strides.end());
 
-        if(std::none_of(strides.begin(), strides.end(), [](auto stride) { return stride == 0; }))
+        if(std::none_of(strides.begin(), strides.end(), [](auto stride) { return stride == 1; }))
         {
             lens.push_back(1);
             strides.push_back(1);
         }
 
         return {shape::float_type, lens, strides};
-    }
-
-    // Replace broadcasted dimensions with size 1, and set the stride to the previous stride
-    static shape unbroadcast(const shape& s)
-    {
-        std::vector<std::size_t> lens    = s.lens();
-        std::vector<std::size_t> strides = s.strides();
-        std::size_t prev_stride          = 1;
-        for(std::size_t i = 0; i < lens.size(); ++i)
-        {
-            std::size_t idx = lens.size() - 1 - i;
-            if(strides[idx] == 0)
-            {
-                lens[idx]    = 1;
-                strides[idx] = prev_stride;
-            }
-            else
-            {
-                prev_stride = strides[idx];
-            }
-        }
-        return {s.type(), lens, strides};
-    }
-
-    static std::optional<std::vector<operation>>
-    make_ops(const shape& s, std::int64_t offset, std::int64_t n)
-    {
-        std::vector<operation> result;
-        if(s.lens().empty())
-            return std::nullopt;
-        // assert(s.element_space() <= n);
-        std::cout << "make_ops: " << s << std::endl;
-        // auto blens         = s.lens();
-        auto pre_broadcast = unbroadcast(s);
-        auto perm          = find_permutation(pre_broadcast);
-        auto iperm         = invert_permutation(perm);
-        auto pre_transpose = reorder_shape(pre_broadcast, perm);
-
-        std::cout << "pre_broadcast: " << pre_broadcast << std::endl;
-        std::cout << "pre_transpose: " << pre_transpose << std::endl;
-
-        std::vector<std::size_t> start_lens;
-        std::adjacent_difference(pre_transpose.strides().begin(),
-                                 pre_transpose.strides().end(),
-                                 std::back_inserter(start_lens),
-                                 [](auto y, auto x) -> std::size_t {
-                                     assert(x >= y);
-                                     assert(y != 0);
-                                     if((x % y) != 0)
-                                         return 0;
-                                     return x / y;
-                                 });
-        if(std::any_of(start_lens.begin(), start_lens.end(), [](auto len) { return len == 0; }))
-            return std::nullopt;
-        start_lens.front() = pre_transpose.lens().front();
-        std::cout << "start_lens: " << to_string_range(start_lens) << std::endl;
-
-        std::size_t nelements = std::accumulate(
-            start_lens.begin(), start_lens.end(), std::size_t(1), std::multiplies<>());
-
-        if(nelements < pre_transpose.elements())
-            return std::nullopt;
-
-        std::vector<std::size_t> slice_mask;
-        std::transform(start_lens.begin(),
-                       start_lens.end(),
-                       pre_transpose.lens().begin(),
-                       std::back_inserter(slice_mask),
-                       [](auto start_len, auto len) -> std::size_t {
-                           if(start_len == len)
-                               return 0;
-                           return len;
-                       });
-        slice_mask = reorder_dims(slice_mask, iperm);
-
-        std::cout << "slice_mask: " << to_string_range(slice_mask) << std::endl;
-
-        std::vector<std::size_t> blens = reorder_dims(start_lens, iperm);
-        std::transform(s.lens().begin(),
-                       s.lens().end(),
-                       blens.begin(),
-                       blens.begin(),
-                       [](auto len, auto blen) -> std::size_t {
-                           if(blen == 1)
-                               return len;
-                           return blen;
-                       });
-        std::cout << "blens: " << to_string_range(blens) << std::endl;
-
-        std::vector<operation> ops;
-        ops.push_back(make_op("multibroadcast", {{"out_lens", blens}}));
-        ops.push_back(make_op("transpose", {{"permutation", invert_permutation(perm)}}));
-        ops.push_back(make_op("reshape", {{"dims", start_lens}}));
-        std::reverse(ops.begin(), ops.end());
-
-        std::cout << "nelements: " << nelements << std::endl;
-        std::cout << "ops: " << to_string_range(ops) << std::endl;
-        auto desc = shape_transform_descriptor::create({nelements}, ops);
-
-        if(offset != 0 or nelements != n)
-        {
-            std::cout << "offset: " << offset << std::endl;
-            std::cout << "nelements: " << nelements << std::endl;
-            std::cout << "n: " << n << std::endl;
-            auto end = offset + nelements;
-            // If the end is out of bounds broadcast it to pad it
-            if(end > n)
-            {
-                result.push_back(make_op("broadcast", {{"axis", 1}, {"out_lens", {2, n}}}));
-                result.push_back(make_op("reshape", {{"dims", {2 * n}}}));
-            }
-            result.push_back(
-                make_op("slice", {{"axes", {0}}, {"starts", {offset}}, {"ends", {end}}}));
-        }
-
-        // result.push_back(make_op("reshape", {{"dims", new_lens}}));
-
-        auto opt_ops = desc.generate();
-        std::cout << "desc: " << desc << std::endl;
-        std::cout << "opt_ops: " << to_string_range(opt_ops) << std::endl;
-        result.insert(result.end(), opt_ops.begin(), opt_ops.end());
-
-        std::vector<std::size_t> axes;
-        std::transform(slice_mask.begin(),
-                       slice_mask.end(),
-                       range(slice_mask.size()).begin(),
-                       join_back_inserter(axes),
-                       [](std::size_t mask, std::size_t idx) -> std::vector<std::size_t> {
-                           if(mask > 0)
-                               return {idx};
-                           return {};
-                       });
-        std::cout << "axes: " << to_string_range(axes) << std::endl;
-
-        if(not axes.empty())
-        {
-            std::vector<std::size_t> starts(axes.size(), 0);
-            std::vector<std::size_t> ends;
-            std::transform(slice_mask.begin(),
-                           slice_mask.end(),
-                           s.lens().begin(),
-                           join_back_inserter(ends),
-                           [](std::size_t mask, std::size_t len) -> std::vector<std::size_t> {
-                               if(mask == 0)
-                                   return {};
-                               return {len};
-                           });
-
-            result.push_back(
-                make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}));
-        }
-        return result;
-    }
-
-    static std::optional<std::vector<operation>>
-    make_ops(const std::vector<arithmetic_segment>& segments, std::int64_t offset, std::int64_t n)
-    {
-        return make_ops(make_strided_view(segments), offset, n);
     }
 
     template <class Indices>
@@ -2060,10 +1902,10 @@ struct arithmetic_segment
         builder.m.debug_print(start);
         auto isegments      = from_ints(indices.begin(), indices.end());
         std::int64_t offset = isegments.front().base;
-        auto ops = make_ops(shift(isegments, -offset), offset, start->get_shape().elements());
+        auto s = make_strided_view(shift(isegments, -offset));
+        auto ops = generate_shape_transforms_for(s, {start->get_shape().elements()}, offset);
         if(not ops.has_value())
             return std::nullopt;
-        std::cout << "ops: " << to_string_range(*ops, "\n") << std::endl;
         for(auto op : *ops)
             start = builder.m.insert_instruction(builder.insert_before, op, start);
         return start;

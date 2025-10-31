@@ -1902,7 +1902,7 @@ struct arithmetic_segment
         builder.m.debug_print(start);
         auto isegments      = from_ints(indices.begin(), indices.end());
         std::int64_t offset = isegments.front().base;
-        auto s = make_strided_view(shift(isegments, -offset));
+        auto s              = make_strided_view(shift(isegments, -offset));
         auto ops = generate_shape_transforms_for(s, {start->get_shape().elements()}, offset);
         if(not ops.has_value())
             return std::nullopt;

@@ -193,7 +193,8 @@ auto print_stream_impl(rank<4>, Stream& s, const Range& v) -> decltype(v.end(),
 }
 
 template <class Stream, class Optional>
-auto print_stream_impl(rank<5>, Stream& s, const Optional& x) -> decltype(bool(Optional{*x}), x.has_value(), x.value(), void())
+auto print_stream_impl(rank<5>, Stream& s, const Optional& x)
+    -> decltype(bool(Optional{*x}), x.has_value(), x.value(), void())
 {
     if(x.has_value())
     {

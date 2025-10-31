@@ -96,26 +96,28 @@ struct find_attention
                 {
                     if(inp->name() == "multibroadcast")
                     {
-                        for (auto inp2 : inp->inputs())
-                        {
-                            if(inp2->name() == "where")
-                            {
-                                attn_inss.insert(inp);
-                                attn_inss.insert(inp2);
-                                auto inp3 = inp2->inputs().front();
-                                if(inp3->name() == "convert")
-                                {
-                                    auto inp4 = inp3->inputs().front();
-                                    std::cout << "found where, 1st input: ";
-                                    std::cout << inp4->name() << std::endl;
-                                    if(inp4->name() == "equal")
-                                    {
-                                        attn_inss.insert(inp3);
-                                        attn_inss.insert(inp4);
-                                    }
-                                }
-                            }
-                        }
+                        attn_inss.insert(inp);
+                        attn_inss.insert(inp->inputs().front());
+                        // for (auto inp2 : inp->inputs())
+                        // {
+                        //     if(inp2->name() == "where")
+                        //     {
+                        //         attn_inss.insert(inp);
+                        //         attn_inss.insert(inp2);
+                        //         // auto inp3 = inp2->inputs().front();
+                        //         // if(inp3->name() == "convert")
+                        //         // {
+                        //         //     auto inp4 = inp3->inputs().front();
+                        //         //     std::cout << "found where, 1st input: ";
+                        //         //     std::cout << inp4->name() << std::endl;
+                        //         //     if(inp4->name() == "equal")
+                        //         //     {
+                        //         //         attn_inss.insert(inp3);
+                        //         //         attn_inss.insert(inp4);
+                        //         //     }
+                        //         // }
+                        //     }
+                        // }
                     }
                 }
             }

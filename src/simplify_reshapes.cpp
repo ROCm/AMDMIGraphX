@@ -1916,10 +1916,9 @@ struct arithmetic_segment
     }
 
     static std::optional<std::vector<operation>>
-    make_ops(const std::vector<arithmetic_segment>& segments, std::int64_t offset, std::int64_t n)
+    make_ops(const shape& s, std::int64_t offset, std::int64_t n)
     {
         std::vector<operation> result;
-        auto s = make_strided_view(segments);
         if(s.lens().empty())
             return std::nullopt;
         // assert(s.element_space() <= n);
@@ -2044,6 +2043,12 @@ struct arithmetic_segment
                 make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}));
         }
         return result;
+    }
+
+    static std::optional<std::vector<operation>>
+    make_ops(const std::vector<arithmetic_segment>& segments, std::int64_t offset, std::int64_t n)
+    {
+        return make_ops(make_strided_view(segments), offset, n);
     }
 
     template <class Indices>

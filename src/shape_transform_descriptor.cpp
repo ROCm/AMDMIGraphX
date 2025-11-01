@@ -1529,21 +1529,21 @@ static std::size_t adjust_strided_shape(shape& s, std::size_t n)
     auto strides = s.strides();
 
     // Insert a dim of 1 so it can be used to handle steps
-    if(std::none_of(
-           strides.begin(), strides.end(), [](auto stride) { return stride == 1; }) and
+    if(std::none_of(strides.begin(), strides.end(), [](auto stride) { return stride == 1; }) and
        std::any_of(strides.begin(), strides.end(), [](auto stride) { return stride != 0; }))
     {
         lens.push_back(1);
         strides.push_back(1);
     }
-    // auto nelements_before_broadcast = std::inner_product(lens.begin(), lens.end(), strides.begin(), std::size_t{1}, std::plus<>{}, [](auto len, auto stride) -> std::size_t {
+    // auto nelements_before_broadcast = std::inner_product(lens.begin(), lens.end(),
+    // strides.begin(), std::size_t{1}, std::plus<>{}, [](auto len, auto stride) -> std::size_t {
     //     return (len - 1) * stride;
     //     // if(stride == 0)
     //     //     return 1;
     //     // return len;
     // });
 
-    auto last_axis = std::max_element(strides.begin(), strides.end()) - strides.begin();
+    auto last_axis      = std::max_element(strides.begin(), strides.end()) - strides.begin();
     auto total_elements = std::max<std::size_t>(1, strides[last_axis] * lens[last_axis]);
     // Add a dim of 1 to the front so it can handle extra elements
     auto extra = n / total_elements;
@@ -1621,12 +1621,13 @@ generate_shape_transforms_for(shape s, const std::vector<std::size_t>& idims, st
         shape start_shape{shape::float_type, start_lens};
         auto idx = start_shape.multi(offset);
         // std::vector<std::size_t>  new_start_lens;
-        // std::transform(start_lens.begin(), start_lens.end(), idx.begin(), std::back_inserter(new_start_lens), [](auto len, auto i) {
+        // std::transform(start_lens.begin(), start_lens.end(), idx.begin(),
+        // std::back_inserter(new_start_lens), [](auto len, auto i) {
         //     return len + i;
         // });
         // std::cout << "new_start_lens: " << to_string_range(new_start_lens) << std::endl;
-        // std::size_t n = std::accumulate(new_start_lens.begin(), new_start_lens.end(), std::size_t(1), std::multiplies<>());
-        // if(n <= ielements)
+        // std::size_t n = std::accumulate(new_start_lens.begin(), new_start_lens.end(),
+        // std::size_t(1), std::multiplies<>()); if(n <= ielements)
         // {
         //     start_mask = reorder_dims(idx, iperm);
         //     start_lens = new_start_lens;
@@ -1636,19 +1637,21 @@ generate_shape_transforms_for(shape s, const std::vector<std::size_t>& idims, st
         // }
 
         std::vector<std::size_t> overhead;
-        std::transform(start_lens.begin(), start_lens.end(), pre_transpose.lens().begin(), std::back_inserter(overhead), [](auto start_len, auto len) {
-            return start_len - len;
-        });
+        std::transform(start_lens.begin(),
+                       start_lens.end(),
+                       pre_transpose.lens().begin(),
+                       std::back_inserter(overhead),
+                       [](auto start_len, auto len) { return start_len - len; });
         std::cout << "idx: " << to_string_range(idx) << std::endl;
         std::cout << "overhead: " << to_string_range(overhead) << std::endl;
-        if(std::equal(idx.begin(), idx.end(), overhead.begin(), overhead.end(), [](auto i, auto over) {
-            return i <= over;
-        }))
+        if(std::equal(
+               idx.begin(), idx.end(), overhead.begin(), overhead.end(), [](auto i, auto over) {
+                   return i <= over;
+               }))
         {
             start_mask = reorder_dims(idx, iperm);
-            offset = 0;
+            offset     = 0;
             // end = nelements;
-            
         }
     }
 

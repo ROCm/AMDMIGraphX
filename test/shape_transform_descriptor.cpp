@@ -962,7 +962,8 @@ TEST_CASE(generate_shape_transforms_for)
     EXPECT(generate_for({3}, {1}, {3}) == ops{});
     EXPECT(generate_for({3}, {0}, {1}) == ops{make_op("multibroadcast", {{"out_lens", {3}}})});
     EXPECT(generate_for({3}, {3}, {9}) ==
-           ops{make_op("reshape", {{"dims", {3, 3}}}),
+           ops{
+               make_op("reshape", {{"dims", {3, 3}}}),
                make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}),
            });
 

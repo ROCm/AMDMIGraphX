@@ -27,7 +27,8 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/literal.hpp>
 
-struct test_gather_axis1_factorized_grid_multi_const : verify_program<test_gather_axis1_factorized_grid_multi_const>
+struct test_gather_axis1_factorized_grid_multi_const
+    : verify_program<test_gather_axis1_factorized_grid_multi_const>
 {
     migraphx::program create_program() const
     {

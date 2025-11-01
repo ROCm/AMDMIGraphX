@@ -1027,7 +1027,7 @@ TEST_CASE(generate_shape_transforms_for_overlap)
     //            make_op("multibroadcast", {{"out_lens", {2, 3}}}),
     //            make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {3}}}),
     //        });
-    
+
     // Case 2: {3, 2, 1} with strides {3, 2, 1}
     // Element at (i,j,k) is at index i*3 + j*2 + k*1
     // Max index is (2,1,0) = 2*3 + 1*2 + 0*1 = 8

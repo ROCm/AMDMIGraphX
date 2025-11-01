@@ -1574,7 +1574,6 @@ generate_shape_transforms_for(shape s, const std::vector<std::size_t>& idims, st
     auto iperm         = invert_permutation(perm);
     auto pre_transpose = reorder_shape(pre_broadcast, perm);
 
-
     std::vector<std::size_t> start_lens;
     std::adjacent_difference(pre_transpose.strides().begin(),
                              pre_transpose.strides().end(),
@@ -1629,7 +1628,6 @@ generate_shape_transforms_for(shape s, const std::vector<std::size_t>& idims, st
                        return len;
                    });
     auto slice_mask = reorder_dims(pre_slice_mask, iperm);
-
 
     std::vector<std::size_t> blens = reorder_dims(start_lens, iperm);
     std::transform(s.lens().begin(),

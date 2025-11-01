@@ -1119,7 +1119,6 @@ class gather_instruction_builder
             insert_before, make_op("unsqueeze", {{"axes", axes}, {"steps", steps}}), input);
     }
 
-
     instruction_ref match_shape(instruction_ref input, const std::vector<std::size_t>& target_lens)
     {
         const auto& curr_lens = input->get_shape().lens();

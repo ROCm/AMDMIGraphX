@@ -1012,8 +1012,38 @@ TEST_CASE(generate_shape_transforms_for)
 TEST_CASE(generate_shape_transforms_for_overlap)
 {
     // TODO: Overlaping strides not supported yet
+
+    // Case 1: {2, 3} with strides {1, 1} - overlapping rows
+    // Row 0 accesses [0, 1, 2], Row 1 accesses [1, 2, 3]
+    // Total elements needed: 4 (exactly matches input size)
     EXPECT(generate_for({2, 3}, {1, 1}, {4}) == std::nullopt);
-    EXPECT(generate_for({3, 2, 1}, {3, 2, 1}, {8}) == std::nullopt);
+    // EXPECT(generate_for({2, 3}, {1, 1}, {4}) ==
+    //        ops{
+    //            make_op("broadcast", {{"axis", 0}, {"out_lens", {2, 4}}}),
+    //            make_op("reshape", {{"dims", {8}}}),
+    //            make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}),
+    //            make_op("reshape", {{"dims", {4}}}),
+    //            make_op("reshape", {{"dims", {2, 2}}}),
+    //            make_op("multibroadcast", {{"out_lens", {2, 3}}}),
+    //            make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {3}}}),
+    //        });
+    
+    // Case 2: {3, 2, 1} with strides {3, 2, 1}
+    // Element at (i,j,k) is at index i*3 + j*2 + k*1
+    // Max index is (2,1,0) = 2*3 + 1*2 + 0*1 = 8
+    // So we need 9 elements total (indices 0-8)
+    EXPECT(generate_for({3, 2, 1}, {3, 2, 1}, {9}) == std::nullopt);
+    // EXPECT(generate_for({3, 2, 1}, {3, 2, 1}, {9}) ==
+    //        ops{
+    //            make_op("reshape", {{"dims", {9}}}),
+    //            // Extract the specific pattern of elements based on strides
+    //            make_op("reshape", {{"dims", {3, 3}}}),
+    //            make_op("transpose", {{"permutation", {1, 0}}}),
+    //            make_op("reshape", {{"dims", {3, 3}}}),
+    //            make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}}),
+    //            make_op("reshape", {{"dims", {3, 2}}}),
+    //            make_op("multibroadcast", {{"out_lens", {3, 2, 1}}}),
+    //        });
 }
 
 TEST_CASE(generate_shape_transforms_for_offset)

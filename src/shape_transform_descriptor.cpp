@@ -1535,21 +1535,11 @@ static std::size_t adjust_strided_shape(shape& s, std::size_t n)
         lens.push_back(1);
         strides.push_back(1);
     }
-    // auto nelements_before_broadcast = std::inner_product(lens.begin(), lens.end(),
-    // strides.begin(), std::size_t{1}, std::plus<>{}, [](auto len, auto stride) -> std::size_t {
-    //     return (len - 1) * stride;
-    //     // if(stride == 0)
-    //     //     return 1;
-    //     // return len;
-    // });
 
     auto last_axis      = std::max_element(strides.begin(), strides.end()) - strides.begin();
     auto total_elements = std::max<std::size_t>(1, strides[last_axis] * lens[last_axis]);
     // Add a dim of 1 to the front so it can handle extra elements
     auto extra = n / total_elements;
-    std::cout << "n: " << n << std::endl;
-    std::cout << "extra: " << extra << std::endl;
-    std::cout << "s.element_space(): " << s.element_space() << std::endl;
     if(extra > 1)
     {
         strides.insert(strides.begin(), total_elements);
@@ -1579,17 +1569,11 @@ generate_shape_transforms_for(shape s, const std::vector<std::size_t>& idims, st
         result.insert(result.end(), ops->begin(), ops->end());
         return result;
     }
-    // assert(s.element_space() <= n);
-    std::cout << "*************************** make_ops: " << s << std::endl;
-    std::cout << "extra: " << extra << std::endl;
-    // auto blens         = s.lens();
     auto pre_broadcast = unbroadcast(s);
     auto perm          = find_permutation(pre_broadcast);
     auto iperm         = invert_permutation(perm);
     auto pre_transpose = reorder_shape(pre_broadcast, perm);
 
-    std::cout << "pre_broadcast: " << pre_broadcast << std::endl;
-    std::cout << "pre_transpose: " << pre_transpose << std::endl;
 
     std::vector<std::size_t> start_lens;
     std::adjacent_difference(pre_transpose.strides().begin(),
@@ -1605,7 +1589,6 @@ generate_shape_transforms_for(shape s, const std::vector<std::size_t>& idims, st
     if(std::any_of(start_lens.begin(), start_lens.end(), [](auto len) { return len == 0; }))
         return std::nullopt;
     start_lens.front() = extra > 1 ? extra : pre_transpose.lens().front();
-    std::cout << "start_lens: " << to_string_range(start_lens) << std::endl;
 
     std::size_t nelements =
         std::accumulate(start_lens.begin(), start_lens.end(), std::size_t(1), std::multiplies<>());
@@ -1614,27 +1597,10 @@ generate_shape_transforms_for(shape s, const std::vector<std::size_t>& idims, st
         return std::nullopt;
 
     std::vector<std::size_t> start_mask(start_lens.size(), 0);
-    std::cout << "offset: " << offset << std::endl;
-    // std::cout << "end: " << end << std::endl;
     if(offset != 0)
     {
         shape start_shape{shape::float_type, start_lens};
         auto idx = start_shape.multi(offset);
-        // std::vector<std::size_t>  new_start_lens;
-        // std::transform(start_lens.begin(), start_lens.end(), idx.begin(),
-        // std::back_inserter(new_start_lens), [](auto len, auto i) {
-        //     return len + i;
-        // });
-        // std::cout << "new_start_lens: " << to_string_range(new_start_lens) << std::endl;
-        // std::size_t n = std::accumulate(new_start_lens.begin(), new_start_lens.end(),
-        // std::size_t(1), std::multiplies<>()); if(n <= ielements)
-        // {
-        //     start_mask = reorder_dims(idx, iperm);
-        //     start_lens = new_start_lens;
-        //     offset     = 0;
-        //     nelements  = n;
-        //     // end        = n;
-        // }
 
         std::vector<std::size_t> overhead;
         std::transform(start_lens.begin(),
@@ -1642,8 +1608,6 @@ generate_shape_transforms_for(shape s, const std::vector<std::size_t>& idims, st
                        pre_transpose.lens().begin(),
                        std::back_inserter(overhead),
                        [](auto start_len, auto len) { return start_len - len; });
-        std::cout << "idx: " << to_string_range(idx) << std::endl;
-        std::cout << "overhead: " << to_string_range(overhead) << std::endl;
         if(std::equal(
                idx.begin(), idx.end(), overhead.begin(), overhead.end(), [](auto i, auto over) {
                    return i <= over;
@@ -1651,7 +1615,6 @@ generate_shape_transforms_for(shape s, const std::vector<std::size_t>& idims, st
         {
             start_mask = reorder_dims(idx, iperm);
             offset     = 0;
-            // end = nelements;
         }
     }
 
@@ -1667,7 +1630,6 @@ generate_shape_transforms_for(shape s, const std::vector<std::size_t>& idims, st
                    });
     auto slice_mask = reorder_dims(pre_slice_mask, iperm);
 
-    std::cout << "slice_mask: " << to_string_range(slice_mask) << std::endl;
 
     std::vector<std::size_t> blens = reorder_dims(start_lens, iperm);
     std::transform(s.lens().begin(),
@@ -1679,7 +1641,6 @@ generate_shape_transforms_for(shape s, const std::vector<std::size_t>& idims, st
                            return len;
                        return blen;
                    });
-    std::cout << "blens: " << to_string_range(blens) << std::endl;
 
     std::vector<operation> ops;
     ops.push_back(make_op("multibroadcast", {{"out_lens", blens}}));
@@ -1687,15 +1648,11 @@ generate_shape_transforms_for(shape s, const std::vector<std::size_t>& idims, st
     ops.push_back(make_op("reshape", {{"dims", start_lens}}));
     std::reverse(ops.begin(), ops.end());
 
-    std::cout << "nelements: " << nelements << std::endl;
-    std::cout << "ops: " << to_string_range(ops) << std::endl;
     auto desc = shape_transform_descriptor::create({nelements}, ops);
 
     auto end = offset + nelements;
     if(offset != 0 or nelements != ielements)
     {
-        // std::cout << "nelements: " << nelements << std::endl;
-        // std::cout << "n: " << ielements << std::endl;
 
         // If the end is out of bounds broadcast it to pad it
         if(end > ielements)
@@ -1706,11 +1663,7 @@ generate_shape_transforms_for(shape s, const std::vector<std::size_t>& idims, st
         result.push_back(make_op("slice", {{"axes", {0}}, {"starts", {offset}}, {"ends", {end}}}));
     }
 
-    // result.push_back(make_op("reshape", {{"dims", new_lens}}));
-
     auto opt_ops = desc.generate();
-    std::cout << "desc: " << desc << std::endl;
-    std::cout << "opt_ops: " << to_string_range(opt_ops) << std::endl;
     result.insert(result.end(), opt_ops.begin(), opt_ops.end());
 
     std::vector<std::size_t> axes;
@@ -1723,7 +1676,6 @@ generate_shape_transforms_for(shape s, const std::vector<std::size_t>& idims, st
                            return {idx};
                        return {};
                    });
-    std::cout << "axes: " << to_string_range(axes) << std::endl;
 
     if(not axes.empty())
     {

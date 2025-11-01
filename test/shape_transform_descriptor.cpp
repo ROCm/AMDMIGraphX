@@ -963,7 +963,8 @@ TEST_CASE(generate_shape_transforms_for)
     EXPECT(generate_for({3}, {0}, {1}) == ops{make_op("multibroadcast", {{"out_lens", {3}}})});
     EXPECT(generate_for({3}, {3}, {9}) ==
            ops{make_op("reshape", {{"dims", {3, 3}}}),
-               make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}})});
+               make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}),
+           });
 
     EXPECT(generate_for({3, 4, 5, 2}, {2, 0, 0, 1}, {6}) ==
            ops{
@@ -1018,9 +1019,27 @@ TEST_CASE(generate_shape_transforms_for_offset)
 {
     EXPECT(generate_for({3, 1}, {4, 1}, {30}, 1) ==
            ops{
-               make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {13}}}),
-               make_op("reshape", {{"dims", {3, 4}}}),
-               make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}),
+               make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {24}}}),
+               make_op("reshape", {{"dims", {2, 3, 4}}}),
+               make_op("slice", {{"axes", {0, 2}}, {"starts", {0, 1}}, {"ends", {1, 2}}}),
+           });
+
+    EXPECT(generate_for({3, 1}, {5, 1}, {30}, 1) ==
+           ops{
+               make_op("reshape", {{"dims", {2, 3, 5}}}),
+               make_op("slice", {{"axes", {0, 2}}, {"starts", {0, 1}}, {"ends", {1, 2}}}),
+           });
+
+    EXPECT(generate_for({3, 2}, {10, 1}, {60}, 1) ==
+           ops{
+               make_op("reshape", {{"dims", {2, 3, 10}}}),
+               make_op("slice", {{"axes", {0, 2}}, {"starts", {0, 1}}, {"ends", {1, 3}}}),
+           });
+
+    EXPECT(generate_for({4, 3, 2}, {24, 4, 1}, {96}, 5) ==
+           ops{
+               make_op("reshape", {{"dims", {4, 6, 4}}}),
+               make_op("slice", {{"axes", {1, 2}}, {"starts", {1, 1}}, {"ends", {4, 3}}}),
            });
 }
 

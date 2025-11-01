@@ -1523,17 +1523,40 @@ static shape unbroadcast(const shape& s)
     return {s.type(), lens, strides};
 }
 
-static void ensure_fastest_dim(shape& s)
+static std::size_t adjust_strided_shape(shape& s, std::size_t n)
 {
-    if(std::any_of(
-           s.strides().begin(), s.strides().end(), [](auto stride) { return stride == 1; }) or
-       std::all_of(s.strides().begin(), s.strides().end(), [](auto stride) { return stride == 0; }))
-        return;
     auto lens    = s.lens();
     auto strides = s.strides();
-    lens.push_back(1);
-    strides.push_back(1);
+
+    // Insert a dim of 1 so it can be used to handle steps
+    if(std::none_of(
+           strides.begin(), strides.end(), [](auto stride) { return stride == 1; }) and
+       std::any_of(strides.begin(), strides.end(), [](auto stride) { return stride != 0; }))
+    {
+        lens.push_back(1);
+        strides.push_back(1);
+    }
+    // auto nelements_before_broadcast = std::inner_product(lens.begin(), lens.end(), strides.begin(), std::size_t{1}, std::plus<>{}, [](auto len, auto stride) -> std::size_t {
+    //     return (len - 1) * stride;
+    //     // if(stride == 0)
+    //     //     return 1;
+    //     // return len;
+    // });
+
+    auto last_axis = std::max_element(strides.begin(), strides.end()) - strides.begin();
+    auto total_elements = std::max<std::size_t>(1, strides[last_axis] * lens[last_axis]);
+    // Add a dim of 1 to the front so it can handle extra elements
+    auto extra = n / total_elements;
+    std::cout << "n: " << n << std::endl;
+    std::cout << "extra: " << extra << std::endl;
+    std::cout << "s.element_space(): " << s.element_space() << std::endl;
+    if(extra > 1)
+    {
+        strides.insert(strides.begin(), total_elements);
+        lens.insert(lens.begin(), 1);
+    }
     s = shape(s.type(), lens, strides);
+    return std::max<std::size_t>(1, extra);
 }
 
 // Generate the shape transforms for strided view
@@ -1543,9 +1566,9 @@ generate_shape_transforms_for(shape s, const std::vector<std::size_t>& idims, st
     std::vector<operation> result;
     if(s.lens().empty())
         return std::nullopt;
-    ensure_fastest_dim(s);
     std::size_t ielements =
         std::accumulate(idims.begin(), idims.end(), std::size_t(1), std::multiplies<>());
+    auto extra = adjust_strided_shape(s, ielements);
     // TODO: Improve handling of multiple dimensions, for now just reshape to 1 dimension
     if(idims.size() != 1)
     {
@@ -1557,7 +1580,8 @@ generate_shape_transforms_for(shape s, const std::vector<std::size_t>& idims, st
         return result;
     }
     // assert(s.element_space() <= n);
-    std::cout << "make_ops: " << s << std::endl;
+    std::cout << "*************************** make_ops: " << s << std::endl;
+    std::cout << "extra: " << extra << std::endl;
     // auto blens         = s.lens();
     auto pre_broadcast = unbroadcast(s);
     auto perm          = find_permutation(pre_broadcast);
@@ -1580,26 +1604,65 @@ generate_shape_transforms_for(shape s, const std::vector<std::size_t>& idims, st
                              });
     if(std::any_of(start_lens.begin(), start_lens.end(), [](auto len) { return len == 0; }))
         return std::nullopt;
-    start_lens.front() = pre_transpose.lens().front();
+    start_lens.front() = extra > 1 ? extra : pre_transpose.lens().front();
     std::cout << "start_lens: " << to_string_range(start_lens) << std::endl;
 
     std::size_t nelements =
         std::accumulate(start_lens.begin(), start_lens.end(), std::size_t(1), std::multiplies<>());
 
-    if(nelements < pre_transpose.elements())
+    if(nelements < pre_transpose.elements() * extra)
         return std::nullopt;
 
-    std::vector<std::size_t> slice_mask;
+    std::vector<std::size_t> start_mask(start_lens.size(), 0);
+    std::cout << "offset: " << offset << std::endl;
+    // std::cout << "end: " << end << std::endl;
+    if(offset != 0)
+    {
+        shape start_shape{shape::float_type, start_lens};
+        auto idx = start_shape.multi(offset);
+        // std::vector<std::size_t>  new_start_lens;
+        // std::transform(start_lens.begin(), start_lens.end(), idx.begin(), std::back_inserter(new_start_lens), [](auto len, auto i) {
+        //     return len + i;
+        // });
+        // std::cout << "new_start_lens: " << to_string_range(new_start_lens) << std::endl;
+        // std::size_t n = std::accumulate(new_start_lens.begin(), new_start_lens.end(), std::size_t(1), std::multiplies<>());
+        // if(n <= ielements)
+        // {
+        //     start_mask = reorder_dims(idx, iperm);
+        //     start_lens = new_start_lens;
+        //     offset     = 0;
+        //     nelements  = n;
+        //     // end        = n;
+        // }
+
+        std::vector<std::size_t> overhead;
+        std::transform(start_lens.begin(), start_lens.end(), pre_transpose.lens().begin(), std::back_inserter(overhead), [](auto start_len, auto len) {
+            return start_len - len;
+        });
+        std::cout << "idx: " << to_string_range(idx) << std::endl;
+        std::cout << "overhead: " << to_string_range(overhead) << std::endl;
+        if(std::equal(idx.begin(), idx.end(), overhead.begin(), overhead.end(), [](auto i, auto over) {
+            return i <= over;
+        }))
+        {
+            start_mask = reorder_dims(idx, iperm);
+            offset = 0;
+            // end = nelements;
+            
+        }
+    }
+
+    std::vector<std::size_t> pre_slice_mask;
     std::transform(start_lens.begin(),
                    start_lens.end(),
                    pre_transpose.lens().begin(),
-                   std::back_inserter(slice_mask),
+                   std::back_inserter(pre_slice_mask),
                    [](auto start_len, auto len) -> std::size_t {
                        if(start_len == len)
                            return 0;
                        return len;
                    });
-    slice_mask = reorder_dims(slice_mask, iperm);
+    auto slice_mask = reorder_dims(pre_slice_mask, iperm);
 
     std::cout << "slice_mask: " << to_string_range(slice_mask) << std::endl;
 
@@ -1625,12 +1688,12 @@ generate_shape_transforms_for(shape s, const std::vector<std::size_t>& idims, st
     std::cout << "ops: " << to_string_range(ops) << std::endl;
     auto desc = shape_transform_descriptor::create({nelements}, ops);
 
+    auto end = offset + nelements;
     if(offset != 0 or nelements != ielements)
     {
-        std::cout << "offset: " << offset << std::endl;
-        std::cout << "nelements: " << nelements << std::endl;
-        std::cout << "n: " << ielements << std::endl;
-        auto end = offset + nelements;
+        // std::cout << "nelements: " << nelements << std::endl;
+        // std::cout << "n: " << ielements << std::endl;
+
         // If the end is out of bounds broadcast it to pad it
         if(end > ielements)
         {
@@ -1661,7 +1724,16 @@ generate_shape_transforms_for(shape s, const std::vector<std::size_t>& idims, st
 
     if(not axes.empty())
     {
-        std::vector<std::size_t> starts(axes.size(), 0);
+        std::vector<std::size_t> starts;
+        std::transform(slice_mask.begin(),
+                       slice_mask.end(),
+                       start_mask.begin(),
+                       join_back_inserter(starts),
+                       [](std::size_t mask, std::size_t start) -> std::vector<std::size_t> {
+                           if(mask == 0)
+                               return {};
+                           return {start};
+                       });
         std::vector<std::size_t> ends;
         std::transform(slice_mask.begin(),
                        slice_mask.end(),
@@ -1672,6 +1744,7 @@ generate_shape_transforms_for(shape s, const std::vector<std::size_t>& idims, st
                                return {};
                            return {len};
                        });
+        std::transform(ends.begin(), ends.end(), starts.begin(), ends.begin(), std::plus<>{});
 
         result.push_back(make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}));
     }

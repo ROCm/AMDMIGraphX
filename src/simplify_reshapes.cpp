@@ -1047,14 +1047,6 @@ class gather_instruction_builder
 
     gather_instruction_builder(module& mod, instruction_ref ins) : m(mod), insert_before(ins) {}
 
-    instruction_ref transpose(instruction_ref input, const std::vector<int64_t>& perm)
-    {
-        if(is_identity_perm(perm))
-            return input;
-        return m.insert_instruction(
-            insert_before, make_op("transpose", {{"permutation", perm}}), input);
-    }
-
     template <class Dims>
     instruction_ref reshape(instruction_ref input, const Dims& dims)
     {
@@ -1127,336 +1119,6 @@ class gather_instruction_builder
             insert_before, make_op("unsqueeze", {{"axes", axes}, {"steps", steps}}), input);
     }
 
-    instruction_ref slice(instruction_ref input, int64_t axis, int64_t start, int64_t end)
-    {
-        assert(end > start);
-        assert(axis < input->get_shape().ndim());
-        assert(start < input->get_shape().lens()[axis]);
-        assert(end <= input->get_shape().lens()[axis]);
-        if(input->get_shape().lens()[axis] == (end - start))
-            return input;
-        return m.insert_instruction(
-            insert_before,
-            make_op("slice", {{"axes", {axis}}, {"starts", {start}}, {"ends", {end}}}),
-            input);
-    }
-
-    instruction_ref slice(instruction_ref input,
-                          const std::vector<std::array<std::size_t, 3>>& slices)
-    {
-        std::cout << "slice: ";
-        m.debug_print(input);
-        std::vector<std::size_t> axes;
-        std::vector<std::size_t> starts;
-        std::vector<std::size_t> ends;
-        for(auto slice : slices)
-        {
-            std::size_t axis  = slice[0];
-            std::size_t start = slice[1];
-            std::size_t end   = slice[2];
-            std::cout << "    axis: " << axis << std::endl;
-            std::cout << "    start: " << start << std::endl;
-            std::cout << "    end: " << end << std::endl;
-            if(end == start)
-                continue;
-            assert(end > start);
-            assert(axis < input->get_shape().ndim());
-            assert(start < input->get_shape().lens()[axis]);
-            assert(end <= input->get_shape().lens()[axis]);
-            if(input->get_shape().lens()[axis] == (end - start))
-                continue;
-            axes.push_back(axis);
-            starts.push_back(start);
-            ends.push_back(end);
-        }
-        if(axes.empty())
-            return input;
-        return m.insert_instruction(
-            insert_before,
-            make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}),
-            input);
-    }
-
-#if 0
-    instruction_ref slice(instruction_ref input,
-                          const std::vector<int64_t>& axes,
-                          const std::vector<int64_t>& starts,
-                          const std::vector<int64_t>& ends)
-    {
-        return m.insert_instruction(
-            insert_before,
-            make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}),
-            input);
-    }
-
-    instruction_ref
-    step(instruction_ref input, const std::vector<int64_t>& axes, const std::vector<int64_t>& steps)
-    {
-        return m.insert_instruction(
-            insert_before, make_op("step", {{"axes", axes}, {"steps", steps}}), input);
-    }
-
-    instruction_ref slice_with_step(instruction_ref input,
-                                    const std::vector<int64_t>& axes,
-                                    const std::vector<int64_t>& starts,
-                                    const std::vector<int64_t>& ends,
-                                    const std::vector<int64_t>& steps)
-    {
-        if(std::all_of(steps.begin(), steps.end(), [](int64_t step) { return step == 1; }))
-        {
-            // No steps, just do a slice
-            return slice(input, axes, starts, ends);
-        }
-
-        auto input_shape = input->get_shape().lens();
-
-        // Check if we can optimize: reshape->slice->squeeze instead of
-        // slice->reshape->slice->squeeze
-        bool can_optimize = std::all_of(axes.begin(), axes.end(), [&](int64_t axis) {
-            auto idx =
-                static_cast<std::size_t>(std::find(axes.begin(), axes.end(), axis) - axes.begin());
-            auto start_val = starts[idx];
-            auto end_val   = ends[idx];
-            auto step_val  = steps[idx];
-            auto length    = end_val - start_val;
-            auto axis_idx  = static_cast<std::size_t>(axis);
-
-            // Can optimize if: start is divisible by step, and length is divisible by step
-            // This means we can reshape the entire axis and then slice cleanly
-            return (start_val % step_val == 0) && (length % step_val == 0) &&
-                   (end_val <= static_cast<int64_t>(input_shape[axis_idx]));
-        });
-
-        if(can_optimize)
-        {
-            // Optimized path: reshape->slice->squeeze
-            std::vector<int64_t> reshape_dims;
-            std::vector<int64_t> final_slice_axes;
-            std::vector<int64_t> final_slice_starts;
-            std::vector<int64_t> final_slice_ends;
-
-            std::size_t reshape_dim_idx = 0;
-            for(std::size_t axis_idx = 0; axis_idx < input_shape.size(); ++axis_idx)
-            {
-                auto it = std::find(axes.begin(), axes.end(), static_cast<int64_t>(axis_idx));
-                if(it != axes.end())
-                {
-                    auto i         = static_cast<std::size_t>(it - axes.begin());
-                    auto start_val = starts[i];
-                    auto end_val   = ends[i];
-                    auto step_val  = steps[i];
-                    auto length    = end_val - start_val;
-
-                    if(step_val == 1)
-                    {
-                        reshape_dims.push_back(length);
-                        reshape_dim_idx++;
-                    }
-                    else
-                    {
-                        // Reshape this axis into [num_blocks, step_val] where blocks start at
-                        // multiples of step
-                        auto num_blocks = static_cast<int64_t>(input_shape[axis_idx]) / step_val;
-                        reshape_dims.push_back(num_blocks);
-                        reshape_dims.push_back(step_val);
-
-                        auto block_start = start_val / step_val;
-                        auto block_end   = end_val / step_val;
-
-                        // Only slice the block dimension if we don't want all blocks
-                        if(block_start != 0 or block_end != num_blocks)
-                        {
-                            final_slice_axes.push_back(static_cast<int64_t>(reshape_dim_idx));
-                            final_slice_starts.push_back(block_start);
-                            final_slice_ends.push_back(block_end);
-                        }
-                        reshape_dim_idx++; // Account for the block dimension
-
-                        // Slice to keep only index 0 of the step dimension
-                        final_slice_axes.push_back(static_cast<int64_t>(reshape_dim_idx));
-                        final_slice_starts.push_back(0);
-                        final_slice_ends.push_back(1);
-                        reshape_dim_idx++; // Account for the step dimension
-                    }
-                }
-                else
-                {
-                    reshape_dims.push_back(static_cast<int64_t>(input_shape[axis_idx]));
-                    reshape_dim_idx++;
-                }
-            }
-
-            auto reshaped = reshape(input, reshape_dims);
-
-            if(not final_slice_axes.empty())
-            {
-                auto final_sliced =
-                    slice(reshaped, final_slice_axes, final_slice_starts, final_slice_ends);
-
-                // Squeeze out only the dimensions that were sliced to size 1
-                // (i.e., the step dimension slices where end - start == 1)
-                std::vector<int64_t> squeeze_axes;
-                for(std::size_t i = 0; i < final_slice_axes.size(); ++i)
-                {
-                    if(final_slice_ends[i] - final_slice_starts[i] == 1)
-                    {
-                        squeeze_axes.push_back(final_slice_axes[i]);
-                    }
-                }
-
-                if(not squeeze_axes.empty())
-                {
-                    return m.insert_instruction(
-                        insert_before, make_op("squeeze", {{"axes", squeeze_axes}}), final_sliced);
-                }
-                return final_sliced;
-            }
-
-            return reshaped;
-        }
-
-        // Original path: slice->reshape->slice->squeeze
-        auto sliced = slice(input, axes, starts, ends);
-        auto sliced_shape = sliced->get_shape().lens();
-        std::vector<int64_t> reshape_dims;
-        std::vector<int64_t> final_slice_axes;
-        std::vector<int64_t> final_slice_starts;
-        std::vector<int64_t> final_slice_ends;
-
-        for(std::size_t i = 0; i < axes.size(); ++i)
-        {
-            auto axis_idx = static_cast<std::size_t>(axes[i]);
-            auto length   = ends[i] - starts[i];
-            auto step_val = steps[i];
-
-            if(step_val == 1)
-            {
-                reshape_dims.push_back(sliced_shape[axis_idx]);
-                continue;
-            }
-
-            // Compute output length: ceil(length / step_val)
-            auto out_len = (length + step_val - 1) / step_val;
-
-            // Reshape this axis into [out_len, step_val], then slice to keep only first of each
-            // group
-            reshape_dims.push_back(out_len);
-            reshape_dims.push_back(step_val);
-
-            // After reshape, we'll slice along the new axis to keep only index 0
-            final_slice_axes.push_back(static_cast<int64_t>(reshape_dims.size() - 1));
-            final_slice_starts.push_back(0);
-            final_slice_ends.push_back(1);
-        }
-
-        // Add remaining dimensions
-        for(std::size_t i = 0; i < sliced_shape.size(); ++i)
-        {
-            if(std::find(axes.begin(), axes.end(), static_cast<int64_t>(i)) == axes.end())
-            {
-                reshape_dims.push_back(static_cast<int64_t>(sliced_shape[i]));
-            }
-        }
-
-        auto reshaped = reshape(sliced, reshape_dims);
-
-        if(not final_slice_axes.empty())
-        {
-            auto final_sliced =
-                slice(reshaped, final_slice_axes, final_slice_starts, final_slice_ends);
-
-            // Squeeze out the sliced dimensions (which are now size 1)
-            std::vector<int64_t> squeeze_axes = final_slice_axes;
-            return m.insert_instruction(
-                insert_before, make_op("squeeze", {{"axes", squeeze_axes}}), final_sliced);
-        }
-
-        return reshaped;
-    }
-#endif
-
-    instruction_ref
-    expand_dim(instruction_ref input, const std::vector<std::size_t>& edim, std::size_t axis = 0)
-    {
-        auto dims  = input->get_shape().lens();
-        dims[axis] = edim.back();
-        dims.insert(dims.begin() + axis, edim.begin(), edim.end() - 1);
-        return this->reshape(input, dims);
-    }
-
-    instruction_ref split_dim(instruction_ref input, std::size_t groups, std::size_t axis = 0)
-    {
-        assert(groups <= input->get_shape().lens()[axis]);
-        assert(input->get_shape().lens()[axis] % groups == 0);
-        std::vector<std::size_t> edim = {groups, input->get_shape().lens()[axis] / groups};
-        return this->expand_dim(input, edim, axis);
-    }
-
-    instruction_ref stride_dim(instruction_ref input, std::size_t stride, std::size_t axis = 0)
-    {
-        assert(stride <= input->get_shape().lens()[axis]);
-        assert(input->get_shape().lens()[axis] % stride == 0);
-        std::vector<std::size_t> edim = {input->get_shape().lens()[axis] / stride, stride};
-        return this->expand_dim(input, edim, axis);
-    }
-
-    instruction_ref repeat_dim(instruction_ref input, std::size_t n, std::size_t axis = 0)
-    {
-        std::vector<std::size_t> edim = {input->get_shape().lens()[axis], 1};
-        auto ins                      = this->expand_dim(input, edim, axis);
-        auto out_lens                 = ins->get_shape().lens();
-        out_lens[axis + 1]            = n;
-        return this->multibroadcast(ins, out_lens);
-    }
-
-    instruction_ref
-    transpose_stride(instruction_ref input, std::size_t stride, std::size_t axis = 0)
-    {
-        std::vector<std::size_t> edim = {input->get_shape().lens()[axis] / stride, stride};
-        auto reshaped                 = this->expand_dim(input, edim, axis);
-        std::vector<int64_t> perm(reshaped->get_shape().ndim());
-        std::iota(perm.begin(), perm.end(), 0);
-        std::swap(perm[axis], perm[axis + 1]);
-        return this->transpose(reshaped, perm);
-    }
-
-    instruction_ref transpose_group(instruction_ref input, std::size_t group, std::size_t axis = 0)
-    {
-        std::vector<std::size_t> edim = {group, input->get_shape().lens()[axis] / group};
-        auto reshaped                 = this->expand_dim(input, edim, axis);
-        std::vector<int64_t> perm(reshaped->get_shape().ndim());
-        std::iota(perm.begin(), perm.end(), 0);
-        std::swap(perm[axis], perm[axis + 1]);
-        return this->transpose(reshaped, perm);
-    }
-
-    instruction_ref multibroadcast(instruction_ref input, const std::vector<std::size_t>& out_lens)
-    {
-        return m.insert_instruction(
-            insert_before, make_op("multibroadcast", {{"out_lens", out_lens}}), input);
-    }
-
-    instruction_ref concat(const std::vector<instruction_ref>& inputs, int64_t axis)
-    {
-        return m.insert_instruction(insert_before, make_op("concat", {{"axis", axis}}), inputs);
-    }
-
-    instruction_ref move_axis_to_front(instruction_ref input, std::size_t axis)
-    {
-        const auto& lens = input->get_shape().lens();
-        if(axis == 0)
-            return input;
-        return transpose(input, move_axis_to_front_perm(axis, lens.size()));
-    }
-
-    instruction_ref restore_axis_position(instruction_ref input,
-                                          std::size_t pre_count,
-                                          std::size_t block_count,
-                                          std::size_t post_count)
-    {
-        auto perm = restore_axis_position_perm(pre_count, block_count, post_count);
-        return transpose(input, perm);
-    }
 
     instruction_ref match_shape(instruction_ref input, const std::vector<std::size_t>& target_lens)
     {
@@ -1475,9 +1137,9 @@ class gather_instruction_builder
             return reshape(input, target_lens);
         }
 
-        // Only use multibroadcast if we're actually broadcasting (target has more elements)
-        if(target_elements > curr_elements)
-            return multibroadcast(input, target_lens);
+        // // Only use multibroadcast if we're actually broadcasting (target has more elements)
+        // if(target_elements > curr_elements)
+        //     return multibroadcast(input, target_lens);
 
         // Element count mismatch - this shouldn't happen
         MIGRAPHX_THROW("match_shape: Cannot match shape with " + std::to_string(curr_elements) +
@@ -1510,8 +1172,6 @@ struct gather_context
 
     std::vector<int64_t> indices_values() const { return indices_arg().to_vector<int64_t>(); }
 
-    std::size_t axis_len() const { return data_ins_->get_shape().lens().at(axis_index_); }
-
     std::vector<std::size_t> output_dims() const
     {
         auto lens = data_ins()->get_shape().lens();
@@ -1524,105 +1184,6 @@ struct gather_context
     const std::vector<std::size_t>& idims() const { return indices_arg_.get_shape().lens(); }
 
     const std::vector<std::size_t>& data_dims() const { return data_ins()->get_shape().lens(); }
-
-    std::vector<std::size_t> pre_lens() const
-    {
-        const auto& dlens = data_ins_->get_shape().lens();
-        return std::vector<std::size_t>(dlens.begin(), dlens.begin() + axis_index_);
-    }
-
-    std::vector<std::size_t> post_lens() const
-    {
-        const auto& dlens = data_ins_->get_shape().lens();
-        return std::vector<std::size_t>(dlens.begin() + axis_index_ + 1, dlens.end());
-    }
-
-    std::vector<std::size_t> rest_lens() const
-    {
-        auto result = pre_lens();
-        auto post   = post_lens();
-        result.insert(result.end(), post.begin(), post.end());
-        return result;
-    }
-
-    std::vector<std::size_t> index_positions() const
-    {
-        std::vector<std::size_t> positions;
-        const auto dims = idims();
-        for(std::size_t i = 0; i < dims.size(); ++i)
-        {
-            if(dims[i] > 1)
-                positions.push_back(i);
-        }
-        return positions;
-    }
-
-    std::vector<std::size_t> index_dims() const
-    {
-        std::vector<std::size_t> dims;
-        const auto all_dims = idims();
-        for(auto d : all_dims)
-        {
-            if(d > 1)
-                dims.push_back(d);
-        }
-        return dims;
-    }
-
-    std::vector<std::size_t> target_shape() const
-    {
-        auto result = pre_lens();
-        auto dims   = idims();
-        assert(not dims.empty() && "idims() is empty in target_shape!");
-        result.insert(result.end(), dims.begin(), dims.end());
-        auto post = post_lens();
-        result.insert(result.end(), post.begin(), post.end());
-        assert(not result.empty() && "target_shape() returned empty vector!");
-        return result;
-    }
-
-    // Lazy-loaded factor candidates with caching
-    const std::vector<std::vector<std::size_t>>& factor_candidates() const
-    {
-        if(not factor_candidates_)
-        {
-            factor_candidates_ = std::make_shared<std::vector<std::vector<std::size_t>>>();
-            constexpr std::size_t max_factorizations = 256;
-            auto raw_factors = enumerate_all_factorizations(axis_len(), max_factorizations);
-
-            for(auto& factors : raw_factors)
-            {
-                if(factor_candidates_->size() >= max_factorizations)
-                    break;
-                add_unique_factorization(
-                    *factor_candidates_, std::move(factors), axis_len(), max_factorizations);
-            }
-
-            // Add factorizations from reshape chain if applicable
-            const auto& dlens = data_ins_->get_shape().lens();
-            if(dlens.size() == 1 and axis_index_ == 0)
-            {
-                instruction_ref curr_data = data_ins_;
-                while(curr_data->name() == "reshape" and curr_data->inputs().size() == 1)
-                {
-                    curr_data              = curr_data->inputs().front();
-                    const auto& input_lens = curr_data->get_shape().lens();
-                    if(input_lens.empty())
-                        break;
-                    auto product = std::accumulate(
-                        input_lens.begin(), input_lens.end(), std::size_t{1}, std::multiplies<>{});
-                    if(product != axis_len())
-                        break;
-                    if(factor_candidates_->size() >= max_factorizations)
-                        break;
-                    std::vector<std::size_t> factors(input_lens.begin(), input_lens.end());
-                    add_unique_factorization(
-                        *factor_candidates_, std::move(factors), axis_len(), max_factorizations);
-                }
-            }
-        }
-        return *factor_candidates_;
-    }
 
     // Mutable version for direct assignment (needed for ctx_1d case)
     void set_factor_candidates(std::shared_ptr<std::vector<std::vector<std::size_t>>> candidates)
@@ -1685,24 +1246,6 @@ struct gather_context
 
         return flat;
     }
-
-    // Factory method to create a context with reshaped indices (for 1D normalization or segments)
-    static gather_context with_reshaped_indices(const gather_context& base,
-                                                const std::vector<std::size_t>& new_indices_shape)
-    {
-        // Reshape the indices argument to the new shape (keeps same underlying data)
-        shape new_shape{shape::int64_type, new_indices_shape};
-        argument reshaped_indices = base.indices_arg_.reshape(new_shape);
-
-        gather_context new_ctx(base.data_ins(), base.axis_index(), std::move(reshaped_indices));
-
-        // Share the factor_candidates cache only if it was already initialized
-        if(base.factor_candidates_)
-        {
-            new_ctx.set_factor_candidates(base.factor_candidates_);
-        }
-        return new_ctx;
-    }
 };
 
 } // namespace
@@ -1717,24 +1260,6 @@ struct arithmetic_segment
     int64_t base      = 0;
     int64_t stride    = 0;
     std::size_t count = 0;
-
-    bool empty() const { return count == 0; }
-
-    std::size_t length() const { return std::max<std::size_t>(1, stride * count); }
-
-    std::size_t total_length() const
-    {
-        if(stride == 0)
-            return base + 1;
-        return stride * (count + base / stride);
-    }
-
-    std::size_t last_index() const
-    {
-        if(empty())
-            return 0;
-        return stride * (count - 1) + base;
-    }
 
     template <class Iterator>
     static std::vector<arithmetic_segment> from_ints(Iterator begin, Iterator end)
@@ -1825,37 +1350,6 @@ struct arithmetic_segment
             arithmetic_segment{start.base, stride, std::size_t(std::distance(begin, diff))}, diff);
     }
 
-    instruction_ref transform(gather_instruction_builder& builder,
-                              instruction_ref input,
-                              std::size_t axis,
-                              std::size_t nsegments) const
-    {
-        if(stride == 0)
-        {
-            auto ins = builder.repeat_dim(input, count, axis);
-            return builder.slice(ins, {{axis, std::size_t(base), base + nsegments}});
-        }
-        else
-        {
-
-            auto ins                = builder.transpose_stride(input, stride, axis);
-            // axis => stride
-            // axis+1 => group
-            std::size_t base_start0 = base % stride;
-            std::size_t base_start1 = base / stride;
-            return builder.slice(ins,
-                                 {{axis, base_start0, base_start0 + nsegments},
-                                  {axis + 1, base_start1, base_start1 + count}});
-        }
-    }
-
-    std::int64_t shift_next_base() const
-    {
-        if(stride == 0)
-            return 0;
-        return base % stride;
-    }
-
     static shape make_strided_view(std::vector<arithmetic_segment> segments)
     {
         std::vector<std::size_t> lens;
@@ -1864,10 +1358,10 @@ struct arithmetic_segment
         do
         {
             segments = make_segments(segments);
-            std::cout << "nsegments: " << segments.size() << std::endl;
-            for(auto segment : segments)
-                std::cout << "    {" << segment.base << ", " << segment.stride << ", "
-                          << segment.count << "}\n";
+            // std::cout << "nsegments: " << segments.size() << std::endl;
+            // for(auto segment : segments)
+            //     std::cout << "    {" << segment.base << ", " << segment.stride << ", "
+            //               << segment.count << "}\n";
             auto seg = segments.front();
             if(seg.stride < 0)
                 return {};
@@ -1898,8 +1392,6 @@ struct arithmetic_segment
                                                             gather_instruction_builder& builder,
                                                             instruction_ref start)
     {
-        std::cout << "transform_indices: " << to_string_range(indices) << std::endl;
-        builder.m.debug_print(start);
         auto isegments      = from_ints(indices.begin(), indices.end());
         std::int64_t offset = isegments.front().base;
         auto s              = make_strided_view(shift(isegments, -offset));

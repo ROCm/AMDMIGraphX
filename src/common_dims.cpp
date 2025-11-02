@@ -97,35 +97,48 @@ static bool compute_common_dim(std::vector<std::size_t>& cd_dims,
     assert(state1.get() < state2.get());
     auto d2    = state2.get();
     auto dims  = state1.dims_for(d2);
-    auto n     = elements(dims);
     auto naxes = distance(dims);
-    // Adjust for remainder on first dimension
-    if(state1.rem != 1 and naxes > 0)
+    
+    if(naxes == 0)
+        return false;
+        
+    // Check if state1 has a remainder from previous split
+    bool has_remainder = (state1.rem != 1);
+    
+    // Compute the product of dimensions, adjusting for remainder if needed
+    auto n = elements(dims);
+    if(has_remainder and naxes > 0)
     {
         n = n / *dims.begin() * (*dims.begin() / state1.rem);
     }
-    if(naxes == 0)
-        return false;
+    
     // If not divisible then we can't compute a common dim
     if((d2 % n) != 0)
         return false;
+        
     auto rem = d2 / n;
-    // When state has a remainder from previous iteration, the dimension was split
-    // Use add_axes to keep multiple axes together as one mapping
-    if(state1.rem != 1)
-        state1.add_axes(naxes, cd_dims.size());
-    else
-        state1.add_multi_axes(naxes, cd_dims.size());
-
-    // For state2: when state1 has remainder, axes should include the previous remainder dimension
-    if(state1.rem != 1)
-        state2.add_axes(rem == 1 ? naxes : naxes + 1, cd_dims.size() - 1);
-    else
-        state2.add_axes(rem == 1 ? naxes : naxes + 1, cd_dims.size());
-
-    // When state1 has a remainder, adjust the first dimension
-    if(state1.rem != 1 and naxes > 0)
+    auto start_pos = cd_dims.size();
+    
+    // Add axes mappings
+    if(has_remainder)
     {
+        // state1: dimension was split, keep axes together
+        state1.add_axes(naxes, start_pos);
+        // state2: axes should include the previous remainder dimension
+        state2.add_axes(rem == 1 ? naxes : naxes + 1, start_pos - 1);
+    }
+    else
+    {
+        // state1: separate axes for each dimension
+        state1.add_multi_axes(naxes, start_pos);
+        // state2: normal axes mapping
+        state2.add_axes(rem == 1 ? naxes : naxes + 1, start_pos);
+    }
+
+    // Add dimensions to cd_dims
+    if(has_remainder and naxes > 0)
+    {
+        // Adjust the first dimension by dividing by the remainder
         cd_dims.push_back(*dims.begin() / state1.rem);
         cd_dims.insert(cd_dims.end(), std::next(dims.begin()), dims.end());
     }
@@ -133,12 +146,17 @@ static bool compute_common_dim(std::vector<std::size_t>& cd_dims,
     {
         cd_dims.insert(cd_dims.end(), dims.begin(), dims.end());
     }
+    
+    // Add remainder dimension if needed
     if(rem != 1)
         cd_dims.push_back(rem);
+        
+    // Update states
     state1.rem = rem;
     state2.rem = 1;
-    state1.next(distance(dims));
+    state1.next(naxes);
     state2.next();
+    
     return true;
 }
 
@@ -178,20 +196,18 @@ common_dims common_dims::compute(const std::vector<std::size_t>& dims1,
 
     // Handle case where one state has a remainder that equals the next dimension
     // In this case, the dimension was already added as a remainder, we just need the axes mapping
-    if(not state1.is_end() and state1.rem != 1 and state1.get() == 1)
-    {
-        // The remainder already added to cd_dims matches this dimension
-        // Add a single axes mapping
-        state1.axes_map->push_back({cd.dims.size() - 1});
-        state1.next();
-    }
-    if(not state2.is_end() and state2.rem != 1 and state2.get() == 1)
-    {
-        // The remainder already added to cd_dims matches this dimension
-        // Add a single axes mapping
-        state2.axes_map->push_back({cd.dims.size() - 1});
-        state2.next();
-    }
+    auto handle_remaining_dimension = [&cd](common_dim_state& state) {
+        if(not state.is_end() and state.rem != 1 and state.get() == 1)
+        {
+            // The remainder already added to cd_dims matches this dimension
+            // Add a single axes mapping
+            state.axes_map->push_back({cd.dims.size() - 1});
+            state.next();
+        }
+    };
+    
+    handle_remaining_dimension(state1);
+    handle_remaining_dimension(state2);
 
     assert(elements(dims1) == elements(cd.dims));
     return cd;

@@ -83,6 +83,22 @@ TEST_CASE(common4)
     EXPECT(cd.axes_map2 == axes_map{{0}, {1, 2}, {3, 4}});
 }
 
+TEST_CASE(common5)
+{
+    auto cd = migraphx::common_dims::compute({3, 8, 5}, {12, 10});
+    EXPECT(cd.dims == std::vector<std::size_t>{3, 4, 2, 5});
+    EXPECT(cd.axes_map1 == axes_map{{0}, {1, 2}, {3}});
+    EXPECT(cd.axes_map2 == axes_map{{0, 1}, {1, 2}});
+}
+
+TEST_CASE(common6)
+{
+    auto cd = migraphx::common_dims::compute({12, 10}, {3, 8, 5});
+    EXPECT(cd.dims == std::vector<std::size_t>{3, 4, 2, 5});
+    EXPECT(cd.axes_map1 == axes_map{{0, 1}, {1, 2}});
+    EXPECT(cd.axes_map2 == axes_map{{0}, {1, 2}, {3}});
+}
+
 TEST_CASE(common_same_dims)
 {
     auto cd = migraphx::common_dims::compute({{2, 32, 4}}, {64, 2, 2});

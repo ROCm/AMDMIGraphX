@@ -116,7 +116,7 @@ static bool compute_common_dim(std::vector<std::size_t>& cd_dims,
         state1.add_axes(naxes, cd_dims.size());
     else
         state1.add_multi_axes(naxes, cd_dims.size());
-    
+
     // For state2: when state1 has remainder, axes should include the previous remainder dimension
     if(state1.rem != 1)
         state2.add_axes(rem == 1 ? naxes : naxes + 1, cd_dims.size() - 1);
@@ -175,7 +175,7 @@ common_dims common_dims::compute(const std::vector<std::size_t>& dims1,
                 return {};
         }
     }
-    
+
     // Handle case where one state has a remainder that equals the next dimension
     // In this case, the dimension was already added as a remainder, we just need the axes mapping
     if(not state1.is_end() and state1.rem != 1 and state1.get() == 1)
@@ -192,7 +192,7 @@ common_dims common_dims::compute(const std::vector<std::size_t>& dims1,
         state2.axes_map->push_back({cd.dims.size() - 1});
         state2.next();
     }
-    
+
     assert(elements(dims1) == elements(cd.dims));
     return cd;
 }

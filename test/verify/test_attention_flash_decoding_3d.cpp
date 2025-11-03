@@ -59,5 +59,6 @@ struct test_attention_flash_decoding_3d : verify_program<test_attention_flash_de
 };
 
 // TODO: accuracy issue with fp16
-// template struct test_attention_flash_decoding_3d<migraphx::shape::half_type>;
+template struct test_attention_flash_decoding_3d<migraphx::shape::half_type>;
 template struct test_attention_flash_decoding_3d<migraphx::shape::bf16_type>;
+template struct test_attention_flash_decoding_3d<migraphx::shape::float_type>;

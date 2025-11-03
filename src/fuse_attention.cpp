@@ -258,7 +258,16 @@ struct find_flash_decoding
         return qkv_shapes;
     }
 
-    std::vector<std::vector<size_t>>
+    struct transformed_shapes_result
+    {
+        std::vector<size_t> q_shape;           // final Q shape: [B, G, M, k]
+        std::vector<size_t> k_intermediate;    // K intermediate: [B, k, G, N/G]
+        std::vector<size_t> k_shape;           // final K shape: [B, G, k, N/G]
+        std::vector<int64_t> k_transpose_perm; // permutation for K transpose
+        std::vector<size_t> v_shape;           // final V shape: [B, G, N/G, D]
+    };
+
+    transformed_shapes_result
     get_transformed_shapes(const std::vector<shape>& input_shapes) const
     {
         assert(input_shapes.size() == 3 and "Expected Q, K, V shapes");
@@ -278,6 +287,8 @@ struct find_flash_decoding
                "Key-value sequence length must be divisible by number of splits/groups");
         size_t n_split = n / g;
 
+        transformed_shapes_result result;
+
         // batch_dims + G + spatial_dims
         auto insert_g = [&](const auto& lens) {
             std::vector<size_t> new_lens(lens.begin(), lens.begin() + ndim - 2);  // batch dims
@@ -286,15 +297,36 @@ struct find_flash_decoding
             return new_lens;
         };
 
-        auto q_new = insert_g(q_lens);
-        auto k_new = insert_g(k_lens);
-        auto v_new = insert_g(v_lens);
+        // Q: [B, M, k] -> [B, G, M, k] via unsqueeze + broadcast
+        result.q_shape = insert_g(q_lens);
 
-        // update N -> N/G in K and V
-        k_new[k_new.size() - 1] = n_split; // K: [..., G, k, N/G]
-        v_new[v_new.size() - 2] = n_split; // V: [..., G, N/G, D]
+        // K: [B, k, N] -> [B, G, k, N/G] via reshape + transpose
+        // intermediate shape for reshape: [B, k, G, N/G]
+        result.k_intermediate.clear();
+        for(size_t i = 0; i < k_lens.size() - 1; ++i) {
+            result.k_intermediate.push_back(k_lens[i]);
+        }
+        result.k_intermediate.push_back(g);
+        result.k_intermediate.push_back(n_split);
+        
+        // transpose permutation to get [B, G, k, N/G]
+        result.k_transpose_perm.clear();
+        for(size_t i = 0; i < k_lens.size() - 2; ++i) {
+            result.k_transpose_perm.push_back(i);  // batch dims stay in place
+        }
+        result.k_transpose_perm.push_back(k_lens.size() - 1);  // G dimension
+        result.k_transpose_perm.push_back(k_lens.size() - 2);  // k dimension
+        result.k_transpose_perm.push_back(k_lens.size());      // N/G dimension
+        
+        // final K shape after transpose
+        result.k_shape = insert_g(k_lens);
+        result.k_shape[result.k_shape.size() - 1] = n_split;
 
-        return {q_new, k_new, v_new};
+        // V: [B, N, D] -> [B, G, N/G, D] via direct reshape
+        result.v_shape = insert_g(v_lens);
+        result.v_shape[result.v_shape.size() - 2] = n_split;
+
+        return result;
     }
 
     std::unordered_map<instruction_ref, instruction_ref>
@@ -418,10 +450,7 @@ struct find_flash_decoding
         auto qkv_shapes = get_qkv_shapes(q_param, k_param, v_param);
 
         // check shapes are ok and get flash decoding transformed shapes (Q', V', K')
-        auto transformed_shapes = get_transformed_shapes(qkv_shapes);
-        auto& qp_shape          = transformed_shapes[0];
-        auto& kp_shape          = transformed_shapes[1];
-        auto& vp_shape          = transformed_shapes[2];
+        auto transform_info = get_transformed_shapes(qkv_shapes);
 
         // create mapping from submodule params to main module inputs
         auto group_inputs      = attn_group_ins->inputs();
@@ -436,17 +465,21 @@ struct find_flash_decoding
         auto q_ndim    = q->get_shape().lens().size();
         int64_t g_axis = q_ndim - 2;
 
+        // Q: [B, M, k] -> [B, G, M, k] via unsqueeze + broadcast
         auto q_unsqueeze =
             mm.insert_instruction(attn_group_ins, make_op("unsqueeze", {{"axes", {g_axis}}}), q);
-
         auto q_reshaped = mm.insert_instruction(
-            attn_group_ins, make_op("multibroadcast", {{"out_lens", qp_shape}}), q_unsqueeze);
+            attn_group_ins, make_op("multibroadcast", {{"out_lens", transform_info.q_shape}}), q_unsqueeze);
 
-        auto k_reshaped =
-            mm.insert_instruction(attn_group_ins, make_op("reshape", {{"dims", kp_shape}}), k);
+        // K: [B, k, N] -> [B, G, k, N/G] via reshape + transpose
+        auto k_reshaped_intermediate = mm.insert_instruction(
+            attn_group_ins, make_op("reshape", {{"dims", transform_info.k_intermediate}}), k);
+        auto k_reshaped = mm.insert_instruction(
+            attn_group_ins, make_op("transpose", {{"permutation", transform_info.k_transpose_perm}}), k_reshaped_intermediate);
 
+        // V: [B, N, D] -> [B, G, N/G, D] via direct reshape
         auto v_reshaped =
-            mm.insert_instruction(attn_group_ins, make_op("reshape", {{"dims", vp_shape}}), v);
+            mm.insert_instruction(attn_group_ins, make_op("reshape", {{"dims", transform_info.v_shape}}), v);
 
         // create new input list by replacing Q, K, V with reshaped versions
         std::vector<instruction_ref> new_group_inputs = group_inputs;
@@ -477,11 +510,11 @@ struct find_flash_decoding
 
         // new params added first
         auto new_q_param =
-            m_flash_decode.add_parameter(q_name, shape{qkv_shapes[0].type(), qp_shape});
+            m_flash_decode.add_parameter(q_name, shape{qkv_shapes[0].type(), transform_info.q_shape});
         auto new_k_param =
-            m_flash_decode.add_parameter(k_name, shape{qkv_shapes[1].type(), kp_shape});
+            m_flash_decode.add_parameter(k_name, shape{qkv_shapes[1].type(), transform_info.k_shape});
         auto new_v_param =
-            m_flash_decode.add_parameter(v_name, shape{qkv_shapes[2].type(), vp_shape});
+            m_flash_decode.add_parameter(v_name, shape{qkv_shapes[2].type(), transform_info.v_shape});
 
         // build mapping for old params -> new params
         std::unordered_map<instruction_ref, instruction_ref> map_old_params_to_new;
@@ -511,21 +544,31 @@ struct find_flash_decoding
             attn_group_ins, make_op("get_tuple_elem", {{"index", 1}}), new_group_ins);
 
         // kernel 2
-        // scale = softmax(L, axis=G_axis)
+        // the partial outputs O'[g] are already weighted by their group's softmax,
+        // LSE[g] contains log(sum(exp(S[g]))) for each group
+        // To combine: weight by exp(LSE[g]) / sum_g(exp(LSE[g']))
+        
+        // compute global max for numerical stability
         auto lse_max =
             mm.insert_instruction(attn_group_ins, make_op("reduce_max", {{"axes", {g_axis}}}), lse);
         auto lse_max_bcast = mm.insert_instruction(
             attn_group_ins,
             make_op("multibroadcast", {{"out_lens", lse->get_shape().lens()}}),
             lse_max);
+        
+        // exp(LSE - max_LSE)
         auto lse_sub = mm.insert_instruction(attn_group_ins, make_op("sub"), lse, lse_max_bcast);
         auto lse_exp = mm.insert_instruction(attn_group_ins, make_op("exp"), lse_sub);
+        
+        // sum across groups
         auto lse_sum = mm.insert_instruction(
             attn_group_ins, make_op("reduce_sum", {{"axes", {g_axis}}}), lse_exp);
         auto lse_sum_bcast = mm.insert_instruction(
             attn_group_ins,
             make_op("multibroadcast", {{"out_lens", lse_exp->get_shape().lens()}}),
             lse_sum);
+        
+        // scale factor: exp(LSE[g] - max_LSE) / sum(exp(LSE - max_LSE))
         auto scale = mm.insert_instruction(attn_group_ins, make_op("div"), lse_exp, lse_sum_bcast);
 
         auto scale_bcast = mm.insert_instruction(

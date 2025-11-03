@@ -1265,9 +1265,8 @@ struct arithmetic_segment
     static std::vector<arithmetic_segment> from_ints(Iterator begin, Iterator end)
     {
         std::vector<arithmetic_segment> result(std::distance(begin, end));
-        par_transform(begin, end, result.begin(), [](auto x) {
-            return arithmetic_segment{x, 1, 1};
-        });
+        par_transform(
+            begin, end, result.begin(), [](auto x) { return arithmetic_segment{x, 1, 1}; });
         return result;
     }
 
@@ -1315,13 +1314,11 @@ struct arithmetic_segment
     static std::vector<arithmetic_segment> shift(std::vector<arithmetic_segment> segments,
                                                  std::int64_t shift)
     {
-        par_transform(segments.begin(),
-                       segments.end(),
-                       segments.begin(),
-                       [&](arithmetic_segment x) {
-                           x.base += shift;
-                           return x;
-                       });
+        par_transform(
+            segments.begin(), segments.end(), segments.begin(), [&](arithmetic_segment x) {
+                x.base += shift;
+                return x;
+            });
         return segments;
     }
 

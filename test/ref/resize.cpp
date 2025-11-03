@@ -573,3 +573,163 @@ TEST_CASE(resize_fail_test_8)
                             a1);
     }));
 }
+
+TEST_CASE(resize_linear_1x1_degenerate_test)
+{
+    // Test degenerate 1x1 input case with linear mode
+    // This tests the special handling in resize.hpp
+    // which prevents NaN values when in_lens[d] <= 1
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    // Single pixel input with value 5.0
+    migraphx::shape s{migraphx::shape::float_type, {1, 1, 1, 1}};
+    std::vector<float> data = {5.0f};
+    auto a0                 = mm->add_literal(migraphx::literal{s, data});
+
+    // Upsample 1x1 -> 4x4 using linear interpolation
+    mm->add_instruction(migraphx::make_op("resize",
+                                          {{"sizes", {1, 1, 4, 4}},
+                                           {"mode", "linear"},
+                                           {"coordinate_transformation_mode", "half_pixel"}}),
+                        a0);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+
+    std::vector<float> res_data;
+    result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
+
+    // All output values should be exactly 5.0 (the single input value)
+    // since there's only one value to interpolate from
+    // clang-format off
+    std::vector<float> golden = {
+        5.0f, 5.0f, 5.0f, 5.0f,
+        5.0f, 5.0f, 5.0f, 5.0f,
+        5.0f, 5.0f, 5.0f, 5.0f,
+        5.0f, 5.0f, 5.0f, 5.0f
+    };
+    // clang-format on
+
+    EXPECT(migraphx::verify::verify_rms_range(res_data, golden));
+}
+
+TEST_CASE(resize_linear_1xN_degenerate_height_test)
+{
+    // Test degenerate case where only height is 1, width is normal
+    // This tests partial degenerate dimensions
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    // 1x4 input (height=1, width=4)
+    migraphx::shape s{migraphx::shape::float_type, {1, 1, 1, 4}};
+    std::vector<float> data = {1.0f, 2.0f, 3.0f, 4.0f};
+    auto a0                 = mm->add_literal(migraphx::literal{s, data});
+
+    // Upsample to 3x8 - height should replicate, width should interpolate
+    mm->add_instruction(migraphx::make_op("resize",
+                                          {{"sizes", {1, 1, 3, 8}},
+                                           {"mode", "linear"},
+                                           {"coordinate_transformation_mode", "half_pixel"}}),
+                        a0);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+
+    std::vector<float> res_data;
+    result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
+
+    // Height dimension (size 1) should just replicate
+    // Width dimension should linearly interpolate 1,2,3,4 -> 8 values
+    // clang-format off
+    std::vector<float> golden = {
+        1.0f, 1.25f, 1.75f, 2.25f, 2.75f, 3.25f, 3.75f, 4.0f,
+        1.0f, 1.25f, 1.75f, 2.25f, 2.75f, 3.25f, 3.75f, 4.0f,
+        1.0f, 1.25f, 1.75f, 2.25f, 2.75f, 3.25f, 3.75f, 4.0f
+    };
+    // clang-format on
+
+    EXPECT(migraphx::verify::verify_rms_range(res_data, golden));
+}
+
+TEST_CASE(resize_linear_1x1_with_scales_test)
+{
+    // Test 1x1 degenerate case using scales instead of sizes
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    migraphx::shape s{migraphx::shape::float_type, {1, 1, 1, 1}};
+    std::vector<float> data = {7.5f};
+    auto a0                 = mm->add_literal(migraphx::literal{s, data});
+
+    // Use scales attribute: 1x1 -> 5x5 (5x scale)
+    mm->add_instruction(migraphx::make_op("resize",
+                                          {{"scales", {1.0f, 1.0f, 5.0f, 5.0f}},
+                                           {"mode", "linear"},
+                                           {"coordinate_transformation_mode", "asymmetric"}}),
+                        a0);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+
+    std::vector<float> res_data;
+    result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
+
+    // All 25 output values should be 7.5
+    std::vector<float> golden(25, 7.5f);
+
+    EXPECT(migraphx::verify::verify_rms_range(res_data, golden));
+}
+
+TEST_CASE(resize_linear_1x1_align_corners_test)
+{
+    // Test 1x1 with align_corners coordinate transformation
+    // This ensures the degenerate handling works with different coord transforms
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    migraphx::shape s{migraphx::shape::float_type, {2, 3, 1, 1}};
+    std::vector<float> data = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+    auto a0                 = mm->add_literal(migraphx::literal{s, data});
+
+    // Batch=2, Channels=3, 1x1 -> 3x3 spatial
+    mm->add_instruction(migraphx::make_op("resize",
+                                          {{"scales", {1.0f, 1.0f, 3.0f, 3.0f}},
+                                           {"mode", "linear"},
+                                           {"coordinate_transformation_mode", "align_corners"}}),
+                        a0);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+
+    std::vector<float> res_data;
+    result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
+
+    // Each channel should replicate its single value across all 9 spatial positions
+    // clang-format off
+    std::vector<float> golden = {
+        // Batch 0, Channel 0 (value 1.0)
+        1.0f, 1.0f, 1.0f,
+        1.0f, 1.0f, 1.0f,
+        1.0f, 1.0f, 1.0f,
+        // Batch 0, Channel 1 (value 2.0)
+        2.0f, 2.0f, 2.0f,
+        2.0f, 2.0f, 2.0f,
+        2.0f, 2.0f, 2.0f,
+        // Batch 0, Channel 2 (value 3.0)
+        3.0f, 3.0f, 3.0f,
+        3.0f, 3.0f, 3.0f,
+        3.0f, 3.0f, 3.0f,
+        // Batch 1, Channel 0 (value 4.0)
+        4.0f, 4.0f, 4.0f,
+        4.0f, 4.0f, 4.0f,
+        4.0f, 4.0f, 4.0f,
+        // Batch 1, Channel 1 (value 5.0)
+        5.0f, 5.0f, 5.0f,
+        5.0f, 5.0f, 5.0f,
+        5.0f, 5.0f, 5.0f,
+        // Batch 1, Channel 2 (value 6.0)
+        6.0f, 6.0f, 6.0f,
+        6.0f, 6.0f, 6.0f,
+        6.0f, 6.0f, 6.0f
+    };
+    // clang-format on
+
+    EXPECT(migraphx::verify::verify_rms_range(res_data, golden));
+}

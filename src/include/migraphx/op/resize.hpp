@@ -204,7 +204,7 @@ struct resize
             // compute() method.  For any other target, there must be a compiler pass that replaces
             // this operation with a fixed-size output at runtime.
             std::size_t max_val = std::numeric_limits<std::size_t>::max();
-            auto input = inputs.front();
+            auto input = inputs.front().to_dynamic();
             std::vector<shape::dynamic_dimension> dyn_dims(input.ndim(), {0, max_val});
 
             if(not scales.empty())
@@ -212,10 +212,12 @@ struct resize
                 for(std::size_t i = 0; i < scales.size(); i++)
                 {
                     dyn_dims[i].min = static_cast<std::size_t>(input.dyn_dims()[i].min * scales[i]);
-                    dyn_dims[i].max = static_cast<std::size_t>(input.dyn_dims()[i].max * scales[i]);
+                    if(input.dyn_dims()[i].max != max_val)
+                    {
+                        dyn_dims[i].max = static_cast<std::size_t>(input.dyn_dims()[i].max * scales[i]);
+                    }
                 }
             }
-
             return {input.type(), dyn_dims};
         }
     }
@@ -241,7 +243,7 @@ struct resize
                                in_lens.begin(),
                                vec_scale.begin(),
                                [](size_t out_len, size_t in_len) {
-                                   return (in_len == 0 ? 1.f
+                                   return (in_len == 0 ? 1.0f
                                                        : static_cast<float>(out_len) / in_len);
                                });
             }
@@ -306,10 +308,10 @@ struct resize
                 migraphx::shape out_comp_shape{data.get_shape().type(), out_lens};
                 shape_for_each(out_comp_shape, [&](const auto& out_idx_v, size_t out_idx) {
                     std::vector<size_t> in_idx(out_idx_v.size());
-                    for(std::size_t ii = 0; ii < out_idx_v.size(); ++ii)
+                    for(std::size_t i = 0; i < out_idx_v.size(); i++)
                     {
-                        auto idx_val = idx_op(in_lens[ii], out_lens[ii], out_idx_v[ii], vec_scale[ii]);
-                        in_idx[ii]   = nearest_op(in_lens[ii], idx_val);
+                        auto idx_val = idx_op(in_lens[i], out_lens[i], out_idx_v[i], vec_scale[i]);
+                        in_idx[i]   = nearest_op(in_lens[i], idx_val);
                     }
                     output[out_idx] = data(in_idx.begin(), in_idx.end());
                 });

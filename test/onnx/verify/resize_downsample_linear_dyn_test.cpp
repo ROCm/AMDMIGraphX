@@ -31,7 +31,7 @@ TEST_CASE(resize_downsample_linear_dyn_test)
     using migraphx::half;
     migraphx::onnx_options options;
     options.map_dyn_input_dims = {{"X", {{1, 1}, {1, 1}, {2, 3}, {4, 8}}}};
-    migraphx::program p = read_onnx("resize_downsample_linear_half_test.onnx", options);
+    migraphx::program p        = read_onnx("resize_downsample_linear_half_test.onnx", options);
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape sx{migraphx::shape::half_type, {1, 1, 2, 4}};

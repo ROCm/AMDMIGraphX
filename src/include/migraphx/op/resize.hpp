@@ -204,7 +204,7 @@ struct resize
             // compute() method.  For any other target, there must be a compiler pass that replaces
             // this operation with a fixed-size output at runtime.
             std::size_t max_val = std::numeric_limits<std::size_t>::max();
-            auto input = inputs.front().to_dynamic();
+            auto input          = inputs.front().to_dynamic();
             std::vector<shape::dynamic_dimension> dyn_dims(input.ndim(), {0, max_val});
 
             if(not scales.empty())
@@ -214,7 +214,8 @@ struct resize
                     dyn_dims[i].min = static_cast<std::size_t>(input.dyn_dims()[i].min * scales[i]);
                     if(input.dyn_dims()[i].max != max_val)
                     {
-                        dyn_dims[i].max = static_cast<std::size_t>(input.dyn_dims()[i].max * scales[i]);
+                        dyn_dims[i].max =
+                            static_cast<std::size_t>(input.dyn_dims()[i].max * scales[i]);
                     }
                 }
             }
@@ -271,11 +272,12 @@ struct resize
                     // Copy the output size from args[1].
                     std::copy(input.begin(), input.end(), out_lens.begin());
                     // Deduce the scales for each axis
-                    std::transform(input.begin(),
-                                input.end(),
-                                in_lens.begin(),
-                                vec_scale.begin(),
-                                [](auto sz, size_t in_len) { return static_cast<float>(sz) / in_len; });
+                    std::transform(
+                        input.begin(),
+                        input.end(),
+                        in_lens.begin(),
+                        vec_scale.begin(),
+                        [](auto sz, size_t in_len) { return static_cast<float>(sz) / in_len; });
                 }
                 else
                 {
@@ -285,12 +287,12 @@ struct resize
                     // always rounds down, unlike the internal computation in Nearest mode
                     // which has several options as given in nearest_mode.
                     std::transform(input.begin(),
-                                input.end(),
-                                in_lens.begin(),
-                                out_lens.begin(),
-                                [](auto scale_i, size_t in_len) {
-                                    return static_cast<size_t>(scale_i * in_len);
-                                });
+                                   input.end(),
+                                   in_lens.begin(),
+                                   out_lens.begin(),
+                                   [](auto scale_i, size_t in_len) {
+                                       return static_cast<size_t>(scale_i * in_len);
+                                   });
                 }
             });
         }
@@ -311,7 +313,7 @@ struct resize
                     for(std::size_t i = 0; i < out_idx_v.size(); i++)
                     {
                         auto idx_val = idx_op(in_lens[i], out_lens[i], out_idx_v[i], vec_scale[i]);
-                        in_idx[i]   = nearest_op(in_lens[i], idx_val);
+                        in_idx[i]    = nearest_op(in_lens[i], idx_val);
                     }
                     output[out_idx] = data(in_idx.begin(), in_idx.end());
                 });
@@ -321,8 +323,8 @@ struct resize
         {
             // N-D multilinear interpolation
             visit_all(result, args[0])([&](auto output, auto data) {
-                using in_value_t  = typename decltype(data)::value_type;
-                using acc_type    = double; // accumulate in double for precision
+                using in_value_t = typename decltype(data)::value_type;
+                using acc_type   = double; // accumulate in double for precision
 
                 migraphx::shape out_comp_shape{data.get_shape().type(), out_lens};
                 shape_for_each(out_comp_shape, [&](const auto& out_idx_v, size_t out_idx) {
@@ -335,16 +337,18 @@ struct resize
 
                     for(std::size_t d = 0; d < ndim; d++)
                     {
-                        // Compute the original floating-point coordinate per coordinate_transformation_mode
+                        // Compute the original floating-point coordinate per
+                        // coordinate_transformation_mode
                         double coord = idx_op(in_lens[d], out_lens[d], out_idx_v[d], vec_scale[d]);
 
                         // Clamp to valid input range [0, in_lens[d]-1]
                         double max_c = in_lens[d] > 0 ? static_cast<double>(in_lens[d] - 1) : 0.0;
-                        coord = std::max(0.0, std::min(max_c, coord));
+                        coord        = std::max(0.0, std::min(max_c, coord));
 
                         std::size_t base = static_cast<std::size_t>(std::floor(coord));
-                        std::size_t next = std::min(base + 1, (in_lens[d] == 0 ? 0 : in_lens[d] - 1));
-                        double frac      = coord - static_cast<double>(base);
+                        std::size_t next =
+                            std::min(base + 1, (in_lens[d] == 0 ? 0 : in_lens[d] - 1));
+                        double frac = coord - static_cast<double>(base);
 
                         // Handle degenerate dimension (length 1) to avoid NaNs
                         if(in_lens[d] <= 1)
@@ -360,7 +364,7 @@ struct resize
                     }
 
                     // Accumulate over 2^ndim corners
-                    acc_type acc = 0.0;
+                    acc_type acc              = 0.0;
                     const std::size_t corners = (ndim == 0) ? 1 : (1ULL << ndim);
                     std::vector<std::size_t> in_idx(ndim);
 
@@ -383,7 +387,7 @@ struct resize
 
                     // Cast back to the output element type
                     using out_value_t = typename decltype(output)::value_type;
-                    output[out_idx] = static_cast<out_value_t>(acc);
+                    output[out_idx]   = static_cast<out_value_t>(acc);
                 });
             });
         }

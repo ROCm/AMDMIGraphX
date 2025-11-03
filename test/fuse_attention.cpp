@@ -457,11 +457,12 @@ TEST_CASE(gemm_softmax_gemm_flash_decoding)
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 12, 2, 256, 256}}}), a_unsqueeze);
         auto b_transpose =
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
-        // K needs reshape + transpose: [1, 12, 256, 256] -> [1, 12, 256, 2, 128] -> [1, 12, 2, 256, 128]
+        // K: [1, 12, 256, 256] -> [1, 12, 256, 2, 128] -> [1, 12, 2, 256, 128]
         auto b_reshape_intermediate = mm->add_instruction(
             migraphx::make_op("reshape", {{"dims", {1, 12, 256, 2, 128}}}), b_transpose);
-        auto b_reshape = mm->add_instruction(
-            migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2, 4}}}), b_reshape_intermediate);
+        auto b_reshape = 
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2, 4}}}),
+            b_reshape_intermediate);
         auto b1_transpose = mm->add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b1);
         auto b1_reshape = mm->add_instruction(
@@ -567,11 +568,12 @@ TEST_CASE(flash_decoding_3d)
 
         auto b_transpose =
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), b);
-        // K needs reshape + transpose: [1, 256, 256] -> [1, 256, 2, 128] -> [1, 2, 256, 128]
+        // K: [1, 256, 256] -> [1, 256, 2, 128] -> [1, 2, 256, 128]
         auto b_reshape_intermediate = mm->add_instruction(
             migraphx::make_op("reshape", {{"dims", {1, 256, 2, 128}}}), b_transpose);
-        auto b_reshape = mm->add_instruction(
-            migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), b_reshape_intermediate);
+        auto b_reshape =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}),
+                                b_reshape_intermediate);
 
         auto b1_transpose =
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), b1);

@@ -158,7 +158,7 @@ struct module_pm : module_pass_manager
         validate_pass(*mod, p, *t);
     }
 
-    static void Sanitize(std::string& s)
+    static void sanitize(std::string& s)
     {
         static constexpr std::string_view invalid = "<>:\"/\\|?*";
 

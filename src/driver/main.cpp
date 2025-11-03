@@ -97,7 +97,7 @@ std::string get_formatted_timestamp(std::chrono::time_point<std::chrono::system_
 struct global_options
 {
     std::string log_level;
-    std::string log_file;
+    std::vector<std::string> log_files;
 
     void parse(migraphx::driver::argument_parser& ap)
     {
@@ -116,7 +116,11 @@ struct global_options
                    }
                }
            }));
-        ap(log_file, {"--log-file"}, ap.help("Log to file"));
+        ap(log_files,
+           {"--log-file"},
+           ap.help("Log to file(s) (--log-file file1.log file2.log ...)"),
+           ap.append(),
+           ap.nargs(2));
     }
 
     void apply() const
@@ -127,7 +131,7 @@ struct global_options
             if(level)
                 migraphx::log::set_log_level(*level);
         }
-        if(!log_file.empty())
+        for(const auto& log_file : log_files)
         {
             migraphx::log::add_file_logger(log_file);
         }
@@ -161,12 +165,23 @@ bool parse_and_apply_global_options(std::vector<std::string>& args)
     auto it = args.begin();
     while(it != args.end())
     {
-        if(*it == "--log-level" || *it == "--log-file")
+        if(*it == "--log-level")
         {
             global_args.push_back(*it);
             it = args.erase(it);
-            // Also grab the value if present
+            // Grab the single value if present
             if(it != args.end() && !it->empty() && (*it)[0] != '-')
+            {
+                global_args.push_back(*it);
+                it = args.erase(it);
+            }
+        }
+        else if(*it == "--log-file")
+        {
+            global_args.push_back(*it);
+            it = args.erase(it);
+            // Grab all values until the next flag (for unlimited log files)
+            while(it != args.end() && !it->empty() && (*it)[0] != '-')
             {
                 global_args.push_back(*it);
                 it = args.erase(it);
@@ -1050,10 +1065,6 @@ struct main_command
            ap.help("Show MIGraphX version"),
            ap.show_help(version_str));
         ap(nullptr, {"--ort-sha"}, ap.help("Show MIGraphX onnx runtime SHA"));
-        ap(log_level,
-           {"--log-level"},
-           ap.help("Set log level (none/0, error/1, warn/2, info/3, debug/4, trace/5)"));
-        ap(log_file, {"--log-file"}, ap.help("Log to file"));
 
         // Trim command off of exe name
         ap.set_exe_name(ap.get_exe_name().substr(0, ap.get_exe_name().size() - 5));
@@ -1062,8 +1073,6 @@ struct main_command
 
     std::vector<std::string> wrong_commands{};
     std::string exe_name = "<exe>";
-    std::string log_level;
-    std::string log_file;
 
     void run()
     {
@@ -1098,6 +1107,8 @@ using namespace migraphx::driver; // NOLINT
 int main(int argc, const char* argv[], const char* envp[])
 {
     std::vector<std::string> args(argv + 1, argv + argc);
+    // Save original args for display purposes before they get modified
+    const std::vector<std::string> original_args = args;
 
     // Parse and apply global options (--log-level, --log-file)
     if(!parse_and_apply_global_options(args))
@@ -1138,7 +1149,7 @@ int main(int argc, const char* argv[], const char* envp[])
         migraphx::log::trace() << "Testing trace logging stream";
 
         std::string driver_invocation =
-            std::string(argv[0]) + " " + migraphx::to_string_range(args, " ");
+            std::string(argv[0]) + " " + migraphx::to_string_range(original_args, " ");
         std::cout << "Running [ " << get_version() << " ]: " << driver_invocation << std::endl;
 
         // Print start timestamp

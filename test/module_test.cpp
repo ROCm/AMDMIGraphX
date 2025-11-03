@@ -1435,13 +1435,13 @@ TEST_CASE(hoist_external_inputs_no_movement_needed)
 
     // Fusion chain
     auto dot1 = mm->add_instruction(migraphx::make_op("dot"), external1, external2);
-    auto add = add_pointwise(p, "main:pointwise3", {dot1, external3}, single_pointwise("add"));
+    auto add  = add_pointwise(p, "main:pointwise3", {dot1, external3}, single_pointwise("add"));
 
     mm->add_return({add});
 
     // Record positions before hoist_external_inputs
     auto dot1_pos_before = std::distance(mm->begin(), dot1);
-    auto add_pos_before = std::distance(mm->begin(), add);
+    auto add_pos_before  = std::distance(mm->begin(), add);
 
     mm->hoist_external_inputs(dot1, add);
 
@@ -1470,16 +1470,18 @@ TEST_CASE(hoist_external_inputs_multiple_external_branches)
     auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b); // {2, 4}
 
     // External branch 1
-    auto ext1 = add_pointwise(p, "main:pointwise0", {c}, single_pointwise("relu")); // {2, 4}
+    auto ext1 = add_pointwise(p, "main:pointwise0", {c}, single_pointwise("relu"));   // {2, 4}
     auto ext2 = add_pointwise(p, "main:pointwise1", {ext1}, single_pointwise("neg")); // {2, 4}
 
     // External branch 2
-    auto ext3 = add_pointwise(p, "main:pointwise2", {d}, single_pointwise("tanh")); // {4, 3}
+    auto ext3 = add_pointwise(p, "main:pointwise2", {d}, single_pointwise("tanh"));   // {4, 3}
     auto ext4 = add_pointwise(p, "main:pointwise3", {ext3}, single_pointwise("abs")); // {4, 3}
 
     // Continue fusion chain using external branches
-    auto add1 = add_pointwise(p, "main:pointwise4", {dot1, ext2}, single_pointwise("add")); // {2, 4}
-    auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add1, ext4); // {2, 4} x {4, 3} = {2, 3}
+    auto add1 =
+        add_pointwise(p, "main:pointwise4", {dot1, ext2}, single_pointwise("add")); // {2, 4}
+    auto dot2 =
+        mm->add_instruction(migraphx::make_op("dot"), add1, ext4); // {2, 4} x {4, 3} = {2, 3}
 
     mm->add_return({dot2});
 
@@ -1554,16 +1556,17 @@ TEST_CASE(hoist_external_inputs_adjacent_instructions)
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    auto a = mm->add_parameter("a", s1);  // {2, 3}
-    auto b = mm->add_parameter("b", s2);  // {3, 4}
-    auto c = mm->add_parameter("c", s3);  // {4, 5}
+    auto a = mm->add_parameter("a", s1); // {2, 3}
+    auto b = mm->add_parameter("b", s2); // {3, 4}
+    auto c = mm->add_parameter("c", s3); // {4, 5}
 
-    auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);  // {2, 3} x {3, 4} = {2, 4}
+    auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b); // {2, 3} x {3, 4} = {2, 4}
 
     // External operation between dot1 and dot2
-    auto external = add_pointwise(p, "main:pointwise0", {c}, single_pointwise("relu"));  // {4, 5}
+    auto external = add_pointwise(p, "main:pointwise0", {c}, single_pointwise("relu")); // {4, 5}
 
-    auto dot2 = mm->add_instruction(migraphx::make_op("dot"), dot1, external);  // {2, 4} x {4, 5} = {2, 5}
+    auto dot2 =
+        mm->add_instruction(migraphx::make_op("dot"), dot1, external); // {2, 4} x {4, 5} = {2, 5}
 
     mm->add_return({dot2});
 

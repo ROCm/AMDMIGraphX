@@ -56,7 +56,7 @@ struct non_mlir_op
 static void run_pass(migraphx::program& p, migraphx::gpu::fuse_mlir fm = {})
 {
     static migraphx::gpu::context ctx;
-    fm.ctx = &ctx;
+    fm.ctx          = &ctx;
     fm.enable_extra = true;
     migraphx::run_passes(p, {fm, migraphx::dead_code_elimination{}});
 }

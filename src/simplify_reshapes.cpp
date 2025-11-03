@@ -46,6 +46,7 @@
 #include <migraphx/shape_transform_descriptor.hpp>
 #include <migraphx/instruction_traversal.hpp>
 #include <migraphx/output_iterator.hpp>
+#include <migraphx/par.hpp>
 
 #include <array>
 #include <map>
@@ -1263,8 +1264,8 @@ struct arithmetic_segment
     template <class Iterator>
     static std::vector<arithmetic_segment> from_ints(Iterator begin, Iterator end)
     {
-        std::vector<arithmetic_segment> result;
-        std::transform(begin, end, std::back_inserter(result), [](auto x) {
+        std::vector<arithmetic_segment> result(std::distance(begin, end));
+        par_transform(begin, end, result.begin(), [](auto x) {
             return arithmetic_segment{x, 1, 1};
         });
         return result;
@@ -1311,18 +1312,17 @@ struct arithmetic_segment
         return result;
     }
 
-    static std::vector<arithmetic_segment> shift(const std::vector<arithmetic_segment>& segments,
+    static std::vector<arithmetic_segment> shift(std::vector<arithmetic_segment> segments,
                                                  std::int64_t shift)
     {
-        std::vector<arithmetic_segment> result;
-        std::transform(segments.begin(),
+        par_transform(segments.begin(),
                        segments.end(),
-                       std::back_inserter(result),
+                       segments.begin(),
                        [&](arithmetic_segment x) {
                            x.base += shift;
                            return x;
                        });
-        return result;
+        return segments;
     }
 
     /// Detect arithmetic segment pattern
@@ -1392,7 +1392,7 @@ struct arithmetic_segment
     {
         auto isegments      = from_ints(indices.begin(), indices.end());
         std::int64_t offset = isegments.front().base;
-        auto s              = make_strided_view(shift(isegments, -offset));
+        auto s              = make_strided_view(shift(std::move(isegments), -offset));
         auto ops = generate_shape_transforms_for(s, {start->get_shape().elements()}, offset);
         if(not ops.has_value())
             return std::nullopt;

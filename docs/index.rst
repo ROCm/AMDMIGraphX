@@ -13,12 +13,22 @@ It compiles trained models from end-to-end to optimize for inference performance
 
 The MIGraphX public repository is located at `https://github.com/ROCm/AMDMIGraphX/ <https://github.com/ROCm/AMDMIGraphX/>`_
 
+-----------
+Pytorch Integration
+-----------
+
+MIGraphX can be easily integrated with Pytorch workflows using the torch_migraphx library.
+It allows the use of the torch.compile API to compile Pytorch models using MIGraphX.
+
+The torch_migraphx public repository is located at `https://github.com/ROCm/torch_migraphx/ <https://github.com/ROCm/torch_migraphx/>`_
+
 .. grid:: 2
   :gutter: 3
 
   .. grid-item-card:: Install
 
     * :doc:`MIGraphX on ROCm installation <./install/install-migraphx>`
+    * :doc:`Torch-MIGraphX installation <./install/install-torch-migraphx>`
 
   .. grid-item-card:: Conceptual
 

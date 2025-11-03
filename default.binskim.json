@@ -1,0 +1,13 @@
+{
+    "depends": [ "rocmlir", "miopen" ],
+    "toolchain": "hipSDK",
+    "compileWarningAsError": true,
+    "targets": [ "all", "tests" ],
+    "cacheVariables": {
+        "GPU_TARGETS": "gfx1100;gfx1101;gfx1102;gfx1103;gfx1150;gfx1151;gfx1152;gfx1200;gfx1201",
+        "MIGRAPHX_USE_HIPRTC": "ON",
+        "MIGRAPHX_USE_MIOPEN": "ON",
+        "MIGRAPHX_USE_BINSKIM_COMPLIANT_COMPILE_FLAGS": "ON",
+        "MIGRAPHX_DISABLE_LARGE_BUFFER_TESTS": "ON"
+    }
+}

@@ -460,9 +460,9 @@ TEST_CASE(gemm_softmax_gemm_flash_decoding)
         // K: [1, 12, 256, 256] -> [1, 12, 256, 2, 128] -> [1, 12, 2, 256, 128]
         auto b_reshape_intermediate = mm->add_instruction(
             migraphx::make_op("reshape", {{"dims", {1, 12, 256, 2, 128}}}), b_transpose);
-        auto b_reshape = 
+        auto b_reshape =
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2, 4}}}),
-            b_reshape_intermediate);
+                                b_reshape_intermediate);
         auto b1_transpose = mm->add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b1);
         auto b1_reshape = mm->add_instruction(

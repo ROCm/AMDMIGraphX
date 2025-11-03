@@ -946,7 +946,7 @@ struct find_mlir_fused_geg_ops
         {
             // simple single output case
             auto fused_ins =
-                mpm.get_module().insert_instruction(first_gemm_ins,
+                mpm.get_module().insert_instruction(second_gemm_ins,
                                                     mlir_op{second_gemm_ins->get_operator()},
                                                     mlir_contiguous(mpm, inputs),
                                                     {mm});

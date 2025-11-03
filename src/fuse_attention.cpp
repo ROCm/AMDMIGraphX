@@ -318,13 +318,13 @@ struct find_flash_decoding
         result.k_transpose_perm.push_back(k_lens.size() - 1); // G dimension
         result.k_transpose_perm.push_back(k_lens.size() - 2); // k dimension
         result.k_transpose_perm.push_back(k_lens.size());     // N/G dimension
-        
+
         // final K shape after transpose
         result.k_shape                            = insert_g(k_lens);
         result.k_shape[result.k_shape.size() - 1] = n_split;
 
         // V: [B, N, D] -> [B, G, N/G, D] via direct reshape
-        result.v_shape = insert_g(v_lens);
+        result.v_shape                            = insert_g(v_lens);
         result.v_shape[result.v_shape.size() - 2] = n_split;
 
         return result;
@@ -484,9 +484,7 @@ struct find_flash_decoding
 
         // V: [B, N, D] -> [B, G, N/G, D] via direct reshape
         auto v_reshaped = mm.insert_instruction(
-            attn_group_ins,
-            make_op("reshape", {{"dims", transform_info.v_shape}}),
-            v);
+            attn_group_ins, make_op("reshape", {{"dims", transform_info.v_shape}}), v);
 
         // create new input list by replacing Q, K, V with reshaped versions
         std::vector<instruction_ref> new_group_inputs = group_inputs;

@@ -188,7 +188,7 @@ struct module_pm : module_pass_manager
             std::string base = p.name() + std::to_string(clk) + ".mxr";
             #if defined(_WIN32)
                 // On Windows, some pass names may contain invalid characters for filenames
-                Sanitize(base);
+                sanitize(base);
             #endif
             fs::path fname = dirname / base;
             std::cerr << "Dump: " << fname << std::endl;

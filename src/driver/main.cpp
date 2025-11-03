@@ -101,8 +101,8 @@ struct global_options
 
     void parse(migraphx::driver::argument_parser& ap)
     {
-        ap(log_level, 
-           {"--log-level"}, 
+        ap(log_level,
+           {"--log-level"},
            ap.help("Set log level (none/0, error/1, warn/2, info/3, debug/4, trace/5)"),
            ap.validate([](auto&, auto&, auto& params) {
                if(!params.empty())
@@ -111,7 +111,7 @@ struct global_options
                    if(!parse_log_level_string(level_str))
                    {
                        throw std::runtime_error(
-                           "Invalid log level: " + level_str + 
+                           "Invalid log level: " + level_str +
                            ". Valid levels: none/0, error/1, warn/2, info/3, debug/4, trace/5");
                    }
                }
@@ -133,8 +133,9 @@ struct global_options
         }
     }
 
-private:
-    static std::optional<migraphx::log::severity> parse_log_level_string(const std::string& level_str)
+    private:
+    static std::optional<migraphx::log::severity>
+    parse_log_level_string(const std::string& level_str)
     {
         if(level_str == "trace" || level_str == "5")
             return migraphx::log::severity::TRACE;
@@ -148,7 +149,7 @@ private:
             return migraphx::log::severity::ERROR;
         else if(level_str == "none" || level_str == "off" || level_str == "0")
             return migraphx::log::severity::NONE;
-        
+
         return std::nullopt;
     }
 };
@@ -176,19 +177,19 @@ bool parse_and_apply_global_options(std::vector<std::string>& args)
             ++it;
         }
     }
-    
+
     if(!global_args.empty())
     {
         global_options opts;
         migraphx::driver::argument_parser ap;
         opts.parse(ap);
-        
+
         if(ap.parse(global_args))
             return false;
-        
+
         opts.apply();
     }
-    
+
     return true;
 }
 } // namespace
@@ -1052,9 +1053,7 @@ struct main_command
         ap(log_level,
            {"--log-level"},
            ap.help("Set log level (none/0, error/1, warn/2, info/3, debug/4, trace/5)"));
-        ap(log_file,
-           {"--log-file"},
-           ap.help("Log to file"));
+        ap(log_file, {"--log-file"}, ap.help("Log to file"));
 
         // Trim command off of exe name
         ap.set_exe_name(ap.get_exe_name().substr(0, ap.get_exe_name().size() - 5));

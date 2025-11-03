@@ -41,13 +41,14 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_LOG_LEVEL)
 static spdlog::logger* get_migraphx_logger()
 {
     static std::vector<spdlog::sink_ptr> sinks;
-    static spdlog::logger* migraphx_logger = new spdlog::logger("migraphx_logger", begin(sinks), end(sinks));
+    static spdlog::logger* migraphx_logger =
+        new spdlog::logger("migraphx_logger", begin(sinks), end(sinks));
     return migraphx_logger;
 }
 
 void add_file_logger(std::string_view filename)
 {
-    auto* logger = get_migraphx_logger();
+    auto* logger   = get_migraphx_logger();
     auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(std::string(filename));
     file_sink->set_pattern("%v");
     logger->sinks().push_back(file_sink);
@@ -140,10 +141,7 @@ void record(severity s, std::string_view msg, source_location loc)
     logger->log(to_spdlog_level(s), message);
 }
 
-bool is_enabled(severity s)
-{
-    return static_cast<size_t>(s) <= get_log_level();
-}
+bool is_enabled(severity s) { return static_cast<size_t>(s) <= get_log_level(); }
 
 void set_log_level(severity s)
 {

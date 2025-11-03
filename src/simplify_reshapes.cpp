@@ -1307,10 +1307,7 @@ struct arithmetic_segment
         // Try to find segments that are the same size
         auto it = find_n(first_it, segments.end(), first_seg.count, std::back_inserter(result));
         if(it != segments.end())
-        {
-            result.resize(1);
-            find_largest(first_it, segments.end(), std::back_inserter(result));
-        }
+            return {};
         return result;
     }
 
@@ -1357,6 +1354,8 @@ struct arithmetic_segment
         do
         {
             segments = make_segments(segments);
+            if(segments.empty())
+                return {};
             // std::cout << "nsegments: " << segments.size() << std::endl;
             // for(auto segment : segments)
             //     std::cout << "    {" << segment.base << ", " << segment.stride << ", "
@@ -1411,7 +1410,6 @@ try_segment_based_optimization_1d(const gather_context& ctx, gather_instruction_
     if(auto r =
            arithmetic_segment::transform_indices(ctx.indices_values(), builder, ctx.data_ins()))
     {
-        builder.m.debug_print();
         return builder.reshape(*r, ctx.output_dims());
     }
     return std::nullopt;

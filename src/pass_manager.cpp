@@ -38,7 +38,6 @@
 #include <utility>
 #include <string>        
 #include <string_view>   
-#include <algorithm> 
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

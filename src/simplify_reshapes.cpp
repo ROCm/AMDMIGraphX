@@ -2057,7 +2057,7 @@ struct find_flatten
 void simplify_reshapes::apply(module& m) const
 {
     if(enable_gather_rewrite)
-        match::find_matches(m,find_gather{});
+        match::find_matches(m, find_gather{});
     m.repeat_while_changes(depth, [&] {
         match::find_matches(m,
                             find_where_op{},

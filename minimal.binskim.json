@@ -1,0 +1,16 @@
+{
+    "depends": [ "rocmlir" ],
+    "toolchain": "hipSDK",
+    "compileWarningAsError": true,
+    "cacheVariables": {
+        "GPU_TARGETS": "gfx1100;gfx1101;gfx1102;gfx1103;gfx1150;gfx1151;gfx1152;gfx1200;gfx1201",
+        "MIGRAPHX_USE_MIOPEN": "OFF",
+        "MIGRAPHX_USE_HIPRTC": "ON",
+        "MIGRAPHX_USE_HIPBLASLT": "OFF",
+        "MIGRAPHX_USE_ROCBLAS": "OFF",
+        "MIGRAPHX_ENABLE_PYTHON": "OFF",
+        "MIGRAPHX_ENABLE_TENSORFLOW": "OFF",
+        "BUILD_TESTING": "OFF",
+        "MIGRAPHX_USE_BINSKIM_COMPLIANT_COMPILE_FLAGS": "ON"
+    }
+}

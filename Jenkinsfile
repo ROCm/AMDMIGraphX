@@ -76,7 +76,7 @@ def rocmtestnode(Map conf) {
             docker_opts = docker_opts + " --group-add=${video_id} --group-add=${render_id} ${docker_args}"
             echo "Docker flags: ${docker_opts}"
 
-            gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "${env.STAGE_NAME}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Building stage', failureDescription: 'Failed to build stage', successDescription: 'Stage built successfully') {
+            gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Building stage', failureDescription: 'Failed to build stage', successDescription: 'Stage built successfully') {
                 withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
                     sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
                     pre()

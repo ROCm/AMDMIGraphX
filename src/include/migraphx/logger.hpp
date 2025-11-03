@@ -46,6 +46,10 @@ void record(severity s, std::string_view msg, source_location loc = source_locat
 
 bool is_enabled(severity s);
 
+void set_log_level(severity s);
+
+void add_file_logger(std::string_view filename);
+
 template <severity Severity>
 struct print
 {

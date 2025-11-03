@@ -25,9 +25,11 @@
 #include <chrono>
 #include <iomanip>
 #include <iostream>
+#include "spdlog/sinks/basic_file_sink.h"
 
 #ifndef _WIN32
 #include <unistd.h>
+#include "spdlog/sinks/stdout_color_sinks.h"
 #endif
 
 namespace migraphx {
@@ -35,6 +37,62 @@ namespace log {
 inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_LOG_LEVEL)
+
+static spdlog::logger* get_migraphx_logger()
+{
+    static std::vector<spdlog::sink_ptr> sinks;
+    static spdlog::logger* migraphx_logger = new spdlog::logger("migraphx_logger", begin(sinks), end(sinks));
+    return migraphx_logger;
+}
+
+void add_file_logger(std::string_view filename)
+{
+    auto* logger = get_migraphx_logger();
+    auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(std::string(filename));
+    file_sink->set_pattern("%v");
+    logger->sinks().push_back(file_sink);
+}
+
+static size_t& get_log_level()
+{
+    static size_t level = value_of(MIGRAPHX_LOG_LEVEL{}, static_cast<size_t>(severity::INFO));
+    return level;
+}
+
+static spdlog::level::level_enum to_spdlog_level(severity s)
+{
+    // Convert migraphx severity to spdlog level
+    // migraphx: NONE(0) < ERROR(1) < WARN(2) < INFO(3) < DEBUG(4) < TRACE(5)
+    // spdlog:   off(6) > critical(5) > err(4) > warn(3) > info(2) > debug(1) > trace(0)
+    switch(s)
+    {
+    case severity::NONE: return spdlog::level::off;
+    case severity::ERROR: return spdlog::level::err;
+    case severity::WARN: return spdlog::level::warn;
+    case severity::INFO: return spdlog::level::info;
+    case severity::DEBUG: return spdlog::level::debug;
+    case severity::TRACE: return spdlog::level::trace;
+    }
+    return spdlog::level::info;
+}
+
+static void init_stderr_logger()
+{
+    static bool initialized = false;
+    if(!initialized)
+    {
+        auto* logger = get_migraphx_logger();
+#ifndef _WIN32
+        auto stderr_sink = std::make_shared<spdlog::sinks::stderr_color_sink_mt>();
+#else
+        auto stderr_sink = std::make_shared<spdlog::sinks::stderr_sink_mt>();
+#endif
+        logger->sinks().push_back(stderr_sink);
+        logger->set_pattern("%v");
+        logger->set_level(to_spdlog_level(static_cast<severity>(get_log_level())));
+        initialized = true;
+    }
+}
 
 std::string get_formatted_timestamp(std::chrono::time_point<std::chrono::system_clock> time)
 {
@@ -54,7 +112,7 @@ void record(severity s, std::string_view msg, source_location loc)
     std::string header = get_formatted_timestamp(std::chrono::system_clock::now()) + " [" +
                          "_EWIDT"[static_cast<size_t>(s)] + "] [" + loc.file_name() + ":" +
                          std::to_string(loc.line()) + "] ";
-    std::string message = header + std::string(msg) + "\n";
+    std::string message = header + std::string(msg);
 
 #ifndef _WIN32
     // Add color if output is a terminal
@@ -77,15 +135,23 @@ void record(severity s, std::string_view msg, source_location loc)
     }
 #endif
 
-    std::cerr << message;
+    init_stderr_logger();
+    auto* logger = get_migraphx_logger();
+    logger->log(to_spdlog_level(s), message);
 }
 
 bool is_enabled(severity s)
 {
-    static auto level = value_of(MIGRAPHX_LOG_LEVEL{}, static_cast<size_t>(severity::INFO));
-    return static_cast<size_t>(s) <= level;
+    return static_cast<size_t>(s) <= get_log_level();
 }
 
+void set_log_level(severity s)
+{
+    get_log_level() = static_cast<size_t>(s);
+    init_stderr_logger(); // Ensure logger is initialized
+    auto* logger = get_migraphx_logger();
+    logger->set_level(to_spdlog_level(s));
+}
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace log
 } // namespace migraphx

@@ -63,6 +63,7 @@
 
 #include <fstream>
 #include <iomanip>
+#include <optional>
 
 namespace {
 std::vector<std::string>
@@ -91,6 +92,104 @@ std::string get_formatted_timestamp(std::chrono::time_point<std::chrono::system_
     std::stringstream ss;
     ss << std::put_time(now_as_tm_date, "%Y-%m-%d %H:%M:%S");
     return ss.str();
+}
+
+struct global_options
+{
+    std::string log_level;
+    std::string log_file;
+
+    void parse(migraphx::driver::argument_parser& ap)
+    {
+        ap(log_level, 
+           {"--log-level"}, 
+           ap.help("Set log level (none/0, error/1, warn/2, info/3, debug/4, trace/5)"),
+           ap.validate([](auto&, auto&, auto& params) {
+               if(!params.empty())
+               {
+                   auto level_str = params.back();
+                   if(!parse_log_level_string(level_str))
+                   {
+                       throw std::runtime_error(
+                           "Invalid log level: " + level_str + 
+                           ". Valid levels: none/0, error/1, warn/2, info/3, debug/4, trace/5");
+                   }
+               }
+           }));
+        ap(log_file, {"--log-file"}, ap.help("Log to file"));
+    }
+
+    void apply() const
+    {
+        if(!log_level.empty())
+        {
+            auto level = parse_log_level_string(log_level);
+            if(level)
+                migraphx::log::set_log_level(*level);
+        }
+        if(!log_file.empty())
+        {
+            migraphx::log::add_file_logger(log_file);
+        }
+    }
+
+private:
+    static std::optional<migraphx::log::severity> parse_log_level_string(const std::string& level_str)
+    {
+        if(level_str == "trace" || level_str == "5")
+            return migraphx::log::severity::TRACE;
+        else if(level_str == "debug" || level_str == "4")
+            return migraphx::log::severity::DEBUG;
+        else if(level_str == "info" || level_str == "3")
+            return migraphx::log::severity::INFO;
+        else if(level_str == "warn" || level_str == "warning" || level_str == "2")
+            return migraphx::log::severity::WARN;
+        else if(level_str == "error" || level_str == "1")
+            return migraphx::log::severity::ERROR;
+        else if(level_str == "none" || level_str == "off" || level_str == "0")
+            return migraphx::log::severity::NONE;
+        
+        return std::nullopt;
+    }
+};
+
+bool parse_and_apply_global_options(std::vector<std::string>& args)
+{
+    // Extract only global option flags from args for parsing
+    std::vector<std::string> global_args;
+    auto it = args.begin();
+    while(it != args.end())
+    {
+        if(*it == "--log-level" || *it == "--log-file")
+        {
+            global_args.push_back(*it);
+            it = args.erase(it);
+            // Also grab the value if present
+            if(it != args.end() && !it->empty() && (*it)[0] != '-')
+            {
+                global_args.push_back(*it);
+                it = args.erase(it);
+            }
+        }
+        else
+        {
+            ++it;
+        }
+    }
+    
+    if(!global_args.empty())
+    {
+        global_options opts;
+        migraphx::driver::argument_parser ap;
+        opts.parse(ap);
+        
+        if(ap.parse(global_args))
+            return false;
+        
+        opts.apply();
+    }
+    
+    return true;
 }
 } // namespace
 
@@ -950,6 +1049,12 @@ struct main_command
            ap.help("Show MIGraphX version"),
            ap.show_help(version_str));
         ap(nullptr, {"--ort-sha"}, ap.help("Show MIGraphX onnx runtime SHA"));
+        ap(log_level,
+           {"--log-level"},
+           ap.help("Set log level (none/0, error/1, warn/2, info/3, debug/4, trace/5)"));
+        ap(log_file,
+           {"--log-file"},
+           ap.help("Log to file"));
 
         // Trim command off of exe name
         ap.set_exe_name(ap.get_exe_name().substr(0, ap.get_exe_name().size() - 5));
@@ -958,6 +1063,8 @@ struct main_command
 
     std::vector<std::string> wrong_commands{};
     std::string exe_name = "<exe>";
+    std::string log_level;
+    std::string log_file;
 
     void run()
     {
@@ -992,6 +1099,11 @@ using namespace migraphx::driver; // NOLINT
 int main(int argc, const char* argv[], const char* envp[])
 {
     std::vector<std::string> args(argv + 1, argv + argc);
+
+    // Parse and apply global options (--log-level, --log-file)
+    if(!parse_and_apply_global_options(args))
+        return 1;
+
     // no argument, print the help infomration by default
     if(args.empty())
     {

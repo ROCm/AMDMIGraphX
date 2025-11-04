@@ -264,8 +264,10 @@ struct test_manager
     // current wavefront without an error, but if there is more wavefronts
     // than we need to fallback to a trap which throws an error in HSA
     // runtime unfortunately.
-    auto nb = gridDim.x * gridDim.y * gridDim.z; // NOLINT(readability-static-accessed-through-instance)
-    auto bs = blockDim.x * blockDim.y * blockDim.z; // NOLINT(readability-static-accessed-through-instance)
+    auto nb =
+        gridDim.x * gridDim.y * gridDim.z; // NOLINT(readability-static-accessed-through-instance)
+    auto bs = blockDim.x * blockDim.y *
+              blockDim.z; // NOLINT(readability-static-accessed-through-instance)
     if(nb == 1 and bs <= __builtin_amdgcn_wavefrontsize())
     {
         __builtin_amdgcn_endpgm();

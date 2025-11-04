@@ -136,6 +136,109 @@ struct resize
 
     std::string name() const { return "resize"; }
 
+private:
+    // Helper struct to hold interpolation parameters for one dimension
+    struct interp_params
+    {
+        std::size_t i0;   // lower index
+        std::size_t i1;   // upper index
+        double weight;    // interpolation weight (0.0 to 1.0)
+    };
+
+    // Compute interpolation parameters for a single dimension
+    template <class IdxOp>
+    static interp_params compute_interp_params_1d(std::size_t in_len,
+                                                   std::size_t out_len,
+                                                   std::size_t out_idx,
+                                                   float scale,
+                                                   const IdxOp& idx_op)
+    {
+        // Compute the original floating-point coordinate
+        double coord = idx_op(in_len, out_len, out_idx, scale);
+
+        // Clamp to valid input range [0, in_len-1]
+        double max_c = in_len > 0 ? static_cast<double>(in_len - 1) : 0.0;
+        coord        = std::max(0.0, std::min(max_c, coord));
+
+        std::size_t base = std::floor(coord);
+        std::size_t next = std::min(base + 1, (in_len == 0 ? 0 : in_len - 1));
+        double frac      = coord - static_cast<double>(base);
+
+        // Handle degenerate dimension (length 1) to avoid NaNs
+        if(in_len <= 1)
+        {
+            base = 0;
+            next = 0;
+            frac = 0.0;
+        }
+
+        return {base, next, frac};
+    }
+
+    // Compute input indices for nearest neighbor mode
+    template <class NearestOp, class IdxOp>
+    static std::vector<std::size_t> compute_nearest_indices(const std::vector<std::size_t>& in_lens,
+                                                             const std::vector<std::size_t>& out_lens,
+                                                             const std::vector<std::size_t>& out_idx_v,
+                                                             const std::vector<float>& vec_scale,
+                                                             const NearestOp& nearest_op,
+                                                             const IdxOp& idx_op)
+    {
+        std::vector<std::size_t> in_idx(out_idx_v.size());
+        for(std::size_t i = 0; i < out_idx_v.size(); ++i)
+        {
+            auto idx_val = idx_op(in_lens[i], out_lens[i], out_idx_v[i], vec_scale[i]);
+            in_idx[i]    = nearest_op(in_lens[i], idx_val);
+        }
+        return in_idx;
+    }
+
+    // Perform N-D multilinear interpolation for a single output point
+    template <class Data, class IdxOp>
+    static double compute_linear_interp_point(const Data& data,
+                                               const std::vector<std::size_t>& in_lens,
+                                               const std::vector<std::size_t>& out_lens,
+                                               const std::vector<std::size_t>& out_idx_v,
+                                               const std::vector<float>& vec_scale,
+                                               const IdxOp& idx_op)
+    {
+        const std::size_t ndim = out_idx_v.size();
+
+        // Precompute interpolation parameters for each dimension
+        std::vector<interp_params> params(ndim);
+        for(std::size_t d = 0; d < ndim; d++)
+        {
+            params[d] =
+                compute_interp_params_1d(in_lens[d], out_lens[d], out_idx_v[d], vec_scale[d], idx_op);
+        }
+
+        // Accumulate over 2^ndim corners
+        double acc                = 0.0;
+        const std::size_t corners = (ndim == 0) ? 1 : (1ULL << ndim);
+        std::vector<std::size_t> in_idx(ndim);
+
+        for(std::size_t mask = 0; mask < corners; ++mask)
+        {
+            double w = 1.0;
+            for(std::size_t d = 0; d < ndim; ++d)
+            {
+                const bool use_high = ((mask >> d) & 1U) != 0U;
+                w *= use_high ? params[d].weight : (1.0 - params[d].weight);
+                in_idx[d] = use_high ? params[d].i1 : params[d].i0;
+            }
+
+            if(w == 0.0)
+                continue;
+
+            using in_value_t = typename Data::value_type;
+            in_value_t v     = data(in_idx.begin(), in_idx.end());
+            acc += w * static_cast<double>(v);
+        }
+
+        return acc;
+    }
+
+public:
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
@@ -309,12 +412,8 @@ struct resize
             visit_all(result, args[0])([&](auto output, auto data) {
                 migraphx::shape out_comp_shape{data.get_shape().type(), out_lens};
                 shape_for_each(out_comp_shape, [&](const auto& out_idx_v, size_t out_idx) {
-                    std::vector<size_t> in_idx(out_idx_v.size());
-                    for(std::size_t i = 0; i < out_idx_v.size(); i++)
-                    {
-                        auto idx_val = idx_op(in_lens[i], out_lens[i], out_idx_v[i], vec_scale[i]);
-                        in_idx[i]    = nearest_op(in_lens[i], idx_val);
-                    }
+                    auto in_idx = compute_nearest_indices(
+                        in_lens, out_lens, out_idx_v, vec_scale, nearest_op, idx_op);
                     output[out_idx] = data(in_idx.begin(), in_idx.end());
                 });
             });
@@ -323,69 +422,11 @@ struct resize
         {
             // N-D multilinear interpolation
             visit_all(result, args[0])([&](auto output, auto data) {
-                using in_value_t = typename decltype(data)::value_type;
-                using acc_type   = double; // accumulate in double for precision
-
                 migraphx::shape out_comp_shape{data.get_shape().type(), out_lens};
-                shape_for_each(out_comp_shape, [&](const auto& out_idx_v, size_t out_idx) {
-                    const std::size_t ndim = out_idx_v.size();
-
-                    // Precompute base indices and weights per dimension
-                    std::vector<std::size_t> i0(ndim);
-                    std::vector<std::size_t> i1(ndim);
-                    std::vector<double> t(ndim);
-
-                    for(std::size_t d = 0; d < ndim; d++)
-                    {
-                        // Compute the original floating-point coordinate per
-                        // coordinate_transformation_mode
-                        double coord = idx_op(in_lens[d], out_lens[d], out_idx_v[d], vec_scale[d]);
-
-                        // Clamp to valid input range [0, in_lens[d]-1]
-                        double max_c = in_lens[d] > 0 ? static_cast<double>(in_lens[d] - 1) : 0.0;
-                        coord        = std::max(0.0, std::min(max_c, coord));
-
-                        std::size_t base = static_cast<std::size_t>(std::floor(coord));
-                        std::size_t next =
-                            std::min(base + 1, (in_lens[d] == 0 ? 0 : in_lens[d] - 1));
-                        double frac = coord - static_cast<double>(base);
-
-                        // Handle degenerate dimension (length 1) to avoid NaNs
-                        if(in_lens[d] <= 1)
-                        {
-                            base = 0;
-                            next = 0;
-                            frac = 0.0;
-                        }
-
-                        i0[d] = base;
-                        i1[d] = next;
-                        t[d]  = frac;
-                    }
-
-                    // Accumulate over 2^ndim corners
-                    acc_type acc              = 0.0;
-                    const std::size_t corners = (ndim == 0) ? 1 : (1ULL << ndim);
-                    std::vector<std::size_t> in_idx(ndim);
-
-                    for(std::size_t mask = 0; mask < corners; ++mask)
-                    {
-                        double w = 1.0;
-                        for(std::size_t d = 0; d < ndim; ++d)
-                        {
-                            const bool use_high = ((mask >> d) & 1U) != 0U;
-                            w *= use_high ? t[d] : (1.0 - t[d]);
-                            in_idx[d] = use_high ? i1[d] : i0[d];
-                        }
-
-                        if(w != 0.0)
-                        {
-                            in_value_t v = data(in_idx.begin(), in_idx.end());
-                            acc += w * static_cast<acc_type>(v);
-                        }
-                    }
-
-                    // Cast back to the output element type
+                shape_for_each(out_comp_shape, [&](const auto& out_idx_v, std::size_t out_idx) {
+                    double acc = compute_linear_interp_point(
+                        data, in_lens, out_lens, out_idx_v, vec_scale, idx_op);
+                    
                     using out_value_t = typename decltype(output)::value_type;
                     output[out_idx]   = static_cast<out_value_t>(acc);
                 });

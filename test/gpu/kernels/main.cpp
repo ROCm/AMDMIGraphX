@@ -123,7 +123,7 @@ int main(int argc, const char* argv[])
         auto ts = std::make_shared<test_suite>(name, content);
         for(auto&& p : ts->test_cases)
         {
-            auto case_name = p.first;
+            auto case_name    = p.first;
             suites[case_name] = ts;
             test::add_test_case(case_name, [ts, case_name] { ts->run(case_name); });
         }

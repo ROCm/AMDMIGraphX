@@ -27,7 +27,9 @@
 #include <iostream>
 #include "spdlog/sinks/basic_file_sink.h"
 
-#ifndef _WIN32
+#ifdef _WIN32
+#include "spdlog/sinks/wincolor_sink.h"
+#else
 #include "spdlog/sinks/stdout_color_sinks.h"
 #endif
 
@@ -82,10 +84,10 @@ static void init_stderr_logger()
     if(!initialized)
     {
         auto* logger = get_migraphx_logger();
-#ifndef _WIN32
-        auto stderr_sink = std::make_shared<spdlog::sinks::stderr_color_sink_mt>();
+#ifdef _WIN32
+        auto stderr_sink = std::make_shared<spdlog::sinks::wincolor_stderr_sink_mt>();
 #else
-        auto stderr_sink = std::make_shared<spdlog::sinks::stderr_sink_mt>();
+        auto stderr_sink = std::make_shared<spdlog::sinks::stderr_color_sink_mt>();
 #endif
         // Use spdlog pattern with colors for the color sink
         // %^ ... %$ = wrap entire line with color based on log level
@@ -94,6 +96,8 @@ static void init_stderr_logger()
         // [%s:%#] = source file and line
         // %v = the actual message
         stderr_sink->set_pattern("%^%Y-%m-%d %H:%M:%S.%f [%L] [%s:%#] %v%$");
+        // Set info level to use default terminal color
+        stderr_sink->set_color(spdlog::level::info, "");
         logger->sinks().push_back(stderr_sink);
         logger->set_level(to_spdlog_level(static_cast<severity>(get_log_level())));
         initialized = true;

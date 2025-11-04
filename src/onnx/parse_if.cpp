@@ -40,7 +40,7 @@ struct parse_if : op_parser<parse_if>
     static void make_standard_return(module_ref mm)
     {
         auto returns = mm->get_returns();
-        for(auto r:returns)
+        for(auto r : returns)
         {
             if(r->get_shape().standard())
                 continue;
@@ -101,11 +101,12 @@ struct parse_if : op_parser<parse_if>
                           else_out_shapes.end()))
         {
             if(not std::equal(then_out_shapes.begin(),
-                          then_out_shapes.end(),
-                          else_out_shapes.begin(),
-                          else_out_shapes.end(), [](const shape& then_s, const shape& else_s) {
-                            return then_s.as_standard() == else_s.as_standard();
-                          }))
+                              then_out_shapes.end(),
+                              else_out_shapes.begin(),
+                              else_out_shapes.end(),
+                              [](const shape& then_s, const shape& else_s) {
+                                  return then_s.as_standard() == else_s.as_standard();
+                              }))
             {
                 MIGRAPHX_THROW("PARSE_IF: " + info.name +
                                " then and else sub_grahps must have same output shapes!");

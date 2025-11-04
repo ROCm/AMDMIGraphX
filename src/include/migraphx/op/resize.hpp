@@ -136,22 +136,22 @@ struct resize
 
     std::string name() const { return "resize"; }
 
-private:
+    private:
     // Helper struct to hold interpolation parameters for one dimension
     struct interp_params
     {
-        std::size_t i0;   // lower index
-        std::size_t i1;   // upper index
-        double weight;    // interpolation weight (0.0 to 1.0)
+        std::size_t i0; // lower index
+        std::size_t i1; // upper index
+        double weight;  // interpolation weight (0.0 to 1.0)
     };
 
     // Compute interpolation parameters for a single dimension
     template <class IdxOp>
     static interp_params compute_interp_params_1d(std::size_t in_len,
-                                                   std::size_t out_len,
-                                                   std::size_t out_idx,
-                                                   float scale,
-                                                   const IdxOp& idx_op)
+                                                  std::size_t out_len,
+                                                  std::size_t out_idx,
+                                                  float scale,
+                                                  const IdxOp& idx_op)
     {
         // Compute the original floating-point coordinate
         double coord = idx_op(in_len, out_len, out_idx, scale);
@@ -177,12 +177,13 @@ private:
 
     // Compute input indices for nearest neighbor mode
     template <class NearestOp, class IdxOp>
-    static std::vector<std::size_t> compute_nearest_indices(const std::vector<std::size_t>& in_lens,
-                                                             const std::vector<std::size_t>& out_lens,
-                                                             const std::vector<std::size_t>& out_idx_v,
-                                                             const std::vector<float>& vec_scale,
-                                                             const NearestOp& nearest_op,
-                                                             const IdxOp& idx_op)
+    static std::vector<std::size_t>
+    compute_nearest_indices(const std::vector<std::size_t>& in_lens,
+                            const std::vector<std::size_t>& out_lens,
+                            const std::vector<std::size_t>& out_idx_v,
+                            const std::vector<float>& vec_scale,
+                            const NearestOp& nearest_op,
+                            const IdxOp& idx_op)
     {
         std::vector<std::size_t> in_idx(out_idx_v.size());
         for(std::size_t i = 0; i < out_idx_v.size(); ++i)
@@ -196,11 +197,11 @@ private:
     // Perform N-D multilinear interpolation for a single output point
     template <class Data, class IdxOp>
     static double compute_linear_interp_point(const Data& data,
-                                               const std::vector<std::size_t>& in_lens,
-                                               const std::vector<std::size_t>& out_lens,
-                                               const std::vector<std::size_t>& out_idx_v,
-                                               const std::vector<float>& vec_scale,
-                                               const IdxOp& idx_op)
+                                              const std::vector<std::size_t>& in_lens,
+                                              const std::vector<std::size_t>& out_lens,
+                                              const std::vector<std::size_t>& out_idx_v,
+                                              const std::vector<float>& vec_scale,
+                                              const IdxOp& idx_op)
     {
         const std::size_t ndim = out_idx_v.size();
 
@@ -208,8 +209,8 @@ private:
         std::vector<interp_params> params(ndim);
         for(std::size_t d = 0; d < ndim; d++)
         {
-            params[d] =
-                compute_interp_params_1d(in_lens[d], out_lens[d], out_idx_v[d], vec_scale[d], idx_op);
+            params[d] = compute_interp_params_1d(
+                in_lens[d], out_lens[d], out_idx_v[d], vec_scale[d], idx_op);
         }
 
         // Accumulate over 2^ndim corners
@@ -238,7 +239,7 @@ private:
         return acc;
     }
 
-public:
+    public:
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
@@ -426,7 +427,7 @@ public:
                 shape_for_each(out_comp_shape, [&](const auto& out_idx_v, std::size_t out_idx) {
                     double acc = compute_linear_interp_point(
                         data, in_lens, out_lens, out_idx_v, vec_scale, idx_op);
-                    
+
                     using out_value_t = typename decltype(output)::value_type;
                     output[out_idx]   = static_cast<out_value_t>(acc);
                 });

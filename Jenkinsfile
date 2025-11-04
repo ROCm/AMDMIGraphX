@@ -230,7 +230,7 @@ rocmtest 'All Targets Release': rocmnode('mi100+') { cmake_build ->
         // Note: the -fno-sanitize= is copied from upstream LLVM_UBSAN_FLAGS.
         def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
         def gpu_targets = getgputargets()
-        // Since the purpose of this run verify all things MLIR supports,
+        // Since the purpose of this run is to verify all things MLIR supports,
         // enabling all possible types of offloads
         cmake_build(flags: "-DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang -DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_MLIR=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DGPU_TARGETS='${gpu_targets}'")
     }

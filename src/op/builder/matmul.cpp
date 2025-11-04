@@ -207,15 +207,9 @@ struct dot : matmul_base<dot>
             MIGRAPHX_THROW(name() + ": Bias Args not supported");
         }
 
-        const int a0_zp_index = 2;
-        const int a1_zp_index = 3;
+        broadcast_dimensions(m, a0->get_shape().lens(), a1->get_shape().lens(), a0, a1, a0, a1);
 
-        instruction_ref ba0 = set_bias_arg(name(), args, a0_zp_index, a0);
-        instruction_ref ba1 = set_bias_arg(name(), args, a1_zp_index, a1);
-
-        broadcast_dimensions(m, a0->get_shape().lens(), a1->get_shape().lens(), a0, a1, ba0, ba1);
-
-        return m.add_instruction(make_op(name()), ba0, ba1);
+        return m.add_instruction(make_op(name()), a0, a1);
     }
 };
 

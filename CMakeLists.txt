@@ -301,6 +301,7 @@ rocm_enable_cppcheck(
         arithOperationsOnVoidPointer
         definePrefix:*test/include/test.hpp
         definePrefix:*src/targets/gpu/kernels/include/migraphx/kernels/test.hpp
+        UseNamedLogicOperator:*src/targets/gpu/kernels/include/migraphx/kernels/debug.hpp
         ctuOneDefinitionRuleViolation:*test/*
         useSmartPointer:*src/api/api.cpp
         useSmartPointer:*make_shared_array.hpp

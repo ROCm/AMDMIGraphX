@@ -1299,7 +1299,7 @@ struct arithmetic_segment
     }
 
     static std::vector<arithmetic_segment>
-    make_segments(const std::vector<arithmetic_segment>& segments)
+    make_segments(const std::vector<arithmetic_segment>& segments, bool uniform = true)
     {
         std::vector<arithmetic_segment> result;
         auto [first_seg, first_it] = find(segments.begin(), segments.end());
@@ -1307,7 +1307,12 @@ struct arithmetic_segment
         // Try to find segments that are the same size
         auto it = find_n(first_it, segments.end(), first_seg.count, std::back_inserter(result));
         if(it != segments.end())
-            return {};
+        {
+            if(uniform)
+                return {};
+            result.resize(1);
+            find_largest(first_it, segments.end(), std::back_inserter(result));
+        }
         return result;
     }
 
@@ -1334,6 +1339,8 @@ struct arithmetic_segment
         auto start = *begin;
         // auto base   = *begin;
         auto stride = std::next(begin)->base - start.base;
+        if(stride < 0)
+            return std::make_pair(*begin, std::next(begin));
         auto diff = std::adjacent_find(begin, end, [&](arithmetic_segment x, arithmetic_segment y) {
             return y.base - x.base != stride;
         });
@@ -1351,12 +1358,12 @@ struct arithmetic_segment
         do
         {
             segments = make_segments(segments);
-            if(segments.empty())
-                return {};
             // std::cout << "nsegments: " << segments.size() << std::endl;
             // for(auto segment : segments)
             //     std::cout << "    {" << segment.base << ", " << segment.stride << ", "
             //               << segment.count << "}\n";
+            if(segments.empty())
+                return {};
             auto seg = segments.front();
             if(seg.stride < 0)
                 return {};

@@ -28,7 +28,6 @@
 #include "spdlog/sinks/basic_file_sink.h"
 
 #ifndef _WIN32
-#include <unistd.h>
 #include "spdlog/sinks/stdout_color_sinks.h"
 #endif
 
@@ -50,7 +49,7 @@ void add_file_logger(std::string_view filename)
 {
     auto* logger   = get_migraphx_logger();
     auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(std::string(filename));
-    file_sink->set_pattern("%v");
+    file_sink->set_pattern("%Y-%m-%d %H:%M:%S.%f [%L] [%s:%#] %v");
     logger->sinks().push_back(file_sink);
 }
 
@@ -88,8 +87,14 @@ static void init_stderr_logger()
 #else
         auto stderr_sink = std::make_shared<spdlog::sinks::stderr_sink_mt>();
 #endif
+        // Use spdlog pattern with colors for the color sink
+        // %^ ... %$ = wrap entire line with color based on log level
+        // %Y-%m-%d %H:%M:%S.%f = timestamp with microseconds
+        // [%L] = log level
+        // [%s:%#] = source file and line
+        // %v = the actual message
+        stderr_sink->set_pattern("%^%Y-%m-%d %H:%M:%S.%f [%L] [%s:%#] %v%$");
         logger->sinks().push_back(stderr_sink);
-        logger->set_pattern("%v");
         logger->set_level(to_spdlog_level(static_cast<severity>(get_log_level())));
         initialized = true;
     }
@@ -109,36 +114,15 @@ std::string get_formatted_timestamp(std::chrono::time_point<std::chrono::system_
 
 void record(severity s, std::string_view msg, source_location loc)
 {
-    // Create log header
-    std::string header = get_formatted_timestamp(std::chrono::system_clock::now()) + " [" +
-                         "_EWIDT"[static_cast<size_t>(s)] + "] [" + loc.file_name() + ":" +
-                         std::to_string(loc.line()) + "] ";
-    std::string message = header + std::string(msg);
-
-#ifndef _WIN32
-    // Add color if output is a terminal
-    static const bool use_color = isatty(STDERR_FILENO) != 0;
-    if(use_color)
-    {
-        switch(s)
-        {
-        case severity::WARN:
-            message = "\033[33m" + message + "\033[0m"; // Yellow
-            break;
-        case severity::ERROR:
-            message = "\033[31m" + message + "\033[0m"; // Red
-            break;
-        case severity::TRACE:
-        case severity::DEBUG:
-        case severity::INFO:
-        case severity::NONE: break; // Prevents -Wswitch-enum warning during compilation
-        }
-    }
-#endif
-
     init_stderr_logger();
     auto* logger = get_migraphx_logger();
-    logger->log(to_spdlog_level(s), message);
+
+    // Convert migraphx source_location to spdlog source_loc
+    spdlog::source_loc spdlog_loc{loc.file_name(), static_cast<int>(loc.line()), ""};
+
+    // Use spdlog's log method with source location
+    // The pattern formatting handles timestamp, level, location, and colors
+    logger->log(spdlog_loc, to_spdlog_level(s), "{}", msg);
 }
 
 bool is_enabled(severity s) { return static_cast<size_t>(s) <= get_log_level(); }

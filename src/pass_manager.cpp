@@ -159,7 +159,7 @@ struct module_pm : module_pass_manager
         validate_pass(*mod, p, *t);
     }
 
-    static void Sanitize(std::string& s)
+    static void sanitize(std::string& s)
     {
         static constexpr std::string_view invalid = "<>:\"/\\|?*";
 
@@ -187,10 +187,10 @@ struct module_pm : module_pass_manager
             fs::path dirname = fs::temp_directory_path() / "migraphx";
             fs::create_directories(dirname);
             std::string base = p.name() + std::to_string(clk) + ".mxr";
-            #if defined(_WIN32)
+#if defined(_WIN32)
                 // On Windows, some pass names may contain invalid characters for filenames
-                Sanitize(base);
-            #endif
+            sanitize(base);
+#endif
             fs::path fname = dirname / base;
             std::cerr << "Dump: " << fname << std::endl;
             save(*prog, fname.string());

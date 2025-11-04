@@ -34,7 +34,7 @@ namespace onnx {
 
 struct parse_mxfixneuron : op_parser<parse_mxfixneuron>
 {
-    std::vector<op_desc> operators() const { return {{"MXFixNeuron"}}; }
+    std::vector<op_desc> operators() const { return {{"MXFixNeuron", "MXQuantizeDequantize"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& /*parser*/,

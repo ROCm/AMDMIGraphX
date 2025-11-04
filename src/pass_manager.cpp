@@ -38,7 +38,6 @@
 #include <utility>
 #include <string>        
 #include <string_view>   
-#include <algorithm> 
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -188,7 +187,7 @@ struct module_pm : module_pass_manager
             fs::create_directories(dirname);
             std::string base = p.name() + std::to_string(clk) + ".mxr";
 #if defined(_WIN32)
-                // On Windows, some pass names may contain invalid characters for filenames
+            // On Windows, some pass names may contain invalid characters for filenames
             sanitize(base);
 #endif
             fs::path fname = dirname / base;

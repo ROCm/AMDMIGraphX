@@ -36,7 +36,7 @@ const std::vector<std::string>& generic_op_names()
 }
 } // namespace
 
-TEST_CASE(generic_not_continous_op_builder_test)
+TEST_CASE(generic_not_continuous_op_builder_test)
 {
     std::for_each(
         generic_op_names().begin(), generic_op_names().end(), [&](const std::string& op_name) {
@@ -49,7 +49,7 @@ TEST_CASE(generic_not_continous_op_builder_test)
         });
 }
 
-TEST_CASE(generic_not_continous_gathernd_op_builder_test)
+TEST_CASE(generic_not_continuous_gathernd_op_builder_test)
 {
     migraphx::module mm;
     auto l0 = mm.add_parameter("data", migraphx::shape{migraphx::shape::float_type, {2, 2}});
@@ -60,7 +60,7 @@ TEST_CASE(generic_not_continous_gathernd_op_builder_test)
     EXPECT(mm == make_op_module("gathernd", migraphx::to_value(op), mm.get_parameters()));
 }
 
-TEST_CASE(generic_continous_flatten_op_builder_test)
+TEST_CASE(generic_continuous_flatten_op_builder_test)
 {
     migraphx::module mm;
     auto l0 = mm.add_parameter(
@@ -72,7 +72,7 @@ TEST_CASE(generic_continous_flatten_op_builder_test)
     EXPECT(mm == make_op_module("flatten", migraphx::to_value(op), mm.get_parameters()));
 }
 
-TEST_CASE(generic_continous_gather_op_builder_test)
+TEST_CASE(generic_continuous_gather_op_builder_test)
 {
     migraphx::module mm;
     auto l0 = mm.add_parameter(

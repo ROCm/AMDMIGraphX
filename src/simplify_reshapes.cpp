@@ -262,7 +262,9 @@ struct find_op_shape_transform_op
         auto desc  = desc1.rebase(x_ins->inputs().front()->get_shape().lens(), true);
         if(not desc.empty())
             return desc;
-        if(not is_reduce(x_ins))
+        if(not is_reduce(x_ins) or any_of(ops, [](const operation& op) {
+               return contains({"broadcast", "multibroadcast"}, op.name());
+           }))
             return desc1;
         // Find a broadcast to append to improve the reduction analysis
         auto output_path = get_output_path(input_ins);

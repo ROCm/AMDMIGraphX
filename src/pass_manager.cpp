@@ -30,6 +30,8 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/time.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/filesystem.hpp>
+#include <migraphx/load_save.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -138,18 +140,46 @@ struct module_pm : module_pass_manager
         trace("Pass: ", p.name());
         assert(mod);
         assert(mod->validate() == mod->end());
-        if(enabled(MIGRAPHX_TIME_PASSES{}))
-        {
-            using milliseconds = std::chrono::duration<double, std::milli>;
-            auto ms            = time<milliseconds>([&] { p.apply(*this); });
-            std::cout << p.name() << ": " << ms << "ms\n";
-        }
-        else
-        {
-            p.apply(*this);
-        }
+        try_and_dump_on_error(p, [&] {
+            if(enabled(MIGRAPHX_TIME_PASSES{}))
+            {
+                using milliseconds = std::chrono::duration<double, std::milli>;
+                auto ms            = time<milliseconds>([&] { p.apply(*this); });
+                std::cout << p.name() << ": " << ms << "ms\n";
+            }
+            else
+            {
+                p.apply(*this);
+            }
+        });
         trace(*mod);
         validate_pass(*mod, p, *t);
+    }
+
+    template <class F>
+    void try_and_dump_on_error(const pass& p, F f) const
+    {
+        if(not prog)
+        {
+            f();
+            return;
+        }
+
+        try
+        {
+            f();
+        }
+        catch(const std::exception& e)
+        {
+            std::cerr << "Error " << p.name() << ": " << e.what() << std::endl;
+            auto clk = std::chrono::steady_clock::now().time_since_epoch().count();
+            fs::path dirname = fs::temp_directory_path() / "migraphx";
+            fs::create_directories(dirname);
+            fs::path fname = dirname / (p.name() + std::to_string(clk) + ".mxr");
+            std::cerr << "Dump: " << fname << std::endl;
+            save(*prog, fname.string());
+            throw;
+        }
     }
 };
 

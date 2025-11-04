@@ -265,11 +265,9 @@ struct test_manager
     // than we need to fallback to a trap which throws an error in HSA
     // runtime unfortunately.
     // NOLINTNEXTLINE(readability-static-accessed-through-instance)
-    auto nb =
-        gridDim.x * gridDim.y * gridDim.z;
+    auto nb = gridDim.x * gridDim.y * gridDim.z;
     // NOLINTNEXTLINE(readability-static-accessed-through-instance)
-    auto bs = blockDim.x * blockDim.y *
-              blockDim.z;
+    auto bs = blockDim.x * blockDim.y * blockDim.z;
     if(nb == 1 and bs <= __builtin_amdgcn_wavefrontsize())
     {
         __builtin_amdgcn_endpgm();

@@ -169,6 +169,7 @@ static void move_output_instructions_after(module& m, instruction_ref src, instr
     fix([&](auto self, instruction_ref ins) {
         for(auto output : ins->outputs())
         {
+            assert(m.has_instruction(output));
             if(any_of(instructions, [&](const auto& p) { return p.second == output; }))
                 continue;
             auto i = std::distance(src, output);
@@ -252,7 +253,7 @@ static auto find_input_pointwise(const module& m, instruction_ref ins, bool mult
             return i->name() == "pointwise" and
                    std::none_of(i->outputs().begin(), i->outputs().end(), [&](auto output) {
                        if(not m.has_instruction(output))
-                           return false;
+                           return true;
                        if(output == ins)
                            return false;
                        if(std::distance(i, output) > base_distance)

@@ -27,8 +27,8 @@
 #include <migraphx/kernels/types.hpp>
 #include <migraphx/kernels/type_traits.hpp>
 #include <migraphx/kernels/integral_constant.hpp>
-#include <migraphx/kernels/algorithm.hpp>
 #include <migraphx/kernels/functional.hpp>
+#include <migraphx/kernels/algorithm.hpp>
 #include <migraphx/kernels/debug.hpp>
 
 namespace migraphx {
@@ -213,9 +213,9 @@ struct array
     MIGRAPHX_DEVICE_ARRAY_OP(*=, *)
     MIGRAPHX_DEVICE_ARRAY_OP(/=, /)
     MIGRAPHX_DEVICE_ARRAY_OP(%=, %)
-    MIGRAPHX_DEVICE_ARRAY_OP(&=, &)
-    MIGRAPHX_DEVICE_ARRAY_OP(|=, |)
-    MIGRAPHX_DEVICE_ARRAY_OP(^=, ^)
+    MIGRAPHX_DEVICE_ARRAY_OP(&=, &) // NOLINT(hicpp-signed-bitwise)
+    MIGRAPHX_DEVICE_ARRAY_OP(|=, |) // NOLINT(hicpp-signed-bitwise)
+    MIGRAPHX_DEVICE_ARRAY_OP(^=, ^) // NOLINT(hicpp-signed-bitwise)
 
     friend constexpr bool operator==(const array& x, const array& y)
     {

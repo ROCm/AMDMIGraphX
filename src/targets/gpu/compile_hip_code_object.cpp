@@ -212,7 +212,7 @@ compile_hip_code_object(context& ctx, const std::string& content, hip_compile_op
         generate_args_hpp(options.virtual_inputs.empty() ? options.inputs : options.virtual_inputs);
     options.additional_src_files.emplace_back("args.hpp", args_hpp);
 
-    return code_object_op{value::binary{compile_hip_raw(ctx, content, std::move(options))},
+    return code_object_op{value::binary{compile_hip_raw(ctx, content, options)},
                           options.kernel_name,
                           options.global,
                           options.local,

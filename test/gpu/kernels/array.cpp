@@ -133,7 +133,7 @@ TEST_CASE(array_iterators)
 {
     migraphx::array<int, 4> arr{1, 2, 3, 4};
 
-    auto it = arr.begin();
+    auto* it = arr.begin();
     EXPECT(*it == 1);
     ++it;
     EXPECT(*it == 2);
@@ -150,7 +150,7 @@ TEST_CASE(array_const_iterators)
 {
     const migraphx::array<int, 3> arr{5, 10, 15};
 
-    auto it = arr.begin();
+    const auto* it = arr.begin();
     EXPECT(*it == 5);
     ++it;
     EXPECT(*it == 10);
@@ -993,14 +993,16 @@ TEST_CASE(array_iterator_functionality)
 
     // Test forward iteration
     int expected = 10;
-    for(auto it = arr.begin(); it != arr.end(); ++it)
+    // NOLINTNEXTLINE(modernize-loop-convert)
+    for(auto* it = arr.begin(); it != arr.end(); ++it)
     {
         EXPECT(*it == expected);
         expected += 10;
     }
 
     // Test modifying through iterator
-    for(auto it = arr.begin(); it != arr.end(); ++it)
+    // NOLINTNEXTLINE(modernize-loop-convert)
+    for(auto* it = arr.begin(); it != arr.end(); ++it)
     {
         *it += 1;
     }

@@ -243,9 +243,9 @@ struct test_manager
     failed(const T& x, const char* msg, const char* func, const char* file, int line, F f)
     {
         // TODO: Check failures across multiple lanes
-        // NOLINTNEXTLINE(readability-static-accessed-through-instance)
         if(not bool(x.value()))
         {
+            // NOLINTNEXTLINE(readability-static-accessed-through-instance)
             if(threadIdx.x == 0)
             {
                 migraphx::cout() << func << '\n';
@@ -264,8 +264,8 @@ struct test_manager
     // current wavefront without an error, but if there is more wavefronts
     // than we need to fallback to a trap which throws an error in HSA
     // runtime unfortunately.
-    auto nb = gridDim.x * gridDim.y * gridDim.z;
-    auto bs = blockDim.x * blockDim.y * blockDim.z;
+    auto nb = gridDim.x * gridDim.y * gridDim.z; // NOLINT(readability-static-accessed-through-instance)
+    auto bs = blockDim.x * blockDim.y * blockDim.z; // NOLINT(readability-static-accessed-through-instance)
     if(nb == 1 and bs <= __builtin_amdgcn_wavefrontsize())
     {
         __builtin_amdgcn_endpgm();

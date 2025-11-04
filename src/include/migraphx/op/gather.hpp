@@ -113,22 +113,17 @@ struct gather
         std::size_t axis_dim_size = lens[axis];
         // max dimension in axis
 
-        auto check_index_range = [](auto in_index, auto axis_dim_size) {
-            if(in_index < 0 or in_index >= axis_dim_size)
-            {
-                //MIGRAPHX_THROW("Gather: Out of bounds index detected");
-                 output_data[id] = 0;
-                 return;
-            }
-        };
-
         visit_all(result, args[0])([&](auto output, auto data) {
             args[1].visit([&](auto indices) {
                 if(dyn_out.computed_shape.scalar())
                 {
                     auto in_index = indices.front();
                     in_index      = (in_index < 0) ? in_index + axis_dim_size : in_index;
-                    check_index_range(in_index, axis_dim_size);
+                    if(in_index < 0 or in_index >= axis_dim_size)
+                    {
+                         output_data[in_index] = 0;
+                         return;
+                    }
                     output[0]     = data[in_index];
                 }
                 else
@@ -143,7 +138,11 @@ struct gather
                         // don't go out of bounds: https://github.com/ROCm/AMDMIGraphX/issues/2838
                         assert(in_index >= 0 and in_index < axis_dim_size);
                         data_idx[axis]  = in_index;
-                        check_index_range(data_idx[axis], axis_dim_size);
+                       if(in_index < 0 or in_index >= axis_dim_size)
+                        {
+                             output_data[out_idx] = 0;
+                             return;
+                        }
                         output[out_idx] = data(data_idx.begin(), data_idx.end());
                     });
                 }

@@ -56,7 +56,7 @@ struct unpack_fp4
         int fast_axis = std::min_element(in_shape.strides().cbegin(), in_shape.strides().cend()) -
                         in_shape.strides().cbegin();
         new_lens[fast_axis] *= 2;
-        return {migraphx::shape::fp8e4m3fn_type, new_lens};
+        return in_shape.with_lens(migraphx::shape::fp8e4m3fn_type, new_lens);
     }
 
     argument compute(const shape& output_shape, const std::vector<argument>& args) const

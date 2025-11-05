@@ -54,7 +54,7 @@ struct pack_fp4
             MIGRAPHX_THROW("PACK_FP4: Fast dimension is odd, cannot pack");
         }
         new_lens[fast_axis] /= 2;
-        return {migraphx::shape::fp4x2_type, new_lens};
+        return in_shape.with_lens(migraphx::shape::fp4x2_type, new_lens);
     }
 
     argument compute(const shape& output_shape, const std::vector<argument>& args) const

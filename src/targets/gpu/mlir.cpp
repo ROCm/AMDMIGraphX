@@ -364,6 +364,20 @@ struct mlir_program
             lens.size(), lens.data(), strides.data(), make_type(s.type()));
     }
 
+    bool input_is_unpack_fp4(instruction_ref ins) const
+    {
+        ins = instruction::get_output_alias(ins);
+        if(ins->name() == "reshape")
+        {
+            return input_is_unpack_fp4(ins->inputs().front());
+        }
+        if(ins->name() == "unpack_fp4")
+        {
+            return true;
+        }
+        return false;
+    }
+
     MlirType make_mlir_shaped(instruction_ref ins) const
     {
         shape s = ins->get_shape();
@@ -372,7 +386,7 @@ struct mlir_program
             assert(ins->inputs().size() == 1);
             s = ins->inputs().front()->get_shape();
         }
-        else if(instruction::get_output_alias(ins)->name() == "unpack_fp4")
+        else if(input_is_unpack_fp4(ins))
         {
             s = s.with_type(shape::fp4x2_type);
         }

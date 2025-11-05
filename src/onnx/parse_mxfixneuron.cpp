@@ -34,7 +34,7 @@ namespace onnx {
 
 struct parse_mxfixneuron : op_parser<parse_mxfixneuron>
 {
-    std::vector<op_desc> operators() const { return {{"MXFixNeuron", "MXQuantizeDequantize"}}; }
+    std::vector<op_desc> operators() const { return {{"MXFixNeuron"}, {"MXQuantizeDequantize"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& /*parser*/,
@@ -49,7 +49,15 @@ struct parse_mxfixneuron : op_parser<parse_mxfixneuron>
             MIGRAPHX_THROW("MXFixNeuron: must have only 1 input");
         }
         int block_axis = info.attributes.at("axis").i();
-        block_axis     = tune_axis(input->get_shape().ndim(), block_axis, "MXFixNeuron");
+        // Workaround for weird Quark handling of 1D literals for mxfp4 quantization
+        if(input->get_shape().ndim() == 1)
+        {
+            block_axis = 0;
+        }
+        else
+        {
+            block_axis = tune_axis(input->get_shape().ndim(), block_axis, "MXFixNeuron");
+        }
         int block_size = info.attributes.at("block_size").i();
         if(block_size != 32)
         {

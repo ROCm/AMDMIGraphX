@@ -24,6 +24,10 @@
 
 #include <op_builder_test_utils.hpp>
 
+#include <migraphx/program.hpp>
+#include <migraphx/register_target.hpp>
+#include <migraphx/verify.hpp>
+
 TEST_CASE(tile_op_builder_test)
 {
     migraphx::module mm;
@@ -33,4 +37,48 @@ TEST_CASE(tile_op_builder_test)
     mm.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), l1, l1);
 
     EXPECT(mm == make_op_module("tile", {{"repeats", {3, 2}}}, mm.get_parameters()));
+}
+
+TEST_CASE(tile_verify_op_builder_test)
+{
+    migraphx::module mm;
+
+    const migraphx::shape sh_data = migraphx::shape{migraphx::shape::float_type, {2, 2}};
+
+    auto a0 = mm.add_parameter("0", sh_data);
+    migraphx::op::builder::add("tile", mm, {a0}, {{"repeats", {3, 2}}});
+
+    migraphx::program p{mm};
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> data = {1.0, 2.0, 3.0, 4.0};
+    migraphx::parameter_map pp;
+    pp["0"] = migraphx::argument(sh_data, data.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    /*
+    from:
+    [ 1.0, 2.0,
+      3.0, 4.0 ]
+
+    to:
+    [ 1.0, 2.0,   1.0, 2.0,
+      3.0, 4.0,   3.0, 4.0,
+
+      1.0, 2.0,   1.0, 2.0,
+      3.0, 4.0,   3.0, 4.0,
+
+      1.0, 2.0,   1.0, 2.0,
+      3.0, 4.0,   3.0, 4.0 ]
+    */
+
+    const std::vector<float> expected_result = {
+        1.0, 2.0, 1.0, 2.0, 3.0, 4.0, 3.0, 4.0, 1.0, 2.0, 1.0, 2.0,
+        3.0, 4.0, 3.0, 4.0, 1.0, 2.0, 1.0, 2.0, 3.0, 4.0, 3.0, 4.0,
+    };
+
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, expected_result));
 }

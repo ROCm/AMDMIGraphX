@@ -81,6 +81,9 @@ RUN ldconfig
 # Workaround broken miopen cmake files
 RUN sed -i 's,;/usr/lib/x86_64-linux-gnu/librt.so,,g' /opt/rocm/lib/cmake/miopen/miopen-targets.cmake
 
+# Workaround for distributions running cmake < 3.25
+RUN sed -i -e 's/^block/if(COMMAND block)\nblock/g' -e 's/^endblock/endblock\(\)\nendif/g' /opt/rocm/lib/cmake/hipblaslt/hipblaslt-config.cmake
+
 RUN locale-gen en_US.UTF-8
 RUN update-locale LANG=en_US.UTF-8
 

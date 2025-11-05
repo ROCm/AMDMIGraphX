@@ -43,6 +43,29 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+/**
+ * Common interface for algebra simplification matchers.
+ * All simplification structs should inherit from this interface to ensure
+ * they implement the required matcher() and apply() methods.
+ */
+struct algebra_simplifier_interface
+{
+    virtual ~algebra_simplifier_interface() = default;
+    
+    /**
+     * Returns a matcher that identifies the pattern to simplify.
+     * @return A matcher object that can be used to find matching instructions.
+     */
+    virtual match::any_matcher matcher() const = 0;
+    
+    /**
+     * Applies the simplification transformation to the matched pattern.
+     * @param m The module containing the instructions to transform.
+     * @param r The matcher result containing the matched instructions.
+     */
+    virtual void apply(module& m, const match::matcher_result& r) const = 0;
+};
+
 static auto lit_broadcast()
 {
     return match::any_of(match::is_constant(), match::name("broadcast"));
@@ -105,16 +128,16 @@ static bool concat_const_foldable(Iterator start, Iterator last, std::size_t iax
 }
 
 // conv(x, w) * a => conv(x, a * w)
-struct find_mul_conv
+struct find_mul_conv : public algebra_simplifier_interface
 {
-    auto matcher() const
+    match::any_matcher matcher() const override
     {
         return match::name("mul")(
             match::either_arg(0, 1)(conv_const_weights().bind("conv"),
                                     match::name("broadcast", "multibroadcast").bind("a")));
     }
 
-    void apply(module& m, const match::matcher_result& r) const
+    void apply(module& m, const match::matcher_result& r) const override
     {
         auto ins      = r.result;
         auto conv_ins = r.instructions["conv"];
@@ -157,7 +180,7 @@ struct find_mul_conv
     }
 };
 
-struct find_mul_slice_conv
+struct find_mul_slice_conv : public algebra_simplifier_interface
 {
     static auto conv()
     {
@@ -165,7 +188,7 @@ struct find_mul_slice_conv
             match::all_of[match::outputs()](match::name("slice")),
             match::args(match::any(), match::is_constant().bind("w")));
     }
-    auto matcher() const
+    match::any_matcher matcher() const override
     {
         return match::name("mul")(match::either_arg(0, 1)(
             match::name("slice")(match::used_once(), match::arg(0)(conv().bind("conv")))
@@ -173,7 +196,7 @@ struct find_mul_slice_conv
             match::name("broadcast")(match::is_constant()).bind("a")));
     }
 
-    void apply(module& m, const match::matcher_result& r) const
+    void apply(module& m, const match::matcher_result& r) const override
     {
         auto ins       = r.result;
         auto slice_ins = r.instructions["slice"];
@@ -249,9 +272,9 @@ struct find_mul_slice_conv
     }
 };
 
-struct find_mul_dot
+struct find_mul_dot : public algebra_simplifier_interface
 {
-    auto matcher() const
+    match::any_matcher matcher() const override
     {
         auto constant            = match::is_constant(not_from_int4());
         auto is_dot_const_inputs =
@@ -260,7 +283,7 @@ struct find_mul_dot
             is_dot_const_inputs.bind("dot"), match::name("broadcast", "multibroadcast").bind("c")));
     }
 
-    void apply(module& m, const match::matcher_result& r) const
+    void apply(module& m, const match::matcher_result& r) const override
     {
         auto ins     = r.result;
         auto dot_ins = r.instructions["dot"];
@@ -317,15 +340,15 @@ Moves the slice on the output of the Dot operation to slices on the inputs of th
 avoid computing redundant values.
 e.g. slice(gemm(a, b)) --> gemm(slice(a), slice(b))
 */
-struct find_dot_slice
+struct find_dot_slice : public algebra_simplifier_interface
 {
-    auto matcher() const
+    match::any_matcher matcher() const override
     {
         return match::name("slice")(
             match::args(match::name("dot", "quant_dot")(match::used_once()).bind("dot_ins")));
     }
 
-    void apply(module& m, const match::matcher_result& r) const
+    void apply(module& m, const match::matcher_result& r) const override
     {
         auto slice_ins = r.result;
         auto dot_ins   = r.instructions["dot_ins"];
@@ -395,9 +418,9 @@ struct find_dot_slice
     }
 };
 
-struct find_dot_mul
+struct find_dot_mul : public algebra_simplifier_interface
 {
-    auto matcher() const
+    match::any_matcher matcher() const override
     {
         auto const_broadcast = match::name("broadcast", "multibroadcast")(match::is_constant());
         auto mul             = match::name("mul")(
@@ -408,7 +431,7 @@ struct find_dot_mul
             match::either_arg(0, 1)(mul, match::is_constant(not_from_int4()).bind("c")));
     }
 
-    void apply(module& m, const match::matcher_result& r) const
+    void apply(module& m, const match::matcher_result& r) const override
     {
         auto ins   = r.result;
         auto a_ins = ins->inputs()[0];
@@ -465,9 +488,9 @@ struct find_dot_mul
 // When a * (x + b) is followed by another add of constant, then the
 // additional add can be const folded. Also, better fusions can be applied
 // when the add comes after.
-struct find_mul_add
+struct find_mul_add : public algebra_simplifier_interface
 {
-    auto matcher() const
+    match::any_matcher matcher() const override
     {
         return match::name("mul")(match::either_arg(0, 1)(
             match::name("add")(
@@ -479,7 +502,7 @@ struct find_mul_add
             match::is_constant().bind("a")));
     }
 
-    void apply(module& m, const match::matcher_result& r) const
+    void apply(module& m, const match::matcher_result& r) const override
     {
         auto ins   = r.result;
         auto a_ins = r.instructions["a"];
@@ -493,9 +516,9 @@ struct find_mul_add
     }
 };
 
-struct find_dot_add
+struct find_dot_add : public algebra_simplifier_interface
 {
-    auto matcher() const
+    match::any_matcher matcher() const override
     {
         return match::name("dot")(match::either_arg(0, 1)(
             match::name("add")(
@@ -506,7 +529,7 @@ struct find_dot_add
             match::is_constant().bind("a")));
     }
 
-    void apply(module& m, const match::matcher_result& r) const
+    void apply(module& m, const match::matcher_result& r) const override
     {
         auto ins   = r.result;
         auto a_ins = r.instructions["a"];
@@ -529,9 +552,9 @@ struct find_dot_add
     }
 };
 
-struct find_conv_add
+struct find_conv_add : public algebra_simplifier_interface
 {
-    auto matcher() const
+    match::any_matcher matcher() const override
     {
         auto add = match::name("add")(
             match::either_arg(0, 1)(match::any().bind("x"),
@@ -541,7 +564,7 @@ struct find_conv_add
                                           match::args(add, match::is_constant().bind("w")));
     }
 
-    void apply(module& m, const match::matcher_result& r) const
+    void apply(module& m, const match::matcher_result& r) const override
     {
         auto ins   = r.result;
         auto a_ins = r.instructions["a"];
@@ -555,15 +578,15 @@ struct find_conv_add
     }
 };
 
-struct find_add_lit_broadcast
+struct find_add_lit_broadcast : public algebra_simplifier_interface
 {
-    auto matcher() const
+    match::any_matcher matcher() const override
     {
         return match::name("add")(
             match::either_arg(0, 1)(op_lit_broadcast("add", "a", "x"), lit_broadcast().bind("b")));
     }
 
-    void apply(module& m, const match::matcher_result& r) const
+    void apply(module& m, const match::matcher_result& r) const override
     {
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
@@ -575,15 +598,15 @@ struct find_add_lit_broadcast
     }
 };
 
-struct find_double_add_lit_broadcast
+struct find_double_add_lit_broadcast : public algebra_simplifier_interface
 {
-    auto matcher() const
+    match::any_matcher matcher() const override
     {
         return match::name("add")(
             match::args(op_lit_broadcast("add", "a", "x"), op_lit_broadcast("add", "b", "y")));
     }
 
-    void apply(module& m, const match::matcher_result& r) const
+    void apply(module& m, const match::matcher_result& r) const override
     {
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
@@ -615,9 +638,8 @@ struct find_double_add_lit_broadcast
 /// Find elementswise operators that have all broadcast inputs. It then
 /// rewrites the elementwise to do the computation on the non-broadcasted
 /// axes, and then broadcast that result.
-struct find_inner_broadcast
-{
-    auto matcher() const { return pointwise(match::all_of[match::inputs()](match::broadcast())); }
+struct find_inner_broadcast : public algebra_simplifier_interface {
+    match::any_matcher matcher() const override { return pointwise(match::all_of[match::inputs()](match::broadcast())); }
 
     static auto get_non_broadcast_input(instruction_ref ins)
     {
@@ -788,7 +810,7 @@ struct find_inner_broadcast
         }
     }
 
-    void apply(module& m, const match::matcher_result& r) const
+    void apply(module& m, const match::matcher_result& r) const override
     {
         auto ins               = r.result;
         if(ins->get_operator().name() == "layout")
@@ -843,14 +865,13 @@ struct find_inner_broadcast
     }
 };
 
-struct find_dot_broadcast
-{
-    auto matcher() const
+struct find_dot_broadcast : public algebra_simplifier_interface {
+    match::any_matcher matcher() const override
     {
         return match::name("dot")(match::all_of[match::inputs()](match::broadcast()));
     }
 
-    void apply(module& m, const match::matcher_result& r) const
+    void apply(module& m, const match::matcher_result& r) const override
     {
         auto ins = r.result;
         auto a   = ins->inputs()[0];
@@ -914,9 +935,8 @@ struct find_dot_broadcast
     }
 };
 
-struct find_concat_op
-{
-    auto matcher() const
+struct find_concat_op : public algebra_simplifier_interface {
+    match::any_matcher matcher() const override
     {
         return match::name("concat")(match::any_of[match::inputs()](
             match::any_of(match::pointwise(),
@@ -967,7 +987,7 @@ struct find_concat_op
         return nonconst > 2;
     }
 
-    void apply(module& m, const match::matcher_result& r) const
+    void apply(module& m, const match::matcher_result& r) const override
     {
         auto ins  = r.result;
         auto axis = any_cast<op::concat>(ins->get_operator()).axis;
@@ -1042,15 +1062,14 @@ struct find_concat_op
     }
 };
 
-struct find_concat_conv
-{
-    auto matcher() const
+struct find_concat_conv : public algebra_simplifier_interface {
+    match::any_matcher matcher() const override
     {
         return match::name("concat")(
             match::all_of[match::inputs()](match::used_once(), match::name("convolution")));
     }
 
-    void apply(module& m, const match::matcher_result& r) const
+    void apply(module& m, const match::matcher_result& r) const override
     {
         auto ins  = r.result;
         auto axis = ins->get_operator().to_value()["axis"].to<int>();
@@ -1153,9 +1172,8 @@ static std::vector<instruction_ref> get_splits(instruction_ref ins)
     return result;
 }
 
-struct find_splits
-{
-    auto matcher() const
+struct find_splits : public algebra_simplifier_interface {
+    match::any_matcher matcher() const override
     {
         // match instruction with outputs of pointwise fusion, pointwise op with 1 or 2 args, or
         // reduction op
@@ -1361,7 +1379,7 @@ struct find_splits
         return false;
     }
 
-    void apply(module& m, const match::matcher_result& r) const
+    void apply(module& m, const match::matcher_result& r) const override
     {
         auto ins    = r.result;
         auto splits = get_splits(ins);
@@ -1467,15 +1485,14 @@ struct find_splits
  * Matcher for a sequence of "slice" operations whose outputs are put back
  * together by a "concat".
  */
-struct find_split_concat
-{
-    auto matcher() const
+struct find_split_concat : public algebra_simplifier_interface {
+    match::any_matcher matcher() const override
     {
         auto concat = match::all_of[match::outputs()](match::name("concat"));
         return match::any(match::any_of[match::outputs()](match::name("slice")(concat)));
     }
 
-    void apply(module& m, const match::matcher_result& r) const
+    void apply(module& m, const match::matcher_result& r) const override
     {
         // Verifies that the slices meet several conditions: they must all output to the same
         // concat instruction, slice on the same (1 only) axis, and the end of one slice
@@ -1551,9 +1568,8 @@ static bool axis_shape_equal(const shape& x, const shape& y, std::size_t axis)
     return axis_equal(x.lens(), y.lens(), axis);
 }
 
-struct find_add_convs
-{
-    auto matcher() const
+struct find_add_convs : public algebra_simplifier_interface {
+    match::any_matcher matcher() const override
     {
         return match::name("add")(
             match::args(conv_const_weights().bind("a"), conv_const_weights().bind("b")));
@@ -1575,7 +1591,7 @@ struct find_add_convs
         return x.stride[0] / y.stride[0];
     }
 
-    void apply(module& m, const match::matcher_result& r) const
+    void apply(module& m, const match::matcher_result& r) const override
     {
         auto ins       = r.result;
         auto a_conv    = r.instructions["a"];
@@ -1645,11 +1661,10 @@ MIGRAPHX_PRED_MATCHER(horiz_conv_dot, instruction_ref ins)
     return (dots >= 2 or convs >= 2 or qdots >= 2);
 }
 
-struct find_conv_dot_horiz_fusion
-{
-    auto matcher() const { return horiz_conv_dot(); }
+struct find_conv_dot_horiz_fusion : public algebra_simplifier_interface {
+    match::any_matcher matcher() const override { return horiz_conv_dot(); }
 
-    void apply(module& m, const match::matcher_result& r) const
+    void apply(module& m, const match::matcher_result& r) const override
     {
         auto ins = r.result;
 
@@ -1721,14 +1736,13 @@ struct find_conv_dot_horiz_fusion
     }
 };
 
-struct find_div_const
-{
-    auto matcher() const
+struct find_div_const : public algebra_simplifier_interface {
+    match::any_matcher matcher() const override
     {
         return match::name("div")(match::arg(1)(match::is_constant().bind("c")));
     }
 
-    void apply(module& m, const match::matcher_result& r) const
+    void apply(module& m, const match::matcher_result& r) const override
     {
         auto ins   = r.result;
         auto c_ins = r.instructions["c"];
@@ -1744,9 +1758,8 @@ struct find_div_const
     }
 };
 
-struct find_unit_ops
-{
-    auto matcher() const
+struct find_unit_ops : public algebra_simplifier_interface {
+    match::any_matcher matcher() const override
     {
         auto mul_1 = match::name("mul")(
             match::either_arg(0, 1)(match::has_value(1.0f), match::any().bind("x")));
@@ -1759,7 +1772,7 @@ struct find_unit_ops
         return match::any_of(mul_1, div_1, add_0, sub_0);
     }
 
-    void apply(module& m, const match::matcher_result& r) const
+    void apply(module& m, const match::matcher_result& r) const override
     {
         auto ins  = r.result;
         auto c_in = r.instructions["x"];
@@ -1768,9 +1781,8 @@ struct find_unit_ops
     }
 };
 
-struct find_neg_unit_ops
-{
-    auto matcher() const
+struct find_neg_unit_ops : public algebra_simplifier_interface {
+    match::any_matcher matcher() const override
     {
         auto mul_neg_1 = match::name("mul")(
             match::either_arg(0, 1)(match::has_value(-1.0f), match::any().bind("x")));
@@ -1781,7 +1793,7 @@ struct find_neg_unit_ops
         return match::any_of(mul_neg_1, div_neg_1, sub_0);
     }
 
-    void apply(module& m, const match::matcher_result& r) const
+    void apply(module& m, const match::matcher_result& r) const override
     {
         auto ins  = r.result;
         auto c_in = r.instructions["x"];
@@ -1791,21 +1803,20 @@ struct find_neg_unit_ops
     }
 };
 
-struct eliminate_zero_point
-{
+struct eliminate_zero_point : public algebra_simplifier_interface {
     auto get_qlinear_ops_names() const
     {
         static std::unordered_set<std::string> qdq_names = {"quantizelinear", "dequantizelinear"};
         return qdq_names;
     }
-    auto matcher() const
+    match::any_matcher matcher() const override
     {
         return match::name(get_qlinear_ops_names())(match::arg(0)(match::any().bind("x")),
                                                     match::arg(1)(match::any().bind("scale")),
                                                     match::arg(2)(match::has_value(0.0f, 0, 0)));
     }
 
-    void apply(module& m, const match::matcher_result& r) const
+    void apply(module& m, const match::matcher_result& r) const override
     {
         auto ins   = r.result;
         auto x     = r.instructions["x"];
@@ -1821,9 +1832,8 @@ struct eliminate_zero_point
     }
 };
 
-struct find_zero_ops
-{
-    auto matcher() const
+struct find_zero_ops : public algebra_simplifier_interface {
+    match::any_matcher matcher() const override
     {
         auto mul_zero = match::name("mul")(
             match::either_arg(0, 1)(match::has_value(0.0f, 0, 0).bind("x"), match::any()));
@@ -1832,7 +1842,7 @@ struct find_zero_ops
         return match::any_of(mul_zero, div_zero);
     }
 
-    void apply(module& m, const match::matcher_result& r) const
+    void apply(module& m, const match::matcher_result& r) const override
     {
         auto ins      = r.result;
         auto zero_ins = r.instructions["x"];
@@ -1843,14 +1853,13 @@ struct find_zero_ops
     }
 };
 
-struct find_sub_const
-{
-    auto matcher() const
+struct find_sub_const : public algebra_simplifier_interface {
+    match::any_matcher matcher() const override
     {
         return match::name("sub")(match::arg(1)(match::is_constant().bind("c")));
     }
 
-    void apply(module& m, const match::matcher_result& r) const
+    void apply(module& m, const match::matcher_result& r) const override
     {
         auto ins   = r.result;
         auto c_ins = r.instructions["c"];
@@ -1863,15 +1872,14 @@ struct find_sub_const
     }
 };
 
-struct find_rsqrt
-{
-    auto matcher() const
+struct find_rsqrt : public algebra_simplifier_interface {
+    match::any_matcher matcher() const override
     {
         auto bind_x = match::args(match::any().bind("x"));
         return match::name("recip")(match::args(match::name("sqrt")(match::used_once(), bind_x)));
     }
 
-    void apply(module& m, const match::matcher_result& r) const
+    void apply(module& m, const match::matcher_result& r) const override
     {
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
@@ -1887,16 +1895,15 @@ static bool same_ops(const std::vector<instruction_ref>& vec_ins)
     });
 }
 
-struct find_split_reshape
-{
-    auto matcher() const
+struct find_split_reshape : public algebra_simplifier_interface {
+    match::any_matcher matcher() const override
     {
         auto slice_bind_slice = match::arg(0)(match::name("slice").bind("slice"));
         return match::name("reshape")(match::arg(0)(match::name("contiguous")(slice_bind_slice)))
             .bind("reshape");
     }
 
-    void apply(module& m, const match::matcher_result& r) const
+    void apply(module& m, const match::matcher_result& r) const override
     {
         auto slc   = r.instructions["slice"];
         auto rsp   = r.instructions["reshape"];
@@ -2055,15 +2062,14 @@ struct find_split_reshape
     }
 };
 
-struct find_split_transpose
-{
-    auto matcher() const
+struct find_split_transpose : public algebra_simplifier_interface {
+    match::any_matcher matcher() const override
     {
         return match::name("transpose")(match::arg(0)(match::name("slice").bind("slice")))
             .bind("trans");
     }
 
-    void apply(module& m, const match::matcher_result& r) const
+    void apply(module& m, const match::matcher_result& r) const override
     {
         auto slc   = r.instructions["slice"];
         auto trans = r.instructions["trans"];
@@ -2115,38 +2121,48 @@ struct find_split_transpose
     }
 };
 
+typedef std::shared_ptr<algebra_simplifier_interface> Matcher_ptr;
+
+std::vector<Matcher_ptr> create_matchers()
+{
+    std::vector<Matcher_ptr> matchers;
+    matchers.push_back(std::make_shared<find_inner_broadcast>());
+    matchers.push_back(std::make_shared<find_dot_broadcast>());
+    matchers.push_back(std::make_shared<find_double_add_lit_broadcast>());
+    matchers.push_back(std::make_shared<find_add_lit_broadcast>());
+    matchers.push_back(std::make_shared<find_add_convs>());
+    matchers.push_back(std::make_shared<find_conv_dot_horiz_fusion>());
+    matchers.push_back(std::make_shared<find_mul_conv>());
+    matchers.push_back(std::make_shared<find_mul_slice_conv>());
+    matchers.push_back(std::make_shared<find_mul_dot>());
+    matchers.push_back(std::make_shared<find_dot_slice>());
+    matchers.push_back(std::make_shared<find_dot_mul>());
+    matchers.push_back(std::make_shared<find_mul_add>());
+    matchers.push_back(std::make_shared<find_unit_ops>());
+    matchers.push_back(std::make_shared<find_neg_unit_ops>());
+    matchers.push_back(std::make_shared<eliminate_zero_point>());
+    matchers.push_back(std::make_shared<find_zero_ops>());
+    matchers.push_back(std::make_shared<find_dot_add>());
+    matchers.push_back(std::make_shared<find_conv_add>());
+    matchers.push_back(std::make_shared<find_div_const>());
+    matchers.push_back(std::make_shared<find_sub_const>());
+    matchers.push_back(std::make_shared<find_rsqrt>());
+    matchers.push_back(std::make_shared<find_concat_conv>());
+    matchers.push_back(std::make_shared<find_concat_op>());
+    matchers.push_back(std::make_shared<find_split_concat>());
+    matchers.push_back(std::make_shared<find_splits>());
+    matchers.push_back(std::make_shared<find_split_reshape>());
+    matchers.push_back(std::make_shared<find_split_transpose>());
+
+    return matchers;
+}
+
 void simplify_algebra::apply(module& m) const
 {
+    static std::vector<Matcher_ptr> matchers = create_matchers();
     // Run simplifications multiple times
     m.repeat_while_changes(8, [&] {
-        match::find_matches(m,
-                            find_inner_broadcast{},
-                            find_dot_broadcast{},
-                            find_double_add_lit_broadcast{},
-                            find_add_lit_broadcast{},
-                            find_add_convs{},
-                            find_conv_dot_horiz_fusion{},
-                            find_mul_conv{},
-                            find_mul_slice_conv{},
-                            find_mul_dot{},
-                            find_dot_slice{},
-                            find_dot_mul{},
-                            find_mul_add{},
-                            find_unit_ops{},
-                            find_neg_unit_ops{},
-                            eliminate_zero_point{},
-                            find_zero_ops{},
-                            find_dot_add{},
-                            find_conv_add{},
-                            find_div_const{},
-                            find_sub_const{},
-                            find_rsqrt{},
-                            find_concat_conv{},
-                            find_concat_op{},
-                            find_split_concat{},
-                            find_splits{},
-                            find_split_reshape{},
-                            find_split_transpose{});
+        match::find_matches_vector(m, matchers);
         dead_code_elimination{}.apply(m);
     });
 }

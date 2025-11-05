@@ -614,6 +614,46 @@ struct find_matches
 template <class Mod, class... Ms>
 find_matches(Mod& mod, Ms&&... ms) -> find_matches<Mod, Ms...>;
 
+/// Find matches in a module vector
+template <class Mod, class Matcher>
+struct find_matches_vector
+{
+    find_matches_vector(Mod& mod, std::vector<Matcher> mv, source_location location = source_location::current())
+    {
+        const int trace       = value_of(MIGRAPHX_TRACE_MATCHES{});
+        const bool validate   = enabled(MIGRAPHX_VALIDATE_MATCHES{});
+        const bool need_trace = trace > 0 or validate;
+
+        if(need_trace)
+        {
+            for(auto ins : iterator_for(get_module(mod)))
+            {
+                for (auto m : mv)
+                {
+                    auto fun = make_match_runner_with_trace(location, *m);
+                    if (fun(mod, ins))
+                        break;
+                }
+            }
+        }
+        else
+        {
+            for(auto ins : iterator_for(get_module(mod)))
+            {
+                for (auto m : mv)
+                {
+                    auto fun = make_match_runner(*m);
+                    if (fun(mod, ins))
+                        break;
+                }
+            }
+        }
+    }
+};
+
+template <class Mod, class Matcher>
+find_matches_vector(Mod& mod, Matcher& m) -> find_matches_vector<Mod, Matcher>;
+
 template <class M, class F>
 struct find_generic_match
 {

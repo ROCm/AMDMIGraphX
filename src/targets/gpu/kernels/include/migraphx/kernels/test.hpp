@@ -67,7 +67,7 @@ struct rank<0>
     {                                                            \
         static constexpr const char* as_string() { return #op; } \
         template <class T, class U>                              \
-        static constexpr decltype(auto) call(T && x, U&& y)      \
+        static constexpr decltype(auto) call(T&& x, U&& y)       \
         {                                                        \
             return x op y;                                       \
         }                                                        \
@@ -79,7 +79,7 @@ struct rank<0>
     {                                                            \
         static constexpr const char* as_string() { return #op; } \
         template <class T>                                       \
-        static constexpr decltype(auto) call(T && x)             \
+        static constexpr decltype(auto) call(T&& x)              \
         {                                                        \
             return op x;                                         \
         }                                                        \

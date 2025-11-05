@@ -477,7 +477,7 @@ struct parse_resize : op_parser<parse_resize>
 
             return info.add_instruction(
                 make_op("resize",
-                        {{"mode", "linear"},
+                        {{"mode", resize.get_mode()},
                          {"scales", vec_scale},
                          {"coordinate_transformation_mode", resize.get_coord_trans_mode()}}),
                 args_0,

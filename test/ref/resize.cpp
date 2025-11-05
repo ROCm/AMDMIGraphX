@@ -613,7 +613,7 @@ TEST_CASE(resize_linear_1x1_degenerate_test)
     EXPECT(migraphx::verify::verify_rms_range(res_data, golden));
 }
 
-TEST_CASE(resize_linear_1xN_degenerate_height_test)
+TEST_CASE(resize_linear_1x4_degenerate_height_test)
 {
     // Test degenerate case where only height is 1, width is normal
     // This tests partial degenerate dimensions

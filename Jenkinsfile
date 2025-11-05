@@ -66,24 +66,26 @@ def rocmtestnode(Map conf) {
         }
     }
     node(name) {
-        withEnv(['HSA_ENABLE_SDMA=0']) {
-            sh 'printenv'
-            checkout scm
+        stage(variant) {
+            withEnv(['HSA_ENABLE_SDMA=0']) {
+                sh 'printenv'
+                checkout scm
 
-            def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3').trim()
-            def render_id = sh(returnStdout: true, script: 'getent group render | cut -d: -f3').trim()
-            def docker_opts = "--device=/dev/kfd --device=/dev/dri --cap-add SYS_PTRACE -v=${env.WORKSPACE}/../:/workspaces:rw,z"
-            docker_opts = docker_opts + " --group-add=${video_id} --group-add=${render_id} ${docker_args}"
-            echo "Docker flags: ${docker_opts}"
+                def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3').trim()
+                def render_id = sh(returnStdout: true, script: 'getent group render | cut -d: -f3').trim()
+                def docker_opts = "--device=/dev/kfd --device=/dev/dri --cap-add SYS_PTRACE -v=${env.WORKSPACE}/../:/workspaces:rw,z"
+                docker_opts = docker_opts + " --group-add=${video_id} --group-add=${render_id} ${docker_args}"
+                echo "Docker flags: ${docker_opts}"
 
-            gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Building stage', failureDescription: 'Failed to build stage', successDescription: 'Stage built successfully') {
-                withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
-                    sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
-                    pre()
-                    sh "docker pull ${DOCKER_IMAGE}:${env.IMAGE_TAG}"
-                    withDockerContainer(image: "${DOCKER_IMAGE}:${env.IMAGE_TAG}", args: docker_opts) {
-                        timeout(time: 4, unit: 'HOURS') {
-                            body(cmake_build)
+                gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Building stage', failureDescription: 'Failed to build stage', successDescription: 'Stage built successfully') {
+                    withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
+                        sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
+                        pre()
+                        sh "docker pull ${DOCKER_IMAGE}:${env.IMAGE_TAG}"
+                        withDockerContainer(image: "${DOCKER_IMAGE}:${env.IMAGE_TAG}", args: docker_opts) {
+                            timeout(time: 4, unit: 'HOURS') {
+                                body(cmake_build)
+                            }
                         }
                     }
                 }
@@ -121,21 +123,13 @@ def rocmnodename(name) {
 
 def rocmnode(name, body) {
     return { stageName ->
-        rocmtestnode(variant: stageName, node: rocmnodename(name), body: { cmake_build ->
-            stage(stageName) {
-                body(cmake_build)
-            }
-        })
+        rocmtestnode(variant: stageName, node: rocmnodename(name), body: body)
     }
 }
 
 def onnxnode(name, body) {
     return { stageName ->
-        rocmtestnode(variant: stageName, node: rocmnodename(name), docker_args: '-u root', body: { cmake_build ->
-            stage(stageName) {
-                body(cmake_build)
-            }
-        }, pre: {
+        rocmtestnode(variant: stageName, node: rocmnodename(name), docker_args: '-u root', body: body, pre: {
             sh 'rm -rf ./build/*.deb'
             unstash 'migraphx-package'
         })
@@ -151,7 +145,13 @@ def rocmtest(m) {
             action(label)
         }
     }
-    parallel builders
+    
+    // Skip parallel execution if there's only one builder
+    if (builders.size() == 1) {
+        builders.values()[0]()
+    } else {
+        parallel builders
+    }
 }
 
 properties([

@@ -1456,7 +1456,7 @@ TEST_CASE(dot_reused)
         auto out_scale2 = add_scale_mul(m2, scale, scale, 1, 1, sh.lens());
         auto d2         = add_quantize_op(m2, "dequantizelinear", dot2, out_scale2);
         auto d3         = add_quantize_op(m2, "dequantizelinear", q3, q3->inputs()[1]);
-        auto add2 = m2.add_instruction(migraphx::make_op("add"), d2, d3);
+        auto add2       = m2.add_instruction(migraphx::make_op("add"), d2, d3);
         m2.add_return({add2});
     }
 
@@ -1977,6 +1977,40 @@ TEST_CASE(fp4x2_odd_remove_qdq)
     {
         auto a   = m2.add_parameter("a", shape_input);
         auto b   = m2.add_parameter("b", shape_input);
+        auto add = m2.add_instruction(migraphx::make_op("add"), a, b);
+        m2.add_return({add});
+    }
+
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(qdq_computed_scale)
+{
+    migraphx::shape sh{migraphx::shape::float_type, {2, 2}};
+
+    migraphx::module m1;
+    {
+        auto a = m1.add_parameter("a", sh);
+        auto b = m1.add_parameter("b", sh);
+
+        auto scale = m1.add_instruction(
+            migraphx::make_op("add"), m1.add_literal(0.5f), m1.add_literal(0.0f));
+        auto zero = m1.add_literal(std::int8_t{0});
+
+        auto qa = add_quantize_op(m1, "quantizelinear", a, scale, zero);
+        auto da = add_quantize_op(m1, "dequantizelinear", qa, scale, zero);
+        auto qb = add_quantize_op(m1, "quantizelinear", b, scale, zero);
+        auto db = add_quantize_op(m1, "dequantizelinear", qb, scale, zero);
+
+        auto add = m1.add_instruction(migraphx::make_op("add"), da, db);
+        m1.add_return({add});
+    }
+
+    migraphx::module m2;
+    {
+        auto a   = m2.add_parameter("a", sh);
+        auto b   = m2.add_parameter("b", sh);
         auto add = m2.add_instruction(migraphx::make_op("add"), a, b);
         m2.add_return({add});
     }

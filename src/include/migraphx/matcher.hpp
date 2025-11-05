@@ -624,29 +624,25 @@ struct find_matches_vector
         const bool validate   = enabled(MIGRAPHX_VALIDATE_MATCHES{});
         const bool need_trace = trace > 0 or validate;
 
+        std::vector<std::function<bool(Mod&, instruction_ref)>> m_runners;
+        m_runners.reserve(mv.size());
         if(need_trace)
         {
-            for(auto ins : iterator_for(get_module(mod)))
-            {
-                for (auto m : mv)
-                {
-                    auto fun = make_match_runner_with_trace(location, *m);
-                    if (fun(mod, ins))
-                        break;
-                }
-            }
+            std::transform(mv.begin(), mv.end(), std::back_inserter(m_runners),
+                [&location](auto m) { return make_match_runner_with_trace(location, *m); });
         }
         else
         {
-            for(auto ins : iterator_for(get_module(mod)))
-            {
-                for (auto m : mv)
-                {
-                    auto fun = make_match_runner(*m);
-                    if (fun(mod, ins))
-                        break;
-                }
-            }
+            std::transform(mv.begin(), mv.end(), std::back_inserter(m_runners),
+                [](auto m) { return make_match_runner(*m); });
+        }
+
+        for(auto ins : iterator_for(get_module(mod)))
+        {
+            (void)std::find_if(m_runners.begin(), m_runners.end(),
+                [&mod, &ins](std::function<bool(Mod&, instruction_ref)>& runner) {
+                    return runner(mod, ins);
+                });
         }
     }
 };

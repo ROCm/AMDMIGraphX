@@ -28,25 +28,31 @@
 #include <migraphx/make_op.hpp>
 
 template <migraphx::shape::type_t DType>
-struct test_dot_add_dot : verify_program<test_dot_add_dot<DType>>
+struct test_dot_add_transpose_dot : verify_program<test_dot_add_transpose_dot<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape s{DType, {256, 256}};
-        auto a    = mm->add_parameter("a", s);
-        auto b    = mm->add_parameter("b", s);
-        auto c    = mm->add_parameter("c", s);
-        auto d    = mm->add_parameter("d", s);
-        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
-        auto add  = mm->add_instruction(migraphx::make_op("add"), dot1, c);
-        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, d);
+        migraphx::shape s1{DType, {512, 256}};
+        migraphx::shape s2{DType, {256, 32}};
+        migraphx::shape s3{DType, {512, 32}};
+        auto a    = mm->add_parameter("a", s1); // 512, 256
+        auto b    = mm->add_parameter("b", s2); // 256, 32
+        auto c    = mm->add_parameter("c", s3); // 512, 32
+        auto d    = mm->add_parameter("d", s3); // 512, 32
+        auto dot1 = mm->add_instruction(
+            migraphx::make_op("dot"), a, b); // (512, 256) x (256, 32) = (512, 32)
+        auto add       = mm->add_instruction(migraphx::make_op("add"), dot1, c); // (512, 32)
+        auto transpose = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {1, 0}}}), d); // (32, 512)
+        auto dot2 =
+            mm->add_instruction(migraphx::make_op("dot"), add, transpose); // (512, 32) x (32, 512)
         mm->add_return({dot2});
         return p;
     }
 };
 
-template struct test_dot_add_dot<migraphx::shape::half_type>;
-template struct test_dot_add_dot<migraphx::shape::bf16_type>;
-template struct test_dot_add_dot<migraphx::shape::float_type>;
+template struct test_dot_add_transpose_dot<migraphx::shape::half_type>;
+template struct test_dot_add_transpose_dot<migraphx::shape::bf16_type>;
+template struct test_dot_add_transpose_dot<migraphx::shape::float_type>;

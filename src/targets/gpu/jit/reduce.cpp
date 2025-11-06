@@ -152,7 +152,7 @@ static std::size_t compute_subwave_size(context& ctx, std::size_t n)
 /// split groups. To compute the number of split groups it finds the largest
 /// divisor that can divide K to make it less than min_size.
 static std::vector<shape> split_reduce(const std::vector<shape>& inputs,
-                                       std::size_t min_size = 8192,
+                                       std::size_t min_size   = 8192,
                                        std::size_t max_splits = 16)
 {
     std::vector<shape> result;

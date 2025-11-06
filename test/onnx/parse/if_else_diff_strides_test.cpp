@@ -34,7 +34,7 @@ TEST_CASE(if_else_diff_strides_test)
 
     std::vector<float> ones_data(s1.elements(), 1.0f);
 
-    auto ones   = mm->add_literal(s1, ones_data);
+    auto ones = mm->add_literal(s1, ones_data);
     auto x    = mm->add_parameter("x", s2);
     auto y    = mm->add_parameter("y", s1);
     auto cond = mm->add_parameter("cond", sc);
@@ -43,14 +43,14 @@ TEST_CASE(if_else_diff_strides_test)
 
     auto* then_mod = expected.create_module("If_5_if");
     {
-        auto id        = then_mod->add_instruction(migraphx::make_op("identity"), xt);
+        auto id         = then_mod->add_instruction(migraphx::make_op("identity"), xt);
         auto contiguous = then_mod->add_instruction(migraphx::make_op("contiguous"), id);
         then_mod->add_return({contiguous});
     }
 
     auto* else_mod = expected.create_module("If_5_else");
     {
-        auto add        = else_mod->add_instruction(migraphx::make_op("add"), y, ones);
+        auto add = else_mod->add_instruction(migraphx::make_op("add"), y, ones);
         else_mod->add_return({add});
     }
 

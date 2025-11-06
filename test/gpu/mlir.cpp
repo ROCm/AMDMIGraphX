@@ -304,43 +304,43 @@ module {
     // EXPECT(verify_mlir(m));
 }
 
-// TEST_CASE(conv_backwards)
-//{
-//     std::string mlir_output = R"__migraphx__(
-// module {
-//   func.func @mlir_convolution_backwards(%arg0: !migraphx.shaped<1x1x3x3xf32, 9x9x3x1>, %arg1:
-//   !migraphx.shaped<1x1x3x3xf32, 9x9x3x1>) -> !migraphx.shaped<1x1x5x5xf32, 25x25x5x1> attributes
-//   ${attrs} {
-//     %0 = migraphx.backwards_data_convolution %arg1, %arg0 {dilation = [1, 1], group = 1 : i64,
-//     padding = [0, 0, 0, 0], padding_mode = 0 : i64, stride = [1, 1]} : <1x1x3x3xf32, 9x9x3x1>,
-//     <1x1x3x3xf32, 9x9x3x1> -> <1x1x5x5xf32, 25x25x5x1> return %0 : !migraphx.shaped<1x1x5x5xf32,
-//     25x25x5x1>
-//   }
-// }
-//)__migraphx__";
-//
-//     migraphx::module m;
-//     auto x      = m.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 3,
-//     3}}); auto w      = m.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {1, 1,
-//     3, 3}}); auto conv_b = m.add_instruction(migraphx::make_op("convolution_backwards"), x, w);
-//     m.add_return({conv_b});
-//
-//     auto s = migraphx::gpu::dump_mlir(m);
-//     // Skip test if MLIR is not enabled
-//     if(s.empty())
-//         return;
-//     auto mlir_output_with_attrs =
-//         migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
-//     CHECK(encode(s) == encode(mlir_output_with_attrs));
-//     EXPECT(verify_mlir(m));
-// }
+TEST_CASE(conv_backwards)
+{
+    std::string mlir_output = R"__migraphx__(
+ module {
+   func.func @mlir_convolution_backwards(%arg0: !migraphx.shaped<1x1x3x3xf32, 9x9x3x1>, %arg1:
+   !migraphx.shaped<1x1x3x3xf32, 9x9x3x1>) -> !migraphx.shaped<1x1x5x5xf32, 25x25x5x1> attributes
+   ${attrs} {
+     %0 = migraphx.backwards_data_convolution %arg1, %arg0 {dilation = [1, 1], group = 1 : i64,
+     padding = [0, 0, 0, 0], padding_mode = 0 : i64, stride = [1, 1]} : <1x1x3x3xf32, 9x9x3x1>,
+     <1x1x3x3xf32, 9x9x3x1> -> <1x1x5x5xf32, 25x25x5x1> return %0 : !migraphx.shaped<1x1x5x5xf32,
+     25x25x5x1>
+   }
+ }
+)__migraphx__";
+
+    migraphx::module m;
+    auto x      = m.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 3,
+            3}}); auto w      = m.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {1, 1,
+                3, 3}}); auto conv_b = m.add_instruction(migraphx::make_op("convolution_backwards"), x, w);
+    m.add_return({conv_b});
+
+    auto s = migraphx::gpu::dump_mlir(m);
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
+    EXPECT(verify_mlir(m));
+}
 
 TEST_CASE(quant_dot_add)
 {
     std::string mlir_output = R"__migraphx__(
 module {
   func.func @mlir_quant_dot_add(%arg0: !migraphx.shaped<1x5x4xsi8, 20x4x1>, %arg1: !migraphx.shaped<1x4x3xsi8, 12x3x1>, %arg2: !migraphx.shaped<1x5x3xsi32, 15x3x1>) -> !migraphx.shaped<1x5x3xsi32, 15x3x1> attributes ${attrs} {
-    %0 = migraphx.quant_dot %arg0, %arg1 {operandSegmentSizes  =  array<i32:  1,  1,  0,  0>} : <1x5x4xsi8, 20x4x1>, <1x4x3xsi8, 12x3x1> -> <1x5x3xsi32, 15x3x1>
+    %0 = migraphx.quant_dot %arg0, %arg1 : <1x5x4xsi8, 20x4x1>, <1x4x3xsi8, 12x3x1> -> <1x5x3xsi32, 15x3x1>
     %1 = migraphx.add %0, %arg2 : <1x5x3xsi32, 15x3x1>, <1x5x3xsi32, 15x3x1> -> <1x5x3xsi32, 15x3x1>
     return %1 : !migraphx.shaped<1x5x3xsi32, 15x3x1>
   }
@@ -369,7 +369,7 @@ TEST_CASE(dot_add)
     std::string mlir_output = R"__migraphx__(
 module {
   func.func @mlir_dot_add(%arg0: !migraphx.shaped<1x5x4xf32, 20x4x1>, %arg1: !migraphx.shaped<1x4x3xf32, 12x3x1>, %arg2: !migraphx.shaped<1x5x3xf32, 15x3x1>) -> !migraphx.shaped<1x5x3xf32, 15x3x1> attributes ${attrs} {
-    %0 = migraphx.dot %arg0, %arg1  {operandSegmentSizes  =  array<i32:  1,  1,  0,  0>} : <1x5x4xf32, 20x4x1>, <1x4x3xf32, 12x3x1> -> <1x5x3xf32, 15x3x1>
+    %0 = migraphx.dot %arg0, %arg1 : <1x5x4xf32, 20x4x1>, <1x4x3xf32, 12x3x1> -> <1x5x3xf32, 15x3x1>
     %1 = migraphx.add %0, %arg2 : <1x5x3xf32, 15x3x1>, <1x5x3xf32, 15x3x1> -> <1x5x3xf32, 15x3x1>
     return %1 : !migraphx.shaped<1x5x3xf32, 15x3x1>
   }
@@ -398,7 +398,7 @@ TEST_CASE(unsqueeze_dot_add)
 module {
   func.func @mlir_unsqueeze_dot_add(%arg0: !migraphx.shaped<5x4xf32, 4x1>, %arg1: !migraphx.shaped<1x4x3xf32, 12x3x1>, %arg2: !migraphx.shaped<1x5x3xf32, 15x3x1>) -> !migraphx.shaped<1x5x3xf32, 15x3x1> attributes ${attrs} {
     %0 = migraphx.reshape %arg0 {dims = [1, 5, 4]} : <5x4xf32, 4x1> -> <1x5x4xf32, 20x4x1>
-    %1 = migraphx.dot %0, %arg1 {operandSegmentSizes  =  array<i32:  1,  1,  0,  0>} : <1x5x4xf32, 20x4x1>, <1x4x3xf32, 12x3x1> -> <1x5x3xf32, 15x3x1>
+    %1 = migraphx.dot %0, %arg1 : <1x5x4xf32, 20x4x1>, <1x4x3xf32, 12x3x1> -> <1x5x3xf32, 15x3x1>
     %2 = migraphx.add %1, %arg2 : <1x5x3xf32, 15x3x1>, <1x5x3xf32, 15x3x1> -> <1x5x3xf32, 15x3x1>
     return %2 : !migraphx.shaped<1x5x3xf32, 15x3x1>
   }
@@ -462,7 +462,7 @@ TEST_CASE(dot_convert)
     std::string mlir_output = R"__migraphx__(
 module {
   func.func @mlir_dot_convert(%arg0: !migraphx.shaped<1x5x4xf32, 20x4x1>, %arg1: !migraphx.shaped<1x4x3xf32, 12x3x1>) -> !migraphx.shaped<1x5x3xf16, 15x3x1> attributes ${attrs} {
-    %0 = migraphx.dot %arg0, %arg1 {operandSegmentSizes  =  array<i32:  1,  1,  0,  0>} : <1x5x4xf32, 20x4x1>, <1x4x3xf32, 12x3x1> -> <1x5x3xf32, 15x3x1>
+    %0 = migraphx.dot %arg0, %arg1 : <1x5x4xf32, 20x4x1>, <1x4x3xf32, 12x3x1> -> <1x5x3xf32, 15x3x1>
     %1 = migraphx.convert %0 {target_type  =  1  :  i64} : <1x5x3xf32, 15x3x1> to <1x5x3xf16, 15x3x1>
     return %1 : !migraphx.shaped<1x5x3xf16, 15x3x1>
   }
@@ -490,7 +490,7 @@ TEST_CASE(dot_where)
     std::string mlir_output = R"__migraphx__(
 module {
   func.func @mlir_dot_where(%arg0: !migraphx.shaped<1x5x4xf32, 20x4x1>, %arg1: !migraphx.shaped<1x4x3xf32, 12x3x1>, %arg2: !migraphx.shaped<1x5x3xsi8, 15x3x1>, %arg3: !migraphx.shaped<1x5x3xf32, 15x3x1>) -> !migraphx.shaped<1x5x3xf32, 15x3x1> attributes ${attrs} {
-    %0 = migraphx.dot %arg0, %arg1 {operandSegmentSizes  =  array<i32:  1,  1,  0,  0>} : <1x5x4xf32, 20x4x1>, <1x4x3xf32, 12x3x1> -> <1x5x3xf32, 15x3x1>
+    %0 = migraphx.dot %arg0, %arg1 : <1x5x4xf32, 20x4x1>, <1x4x3xf32, 12x3x1> -> <1x5x3xf32, 15x3x1>
     %1 = migraphx.where %arg2, %0, %arg3 : <1x5x3xsi8, 15x3x1>, <1x5x3xf32, 15x3x1>, <1x5x3xf32, 15x3x1> -> <1x5x3xf32, 15x3x1>
     return %1 : !migraphx.shaped<1x5x3xf32, 15x3x1>
   }
@@ -583,7 +583,7 @@ module {
     %7 = migraphx.slice %6 {axes = [1], ends = [5], starts = [0]} : <2x6x2xsi8, 12x2x1> -> <2x5x2xsi8, 12x2x1>
     %8 = migraphx.unpack %arg1 {axis = 2 : i64} : <2x5x1xsi8, 5x1x1> -> <2x5x2xsi8, 10x2x1>
     %9 = migraphx.dequantizelinear %8, %3, %7 : <2x5x2xsi8, 10x2x1>, <2x5x2xf32, 12x2x1>, !migraphx.shaped<2x5x2xsi8, 12x2x1> -> <2x5x2xf32, 10x2x1>
-    %10 = migraphx.dot %arg0, %9 {operandSegmentSizes  =  array<i32:  1,  1,  0,  0>} : <2x3x5xf32, 15x5x1>, <2x5x2xf32, 10x2x1> -> <2x3x2xf32, 6x2x1>
+    %10 = migraphx.dot %arg0, %9 : <2x3x5xf32, 15x5x1>, <2x5x2xf32, 10x2x1> -> <2x3x2xf32, 6x2x1>
     return %10 : !migraphx.shaped<2x3x2xf32, 6x2x1>
   }
 }
@@ -639,7 +639,7 @@ module {
     %7 = migraphx.slice %6 {axes = [1], ends = [5], starts = [0]} : <2x6x2xui8, 12x2x1> -> <2x5x2xui8, 12x2x1>
     %8 = migraphx.unpack %arg1 {axis = 2 : i64} : <2x5x1xui8, 5x1x1> -> <2x5x2xui8, 10x2x1>
     %9 = migraphx.dequantizelinear %8, %3, %7 : <2x5x2xui8, 10x2x1>, <2x5x2xf32, 12x2x1>, !migraphx.shaped<2x5x2xui8, 12x2x1> -> <2x5x2xf32, 10x2x1>
-    %10 = migraphx.dot %arg0, %9 {operandSegmentSizes  =  array<i32:  1,  1,  0,  0>} : <2x3x5xf32, 15x5x1>, <2x5x2xf32, 10x2x1> -> <2x3x2xf32, 6x2x1>
+    %10 = migraphx.dot %arg0, %9 : <2x3x5xf32, 15x5x1>, <2x5x2xf32, 10x2x1> -> <2x3x2xf32, 6x2x1>
     return %10 : !migraphx.shaped<2x3x2xf32, 6x2x1>
   }
 }

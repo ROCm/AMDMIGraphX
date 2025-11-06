@@ -307,22 +307,18 @@ module {
 TEST_CASE(conv_backwards)
 {
     std::string mlir_output = R"__migraphx__(
- module {
-   func.func @mlir_convolution_backwards(%arg0: !migraphx.shaped<1x1x3x3xf32, 9x9x3x1>, %arg1:
-   !migraphx.shaped<1x1x3x3xf32, 9x9x3x1>) -> !migraphx.shaped<1x1x5x5xf32, 25x25x5x1> attributes
-   ${attrs} {
-     %0 = migraphx.backwards_data_convolution %arg1, %arg0 {dilation = [1, 1], group = 1 : i64,
-     padding = [0, 0, 0, 0], padding_mode = 0 : i64, stride = [1, 1]} : <1x1x3x3xf32, 9x9x3x1>,
-     <1x1x3x3xf32, 9x9x3x1> -> <1x1x5x5xf32, 25x25x5x1> return %0 : !migraphx.shaped<1x1x5x5xf32,
-     25x25x5x1>
-   }
- }
-)__migraphx__";
+    module {
+  func.func @mlir_convolution_backwards(%arg0: !migraphx.shaped<1x1x3x3xf32, 9x9x3x1>, %arg1: !migraphx.shaped<1x1x3x3xf32, 9x9x3x1>) -> !migraphx.shaped<1x1x5x5xf32, 25x25x5x1> attributes ${attrs} {
+    %0 = migraphx.backwards_data_convolution %arg1, %arg0 {dilation = [1, 1], group = 1 : i64, padding = [0, 0, 0, 0], padding_mode = 0 : i64, stride = [1, 1]} : <1x1x3x3xf32, 9x9x3x1>, <1x1x3x3xf32, 9x9x3x1> -> <1x1x5x5xf32, 25x25x5x1>
+    return %0 : !migraphx.shaped<1x1x5x5xf32, 25x25x5x1>
+      }
+    }
+    )__migraphx__";
 
     migraphx::module m;
-    auto x      = m.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 3,
-            3}}); auto w      = m.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {1, 1,
-                3, 3}}); auto conv_b = m.add_instruction(migraphx::make_op("convolution_backwards"), x, w);
+    auto x      = m.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3}});
+    auto w      = m.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3}});
+    auto conv_b = m.add_instruction(migraphx::make_op("convolution_backwards"), x, w);
     m.add_return({conv_b});
 
     auto s = migraphx::gpu::dump_mlir(m);

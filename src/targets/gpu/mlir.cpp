@@ -806,12 +806,7 @@ struct mlir_program
             std::vector<MlirValue> inputs;
             transform(
                 ins->inputs(), std::back_inserter(inputs), [&](auto i) { return ins_map.at(i); });
-            if(ins->name() == "dot")
-            {
-                const std::vector<int> seg_sizes = {1, 1, 0, 0};
-                ops.set_operand_segment_sizes(seg_sizes);
-            }
-            else if(ins->name() == "quant_dot")
+            if(ins->name() == "quant_dot")
             {
                 if(ins->inputs().size() == 4)
                 {

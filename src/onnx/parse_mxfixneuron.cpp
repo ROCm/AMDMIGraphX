@@ -49,15 +49,7 @@ struct parse_mxfixneuron : op_parser<parse_mxfixneuron>
             MIGRAPHX_THROW("MXFixNeuron: must have only 1 input");
         }
         int block_axis = info.attributes.at("axis").i();
-        // Workaround for weird Quark handling of 1D literals for mxfp4 quantization
-        if(input->get_shape().ndim() == 1)
-        {
-            block_axis = 0;
-        }
-        else
-        {
-            block_axis = tune_axis(input->get_shape().ndim(), block_axis, "MXFixNeuron");
-        }
+        block_axis     = tune_axis(input->get_shape().ndim(), block_axis, "MXFixNeuron");
         int block_size = info.attributes.at("block_size").i();
         if(block_size != 32)
         {

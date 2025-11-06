@@ -38,9 +38,6 @@ ENV LANG=C.UTF-8
 # Install yapf
 RUN pip3 install yapf==0.28.0
 
-# Workaround for distributions running cmake < 3.25
-RUN sed -i -e 's/^block/if(COMMAND block)\nblock/g' -e 's/^endblock/endblock\(\)\nendif/g' /opt/rocm/lib/cmake/hipblaslt/hipblaslt-config.cmake
-
 # Install doc requirements
 # ADD docs/sphinx/requirements.txt /doc-requirements.txt
 # RUN pip3 install -r /doc-requirements.txt

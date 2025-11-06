@@ -790,7 +790,7 @@ struct mlir_program
             {
                 literal r = ins->get_literal();
 
-                MlirType shaped_type = make_mlir_shaped(ins);
+                MlirType shaped_type = make_mlir_shaped(ins->get_shape());
                 MlirType tensor_type = rocmlirMIXRShapedTypeAsTensor(shaped_type);
                 MlirAttribute mlir_value_attr =
                     mlirDenseElementsAttrRawBufferGet(tensor_type, r.get_shape().bytes(), r.data());

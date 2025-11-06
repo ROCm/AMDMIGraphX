@@ -725,7 +725,7 @@ struct mlir_program
                 new_strides.at(i) *= 2;
             }
         }
-        return shape(shape::fp4x2_type, new_lens, new_strides);
+        return {shape::fp4x2_type, new_lens, new_strides};
     }
 
     static shape get_shape_for_mlir(instruction_ref ins)

@@ -90,7 +90,7 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
             }
         }
 
-        if(args.size() < 7 or args.size() > 9)
+        if(args.size() < 7 or args.size() > 11)
         {
             MIGRAPHX_THROW("GroupQueryAttention: Wrong number of inputs provided");
         }
@@ -146,12 +146,15 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
 
         k = info.add_instruction(
             make_op("concat_past_present",
-                    {{"kv_num_heads", kv_num_heads}, {"num_heads", num_heads}}),
+                    {{"kv_num_heads", kv_num_heads}}),
             concat_k_inputs);
         v = info.add_instruction(
             make_op("concat_past_present",
-                    {{"kv_num_heads", kv_num_heads}, {"num_heads", num_heads}}),
+                    {{"kv_num_heads", kv_num_heads}}),
             concat_v_inputs);
+
+        auto k_out = k;
+        auto v_out = v;
 
         auto kv_num_heads_factor = num_heads / kv_num_heads;
         auto max_seq_len         = k->get_shape().lens()[2];
@@ -249,7 +252,7 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
             make_op("reshape", {{"dims", {batch_size, sequence_length, head_size * num_heads}}}),
             out);
 
-        return {out, k, v};
+        return {out, k_out, v_out};
     }
 };
 

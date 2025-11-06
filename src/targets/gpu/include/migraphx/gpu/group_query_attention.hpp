@@ -27,6 +27,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/value.hpp>
+#include <migraphx/ranges.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -71,7 +72,9 @@ struct gqa_parameters
 
 static inline gqa_parameters init_params(const std::vector<shape>& inputs, const value& v)
 {
-    auto num_heads          = v.at("num_heads").to<std::uint32_t>();
+    std::size_t num_heads = -1;
+    if(contains(v, "num_heads"))
+        num_heads           = v.at("num_heads").to<std::uint32_t>();
     auto kv_num_heads       = v.at("kv_num_heads").to<std::uint32_t>();
     auto rotary_interleaved = false;
     if(v.contains("rotary_interleaved"))
@@ -82,7 +85,7 @@ static inline gqa_parameters init_params(const std::vector<shape>& inputs, const
     const auto& q_lens                = q_shape.lens();
     const std::size_t batch_size      = q_lens[0];
     const std::size_t sequence_length = q_lens[2];
-    std::size_t head_size             = q_lens[3];
+    const std::size_t head_size       = q_lens[3];
 
     std::size_t rotary_dim = inputs.size() >= 4 ? inputs[3].lens()[1] * 2 : 0;
     if(inputs.size() == 3)

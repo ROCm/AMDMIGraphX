@@ -112,16 +112,19 @@ static migraphx::program create_gqa_program(const size_t batch_size,
 
     k = mm->add_instruction(
         migraphx::make_op("concat_past_present",
-                          {{"kv_num_heads", kv_num_heads}, {"num_heads", num_heads}}),
+                          {{"kv_num_heads", kv_num_heads}}),
         concat_k_inputs);
     v = mm->add_instruction(
         migraphx::make_op("concat_past_present",
-                          {{"kv_num_heads", kv_num_heads}, {"num_heads", num_heads}}),
+                          {{"kv_num_heads", kv_num_heads}}),
         concat_v_inputs);
+    
+    auto k_out = k;
+    auto v_out = v;
 
     if(test_concat)
     {
-        mm->add_return({k, v});
+        mm->add_return({k_out, v_out});
         return p;
     }
 
@@ -224,7 +227,7 @@ static migraphx::program create_gqa_program(const size_t batch_size,
                                {{"dims", {batch_size, sequence_length, head_size * num_heads}}}),
         out);
 
-    mm->add_return({out, k, v});
+    mm->add_return({out, k_out, v_out});
     return p;
 }
 
@@ -233,7 +236,7 @@ struct test_group_query_attention_decode_small
 {
     migraphx::program create_program() const
     {
-        return create_gqa_program(/* batch_size=           */ 1,
+        return create_gqa_program(/* batch_size=           */ 2,
                                   /* num_heads=            */ 2,
                                   /* kv_num_heads=         */ 2,
                                   /* sequence_length=      */ 1,
@@ -350,7 +353,7 @@ struct test_group_query_attention_concat_only
 {
     migraphx::program create_program() const
     {
-        return create_gqa_program(/* batch_size=           */ 1,
+        return create_gqa_program(/* batch_size=           */ 2,
                                   /* num_heads=            */ 32,
                                   /* kv_num_heads=         */ 32,
                                   /* sequence_length=      */ 1,
@@ -359,6 +362,25 @@ struct test_group_query_attention_concat_only
                                   /* max_sequence_length=  */ 2048,
                                   /* do_rotary=            */ true,
                                   /* scale=                */ 1.0 / sqrt(128.0),
+                                  /* test_rotary=          */ false,
+                                  /* test_concat=          */ true);
+    }
+};
+
+struct test_group_query_attention_concat_only_small
+    : verify_program<test_group_query_attention_concat_only_small>
+{
+    migraphx::program create_program() const
+    {
+        return create_gqa_program(/* batch_size=           */ 1,
+                                  /* num_heads=            */ 14,
+                                  /* kv_num_heads=         */ 2,
+                                  /* sequence_length=      */ 1,
+                                  /* head_size=            */ 8,
+                                  /* past_sequence_length= */ 4,
+                                  /* max_sequence_length=  */ 8,
+                                  /* do_rotary=            */ true,
+                                  /* scale=                */ 1.0 / sqrt(8.0),
                                   /* test_rotary=          */ false,
                                   /* test_concat=          */ true);
     }

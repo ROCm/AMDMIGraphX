@@ -43,19 +43,17 @@ struct cache_parameters
     std::size_t batch_size              = 0; // Batch size used by input
     std::size_t sequence_length         = 0; // Sequence length used by input
     std::size_t head_size               = 0; // Head size
-    std::size_t num_heads               = 0; // num_heads = hidden_size / head_size
     std::size_t seqlen_present_kv_cache = 0; // Sequence length of present kv-cache
 };
 
 struct concat_past_present
 {
     std::size_t kv_num_heads = 0;
-    std::size_t num_heads    = 1;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.kv_num_heads, "kv_num_heads"), f(self.num_heads, "num_heads"));
+        return pack(f(self.kv_num_heads, "kv_num_heads"));
     }
 
     std::string name() const { return "concat_past_present"; }
@@ -96,30 +94,27 @@ struct concat_past_present
         const std::size_t present_buffer_sequence_length = past_buffer_sequence_length;
 
         const bool is_prompt = sequence_length != 1;
-        const std::size_t packed_batch_stride =
-            (num_heads + 2 * kv_num_heads) * sequence_length * head_size;
-        const std::size_t kv_num_heads_factor   = num_heads / kv_num_heads;
+        const std::size_t packed_batch_stride = kv_num_heads * sequence_length * head_size;
         const std::size_t kv_input_chunk_length = sequence_length * head_size; // L x H
         const std::size_t present_buff_chunk_length =
             present_buffer_sequence_length * head_size; // T x H
 
-        const std::size_t loop_len = batch_size * num_heads;
+        const std::size_t loop_len = batch_size * kv_num_heads;
 
         par_for(loop_len, [&](const auto i) {
-            const std::size_t batch_index = i / num_heads;
-            const std::size_t head_index  = i % num_heads;
+            const std::size_t batch_index = i / kv_num_heads;
+            const std::size_t head_index  = i % kv_num_heads;
             const std::size_t past_seqlen =
                 sequence_length == 1 ? seqlens_k[batch_index] : past_buffer_sequence_length;
             const std::size_t past_chunk_length = is_prompt ? 0 : past_seqlen * head_size;
-
             auto current = present_key + packed_batch_stride * batch_index +
-                           kv_input_chunk_length * (head_index / kv_num_heads_factor);
+                           kv_input_chunk_length * head_index;
             concat_state_chunk(current,
                                past_key,
                                present_buff_chunk_length,
                                past_chunk_length,
                                kv_input_chunk_length,
-                               i / kv_num_heads_factor);
+                               i);
         });
     }
 
@@ -141,7 +136,6 @@ struct concat_past_present
         cache_params.batch_size              = batch_size;
         cache_params.sequence_length         = sequence_length;
         cache_params.head_size               = head_size;
-        cache_params.num_heads               = num_heads;
         cache_params.seqlen_present_kv_cache = past_sequence_length;
 
         visit_all(past, present)([&](auto past_kv, auto present_kv) {

@@ -725,7 +725,7 @@ struct mlir_program
                 new_strides.at(i) *= 2;
             }
         }
-        s = shape(shape::fp4x2_type, new_lens, new_strides);
+        return shape(shape::fp4x2_type, new_lens, new_strides);
     }
 
     static shape get_shape_for_mlir(instruction_ref ins)
@@ -744,7 +744,7 @@ struct mlir_program
         {
             ret = make_fp4_unpacked_shape(ret);
         }
-        return s;
+        return ret;
     }
 
     static std::string get_symbol_name(const module& m)

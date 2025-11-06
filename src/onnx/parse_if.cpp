@@ -37,6 +37,18 @@ struct parse_if : op_parser<parse_if>
 {
     std::vector<op_desc> operators() const { return {{"If"}}; }
 
+    static void make_standard_return(module_ref mm)
+    {
+        auto returns = mm->get_returns();
+        for(auto r : returns)
+        {
+            if(r->get_shape().standard())
+                continue;
+            auto ins = mm->add_instruction(make_op("contiguous"), r);
+            mm->replace_instruction(r, ins);
+        }
+    }
+
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,
                                        onnx_parser& parser,
                                        const onnx_parser::node_info& info,
@@ -88,8 +100,19 @@ struct parse_if : op_parser<parse_if>
                           else_out_shapes.begin(),
                           else_out_shapes.end()))
         {
-            MIGRAPHX_THROW("PARSE_IF: " + info.name +
-                           " then and else sub_grahps must have same output shapes!");
+            if(not std::equal(then_out_shapes.begin(),
+                              then_out_shapes.end(),
+                              else_out_shapes.begin(),
+                              else_out_shapes.end(),
+                              [](const shape& then_s, const shape& else_s) {
+                                  return then_s.as_standard() == else_s.as_standard();
+                              }))
+            {
+                MIGRAPHX_THROW("PARSE_IF: " + info.name +
+                               " then and else sub_grahps must have same output shapes!");
+            }
+            make_standard_return(then_mdl);
+            make_standard_return(else_mdl);
         }
 
         auto if_ret = info.add_instruction(make_op("if"), args, {then_mdl, else_mdl});

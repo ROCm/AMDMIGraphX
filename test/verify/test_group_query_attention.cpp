@@ -111,14 +111,12 @@ static migraphx::program create_gqa_program(const size_t batch_size,
     std::vector<migraphx::instruction_ref> concat_v_inputs{rotary_v, slk, v};
 
     k = mm->add_instruction(
-        migraphx::make_op("concat_past_present",
-                          {{"kv_num_heads", kv_num_heads}}),
+        migraphx::make_op("concat_past_present", {{"kv_num_heads", kv_num_heads}}),
         concat_k_inputs);
     v = mm->add_instruction(
-        migraphx::make_op("concat_past_present",
-                          {{"kv_num_heads", kv_num_heads}}),
+        migraphx::make_op("concat_past_present", {{"kv_num_heads", kv_num_heads}}),
         concat_v_inputs);
-    
+
     auto k_out = k;
     auto v_out = v;
 

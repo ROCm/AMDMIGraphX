@@ -74,7 +74,7 @@ static inline gqa_parameters init_params(const std::vector<shape>& inputs, const
 {
     std::size_t num_heads = -1;
     if(contains(v, "num_heads"))
-        num_heads           = v.at("num_heads").to<std::uint32_t>();
+        num_heads = v.at("num_heads").to<std::uint32_t>();
     auto kv_num_heads       = v.at("kv_num_heads").to<std::uint32_t>();
     auto rotary_interleaved = false;
     if(v.contains("rotary_interleaved"))

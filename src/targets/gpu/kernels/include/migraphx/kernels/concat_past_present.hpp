@@ -66,8 +66,8 @@ update_cache(const Present present, SeqLensK seqlens_k, Cache cache, Params para
     const index_int present_buffer_sequence_length = past_buffer_sequence_length;
     const index_int kv_num_heads                   = params.kv_num_heads;
     const bool is_prompt                           = sequence_length != 1;
-    const index_int packed_batch_stride = kv_num_heads * sequence_length * head_size;
-    const index_int kv_input_chunk_length     = sequence_length * head_size;                // L x H
+    const index_int packed_batch_stride            = kv_num_heads * sequence_length * head_size;
+    const index_int kv_input_chunk_length          = sequence_length * head_size;           // L x H
     const index_int present_buff_chunk_length = present_buffer_sequence_length * head_size; // T x H
 
     const index_int loop_len = batch_size * kv_num_heads;
@@ -82,13 +82,11 @@ update_cache(const Present present, SeqLensK seqlens_k, Cache cache, Params para
                                                 : past_buffer_sequence_length;
         const index_int past_chunk_length = is_prompt ? 0 : past_seqlen * head_size;
 
-        auto current = present + packed_batch_stride * batch_index +
-                       kv_input_chunk_length * head_index;
+        auto current =
+            present + packed_batch_stride * batch_index + kv_input_chunk_length * head_index;
 
-        concat_state_chunk concat{present_buff_chunk_length,
-                                  past_chunk_length,
-                                  kv_input_chunk_length,
-                                  i};
+        concat_state_chunk concat{
+            present_buff_chunk_length, past_chunk_length, kv_input_chunk_length, i};
         concat.compute(current, cache, inner_i);
     }
 }

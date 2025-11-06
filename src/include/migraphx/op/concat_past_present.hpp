@@ -93,8 +93,8 @@ struct concat_past_present
         const std::size_t past_buffer_sequence_length    = params.seqlen_present_kv_cache;
         const std::size_t present_buffer_sequence_length = past_buffer_sequence_length;
 
-        const bool is_prompt = sequence_length != 1;
-        const std::size_t packed_batch_stride = kv_num_heads * sequence_length * head_size;
+        const bool is_prompt                    = sequence_length != 1;
+        const std::size_t packed_batch_stride   = kv_num_heads * sequence_length * head_size;
         const std::size_t kv_input_chunk_length = sequence_length * head_size; // L x H
         const std::size_t present_buff_chunk_length =
             present_buffer_sequence_length * head_size; // T x H
@@ -107,7 +107,7 @@ struct concat_past_present
             const std::size_t past_seqlen =
                 sequence_length == 1 ? seqlens_k[batch_index] : past_buffer_sequence_length;
             const std::size_t past_chunk_length = is_prompt ? 0 : past_seqlen * head_size;
-            auto current = present_key + packed_batch_stride * batch_index +
+            auto current                        = present_key + packed_batch_stride * batch_index +
                            kv_input_chunk_length * head_index;
             concat_state_chunk(current,
                                past_key,

@@ -220,8 +220,8 @@ struct find_kv_cache_attention
 
         auto keys =
             match::skip(match::name(skip_set))(match::name("concat_past_present")).bind("pres_k");
-        auto k_transpose =
-            match::skip(match::name(skip_set))(match::skip(match::name(skip_set))(match::name("transpose")(match::arg(0)(keys))));
+        auto k_transpose = match::skip(match::name(skip_set))(
+            match::skip(match::name(skip_set))(match::name("transpose")(match::arg(0)(keys))));
         auto queries = match::name("slice");
         auto gemm1   = match::name("dot")(match::arg(0)(queries), match::arg(1)(k_transpose));
         auto scale   = match::name("mul")(match::any_arg(0, 1)(gemm1));
@@ -229,10 +229,11 @@ struct find_kv_cache_attention
         auto attn_scores       = match::any_of(scale, gemm1);
         auto causal_mask =
             match::name("where")(match::arg(0)(broadcasted_const), match::arg(2)(attn_scores));
-        auto greater      = match::name("greater")(match::arg(1)(match::any().bind("total_sl")));
-        auto conv_greater = match::skip(match::name("unsqueeze"))(match::name("convert")(match::arg(0)(greater)));
-        auto bc_greater   = match::name("multibroadcast")(match::arg(0)(conv_greater));
-        auto mask         = match::name("where")(match::arg(0)(bc_greater),
+        auto greater = match::name("greater")(match::arg(1)(match::any().bind("total_sl")));
+        auto conv_greater =
+            match::skip(match::name("unsqueeze"))(match::name("convert")(match::arg(0)(greater)));
+        auto bc_greater         = match::name("multibroadcast")(match::arg(0)(conv_greater));
+        auto mask               = match::name("where")(match::arg(0)(bc_greater),
                                          match::arg(2)(match::any_of(causal_mask, scale, gemm1)));
         auto attn_probabilities = match::skip(match::name("convert"))(
             match::softmax_input(match::skip(match::name("convert"))(mask)));

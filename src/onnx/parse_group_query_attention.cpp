@@ -144,14 +144,10 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         std::vector<instruction_ref> concat_k_inputs{rotary_k, slk, k};
         std::vector<instruction_ref> concat_v_inputs{rotary_v, slk, v};
 
-        k = info.add_instruction(
-            make_op("concat_past_present",
-                    {{"kv_num_heads", kv_num_heads}}),
-            concat_k_inputs);
-        v = info.add_instruction(
-            make_op("concat_past_present",
-                    {{"kv_num_heads", kv_num_heads}}),
-            concat_v_inputs);
+        k = info.add_instruction(make_op("concat_past_present", {{"kv_num_heads", kv_num_heads}}),
+                                 concat_k_inputs);
+        v = info.add_instruction(make_op("concat_past_present", {{"kv_num_heads", kv_num_heads}}),
+                                 concat_v_inputs);
 
         auto k_out = k;
         auto v_out = v;

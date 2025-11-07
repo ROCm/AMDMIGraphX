@@ -270,22 +270,23 @@ find_output_pointwise(const module& m, instruction_ref ins, bool multi_out)
 {
     std::vector<instruction_ref> result;
     if(not multi_out)
-        return result;    
+        return result;
     std::vector<instruction_ref> outputs;
     std::copy_if(ins->outputs().begin(),
                  ins->outputs().end(),
                  std::back_inserter(outputs),
                  [&](instruction_ref output) {
-                    if(output->name() != "pointwise")
-                        return false;
-                    if(not m.has_instruction(output))
-                        return false;
-                    if(is_dead(output))
-                        return false;
-                    // TODO: move_output_instructions_after doesnt handle outputs from different modules so only fuse from the same module
-                    return std::all_of(output->outputs().begin(), output->outputs().end(), [&](auto out) {
-                        return m.has_instruction(out);
-                    });                     
+                     if(output->name() != "pointwise")
+                         return false;
+                     if(not m.has_instruction(output))
+                         return false;
+                     if(is_dead(output))
+                         return false;
+                     // TODO: move_output_instructions_after doesnt handle outputs from different
+                     // modules so only fuse from the same module
+                     return std::all_of(output->outputs().begin(),
+                                        output->outputs().end(),
+                                        [&](auto out) { return m.has_instruction(out); });
                  });
     if(outputs.size() < 2)
         return result;

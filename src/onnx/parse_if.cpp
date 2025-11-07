@@ -109,7 +109,7 @@ struct parse_if : op_parser<parse_if>
                               }))
             {
                 MIGRAPHX_THROW("PARSE_IF: " + info.name +
-                               " then and else sub_grahps must have same output shapes!");
+                               " then and else sub_graphs must have same output shapes!");
             }
             make_standard_return(then_mdl);
             make_standard_return(else_mdl);

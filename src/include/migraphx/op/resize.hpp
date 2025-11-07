@@ -158,7 +158,7 @@ struct resize
         {
             return {0, 0, 0.0};
         }
-        
+
         // Compute the original floating-point coordinate
         double coord = idx_op(in_len, out_len, out_idx, scale);
 
@@ -169,8 +169,6 @@ struct resize
         std::size_t base = std::floor(coord);
         std::size_t next = std::min(base + 1, (in_len == 0 ? 0 : in_len - 1));
         double frac      = coord - static_cast<double>(base);
-
-        
 
         return {base, next, frac};
     }

@@ -48,7 +48,7 @@ bool is_enabled(severity s);
 
 void set_log_level(severity s);
 
-void add_file_logger(std::string_view filename);
+void add_file_logger(std::string_view filename, severity s = severity::INFO);
 
 template <severity Severity>
 struct print

@@ -47,14 +47,6 @@ static spdlog::logger* get_migraphx_logger()
     return migraphx_logger;
 }
 
-void add_file_logger(std::string_view filename)
-{
-    auto* logger   = get_migraphx_logger();
-    auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(std::string(filename));
-    file_sink->set_pattern("%Y-%m-%d %H:%M:%S.%f [%L] [%s:%#] %v");
-    logger->sinks().push_back(file_sink);
-}
-
 static size_t& get_log_level()
 {
     static size_t level = value_of(MIGRAPHX_LOG_LEVEL{}, static_cast<size_t>(severity::INFO));
@@ -76,6 +68,15 @@ static spdlog::level::level_enum to_spdlog_level(severity s)
     case severity::TRACE: return spdlog::level::trace;
     }
     return spdlog::level::info;
+}
+
+void add_file_logger(std::string_view filename, severity s)
+{
+    auto* logger   = get_migraphx_logger();
+    auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(std::string(filename));
+    file_sink->set_pattern("%Y-%m-%d %H:%M:%S.%f [%L] [%s:%#] %v");
+    file_sink->set_level(to_spdlog_level(s));
+    logger->sinks().push_back(file_sink);
 }
 
 static void init_stderr_logger()

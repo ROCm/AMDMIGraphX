@@ -34,14 +34,14 @@ struct test_conv_add_leaky_relu : verify_program<test_conv_add_leaky_relu<DType>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto* mm = p.get_main_module();
+        auto* mm     = p.get_main_module();
         auto input   = mm->add_parameter("x", migraphx::shape{DType, {4, 3, 3, 3}});
         auto weights = mm->add_parameter("w", migraphx::shape{DType, {4, 3, 3, 3}});
         auto bias_literal =
             migraphx::literal{migraphx::shape{DType, {4}}, {2.0f, 2.0f, 2.0f, 2.0f}};
-        auto bias         = mm->add_literal(bias_literal);
-        auto conv         = mm->add_instruction(migraphx::make_op("convolution"), input, weights);
-        auto bcast_bias   = mm->add_instruction(
+        auto bias       = mm->add_literal(bias_literal);
+        auto conv       = mm->add_instruction(migraphx::make_op("convolution"), input, weights);
+        auto bcast_bias = mm->add_instruction(
             migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", conv->get_shape().lens()}}),
             bias);
         auto bias_add = mm->add_instruction(migraphx::make_op("add"), conv, bcast_bias);

@@ -615,7 +615,7 @@ void remove_zero_scales(module& m)
             continue;
 
         // Replace entire dequantizelinear with zero literal
-        auto zero_literal = m.add_literal(literal{ins->get_shape(), {0.0f}});
+        auto zero_literal = m.add_literal(literal{ins->get_shape()}.fill(0.0f));
         m.replace_instruction(ins, zero_literal);
     }
 }

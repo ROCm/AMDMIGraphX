@@ -38,24 +38,28 @@ Step 1: Disable MLIR Backend
 **Result**:
 
 - Issue persists → Continue to Step 2
-- Issue resolves → MLIR problem, use rocMLIR triage guide
+- Issue resolves → MLIR problem, use rocMLIR triage guide (https://github.com/ROCm/AMDMIGraphX/blob/develop/docs/dev/triage-rocmlir.rst)
 
-Step 2: Reduce Graph Complexity
---------------------------------
+Step 2: Bisect to Find Problematic Operation
+---------------------------------------------
 
-**Tool**: ``migraphx-driver --reduce`` or ``-r``
+**Tool**: ``migraphx-driver --bisect``
 
-**Purpose**: Find minimal failing case early in process
+**Purpose**: Quickly identify the specific operation causing the failure using binary search
 
 **Commands**:
 
 .. code-block:: bash
 
-   migraphx-driver compile model.onnx --reduce
-   migraphx-driver run program.mxr --reduce
+   # Bisect an ONNX model
+   migraphx-driver compile model.onnx --bisect
+
+**What this does**: Uses binary search to systematically disable operations until it finds the exact operation that causes the failure. Much faster than ``--reduce`` for pinpointing issues.
 
 Step 3: Disable Fusion Passes
 ------------------------------
+
+**Purpose**: Isolate optimization-related issues by testing each fusion type individually
 
 Test each fusion type individually:
 
@@ -75,15 +79,33 @@ Test each fusion type individually:
 
 - Disables MIOpen-based kernel fusion
 
-Step 4: Test MIOpen Components
+Step 4: Reduce Graph Complexity
+--------------------------------
+
+**Tool**: ``migraphx-driver --reduce`` or ``-r``
+
+**Purpose**: Find minimal failing case by creating smaller versions of the program
+
+**Commands**:
+
+.. code-block:: bash
+
+   migraphx-driver compile model.onnx --reduce
+   migraphx-driver run program.mxr --reduce
+
+**When to use**: Use after bisect if you need a smaller program for detailed analysis or bug reporting.
+
+Step 5: Test MIOpen Components
 -------------------------------
+
+**Purpose**: Isolate MIOpen integration issues by forcing MIGraphX native implementations
 
 **Pooling**: ``MIGRAPHX_DISABLE_MIOPEN_POOLING=1``
 
 - Forces MIGraphX pooling instead of MIOpen
 - Use for MaxPool, AvgPool, GlobalAvgPool issues
 
-Step 5: Test GEMM Providers
+Step 6: Test GEMM Providers
 ----------------------------
 
 **Variables**:
@@ -101,7 +123,7 @@ Step 5: Test GEMM Providers
    export MIGRAPHX_SET_GEMM_PROVIDER=rocblas
    export MIGRAPHX_SET_GEMM_PROVIDER=hipblaslt
 
-Step 6: Granular MLIR Control
+Step 7: Granular MLIR Control
 ------------------------------
 
 **Variable**: ``MIGRAPHX_MLIR_USE_SPECIFIC_OPS``

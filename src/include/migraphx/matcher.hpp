@@ -618,7 +618,7 @@ find_matches(Mod& mod, Ms&&... ms) -> find_matches<Mod, Ms...>;
 template <class Mod, class Matcher>
 struct find_matches_vector
 {
-    find_matches_vector(Mod& mod, std::vector<Matcher> mv, source_location location = source_location::current())
+    find_matches_vector(Mod& mod, std::vector<Matcher>& mv, source_location location = source_location::current())
     {
         const int trace       = value_of(MIGRAPHX_TRACE_MATCHES{});
         const bool validate   = enabled(MIGRAPHX_VALIDATE_MATCHES{});
@@ -628,13 +628,17 @@ struct find_matches_vector
         m_runners.reserve(mv.size());
         if(need_trace)
         {
-            std::transform(mv.begin(), mv.end(), std::back_inserter(m_runners),
-                [&location](auto m) { return make_match_runner_with_trace(location, *m); });
+            for (auto m : mv)
+            {
+                m_runners.push_back(make_match_runner_with_trace(location, *m));
+            }
         }
         else
         {
-            std::transform(mv.begin(), mv.end(), std::back_inserter(m_runners),
-                [](auto m) { return make_match_runner(*m); });
+            for (auto m : mv)
+            {
+                m_runners.push_back(make_match_runner(*m));
+            }
         }
 
         for(auto ins : iterator_for(get_module(mod)))

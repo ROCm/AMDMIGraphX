@@ -48,7 +48,7 @@ struct find_reduce
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins            = r.result;
+        auto ins      = r.result;
         auto reduce_op      = ins->get_operator().to_value();
         auto reduce_op_name = ins->get_operator().name();
         auto reduce_axes    = reduce_op["axes"].to_vector<size_t>();
@@ -93,20 +93,21 @@ struct find_leaky_relu
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins   = r.result;
+        auto ins      = r.result;
         auto x_ins = ins->inputs().front();
 
         float alpha_f = ins->get_operator().to_value()["alpha"].to<float>();
-        auto alpha    = m.add_literal(literal{{x_ins->get_shape().type(), {1}}, {alpha_f}});
-        auto zero     = m.add_literal(literal{{x_ins->get_shape().type(), {1}}, {0.0}});
+        auto alpha = m.add_literal(literal{{x_ins->get_shape().type(), {1}}, {alpha_f}});
+        auto zero = m.add_literal(literal{{x_ins->get_shape().type(), {1}}, {0.0}});
 
-        auto greater   = insert_common_op(m, ins, make_op("greater"), {x_ins, zero});
+        auto greater = insert_common_op(m, ins, make_op("greater"), {x_ins, zero});
         auto mul_alpha = insert_common_op(m, ins, make_op("mul"), {x_ins, alpha});
 
-        m.replace_instruction(ins, make_op("where"), {greater, x_ins, mul_alpha});
+        m.replace_instruction(ins, make_op("where"), {greater, x_ins, mul_alpha});        
     }
 };
 
+// mlir has issues sometime when the condition to `where` is not a bool. So this will convert the condition to a bool. 
 struct find_where
 {
     auto matcher() const { return match::name("where"); }
@@ -119,18 +120,17 @@ struct find_where
         if(cond_ins->get_shape().type() == shape::bool_type)
             return;
 
-        auto bool_cond_ins = m.insert_instruction(
-            ins, make_op("convert", {{"target_type", shape::bool_type}}), cond_ins);
+        auto bool_cond_ins = m.insert_instruction(ins, make_op("convert", {{"target_type", shape::bool_type}}), cond_ins);
 
-        m.replace_instruction(
-            ins, make_op("where"), {bool_cond_ins, ins->inputs()[1], ins->inputs()[2]});
+        m.replace_instruction(ins, make_op("where"), {bool_cond_ins, ins->inputs()[1], ins->inputs()[2]});        
     }
 };
+
 
 } // namespace
 
 void prepare_mlir::apply(module& m) const
-{
+{ 
     match::find_matches(m, find_reduce{}, find_leaky_relu{});
     match::find_matches(m, find_where{});
     run_passes(m, {dead_code_elimination{}});

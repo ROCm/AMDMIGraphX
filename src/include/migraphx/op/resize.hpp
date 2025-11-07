@@ -153,6 +153,12 @@ struct resize
                                                   float scale,
                                                   const IdxOp& idx_op)
     {
+        // Handle degenerate dimension (length 1) to avoid NaNs
+        if(in_len <= 1)
+        {
+            return {0, 0, 0.0};
+        }
+        
         // Compute the original floating-point coordinate
         double coord = idx_op(in_len, out_len, out_idx, scale);
 
@@ -164,13 +170,7 @@ struct resize
         std::size_t next = std::min(base + 1, (in_len == 0 ? 0 : in_len - 1));
         double frac      = coord - static_cast<double>(base);
 
-        // Handle degenerate dimension (length 1) to avoid NaNs
-        if(in_len <= 1)
-        {
-            base = 0;
-            next = 0;
-            frac = 0.0;
-        }
+        
 
         return {base, next, frac};
     }

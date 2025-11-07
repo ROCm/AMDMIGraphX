@@ -285,7 +285,6 @@ module {
     EXPECT(verify_mlir(m));
 }
 
-
 // The following test checks that a dimension -1, within reshape operator is handled properly..
 TEST_CASE(conv_reshape_dim_minus_one)
 {

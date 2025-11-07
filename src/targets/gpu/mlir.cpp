@@ -997,10 +997,7 @@ struct mlir_program
     std::string sym_name;
 };
 
-static void prepare(module& m)
-{
-    run_passes(m, {prepare_mlir{}});
-}
+static void prepare(module& m) { run_passes(m, {prepare_mlir{}}); }
 
 bool is_module_fusible(const module& m, const context& migraphx_ctx, const value& solution)
 {

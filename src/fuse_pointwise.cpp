@@ -169,6 +169,7 @@ static void move_output_instructions_after(module& m, instruction_ref src, instr
     fix([&](auto self, instruction_ref ins) {
         for(auto output : ins->outputs())
         {
+            assert(m.has_instruction(output));
             if(any_of(instructions, [&](const auto& p) { return p.second == output; }))
                 continue;
             auto i = std::distance(src, output);
@@ -252,7 +253,7 @@ static auto find_input_pointwise(const module& m, instruction_ref ins, bool mult
             return i->name() == "pointwise" and
                    std::none_of(i->outputs().begin(), i->outputs().end(), [&](auto output) {
                        if(not m.has_instruction(output))
-                           return false;
+                           return true;
                        if(output == ins)
                            return false;
                        if(std::distance(i, output) > base_distance)
@@ -269,14 +270,22 @@ find_output_pointwise(const module& m, instruction_ref ins, bool multi_out)
 {
     std::vector<instruction_ref> result;
     if(not multi_out)
-        return result;
+        return result;    
     std::vector<instruction_ref> outputs;
     std::copy_if(ins->outputs().begin(),
                  ins->outputs().end(),
                  std::back_inserter(outputs),
-                 [&](auto output) {
-                     return output->name() == "pointwise" and m.has_instruction(output) and
-                            not is_dead(output);
+                 [&](instruction_ref output) {
+                    if(output->name() != "pointwise")
+                        return false;
+                    if(not m.has_instruction(output))
+                        return false;
+                    if(is_dead(output))
+                        return false;
+                    // TODO: move_output_instructions_after doesnt handle outputs from different modules so only fuse from the same module
+                    return std::all_of(output->outputs().begin(), output->outputs().end(), [&](auto out) {
+                        return m.has_instruction(out);
+                    });                     
                  });
     if(outputs.size() < 2)
         return result;

@@ -21,33 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_FUSE_MLIR_HPP
-#define MIGRAPHX_GUARD_GPU_FUSE_MLIR_HPP
+#include "test.hpp"
 
-#include <migraphx/gpu/context.hpp>
-
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module_pass_manager;
-
-namespace gpu {
-
-MIGRAPHX_GPU_EXPORT bool mlir_enabled();
-MIGRAPHX_GPU_EXPORT bool mlir_attention_enabled(context* ctx);
-MIGRAPHX_GPU_EXPORT bool mlir_geg_multi_user_intermediates_supported();
-
-struct MIGRAPHX_GPU_EXPORT fuse_mlir
-{
-    context* ctx      = nullptr;
-    bool enable_extra = false;
-    bool enable_geg_multi_out_intermediates = false;
-    std::string name() const { return "gpu::fuse_mlir"; }
-    void apply(module_pass_manager& mpm) const;
-};
-
-} // namespace gpu
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_FUSE_MLIR_HPP
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

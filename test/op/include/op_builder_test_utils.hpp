@@ -21,33 +21,34 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_FUSE_MLIR_HPP
-#define MIGRAPHX_GUARD_GPU_FUSE_MLIR_HPP
 
-#include <migraphx/gpu/context.hpp>
+#ifndef MIGRAPHX_GUARD_TEST_OPBUILDER_TEST_UTILS_HPP
+#define MIGRAPHX_GUARD_TEST_OPBUILDER_TEST_UTILS_HPP
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
+#include <migraphx/common.hpp>
+#include <migraphx/instruction.hpp>
+#include <test.hpp>
+#include <migraphx/op/builder/insert.hpp>
+#include <migraphx/ranges.hpp>
 
-struct module_pass_manager;
-
-namespace gpu {
-
-MIGRAPHX_GPU_EXPORT bool mlir_enabled();
-MIGRAPHX_GPU_EXPORT bool mlir_attention_enabled(context* ctx);
-MIGRAPHX_GPU_EXPORT bool mlir_geg_multi_user_intermediates_supported();
-
-struct MIGRAPHX_GPU_EXPORT fuse_mlir
+inline migraphx::module make_op_module(const std::string& op_builder_name,
+                                       const migraphx::value& options,
+                                       const std::vector<migraphx::instruction_ref>& params)
 {
-    context* ctx      = nullptr;
-    bool enable_extra = false;
-    bool enable_geg_multi_out_intermediates = false;
-    std::string name() const { return "gpu::fuse_mlir"; }
-    void apply(module_pass_manager& mpm) const;
-};
+    migraphx::module mm_op_built;
 
-} // namespace gpu
+    for(auto param : migraphx::range(params.rbegin(), params.rend()))
+    {
+        auto param_name =
+            migraphx::any_cast<migraphx::builtin::param>(param->get_operator()).parameter;
+        mm_op_built.add_parameter(param_name, param->get_shape());
+    }
 
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_FUSE_MLIR_HPP
+    const auto& params2 = mm_op_built.get_parameters();
+    const std::vector<migraphx::instruction_ref>& args2{params2.rbegin(), params2.rend()};
+    migraphx::op::builder::add(op_builder_name, mm_op_built, args2, options);
+
+    return mm_op_built;
+}
+
+#endif

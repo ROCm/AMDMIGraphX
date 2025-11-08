@@ -44,7 +44,9 @@ static bool is_dot(const migraphx::instruction& ins) { return ins.name() == "dot
 
 static void run_pass(migraphx::module& m)
 {
-    run_passes(m, {migraphx::simplify_qdq{}, migraphx::dead_code_elimination{}});
+    run_passes(m,
+               {migraphx::simplify_qdq{.remove_qdq_only = false, .use_mx_quant = true},
+                migraphx::dead_code_elimination{}});
 }
 
 static void run_cse(migraphx::module& m)
@@ -1655,9 +1657,9 @@ TEST_CASE(pointwise_concat_quant_per_channel)
 //        auto scale_weights  = m1.add_parameter("scale_weights", shape_scale_weights);
 //
 //        auto unpack_input =
-//            m1.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_input);
+//            m1.add_instruction(migraphx::make_op("unpack_fp4"), packed_input);
 //        auto unpack_weights =
-//            m1.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_weights);
+//            m1.add_instruction(migraphx::make_op("unpack_fp4"), packed_weights);
 //        auto dq_input =
 //            m1.add_instruction(migraphx::make_op("dequantizelinear"), unpack_input, scale_input);
 //        auto dq_weights = m1.add_instruction(
@@ -1681,9 +1683,9 @@ TEST_CASE(pointwise_concat_quant_per_channel)
 //        auto scale_weights  = m2.add_parameter("scale_weights", shape_scale_weights);
 //
 //        auto unpack_input =
-//            m2.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_input);
+//            m2.add_instruction(migraphx::make_op("unpack_fp4"), packed_input);
 //        auto unpack_weights =
-//            m2.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_weights);
+//            m2.add_instruction(migraphx::make_op("unpack_fp4"), packed_weights);
 //        auto quant_conv = m2.add_instruction(migraphx::make_op("quant_convolution",
 //                                                               {{"padding", {0, 0, 0, 0}},
 //                                                                {"stride", {1, 1}},
@@ -1717,9 +1719,9 @@ TEST_CASE(pointwise_concat_quant_per_channel)
 //         auto scale_weights  = m1.add_parameter("scale_weights", shape_scale_weights);
 //
 //         auto unpack_input =
-//             m1.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_input);
+//             m1.add_instruction(migraphx::make_op("unpack_fp4"), packed_input);
 //         auto unpack_weights =
-//             m1.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_weights);
+//             m1.add_instruction(migraphx::make_op("unpack_fp4"), packed_weights);
 //         auto slice_input = m1.add_instruction(
 //             migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {21}}}),
 //             unpack_input);
@@ -1746,9 +1748,9 @@ TEST_CASE(pointwise_concat_quant_per_channel)
 //         auto scale_weights  = m2.add_parameter("scale_weights", shape_scale_weights);
 //
 //         auto unpack_input =
-//             m2.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_input);
+//             m2.add_instruction(migraphx::make_op("unpack_fp4"), packed_input);
 //         auto unpack_weights =
-//             m2.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_weights);
+//             m2.add_instruction(migraphx::make_op("unpack_fp4"), packed_weights);
 //         auto slice_input = m2.add_instruction(
 //             migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {21}}}),
 //             unpack_input);
@@ -1785,10 +1787,8 @@ TEST_CASE(fp4x2_quant_dot_even)
         auto scale_a  = m1.add_parameter("scale_a", shape_scales_a);
         auto scale_b  = m1.add_parameter("scale_b", shape_scales_b);
 
-        auto unpack_a =
-            m1.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_a);
-        auto unpack_b =
-            m1.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_b);
+        auto unpack_a = m1.add_instruction(migraphx::make_op("unpack_fp4"), packed_a);
+        auto unpack_b = m1.add_instruction(migraphx::make_op("unpack_fp4"), packed_b);
         auto dq_a = m1.add_instruction(migraphx::make_op("dequantizelinear"), unpack_a, scale_a);
         auto dq_b = m1.add_instruction(migraphx::make_op("dequantizelinear"), unpack_b, scale_b);
         auto dot  = m1.add_instruction(migraphx::make_op("dot"), dq_a, dq_b);
@@ -1802,10 +1802,8 @@ TEST_CASE(fp4x2_quant_dot_even)
         auto scale_a  = m2.add_parameter("scale_a", shape_scales_a);
         auto scale_b  = m2.add_parameter("scale_b", shape_scales_b);
 
-        auto unpack_a =
-            m2.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_a);
-        auto unpack_b =
-            m2.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_b);
+        auto unpack_a  = m2.add_instruction(migraphx::make_op("unpack_fp4"), packed_a);
+        auto unpack_b  = m2.add_instruction(migraphx::make_op("unpack_fp4"), packed_b);
         auto quant_dot = m2.add_instruction(
             migraphx::make_op("quant_dot"), unpack_a, unpack_b, scale_a, scale_b);
         m2.add_return({quant_dot});
@@ -1829,10 +1827,8 @@ TEST_CASE(fp4x2_quant_dot_trans_b)
         auto scale_a  = m1.add_parameter("scale_a", shape_scales_a);
         auto scale_b  = m1.add_parameter("scale_b", shape_scales_b);
 
-        auto unpack_a =
-            m1.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_a);
-        auto unpack_b =
-            m1.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_b);
+        auto unpack_a = m1.add_instruction(migraphx::make_op("unpack_fp4"), packed_a);
+        auto unpack_b = m1.add_instruction(migraphx::make_op("unpack_fp4"), packed_b);
         auto dq_a    = m1.add_instruction(migraphx::make_op("dequantizelinear"), unpack_a, scale_a);
         auto dq_b    = m1.add_instruction(migraphx::make_op("dequantizelinear"), unpack_b, scale_b);
         auto trans_b = m1.add_instruction(
@@ -1848,10 +1844,8 @@ TEST_CASE(fp4x2_quant_dot_trans_b)
         auto scale_a  = m2.add_parameter("scale_a", shape_scales_a);
         auto scale_b  = m2.add_parameter("scale_b", shape_scales_b);
 
-        auto unpack_a =
-            m2.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_a);
-        auto unpack_b =
-            m2.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_b);
+        auto unpack_a = m2.add_instruction(migraphx::make_op("unpack_fp4"), packed_a);
+        auto unpack_b = m2.add_instruction(migraphx::make_op("unpack_fp4"), packed_b);
         auto trans_b = m2.add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), unpack_b);
         auto trans_scale_b = m2.add_instruction(
@@ -1883,10 +1877,8 @@ TEST_CASE(fp4x2_quant_dot_const_b)
         auto scale_a  = m1.add_parameter("scale_a", shape_scales_a);
         auto scale_b  = m1.add_literal(scale_b_lit);
 
-        auto unpack_a =
-            m1.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_a);
-        auto unpack_b =
-            m1.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_b);
+        auto unpack_a = m1.add_instruction(migraphx::make_op("unpack_fp4"), packed_a);
+        auto unpack_b = m1.add_instruction(migraphx::make_op("unpack_fp4"), packed_b);
         auto dq_a = m1.add_instruction(migraphx::make_op("dequantizelinear"), unpack_a, scale_a);
         auto dq_b = m1.add_instruction(migraphx::make_op("dequantizelinear"), unpack_b, scale_b);
         auto dot  = m1.add_instruction(migraphx::make_op("dot"), dq_a, dq_b);
@@ -1900,10 +1892,8 @@ TEST_CASE(fp4x2_quant_dot_const_b)
         auto scale_a  = m2.add_parameter("scale_a", shape_scales_a);
         auto scale_b  = m2.add_literal(scale_b_lit);
 
-        auto unpack_a =
-            m2.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_a);
-        auto unpack_b =
-            m2.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_b);
+        auto unpack_a  = m2.add_instruction(migraphx::make_op("unpack_fp4"), packed_a);
+        auto unpack_b  = m2.add_instruction(migraphx::make_op("unpack_fp4"), packed_b);
         auto quant_dot = m2.add_instruction(
             migraphx::make_op("quant_dot"), unpack_a, unpack_b, scale_a, scale_b);
         m2.add_return({quant_dot});

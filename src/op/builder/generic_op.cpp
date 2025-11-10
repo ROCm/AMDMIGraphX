@@ -40,11 +40,12 @@ struct generic_op : op_builder<generic_op>
 
     static std::vector<std::string> names()
     {
-        return {"abs",   "acos",   "acosh",    "asin",     "asinh",     "atan",       "atanh",
-                "ceil",  "cos",    "cosh",     "elu",      "erf",       "exp",        "flatten",
-                "floor", "gather", "gathernd", "identity", "isnan",     "leaky_relu", "log",
-                "lrn",   "neg",    "recip",    "relu",     "nearbyint", "rsqrt",      "sigmoid",
-                "sign",  "sin",    "sinh",     "sqrt",     "tan",       "tanh",       "not"};
+        return {"abs",      "acos",  "acosh",      "asin",  "asinh",   "atan",
+                "atanh",    "ceil",  "concat",     "cos",   "cosh",    "elu",
+                "erf",      "exp",   "flatten",    "floor", "gather",  "gathernd",
+                "identity", "isnan", "leaky_relu", "log",   "lrn",     "neg",
+                "recip",    "relu",  "nearbyint",  "rsqrt", "sigmoid", "sign",
+                "sin",      "sinh",  "sqrt",       "tan",   "tanh",    "not"};
     }
 
     std::vector<instruction_ref> insert(const std::string& op_name,

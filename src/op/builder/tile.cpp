@@ -50,7 +50,8 @@ struct tile : op_builder<tile>
             auto l1 = l0;
             for(int j = 1; j < repeats[i]; j++)
             {
-                l0 = op::builder::add("concat", m, {l0, l1}, {{"axis", i}}).at(0);
+                auto op = make_op("concat", {{"axis", i}});
+                l0      = op::builder::add(op.name(), m, {l0, l1}, to_value(op)).at(0);
             }
         }
         return {l0};

@@ -5,9 +5,8 @@ Full documentation for MIGraphX is available at
 
 ## Develop Branch
 
-
 ### Added
-
+* Added MXFP4 support for Quark and Brevitas quantized models (GEMMs only) (#4343)
 
 ### Changed
 

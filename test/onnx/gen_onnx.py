@@ -6617,6 +6617,57 @@ def if_else_test():
 
     return ([node], [x, y, cond_tensor], [res], [xt_tensor, yt_tensor])
 
+@onnx_test()
+def if_else_diff_strides_test():
+    x = onnx.helper.make_tensor_value_info('x', onnx.TensorProto.FLOAT, [3, 2])
+    y = onnx.helper.make_tensor_value_info('y', onnx.TensorProto.FLOAT, [2, 3])
+
+    xt = onnx.helper.make_node(
+        'Transpose',
+        perm=[1, 0],
+        inputs=['x'],
+        outputs=['xt'],
+    )
+
+    then_out = onnx.helper.make_tensor_value_info('then_out',
+                                                  onnx.TensorProto.FLOAT,
+                                                  [2, 3])
+    else_out = onnx.helper.make_tensor_value_info('else_out',
+                                                  onnx.TensorProto.FLOAT,
+                                                  [2, 3])
+
+    yb = np.ones((2, 3)).astype(np.float)
+    yb_tensor = helper.make_tensor(name='yb',
+                                   data_type=TensorProto.FLOAT,
+                                   dims=yb.shape,
+                                   vals=yb.flatten().astype(np.float32))
+
+    then_id_node = onnx.helper.make_node('Identity',
+                                          inputs=['xt'],
+                                          outputs=['then_out'])
+
+    else_add_node = onnx.helper.make_node('Add',
+                                          inputs=['y', 'yb'],
+                                          outputs=['else_out'])
+
+    then_body = onnx.helper.make_graph([then_id_node], 'then_body', [],
+                                       [then_out])
+
+    else_body = onnx.helper.make_graph([else_add_node], 'else_body', [],
+                                       [else_out])
+
+    cond_tensor = onnx.helper.make_tensor_value_info("cond",
+                                                     onnx.TensorProto.BOOL,
+                                                     [1])
+    res = onnx.helper.make_tensor_value_info('res', TensorProto.FLOAT, [])
+
+    node = onnx.helper.make_node('If',
+                                 inputs=['cond'],
+                                 outputs=['res'],
+                                 then_branch=then_body,
+                                 else_branch=else_body)
+
+    return ([xt, node], [x, y, cond_tensor], [res], [yb_tensor])
 
 @onnx_test()
 def if_else_test_inlined():

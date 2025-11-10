@@ -129,7 +129,7 @@ TEST_CASE(gelu_split_happy_path_op_builder_path)
     const size_t last_dim_size = x->get_shape().lens().back();
     auto split_left            = mm.add_instruction(
         migraphx::make_op("slice",
-                          {{"axes", {-1}}, {"starts", {0}}, {"ends", {last_dim_size / 2}}}),
+                                     {{"axes", {-1}}, {"starts", {0}}, {"ends", {last_dim_size / 2}}}),
         x);
     auto split_right = mm.add_instruction(
         migraphx::make_op(

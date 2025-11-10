@@ -61,7 +61,7 @@ struct gqa_parameters
     T11 seqlen_present_kv_cache; // Sequence length of present kv-cache (4096 when using
                                  // shared buffer)
     T12 kv_num_heads;            // Number of attention heads for k and v
-    T13 interleaved;      // Rotate using interleaved pattern. Default value is 0 (False).
+    T13 interleaved;             // Rotate using interleaved pattern. Default value is 0 (False).
 };
 
 template <class... Ts>

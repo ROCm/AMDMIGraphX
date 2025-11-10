@@ -65,8 +65,8 @@ struct gqa_parameters
                "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(position_ids_format) + "}), " +
                "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(seqlen_present_kv_cache) +
                "}), " + "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(kv_num_heads) + "}), " +
-               "MIGRAPHX_MAKE_CONSTANT(bool{" +
-               std::to_string(static_cast<int>(interleaved)) + "})";
+               "MIGRAPHX_MAKE_CONSTANT(bool{" + std::to_string(static_cast<int>(interleaved)) +
+               "})";
     }
 };
 
@@ -75,8 +75,8 @@ static inline gqa_parameters init_params(const std::vector<shape>& inputs, const
     std::size_t num_heads = -1;
     if(contains(v, "num_heads"))
         num_heads = v.at("num_heads").to<std::uint32_t>();
-    auto kv_num_heads       = v.at("kv_num_heads").to<std::uint32_t>();
-    auto interleaved = false;
+    auto kv_num_heads = v.at("kv_num_heads").to<std::uint32_t>();
+    auto interleaved  = false;
     if(v.contains("interleaved"))
         interleaved = v.at("interleaved").to<bool>();
     auto present_kv_seqlen = inputs[1].lens().size() == 4 ? inputs[1].lens()[2] : 0;
@@ -110,7 +110,7 @@ static inline gqa_parameters init_params(const std::vector<shape>& inputs, const
     gqa_params.position_ids_format     = position_ids_format;
     gqa_params.seqlen_present_kv_cache = present_kv_seqlen;
     gqa_params.kv_num_heads            = kv_num_heads;
-    gqa_params.interleaved      = interleaved;
+    gqa_params.interleaved             = interleaved;
 
     return gqa_params;
 }

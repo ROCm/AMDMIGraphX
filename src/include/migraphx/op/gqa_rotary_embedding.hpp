@@ -37,9 +37,9 @@ namespace op {
 
 struct gqa_rotary_embedding
 {
-    size_t num_heads        = 1;
-    size_t kv_num_heads     = 1;
-    bool interleaved = false;
+    size_t num_heads    = 1;
+    size_t kv_num_heads = 1;
+    bool interleaved    = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

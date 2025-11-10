@@ -125,7 +125,7 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
             rotary_qkv = info.add_instruction(make_op("gqa_rotary_embedding",
                                                       {{"kv_num_heads", kv_num_heads},
                                                        {"num_heads", num_heads},
-                                                       {"rotary_interleaved", rotary_interleaved}}),
+                                                       {"interleaved", rotary_interleaved}}),
                                               rotary_inputs);
         }
 

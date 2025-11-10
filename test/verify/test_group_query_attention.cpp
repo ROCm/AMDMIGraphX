@@ -87,7 +87,7 @@ static migraphx::program create_gqa_program(const size_t batch_size,
         rotary_qkv = mm->add_instruction(migraphx::make_op("gqa_rotary_embedding",
                                                            {{"kv_num_heads", kv_num_heads},
                                                             {"num_heads", num_heads},
-                                                            {"rotary_interleaved", false}}),
+                                                            {"interleaved", false}}),
                                          rotary_inputs);
         if(test_rotary)
         {

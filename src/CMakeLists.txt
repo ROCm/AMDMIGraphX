@@ -215,7 +215,6 @@ register_migraphx_ops(
     get_tuple_elem
     gqa_rotary_embedding
     greater
-    group_query_attention
     group
     gru
     identity

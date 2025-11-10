@@ -123,7 +123,7 @@ struct miopen_apply
         add_convolution_backwards_op();
         add_select_module_op();
         add_reshape_lazy_op();
-        add_group_query_attention_op();
+        add_concat_past_present_op();
         add_scan_slice_op();
     }
 
@@ -530,7 +530,7 @@ struct miopen_apply
         });
     }
 
-    void add_group_query_attention_op()
+    void add_concat_past_present_op()
     {
         apply_map.emplace("concat_past_present", [=](instruction_ref ins) {
             return mod->replace_instruction(ins,

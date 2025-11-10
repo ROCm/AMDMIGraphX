@@ -39,14 +39,14 @@ struct gqa_rotary_embedding
 {
     size_t num_heads        = 1;
     size_t kv_num_heads     = 1;
-    bool rotary_interleaved = false;
+    bool interleaved = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
         return pack(f(self.num_heads, "num_heads"),
                     f(self.kv_num_heads, "kv_num_heads"),
-                    f(self.rotary_interleaved, "rotary_interleaved"));
+                    f(self.interleaved, "interleaved"));
     }
 
     std::string name() const { return "gqa_rotary_embedding"; }
@@ -100,7 +100,7 @@ struct gqa_rotary_embedding
             size_t j         = 0;
             for(size_t i = 0; i < params.rotary_embedding_dim; i++)
             {
-                if(rotary_interleaved)
+                if(interleaved)
                 {
                     cache_idx = (i / 2) % half_rotary_emb_dim;
                     sign      = (i % 2 == 0) ? -1.0 : 1.0;

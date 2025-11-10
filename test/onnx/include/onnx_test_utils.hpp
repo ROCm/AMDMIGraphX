@@ -267,7 +267,7 @@ inline migraphx::program create_gqa_program(const size_t batch_size,
         rotary_qkv = mm->add_instruction(migraphx::make_op("gqa_rotary_embedding",
                                                            {{"kv_num_heads", kv_num_heads},
                                                             {"num_heads", num_heads},
-                                                            {"rotary_interleaved", false}}),
+                                                            {"interleaved", false}}),
                                          rotary_inputs);
     }
 
@@ -287,11 +287,11 @@ inline migraphx::program create_gqa_program(const size_t batch_size,
 
     k = mm->add_instruction(
         migraphx::make_op("concat_past_present",
-                          {{"kv_num_heads", kv_num_heads}, {"num_heads", num_heads}}),
+                          {{"kv_num_heads", kv_num_heads}}),
         concat_k_inputs);
     v = mm->add_instruction(
         migraphx::make_op("concat_past_present",
-                          {{"kv_num_heads", kv_num_heads}, {"num_heads", num_heads}}),
+                          {{"kv_num_heads", kv_num_heads}}),
         concat_v_inputs);
 
     auto kv_num_heads_factor = num_heads / kv_num_heads;

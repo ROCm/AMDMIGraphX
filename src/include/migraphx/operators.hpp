@@ -66,7 +66,6 @@
 #include <migraphx/op/get_tuple_elem.hpp>
 #include <migraphx/op/gqa_rotary_embedding.hpp>
 #include <migraphx/op/greater.hpp>
-#include <migraphx/op/group_query_attention.hpp>
 #include <migraphx/op/group.hpp>
 #include <migraphx/op/gru.hpp>
 #include <migraphx/op/identity.hpp>

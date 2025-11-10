@@ -51,4 +51,10 @@ inline migraphx::module make_op_module(const std::string& op_builder_name,
     return mm_op_built;
 }
 
+inline migraphx::module make_op_module(const std::string& op_builder_name,
+                                       const std::vector<migraphx::instruction_ref>& params)
+{
+    return make_op_module(op_builder_name, migraphx::value("", {}, false), params);
+}
+
 #endif

@@ -28,10 +28,10 @@ namespace {
 const std::vector<std::string>& generic_op_names()
 {
     static const std::vector<std::string> op_names_set{
-        "abs",        "acos", "acosh", "asin", "asinh", "atan",  "atanh",     "ceil",
-        "cos",        "cosh", "elu",   "erf",  "exp",   "floor", "identity",  "isnan",
-        "leaky_relu", "log",  "lrn",   "neg",  "recip", "relu",  "nearbyint", "rsqrt",
-        "sigmoid",    "sign", "sin",   "sinh", "sqrt",  "tan",   "tanh",      "not"};
+        "abs", "acos", "acosh", "asin",  "asinh", "atan",      "atanh",    "ceil",    "concat",
+        "cos", "cosh", "elu",   "erf",   "exp",   "floor",     "identity", "isnan",   "leaky_relu",
+        "log", "lrn",  "neg",   "recip", "relu",  "nearbyint", "rsqrt",    "sigmoid", "sign",
+        "sin", "sinh", "sqrt",  "tan",   "tanh",  "not"};
     return op_names_set;
 }
 } // namespace

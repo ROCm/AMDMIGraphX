@@ -54,7 +54,7 @@ TEST_CASE(gelu_erf_happy_path_op_builder_test)
     auto add_one  = add_common_op(mm, migraphx::make_op("add"), {erf, one});
     add_common_op(mm, migraphx::make_op("mul"), {mul_half, add_one});
 
-    EXPECT(mm == make_op_module("gelu_erf", {}, mm.get_parameters()));
+    EXPECT(mm == make_op_module("gelu_erf", mm.get_parameters()));
 }
 
 TEST_CASE(gelu_tanh_fast_happy_path_op_builder_test)
@@ -129,7 +129,7 @@ TEST_CASE(gelu_split_happy_path_op_builder_path)
     const size_t last_dim_size = x->get_shape().lens().back();
     auto split_left            = mm.add_instruction(
         migraphx::make_op("slice",
-                                     {{"axes", {-1}}, {"starts", {0}}, {"ends", {last_dim_size / 2}}}),
+                          {{"axes", {-1}}, {"starts", {0}}, {"ends", {last_dim_size / 2}}}),
         x);
     auto split_right = mm.add_instruction(
         migraphx::make_op(
@@ -152,7 +152,7 @@ TEST_CASE(gelu_split_happy_path_op_builder_path)
 
     add_common_op(mm, migraphx::make_op("mul"), {split_left, gelu_erf});
 
-    EXPECT(mm == make_op_module("gelu_split", {}, mm.get_parameters()));
+    EXPECT(mm == make_op_module("gelu_split", mm.get_parameters()));
 }
 
 TEST_CASE(gelu_split_invalid_dimension_op_builder_path)
@@ -160,6 +160,6 @@ TEST_CASE(gelu_split_invalid_dimension_op_builder_path)
     migraphx::module mm;
     mm.add_parameter("x", {migraphx::shape::float_type, {3, 3}});
     EXPECT(test::throws<migraphx::exception>(
-        [&] { make_op_module("gelu_split", {}, mm.get_parameters()); },
+        [&] { make_op_module("gelu_split", mm.get_parameters()); },
         "gelu_split op_builder: BiasSplitGelu must have even last dimension which is >= 2"));
 }

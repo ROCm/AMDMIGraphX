@@ -97,6 +97,15 @@ static std::vector<int64_t> run_shape_transforms(const std::vector<std::size_t>&
     return result.to_vector<int64_t>();
 }
 
+static std::vector<int64_t> run_strided_view(const migraphx::shape& s, std::int64_t offset)
+{
+    auto n = s.element_space();
+    std::vector<int64_t> data(n);
+    std::iota(data.begin(), data.end(), offset);
+    migraphx::literal l(migraphx::shape{migraphx::shape::int64_type, {n}}, data);
+    return l.get_argument().reshape(s).to_vector<int64_t>();
+}
+
 static std::vector<migraphx::operation>
 check_optimize_shape_transforms(const std::vector<std::size_t>& dims,
                                 const std::vector<migraphx::operation>& ops)
@@ -123,6 +132,23 @@ static shape_transform_descriptor make_simple_descriptor(const std::vector<std::
     auto desc = make_descriptor(dims, xs...);
     desc.simplify();
     return desc;
+}
+
+std::optional<std::vector<migraphx::operation>>
+generate_for(const std::vector<std::size_t>& dims,
+             const std::vector<std::size_t>& strides,
+             const std::vector<std::size_t>& idims,
+             std::int64_t offset = 0)
+{
+    migraphx::shape s{migraphx::shape::int64_type, dims, strides};
+    // Create a shape_transform_descriptor and generate transforms
+    migraphx::shape_transform_descriptor desc(s.lens());
+    auto result = desc.generate(idims);
+    if(not result.empty())
+    {
+        CHECK(run_strided_view(s, offset) == run_shape_transforms(idims, result));
+    }
+    return result.empty() ? std::nullopt : std::make_optional(result);
 }
 
 TEST_CASE(dimension_len)
@@ -931,6 +957,123 @@ TEST_CASE(rebase_reshape_broadcast)
                                       make_op("reshape", {{"dims", {12, 1, 1, 1, 1}}}),
                                       make_op("multibroadcast", {{"out_lens", {12, 1, 1, 2, 2}}})});
     }
+}
+
+TEST_CASE(generate_shape_transforms_for)
+{
+    EXPECT(generate_for({3}, {1}, {3}) == ops{});
+    EXPECT(generate_for({3}, {0}, {1}) == ops{make_op("multibroadcast", {{"out_lens", {3}}})});
+    EXPECT(generate_for({3}, {3}, {9}) ==
+           ops{make_op("reshape", {{"dims", {3, 3}}}),
+               make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}),
+           });
+
+    EXPECT(generate_for({3, 4, 5, 2}, {2, 0, 0, 1}, {6}) ==
+           ops{
+               make_op("reshape", {{"dims", {3, 1, 1, 2}}}),
+               make_op("multibroadcast", {{"out_lens", {3, 4, 5, 2}}}),
+           });
+    EXPECT(generate_for({3, 2}, {3, 0}, {9}) ==
+           ops{
+               make_op("reshape", {{"dims", {3, 1, 3}}}),
+               make_op("multibroadcast", {{"out_lens", {3, 2, 3}}}),
+               make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {1}}}),
+           });
+
+    EXPECT(generate_for({3, 2}, {2, 1}, {6}) == ops{
+                                                    make_op("reshape", {{"dims", {3, 2}}}),
+                                                });
+
+    EXPECT(generate_for({3, 2}, {1, 3}, {6}) == ops{
+                                                    make_op("reshape", {{"dims", {2, 3}}}),
+                                                    make_op("transpose", {{"permutation", {1, 0}}}),
+                                                });
+
+    EXPECT(generate_for({2, 2, 2, 2, 3}, {0, 2, 0, 1, 0}, {4}) ==
+           ops{
+               make_op("reshape", {{"dims", {1, 2, 1, 2, 1}}}),
+               make_op("multibroadcast", {{"out_lens", {2, 2, 2, 2, 3}}}),
+           });
+
+    EXPECT(generate_for({2, 2, 3}, {4, 1, 0}, {8}) ==
+           ops{
+               make_op("reshape", {{"dims", {2, 4}}}),
+               make_op("broadcast", {{"axis", 0}, {"out_lens", {2, 4, 3}}}),
+               make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}}),
+           });
+
+    EXPECT(generate_for({2, 3, 4, 1}, {4, 16, 1, 1}, {48}) ==
+           ops{
+               make_op("reshape", {{"dims", {3, 4, 4, 1}}}),
+               make_op("transpose", {{"permutation", {1, 0, 2, 3}}}),
+               make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}),
+           });
+}
+
+TEST_CASE(generate_shape_transforms_for_overlap)
+{
+    // TODO: Overlaping strides not supported yet
+    EXPECT(generate_for({2, 3}, {1, 1}, {4}) == std::nullopt);
+    EXPECT(generate_for({3, 2, 1}, {3, 2, 1}, {8}) == std::nullopt);
+}
+
+TEST_CASE(generate_shape_transforms_for_offset)
+{
+    EXPECT(generate_for({3, 1}, {4, 1}, {30}, 1) ==
+           ops{
+               make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {13}}}),
+               make_op("reshape", {{"dims", {3, 4}}}),
+               make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}),
+           });
+
+    EXPECT(generate_for({3, 1}, {5, 1}, {30}, 1) ==
+           ops{
+               make_op("reshape", {{"dims", {6, 5}}}),
+               make_op("slice", {{"axes", {0, 1}}, {"starts", {1, 0}}, {"ends", {4, 1}}}),
+           });
+}
+
+TEST_CASE(rebase_reduce_unsqueeze_broadcast)
+{
+    // Test case for reduce + unsqueeze + broadcast pattern
+    // Original shape: {1, 3, 512, 512}
+    // After reduce on axes {2, 3}: {1, 3, 1, 1}
+    // After unsqueeze on axes {3, 5}: {1, 3, 1, 1, 1, 1}
+    // After broadcast to: {1, 3, 256, 2, 256, 2}
+    
+    // The descriptor created from the reduced shape represents the transformation
+    // from {1, 3, 1, 1} through unsqueeze and broadcast to {1, 3, 256, 2, 256, 2}
+    migraphx::shape_transform_descriptor desc;
+    // Initialize descriptor dimensions using the proper structure
+    using dimension = migraphx::shape_transform_descriptor::dimension;
+    using sub = migraphx::shape_transform_descriptor::dimension::sub;
+    
+    desc.dimensions.push_back(dimension{{sub{1, {0}}}});
+    desc.dimensions.push_back(dimension{{sub{3, {1}}}});
+    desc.dimensions.push_back(dimension{{sub{256, {}, {2}}}});      // broadcast dimension (hidden axis 2)
+    desc.dimensions.push_back(dimension{{sub{2, {}, {3, 0}}}});    // broadcast dimension
+    desc.dimensions.push_back(dimension{{sub{256, {}, {3, 1}}}});  // broadcast dimension
+    desc.dimensions.push_back(dimension{{sub{2, {}, {3, 2}}}});    // broadcast dimension
+    
+    // When rebasing to the original shape {1, 3, 512, 512}, the descriptor
+    // should redistribute the hidden axes to create the correct mapping:
+    // axis 2 (512) -> [256:$2x0], [2:$2x1]
+    // axis 3 (512) -> [256:$3x0], [2:$3x1]
+    auto rebased = desc.rebase({1, 3, 512, 512}, true);
+    
+    EXPECT(not rebased.empty());
+    
+    // Expected descriptor after rebase
+    migraphx::shape_transform_descriptor expected;
+    expected.dimensions.push_back(dimension{{sub{1, {0}}}});
+    expected.dimensions.push_back(dimension{{sub{3, {1}}}});
+    // Axis 2: split into [256:$2x0], [2:$2x1]
+    expected.dimensions.push_back(dimension{{sub{256, {2, 0}, {2, 0}}, sub{2, {2, 1}, {2, 1}}}});
+    // Axis 3: split into [256:$3x0], [2:$3x1]
+    expected.dimensions.push_back(dimension{{sub{256, {3, 0}, {3, 0}}, sub{2, {3, 1}, {3, 1}}}});
+    expected.rank = 4;
+    
+    EXPECT(rebased == expected);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -255,7 +255,8 @@ static bool is_broadcast_only(const std::vector<dimension>& src_dims,
                       });
 }
 
-static auto adjust_axes_for_rebase(shape_transform_descriptor& desc, const std::vector<std::size_t>& dims)
+static auto adjust_axes_for_rebase(shape_transform_descriptor& desc,
+                                   const std::vector<std::size_t>& dims)
 {
     auto axes_map = group_axes(desc.dimensions);
 
@@ -264,8 +265,8 @@ static auto adjust_axes_for_rebase(shape_transform_descriptor& desc, const std::
     for(auto& [axis, subs] : axes_map)
     {
         assert(axis < dims.size());
-        auto dim       = dims[axis];
-        auto shortage = dim/len(subs);
+        auto dim      = dims[axis];
+        auto shortage = dim / len(subs);
         if(shortage < 2)
             continue;
         shortage_axes.emplace(shortage, axis);
@@ -280,8 +281,8 @@ static auto adjust_axes_for_rebase(shape_transform_descriptor& desc, const std::
     for(auto& [axis, subs] : axes_map)
     {
         assert(axis < dims.size());
-        auto dim       = dims[axis];
-        auto excess = len(subs)/dim;
+        auto dim    = dims[axis];
+        auto excess = len(subs) / dim;
         if(excess < 2)
             continue;
         auto it = std::find_if(subs.begin(), subs.end(), [&](dimension::sub* sub) {
@@ -294,14 +295,15 @@ static auto adjust_axes_for_rebase(shape_transform_descriptor& desc, const std::
         auto saxes = shortage_axes.equal_range(excess);
         if(saxes.first == saxes.second)
             continue;
-        auto saxis_it = std::min_element(saxes.first, saxes.second, by(std::less<>{}, [&, caxis = axis](const auto& p) { 
-            std::int64_t a1 = p.second;
-            std::int64_t a2 = caxis;
-            return std::abs(a1 - a2); 
-        }));
+        auto saxis_it = std::min_element(
+            saxes.first, saxes.second, by(std::less<>{}, [&, caxis = axis](const auto& p) {
+                std::int64_t a1 = p.second;
+                std::int64_t a2 = caxis;
+                return std::abs(a1 - a2);
+            }));
         auto saxis = saxis_it->second;
 
-        auto* sub = *it;
+        auto* sub        = *it;
         sub->hidden_axis = {saxis, std::numeric_limits<std::size_t>::max()};
         shortage_axes.erase(saxis_it);
     }

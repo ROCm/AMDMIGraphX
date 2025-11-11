@@ -950,4 +950,23 @@ TEST_CASE(rebase_unsqueeze_broadcast)
     }
 }
 
+TEST_CASE(rebase_unsqueeze_broadcast_transpose)
+{
+    auto base_desc =
+        make_simple_descriptor({1, 1, 1, 3},
+                               make_op("unsqueeze", {{"axes", {3, 4}}}),
+                               make_op("transpose", {{"permutation", {0, 5, 1, 2, 3, 4}}}),
+                               make_op("multibroadcast", {{"out_lens", {1, 3, 256, 2, 256, 2}}}));
+
+    {
+        auto desc = base_desc.rebase({1, 512, 512, 3});
+        EXPECT(get_final_lens(desc) == final_lens{1, 3, 256, 2, 256, 2});
+        EXPECT(get_all_lens(desc) == all_lens{{1}, {3}, {256}, {2}, {256}, {2}});
+        EXPECT(desc.generate() == ops{
+                                      make_op("reshape", {{"dims", {1, 256, 2, 256, 2, 3}}}),
+                                        make_op("transpose", {{"permutation", {0, 5, 1, 2, 3, 4}}}),
+                                  });
+    }
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

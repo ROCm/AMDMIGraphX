@@ -133,50 +133,9 @@ Stream& print_stream_impl(rank<0>, Stream& s, const T&)
     return s;
 }
 
-template <class Stream, class T>
-auto print_stream_impl(rank<1>, Stream& s, const T& x)
-    -> decltype(s << x) // NOLINT(bugprone-multi-level-implicit-pointer-conversion)
-{
-    if constexpr(std::is_pointer<T>{})
-    {
-        return s << static_cast<const void*>(x);
-    }
-    else if constexpr(std::is_same<T, bool>{})
-    {
-        if(x)
-            s << "true";
-        else
-            s << "false";
-        return s;
-    }
-    else
-    {
-        return s << x;
-    }
-}
-
-template <class Stream, class T, class U>
-Stream& print_stream_impl(rank<2>, Stream& s, const std::pair<T, U>& p)
-{
-    s << "{";
-    print_stream(s, p.first);
-    s << ", ";
-    print_stream(s, p.second);
-    s << "}";
-    return s;
-}
-
-template <class Stream>
-Stream& print_stream_impl(rank<3>, Stream& s, std::nullptr_t)
-{
-    s << "nullptr";
-    return s;
-}
-
 template <class Stream,
-          class Range,
-          class = typename std::enable_if<not std::is_convertible<Range, std::string>{}>::type>
-auto print_stream_impl(rank<4>, Stream& s, const Range& v)
+          class Range>
+auto print_stream_impl(rank<1>, Stream& s, const Range& v)
     -> decltype(v.end(), print_stream(s, *v.begin()), void())
 {
     auto start = v.begin();
@@ -192,6 +151,47 @@ auto print_stream_impl(rank<4>, Stream& s, const Range& v)
     }
     s << "}";
 }
+
+template <class Stream, class T>
+auto print_stream_impl(rank<2>, Stream& s, const T& x)
+    -> decltype(s << x) // NOLINT(bugprone-multi-level-implicit-pointer-conversion)
+{
+    if constexpr(std::is_pointer<T>{})
+    {
+        return s << static_cast<const void*>(x);
+    }
+    else if constexpr(std::is_same<T, bool>{})
+    {
+        if(x)
+        s << "true";
+    else
+    s << "false";
+return s;
+}
+else
+{
+    return s << x;
+}
+}
+
+template <class Stream, class T, class U>
+Stream& print_stream_impl(rank<3>, Stream& s, const std::pair<T, U>& p)
+{
+    s << "{";
+    print_stream(s, p.first);
+    s << ", ";
+    print_stream(s, p.second);
+    s << "}";
+    return s;
+}
+
+template <class Stream>
+Stream& print_stream_impl(rank<4>, Stream& s, std::nullptr_t)
+{
+    s << "nullptr";
+    return s;
+}
+
 
 template <class Stream, class T>
 void print_stream(Stream& s, const T& x)

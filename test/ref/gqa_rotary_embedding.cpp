@@ -60,7 +60,6 @@ TEST_CASE(gqa_rotary_embedding_test)
     auto ktsl      = mm->add_parameter("ktsl", key_total_sequence_lens_shape);
     auto cos_cache = mm->add_parameter("cos_cache", cos_cache_shape);
     auto sin_cache = mm->add_parameter("sin_cache", sin_cache_shape);
-
     auto rotary = mm->add_instruction(migraphx::make_op("gqa_rotary_embedding",
                                                         {{"num_heads", num_heads},
                                                          {"kv_num_heads", kv_num_heads},
@@ -229,7 +228,6 @@ TEST_CASE(gqa_rotary_embedding_test)
     pm["ktsl"]      = migraphx::argument(key_total_sequence_lens_shape, ktsl_val.data());
     pm["cos_cache"] = migraphx::argument(cos_cache_shape, cos_cache_val.data());
     pm["sin_cache"] = migraphx::argument(sin_cache_shape, sin_cache_val.data());
-
     auto qkv_rotary = p.eval(pm).front();
     std::vector<float> qkv_rotary_vals(qkv_shape.elements());
     qkv_rotary.visit([&](auto output) { qkv_rotary_vals.assign(output.begin(), output.end()); });

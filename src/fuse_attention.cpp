@@ -220,8 +220,8 @@ struct find_kv_cache_attention
 
         auto keys =
             match::skip(match::name(skip_set))(match::name("concat_past_present")).bind("pres_k");
-        auto k_transpose = match::skip(match::name(skip_set))(
-            match::skip(match::name(skip_set))(match::name("transpose")(match::arg(0)(keys))));
+        auto k_transpose =
+            match::skip(match::name(skip_set))(match::name("transpose")(match::arg(0)(keys)));
         auto queries = match::name("slice");
         auto gemm1   = match::name("dot")(match::arg(0)(queries), match::arg(1)(k_transpose));
         auto scale   = match::name("mul")(match::any_arg(0, 1)(gemm1));

@@ -133,10 +133,10 @@ Stream& print_stream_impl(rank<0>, Stream& s, const T&)
     return s;
 }
 
-template <class Stream,
-          class Range>
-auto print_stream_impl(rank<1>, Stream& s, const Range& v)
-    -> decltype(v.end(), print_stream(s, *v.begin()), void())
+template <class Stream, class Range>
+auto print_stream_impl(rank<1>, Stream& s, const Range& v) -> decltype(v.end(),
+                                                                       print_stream(s, *v.begin()),
+                                                                       void())
 {
     auto start = v.begin();
     auto last  = v.end();
@@ -163,15 +163,15 @@ auto print_stream_impl(rank<2>, Stream& s, const T& x)
     else if constexpr(std::is_same<T, bool>{})
     {
         if(x)
-        s << "true";
+            s << "true";
     else
-    s << "false";
-return s;
-}
-else
-{
-    return s << x;
-}
+        s << "false";
+    return s;
+    }
+    else
+    {
+        return s << x;
+    }
 }
 
 template <class Stream, class T, class U>
@@ -191,7 +191,6 @@ Stream& print_stream_impl(rank<4>, Stream& s, std::nullptr_t)
     s << "nullptr";
     return s;
 }
-
 
 template <class Stream, class T>
 void print_stream(Stream& s, const T& x)

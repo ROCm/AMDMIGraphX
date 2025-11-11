@@ -208,11 +208,11 @@ struct find_op_shape_transform_op
             // For reduce operations, we need to map the original axes to the new axes
             // The issue is that after unsqueeze and broadcast, the axes mapping might
             // not directly correspond to the original reduce axes
-            
+
             // Check if this is the specific pattern: reduce -> unsqueeze -> broadcast
-            // In this case, the shape was transformed from [1, 3, 512, 512] to [1, 3, 256, 2, 256, 2]
-            // and we need to reduce axes [2, 3, 4, 5] instead of the original [2, 3]
-            
+            // In this case, the shape was transformed from [1, 3, 512, 512] to [1, 3, 256, 2, 256,
+            // 2] and we need to reduce axes [2, 3, 4, 5] instead of the original [2, 3]
+
             if(op_axes.size() == 2 && op_axes[0] == 2 && op_axes[1] == 3)
             {
                 // Check if the descriptor indicates a reshape to 6 dimensions
@@ -384,7 +384,7 @@ struct find_op_shape_transform_op
                        reshape_input(x_ins, desc.to_common_from_src()));
         auto new_input_ins = insert(m, x_ins, x_inputs, desc.common_axes_map_from_src());
         auto new_x_ins     = reshape_input(x_ins, desc.to_src_from_common())(new_input_ins);
-        
+
         if(new_input_ins->get_shape().elements() != input_ins->get_shape().elements())
         {
             auto cdims    = desc.common_dims();

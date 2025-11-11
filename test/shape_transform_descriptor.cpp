@@ -964,7 +964,8 @@ TEST_CASE(generate_shape_transforms_for)
     EXPECT(generate_for({3}, {1}, {3}) == ops{});
     EXPECT(generate_for({3}, {0}, {1}) == ops{make_op("multibroadcast", {{"out_lens", {3}}})});
     EXPECT(generate_for({3}, {3}, {9}) ==
-           ops{make_op("reshape", {{"dims", {3, 3}}}),
+           ops{
+               make_op("reshape", {{"dims", {3, 3}}}),
                make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}),
            });
 
@@ -1040,29 +1041,30 @@ TEST_CASE(rebase_reduce_unsqueeze_broadcast)
     // After reduce on axes {2, 3}: {1, 3, 1, 1}
     // After unsqueeze on axes {3, 5}: {1, 3, 1, 1, 1, 1}
     // After broadcast to: {1, 3, 256, 2, 256, 2}
-    
+
     // The descriptor created from the reduced shape represents the transformation
     // from {1, 3, 1, 1} through unsqueeze and broadcast to {1, 3, 256, 2, 256, 2}
     migraphx::shape_transform_descriptor desc;
     // Initialize descriptor dimensions using the proper structure
     using dimension = migraphx::shape_transform_descriptor::dimension;
-    using sub = migraphx::shape_transform_descriptor::dimension::sub;
-    
+    using sub       = migraphx::shape_transform_descriptor::dimension::sub;
+
     desc.dimensions.push_back(dimension{{sub{1, {0}}}});
     desc.dimensions.push_back(dimension{{sub{3, {1}}}});
-    desc.dimensions.push_back(dimension{{sub{256, {}, {2}}}});      // broadcast dimension (hidden axis 2)
-    desc.dimensions.push_back(dimension{{sub{2, {}, {3, 0}}}});    // broadcast dimension
-    desc.dimensions.push_back(dimension{{sub{256, {}, {3, 1}}}});  // broadcast dimension
-    desc.dimensions.push_back(dimension{{sub{2, {}, {3, 2}}}});    // broadcast dimension
-    
+    desc.dimensions.push_back(
+        dimension{{sub{256, {}, {2}}}}); // broadcast dimension (hidden axis 2)
+    desc.dimensions.push_back(dimension{{sub{2, {}, {3, 0}}}});   // broadcast dimension
+    desc.dimensions.push_back(dimension{{sub{256, {}, {3, 1}}}}); // broadcast dimension
+    desc.dimensions.push_back(dimension{{sub{2, {}, {3, 2}}}});   // broadcast dimension
+
     // When rebasing to the original shape {1, 3, 512, 512}, the descriptor
     // should redistribute the hidden axes to create the correct mapping:
     // axis 2 (512) -> [256:$2x0], [2:$2x1]
     // axis 3 (512) -> [256:$3x0], [2:$3x1]
     auto rebased = desc.rebase({1, 3, 512, 512}, true);
-    
+
     EXPECT(not rebased.empty());
-    
+
     // Expected descriptor after rebase
     migraphx::shape_transform_descriptor expected;
     expected.dimensions.push_back(dimension{{sub{1, {0}}}});
@@ -1072,7 +1074,7 @@ TEST_CASE(rebase_reduce_unsqueeze_broadcast)
     // Axis 3: split into [256:$3x0], [2:$3x1]
     expected.dimensions.push_back(dimension{{sub{256, {3, 0}, {3, 0}}, sub{2, {3, 1}, {3, 1}}}});
     expected.rank = 4;
-    
+
     EXPECT(rebased == expected);
 }
 

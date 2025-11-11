@@ -933,7 +933,6 @@ TEST_CASE(rebase_reshape_broadcast)
     }
 }
 
-
 TEST_CASE(rebase_unsqueeze_broadcast)
 {
     auto base_desc =
@@ -945,7 +944,9 @@ TEST_CASE(rebase_unsqueeze_broadcast)
         auto desc = base_desc.rebase({1, 3, 512, 512});
         EXPECT(get_final_lens(desc) == final_lens{1, 3, 256, 2, 256, 2});
         EXPECT(get_all_lens(desc) == all_lens{{1}, {3}, {256, 2}, {256, 2}});
-        EXPECT(desc.generate() == ops{make_op("reshape", {{"dims", {1, 3, 256, 2, 256, 2}}}),});
+        EXPECT(desc.generate() == ops{
+                                      make_op("reshape", {{"dims", {1, 3, 256, 2, 256, 2}}}),
+                                  });
     }
 }
 

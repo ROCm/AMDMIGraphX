@@ -126,6 +126,15 @@ static void for_each_subdimension(Dimensions&& dimensions, Range&& r, F f)
     }
 }
 
+static void set_origin_axis(dimension::sub& s, const std::vector<std::size_t>& axis)
+{
+    assert(s.axis.empty() or s.hidden_axis.empty());
+    if(s.has_hidden_axis())
+        s.hidden_axis = axis;
+    else
+        s.axis = axis;
+}
+
 // Group all axes into a map with a key of the axis and the value is vector of
 // all subdimensions that have that axis.
 template <class Dimensions>
@@ -140,6 +149,33 @@ static std::map<std::size_t, std::vector<dimension::sub*>> group_axes(Dimensions
         axes_map[s.origin_axis().front()].push_back(&s);
     });
     return axes_map;
+}
+
+// Renumber all axes while preserving the order of the axes
+static void renumber_axes(std::map<std::size_t, std::vector<dimension::sub*>>& axes_map)
+{
+    for(auto&& p : axes_map)
+    {
+        const auto& axis = p.first;
+        auto& subs       = p.second;
+        if(subs.size() == 1)
+        {
+            set_origin_axis(*subs[0], {axis});
+        }
+        else
+        {
+            std::sort(subs.begin(), subs.end(), by(std::less<>{}, [](const dimension::sub* s) {
+                          return s->origin_axis();
+                      }));
+            for(std::size_t i : range(subs.size()))
+                set_origin_axis(*subs[i], {axis, i});
+        }
+    }
+}
+static void renumber_axes(std::vector<dimension>& dimensions)
+{
+    auto axes_map = group_axes(dimensions);
+    renumber_axes(axes_map);
 }
 
 static std::size_t len(const std::vector<dimension::sub*>& subs)
@@ -219,11 +255,71 @@ static bool is_broadcast_only(const std::vector<dimension>& src_dims,
                       });
 }
 
+static auto adjust_axes_for_rebase(shape_transform_descriptor& desc, const std::vector<std::size_t>& dims)
+{
+    auto axes_map = group_axes(desc.dimensions);
+
+    // Find shortage axes
+    std::multimap<std::size_t, std::size_t> shortage_axes;
+    for(auto& [axis, subs] : axes_map)
+    {
+        assert(axis < dims.size());
+        auto dim       = dims[axis];
+        auto shortage = dim/len(subs);
+        if(shortage < 2)
+            continue;
+        shortage_axes.emplace(shortage, axis);
+    }
+
+    auto nshortages = shortage_axes.size();
+
+    if(nshortages == 0)
+        return axes_map;
+
+    // Find excess and swap with a shortage
+    for(auto& [axis, subs] : axes_map)
+    {
+        assert(axis < dims.size());
+        auto dim       = dims[axis];
+        auto excess = len(subs)/dim;
+        if(excess < 2)
+            continue;
+        auto it = std::find_if(subs.begin(), subs.end(), [&](dimension::sub* sub) {
+            if(not sub->has_hidden_axis())
+                return false;
+            return sub->len == excess;
+        });
+        if(it == subs.end())
+            continue;
+        auto saxes = shortage_axes.equal_range(excess);
+        if(saxes.first == saxes.second)
+            continue;
+        auto saxis_it = std::min_element(saxes.first, saxes.second, by(std::less<>{}, [&, caxis = axis](const auto& p) { 
+            std::int64_t a1 = p.second;
+            std::int64_t a2 = caxis;
+            return std::abs(a1 - a2); 
+        }));
+        auto saxis = saxis_it->second;
+
+        auto* sub = *it;
+        sub->hidden_axis = {saxis, std::numeric_limits<std::size_t>::max()};
+        shortage_axes.erase(saxis_it);
+    }
+    if(shortage_axes.size() == nshortages)
+        return axes_map;
+
+    auto regroup_axes = group_axes(desc.dimensions);
+    renumber_axes(regroup_axes);
+
+    return regroup_axes;
+}
+
 shape_transform_descriptor shape_transform_descriptor::rebase(const std::vector<std::size_t>& dims,
                                                               bool broadcast) const
 {
     auto result   = *this;
-    for(auto& [axis, subs] : group_axes(result.dimensions))
+    auto axes_map = adjust_axes_for_rebase(result, dims);
+    for(auto& [axis, subs] : axes_map)
     {
         assert(axis < dims.size());
         auto dim       = dims[axis];
@@ -565,14 +661,6 @@ static void set_broadcast_dim(dimension& d, std::size_t axis)
     }
 }
 
-static void set_origin_axis(dimension::sub& s, const std::vector<std::size_t>& axis)
-{
-    if(s.has_hidden_axis())
-        s.hidden_axis = axis;
-    else
-        s.axis = axis;
-}
-
 // If an axis is split and some dimensions are hidden and others are not, then
 // remove the hidden axis so only the non-hidden axis is used in
 // simplificaiton
@@ -682,32 +770,6 @@ static void remove_scalar_axis(std::vector<dimension>& dimensions)
     }
 }
 
-// Renumber all axes while preserving the order of the axes
-static void renumber_axes(std::map<std::size_t, std::vector<dimension::sub*>>& axes_map)
-{
-    for(auto&& p : axes_map)
-    {
-        const auto& axis = p.first;
-        auto& subs       = p.second;
-        if(subs.size() == 1)
-        {
-            set_origin_axis(*subs[0], {axis});
-        }
-        else
-        {
-            std::sort(subs.begin(), subs.end(), by(std::less<>{}, [](const dimension::sub* s) {
-                          return s->origin_axis();
-                      }));
-            for(std::size_t i : range(subs.size()))
-                set_origin_axis(*subs[i], {axis, i});
-        }
-    }
-}
-static void renumber_axes(std::vector<dimension>& dimensions)
-{
-    auto axes_map = group_axes(dimensions);
-    renumber_axes(axes_map);
-}
 static void collapse_1_dims(std::vector<dimension>& dimensions)
 {
     // Find a dimension that ends with a subdimension of 1 with a single axis,
@@ -1433,6 +1495,7 @@ std::size_t shape_transform_descriptor::common_rank() const
 
 const std::vector<std::size_t>& shape_transform_descriptor::dimension::sub::origin_axis() const
 {
+    assert(axis.empty() or hidden_axis.empty());
     return axis.empty() ? hidden_axis : axis;
 }
 bool shape_transform_descriptor::dimension::sub::has_hidden_axis() const
@@ -1442,6 +1505,7 @@ bool shape_transform_descriptor::dimension::sub::has_hidden_axis() const
 
 void shape_transform_descriptor::dimension::sub::add_split_axis(std::size_t i)
 {
+    assert(axis.empty() or hidden_axis.empty());
     if(not axis.empty())
         axis.push_back(i);
     if(not hidden_axis.empty())
@@ -1450,6 +1514,7 @@ void shape_transform_descriptor::dimension::sub::add_split_axis(std::size_t i)
 
 void shape_transform_descriptor::dimension::sub::expose()
 {
+    assert(axis.empty() or hidden_axis.empty());
     if(has_hidden_axis())
     {
         axis = hidden_axis;
@@ -1459,6 +1524,7 @@ void shape_transform_descriptor::dimension::sub::expose()
 
 void shape_transform_descriptor::dimension::sub::hide()
 {
+    assert(axis.empty() or hidden_axis.empty());
     if(not has_hidden_axis())
     {
         hidden_axis = axis;

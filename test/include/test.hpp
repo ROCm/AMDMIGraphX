@@ -159,7 +159,9 @@ template <class Stream, class T, class U>
 Stream& print_stream_impl(rank<2>, Stream& s, const std::pair<T, U>& p)
 {
     s << "{";
-    s << p.first << ", " << p.second;
+    print_stream(s, p.first);
+    s << ", ";
+    print_stream(s, p.second);
     s << "}";
     return s;
 }
@@ -175,7 +177,7 @@ template <class Stream,
           class Range,
           class = typename std::enable_if<not std::is_convertible<Range, std::string>{}>::type>
 auto print_stream_impl(rank<4>, Stream& s, const Range& v) -> decltype(v.end(),
-                                                                       s << *v.begin(),
+                                                                       print_stream(s, *v.begin()),
                                                                        void())
 {
     auto start = v.begin();

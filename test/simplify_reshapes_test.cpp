@@ -2702,14 +2702,6 @@ TEST_CASE(reduce_transpose_broadcast_pointwise_diff_size)
     EXPECT(m1.sort() == m2.sort());
 }
 
-// @148 = div(@141,@147) -> float_type, {1, 3, 512, 512}, {786432, 1, 1536, 3}
-// @149 = reduce_sum[axes={2, 3}](@148) -> float_type, {1, 3, 1, 1}, {3, 1, 3, 3}
-// @477 = unsqueeze[axes={3, 5},steps={}](@149) -> float_type, {1, 3, 1, 1, 1, 1}, {3, 1, 3, 3, 3,
-// 1}
-// @478 = multibroadcast[out_lens={1, 3, 256, 2, 256, 2},out_dyn_dims={}](@477) -> float_type, {1,
-// 3, 256, 2, 256, 2}, {3, 1, 0, 0, 0, 0}
-// @480 = add(@475,@478) -> float_type, {1, 3, 256, 2, 256, 2}, {786432, 262144, 1024, 512, 2, 1}
-
 TEST_CASE(reduce_unsqueeze_broadcast_pointwise)
 {
     auto s1 = migraphx::shape{migraphx::shape::float_type, {1, 3, 512, 512}};
@@ -2728,8 +2720,8 @@ TEST_CASE(reduce_unsqueeze_broadcast_pointwise)
         auto relu = m1.add_instruction(migraphx::make_op("relu"), add);
         m1.add_return({relu});
     }
-    migraphx::module m2 = m1;
     run_pass(m1);
+    migraphx::module m2;
     {
         auto x        = m2.add_parameter("x", s1);
         auto y        = m2.add_parameter("y", s2);

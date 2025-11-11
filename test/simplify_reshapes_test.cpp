@@ -2747,8 +2747,8 @@ TEST_CASE(reduce_unsqueeze_broadcast_transpose_pointwise)
         auto y = m1.add_parameter("y", s2);
         auto reduce_sum =
             m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1, 2}}}), x);
-        auto transpose =
-            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), reduce_sum);
+        auto transpose = m1.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), reduce_sum);
         auto unsqueeze =
             m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3, 5}}}), transpose);
         auto broadcast = m1.add_instruction(
@@ -2762,9 +2762,10 @@ TEST_CASE(reduce_unsqueeze_broadcast_transpose_pointwise)
     // {
     //     auto x        = m2.add_parameter("x", s1);
     //     auto y        = m2.add_parameter("y", s2);
-    //     auto xreshape = m2.add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), x);
-    //     auto reduce_sum =
-    //         m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4, 5}}}), xreshape);
+    //     auto xreshape = m2.add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}),
+    //     x); auto reduce_sum =
+    //         m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4, 5}}}),
+    //         xreshape);
     //     auto broadcast = m2.add_instruction(
     //         migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), reduce_sum);
     //     auto add  = m2.add_instruction(migraphx::make_op("add"), broadcast, y);

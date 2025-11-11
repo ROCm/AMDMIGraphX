@@ -964,7 +964,7 @@ TEST_CASE(rebase_unsqueeze_broadcast_transpose)
         EXPECT(get_all_lens(desc) == all_lens{{1}, {3}, {256}, {2}, {256}, {2}});
         EXPECT(desc.generate() == ops{
                                       make_op("reshape", {{"dims", {1, 256, 2, 256, 2, 3}}}),
-                                        make_op("transpose", {{"permutation", {0, 5, 1, 2, 3, 4}}}),
+                                      make_op("transpose", {{"permutation", {0, 5, 1, 2, 3, 4}}}),
                                   });
     }
 }

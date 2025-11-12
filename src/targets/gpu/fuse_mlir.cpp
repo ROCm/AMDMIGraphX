@@ -37,6 +37,7 @@
 #include <migraphx/match/softmax.hpp>
 #include <migraphx/fp8_types.hpp>
 #include <optional>
+#include <numeric>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -48,7 +49,7 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_EXTRA_MLIR);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION);
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_GEG_FUSION);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MLIR_GEG_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MLIR);
 /**
  * @brief Declares a new MIGraphX environment variable which forces to generate
@@ -806,6 +807,69 @@ struct find_mlir_fused_geg_ops
         return true;
     }
 
+    // check heuristic based on the 4 GEMM inputs to determine if fusion should proceed
+    bool check_heuristic(const std::vector<instruction_ref>& first_inputs,
+                         const std::vector<instruction_ref>& second_inputs) const
+    {
+        auto shape_a1 = first_inputs.front()->get_shape();
+        auto shape_b1 = first_inputs.back()->get_shape();
+        auto shape_a2 = second_inputs.front()->get_shape();
+        auto shape_b2 = second_inputs.back()->get_shape();
+        
+        // gemm0: (m x k) @ (k x n) -> (m x n)
+        // gemm1: (m x n) @ (n x g) -> (m x g)
+        std::size_t m = shape_a1.lens()[shape_a1.lens().size() - 2];
+        std::size_t n = shape_b1.lens().back();
+        std::size_t k = shape_a1.lens().back();
+        std::size_t g = shape_b2.lens().back();
+
+        // skip if any dimension is 0 (extraction failed)
+        if(m == 0 or n == 0 or k == 0 or g == 0)
+            return false;
+        
+        // Experimental results show fusion is beneficial when:
+        // 1. m is relatively larger than other dimensions (avg difference > 1000)
+        // 2. n is relatively larger than other dimensions (avg difference > 1000)
+        // Fusion is detrimental when k or g are relatively large
+        
+        const double threshold = 1000.0;
+        
+        // calculate average differences for m being large
+        double m_minus_n = static_cast<double>(m) - static_cast<double>(n);
+        double m_minus_k = static_cast<double>(m) - static_cast<double>(k);
+        double m_minus_g = static_cast<double>(m) - static_cast<double>(g);
+        double m_avg_difference = (m_minus_n + m_minus_k + m_minus_g) / 3.0;
+        
+        // calculate average differences for n being large
+        double n_minus_m = static_cast<double>(n) - static_cast<double>(m);
+        double n_minus_k = static_cast<double>(n) - static_cast<double>(k);
+        double n_minus_g = static_cast<double>(n) - static_cast<double>(g);
+        double n_avg_difference = (n_minus_m + n_minus_k + n_minus_g) / 3.0;
+        
+        // calculate average differences for k being large (detrimental case)
+        double k_minus_m = static_cast<double>(k) - static_cast<double>(m);
+        double k_minus_n = static_cast<double>(k) - static_cast<double>(n);
+        double k_minus_g = static_cast<double>(k) - static_cast<double>(g);
+        double k_avg_difference = (k_minus_m + k_minus_n + k_minus_g) / 3.0;
+        
+        // calculate average differences for g being large (detrimental case)
+        double g_minus_m = static_cast<double>(g) - static_cast<double>(m);
+        double g_minus_n = static_cast<double>(g) - static_cast<double>(n);
+        double g_minus_k = static_cast<double>(g) - static_cast<double>(k);
+        double g_avg_difference = (g_minus_m + g_minus_n + g_minus_k) / 3.0;
+        
+        // fusion is good if m or n is significantly larger than others
+        if(m_avg_difference > threshold or n_avg_difference > threshold)
+            return true;
+        
+        // fusion is bad if k or g is significantly larger than others
+        if(k_avg_difference > threshold or g_avg_difference > threshold)
+            return false;
+        
+        // default to not fusing
+        return false;
+    }
+
     /*
      * Matches:
      * mlir_dot_or_conv <binds to "first_gemm_based_op"> ->
@@ -847,6 +911,10 @@ struct find_mlir_fused_geg_ops
                return (i != elemwise_ins and reaches(elemwise_ins, i)) and
                       (i != first_gemm_ins and reaches(first_gemm_ins, i));
            }))
+            return;
+
+        // check heuristic to determine if fusion should proceed
+        if(not check_heuristic(first_gemm_ins->inputs(), second_gemm_ins->inputs()))
             return;
 
         std::unordered_map<instruction_ref, instruction_ref> map_ins;
@@ -1497,7 +1565,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     match::find_matches(mpm, find_mlir_attention_op{});
     mpm.run_pass(dead_code_elimination{});
 
-    if(enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}))
+    if(not enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
     {
         match::find_matches(
             mpm,

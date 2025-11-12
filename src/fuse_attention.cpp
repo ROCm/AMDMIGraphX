@@ -37,9 +37,9 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_FLASH_DECODING);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_NUM_SPLITS);
 
-std::size_t get_num_splits() { return value_of(MIGRAPHX_ENABLE_FLASH_DECODING{}, 0); }
+std::size_t get_num_splits() { return value_of(MIGRAPHX_FLASH_DECODING_NUM_SPLITS{}, 0); }
 
 // TODO: Write this in matcher.hpp as a general matcher for iterating through inputs
 inline auto pointwise_inputs()

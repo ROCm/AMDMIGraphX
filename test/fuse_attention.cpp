@@ -38,7 +38,7 @@
 #include <reduce.hpp>
 #include <utility>
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_FLASH_DECODING);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_NUM_SPLITS);
 
 static void run_pass(migraphx::program& p, migraphx::fuse_attention fa = {})
 {

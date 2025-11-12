@@ -59,7 +59,7 @@ struct test_attention_flash_decoding_3d : verify_program<test_attention_flash_de
 };
 
 // These tests are not run by default currently; the env vars below need to be set:
-// MIGRAPHX_ENABLE_FLASH_DECODING=2 # or another split factor
+// MIGRAPHX_FLASH_DECODING_NUM_SPLITS=2 # or another split factor
 // MIGRAPHX_MLIR_USE_SPECIFIC_OPS=attention
 template struct test_attention_flash_decoding_3d<migraphx::shape::half_type>;
 template struct test_attention_flash_decoding_3d<migraphx::shape::bf16_type>;

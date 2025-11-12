@@ -1460,7 +1460,7 @@ struct tf_options : MIGRAPHX_HANDLE_BASE(tf_options)
 };
 
 /// Parse a tf file into a migraphx program
-inline program parse_tf(const char* filename, const migraphx::tf_options& options->data())
+inline program parse_tf(const char* filename, const migraphx::tf_options& options)
 {
     return program(make<migraphx_program>(&migraphx_parse_tf, filename, options.get_handle_ptr()),
                    own{});
@@ -1603,6 +1603,23 @@ quantize_fp8(const program& prog, const target& ptarget, const quantize_fp8_opti
          options.get_handle_ptr());
 }
 
+inline std::vector<std::string> get_onnx_operators()
+{
+    size_t size = 0;
+    call(&migraphx_get_onnx_operators_size, &size);
+    std::vector<std::string> result(size, "");
+
+    size_t index = 0;
+    for(auto &name: result)
+    {
+        char * name_op;
+        call(&migraphx_get_onnx_operator_name_at_index, &name_op, index);
+        name = *name_op;
+        index++;
+    }
+    return result;
+}
+
 struct experimental_custom_op_base
 {
     experimental_custom_op_base()                                              = default;
@@ -1641,23 +1658,6 @@ void register_experimental_custom_op(T& obj)
 {
     experimental_custom_op op{obj};
     op.register_op();
-}
-
-inline std::vector<std::string> get_onnx_operators()
-{
-    size_t size = 0;
-    migraphx_get_onnx_operators_size(&size);
-    std::vector<std::string> result(size, "");
-
-    size_t index = 0;
-    for(auto &name: result)
-    {
-        char * name_op;
-        migraphx_get_onnx_operator_name_at_index(&name_op, index);
-        name = *name_op;
-        index++;
-    }
-    return result;
 }
 
 #ifndef DOXYGEN

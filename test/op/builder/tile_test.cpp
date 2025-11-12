@@ -64,9 +64,7 @@ TEST_CASE(tile_repeats_size_mismatch_op_builder_test)
     mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2}});
 
     EXPECT(test::throws<migraphx::exception>(
-        [&] {
-            make_op_module("tile", {{"repeats", {2}}}, mm.get_parameters());
-        },
+        [&] { make_op_module("tile", {{"repeats", {2}}}, mm.get_parameters()); },
         "repeats size mismatch with input shape"));
 }
 

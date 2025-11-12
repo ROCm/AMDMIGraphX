@@ -12,7 +12,7 @@ on:
         type: string
         description: ROCm release version
         required: true
-        default: '7.0'
+        default: '7.1'
       base_image:
         type: string
         description: Base image for ROCm Docker build

@@ -6,6 +6,7 @@ subtrees:
   - caption: Installation
     entries: 
     - file: install/install-migraphx
+    - file: install/install-torch-migraphx
 
   - caption: Conceptual
     entries:

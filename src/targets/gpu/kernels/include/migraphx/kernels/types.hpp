@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,16 +28,7 @@
 
 namespace migraphx {
 
-#if defined(MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS) and defined(MIGRAPHX_USE_HIPRTC)
-using int8_t   = signed char;
-using uint8_t  = unsigned char;
-using int16_t  = signed short;
-using uint16_t = unsigned short;
-using int32_t  = signed int;
-using uint32_t = unsigned int;
-using int64_t  = signed long long;
-using uint64_t = unsigned long long;
-#elif defined(MIGRAPHX_USE_HIPRTC)
+#if defined(MIGRAPHX_USE_HIPRTC)
 using int8_t   = __hip_int8_t;
 using uint8_t  = __hip_uint8_t;
 using int16_t  = __hip_int16_t;
@@ -71,11 +62,17 @@ static_assert(sizeof(uint64_t) == 8, "uint64_t must be 8 bytes");
 
 #define MIGRAPHX_DEVICE_CONSTEXPR constexpr __device__ __host__ // NOLINT
 
+// NOLINTNEXTLINE
+#define MIGRAPHX_AUTO_DEDUCE(name) \
+    template <class... Ts>         \
+    __host__ __device__ name(Ts...) -> name<Ts...>;
+
 template <class T, index_int N>
 using vec = T __attribute__((ext_vector_type(N)));
 
 using half  = _Float16;
 using half2 = migraphx::vec<half, 2>;
+using bf16  = __bf16;
 
 } // namespace migraphx
 

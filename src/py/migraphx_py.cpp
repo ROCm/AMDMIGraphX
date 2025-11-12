@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,6 +25,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <pybind11/numpy.h>
+#include <pybind11/operators.h>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/operation.hpp>
@@ -44,11 +45,12 @@
 #include <migraphx/float8.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/version.h>
+#include <migraphx/iterator_for.hpp>
 #ifdef HAVE_GPU
 #include <migraphx/gpu/hip.hpp>
 #endif
 
-using half   = half_float::half;
+using half   = migraphx::half;
 namespace py = pybind11;
 
 #ifdef __clang__
@@ -137,6 +139,11 @@ namespace pybind11 {
 namespace detail {
 
 template <>
+struct type_caster<migraphx::value::binary> : list_caster<migraphx::value::binary, std::uint8_t>
+{
+};
+
+template <>
 struct npy_format_descriptor<half>
 {
     static std::string format()
@@ -159,6 +166,17 @@ struct npy_format_descriptor<migraphx::fp8::fp8e4m3fnuz>
 };
 
 template <>
+struct npy_format_descriptor<migraphx::fp8::fp8e5m2fnuz>
+{
+    static std::string format()
+    {
+        // TODO: no standard format in numpy for fp8
+        return "z";
+    }
+    static constexpr auto name() { return _("fp8e5m2fnuz"); }
+};
+
+template <>
 struct npy_format_descriptor<migraphx::fp8::fp8e4m3fn>
 {
     static std::string format()
@@ -178,6 +196,17 @@ struct npy_format_descriptor<migraphx::fp8::fp8e5m2>
         return "z";
     }
     static constexpr auto name() { return _("fp8e5m2"); }
+};
+
+template <>
+struct npy_format_descriptor<migraphx::bf16>
+{
+    static std::string format()
+    {
+        // TODO: no standard format in numpy for bf16
+        return "z";
+    }
+    static constexpr auto name() { return _("bf16"); }
 };
 
 } // namespace detail
@@ -237,10 +266,52 @@ py::buffer_info to_buffer_info(T& x)
     return b;
 }
 
+py::object to_py_object(const migraphx::value& val)
+{
+    py::object result;
+
+    val.visit_value([&](const auto& x) {
+        if constexpr(std::is_same<std::decay_t<decltype(x)>, std::vector<migraphx::value>>{})
+        {
+            if(val.is_object())
+            {
+                py::dict py_dict;
+                for(const auto& item : x)
+                {
+                    py_dict[py::str(item.get_key())] = to_py_object(item.without_key());
+                }
+                result = py_dict;
+            }
+            else
+            {
+                py::list py_list;
+                for(const auto& item : x)
+                {
+                    py_list.append(to_py_object(item));
+                }
+                result = py_list;
+            }
+        }
+        else
+        {
+            result = py::cast(x);
+        }
+    });
+
+    return result;
+}
+
 migraphx::shape to_shape(const py::buffer_info& info)
 {
     migraphx::shape::type_t t;
     std::size_t n = 0;
+    // Unsupported pybuffer types lead to undefined behaviour when comparing with migraphx type enum
+    if(info.format == "z")
+    {
+        MIGRAPHX_THROW(
+            "MIGRAPHX PYTHON: Unsupported data type. For fp8 and bf16 literals try using "
+            "migraphx.generate_argument with migraphx.add_literal");
+    }
     visit_types([&](auto as) {
         if(info.format == py::format_descriptor<decltype(as())>::format() or
            (info.format == "l" and py::format_descriptor<decltype(as())>::format() == "q") or
@@ -294,6 +365,9 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             auto lens = v.get<std::size_t>("lens", {1});
             if(v.contains("strides"))
                 return migraphx::shape(t, lens, v.at("strides").to_vector<std::size_t>());
+            else if(v.contains("permutation"))
+                return migraphx::shape::from_permutation(
+                    t, lens, v.at("permutation").to_vector<int64_t>());
             else
                 return migraphx::shape(t, lens);
         }))
@@ -343,6 +417,19 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                  visit(x, [&](auto data) { l = py::cast(data.to_vector()); });
                  return l;
              })
+        .def_static(
+            "save",
+            [](const migraphx::argument& a, const std::string& filename) {
+                migraphx::save_argument(a, filename);
+            },
+            "Save argument to a file encoded in msgpack format",
+            py::arg("arg"),
+            py::arg("filename"))
+        .def_static(
+            "load",
+            [](const std::string& filename) { return migraphx::load_argument(filename); },
+            "Load argument from a file encoded in msgpack format",
+            py::arg("filename"))
         .def("__eq__", std::equal_to<migraphx::argument>{})
         .def("__ne__", std::not_equal_to<migraphx::argument>{})
         .def("__repr__", [](const migraphx::argument& x) { return migraphx::to_string(x); });
@@ -351,7 +438,15 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 
     py::class_<migraphx::instruction_ref>(m, "instruction_ref")
         .def("shape", [](migraphx::instruction_ref i) { return i->get_shape(); })
-        .def("op", [](migraphx::instruction_ref i) { return i->get_operator(); });
+        .def("op", [](migraphx::instruction_ref i) { return i->get_operator(); })
+        .def("inputs", [](migraphx::instruction_ref i) { return i->inputs(); })
+        .def("outputs", [](migraphx::instruction_ref i) { return i->outputs(); })
+        .def("name", [](migraphx::instruction_ref i) { return i->name(); })
+        .def("get_literal",
+             [](migraphx::instruction_ref i) { return i->get_literal().get_argument(); })
+        .def(py::hash(py::self))
+        .def(py::self == py::self)
+        .def(py::self != py::self);
 
     py::class_<migraphx::module, std::unique_ptr<migraphx::module, py::nodelete>>(m, "module")
         .def("print", [](const migraphx::module& mm) { std::cout << mm << std::endl; })
@@ -366,6 +461,12 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             py::arg("op"),
             py::arg("args"),
             py::arg("mod_args") = std::vector<migraphx::module*>{})
+        .def(
+            "add_literal",
+            [](migraphx::module& mm, migraphx::argument a) {
+                return mm.add_literal(a.get_shape(), a.data());
+            },
+            py::arg("data"))
         .def(
             "add_literal",
             [](migraphx::module& mm, py::buffer data) {
@@ -387,7 +488,20 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                 return mm.add_return(args);
             },
             py::arg("args"))
-        .def("__repr__", [](const migraphx::module& mm) { return migraphx::to_string(mm); });
+        .def(
+            "replace_return",
+            [](migraphx::module& mm, std::vector<migraphx::instruction_ref>& args) {
+                return mm.replace_return(args);
+            },
+            py::arg("args"))
+        .def("__repr__", [](const migraphx::module& mm) { return migraphx::to_string(mm); })
+        .def(
+            "__iter__",
+            [](const migraphx::module& mm) {
+                auto r = migraphx::iterator_for(mm);
+                return py::make_iterator(r.begin(), r.end());
+            },
+            py::keep_alive<0, 1>());
 
     py::class_<migraphx::program>(m, "program")
         .def(py::init([]() { return migraphx::program(); }))
@@ -446,6 +560,12 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                      migraphx::any_ptr(reinterpret_cast<void*>(stream), stream_name), true};
                  return p.eval(pm, exec_env);
              })
+        .def("to_py",
+             [](const migraphx::program& p) {
+                 std::stringstream ss;
+                 p.print_py(ss);
+                 return ss.str();
+             })
         .def("sort", &migraphx::program::sort)
         .def("print", [](const migraphx::program& p) { std::cout << p << std::endl; })
         .def("__eq__", std::equal_to<migraphx::program>{})
@@ -461,7 +581,10 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
           }
           return migraphx::make_op(name, v);
       }))
-        .def("name", &migraphx::operation::name);
+        .def("name", &migraphx::operation::name)
+        .def("values", [](const migraphx::operation& operation) -> py::object {
+            return to_py_object(operation.to_value());
+        });
 
     py::enum_<migraphx::op::pooling_mode>(op, "pooling_mode")
         .value("average", migraphx::op::pooling_mode::average)
@@ -503,6 +626,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         [](const std::string& filename,
            unsigned int default_dim_value,
            migraphx::shape::dynamic_dimension default_dyn_dim_value,
+           std::unordered_map<std::string, migraphx::shape::dynamic_dimension> dim_params,
            std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims,
            std::unordered_map<std::string, std::vector<migraphx::shape::dynamic_dimension>>
                map_dyn_input_dims,
@@ -513,6 +637,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             migraphx::onnx_options options;
             options.default_dim_value      = default_dim_value;
             options.default_dyn_dim_value  = default_dyn_dim_value;
+            options.dim_params             = dim_params;
             options.map_input_dims         = map_input_dims;
             options.map_dyn_input_dims     = map_dyn_input_dims;
             options.skip_unknown_operators = skip_unknown_operators;
@@ -525,6 +650,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("filename"),
         py::arg("default_dim_value")     = 0,
         py::arg("default_dyn_dim_value") = migraphx::shape::dynamic_dimension{1, 1},
+        py::arg("dim_params") =
+            std::unordered_map<std::string, migraphx::shape::dynamic_dimension>(),
         py::arg("map_input_dims") = std::unordered_map<std::string, std::vector<std::size_t>>(),
         py::arg("map_dyn_input_dims") =
             std::unordered_map<std::string, std::vector<migraphx::shape::dynamic_dimension>>(),
@@ -588,6 +715,25 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("filename"),
         py::arg("format") = "msgpack");
 
+    m.def(
+        "save_buffer",
+        [](const migraphx::program& p) {
+            auto buffer = migraphx::save_buffer(p);
+            return py::bytes(buffer.data(), buffer.size());
+        },
+        "Serialize MIGraphX program",
+        py::arg("p"));
+
+    m.def(
+        "load_buffer",
+        [](const py::bytes& b) {
+            std::string_view byte_str{b};
+            std::vector<char> char_arr(byte_str.begin(), byte_str.end());
+            return migraphx::load_buffer(char_arr);
+        },
+        "Deserialize MIGraphX program",
+        py::arg("b"));
+
     m.def("get_target", &migraphx::make_target);
     m.def("create_argument", [](const migraphx::shape& s, const std::vector<double>& values) {
         if(values.size() != s.elements())
@@ -616,6 +762,11 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
           py::arg("t"),
           py::arg("calibration") = std::vector<migraphx::parameter_map>{},
           py::arg("ins_names")   = std::unordered_set<std::string>{"dot", "convolution"});
+    m.def("quantize_fp8",
+          &migraphx::quantize_fp8,
+          py::arg("prog"),
+          py::arg("t"),
+          py::arg("calibration") = std::vector<migraphx::parameter_map>{});
     m.def(
         "autocast_fp8",
         [](migraphx::program& prog) {
@@ -623,6 +774,10 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         },
         "Auto-convert FP8 parameters and return values to Float for MIGraphX Program",
         py::arg("prog"));
+    m.def("quantize_bf16",
+          &migraphx::quantize_bf16,
+          py::arg("prog"),
+          py::arg("ins_names") = std::vector<std::string>{"all"});
 
 #ifdef HAVE_GPU
     m.def("allocate_gpu", &migraphx::gpu::allocate_gpu, py::arg("s"), py::arg("host") = false);

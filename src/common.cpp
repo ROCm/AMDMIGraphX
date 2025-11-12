@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -118,7 +118,7 @@ std::vector<std::size_t> compute_common_lens(const std::vector<shape>& shapes)
                                 [](auto s) { return s.lens(); });
 }
 
-shape::type_t compute_common_type(shape::type_t t1, shape::type_t t2)
+static shape::type_t compute_common_type(shape::type_t t1, shape::type_t t2)
 {
     if(t1 == t2)
         return t1;
@@ -135,7 +135,7 @@ shape::type_t compute_common_type(shape::type_t t1, shape::type_t t2)
     return result;
 }
 
-shape::type_t compute_common_types(const std::vector<shape>& shapes)
+static shape::type_t compute_common_types(const std::vector<shape>& shapes)
 {
     assert(not shapes.empty());
     return transform_accumulate(

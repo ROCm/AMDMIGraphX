@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -130,9 +130,8 @@ auto operator==(const T& x, const U& y) -> decltype(x.name() == y.name())
 } // namespace operation_operators
 
 template <class T>
-auto compute_shape_op(rank<3>,
-                      const T& x,
-                      const std::vector<shape>& inputs) -> decltype(x.compute_shape(inputs))
+auto compute_shape_op(rank<3>, const T& x, const std::vector<shape>& inputs)
+    -> decltype(x.compute_shape(inputs))
 {
     return x.compute_shape(inputs);
 }
@@ -149,9 +148,8 @@ auto compute_shape_op(rank<2>, const T& x, const std::vector<shape>& inputs)
 }
 
 template <class T>
-auto compute_shape_op(rank<1>,
-                      const T& x,
-                      const std::vector<shape>& inputs) -> decltype(x.compute_shape(inputs, {}))
+auto compute_shape_op(rank<1>, const T& x, const std::vector<shape>& inputs)
+    -> decltype(x.compute_shape(inputs, {}))
 {
     return x.compute_shape(inputs, {});
 }
@@ -256,9 +254,10 @@ auto compute_op(rank<1>,
                 F f) -> decltype(x.compute(make_compute_output_shape(pack(x, output, inputs)),
                                            inputs,
                                            module_args,
-                                           f))
+                                           std::move(f)))
 {
-    return x.compute(make_compute_output_shape(pack(x, output, inputs)), inputs, module_args, f);
+    return x.compute(
+        make_compute_output_shape(pack(x, output, inputs)), inputs, module_args, std::move(f));
 }
 
 template <class T, class F>
@@ -267,7 +266,7 @@ argument compute_op(rank<0>,
                     const shape& output,
                     const std::vector<argument>& inputs,
                     const std::vector<module_ref>& module_args,
-                    F)
+                    F) // NOLINT
 {
     if(module_args.empty())
         return compute_op(x, output, inputs);
@@ -282,7 +281,7 @@ argument compute_op(const T& x,
                     const std::vector<module_ref>& module_args,
                     F f)
 {
-    return compute_op(rank<1>{}, x, output, inputs, module_args, f);
+    return compute_op(rank<1>{}, x, output, inputs, module_args, std::move(f));
 }
 
 template <class T, class F>
@@ -292,17 +291,18 @@ auto compute_op(rank<4>,
                 const shape& output,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>& module_args,
-                F f) -> decltype(x.compute(auto_any_cast(ctx),
-                                           make_compute_output_shape(pack(x, output, inputs)),
-                                           inputs,
-                                           module_args,
-                                           f))
+                F f) // NOLINT
+    -> decltype(x.compute(auto_any_cast(ctx),
+                          make_compute_output_shape(pack(x, output, inputs)),
+                          inputs,
+                          module_args,
+                          std::move(f)))
 {
     return x.compute(auto_any_cast(ctx),
                      make_compute_output_shape(pack(x, output, inputs)),
                      inputs,
                      module_args,
-                     f);
+                     std::move(f));
 }
 
 template <class T, class F>
@@ -312,12 +312,12 @@ auto compute_op(rank<3>,
                 const shape& output,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>& module_args,
-                F f) -> decltype(x.compute(make_compute_output_shape(pack(x, output, inputs)),
-                                           inputs,
-                                           module_args,
-                                           f))
+                F f) // NOLINT
+    -> decltype(x.compute(
+        make_compute_output_shape(pack(x, output, inputs)), inputs, module_args, std::move(f)))
 {
-    return x.compute(make_compute_output_shape(pack(x, output, inputs)), inputs, module_args, f);
+    return x.compute(
+        make_compute_output_shape(pack(x, output, inputs)), inputs, module_args, std::move(f));
 }
 
 template <class T, class F>
@@ -327,8 +327,8 @@ auto compute_op(rank<2>,
                 const shape& output,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>&,
-                F) -> decltype(x.compute(make_compute_output_shape(pack(x, output, inputs)),
-                                         inputs))
+                F) // NOLINT
+    -> decltype(x.compute(make_compute_output_shape(pack(x, output, inputs)), inputs))
 {
     return x.compute(make_compute_output_shape(pack(x, output, inputs)), inputs);
 }
@@ -340,9 +340,10 @@ auto compute_op(rank<1>,
                 const shape& output,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>&,
-                F) -> decltype(x.compute(auto_any_cast(ctx),
-                                         make_compute_output_shape(pack(x, output, inputs)),
-                                         inputs))
+                F) // NOLINT
+    -> decltype(x.compute(auto_any_cast(ctx),
+                          make_compute_output_shape(pack(x, output, inputs)),
+                          inputs))
 {
     return x.compute(
         auto_any_cast(ctx), make_compute_output_shape(pack(x, output, inputs)), inputs);
@@ -355,7 +356,7 @@ argument compute_op(rank<0>,
                     const shape&,
                     const std::vector<argument>&,
                     const std::vector<module_ref>&,
-                    F)
+                    F) // NOLINT
 {
     std::string name = x.name();
     MIGRAPHX_THROW("Not computable: " + name);
@@ -369,7 +370,7 @@ argument compute_op(const T& x,
                     const std::vector<module_ref>& module_args,
                     F f)
 {
-    return compute_op(rank<4>{}, x, ctx, output, inputs, module_args, f);
+    return compute_op(rank<4>{}, x, ctx, output, inputs, module_args, std::move(f));
 }
 
 template <class T>
@@ -385,9 +386,8 @@ auto is_context_free_op(rank<0>, const T&, const shape&, const std::vector<argum
     -> std::false_type;
 
 template <class T>
-auto is_context_free_op(const T& x)
-    -> decltype(is_context_free_op(
-        rank<1>{}, x, std::declval<const shape&>(), std::declval<std::vector<argument>>()))
+auto is_context_free_op(const T& x) -> decltype(is_context_free_op(
+    rank<1>{}, x, std::declval<const shape&>(), std::declval<std::vector<argument>>()))
 {
     return {};
 }
@@ -557,7 +557,7 @@ struct MIGRAPHX_EXPORT operation
 };
 
 #else
-
+// NOLINTBEGIN(performance-unnecessary-value-param)
 struct operation
 {
     private:
@@ -926,8 +926,6 @@ struct operation
                                                       std::declval<const value&>()),
                  private_detail_te_default_attributes(char(0),
                                                       std::declval<PrivateDetailTypeErasedT>()),
-                 static_cast<void>(void()),
-                 static_cast<void>(void()),
                  void());
 
     template <class PrivateDetailTypeErasedT>
@@ -1400,6 +1398,7 @@ inline const ValueType& any_cast(const operation& x)
         throw std::bad_cast();
     return *y;
 }
+// NOLINTEND(performance-unnecessary-value-param)
 #endif
 
 inline bool operator!=(const operation& x, const operation& y) { return not(x == y); }
@@ -1428,8 +1427,8 @@ inline shape compute_shape(const operation& op, const std::vector<shape>& inputs
 }
 
 template <class T>
-inline auto compute_shape(const T& op,
-                          const std::vector<shape>& inputs) -> decltype(op.compute_shape(inputs))
+inline auto compute_shape(const T& op, const std::vector<shape>& inputs)
+    -> decltype(op.compute_shape(inputs))
 {
     return op.compute_shape(inputs);
 }

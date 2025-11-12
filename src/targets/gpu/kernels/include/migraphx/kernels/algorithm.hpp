@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -281,6 +281,7 @@ constexpr Iterator upper_bound(Iterator first, Iterator last, const T& value, Co
 
     while(count > 0)
     {
+        // NOLINTNEXTLINE(readability-qualified-auto)
         auto it   = first;
         auto step = count / 2;
         it += step;
@@ -327,6 +328,33 @@ template <class Iterator>
 constexpr void stable_sort(Iterator first, Iterator last)
 {
     stable_sort(first, last, less{});
+}
+
+template <class Iterator1, class Iterator2, class OutputIterator, class Compare>
+constexpr OutputIterator merge(Iterator1 first1,
+                               Iterator1 last1,
+                               Iterator2 first2,
+                               Iterator2 last2,
+                               OutputIterator d_first,
+                               Compare comp)
+{
+    for(; first1 != last1; ++d_first)
+    {
+        if(first2 == last2)
+            return copy(first1, last1, d_first);
+
+        if(comp(*first2, *first1))
+        {
+            *d_first = *first2;
+            ++first2;
+        }
+        else
+        {
+            *d_first = *first1;
+            ++first1;
+        }
+    }
+    return copy(first2, last2, d_first);
 }
 
 } // namespace migraphx

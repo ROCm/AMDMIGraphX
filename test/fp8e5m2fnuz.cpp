@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,7 +30,7 @@
 
 #include <limits>
 
-float fp8e5m2fnuz_to_fp32_value(uint8_t input)
+static float fp8e5m2fnuz_to_fp32_value(uint8_t input)
 {
     constexpr std::array<float, 256> e4m3fnuz_lut = {
         0.0,
@@ -460,12 +460,12 @@ TEST_CASE(test_binary_ops)
 
     auto e = migraphx::fp8::fp8e5m2fnuz(10.0);
     auto f = migraphx::fp8::fp8e5m2fnuz(-10.0);
-    EXPECT(bool{e > f});
-    EXPECT(bool{f < e});
-    EXPECT(bool{f <= e});
-    EXPECT(bool{e >= f});
-    EXPECT(bool{e <= e});
-    EXPECT(bool{f >= f});
+    EXPECT(e > f);
+    EXPECT(f < e);
+    EXPECT(f <= e);
+    EXPECT(e >= f);
+    EXPECT(e <= e);
+    EXPECT(f >= f);
     EXPECT(not migraphx::float_equal(f, e));
 }
 

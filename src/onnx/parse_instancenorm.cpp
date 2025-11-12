@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -36,7 +36,8 @@ namespace onnx {
 
 struct parse_instancenorm : op_parser<parse_instancenorm>
 {
-    std::set<shape::type_t> valid_types = {shape::float_type, shape::half_type, shape::double_type};
+    std::set<shape::type_t> valid_types = {
+        shape::float_type, shape::half_type, shape::double_type, shape::bf16_type};
 
     std::vector<op_desc> operators() const { return {{"InstanceNormalization"}}; }
 

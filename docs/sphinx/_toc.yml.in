@@ -5,23 +5,29 @@ subtrees:
 
   - caption: Installation
     entries: 
-    - file: install/installing_with_package
+    - file: install/install-migraphx
+    - file: install/install-torch-migraphx
+
+  - caption: Conceptual
+    entries:
+    - file: conceptual/deep-learning-compilation
+      title: Deep learning compilation with MIGraphX
     
   - caption: Reference
     entries:
-    - file: reference/cpp
-    - file: reference/py
-    - file: migraphx-driver
+    - file: reference/MIGraphX-user-reference
       subtrees:
         - entries:
-          - file: reference/driver-options
-
-  - caption:  Developing for MIGraphX
-    entries:
-    - file: install/building_migraphx
-    - file: dev/contributing-to-migraphx
+          - file: reference/MIGraphX-cpp
+          - file: reference/MIGraphX-py
+          - file: dev/onnx_operators
+    - file: reference/MIGraphX-dev-reference
       subtrees:
         - entries:
+          - file: reference/MIGraphX-dev-env-vars
+          - file: migraphx-driver
+          - file: dev/contributing-to-migraphx
+            title: Develop for the MIGraphX code base
           - file: dev/data
           - file: dev/operators
           - file: dev/program
@@ -30,8 +36,11 @@ subtrees:
           - file: dev/pass
           - file: dev/matchers
           - file: dev/tools
-          - file: dev/env_vars            
   
+  - caption: Examples
+    entries: 
+    - file: tutorials/MIGraphX-examples
+
   - caption: About
     entries:
     - file: license

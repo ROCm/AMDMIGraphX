@@ -49,5 +49,6 @@ struct test_quant_conv_padding : verify_program<test_quant_conv_padding<DType>>
 
 template struct test_quant_conv_padding<migraphx::shape::int8_type>;
 template struct test_quant_conv_padding<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_quant_conv_padding<migraphx::shape::fp8e5m2fnuz_type>;
 template struct test_quant_conv_padding<migraphx::shape::fp8e4m3fn_type>;
 template struct test_quant_conv_padding<migraphx::shape::fp8e5m2_type>;

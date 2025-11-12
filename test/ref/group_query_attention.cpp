@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -77,20 +77,20 @@ TEST_CASE(gqa_test)
     p.compile(migraphx::make_target("ref"));
     auto outputs = p.eval({});
 
-    auto result = outputs.front();
+    const auto& result = outputs.front();
     std::vector<float> results_vector(outs.elements());
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    auto pres_key = outputs.at(1);
+    const auto& pres_key = outputs.at(1);
     std::vector<float> pres_key_vector(pkvs.elements());
     pres_key.visit([&](auto output) { pres_key_vector.assign(output.begin(), output.end()); });
-    auto pres_val = outputs.back();
+    const auto& pres_val = outputs.back();
     std::vector<float> pres_val_vector(pkvs.elements());
     pres_val.visit([&](auto output) { pres_val_vector.assign(output.begin(), output.end()); });
 
     std::vector<float> gold_output(outs.elements(), 1.0);
     std::vector<float> gold_k_cache(pkvs.elements(), 0.0);
     std::vector<float> gold_v_cache(pkvs.elements(), 0.0);
-    auto kv_cache_lens = pkvs.lens();
+    const auto& kv_cache_lens = pkvs.lens();
     for(auto i = 0; i < pkvs.elements(); i += kv_cache_lens[2] * kv_cache_lens[3])
     {
         for(auto j = 0; j < kv_cache_lens[3]; j++)

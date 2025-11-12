@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -48,7 +48,7 @@ const operation& get_operation(instruction_ref ins);
 struct module_impl;
 
 using parameter_map = std::unordered_map<std::string, argument>;
-using ins_dep_map   = std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>;
+using ins_dep_map   = std::unordered_map<instruction_ref, std::vector<instruction_ref>>;
 
 struct module_with_inputs;
 
@@ -62,6 +62,7 @@ struct MIGRAPHX_EXPORT module
                                                    const operation& op,
                                                    const std::vector<instruction_ref>& inputs,
                                                    const std::vector<module_ref>& mod_args)>;
+
     module(const std::string& name = "");
 
     // move constructor
@@ -201,6 +202,7 @@ struct MIGRAPHX_EXPORT module
     std::size_t size() const;
     instruction_ref begin() const;
     instruction_ref end() const;
+    instruction_ref insert_end() const;
 
     struct compute_shapes_options
     {
@@ -254,22 +256,32 @@ struct MIGRAPHX_EXPORT module
     // Insert params to module based on given input instructions and add
     // mappings from inputs to corresponding params in instructions map
     void add_params(const std::vector<instruction_ref>& inputs,
-                    std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr);
+                    std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
+                    const std::function<shape(const shape&)>& shape_transform     = nullptr);
 
-    // Fuse the instruction into the module by inserting the instructions and
-    // parameters for any missing inputs.
+    /**
+     * Fuse the instruction into the module by inserting the instructions and
+     * parameters for any missing inputs.
+     * `map_ins` is mapping from previous instructions to new instructions.
+     */
     std::vector<instruction_ref>
     fuse(const std::vector<instruction_ref>& inss,
          std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
-         inserter insert                                               = nullptr);
+         inserter insert                                               = nullptr,
+         const std::function<shape(const shape&)>& shape_transform     = nullptr);
 
-    // Fuse another module into this module by inserting the instructions and
-    // parameters from the module
+    /**
+     * Fuse another module into this module by inserting the instructions and
+     * parameters from the module
+     * map_ins is mapping from previous instructions to new instructions
+     * Returns output instructions to the module.
+     */
     std::vector<instruction_ref>
     fuse(const module& m,
          const std::vector<instruction_ref>& inputs,
          std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
-         inserter insert                                               = nullptr);
+         inserter insert                                               = nullptr,
+         const std::function<shape(const shape&)>& shape_transform     = nullptr);
     /*
     Insert instructions from module `m` to this module at position `ins`
     */
@@ -316,6 +328,8 @@ struct MIGRAPHX_EXPORT module
        of the each instruction such that it appears before the instruction itself.
     */
     module& sort();
+
+    module& shuffle(std::vector<std::size_t> permutation);
     /* Any instruction "X" can have module arguments and those modules inside them can use any other
      * instruction "Y" from predecessor modules of the instruction "X". Such instruction "Y" inside
      * module args are not listed as input instructions to "X". But those instructions "Y" must be
@@ -325,6 +339,7 @@ struct MIGRAPHX_EXPORT module
     ins_dep_map calc_implicit_deps() const;
 
     void repeat_while_changes(std::size_t n, const std::function<void()>& f);
+    void hoist_external_inputs(instruction_ref start_ins, instruction_ref end_ins);
 
     MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const module& m);
     MIGRAPHX_EXPORT friend bool operator==(const module& x, const module& y);

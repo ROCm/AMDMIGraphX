@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -149,6 +149,17 @@ def argument(h):
              returns='bool',
              const=True)
 
+
+api.add_function('migraphx_argument_save',
+                 api.params(a='const migraphx::argument&', filename='const char*'),
+                 fname='migraphx::save_argument'
+                 )
+
+api.add_function('migraphx_argument_load',
+                 api.params(filename='const char*'),
+                 fname='migraphx::load_argument',
+                 returns='migraphx::argument'
+                 )
 
 api.add_function('migraphx_argument_generate',
                  api.params(s='const migraphx::shape&', seed='size_t'),
@@ -428,6 +439,13 @@ api.add_function('migraphx_parse_tf',
                  fname='migraphx::parse_tf',
                  returns='migraphx::program')
 
+api.add_function('migraphx_parse_tf_buffer',
+                 api.params(data='const void*',
+                            size='size_t',
+                            options='migraphx::tf_options'),
+                 fname='migraphx::parse_tf_buffer',
+                 returns='migraphx::program')
+
 
 @api.handle('migraphx_quantize_op_names', 'std::vector<std::string>')
 def quantize_op_names(h):
@@ -443,6 +461,15 @@ api.add_function('migraphx_quantize_fp16_with_op_names',
 api.add_function('migraphx_quantize_fp16',
                  api.params(prog='migraphx::program&'),
                  fname='migraphx::quantize_fp16')
+
+api.add_function('migraphx_quantize_bf16_with_op_names',
+                 api.params(prog='migraphx::program&',
+                            name='std::vector<std::string>&'),
+                 fname='migraphx::quantize_bf16_with_op_names')
+
+api.add_function('migraphx_quantize_bf16',
+                 api.params(prog='migraphx::program&'),
+                 fname='migraphx::quantize_bf16')
 
 
 @auto_handle()
@@ -465,6 +492,23 @@ api.add_function('migraphx_quantize_int8',
                             target='migraphx::target',
                             options='migraphx::quantize_int8_options'),
                  fname='migraphx::quantize_int8_wrap')
+
+
+@auto_handle()
+def quantize_fp8_options(h):
+    h.constructor('create')
+    h.method(
+        'add_calibration_data',
+        api.params(data='std::unordered_map<std::string, migraphx::argument>'),
+        invoke='migraphx::add_calibration_data($@)',
+    )
+
+
+api.add_function('migraphx_quantize_fp8',
+                 api.params(prog='migraphx::program&',
+                            target='migraphx::target',
+                            options='migraphx::quantize_fp8_options'),
+                 fname='migraphx::quantize_fp8_wrap')
 
 
 @auto_handle(ref=True)

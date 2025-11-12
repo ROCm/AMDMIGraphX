@@ -1,7 +1,7 @@
 #=====ROCM INFO=====
-ROCM_VERSION : '6.0.2'
+ROCM_VERSION : '7.0'
 #default ROCm version to be used
-ROCM_BASE_IMAGE : 'rocm/dev-ubuntu-20.04'
+ROCM_BASE_IMAGE : 'rocm/dev-ubuntu-22.04'
 #base image from dockerhub to be used
 ROCM_BUILT_IMAGE : 'rocm-migraphx'
 #name of the docker image built upon ROCm base

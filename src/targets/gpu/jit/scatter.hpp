@@ -51,7 +51,7 @@ struct scatter_compiler : compiler<Derived>
         options.emplace_param("-DMIGRAPHX_ALLOW_ATOMIC_CAS=1");
 
         const auto src = derived().make_interpolated_string(op);
-        return prepend_copy_data_to_output(compile_hip_code_object(src, options));
+        return prepend_copy_data_to_output(compile_hip_code_object(ctx, src, options));
     }
 
     // ONNX spec states the following for ScatterElements and ScatterND:

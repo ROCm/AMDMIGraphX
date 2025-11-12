@@ -35,7 +35,9 @@ struct parse_matmul : op_parser<parse_matmul>
 {
     std::vector<op_desc> operators() const
     {
-        return {{"MatMul", "dot"}, {"MatMulInteger", "quant_dot"}};
+        return {{"MatMul", "dot"},
+                {"MatMulInteger", "quant_dot"},
+                {"MatMulIntegerToFloat", "quant_dot_scaled"}};
     }
 
     static void broadcast_dimensions(const onnx_parser::node_info& info,
@@ -106,7 +108,82 @@ struct parse_matmul : op_parser<parse_matmul>
         return all_zeros;
     }
 
-    static instruction_ref set_bias_arg(const std::vector<instruction_ref>& args,
+    static instruction_ref set_scale_arg(const onnx_parser::node_info& info,
+                                         const std::vector<instruction_ref>& args,
+                                         const instruction_ref& mat_input,
+                                         const int index)
+    {
+        instruction_ref scale_arg                            = args[index];
+        std::set<migraphx::shape::type_t> supported_dq_types = {migraphx::shape::float_type,
+                                                                migraphx::shape::half_type};
+
+        auto scale_shape = scale_arg->get_shape();
+
+        if(not(contains(supported_dq_types, scale_shape.type())))
+        {
+            MIGRAPHX_THROW("PARSE_QUANT_DOT_SCALED: Scales must be float or half_type");
+        }
+
+        if(scale_shape.lens().at(0) != *(mat_input->get_shape().lens().rbegin()) and
+           not scale_shape.scalar())
+        {
+            MIGRAPHX_THROW("PARSE_QUANT_DOT_SCALED: Scale must have same dim as matrix column");
+        }
+
+        if(scale_shape.lens().size() > 1 and not scale_shape.scalar())
+        {
+            MIGRAPHX_THROW("PARSE_QUANT_DOT_SCALED: Scales shape must be scalar or 1-D tensor");
+        }
+
+        if(scale_shape.scalar())
+        {
+            scale_arg   = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), scale_arg);
+            scale_shape = scale_arg->get_shape();
+        }
+
+        scale_arg = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), scale_arg);
+
+        return scale_arg;
+    }
+
+    static instruction_ref set_scale_bias(const std::vector<instruction_ref>& args,
+                                          const int index,
+                                          const migraphx::shape& scale_arg_shape,
+                                          const instruction_ref& compare_arg,
+                                          bool& has_valid_scale_bias)
+    {
+        has_valid_scale_bias = false;
+
+        if(args.size() > index)
+        {
+            instruction_ref scale_bias_arg                       = args[index];
+            std::set<migraphx::shape::type_t> supported_dq_types = {migraphx::shape::float_type,
+                                                                    migraphx::shape::half_type};
+
+            if(not(contains(supported_dq_types, scale_bias_arg->get_shape().type())))
+            {
+                MIGRAPHX_THROW("PARSE_QUANT_DOT_SCALED: Bias must be float or half_type");
+            }
+
+            if(scale_bias_arg->get_shape().type() != scale_arg_shape.type())
+            {
+                MIGRAPHX_THROW("PARSE_QUANT_DOT_SCALED: Bias must be the same type as scales");
+            }
+
+            if(scale_bias_arg->get_shape().lens().at(0) !=
+               *(compare_arg->get_shape().lens().rbegin()))
+            {
+                MIGRAPHX_THROW("PARSE_QUANT_DOT_SCALED: Bias have same dim as matrix B column");
+            }
+
+            has_valid_scale_bias = true;
+            return scale_bias_arg;
+        }
+        return compare_arg;
+    }
+
+    static instruction_ref set_bias_arg(const std::string& name,
+                                        const std::vector<instruction_ref>& args,
                                         const int index,
                                         const instruction_ref& input,
                                         bool& has_valid_bias)
@@ -118,7 +195,7 @@ struct parse_matmul : op_parser<parse_matmul>
             instruction_ref bias_arg = args[index];
             if(bias_arg->get_shape().type() != input->get_shape().type())
             {
-                MIGRAPHX_THROW("PARSE_QUANT_DOT: zero point must be the same type as data");
+                MIGRAPHX_THROW(name + ": zero point must be the same type as data");
             }
 
             // Don't return zero point if it will cause symmetric zero point. No need to bias
@@ -148,11 +225,124 @@ struct parse_matmul : op_parser<parse_matmul>
         }
     }
 
+    static void handle_scaled_transposes(const onnx_parser::node_info& info,
+                                         instruction_ref& scale,
+                                         instruction_ref& zp,
+                                         bool no_zp)
+    {
+        if(no_zp)
+        {
+            scale = info.add_instruction(make_op("transpose", {{"permutation", {0, 1}}}), scale);
+        }
+        else
+        {
+            scale = info.add_instruction(make_op("transpose", {{"permutation", {0, 1}}}), scale);
+            zp    = info.add_instruction(make_op("transpose", {{"permutation", {1, 0}}}), zp);
+        }
+    }
+
+    static instruction_ref handle_dequantized(const onnx_parser::node_info& info,
+                                              const instruction_ref& a0,
+                                              const instruction_ref& scale_a0,
+                                              const instruction_ref& zp_a0,
+                                              bool no_zp)
+    {
+        instruction_ref dequantized_op;
+
+        if(no_zp)
+        {
+            auto bc_scale_a0 = info.add_instruction(
+                make_op("multibroadcast", {{"out_lens", a0->get_shape().lens()}}), scale_a0);
+            dequantized_op = info.add_instruction(make_op("dequantizelinear"), a0, bc_scale_a0);
+        }
+        else
+        {
+            auto bc_scale_a0 = info.add_instruction(
+                make_op("multibroadcast", {{"out_lens", a0->get_shape().lens()}}), scale_a0);
+
+            auto bc_zp_a0 = info.add_instruction(
+                make_op("multibroadcast", {{"out_lens", a0->get_shape().lens()}}), zp_a0);
+
+            dequantized_op =
+                info.add_instruction(make_op("dequantizelinear"), a0, bc_scale_a0, bc_zp_a0);
+        }
+        return dequantized_op;
+    }
+
+    static instruction_ref handle_scaled_output(const onnx_parser::node_info& info,
+                                                const instruction_ref& a0,
+                                                const instruction_ref& a1,
+                                                const instruction_ref& scale_a0,
+                                                const instruction_ref& scale_a1,
+                                                const instruction_ref& zp_a0,
+                                                const instruction_ref& zp_a1,
+                                                const instruction_ref& scaled_bias,
+                                                const bool has_scale_bias)
+    {
+
+        instruction_ref unsq_zp_a0;
+        instruction_ref unsq_zp_a1;
+
+        bool a0_has_no_zp = (a0 == zp_a0);
+        bool a1_has_no_zp = (a1 == zp_a1);
+
+        if(not a0_has_no_zp)
+        {
+            unsq_zp_a0 = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), zp_a0);
+            if(zp_a0->get_shape().scalar())
+            {
+                unsq_zp_a0 =
+                    info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), unsq_zp_a0);
+            }
+        }
+
+        if(not a1_has_no_zp)
+        {
+            unsq_zp_a1 = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), zp_a1);
+            if(zp_a1->get_shape().scalar())
+            {
+                unsq_zp_a1 =
+                    info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), unsq_zp_a1);
+            }
+        }
+
+        auto dq_a0 = handle_dequantized(info, a0, scale_a0, unsq_zp_a0, a0_has_no_zp);
+        auto dq_a1 = handle_dequantized(info, a1, scale_a1, unsq_zp_a1, a1_has_no_zp);
+        auto res   = info.add_instruction(make_op("dot"), dq_a0, dq_a1);
+
+        // Handle case of the bias after scaling
+        if(has_scale_bias)
+            res = info.add_common_op("sub", res, scaled_bias);
+
+        return res;
+    }
+
+    static void handle_uint8_input(const onnx_parser::node_info& info,
+                                   const bool has_bias,
+                                   const instruction_ref& offset_op,
+                                   instruction_ref& arg,
+                                   instruction_ref& bias_arg)
+    {
+        auto arg_type = arg->get_shape().type();
+        // always convert uint8 to int8 to avoid rollover
+        if(arg_type == migraphx::shape::uint8_type)
+        {
+            shift_input_and_bias(info, offset_op, has_bias, arg, bias_arg);
+        }
+
+        // subtract bias from result after conversion
+        if(has_bias)
+        {
+            bias_arg = info.add_common_op("sub", arg, bias_arg);
+        }
+    }
+
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& /*parser*/,
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
+        std::string op_name{opd.op_name};
         auto a0 = args[0];
         auto a1 = args[1];
         auto s0 = a0->get_shape();
@@ -172,13 +362,17 @@ struct parse_matmul : op_parser<parse_matmul>
             a1            = info.add_instruction(make_op("unsqueeze", {{"axes", {1}}}), args[1]);
         }
 
-        auto is_quant_dot = opd.op_name == "quant_dot";
+        auto is_quant_dot        = opd.op_name == "quant_dot";
+        auto is_quant_dot_scaled = opd.op_name == "quant_dot_scaled";
+        auto is_dot              = opd.op_name == "dot";
+
         if(s0.dynamic() or s1.dynamic())
         {
-            if(is_quant_dot)
+            if(is_quant_dot or is_quant_dot_scaled)
             {
-                MIGRAPHX_THROW("PARSE_MATMUL: dynamic MatMulInteger not supported");
+                MIGRAPHX_THROW(op_name + ": dynamic inputs not supported");
             }
+
             auto s0_dds = a0->get_shape().to_dynamic().dyn_dims();
             auto s1_dds = a1->get_shape().to_dynamic().dyn_dims();
 
@@ -200,15 +394,44 @@ struct parse_matmul : op_parser<parse_matmul>
             auto s0_lens        = a0->get_shape().lens();
             auto s1_lens        = a1->get_shape().lens();
 
-            if(not is_quant_dot and args.size() > 2)
+            if(is_dot and args.size() > 2)
             {
-                MIGRAPHX_THROW("PARSE_MATMUL: Bias Args not supported for MatMul");
+                MIGRAPHX_THROW(op_name + ": Bias Args not supported");
             }
 
             bool has_ba0        = false;
             bool has_ba1        = false;
-            instruction_ref ba0 = set_bias_arg(args, 2, a0, has_ba0);
-            instruction_ref ba1 = set_bias_arg(args, 3, a1, has_ba1);
+            bool has_scale_bias = false;
+
+            int a0_zp_index = 2;
+            int a1_zp_index = 3;
+
+            instruction_ref scale_a0;
+            instruction_ref scale_a1;
+            // Handles case with for when scales are present in operator
+            if(is_quant_dot_scaled)
+            {
+                a0_zp_index = 4;
+                a1_zp_index = 5;
+                scale_a0    = set_scale_arg(info, args, a0, 2);
+                scale_a1    = set_scale_arg(info, args, a1, 3);
+                if(scale_a0->get_shape().type() != scale_a1->get_shape().type())
+                {
+                    MIGRAPHX_THROW(op_name + ": Scales must be the same type");
+                }
+            }
+
+            instruction_ref ba0 = set_bias_arg(op_name, args, a0_zp_index, a0, has_ba0);
+            instruction_ref ba1 = set_bias_arg(op_name, args, a1_zp_index, a1, has_ba1);
+
+            // handle optional bias arg to the result
+            instruction_ref scaled_bias;
+            if(is_quant_dot_scaled)
+            {
+                auto scaled_index = 6;
+                scaled_bias =
+                    set_scale_bias(args, scaled_index, scale_a1->get_shape(), a1, has_scale_bias);
+            }
 
             // Only INT8 or UINT8 type currently supported
             std::set<migraphx::shape::type_t> supported_types = {migraphx::shape::uint8_type,
@@ -216,45 +439,35 @@ struct parse_matmul : op_parser<parse_matmul>
             const auto a0_type                                = a0->get_shape().type();
             const auto a1_type                                = a1->get_shape().type();
 
-            if(is_quant_dot and
+            if((not is_dot) and
                (not contains(supported_types, a0_type) or not contains(supported_types, a1_type)))
             {
-                MIGRAPHX_THROW("PARSE_MATMULINTEGER: Unsupported type");
+                MIGRAPHX_THROW(op_name + ": Unsupported type");
             }
 
-            instruction_ref offset_op;
-            if(is_quant_dot and ((a0_type == migraphx::shape::uint8_type) or
-                                 (a1_type == migraphx::shape::uint8_type)))
+            if((is_quant_dot and ((a0_type == migraphx::shape::uint8_type) or
+                                  (a1_type == migraphx::shape::uint8_type))))
             {
-                offset_op = info.add_literal(
+                auto offset_op = info.add_literal(
                     migraphx::literal{migraphx::shape{migraphx::shape::half_type}, {-128}});
-            }
-
-            // always convert uint8 to int8 to avoid rollover
-            if(is_quant_dot and (a0_type == migraphx::shape::uint8_type))
-            {
-                shift_input_and_bias(info, offset_op, has_ba0, a0, ba0);
-            }
-
-            if(is_quant_dot and (a1_type == migraphx::shape::uint8_type))
-            {
-                shift_input_and_bias(info, offset_op, has_ba1, a1, ba1);
-            }
-
-            // subtract bias from result after conversion
-            if(is_quant_dot and has_ba0)
-            {
-                ba0 = info.add_common_op("sub", a0, ba0);
-            }
-
-            if(is_quant_dot and has_ba1)
-            {
-                ba1 = info.add_common_op("sub", a1, ba1);
+                handle_uint8_input(info, has_ba0, offset_op, a0, ba0);
+                handle_uint8_input(info, has_ba1, offset_op, a1, ba1);
             }
 
             broadcast_dimensions(info, s0_lens, s1_lens, a0, a1, ba0, ba1);
 
-            dot_res = info.add_instruction(make_op(opd.op_name), ba0, ba1);
+            // Apply the scale to dequantize input to then perform a simple dot
+            // after the zero points are applied otherwise get a int32 output from the quantized
+            // equivalent. Ensure these are broadcasted accordingly before we perform a dot
+            if(is_quant_dot_scaled)
+            {
+                dot_res = handle_scaled_output(
+                    info, a0, a1, scale_a0, scale_a1, ba0, ba1, scaled_bias, has_scale_bias);
+            }
+            else
+            {
+                dot_res = info.add_instruction(make_op(opd.op_name), ba0, ba1);
+            }
         }
 
         // squeeze the appended or prepended dimensions

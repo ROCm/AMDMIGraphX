@@ -1,7 +1,7 @@
-	gelu_bias_invalid_type_test:m
-
+	gelu_bias_invalid_type_test:|
+"
 x
-yz"BiasGelugelu_bias_invalid_type_testZ
+yz"BiasGelu:com.microsoftgelu_bias_invalid_type_testZ
 x
 
 

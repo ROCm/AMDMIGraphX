@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,6 +27,7 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <chrono>
 
 // Set this environment variable to "true" to perform GEMM tuning even when the
 // --exhaustive-tune option isn't set.  Can be used to skip slow convolution tuning.
@@ -39,6 +40,9 @@ namespace gpu {
 using milliseconds = std::chrono::duration<double, std::milli>;
 using microseconds = std::chrono::duration<double, std::micro>;
 
+void blas_shape_hip(const shape& in_shape);
+shape transpose_batch_hip(const shape& s, unsigned trans_batch);
+
 /**
  * @brief Templated implementations of the compute() and finalize() methods of the Gemm operator.
  *        For each function there are overloads using either float or int32_t for the arguments
@@ -50,13 +54,14 @@ using microseconds = std::chrono::duration<double, std::micro>;
  * @param alpha .
  * @param beta .
  */
-void hip_gemm_compute(context& ctx,
-                      const shape& output_shape,
-                      const std::vector<argument>& args,
-                      float alpha,
-                      float beta,
-                      int32_t solution_idx);
+MIGRAPHX_GPU_EXPORT void hip_gemm_compute(context& ctx,
+                                          const shape& output_shape,
+                                          const std::vector<argument>& args,
+                                          float alpha,
+                                          float beta,
+                                          int32_t solution_idx);
 
+MIGRAPHX_GPU_EXPORT
 int32_t hip_gemm_finalize(context& ctx,
                           const shape& output_shape,
                           const std::vector<shape>& input_shapes,
@@ -64,9 +69,16 @@ int32_t hip_gemm_finalize(context& ctx,
                           float beta,
                           int32_t solution_idx);
 
-int32_t hip_gemm_default_solution(context& ctx,
-                                  const shape& output_shape,
-                                  const std::vector<shape>& input_shapes);
+MIGRAPHX_GPU_EXPORT int32_t hip_gemm_default_solution(context& ctx,
+                                                      const shape& output_shape,
+                                                      const std::vector<shape>& input_shapes);
+
+MIGRAPHX_GPU_EXPORT size_t hip_gemm_workspace_size(context& ctx,
+                                                   const shape& output_shape,
+                                                   const std::vector<shape>& input_shapes,
+                                                   float alpha,
+                                                   float beta,
+                                                   int32_t solution_idx);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

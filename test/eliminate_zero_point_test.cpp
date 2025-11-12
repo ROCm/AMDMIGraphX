@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -38,13 +38,13 @@
 #include <migraphx/verify.hpp>
 #include <migraphx/apply_alpha_beta.hpp>
 
-void run_pass(migraphx::module& m) { run_passes(m, {migraphx::simplify_algebra{}}); }
+static void run_pass(migraphx::module& m) { run_passes(m, {migraphx::simplify_algebra{}}); }
 
-migraphx::instruction_ref add_quantize_op(migraphx::module& m,
-                                          const std::string& name,
-                                          migraphx::instruction_ref x,
-                                          migraphx::instruction_ref scale,
-                                          migraphx::instruction_ref shift)
+static migraphx::instruction_ref add_quantize_op(migraphx::module& m,
+                                                 const std::string& name,
+                                                 migraphx::instruction_ref x,
+                                                 migraphx::instruction_ref scale,
+                                                 migraphx::instruction_ref shift)
 {
     auto lens = x->get_shape().lens();
     auto scale_mb =
@@ -54,7 +54,7 @@ migraphx::instruction_ref add_quantize_op(migraphx::module& m,
     return m.add_instruction(migraphx::make_op(name), x, scale_mb, shift_mb);
 }
 
-migraphx::instruction_ref
+static migraphx::instruction_ref
 add_quantize_op(migraphx::module& m,
                 const std::string& name,
                 migraphx::instruction_ref x,
@@ -73,10 +73,10 @@ add_quantize_op(migraphx::module& m,
     return m.add_instruction(migraphx::make_op(name, op_val), x, scale_mb);
 }
 
-migraphx::instruction_ref add_scale_mul(migraphx::module& m,
-                                        migraphx::instruction_ref scale1,
-                                        migraphx::instruction_ref scale2,
-                                        const std::vector<std::size_t>& out_lens)
+static migraphx::instruction_ref add_scale_mul(migraphx::module& m,
+                                               migraphx::instruction_ref scale1,
+                                               migraphx::instruction_ref scale2,
+                                               const std::vector<std::size_t>& out_lens)
 {
     auto mul_ins = m.add_instruction(migraphx::make_op("mul"), scale1, scale2);
     if(mul_ins->get_shape().lens() != out_lens)
@@ -87,7 +87,8 @@ migraphx::instruction_ref add_scale_mul(migraphx::module& m,
     return mul_ins;
 }
 
-migraphx::instruction_ref init_zero_point(migraphx::module& m, migraphx::instruction_ref q_ins)
+static migraphx::instruction_ref init_zero_point(migraphx::module& m,
+                                                 migraphx::instruction_ref q_ins)
 {
     auto zp = m.add_literal(migraphx::literal{migraphx::shape{q_ins->get_shape().type()}, {0}});
     return m.add_instruction(

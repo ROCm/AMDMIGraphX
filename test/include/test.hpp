@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,6 +34,7 @@
 #include <sstream>
 #include <type_traits>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #ifdef __linux__
@@ -44,6 +45,17 @@
 #define MIGRAPHX_GUARD_TEST_TEST_HPP
 
 namespace test {
+
+template <int N>
+struct rank : rank<N - 1>
+{
+};
+
+template <>
+struct rank<0>
+{
+};
+
 // clang-format off
 // NOLINTNEXTLINE
 #define TEST_FOREACH_BINARY_OPERATORS(m) \
@@ -110,18 +122,41 @@ struct function
     }
 };
 
-template <class Stream, class Iterator>
-Stream& stream_range(Stream& s, Iterator start, Iterator last);
+template <class Stream, class T>
+void print_stream(Stream& s, const T& x);
 
-template <class Stream>
-inline Stream& operator<<(Stream& s, std::nullptr_t)
+template <class Stream, class T>
+Stream& print_stream_impl(rank<0>, Stream& s, const T&)
 {
-    s << "nullptr";
+    // TODO: Print typename
+    s << '?';
     return s;
 }
 
+template <class Stream, class T>
+auto print_stream_impl(rank<1>, Stream& s, const T& x)
+    -> decltype(s << x) // NOLINT(bugprone-multi-level-implicit-pointer-conversion)
+{
+    if constexpr(std::is_pointer<T>{})
+    {
+        return s << static_cast<const void*>(x);
+    }
+    else if constexpr(std::is_same<T, bool>{})
+    {
+        if(x)
+            s << "true";
+        else
+            s << "false";
+        return s;
+    }
+    else
+    {
+        return s << x;
+    }
+}
+
 template <class Stream, class T, class U>
-inline Stream& operator<<(Stream& s, const std::pair<T, U>& p)
+Stream& print_stream_impl(rank<2>, Stream& s, const std::pair<T, U>& p)
 {
     s << "{";
     s << p.first << ", " << p.second;
@@ -129,26 +164,38 @@ inline Stream& operator<<(Stream& s, const std::pair<T, U>& p)
     return s;
 }
 
-template <class Stream,
-          class Range,
-          class = typename std::enable_if<not std::is_convertible<Range, std::string>{}>::type>
-inline auto operator<<(Stream& s, const Range& v) -> decltype(stream_range(s, v.begin(), v.end()))
+template <class Stream>
+Stream& print_stream_impl(rank<3>, Stream& s, std::nullptr_t)
 {
-    s << "{ ";
-    stream_range(s, v.begin(), v.end());
-    s << "}";
+    s << "nullptr";
     return s;
 }
 
-template <class Stream, class Iterator>
-inline Stream& stream_range(Stream& s, Iterator start, Iterator last)
+template <class Stream,
+          class Range,
+          class = typename std::enable_if<not std::is_convertible<Range, std::string>{}>::type>
+auto print_stream_impl(rank<4>, Stream& s, const Range& v) -> decltype(v.end(),
+                                                                       s << *v.begin(),
+                                                                       void())
 {
+    auto start = v.begin();
+    auto last  = v.end();
+    s << "{ ";
     if(start != last)
     {
-        s << *start;
-        std::for_each(std::next(start), last, [&](auto&& x) { s << ", " << x; });
+        print_stream(s, *start);
+        std::for_each(std::next(start), last, [&](auto&& x) {
+            s << ", ";
+            print_stream(s, x);
+        });
     }
-    return s;
+    s << "}";
+}
+
+template <class Stream, class T>
+void print_stream(Stream& s, const T& x)
+{
+    print_stream_impl(rank<5>{}, s, x);
 }
 
 template <class T>
@@ -167,11 +214,11 @@ template <class T, class Operator>
 lhs_expression<T, Operator> make_lhs_expression(T&& lhs, Operator);
 
 // NOLINTNEXTLINE
-#define TEST_EXPR_BINARY_OPERATOR(op, name)                       \
-    template <class V>                                            \
-    auto operator op(const V& rhs2) const                         \
-    {                                                             \
-        return make_expression(*this, rhs2, name{}); /* NOLINT */ \
+#define TEST_EXPR_BINARY_OPERATOR(op, name)                                        \
+    template <class V>                                                             \
+    auto operator op(V&& rhs2) const                                               \
+    {                                                                              \
+        return make_expression(*this, std::forward<V>(rhs2), name{}); /* NOLINT */ \
     }
 
 // NOLINTNEXTLINE
@@ -186,7 +233,9 @@ struct expression
 
     friend std::ostream& operator<<(std::ostream& s, const expression& self)
     {
-        s << self.lhs << " " << Operator::as_string() << " " << self.rhs;
+        print_stream(s, self.lhs);
+        s << " " << Operator::as_string() << " ";
+        print_stream(s, self.rhs);
         return s;
     }
 
@@ -200,9 +249,9 @@ struct expression
 
 // TODO: Remove rvalue references
 template <class T, class U, class Operator>
-expression<T, U, Operator> make_expression(T&& rhs, U&& lhs, Operator)
+expression<T, U, Operator> make_expression(T&& lhs, U&& rhs, Operator)
 {
-    return {std::forward<T>(rhs), std::forward<U>(lhs)};
+    return {std::forward<T>(lhs), std::forward<U>(rhs)};
 }
 
 // TODO: Remove rvalue reference
@@ -222,14 +271,14 @@ template <class T, class Operator>
 struct lhs_expression
 {
     T lhs;
-    explicit lhs_expression(T e) : lhs(e) {}
+    explicit lhs_expression(T e) : lhs(std::move(e)) {}
 
     friend std::ostream& operator<<(std::ostream& s, const lhs_expression& self)
     {
         std::string op = Operator::as_string();
         if(not op.empty())
             s << Operator::as_string() << " ";
-        s << self.lhs;
+        print_stream(s, self.lhs);
         return s;
     }
 
@@ -277,29 +326,14 @@ struct predicate
 template <class F>
 auto make_predicate(const std::string& msg, F f)
 {
-    return make_lhs_expression(predicate<F>{msg, f}, function{});
-}
-
-inline std::string as_string(bool x)
-{
-    if(x)
-        return "true";
-    return "false";
+    return make_lhs_expression(predicate<F>{msg, std::move(f)}, function{});
 }
 
 template <class T>
 std::string as_string(const T& x)
 {
     std::stringstream ss;
-    ss << x;
-    return ss.str();
-}
-
-template <class Iterator>
-std::string as_string(Iterator start, Iterator last)
-{
-    std::stringstream ss;
-    stream_range(ss, start, last);
+    print_stream(ss, x);
     return ss.str();
 }
 
@@ -308,8 +342,7 @@ auto make_function(const std::string& name, F f)
 {
     return [=](auto&&... xs) {
         std::vector<std::string> args = {as_string(xs)...};
-        return make_predicate(name + "(" + as_string(args.begin(), args.end()) + ")",
-                              [=] { return f(xs...); });
+        return make_predicate(name + "(" + as_string(args) + ")", [=] { return f(xs...); });
     };
 }
 
@@ -364,7 +397,7 @@ inline std::atomic<int>& failures()
 }
 
 template <class T, class F>
-void failed(T x, const char* msg, const char* func, const char* file, int line, F f)
+void failed(const T& x, const char* msg, const char* func, const char* file, int line, F f)
 {
     if(not bool(x.value()))
     {
@@ -461,7 +494,7 @@ bool glob_match(Iterator1 start, Iterator1 last, Iterator2 pattern_start, Iterat
 using string_map = std::unordered_map<std::string, std::vector<std::string>>;
 
 template <class Keyword>
-string_map generic_parse(std::vector<std::string> as, Keyword keyword)
+string_map generic_parse(const std::vector<std::string>& as, Keyword keyword)
 {
     string_map result;
 
@@ -817,16 +850,24 @@ inline void run(int argc, const char* argv[])
 // NOLINTNEXTLINE
 #define TEST_CAPTURE(...) test::capture{}->*__VA_ARGS__
 
+#ifdef _WIN32
+// NOLINTNEXTLINE
+#define TEST_PRETTY_FUNCTION __FUNCSIG__
+#else
+// NOLINTNEXTLINE
+#define TEST_PRETTY_FUNCTION __PRETTY_FUNCTION__
+#endif
+
 // NOLINTNEXTLINE
 #define CHECK(...) \
     test::failed(  \
-        TEST_CAPTURE(__VA_ARGS__), #__VA_ARGS__, __PRETTY_FUNCTION__, __FILE__, __LINE__, [] {})
+        TEST_CAPTURE(__VA_ARGS__), #__VA_ARGS__, TEST_PRETTY_FUNCTION, __FILE__, __LINE__, [] {})
 
 // NOLINTNEXTLINE
 #define EXPECT(...)                         \
     test::failed(TEST_CAPTURE(__VA_ARGS__), \
                  #__VA_ARGS__,              \
-                 __PRETTY_FUNCTION__,       \
+                 TEST_PRETTY_FUNCTION,      \
                  __FILE__,                  \
                  __LINE__,                  \
                  &test::fail)
@@ -845,9 +886,9 @@ inline void run(int argc, const char* argv[])
 
 // NOLINTNEXTLINE
 #define TEST_CASE(...)              \
-    void __VA_ARGS__();             \
+    static void __VA_ARGS__();      \
     TEST_CASE_REGISTER(__VA_ARGS__) \
-    void __VA_ARGS__()
+    static void __VA_ARGS__()
 
 #ifdef __clang__
 #pragma clang diagnostic push

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,7 @@
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/array.hpp>
+#include <migraphx/bit.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -79,6 +80,14 @@ static std::vector<std::size_t> get_reduce_lens(const std::vector<std::size_t>& 
     return reduce_lens;
 }
 
+static shape get_input_shape(const std::vector<shape>& inputs)
+{
+    auto it = std::max_element(inputs.begin(), inputs.end(), by(std::less<>{}, [](const shape& s) {
+                                   return s.elements();
+                               }));
+    return *it;
+}
+
 template <class T>
 static shape get_reduced_shape(const shape& s, const std::vector<T>& axes)
 {
@@ -103,15 +112,18 @@ static std::string get_reduce_algo(context& ctx, const std::vector<shape>& input
 {
     const auto init = std::numeric_limits<std::size_t>::max();
     auto relements  = std::accumulate(rlens.begin(), rlens.end(), 1, std::multiplies<>{});
-    // The minimum stride
-    auto min_stride = std::inner_product(
-        rlens.begin(),
-        rlens.end(),
-        inputs.front().strides().begin(),
-        init,
-        [](auto x, auto y) { return std::min(x, y); },
-        [](auto len, auto stride) { return len == 1 ? init : stride; });
-    if(min_stride > 2)
+    bool is_strided_reduce = std::all_of(inputs.begin(), inputs.end(), [&](const shape& input) {
+        // The minimum stride
+        auto min_stride = std::inner_product(
+            rlens.begin(),
+            rlens.end(),
+            input.strides().begin(),
+            init,
+            [](auto x, auto y) { return std::min(x, y); },
+            [](auto len, auto stride) { return len == 1 ? init : stride; });
+        return min_stride > 2;
+    });
+    if(is_strided_reduce)
         return "lane";
     if(relements <= ctx.get_current_device().get_wavefront_size())
         return "wave";
@@ -265,7 +277,7 @@ struct simple_reduce_compiler : compiler<simple_reduce_compiler>
                                        {"transformers", make_transformer_args(vec)},
                                        {"preamble", v.get("preamble", std::string{})}});
         options.emplace_param("-Wno-float-equal");
-        return compile_hip_code_object(src, options);
+        return compile_hip_code_object(ctx, src, options);
     }
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
@@ -310,14 +322,6 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
 {
     std::vector<std::string> names() const { return {"fused_reduce", "split_fused_reduce"}; }
 
-    static shape get_input_shape(const std::vector<shape>& inputs)
-    {
-        auto it = std::max_element(inputs.begin(),
-                                   inputs.end(),
-                                   by(std::less<>{}, [](const shape& s) { return s.elements(); }));
-        return *it;
-    }
-
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         auto assign         = v.get("assign", "assign_none");
@@ -352,7 +356,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
             auto relements  = reduction_shape.elements() / vec.size;
             if(algo == "block")
             {
-                auto block_size = compute_block_size(ctx, relements, 256);
+                auto block_size = v.get("block_size", compute_block_size(ctx, relements, 256));
                 if(relements >= block_size * 256)
                     algo = "block_large";
                 options.set_launch_params(
@@ -360,7 +364,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
             }
             else
             {
-                auto subwave_size = compute_subwave_size(ctx, relements);
+                auto subwave_size = v.get("subwave_size", compute_subwave_size(ctx, relements));
                 algo              = "subwave<" + std::to_string(subwave_size) + ">";
                 options.set_launch_params(v,
                                           compute_global_for(ctx, nelements * subwave_size, 256),
@@ -389,18 +393,57 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
                         {"noutputs", std::to_string(noutputs)},
                         {"preamble", v.get("preamble", std::string{})}});
         options.emplace_param("-Wno-float-equal");
-        return compile_hip_code_object(src, options);
+        return compile_hip_code_object(ctx, src, options);
     }
 
-    compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
+    compiler_replace
+    compile(context& ctx, instruction_ref ins, const operation& op, const value& solution) const
     {
         assert(not ins->module_inputs().empty());
         auto v        = op.to_value();
+        for(const auto& x : solution)
+            v.insert(x);
         auto* rm      = ins->module_inputs().front();
         v["preamble"] = generate_reduce(*rm, "fused_reduce_op");
         v["lambda"]   = "MIGRAPHX_LIFT(fused_reduce_op)";
         v["kernel"]   = generate_name_from_ops(*rm) + "_kernel";
         return compile_op(ctx, to_shapes(ins->inputs()), v);
+    }
+
+    optional<tuning_config> get_tuning_config(const context& ctx,
+                                              instruction_ref ins,
+                                              const operation& op,
+                                              bool exhaustive) const
+    {
+        if(not exhaustive)
+            return nullopt;
+        if(op.name() != "fused_reduce")
+            return nullopt;
+        tuning_config tc;
+        auto shapes       = to_shapes(ins->inputs());
+        tc.problem        = to_value(shapes);
+        auto axes         = op.to_value().at("axes").to_vector<std::size_t>();
+        auto input_shape  = get_input_shape(shapes);
+        auto reduce_shape = get_reduced_shape(input_shape, axes);
+        auto relements    = reduce_shape.elements();
+        std::unordered_set<std::size_t> tile_sizes;
+        for(auto per_lane : {1, 2, 4, 8, 16})
+        {
+            std::size_t x = relements / per_lane;
+            for(auto max_block : {256, 512, 1024})
+                tile_sizes.insert(compute_block_size(ctx, x, max_block));
+            if(x < ctx.get_current_device().get_wavefront_size())
+                tile_sizes.insert(bit_ceil(x));
+        }
+        for(auto tile_size : tile_sizes)
+        {
+            if(tile_size > ctx.get_current_device().get_wavefront_size())
+                tc.solutions.push_back({{"algo", "block"}, {"block_size", tile_size}});
+            else
+                tc.solutions.push_back({{"algo", "wave"}, {"subwave_size", tile_size}});
+        }
+        tc.solutions.push_back({{"algo", "lane"}});
+        return tc;
     }
 };
 } // namespace gpu

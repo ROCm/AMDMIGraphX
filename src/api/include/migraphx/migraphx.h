@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -47,7 +47,9 @@
     m(uint64_type, uint64_t) \
     m(fp8e4m3fnuz_type, migraphx::fp8::fp8e4m3fnuz) \
     m(fp8e4m3fn_type, migraphx::fp8::fp8e4m3fn) \
-    m(fp8e5m2_type, migraphx::fp8::fp8e5m2)
+    m(fp8e5m2_type, migraphx::fp8::fp8e5m2) \
+    m(bf16_type, bf16) \
+    m(fp8e5m2fnuz_type, migraphx::fp8::fp8e5m2fnuz)
 // clang-format on
 
 #ifdef __cplusplus
@@ -69,6 +71,7 @@ typedef enum
 typedef enum
 {
     migraphx_shape_tuple_type,
+    migraphx_shape_fp4x2_type,
     MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES)
 } migraphx_shape_datatype_t;
 #undef MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES
@@ -138,6 +141,9 @@ typedef const struct migraphx_quantize_op_names* const_migraphx_quantize_op_name
 
 typedef struct migraphx_quantize_int8_options* migraphx_quantize_int8_options_t;
 typedef const struct migraphx_quantize_int8_options* const_migraphx_quantize_int8_options_t;
+
+typedef struct migraphx_quantize_fp8_options* migraphx_quantize_fp8_options_t;
+typedef const struct migraphx_quantize_fp8_options* const_migraphx_quantize_fp8_options_t;
 
 typedef struct migraphx_context* migraphx_context_t;
 typedef const struct migraphx_context* const_migraphx_context_t;
@@ -302,6 +308,12 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_argument_buffer(char** out,
 MIGRAPHX_C_EXPORT migraphx_status migraphx_argument_equal(bool* out,
                                                           const_migraphx_argument_t argument,
                                                           const_migraphx_argument_t x);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_argument_save(const_migraphx_argument_t a,
+                                                         const char* filename);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_argument_load(migraphx_argument_t* out,
+                                                         const char* filename);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_argument_generate(migraphx_argument_t* out,
                                                              const_migraphx_shape_t s,
@@ -585,6 +597,11 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_parse_tf(migraphx_program_t* out,
                                                     const char* name,
                                                     migraphx_tf_options_t options);
 
+MIGRAPHX_C_EXPORT migraphx_status migraphx_parse_tf_buffer(migraphx_program_t* out,
+                                                           const void* data,
+                                                           size_t size,
+                                                           migraphx_tf_options_t options);
+
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_quantize_op_names_destroy(migraphx_quantize_op_names_t quantize_op_names);
 
@@ -601,6 +618,11 @@ MIGRAPHX_C_EXPORT migraphx_status
 migraphx_quantize_fp16_with_op_names(migraphx_program_t prog, migraphx_quantize_op_names_t name);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_quantize_fp16(migraphx_program_t prog);
+
+MIGRAPHX_C_EXPORT migraphx_status
+migraphx_quantize_bf16_with_op_names(migraphx_program_t prog, migraphx_quantize_op_names_t name);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_quantize_bf16(migraphx_program_t prog);
 
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_quantize_int8_options_destroy(migraphx_quantize_int8_options_t quantize_int8_options);
@@ -620,6 +642,22 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_quantize_int8_options_add_calibration
 MIGRAPHX_C_EXPORT migraphx_status migraphx_quantize_int8(migraphx_program_t prog,
                                                          migraphx_target_t target,
                                                          migraphx_quantize_int8_options_t options);
+
+MIGRAPHX_C_EXPORT migraphx_status
+migraphx_quantize_fp8_options_destroy(migraphx_quantize_fp8_options_t quantize_fp8_options);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_quantize_fp8_options_assign_to(
+    migraphx_quantize_fp8_options_t output, const_migraphx_quantize_fp8_options_t input);
+
+MIGRAPHX_C_EXPORT migraphx_status
+migraphx_quantize_fp8_options_create(migraphx_quantize_fp8_options_t* quantize_fp8_options);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_quantize_fp8_options_add_calibration_data(
+    migraphx_quantize_fp8_options_t quantize_fp8_options, migraphx_program_parameters_t data);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_quantize_fp8(migraphx_program_t prog,
+                                                        migraphx_target_t target,
+                                                        migraphx_quantize_fp8_options_t options);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_context_finish(const_migraphx_context_t context);
 

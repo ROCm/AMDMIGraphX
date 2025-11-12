@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,6 +32,13 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
 bool is_asym_padding(const std::vector<int64_t>& padding);
+
+void cal_auto_padding_size(std::string auto_pad,
+                           const std::vector<std::size_t>& strides,
+                           const std::vector<std::size_t>& k_lens,
+                           const std::vector<std::size_t>& dilation,
+                           const std::vector<std::size_t>& in_lens,
+                           std::vector<int64_t>& paddings);
 
 void cal_auto_padding_size(onnx_parser::node_info info,
                            value& v,

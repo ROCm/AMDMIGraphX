@@ -44,6 +44,16 @@ __device__ bool float_equal_device(T x, T y)
            std::nextafter(x, std::numeric_limits<T>::max()) >= y;
 }
 
+template <>
+__device__ bool float_equal_device(__bf16 x, __bf16 y) // NOLINT(misc-definitions-in-headers)
+{
+    float xf = x;
+    float yf = y;
+    return std::isfinite(xf) and std::isfinite(yf) and
+           std::nextafter(xf, std::numeric_limits<float>::lowest()) <= yf and
+           std::nextafter(xf, std::numeric_limits<float>::max()) >= yf;
+}
+
 template <class T, MIGRAPHX_REQUIRES(not is_floating_point<T>{})>
 __device__ bool float_equal_device(T x, T y)
 {

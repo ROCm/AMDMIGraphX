@@ -12,12 +12,12 @@ on:
         type: string
         description: ROCm release version
         required: true
-        default: '6.0.2'
+        default: '7.0'
       base_image:
         type: string
         description: Base image for ROCm Docker build
         required: true
-        default: 'rocm/dev-ubuntu-20.04'
+        default: 'rocm/dev-ubuntu-22.04'
       docker_image:
         type: string
         description: Docker image name for rocm Docker build
@@ -56,7 +56,7 @@ jobs:
       repo_org: ${{ steps.read_config.outputs.repo_org }}
     steps:
       - name: checkout
-        uses: actions/checkout@v4.1.1
+        uses: actions/checkout@v4.2.2
       - name: read_config
         id: read_config
         run: |

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,7 +30,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 operation make_op(const std::string& name) { return load_op(name); }
 
 template <class F>
-operation make_op_generic(const std::string& name, F for_each)
+static operation make_op_generic(const std::string& name, F for_each)
 {
     auto op = load_op(name);
     // Merge values

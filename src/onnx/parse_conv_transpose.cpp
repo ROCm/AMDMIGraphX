@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -36,7 +36,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
 template <class T>
-std::vector<int64_t> to_int64_vector(const std::vector<T>& input_vector)
+static std::vector<int64_t> to_int64_vector(const std::vector<T>& input_vector)
 {
     std::vector<int64_t> output_vector(input_vector.begin(), input_vector.end());
     return output_vector;

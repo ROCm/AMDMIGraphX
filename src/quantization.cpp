@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,7 +24,7 @@
 #include <migraphx/float_equal.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/quantization.hpp>
-#include <migraphx/quantize_fp16.hpp>
+#include <migraphx/truncate_float.hpp>
 #include <migraphx/quantize_8bits.hpp>
 #include <migraphx/quantize_int4.hpp>
 #include <migraphx/simplify_reshapes.hpp>
@@ -42,6 +42,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/normalize_ops.hpp>
+#include <migraphx/rewrite_rnn.hpp>
 #include <set>
 #include <map>
 
@@ -49,6 +50,15 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_8BITS_QUANTIZATION_PARAMS)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_QUANTIZATION)
+
+static tracer quant_tracer()
+{
+    if(enabled(MIGRAPHX_TRACE_QUANTIZATION{}))
+        return tracer{std::cout};
+
+    return tracer{};
+};
 
 // This function is to convert any instructions specified in the input
 // from double or float to float16 by inserting a convert operator.
@@ -60,19 +70,30 @@ void quantize_fp16(program& prog, const std::vector<std::string>& ins_names)
     run_passes(prog,
                {normalize_ops{},
                 optimize_module{{"quantizelinear", "dequantizelinear"}},
-                quantize_fp16_pass{ins_names},
-                optimize_module{{"quantizelinear", "dequantizelinear"}}});
+                truncate_float_pass{ins_names, shape::half_type},
+                optimize_module{{"quantizelinear", "dequantizelinear"}}},
+               quant_tracer());
 }
 
-void quantize_8bits(program& prog,
-                    const target& t,
-                    shape::type_t precision,
-                    const std::vector<parameter_map>& calibration,
-                    const std::unordered_set<std::string>& ins_names)
+void quantize_bf16(program& prog, const std::vector<std::string>& ins_names)
+{
+    run_passes(prog,
+               {normalize_ops{},
+                optimize_module{{"quantizelinear", "dequantizelinear"}},
+                truncate_float_pass{ins_names, shape::bf16_type},
+                optimize_module{{"quantizelinear", "dequantizelinear"}}},
+               quant_tracer());
+}
+
+static void quantize_8bits(program& prog,
+                           const target& t,
+                           shape::type_t precision,
+                           const std::vector<parameter_map>& calibration,
+                           const std::unordered_set<std::string>& ins_names)
 {
     // Run optimize_module() before converting to int8/fp8 to const eval and fold in FP32 to
     // avoid loss of precision.
-    run_passes(prog, {normalize_ops{}, optimize_module{}});
+    run_passes(prog, {rewrite_rnn{}, normalize_ops{}, optimize_module{}}, quant_tracer());
 
     std::shared_ptr<std::vector<std::pair<float, float>>> quant_8bit_params =
         std::make_shared<std::vector<std::pair<float, float>>>();
@@ -106,7 +127,8 @@ void quantize_8bits(program& prog,
 
     // pass to add capture argument op
     std::size_t param_num = 0;
-    run_passes(prog, {capture_arguments_pass{ins_names, calc_quant_params, &param_num}});
+    run_passes(
+        prog, {capture_arguments_pass{ins_names, calc_quant_params, &param_num}}, quant_tracer());
     quant_8bit_params->resize(param_num, std::pair<float, float>(64.0f, 0.0f));
     max_abs_vals->resize(param_num, 0.0f);
 
@@ -147,10 +169,8 @@ void quantize_8bits(program& prog,
     }
 
     run_passes(prog,
-               {quantize_8bits_pass{precision, *quant_8bit_params},
-                simplify_qdq{},
-                optimize_module{},
-                dead_code_elimination{}});
+               {quantize_8bits_pass{precision, *quant_8bit_params}, dead_code_elimination{}},
+               quant_tracer());
 }
 
 void quantize_int8(program& prog,
@@ -168,14 +188,11 @@ void quantize_int8(program& prog,
 
 void quantize_int4_weights(program& prog)
 {
-    run_passes(prog, {normalize_ops{}, optimize_module{}, quantize_int4_pass{}});
+    run_passes(prog, {normalize_ops{}, optimize_module{}, quantize_int4_pass{}}, quant_tracer());
 }
 
 void quantize_fp8(program& prog, const target& t, const std::vector<parameter_map>& calibration)
 {
-    std::cout << "[Warning] : MIGraphX has BETA support for FP8. Using FP8 may result in "
-                 "incorrect final outputs\n";
-
     std::unordered_set<std::string> supported_ins_names;
     auto* mm = prog.get_main_module();
     for(auto ins : iterator_for(*mm))
@@ -189,23 +206,8 @@ void quantize_fp8(program& prog, const target& t, const std::vector<parameter_ma
             supported_ins_names.insert(ins->name());
         }
     }
-    auto gfx_has_fp8fnuz = [&]() {
-        if(t.name() == "gpu")
-        {
-            auto context_value = t.get_context().to_value();
-            auto device_name   = context_value["gfx_name"].to<std::string>();
-            return (starts_with(device_name, "gfx9") and device_name >= "gfx940");
-        }
-        return false;
-    };
-    if(gfx_has_fp8fnuz())
-    {
-        quantize_8bits(prog, t, shape::fp8e4m3fnuz_type, calibration, supported_ins_names);
-    }
-    else
-    {
-        quantize_8bits(prog, t, shape::fp8e4m3fn_type, calibration, supported_ins_names);
-    }
+    quantize_8bits(prog, t, shape::fp8e4m3fn_type, calibration, supported_ins_names);
 }
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -75,15 +75,20 @@ inline auto hipblaslt_invoke(F f, Ts... xs)
     return status;
 }
 
+// Invoke a hipBLASLt call. If used to validate a call, set fatal_error = false to prevent
+// throwing an exception on failure.
 template <class F, class Pack, class... Ts>
-auto hipblaslt_invoke(F f, Pack p, Ts... xs)
+auto hipblaslt_invoke(F f, Pack p, Ts... xs, bool fatal_error = true)
 {
     return p([=](auto... ws) {
         auto status = f(ws..., xs...);
         if(status != HIPBLAS_STATUS_SUCCESS)
         {
-            MIGRAPHX_THROW("hipblaslt_invoke: hipBlasLt call failed with status " +
-                           std::to_string(status));
+            if(fatal_error)
+            {
+                MIGRAPHX_THROW("hipblaslt_invoke: hipBlasLt call failed with status " +
+                               std::to_string(status));
+            }
         }
         return status;
     });
@@ -95,7 +100,6 @@ using hipblaslt_preference_ptr = MIGRAPHX_MANAGE_PTR(hipblasLtMatmulPreference_t
 
 hipblaslt_handle_ptr create_hipblaslt_handle_ptr();
 hipblaslt_preference_ptr create_hipblaslt_preference_ptr();
-bool hipblaslt_supported();
 const size_t hipblaslt_workspace_size = 2 * 128 * 1024 * 1024;
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

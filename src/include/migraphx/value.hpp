@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -278,9 +278,9 @@ struct MIGRAPHX_EXPORT value
         return *this = static_cast<pick<T>>(rhs); // NOLINT
     }
     template <class T, MIGRAPHX_REQUIRES(is_generic_range<T>{})>
-    value& operator=(T rhs)
+    value& operator=(const T& rhs)
     {
-        return *this = from_values(rhs); // NOLINT
+        return *this = from_values(std::move(rhs)); // NOLINT
     }
 
     value& operator=(const char* c);
@@ -403,7 +403,7 @@ struct MIGRAPHX_EXPORT value
     To to() const
     {
         To result;
-        this->visit([&](auto y) { result = try_convert_value<To>(y); });
+        this->visit([&](const auto& y) { result = try_convert_value<To>(y); });
         return result;
     }
 
@@ -421,9 +421,10 @@ struct MIGRAPHX_EXPORT value
         std::vector<To> result;
         const auto& values = is_object() ? get_object() : get_array();
         result.reserve(values.size());
-        std::transform(values.begin(), values.end(), std::back_inserter(result), [&](auto v) {
-            return v.template to<To>();
-        });
+        std::transform(values.begin(),
+                       values.end(),
+                       std::back_inserter(result),
+                       [&](const auto& v) { return v.template to<To>(); });
         return result;
     }
 
@@ -467,6 +468,8 @@ struct MIGRAPHX_EXPORT value
     void debug_print(bool show_type = false) const;
 
     type_t get_type() const;
+
+    const std::shared_ptr<value_base_impl>& get_impl() const;
 
     private:
     template <class T>

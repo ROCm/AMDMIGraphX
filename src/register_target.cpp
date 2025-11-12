@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,13 +32,13 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void store_target_lib(const dynamic_loader& lib)
+static void store_target_lib(const dynamic_loader& lib)
 {
     static std::vector<dynamic_loader> target_loader;
     target_loader.emplace_back(lib);
 }
 
-std::unordered_map<std::string, target>& target_map()
+static std::unordered_map<std::string, target>& target_map()
 {
     static std::unordered_map<std::string, target> m; // NOLINT
     return m;

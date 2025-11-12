@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,14 +27,56 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/ranges.hpp>
-#include <sstream>
 #include <migraphx/make_op.hpp>
+#include <random>
+#include <sstream>
 
 #include <basic_ops.hpp>
 #include <pointwise.hpp>
 #include <test.hpp>
 
-migraphx::program create_program()
+// Check the module is topologically sorted
+// TODO: Use test::make_predicate
+static bool is_sorted(migraphx::module& m)
+{
+    std::unordered_set<migraphx::instruction_ref> visited;
+    for(auto ins : migraphx::iterator_for(m))
+    {
+        visited.insert(ins);
+        if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [&](auto i) {
+               return not visited.count(i);
+           }))
+        {
+            return false; // Found an input that has not been visited yet
+        }
+    }
+    return true;
+}
+
+static void shuffle_module(migraphx::module& m)
+{
+    if(m.size() < 2)
+        return;
+    std::vector<std::size_t> permutation(m.size() - 1);
+    std::iota(permutation.begin(), permutation.end(), 0);
+    std::mt19937 g(permutation.size());
+    std::shuffle(permutation.begin(), permutation.end(), g);
+    permutation.push_back(permutation.size());
+    m.shuffle(permutation);
+}
+
+static void reverse_module(migraphx::module& m)
+{
+    if(m.size() < 2)
+        return;
+    std::vector<std::size_t> permutation(m.size() - 1);
+    std::iota(permutation.begin(), permutation.end(), 0);
+    std::reverse(permutation.begin(), permutation.end());
+    permutation.push_back(permutation.size());
+    m.shuffle(permutation);
+}
+
+static migraphx::program create_program()
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -503,11 +545,11 @@ TEST_CASE(module_split2)
     EXPECT(mods[0].mod.sort() == m1.sort());
     EXPECT(mods[1].mod.sort() == m2.sort());
 
-    EXPECT(bool{mods[0].inputs[0] == inputs[0]});
-    EXPECT(bool{mods[0].inputs[1] == inputs[1]});
+    EXPECT(mods[0].inputs[0] == inputs[0]);
+    EXPECT(mods[0].inputs[1] == inputs[1]);
 
-    EXPECT(bool{mods[1].inputs[0] == splits.front()});
-    EXPECT(bool{mods[1].inputs[1] == inputs[2]});
+    EXPECT(mods[1].inputs[0] == splits.front());
+    EXPECT(mods[1].inputs[1] == inputs[2]);
 }
 
 TEST_CASE(module_split_2_dot_ins)
@@ -586,18 +628,18 @@ TEST_CASE(module_split_2_dot_ins)
         mod_1.add_return({m1_mul});
     }
     auto mods = m1.split(inputs, splits);
-    EXPECT(bool{mods[0].mod.sort() == mod_0.sort()});
+    EXPECT(mods[0].mod.sort() == mod_0.sort());
     const auto mod_0_inputs = mods[0].inputs;
-    EXPECT(bool{mod_0_inputs[0] == mod_0_expected_inputs[0]});
-    EXPECT(bool{mod_0_inputs[1] == mod_0_expected_inputs[1]});
+    EXPECT(mod_0_inputs[0] == mod_0_expected_inputs[0]);
+    EXPECT(mod_0_inputs[1] == mod_0_expected_inputs[1]);
     const auto mod_1_inputs = mods[1].inputs;
     // first input arg should be the split instruction
-    EXPECT(bool{mods[1].mod.sort() == mod_1.sort()});
-    EXPECT(bool{mod_1_inputs[0] == splits.front()});
-    EXPECT(bool{mod_1_inputs[1] == mod_1_expected_inputs[0]});
-    EXPECT(bool{mod_1_inputs[2] == mod_1_expected_inputs[1]});
-    EXPECT(bool{mod_1_inputs[3] == mod_1_expected_inputs[2]});
-    EXPECT(bool{mod_1_inputs[4] == mod_1_expected_inputs[3]});
+    EXPECT(mods[1].mod.sort() == mod_1.sort());
+    EXPECT(mod_1_inputs[0] == splits.front());
+    EXPECT(mod_1_inputs[1] == mod_1_expected_inputs[0]);
+    EXPECT(mod_1_inputs[2] == mod_1_expected_inputs[1]);
+    EXPECT(mod_1_inputs[3] == mod_1_expected_inputs[2]);
+    EXPECT(mod_1_inputs[4] == mod_1_expected_inputs[3]);
 }
 
 TEST_CASE(module_split3)
@@ -651,13 +693,13 @@ TEST_CASE(module_split3)
     EXPECT(mods[1].mod.sort() == m2.sort());
     EXPECT(mods[2].mod.sort() == m3.sort());
 
-    EXPECT(bool{mods[0].inputs[0] == inputs[0]});
-    EXPECT(bool{mods[0].inputs[1] == inputs[1]});
+    EXPECT(mods[0].inputs[0] == inputs[0]);
+    EXPECT(mods[0].inputs[1] == inputs[1]);
 
-    EXPECT(bool{mods[1].inputs[0] == splits1.front()});
+    EXPECT(mods[1].inputs[0] == splits1.front());
 
-    EXPECT(bool{mods[2].inputs[0] == splits2.front()});
-    EXPECT(bool{mods[2].inputs[1] == splits1.front()});
+    EXPECT(mods[2].inputs[0] == splits2.front());
+    EXPECT(mods[2].inputs[1] == splits1.front());
 }
 
 TEST_CASE(fuse_module)
@@ -728,9 +770,9 @@ TEST_CASE(get_inputs)
     auto inputs = m1.get_inputs(map_m1_to_mm);
 
     EXPECT(inputs.size() == 3);
-    EXPECT(bool{inputs[0] == x});
-    EXPECT(bool{inputs[1] == z});
-    EXPECT(bool{inputs[2] == y});
+    EXPECT(inputs[0] == x);
+    EXPECT(inputs[1] == z);
+    EXPECT(inputs[2] == y);
 }
 
 TEST_CASE(add_params)
@@ -756,9 +798,785 @@ TEST_CASE(add_params)
     // m1 should have parameters x0 and x1 with the shapes of mul and add outputs, respectively
     EXPECT(m1 == m2);
     // map_ins should contain a mapping: mul (in mm) -> x0 (in m1)
-    EXPECT(bool{m1.get_parameter("x0") == map_ins[mul]});
+    EXPECT(m1.get_parameter("x0") == map_ins[mul]);
     // map_ins should contain a mapping: add (in mm) -> x1 (in m1)
-    EXPECT(bool{m1.get_parameter("x1") == map_ins[add]});
+    EXPECT(m1.get_parameter("x1") == map_ins[add]);
+}
+
+TEST_CASE(linear_graph_sort)
+{
+    //
+    // Linear chain test - graph structure:
+    //
+    //  x → abs → neg → tanh → return
+    //
+    // Tests the most basic case of topological sorting.
+    //
+    migraphx::module m;
+    auto s = migraphx::shape{migraphx::shape::float_type, {1}};
+    auto x = m.add_parameter("x", s);
+    auto a = m.add_instruction(migraphx::make_op("abs"), x);
+    auto n = m.add_instruction(migraphx::make_op("neg"), a);
+    auto t = m.add_instruction(migraphx::make_op("tanh"), n);
+    m.add_return({t});
+
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    reverse_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    shuffle_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+}
+
+TEST_CASE(diamond_graph_sort)
+{
+    //
+    // Diamond graph test - graph structure:
+    //
+    //           ┌─→ abs ─┐
+    //           │        ↓
+    //  x ───────┼───────→ add → return
+    //           │        ↑
+    //           └─→ neg ─┘
+    //
+    // Tests handling of branches and reconvergent paths.
+    //
+    migraphx::module m;
+    auto s   = migraphx::shape{migraphx::shape::float_type, {1}};
+    auto x   = m.add_parameter("x", s);
+    auto a   = m.add_instruction(migraphx::make_op("abs"), x);
+    auto n   = m.add_instruction(migraphx::make_op("neg"), x);
+    auto add = m.add_instruction(migraphx::make_op("add"), a, n);
+    m.add_return({add});
+
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    reverse_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    shuffle_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+}
+
+TEST_CASE(multiple_outputs_sort)
+{
+    //
+    // Multiple outputs test - graph structure:
+    //
+    //           ┌─→ abs → tanh ─┐
+    //           │                │
+    //  x ───────┤                ├─→ return
+    //           │                │
+    //           └─→ neg ─────────┘
+    //
+    // Tests handling of multiple outputs from a single instruction.
+    //
+    migraphx::module m;
+    auto s = migraphx::shape{migraphx::shape::float_type, {1}};
+    auto x = m.add_parameter("x", s);
+    auto a = m.add_instruction(migraphx::make_op("abs"), x);
+    auto n = m.add_instruction(migraphx::make_op("neg"), x);
+    auto t = m.add_instruction(migraphx::make_op("tanh"), a);
+    m.add_return({t, n});
+
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    reverse_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    shuffle_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+}
+
+TEST_CASE(dead_code_sort)
+{
+    //
+    // Dead code
+    //
+    //           ┌─→ abs → tanh ─┐
+    //           │               │
+    //  x ───────┤               ├─→ return
+    //           │
+    //           └─→ neg
+    //
+    // Tests handling of dead code
+    //
+    migraphx::module m;
+    auto s = migraphx::shape{migraphx::shape::float_type, {1}};
+    auto x = m.add_parameter("x", s);
+    auto a = m.add_instruction(migraphx::make_op("abs"), x);
+    m.add_instruction(migraphx::make_op("neg"), x);
+    auto t = m.add_instruction(migraphx::make_op("tanh"), a);
+    m.add_return({t});
+
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    reverse_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    shuffle_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+}
+
+TEST_CASE(disconnected_components_sort)
+{
+    //
+    // Disconnected components test - graph structure:
+    //
+    //  x1 → abs1 ─┐
+    //              ├─→ return
+    //  x2 → abs2 ─┘
+    //
+    // Tests sorting of disconnected subgraphs.
+    //
+    migraphx::module m;
+    auto s = migraphx::shape{migraphx::shape::float_type, {1}};
+
+    // First subgraph
+    auto x1 = m.add_parameter("x1", s);
+    auto a1 = m.add_instruction(migraphx::make_op("abs"), x1);
+
+    // Second subgraph (disconnected)
+    auto x2 = m.add_parameter("x2", s);
+    auto a2 = m.add_instruction(migraphx::make_op("abs"), x2);
+
+    m.add_return({a1, a2});
+
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    reverse_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    shuffle_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+}
+
+TEST_CASE(empty_graph_sort)
+{
+    //
+    // Empty graph test - graph structure:
+    //
+    //  (empty module)
+    //
+    // Tests sorting an empty module.
+    //
+    migraphx::module m;
+    m.sort();
+
+    // No assertions should fail
+    EXPECT(is_sorted(m));
+}
+
+TEST_CASE(single_node_sort)
+{
+    //
+    // Single node test - graph structure:
+    //
+    //  x → return
+    //
+    // Tests the simplest possible non-empty case.
+    //
+    migraphx::module m;
+    auto s = migraphx::shape{migraphx::shape::float_type, {1}};
+    auto x = m.add_parameter("x", s);
+    m.add_return({x});
+
+    m.sort();
+
+    EXPECT(is_sorted(m));
+}
+
+TEST_CASE(sort_with_non_direct_dependencies)
+{
+    //
+    // Non-direct dependencies test - graph structure:
+    //
+    //  x → abs ─────────┐
+    //        │          │
+    //        ↓          ↓
+    //       neg → add → return
+    //
+    // Tests handling of both direct and indirect dependencies.
+    // (A is a direct dependency of B and C, and an indirect dependency of C via B)
+    //
+    migraphx::module m;
+    auto s = migraphx::shape{migraphx::shape::float_type, {1}};
+
+    auto x = m.add_parameter("x", s);
+    auto a = m.add_instruction(migraphx::make_op("abs"), x);
+    auto b = m.add_instruction(migraphx::make_op("neg"), a);
+    auto c = m.add_instruction(migraphx::make_op("add"), a, b);
+    m.add_return({c});
+
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    reverse_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    shuffle_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+}
+
+TEST_CASE(dfs_without_visited_set_infinite_loop)
+{
+    //
+    // Highly Connected DAG test - graph structure:
+    //
+    //           x0
+    //          /|\
+    //         / | \
+    //        /  |  \
+    //       v   v   v
+    //      a1  b1  c1
+    //     /|\ /|\ /|\
+    //    / | X | X | \  (crossing connections)
+    //   /  |/ \|/ \|  \
+    //  v   v   v   v   v
+    // a2  a3  b2  b3  c2
+    //  \   \   |   /   /
+    //   \   \  |  /   /
+    //    \   \ | /   /
+    //     \   \|/   /
+    //      \   v   /
+    //       \  d  /
+    //        \ | /
+    //         \|/
+    //          v
+    //        return
+    //
+    // This creates a highly connected directed acyclic graph (DAG) where
+    // traversing up from the return node would encounter the same nodes
+    // multiple times through different paths.
+    //
+    // Without a proper visited set, a DFS-based topological sort would
+    // potentially re-process the same nodes repeatedly, leading to an
+    // exponential runtime or infinite loop in pathological implementations.
+    //
+    migraphx::module m;
+    auto s = migraphx::shape{migraphx::shape::float_type, {1}};
+
+    auto x0 = m.add_parameter("x0", s);
+
+    // First layer of operations
+    auto a1 = m.add_instruction(migraphx::make_op("add"), x0, x0);
+    auto b1 = m.add_instruction(migraphx::make_op("mul"), x0, x0);
+    auto c1 = m.add_instruction(migraphx::make_op("tanh"), x0);
+
+    // Second layer with cross-connections
+    auto a2 = m.add_instruction(migraphx::make_op("sqrt"), a1);
+    auto a3 = m.add_instruction(migraphx::make_op("mul"), a1, b1);
+    auto b2 = m.add_instruction(migraphx::make_op("where"), a1, b1, c1);
+    auto b3 = m.add_instruction(migraphx::make_op("mul"), b1, c1);
+    auto c2 = m.add_instruction(migraphx::make_op("exp"), c1);
+
+    m.add_return({a2, a3, b2, b3, c2});
+
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    reverse_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    shuffle_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+}
+
+TEST_CASE(recursive_dag_revisit_test)
+{
+    //
+    // Recursive DAG structure - graph structure:
+    //
+    //      x
+    //     / \
+    //    v   v
+    //   a1   b1
+    //  / \  / \
+    // v   vv   v
+    // a2  c1   b2
+    // |   /\   |
+    // |  /  \  |
+    // v v    v v
+    // a3      b3
+    // |        |
+    // v        v
+    // a4      b4
+    // |        |
+    // v        v
+    // a5      b5
+    //  \      /
+    //   \    /
+    //    v  v
+    //     d1
+    //     |
+    //     v
+    //   return
+    //
+    // This test creates a deeper recursive structure with many opportunities
+    // for revisiting nodes. Each node in the middle layers (a2-a5, b2-b5, c1)
+    // has multiple paths leading to it when traversing up from the return node.
+    //
+    // A naive DFS implementation without a visited set would potentially
+    // revisit these nodes many times, leading to an exponential number of
+    // recursive calls, which could manifest as an infinite loop in practice.
+    //
+    migraphx::module m;
+    auto s = migraphx::shape{migraphx::shape::float_type, {1}};
+
+    auto x = m.add_parameter("x", s);
+
+    // Create two main branches
+    auto a1 = m.add_instruction(migraphx::make_op("add"), x, x);
+    auto b1 = m.add_instruction(migraphx::make_op("mul"), x, x);
+
+    // Create deeper levels with cross-connections
+    auto a2 = m.add_instruction(migraphx::make_op("sqrt"), a1);
+    auto c1 = m.add_instruction(migraphx::make_op("add"), a1, b1);
+
+    auto b2 = m.add_instruction(migraphx::make_op("neg"), b1);
+
+    auto a3 = m.add_instruction(migraphx::make_op("add"), a2, c1);
+
+    auto b3 = m.add_instruction(migraphx::make_op("add"), b2, c1);
+
+    // Add more layers to increase the number of paths
+    auto a4 = m.add_instruction(migraphx::make_op("log"), a3);
+    auto b4 = m.add_instruction(migraphx::make_op("exp"), b3);
+
+    auto a5 = m.add_instruction(migraphx::make_op("cos"), a4);
+    auto b5 = m.add_instruction(migraphx::make_op("sin"), b4);
+
+    // Final convergence
+    auto d1 = m.add_instruction(migraphx::make_op("add"), a5, b5);
+
+    m.add_return({d1});
+
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    reverse_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    shuffle_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+}
+
+TEST_CASE(exponential_growth_graph_sort)
+{
+    //
+    // Exponential growth graph structure - graph pattern:
+    //
+    // Each level i has 2^i nodes, with each node connecting to
+    // multiple nodes in the previous level. This creates an exponential
+    // number of paths through the graph.
+    //
+    // This structure is particularly problematic for naive DFS implementations
+    // without visited node tracking.
+    //
+
+    // Define a large enough graph to potentially cause problems
+    // but not so large that it takes too long to create
+    const int depth = 10;
+
+    migraphx::module m;
+    auto s = migraphx::shape{migraphx::shape::float_type, {1}};
+
+    // Available operations
+    std::vector<migraphx::operation> operations = {migraphx::make_op("add"),
+                                                   migraphx::make_op("mul"),
+                                                   migraphx::make_op("min"),
+                                                   migraphx::make_op("max"),
+                                                   migraphx::make_op("div")};
+
+    auto x                                             = m.add_parameter("x", s);
+    std::vector<migraphx::instruction_ref> first_level = {x};
+
+    // Number of nodes at each level which doubles at each level
+    std::array<std::size_t, depth> num_nodes;
+    num_nodes.fill(2);
+    std::partial_sum(num_nodes.begin(), num_nodes.end(), num_nodes.begin(), std::multiplies<>{});
+
+    // Build all layers, accumulating just the last level
+    auto last_level =
+        std::accumulate(num_nodes.begin(),
+                        num_nodes.end(),
+                        first_level,
+                        [&](const auto& prev_level, std::size_t nodes_at_level) {
+                            // Transform indices into nodes
+                            std::vector<migraphx::instruction_ref> current_level;
+                            current_level.reserve(nodes_at_level);
+
+                            transform(migraphx::range(nodes_at_level),
+                                      std::back_inserter(current_level),
+                                      [&](std::size_t node) {
+                                          // Select inputs from previous level
+                                          int input1_idx = node % prev_level.size();
+                                          int input2_idx = (node / 2) % prev_level.size();
+
+                                          auto input1 = prev_level[input1_idx];
+                                          auto input2 = prev_level[input2_idx];
+
+                                          // Select operation based on node index
+                                          const auto& op = operations[node % operations.size()];
+
+                                          // Create the new node
+                                          return m.add_instruction(op, input1, input2);
+                                      });
+
+                            // Return the current level (to become prev_level in next iteration)
+                            return current_level;
+                        });
+
+    // Add return node connected to multiple nodes from the last level
+    std::vector<migraphx::instruction_ref> final_inputs;
+    std::copy_n(last_level.begin(), last_level.size() / 2, std::back_inserter(final_inputs));
+    m.add_return(final_inputs);
+
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    reverse_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    shuffle_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+}
+
+TEST_CASE(pathological_dfs_graph_sort)
+{
+    //
+    // Pathological DFS Graph - designed to create the maximum number
+    // of revisits when traversing from the return node without a visited set
+    //
+    // This creates a graph where the number of unique paths to each node
+    // increases exponentially as you traverse up from the return node,
+    // making it a worst-case scenario for DFS without visited tracking.
+    //
+    migraphx::module m;
+    auto s = migraphx::shape{migraphx::shape::float_type, {1}};
+
+    const int num_layers      = 20;
+    const int nodes_per_layer = 20;
+    const int num_params      = 10;
+
+    // Create parameters
+    std::vector<migraphx::instruction_ref> params;
+    transform(migraphx::range(num_params), std::back_inserter(params), [&](int i) {
+        return m.add_parameter("x" + std::to_string(i), s);
+    });
+
+    // Available operations
+    std::vector<migraphx::operation> operations = {migraphx::make_op("add"),
+                                                   migraphx::make_op("mul"),
+                                                   migraphx::make_op("min"),
+                                                   migraphx::make_op("max"),
+                                                   migraphx::make_op("div")};
+
+    std::vector<migraphx::instruction_ref> first_layer;
+    transform(
+        migraphx::range(nodes_per_layer), std::back_inserter(first_layer), [&](std::size_t i) {
+            // Each node connects to two random parameters
+            std::size_t param1 = i % num_params;
+            std::size_t param2 = (i + 3) % num_params;
+
+            const auto& op = operations[i % operations.size()];
+            return m.add_instruction(op, params[param1], params[param2]);
+        });
+
+    // Build all layers, accumulating just the last layer
+    auto last_layer = std::accumulate(
+        migraphx::iota_iterator{0},
+        migraphx::iota_iterator{num_layers},
+        first_layer,
+        [&](const auto& prev_layer, std::size_t) {
+            std::vector<std::size_t> node_indices(nodes_per_layer);
+            std::iota(node_indices.begin(), node_indices.end(), 0);
+
+            std::vector<migraphx::instruction_ref> current_layer;
+
+            transform(migraphx::range(nodes_per_layer),
+                      std::back_inserter(current_layer),
+                      [&](std::size_t i) {
+                          // Connect to multiple nodes from previous layer to create path explosion
+                          const std::size_t num_inputs = std::min(4, nodes_per_layer);
+                          std::vector<migraphx::instruction_ref> inputs;
+
+                          // Transform indices to actual input nodes
+                          transform(migraphx::range(num_inputs),
+                                    std::back_inserter(inputs),
+                                    [&](std::size_t j) {
+                                        std::size_t input_idx = (i + j * 3) % prev_layer.size();
+                                        return prev_layer[input_idx];
+                                    });
+
+                          // Create intermediate nodes with pairs of inputs
+                          auto op1  = migraphx::make_op("add");
+                          auto op2  = migraphx::make_op("mul");
+                          auto ins1 = m.add_instruction(op1, inputs[0], inputs[1]);
+                          auto ins2 = m.add_instruction(
+                              op2, inputs[2 % inputs.size()], inputs[3 % inputs.size()]);
+
+                          // Combine the results
+                          const auto& op3 = operations[(i % 3) + 2]; // Use min, max, or div
+                          return m.add_instruction(op3, ins1, ins2);
+                      });
+
+            // Return the current layer (to become prev_layer in next iteration)
+            return current_layer;
+        });
+
+    // Create a sequence of operations that combine all nodes from the last layer
+    auto final_result = std::accumulate(
+        last_layer.begin() + 1, last_layer.end(), last_layer[0], [&](auto x, auto y) {
+            return m.add_instruction(migraphx::make_op("add"), x, y);
+        });
+
+    m.add_return({final_result});
+
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    reverse_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    shuffle_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+}
+
+TEST_CASE(hoist_external_inputs)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape s2{migraphx::shape::float_type, {3, 4}};
+    migraphx::shape s3{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape s4{migraphx::shape::float_type, {4, 2}};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto a = mm->add_parameter("a", s1);
+    auto b = mm->add_parameter("b", s2);
+    auto c = mm->add_parameter("c", s3);
+    auto d = mm->add_parameter("d", s4);
+
+    auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b); // {2, 4}
+    auto external_relu =
+        add_pointwise(p, "main:pointwise1", {d}, single_pointwise("relu")); // {4, 3}
+    auto external_mul =
+        add_pointwise(p, "main:pointwise2", {external_relu, d}, single_pointwise("mul")); // {4, 3}
+    auto add  = add_pointwise(p, "main:pointwise0", {dot1, c}, single_pointwise("add"));  // {2, 4}
+    auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, external_mul);         // {2, 3}
+    auto transpose =
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dot2);
+    mm->add_return({add, transpose});
+
+    // Hoist external inputs between dot1 and dot2
+    mm->hoist_external_inputs(dot1, dot2);
+
+    // Verify the module is still topologically sorted overall
+    EXPECT(is_sorted(*mm));
+
+    // Verify external operations moved before the fusion chain
+    EXPECT(std::distance(mm->begin(), external_relu) < std::distance(mm->begin(), dot1));
+    EXPECT(std::distance(mm->begin(), external_mul) < std::distance(mm->begin(), dot1));
+
+    // Verify the fusion chain ordering is preserved: dot1 < add < dot2
+    EXPECT(std::distance(mm->begin(), dot1) < std::distance(mm->begin(), add));
+    EXPECT(std::distance(mm->begin(), add) < std::distance(mm->begin(), dot2));
+
+    // Verify external_mul is before dot1 (since dot2 depends on external_mul)
+    EXPECT(std::distance(mm->begin(), external_mul) < std::distance(mm->begin(), dot1));
+
+    // Verify transpose remains after dot2
+    EXPECT(std::distance(mm->begin(), dot2) < std::distance(mm->begin(), transpose));
+}
+
+TEST_CASE(hoist_external_inputs_no_movement_needed)
+{
+    // Test where external dependencies are already before the fusion chain
+    migraphx::shape s1{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape s2{migraphx::shape::float_type, {3, 4}};
+    migraphx::shape s3{migraphx::shape::float_type, {2, 4}};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto a = mm->add_parameter("a", s1);
+    auto b = mm->add_parameter("b", s2);
+    auto c = mm->add_parameter("c", s3);
+
+    // External operations already positioned before the fusion chain
+    auto external1 = add_pointwise(p, "main:pointwise0", {a}, single_pointwise("relu"));
+    auto external2 = add_pointwise(p, "main:pointwise1", {b}, single_pointwise("tanh"));
+    auto external3 = add_pointwise(p, "main:pointwise2", {c}, single_pointwise("tanh"));
+
+    // Fusion chain
+    auto dot1 = mm->add_instruction(migraphx::make_op("dot"), external1, external2);
+    auto add  = add_pointwise(p, "main:pointwise3", {dot1, external3}, single_pointwise("add"));
+
+    mm->add_return({add});
+
+    // Record positions before hoist_external_inputs
+    auto dot1_pos_before = std::distance(mm->begin(), dot1);
+    auto add_pos_before  = std::distance(mm->begin(), add);
+
+    mm->hoist_external_inputs(dot1, add);
+
+    // Verify positions haven't changed (nothing needed to move)
+    EXPECT(std::distance(mm->begin(), dot1) == dot1_pos_before);
+    EXPECT(std::distance(mm->begin(), add) == add_pos_before);
+    EXPECT(is_sorted(*mm));
+}
+
+TEST_CASE(hoist_external_inputs_multiple_external_branches)
+{
+    // Test with multiple independent external branches that need to be moved
+    migraphx::shape s1{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape s2{migraphx::shape::float_type, {3, 4}};
+    migraphx::shape s3{migraphx::shape::float_type, {4, 3}};
+    migraphx::shape s4{migraphx::shape::float_type, {2, 4}};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto a = mm->add_parameter("a", s1);
+    auto b = mm->add_parameter("b", s2);
+    auto c = mm->add_parameter("c", s4);
+    auto d = mm->add_parameter("d", s3);
+
+    // Start of fusion chain
+    auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b); // {2, 4}
+
+    // External branch 1
+    auto ext1 = add_pointwise(p, "main:pointwise0", {c}, single_pointwise("relu"));   // {2, 4}
+    auto ext2 = add_pointwise(p, "main:pointwise1", {ext1}, single_pointwise("neg")); // {2, 4}
+
+    // External branch 2
+    auto ext3 = add_pointwise(p, "main:pointwise2", {d}, single_pointwise("tanh"));   // {4, 3}
+    auto ext4 = add_pointwise(p, "main:pointwise3", {ext3}, single_pointwise("abs")); // {4, 3}
+
+    // Continue fusion chain using external branches
+    auto add1 =
+        add_pointwise(p, "main:pointwise4", {dot1, ext2}, single_pointwise("add")); // {2, 4}
+    auto dot2 =
+        mm->add_instruction(migraphx::make_op("dot"), add1, ext4); // {2, 4} x {4, 3} = {2, 3}
+
+    mm->add_return({dot2});
+
+    mm->hoist_external_inputs(dot1, dot2);
+
+    EXPECT(is_sorted(*mm));
+
+    // Verify all external operations moved before dot1
+    EXPECT(std::distance(mm->begin(), ext1) < std::distance(mm->begin(), dot1));
+    EXPECT(std::distance(mm->begin(), ext2) < std::distance(mm->begin(), dot1));
+    EXPECT(std::distance(mm->begin(), ext3) < std::distance(mm->begin(), dot1));
+    EXPECT(std::distance(mm->begin(), ext4) < std::distance(mm->begin(), dot1));
+
+    // Verify fusion chain order preserved
+    EXPECT(std::distance(mm->begin(), dot1) < std::distance(mm->begin(), add1));
+    EXPECT(std::distance(mm->begin(), add1) < std::distance(mm->begin(), dot2));
+}
+
+TEST_CASE(hoist_external_inputs_long_fusion_chain)
+{
+    // Test with a longer fusion chain
+    migraphx::shape s{migraphx::shape::float_type, {4, 4}};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto a = mm->add_parameter("a", s);
+    auto b = mm->add_parameter("b", s);
+    auto c = mm->add_parameter("c", s);
+    auto d = mm->add_parameter("d", s);
+
+    // Long fusion chain
+    auto op1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
+
+    // External operations interspersed
+    auto ext1 = add_pointwise(p, "main:pointwise0", {d}, single_pointwise("exp"));
+
+    auto op2 = add_pointwise(p, "main:pointwise1", {op1, c}, single_pointwise("add"));
+
+    auto ext2 = add_pointwise(p, "main:pointwise2", {ext1}, single_pointwise("log"));
+
+    auto op3 = add_pointwise(p, "main:pointwise3", {op2}, single_pointwise("relu"));
+
+    auto ext3 = add_pointwise(p, "main:pointwise4", {ext2}, single_pointwise("abs"));
+
+    auto op4 = add_pointwise(p, "main:pointwise5", {op3}, single_pointwise("tanh"));
+    auto op5 = mm->add_instruction(migraphx::make_op("dot"), op4, ext3);
+
+    mm->add_return({op5});
+
+    mm->hoist_external_inputs(op1, op5);
+
+    EXPECT(is_sorted(*mm));
+
+    // All external operations moved before op1
+    EXPECT(std::distance(mm->begin(), ext1) < std::distance(mm->begin(), op1));
+    EXPECT(std::distance(mm->begin(), ext2) < std::distance(mm->begin(), op1));
+    EXPECT(std::distance(mm->begin(), ext3) < std::distance(mm->begin(), op1));
+
+    // Fusion chain order preserved
+    EXPECT(std::distance(mm->begin(), op1) < std::distance(mm->begin(), op2));
+    EXPECT(std::distance(mm->begin(), op2) < std::distance(mm->begin(), op3));
+    EXPECT(std::distance(mm->begin(), op3) < std::distance(mm->begin(), op4));
+    EXPECT(std::distance(mm->begin(), op4) < std::distance(mm->begin(), op5));
+}
+
+TEST_CASE(hoist_external_inputs_adjacent_instructions)
+{
+    // Test edge case where start and end are adjacent
+    migraphx::shape s1{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape s2{migraphx::shape::float_type, {3, 4}};
+    migraphx::shape s3{migraphx::shape::float_type, {4, 5}};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto a = mm->add_parameter("a", s1); // {2, 3}
+    auto b = mm->add_parameter("b", s2); // {3, 4}
+    auto c = mm->add_parameter("c", s3); // {4, 5}
+
+    auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b); // {2, 3} x {3, 4} = {2, 4}
+
+    // External operation between dot1 and dot2
+    auto external = add_pointwise(p, "main:pointwise0", {c}, single_pointwise("relu")); // {4, 5}
+
+    auto dot2 =
+        mm->add_instruction(migraphx::make_op("dot"), dot1, external); // {2, 4} x {4, 5} = {2, 5}
+
+    mm->add_return({dot2});
+
+    mm->hoist_external_inputs(dot1, dot2);
+
+    EXPECT(is_sorted(*mm));
+
+    // External should be moved before dot1
+    EXPECT(std::distance(mm->begin(), external) < std::distance(mm->begin(), dot1));
+    EXPECT(std::distance(mm->begin(), dot1) < std::distance(mm->begin(), dot2));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

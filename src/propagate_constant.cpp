@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -36,11 +36,11 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_PROPAGATE_CONSTANT)
 
-bool skip_propagate(instruction_ref ins)
+static bool skip_propagate(instruction_ref ins)
 {
     if(contains({"contiguous", "dequantizelinear", "reshape"}, ins->name()))
         return skip_propagate(ins->inputs().front());
-    if(ins->name() == "unpack_int4")
+    if(contains({"unpack_int4", "unpack_fp4"}, ins->name()))
         return true;
     auto&& s = ins->get_shape();
     if(s.broadcasted() and s.element_space() < s.elements())
@@ -48,16 +48,18 @@ bool skip_propagate(instruction_ref ins)
     auto alias = instruction::get_output_alias(ins, true);
     if(alias != ins)
         return skip_propagate(alias);
+    if(ins->is_undefined())
+        return true;
     return false;
 }
 
-bool is_const_ins(instruction_ref ins, const std::unordered_set<std::string>& skip_ops)
+static bool is_const_ins(instruction_ref ins, const std::unordered_set<std::string>& skip_ops)
 {
     return ins->can_eval() and not skip_propagate(ins) and
            skip_ops.find(ins->name()) == skip_ops.end();
 }
 
-argument as_packed(const argument& c)
+static argument as_packed(const argument& c)
 {
     if(c.get_shape().packed())
         return c;

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -54,7 +54,7 @@ struct dequantizelinear
         {
             MIGRAPHX_THROW("DEQUANTIZELINEAR: Zero point and input should be the same type.");
         }
-        return {inputs[1].type(), inputs[0].lens(), inputs[0].strides()};
+        return inputs[0].with_lens(inputs[1].type(), inputs[0].lens());
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
@@ -72,8 +72,7 @@ struct dequantizelinear
         visit_all(x, x_zero_point)([&](auto input, auto zero_pts) {
             visit_all(result, x_scale)([&](auto output, auto scales) {
                 par_for(output_shape.elements(), [&](auto i) {
-                    output[i] = static_cast<double>(static_cast<double>(input[i]) -
-                                                    static_cast<double>(zero_pts[i])) *
+                    output[i] = (static_cast<double>(input[i]) - static_cast<double>(zero_pts[i])) *
                                 scales[i];
                 });
             });

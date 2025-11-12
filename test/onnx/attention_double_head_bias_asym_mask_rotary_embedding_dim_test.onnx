@@ -1,0 +1,32 @@
+	>attention_double_head_bias_asym_mask_rotary_embedding_dim_test:³
+n
+input
+weights
+bias
+
+mask_indexy"	Attention*
+	num_heads *
+rotary_embedding_dim  :com.microsoft>attention_double_head_bias_asym_mask_rotary_embedding_dim_testZ
+input
+
+
+
+Z
+weights
+
+
+Z
+bias
+
+
+Z
+
+mask_index
+
+
+b
+y
+
+
+
+B

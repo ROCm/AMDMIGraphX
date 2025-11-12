@@ -47,9 +47,8 @@ struct test_reduce_add : verify_program<test_reduce_add<DType>>
         mm->add_return({add});
         return p;
     };
+
+    std::string section() const { return "reduce"; }
 };
 
 template struct test_reduce_add<migraphx::shape::float_type>;
-template struct test_reduce_add<migraphx::shape::fp8e4m3fnuz_type>;
-template struct test_reduce_add<migraphx::shape::fp8e4m3fn_type>;
-template struct test_reduce_add<migraphx::shape::fp8e5m2_type>;

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -63,11 +63,11 @@ template <class... Fs>
 struct overloaded : Fs...
 {
     using Fs::operator()...;
-    overloaded(Fs... fs) : Fs(fs)... {}
+    constexpr overloaded(Fs... fs) : Fs(fs)... {}
 };
 
 template <class... Fs>
-overloaded<Fs...> overload(Fs... fs)
+constexpr overloaded<Fs...> overload(Fs... fs)
 {
     return {fs...};
 }
@@ -80,7 +80,7 @@ struct eval_helper
     R result;
 
     template <class F, class... Ts>
-    constexpr eval_helper(const F& f, Ts&&... xs) : result(f(static_cast<Ts>(xs)...))
+    constexpr eval_helper(const F& f, Ts&&... xs) : result(f(static_cast<Ts&&>(xs)...))
     {
     }
 };
@@ -90,7 +90,7 @@ struct eval_helper<void>
 {
     int result;
     template <class F, class... Ts>
-    constexpr eval_helper(const F& f, Ts&&... xs) : result((f(static_cast<Ts>(xs)...), 0))
+    constexpr eval_helper(const F& f, Ts&&... xs) : result((f(static_cast<Ts&&>(xs)...), 0))
     {
     }
 };
@@ -233,6 +233,37 @@ constexpr auto repeat(IntegerConstant ic, F&& f)
     return repeat_c<ic>(f);
 }
 
+template <index_int Start, index_int Last, class F>
+constexpr void repeat_up_by_2_c(F&& f)
+{
+    if constexpr(Start < Last)
+    {
+        f(_c<Start>);
+        repeat_up_by_2_c<Start * 2, Last>(static_cast<F&&>(f));
+    }
+}
+
+template <index_int Last, class F>
+constexpr void repeat_up_by_2_c(F&& f)
+{
+    repeat_up_by_2_c<1, Last>(static_cast<F&&>(f));
+}
+
+template <index_int Start, index_int Last, class F>
+constexpr void repeat_down_by_2_c(F&& f)
+{
+    if constexpr(Start >= Last)
+    {
+        f(_c<Start>);
+        repeat_down_by_2_c<Start / 2, Last>(static_cast<F&&>(f));
+    }
+}
+template <index_int Start, class F>
+constexpr void repeat_down_by_2_c(F&& f)
+{
+    repeat_down_by_2_c<Start, 1>(static_cast<F&&>(f));
+}
+
 template <class F, class T>
 constexpr auto fold_impl(F&&, T&& x)
 {
@@ -346,7 +377,7 @@ constexpr auto transform_args(F f, Fs... fs)
 }
 
 // identity transform
-inline constexpr auto transform_args()
+constexpr auto transform_args()
 {
     return make_transform([](auto f, auto... xs) { return f(xs...); });
 }
@@ -363,7 +394,7 @@ constexpr auto rotate_last()
     });
 }
 
-inline constexpr auto rotate_last() { return rotate_last<1>(); }
+constexpr auto rotate_last() { return rotate_last<1>(); }
 
 // Pack the first N arguments
 template <index_int N>

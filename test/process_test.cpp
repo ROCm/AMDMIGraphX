@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -59,7 +59,7 @@ constexpr std::string_view string_data =
     "occaecat cupidatat non proident, sunt in culpa qui officia "
     "deserunt mollit anim id est laborum.";
 
-std::vector<char> read_stdin()
+static std::vector<char> read_stdin()
 {
     std::vector<char> result;
     std::array<char, 1024> buffer{};
@@ -91,7 +91,7 @@ TEST_CASE(string_stdin)
     auto out = (tmp.path / "output.txt").string();
 
     migraphx::process{executable, {"--stdin", out}}.write(
-        [&](auto writer) { writer(string_data.data(), string_data.size()); });
+        [&](const auto& writer) { writer(string_data.data(), string_data.size()); });
 
     EXPECT(migraphx::fs::is_regular_file(out));
 
@@ -113,7 +113,7 @@ TEST_CASE(binary_stdin)
     auto out = (tmp.path / "output.bin").string();
 
     migraphx::process{executable, {"--stdin", out}}.write(
-        [&](auto writer) { writer(binary_data.data(), binary_data.size()); });
+        [&](const auto& writer) { writer(binary_data.data(), binary_data.size()); });
 
     EXPECT(migraphx::fs::is_regular_file(out));
 
@@ -140,7 +140,7 @@ TEST_CASE(current_working_dir)
     auto out = tmp.path / filename;
 
     migraphx::process{executable, {"--stdin", filename}}.cwd(tmp.path).write(
-        [&](auto writer) { writer(string_data.data(), string_data.size()); });
+        [&](const auto& writer) { writer(string_data.data(), string_data.size()); });
 
     EXPECT(migraphx::fs::is_regular_file(out));
 

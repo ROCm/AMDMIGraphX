@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,7 +30,7 @@
 
 namespace migraphx {
 
-constexpr bool is_power_of_2(unsigned int x) { return x > 0 && (x & (x - 1)) == 0u; }
+constexpr bool is_power_of_2(unsigned int x) { return x > 0 and (x & (x - 1)) == 0u; }
 
 #ifndef MIGRAPHX_HAS_DPP
 #define MIGRAPHX_HAS_DPP 1
@@ -93,6 +93,29 @@ __device__ T readlane(T& x)
 {
     static_assert(is_power_of_2(Width), "Width must be a power of 2");
     return dpp_op(x, [](auto i) { return __shfl(i, SrcLane, Width); });
+}
+
+template <class T>
+__device__ T readlane(T& x, unsigned int src_lane)
+{
+    return dpp_op(x, [&](auto i) { return __shfl(i, src_lane, MIGRAPHX_WAVEFRONTSIZE); });
+}
+
+template <unsigned int XorMask, class T>
+__device__ T readlane_xor(T& x)
+{
+    if constexpr(XorMask == 1)
+        return dpp_swizzle<0x041F>(x);
+    else if constexpr(XorMask == 2)
+        return dpp_swizzle<0x081F>(x);
+    else if constexpr(XorMask == 4)
+        return dpp_swizzle<0x101F>(x);
+    else if constexpr(XorMask == 8)
+        return dpp_swizzle<0x201F>(x);
+    else if constexpr(XorMask == 16)
+        return dpp_swizzle<0x401F>(x);
+    else
+        return dpp_op(x, [&](auto i) { return __shfl_xor(i, XorMask, MIGRAPHX_WAVEFRONTSIZE); });
 }
 
 #endif // MIGRAPHX_HAS_DPP

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -40,21 +40,23 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 struct context;
-void blas_shape_hip(const shape& s);
 
 template <class Op>
-struct hip_gemm
+struct MIGRAPHX_GPU_EXPORT hip_gemm
 {
     Op op;
     float alpha          = 1;
     float beta           = 0;
+    unsigned trans_batch = 0;
     int32_t solution_idx = 0;
+
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
         return pack_join(migraphx::reflect(self.op, f),
                          pack(f(self.alpha, "alpha"),
                               f(self.beta, "beta"),
+                              f(self.trans_batch, "trans_batch"),
                               f(self.solution_idx, "solution_idx")));
     }
 
@@ -98,10 +100,10 @@ struct hip_gemm
                                to_string(cmat_shape.type()) +
                                ", it must be: " + to_string(op_out_shape.type()));
             }
-            return op_out_shape;
+            return transpose_batch_hip(op_out_shape, trans_batch);
         }
 
-        return op.compute_shape(in_shapes);
+        return transpose_batch_hip(op.compute_shape(in_shapes), trans_batch);
     }
 
     argument
@@ -125,6 +127,15 @@ struct hip_gemm
             solution_idx =
                 hip_gemm_finalize(ctx, output_shape, input_shapes, alpha, beta, solution_idx);
         }
+    }
+
+    value
+    compile(migraphx::context& ctx, const shape& output, const std::vector<shape>& input_shapes)
+    {
+        finalize(any_cast<migraphx::gpu::context>(ctx), output, input_shapes);
+        size_t ws = hip_gemm_workspace_size(
+            any_cast<migraphx::gpu::context>(ctx), output, input_shapes, alpha, beta, solution_idx);
+        return {{"workspace", ws}};
     }
 };
 } // namespace gpu

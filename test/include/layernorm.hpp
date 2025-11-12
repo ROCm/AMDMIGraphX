@@ -62,3 +62,43 @@ inline migraphx::instruction_ref add_layernorm(migraphx::module& m,
         m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dims}}), bias);
     return m.add_instruction(migraphx::make_op("add"), mul, bias_mbcast);
 }
+
+inline migraphx::instruction_ref add_pointwise_layernorm(migraphx::module& m,
+                                                         migraphx::instruction_ref x,
+                                                         const std::vector<size_t>& dims,
+                                                         float eps = 1e-12f)
+{
+    auto mgx_type = x->get_shape().type();
+    auto scale    = m.add_parameter("scale", migraphx::shape{mgx_type, {1, 1, dims.back()}});
+    auto bias     = m.add_parameter("bias", migraphx::shape{mgx_type, {1, 1, dims.back()}});
+
+    auto epsilon = m.add_literal(migraphx::literal{migraphx::shape{mgx_type}, {eps}});
+    auto one     = m.add_literal(migraphx::literal{migraphx::shape{mgx_type}, {1}});
+
+    auto mean = m.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2}}}), x);
+    auto mean_mbcast =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dims}}), mean);
+    auto x_minus_mean = m.add_instruction(migraphx::make_op("sub"), x, mean_mbcast);
+    auto sqdiff       = m.add_instruction(migraphx::make_op("sqdiff"), x, mean_mbcast);
+    auto var = m.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2}}}), sqdiff);
+
+    auto epsilon_mbcast = m.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", var->get_shape().lens()}}), epsilon);
+    auto var_stable   = m.add_instruction(migraphx::make_op("add"), var, epsilon_mbcast);
+    auto inv_stddev_x = m.add_instruction(migraphx::make_op("rsqrt"), var_stable);
+    auto inv_stddev_x_mbcast =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dims}}), inv_stddev_x);
+    auto norm = m.add_instruction(migraphx::make_op("mul"), x_minus_mean, inv_stddev_x_mbcast);
+
+    auto one_mbcast = m.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", scale->get_shape().lens()}}), one);
+    auto add_scale = m.add_instruction(migraphx::make_op("add"), scale, one_mbcast);
+    auto scale_mbcast =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dims}}), add_scale);
+    auto scale_norm = m.add_instruction(migraphx::make_op("mul"), norm, scale_mbcast);
+
+    auto bias_mbcast =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dims}}), bias);
+
+    return m.add_instruction(migraphx::make_op("add"), scale_norm, bias_mbcast);
+}

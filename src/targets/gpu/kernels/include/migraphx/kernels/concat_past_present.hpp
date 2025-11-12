@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -114,26 +114,15 @@ update_cache(const Present present, SeqLensK seqlens_k, Cache cache, Params para
     }
 }
 
-template <class Query, class PastKey, class PastValue, class SeqLensK, class Params>
-__device__ void concat_past_present(
-    const Query query, PastKey past_key, PastValue past_value, SeqLensK seqlens_k, Params params)
+template <class Past, class Present, class SeqLensK, class Params>
+__device__ void
+concat_past_present(Past past, const Present present, SeqLensK seqlens_k, Params params)
 {
     auto ind = make_index();
     auto elements =
-        2 * params.batch_size * params.kv_num_heads * params.sequence_length * params.head_size;
+        params.batch_size * params.kv_num_heads * params.sequence_length * params.head_size;
     ind.global_stride(elements, [&](auto idx) {
-        auto q = query.begin();
-        auto k = q + params.num_heads * params.sequence_length * params.head_size;
-        auto v = q + (params.num_heads + params.kv_num_heads) * params.sequence_length *
-                         params.head_size;
-        if(idx < elements / 2)
-        {
-            update_cache(k, seqlens_k, past_key.begin(), params, idx);
-        }
-        else if(idx < elements)
-        {
-            update_cache(v, seqlens_k, past_value.begin(), params, idx - (elements / 2));
-        }
+        update_cache(present.begin(), seqlens_k, past.begin(), params, idx);
     });
 }
 

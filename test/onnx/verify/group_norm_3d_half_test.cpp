@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,17 +30,17 @@
 TEST_CASE(group_norm_half_test)
 {
     using migraphx::half;
-    std::vector<half> scale{half{1.2}, half{0.8}};
-    std::vector<half> bias{half{0.5}, half{0.2}};
+    std::vector<half> scale{half{1.2}, half{0.8}, half{0.4}, half{1.6}};
+    std::vector<half> bias{half{0.5}, half{0.2}, half{0.9}, half{0.4}};
     std::vector<half> result_vector =
         norm_test<half>({1, 4, 2}, scale, bias, read_onnx("group_norm_3d_half_test.onnx"));
-    std::vector<half> gold = {half{-1.10996256},
-                              half{-0.0366542},
-                              half{1.0366542},
-                              half{2.10996256},
-                              half{-0.87330837},
-                              half{-0.15776947},
-                              half{0.55776947},
-                              half{1.27330837}};
+    std::vector<half> gold = {half{-1.11035156},
+                              half{-0.03674316},
+                              half{0.55761719},
+                              half{1.27343750},
+                              half{0.36328125},
+                              half{0.72119141},
+                              half{1.11523438},
+                              half{2.54687500}};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

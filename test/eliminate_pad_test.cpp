@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,14 +32,14 @@
 
 #include <test.hpp>
 
-void run_pass(migraphx::module& m)
+static void run_pass(migraphx::module& m)
 {
     migraphx::run_passes(
         m,
         {migraphx::normalize_ops{}, migraphx::eliminate_pad{}, migraphx::dead_code_elimination{}});
 }
 
-migraphx::instruction_ref
+static migraphx::instruction_ref
 create_im2col(migraphx::instruction_ref& l_img, size_t channels, migraphx::module& m)
 {
     size_t f[2] = {1, 1};
@@ -49,7 +49,7 @@ create_im2col(migraphx::instruction_ref& l_img, size_t channels, migraphx::modul
     return m.add_instruction(migraphx::make_op("im2col"), l_img, l_weights);
 }
 
-migraphx::instruction_ref
+static migraphx::instruction_ref
 create_conv(migraphx::instruction_ref& l_img,
             size_t channels,
             migraphx::module& m,

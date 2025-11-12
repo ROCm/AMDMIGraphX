@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -33,6 +33,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/program.hpp>
+#include <migraphx/fp8_types.hpp>
 
 #include <migraphx/op/common.hpp>
 #include <migraphx/op/dot.hpp>
@@ -55,7 +56,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_HIPBLASLT_GEMM);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MIOPEN_POOLING)
 
 struct miopen_apply
@@ -93,6 +94,7 @@ struct miopen_apply
 
         add_extend_op("argmax");
         add_extend_op("argmin");
+        add_extend_op("fixed_pad");
         add_extend_op("logsoftmax");
         add_extend_op("multinomial");
         add_extend_op("nonzero");
@@ -101,7 +103,6 @@ struct miopen_apply
         add_extend_op("rnn_var_sl_last_output");
         add_extend_op("rnn_var_sl_shift_output");
         add_extend_op("rnn_var_sl_shift_sequence");
-        add_extend_op("topk");
         add_generic_op("contiguous");
         add_pooling_op();
 #if MIGRAPHX_USE_MIOPEN
@@ -251,26 +252,36 @@ struct miopen_apply
         apply_map.emplace(name, [=](instruction_ref ins) {
             std::vector<instruction_ref> refs = ins->inputs();
             assert(refs.size() == 2);
-#if MIGRAPHX_USE_HIPBLASLT
-            if(enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}))
-            {
-                shape workspace_shape{shape::uint8_type, {hipblaslt_workspace_size}};
-                auto workspace = insert_allocation(ins, workspace_shape);
-                refs.push_back(workspace);
-            }
-#endif
             auto output = insert_allocation(ins, ins->get_shape());
             refs.push_back(output);
-#if MIGRAPHX_USE_HIPBLASLT
-            if(not enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}) or not hipblaslt_supported())
+
+            bool has_fp8_inputs =
+                std::any_of(ins->inputs().begin(), ins->inputs().end(), [](auto i_input) {
+                    return contains(fp8_types{}.get(), i_input->get_shape().type());
+                });
+
+            // Check if user explicitly sets rocBLAS as GEMM provider, or
+            // if the hardware cannot support hipblaslt, or
+            // if the hardware is defaulted to use rocBLAS (such as gfx90).
+            if(not has_fp8_inputs and
+               ((string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "rocblas") or
+                not hipblaslt_supported() or gpu::gfx_default_rocblas()))
             {
-#endif
                 return mod->replace_instruction(
                     ins, rocblas_gemm<Op>{Op{}, 1, 0, compute_fp32}, refs);
-#if MIGRAPHX_USE_HIPBLASLT
             }
-            return mod->replace_instruction(ins, hip_gemm<Op>{Op{}, 1, 0}, refs);
-#endif
+            std::string op_name = "gpu::hip_gemm";
+            if(contains(name, "quant_"))
+            {
+                op_name = "gpu::hip_quant_gemm";
+            }
+            operation gemm_op = make_op(op_name);
+            return mod->replace_instruction(
+                ins,
+                make_op("gpu::hipblaslt_op", {{"op", to_value(gemm_op)}}),
+                ins->inputs().at(0),
+                ins->inputs().at(1),
+                output);
         });
     }
 #endif
@@ -322,7 +333,8 @@ struct miopen_apply
 
     static bool use_miopen_pooling(instruction_ref ins)
     {
-        if(enabled(MIGRAPHX_DISABLE_MIOPEN_POOLING{}))
+        if(enabled(MIGRAPHX_DISABLE_MIOPEN_POOLING{}) or
+           not contains({shape::float_type, shape::half_type}, ins->get_shape().type()))
             return false;
         auto&& op   = ins->get_operator();
         auto op_val = op.to_value();
@@ -506,13 +518,13 @@ struct miopen_apply
             auto before_contig =
                 mod->insert_instruction(ins, make_op("gpu::contiguous"), {before_contiguous_args});
 
-            auto new_lazy_reshape = mod->insert_instruction(
+            auto new_reshape_lazy = mod->insert_instruction(
                 ins,
                 make_op("reshape_lazy", {{"dims", {ins->get_operator().to_value().at("dims")}}}),
                 before_contig);
 
-            std::vector<instruction_ref> after_contiguous_args = {new_lazy_reshape};
-            auto after_alloc = insert_allocation(new_lazy_reshape, new_lazy_reshape->get_shape());
+            std::vector<instruction_ref> after_contiguous_args = {new_reshape_lazy};
+            auto after_alloc = insert_allocation(new_reshape_lazy, new_reshape_lazy->get_shape());
             after_contiguous_args.push_back(after_alloc);
             return mod->replace_instruction(ins, make_op("gpu::contiguous"), after_contiguous_args);
         });
@@ -532,44 +544,11 @@ struct miopen_apply
         });
 
         apply_map.emplace("gpu::concat_past_present", [=](instruction_ref ins) {
-            return mod->replace_instruction(
-                ins,
-                make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
-                ins->inputs());
-        });
-
-        apply_map.emplace("gpu::compute_attention_probabilities", [=](instruction_ref ins) {
-            auto s          = ins->get_shape();
-            auto output     = insert_allocation(ins, s);
-            auto new_inputs = ins->inputs();
-            new_inputs.push_back(output);
-            return mod->replace_instruction(
-                ins,
-                make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
-                new_inputs);
-        });
-
-        apply_map.emplace("gpu::gqa_softmax", [=](instruction_ref ins) {
-            auto s      = ins->get_shape();
-            auto inputs = ins->inputs();
-
-            auto new_inputs = ins->inputs();
-            new_inputs.push_back(inputs.at(2));
-            return mod->replace_instruction(
-                ins,
-                make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
-                new_inputs);
-        });
-
-        apply_map.emplace("gpu::compute_attention_scores", [=](instruction_ref ins) {
-            auto s          = ins->get_shape();
-            auto output     = insert_allocation(ins, s);
-            auto new_inputs = ins->inputs();
-            new_inputs.push_back(output);
-            return mod->replace_instruction(
-                ins,
-                make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
-                new_inputs);
+            return mod->replace_instruction(ins,
+                                            make_op("gpu::precompile_op",
+                                                    {{"op", to_value(ins->get_operator())},
+                                                     {"output_shape", to_value(ins->get_shape())}}),
+                                            ins->inputs());
         });
     }
 

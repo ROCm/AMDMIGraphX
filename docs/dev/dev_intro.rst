@@ -1,3 +1,8 @@
+.. meta::
+  :description: MIGraphX introduction to developing for the code base
+  :keywords: MIGraphX, code base, contribution, developing, introduction, developers
+
+
 Developer Introduction
 ======================
 

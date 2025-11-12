@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,13 +26,16 @@
 #include <migraphx/erase.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/ranges.hpp>
-#include <deque>
+#include <migraphx/output_iterator.hpp>
+#include <migraphx/iterator.hpp>
+#include <bitset>
+#include <queue>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 template <class T>
-auto equal_to(const T& x)
+static auto equal_to(const T& x)
 {
     return [&](const T& y) { return std::equal_to<T>{}(x, y); };
 }
@@ -58,22 +61,43 @@ instruction::instruction(literal l)
 {
 }
 
+struct replace_shape_order
+{
+    instruction_ref start;
+
+    std::size_t location(instruction_ref x) const { return std::distance(start, x); }
+
+    bool operator()(instruction_ref x, instruction_ref y) const
+    {
+        return location(x) > location(y);
+    }
+};
+
 void instruction::replace(const shape& r)
 {
     if(r != result)
     {
         result = r;
-        std::deque<instruction_ref> q(output.begin(), output.end());
+        if(output.empty())
+        {
+            return;
+        }
+        auto start = std::find_if(output.front()->inputs().begin(),
+                                  output.front()->inputs().end(),
+                                  [&](instruction_ref x) { return this == as_address(x); });
+        assert(as_address(*start) == this);
+        std::priority_queue<instruction_ref, std::vector<instruction_ref>, replace_shape_order> q(
+            output.begin(), output.end(), replace_shape_order{*start});
         while(not q.empty())
         {
-            instruction_ref ins = q.front();
-            q.pop_front();
+            instruction_ref ins = q.top();
+            q.pop();
             assert(ins->name() == "@return" or ins->name().front() != '@');
             shape new_r = compute_shape(ins->op, ins->arguments, ins->module_args);
             if(new_r != ins->result)
             {
                 ins->result = new_r;
-                std::copy(ins->output.begin(), ins->output.end(), std::back_inserter(q));
+                std::copy(ins->output.begin(), ins->output.end(), migraphx::push_inserter(q));
             }
         }
     }
@@ -105,7 +129,7 @@ bool operator==(const instruction& i, instruction_ref ref)
 
 bool instruction::valid(instruction_ref start, bool check_order) const
 {
-    return valid() && std::all_of(arguments.begin(), arguments.end(), [&](instruction_ref i) {
+    return valid() and std::all_of(arguments.begin(), arguments.end(), [&](instruction_ref i) {
                auto self = std::find(i->outputs().begin(), i->outputs().end(), *this);
                bool ret  = self != i->outputs().end();
                if(check_order)
@@ -140,13 +164,13 @@ bool instruction::valid() const
         }
     }
 
-    return (result == computed) &&
+    return (result == computed) and
            std::all_of(output.begin(), output.end(), [&](instruction_ref i) {
                return std::find(i->inputs().begin(), i->inputs().end(), *this) != i->inputs().end();
            });
 }
 
-shape instruction::get_shape() const { return result; }
+const shape& instruction::get_shape() const { return result; }
 
 const literal& instruction::get_literal() const
 {
@@ -307,7 +331,7 @@ void instruction::replace_mod_argument(module_ref old, module_ref new_mod)
 
 bool instruction::is_undefined() const
 {
-    if(op.name() == "undefined")
+    if(op.name() == "undefined" or (op.name() == "@literal" and this->get_literal().empty()))
     {
         return true;
     }
@@ -521,21 +545,172 @@ std::vector<shape> try_compute_shape(const operation& op, const std::vector<shap
     return {new_shape};
 }
 
-migraphx::instruction* as_address(const instruction_ref& ins) noexcept
+migraphx::instruction* as_address(const std::list<instruction>::iterator& ins) noexcept
 {
-    return std::addressof(*ins);
+    return iterator_address(ins);
 }
 
+const migraphx::instruction* as_address(const std::list<instruction>::const_iterator& ins) noexcept
+{
+    return iterator_address(ins);
+}
+
+template <class F>
+static auto track_visits(instruction_ref start, instruction_ref end, F f)
+{
+    const std::size_t small = 16;
+    std::size_t n           = std::distance(start, end);
+    if(n < small)
+    {
+        std::bitset<small> visited;
+        auto stop = [&](auto ins) {
+            auto i = std::distance(ins, end);
+            if(i > n)
+                return true;
+            if(visited.test(i))
+                return true;
+            visited.set(i);
+            return false;
+        };
+        return f(stop);
+    }
+    else
+    {
+        std::unordered_set<instruction_ref> visited;
+        visited.reserve(n);
+        auto stop = [&](auto ins) {
+            if(not visited.insert(ins).second)
+                return true;
+            if(std::distance(ins, end) > n)
+                return true;
+            return false;
+        };
+        return f(stop);
+    }
+}
+
+// DFS through inputs of `end` to find `start`.
+// `start` must be positioned before `end`.
 bool reaches(instruction_ref start, instruction_ref end)
 {
+    if(start == end)
+        return true;
     std::unordered_set<instruction_ref> visited;
     return fix<bool>([&](auto self, auto ins) -> bool {
         if(ins == start)
             return true;
+        // hit a previously visited instruction
         if(not visited.insert(ins).second)
             return false;
         return std::any_of(ins->inputs().begin(), ins->inputs().end(), self);
     })(end);
+}
+
+// `reaches` version that checks if instructions are in the module `m`
+// Additional condition that stops if DFS instruction's distance to `end`
+// is greater than the distance between `start` and `end`.
+template <class P>
+static bool reaches(instruction_ref start, instruction_ref end, const_module_ref m, P predicate)
+{
+    if(start == end)
+        return true;
+    if(not m->has_instruction(start) or not m->has_instruction(end))
+        return false;
+    assert(std::distance(m->begin(), start) < std::distance(m->begin(), end));
+    return track_visits(start, end, [&](auto stop) {
+        return fix<bool>([&](auto self, auto ins) -> bool {
+            if(not m->has_instruction(ins))
+                return false;
+            if(ins == start or predicate(ins))
+                return true;
+            if(stop(ins))
+                return false;
+            return std::any_of(ins->inputs().begin(), ins->inputs().end(), self);
+        })(end);
+    });
+}
+
+bool reaches(instruction_ref start, instruction_ref end, const_module_ref m)
+{
+    return reaches(start, end, m, [](auto) { return false; });
+}
+
+bool is_interdependent(const std::vector<instruction_ref>& instructions,
+                       const_module_ref m,
+                       instruction_ref root)
+{
+    if(instructions.size() < 2)
+        return true;
+    const std::size_t small_size = 8;
+    if(instructions.size() <= small_size)
+    {
+        std::array<std::size_t, small_size> loc;
+        std::transform(instructions.begin(),
+                       instructions.end(),
+                       loc.begin(),
+                       [&](instruction_ref ins) { return std::distance(root, ins); });
+        auto start = instructions[std::distance(
+            loc.begin(), std::min_element(loc.begin(), loc.begin() + instructions.size()))];
+        return all_of(instructions, [&](instruction_ref ins) {
+            if(ins == start)
+                return true;
+            return reaches(start, ins, m, [&](instruction_ref i) {
+                return i != ins and contains(instructions, i);
+            });
+        });
+    }
+    std::unordered_map<instruction_ref, std::size_t> loc;
+    loc.reserve(instructions.size());
+    std::transform(
+        instructions.begin(),
+        instructions.end(),
+        std::inserter(loc, loc.end()),
+        [&](instruction_ref ins) { return std::make_pair(ins, std::distance(root, ins)); });
+    auto min_it = std::min_element(
+        loc.begin(), loc.end(), [](const auto& x, const auto& y) { return x.second < y.second; });
+    auto start = min_it->first;
+
+    return all_of(instructions, [&](instruction_ref ins) {
+        if(ins == start)
+            return true;
+        return reaches(
+            start, ins, m, [&](instruction_ref i) { return i != ins and contains(loc, i); });
+    });
+}
+
+// Return set of all instructions that are connected to both start and end nodes (inclusive)
+std::unordered_set<instruction_ref>
+find_instructions_between(instruction_ref start, instruction_ref end, const_module_ref m)
+{
+    assert(reaches(start, end, m));
+    std::unordered_set<instruction_ref> result;
+    std::unordered_set<instruction_ref> inss;
+
+    fix<void>([&](auto self, auto ins) {
+        if(not m->has_instruction(ins))
+            return;
+        if(ins->inputs().empty())
+            return;
+        if(not inss.insert(ins).second)
+            return;
+        if(ins == start)
+            return;
+        for(auto input : ins->inputs())
+            self(input);
+    })(end);
+
+    fix<void>([&](auto self, auto ins) {
+        if(ins == end)
+            return;
+        if(ins != start and not contains(inss, ins))
+            return;
+        if(not result.insert(ins).second)
+            return;
+        for(auto output : ins->outputs())
+            self(output);
+    })(start);
+    result.insert(end);
+    return result;
 }
 
 } // namespace MIGRAPHX_INLINE_NS

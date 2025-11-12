@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -63,6 +63,13 @@ argument generate_argument(shape s, unsigned long seed, random_mode m)
 
         result = argument(sub_args);
     }
+    // special processing for non-computable type
+    else if(not s.computable())
+    {
+        // NOTE: these values can be wrong (ex. not valid fp4x2)
+        auto v = generate_tensor_data<uint8_t>(s, seed, m);
+        result = {s, v};
+    }
     else
     {
         s.visit_type([&](auto as) {
@@ -88,11 +95,19 @@ argument generate_argument(shape s, unsigned long seed, random_mode m)
 literal generate_literal(shape s, unsigned long seed)
 {
     literal result;
-    s.visit_type([&](auto as) {
-        using type = typename decltype(as)::type;
-        auto v     = generate_tensor_data<type>(s, seed);
-        result     = {s, reinterpret_cast<char*>(v.get())};
-    });
+    if(not s.computable())
+    {
+        auto v = generate_tensor_data<uint8_t>(s, seed);
+        result = {s, reinterpret_cast<char*>(v.get())};
+    }
+    else
+    {
+        s.visit_type([&](auto as) {
+            using type = typename decltype(as)::type;
+            auto v     = generate_tensor_data<type>(s, seed);
+            result     = {s, reinterpret_cast<char*>(v.get())};
+        });
+    }
     return result;
 }
 

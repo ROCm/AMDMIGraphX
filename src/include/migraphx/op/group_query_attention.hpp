@@ -1,3 +1,27 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ *
+ */
 #ifndef MIGRAPHX_GUARD_OPERATORS_GROUP_QUERY_ATTENTION_HPP
 #define MIGRAPHX_GUARD_OPERATORS_GROUP_QUERY_ATTENTION_HPP
 
@@ -414,11 +438,11 @@ struct group_query_attention
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         auto q_shape                      = args[0].get_shape();
-        auto q_lens                       = q_shape.lens();
+        const auto& q_lens                = q_shape.lens();
         const std::size_t batch_size      = q_lens[0];
         const std::size_t sequence_length = q_lens[1];
         auto past_key_shape               = args[3].get_shape();
-        auto past_key_lens                = past_key_shape.lens();
+        const auto& past_key_lens         = past_key_shape.lens();
         auto past_sequence_length         = past_key_lens[2];
         std::size_t q_hidden_size         = q_lens[2];
         std::size_t head_size             = q_hidden_size / (num_heads + 2 * kv_num_heads);
@@ -470,7 +494,7 @@ struct group_query_attention
                                        auto present_k,
                                        auto present_v,
                                        auto attn_probs) {
-            visit_all(args[5])([&](auto seqlens_k) {
+            get_all<double>(args[5])([&](auto seqlens_k) {
                 par_for(kv_shape.elements(), [&](auto i) {
                     present_k[i] = past_key[i];
                     present_v[i] = past_value[i];

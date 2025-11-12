@@ -25,6 +25,7 @@
 #include <migraphx/op/builder/op_builder.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/builder/insert.hpp>
+#include <migraphx/instruction.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -44,17 +45,38 @@ struct tile : op_builder<tile>
     std::vector<instruction_ref>
     insert(module& m, instruction_ref /*ins*/, const std::vector<instruction_ref>& args) const
     {
-        auto l0 = args[0];
-        for(int i = 0; i < repeats.size(); i++)
+        const auto& input_shape = args[0]->get_shape();
+        const auto& input_lens  = input_shape.lens();
+
+        if(not(repeats.size() == input_lens.size()))
         {
-            auto l1 = l0;
-            for(int j = 1; j < repeats[i]; j++)
-            {
-                auto op = make_op("concat", {{"axis", i}});
-                l0      = op::builder::add(op.name(), m, {l0, l1}, to_value(op)).at(0);
-            }
+            MIGRAPHX_THROW("tile op-builder: repeats size mismatch with input shape");
         }
-        return {l0};
+
+        std::vector<int64_t> unsq_axes(input_lens.size());
+        std::iota(unsq_axes.begin(), unsq_axes.end(), 0);
+        std::transform(
+            unsq_axes.begin(), unsq_axes.end(), unsq_axes.begin(), [](auto x) { return 2 * x; });
+
+        auto unsq =
+            m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", unsq_axes}}), args[0]);
+
+        std::vector<std::size_t> bcast_shape_lens = unsq->get_shape().lens();
+        std::for_each(unsq_axes.begin(), unsq_axes.end(), [&](int64_t axis_idx) {
+            bcast_shape_lens[axis_idx] = repeats[axis_idx / 2];
+        });
+        migraphx::shape bcast_shape{input_shape.type(), bcast_shape_lens};
+
+        auto mbcast = m.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", bcast_shape.lens()}}), unsq);
+
+        std::vector<std::size_t> reshape_dims(bcast_shape_lens.size() / 2);
+        for(size_t i = 0; i < reshape_dims.size(); i++)
+        {
+            reshape_dims[i] = bcast_shape_lens[i * 2] * bcast_shape_lens[i * 2 + 1];
+        }
+
+        return {m.add_instruction(migraphx::make_op("reshape", {{"dims", reshape_dims}}), mbcast)};
     }
 };
 

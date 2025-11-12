@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,8 +29,11 @@ TEST_CASE(tile_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
     mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {2}}, {1, 2}});
-    auto input = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2}});
-    mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), input, input);
+    auto input  = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2}});
+    auto unsq   = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 2}}}), input);
+    auto mbcast = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 2}}}), unsq);
+    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4}}}), mbcast);
 
     auto prog = optimize_onnx("tile_test.onnx");
 

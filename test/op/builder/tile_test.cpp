@@ -28,36 +28,57 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
 
+namespace {
+std::vector<float>
+run_with_data(migraphx::module m, const migraphx::shape& input_shape, std::vector<float> data)
+{
+    migraphx::program p{m};
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::parameter_map pp;
+    pp["x"] = migraphx::argument(input_shape, data.data());
+
+    migraphx::argument result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    return result_vector;
+}
+} // namespace
+
 TEST_CASE(tile_op_builder_test)
 {
     migraphx::module mm;
     auto input = mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2}});
-    auto l0    = mm.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), input, input);
-    auto l1    = mm.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), l0, input);
-    mm.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), l1, l1);
+    auto unsq  = mm.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 2}}}), input);
+    auto mbcast =
+        mm.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 2, 2, 2}}}), unsq);
+    mm.add_instruction(migraphx::make_op("reshape", {{"dims", {6, 4}}}), mbcast);
 
     EXPECT(mm == make_op_module("tile", {{"repeats", {3, 2}}}, mm.get_parameters()));
 }
 
-TEST_CASE(tile_verify_op_builder_test)
+TEST_CASE(tile_repeats_size_mismatch_op_builder_test)
 {
     migraphx::module mm;
+    mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2}});
 
+    EXPECT(test::throws<migraphx::exception>(
+        [&] {
+            make_op_module("tile", {{"repeats", {2}}}, mm.get_parameters());
+        },
+        "repeats size mismatch with input shape"));
+}
+
+TEST_CASE(tile_verify_2d_op_builder_test)
+{
+    migraphx::module mm;
     const migraphx::shape sh_data = migraphx::shape{migraphx::shape::float_type, {2, 2}};
 
-    auto a0 = mm.add_parameter("0", sh_data);
+    auto a0 = mm.add_parameter("x", sh_data);
     migraphx::op::builder::add("tile", mm, {a0}, {{"repeats", {3, 2}}});
 
-    migraphx::program p{mm};
-    p.compile(migraphx::make_target("ref"));
-
-    std::vector<float> data = {1.0, 2.0, 3.0, 4.0};
-    migraphx::parameter_map pp;
-    pp["0"] = migraphx::argument(sh_data, data.data());
-
-    auto result = p.eval(pp).back();
-    std::vector<float> result_vector;
-    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    const std::vector<float> result_vector = run_with_data(mm, sh_data, {1.0, 2.0, 3.0, 4.0});
 
     /*
     from:
@@ -79,6 +100,19 @@ TEST_CASE(tile_verify_op_builder_test)
         1.0, 2.0, 1.0, 2.0, 3.0, 4.0, 3.0, 4.0, 1.0, 2.0, 1.0, 2.0,
         3.0, 4.0, 3.0, 4.0, 1.0, 2.0, 1.0, 2.0, 3.0, 4.0, 3.0, 4.0,
     };
+
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, expected_result));
+}
+
+TEST_CASE(tile_verify_1d_op_builder_test)
+{
+    migraphx::module mm;
+    const migraphx::shape sh_data = migraphx::shape{migraphx::shape::float_type, {1}};
+
+    auto a0 = mm.add_parameter("x", sh_data);
+    migraphx::op::builder::add("tile", mm, {a0}, {{"repeats", {5}}});
+    const std::vector<float> result_vector   = run_with_data(mm, sh_data, {1.0});
+    const std::vector<float> expected_result = {1.0, 1.0, 1.0, 1.0, 1.0};
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, expected_result));
 }

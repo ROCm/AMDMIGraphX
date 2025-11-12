@@ -1643,15 +1643,18 @@ void register_experimental_custom_op(T& obj)
     op.register_op();
 }
 
-std::vector<const char *> get_onnx_operators()
+inline std::vector<std::string> get_onnx_operators()
 {
-    auto size = get_onnx_operators_size();
-    std::vector<const char *> result(size, "");
+    size_t size = 0;
+    migraphx_get_onnx_operators_size(&size);
+    std::vector<std::string> result(size, "");
 
     size_t index = 0;
     for(auto &name: result)
     {
-        name= get_onnx_operator_name_at_index(index);
+        char * name_op;
+        migraphx_get_onnx_operator_name_at_index(&name_op, index);
+        name = *name_op;
         index++;
     }
     return result;

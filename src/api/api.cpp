@@ -291,9 +291,9 @@ static void quantize_fp8_wrap(program& prog, const target& t, quantize_fp8_optio
 
 static size_t get_onnx_operators_size() { return migraphx::get_onnx_operators().size(); }
 
-static const char* get_onnx_operator_name_at_index(std::size_t index)
+static char* get_onnx_operator_name_at_index(std::size_t index)
 {
-    return get_onnx_operators().at(index).c_str();
+    return const_cast<char*>(get_onnx_operators().at(index).c_str());
 }
 
 #ifdef __clang__
@@ -2423,14 +2423,14 @@ extern "C" migraphx_status migraphx_quantize_fp8(migraphx_program_t prog,
     return api_error_result;
 }
 
-extern "C" migraphx_status migraphx_get_onnx_operator_name_at_index(const char** out, size_t index)
+extern "C" migraphx_status migraphx_get_onnx_operator_name_at_index(char** out, size_t index)
 {
     auto api_error_result =
         migraphx::try_([&] { *out = migraphx::get_onnx_operator_name_at_index((index)); });
     return api_error_result;
 }
 
-extern "C" migraphx_status migraphx_get_onnx_operators_size(std::size_t* out)
+extern "C" migraphx_status migraphx_get_onnx_operators_size(size_t* out)
 {
     auto api_error_result = migraphx::try_([&] { *out = migraphx::get_onnx_operators_size(); });
     return api_error_result;

@@ -294,9 +294,9 @@ static size_t get_onnx_operators_size()
     return migraphx::get_onnx_operators().size();
 }
 
-static const char * get_onnx_operator_name_at_index(std::size_t index)
+static char * get_onnx_operator_name_at_index(std::size_t index)
 {
-    return get_onnx_operators().at(index).c_str();   
+    return const_cast<char*>(get_onnx_operators().at(index).c_str());   
 }
 
 #ifdef __clang__

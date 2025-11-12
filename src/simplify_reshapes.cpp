@@ -259,19 +259,20 @@ struct find_op_shape_transform_op
     static shape_transform_descriptor
     make_descriptor(instruction_ref x_ins, std::vector<operation> ops, instruction_ref input_ins)
     {
-        auto xinput = x_ins->inputs().front();
-        const auto& xlens = x_ins->get_shape().lens();
+        auto xinput            = x_ins->inputs().front();
+        const auto& xlens      = x_ins->get_shape().lens();
         const auto& xinputlens = xinput->get_shape().lens();
 
         auto desc1 = shape_transform_descriptor::create(xlens, ops);
         if(not is_reduce(x_ins))
             return desc1;
 
-        auto desc  = desc1.rebase(xinputlens, true);
+        auto desc = desc1.rebase(xinputlens, true);
         if(not desc.empty())
             return desc;
         // We are broadcasting to a different size that doesnt match the input
-        if(desc1.elements() != xinput->get_shape().elements() and desc1.elements() != x_ins->get_shape().elements())
+        if(desc1.elements() != xinput->get_shape().elements() and
+           desc1.elements() != x_ins->get_shape().elements())
         {
             // If we cant rebase the desc then bail
             if(desc1.rebase(xinputlens).empty())
@@ -290,8 +291,7 @@ struct find_op_shape_transform_op
         if(not contains({"multibroadcast", "broadcast"}, (*it)->name()))
             return {};
         ops.push_back((*it)->get_operator());
-        return shape_transform_descriptor::create(xlens, ops)
-            .rebase(xinputlens, true);
+        return shape_transform_descriptor::create(xlens, ops).rebase(xinputlens, true);
     }
 
     void apply(module& m, const match::matcher_result& r) const

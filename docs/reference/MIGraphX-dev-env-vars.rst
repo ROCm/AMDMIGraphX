@@ -55,13 +55,13 @@ Model performance tunable variables change the compilation behavior of a model. 
 
       | Default: ``rocblas`` on gfx90a; ``hipblaslt`` on all other architectures.
 
-  * - | ``MIGRAPHX_DISABLE_LAYERNORM_FUSION``
-      | When set, layernorm fusion isn't used.
+  * - | ``MIGRAPHX_ENABLE_LAYERNORM_FUSION``
+      | When set, layernorm fusion is used.
       
-    - | ``1``: Layernorm fusion won't be used.
+    - | ``1``: Layernorm fusion will be used.
       | ``0``: Returns to default behavior.
 
-      | Default: Layernorm fusion is used.
+      | Default: Layernorm fusion is not used.
   
   * - | ``MIGRAPHX_DISABLE_MIOPEN_POOLING``   
       | When set, MIGraphX pooling is used instead of MIOpen pooling.

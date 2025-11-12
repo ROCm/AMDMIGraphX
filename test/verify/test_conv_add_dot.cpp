@@ -63,3 +63,4 @@ struct test_conv_add_dot : verify_program<test_conv_add_dot<DType>>
 
 template struct test_conv_add_dot<migraphx::shape::half_type>;
 template struct test_conv_add_dot<migraphx::shape::bf16_type>;
+template struct test_conv_add_dot<migraphx::shape::float_type>;

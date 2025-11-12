@@ -240,7 +240,7 @@ struct find_op_shape_transform_op
             auto broadcasted_axes = desc.find_broadcasted_axes();
             return equal(op_axes, broadcasted_axes);
         }
-        return not desc.has_broadcast();
+        return desc.elements() == ins->get_shape().elements();
     }
 
     static std::vector<operation> generate(const shape_transform_descriptor& desc,
@@ -259,14 +259,25 @@ struct find_op_shape_transform_op
     static shape_transform_descriptor
     make_descriptor(instruction_ref x_ins, std::vector<operation> ops, instruction_ref input_ins)
     {
-        auto desc1 = shape_transform_descriptor::create(x_ins->get_shape().lens(), ops);
-        auto desc  = desc1.rebase(x_ins->inputs().front()->get_shape().lens(), true);
+        auto xinput = x_ins->inputs().front();
+        const auto& xlens = x_ins->get_shape().lens();
+        const auto& xinputlens = xinput->get_shape().lens();
+
+        auto desc1 = shape_transform_descriptor::create(xlens, ops);
+        if(not is_reduce(x_ins))
+            return desc1;
+
+        auto desc  = desc1.rebase(xinputlens, true);
         if(not desc.empty())
             return desc;
-        if(not is_reduce(x_ins) or any_of(ops, [](const operation& op) {
-               return contains({"broadcast", "multibroadcast"}, op.name());
-           }))
+        // We are broadcasting to a different size that doesnt match the input
+        if(desc1.elements() != xinput->get_shape().elements() and desc1.elements() != x_ins->get_shape().elements())
+        {
+            // If we cant rebase the desc then bail
+            if(desc1.rebase(xinputlens).empty())
+                return {};
             return desc1;
+        }
         // Find a broadcast to append to improve the reduction analysis
         auto output_path = get_output_path(input_ins);
         auto it = std::find_if(output_path.begin(), output_path.end(), [&](instruction_ref ins) {
@@ -279,8 +290,8 @@ struct find_op_shape_transform_op
         if(not contains({"multibroadcast", "broadcast"}, (*it)->name()))
             return {};
         ops.push_back((*it)->get_operator());
-        return shape_transform_descriptor::create(x_ins->get_shape().lens(), ops)
-            .rebase(x_ins->inputs().front()->get_shape().lens(), true);
+        return shape_transform_descriptor::create(xlens, ops)
+            .rebase(xinputlens, true);
     }
 
     void apply(module& m, const match::matcher_result& r) const

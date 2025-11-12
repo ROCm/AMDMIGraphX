@@ -60,10 +60,10 @@ TEST_CASE(gqa_rotary_embedding_test)
     auto ktsl      = mm->add_parameter("ktsl", key_total_sequence_lens_shape);
     auto cos_cache = mm->add_parameter("cos_cache", cos_cache_shape);
     auto sin_cache = mm->add_parameter("sin_cache", sin_cache_shape);
-    auto rotary = mm->add_instruction(migraphx::make_op("gqa_rotary_embedding",
-                                                        {{"num_heads", num_heads},
-                                                         {"kv_num_heads", kv_num_heads},
-                                                         {"interleaved", interleaved}}),
+    auto rotary    = mm->add_instruction(migraphx::make_op("gqa_rotary_embedding",
+                                                           {{"num_heads", num_heads},
+                                                            {"kv_num_heads", kv_num_heads},
+                                                            {"interleaved", interleaved}}),
                                       qkv,
                                       ktsl,
                                       cos_cache,

@@ -281,7 +281,7 @@ struct find_flash_decoding
         size_t n    = k_lens[ndim - 1];
         size_t g    = groups;
 
-        // TODO: do we wanna support this differently?
+        // TODO: handle uneven splits; this is caught in `apply` for now
         assert(n % g == 0 and
                "Key-value sequence length must be divisible by number of splits/groups");
         size_t n_split = n / g;
@@ -433,6 +433,7 @@ struct find_flash_decoding
 
         // TODO: for this pass of flash decoding, if LSE attn, do not do flash decoding
         auto return_ins = std::prev(submod->end());
+        assert(return_ins->name() == "@return" and "Last instruction must be a @return instruction");
         if(return_ins->inputs().size() > 1)
             return;
 
@@ -446,6 +447,10 @@ struct find_flash_decoding
         assert(q_param->name() == "@param" and "Q should be a parameter");
         assert(k_param->name() == "@param" and "K should be a parameter");
         assert(v_param->name() == "@param" and "V should be a parameter");
+
+        // check if N dimension is evenly divisible by num_splits
+        if(k_param->get_shape().lens().back() % groups != 0)
+            return;
 
         // get Q, V, K shapes from gemms
         auto qkv_shapes = get_qkv_shapes(q_param, k_param, v_param);

@@ -616,19 +616,29 @@ void add_int4_pack_unpack_pair(module& m)
 
 void simplify_qdq::apply(module& m) const
 {
-    // first step: add pack/unpack pair between qdq for int4 weights
-    add_int4_pack_unpack_pair(m);
-    match::find_matches(m, match_find_quantizable_ops{});
-    migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
-    match::find_matches(m, match_find_mx_quantizable_ops{});
-    migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
-    match::find_matches(m, remove_qdq_pairs{});
-    migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
-    match::find_matches(m, match_qlinear_reused{});
-    migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
-    match::find_matches(m, match_concat_qlinear{});
-    migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
-    remove_zero_point(m);
+    if(remove_qdq_only)
+    {
+        match::find_matches(m, remove_qdq_pairs{});
+    }
+    else
+    {
+        // first step: add pack/unpack pair between qdq for int4 weights
+        add_int4_pack_unpack_pair(m);
+        match::find_matches(m, match_find_quantizable_ops{});
+        migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+        if(use_mx_quant)
+        {
+            match::find_matches(m, match_find_mx_quantizable_ops{});
+            migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+        }
+        match::find_matches(m, remove_qdq_pairs{});
+        migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+        match::find_matches(m, match_qlinear_reused{});
+        migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+        match::find_matches(m, match_concat_qlinear{});
+        migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+        remove_zero_point(m);
+    }
 }
 
 } // namespace MIGRAPHX_INLINE_NS

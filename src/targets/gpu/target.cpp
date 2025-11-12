@@ -189,7 +189,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         enable_pass(not gpu::gfx_has_fp8ocp_intrinsics() and gpu::gfx_has_fp8fnuz_intrinsics(), fp8_ocp_to_fnuz{}),
         enable_pass(not gpu::gfx_has_fp8ocp_intrinsics() and gpu::gfx_has_fp8fnuz_intrinsics(), dead_code_elimination{}),
-        simplify_qdq{},
+        simplify_qdq{.use_mx_quant=gpu::gfx_has_mx_intrinsics()},
         enable_pass(not mlir_enabled(), rewrite_quantization{}),
         dead_code_elimination{},
         rewrite_rnn{},

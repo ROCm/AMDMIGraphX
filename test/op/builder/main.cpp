@@ -21,31 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_DRIVER_VERIFY_OPTIONS_HPP
-#define MIGRAPHX_GUARD_RTGLIB_DRIVER_VERIFY_OPTIONS_HPP
+#include "test.hpp"
 
-#include "precision.hpp"
-#include <string>
-
-namespace migraphx {
-namespace driver {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct verify_options
-{
-    /// Quantization precision
-    precision quantize = precision::fp32;
-
-    /**
-     * Converts floating point values to double on the ref target. Also removes Q/DQ pairs on ref.
-     */
-    bool ref_use_double = false;
-
-    std::string compiled_model = "";
-};
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace driver
-} // namespace migraphx
-
-#endif
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

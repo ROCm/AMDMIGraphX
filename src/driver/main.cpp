@@ -785,7 +785,8 @@ struct verify : command<verify>
         ap(bisect, {"-b", "--bisect"}, ap.help("Bisect program and verify"), ap.set_value(true));
         ap(vo.ref_use_double,
            {"--ref-use-double"},
-           ap.help("Convert floating point values to double on ref"),
+           ap.help(
+               "Convert floating point values to double on ref. Also removes Q/DQ pairs on ref."),
            ap.set_value(true));
         ap(vo.compiled_model, {"--compiled-model", "-c"}, ap.help("Compiled model to use"));
     }

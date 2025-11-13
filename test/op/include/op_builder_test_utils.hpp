@@ -21,31 +21,34 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_DRIVER_VERIFY_OPTIONS_HPP
-#define MIGRAPHX_GUARD_RTGLIB_DRIVER_VERIFY_OPTIONS_HPP
 
-#include "precision.hpp"
-#include <string>
+#ifndef MIGRAPHX_GUARD_TEST_OPBUILDER_TEST_UTILS_HPP
+#define MIGRAPHX_GUARD_TEST_OPBUILDER_TEST_UTILS_HPP
 
-namespace migraphx {
-namespace driver {
-inline namespace MIGRAPHX_INLINE_NS {
+#include <migraphx/common.hpp>
+#include <migraphx/instruction.hpp>
+#include <test.hpp>
+#include <migraphx/op/builder/insert.hpp>
+#include <migraphx/ranges.hpp>
 
-struct verify_options
+inline migraphx::module make_op_module(const std::string& op_builder_name,
+                                       const migraphx::value& options,
+                                       const std::vector<migraphx::instruction_ref>& params)
 {
-    /// Quantization precision
-    precision quantize = precision::fp32;
+    migraphx::module mm_op_built;
 
-    /**
-     * Converts floating point values to double on the ref target. Also removes Q/DQ pairs on ref.
-     */
-    bool ref_use_double = false;
+    for(auto param : migraphx::range(params.rbegin(), params.rend()))
+    {
+        auto param_name =
+            migraphx::any_cast<migraphx::builtin::param>(param->get_operator()).parameter;
+        mm_op_built.add_parameter(param_name, param->get_shape());
+    }
 
-    std::string compiled_model = "";
-};
+    const auto& params2 = mm_op_built.get_parameters();
+    const std::vector<migraphx::instruction_ref>& args2{params2.rbegin(), params2.rend()};
+    migraphx::op::builder::add(op_builder_name, mm_op_built, args2, options);
 
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace driver
-} // namespace migraphx
+    return mm_op_built;
+}
 
 #endif

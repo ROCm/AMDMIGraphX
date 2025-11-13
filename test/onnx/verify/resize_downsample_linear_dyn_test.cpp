@@ -21,31 +21,31 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_DRIVER_VERIFY_OPTIONS_HPP
-#define MIGRAPHX_GUARD_RTGLIB_DRIVER_VERIFY_OPTIONS_HPP
 
-#include "precision.hpp"
-#include <string>
+#include <migraphx/register_target.hpp>
+#include <migraphx/verify.hpp>
+#include <onnx_test.hpp>
 
-namespace migraphx {
-namespace driver {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct verify_options
+TEST_CASE(resize_downsample_linear_dyn_test)
 {
-    /// Quantization precision
-    precision quantize = precision::fp32;
+    using migraphx::half;
+    migraphx::onnx_options options;
+    options.map_dyn_input_dims = {{"X", {{1, 1}, {1, 1}, {2, 3}, {4, 8}}}};
+    migraphx::program p        = read_onnx("resize_downsample_linear_half_test.onnx", options);
+    p.compile(migraphx::make_target("ref"));
 
-    /**
-     * Converts floating point values to double on the ref target. Also removes Q/DQ pairs on ref.
-     */
-    bool ref_use_double = false;
+    migraphx::shape sx{migraphx::shape::half_type, {1, 1, 2, 4}};
+    std::vector<half> dx = {half{1}, half{2}, half{3}, half{4}, half{5}, half{6}, half{7}, half{8}};
 
-    std::string compiled_model = "";
-};
+    migraphx::parameter_map pp;
+    pp["X"] = migraphx::argument(sx, dx.data());
 
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace driver
-} // namespace migraphx
+    auto result = p.eval(pp).back();
+    std::vector<half> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-#endif
+    // Expected output was calculated without any quantization
+    std::vector<half> gold = {half{2.8333333}, half{4.833333}};
+
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}

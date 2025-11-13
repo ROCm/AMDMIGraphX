@@ -21,11 +21,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-google/protobuf@v3.19.0 -DCMAKE_POSITION_INDEPENDENT_CODE=ON -X subdir -Dprotobuf_BUILD_TESTS=OFF -Dprotobuf_BUILD_SHARED_LIBS=OFF -Dprotobuf_MSVC_STATIC_RUNTIME=OFF -Dprotobuf_BUILD_LIBPROTOC=ON -Dprotobuf_BUILD_PROTOC_BINARIES=ON -Dprotobuf_BUILD_PROTOBUF_BINARIES=ON -DCMAKE_POLICY_VERSION_MINIMUM=3.5
-nlohmann/json@v3.11.2 -DJSON_BuildTests=OFF -DJSON_MultiHeaders=OFF -DJSON_SystemInclude=ON -DCMAKE_POLICY_VERSION_MINIMUM=3.5
-ROCm/half@release/rocm-rel-6.4
-pybind/pybind11@v2.13.6 --build
-msgpack/msgpack-c@cpp-3.3.0 -DMSGPACK_BUILD_TESTS=OFF -DMSGPACK_BUILD_EXAMPLES=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5
-sqlite3@3.50.4 -DCMAKE_POSITION_INDEPENDENT_CODE=ON
-ROCm/composable_kernel@b7775add2d28251674d81e220cd4a857b90b997a -DCK_BUILD_JIT_LIB=ON -DCMAKE_POSITION_INDEPENDENT_CODE=ON
-ROCm/rocMLIR@5285c798bd4226f21c9f3e303a9ec3b040e3f247 -DBUILD_FAT_LIBROCKCOMPILER=ON -DLLVM_INCLUDE_TESTS=OFF
+
+file(GLOB OP_BUILDER_TESTS CONFIGURE_DEPENDS builder/*.cpp)
+
+rocm_add_test_executable(test_op_builder_test ${OP_BUILDER_TESTS})
+target_include_directories(test_op_builder_test PUBLIC ../include include)
+target_link_libraries(test_op_builder_test migraphx migraphx_ref)
+rocm_clang_tidy_check(test_op_builder_test)

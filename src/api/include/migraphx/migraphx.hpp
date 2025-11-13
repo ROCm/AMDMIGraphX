@@ -1614,7 +1614,7 @@ inline std::vector<std::string> get_onnx_operators()
     {
         char* name_op;
         call(&migraphx_get_onnx_operator_name_at_index, &name_op, index);
-        name = *name_op;
+        name = name_op;
         index++;
     }
     return result;

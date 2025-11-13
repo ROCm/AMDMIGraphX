@@ -422,17 +422,21 @@ pipeline {
         }
 
         stage('ONNX Runtime Tests') {
-            agent {
-                label rocmnodename('onnxrt')
-            }
-            steps {
-                script {
-                    gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - ONNX Runtime Tests", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
-                        stage('ONNX Runtime Tests - Setup') {
-                            env.DOCKER_OPTS = setuponnxtest()
-                        }
-                        stage('ONNX Runtime Tests - Build') {
-                            buildonnxtest(env.DOCKER_OPTS)
+            parallel {
+                stage('ONNX Runtime Tests') {
+                    agent {
+                        label rocmnodename('onnxrt')
+                    }
+                    steps {
+                        script {
+                            gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - ONNX Runtime Tests", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
+                                stage('ONNX Runtime Tests - Setup') {
+                                    env.DOCKER_OPTS = setuponnxtest()
+                                }
+                                stage('ONNX Runtime Tests - Build') {
+                                    buildonnxtest(env.DOCKER_OPTS)
+                                }
+                            }
                         }
                     }
                 }

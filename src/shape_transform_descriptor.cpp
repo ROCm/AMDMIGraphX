@@ -277,28 +277,43 @@ static auto adjust_axes_for_rebase(shape_transform_descriptor& desc,
     if(nshortages == 0)
         return axes_map;
 
+    auto for_each_axis_group = [&](auto f) {
+        for(auto& [axis, subs] : axes_map)
+        {
+            assert(axis < dims.size());
+            auto dim    = dims[axis];
+            auto excess = len(subs) / dim;
+            if(excess < 2)
+                continue;
+            f(axis, subs, excess);
+        }
+        // Look at dims with no axis
+        for_each_subdimension(desc.dimensions, [&](auto& s) {
+            if(not s.origin_axis().empty())
+                return;
+            auto excess = s.len;
+            if(excess < 2)
+                return;
+            f(dims.size(), std::vector<dimension::sub*>{&s}, excess);
+        });
+    };
+
     // Find excess and swap with a shortage
-    for(auto& [axis, subs] : axes_map)
-    {
-        assert(axis < dims.size());
-        auto dim    = dims[axis];
-        auto excess = len(subs) / dim;
-        if(excess < 2)
-            continue;
+    for_each_axis_group([&](const auto& axis, const auto& subs, auto excess) {
         auto it = std::find_if(subs.begin(), subs.end(), [&](dimension::sub* sub) {
-            if(not sub->has_hidden_axis())
+            if(not sub->has_hidden_axis() and not sub->origin_axis().empty())
                 return false;
             return sub->len == excess;
         });
         if(it == subs.end())
-            continue;
+            return;
         auto saxes = shortage_axes.equal_range(excess);
         if(saxes.first == saxes.second)
-            continue;
+            return;
         auto saxis_it = std::min_element(
-            saxes.first, saxes.second, by(std::less<>{}, [&, caxis = axis](const auto& p) {
+            saxes.first, saxes.second, by(std::less<>{}, [&](const auto& p) {
                 std::int64_t a1 = p.second;
-                std::int64_t a2 = caxis;
+                std::int64_t a2 = axis;
                 return std::abs(a1 - a2);
             }));
         auto saxis = saxis_it->second;
@@ -306,7 +321,7 @@ static auto adjust_axes_for_rebase(shape_transform_descriptor& desc,
         auto* sub        = *it;
         sub->hidden_axis = {saxis, std::numeric_limits<std::size_t>::max()};
         shortage_axes.erase(saxis_it);
-    }
+    });
     if(shortage_axes.size() == nshortages)
         return axes_map;
 
@@ -1187,6 +1202,7 @@ shape_transform_descriptor::generate(const std::vector<std::size_t>& input_dims)
     operation_list result;
     std::vector<dimension> new_dims =
         input_dims.empty() ? dimensions : this->rebase(input_dims).dimensions;
+    assert(input_dims.empty() or not new_dims.empty());
     // Need broadcast
     if(std::any_of(new_dims.begin(), new_dims.end(), &is_broadcast_dim))
     {

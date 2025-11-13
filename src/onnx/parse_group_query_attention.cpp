@@ -153,14 +153,13 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
             k = rotary_k;
             v = rotary_v;
         }
-        else 
+        else
         {
-            k = info.add_instruction(make_op("concat_past_present", {{"kv_num_heads", kv_num_heads}}),
-                                    concat_k_inputs);
-            v = info.add_instruction(make_op("concat_past_present", {{"kv_num_heads", kv_num_heads}}),
-                                    concat_v_inputs);
+            k = info.add_instruction(
+                make_op("concat_past_present", {{"kv_num_heads", kv_num_heads}}), concat_k_inputs);
+            v = info.add_instruction(
+                make_op("concat_past_present", {{"kv_num_heads", kv_num_heads}}), concat_v_inputs);
         }
-        
 
         auto k_out = k;
         auto v_out = v;
@@ -197,17 +196,20 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
             {
                 scale = 1.0f / std::sqrt(static_cast<float>(head_size));
             }
-            auto scalar_s = shape{rotary_qkv->get_shape().type(), {1}};
+            auto scalar_s  = shape{rotary_qkv->get_shape().type(), {1}};
             auto scale_ins = info.add_literal(literal{scalar_s, {scale}});
-            scale_ins =
-                info.add_instruction(make_op("multibroadcast", {{"out_lens", {batch_size, num_heads, sequence_length, max_seq_len}}}), scale_ins);
-            auto mul = info.add_instruction(make_op("mul"), gemm1, scale_ins);
+            scale_ins      = info.add_instruction(
+                make_op("multibroadcast",
+                             {{"out_lens", {batch_size, num_heads, sequence_length, max_seq_len}}}),
+                scale_ins);
+            auto mul     = info.add_instruction(make_op("mul"), gemm1, scale_ins);
             auto softmax = info.add_instruction(make_op("softmax", {{"axis", 3}}), mul);
             auto scores  = info.add_instruction(make_op("dot"), softmax, v);
             auto out =
                 info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), scores);
             out = info.add_instruction(
-                make_op("reshape", {{"dims", {batch_size, sequence_length, head_size * num_heads}}}),
+                make_op("reshape",
+                        {{"dims", {batch_size, sequence_length, head_size * num_heads}}}),
                 out);
             return {out};
         }

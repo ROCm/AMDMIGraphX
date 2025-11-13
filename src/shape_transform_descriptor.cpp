@@ -310,12 +310,12 @@ static auto adjust_axes_for_rebase(shape_transform_descriptor& desc,
         auto saxes = shortage_axes.equal_range(excess);
         if(saxes.first == saxes.second)
             return;
-        auto saxis_it = std::min_element(
-            saxes.first, saxes.second, by(std::less<>{}, [&](const auto& p) {
-                std::int64_t a1 = p.second;
-                std::int64_t a2 = axis;
-                return std::abs(a1 - a2);
-            }));
+        auto saxis_it =
+            std::min_element(saxes.first, saxes.second, by(std::less<>{}, [&](const auto& p) {
+                                 std::int64_t a1 = p.second;
+                                 std::int64_t a2 = axis;
+                                 return std::abs(a1 - a2);
+                             }));
         auto saxis = saxis_it->second;
 
         auto* sub        = *it;

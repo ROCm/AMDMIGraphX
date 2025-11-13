@@ -109,8 +109,8 @@ program parse_onnx_buffer(const void* data, std::size_t size, const onnx_options
     return parse_onnx_from(options, data, size);
 }
 
-const std::vector<std::string>& get_onnx_operators() 
-{ 
+const std::vector<std::string>& get_onnx_operators()
+{
     static std::vector<std::string> result = onnx::get_op_parsers();
     return result;
 }

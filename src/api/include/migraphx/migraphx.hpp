@@ -1610,9 +1610,9 @@ inline std::vector<std::string> get_onnx_operators()
     std::vector<std::string> result(size, "");
 
     size_t index = 0;
-    for(auto &name: result)
+    for(auto& name : result)
     {
-        char * name_op;
+        char* name_op;
         call(&migraphx_get_onnx_operator_name_at_index, &name_op, index);
         name = *name_op;
         index++;

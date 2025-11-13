@@ -28,7 +28,7 @@
 TEST_CASE(list_onnx_operators)
 {
     auto list = migraphx::get_onnx_operators();
-    for(auto& name : list)
+    for(const auto& name : list)
         std::cout << name << std::endl;
 
     EXPECT(true);

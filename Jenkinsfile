@@ -165,7 +165,7 @@ pipeline {
         stage('Check image') {
             steps {
                 script {
-                    gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Check image", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Checking image', failureDescription: 'Failed to check image', successDescription: 'Image check succeeded') {
+                    gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Check image", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Checking image', failureDescription: 'Failed to check image', successDescription: 'Image check succeeded') {
                         withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
                             sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
                             sh 'printenv'
@@ -188,7 +188,7 @@ pipeline {
             }
             steps {
                 script {
-                    gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Build image", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Building image', failureDescription: 'Failed to build image', successDescription: 'Image build succeeded') {
+                    gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Build image", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Building image', failureDescription: 'Failed to build image', successDescription: 'Image build succeeded') {
                         withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
                             sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
                             def builtImage
@@ -215,7 +215,7 @@ pipeline {
                     }
                     steps {
                         script {
-                            gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "All Targets Release", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
+                            gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - All Targets Release", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
                                 stage('All Targets Release - Setup') {
                                     env.DOCKER_OPTS = setuprocmtest()
                                 }
@@ -238,7 +238,7 @@ pipeline {
                     }
                     steps {
                         script {
-                            gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Clang ASAN", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
+                            gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Clang ASAN", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
                                 stage('Clang ASAN - Setup') {
                                     env.DOCKER_OPTS = setuprocmtest()
                                 }
@@ -263,7 +263,7 @@ pipeline {
                     }
                     steps {
                         script {
-                            gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Clang libstdc++ Debug", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
+                            gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Clang libstdc++ Debug", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
                                 stage('Clang libstdc++ Debug - Setup') {
                                     env.DOCKER_OPTS = setuprocmtest()
                                 }
@@ -288,7 +288,7 @@ pipeline {
                     }
                     steps {
                         script {
-                            gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "HIP Clang Release", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
+                            gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - HIP Clang Release", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
                                 stage('HIP Clang Release - Setup') {
                                     env.DOCKER_OPTS = setuprocmtest()
                                 }
@@ -312,7 +312,7 @@ pipeline {
                     }
                     steps {
                         script {
-                            gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "HIP Clang Release Navi32", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
+                            gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - HIP Clang Release Navi32", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
                                 stage('HIP Clang Release Navi32 - Setup') {
                                     env.DOCKER_OPTS = setuprocmtest()
                                 }
@@ -335,7 +335,7 @@ pipeline {
                     }
                     steps {
                         script {
-                            gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "HIP Clang Release Navi4x", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
+                            gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - HIP Clang Release Navi4x", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
                                 stage('HIP Clang Release Navi4x - Setup') {
                                     env.DOCKER_OPTS = setuprocmtest()
                                 }
@@ -361,7 +361,7 @@ pipeline {
                     }
                     steps {
                         script {
-                            gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "HIP RTC Debug", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
+                            gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - HIP RTC Debug", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
                                 stage('HIP RTC Debug - Setup') {
                                     env.DOCKER_OPTS = setuprocmtest()
                                 }
@@ -397,7 +397,7 @@ pipeline {
                     }
                     steps {
                         script {
-                            gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "MLIR Debug", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
+                            gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - MLIR Debug", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
                                 stage('MLIR Debug - Setup') {
                                     env.DOCKER_OPTS = setuprocmtest()
                                 }
@@ -427,7 +427,7 @@ pipeline {
             }
             steps {
                 script {
-                    gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "ONNX Runtime Tests", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
+                    gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - ONNX Runtime Tests", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
                         stage('ONNX Runtime Tests - Setup') {
                             env.DOCKER_OPTS = setuponnxtest()
                         }

@@ -26,6 +26,9 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/float_equal.hpp>
+#include <migraphx/env.hpp>
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_KV_CACHE);
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -46,6 +49,7 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         std::size_t num_heads    = 0;
         bool rotary_interleaved  = false;
         float scale              = 0.0;
+        const bool disable_kv_cache = enabled(MIGRAPHX_DISABLE_KV_CACHE{});
         if(contains(info.attributes, "do_rotary"))
         {
             do_rotary = parser.parse_value(info.attributes.at("do_rotary")).at<bool>();
@@ -144,10 +148,19 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         std::vector<instruction_ref> concat_k_inputs{rotary_k, slk, k};
         std::vector<instruction_ref> concat_v_inputs{rotary_v, slk, v};
 
-        k = info.add_instruction(make_op("concat_past_present", {{"kv_num_heads", kv_num_heads}}),
-                                 concat_k_inputs);
-        v = info.add_instruction(make_op("concat_past_present", {{"kv_num_heads", kv_num_heads}}),
-                                 concat_v_inputs);
+        if(disable_kv_cache)
+        {
+            k = rotary_k;
+            v = rotary_v;
+        }
+        else 
+        {
+            k = info.add_instruction(make_op("concat_past_present", {{"kv_num_heads", kv_num_heads}}),
+                                    concat_k_inputs);
+            v = info.add_instruction(make_op("concat_past_present", {{"kv_num_heads", kv_num_heads}}),
+                                    concat_v_inputs);
+        }
+        
 
         auto k_out = k;
         auto v_out = v;
@@ -177,6 +190,27 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         }
         auto kt    = info.add_instruction(make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), k);
         auto gemm1 = info.add_instruction(make_op("dot"), q, kt);
+
+        if(disable_kv_cache)
+        {
+            if(float_equal(scale, 0.0))
+            {
+                scale = 1.0f / std::sqrt(static_cast<float>(head_size));
+            }
+            auto scalar_s = shape{rotary_qkv->get_shape().type(), {1}};
+            auto scale_ins = info.add_literal(literal{scalar_s, {scale}});
+            scale_ins =
+                info.add_instruction(make_op("multibroadcast", {{"out_lens", {batch_size, num_heads, sequence_length, max_seq_len}}}), scale_ins);
+            auto mul = info.add_instruction(make_op("mul"), gemm1, scale_ins);
+            auto softmax = info.add_instruction(make_op("softmax", {{"axis", 3}}), mul);
+            auto scores  = info.add_instruction(make_op("dot"), softmax, v);
+            auto out =
+                info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), scores);
+            out = info.add_instruction(
+                make_op("reshape", {{"dims", {batch_size, sequence_length, head_size * num_heads}}}),
+                out);
+            return {out};
+        }
 
         std::vector<int> range_vec(max_seq_len);
         std::iota(range_vec.begin(), range_vec.end(), 0);

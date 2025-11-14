@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -96,7 +96,7 @@ TEST_CASE(run_sigmoid_custom_op)
                    expected_result.end(),
                    expected_result.begin(),
                    [](auto y) { return 1.f / (1.f + std::exp(-y)); });
-    EXPECT(bool{result == migraphx::argument(s, expected_result.data())});
+    EXPECT(result == migraphx::argument(s, expected_result.data()));
 }
 
 extern "C" MIGRAPHX_C_EXPORT void migraphx_test_private_disable_exception_catch(bool);

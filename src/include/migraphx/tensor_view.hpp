@@ -29,6 +29,7 @@
 #include <migraphx/requires.hpp>
 #include <migraphx/iota_iterator.hpp>
 #include <migraphx/as_number.hpp>
+#include <migraphx/byte.hpp>
 
 #include <iostream>
 #include <utility>
@@ -147,25 +148,25 @@ struct tensor_view
         return m_data[m_shape.index(this->size() - 1)];
     }
 
-    iterator begin() { return {0, {this}}; }
+    iterator begin() { return {0, this}; }
 
     template <class Range>
     iterator begin_at(const Range& r)
     {
-        return {this->m_shape.single(r.begin(), r.end()), {this}};
+        return {this->m_shape.single(r.begin(), r.end()), this};
     }
 
-    iterator end() { return {this->size(), {this}}; }
+    iterator end() { return {this->size(), this}; }
 
-    const_iterator begin() const { return {0, {this}}; }
+    const_iterator begin() const { return {0, this}; }
 
     template <class Range>
     const_iterator begin_at(const Range& r) const
     {
-        return {this->m_shape.single(r.begin(), r.end()), {this}};
+        return {this->m_shape.single(r.begin(), r.end()), this};
     }
 
-    const_iterator end() const { return {this->size(), {this}}; }
+    const_iterator end() const { return {this->size(), this}; }
 
     template <class U = T>
     std::vector<U> to_vector() const

@@ -45,6 +45,17 @@
 #define MIGRAPHX_GUARD_TEST_TEST_HPP
 
 namespace test {
+
+template <int N>
+struct rank : rank<N - 1>
+{
+};
+
+template <>
+struct rank<0>
+{
+};
+
 // clang-format off
 // NOLINTNEXTLINE
 #define TEST_FOREACH_BINARY_OPERATORS(m) \
@@ -111,18 +122,41 @@ struct function
     }
 };
 
-template <class Stream, class Iterator>
-Stream& stream_range(Stream& s, Iterator start, Iterator last);
+template <class Stream, class T>
+void print_stream(Stream& s, const T& x);
 
-template <class Stream>
-inline Stream& operator<<(Stream& s, std::nullptr_t)
+template <class Stream, class T>
+Stream& print_stream_impl(rank<0>, Stream& s, const T&)
 {
-    s << "nullptr";
+    // TODO: Print typename
+    s << '?';
     return s;
 }
 
+template <class Stream, class T>
+auto print_stream_impl(rank<1>, Stream& s, const T& x)
+    -> decltype(s << x) // NOLINT(bugprone-multi-level-implicit-pointer-conversion)
+{
+    if constexpr(std::is_pointer<T>{})
+    {
+        return s << static_cast<const void*>(x);
+    }
+    else if constexpr(std::is_same<T, bool>{})
+    {
+        if(x)
+            s << "true";
+        else
+            s << "false";
+        return s;
+    }
+    else
+    {
+        return s << x;
+    }
+}
+
 template <class Stream, class T, class U>
-inline Stream& operator<<(Stream& s, const std::pair<T, U>& p)
+Stream& print_stream_impl(rank<2>, Stream& s, const std::pair<T, U>& p)
 {
     s << "{";
     s << p.first << ", " << p.second;
@@ -130,26 +164,38 @@ inline Stream& operator<<(Stream& s, const std::pair<T, U>& p)
     return s;
 }
 
-template <class Stream,
-          class Range,
-          class = typename std::enable_if<not std::is_convertible<Range, std::string>{}>::type>
-inline auto operator<<(Stream& s, const Range& v) -> decltype(stream_range(s, v.begin(), v.end()))
+template <class Stream>
+Stream& print_stream_impl(rank<3>, Stream& s, std::nullptr_t)
 {
-    s << "{ ";
-    stream_range(s, v.begin(), v.end());
-    s << "}";
+    s << "nullptr";
     return s;
 }
 
-template <class Stream, class Iterator>
-inline Stream& stream_range(Stream& s, Iterator start, Iterator last)
+template <class Stream,
+          class Range,
+          class = typename std::enable_if<not std::is_convertible<Range, std::string>{}>::type>
+auto print_stream_impl(rank<4>, Stream& s, const Range& v) -> decltype(v.end(),
+                                                                       s << *v.begin(),
+                                                                       void())
 {
+    auto start = v.begin();
+    auto last  = v.end();
+    s << "{ ";
     if(start != last)
     {
-        s << *start;
-        std::for_each(std::next(start), last, [&](auto&& x) { s << ", " << x; });
+        print_stream(s, *start);
+        std::for_each(std::next(start), last, [&](auto&& x) {
+            s << ", ";
+            print_stream(s, x);
+        });
     }
-    return s;
+    s << "}";
+}
+
+template <class Stream, class T>
+void print_stream(Stream& s, const T& x)
+{
+    print_stream_impl(rank<5>{}, s, x);
 }
 
 template <class T>
@@ -168,11 +214,11 @@ template <class T, class Operator>
 lhs_expression<T, Operator> make_lhs_expression(T&& lhs, Operator);
 
 // NOLINTNEXTLINE
-#define TEST_EXPR_BINARY_OPERATOR(op, name)                       \
-    template <class V>                                            \
-    auto operator op(const V& rhs2) const                         \
-    {                                                             \
-        return make_expression(*this, rhs2, name{}); /* NOLINT */ \
+#define TEST_EXPR_BINARY_OPERATOR(op, name)                                        \
+    template <class V>                                                             \
+    auto operator op(V&& rhs2) const                                               \
+    {                                                                              \
+        return make_expression(*this, std::forward<V>(rhs2), name{}); /* NOLINT */ \
     }
 
 // NOLINTNEXTLINE
@@ -187,7 +233,9 @@ struct expression
 
     friend std::ostream& operator<<(std::ostream& s, const expression& self)
     {
-        s << self.lhs << " " << Operator::as_string() << " " << self.rhs;
+        print_stream(s, self.lhs);
+        s << " " << Operator::as_string() << " ";
+        print_stream(s, self.rhs);
         return s;
     }
 
@@ -201,9 +249,9 @@ struct expression
 
 // TODO: Remove rvalue references
 template <class T, class U, class Operator>
-expression<T, U, Operator> make_expression(T&& rhs, U&& lhs, Operator)
+expression<T, U, Operator> make_expression(T&& lhs, U&& rhs, Operator)
 {
-    return {std::forward<T>(rhs), std::forward<U>(lhs)};
+    return {std::forward<T>(lhs), std::forward<U>(rhs)};
 }
 
 // TODO: Remove rvalue reference
@@ -230,15 +278,7 @@ struct lhs_expression
         std::string op = Operator::as_string();
         if(not op.empty())
             s << Operator::as_string() << " ";
-        if constexpr(std::is_pointer_v<decltype(self.lhs)>)
-        {
-            s << static_cast<void*>(self.lhs);
-        }
-        else
-        {
-            // NOLINTNEXTLINE
-            s << self.lhs;
-        }
+        print_stream(s, self.lhs);
         return s;
     }
 
@@ -289,26 +329,11 @@ auto make_predicate(const std::string& msg, F f)
     return make_lhs_expression(predicate<F>{msg, std::move(f)}, function{});
 }
 
-inline std::string as_string(bool x)
-{
-    if(x)
-        return "true";
-    return "false";
-}
-
 template <class T>
 std::string as_string(const T& x)
 {
     std::stringstream ss;
-    ss << x;
-    return ss.str();
-}
-
-template <class Iterator>
-std::string as_string(Iterator start, Iterator last)
-{
-    std::stringstream ss;
-    stream_range(ss, start, last);
+    print_stream(ss, x);
     return ss.str();
 }
 
@@ -317,8 +342,7 @@ auto make_function(const std::string& name, F f)
 {
     return [=](auto&&... xs) {
         std::vector<std::string> args = {as_string(xs)...};
-        return make_predicate(name + "(" + as_string(args.begin(), args.end()) + ")",
-                              [=] { return f(xs...); });
+        return make_predicate(name + "(" + as_string(args) + ")", [=] { return f(xs...); });
     };
 }
 

@@ -129,13 +129,13 @@ static void launch_kernel(hipFunction_t fun,
 void kernel::launch(hipStream_t stream,
                     std::size_t global,
                     std::size_t local,
-                    std::vector<void*> args,
+                    pointers args,
                     hipEvent_t start,
                     hipEvent_t stop) const
 {
     assert(impl != nullptr);
     void* kernargs   = reinterpret_cast<void*>(args.data());
-    std::size_t size = args.size() * sizeof(void*);
+    std::size_t size = args.bytes();
 
     launch_kernel(impl->fun, stream, global, local, kernargs, size, start, stop);
 }

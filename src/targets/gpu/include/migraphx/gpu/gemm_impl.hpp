@@ -24,10 +24,11 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_GEMM_IMPL_HPP
 #define MIGRAPHX_GUARD_RTGLIB_GEMM_IMPL_HPP
 
-#include <iterator>
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <iterator>
+#include <chrono>
 
 // Set this environment variable to "true" to perform GEMM tuning even when the
 // --exhaustive-tune option isn't set.  Can be used to skip slow convolution tuning.

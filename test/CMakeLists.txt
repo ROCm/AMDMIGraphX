@@ -100,6 +100,10 @@ if(MIGRAPHX_ENABLE_PYTHON)
     add_subdirectory(py)
 endif()
 
+# Op builder test
+set(TEST_OP_BUILDER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/op)
+add_subdirectory(op)
+
 # multitarget test
 if(MIGRAPHX_ENABLE_GPU AND MIGRAPHX_ENABLE_CPU AND MIGRAPHX_ENABLE_FPGA)
     set(TEST_MULTI_TARGET_DIR ${CMAKE_CURRENT_SOURCE_DIR}/multi_target)

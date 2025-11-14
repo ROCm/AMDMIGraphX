@@ -6,8 +6,9 @@
 
 .. _python-api-reference:
 
-Python API reference
-======================
+===============================
+MIGraphX Python API reference
+===============================
 
 shape
 -----

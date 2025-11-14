@@ -1033,6 +1033,17 @@ TEST_CASE(broadcast_with_dims2)
                  s1);
 }
 
+TEST_CASE(fixed_pad)
+{
+    using migraphx::shape;
+    shape input{migraphx::shape::float_type, {{2, 4, {}}, {3, 3}}};
+    shape input_static{migraphx::shape::float_type, {2, 3}};
+
+    shape output{migraphx::shape::float_type, {4, 3}};
+    expect_shape(output, migraphx::make_op("fixed_pad"), input);
+    expect_shape(input_static, migraphx::make_op("fixed_pad"), input_static); // effectively no-op
+}
+
 TEST_CASE(flatten_shape)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 4, 6, 8}};

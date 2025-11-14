@@ -147,11 +147,7 @@ struct compile_plan
                 const auto& solutions = config->solutions;
                 if(solutions.empty())
                     MIGRAPHX_THROW("No solutions provided for " + preop.name() + " with " +
-                                   problem_string() +
-                                   (not config->mlir_kernel.empty()
-                                        ? ("\nMLIR Fused Kernel:\n" + config->mlir_kernel)
-                                        : "") +
-                                   "\nMIGraphX Module:\n" + to_string(*mod));
+                                   problem_string() + "\n\n" + print_modules());
                 results.resize(solutions.size());
                 for(auto i : range(solutions.size()))
                 {
@@ -172,6 +168,34 @@ struct compile_plan
             return to_string(config->problem);
         return "<no problem key>";
     }
+    std::string print_modules() const
+    {
+        std::stringstream current_module;
+        for(auto* const m : ins->module_inputs())
+        {
+            current_module << to_string(*m) << "\n";
+        }
+        std::stringstream submodules;
+        for(auto* const m : ins->module_inputs())
+        {
+            for(auto* const sm : m->get_sub_modules())
+            {
+                submodules << to_string(*sm) << "\n";
+            }
+        }
+        return config->detailed_problem_info + "\n\nModule:\n" + current_module.str() +
+               (not submodules.str().empty() ? "\n" + submodules.str() : "") + "Input Shapes:\n" +
+               print_input_shapes();
+    }
+    std::string print_input_shapes() const
+    {
+        std::stringstream input_shapes;
+        for(const auto& i : ins->inputs())
+        {
+            input_shapes << i->get_shape() << "\n";
+        }
+        return input_shapes.str();
+    }
 
     const compiled_result& benchmark() const
     {
@@ -182,20 +206,13 @@ struct compile_plan
                       << std::endl;
         }
         if(results.empty())
-            MIGRAPHX_THROW(
-                "No valid tuned compilation for " + preop.name() + " with " + problem_string() +
-                (not config->mlir_kernel.empty() ? ("\nMLIR Fused Kernel:\n" + config->mlir_kernel)
-                                                 : "") +
-                "\nMIGraphX Module:\n" + to_string(*mod));
+            MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
+                           problem_string() + "\n\n" + print_modules());
         if(results.size() == 1)
         {
             if(not results.front().has_value())
                 MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
-                               problem_string() +
-                               (not config->mlir_kernel.empty()
-                                    ? ("\nMLIR Fused Kernel:\n" + config->mlir_kernel)
-                                    : "") +
-                               "\nMIGraphX Module:\n" + to_string(*mod));
+                               problem_string() + "\n\n" + print_modules());
             return *results.front();
         }
         if(not config)
@@ -257,11 +274,8 @@ struct compile_plan
             ctx->get_problem_cache().save();
         }
         if(not results[i].has_value())
-            MIGRAPHX_THROW(
-                "No valid tuned compilation for " + preop.name() + " with " + problem_string() +
-                (not config->mlir_kernel.empty() ? ("\nMLIR Fused Kernel:\n" + config->mlir_kernel)
-                                                 : "") +
-                "\nMIGraphX Module:\n" + to_string(*mod));
+            MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
+                           problem_string() + "\n\n" + print_modules());
         auto skipped = std::count_if(
             results.begin(), results.end(), [](const auto& cr) { return not cr.has_value(); });
         if(skipped > 0)

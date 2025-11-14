@@ -372,14 +372,13 @@ struct find_group_query_attention
         // Adding 1 to seq_lens_k, aka past_seq_lens, to allow range literals to start at 0.
         // Putting the add inside the mlir module currently causes an error on their side,
         // so we're leaving it here until that can be solved.
+        auto past_sl = mpm.get_module().insert_instruction(
+            ins, make_op("convert", {{"target_type", shape::int32_type}}), inputs.at(5));
         auto one_lit = mpm.get_module().insert_literal(
-            ins, literal{shape{inputs.at(5)->get_shape().type(), {1}}, {1}});
+            ins, literal{shape{past_sl->get_shape().type(), {1}}, {1}});
         one_lit = mpm.get_module().insert_instruction(
-            ins,
-            make_op("multibroadcast", {{"out_lens", inputs.at(5)->get_shape().lens()}}),
-            one_lit);
-        auto total_sl =
-            mpm.get_module().insert_instruction(ins, make_op("add"), inputs.at(5), one_lit);
+            ins, make_op("multibroadcast", {{"out_lens", past_sl->get_shape().lens()}}), one_lit);
+        auto total_sl = mpm.get_module().insert_instruction(ins, make_op("add"), past_sl, one_lit);
 
         auto get_tuple_elm_0 = std::next(ins);
         auto get_tuple_elm_1 = std::next(get_tuple_elm_0);

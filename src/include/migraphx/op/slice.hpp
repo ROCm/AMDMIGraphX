@@ -107,7 +107,7 @@ struct slice
                                               normalize_attribute::include_max,
                                               normalize_attribute::use_len,
                                               normalize_attribute::include_min};
-        return {{"normalize_axes", normalize_axes}};
+        return {{"normalize_axes", normalize_axes}, {"fillcolor", "#FFA500" /* orange */}};
     }
 
     std::string name() const { return "slice"; }

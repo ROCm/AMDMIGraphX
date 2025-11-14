@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -59,7 +59,9 @@ struct unary : op_name<Derived>
     value base_attributes() const
     {
         const auto& self = static_cast<const Derived&>(*this);
-        return {{"pointwise", true}, {"point_op", self.point_op()}};
+        return {{"pointwise", true},
+                {"point_op", self.point_op()},
+                {"fillcolor", "#CD5C5C" /* indianred */}};
     }
     value attributes() const { return base_attributes(); }
     shape compute_shape(std::vector<shape> inputs) const

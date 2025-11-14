@@ -39,7 +39,9 @@
 
 // NOLINTNEXTLINE
 const std::string write_2s = R"__migraphx__(
+#ifndef __HIPCC_RTC__
 #include <hip/hip_runtime.h>
+#endif
 
 extern "C" {
 __global__ void write(char* data) 
@@ -56,7 +58,9 @@ int main() {}
 
 // NOLINTNEXTLINE
 const std::string add_2s_binary = R"__migraphx__(
+#ifndef __HIPCC_RTC__
 #include <hip/hip_runtime.h>
+#endif
 
 extern "C" {
 __global__ void add_2(char* x, char* y) 

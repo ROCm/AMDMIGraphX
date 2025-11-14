@@ -143,6 +143,11 @@ namespace pybind11 {
 namespace detail {
 
 template <>
+struct type_caster<migraphx::value::binary> : list_caster<migraphx::value::binary, std::uint8_t>
+{
+};
+
+template <>
 struct npy_format_descriptor<half>
 {
     static std::string format()
@@ -623,11 +628,13 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 #endif
 
 #ifdef MIGRAPHX_ENABLE_ONNX
+    m.def("get_onnx_operators", [] { return migraphx::get_onnx_operators(); });
     m.def(
         "parse_onnx",
         [](const std::string& filename,
            unsigned int default_dim_value,
            migraphx::shape::dynamic_dimension default_dyn_dim_value,
+           std::unordered_map<std::string, migraphx::shape::dynamic_dimension> dim_params,
            std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims,
            std::unordered_map<std::string, std::vector<migraphx::shape::dynamic_dimension>>
                map_dyn_input_dims,
@@ -638,6 +645,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             migraphx::onnx_options options;
             options.default_dim_value      = default_dim_value;
             options.default_dyn_dim_value  = default_dyn_dim_value;
+            options.dim_params             = dim_params;
             options.map_input_dims         = map_input_dims;
             options.map_dyn_input_dims     = map_dyn_input_dims;
             options.skip_unknown_operators = skip_unknown_operators;
@@ -650,6 +658,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("filename"),
         py::arg("default_dim_value")     = 0,
         py::arg("default_dyn_dim_value") = migraphx::shape::dynamic_dimension{1, 1},
+        py::arg("dim_params") =
+            std::unordered_map<std::string, migraphx::shape::dynamic_dimension>(),
         py::arg("map_input_dims") = std::unordered_map<std::string, std::vector<std::size_t>>(),
         py::arg("map_dyn_input_dims") =
             std::unordered_map<std::string, std::vector<migraphx::shape::dynamic_dimension>>(),
@@ -713,6 +723,25 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("p"),
         py::arg("filename"),
         py::arg("format") = "msgpack");
+
+    m.def(
+        "save_buffer",
+        [](const migraphx::program& p) {
+            auto buffer = migraphx::save_buffer(p);
+            return py::bytes(buffer.data(), buffer.size());
+        },
+        "Serialize MIGraphX program",
+        py::arg("p"));
+
+    m.def(
+        "load_buffer",
+        [](const py::bytes& b) {
+            std::string_view byte_str{b};
+            std::vector<char> char_arr(byte_str.begin(), byte_str.end());
+            return migraphx::load_buffer(char_arr);
+        },
+        "Deserialize MIGraphX program",
+        py::arg("b"));
 
     m.def("get_target", &migraphx::make_target);
     m.def("create_argument", [](const migraphx::shape& s, const std::vector<double>& values) {

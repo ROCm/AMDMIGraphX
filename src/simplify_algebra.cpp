@@ -82,6 +82,28 @@ static auto not_from_int4() { return match::none_of(from_int4()); }
 
 static auto reduction() { return match::name_contains("reduce"); }
 
+// Check that we wont concat across a broadcasted axis, since this leads to bad const folding
+template <class Iterator>
+static bool concat_const_foldable(Iterator start, Iterator last, std::size_t iaxis)
+{
+    auto n = (*start)->inputs().size();
+    return all_of(range(n), [&](auto i) {
+        if(not std::all_of(
+               start, last, [&](instruction_ref x) { return x->inputs().at(i)->can_eval(); }))
+            return true;
+        // Its ok if they are all scalars, TODO: Check if the axis is the same dim
+        if(std::all_of(start, last, [&](instruction_ref x) {
+               return x->inputs().at(i)->get_shape().scalar();
+           }))
+            return true;
+        // TODO: Allow concat across broadcasted axis if all them are the same size
+        return std::none_of(start, last, [&](instruction_ref x) {
+            auto s = x->inputs().at(i)->get_shape();
+            return s.strides()[iaxis] == 0;
+        });
+    });
+}
+
 // conv(x, w) * a => conv(x, a * w)
 struct find_mul_conv
 {
@@ -954,7 +976,9 @@ struct find_concat_op
             if(std::distance(start, last) < 2)
                 return {start, last};
             auto x = *start;
-            if(x->outputs().size() > 1 or rejected_inputs(x->inputs()))
+            if(std::any_of(start, last, [](instruction_ref x) {
+                   return x->outputs().size() > 1 or rejected_inputs(x->inputs());
+               }))
                 return {start, last};
             auto op = x->get_operator();
             if(not is_valid_op(op))
@@ -980,6 +1004,8 @@ struct find_concat_op
                 auto delta = bshape.lens().size() - input->get_shape().lens().size();
                 iaxis -= delta;
             }
+            if(not concat_const_foldable(start, last, iaxis))
+                return {start, last};
 
             std::vector<instruction_ref> concats;
             for(std::size_t i = 0; i < x->inputs().size(); i++)
@@ -1194,18 +1220,16 @@ struct find_splits
                 auto it = get_matching_ins(split, out);
                 if(it == split->outputs().end())
                     return {};
+                // Bail if there is a duplicate
+                if(contains(group, *it))
+                    return {};
                 assert((*it)->name() != "slice");
                 group.push_back(*it);
             }
-            // There should be no dependency between instructions in the group
-            if(std::any_of(group.begin(), group.end() - 1, [&](auto i) {
-                   return is_dependent(m, root, group.back(), i) or
-                          is_dependent(m, root, i, group.back());
-               }))
-            {
-                return {};
-            }
         }
+        // There should be no dependency between instructions in the group
+        if(is_interdependent(group, &m, root))
+            return {};
         return group;
     }
 
@@ -1375,6 +1399,14 @@ struct find_splits
                     return i->name() == "slice";
                 }) and "one argument must be a split");
 
+                auto slice_op = any_cast<op::slice>(splits.front()->get_operator());
+                assert(not slice_op.axes.empty());
+                if(slice_op.axes.size() > 1)
+                    return;
+                auto concat_axis = slice_op.axes.front();
+                if(not concat_const_foldable(group.begin(), group.end(), concat_axis))
+                    return;
+
                 split_idx = get_binary_op_split_idx(group, splits);
                 assert(split_idx < 2);
                 size_t data_idx;
@@ -1407,11 +1439,6 @@ struct find_splits
 
                 move_instructions_back(m, ins, data_args);
 
-                auto slice_op = any_cast<op::slice>(splits.front()->get_operator());
-                assert(not slice_op.axes.empty());
-                if(slice_op.axes.size() > 1)
-                    return;
-                auto concat_axis = slice_op.axes.front();
                 // TODO: Check if axises match
                 auto concat = m.insert_instruction(
                     ins, make_op("concat", {{"axis", concat_axis}}), data_args);
@@ -1606,10 +1633,11 @@ struct find_add_convs
 
 MIGRAPHX_PRED_MATCHER(horiz_conv_dot, instruction_ref ins)
 {
+    // checking size to prevent matching block quantized quant_dot for now
     auto pred = [&](auto name) {
         return [=](auto i) {
             return i->name() == name and i->inputs().front() == ins and
-                   i->inputs().at(1)->can_eval();
+                   i->inputs().at(1)->can_eval() and i->inputs().size() == 2;
         };
     };
     auto dots  = std::count_if(ins->outputs().begin(), ins->outputs().end(), pred("dot"));

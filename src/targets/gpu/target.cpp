@@ -32,6 +32,7 @@
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/fp8_ocp_to_fnuz.hpp>
+#include <migraphx/fuse_attention.hpp>
 #include <migraphx/fuse_concat.hpp>
 #include <migraphx/fuse_pointwise_reduce.hpp>
 #include <migraphx/inline_module.hpp>
@@ -83,6 +84,7 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_REWRITE_DOT)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_REWRITE_LRN)
 #ifndef _WIN32
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
@@ -187,7 +189,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         enable_pass(not gpu::gfx_has_fp8ocp_intrinsics() and gpu::gfx_has_fp8fnuz_intrinsics(), fp8_ocp_to_fnuz{}),
         enable_pass(not gpu::gfx_has_fp8ocp_intrinsics() and gpu::gfx_has_fp8fnuz_intrinsics(), dead_code_elimination{}),
-        simplify_qdq{},
+        simplify_qdq{.use_mx_quant=gpu::gfx_has_mx_intrinsics()},
         enable_pass(not mlir_enabled(), rewrite_quantization{}),
         dead_code_elimination{},
         rewrite_rnn{},
@@ -202,7 +204,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         insert_pad{{"convolution"}},
         dead_code_elimination{},
         inline_module{},
-        rewrite_pooling{},
+        rewrite_pooling{.rewrite_lrn = (not MIGRAPHX_USE_MIOPEN or enabled(MIGRAPHX_REWRITE_LRN{}))},
         dead_code_elimination{},
         rewrite_gelu{options.fast_math},
         optimize_module{},
@@ -219,6 +221,10 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         enable_pass(enabled(MIGRAPHX_ENABLE_REWRITE_DOT{}), rewrite_dot{}),
         dead_code_elimination{},
         propagate_precision{},
+        dead_code_elimination{},
+        simplify_reshapes{.enable_op_shape_transform_op=true},
+        dead_code_elimination{},
+        enable_pass(mlir_attention_enabled(&ctx), fuse_attention{}),
         dead_code_elimination{},
         optimize_module{},
         fuse_pointwise_reduce{},

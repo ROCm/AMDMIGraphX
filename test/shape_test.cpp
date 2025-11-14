@@ -1135,6 +1135,15 @@ TEST_CASE(multi_within_bounds)
     std::vector<std::size_t> multi_4 = {1, 2, 1};
     EXPECT(not in_shape.multi_within_bounds(multi_4));
 }
+
+TEST_CASE(shape_computable)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1, 1, 8}, {8, 8, 1}};
+    migraphx::shape s2{migraphx::shape::fp4x2_type, {1, 1, 8}, {8, 8, 1}};
+    EXPECT(s1.computable());
+    EXPECT(not s2.computable());
+}
+
 TEST_CASE(shape_is_compatible_diff_strides)
 {
     migraphx::shape actual{migraphx::shape::float_type, {1, 1, 8}, {8, 8, 1}};

@@ -109,14 +109,11 @@ static std::vector<dimension::sub> get_all_subdimensions(const std::vector<dimen
     return result;
 }
 
-
-template<class Vector>
+template <class Vector>
 static std::vector<dimension::sub*> get_pointer_subdimensions(Vector& v)
 {
     std::vector<dimension::sub*> result;
-    for_each_subdimension(v, [&](dimension::sub& s) {
-        result.push_back(&s);
-    });
+    for_each_subdimension(v, [&](dimension::sub& s) { result.push_back(&s); });
     return result;
 }
 
@@ -341,7 +338,7 @@ static auto adjust_axes_for_rebase(shape_transform_descriptor& desc,
     //     return s->has_hidden_axis();
     // };
     // group_find(subs.begin(), subs.end(), hidden_pred, [&](auto start, auto last) {
-        
+
     // });
 
     auto regroup_axes = group_axes(desc.dimensions);

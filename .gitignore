@@ -80,6 +80,7 @@ docs/html
 .idea/
 cmake-build*/
 build*/
+!/src/op/builder/
 
 # Recommended location to install rbuild dependencies from README.md
 depend*/

@@ -48,7 +48,7 @@ struct tile : op_builder<tile>
         const auto& input_shape = args[0]->get_shape();
         const auto& input_lens  = input_shape.lens();
 
-        if(not(repeats.size() == input_lens.size()))
+        if(repeats.size() != input_lens.size())
         {
             MIGRAPHX_THROW("tile op-builder: repeats size mismatch with input shape");
         }

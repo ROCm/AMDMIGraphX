@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,8 +24,8 @@
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/literal.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/stringutils.hpp>
-#include <migraphx/op/builder/insert.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -38,7 +38,7 @@ struct parse_constant : op_parser<parse_constant>
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,
                           onnx_parser::node_info info,
-                          const std::vector<instruction_ref>& args) const
+                          const std::vector<instruction_ref>& /*args*/) const
     {
         static const std::vector<std::string> attributes = {
             "value", "value_float", "value_floats", "value_int", "value_ints"};
@@ -67,19 +67,17 @@ struct parse_constant : op_parser<parse_constant>
         // return empty literal
         if(v.get_shape().elements() == 0)
         {
-            const literal lit{v.get_shape().type()};
-            return op::builder::add("constant", *info.mod, args, migraphx::to_value(lit)).at(0);
+            return info.add_literal(literal{v.get_shape().type()});
         }
 
         // if dim_size is 0, it is a scalar
         if(attr.has_t() and attr.t().dims_size() == 0)
         {
             migraphx::shape scalar_shape{v.get_shape().type()};
-            const literal lit{scalar_shape, v.data()};
-            return op::builder::add("constant", *info.mod, args, migraphx::to_value(lit)).at(0);
+            return info.add_literal(migraphx::literal{scalar_shape, v.data()});
         }
 
-        return op::builder::add("constant", *info.mod, args, migraphx::to_value(v)).at(0);
+        return info.add_literal(v);
     }
 };
 

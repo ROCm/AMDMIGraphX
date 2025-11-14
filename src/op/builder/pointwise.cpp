@@ -32,7 +32,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 namespace builder {
 
-struct binary : op_builder<binary>
+struct pointwise : op_builder<pointwise>
 {
     std::optional<uint64_t> broadcasted_axis = std::nullopt;
 

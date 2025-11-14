@@ -25,7 +25,7 @@
 #include <op_builder_test_utils.hpp>
 
 namespace {
-const std::vector<std::string>& binary_op_names()
+const std::vector<std::string>& pointwise_op_names()
 {
     static const std::vector<std::string> op_names_set{"add",
                                                        "div",
@@ -40,10 +40,10 @@ const std::vector<std::string>& binary_op_names()
 }
 } // namespace
 
-TEST_CASE(binary_not_broadcasted_op_builder_test)
+TEST_CASE(pointwise_not_broadcasted_op_builder_test)
 {
     std::for_each(
-        binary_op_names().begin(), binary_op_names().end(), [&](const std::string& op_name) {
+        pointwise_op_names().begin(), pointwise_op_names().end(), [&](const std::string& op_name) {
             migraphx::module mm;
 
             auto a_arg = mm.add_parameter("a", {migraphx::shape::int64_type, {2, 4}});
@@ -55,10 +55,10 @@ TEST_CASE(binary_not_broadcasted_op_builder_test)
         });
 }
 
-TEST_CASE(binary_not_broadcasted_implicit_broadcast_op_builder_test)
+TEST_CASE(pointwise_not_broadcasted_implicit_broadcast_op_builder_test)
 {
     std::for_each(
-        binary_op_names().begin(), binary_op_names().end(), [&](const std::string& op_name) {
+        pointwise_op_names().begin(), pointwise_op_names().end(), [&](const std::string& op_name) {
             migraphx::module mm;
 
             auto a_arg = mm.add_parameter("a", {migraphx::shape::int64_type, {2, 4}});
@@ -70,10 +70,10 @@ TEST_CASE(binary_not_broadcasted_implicit_broadcast_op_builder_test)
         });
 }
 
-TEST_CASE(binary_non_zero_broadcasted_op_builder_test)
+TEST_CASE(pointwise_non_zero_broadcasted_op_builder_test)
 {
     std::for_each(
-        binary_op_names().begin(), binary_op_names().end(), [&](const std::string& op_name) {
+        pointwise_op_names().begin(), pointwise_op_names().end(), [&](const std::string& op_name) {
             migraphx::module mm;
 
             auto a_arg = mm.add_parameter("a", {migraphx::shape::int64_type, {2, 3, 4, 5}});

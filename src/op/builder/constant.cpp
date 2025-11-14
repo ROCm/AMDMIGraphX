@@ -21,28 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/tf/op_parser.hpp>
-#include <migraphx/tf/tf_parser.hpp>
-#include <migraphx/op/builder/insert.hpp>
+
+#include <migraphx/op/builder/op_builder.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace tf {
+namespace op {
+namespace builder {
 
-struct parse_cast : op_parser<parse_cast>
+struct constant : op_builder<constant>
 {
-    std::vector<op_desc> operators() const { return {{"Cast"}}; }
+    literal lit;
 
-    instruction_ref parse(const op_desc& /*opd*/,
-                          const tf_parser& parser,
-                          tf_parser::node_info info,
-                          const std::vector<instruction_ref>& args) const
+    void from_value(const value& v) { lit = migraphx::from_value<literal>(v); }
+
+    std::vector<instruction_ref>
+    insert(module& m, instruction_ref /*ins*/, const std::vector<instruction_ref>& /*args*/) const
     {
-        shape::type_t type = parser.parse_type(info.attributes.at("DstT").type());
-        return op::builder::add("convert", *info.mm, args, {{"target_type", type}}).at(0);
+        return {m.add_literal(lit)};
     }
 };
 
-} // namespace tf
+} // namespace builder
+} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

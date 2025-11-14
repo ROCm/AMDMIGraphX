@@ -21,28 +21,30 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/tf/op_parser.hpp>
-#include <migraphx/tf/tf_parser.hpp>
+
+#include <migraphx/op/builder/op_builder.hpp>
 #include <migraphx/op/builder/insert.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace tf {
+namespace op {
+namespace builder {
 
-struct parse_cast : op_parser<parse_cast>
+struct addn : op_builder<addn>
 {
-    std::vector<op_desc> operators() const { return {{"Cast"}}; }
-
-    instruction_ref parse(const op_desc& /*opd*/,
-                          const tf_parser& parser,
-                          tf_parser::node_info info,
-                          const std::vector<instruction_ref>& args) const
+    std::vector<instruction_ref>
+    insert(module& m, instruction_ref /*ins*/, const std::vector<instruction_ref>& args) const
     {
-        shape::type_t type = parser.parse_type(info.attributes.at("DstT").type());
-        return op::builder::add("convert", *info.mm, args, {{"target_type", type}}).at(0);
+        instruction_ref sum = args[0];
+        for(auto i = 1; i < args.size(); i++)
+        {
+            sum = op::builder::add("add", m, {sum, args[i]}).at(0);
+        }
+        return {sum};
     }
 };
 
-} // namespace tf
+} // namespace builder
+} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

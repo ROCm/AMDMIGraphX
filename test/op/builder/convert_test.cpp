@@ -21,28 +21,15 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/tf/op_parser.hpp>
-#include <migraphx/tf/tf_parser.hpp>
-#include <migraphx/op/builder/insert.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace tf {
+#include <op_builder_test_utils.hpp>
 
-struct parse_cast : op_parser<parse_cast>
+TEST_CASE(convert_op_builder_test)
 {
-    std::vector<op_desc> operators() const { return {{"Cast"}}; }
+    migraphx::module mm;
+    migraphx::shape::type_t target_type = migraphx::shape::float_type;
+    auto a_arg = mm.add_parameter("a", {migraphx::shape::int64_type, {2, 3, 4, 5}});
+    mm.add_instruction(migraphx::make_op("convert", {{"target_type", target_type}}), a_arg);
 
-    instruction_ref parse(const op_desc& /*opd*/,
-                          const tf_parser& parser,
-                          tf_parser::node_info info,
-                          const std::vector<instruction_ref>& args) const
-    {
-        shape::type_t type = parser.parse_type(info.attributes.at("DstT").type());
-        return op::builder::add("convert", *info.mm, args, {{"target_type", type}}).at(0);
-    }
-};
-
-} // namespace tf
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+    EXPECT(mm == make_op_module("convert", {{"target_type", target_type}}, mm.get_parameters()));
+}

@@ -21,28 +21,14 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/tf/op_parser.hpp>
-#include <migraphx/tf/tf_parser.hpp>
-#include <migraphx/op/builder/insert.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace tf {
+#include <op_builder_test_utils.hpp>
 
-struct parse_cast : op_parser<parse_cast>
+TEST_CASE(constant_op_builder_test)
 {
-    std::vector<op_desc> operators() const { return {{"Cast"}}; }
+    migraphx::module mm;
+    migraphx::literal lit;
+    mm.add_literal(lit);
 
-    instruction_ref parse(const op_desc& /*opd*/,
-                          const tf_parser& parser,
-                          tf_parser::node_info info,
-                          const std::vector<instruction_ref>& args) const
-    {
-        shape::type_t type = parser.parse_type(info.attributes.at("DstT").type());
-        return op::builder::add("convert", *info.mm, args, {{"target_type", type}}).at(0);
-    }
-};
-
-} // namespace tf
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+    EXPECT(mm == make_op_module("constant", migraphx::to_value(lit), {}));
+}

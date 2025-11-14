@@ -21,28 +21,25 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/tf/op_parser.hpp>
-#include <migraphx/tf/tf_parser.hpp>
-#include <migraphx/op/builder/insert.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace tf {
+#include <op_builder_test_utils.hpp>
 
-struct parse_cast : op_parser<parse_cast>
+TEST_CASE(op_builder_module_args_not_empty_no_name_param_op_builder_test)
 {
-    std::vector<op_desc> operators() const { return {{"Cast"}}; }
+    migraphx::module mm_dummy;
+    std::vector<migraphx::module_ref> module_args{&mm_dummy};
 
-    instruction_ref parse(const op_desc& /*opd*/,
-                          const tf_parser& parser,
-                          tf_parser::node_info info,
-                          const std::vector<instruction_ref>& args) const
-    {
-        shape::type_t type = parser.parse_type(info.attributes.at("DstT").type());
-        return op::builder::add("convert", *info.mm, args, {{"target_type", type}}).at(0);
-    }
-};
+    EXPECT(test::throws<migraphx::exception>(
+        [&] { migraphx::op::builder::add("clip", mm_dummy, {}, module_args); },
+        "Module args should be empty"));
+}
 
-} // namespace tf
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+TEST_CASE(op_builder_module_args_not_empty_op_builder_test)
+{
+    migraphx::module mm_dummy;
+    std::vector<migraphx::module_ref> module_args{&mm_dummy};
+
+    EXPECT(test::throws<migraphx::exception>(
+        [&] { migraphx::op::builder::add("abs", mm_dummy, {}, module_args); },
+        "Module args should be empty"));
+}

@@ -21,28 +21,17 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/tf/op_parser.hpp>
-#include <migraphx/tf/tf_parser.hpp>
-#include <migraphx/op/builder/insert.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace tf {
+#include <op_builder_test_utils.hpp>
 
-struct parse_cast : op_parser<parse_cast>
+TEST_CASE(addn_op_builder_test)
 {
-    std::vector<op_desc> operators() const { return {{"Cast"}}; }
+    migraphx::module mm;
+    auto arg0 = mm.add_parameter("0", {migraphx::shape::float_type, {2, 4, 5}});
+    auto arg1 = mm.add_parameter("1", {migraphx::shape::float_type, {2, 4, 5}});
+    auto arg2 = mm.add_parameter("2", {migraphx::shape::float_type, {2, 4, 5}});
+    auto add1 = mm.add_instruction(migraphx::make_op("add"), {arg0, arg1});
+    mm.add_instruction(migraphx::make_op("add"), {add1, arg2});
 
-    instruction_ref parse(const op_desc& /*opd*/,
-                          const tf_parser& parser,
-                          tf_parser::node_info info,
-                          const std::vector<instruction_ref>& args) const
-    {
-        shape::type_t type = parser.parse_type(info.attributes.at("DstT").type());
-        return op::builder::add("convert", *info.mm, args, {{"target_type", type}}).at(0);
-    }
-};
-
-} // namespace tf
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+    EXPECT(mm == make_op_module("addn", migraphx::value("", {}, false), mm.get_parameters()));
+}

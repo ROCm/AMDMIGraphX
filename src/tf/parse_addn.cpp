@@ -22,9 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/tf/op_parser.hpp>
-#include <migraphx/ranges.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/make_op.hpp>
+#include <migraphx/op/builder/insert.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -38,14 +36,9 @@ struct parse_addn : op_parser<parse_addn>
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& /*parser*/,
                           const tf_parser::node_info& info,
-                          std::vector<instruction_ref> args) const
+                          const std::vector<instruction_ref>& args) const
     {
-        instruction_ref sum = args[0];
-        for(auto i = 1; i < args.size(); i++)
-        {
-            sum = info.add_instruction(make_op("add"), sum, args[i]);
-        }
-        return sum;
+        return op::builder::add("addn", *info.mm, args).at(0);
     }
 };
 

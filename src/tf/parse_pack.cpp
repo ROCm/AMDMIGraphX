@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -46,7 +46,7 @@ struct parse_pack : op_parser<parse_pack>
         int64_t axis = 0;
         if(contains(info.attributes, "axis"))
             axis = info.attributes.at("axis").i();
-        size_t input_size = args.front()->get_shape().lens().size();
+        size_t input_size = args.front()->get_shape().ndim();
         if(axis > input_size)
         {
             MIGRAPHX_THROW("TF_PARSER: axis value of " + to_string(axis) +

@@ -27,12 +27,54 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/ranges.hpp>
-#include <sstream>
 #include <migraphx/make_op.hpp>
+#include <random>
+#include <sstream>
 
 #include <basic_ops.hpp>
 #include <pointwise.hpp>
 #include <test.hpp>
+
+// Check the module is topologically sorted
+// TODO: Use test::make_predicate
+static bool is_sorted(migraphx::module& m)
+{
+    std::unordered_set<migraphx::instruction_ref> visited;
+    for(auto ins : migraphx::iterator_for(m))
+    {
+        visited.insert(ins);
+        if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [&](auto i) {
+               return not visited.count(i);
+           }))
+        {
+            return false; // Found an input that has not been visited yet
+        }
+    }
+    return true;
+}
+
+static void shuffle_module(migraphx::module& m)
+{
+    if(m.size() < 2)
+        return;
+    std::vector<std::size_t> permutation(m.size() - 1);
+    std::iota(permutation.begin(), permutation.end(), 0);
+    std::mt19937 g(permutation.size());
+    std::shuffle(permutation.begin(), permutation.end(), g);
+    permutation.push_back(permutation.size());
+    m.shuffle(permutation);
+}
+
+static void reverse_module(migraphx::module& m)
+{
+    if(m.size() < 2)
+        return;
+    std::vector<std::size_t> permutation(m.size() - 1);
+    std::iota(permutation.begin(), permutation.end(), 0);
+    std::reverse(permutation.begin(), permutation.end());
+    permutation.push_back(permutation.size());
+    m.shuffle(permutation);
+}
 
 // Check the module is topologically sorted
 // TODO: Use test::make_predicate
@@ -821,6 +863,14 @@ TEST_CASE(linear_graph_sort)
     m.sort();
 
     EXPECT(is_sorted(m));
+
+    reverse_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    shuffle_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
 }
 
 TEST_CASE(diamond_graph_sort)
@@ -845,7 +895,14 @@ TEST_CASE(diamond_graph_sort)
     m.add_return({add});
 
     m.sort();
+    EXPECT(is_sorted(m));
 
+    reverse_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    shuffle_module(m);
+    m.sort();
     EXPECT(is_sorted(m));
 }
 
@@ -871,7 +928,14 @@ TEST_CASE(multiple_outputs_sort)
     m.add_return({t, n});
 
     m.sort();
+    EXPECT(is_sorted(m));
 
+    reverse_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    shuffle_module(m);
+    m.sort();
     EXPECT(is_sorted(m));
 }
 
@@ -886,7 +950,7 @@ TEST_CASE(dead_code_sort)
     //           │
     //           └─→ neg
     //
-    // Tests handling of dead code that is use inputs
+    // Tests handling of dead code
     //
     migraphx::module m;
     auto s = migraphx::shape{migraphx::shape::float_type, {1}};
@@ -897,7 +961,14 @@ TEST_CASE(dead_code_sort)
     m.add_return({t});
 
     m.sort();
+    EXPECT(is_sorted(m));
 
+    reverse_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    shuffle_module(m);
+    m.sort();
     EXPECT(is_sorted(m));
 }
 
@@ -926,7 +997,14 @@ TEST_CASE(disconnected_components_sort)
     m.add_return({a1, a2});
 
     m.sort();
+    EXPECT(is_sorted(m));
 
+    reverse_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    shuffle_module(m);
+    m.sort();
     EXPECT(is_sorted(m));
 }
 
@@ -988,7 +1066,14 @@ TEST_CASE(sort_with_non_direct_dependencies)
     m.add_return({c});
 
     m.sort();
+    EXPECT(is_sorted(m));
 
+    reverse_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    shuffle_module(m);
+    m.sort();
     EXPECT(is_sorted(m));
 }
 
@@ -1047,7 +1132,14 @@ TEST_CASE(dfs_without_visited_set_infinite_loop)
     m.add_return({a2, a3, b2, b3, c2});
 
     m.sort();
+    EXPECT(is_sorted(m));
 
+    reverse_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    shuffle_module(m);
+    m.sort();
     EXPECT(is_sorted(m));
 }
 
@@ -1121,7 +1213,14 @@ TEST_CASE(recursive_dag_revisit_test)
     m.add_return({d1});
 
     m.sort();
+    EXPECT(is_sorted(m));
 
+    reverse_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    shuffle_module(m);
+    m.sort();
     EXPECT(is_sorted(m));
 }
 
@@ -1197,7 +1296,14 @@ TEST_CASE(exponential_growth_graph_sort)
     m.add_return(final_inputs);
 
     m.sort();
+    EXPECT(is_sorted(m));
 
+    reverse_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    shuffle_module(m);
+    m.sort();
     EXPECT(is_sorted(m));
 }
 
@@ -1293,8 +1399,225 @@ TEST_CASE(pathological_dfs_graph_sort)
     m.add_return({final_result});
 
     m.sort();
-
     EXPECT(is_sorted(m));
+
+    reverse_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+
+    shuffle_module(m);
+    m.sort();
+    EXPECT(is_sorted(m));
+}
+
+TEST_CASE(hoist_external_inputs)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape s2{migraphx::shape::float_type, {3, 4}};
+    migraphx::shape s3{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape s4{migraphx::shape::float_type, {4, 2}};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto a = mm->add_parameter("a", s1);
+    auto b = mm->add_parameter("b", s2);
+    auto c = mm->add_parameter("c", s3);
+    auto d = mm->add_parameter("d", s4);
+
+    auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b); // {2, 4}
+    auto external_relu =
+        add_pointwise(p, "main:pointwise1", {d}, single_pointwise("relu")); // {4, 3}
+    auto external_mul =
+        add_pointwise(p, "main:pointwise2", {external_relu, d}, single_pointwise("mul")); // {4, 3}
+    auto add  = add_pointwise(p, "main:pointwise0", {dot1, c}, single_pointwise("add"));  // {2, 4}
+    auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, external_mul);         // {2, 3}
+    auto transpose =
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dot2);
+    mm->add_return({add, transpose});
+
+    // Hoist external inputs between dot1 and dot2
+    mm->hoist_external_inputs(dot1, dot2);
+
+    // Verify the module is still topologically sorted overall
+    EXPECT(is_sorted(*mm));
+
+    // Verify external operations moved before the fusion chain
+    EXPECT(std::distance(mm->begin(), external_relu) < std::distance(mm->begin(), dot1));
+    EXPECT(std::distance(mm->begin(), external_mul) < std::distance(mm->begin(), dot1));
+
+    // Verify the fusion chain ordering is preserved: dot1 < add < dot2
+    EXPECT(std::distance(mm->begin(), dot1) < std::distance(mm->begin(), add));
+    EXPECT(std::distance(mm->begin(), add) < std::distance(mm->begin(), dot2));
+
+    // Verify external_mul is before dot1 (since dot2 depends on external_mul)
+    EXPECT(std::distance(mm->begin(), external_mul) < std::distance(mm->begin(), dot1));
+
+    // Verify transpose remains after dot2
+    EXPECT(std::distance(mm->begin(), dot2) < std::distance(mm->begin(), transpose));
+}
+
+TEST_CASE(hoist_external_inputs_no_movement_needed)
+{
+    // Test where external dependencies are already before the fusion chain
+    migraphx::shape s1{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape s2{migraphx::shape::float_type, {3, 4}};
+    migraphx::shape s3{migraphx::shape::float_type, {2, 4}};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto a = mm->add_parameter("a", s1);
+    auto b = mm->add_parameter("b", s2);
+    auto c = mm->add_parameter("c", s3);
+
+    // External operations already positioned before the fusion chain
+    auto external1 = add_pointwise(p, "main:pointwise0", {a}, single_pointwise("relu"));
+    auto external2 = add_pointwise(p, "main:pointwise1", {b}, single_pointwise("tanh"));
+    auto external3 = add_pointwise(p, "main:pointwise2", {c}, single_pointwise("tanh"));
+
+    // Fusion chain
+    auto dot1 = mm->add_instruction(migraphx::make_op("dot"), external1, external2);
+    auto add  = add_pointwise(p, "main:pointwise3", {dot1, external3}, single_pointwise("add"));
+
+    mm->add_return({add});
+
+    // Record positions before hoist_external_inputs
+    auto dot1_pos_before = std::distance(mm->begin(), dot1);
+    auto add_pos_before  = std::distance(mm->begin(), add);
+
+    mm->hoist_external_inputs(dot1, add);
+
+    // Verify positions haven't changed (nothing needed to move)
+    EXPECT(std::distance(mm->begin(), dot1) == dot1_pos_before);
+    EXPECT(std::distance(mm->begin(), add) == add_pos_before);
+    EXPECT(is_sorted(*mm));
+}
+
+TEST_CASE(hoist_external_inputs_multiple_external_branches)
+{
+    // Test with multiple independent external branches that need to be moved
+    migraphx::shape s1{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape s2{migraphx::shape::float_type, {3, 4}};
+    migraphx::shape s3{migraphx::shape::float_type, {4, 3}};
+    migraphx::shape s4{migraphx::shape::float_type, {2, 4}};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto a = mm->add_parameter("a", s1);
+    auto b = mm->add_parameter("b", s2);
+    auto c = mm->add_parameter("c", s4);
+    auto d = mm->add_parameter("d", s3);
+
+    // Start of fusion chain
+    auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b); // {2, 4}
+
+    // External branch 1
+    auto ext1 = add_pointwise(p, "main:pointwise0", {c}, single_pointwise("relu"));   // {2, 4}
+    auto ext2 = add_pointwise(p, "main:pointwise1", {ext1}, single_pointwise("neg")); // {2, 4}
+
+    // External branch 2
+    auto ext3 = add_pointwise(p, "main:pointwise2", {d}, single_pointwise("tanh"));   // {4, 3}
+    auto ext4 = add_pointwise(p, "main:pointwise3", {ext3}, single_pointwise("abs")); // {4, 3}
+
+    // Continue fusion chain using external branches
+    auto add1 =
+        add_pointwise(p, "main:pointwise4", {dot1, ext2}, single_pointwise("add")); // {2, 4}
+    auto dot2 =
+        mm->add_instruction(migraphx::make_op("dot"), add1, ext4); // {2, 4} x {4, 3} = {2, 3}
+
+    mm->add_return({dot2});
+
+    mm->hoist_external_inputs(dot1, dot2);
+
+    EXPECT(is_sorted(*mm));
+
+    // Verify all external operations moved before dot1
+    EXPECT(std::distance(mm->begin(), ext1) < std::distance(mm->begin(), dot1));
+    EXPECT(std::distance(mm->begin(), ext2) < std::distance(mm->begin(), dot1));
+    EXPECT(std::distance(mm->begin(), ext3) < std::distance(mm->begin(), dot1));
+    EXPECT(std::distance(mm->begin(), ext4) < std::distance(mm->begin(), dot1));
+
+    // Verify fusion chain order preserved
+    EXPECT(std::distance(mm->begin(), dot1) < std::distance(mm->begin(), add1));
+    EXPECT(std::distance(mm->begin(), add1) < std::distance(mm->begin(), dot2));
+}
+
+TEST_CASE(hoist_external_inputs_long_fusion_chain)
+{
+    // Test with a longer fusion chain
+    migraphx::shape s{migraphx::shape::float_type, {4, 4}};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto a = mm->add_parameter("a", s);
+    auto b = mm->add_parameter("b", s);
+    auto c = mm->add_parameter("c", s);
+    auto d = mm->add_parameter("d", s);
+
+    // Long fusion chain
+    auto op1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
+
+    // External operations interspersed
+    auto ext1 = add_pointwise(p, "main:pointwise0", {d}, single_pointwise("exp"));
+
+    auto op2 = add_pointwise(p, "main:pointwise1", {op1, c}, single_pointwise("add"));
+
+    auto ext2 = add_pointwise(p, "main:pointwise2", {ext1}, single_pointwise("log"));
+
+    auto op3 = add_pointwise(p, "main:pointwise3", {op2}, single_pointwise("relu"));
+
+    auto ext3 = add_pointwise(p, "main:pointwise4", {ext2}, single_pointwise("abs"));
+
+    auto op4 = add_pointwise(p, "main:pointwise5", {op3}, single_pointwise("tanh"));
+    auto op5 = mm->add_instruction(migraphx::make_op("dot"), op4, ext3);
+
+    mm->add_return({op5});
+
+    mm->hoist_external_inputs(op1, op5);
+
+    EXPECT(is_sorted(*mm));
+
+    // All external operations moved before op1
+    EXPECT(std::distance(mm->begin(), ext1) < std::distance(mm->begin(), op1));
+    EXPECT(std::distance(mm->begin(), ext2) < std::distance(mm->begin(), op1));
+    EXPECT(std::distance(mm->begin(), ext3) < std::distance(mm->begin(), op1));
+
+    // Fusion chain order preserved
+    EXPECT(std::distance(mm->begin(), op1) < std::distance(mm->begin(), op2));
+    EXPECT(std::distance(mm->begin(), op2) < std::distance(mm->begin(), op3));
+    EXPECT(std::distance(mm->begin(), op3) < std::distance(mm->begin(), op4));
+    EXPECT(std::distance(mm->begin(), op4) < std::distance(mm->begin(), op5));
+}
+
+TEST_CASE(hoist_external_inputs_adjacent_instructions)
+{
+    // Test edge case where start and end are adjacent
+    migraphx::shape s1{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape s2{migraphx::shape::float_type, {3, 4}};
+    migraphx::shape s3{migraphx::shape::float_type, {4, 5}};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto a = mm->add_parameter("a", s1); // {2, 3}
+    auto b = mm->add_parameter("b", s2); // {3, 4}
+    auto c = mm->add_parameter("c", s3); // {4, 5}
+
+    auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b); // {2, 3} x {3, 4} = {2, 4}
+
+    // External operation between dot1 and dot2
+    auto external = add_pointwise(p, "main:pointwise0", {c}, single_pointwise("relu")); // {4, 5}
+
+    auto dot2 =
+        mm->add_instruction(migraphx::make_op("dot"), dot1, external); // {2, 4} x {4, 5} = {2, 5}
+
+    mm->add_return({dot2});
+
+    mm->hoist_external_inputs(dot1, dot2);
+
+    EXPECT(is_sorted(*mm));
+
+    // External should be moved before dot1
+    EXPECT(std::distance(mm->begin(), external) < std::distance(mm->begin(), dot1));
+    EXPECT(std::distance(mm->begin(), dot1) < std::distance(mm->begin(), dot2));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

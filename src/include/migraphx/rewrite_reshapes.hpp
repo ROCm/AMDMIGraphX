@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -162,10 +162,11 @@ struct rewrite_reshapes
                 shape_transform_descriptor::create(x_ins->get_shape().lens(), ops).rebase(dims2);
             if(desc.empty())
                 return;
+
             auto cdims         = desc.common_dims();
-            auto reshape_input = [&](const auto& ins_to_insert, auto generate) {
-                return [&, generate](auto input) {
-                    auto gops  = std::invoke(generate, desc, input->get_shape().lens());
+            auto reshape_input = [&](const auto& ins_to_insert, const auto& gdesc) {
+                return [&](auto input) {
+                    auto gops  = gdesc.generate(input->get_shape().lens());
                     auto start = input;
                     for(const auto& op : gops)
                     {
@@ -175,11 +176,10 @@ struct rewrite_reshapes
                 };
             };
             auto x_inputs = x_ins->inputs();
-            std::transform(
-                x_inputs.begin(),
-                x_inputs.end(),
-                x_inputs.begin(),
-                reshape_input(x_ins, &shape_transform_descriptor::generate_common_from_src));
+            std::transform(x_inputs.begin(),
+                           x_inputs.end(),
+                           x_inputs.begin(),
+                           reshape_input(x_ins, desc.to_common_from_src()));
             auto new_x_ins = insert(mpm, x_ins, x_inputs, desc.common_axes_map_from_src());
             if(new_x_ins->get_shape().lens() != cdims)
             {
@@ -191,12 +191,10 @@ struct rewrite_reshapes
             std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
                 if(input == input_ins)
                     return new_x_ins;
-                return reshape_input(ins,
-                                     &shape_transform_descriptor::generate_common_from_dst)(input);
+                return reshape_input(ins, desc.to_common_from_dst())(input);
             });
             auto pw = insert(mpm, ins, inputs, desc.common_axes_map_from_dst());
-            auto rins =
-                reshape_input(ins, &shape_transform_descriptor::generate_dst_from_common)(pw);
+            auto rins = reshape_input(ins, desc.to_dst_from_common())(pw);
             mpm.get_module().replace_instruction(ins, rins);
         }
 

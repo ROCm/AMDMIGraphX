@@ -32,6 +32,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/gpu/time_op.hpp>
 #include <migraphx/permutation.hpp>
+#include <chrono>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -64,6 +65,7 @@ static hipDataType get_type_hipblas(shape::type_t type)
     case shape::fp8e5m2fnuz_type: return HIP_R_8F_E5M2_FNUZ;
     case shape::fp8e4m3fn_type: return HIP_R_8F_E4M3;
     case shape::fp8e5m2_type: return HIP_R_8F_E5M2;
+    case shape::fp4x2_type:
     case shape::tuple_type:
     case shape::bool_type:
     case shape::uint16_type:

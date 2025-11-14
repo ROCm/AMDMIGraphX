@@ -23,6 +23,7 @@
  */
 
 #include <migraphx/graphviz.hpp>
+#include <migraphx/stringutils.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -97,9 +98,56 @@ std::string build_node_style(const graphviz_node_style& node_style)
     else
         ss << "fontcolor=" << node_style.fontcolor << " ";
 
+    if(node_style.bordercolor.empty() or is_hex_color(node_style.bordercolor))
+        ss << "color=\"" << node_style.bordercolor << "\" ";
+    else
+        ss << "color=" << node_style.bordercolor << " ";
+
     ss << "shape=" << node_style.shape << " ";
     ss << "fontname=" << node_style.fontname;
     return ss.str();
+}
+
+std::string get_graph_color(const instruction_ref& ins)
+{
+    const auto& op   = ins->get_operator();
+    const auto& attr = op.attributes();
+
+    bool context_free = is_context_free(op);
+    bool alias        = op.output_alias(to_shapes(ins->inputs())) >= 0;
+
+    if(ins->can_eval())
+    {
+        return "#ADD8E6"; // lightblue
+    }
+    else if(attr.contains("pointwise"))
+    {
+        return "#9ACD32"; // yellowgreen
+    }
+    else if(starts_with(op.name(), "reduce"))
+    {
+        return "#90EE90"; // light green
+    }
+    else if(context_free and alias)
+    {
+        return "#98FB98"; // palegreen
+    }
+    else if(context_free and not alias)
+    {
+        return "#FFA500"; // orange
+    }
+    else if(not context_free and alias)
+    {
+        return "#EFBF04"; // gold
+    }
+    else if(attr.contains("fillcolor"))
+    {
+        return attr.at("fillcolor").to<std::string>();
+    }
+    else
+    {
+        return "#D3D3D3"; // lightgray
+    }
 }
 
 graphviz_node_content get_node_content(const instruction_ref& ins)
@@ -115,7 +163,8 @@ graphviz_node_content get_node_content(const instruction_ref& ins)
         content.body_lines.push_back(graphviz::format_shape_name(ins->get_shape(), "<BR/>"));
 
         content.html_style = {0, 0, 0, 0};
-        content.node_style = {"khaki", "black", "filled", "rectangle", "Helvectica"};
+        content.node_style = {
+            "#F0E68C" /* khaki */, "#000000" /* black */, "filled", "rectangle", "Helvectica"};
     }
     else if(name == "@literal") // for literals, just put @literal for name
     {
@@ -132,8 +181,9 @@ graphviz_node_content get_node_content(const instruction_ref& ins)
 
         content.node_style.fillcolor = "#E9D66B"; // arylideyellow
     }
-    else // all else use name and to_string(op)
+    else
     {
+        // default case
         content.title = name;
 
         if(std::string op_to_string = to_string(op);
@@ -143,11 +193,13 @@ graphviz_node_content get_node_content(const instruction_ref& ins)
         const auto& attr = op.attributes();
         if(attr.contains("style"))
             content.node_style.style = attr.at("style").to<std::string>();
-        if(attr.contains("fillcolor"))
-            content.node_style.fillcolor = attr.at("fillcolor").to<std::string>();
         if(attr.contains("fontcolor"))
             content.node_style.fontcolor = attr.at("fontcolor").to<std::string>();
     }
+
+    if(content.node_style.fillcolor.empty())
+        content.node_style.fillcolor = get_graph_color(ins);
+
     return content;
 }
 

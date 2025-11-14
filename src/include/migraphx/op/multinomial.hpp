@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -118,7 +118,7 @@ struct multinomial
         size_t class_size  = args[0].get_shape().lens().back();
         size_t sample_size = dyn_out.computed_shape.lens().back();
 
-        visit_all(args[0], args[1])([&](auto cdf, auto dist) {
+        get_all<double>(args[0], args[1])([&](auto cdf, auto dist) {
             result.visit([&](auto output) {
                 par_for(batch_size * sample_size, [&](auto i) {
                     auto idx       = args[1].get_shape().multi(i);

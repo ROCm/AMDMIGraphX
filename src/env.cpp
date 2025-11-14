@@ -64,7 +64,7 @@ std::string string_value_of(const char* name, std::string fallback)
     auto e = env(name);
     if(e.empty())
         return fallback;
-    auto rv         = e.front();
+    auto rv = e.front();
     access_envs()([&](auto& m) { m[name] = rv; });
     return rv;
 }

@@ -1501,6 +1501,40 @@ module& module::sort()
     return *this;
 }
 
+module& module::shuffle(std::vector<std::size_t> permutation)
+{
+    if(permutation.empty())
+        return *this;
+    const std::size_t n = this->impl->instructions.size();
+    assert(permutation.size() == n and "permutation size must match list size");
+
+    auto it_dest = this->impl->instructions.begin();
+
+    for(std::size_t i = 0; i < n; ++i)
+    {
+        // find j >= i such that permutation[j] == i
+        auto itp = std::find(permutation.begin() + i, permutation.end(), i);
+        assert(itp != permutation.end());
+        std::size_t j = std::distance(permutation.begin(), itp);
+
+        std::size_t dist = j - i;
+        auto it_src      = it_dest;
+        std::advance(it_src, dist);
+
+        if(dist > 0)
+            this->impl->instructions.splice(it_dest, this->impl->instructions, it_src);
+
+        // Rotate permutation[i..j] right by 1 so that permutation[i] == i
+        std::rotate(permutation.begin() + i, permutation.begin() + j, permutation.begin() + j + 1);
+
+        // if nothing moved (dist==0), advance it_dest manually;
+        //    otherwise, splice has already pushed the old it_dest forward
+        if(dist == 0)
+            ++it_dest;
+    }
+    return *this;
+}
+
 void module::calc_implicit_deps(const module& smod,
                                 const module& pmod,
                                 instruction_ref ins,
@@ -1564,6 +1598,49 @@ void module::repeat_while_changes(std::size_t n, const std::function<void()>& f)
             break;
         (void)i;
     }
+}
+
+// Hoists external inputs (instructions not in the dependency chain between start_ins and end_ins)
+// to before start_ins, while preserving topological order
+void module::hoist_external_inputs(instruction_ref start_ins, instruction_ref end_ins)
+{
+    // get the chain of instructions between start_ins and end_ins, inclusive
+    auto fusion_ins = find_instructions_between(start_ins, end_ins, this);
+
+    // move all instructions between start_ins & end_ins that are not in the fusion chain
+    // to the start_ins. In order, moving to the same destination, this will naturally preserve
+    // the preexisting topological order of the module
+    for(auto it = std::next(start_ins); it != end_ins;)
+    {
+        if(fusion_ins.count(it) == 0)
+        {
+            // only move if none of its inputs are after start_ins
+            bool has_input_in_range =
+                std::any_of(it->inputs().begin(), it->inputs().end(), [&](instruction_ref input) {
+                    if(not has_instruction(input))
+                        return false;
+                    // verify: start_ins < input < it
+                    return std::find(std::next(start_ins), it, input) != it;
+                });
+
+            if(has_input_in_range)
+            {
+                // input is after start_ins, meaning can't move this instruction
+                ++it;
+            }
+            else
+            {
+                auto next = std::next(it);
+                this->move_instruction(it, start_ins);
+                it = next;
+            }
+        }
+        else
+        {
+            ++it;
+        }
+    }
+    assert(this->validate() == this->end());
 }
 
 bool operator==(const module& x, const module& y) { return to_string(x) == to_string(y); }

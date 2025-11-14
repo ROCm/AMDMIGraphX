@@ -74,7 +74,7 @@ struct convolution
 
     value attributes() const
     {
-        return {{"normalize_padding", "padding"}, {"fillcolor", "#4682B4"}};
+        return {{"normalize_padding", "padding"}, {"fillcolor", "#4682B4" /* steelblue */}};
     }
 
     shape normalize_compute_shape(std::vector<shape> inputs) const

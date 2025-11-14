@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -42,6 +42,13 @@ TEST_CASE(fill_tuple)
     EXPECT(args.at(0) == migraphx::fill_argument(s0, 1));
     EXPECT(args.at(1) == migraphx::fill_argument(s1, 1));
     EXPECT(args.at(2) == migraphx::fill_argument(s2, 1));
+}
+
+TEST_CASE(generate_non_computable)
+{
+    migraphx::shape s{migraphx::shape::fp4x2_type, {4, 4, 1, 1}};
+    auto arg = migraphx::generate_argument(s, 1);
+    EXPECT(migraphx::generate_literal(s, 1) == migraphx::generate_argument(s, 1));
 }
 
 TEST_CASE(generate_tuple)

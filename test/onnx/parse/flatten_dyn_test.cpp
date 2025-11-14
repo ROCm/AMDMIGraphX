@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,8 +30,7 @@ TEST_CASE(flatten_dyn_test)
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter(
         "0", migraphx::shape{migraphx::shape::float_type, {{1, 4}, {3, 3}, {4, 4}, {5, 5}}});
-    auto c0  = mm->add_instruction(migraphx::make_op("contiguous"), l0);
-    auto ret = mm->add_instruction(migraphx::make_op("flatten", {{"axis", 2}}), c0);
+    auto ret = mm->add_instruction(migraphx::make_op("flatten", {{"axis", 2}}), l0);
     mm->add_return({ret});
 
     migraphx::onnx_options options;

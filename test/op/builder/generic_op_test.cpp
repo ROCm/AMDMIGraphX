@@ -59,30 +59,3 @@ TEST_CASE(generic_not_continuous_gathernd_op_builder_test)
 
     EXPECT(mm == make_op_module("gathernd", migraphx::to_value(op), mm.get_parameters()));
 }
-
-TEST_CASE(generic_continuous_flatten_op_builder_test)
-{
-    migraphx::module mm;
-    auto l0 = mm.add_parameter(
-        "0", migraphx::shape{migraphx::shape::float_type, {{1, 4}, {4, 4}, {5, 5}, {6, 6}}});
-    auto cont_l0   = mm.add_instruction(migraphx::make_op("contiguous"), l0);
-    const auto& op = migraphx::make_op("flatten");
-    mm.add_instruction(op, cont_l0);
-
-    EXPECT(mm == make_op_module("flatten", migraphx::to_value(op), mm.get_parameters()));
-}
-
-TEST_CASE(generic_continuous_gather_op_builder_test)
-{
-    migraphx::module mm;
-    auto l0 = mm.add_parameter(
-        "data", migraphx::shape{migraphx::shape::float_type, {{1, 4}, {4, 4}, {5, 5}, {6, 6}}});
-    auto l1 = mm.add_parameter(
-        "indices", migraphx::shape{migraphx::shape::int32_type, {{1, 4}, {3, 3}, {4, 4}, {5, 5}}});
-    auto cont_l0   = mm.add_instruction(migraphx::make_op("contiguous"), l0);
-    auto cont_l1   = mm.add_instruction(migraphx::make_op("contiguous"), l1);
-    const auto& op = migraphx::make_op("gather", {{"axis", 1}});
-    mm.add_instruction(op, cont_l0, cont_l1);
-
-    EXPECT(mm == make_op_module("gather", migraphx::to_value(op), mm.get_parameters()));
-}

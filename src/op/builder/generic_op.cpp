@@ -48,38 +48,12 @@ struct generic_op : op_builder<generic_op>
                 "sin",      "sinh",  "sqrt",       "tan",   "tanh",    "not"};
     }
 
-    std::vector<instruction_ref> insert(const std::string& op_name,
+    std::vector<instruction_ref> insert(const std::string& /*op_name*/,
                                         module& m,
                                         instruction_ref /*ins*/,
                                         const std::vector<instruction_ref>& args) const
     {
-        std::vector<instruction_ref> args_copy = args;
-        if(needs_contiguous(op_name))
-        {
-            std::transform(args_copy.begin(), args_copy.end(), args_copy.begin(), [&](auto arg) {
-                return make_contiguous(m, arg);
-            });
-        }
-
-        return {m.add_instruction(op, args_copy)};
-    }
-
-    private:
-    bool needs_contiguous(const std::string& op_name) const
-    {
-        return contains({"flatten", "gather", "scatter"}, op_name);
-    }
-
-    instruction_ref make_contiguous(module& m, instruction_ref ins) const
-    {
-        auto attr       = ins->get_operator().to_value();
-        std::string key = "require_std_shape";
-        if((attr.get(key, false)) or (not ins->get_shape().standard()))
-        {
-            return m.add_instruction(make_op("contiguous"), ins);
-        }
-
-        return ins;
+        return {m.add_instruction(op, args)};
     }
 };
 

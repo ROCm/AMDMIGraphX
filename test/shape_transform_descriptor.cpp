@@ -938,7 +938,8 @@ TEST_CASE(rebase_unsqueeze_broadcast)
     auto base_desc =
         make_simple_descriptor({1, 3, 1, 1},
                                make_op("unsqueeze", {{"axes", {3, 5}}}),
-                               make_op("multibroadcast", {{"out_lens", {1, 3, 256, 2, 256, 2}}}), );
+                               make_op("multibroadcast", {{"out_lens", {1, 3, 256, 2, 256, 2}}}), 
+                               );
 
     {
         auto desc = base_desc.rebase({1, 3, 512, 512});
@@ -956,7 +957,8 @@ TEST_CASE(rebase_unsqueeze_broadcast_transpose)
         make_simple_descriptor({1, 1, 1, 3},
                                make_op("unsqueeze", {{"axes", {3, 4}}}),
                                make_op("transpose", {{"permutation", {0, 5, 1, 2, 3, 4}}}),
-                               make_op("multibroadcast", {{"out_lens", {1, 3, 256, 2, 256, 2}}}), );
+                               make_op("multibroadcast", {{"out_lens", {1, 3, 256, 2, 256, 2}}}), 
+                               );
 
     {
         auto desc = base_desc.rebase({1, 512, 512, 3});
@@ -975,7 +977,8 @@ TEST_CASE(rebase_squeeze_broadcast_transpose)
         make_simple_descriptor({1, 1, 1, 1, 1, 3},
                                make_op("squeeze", {{"axes", {2, 4}}}),
                                make_op("transpose", {{"permutation", {0, 3, 1, 2}}}),
-                               make_op("multibroadcast", {{"out_lens", {1, 3, 512, 512}}}), );
+                               make_op("multibroadcast", {{"out_lens", {1, 3, 512, 512}}}), 
+                               );
 
     {
         auto desc = base_desc.rebase({1, 256, 2, 256, 2, 3});
@@ -992,7 +995,8 @@ TEST_CASE(rebase_transpose_reshape_1s)
     auto base_desc =
         make_simple_descriptor({1, 3, 256, 2, 256, 2},
                                make_op("transpose", {{"permutation", {0, 2, 5, 3, 4, 1}}}),
-                               make_op("reshape", {{"dims", {1, 512, 512, 3}}}), );
+                               make_op("reshape", {{"dims", {1, 512, 512, 3}}}), 
+                               );
 
     {
         auto desc = base_desc.rebase({1, 3, 1, 1, 1, 1});

@@ -628,6 +628,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 #endif
 
 #ifdef MIGRAPHX_ENABLE_ONNX
+    m.def("get_onnx_operators", [] { return migraphx::get_onnx_operators(); });
     m.def(
         "parse_onnx",
         [](const std::string& filename,

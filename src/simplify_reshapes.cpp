@@ -274,8 +274,9 @@ struct find_op_shape_transform_op
         if(desc1.elements() != xinput->get_shape().elements() and
            desc1.elements() != x_ins->get_shape().elements())
         {
-            // If we cant rebase the desc then bail
-            if(desc1.rebase(xinputlens).empty())
+            // If we cant rebase the desc correctly then bail
+            auto desc2 = desc1.rebase(xinputlens);
+            if(desc2.elements() != xinput->get_shape().elements())
                 return {};
             return desc1;
         }

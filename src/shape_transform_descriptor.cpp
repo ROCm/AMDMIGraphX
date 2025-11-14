@@ -333,13 +333,17 @@ static auto adjust_axes_for_rebase(shape_transform_descriptor& desc,
     if(shortage_axes.size() == nshortages)
         return axes_map;
 
-    // auto subs = get_pointer_subdimensions(desc.dimensions);
-    // auto hidden_pred = [](const dimension::sub* s) {
-    //     return s->has_hidden_axis();
-    // };
-    // group_find(subs.begin(), subs.end(), hidden_pred, [&](auto start, auto last) {
-
-    // });
+    auto subs = get_pointer_subdimensions(desc.dimensions);
+    auto hidden_pred = [](const dimension::sub* s) {
+        return s->has_hidden_axis();
+    };
+    group_find(subs.begin(), subs.end(), hidden_pred, [&](auto start, auto last) {
+        std::unordered_map<std::size_t, std::vector<dimension::sub*>> dim_group;
+        std::for_each(start, last, [&](dimension::sub* s) {
+            dim_group[s->len].push_back(s);
+        });
+        
+    });
 
     auto regroup_axes = group_axes(desc.dimensions);
     renumber_axes(regroup_axes);

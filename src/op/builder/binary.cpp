@@ -64,12 +64,16 @@ struct binary : op_builder<binary>
     {
         if(broadcasted_axis.has_value())
         {
-            auto l =
-                m.add_instruction(migraphx::make_op("broadcast",
-                                                    {{"axis", broadcasted_axis.value()},
-                                                     {"out_lens", args[0]->get_shape().lens()}}),
-                                  args[1]);
-            return {m.add_instruction(migraphx::make_op(op_name), args[0], l)};
+            const size_t shorter_instr_idx =
+                args[0]->get_shape().ndim() < args[1]->get_shape().ndim() ? 0 : 1;
+            const size_t longer_instr_idx = shorter_instr_idx == 0 ? 1 : 0;
+
+            auto l = m.add_instruction(
+                migraphx::make_op("broadcast",
+                                  {{"axis", broadcasted_axis.value()},
+                                   {"out_lens", args[longer_instr_idx]->get_shape().lens()}}),
+                args[shorter_instr_idx]);
+            return {m.add_instruction(migraphx::make_op(op_name), args[longer_instr_idx], l)};
         }
         else
         {

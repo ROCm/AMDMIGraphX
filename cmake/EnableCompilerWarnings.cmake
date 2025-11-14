@@ -67,6 +67,7 @@ else()
             -Wunused
 
             -Wno-sign-compare
+            -Wno-deprecated-this-capture
         )
         # Flags for gcc 7
         if(CMAKE_${COMPILER}_COMPILER_ID STREQUAL "GNU")

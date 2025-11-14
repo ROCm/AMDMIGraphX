@@ -76,6 +76,24 @@ static void reverse_module(migraphx::module& m)
     m.shuffle(permutation);
 }
 
+// Check the module is topologically sorted
+// TODO: Use test::make_predicate
+static bool is_sorted(migraphx::module& m)
+{
+    std::unordered_set<migraphx::instruction_ref> visited;
+    for(auto ins : migraphx::iterator_for(m))
+    {
+        visited.insert(ins);
+        if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [&](auto i) {
+               return not visited.count(i);
+           }))
+        {
+            return false; // Found an input that has not been visited yet
+        }
+    }
+    return true;
+}
+
 static migraphx::program create_program()
 {
     migraphx::program p;
@@ -843,6 +861,7 @@ TEST_CASE(linear_graph_sort)
     m.add_return({t});
 
     m.sort();
+
     EXPECT(is_sorted(m));
 
     reverse_module(m);

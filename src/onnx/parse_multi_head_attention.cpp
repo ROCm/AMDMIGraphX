@@ -517,32 +517,22 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
                                     const multi_head_attention_parameters& attention) const
     {
         auto batch_size    = attention.batch_size;
-        auto kv_seq_length = static_cast<size_t>(attention.kv_sequence_length);
+        auto kv_seq_length = attention.kv_sequence_length;
 
-        auto pass_value_lit =
-            info.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int32_type, {1}, {1}}, {1}});
-        auto bc_pass = info.add_instruction(
-            make_op("multibroadcast",
-                    {{"out_lens", {batch_size, kv_seq_length}}}),
-            pass_value_lit);
+        // Gen list of indices to compare to the exclusive start of right padding
+        std::vector<size_t> indices_vec(kv_seq_length, 0);
+        std::iota(indices_vec.begin(), indices_vec.end(), 0);
+        auto indices    = info.add_literal(migraphx::literal{
+            migraphx::shape{migraphx::shape::int32_type, {static_cast<size_t>(kv_seq_length)}, {1}},
+            indices_vec});
+        auto indices_bc = info.add_instruction(
+            make_op("multibroadcast", {{"out_lens", {batch_size, kv_seq_length}}}), indices);
+        auto right_mask_bc = info.add_instruction(
+            make_op("multibroadcast", {{"out_lens", {batch_size, kv_seq_length}}}), right_mask);
+        auto in_bool = info.add_instruction(make_op("less"), indices_bc, right_mask_bc);
 
-        auto mask_value_lit =
-            info.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int32_type, {1}, {1}}, {0}});
-        auto bc_mask = info.add_instruction(
-            make_op("multibroadcast",
-                    {{"out_lens", {batch_size, kv_seq_length}}}),
-            mask_value_lit);
-        
-        // Gen list of indicies to compare to the exclusive start of right padding
-        std::vector<size_t> indicies_vec(kv_seq_length, 0);
-        std::iota(indicies_vec.begin(), indicies_vec.end(), 0);
-        auto indicies = info.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int32_type, {kv_seq_length}, {1}}, indicies_vec});
-        auto indicies_bc = info.add_instruction(make_op("multibroadcast", {{"out_lens", {batch_size, kv_seq_length}}}), indicies);
-        auto right_mask_bc = info.add_instruction(make_op("multibroadcast", {{"out_lens", {batch_size, kv_seq_length}}}), right_mask);
-        auto in_bool = info.add_instruction(make_op("less"), indicies_bc, right_mask_bc);
-        auto where = info.add_instruction(make_op("where"), in_bool, bc_pass, bc_mask);
-
-        return info.add_instruction(make_op("convert", {{"target_type", migraphx::shape::int32_type}}), where);
+        return info.add_instruction(
+            make_op("convert", {{"target_type", migraphx::shape::int32_type}}), in_bool);
     }
 
     std::optional<instruction_ref>
@@ -558,7 +548,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
 
         if((attention.key_pad_mode == key_mask_mode_t::direct_2d_pad) or
            (attention.key_pad_mode == key_mask_mode_t::direct_3d_pad))
-        { // Raw Mask - 0 means mask, 1 means pass through. Apply mask_filter_val to mask indicies
+        { // Raw Mask - 0 means mask, 1 means pass through. Apply mask_filter_val to mask indices
           // and zero otherwise
             // Need to generate from 2 dims or 3 dim cases
             return generate_raw_mask_per_batch(info, mask_index, input_shape, attention);

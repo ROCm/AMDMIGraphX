@@ -35,7 +35,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_PROBLEM_CACHE)
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_PROBLEM_CACHE_PATH)
 
 void problem_cache::load()
 {
@@ -50,25 +49,11 @@ void problem_cache::load()
     }
     from_value(from_json_string(read_string(pc_path)), cache);
 }
-
-static std::string auto_generate_name()
-{
-    return {std::tmpnam(nullptr)};
-}
-
 void problem_cache::save() const
 {
-    fs::path pc_path{string_value_of(MIGRAPHX_PROBLEM_CACHE{})};
+    auto pc_path = string_value_of(MIGRAPHX_PROBLEM_CACHE{});
     if(pc_path.empty())
-    {
-        pc_path = string_value_of(MIGRAPHX_PROBLEM_CACHE_PATH{});
-        if(pc_path.empty() or not is_directory(pc_path))
-            return;
-        fs::path p{auto_generate_name()};
-        write_string(p, ""); // Write to TEMP an empty file to reserve the name
-        pc_path /= p.filename().string() + ".json";
-    }
-    //std::cout << "[==] MIGRAPHX_PROBLEM_CACHE_FILE: " << pc_path.string() << "\n";
+        return;
     write_string(pc_path, to_pretty_json_string(to_value(cache)));
 }
 

@@ -148,6 +148,18 @@ Iterator adjacent_for_each(Iterator first, Iterator last, F f)
     return last;
 }
 
+template <class Iterator, class F>
+F for_each_iterator(Iterator first, Iterator last, F f)
+{
+    while(first != last)
+    {
+        auto it = first;
+        first++;
+        f(it);
+    }
+    return f;
+}
+
 /// Like std::for_each but can pass in another range like std::transform
 template <class Iterator1, class Iterator2, class F>
 F for_each(Iterator1 first1, Iterator1 last1, Iterator2 first2, F f)

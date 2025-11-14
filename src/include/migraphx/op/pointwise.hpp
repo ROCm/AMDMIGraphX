@@ -39,6 +39,18 @@ struct pointwise
 {
     std::string name() const { return "pointwise"; }
 
+    static std::vector<shape> remove_broadcasts(const std::vector<shape>& inputs)
+    {
+        std::vector<shape> result;
+        auto perm = find_permutation(inputs);
+        std::transform(inputs.begin(), inputs.end(), std::back_inserter(result), [&](auto s) {
+            if(s.broadcasted())
+                return shape::from_permutation(s.type(), s.lens(), perm);
+            return s;
+        });
+        return result;
+    }
+
     shape compute_shape(const std::vector<shape>& inputs, std::vector<module_ref> mods) const
     {
         if(mods.size() != 1)
@@ -51,8 +63,11 @@ struct pointwise
         auto pnames = pm->get_parameter_names();
         check_shapes{inputs, *this}.has(pnames.size()).same_dims();
 
+        const bool has_broadcasts =
+            std::any_of(inputs.begin(), inputs.end(), [](auto s) { return s.broadcasted(); });
+
         auto result = pm->compute_shapes(
-            inputs,
+            has_broadcasts ? remove_broadcasts(inputs) : inputs,
             {.name = name(), .strict_type = true, .scalar_const_out_lens = inputs.front().lens()});
         if(result.size() == 1)
             return result.front();

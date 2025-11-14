@@ -134,9 +134,8 @@ Stream& print_stream_impl(rank<0>, Stream& s, const T&)
 }
 
 template <class Stream, class Range>
-auto print_stream_impl(rank<1>, Stream& s, const Range& v) -> decltype(v.end(),
-                                                                       print_stream(s, *v.begin()),
-                                                                       void())
+auto print_stream_impl(rank<1>, Stream& s, const Range& v)
+    -> decltype(v.end(), print_stream(s, *v.begin()), void())
 {
     auto start = v.begin();
     auto last  = v.end();
@@ -164,9 +163,9 @@ auto print_stream_impl(rank<2>, Stream& s, const T& x)
     {
         if(x)
             s << "true";
-    else
-        s << "false";
-    return s;
+        else
+            s << "false";
+        return s;
     }
     else
     {

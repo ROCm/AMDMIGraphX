@@ -12984,6 +12984,87 @@ def resize_roi_skip_test():
 
     return ([node], [X], [Y], [roi_tensor, scale_tensor])
 
+
+@onnx_test()
+def resize_roi_skip_cubic_mode_scales_test():
+    # special testcase for resize op with roi value but skip it
+
+    scales = np.array([1.0, 1.0, 2.0, 2.0], dtype=np.float32)
+    roi = np.array([1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8], dtype=np.float32)
+    scale_tensor = helper.make_tensor(name='scales',
+                                      data_type=TensorProto.FLOAT,
+                                      dims=scales.shape,
+                                      vals=scales.flatten().astype(np.float32))
+    roi_tensor = helper.make_tensor(name='roi',
+                                    data_type=TensorProto.FLOAT,
+                                    dims=roi.shape,
+                                    vals=roi.flatten().astype(np.float32))
+
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 2, 4])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 4, 8])
+
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['X', 'roi', 'scales'],
+                                 outputs=['Y'],
+                                 mode='cubic')
+
+    return ([node], [X], [Y], [roi_tensor, scale_tensor])
+
+
+@onnx_test()
+def resize_roi_skip_cubic_mode_sizes_test():
+    # special testcase for resize op with roi value but skip it
+
+    sizes = np.array([1, 1, 2, 2], dtype=np.int64)
+    roi = np.array([1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8], dtype=np.float32)
+    sizes_tensor = helper.make_tensor(name='sizes',
+                                     data_type=TensorProto.FLOAT,
+                                     dims=sizes.shape,
+                                     vals=sizes.flatten().astype(np.int64))
+    roi_tensor = helper.make_tensor(name='roi',
+                                    data_type=TensorProto.FLOAT,
+                                    dims=roi.shape,
+                                    vals=roi.flatten().astype(np.float32))
+
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 2, 4])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 4, 8])
+
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['X', 'roi', 'sizes'],
+                                 outputs=['Y'],
+                                 mode='cubic')
+
+    return ([node], [X], [Y], [roi_tensor, sizes_tensor])
+
+
+@onnx_test()
+def resize_roi_skip_cubic_mode_sizes_cubic_coeff_test():
+    # special testcase for resize op with roi value but skip it
+
+    sizes = np.array([1.0, 1.0, 2.0, 2.0], dtype=np.int64)
+    roi = np.array([], dtype=np.float32)
+    sizes_tensor = helper.make_tensor(name='sizes',
+                                     data_type=TensorProto.FLOAT,
+                                     dims=sizes.shape,
+                                     vals=sizes.flatten().astype(np.int64))
+    roi_tensor = helper.make_tensor(name='roi',
+                                    data_type=TensorProto.FLOAT,
+                                    dims=roi.shape,
+                                    vals=roi.flatten().astype(np.float32))
+
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 768, 37, 37])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 768, 37, 37])
+
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['X', 'roi', 'sizes'],
+                                 outputs=['Y'],
+                                 mode='cubic',
+                                 cubic_coeff_a=0.75,
+                                 coordinate_transformation_mode='half_pixel')
+
+    return ([node], [X], [Y], [roi_tensor, sizes_tensor])
+
+
 @onnx_test()
 def resize_with_same_inout_shapes_test():
     sizes = np.array([1, 3, 5], dtype=np.int64)

@@ -109,6 +109,17 @@ static std::vector<dimension::sub> get_all_subdimensions(const std::vector<dimen
     return result;
 }
 
+
+template<class Vector>
+static std::vector<dimension::sub*> get_pointer_subdimensions(Vector& v)
+{
+    std::vector<dimension::sub*> result;
+    for_each_subdimension(v, [&](dimension::sub& s) {
+        result.push_back(&s);
+    });
+    return result;
+}
+
 template <class Dimensions, class Range, class F>
 static void for_each_subdimension(Dimensions&& dimensions, Range&& r, F f)
 {
@@ -324,6 +335,14 @@ static auto adjust_axes_for_rebase(shape_transform_descriptor& desc,
     });
     if(shortage_axes.size() == nshortages)
         return axes_map;
+
+    // auto subs = get_pointer_subdimensions(desc.dimensions);
+    // auto hidden_pred = [](const dimension::sub* s) {
+    //     return s->has_hidden_axis();
+    // };
+    // group_find(subs.begin(), subs.end(), hidden_pred, [&](auto start, auto last) {
+        
+    // });
 
     auto regroup_axes = group_axes(desc.dimensions);
     renumber_axes(regroup_axes);

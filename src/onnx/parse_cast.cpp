@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,7 +23,7 @@
  */
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/ranges.hpp>
-#include <migraphx/op/builder/insert.hpp>
+#include <migraphx/make_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -45,7 +45,7 @@ struct parse_cast : op_parser<parse_cast>
 
         int to_type        = parser.parse_value(info.attributes.at("to")).at<int>();
         shape::type_t type = get_type(to_type);
-        return op::builder::add("convert", *info.mod, args, {{"target_type", type}}).at(0);
+        return info.add_instruction(make_op("convert", {{"target_type", type}}), args);
     }
 };
 

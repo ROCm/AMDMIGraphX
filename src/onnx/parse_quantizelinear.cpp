@@ -114,10 +114,10 @@ struct parse_quantizelinear : op_parser<parse_quantizelinear>
                 padding.at(fast_axis * 2 + 1) = 1;
                 q_ins = info.add_instruction(make_op("pad", {{"pads", padding}}), q_ins);
             }
-            auto pack_ins   = info.add_instruction(make_op("pack_fp4", {{"axis", fast_axis}}),
-                                                 q_ins); // output is fp4x2_type
-            auto unpack_ins = info.add_instruction(make_op("unpack_fp4", {{"axis", fast_axis}}),
-                                                   pack_ins); // output is fp8e4m3fn_type
+            // output is fp4x2_type
+            auto pack_ins = info.add_instruction(make_op("pack_fp4"), q_ins);
+            // output is fp8e4m3fn_type
+            auto unpack_ins = info.add_instruction(make_op("unpack_fp4"), pack_ins);
             if(odd_fast_axis)
             {
                 // slice off padded values

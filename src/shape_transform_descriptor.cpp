@@ -32,6 +32,7 @@
 #include <migraphx/common_dims.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/transform_view.hpp>
 #include <map>
 #include <unordered_set>
 #include <deque>
@@ -263,9 +264,65 @@ static bool is_broadcast_only(const std::vector<dimension>& src_dims,
                       });
 }
 
+template<class Iterator, class T, class Compare>
+Iterator find_next_sorted(Iterator first, Iterator last, 
+                         const T& target,
+                         Compare comp) {
+    auto it = std::min_element(first, last, 
+        [&](const auto& a, const auto& b) {
+            // Check if elements are greater than target using comparator
+            // comp(target, a) means target < a (i.e., a > target)
+            bool a_valid = comp(target, a);
+            bool b_valid = comp(target, b);
+            
+            // If neither is valid, prefer a (doesn't matter)
+            if (!a_valid && !b_valid) return false;
+            
+            // If only b is valid, it should be selected
+            if (!a_valid) return false;
+            
+            // If only a is valid, it should be selected  
+            if (!b_valid) return true;
+            
+            // Both are valid, select the smaller one using comparator
+            return comp(a, b);
+        });
+    if(it != last && comp(target, *it))
+        return it;
+    return last;
+}
+
+template<class Iterator, class Predicate, class Compare>
+Iterator min_element_if(Iterator first, Iterator last, 
+                         Predicate pred,
+                         Compare comp) {
+    auto it = std::min_element(first, last, 
+        [&](const auto& a, const auto& b) {
+            // Check if elements are valid
+            bool a_valid = pred(a);
+            bool b_valid = pred(b);
+            
+            // If neither is valid, prefer a (doesn't matter)
+            if (!a_valid && !b_valid) return false;
+            
+            // If only b is valid, it should be selected
+            if (!a_valid) return false;
+            
+            // If only a is valid, it should be selected  
+            if (!b_valid) return true;
+            
+            // Both are valid, select the smaller one using comparator
+            return comp(a, b);
+        });
+    if(it != last && pred(*it))
+        return it;
+    return last;
+}
+
 static auto adjust_axes_for_rebase(shape_transform_descriptor& desc,
                                    const std::vector<std::size_t>& dims)
 {
+    const auto last_axis_split = std::numeric_limits<std::size_t>::max();
     auto axes_map = group_axes(desc.dimensions);
 
     // Find shortage axes
@@ -327,18 +384,75 @@ static auto adjust_axes_for_rebase(shape_transform_descriptor& desc,
         auto saxis = saxis_it->second;
 
         auto* sub        = *it;
-        sub->hidden_axis = {saxis, std::numeric_limits<std::size_t>::max()};
+        sub->hidden_axis = {saxis, last_axis_split};
         shortage_axes.erase(saxis_it);
     });
     if(shortage_axes.size() == nshortages)
         return axes_map;
 
+    std::cout << "desc: " << desc << std::endl;
+
+    auto by_hidden_axis = [](const dimension::sub* s) -> const std::vector<std::size_t>& {
+                return s->hidden_axis;
+            };
+
+    // Try to swap in an axis that is closer
     auto subs        = get_pointer_subdimensions(desc.dimensions);
     auto hidden_pred = [](const dimension::sub* s) { return s->has_hidden_axis(); };
     group_find(subs.begin(), subs.end(), hidden_pred, [&](auto start, auto last) {
-        std::unordered_map<std::size_t, std::vector<dimension::sub*>> dim_group;
-        std::for_each(start, last, [&](dimension::sub* s) { dim_group[s->len].push_back(s); });
+        if(std::distance(start, last) < 2)
+            return;
+        adjacent_for_each(start, last, [&](dimension::sub* s1, dimension::sub* s2) {
+            if(s1->hidden_axis.empty())
+                return;
+            if(s2->hidden_axis.empty())
+                return;
+            assert(s1->axis.empty());
+            assert(s2->axis.empty());
+
+            auto it = min_element_if(start, last, [&](const dimension::sub* s) {
+                // Valid if same len as s2 and hidden_axis greater than s1
+                return s->len == s2->len and s->hidden_axis > s1->hidden_axis;
+            }, by(std::less<>{}, by_hidden_axis));
+
+            if(it == subs.end())
+                return;
+
+            auto* next_sub = *it;
+            assert(s1->hidden_axis < next_sub->hidden_axis);
+            if(next_sub->hidden_axis.empty())
+                return;
+            if(next_sub == s2)
+                return;
+            if(next_sub->len != s2->len)
+                return;
+            // if(next_sub->hidden_axis.front() != s1->hidden_axis.front())
+                // return;
+            std::swap(*s2, *next_sub);
+        });
     });
+
+    auto by_hidden_axis_group = [&](const dimension::sub* s) {
+                if(s->hidden_axis.empty())
+                    return last_axis_split;
+                return s->hidden_axis.front();
+            };
+
+    // Sort groups of hidden axis
+    group_unique(subs.begin(), subs.end(), [&](auto start, auto last) {
+        if(std::distance(start, last) < 2)
+            return;
+        if((*start)->hidden_axis.empty())
+            return;
+        auto r = range(start, last);
+        auto axes = views::transform(r, [](dimension::sub* s) -> auto& {
+            return s->hidden_axis;
+        });
+        std::sort(axes.begin(), axes.end());
+
+    }, by(std::equal_to<>{}, by_hidden_axis_group));
+
+    std::cout << "after desc: " << desc << std::endl;
 
     auto regroup_axes = group_axes(desc.dimensions);
     renumber_axes(regroup_axes);

@@ -782,7 +782,7 @@ TEST_CASE(common_dims_transpose_reshape)
     // 2, 16, 1, 1, 1 => 2, 16, 1, 1
     EXPECT(desc.to_src_from_common().generate({2, 1, 1, 1, 16}) ==
            ops{make_op("transpose", {{"permutation", {0, 4, 1, 2, 3}}}),
-               make_op("squeeze", {{"axes", {4}}})});
+               make_op("squeeze", {{"axes", {2}}})});
     // 2, 1, 32, 2, 64 => 2, 1, 64, 64
     EXPECT(desc.to_src_from_common().generate({2, 32, 2, 64, 1}) ==
            ops{make_op("transpose", {{"permutation", {0, 4, 1, 2, 3}}}),
@@ -998,7 +998,7 @@ TEST_CASE(rebase_transpose_reshape_1s)
     {
         auto desc = base_desc.rebase({1, 3, 1, 1, 1, 1});
         EXPECT(get_final_lens(desc) == final_lens{1, 1, 1, 3});
-        EXPECT(get_all_lens(desc) == all_lens{{1}, {3}, {1}, {1}, {1}, {1}});
+        EXPECT(get_all_lens(desc) == all_lens{{1}, {1, 1}, {1, 1}, {3}});
         EXPECT(desc.generate() == ops{
                                       make_op("transpose", {{"permutation", {0, 2, 5, 3, 4, 1}}}),
                                       make_op("squeeze", {{"axes", {1, 3}}}),

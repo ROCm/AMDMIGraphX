@@ -187,6 +187,16 @@ static void renumber_axes(std::vector<dimension>& dimensions)
     renumber_axes(axes_map);
 }
 
+static void remove_empty_sub_dims(std::vector<dimension::sub>& subdimensions)
+{
+    subdimensions.erase(std::remove_if(subdimensions.begin(),
+                                       subdimensions.end(),
+                                       [&](const dimension::sub& d) { return d.len == 1 and d.origin_axis().empty(); }),
+                        subdimensions.end());
+    if(subdimensions.empty())
+        subdimensions.push_back({1, {}});
+}
+
 static std::size_t len(const std::vector<dimension::sub*>& subs)
 {
     return transform_accumulate(
@@ -264,9 +274,8 @@ static bool is_broadcast_only(const std::vector<dimension>& src_dims,
                       });
 }
 
-template <class Dimensions, class Predicate>
-static auto find_subdimension_with_dimension(Dimensions& dims, Predicate pred)
-    -> std::pair<decltype(&dims[0]), decltype(&dims[0].subdimensions.front())>
+template<class Dimensions, class Predicate>
+static auto find_subdimension_with_dimension(Dimensions& dims, Predicate pred) -> std::pair<decltype(&dims[0]), decltype(&dims[0].subdimensions.front())>
 {
     for(auto& dim : dims)
     {
@@ -279,15 +288,18 @@ static auto find_subdimension_with_dimension(Dimensions& dims, Predicate pred)
 
 static dimension* find_dimension_of(std::vector<dimension>& dims, const dimension::sub& s)
 {
-    return find_subdimension_with_dimension(dims, [&](const dimension::sub& x) { return &x == &s; })
-        .first;
+    return find_subdimension_with_dimension(dims, [&](const dimension::sub& x) {
+        return &x == &s;
+    }).first;
 }
 
-template <class Dimensions, class Predicate>
+
+template<class Dimensions, class Predicate>
 static auto find_subdimension(Dimensions& dims, Predicate pred)
 {
     return find_subdimension_with_dimension(dims, pred).second;
 }
+
 
 template <class Iterator, class T, class Compare>
 Iterator find_next_sorted(Iterator first, Iterator last, const T& target, Compare comp)
@@ -362,13 +374,11 @@ static auto adjust_axes_for_rebase(shape_transform_descriptor& desc,
         auto shortage = dim / len(subs);
         if(shortage < 2)
             continue;
-        std::cout << "shortage: " << shortage << ": " << axis << std::endl;
         shortage_axes.emplace(shortage, axis);
     }
 
     auto nshortages = shortage_axes.size();
 
-    std::cout << "nshortages: " << nshortages << std::endl;
 
     if(nshortages == 0)
         return axes_map;
@@ -399,7 +409,6 @@ static auto adjust_axes_for_rebase(shape_transform_descriptor& desc,
 
     // Find excess and move the shortage
     for_each_axis_group([&](const auto& axis, const auto& subs, auto excess, auto base_dim) {
-        std::cout << "excess: " << excess << std::endl;
         auto saxes = shortage_axes.equal_range(excess);
         if(saxes.first == saxes.second)
             return;
@@ -429,12 +438,11 @@ static auto adjust_axes_for_rebase(shape_transform_descriptor& desc,
             return;
 
         // Move the shortage to the excess dim
-        auto dim_pair =
-            find_subdimension_with_dimension(desc.dimensions, [&](const dimension::sub& s) {
-                if(s.axis.size() != 1)
-                    return false;
-                return s.axis.front() == saxis;
-            });
+        auto dim_pair = find_subdimension_with_dimension(desc.dimensions, [&](const dimension::sub& s) {
+            if(s.axis.size() != 1)
+                return false;
+            return s.axis.front() == saxis;
+        });
         if(dim_pair.first == nullptr)
             return;
         auto* dim = dim_pair.first;
@@ -456,15 +464,15 @@ static auto adjust_axes_for_rebase(shape_transform_descriptor& desc,
     for(auto& [sub, pos_axis] : subs_to_insert)
     {
         auto equal_to_pos_axis = [&, lpos_axis = pos_axis](const dimension::sub& s) {
-            if(s.origin_axis().empty())
-                return false;
-            return s.origin_axis().front() == lpos_axis;
-        };
-        auto dim_pair = find_subdimension_with_dimension(desc.dimensions, equal_to_pos_axis);
+                if(s.origin_axis().empty())
+                    return false;
+                return s.origin_axis().front() == lpos_axis;
+            };
+        auto dim_pair = find_subdimension_with_dimension(
+            desc.dimensions, equal_to_pos_axis);
         assert(dim_pair.first != nullptr);
         auto* dim = dim_pair.first;
-        auto it =
-            std::find_if(dim->subdimensions.begin(), dim->subdimensions.end(), equal_to_pos_axis);
+        auto it = std::find_if(dim->subdimensions.begin(), dim->subdimensions.end(), equal_to_pos_axis);
         assert(it != dim->subdimensions.end());
         dim->subdimensions.insert(std::next(it), sub);
         moved_axes.insert(sub.origin_axis().front());
@@ -473,7 +481,6 @@ static auto adjust_axes_for_rebase(shape_transform_descriptor& desc,
     if(shortage_axes.size() == nshortages)
         return axes_map;
 
-    std::cout << "before desc: " << desc << std::endl;
 
     auto by_hidden_axis = [](const dimension::sub* s) -> const std::vector<std::size_t>& {
         return s->hidden_axis;
@@ -540,10 +547,12 @@ static auto adjust_axes_for_rebase(shape_transform_descriptor& desc,
     };
 
     // Sort groups of hidden axis
-    group_unique(subs.begin(),
-                 subs.end(),
-                 sort_group_if([](dimension::sub* s) { return not s->hidden_axis.empty(); }),
-                 by(std::equal_to<>{}, by_hidden_axis_group));
+    group_unique(
+        subs.begin(),
+        subs.end(),
+        sort_group_if([](dimension::sub* s) { return not s->hidden_axis.empty(); }),
+        by(std::equal_to<>{}, by_hidden_axis_group));
+
 
     auto is_moved_axis = [&](const dimension::sub* s) {
         if(s->origin_axis().empty())
@@ -552,16 +561,14 @@ static auto adjust_axes_for_rebase(shape_transform_descriptor& desc,
     };
 
     // Sort groups of moved axes
-    for(auto& d : desc.dimensions)
+    for(auto& d:desc.dimensions)
     {
-        auto asubs = views::transform(d.subdimensions, [](dimension::sub& s) { return &s; });
-        group_unique(asubs.begin(),
-                     asubs.end(),
-                     sort_group_if(is_moved_axis),
-                     by(std::equal_to<>{}, is_moved_axis));
+        auto asubs = views::transform(
+            d.subdimensions,
+            [](dimension::sub& s) { return &s; });
+        group_unique(asubs.begin(), asubs.end(), sort_group_if(is_moved_axis), by(std::equal_to<>{}, is_moved_axis));
     }
 
-    std::cout << "after desc: " << desc << std::endl;
 
     auto regroup_axes = group_axes(desc.dimensions);
     renumber_axes(regroup_axes);
@@ -573,9 +580,7 @@ shape_transform_descriptor shape_transform_descriptor::rebase(const std::vector<
                                                               bool broadcast) const
 {
     auto result   = *this;
-    std::cout << "desc1: " << result << std::endl;
     auto axes_map = adjust_axes_for_rebase(result, dims);
-    std::cout << "desc2: " << result << std::endl;
     for(auto& [axis, subs] : axes_map)
     {
         assert(axis < dims.size());
@@ -618,10 +623,8 @@ shape_transform_descriptor shape_transform_descriptor::rebase(const std::vector<
         else
             return {};
     }
-    // TODO: Only simplify if the subs was changed
-    std::cout << "desc3: " << result << std::endl;
-    result.simplify();
-    std::cout << "desc4: " << result << std::endl;
+    for(auto& dim:result.dimensions)
+        remove_empty_sub_dims(dim.subdimensions);
     if(broadcast and not is_broadcast_only(dimensions, result.dimensions))
         return {};
 
@@ -826,6 +829,8 @@ static void remove_1_sub_dims(std::vector<dimension::sub>& subdimensions)
                                        subdimensions.end(),
                                        [&](const dimension::sub& d) { return d.len == 1; }),
                         subdimensions.end());
+    if(subdimensions.empty())
+        subdimensions.push_back({1, {}});
 }
 
 void dimension::simplify()

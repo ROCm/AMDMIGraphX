@@ -353,12 +353,27 @@ class axes_rebase_adjuster
     void process_axis_groups(const std::map<std::size_t, std::vector<dimension::sub*>>& axes_map,
                              std::vector<std::pair<dimension::sub, std::size_t>>& subs_to_insert)
     {
-        for_each_axis_group(
-            axes_map,
-            [this,
-             &subs_to_insert](const auto& axis, const auto& subs, auto excess, auto base_dim) {
-                process_single_axis_group(axis, subs, excess, base_dim, subs_to_insert);
-            });
+        for_each_axis_group(axes_map, [this, &subs_to_insert](std::size_t axis,
+            const std::vector<dimension::sub*>& subs,
+            std::size_t excess,
+            std::size_t base_dim) {
+auto saxes = shortage_axes.equal_range(excess);
+if(saxes.first == saxes.second)
+return;
+
+auto saxis_it = find_nearest_shortage_axis(saxes.first, saxes.second, axis);
+auto saxis    = saxis_it->second;
+
+// Try to swap an axis
+if(try_swap_axis(subs, excess, saxis, saxis_it))
+return;
+
+if(subs.size() != 1)
+return;
+
+// Move the shortage to the excess dim
+move_shortage_to_excess(saxis, subs, excess, base_dim, axis, saxis_it, subs_to_insert);
+});
     }
 
     template <class F>
@@ -385,30 +400,6 @@ class axes_rebase_adjuster
         });
     }
 
-    void
-    process_single_axis_group(std::size_t axis,
-                              const std::vector<dimension::sub*>& subs,
-                              std::size_t excess,
-                              std::size_t base_dim,
-                              std::vector<std::pair<dimension::sub, std::size_t>>& subs_to_insert)
-    {
-        auto saxes = shortage_axes.equal_range(excess);
-        if(saxes.first == saxes.second)
-            return;
-
-        auto saxis_it = find_nearest_shortage_axis(saxes.first, saxes.second, axis);
-        auto saxis    = saxis_it->second;
-
-        // Try to swap an axis
-        if(try_swap_axis(subs, excess, saxis, saxis_it))
-            return;
-
-        if(subs.size() != 1)
-            return;
-
-        // Move the shortage to the excess dim
-        move_shortage_to_excess(saxis, subs, excess, base_dim, axis, saxis_it, subs_to_insert);
-    }
 
     template <class Iterator>
     Iterator find_nearest_shortage_axis(Iterator first, Iterator last, std::size_t axis)
@@ -477,25 +468,21 @@ class axes_rebase_adjuster
     {
         for(auto& [sub, pos_axis] : subs_to_insert)
         {
-            insert_single_axis(sub, pos_axis);
+            // Inline insert_single_axis
+            auto equal_to_pos_axis = [&, lpos_axis = pos_axis](const dimension::sub& s) {
+                if(s.origin_axis().empty())
+                    return false;
+                return s.origin_axis().front() == lpos_axis;
+            };
+            auto dim_pair = find_subdimension_with_dimension(desc->dimensions, equal_to_pos_axis);
+            assert(dim_pair.first != nullptr);
+            auto* dim = dim_pair.first;
+            auto it =
+                std::find_if(dim->subdimensions.begin(), dim->subdimensions.end(), equal_to_pos_axis);
+            assert(it != dim->subdimensions.end());
+            dim->subdimensions.insert(std::next(it), sub);
+            moved_axes.insert(sub.origin_axis().front());
         }
-    }
-
-    void insert_single_axis(const dimension::sub& sub, std::size_t pos_axis)
-    {
-        auto equal_to_pos_axis = [&, lpos_axis = pos_axis](const dimension::sub& s) {
-            if(s.origin_axis().empty())
-                return false;
-            return s.origin_axis().front() == lpos_axis;
-        };
-        auto dim_pair = find_subdimension_with_dimension(desc->dimensions, equal_to_pos_axis);
-        assert(dim_pair.first != nullptr);
-        auto* dim = dim_pair.first;
-        auto it =
-            std::find_if(dim->subdimensions.begin(), dim->subdimensions.end(), equal_to_pos_axis);
-        assert(it != dim->subdimensions.end());
-        dim->subdimensions.insert(std::next(it), sub);
-        moved_axes.insert(sub.origin_axis().front());
     }
 
     static auto has_hidden_axis_pred()
@@ -513,54 +500,44 @@ class axes_rebase_adjuster
     void swap_closer_axes()
     {
         auto subs = get_pointer_subdimensions(desc->dimensions);
-        group_find(subs.begin(), subs.end(), has_hidden_axis_pred(), [this](auto start, auto last) {
-            swap_axes_in_group(start, last);
+        
+        group_find(subs.begin(), subs.end(), has_hidden_axis_pred(), [](auto start, auto last) {
+            if(std::distance(start, last) < 2)
+                return;
+            
+            adjacent_for_each(start, last, [&](dimension::sub* s1, dimension::sub* s2) {
+                if(s1->hidden_axis.empty())
+                    return;
+                if(s2->hidden_axis.empty())
+                    return;
+                assert(s1->axis.empty());
+                assert(s2->axis.empty());
+
+                auto it = min_element_if(
+                    start,
+                    last,
+                    [&](const dimension::sub* s) {
+                        // Valid if same len as s2 and hidden_axis greater than s1
+                        return s->len == s2->len and s->hidden_axis > s1->hidden_axis;
+                    },
+                    by(std::less<>{}, get_hidden_axis()));
+
+                if(it == last)
+                    return;
+
+                auto* next_sub = *it;
+                assert(s1->hidden_axis < next_sub->hidden_axis);
+                if(next_sub->hidden_axis.empty())
+                    return;
+                if(next_sub == s2)
+                    return;
+                if(next_sub->len != s2->len)
+                    return;
+                std::swap(*s2, *next_sub);
+            });
         });
     }
 
-    template <class Iterator>
-    void swap_axes_in_group(Iterator start, Iterator last)
-    {
-        if(std::distance(start, last) < 2)
-            return;
-        adjacent_for_each(start, last, [&](dimension::sub* s1, dimension::sub* s2) {
-            try_swap_adjacent_axes(start, last, s1, s2);
-        });
-    }
-
-    template <class Iterator>
-    void
-    try_swap_adjacent_axes(Iterator start, Iterator last, dimension::sub* s1, dimension::sub* s2)
-    {
-        if(s1->hidden_axis.empty())
-            return;
-        if(s2->hidden_axis.empty())
-            return;
-        assert(s1->axis.empty());
-        assert(s2->axis.empty());
-
-        auto it = min_element_if(
-            start,
-            last,
-            [&](const dimension::sub* s) {
-                // Valid if same len as s2 and hidden_axis greater than s1
-                return s->len == s2->len and s->hidden_axis > s1->hidden_axis;
-            },
-            by(std::less<>{}, get_hidden_axis()));
-
-        if(it == last)
-            return;
-
-        auto* next_sub = *it;
-        assert(s1->hidden_axis < next_sub->hidden_axis);
-        if(next_sub->hidden_axis.empty())
-            return;
-        if(next_sub == s2)
-            return;
-        if(next_sub->len != s2->len)
-            return;
-        std::swap(*s2, *next_sub);
-    }
 
     static auto get_hidden_axis_group()
     {

@@ -460,7 +460,6 @@ static auto adjust_axes_for_rebase(shape_transform_descriptor& desc,
             if(next_sub->len != s2->len)
                 return;
             // if(next_sub->hidden_axis.front() != s1->hidden_axis.front())
-            // return;
             std::swap(*s2, *next_sub);
         });
     });

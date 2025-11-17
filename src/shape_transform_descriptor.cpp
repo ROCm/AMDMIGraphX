@@ -354,9 +354,9 @@ struct axes_rebase_adjuster
     {
         for_each_axis_group(axes_map,
                             [&](std::size_t axis,
-                                                    const std::vector<dimension::sub*>& subs,
-                                                    std::size_t excess,
-                                                    std::size_t base_dim) {
+                                const std::vector<dimension::sub*>& subs,
+                                std::size_t excess,
+                                std::size_t base_dim) {
                                 auto saxes = shortage_axes.equal_range(excess);
                                 if(saxes.first == saxes.second)
                                     return;

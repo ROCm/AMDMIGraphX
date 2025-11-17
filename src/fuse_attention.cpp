@@ -433,7 +433,8 @@ struct find_flash_decoding
 
         // TODO: for this pass of flash decoding, if LSE attn, do not do flash decoding
         auto return_ins = std::prev(submod->end());
-        assert(return_ins->name() == "@return" and "Last instruction must be a @return instruction");
+        assert(return_ins->name() == "@return" and
+               "Last instruction must be a @return instruction");
         if(return_ins->inputs().size() > 1)
             return;
 

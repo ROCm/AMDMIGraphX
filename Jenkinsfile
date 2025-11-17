@@ -115,9 +115,9 @@ def setuponnxtest() {
     env.HSA_ENABLE_SDMA = 0
     
     sh 'printenv'
+    checkout scm
     sh 'rm -rf ./build/*.deb'
     unstash 'migraphx-package'
-    checkout scm
     
     def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3').trim()
     def render_id = sh(returnStdout: true, script: 'getent group render | cut -d: -f3').trim()
@@ -191,6 +191,7 @@ pipeline {
                     gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Build image", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Building image', failureDescription: 'Failed to build image', successDescription: 'Image build succeeded') {
                         withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
                             sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
+                            checkout scm
                             def builtImage
 
                             try {

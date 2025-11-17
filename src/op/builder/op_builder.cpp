@@ -43,7 +43,7 @@ void register_builder(const std::string& name, builder_func f)
     builder_map()[name] = std::move(f);
 }
 
-std::vector<instruction_ref>
+static std::vector<instruction_ref>
 default_op_builder(module& m, const std::vector<instruction_ref>& args, const value& options)
 {
     const auto& op = migraphx::from_value<operation>(options);

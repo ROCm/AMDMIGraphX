@@ -86,15 +86,15 @@ Iterator min_element_if(Iterator first, Iterator last, Predicate pred, Compare c
         bool b_valid = pred(b);
 
         // If neither is valid, prefer a (doesn't matter)
-        if( not a_valid and not b_valid)
+        if(not a_valid and not b_valid)
             return false;
 
         // If only b is valid, it should be selected
-        if( not a_valid)
+        if(not a_valid)
             return false;
 
         // If only a is valid, it should be selected
-        if( not b_valid)
+        if(not b_valid)
             return true;
 
         // Both are valid, select the smaller one using comparator

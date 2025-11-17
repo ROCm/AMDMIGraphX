@@ -302,7 +302,7 @@ static auto check_div(T x, U y) -> decltype(x / y)
 // Class to handle axes rebase adjustment
 class axes_rebase_adjuster
 {
-public:
+    public:
     axes_rebase_adjuster(shape_transform_descriptor& d, const std::vector<std::size_t>& ds)
         : desc(&d), dims(&ds), last_axis_split(std::numeric_limits<std::size_t>::max())
     {
@@ -335,7 +335,7 @@ public:
         return regroup_axes;
     }
 
-private:
+    private:
     void find_shortage_axes(const std::map<std::size_t, std::vector<dimension::sub*>>& axes_map)
     {
         for(auto& [axis, subs] : axes_map)
@@ -353,13 +353,17 @@ private:
     void process_axis_groups(const std::map<std::size_t, std::vector<dimension::sub*>>& axes_map,
                              std::vector<std::pair<dimension::sub, std::size_t>>& subs_to_insert)
     {
-        for_each_axis_group(axes_map, [this, &subs_to_insert](const auto& axis, const auto& subs, auto excess, auto base_dim) {
-            process_single_axis_group(axis, subs, excess, base_dim, subs_to_insert);
-        });
+        for_each_axis_group(
+            axes_map,
+            [this,
+             &subs_to_insert](const auto& axis, const auto& subs, auto excess, auto base_dim) {
+                process_single_axis_group(axis, subs, excess, base_dim, subs_to_insert);
+            });
     }
 
     template <class F>
-    void for_each_axis_group(const std::map<std::size_t, std::vector<dimension::sub*>>& axes_map, F f)
+    void for_each_axis_group(const std::map<std::size_t, std::vector<dimension::sub*>>& axes_map,
+                             F f)
     {
         for(auto& [axis, subs] : axes_map)
         {
@@ -381,11 +385,12 @@ private:
         });
     }
 
-    void process_single_axis_group(std::size_t axis,
-                                   const std::vector<dimension::sub*>& subs,
-                                   std::size_t excess,
-                                   std::size_t base_dim,
-                                   std::vector<std::pair<dimension::sub, std::size_t>>& subs_to_insert)
+    void
+    process_single_axis_group(std::size_t axis,
+                              const std::vector<dimension::sub*>& subs,
+                              std::size_t excess,
+                              std::size_t base_dim,
+                              std::vector<std::pair<dimension::sub, std::size_t>>& subs_to_insert)
     {
         auto saxes = shortage_axes.equal_range(excess);
         if(saxes.first == saxes.second)
@@ -416,7 +421,10 @@ private:
     }
 
     template <class Iterator>
-    bool try_swap_axis(const std::vector<dimension::sub*>& subs, std::size_t excess, std::size_t saxis, Iterator saxis_it)
+    bool try_swap_axis(const std::vector<dimension::sub*>& subs,
+                       std::size_t excess,
+                       std::size_t saxis,
+                       Iterator saxis_it)
     {
         auto it = std::find_if(subs.begin(), subs.end(), [&](dimension::sub* sub) {
             if(not sub->has_hidden_axis() and not sub->origin_axis().empty())
@@ -434,19 +442,21 @@ private:
     }
 
     template <class Iterator>
-    void move_shortage_to_excess(std::size_t saxis,
-                                 const std::vector<dimension::sub*>& subs,
-                                 std::size_t excess,
-                                 std::size_t base_dim,
-                                 std::size_t axis,
-                                 Iterator saxis_it,
-                                 std::vector<std::pair<dimension::sub, std::size_t>>& subs_to_insert)
+    void
+    move_shortage_to_excess(std::size_t saxis,
+                            const std::vector<dimension::sub*>& subs,
+                            std::size_t excess,
+                            std::size_t base_dim,
+                            std::size_t axis,
+                            Iterator saxis_it,
+                            std::vector<std::pair<dimension::sub, std::size_t>>& subs_to_insert)
     {
-        auto dim_pair = find_subdimension_with_dimension(desc->dimensions, [&](const dimension::sub& s) {
-            if(s.axis.size() != 1)
-                return false;
-            return s.axis.front() == saxis;
-        });
+        auto dim_pair =
+            find_subdimension_with_dimension(desc->dimensions, [&](const dimension::sub& s) {
+                if(s.axis.size() != 1)
+                    return false;
+                return s.axis.front() == saxis;
+            });
         if(dim_pair.first == nullptr)
             return;
         auto* dim = dim_pair.first;
@@ -462,7 +472,8 @@ private:
         shortage_axes.erase(saxis_it);
     }
 
-    void insert_moved_axes(const std::vector<std::pair<dimension::sub, std::size_t>>& subs_to_insert)
+    void
+    insert_moved_axes(const std::vector<std::pair<dimension::sub, std::size_t>>& subs_to_insert)
     {
         for(auto& [sub, pos_axis] : subs_to_insert)
         {
@@ -518,7 +529,8 @@ private:
     }
 
     template <class Iterator>
-    void try_swap_adjacent_axes(Iterator start, Iterator last, dimension::sub* s1, dimension::sub* s2)
+    void
+    try_swap_adjacent_axes(Iterator start, Iterator last, dimension::sub* s1, dimension::sub* s2)
     {
         if(s1->hidden_axis.empty())
             return;
@@ -592,10 +604,11 @@ private:
     void sort_hidden_axes_groups()
     {
         auto subs = get_pointer_subdimensions(desc->dimensions);
-        group_unique(subs.begin(),
-                     subs.end(),
-                     create_sort_group_if([](dimension::sub* s) { return not s->hidden_axis.empty(); }),
-                     by(std::equal_to<>{}, get_hidden_axis_group()));
+        group_unique(
+            subs.begin(),
+            subs.end(),
+            create_sort_group_if([](dimension::sub* s) { return not s->hidden_axis.empty(); }),
+            by(std::equal_to<>{}, get_hidden_axis_group()));
     }
 
     void sort_moved_axes_groups()
@@ -610,7 +623,7 @@ private:
         }
     }
 
-private:
+    private:
     shape_transform_descriptor* desc;
     const std::vector<std::size_t>* dims;
     const std::size_t last_axis_split;

@@ -340,11 +340,6 @@ struct find_op_shape_transform_op
             return;
         }
 
-        // std::cout << "****************** ops: " << to_string_range(ops) << std::endl;
-        // m.debug_print({x_ins, input_ins, ins});
-        // std::cout << "****************** desc: " << desc << std::endl;
-        // m.debug_print();
-
         auto reshape_input = [&](const auto& ins_to_insert, const auto& gdesc) {
             return [&](auto input) {
                 auto gops = generate(gdesc, input->get_shape());

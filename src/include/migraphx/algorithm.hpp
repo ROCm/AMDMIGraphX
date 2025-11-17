@@ -77,6 +77,34 @@ OutputIterator transform_partial_sum(
     return ++d_first;
 }
 
+template <class Iterator, class Predicate, class Compare>
+Iterator min_element_if(Iterator first, Iterator last, Predicate pred, Compare comp)
+{
+    auto it = std::min_element(first, last, [&](const auto& a, const auto& b) {
+        // Check if elements are valid
+        bool a_valid = pred(a);
+        bool b_valid = pred(b);
+
+        // If neither is valid, prefer a (doesn't matter)
+        if(!a_valid && !b_valid)
+            return false;
+
+        // If only b is valid, it should be selected
+        if(!a_valid)
+            return false;
+
+        // If only a is valid, it should be selected
+        if(!b_valid)
+            return true;
+
+        // Both are valid, select the smaller one using comparator
+        return comp(a, b);
+    });
+    if(it != last && pred(*it))
+        return it;
+    return last;
+}
+
 template <class Iterator, class Output, class Predicate>
 void group_by(Iterator start, Iterator last, Output out, Predicate pred)
 {

@@ -289,6 +289,16 @@ static auto find_subdimension_with_dimension(Dimensions& dims, Predicate pred)
     return {nullptr, nullptr};
 }
 
+template<class T, class U>
+static auto check_div(T x, U y) -> decltype(x/y)
+{
+    if(y == 0)
+        return 0;
+    if((x % y) != 0)
+        return 0;
+    return x / y;
+}
+
 static auto adjust_axes_for_rebase(shape_transform_descriptor& desc,
                                    const std::vector<std::size_t>& dims)
 {
@@ -299,10 +309,9 @@ static auto adjust_axes_for_rebase(shape_transform_descriptor& desc,
     std::multimap<std::size_t, std::size_t> shortage_axes;
     for(auto& [axis, subs] : axes_map)
     {
-        // TODO: Check the remainder
         assert(axis < dims.size());
         auto dim      = dims[axis];
-        auto shortage = dim / len(subs);
+        auto shortage = check_div(dim, len(subs));
         if(shortage < 2)
             continue;
         shortage_axes.emplace(shortage, axis);
@@ -318,7 +327,7 @@ static auto adjust_axes_for_rebase(shape_transform_descriptor& desc,
         {
             assert(axis < dims.size());
             auto dim    = dims[axis];
-            auto excess = len(subs) / dim;
+            auto excess = check_div(len(subs), dim);
             if(excess < 2)
                 continue;
             f(axis, subs, excess, dim);

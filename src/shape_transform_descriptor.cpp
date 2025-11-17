@@ -289,8 +289,8 @@ static auto find_subdimension_with_dimension(Dimensions& dims, Predicate pred)
     return {nullptr, nullptr};
 }
 
-template<class T, class U>
-static auto check_div(T x, U y) -> decltype(x/y)
+template <class T, class U>
+static auto check_div(T x, U y) -> decltype(x / y)
 {
     if(y == 0)
         return 0;

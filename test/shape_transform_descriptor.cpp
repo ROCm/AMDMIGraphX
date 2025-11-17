@@ -1012,11 +1012,10 @@ TEST_CASE(rebase_adjust_axes_basic_shortage)
 {
     // Test shortage matching with broadcast excess
     // Original: {1, 16} broadcast to larger, then need to match with {1, 16}
-    auto base_desc =
-        make_simple_descriptor({1, 16},
-                               make_op("multibroadcast", {{"out_lens", {16, 16}}}),
-                               make_op("reshape", {{"dims", {2, 8, 16}}}));
-    
+    auto base_desc = make_simple_descriptor({1, 16},
+                                            make_op("multibroadcast", {{"out_lens", {16, 16}}}),
+                                            make_op("reshape", {{"dims", {2, 8, 16}}}));
+
     {
         // Rebase back to the original - should work
         auto desc = base_desc.rebase({1, 16});
@@ -1025,9 +1024,9 @@ TEST_CASE(rebase_adjust_axes_basic_shortage)
         EXPECT(get_all_lens(desc) == all_lens{{2}, {8}, {16}});
         auto generated = desc.generate();
         EXPECT(generated == ops{
-                               make_op("unsqueeze", {{"axes", {1}}}),
-                               make_op("multibroadcast", {{"out_lens", {2, 8, 16}}}),
-                           });
+                                make_op("unsqueeze", {{"axes", {1}}}),
+                                make_op("multibroadcast", {{"out_lens", {2, 8, 16}}}),
+                            });
     }
 }
 
@@ -1035,11 +1034,10 @@ TEST_CASE(rebase_adjust_axes_multiple_groups)
 {
     // Test multiple groups in group algorithms
     // Create transformation with multiple broadcast dimensions
-    auto base_desc =
-        make_simple_descriptor({1, 1, 32},
-                               make_op("multibroadcast", {{"out_lens", {4, 8, 32}}}),
-                               make_op("reshape", {{"dims", {2, 2, 2, 4, 32}}}));
-    
+    auto base_desc = make_simple_descriptor({1, 1, 32},
+                                            make_op("multibroadcast", {{"out_lens", {4, 8, 32}}}),
+                                            make_op("reshape", {{"dims", {2, 2, 2, 4, 32}}}));
+
     {
         // Multiple axes have shortages that need different handling
         auto desc = base_desc.rebase({1, 1, 32}, true); // Force broadcast mode
@@ -1048,9 +1046,9 @@ TEST_CASE(rebase_adjust_axes_multiple_groups)
         EXPECT(get_all_lens(desc) == all_lens{{2}, {2}, {2}, {4}, {32}});
         auto generated = desc.generate();
         EXPECT(generated == ops{
-                               make_op("unsqueeze", {{"axes", {1, 3}}}),
-                               make_op("multibroadcast", {{"out_lens", {2, 2, 2, 4, 32}}}),
-                           });
+                                make_op("unsqueeze", {{"axes", {1, 3}}}),
+                                make_op("multibroadcast", {{"out_lens", {2, 2, 2, 4, 32}}}),
+                            });
     }
 }
 
@@ -1058,9 +1056,8 @@ TEST_CASE(rebase_adjust_axes_hidden_swap_simple)
 {
     // Simple test for hidden axis logic without complex transformations
     auto base_desc =
-        make_simple_descriptor({2, 1, 16},
-                               make_op("multibroadcast", {{"out_lens", {2, 8, 16}}}));
-    
+        make_simple_descriptor({2, 1, 16}, make_op("multibroadcast", {{"out_lens", {2, 8, 16}}}));
+
     {
         // The broadcast axis becomes hidden when rebasing
         auto desc = base_desc.rebase({2, 1, 16}, true);
@@ -1070,19 +1067,18 @@ TEST_CASE(rebase_adjust_axes_hidden_swap_simple)
         EXPECT(desc.find_broadcasted_axes().size() == 1); // Should have hidden axis at 1
         auto generated = desc.generate();
         EXPECT(generated == ops{
-                               make_op("multibroadcast", {{"out_lens", {2, 8, 16}}}),
-                           });
+                                make_op("multibroadcast", {{"out_lens", {2, 8, 16}}}),
+                            });
     }
 }
 
 TEST_CASE(rebase_adjust_axes_axis_movement)
 {
     // Test axis movement and insertion logic (subs_to_insert path)
-    auto base_desc =
-        make_simple_descriptor({8, 1},
-                               make_op("reshape", {{"dims", {2, 4, 1}}}),
-                               make_op("multibroadcast", {{"out_lens", {2, 4, 16}}}));
-    
+    auto base_desc = make_simple_descriptor({8, 1},
+                                            make_op("reshape", {{"dims", {2, 4, 1}}}),
+                                            make_op("multibroadcast", {{"out_lens", {2, 4, 16}}}));
+
     {
         // Rebase to something compatible
         auto desc = base_desc.rebase({8, 1});
@@ -1091,19 +1087,18 @@ TEST_CASE(rebase_adjust_axes_axis_movement)
         EXPECT(get_all_lens(desc) == all_lens{{2}, {4}, {16}});
         auto generated = desc.generate();
         EXPECT(generated == ops{
-                               make_op("reshape", {{"dims", {2, 4, 1}}}),
-                               make_op("multibroadcast", {{"out_lens", {2, 4, 16}}}),
-                           });
+                                make_op("reshape", {{"dims", {2, 4, 1}}}),
+                                make_op("multibroadcast", {{"out_lens", {2, 4, 16}}}),
+                            });
     }
 }
 
 TEST_CASE(rebase_adjust_axes_group_unique_hidden)
 {
     // Test group_unique with hidden axis groups
-    auto base_desc =
-        make_simple_descriptor({1, 1, 1, 16},
-                               make_op("multibroadcast", {{"out_lens", {2, 4, 8, 16}}}));
-    
+    auto base_desc = make_simple_descriptor(
+        {1, 1, 1, 16}, make_op("multibroadcast", {{"out_lens", {2, 4, 8, 16}}}));
+
     {
         // Multiple hidden axes that need grouping and sorting
         auto desc = base_desc.rebase({1, 1, 1, 16}, true);
@@ -1113,19 +1108,18 @@ TEST_CASE(rebase_adjust_axes_group_unique_hidden)
         EXPECT(desc.find_broadcasted_axes().size() == 3); // Three broadcast axes
         auto generated = desc.generate();
         EXPECT(generated == ops{
-                               make_op("multibroadcast", {{"out_lens", {2, 4, 8, 16}}}),
-                           });
+                                make_op("multibroadcast", {{"out_lens", {2, 4, 8, 16}}}),
+                            });
     }
 }
 
 TEST_CASE(rebase_no_axis_subdimensions)
 {
     // Test the logic for subdimensions with no axis (pure broadcasts)
-    auto base_desc =
-        make_simple_descriptor({1},
-                               make_op("multibroadcast", {{"out_lens", {16}}}),
-                               make_op("reshape", {{"dims", {2, 8}}}));
-    
+    auto base_desc = make_simple_descriptor({1},
+                                            make_op("multibroadcast", {{"out_lens", {16}}}),
+                                            make_op("reshape", {{"dims", {2, 8}}}));
+
     {
         // The no-axis subdimension should be considered for excess
         auto desc = base_desc.rebase({16});
@@ -1139,12 +1133,11 @@ TEST_CASE(rebase_no_axis_subdimensions)
 TEST_CASE(rebase_adjust_axes_insert_and_sort)
 {
     // Test subs_to_insert path and moved axes sorting
-    auto base_desc =
-        make_simple_descriptor({16, 1},
-                               make_op("reshape", {{"dims", {2, 8, 1}}}),
-                               make_op("multibroadcast", {{"out_lens", {2, 8, 32}}}),
-                               make_op("reshape", {{"dims", {2, 256}}}));
-    
+    auto base_desc = make_simple_descriptor({16, 1},
+                                            make_op("reshape", {{"dims", {2, 8, 1}}}),
+                                            make_op("multibroadcast", {{"out_lens", {2, 8, 32}}}),
+                                            make_op("reshape", {{"dims", {2, 256}}}));
+
     {
         // Use the original shape for rebase
         auto desc = base_desc.rebase({16, 1});
@@ -1153,21 +1146,20 @@ TEST_CASE(rebase_adjust_axes_insert_and_sort)
         EXPECT(get_all_lens(desc) == all_lens{{2}, {8, 32}});
         auto generated = desc.generate();
         EXPECT(generated == ops{
-                               make_op("reshape", {{"dims", {2, 8, 1}}}),
-                               make_op("multibroadcast", {{"out_lens", {2, 8, 32}}}),
-                               make_op("reshape", {{"dims", {2, 256}}}),
-                           });
+                                make_op("reshape", {{"dims", {2, 8, 1}}}),
+                                make_op("multibroadcast", {{"out_lens", {2, 8, 32}}}),
+                                make_op("reshape", {{"dims", {2, 256}}}),
+                            });
     }
 }
 
-TEST_CASE(rebase_adjust_axes_group_unique_segments)  
+TEST_CASE(rebase_adjust_axes_group_unique_segments)
 {
     // Test multiple segments in group_unique with different hidden axis groups
-    auto base_desc =
-        make_simple_descriptor({1, 1, 32},
-                               make_op("multibroadcast", {{"out_lens", {8, 4, 32}}}),
-                               make_op("reshape", {{"dims", {2, 4, 4, 32}}}));
-    
+    auto base_desc = make_simple_descriptor({1, 1, 32},
+                                            make_op("multibroadcast", {{"out_lens", {8, 4, 32}}}),
+                                            make_op("reshape", {{"dims", {2, 4, 4, 32}}}));
+
     {
         // Multiple groups for group_unique to process
         auto desc = base_desc.rebase({1, 1, 32}, true);
@@ -1176,9 +1168,9 @@ TEST_CASE(rebase_adjust_axes_group_unique_segments)
         EXPECT(get_all_lens(desc) == all_lens{{2}, {4}, {4}, {32}});
         auto generated = desc.generate();
         EXPECT(generated == ops{
-                               make_op("unsqueeze", {{"axes", {1}}}),
-                               make_op("multibroadcast", {{"out_lens", {2, 4, 4, 32}}}),
-                           });
+                                make_op("unsqueeze", {{"axes", {1}}}),
+                                make_op("multibroadcast", {{"out_lens", {2, 4, 4, 32}}}),
+                            });
     }
 }
 
@@ -1189,7 +1181,7 @@ TEST_CASE(rebase_adjust_axes_many_hidden_groups)
         make_simple_descriptor({1, 1, 1, 1, 1, 16},
                                make_op("multibroadcast", {{"out_lens", {2, 3, 4, 5, 6, 16}}}),
                                make_op("reshape", {{"dims", {2, 3, 2, 2, 5, 2, 3, 16}}}));
-    
+
     {
         // 5 broadcast axes that become hidden, creating multiple groups
         auto desc = base_desc.rebase({1, 1, 1, 1, 1, 16}, true);
@@ -1199,14 +1191,15 @@ TEST_CASE(rebase_adjust_axes_many_hidden_groups)
         // Should have 5 hidden axes
         EXPECT(desc.find_broadcasted_axes().size() == 5);
         auto generated = desc.generate();
-        EXPECT(generated == ops{
-                               make_op("unsqueeze", {{"axes", {3, 6}}}),
-                               make_op("multibroadcast", {{"out_lens", {2, 3, 2, 2, 5, 2, 3, 16}}}),
-                           });
+        EXPECT(generated ==
+               ops{
+                   make_op("unsqueeze", {{"axes", {3, 6}}}),
+                   make_op("multibroadcast", {{"out_lens", {2, 3, 2, 2, 5, 2, 3, 16}}}),
+               });
     }
 }
 
-TEST_CASE(rebase_adjust_axes_many_moved_groups) 
+TEST_CASE(rebase_adjust_axes_many_moved_groups)
 {
     // Test with >3 groups where axes need to be moved and sorted
     // This creates a complex scenario with multiple shortage/excess pairs
@@ -1214,7 +1207,7 @@ TEST_CASE(rebase_adjust_axes_many_moved_groups)
         make_simple_descriptor({1, 1, 1, 1, 64},
                                make_op("multibroadcast", {{"out_lens", {8, 4, 2, 6, 64}}}),
                                make_op("reshape", {{"dims", {2, 4, 2, 2, 2, 3, 2, 2, 32}}}));
-    
+
     {
         // Multiple axes with different shortage/excess patterns - use broadcast mode
         auto desc = base_desc.rebase({1, 1, 1, 1, 64}, true);
@@ -1222,10 +1215,11 @@ TEST_CASE(rebase_adjust_axes_many_moved_groups)
         EXPECT(get_final_lens(desc) == final_lens{2, 4, 2, 2, 2, 3, 2, 2, 32});
         EXPECT(get_all_lens(desc) == all_lens{{2}, {4}, {2}, {2}, {2}, {3}, {2}, {2}, {32}});
         auto generated = desc.generate();
-        EXPECT(generated == ops{
-                               make_op("reshape", {{"dims", {1, 1, 1, 1, 1, 1, 1, 2, 32}}}),
-                               make_op("multibroadcast", {{"out_lens", {2, 4, 2, 2, 2, 3, 2, 2, 32}}}),
-                           });
+        EXPECT(generated ==
+               ops{
+                   make_op("reshape", {{"dims", {1, 1, 1, 1, 1, 1, 1, 2, 32}}}),
+                   make_op("multibroadcast", {{"out_lens", {2, 4, 2, 2, 2, 3, 2, 2, 32}}}),
+               });
     }
 }
 

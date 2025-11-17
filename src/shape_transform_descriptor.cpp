@@ -474,7 +474,6 @@ static auto adjust_axes_for_rebase(shape_transform_descriptor& desc,
         return [=](auto start, auto last) {
             if(std::distance(start, last) < 2)
                 return;
-            // if((*start)->hidden_axis.empty())
             if(not pred(*start))
                 return;
             auto r = range(start, last);

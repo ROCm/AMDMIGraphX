@@ -56,9 +56,10 @@ struct tile : op_builder<tile>
         /*
         input_lens:           {l0, l1, l2, ..., lN-1} - size: N
         repeats:              {r0, r1, r2, ..., rN-1} - size: N
-        after unsqueeze:      {1, l0, 1, l1, 1, l2, ..., 1, lN-1}; - size: 2*N; putting 1 before each dimension
-        after multibroadcast: {r0, l0, r1, l1, r2, l2, ..., rN-1, lN-1}; - size: 2*N; putting r_i before each dimension
-        after reshape:        {r0*l0, r1*l1, r2*l2, ..., rN-1*lN-1}; - size: N again; multiplying each pair of dimensions
+        after unsqueeze:      {1, l0, 1, l1, 1, l2, ..., 1, lN-1}; - size: 2*N; putting 1 before
+        each dimension after multibroadcast: {r0, l0, r1, l1, r2, l2, ..., rN-1, lN-1}; - size: 2*N;
+        putting r_i before each dimension after reshape:        {r0*l0, r1*l1, r2*l2, ...,
+        rN-1*lN-1}; - size: N again; multiplying each pair of dimensions
         */
 
         std::vector<int64_t> unsq_axes(input_lens.size());

@@ -300,11 +300,10 @@ static auto check_div(T x, U y) -> decltype(x / y)
 }
 
 // Class to handle axes rebase adjustment
-class axes_rebase_adjuster
+struct axes_rebase_adjuster
 {
-    public:
     axes_rebase_adjuster(shape_transform_descriptor& d, const std::vector<std::size_t>& ds)
-        : desc(&d), dims(&ds), last_axis_split(std::numeric_limits<std::size_t>::max())
+        : desc(&d), dims(&ds)
     {
     }
 
@@ -355,9 +354,9 @@ class axes_rebase_adjuster
     {
         for_each_axis_group(axes_map,
                             [&](std::size_t axis,
-                                const std::vector<dimension::sub*>& subs,
-                                std::size_t excess,
-                                std::size_t base_dim) {
+                                                    const std::vector<dimension::sub*>& subs,
+                                                    std::size_t excess,
+                                                    std::size_t base_dim) {
                                 auto saxes = shortage_axes.equal_range(excess);
                                 if(saxes.first == saxes.second)
                                     return;
@@ -604,10 +603,11 @@ class axes_rebase_adjuster
     private:
     shape_transform_descriptor* desc;
     const std::vector<std::size_t>* dims;
-    const std::size_t last_axis_split;
     std::multimap<std::size_t, std::size_t> shortage_axes;
     std::size_t initial_shortage_count = 0;
     std::unordered_set<std::size_t> moved_axes;
+
+    static const std::size_t last_axis_split = std::numeric_limits<std::size_t>::max();
 };
 
 static auto adjust_axes_for_rebase(shape_transform_descriptor& desc,

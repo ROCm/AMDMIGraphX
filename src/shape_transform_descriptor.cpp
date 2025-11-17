@@ -354,7 +354,7 @@ class axes_rebase_adjuster
                              std::vector<std::pair<dimension::sub, std::size_t>>& subs_to_insert)
     {
         for_each_axis_group(axes_map,
-                            [this, &subs_to_insert](std::size_t axis,
+                            [&](std::size_t axis,
                                                     const std::vector<dimension::sub*>& subs,
                                                     std::size_t excess,
                                                     std::size_t base_dim) {

@@ -23,6 +23,7 @@
  */
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/generate.hpp>
@@ -37,7 +38,9 @@ static void run_pass(migraphx::module& m)
 {
     migraphx::run_passes(m,
                          {migraphx::simplify_reshapes{.enable_op_shape_transform_op = true},
-                          migraphx::dead_code_elimination{}});
+                          migraphx::eliminate_common_subexpression{},
+                          migraphx::dead_code_elimination{},
+                      });
 }
 
 inline static std::vector<std::vector<std::size_t>>
@@ -2759,19 +2762,21 @@ TEST_CASE(reduce_unsqueeze_broadcast_transpose_pointwise1)
     }
     run_pass(m1);
     migraphx::module m2;
-    // {
-    //     auto x        = m2.add_parameter("x", s1);
-    //     auto y        = m2.add_parameter("y", s2);
-    //     auto xreshape = m2.add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}),
-    //     x); auto reduce_sum =
-    //         m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4, 5}}}),
-    //         xreshape);
-    //     auto broadcast = m2.add_instruction(
-    //         migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), reduce_sum);
-    //     auto add  = m2.add_instruction(migraphx::make_op("add"), broadcast, y);
-    //     auto relu = m2.add_instruction(migraphx::make_op("relu"), add);
-    //     m2.add_return({relu});
-    // }
+    {
+        auto x        = m2.add_parameter("x", s1);
+        auto y        = m2.add_parameter("y", s2);
+        auto xreshape = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 256, 2, 256, 2, 3}}}),
+        x); 
+        auto xtranspose = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 5, 1, 2, 3, 4}}}), xreshape);
+        auto reduce_sum =
+            m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4, 5}}}),
+            xtranspose);
+        auto broadcast = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), reduce_sum);
+        auto add  = m2.add_instruction(migraphx::make_op("add"), broadcast, y);
+        auto relu = m2.add_instruction(migraphx::make_op("relu"), add);
+        m2.add_return({relu});
+    }
     EXPECT(m1.sort() == m2.sort());
 }
 
@@ -2794,7 +2799,7 @@ TEST_CASE(reduce_unsqueeze_broadcast_transpose_pointwise2)
         auto add        = m1.add_instruction(migraphx::make_op("add"), broadcast, y);
         auto relu       = m1.add_instruction(migraphx::make_op("relu"), add);
         auto transpose2 = m1.add_instruction(
-            migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), reduce_sum);
+            migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), x);
         auto reshape =
             m1.add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), transpose2);
         auto mul = m1.add_instruction(migraphx::make_op("mul"), relu, reshape);
@@ -2802,19 +2807,22 @@ TEST_CASE(reduce_unsqueeze_broadcast_transpose_pointwise2)
     }
     run_pass(m1);
     migraphx::module m2;
-    // {
-    //     auto x        = m2.add_parameter("x", s1);
-    //     auto y        = m2.add_parameter("y", s2);
-    //     auto xreshape = m2.add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}),
-    //     x); auto reduce_sum =
-    //         m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4, 5}}}),
-    //         xreshape);
-    //     auto broadcast = m2.add_instruction(
-    //         migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), reduce_sum);
-    //     auto add  = m2.add_instruction(migraphx::make_op("add"), broadcast, y);
-    //     auto relu = m2.add_instruction(migraphx::make_op("relu"), add);
-    //     m2.add_return({relu});
-    // }
+    {
+        auto x        = m2.add_parameter("x", s1);
+        auto y        = m2.add_parameter("y", s2);
+        auto xreshape = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 256, 2, 256, 2, 3}}}),
+        x); 
+        auto xtranspose = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 5, 1, 2, 3, 4}}}), xreshape);
+        auto reduce_sum =
+            m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4, 5}}}),
+            xtranspose);
+        auto broadcast = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), reduce_sum);
+        auto add  = m2.add_instruction(migraphx::make_op("add"), broadcast, y);
+        auto relu = m2.add_instruction(migraphx::make_op("relu"), add);
+        auto mul = m2.add_instruction(migraphx::make_op("mul"), relu, xtranspose);
+        m2.add_return({mul});
+    }
     EXPECT(m1.sort() == m2.sort());
 }
 

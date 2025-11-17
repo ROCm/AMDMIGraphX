@@ -33,13 +33,3 @@ TEST_CASE(op_builder_module_args_not_empty_no_name_param_op_builder_test)
         [&] { migraphx::op::builder::add("clip", mm_dummy, {}, module_args); },
         "Module args should be empty"));
 }
-
-TEST_CASE(op_builder_module_args_not_empty_op_builder_test)
-{
-    migraphx::module mm_dummy;
-    std::vector<migraphx::module_ref> module_args{&mm_dummy};
-
-    EXPECT(test::throws<migraphx::exception>(
-        [&] { migraphx::op::builder::add("abs", mm_dummy, {}, module_args); },
-        "Module args should be empty"));
-}

@@ -32,6 +32,9 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct module_pass_manager;
+struct instruction;
+
+MIGRAPHX_EXPORT bool is_reduce(const instruction& ins);
 
 /// For large reductions that are larger than the split_size, this pass will
 /// split the fused_reduce operators so that the reduction will happen across

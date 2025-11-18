@@ -74,7 +74,7 @@ struct split_fused_reduce
 };
 MIGRAPHX_REGISTER_OP(split_fused_reduce);
 
-static bool is_reduce(const instruction& ins) { return contains(ins.name(), "reduce"); }
+bool is_reduce(const instruction& ins) { return contains(ins.name(), "reduce"); }
 
 namespace {
 struct splitter

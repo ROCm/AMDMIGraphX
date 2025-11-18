@@ -303,7 +303,7 @@ static auto check_div(T x, U y) -> decltype(x / y)
 struct axes_rebase_adjuster
 {
     using axes_map_t = std::map<std::size_t, std::vector<dimension::sub*>>;
-    
+
     struct axis_info
     {
         std::size_t saxis;
@@ -311,7 +311,7 @@ struct axes_rebase_adjuster
         std::size_t base_dim;
         std::size_t axis;
     };
-    
+
     axes_rebase_adjuster(shape_transform_descriptor& d, const std::vector<std::size_t>& ds)
         : desc(&d), dims(&ds)
     {
@@ -364,16 +364,16 @@ struct axes_rebase_adjuster
     {
         for_each_axis_group(axes_map,
                             [&](std::size_t axis,
-                                                    const std::vector<dimension::sub*>& subs,
-                                                    std::size_t excess,
-                                                    std::size_t base_dim) {
+                                const std::vector<dimension::sub*>& subs,
+                                std::size_t excess,
+                                std::size_t base_dim) {
                                 auto saxes = shortage_axes.equal_range(excess);
                                 if(saxes.first == saxes.second)
                                     return;
 
                                 auto saxis_it =
                                     find_nearest_shortage_axis(saxes.first, saxes.second, axis);
-                                
+
                                 axis_info info{saxis_it->second, excess, base_dim, axis};
 
                                 // Try to swap an axis
@@ -443,9 +443,10 @@ struct axes_rebase_adjuster
         return false;
     }
 
-    bool move_shortage_to_excess(const std::vector<dimension::sub*>& subs,
-                                 const axis_info& info,
-                                 std::vector<std::pair<dimension::sub, std::size_t>>& subs_to_insert)
+    bool
+    move_shortage_to_excess(const std::vector<dimension::sub*>& subs,
+                            const axis_info& info,
+                            std::vector<std::pair<dimension::sub, std::size_t>>& subs_to_insert)
     {
         auto dim_pair =
             find_subdimension_with_dimension(desc->dimensions, [&](const dimension::sub& s) {

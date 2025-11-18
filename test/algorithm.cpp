@@ -86,8 +86,8 @@ MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(adjacent_remove_if_non_equivalence, int)
 TEST_CASE(min_element_if_basic)
 {
     std::vector<int> v = {5, 3, 7, 1, 9, 2};
-    auto is_even = [](int x) { return x % 2 == 0; };
-    auto it = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
+    auto is_even       = [](int x) { return x % 2 == 0; };
+    auto it            = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
     EXPECT(it != v.end());
     EXPECT(*it == 2);
 }
@@ -95,16 +95,16 @@ TEST_CASE(min_element_if_basic)
 TEST_CASE(min_element_if_no_valid)
 {
     std::vector<int> v = {5, 3, 7, 1, 9};
-    auto is_even = [](int x) { return x % 2 == 0; };
-    auto it = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
+    auto is_even       = [](int x) { return x % 2 == 0; };
+    auto it            = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
     EXPECT(it == v.end());
 }
 
 TEST_CASE(min_element_if_all_valid)
 {
     std::vector<int> v = {6, 2, 8, 4, 10};
-    auto is_even = [](int x) { return x % 2 == 0; };
-    auto it = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
+    auto is_even       = [](int x) { return x % 2 == 0; };
+    auto it            = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
     EXPECT(it != v.end());
     EXPECT(*it == 2);
 }
@@ -112,7 +112,7 @@ TEST_CASE(min_element_if_all_valid)
 TEST_CASE(min_element_if_custom_compare)
 {
     std::vector<int> v = {5, 3, 7, 1, 9, 2, 8};
-    auto is_even = [](int x) { return x % 2 == 0; };
+    auto is_even       = [](int x) { return x % 2 == 0; };
     // Find the largest even number
     auto it = migraphx::min_element_if(v.begin(), v.end(), is_even, std::greater<>{});
     EXPECT(it != v.end());
@@ -123,15 +123,15 @@ TEST_CASE(min_element_if_empty)
 {
     std::vector<int> v;
     auto is_even = [](int x) { return x % 2 == 0; };
-    auto it = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
+    auto it      = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
     EXPECT(it == v.end());
 }
 
 TEST_CASE(min_element_if_first_element)
 {
     std::vector<int> v = {2, 5, 3, 7, 1, 9};
-    auto is_even = [](int x) { return x % 2 == 0; };
-    auto it = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
+    auto is_even       = [](int x) { return x % 2 == 0; };
+    auto it            = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
     EXPECT(it != v.end());
     EXPECT(*it == 2);
     EXPECT(it == v.begin());

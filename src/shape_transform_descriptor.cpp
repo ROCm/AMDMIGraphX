@@ -299,24 +299,63 @@ static auto check_div(T x, U y) -> decltype(x / y)
     return x / y;
 }
 
-// Class to handle axes rebase adjustment
+// Class to handle axes rebase adjustment for ambiguous reshape transformations
+// 
+// This class solves an ambiguity problem that arises when shape_transform_descriptor 
+// records reshape operations involving dimensions of size 1. When reshaping with 1 dims,
+// there are multiple valid ways to split/assign axes, and the descriptor may not match
+// the expected layout when rebasing.
+//
+// Why this is needed:
+// When shape_transform_descriptor reshapes from [4, 1, 4] to [4, 1, 1, 4], it could record:
+// - Option 1: [4:0], [1:1,0], [1:1,1], [4:2] (axis 1 split into two)
+// - Option 2: [4:0], [1:1], [1:2,0], [4:2,1] (axis 2 split, with 1 inserted)
+// Both are valid, but when rebasing, we need to adjust to match the expected dimensions.
+// A similar issue occurs when squeezing 1 dims - the axis assignment becomes ambiguous.
+//
+// Example scenarios:
+//
+// 1. Reshape with 1-dim splitting ambiguity:
+//    - Shape transform: [8, 1] → [2, 4, 1] → broadcast [2, 4, 16]
+//    - Problem: The [8:0] could be split as [2:0,0], [4:0,1] or differently
+//    - When rebasing to [8, 1], axis 1 may have no subdimensions assigned
+//    - Solution: Readjust axes to ensure dimension 1 gets proper subdimensions
+//
+// 2. Broadcast dimension reassignment:
+//    - Original: [1, 16] broadcast to [16, 16], then reshape to [2, 8, 16]
+//    - Problem: The broadcast dim [16:] has no axis, but needs to be assigned
+//    - Solution: Find which axis has shortage and assign the broadcast dim there
+//
+// 3. Multiple 1-dims with complex transformations:
+//    - Original: [1, 1, 32] through multiple reshapes and broadcasts
+//    - Problem: Multiple dimension 1s create multiple valid axis assignments
+//    - Solution: Match shortages with excesses systematically
+//
+// The adjustment process:
+// - Identifies "shortage" axes (target dim > current subdimensions)
+// - Finds "excess" axes or unassigned broadcast dimensions
+// - Redistributes subdimensions to resolve the ambiguity
+// - Uses hidden_axis to track broadcast dimensions for proper placement
 struct axes_rebase_adjuster
 {
     using axes_map_t = std::map<std::size_t, std::vector<dimension::sub*>>;
-
+    
+    // Structure to bundle axis-related information for cleaner parameter passing
     struct axis_info
     {
-        std::size_t saxis;
-        std::size_t excess;
-        std::size_t base_dim;
-        std::size_t axis;
+        std::size_t saxis;     // The shortage axis that needs subdimensions
+        std::size_t excess;    // The amount of excess subdimensions available
+        std::size_t base_dim;  // The base dimension size
+        std::size_t axis;      // The current axis being processed
     };
-
+    
     axes_rebase_adjuster(shape_transform_descriptor& d, const std::vector<std::size_t>& ds)
         : desc(&d), dims(&ds)
     {
     }
 
+    // Main entry point that orchestrates the axes adjustment process
+    // Returns the adjusted axes mapping that can be used for shape transformation
     auto adjust()
     {
         axes_map_t axes_map = group_axes(desc->dimensions);
@@ -345,6 +384,15 @@ struct axes_rebase_adjuster
     }
 
     private:
+    // Identifies axes where the target dimension is larger than current subdimensions
+    // These are "shortage" axes that need subdimensions due to ambiguous axis assignment
+    //
+    // Example - reshape ambiguity:
+    // - Original transform: [8, 1] → [2, 4, 1]
+    // - Subdimensions might be: [2:0,0], [4:0,1], [] (axis 1 empty)
+    // - Target dimensions: [8, 1]
+    // - Axis 1 has shortage because no subdimensions were assigned to it
+    // - This happens because the reshape could have split axes differently
     void find_shortage_axes(const axes_map_t& axes_map)
     {
         for(auto& [axis, subs] : axes_map)
@@ -359,21 +407,35 @@ struct axes_rebase_adjuster
         initial_shortage_count = shortage_axes.size();
     }
 
+    // Processes each axis group to resolve ambiguous axis assignments
+    // This is the core logic that fixes mismatches from reshape ambiguity
+    //
+    // The process for each axis group:
+    // 1. Calculate if there's excess (more subdimensions than needed)
+    // 2. Find a matching shortage axis that needs exactly that excess
+    // 3. Try to swap (for broadcast dimensions) or move subdimensions
+    //
+    // Example - fixing reshape ambiguity:
+    // - Transform: [4, 1, 4] → [4, 1, 1, 4] 
+    // - Descriptor recorded: [4:0], [1:1], [1:2,0], [4:2,1]
+    // - But rebase expects: [4:0], [1:1,0], [1:1,1], [4:2]
+    // - Process finds axis 2 has excess, axes need rearrangement
+    // - Solution: redistribute subdimensions to match expected layout
     void process_axis_groups(const axes_map_t& axes_map,
                              std::vector<std::pair<dimension::sub, std::size_t>>& subs_to_insert)
     {
         for_each_axis_group(axes_map,
                             [&](std::size_t axis,
-                                const std::vector<dimension::sub*>& subs,
-                                std::size_t excess,
-                                std::size_t base_dim) {
+                                                    const std::vector<dimension::sub*>& subs,
+                                                    std::size_t excess,
+                                                    std::size_t base_dim) {
                                 auto saxes = shortage_axes.equal_range(excess);
                                 if(saxes.first == saxes.second)
                                     return;
 
                                 auto saxis_it =
                                     find_nearest_shortage_axis(saxes.first, saxes.second, axis);
-
+                                
                                 axis_info info{saxis_it->second, excess, base_dim, axis};
 
                                 // Try to swap an axis
@@ -394,6 +456,12 @@ struct axes_rebase_adjuster
                             });
     }
 
+    // Helper that iterates over axis groups that have excess subdimensions
+    // Calls the provided function for each axis with excess
+    //
+    // Two types of excess are handled:
+    // 1. Regular axes with more subdimensions than needed
+    // 2. "No-axis" subdimensions (from broadcasts) that can be assigned to any axis
     template <class F>
     void for_each_axis_group(const axes_map_t& axes_map, F f)
     {
@@ -417,6 +485,13 @@ struct axes_rebase_adjuster
         });
     }
 
+    // Finds the shortage axis that is closest to the current axis
+    // This helps maintain locality - we prefer to move subdimensions between nearby axes
+    //
+    // Example:
+    // - Current axis: 2
+    // - Shortage axes: {0->3, 1->4, 5->3} (axis->shortage pairs)
+    // - Returns iterator to axis 1 (distance = |1-2| = 1)
     template <class Iterator>
     Iterator find_nearest_shortage_axis(Iterator first, Iterator last, std::size_t axis)
     {
@@ -427,6 +502,17 @@ struct axes_rebase_adjuster
                                 }));
     }
 
+    // Attempts to reassign broadcast dimensions to resolve reshape ambiguity
+    // Used when broadcast dims (originally dimension 1) need proper axis assignment
+    //
+    // Example - fixing ambiguous reshape with broadcast:
+    // - Original: [1, 16] broadcast to [16, 16], reshape to [2, 8, 16]
+    // - During reshape, the dimension 1 could have been placed differently
+    // - Subdimension [16:] has no axis (ambiguous placement)
+    // - Shortage axis 0 needs exactly 16x subdimensions
+    // - Solution: assign hidden_axis = {0, max} to resolve the ambiguity
+    //
+    // This resolves cases where reshape with dimension 1 created ambiguous axis assignments
     bool try_swap_axis(const std::vector<dimension::sub*>& subs, const axis_info& info)
     {
         auto it = std::find_if(subs.begin(), subs.end(), [&](dimension::sub* sub) {
@@ -443,10 +529,22 @@ struct axes_rebase_adjuster
         return false;
     }
 
-    bool
-    move_shortage_to_excess(const std::vector<dimension::sub*>& subs,
-                            const axis_info& info,
-                            std::vector<std::pair<dimension::sub, std::size_t>>& subs_to_insert)
+    // Moves subdimensions to resolve ambiguity from reshape operations with dimension 1
+    // This physically relocates subdimensions when the ambiguous assignment needs correction
+    //
+    // Example - reshape ambiguity with dimension 1:
+    // - Original: [8, 1] reshape to [2, 4, 1], broadcast to [2, 4, 16]
+    // - shape_transform_descriptor might record: [2:0,0], [4:0,1], [] (axis 1 empty)
+    // - But when rebasing to [8, 1], axis 1 needs its dimension 1 subdimension
+    // - Solution: 
+    //   1. Find the dimension 1 subdimension (wrongly assigned or unassigned)
+    //   2. Clear its axis assignment to make it moveable
+    //   3. Create new subdimension properly assigned to the shortage axis
+    //
+    // This fixes cases where reshape ambiguity left dimension 1s in wrong positions
+    bool move_shortage_to_excess(const std::vector<dimension::sub*>& subs,
+                                 const axis_info& info,
+                                 std::vector<std::pair<dimension::sub, std::size_t>>& subs_to_insert)
     {
         auto dim_pair =
             find_subdimension_with_dimension(desc->dimensions, [&](const dimension::sub& s) {
@@ -469,6 +567,13 @@ struct axes_rebase_adjuster
         return true;
     }
 
+    // Inserts the subdimensions that were marked for movement
+    // These subdimensions are inserted at their new positions
+    //
+    // Example:
+    // - Sub [3:,{1}] needs to be inserted at position after axis 0
+    // - Finds the dimension containing axis 0 subdimensions
+    // - Inserts after the last subdimension with axis 0
     void
     insert_moved_axes(const std::vector<std::pair<dimension::sub, std::size_t>>& subs_to_insert)
     {
@@ -503,6 +608,15 @@ struct axes_rebase_adjuster
         };
     }
 
+    // Optimizes the placement of hidden axes to group related dimensions
+    // This helps clean up after resolving reshape ambiguities with dimension 1s
+    //
+    // Example - cleaning up after ambiguity resolution:
+    // - After fixing reshape ambiguity, broadcast dims may be scattered
+    // - Before: hidden axes {0}, {4}, {1}, {3}, {2} (result of ambiguous assignments)
+    // - After: hidden axes {0}, {1}, {2}, {3}, {4} (properly ordered)
+    //
+    // This ensures the final axis assignment is clean and predictable
     void swap_closer_axes()
     {
         auto subs = get_pointer_subdimensions(desc->dimensions);
@@ -577,12 +691,19 @@ struct axes_rebase_adjuster
         };
     }
 
+    // Final sorting phase to ensure consistent ordering of axes groups
+    // This makes the output deterministic and easier to process
     void sort_axes_groups()
     {
         sort_hidden_axes_groups();
         sort_moved_axes_groups();
     }
 
+    // Sorts groups of hidden axes to ensure they are in ascending order
+    // 
+    // Example:
+    // - Before: [{2}, {1}, {3}] within a group
+    // - After:  [{1}, {2}, {3}] within a group
     void sort_hidden_axes_groups()
     {
         auto subs = get_pointer_subdimensions(desc->dimensions);
@@ -593,6 +714,8 @@ struct axes_rebase_adjuster
             by(std::equal_to<>{}, get_hidden_axis_group()));
     }
 
+    // Sorts moved axes within each dimension to maintain consistency
+    // Ensures that subdimensions that were moved are properly ordered
     void sort_moved_axes_groups()
     {
         for(auto& d : desc->dimensions)

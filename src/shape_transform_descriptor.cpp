@@ -492,7 +492,7 @@ struct axes_rebase_adjuster
 
     // Moves subdimensions to resolve ambiguity from reshape operations with dimension 1
     // This physically relocates subdimensions when the ambiguous assignment needs correction.
-    // The subdimension is pushed to subs_to_insert first because inserting here will 
+    // The subdimension is pushed to subs_to_insert first because inserting here will
     // invalidate the references to the subdimensions.
     //
     // This fixes cases where reshape ambiguity left dimension 1s in wrong positions

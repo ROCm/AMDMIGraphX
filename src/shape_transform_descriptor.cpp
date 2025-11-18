@@ -302,6 +302,16 @@ static auto check_div(T x, U y) -> decltype(x / y)
 // Class to handle axes rebase adjustment
 struct axes_rebase_adjuster
 {
+    using axes_map_t = std::map<std::size_t, std::vector<dimension::sub*>>;
+    
+    struct axis_info
+    {
+        std::size_t saxis;
+        std::size_t excess;
+        std::size_t base_dim;
+        std::size_t axis;
+    };
+    
     axes_rebase_adjuster(shape_transform_descriptor& d, const std::vector<std::size_t>& ds)
         : desc(&d), dims(&ds)
     {
@@ -309,7 +319,7 @@ struct axes_rebase_adjuster
 
     auto adjust()
     {
-        auto axes_map = group_axes(desc->dimensions);
+        axes_map_t axes_map = group_axes(desc->dimensions);
         std::vector<std::pair<dimension::sub, std::size_t>> subs_to_insert;
 
         find_shortage_axes(axes_map);
@@ -328,14 +338,14 @@ struct axes_rebase_adjuster
 
         sort_axes_groups();
 
-        auto regroup_axes = group_axes(desc->dimensions);
+        axes_map_t regroup_axes = group_axes(desc->dimensions);
         renumber_axes(regroup_axes);
 
         return regroup_axes;
     }
 
     private:
-    void find_shortage_axes(const std::map<std::size_t, std::vector<dimension::sub*>>& axes_map)
+    void find_shortage_axes(const axes_map_t& axes_map)
     {
         for(auto& [axis, subs] : axes_map)
         {
@@ -349,38 +359,43 @@ struct axes_rebase_adjuster
         initial_shortage_count = shortage_axes.size();
     }
 
-    void process_axis_groups(const std::map<std::size_t, std::vector<dimension::sub*>>& axes_map,
+    void process_axis_groups(const axes_map_t& axes_map,
                              std::vector<std::pair<dimension::sub, std::size_t>>& subs_to_insert)
     {
         for_each_axis_group(axes_map,
                             [&](std::size_t axis,
-                                const std::vector<dimension::sub*>& subs,
-                                std::size_t excess,
-                                std::size_t base_dim) {
+                                                    const std::vector<dimension::sub*>& subs,
+                                                    std::size_t excess,
+                                                    std::size_t base_dim) {
                                 auto saxes = shortage_axes.equal_range(excess);
                                 if(saxes.first == saxes.second)
                                     return;
 
                                 auto saxis_it =
                                     find_nearest_shortage_axis(saxes.first, saxes.second, axis);
-                                auto saxis = saxis_it->second;
+                                
+                                axis_info info{saxis_it->second, excess, base_dim, axis};
 
                                 // Try to swap an axis
-                                if(try_swap_axis(subs, excess, saxis, saxis_it))
+                                if(try_swap_axis(subs, info))
+                                {
+                                    shortage_axes.erase(saxis_it);
                                     return;
+                                }
 
                                 if(subs.size() != 1)
                                     return;
 
                                 // Move the shortage to the excess dim
-                                move_shortage_to_excess(
-                                    saxis, subs, excess, base_dim, axis, saxis_it, subs_to_insert);
+                                if(move_shortage_to_excess(subs, info, subs_to_insert))
+                                {
+                                    shortage_axes.erase(saxis_it);
+                                }
                             });
     }
 
     template <class F>
-    void for_each_axis_group(const std::map<std::size_t, std::vector<dimension::sub*>>& axes_map,
-                             F f)
+    void for_each_axis_group(const axes_map_t& axes_map, F f)
     {
         for(auto& [axis, subs] : axes_map)
         {
@@ -412,56 +427,45 @@ struct axes_rebase_adjuster
                                 }));
     }
 
-    template <class Iterator>
-    bool try_swap_axis(const std::vector<dimension::sub*>& subs,
-                       std::size_t excess,
-                       std::size_t saxis,
-                       Iterator saxis_it)
+    bool try_swap_axis(const std::vector<dimension::sub*>& subs, const axis_info& info)
     {
         auto it = std::find_if(subs.begin(), subs.end(), [&](dimension::sub* sub) {
             if(not sub->has_hidden_axis() and not sub->origin_axis().empty())
                 return false;
-            return sub->len == excess;
+            return sub->len == info.excess;
         });
         if(it != subs.end())
         {
             auto* sub        = *it;
-            sub->hidden_axis = {saxis, last_axis_split};
-            shortage_axes.erase(saxis_it);
+            sub->hidden_axis = {info.saxis, last_axis_split};
             return true;
         }
         return false;
     }
 
-    template <class Iterator>
-    void
-    move_shortage_to_excess(std::size_t saxis,
-                            const std::vector<dimension::sub*>& subs,
-                            std::size_t excess,
-                            std::size_t base_dim,
-                            std::size_t axis,
-                            Iterator saxis_it,
-                            std::vector<std::pair<dimension::sub, std::size_t>>& subs_to_insert)
+    bool move_shortage_to_excess(const std::vector<dimension::sub*>& subs,
+                                 const axis_info& info,
+                                 std::vector<std::pair<dimension::sub, std::size_t>>& subs_to_insert)
     {
         auto dim_pair =
             find_subdimension_with_dimension(desc->dimensions, [&](const dimension::sub& s) {
                 if(s.axis.size() != 1)
                     return false;
-                return s.axis.front() == saxis;
+                return s.axis.front() == info.saxis;
             });
         if(dim_pair.first == nullptr)
-            return;
+            return false;
         auto* dim = dim_pair.first;
         auto* sub = dim_pair.second;
         assert(sub != nullptr);
         if(sub->len != 1)
-            return;
+            return false;
         if(dim->subdimensions.size() == 1)
-            return;
-        subs_to_insert.push_back({dimension::sub{excess, {}, {saxis}}, axis});
+            return false;
+        subs_to_insert.push_back({dimension::sub{info.excess, {}, {info.saxis}}, info.axis});
         sub->axis.clear();
-        subs.front()->len = base_dim;
-        shortage_axes.erase(saxis_it);
+        subs.front()->len = info.base_dim;
+        return true;
     }
 
     void

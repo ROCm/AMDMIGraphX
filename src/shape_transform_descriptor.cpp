@@ -622,8 +622,10 @@ struct rebase_ambiguity_resolver
             if(not pred(*start))
                 return;
             auto r = range(start, last);
-            auto axes =
-                views::transform(r, [](dimension::sub* s) -> auto& { return s->hidden_axis; }); // cppcheck-suppress constParameterPointer
+            // cppcheck-suppress constParameterPointer
+            auto axes = views::transform(r, [](dimension::sub* s) -> auto& { 
+                return s->hidden_axis; 
+            });
             std::sort(axes.begin(), axes.end());
         };
     }

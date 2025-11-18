@@ -20,26 +20,32 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
- *
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_REDUCE_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_REDUCE_HPP
 
-#include <migraphx/config.hpp>
-#include <string>
+#include <migraphx/register_target.hpp>
+#include <migraphx/verify.hpp>
+#include <onnx_test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module_pass_manager;
-
-struct MIGRAPHX_EXPORT fuse_pointwise_reduce
+TEST_CASE(resize_upsample_linear_dyn_test)
 {
-    std::size_t split_size = 65536;
-    std::string name() const { return "fuse_pointwise_reduce"; }
-    void apply(module_pass_manager& mpm) const;
-};
+    migraphx::onnx_options options;
+    options.map_dyn_input_dims = {{"X", {{1, 1}, {1, 1}, {2, 3}, {2, 3}}}};
 
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_REDUCE_HPP
+    migraphx::program p = read_onnx("resize_upsample_linear_test.onnx", options);
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
+    std::vector<float> dx = {1.0f, 2.0f, 3.0f, 4.0f};
+
+    migraphx::parameter_map pp;
+    pp["X"] = migraphx::argument(sx, dx.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold = {
+        1, 1.25, 1.75, 2, 1.5, 1.75, 2.25, 2.5, 2.5, 2.75, 3.25, 3.5, 3, 3.25, 3.75, 4};
+
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}

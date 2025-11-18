@@ -20,26 +20,32 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
- *
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_REDUCE_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_REDUCE_HPP
 
-#include <migraphx/config.hpp>
-#include <string>
+#include <migraphx/register_target.hpp>
+#include <migraphx/verify.hpp>
+#include <onnx_test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module_pass_manager;
-
-struct MIGRAPHX_EXPORT fuse_pointwise_reduce
+TEST_CASE(resize_downsample_linear_dyn_test)
 {
-    std::size_t split_size = 65536;
-    std::string name() const { return "fuse_pointwise_reduce"; }
-    void apply(module_pass_manager& mpm) const;
-};
+    using migraphx::half;
+    migraphx::onnx_options options;
+    options.map_dyn_input_dims = {{"X", {{1, 1}, {1, 1}, {2, 3}, {4, 8}}}};
+    migraphx::program p        = read_onnx("resize_downsample_linear_half_test.onnx", options);
+    p.compile(migraphx::make_target("ref"));
 
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_REDUCE_HPP
+    migraphx::shape sx{migraphx::shape::half_type, {1, 1, 2, 4}};
+    std::vector<half> dx = {half{1}, half{2}, half{3}, half{4}, half{5}, half{6}, half{7}, half{8}};
+
+    migraphx::parameter_map pp;
+    pp["X"] = migraphx::argument(sx, dx.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<half> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    // Expected output was calculated without any quantization
+    std::vector<half> gold = {half{2.8333333}, half{4.833333}};
+
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}

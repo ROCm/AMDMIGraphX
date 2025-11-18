@@ -11,7 +11,10 @@ MIGraphX documentation
 MIGraphX is a graph compiler and inference engine for high performance machine learning model inference.
 It compiles trained models from end-to-end to optimize for inference performance on AMD hardware.
 
-The MIGraphX public repository is located at `https://github.com/ROCm/AMDMIGraphX/ <https://github.com/ROCm/AMDMIGraphX/>`_
+The MIGraphX public repository is located at `https://github.com/ROCm/AMDMIGraphX/ <https://github.com/ROCm/AMDMIGraphX/>`__.
+
+You can integrate MIGraphX with PyTorch worflows by using the Torch-MIGraphX library.
+The public repository is located at `https://github.com/ROCm/torch_migraphx/ <https://github.com/ROCm/torch_migraphx/>`__.
 
 .. grid:: 2
   :gutter: 3
@@ -19,6 +22,7 @@ The MIGraphX public repository is located at `https://github.com/ROCm/AMDMIGraph
   .. grid-item-card:: Install
 
     * :doc:`MIGraphX on ROCm installation <./install/install-migraphx>`
+    * :doc:`Torch-MIGraphX installation <./install/install-torch-migraphx>`
 
   .. grid-item-card:: Conceptual
 
@@ -43,8 +47,8 @@ The MIGraphX public repository is located at `https://github.com/ROCm/AMDMIGraph
     * :doc:`MIGraphX examples <./tutorials/MIGraphX-examples>` 
 
 To contribute to the documentation refer to
-`Contributing to ROCm <https://rocm.docs.amd.com/en/latest/contribute/contributing.html>`_.
+`Contributing to ROCm <https://rocm.docs.amd.com/en/latest/contribute/contributing.html>`__.
 
 Licensing information can be found on the
-`Licensing <https://rocm.docs.amd.com/en/latest/about/license.html>`_ page.
+`Licensing <https://rocm.docs.amd.com/en/latest/about/license.html>`__ page.
 

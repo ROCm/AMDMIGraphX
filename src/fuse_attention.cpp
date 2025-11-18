@@ -390,12 +390,13 @@ struct find_no_kv_cache_attention
         static const std::unordered_set<std::string> skip_set = {
             "multibroadcast", "reshape", "unsqueeze"};
         auto input = match::any_of(match::name("transpose"), match::name("gqa_rotary_embedding"));
-        auto keys = match::name("slice")(match::arg(0)(input)).bind("keys");
+        auto keys  = match::name("slice")(match::arg(0)(input)).bind("keys");
         auto k_transpose =
             match::skip(match::name(skip_set))(match::name("transpose")(match::arg(0)(keys)));
-        auto queries = match::name("slice")(match::arg(0)(input));;
-        auto gemm1   = match::name("dot")(match::arg(0)(queries), match::arg(1)(k_transpose));
-        auto scale   = match::name("mul")(match::any_arg(0, 1)(gemm1));
+        auto queries = match::name("slice")(match::arg(0)(input));
+        ;
+        auto gemm1 = match::name("dot")(match::arg(0)(queries), match::arg(1)(k_transpose));
+        auto scale = match::name("mul")(match::any_arg(0, 1)(gemm1));
         auto broadcasted_const = match::name("multibroadcast")(match::arg(0)(match::is_constant()));
         auto attn_scores       = match::any_of(scale, gemm1);
         auto causal_mask =
@@ -408,7 +409,8 @@ struct find_no_kv_cache_attention
         //                                 match::arg(2)(match::any_of(causal_mask, scale, gemm1)));
         auto attn_probabilities = match::skip(match::name("convert"))(
             match::softmax_input(match::skip(match::name("convert"))(causal_mask)));
-        auto values = match::name("slice")(match::arg(0)(input));;
+        auto values = match::name("slice")(match::arg(0)(input));
+        ;
         auto gemm2 = match::name("dot")(match::arg(0)(attn_probabilities), match::arg(1)(values));
         auto transpose_out = match::name("transpose")(match::arg(0)(gemm2));
         return match::name("reshape")(match::arg(0)(transpose_out));
@@ -480,8 +482,8 @@ struct find_no_kv_cache_attention
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        auto keys = r.instructions["keys"];
-        auto reshape  = r.result;
+        auto keys    = r.instructions["keys"];
+        auto reshape = r.result;
 
         // Capture all instructions part of the attention op
         auto attn_inss = get_attn_instructions(mpm.get_module(), keys, reshape);

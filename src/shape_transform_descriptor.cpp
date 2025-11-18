@@ -308,7 +308,7 @@ static auto find_subdimension_with_dimension(Dimensions& dims, Predicate pred)
 // - Finds "excess" axes or unassigned broadcast dimensions
 // - Redistributes subdimensions to resolve the ambiguity
 // - Uses hidden_axis to track broadcast dimensions for proper placement
-struct axes_rebase_adjuster
+struct rebase_ambiguity_resolver
 {
     using axes_map_t = std::map<std::size_t, std::vector<dimension::sub*>>;
 
@@ -321,14 +321,14 @@ struct axes_rebase_adjuster
         std::size_t axis;     // The current axis being processed
     };
 
-    axes_rebase_adjuster(shape_transform_descriptor& d, const std::vector<std::size_t>& ds)
+    rebase_ambiguity_resolver(shape_transform_descriptor& d, const std::vector<std::size_t>& ds)
         : desc(&d), dims(&ds)
     {
     }
 
     // Main entry point that orchestrates the axes adjustment process
-    // Returns the adjusted axes mapping that can be used for shape transformation
-    auto adjust()
+    // Returns the axes mapping that can be used for rebase
+    auto resolve()
     {
 
         std::vector<std::pair<dimension::sub, std::size_t>> subs_to_insert;
@@ -674,7 +674,7 @@ shape_transform_descriptor shape_transform_descriptor::rebase(const std::vector<
                                                               bool broadcast) const
 {
     auto result   = *this;
-    auto axes_map = axes_rebase_adjuster{result, dims}.adjust();
+    auto axes_map = rebase_ambiguity_resolver{result, dims}.resolve();
     for(auto& [axis, subs] : axes_map)
     {
         assert(axis < dims.size());

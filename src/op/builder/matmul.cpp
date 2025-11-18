@@ -233,6 +233,15 @@ struct quant_dot : matmul_base<quant_dot>
                                   instruction_ref& a0,
                                   instruction_ref& a1)
     {
+        // Only INT8 or UINT8 type currently supported
+        const std::set<migraphx::shape::type_t> supported_types = {migraphx::shape::uint8_type,
+                                                                   migraphx::shape::int8_type};
+        if((not contains(supported_types, a0->get_shape().type()) or
+            not contains(supported_types, a1->get_shape().type())))
+        {
+            MIGRAPHX_THROW(name() + ": Unsupported type");
+        }
+
         bool has_ba0 = false;
         bool has_ba1 = false;
 
@@ -241,16 +250,6 @@ struct quant_dot : matmul_base<quant_dot>
 
         instruction_ref ba0 = set_bias_arg(name(), args, a0_zp_index, a0, has_ba0);
         instruction_ref ba1 = set_bias_arg(name(), args, a1_zp_index, a1, has_ba1);
-
-        const std::set<migraphx::shape::type_t> supported_types = {migraphx::shape::uint8_type,
-                                                                   migraphx::shape::int8_type};
-
-        // Only INT8 or UINT8 type currently supported
-        if((not contains(supported_types, a0->get_shape().type()) or
-            not contains(supported_types, a1->get_shape().type())))
-        {
-            MIGRAPHX_THROW(name() + ": Unsupported type");
-        }
 
         if((a0->get_shape().type() == migraphx::shape::uint8_type) or
            (a1->get_shape().type() == migraphx::shape::uint8_type))
@@ -346,6 +345,15 @@ struct quant_dot_scaled : matmul_base<quant_dot_scaled>
                                   instruction_ref& a0,
                                   instruction_ref& a1)
     {
+        // Only INT8 or UINT8 type currently supported
+        const std::set<migraphx::shape::type_t> supported_types = {migraphx::shape::uint8_type,
+                                                                   migraphx::shape::int8_type};
+        if((not contains(supported_types, a0->get_shape().type()) or
+            not contains(supported_types, a1->get_shape().type())))
+        {
+            MIGRAPHX_THROW(name() + ": Unsupported type");
+        }
+
         // Handles case with for when scales are present in operator
         instruction_ref scale_a0 = set_scale_arg(m, args, a0, 2);
         instruction_ref scale_a1 = set_scale_arg(m, args, a1, 3);
@@ -365,16 +373,6 @@ struct quant_dot_scaled : matmul_base<quant_dot_scaled>
         auto scaled_index   = 6;
         instruction_ref scaled_bias =
             set_scale_bias(args, scaled_index, scale_a1->get_shape(), a1, has_scale_bias);
-
-        const std::set<migraphx::shape::type_t> supported_types = {migraphx::shape::uint8_type,
-                                                                   migraphx::shape::int8_type};
-
-        // Only INT8 or UINT8 type currently supported
-        if((not contains(supported_types, a0->get_shape().type()) or
-            not contains(supported_types, a1->get_shape().type())))
-        {
-            MIGRAPHX_THROW(name() + ": Unsupported type");
-        }
 
         broadcast_dimensions(m, a0->get_shape().lens(), a1->get_shape().lens(), a0, a1, ba0, ba1);
 

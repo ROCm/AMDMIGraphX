@@ -470,6 +470,20 @@ struct parse_resize : op_parser<parse_resize>
         auto out_lens  = resize.out_lens;
         auto vec_scale = resize.vec_scale;
 
+        if(args_0->get_shape().dynamic())
+        {
+            // Resize's compute_shape() will read scales_sizes_arg as "scales" or "sizes"
+            // depending on its data type
+
+            return info.add_instruction(
+                make_op("resize",
+                        {{"mode", resize.get_mode()},
+                         {"scales", vec_scale},
+                         {"coordinate_transformation_mode", resize.get_coord_trans_mode()}}),
+                args_0,
+                resize.get_scales_sizes_arg());
+        }
+
         // out_lens and other variables can't be populated if non-constant (runtime) size
         // inputs.
         if(not resize.is_constant_scale_input())

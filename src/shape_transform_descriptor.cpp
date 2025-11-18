@@ -289,15 +289,6 @@ static auto find_subdimension_with_dimension(Dimensions& dims, Predicate pred)
     return {nullptr, nullptr};
 }
 
-template <class T, class U>
-static auto check_div(T x, U y) -> decltype(x / y)
-{
-    if(y == 0)
-        return 0;
-    if((x % y) != 0)
-        return 0;
-    return x / y;
-}
 
 // Class to handle axes rebase adjustment for ambiguous reshape transformations
 //
@@ -340,24 +331,27 @@ struct axes_rebase_adjuster
     // Returns the adjusted axes mapping that can be used for shape transformation
     auto adjust()
     {
-        axes_map_t axes_map = group_axes(desc->dimensions);
+
         std::vector<std::pair<dimension::sub, std::size_t>> subs_to_insert;
+        {
+            axes_map_t axes_map = group_axes(desc->dimensions);
 
-        find_shortage_axes(axes_map);
+            find_shortage_axes(axes_map);
 
-        if(shortage_axes.empty())
-            return axes_map;
+            if(shortage_axes.empty())
+                return axes_map;
 
-        process_axis_groups(axes_map, subs_to_insert);
+            process_axis_groups(axes_map, subs_to_insert);
 
+            if(shortage_axes.size() == initial_shortage_count)
+                return axes_map;
+        }
         insert_moved_axes(subs_to_insert);
-
-        if(shortage_axes.size() == initial_shortage_count)
-            return axes_map;
 
         swap_closer_axes();
 
-        sort_axes_groups();
+        sort_hidden_axes_groups();
+        sort_moved_axes_groups();
 
         axes_map_t regroup_axes = group_axes(desc->dimensions);
         renumber_axes(regroup_axes);
@@ -366,6 +360,17 @@ struct axes_rebase_adjuster
     }
 
     private:
+
+    template <class T, class U>
+    static auto check_div(T x, U y) -> decltype(x / y)
+    {
+        if(y == 0)
+            return 0;
+        if((x % y) != 0)
+            return 0;
+        return x / y;
+    }
+
     // Identifies axes where the target dimension is larger than current subdimensions
     // These are "shortage" axes that need subdimensions due to ambiguous axis assignment
     void find_shortage_axes(const axes_map_t& axes_map)
@@ -551,16 +556,14 @@ struct axes_rebase_adjuster
         }
     }
 
-    static auto has_hidden_axis_pred()
+    static bool has_hidden_axis(const dimension::sub* s)
     {
-        return [](const dimension::sub* s) { return s->has_hidden_axis(); };
+        return s->has_hidden_axis();
     }
 
-    static auto get_hidden_axis()
+    static const std::vector<std::size_t>& get_hidden_axis(const dimension::sub* s)
     {
-        return [](const dimension::sub* s) -> const std::vector<std::size_t>& {
-            return s->hidden_axis;
-        };
+        return s->hidden_axis;
     }
 
     // Optimizes the placement of hidden axes to group related dimensions
@@ -571,7 +574,7 @@ struct axes_rebase_adjuster
     {
         auto subs = get_pointer_subdimensions(desc->dimensions);
 
-        group_find(subs.begin(), subs.end(), has_hidden_axis_pred(), [](auto start, auto last) {
+        group_find(subs.begin(), subs.end(), &has_hidden_axis, [](auto start, auto last) {
             if(std::distance(start, last) < 2)
                 return;
 
@@ -590,7 +593,7 @@ struct axes_rebase_adjuster
                         // Valid if same len as s2 and hidden_axis greater than s1
                         return s->len == s2->len and s->hidden_axis > s1->hidden_axis;
                     },
-                    by(std::less<>{}, get_hidden_axis()));
+                    by(std::less<>{}, &get_hidden_axis));
 
                 if(it == last)
                     return;
@@ -608,17 +611,15 @@ struct axes_rebase_adjuster
         });
     }
 
-    static auto get_hidden_axis_group()
+    static auto get_hidden_axis_group(const dimension::sub* s)
     {
-        return [](const dimension::sub* s) {
             if(s->hidden_axis.empty())
                 return std::numeric_limits<std::size_t>::max();
             return s->hidden_axis.front();
-        };
     }
 
     template <class Pred>
-    static auto create_sort_group_if(Pred pred)
+    static auto sort_group_if(Pred pred)
     {
         return [=](auto start, auto last) {
             if(std::distance(start, last) < 2)
@@ -656,8 +657,8 @@ struct axes_rebase_adjuster
         group_unique(
             subs.begin(),
             subs.end(),
-            create_sort_group_if([](dimension::sub* s) { return not s->hidden_axis.empty(); }),
-            by(std::equal_to<>{}, get_hidden_axis_group()));
+            sort_group_if([](dimension::sub* s) { return not s->hidden_axis.empty(); }),
+            by(std::equal_to<>{}, &get_hidden_axis_group));
     }
 
     // If subdimensions are moved together then sort to reduce transposition.
@@ -668,7 +669,7 @@ struct axes_rebase_adjuster
             auto asubs = views::transform(d.subdimensions, [](dimension::sub& s) { return &s; });
             group_unique(asubs.begin(),
                          asubs.end(),
-                         create_sort_group_if(get_is_moved_axis()),
+                         sort_group_if(get_is_moved_axis()),
                          by(std::equal_to<>{}, get_is_moved_axis()));
         }
     }
@@ -683,18 +684,11 @@ struct axes_rebase_adjuster
     static const std::size_t last_axis_split = std::numeric_limits<std::size_t>::max();
 };
 
-static auto adjust_axes_for_rebase(shape_transform_descriptor& desc,
-                                   const std::vector<std::size_t>& dims)
-{
-    axes_rebase_adjuster adjuster(desc, dims);
-    return adjuster.adjust();
-}
-
 shape_transform_descriptor shape_transform_descriptor::rebase(const std::vector<std::size_t>& dims,
                                                               bool broadcast) const
 {
     auto result   = *this;
-    auto axes_map = adjust_axes_for_rebase(result, dims);
+    auto axes_map = axes_rebase_adjuster{result, dims}.adjust();
     for(auto& [axis, subs] : axes_map)
     {
         assert(axis < dims.size());

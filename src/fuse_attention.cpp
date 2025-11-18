@@ -30,6 +30,9 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <queue>
+#include <migraphx/env.hpp>
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_KV_CACHE);
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -378,16 +381,191 @@ struct find_kv_cache_attention
     }
 };
 
+struct find_no_kv_cache_attention
+{
+    std::size_t* counter;
+
+    auto matcher() const
+    {
+        static const std::unordered_set<std::string> skip_set = {
+            "multibroadcast", "reshape", "unsqueeze"};
+        auto input = match::any_of(match::name("transpose"), match::name("gqa_rotary_embedding"));
+        auto keys = match::name("slice")(match::arg(0)(input)).bind("keys");
+        auto k_transpose =
+            match::skip(match::name(skip_set))(match::name("transpose")(match::arg(0)(keys)));
+        auto queries = match::name("slice")(match::arg(0)(input));;
+        auto gemm1   = match::name("dot")(match::arg(0)(queries), match::arg(1)(k_transpose));
+        auto scale   = match::name("mul")(match::any_arg(0, 1)(gemm1));
+        auto broadcasted_const = match::name("multibroadcast")(match::arg(0)(match::is_constant()));
+        auto attn_scores       = match::any_of(scale, gemm1);
+        auto causal_mask =
+            match::name("where")(match::arg(0)(broadcasted_const), match::arg(2)(attn_scores));
+        // auto greater = match::name("greater")(match::arg(1)(match::any().bind("total_sl")));
+        // auto conv_greater =
+        //     match::skip(match::name("unsqueeze"))(match::name("convert")(match::arg(0)(greater)));
+        // auto bc_greater         = match::name("multibroadcast")(match::arg(0)(conv_greater));
+        // auto mask               = match::name("where")(match::arg(0)(bc_greater),
+        //                                 match::arg(2)(match::any_of(causal_mask, scale, gemm1)));
+        auto attn_probabilities = match::skip(match::name("convert"))(
+            match::softmax_input(match::skip(match::name("convert"))(causal_mask)));
+        auto values = match::name("slice")(match::arg(0)(input));;
+        auto gemm2 = match::name("dot")(match::arg(0)(attn_probabilities), match::arg(1)(values));
+        auto transpose_out = match::name("transpose")(match::arg(0)(gemm2));
+        return match::name("reshape")(match::arg(0)(transpose_out));
+    }
+
+    std::string get_count() const { return std::to_string((*counter)++); }
+
+    std::unordered_map<instruction_ref, instruction_ref>
+    invert_map_ins(const std::unordered_map<instruction_ref, instruction_ref>& map_ins) const
+    {
+        std::unordered_map<instruction_ref, instruction_ref> inverse_map;
+        for(auto const& [key, value] : map_ins)
+        {
+            assert(not contains(inverse_map, value));
+            inverse_map[value] = key;
+        }
+        return inverse_map;
+    }
+
+    std::vector<instruction_ref>
+    get_attn_instructions(module& m, instruction_ref start, instruction_ref end) const
+    {
+        std::queue<instruction_ref> inputs;
+        std::unordered_set<instruction_ref> inss;
+        inputs.push(end);
+
+        static const std::unordered_set<std::string> valid_attn_ops = {"softmax",
+                                                                       "broadcast",
+                                                                       "dot",
+                                                                       "slice",
+                                                                       "transpose",
+                                                                       "greater",
+                                                                       "convert",
+                                                                       "where",
+                                                                       "reshape",
+                                                                       "reduce_sum",
+                                                                       "reduce_max",
+                                                                       "broadcast",
+                                                                       "multibroadcast",
+                                                                       "@literal",
+                                                                       "unsqueeze"};
+
+        auto is_valid_attn_op = [&](auto i) {
+            return i->get_operator().attributes().get("pointwise", false) or
+                   contains(valid_attn_ops, i->get_operator().name()) or i == start or i == end;
+        };
+
+        while(not inputs.empty())
+        {
+            auto current_inp = inputs.front();
+            inputs.pop();
+
+            if(is_valid_attn_op(current_inp) and inss.insert(current_inp).second and
+               current_inp != start)
+            {
+                for(auto i : current_inp->inputs())
+                {
+                    inputs.push(i);
+                }
+            }
+        }
+        std::vector<instruction_ref> sorted_inss(inss.begin(), inss.end());
+        std::sort(
+            sorted_inss.begin(), sorted_inss.end(), [&](instruction_ref x, instruction_ref y) {
+                return std::distance(m.begin(), x) < std::distance(m.begin(), y);
+            });
+        return sorted_inss;
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto keys = r.instructions["keys"];
+        auto reshape  = r.result;
+
+        // Capture all instructions part of the attention op
+        auto attn_inss = get_attn_instructions(mpm.get_module(), keys, reshape);
+
+        // Add captured instructions to new submodule
+        module m_attn;
+        std::unordered_map<instruction_ref, instruction_ref> map_mm_to_mattn;
+        auto attn_outs = m_attn.fuse(attn_inss, &map_mm_to_mattn);
+
+        for(auto ins : iterator_for(m_attn))
+        {
+            if(ins->can_eval())
+            {
+                auto lit_s   = ins->get_shape();
+                auto strides = lit_s.strides();
+                if(strides.size() == 4 and
+                   std::all_of(
+                       strides.begin(), strides.end() - 1, [](auto s) { return s == 0; }) and
+                   strides.back() == 1)
+                {
+                    auto new_lit = m_attn.add_literal(
+                        literal{shape{lit_s.type(), {lit_s.lens().back()}}, ins->eval().data()});
+                    m_attn.replace_instruction(
+                        ins, make_op("multibroadcast", {{"out_lens", lit_s.lens()}}), {new_lit});
+                }
+            }
+        }
+        dead_code_elimination{}.apply(m_attn);
+
+        // Define outputs based on instructions that are used elsewhere in the graph
+        std::vector<instruction_ref> required_outputs;
+        std::copy_if(
+            attn_inss.begin(), attn_inss.end(), std::back_inserter(required_outputs), [&](auto i) {
+                return not std::all_of(i->outputs().begin(), i->outputs().end(), [&](auto o) {
+                    return contains(attn_inss, o);
+                });
+            });
+
+        assert(not required_outputs.empty());
+
+        // Find corresponding output instructions in m_attn
+        std::vector<instruction_ref> m_attn_outputs;
+        std::transform(required_outputs.begin(),
+                       required_outputs.end(),
+                       std::back_inserter(m_attn_outputs),
+                       [&](auto i) { return map_mm_to_mattn.at(i); });
+        m_attn.add_return({m_attn_outputs.back()});
+
+        // Define inputs to m_attn
+        auto map_mattn_to_mm = invert_map_ins(map_mm_to_mattn);
+        auto new_inputs      = m_attn.get_inputs(map_mattn_to_mm);
+
+        module_ref mpm_attn = mpm.create_module("attn" + get_count(), std::move(m_attn));
+        mpm_attn->set_bypass();
+
+        // Construct group op with the attention module
+        auto group_ins =
+            mpm.get_module().insert_instruction(required_outputs.back(),
+                                                make_op("group", {{"tag", "kv_cache_attention"}}),
+                                                new_inputs,
+                                                {mpm_attn});
+
+        mpm.get_module().replace_instruction(required_outputs.back(), group_ins);
+    }
+};
+
 } // namespace
 
 void fuse_attention::apply(module_pass_manager& mpm) const
 {
+    mpm.get_module().debug_print();
     std::size_t counter = 0;
 
     // Fuse kv-cache attention by default
     match::find_matches(mpm, find_kv_cache_attention{.counter = &counter});
     mpm.get_module().sort();
     mpm.run_pass(dead_code_elimination{});
+
+    if(enabled(MIGRAPHX_DISABLE_KV_CACHE{}))
+    {
+        match::find_matches(mpm, find_no_kv_cache_attention{.counter = &counter});
+        mpm.get_module().sort();
+        mpm.run_pass(dead_code_elimination{});
+    }
 
     // Only fuse plain attention when requested
     if(attn_enabled)

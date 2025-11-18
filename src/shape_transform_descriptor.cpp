@@ -289,7 +289,6 @@ static auto find_subdimension_with_dimension(Dimensions& dims, Predicate pred)
     return {nullptr, nullptr};
 }
 
-
 // Class to handle axes rebase adjustment for ambiguous reshape transformations
 //
 // This class solves an ambiguity problem that arises when shape_transform_descriptor
@@ -360,7 +359,6 @@ struct axes_rebase_adjuster
     }
 
     private:
-
     template <class T, class U>
     static auto check_div(T x, U y) -> decltype(x / y)
     {
@@ -556,10 +554,7 @@ struct axes_rebase_adjuster
         }
     }
 
-    static bool has_hidden_axis(const dimension::sub* s)
-    {
-        return s->has_hidden_axis();
-    }
+    static bool has_hidden_axis(const dimension::sub* s) { return s->has_hidden_axis(); }
 
     static const std::vector<std::size_t>& get_hidden_axis(const dimension::sub* s)
     {
@@ -613,9 +608,9 @@ struct axes_rebase_adjuster
 
     static auto get_hidden_axis_group(const dimension::sub* s)
     {
-            if(s->hidden_axis.empty())
-                return std::numeric_limits<std::size_t>::max();
-            return s->hidden_axis.front();
+        if(s->hidden_axis.empty())
+            return std::numeric_limits<std::size_t>::max();
+        return s->hidden_axis.front();
     }
 
     template <class Pred>
@@ -646,11 +641,10 @@ struct axes_rebase_adjuster
     void sort_hidden_axes_groups()
     {
         auto subs = get_pointer_subdimensions(desc->dimensions);
-        group_unique(
-            subs.begin(),
-            subs.end(),
-            sort_group_if([](dimension::sub* s) { return not s->hidden_axis.empty(); }),
-            by(std::equal_to<>{}, &get_hidden_axis_group));
+        group_unique(subs.begin(),
+                     subs.end(),
+                     sort_group_if([](dimension::sub* s) { return not s->hidden_axis.empty(); }),
+                     by(std::equal_to<>{}, &get_hidden_axis_group));
     }
 
     // If subdimensions are moved together then sort to reduce transposition.

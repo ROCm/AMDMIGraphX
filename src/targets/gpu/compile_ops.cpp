@@ -35,6 +35,7 @@
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/time_op.hpp>
+#include <numeric>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -342,6 +343,105 @@ struct compile_manager
                   cps.end());
     }
 };
+
+struct dynamic_op
+{
+    operation pre_op                  = precompile_op{};
+    std::optional<shape> output_shape = nullopt;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.pre_op, "pre_op"), f(self.output_shape, "output_shape"));
+    }
+
+    std::string name() const { return "gpu::dynamic_op"; }
+
+    shape compute_shape(std::vector<shape> inputs, const std::vector<module_ref>& mods) const
+    {
+        return pre_op.compute_shape(inputs, mods);
+    }
+
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    {
+        return shapes.size() - 1;
+    }
+    argument compute(context& ctx,
+                     const shape&,
+                     const std::vector<argument>& args,
+                     const std::vector<module_ref>& module_args,
+                     std::function<std::vector<argument>(
+                         module_ref&, const std::unordered_map<std::string, argument>&)> run) const
+    {
+        // for(auto ins : iterator_for(m))
+        // {
+        //     if(ins->name() != "gpu::precompile_op")
+        //         continue;
+        //     operation preop = any_cast<precompile_op>(ins->get_operator()).op;
+        //     cm.add_plan(ctx, preop, ins, &m);
+        // }
+        // cm.update_configs();
+        // cm.compile(m);
+        // // Compile already tuned configs
+        // cm.compile(m);
+        // assert(cm.cps.empty());
+
+        auto temp_mod = module("temp_mod");
+        std::vector<instruction_ref> args_ins;
+        std::vector<size_t> idx(args.size());
+        std::iota(std::begin(idx), std::end(idx), 0);
+        std::transform(args.begin(),
+                       args.end(),
+                       idx.begin(),
+                       std::back_inserter(args_ins),
+                       [&](const auto& arg, const auto& i) {
+                           return temp_mod.add_parameter("x" + std::to_string(i), arg.get_shape());
+                       });
+        auto ins = temp_mod.add_instruction(pre_op, args_ins, module_args);
+        temp_mod.debug_print();
+        std::cout << "Getting tuning config" << std::endl;
+        operation preop = any_cast<precompile_op>(ins->get_operator()).op;
+        std::cout << "Preop: " << preop << std::endl;
+        auto config = get_tuning_config(ctx, ins, preop, false);
+        std::cout << "Config: " << std::endl;
+        value solution = value{};
+        if(config.has_value())
+        {
+            solution = config->solutions.front();
+        }
+        std::cout << "Solution: " << solution << std::endl;
+        auto compiled_op = compile(ctx, ins, preop, solution);
+        std::cout << "Compiled op: " << std::endl;
+        compiled_op.replace(temp_mod, ins);
+        run_passes(temp_mod, {dead_code_elimination{}});
+        temp_mod.debug_print();
+        
+        // Finalize the module before execution
+        std::vector<migraphx::context> contexts = {migraphx::context(ctx)};
+        temp_mod.finalize(contexts);
+        
+        auto param_map = std::unordered_map<std::string, argument>{};
+        for(auto i : idx)
+        {
+            param_map["x" + std::to_string(i)] = args[i];
+        }
+        module_ref temp_mod_ref = &temp_mod;
+        std::cout << "Running module" << std::endl;
+        auto results = run(temp_mod_ref, param_map);
+        std::cout << "Results: " << std::endl;
+        return results;
+
+        // auto input_shapes = to_shapes(args);
+        // auto config = get_tuning_config(ctx, input_shapes, module_args, pre_op, false);
+        // auto solution = config->solutions.front();
+        // // auto compiled_op = compile_op(pre_op.name(), ctx, input_shapes, solution);
+        // auto compiled_op = compile(ctx, ins, pre_op, solution);
+
+        // return argument{};
+    }
+};
+
+MIGRAPHX_REGISTER_OP(dynamic_op);
 
 void compile_ops::apply(module& m) const
 {

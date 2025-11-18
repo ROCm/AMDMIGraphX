@@ -182,6 +182,7 @@ struct miopen_apply
             else if(has_compiler_for(it->name()))
             {
                 check_shape(s, insert_precompile_op(it));
+                check_shape(s, insert_dynamic_op(it));
             }
             else if(attrs.contains("target"))
             {
@@ -237,6 +238,20 @@ struct miopen_apply
             ins,
             make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
             refs,
+            ins->module_inputs());
+    }
+
+    instruction_ref insert_dynamic_op(instruction_ref ins) const
+    {
+        assert(ins->get_operator().name() == "gpu::precompile_op");
+
+        if(not ins->get_shape().dynamic())
+            return ins;
+
+        return mod->replace_instruction(
+            ins,
+            make_op("gpu::dynamic_op", {{"pre_op", to_value(ins->get_operator())}}),
+            ins->inputs(),
             ins->module_inputs());
     }
 

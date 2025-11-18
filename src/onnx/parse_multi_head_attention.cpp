@@ -466,7 +466,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
                                 const multi_head_attention_parameters& attention) const
     {
         auto batch_size    = attention.batch_size;
-        auto total_seq_len = attention.q_sequence_length;
+        auto total_seq_len = attention.kv_sequence_length;
         auto num_heads     = attention.num_heads;
 
         // Other two cases require us to generate masks from sequence or total sequence length pads.
@@ -509,6 +509,32 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         return info.add_instruction(make_op("where"), in_bool, bc_mask, bc_pass);
     }
 
+    // Convert per batch right padding values and generate raw mask
+    // Used so we can leverage
+    instruction_ref
+    get_raw_mask_from_right_padding(const onnx_parser::node_info& info,
+                                    const instruction_ref right_mask,
+                                    const multi_head_attention_parameters& attention) const
+    {
+        auto batch_size    = attention.batch_size;
+        auto kv_seq_length = attention.kv_sequence_length;
+
+        // Gen list of indices to compare to the exclusive start of right padding
+        std::vector<size_t> indices_vec(kv_seq_length, 0);
+        std::iota(indices_vec.begin(), indices_vec.end(), 0);
+        auto indices    = info.add_literal(migraphx::literal{
+            migraphx::shape{migraphx::shape::int32_type, {static_cast<size_t>(kv_seq_length)}, {1}},
+            indices_vec});
+        auto indices_bc = info.add_instruction(
+            make_op("multibroadcast", {{"out_lens", {batch_size, kv_seq_length}}}), indices);
+        auto right_mask_bc = info.add_instruction(
+            make_op("multibroadcast", {{"out_lens", {batch_size, kv_seq_length}}}), right_mask);
+        auto in_bool = info.add_instruction(make_op("less"), indices_bc, right_mask_bc);
+
+        return info.add_instruction(
+            make_op("convert", {{"target_type", migraphx::shape::int32_type}}), in_bool);
+    }
+
     std::optional<instruction_ref>
     create_input_mask(const onnx_parser::node_info& info,
                       const instruction_ref mask_index,
@@ -522,10 +548,15 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
 
         if((attention.key_pad_mode == key_mask_mode_t::direct_2d_pad) or
            (attention.key_pad_mode == key_mask_mode_t::direct_3d_pad))
-        { // Raw Mask - 0 means mask, 1 means pass through. Apply mask_filter_val to mask indicies
+        { // Raw Mask - 0 means mask, 1 means pass through. Apply mask_filter_val to mask indices
           // and zero otherwise
             // Need to generate from 2 dims or 3 dim cases
             return generate_raw_mask_per_batch(info, mask_index, input_shape, attention);
+        }
+        else if(attention.key_pad_mode == key_mask_mode_t::right_pad)
+        {
+            auto right_mask = get_raw_mask_from_right_padding(info, mask_index, attention);
+            return generate_raw_mask_per_batch(info, right_mask, input_shape, attention);
         }
 
         return nullopt;

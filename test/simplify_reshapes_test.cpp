@@ -2797,8 +2797,8 @@ TEST_CASE(reduce_unsqueeze_broadcast_transpose_pointwise2)
             m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3, 5}}}), transpose1);
         auto broadcast = m1.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), unsqueeze);
-        auto add        = m1.add_instruction(migraphx::make_op("add"), broadcast, y);
-        auto relu       = m1.add_instruction(migraphx::make_op("relu"), add);
+        auto add  = m1.add_instruction(migraphx::make_op("add"), broadcast, y);
+        auto relu = m1.add_instruction(migraphx::make_op("relu"), add);
         auto transpose2 =
             m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), x);
         auto reshape =

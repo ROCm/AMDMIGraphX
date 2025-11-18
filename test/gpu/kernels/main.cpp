@@ -80,7 +80,7 @@ struct test_suite : std::enable_shared_from_this<test_suite>
         std::ostringstream out;
         out << content << '\n';
         out << "extern \"C\" __global__ void " << options.kernel_name
-            << "(int id, int32_t* failures) {\n";
+            << "(int id, migraphx::int32_t* failures) {\n";
         out << "    migraphx::test::test_manager tm{failures};\n";
         out << "    switch(id) {\n";
         for(const auto& [case_name, i] : test_cases)

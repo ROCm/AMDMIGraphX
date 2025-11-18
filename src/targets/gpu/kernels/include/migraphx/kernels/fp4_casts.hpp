@@ -62,15 +62,19 @@ static constexpr array<migraphx::tuple<float, uint8_t>, 7> fp4_even_round = {mak
                                                                              make_tuple(5, 1)};
 } // namespace fp4_detail
 
+// NOTE: possible to remove float/T casts by making LUTs for each type
 // converts 4 LSB to float
-__device__ constexpr float fp4_to_float(uint8_t x)
+template <class T>
+__device__ constexpr T cast_from_fp4(uint8_t x)
 {
-    return fp4_detail::fp4_lut[x % fp4_detail::fp4_lut.size()];
+    return T(fp4_detail::fp4_lut[x % fp4_detail::fp4_lut.size()]);
 }
 
 // rounding mode = roundToNearestRoundTiesToEven
-__device__ inline uint8_t float_to_fp4(float f_x)
+template <class T>
+__device__ inline uint8_t cast_to_fp4(T x)
 {
+    float f_x = float(x);
     using fp4_detail::fp4_even_round;
     using fp4_detail::fp4_lut;
     if(isnan(f_x))
@@ -89,6 +93,7 @@ __device__ inline uint8_t float_to_fp4(float f_x)
 
     return i + sign_add;
 }
+
 } // namespace migraphx
 
 #endif // MIGRAPHX_GUARD_KERNELS_FP4_CASTS_HPP

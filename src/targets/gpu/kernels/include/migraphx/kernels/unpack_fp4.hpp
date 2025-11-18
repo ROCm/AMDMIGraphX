@@ -28,6 +28,7 @@
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
 #include <migraphx/kernels/fp4_casts.hpp>
+#include <migraphx/kernels/float8.hpp>
 
 namespace migraphx {
 
@@ -42,10 +43,10 @@ __device__ void unpack_fp4(Input input, Output output)
         // unpacking 2 unsigned parts
         // unpacking 4 least significant bits first
         uint8_t fp4_val = input[in_idx];
-        output[out_idx] = fp4_to_float(fp4_val);
+        output[out_idx] = cast_from_fp4<fp8::fp8e4m3fn>(fp4_val);
         out_idx[Axis] += 1;
         fp4_val         = fp4_val >> 4u;
-        output[out_idx] = fp4_to_float(fp4_val);
+        output[out_idx] = cast_from_fp4<fp8::fp8e4m3fn>(fp4_val);
     });
 }
 

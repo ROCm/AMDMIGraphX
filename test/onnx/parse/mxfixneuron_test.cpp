@@ -56,15 +56,9 @@ TEST_CASE(mxfixneuron_even_test)
         input,
         block_scales_ins);
     auto quantized_shape     = q_ins->get_shape();
-    std::size_t num_elements = quantized_shape.elements();
-    auto ravel_ins =
-        mm->add_instruction(migraphx::make_op("reshape", {{"dims", {num_elements}}}), q_ins);
-    auto pack_ins           = mm->add_instruction(migraphx::make_op("pack_fp4"), ravel_ins);
-    auto unpack_ins         = mm->add_instruction(migraphx::make_op("unpack_fp4"), pack_ins);
-    auto reshape_unpack_ins = mm->add_instruction(
-        migraphx::make_op("reshape", {{"dims", quantized_shape.lens()}}), unpack_ins);
-    mm->add_instruction(
-        migraphx::make_op("dequantizelinear"), reshape_unpack_ins, block_scales_ins);
+    auto pack_ins            = mm->add_instruction(migraphx::make_op("pack_fp4"), q_ins);
+    auto unpack_ins          = mm->add_instruction(migraphx::make_op("unpack_fp4"), pack_ins);
+    mm->add_instruction(migraphx::make_op("dequantizelinear"), unpack_ins, block_scales_ins);
 
     auto prog = optimize_onnx("mxfixneuron_even_test.onnx");
     EXPECT(p == prog);
@@ -107,19 +101,13 @@ TEST_CASE(mxfixneuron_odd_test)
         input,
         block_scales_ins);
     auto quantized_shape     = q_ins->get_shape();
-    std::size_t num_elements = quantized_shape.elements();
-    auto ravel_ins =
-        mm->add_instruction(migraphx::make_op("reshape", {{"dims", {num_elements}}}), q_ins);
-    ravel_ins       = mm->add_instruction(migraphx::make_op("pad", {{"pads", {0, 1}}}), ravel_ins);
-    auto pack_ins   = mm->add_instruction(migraphx::make_op("pack_fp4"), ravel_ins);
+    auto pad_ins =
+        mm->add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 0, 0, 0, 1}}}), q_ins);
+    auto pack_ins   = mm->add_instruction(migraphx::make_op("pack_fp4"), pad_ins);
     auto unpack_ins = mm->add_instruction(migraphx::make_op("unpack_fp4"), pack_ins);
-    unpack_ins      = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {num_elements}}}),
-        unpack_ins);
-    auto reshape_unpack_ins = mm->add_instruction(
-        migraphx::make_op("reshape", {{"dims", quantized_shape.lens()}}), unpack_ins);
-    mm->add_instruction(
-        migraphx::make_op("dequantizelinear"), reshape_unpack_ins, block_scales_ins);
+    auto slice_ins  = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {5}}}), unpack_ins);
+    mm->add_instruction(migraphx::make_op("dequantizelinear"), slice_ins, block_scales_ins);
 
     auto prog = optimize_onnx("mxfixneuron_odd_test.onnx");
     EXPECT(p == prog);

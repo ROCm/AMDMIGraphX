@@ -300,8 +300,8 @@ static auto check_div(T x, U y) -> decltype(x / y)
 }
 
 // Class to handle axes rebase adjustment for ambiguous reshape transformations
-// 
-// This class solves an ambiguity problem that arises when shape_transform_descriptor 
+//
+// This class solves an ambiguity problem that arises when shape_transform_descriptor
 // records reshape operations involving dimensions of size 1. When reshaping with 1 dims,
 // there are multiple valid ways to split/assign axes, and the descriptor may not match
 // the expected layout when rebasing.
@@ -339,16 +339,16 @@ static auto check_div(T x, U y) -> decltype(x / y)
 struct axes_rebase_adjuster
 {
     using axes_map_t = std::map<std::size_t, std::vector<dimension::sub*>>;
-    
+
     // Structure to bundle axis-related information for cleaner parameter passing
     struct axis_info
     {
-        std::size_t saxis;     // The shortage axis that needs subdimensions
-        std::size_t excess;    // The amount of excess subdimensions available
-        std::size_t base_dim;  // The base dimension size
-        std::size_t axis;      // The current axis being processed
+        std::size_t saxis;    // The shortage axis that needs subdimensions
+        std::size_t excess;   // The amount of excess subdimensions available
+        std::size_t base_dim; // The base dimension size
+        std::size_t axis;     // The current axis being processed
     };
-    
+
     axes_rebase_adjuster(shape_transform_descriptor& d, const std::vector<std::size_t>& ds)
         : desc(&d), dims(&ds)
     {
@@ -416,7 +416,7 @@ struct axes_rebase_adjuster
     // 3. Try to swap (for broadcast dimensions) or move subdimensions
     //
     // Example - fixing reshape ambiguity:
-    // - Transform: [4, 1, 4] → [4, 1, 1, 4] 
+    // - Transform: [4, 1, 4] → [4, 1, 1, 4]
     // - Descriptor recorded: [4:0], [1:1], [1:2,0], [4:2,1]
     // - But rebase expects: [4:0], [1:1,0], [1:1,1], [4:2]
     // - Process finds axis 2 has excess, axes need rearrangement
@@ -426,16 +426,16 @@ struct axes_rebase_adjuster
     {
         for_each_axis_group(axes_map,
                             [&](std::size_t axis,
-                                                    const std::vector<dimension::sub*>& subs,
-                                                    std::size_t excess,
-                                                    std::size_t base_dim) {
+                                const std::vector<dimension::sub*>& subs,
+                                std::size_t excess,
+                                std::size_t base_dim) {
                                 auto saxes = shortage_axes.equal_range(excess);
                                 if(saxes.first == saxes.second)
                                     return;
 
                                 auto saxis_it =
                                     find_nearest_shortage_axis(saxes.first, saxes.second, axis);
-                                
+
                                 axis_info info{saxis_it->second, excess, base_dim, axis};
 
                                 // Try to swap an axis
@@ -536,15 +536,16 @@ struct axes_rebase_adjuster
     // - Original: [8, 1] reshape to [2, 4, 1], broadcast to [2, 4, 16]
     // - shape_transform_descriptor might record: [2:0,0], [4:0,1], [] (axis 1 empty)
     // - But when rebasing to [8, 1], axis 1 needs its dimension 1 subdimension
-    // - Solution: 
+    // - Solution:
     //   1. Find the dimension 1 subdimension (wrongly assigned or unassigned)
     //   2. Clear its axis assignment to make it moveable
     //   3. Create new subdimension properly assigned to the shortage axis
     //
     // This fixes cases where reshape ambiguity left dimension 1s in wrong positions
-    bool move_shortage_to_excess(const std::vector<dimension::sub*>& subs,
-                                 const axis_info& info,
-                                 std::vector<std::pair<dimension::sub, std::size_t>>& subs_to_insert)
+    bool
+    move_shortage_to_excess(const std::vector<dimension::sub*>& subs,
+                            const axis_info& info,
+                            std::vector<std::pair<dimension::sub, std::size_t>>& subs_to_insert)
     {
         auto dim_pair =
             find_subdimension_with_dimension(desc->dimensions, [&](const dimension::sub& s) {
@@ -700,7 +701,7 @@ struct axes_rebase_adjuster
     }
 
     // Sorts groups of hidden axes to ensure they are in ascending order
-    // 
+    //
     // Example:
     // - Before: [{2}, {1}, {3}] within a group
     // - After:  [{1}, {2}, {3}] within a group

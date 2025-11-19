@@ -52,10 +52,10 @@ TEST_CASE(resize_nhwc_test)
     // 1. Transpose to NHWC [1, 2, 2, 3]
     // 2. Resize with scales [1.0, 2.0, 2.0, 1.0] -> [1, 4, 4, 3]
     // 3. Transpose back to NCHW [1, 3, 4, 4]
-    
+
     // Expected output size
     EXPECT(result_vector.size() == 1 * 3 * 4 * 4);
-    
+
     // Verify output shape
     EXPECT(result.get_shape() == migraphx::shape{migraphx::shape::float_type, {1, 3, 4, 4}});
 

@@ -35,50 +35,50 @@ struct test_attention_flash_decoding_4d_input_fusion
     {
         // 4D Shape: [batch, num_heads, sequence_length, head_dim]
         migraphx::shape s_4d{DType, {1, 12, 256, 256}};
-        
+
         migraphx::program p;
         auto* mm = p.get_main_module();
-        
+
         // Input parameters
         auto q_input = mm->add_parameter("q", s_4d);
         auto k_input = mm->add_parameter("k", s_4d);
         auto v_input = mm->add_parameter("v", s_4d);
-        
+
         // Bias parameters for input fusion
         auto q_bias = mm->add_parameter("q_bias", s_4d);
         auto k_bias = mm->add_parameter("k_bias", s_4d);
         auto v_bias = mm->add_parameter("v_bias", s_4d);
-        
+
         // Scale parameter (typically 1/sqrt(head_dim))
         migraphx::shape scale_shape{DType, {1}};
         auto scale = mm->add_parameter("scale", scale_shape);
-        
+
         // Input fusion operations
         // Add bias to Q, K, V
         auto q_with_bias = mm->add_instruction(migraphx::make_op("add"), q_input, q_bias);
         auto k_with_bias = mm->add_instruction(migraphx::make_op("add"), k_input, k_bias);
         auto v_with_bias = mm->add_instruction(migraphx::make_op("add"), v_input, v_bias);
-        
+
         // Scale Q (common in attention mechanisms)
         scale = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", s_4d.lens()}}), scale);
         auto q_scaled = mm->add_instruction(migraphx::make_op("mul"), q_with_bias, scale);
-        
+
         // Apply activation (optional input fusion)
         auto q_activated = mm->add_instruction(migraphx::make_op("tanh"), q_scaled);
         auto k_activated = mm->add_instruction(migraphx::make_op("tanh"), k_with_bias);
         auto v_activated = mm->add_instruction(migraphx::make_op("tanh"), v_with_bias);
-        
+
         // Now perform the attention mechanism with fused inputs
         // Transpose K and V for matrix multiplication
         auto k_transposed = mm->add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), k_activated);
         auto v_transposed = mm->add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), v_activated);
-        
+
         // Compute attention scores: Q @ K^T
         auto scores = mm->add_instruction(migraphx::make_op("dot"), q_activated, k_transposed);
-        
+
         // Apply softmax
         auto scores_max =
             mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), scores);
@@ -92,11 +92,11 @@ struct test_attention_flash_decoding_4d_input_fusion
             migraphx::make_op("multibroadcast", {{"out_lens", s_4d.lens()}}), scores_sum);
         auto attention_weights =
             mm->add_instruction(migraphx::make_op("div"), scores_exp, scores_sum);
-        
+
         // Apply attention weights to values: attention_weights @ V^T
         auto output =
             mm->add_instruction(migraphx::make_op("dot"), attention_weights, v_transposed);
-        
+
         mm->add_return({output});
         return p;
     }

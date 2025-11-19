@@ -373,7 +373,7 @@ struct rebase_ambiguity_resolver
     // These are "shortage" axes that need subdimensions due to ambiguous axis assignment
     void find_shortage_axes(const axes_map_t& axes_map)
     {
-        for(auto& [axis, subs] : axes_map)
+        for(const auto& [axis, subs] : axes_map)
         {
             assert(axis < dims->size());
             auto dim      = (*dims)[axis];
@@ -436,7 +436,7 @@ struct rebase_ambiguity_resolver
     template <class F>
     void for_each_axis_group(const axes_map_t& axes_map, F f)
     {
-        for(auto& [axis, subs] : axes_map)
+        for(const auto& [axis, subs] : axes_map)
         {
             assert(axis < dims->size());
             auto dim    = (*dims)[axis];
@@ -535,7 +535,7 @@ struct rebase_ambiguity_resolver
     void
     insert_moved_axes(const std::vector<std::pair<dimension::sub, std::size_t>>& subs_to_insert)
     {
-        for(auto& [sub, pos_axis] : subs_to_insert)
+        for(const auto& [sub, pos_axis] : subs_to_insert)
         {
             // Inline insert_single_axis
             auto equal_to_pos_axis = [&, lpos_axis = pos_axis](const dimension::sub& s) {
@@ -621,9 +621,10 @@ struct rebase_ambiguity_resolver
                 return;
             if(not pred(*start))
                 return;
-            auto r = range(start, last);
-            auto axes =
-                views::transform(r, [](dimension::sub* s) -> auto& { return s->hidden_axis; });
+            auto r    = range(start, last);
+            auto axes = views::transform(r, [](MIGRAPHX_CPPCHECK_CONST dimension::sub* s) -> auto& {
+                return s->hidden_axis;
+            });
             std::sort(axes.begin(), axes.end());
         };
     }

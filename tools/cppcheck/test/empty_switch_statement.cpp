@@ -3,7 +3,7 @@
 void test_empty_switch()
 {
     int x = 5;
-    // cppcheck-suppress emptySwitchStatement
+    // cppcheck-suppress migraphx-EmptySwitchStatement
     switch(x)
     {
     }
@@ -12,7 +12,7 @@ void test_empty_switch()
 void test_empty_switch_with_different_variable()
 {
     int y = 10;
-    // cppcheck-suppress emptySwitchStatement
+    // cppcheck-suppress migraphx-EmptySwitchStatement
     switch(y)
     {
     }

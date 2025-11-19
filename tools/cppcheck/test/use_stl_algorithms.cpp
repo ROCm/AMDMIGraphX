@@ -5,7 +5,7 @@ void test_memcpy_usage()
 {
     char src[] = "hello";
     char dest[10];
-    // cppcheck-suppress useStlAlgorithm
+    // cppcheck-suppress migraphx-useStlAlgorithms
     memcpy(dest, src, 5);
 }
 
@@ -13,7 +13,7 @@ void test_strcpy_usage()
 {
     char src[] = "hello";
     char dest[10];
-    // cppcheck-suppress useStlAlgorithm
+    // cppcheck-suppress migraphx-useStlAlgorithms
     strcpy(dest, src);
 }
 
@@ -21,14 +21,14 @@ void test_strncpy_usage()
 {
     char src[] = "hello";
     char dest[10];
-    // cppcheck-suppress useStlAlgorithm
+    // cppcheck-suppress migraphx-useStlAlgorithms
     strncpy(dest, src, 5);
 }
 
 void test_memset_usage()
 {
     char dest[10];
-    // cppcheck-suppress useStlAlgorithm
+    // cppcheck-suppress migraphx-useStlAlgorithms
     memset(dest, 0, 10);
 }
 
@@ -36,7 +36,7 @@ void test_memcmp_usage()
 {
     char src[]    = "hello";
     char dest[10] = "hello";
-    // cppcheck-suppress useStlAlgorithm
+    // cppcheck-suppress migraphx-useStlAlgorithms
     int result = memcmp(src, dest, 5);
     (void)result; // Suppress unused variable warning
 }
@@ -44,7 +44,7 @@ void test_memcmp_usage()
 void test_memchr_usage()
 {
     char src[] = "hello";
-    // cppcheck-suppress useStlAlgorithm
+    // cppcheck-suppress migraphx-useStlAlgorithms
     void* found = memchr(src, 'l', 5);
     (void)found; // Suppress unused variable warning
 }
@@ -53,7 +53,7 @@ void test_strcat_usage()
 {
     char dest[20] = "hello";
     char src[]    = " world";
-    // cppcheck-suppress useStlAlgorithm
+    // cppcheck-suppress migraphx-useStlAlgorithms
     strcat(dest, src);
 }
 
@@ -61,7 +61,7 @@ void test_strncat_usage()
 {
     char dest[20] = "hello";
     char src[]    = " world";
-    // cppcheck-suppress useStlAlgorithm
+    // cppcheck-suppress migraphx-useStlAlgorithms
     strncat(dest, src, 3);
 }
 

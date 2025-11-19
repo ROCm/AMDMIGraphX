@@ -3,7 +3,7 @@
 void test_empty_do_while()
 {
     int i = 0;
-    // cppcheck-suppress emptyDoWhileStatement
+    // cppcheck-suppress migraphx-EmptyDoWhileStatement
     do
     {
     } while(i++ < 5);

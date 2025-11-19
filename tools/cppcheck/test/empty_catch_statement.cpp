@@ -7,7 +7,7 @@ void test_empty_catch()
     {
         throw std::runtime_error("test");
     }
-    // cppcheck-suppress emptyCatchBlock
+    // cppcheck-suppress migraphx-EmptyCatchStatement
     catch(const std::exception& e)
     {
     }
@@ -19,7 +19,7 @@ void test_empty_catch_ellipsis()
     {
         throw 42;
     }
-    // cppcheck-suppress emptyCatchBlock
+    // cppcheck-suppress migraphx-EmptyCatchStatement
     catch(...)
     {
     }

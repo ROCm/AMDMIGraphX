@@ -5,7 +5,7 @@ void test_goto_usage()
     int x = 5;
     if(x > 0)
     {
-        // cppcheck-suppress gotoStatement
+        // cppcheck-suppress migraphx-GotoStatement
         goto end;
     }
     x = 10;
@@ -19,7 +19,7 @@ void test_goto_in_loop()
     {
         if(i == 5)
         {
-            // cppcheck-suppress gotoStatement
+            // cppcheck-suppress migraphx-GotoStatement
             goto loop_end;
         }
     }

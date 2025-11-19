@@ -13,7 +13,7 @@ bool g(bool);
 
 void test_logical_and_operator(bool a, bool b)
 {
-    // cppcheck-suppress migraphx-UseNamedLogicOperator
+    // cppcheck-suppress UseNamedLogicOperator
     if(a && b)
     {
         (void)0;
@@ -22,7 +22,7 @@ void test_logical_and_operator(bool a, bool b)
 
 void test_logical_or_operator(bool a, bool b)
 {
-    // cppcheck-suppress migraphx-UseNamedLogicOperator
+    // cppcheck-suppress UseNamedLogicOperator
     if(a || b)
     {
         (void)0;
@@ -31,7 +31,7 @@ void test_logical_or_operator(bool a, bool b)
 
 void test_logical_not_operator(bool a)
 {
-    // cppcheck-suppress migraphx-UseNamedLogicOperator
+    // cppcheck-suppress UseNamedLogicOperator
     if(!a)
     {
         (void)0;
@@ -40,7 +40,7 @@ void test_logical_not_operator(bool a)
 
 void test_complex_and_expression(int x, int y)
 {
-    // cppcheck-suppress migraphx-UseNamedLogicOperator
+    // cppcheck-suppress UseNamedLogicOperator
     if(x > 0 && y < 20)
     {
         (void)0;
@@ -49,7 +49,7 @@ void test_complex_and_expression(int x, int y)
 
 void test_while_with_and_operator(int x)
 {
-    // cppcheck-suppress migraphx-UseNamedLogicOperator
+    // cppcheck-suppress UseNamedLogicOperator
     while(x > 0 && x < 10)
     {
         (void)0;
@@ -58,81 +58,81 @@ void test_while_with_and_operator(int x)
 
 bool test_assign_with_and_operator(int x, bool y)
 {
-    // cppcheck-suppress migraphx-UseNamedLogicOperator
+    // cppcheck-suppress UseNamedLogicOperator
     bool r = x > 0 && y;
     return g(x, r);
 }
 
 void test_function_with_and_operator1(bool a, bool b, bool c, int y)
 {
-    // cppcheck-suppress migraphx-UseNamedLogicOperator
+    // cppcheck-suppress UseNamedLogicOperator
     g(y, !c or (a && b));
 }
 
 void test_function_with_and_operator2(bool a, bool b, bool c, int y)
 {
-    // cppcheck-suppress migraphx-UseNamedLogicOperator
+    // cppcheck-suppress UseNamedLogicOperator
     g(y, c or !(a && b));
 }
 
-// cppcheck-suppress migraphx-UseNamedLogicOperator
+// cppcheck-suppress UseNamedLogicOperator
 auto test_decltype_with_and_operator(bool a, bool b, bool c) -> decltype(!c or (a && b))
 {
-    // cppcheck-suppress migraphx-UseNamedLogicOperator
+    // cppcheck-suppress UseNamedLogicOperator
     return !c or (a && b);
 }
 
 void test_function_with_and_operator_function1(int x, int y)
 {
-    // cppcheck-suppress migraphx-UseNamedLogicOperator
+    // cppcheck-suppress UseNamedLogicOperator
     g(y, x > y && f());
 }
 
 void test_function_with_and_operator_function2(int x, int y)
 {
-    // cppcheck-suppress migraphx-UseNamedLogicOperator
+    // cppcheck-suppress UseNamedLogicOperator
     g(x > y && f());
 }
 
 void test_function_with_and_operator_function3(int x, int y)
 {
-    // cppcheck-suppress migraphx-UseNamedLogicOperator
+    // cppcheck-suppress UseNamedLogicOperator
     g(f() && x > y);
 }
 
 bool test_return_with_and_operator1(int x, bool y)
 {
-    // cppcheck-suppress migraphx-UseNamedLogicOperator
+    // cppcheck-suppress UseNamedLogicOperator
     return x > 0 && y;
 }
 
 bool test_return_with_and_operator2(int x, bool y)
 {
-    // cppcheck-suppress migraphx-UseNamedLogicOperator
+    // cppcheck-suppress UseNamedLogicOperator
     return y && x > 0;
 }
 
 bool test_return_with_and_operator_function1(int x, int y)
 {
-    // cppcheck-suppress migraphx-UseNamedLogicOperator
+    // cppcheck-suppress UseNamedLogicOperator
     return x > y && f();
 }
 
 bool test_return_with_and_operator_function2(int x, int y)
 {
-    // cppcheck-suppress migraphx-UseNamedLogicOperator
+    // cppcheck-suppress UseNamedLogicOperator
     return f() && x > y;
 }
 
 bool test_return_with_and_operator_pointer(const int* x, int y)
 {
-    // cppcheck-suppress migraphx-UseNamedLogicOperator
+    // cppcheck-suppress UseNamedLogicOperator
     return x != nullptr && *x > y;
 }
 
 void test_multiple_logical_operators(bool a, bool b, bool c)
 {
-    // cppcheck-suppress migraphx-UseNamedLogicOperator
+    // cppcheck-suppress UseNamedLogicOperator
     if((a && b) || !c)
     {
         (void)0;

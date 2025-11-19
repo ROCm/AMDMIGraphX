@@ -2,13 +2,13 @@
 
 void test_empty_for_loop()
 {
-    // cppcheck-suppress emptyForStatement
+    // cppcheck-suppress migraphx-EmptyForStatement
     for(int i = 0; i < 10; i++) {}
 }
 
 void test_empty_for_with_different_condition()
 {
-    // cppcheck-suppress emptyForStatement
+    // cppcheck-suppress migraphx-EmptyForStatement
     for(int j = 10; j > 0; j--) {}
 }
 

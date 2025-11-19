@@ -3,14 +3,14 @@
 void test_empty_while()
 {
     int i = 0;
-    // cppcheck-suppress emptyWhileStatement
+    // cppcheck-suppress migraphx-EmptyWhileStatement
     while(i++ < 5) {}
 }
 
 void test_empty_while_different_condition()
 {
     int j = 10;
-    // cppcheck-suppress emptyWhileStatement
+    // cppcheck-suppress migraphx-EmptyWhileStatement
     while(j-- > 0) {}
 }
 

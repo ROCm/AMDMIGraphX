@@ -74,14 +74,13 @@ void quantize_8bits_pass::apply(module& m) const // NOLINT
 
             float epsilon = 0.0f;
             float max_val = std::numeric_limits<float>::max();
-            
             s.visit_type([&](auto as) {
                 epsilon = static_cast<float>(as.epsilon());
                 max_val = static_cast<float>(as.max());
             });
 
-            inverted_scale = std::max(epsilon, std::min(max_val, inverted_scale));
-            auto scale = m.add_literal(literal({s.type()}, {inverted_scale}));
+            inverted_scale   = std::max(epsilon, std::min(max_val, inverted_scale));
+            auto scale       = m.add_literal(literal({s.type()}, {inverted_scale}));
             const auto& lens = s.lens();
             scale =
                 m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", lens}}), scale);

@@ -37,4 +37,5 @@ void test_switch_with_single_case()
     {
     case 1: x = 100; break;
     }
+    (void)x;
 }

@@ -29,7 +29,7 @@ void test_different_conditions(int x)
 
 void test_assert_without_if(int x) { assert(x > 0); }
 
-void test_if_without_assert(int x)
+void test_if_without_assert(int& x)
 {
     if(x > 0)
     {

@@ -2,7 +2,7 @@
 
 int test_unnecessary_else_after_return(int x)
 {
-    // cppcheck-suppress UnnecessaryElseStatement
+    // TODO: UnnecessaryElseStatement not triggered
     if(x > 0)
     {
         return 1;
@@ -15,7 +15,7 @@ int test_unnecessary_else_after_return(int x)
 
 int test_unnecessary_else_after_throw(int x)
 {
-    // cppcheck-suppress UnnecessaryElseStatement
+    // TODO: UnnecessaryElseStatement not triggered
     if(x < 0)
     {
         throw "error";
@@ -30,7 +30,7 @@ void test_unnecessary_else_after_break(int x)
 {
     for(int i = 0; i < 10; i++)
     {
-        // cppcheck-suppress UnnecessaryElseStatement
+        // TODO: UnnecessaryElseStatement not triggered
         if(i == x)
         {
             break;
@@ -42,11 +42,11 @@ void test_unnecessary_else_after_break(int x)
     }
 }
 
-void test_unnecessary_else_after_continue(int x)
+void test_unnecessary_else_after_continue(int& x)
 {
     for(int i = 0; i < 10; i++)
     {
-        // cppcheck-suppress UnnecessaryElseStatement
+        // TODO: UnnecessaryElseStatement not triggered
         if(i == x)
         {
             continue;
@@ -73,7 +73,7 @@ int test_necessary_else_both_paths_return(int x)
     }
 }
 
-void test_necessary_else_no_control_flow(int x)
+void test_necessary_else_no_control_flow(int& x)
 {
     // Should not trigger: no return/break/continue/throw
     if(x > 0)

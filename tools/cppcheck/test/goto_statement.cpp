@@ -1,8 +1,7 @@
 // Test for GotoStatement check
 
-void test_goto_usage()
+void test_goto_usage(int x)
 {
-    int x = 5;
     if(x > 0)
     {
         // cppcheck-suppress migraphx-GotoStatement
@@ -10,6 +9,7 @@ void test_goto_usage()
     }
     x = 10;
 end:
+    (void)x; // Use variable to avoid warning
     return;
 }
 
@@ -27,13 +27,13 @@ loop_end:
     return;
 }
 
-void test_no_goto()
+void test_no_goto(int x)
 {
-    int x = 5;
     if(x > 0)
     {
         x = 10;
     }
+    (void)x; // Use variable to avoid warning
     return;
 }
 

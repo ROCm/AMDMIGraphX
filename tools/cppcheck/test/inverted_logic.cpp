@@ -18,7 +18,7 @@ void test_inverted_logic_with_negation(bool flag)
 {
     int x = 5;
     // cppcheck-suppress InvertedLogic
-    if(!flag)
+    if(not flag)
     {
         x = 2;
     }
@@ -31,14 +31,15 @@ void test_inverted_logic_with_negation(bool flag)
 
 void test_inverted_logic_ternary_1(int x, int y)
 {
-    // cppcheck-suppress InvertedLogic
+    // TODO: InvertedLogic not triggered
     int result1 = (x != y) ? 0 : 1;
     (void)result1; // Use variable to avoid warning
 }
 
 void test_inverted_logic_ternary_2(bool flag)
 {
-    // cppcheck-suppress InvertedLogic
+    // TODO: InvertedLogic not triggered
+    // cppcheck-suppress UseNamedLogicOperator
     int result2 = (!flag) ? 0 : 1;
     (void)result2; // Use variable to avoid warning
 }

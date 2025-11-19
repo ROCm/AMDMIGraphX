@@ -44,9 +44,8 @@ void test_no_else_block(int x)
     (void)x;
 }
 
-void test_else_if_chain()
+void test_else_if_chain(int x)
 {
-    int x = 5;
     if(x > 0)
     {
         x = 10;
@@ -55,4 +54,5 @@ void test_else_if_chain()
     {
         x = 0;
     }
+    (void)x;
 }

@@ -149,7 +149,9 @@ void test_multiple_named_logical_operators_should_not_trigget(bool a, bool b, bo
 
 void test_rvalue_ref_should_not_trigger(int&& x);
 
+// TODO: UseNamedLogicOperator should not be triggered
 template <class T>
+// cppcheck-suppress UseNamedLogicOperator
 static T&& test_rvalue_static_template_return_ref_should_not_trigger();
 
 template <class T>

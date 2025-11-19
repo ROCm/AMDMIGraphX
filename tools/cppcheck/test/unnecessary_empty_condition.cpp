@@ -7,7 +7,7 @@ void test_positive_cases()
 
     // Should trigger: unnecessary empty check before range-based for
     // cppcheck-suppress migraphx-UnnecessaryEmptyCondition
-    if(!container.empty())
+    if(not container.empty())
     {
         for(auto item : container)
         {

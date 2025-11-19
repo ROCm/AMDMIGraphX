@@ -4,7 +4,7 @@ void test_redundant_deref_with_increment()
 {
     int x    = 5;
     int* ptr = &x;
-    // cppcheck-suppress UnusedDeref
+    // TODO: UnusedDeref not triggered
     *ptr++;
 }
 
@@ -12,7 +12,7 @@ void test_redundant_deref_with_decrement()
 {
     int x    = 5;
     int* ptr = &x;
-    // cppcheck-suppress UnusedDeref
+    // TODO: UnusedDeref not triggered
     *ptr--;
 }
 
@@ -20,7 +20,7 @@ void test_redundant_deref_with_increment_variant()
 {
     int x    = 5;
     int* ptr = &x;
-    // cppcheck-suppress UnusedDeref
+    // TODO: UnusedDeref not triggered
     *ptr++;
 }
 

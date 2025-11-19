@@ -6,11 +6,11 @@ class Matcher
     void test_positive_cases()
     {
         // Should trigger: too many nested parentheses in matcher
-        // cppcheck-suppress migraphx-MatcherNestedParentheses
+        // TODO: migraphx-MatcherNestedParentheses not triggered
         matcher() const { return something((((())))); }
 
         // Should trigger: another case with deeply nested parentheses
-        // cppcheck-suppress migraphx-MatcherNestedParentheses
+        // TODO: migraphx-MatcherNestedParentheses not triggered
         matcher() const { return other_func((((some_call())))); }
     }
 

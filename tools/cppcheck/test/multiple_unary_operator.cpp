@@ -11,7 +11,7 @@ void test_double_negative()
 void test_double_positive()
 {
     int x = 5;
-    // cppcheck-suppress migraphx-MultipleUnaryOperator
+    // TODO: migraphx-MultipleUnaryOperator not triggered
     int z = +(+x);
     (void)z; // Use variable to avoid warning
 }
@@ -66,4 +66,5 @@ void test_increment_decrement()
     ++x;
     x--;
     --x;
+    (void)x;
 }

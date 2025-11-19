@@ -191,6 +191,7 @@ add_library(migraphx_gpu
     time_op.cpp
     topk.cpp
     write_literals.cpp
+    fuse_mlss.cpp
     ${JIT_GPU_SRCS}
     ${MIOPEN_SRCS}
 )
@@ -410,6 +411,10 @@ endif()
 
 add_subdirectory(driver)
 add_subdirectory(hiprtc)
+
+find_package(amdmlss REQUIRED)
+target_link_libraries(migraphx_gpu PUBLIC amdmlss::c_api)
+
 
 rocm_install_targets(
     PRIVATE

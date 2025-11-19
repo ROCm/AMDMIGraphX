@@ -31,6 +31,7 @@
 #include <numeric>
 #include <memory>
 #include <set>
+#include <limits>
 
 #include <migraphx/functional.hpp>
 #include <migraphx/errors.hpp>

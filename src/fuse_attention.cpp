@@ -29,6 +29,7 @@
 #include <migraphx/match/softmax.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/fuse_attention_split_factor.hpp>
 #include <queue>
 #include <optional>
 
@@ -37,7 +38,12 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
 
+// Environment variables for flash decoding configuration
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_NUM_SPLITS);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_AUTO_SPLIT);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_MIN_CHUNK_SIZE);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_MAX_SPLITS);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_THRESHOLD);
 
 std::size_t get_num_splits() { return value_of(MIGRAPHX_FLASH_DECODING_NUM_SPLITS{}, 0); }
 
@@ -216,8 +222,9 @@ struct find_attention
 
 struct find_flash_decoding
 {
-    // number of groups. User-provided for now
+    // number of groups (0 means auto-calculate)
     std::size_t groups;
+    bool use_auto_split = false;
 
     auto matcher() const
     {
@@ -449,8 +456,30 @@ struct find_flash_decoding
         assert(k_param->name() == "@param" and "K should be a parameter");
         assert(v_param->name() == "@param" and "V should be a parameter");
 
+        // Get sequence length from K shape
+        auto k_shape = k_param->get_shape();
+        std::size_t sequence_length = k_shape.lens().back();
+        
+        // Determine actual number of splits to use
+        std::size_t actual_groups = groups;
+        if(use_auto_split)
+        {
+            // Check if sequence length meets threshold for flash decoding
+            std::size_t threshold = value_of(MIGRAPHX_FLASH_DECODING_THRESHOLD{}, 1024);
+            if(sequence_length < threshold)
+                return;
+            
+            std::size_t min_chunk = value_of(MIGRAPHX_FLASH_DECODING_MIN_CHUNK_SIZE{}, 256);
+            std::size_t max_splits = value_of(MIGRAPHX_FLASH_DECODING_MAX_SPLITS{}, 32);
+            actual_groups = calculate_flash_decoding_splits(sequence_length, min_chunk, max_splits);
+            
+            // Skip if auto-calculation determines no splitting needed
+            if(actual_groups <= 1)
+                return;
+        }
+        
         // check if N dimension is evenly divisible by num_splits
-        if(k_param->get_shape().lens().back() % groups != 0)
+        if(sequence_length % actual_groups != 0)
             return;
 
         // get Q, V, K shapes from gemms
@@ -462,6 +491,9 @@ struct find_flash_decoding
         // create mapping from submodule params to main module inputs
         auto group_inputs      = attn_group_ins->inputs();
         auto map_param_to_main = map_submod_params_to_inputs(submod, group_inputs);
+        
+        // Use actual_groups for all subsequent operations
+        groups = actual_groups;
 
         // get actual Q, K, V instructions from main module
         auto q = map_param_to_main.at(q_param);
@@ -797,20 +829,29 @@ void fuse_attention::apply(module_pass_manager& mpm) const
         mpm.run_pass(dead_code_elimination{});
     }
 
+    // Determine split strategy
+    bool use_auto_split = enabled(MIGRAPHX_FLASH_DECODING_AUTO_SPLIT{});
     std::size_t num_splits = 0;
+    
     if(flash_decoding_num_splits.has_value())
     {
         // Use the value from the constructor (for testing)
         num_splits = *flash_decoding_num_splits;
+        use_auto_split = false;  // Disable auto for testing
     }
-    else
+    else if(!use_auto_split)
     {
-        // Default behavior: read from the env var (for non-test use)
+        // Legacy behavior: read from the env var (for non-test use)
         num_splits = get_num_splits();
     }
-    if(num_splits > 1)
+    
+    // Apply flash decoding with either manual or automatic splitting
+    if(use_auto_split || num_splits > 1)
     {
-        match::find_matches(mpm, find_flash_decoding{.groups = num_splits});
+        match::find_matches(mpm, find_flash_decoding{
+            .groups = num_splits,
+            .use_auto_split = use_auto_split
+        });
         mpm.run_pass(dead_code_elimination{});
     }
 }

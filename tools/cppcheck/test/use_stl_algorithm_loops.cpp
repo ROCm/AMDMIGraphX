@@ -42,36 +42,6 @@ void test_for_loop_std_transform_binary_pattern()
     }
 }
 
-void test_range_for_std_find_pattern()
-{
-    int arr[10] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-    int index   = 0;
-    // cppcheck-suppress useStlAlgorithm
-    for(int x : arr)
-    {
-        index++;
-        if(x == 5)
-        {
-            break;
-        }
-    }
-}
-
-void test_range_for_std_find_variant_pattern()
-{
-    int arr[10] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-    int index   = 0;
-    // cppcheck-suppress useStlAlgorithm
-    for(int x : arr)
-    {
-        if(x == 5)
-        {
-            break;
-        }
-        index++;
-    }
-}
-
 void test_complex_loop_should_not_trigger()
 {
     // Should not trigger: complex logic

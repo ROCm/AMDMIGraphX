@@ -1,0 +1,36 @@
+	+mha_double_head_bias_mask_right_batch2_test:¤
+[
+q
+k
+v
+bias
+key_padding_maskout"MultiHeadAttention*
+	num_heads :com.microsoft+mha_double_head_bias_mask_right_batch2_testZ
+q
+
+
+
+Z
+k
+
+
+
+Z
+v
+
+
+
+Z
+bias
+
+
+Z
+key_padding_mask
+
+
+b
+out
+
+
+
+B

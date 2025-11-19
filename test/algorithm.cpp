@@ -83,4 +83,68 @@ MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(adjacent_remove_if_non_equivalence, int)
     EXPECT(v == Container{1, 1, 1, 4, 2, 4, 2, 5, 6});
 }
 
+TEST_CASE(min_element_if_basic)
+{
+    std::vector<int> v = {5, 3, 7, 1, 9, 2};
+    auto is_even       = [](int x) { return x % 2 == 0; };
+    auto it            = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
+    EXPECT(it != v.end());
+    EXPECT(*it == 2);
+}
+
+TEST_CASE(min_element_if_no_valid)
+{
+    std::vector<int> v = {5, 3, 7, 1, 9};
+    auto is_even       = [](int x) { return x % 2 == 0; };
+    auto it            = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
+    EXPECT(it == v.end());
+}
+
+TEST_CASE(min_element_if_all_valid)
+{
+    std::vector<int> v = {6, 2, 8, 4, 10};
+    auto is_even       = [](int x) { return x % 2 == 0; };
+    auto it            = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
+    EXPECT(it != v.end());
+    EXPECT(*it == 2);
+}
+
+TEST_CASE(min_element_if_custom_compare)
+{
+    std::vector<int> v = {5, 3, 7, 1, 9, 2, 8};
+    auto is_even       = [](int x) { return x % 2 == 0; };
+    // Find the largest even number
+    auto it = migraphx::min_element_if(v.begin(), v.end(), is_even, std::greater<>{});
+    EXPECT(it != v.end());
+    EXPECT(*it == 8);
+}
+
+TEST_CASE(min_element_if_empty)
+{
+    std::vector<int> v;
+    auto is_even = [](int x) { return x % 2 == 0; };
+    auto it      = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
+    EXPECT(it == v.end());
+}
+
+TEST_CASE(min_element_if_first_element)
+{
+    std::vector<int> v = {2, 5, 3, 7, 1, 9};
+    auto is_even       = [](int x) { return x % 2 == 0; };
+    auto it            = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
+    EXPECT(it != v.end());
+    EXPECT(*it == 2);
+    EXPECT(it == v.begin());
+}
+
+TEST_CASE(min_element_if_complex_predicate)
+{
+    std::vector<int> v = {15, 3, 20, 1, 9, 25, 8, 12};
+    // Find the smallest number greater than 10
+    auto greater_than_10 = [](int x) { return x > 10; };
+    auto it = migraphx::min_element_if(v.begin(), v.end(), greater_than_10, std::less<>{});
+    EXPECT(it != v.end());
+    EXPECT(*it == 12);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

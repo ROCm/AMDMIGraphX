@@ -25,18 +25,17 @@
 #include <onnx_test.hpp>
 #include <onnx_test_utils.hpp>
 
-TEST_CASE(group_query_attention_non_packed_qkv_test)
+TEST_CASE(group_query_attention_grouped_test)
 {
     auto p    = create_gqa_program(/* batch_size=           */ 1,
-                                /* num_heads=            */ 32,
-                                /* kv_num_heads=         */ 32,
+                                /* num_heads=            */ 4,
+                                /* kv_num_heads=         */ 2,
                                 /* sequence_length=      */ 1,
-                                /* head_size=            */ 128,
+                                /* head_size=            */ 16,
                                 /* past_sequence_length= */ 1,
-                                /* max_sequence_length=  */ 4096,
+                                /* max_sequence_length=  */ 10,
                                 /* do_rotary=            */ true,
-                                /* scale=                */ 1.0,
-                                /* non_packed=           */ true);
-    auto prog = optimize_onnx("group_query_attention_non_packed_qkv_test.onnx");
+                                /* scale=                */ 0.25);
+    auto prog = optimize_onnx("group_query_attention_grouped_test.onnx");
     EXPECT(p == prog);
 }

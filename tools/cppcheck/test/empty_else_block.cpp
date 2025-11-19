@@ -1,30 +1,29 @@
 // Test for EmptyElseBlock check
 
-void test_empty_else_1()
+void test_empty_else_1(int x)
 {
-    int x = 5;
     if(x > 0)
     {
         x = 10;
     }
     // cppcheck-suppress migraphx-EmptyElseBlock
     else {}
+    (void)x;
 }
 
-void test_empty_else_2()
+void test_empty_else_2(int x)
 {
-    int x = 5;
     if(x < 0)
     {
         x = -x;
     }
     // cppcheck-suppress migraphx-EmptyElseBlock
     else {}
+    (void)x;
 }
 
-void test_else_with_statement()
+void test_else_with_statement(int x)
 {
-    int x = 5;
     if(x > 0)
     {
         x = 10;
@@ -33,15 +32,16 @@ void test_else_with_statement()
     {
         x = 0;
     }
+    (void)x;
 }
 
-void test_no_else_block()
+void test_no_else_block(int x)
 {
-    int x = 5;
     if(x > 0)
     {
         x = 10;
     }
+    (void)x;
 }
 
 void test_else_if_chain()

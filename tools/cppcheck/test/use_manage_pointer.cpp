@@ -4,7 +4,7 @@
 void test_positive_cases()
 {
     // Should trigger: fclose usage
-    FILE* file = nullptr;
+    FILE* file = (FILE*)malloc(sizeof(FILE));
     // cppcheck-suppress migraphx-UseManagePointer
     fclose(file);
 
@@ -39,11 +39,17 @@ void test_negative_cases()
     // Should not trigger: other functions
     int x    = 5;
     int* ptr = &x;
+    (void)x;  // Use variables to avoid warnings
+    (void)ptr;
 
     // Should not trigger: allocation functions
     void* allocated     = malloc(100);
     void* hip_allocated = nullptr;
     hipMalloc(&hip_allocated, 100);
+    
+    // Clean up to avoid memory leaks
+    free(allocated);
+    hipFree(hip_allocated);
 }
 
 // Mock functions for compilation

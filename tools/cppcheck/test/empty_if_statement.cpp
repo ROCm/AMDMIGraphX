@@ -1,15 +1,13 @@
 // Test for EmptyIfStatement check
 
-void test_empty_if_1()
+void test_empty_if_1(int x)
 {
-    int x = 5;
     // cppcheck-suppress migraphx-EmptyIfStatement
     if(x > 0) {}
 }
 
-void test_empty_if_2()
+void test_empty_if_2(int x)
 {
-    int x = 5;
     // cppcheck-suppress migraphx-EmptyIfStatement
     if(x == 5) {}
 }

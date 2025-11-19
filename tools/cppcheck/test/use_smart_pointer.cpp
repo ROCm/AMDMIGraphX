@@ -20,6 +20,12 @@ void test_positive_cases()
     };
     // cppcheck-suppress migraphx-UseSmartPointer
     MyClass* obj_ptr = new MyClass();
+    
+    // Clean up to avoid memory leaks
+    delete ptr1;
+    delete[] ptr2;
+    delete str_ptr;
+    delete obj_ptr;
 }
 
 void test_negative_cases()
@@ -31,6 +37,8 @@ void test_negative_cases()
     // Should not trigger: stack allocation
     int local_var = 5;
     int array[10];
+    (void)local_var; // Use variables to avoid warnings
+    (void)array;
 
     // Should not trigger: function parameters
     // void func(int* ptr);

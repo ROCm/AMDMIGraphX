@@ -27,6 +27,7 @@ void test_switch_with_cases()
     case 2: x = 20; break;
     default: x = 0; break;
     }
+    (void)x; // Use variable to avoid warning
 }
 
 void test_switch_with_single_case()

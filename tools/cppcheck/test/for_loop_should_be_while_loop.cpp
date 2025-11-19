@@ -25,6 +25,7 @@ void test_standard_for_loop()
     for(int i = 0; i < 10; i++)
     {
         int x = i;
+        (void)x; // Use variable to avoid warning
     }
 }
 
@@ -42,6 +43,7 @@ void test_for_with_increment_no_init()
     for(; x < 10; x++)
     {
         int y = x;
+        (void)y; // Use variable to avoid warning
     }
 }
 

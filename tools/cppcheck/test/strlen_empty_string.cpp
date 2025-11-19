@@ -1,9 +1,8 @@
 // Test for StrlenEmptyString rule from rules.xml
 #include <cstring>
 
-void test_strlen_greater_than_zero()
+void test_strlen_greater_than_zero(const char* str)
 {
-    char str[] = "hello";
     // cppcheck-suppress StrlenEmptyString
     if(strlen(str) > 0)
     {
@@ -11,9 +10,8 @@ void test_strlen_greater_than_zero()
     }
 }
 
-void test_strlen_empty_string_check()
+void test_strlen_empty_string_check(const char* str)
 {
-    char str[] = "";
     // cppcheck-suppress StrlenEmptyString
     if(strlen(str) > 0)
     {
@@ -21,9 +19,8 @@ void test_strlen_empty_string_check()
     }
 }
 
-void test_strlen_negated_condition()
+void test_strlen_negated_condition(const char* str)
 {
-    char str[] = "hello";
     // cppcheck-suppress StrlenEmptyString
     if(!strlen(str))
     {
@@ -31,38 +28,34 @@ void test_strlen_negated_condition()
     }
 }
 
-void test_strlen_specific_length_should_not_trigger()
+void test_strlen_specific_length_should_not_trigger(const char* str)
 {
     // Should not trigger: checking actual length, not emptiness
-    char str[] = "hello";
     if(strlen(str) == 5)
     {
         // String has specific length
     }
 }
 
-void test_strlen_for_assignment_should_not_trigger()
+void test_strlen_for_assignment_should_not_trigger(const char* str)
 {
     // Should not trigger: using length for other purposes
-    char str[] = "hello";
-    int len    = strlen(str);
+    int len = strlen(str);
     (void)len; // Suppress unused variable warning
 }
 
-void test_direct_empty_check_should_not_trigger()
+void test_direct_empty_check_should_not_trigger(const char* str)
 {
     // Should not trigger: direct empty check without strlen
-    char str[] = "hello";
     if(str[0] == '\0')
     {
         // String is empty
     }
 }
 
-void test_strcmp_should_not_trigger()
+void test_strcmp_should_not_trigger(const char* str)
 {
     // Should not trigger: comparing strings, not checking emptiness
-    char str[] = "hello";
     if(strcmp(str, "hello") == 0)
     {
         // Strings are equal

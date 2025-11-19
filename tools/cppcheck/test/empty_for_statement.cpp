@@ -31,9 +31,10 @@ void test_for_with_break()
 
 void test_range_based_for()
 {
-    int arr[] = {1, 2, 3, 4, 5};
+    const int arr[] = {1, 2, 3, 4, 5};
     for(int x : arr)
     {
         x = x * 2;
+        (void)x; // Suppress warning
     }
 }

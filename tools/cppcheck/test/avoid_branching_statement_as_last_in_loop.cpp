@@ -33,6 +33,7 @@ void test_break_after_statement()
     for(int i = 0; i < 10; i++)
     {
         int x = 5;
+        (void)x;
         break;
     }
 }
@@ -42,7 +43,8 @@ void test_break_not_last()
     for(int i = 0; i < 10; i++)
     {
         break;
-        int x = 5;
+        int x = 5; // cppcheck-suppress unreachableCode
+        (void)x;
     }
 }
 
@@ -51,6 +53,7 @@ void test_no_branching_statement()
     for(int i = 0; i < 10; i++)
     {
         int x = i * 2;
+        (void)x;
     }
 }
 
@@ -67,5 +70,6 @@ void test_break_not_last_complex()
         if(x > 0)
             break;
         int y = 2;
+        (void)y;
     }
 }

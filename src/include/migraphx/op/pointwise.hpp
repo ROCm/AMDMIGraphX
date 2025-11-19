@@ -63,11 +63,12 @@ struct pointwise
         auto pnames = pm->get_parameter_names();
         check_shapes{inputs, *this}.has(pnames.size()).same_dims();
 
+        const auto rank = inputs.front().ndim();
         const bool has_broadcasts =
             std::any_of(inputs.begin(), inputs.end(), [](auto s) { return s.broadcasted(); });
 
         auto result = pm->compute_shapes(
-            has_broadcasts ? remove_broadcasts(inputs) : inputs,
+            (rank > 1 and has_broadcasts) ? remove_broadcasts(inputs) : inputs,
             {.name = name(), .strict_type = true, .scalar_const_out_lens = inputs.front().lens()});
         if(result.size() == 1)
             return result.front();

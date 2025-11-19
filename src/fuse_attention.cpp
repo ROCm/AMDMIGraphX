@@ -609,7 +609,6 @@ struct find_flash_decoding
     }
 };
 
-
 struct find_kv_cache_attention
 {
     std::size_t* counter;

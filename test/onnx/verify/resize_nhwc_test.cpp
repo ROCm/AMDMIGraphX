@@ -34,18 +34,9 @@ TEST_CASE(resize_nhwc_test)
     // Input shape: [1, 3, 2, 2] (NCHW) - using smaller size for easier verification
     migraphx::shape sx{migraphx::shape::float_type, {1, 3, 2, 2}};
     std::vector<float> dx = {
-        0.0f,
-        1.0f,
-        2.0f,
-        3.0f, // Channel 0
-        4.0f,
-        5.0f,
-        6.0f,
-        7.0f, // Channel 1
-        8.0f,
-        9.0f,
-        10.0f,
-        11.0f // Channel 2
+        0.0f, 1.0f, 2.0f, 3.0f,    // Channel 0
+        4.0f, 5.0f, 6.0f, 7.0f,    // Channel 1
+        8.0f, 9.0f, 10.0f, 11.0f   // Channel 2
     };
 
     migraphx::parameter_map pp;
@@ -59,66 +50,32 @@ TEST_CASE(resize_nhwc_test)
     // 1. Transpose to NHWC [1, 2, 2, 3]
     // 2. Resize with scales [1.0, 2.0, 2.0, 1.0] -> [1, 4, 4, 3]
     // 3. Transpose back to NCHW [1, 3, 4, 4]
-
+    
     // Expected output size
     EXPECT(result_vector.size() == 1 * 3 * 4 * 4);
-
+    
     // Verify output shape
     EXPECT(result.get_shape() == migraphx::shape{migraphx::shape::float_type, {1, 3, 4, 4}});
-
+    
     // Expected golden values for resize with asymmetric coordinate transformation
     // and linear interpolation mode
-    std::vector<float> gold = {// Channel 0
-                               0.0f,
-                               0.5f,
-                               1.0f,
-                               1.0f,
-                               1.0f,
-                               1.5f,
-                               2.0f,
-                               2.0f,
-                               2.0f,
-                               2.5f,
-                               3.0f,
-                               3.0f,
-                               2.0f,
-                               2.5f,
-                               3.0f,
-                               3.0f,
-                               // Channel 1
-                               4.0f,
-                               4.5f,
-                               5.0f,
-                               5.0f,
-                               5.0f,
-                               5.5f,
-                               6.0f,
-                               6.0f,
-                               6.0f,
-                               6.5f,
-                               7.0f,
-                               7.0f,
-                               6.0f,
-                               6.5f,
-                               7.0f,
-                               7.0f,
-                               // Channel 2
-                               8.0f,
-                               8.5f,
-                               9.0f,
-                               9.0f,
-                               9.0f,
-                               9.5f,
-                               10.0f,
-                               10.0f,
-                               10.0f,
-                               10.5f,
-                               11.0f,
-                               11.0f,
-                               10.0f,
-                               10.5f,
-                               11.0f,
-                               11.0f};
-
+    std::vector<float> gold = {
+        // Channel 0
+        0.0f,  0.5f,  1.0f,  1.0f,
+        1.0f,  1.5f,  2.0f,  2.0f,
+        2.0f,  2.5f,  3.0f,  3.0f,
+        2.0f,  2.5f,  3.0f,  3.0f,
+        // Channel 1
+        4.0f,  4.5f,  5.0f,  5.0f,
+        5.0f,  5.5f,  6.0f,  6.0f,
+        6.0f,  6.5f,  7.0f,  7.0f,
+        6.0f,  6.5f,  7.0f,  7.0f,
+        // Channel 2
+        8.0f,  8.5f,  9.0f,  9.0f,
+        9.0f,  9.5f,  10.0f, 10.0f,
+        10.0f, 10.5f, 11.0f, 11.0f,
+        10.0f, 10.5f, 11.0f, 11.0f
+    };
+    
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

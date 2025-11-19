@@ -621,9 +621,10 @@ struct rebase_ambiguity_resolver
                 return;
             if(not pred(*start))
                 return;
-            auto r = range(start, last);
-            auto axes =
-                views::transform(r, [](MIGRAPHX_CPPCHECK_CONST dimension::sub* s) -> auto& { return s->hidden_axis; });
+            auto r    = range(start, last);
+            auto axes = views::transform(r, [](MIGRAPHX_CPPCHECK_CONST dimension::sub* s) -> auto& {
+                return s->hidden_axis;
+            });
             std::sort(axes.begin(), axes.end());
         };
     }

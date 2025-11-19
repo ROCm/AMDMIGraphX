@@ -1,23 +1,30 @@
 // Test for EmptyDoWhileStatement check
 
-void test_empty_do_while() {
+void test_empty_do_while()
+{
     int i = 0;
     // cppcheck-suppress emptyDoWhileStatement
-    do {
-    } while (i++ < 5);
+    do
+    {
+    } while(i++ < 5);
 }
 
-void test_do_while_with_statement() {
+void test_do_while_with_statement()
+{
     int i = 0;
-    do {
+    do
+    {
         i++;
-    } while (i < 5);
+    } while(i < 5);
 }
 
-void test_do_while_with_multiple_statements() {
+void test_do_while_with_multiple_statements()
+{
     int i = 0;
-    do {
+    do
+    {
         i++;
-        if (i == 3) break;
-    } while (i < 10);
+        if(i == 3)
+            break;
+    } while(i < 10);
 }

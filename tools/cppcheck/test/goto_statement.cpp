@@ -1,8 +1,10 @@
 // Test for GotoStatement check
 
-void test_goto_usage() {
+void test_goto_usage()
+{
     int x = 5;
-    if (x > 0) {
+    if(x > 0)
+    {
         // cppcheck-suppress gotoStatement
         goto end;
     }
@@ -11,9 +13,12 @@ end:
     return;
 }
 
-void test_goto_in_loop() {
-    for (int i = 0; i < 10; i++) {
-        if (i == 5) {
+void test_goto_in_loop()
+{
+    for(int i = 0; i < 10; i++)
+    {
+        if(i == 5)
+        {
             // cppcheck-suppress gotoStatement
             goto loop_end;
         }
@@ -22,17 +27,22 @@ loop_end:
     return;
 }
 
-void test_no_goto() {
+void test_no_goto()
+{
     int x = 5;
-    if (x > 0) {
+    if(x > 0)
+    {
         x = 10;
     }
     return;
 }
 
-void test_normal_control_flow() {
-    for (int i = 0; i < 10; i++) {
-        if (i == 5) {
+void test_normal_control_flow()
+{
+    for(int i = 0; i < 10; i++)
+    {
+        if(i == 5)
+        {
             break;
         }
     }

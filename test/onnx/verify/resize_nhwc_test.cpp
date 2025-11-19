@@ -45,8 +45,7 @@ TEST_CASE(resize_nhwc_test)
     pp["X"] = migraphx::argument(sx, dx.data());
 
     auto result = p.eval(pp).back();
-    std::vector<float> result_vector;
-    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    auto result_vector = result.to_vector<float>();
 
     // The output should be [1, 3, 4, 4] after:
     // 1. Transpose to NHWC [1, 2, 2, 3]

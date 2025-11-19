@@ -20,7 +20,7 @@ void test_positive_cases()
     };
     // cppcheck-suppress migraphx-UseSmartPointer
     MyClass* obj_ptr = new MyClass();
-    
+
     // Clean up to avoid memory leaks
     delete ptr1;
     delete[] ptr2;

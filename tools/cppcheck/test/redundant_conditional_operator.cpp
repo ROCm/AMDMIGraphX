@@ -16,7 +16,7 @@ void test_redundant_ternary_false_true(bool condition)
 
 void test_redundant_ternary_both_true(bool condition)
 {
-    // cppcheck-suppress migraphx-RedundantConditionalOperator  
+    // cppcheck-suppress migraphx-RedundantConditionalOperator
     bool result3 = condition ? true : true;
     (void)result3; // Use variable to avoid warning
 }

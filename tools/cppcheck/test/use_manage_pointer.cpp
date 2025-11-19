@@ -39,14 +39,14 @@ void test_negative_cases()
     // Should not trigger: other functions
     int x    = 5;
     int* ptr = &x;
-    (void)x;  // Use variables to avoid warnings
+    (void)x; // Use variables to avoid warnings
     (void)ptr;
 
     // Should not trigger: allocation functions
     void* allocated     = malloc(100);
     void* hip_allocated = nullptr;
     hipMalloc(&hip_allocated, 100);
-    
+
     // Clean up to avoid memory leaks
     free(allocated);
     hipFree(hip_allocated);

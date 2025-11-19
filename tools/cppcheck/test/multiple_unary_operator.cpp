@@ -10,7 +10,7 @@ void test_double_negative()
 void test_double_positive()
 {
     int x = 5;
-    // cppcheck-suppress migraphx-MultipleUnaryOperator
+    // TODO migraphx-MultipleUnaryOperator
     int z = +(+x);
 }
 

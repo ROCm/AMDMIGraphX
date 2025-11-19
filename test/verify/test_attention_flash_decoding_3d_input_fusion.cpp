@@ -28,7 +28,8 @@
 #include <migraphx/make_op.hpp>
 
 template <migraphx::shape::type_t DType>
-struct test_attention_flash_decoding_3d_input_fusion : verify_program<test_attention_flash_decoding_3d_input_fusion<DType>>
+struct test_attention_flash_decoding_3d_input_fusion
+    : verify_program<test_attention_flash_decoding_3d_input_fusion<DType>>
 {
     migraphx::program create_program() const
     {
@@ -59,7 +60,8 @@ struct test_attention_flash_decoding_3d_input_fusion : verify_program<test_atten
         auto v_with_bias = mm->add_instruction(migraphx::make_op("add"), v_input, v_bias);
         
         // Scale Q (common in attention mechanisms)
-        scale = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s_3d.lens()}}), scale);
+        scale = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s_3d.lens()}}), scale);
         auto q_scaled = mm->add_instruction(migraphx::make_op("mul"), q_with_bias, scale);
         
         // Apply activation (optional input fusion)
@@ -69,23 +71,31 @@ struct test_attention_flash_decoding_3d_input_fusion : verify_program<test_atten
         
         // Now perform the attention mechanism with fused inputs
         // Transpose K and V for matrix multiplication
-        auto k_transposed = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), k_activated);
-        auto v_transposed = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), v_activated);
+        auto k_transposed = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), k_activated);
+        auto v_transposed = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), v_activated);
         
         // Compute attention scores: Q @ K^T
         auto scores = mm->add_instruction(migraphx::make_op("dot"), q_activated, k_transposed);
         
         // Apply softmax
-        auto scores_max = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), scores);
-        scores_max = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s_3d.lens()}}), scores_max);
+        auto scores_max =
+            mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), scores);
+        scores_max = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s_3d.lens()}}), scores_max);
         auto scores_sub = mm->add_instruction(migraphx::make_op("sub"), scores, scores_max);
         auto scores_exp = mm->add_instruction(migraphx::make_op("exp"), scores_sub);
-        auto scores_sum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), scores_exp);
-        scores_sum = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s_3d.lens()}}), scores_sum);
-        auto attention_weights = mm->add_instruction(migraphx::make_op("div"), scores_exp, scores_sum);
+        auto scores_sum =
+            mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), scores_exp);
+        scores_sum = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s_3d.lens()}}), scores_sum);
+        auto attention_weights =
+            mm->add_instruction(migraphx::make_op("div"), scores_exp, scores_sum);
         
         // Apply attention weights to values: attention_weights @ V^T
-        auto output = mm->add_instruction(migraphx::make_op("dot"), attention_weights, v_transposed);
+        auto output =
+            mm->add_instruction(migraphx::make_op("dot"), attention_weights, v_transposed);
         
         mm->add_return({output});
         return p1;

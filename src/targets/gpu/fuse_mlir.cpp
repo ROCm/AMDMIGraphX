@@ -553,6 +553,8 @@ bool is_pointwise_op_supported_by_mlir_for_input(const instruction& i)
     return is_pointwise_op_supported_by_mlir(i);
 }
 
+static bool is_reduce(const instruction& ins) { return contains(ins.name(), "reduce"); }
+
 MIGRAPHX_PRED_MATCHER(mlir_split_reduce, instruction_ref ins)
 {
     if(ins->name() != "split_fused_reduce")

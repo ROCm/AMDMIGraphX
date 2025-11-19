@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,7 +30,8 @@
 
 #include <test.hpp>
 
-migraphx::program create_scatter_elements_program(const std::string& reduction_mode, int axis)
+static migraphx::program create_scatter_elements_program(const std::string& reduction_mode,
+                                                         int axis)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -87,7 +88,8 @@ TEST_CASE(scatter_elements_axis_1_test)
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
-migraphx::program create_scatter_elements_program2(const std::string& reduction_mode, int axis)
+static migraphx::program create_scatter_elements_program2(const std::string& reduction_mode,
+                                                          int axis)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -174,7 +176,7 @@ TEST_CASE(scatter_elements_max_axis_1_test)
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold_max));
 }
 
-auto scatter_elements_duplicate_index_test(const std::string& reduction_mode)
+static auto scatter_elements_duplicate_index_test(const std::string& reduction_mode)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -234,7 +236,8 @@ TEST_CASE(scatter_elements_max_axis_1_duplicate_idx_test)
     EXPECT(migraphx::verify::verify_rms_range(results, gold));
 }
 
-migraphx::program create_scatter_elements_program_3x3(const std::string& reduction_mode, int axis)
+static migraphx::program create_scatter_elements_program_3x3(const std::string& reduction_mode,
+                                                             int axis)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -317,7 +320,7 @@ TEST_CASE(scatter_elements_max_axis_0_3x3_test)
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold_max));
 }
 
-auto scatter_elements_3x3_duplicate_index_test(const std::string& reduction_mode)
+static auto scatter_elements_3x3_duplicate_index_test(const std::string& reduction_mode)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();

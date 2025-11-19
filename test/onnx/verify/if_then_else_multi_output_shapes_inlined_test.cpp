@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -39,8 +39,8 @@ TEST_CASE(if_then_else_multi_output_shapes_inlined_test)
     pp["y"] = migraphx::argument(y_data, data.data());
 
     auto result_args = p.eval(pp);
-    auto result      = result_args.front();
-    auto result_b    = result_args.back();
+    const auto& result   = result_args.front();
+    const auto& result_b = result_args.back();
 
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });

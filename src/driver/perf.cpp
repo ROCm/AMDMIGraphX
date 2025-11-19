@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,6 +27,8 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/time.hpp>
 #ifdef HAVE_GPU
 #include <migraphx/gpu/hip.hpp>
 #endif
@@ -35,8 +37,10 @@ namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
+using milliseconds = std::chrono::duration<double, std::milli>;
+
 template <class T>
-auto get_hash(const T& x)
+static auto get_hash(const T& x)
 {
     return std::hash<T>{}(x);
 }
@@ -123,13 +127,29 @@ bool is_offload_copy_set(const program& p)
             for(const auto& j : return_args)
             {
                 auto alias_ins = instruction::get_output_alias(j, true);
-                if((alias_ins->name() == "@param" && param_ins.erase(alias_ins) == 0) or
+                if((alias_ins->name() == "@param" and param_ins.erase(alias_ins) == 0) or
                    (alias_ins->name() != "hip::copy_from_gpu"))
                     return false;
             }
         }
     }
     return param_ins.empty();
+}
+
+double time_run(const program& p, const parameter_map& m, int n)
+{
+    // Run once without timing
+    p.eval(m);
+    p.finish();
+    double total = time<milliseconds>([&] {
+        for(auto i : range(n))
+        {
+            (void)i;
+            p.eval(m);
+        }
+        p.finish();
+    });
+    return total / n;
 }
 
 } // namespace  MIGRAPHX_INLINE_NS

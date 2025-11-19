@@ -1,5 +1,8 @@
 /* ************************************************************************
- * Copyright (C) 2016-2023 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * The MIT License (MIT)
+ *
+ * Copyright (C) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -68,11 +71,11 @@ struct float8
 
     __device__ explicit constexpr float8(uint8_t bits, from_bits_t) : data(bits) {}
 
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+#if defined(__gfx942__)
     // device specific optimized F8 down-conversion code
 
     template <bool stochastic_rounding = false>
-    static __device__ uint8_t cast_to_f8_from_f32(float v, uint32_t rng = 0)
+    static __device__ uint8_t cast_to_f8fnuz_from_f32(float v, uint32_t rng = 0)
     {
         uint8_t i8data = 0x00;
         union
@@ -126,10 +129,10 @@ struct float8
 
         return i8data;
     }
-#endif // __gfx940__
+#endif // __gfx942__
 
-       // constructor from float
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+    // constructor from float
+#if defined(__gfx942__)
 
     // NOTE: ON-DEVICE... always optimal bias
     explicit constexpr __device__
@@ -137,7 +140,7 @@ struct float8
            migraphx::fp8::rounding_mode rm = migraphx::fp8::rounding_mode::standard,
            uint32_t rng                    = 0)
     {
-        if(__builtin_is_constant_evaluated())
+        if(__builtin_is_constant_evaluated() or !FNUZ)
         {
             if constexpr(T == migraphx::fp8::f8_type::fp8)
             {
@@ -166,15 +169,15 @@ struct float8
         }
         else
         {
-            // runtime branch, use cast_to_f8_from_f32 if want to avoid it
+            // runtime branch, use cast_to_f8fnuz_from_f32 if want to avoid it
             if(rm == migraphx::fp8::rounding_mode::stochastic)
-                data = cast_to_f8_from_f32<true>(v, rng);
+                data = cast_to_f8fnuz_from_f32<true>(v, rng);
             else
-                data = cast_to_f8_from_f32<false>(v);
+                data = cast_to_f8fnuz_from_f32<false>(v);
         }
     }
 #else
-    // DEVICE for non-gfx940 using s/w simulation
+    // DEVICE for non-gfx942 using s/w simulation
     explicit constexpr __device__
     float8(const float v,
            migraphx::fp8::rounding_mode rm = migraphx::fp8::rounding_mode::standard,
@@ -205,7 +208,7 @@ struct float8
 #endif // MIGRAPHX_FP8_DOWNCAST_CLIPPING}
         }
     }
-#endif // __gfx940___
+#endif // __gfx942___
 
     // Constructor from half
     explicit constexpr __device__
@@ -242,11 +245,11 @@ struct float8
     {
     }
     // convert to float
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__) // NOLINT
+#if defined(__gfx942__) // NOLINT
     // upcast using device specific intrinsic
-    inline constexpr __device__ operator float() const
+    constexpr __device__ operator float() const
     {
-        if(__builtin_is_constant_evaluated())
+        if(__builtin_is_constant_evaluated() or !FNUZ)
         {
             if constexpr(T == migraphx::fp8::f8_type::fp8)
             {
@@ -274,8 +277,8 @@ struct float8
         }
     }
 
-#else // non gfx940
-    inline constexpr __device__ operator float() const
+#else // non gfx942
+    constexpr __device__ operator float() const
     {
         if constexpr(T == migraphx::fp8::f8_type::fp8)
         {
@@ -285,10 +288,10 @@ struct float8
     }
 #endif
 
-    inline constexpr explicit __device__ operator bool() const { return not is_zero(); }
+    constexpr explicit __device__ operator bool() const { return not is_zero(); }
 
     // check for zero
-    inline __device__ constexpr bool is_zero() const
+    __device__ constexpr bool is_zero() const
     {
         if constexpr(FNUZ)
         {
@@ -296,12 +299,12 @@ struct float8
         }
         else
         {
-            return (data == 0x00) || (data == 0x80);
+            return (data == 0x00) or (data == 0x80);
         }
     }
 
     // check for nan
-    inline __device__ constexpr bool is_nan() const
+    __device__ constexpr bool is_nan() const
     {
         if constexpr(FNUZ)
         {
@@ -322,7 +325,7 @@ struct float8
     }
 
     // check for inf
-    inline __device__ constexpr bool is_inf() const
+    __device__ constexpr bool is_inf() const
     {
         if constexpr(FNUZ)
         {
@@ -362,17 +365,17 @@ struct float8
     MIGRAPHX_FP8_SHORT_UNARY_OP(+=, +)
     MIGRAPHX_FP8_SHORT_UNARY_OP(/=, /)
 
-    inline __device__ constexpr float8& operator=(const float8& rhs)     = default;
-    inline __device__ constexpr float8& operator=(float8&& rhs) noexcept = default;
+    __device__ constexpr float8& operator=(const float8& rhs)     = default;
+    __device__ constexpr float8& operator=(float8&& rhs) noexcept = default;
 
-    inline __device__ constexpr bool operator<(const float8& rhs) const
+    __device__ constexpr bool operator<(const float8& rhs) const
     {
         const auto we   = static_cast<float>(*this);
         const auto them = static_cast<float>(rhs);
         return we < them;
     }
 
-    inline __device__ constexpr bool operator>(const float8& rhs) const
+    __device__ constexpr bool operator>(const float8& rhs) const
     {
         const auto we   = static_cast<float>(*this);
         const auto them = static_cast<float>(rhs);
@@ -387,21 +390,21 @@ using fp8e4m3fnuz = float8<migraphx::fp8::f8_type::fp8, true>;
 using fp8e5m2fnuz = float8<migraphx::fp8::f8_type::bf8, true>;
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_FP8_BINARY_OP(binary_op, T, U)                                  \
-    inline constexpr U __device__ operator binary_op(const T& lhs, const T& rhs) \
-    {                                                                            \
-        return U(static_cast<float>(lhs) binary_op static_cast<float>(rhs));     \
+#define MIGRAPHX_FP8_BINARY_OP(binary_op, T, U)                              \
+    constexpr U __device__ operator binary_op(const T& lhs, const T& rhs)    \
+    {                                                                        \
+        return U(static_cast<float>(lhs) binary_op static_cast<float>(rhs)); \
     }
 
 // NOLINTNEXTLINE
 #define MIGRAPHX_FP8_OTHER_OPS(T)                                            \
-    inline constexpr __device__ T fabs(T v)                                  \
+    constexpr __device__ T fabs(T v)                                         \
     {                                                                        \
         /*NOLINTNEXTLINE*/                                                   \
         v.data = v.data & 0x7f;                                              \
         return v;                                                            \
     }                                                                        \
-    inline __device__ constexpr bool operator==(const T& lhs, const T& rhs)  \
+    __device__ constexpr bool operator==(const T& lhs, const T& rhs)         \
     {                                                                        \
         if(rhs.is_nan() or rhs.is_inf() or lhs.is_nan() or lhs.is_inf())     \
             return false;                                                    \

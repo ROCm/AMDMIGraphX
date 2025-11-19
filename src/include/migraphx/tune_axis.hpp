@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,13 +30,13 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-inline int tune_axis(int n_dim, int axis, const std::string& op_name = "OPERATOR")
+inline int tune_axis(int n_dim, int axis, const std::string& name = "OPERATOR")
 {
     if(axis < 0)
         axis += n_dim;
 
     if(axis < 0 or axis >= n_dim)
-        MIGRAPHX_THROW(to_upper(op_name) + ": axis is out of range.");
+        MIGRAPHX_THROW(to_upper(name) + ": axis is out of range.");
 
     return axis;
 }

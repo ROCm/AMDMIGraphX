@@ -30,7 +30,7 @@
 
 #include <test.hpp>
 
-TEST_CASE(pack_int4)
+TEST_CASE(pack_uint4)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -45,7 +45,23 @@ TEST_CASE(pack_int4)
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
-TEST_CASE(pack_int4_transposed)
+TEST_CASE(pack_int4)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::int8_type, {2, 2}};
+    auto l0 = mm->add_literal(migraphx::literal{s, {0x0A, 0x0B, 0x0C, 0x0D}});
+    mm->add_instruction(migraphx::make_op("pack_int4"), l0);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<uint8_t> results_vector(2);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<int8_t> gold{0x77, 0x77};
+    // clipped values
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+}
+
+TEST_CASE(pack_uint4_transposed)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -60,7 +76,7 @@ TEST_CASE(pack_int4_transposed)
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
-TEST_CASE(pack_int4_broadcasted)
+TEST_CASE(pack_uint4_broadcasted)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -76,7 +92,7 @@ TEST_CASE(pack_int4_broadcasted)
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
-TEST_CASE(pack_int4_axis_0)
+TEST_CASE(pack_uint4_axis_0)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -91,10 +107,10 @@ TEST_CASE(pack_int4_axis_0)
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
-TEST_CASE(pack_int4_nchw)
+TEST_CASE(pack_uint4_nchw)
 {
-    // test with literal values such as 0x18 in which first 4 bits will be dropped, ideally
-    // quantizer should produce values that fit into 4 bits.
+    // input values >= 0x10 would be clipped to 0xf (the maximum for uint4)
+    // As seen in the bottom half of the expected results (gold) below.
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::uint8_type, {1, 2, 4, 4}};
@@ -102,6 +118,7 @@ TEST_CASE(pack_int4_nchw)
         migraphx::literal{s, {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A,
                               0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15,
                               0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F}});
+
     mm->add_instruction(migraphx::make_op("pack_int4", {{"axis", -1}}), l0);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
@@ -115,13 +132,13 @@ TEST_CASE(pack_int4_nchw)
                               0xBA,
                               0xDC,
                               0xFE,
-                              0x10,
-                              0x32,
-                              0x54,
-                              0x76,
-                              0x98,
-                              0xBA,
-                              0xDC,
-                              0xFE};
+                              0xFF,
+                              0xFF,
+                              0xFF,
+                              0xFF,
+                              0xFF,
+                              0xFF,
+                              0xFF,
+                              0xFF};
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }

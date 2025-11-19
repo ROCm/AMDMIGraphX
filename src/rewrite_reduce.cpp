@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,10 +23,18 @@
  *
  */
 #include <migraphx/rewrite_reduce.hpp>
+#include <migraphx/simplify_reshapes.hpp>
+#include <migraphx/pass_manager.hpp>
 #include <migraphx/module.hpp>
+#include <migraphx/match/softmax.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/common.hpp>
+#include <migraphx/eliminate_common_subexpression.hpp>
+#include <migraphx/eliminate_convert.hpp>
+#include <migraphx/dead_code_elimination.hpp>
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_FP32_SOFTMAX);
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -55,11 +63,55 @@ struct find_softmax
     }
 };
 
+struct find_softmax_base_ops
+{
+    bool full_precision;
+
+    auto matcher() const { return match::softmax(); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto div             = r.result;
+        auto inp             = r.instructions["x"];
+        auto inp_type        = inp->get_shape().type();
+        auto requires_upcast = not contains({shape::float_type, shape::double_type}, inp_type);
+
+        if(not requires_upcast)
+            return;
+
+        auto softmax_inss = find_instructions_between(inp, div, &m);
+
+        for(const auto& ins : softmax_inss)
+        {
+            if(ins == inp)
+                continue;
+
+            // Upcast inputs
+            std::vector<instruction_ref> ins_inputs_up;
+            std::transform(
+                ins->inputs().begin(),
+                ins->inputs().end(),
+                std::back_inserter(ins_inputs_up),
+                [&](auto i) {
+                    return m.insert_instruction(
+                        ins, make_op("convert", {{"target_type", shape::float_type}}), i);
+                });
+
+            // Duplicate instruction to perform op in higher precision
+            auto ins_up = m.insert_instruction(ins, ins->get_operator(), ins_inputs_up);
+
+            // replace original ins with downcast to preserve graph validity
+            m.replace_instruction(
+                ins, make_op("convert", {{"target_type", ins->get_shape().type()}}), ins_up);
+        }
+    }
+};
+
 struct find_reduce_mean_variance
 {
     auto matcher() const
     {
-        auto reduce_mean = match::name("reduce_mean");
+        auto reduce_mean          = match::name("reduce_mean");
         auto skip_broadcasts_mean = match::skip_broadcasts(reduce_mean.bind("mean"));
         auto x_minus_mean         = match::name("sub")(match::arg(0)(match::any().bind("x")),
                                                match::arg(1)(skip_broadcasts_mean));
@@ -114,7 +166,8 @@ struct find_reduce_mean
 
         auto n = input->get_shape().elements() / ins->get_shape().elements();
 
-        if(n >= max_n / 4 and size < 3)
+        // Convert accumulator to float if <= 8bit type or if < 3 bytes and n >= max_n /4
+        if(size == 1 or (n >= max_n / 4 and size < 3))
         {
             shape::type_t t = is_integral ? shape::int32_type : shape::float_type;
             input = m.insert_instruction(ins, make_op("convert", {{"target_type", t}}), input);
@@ -145,7 +198,18 @@ struct find_reduce_mean
 void rewrite_reduce::apply(module& m) const
 {
     match::find_matches(m, find_softmax{}, find_reduce_mean_variance{});
+
+    if(not enabled(MIGRAPHX_DISABLE_FP32_SOFTMAX{}))
+    {
+        match::find_matches(m, find_softmax_base_ops{});
+        migraphx::run_passes(m,
+                             {migraphx::eliminate_convert{},
+                              migraphx::dead_code_elimination{},
+                              migraphx::eliminate_common_subexpression{}});
+    }
+
     match::find_matches(m, find_reduce_mean{});
+    migraphx::run_passes(m, {simplify_reshapes{}});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

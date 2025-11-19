@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,6 +31,7 @@
 #include <algorithm>
 #include <functional>
 #include <unordered_map>
+#include <unordered_set>
 #include <iostream>
 
 namespace migraphx {
@@ -227,11 +228,26 @@ struct shape_impl
     std::shared_ptr<shape_impl> copy() const { return std::make_shared<shape_impl>(*this); }
 };
 
+std::string shape::to_sizes_string(const std::vector<shape>& shapes)
+{
+    std::vector<std::string> sizes;
+    std::transform(shapes.begin(), shapes.end(), std::back_inserter(sizes), [&](const shape& s) {
+        std::string r = to_string_range(s.lens(), "x");
+        if(not s.standard())
+            r += ":" + to_string_range(s.strides(), "x");
+        return r;
+    });
+    return join_strings(sizes, ", ");
+}
+
 const std::vector<shape::type_t>& shape::types()
 {
     static const std::vector<shape::type_t> result = {
+    // clang-format off
 #define MIGRAPHX_GENERATE_TYPE_VECTOR(x, t) x,
-        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_GENERATE_TYPE_VECTOR) tuple_type};
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_GENERATE_TYPE_VECTOR)
+        tuple_type};
+    // clang-format on
     return result;
 }
 
@@ -240,6 +256,7 @@ std::string shape::name(shape::type_t t)
     switch(t)
     {
     case tuple_type: return "tuple_type";
+    case fp4x2_type: return "fp4x2_type";
 #define MIGRAPHX_SHAPE_GENERATE_TYPE_NAME_CASE(x, t) \
     case x: return #x;
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_TYPE_NAME_CASE)
@@ -253,6 +270,7 @@ std::string shape::cpp_type(shape::type_t t)
     switch(t)
     {
     case tuple_type: MIGRAPHX_THROW("No C++ type for tuple");
+    case fp4x2_type: return "uint8_t";
 #define MIGRAPHX_SHAPE_GENERATE_CPP_TYPE_CASE(x, t) \
     case x: return #t;
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_CPP_TYPE_CASE)
@@ -260,6 +278,7 @@ std::string shape::cpp_type(shape::type_t t)
     }
     MIGRAPHX_THROW("Invalid type");
 }
+
 bool shape::is_integral(shape::type_t t)
 {
     bool result = false;
@@ -290,6 +309,15 @@ bool shape::is_compatible(const shape& actual, const shape& expected)
         return actual.strides()[i] == expected.strides()[i];
     });
 }
+
+bool shape::is_unsigned(shape::type_t t)
+{
+    bool result = false;
+    visit(t, [&](auto as) { result = as.is_unsigned(); });
+    return result;
+}
+
+bool shape::is_computable(shape::type_t t) { return t != shape::fp4x2_type; }
 
 shape::shape() : impl(shape_impl::default_shape()) {}
 
@@ -374,7 +402,14 @@ std::size_t shape::bytes() const
     if(this->sub_shapes().empty())
     {
         std::size_t n = 0;
-        this->visit_type([&](auto as) { n = as.size(); });
+        if(type() == fp4x2_type)
+        {
+            n = sizeof(uint8_t);
+        }
+        else
+        {
+            this->visit_type([&](auto as) { n = as.size(); });
+        }
         return n * this->element_space();
     }
     else
@@ -390,7 +425,16 @@ std::size_t shape::type_size() const
 {
     std::size_t n = 0;
     if(this->sub_shapes().empty())
-        this->visit_type([&](auto as) { n = as.size(); });
+    {
+        if(this->computable())
+        {
+            this->visit_type([&](auto as) { n = as.size(); });
+        }
+        else
+        {
+            n = sizeof(uint8_t);
+        }
+    }
     return n;
 }
 
@@ -455,6 +499,11 @@ bool shape::multi_within_bounds(std::vector<std::size_t> multi) const
 {
     assert(this->lens().size() == multi.size());
     return std::equal(multi.begin(), multi.end(), this->lens().begin(), std::less<>{});
+}
+
+std::size_t shape::single(const std::vector<std::size_t>& idx) const
+{
+    return this->single(idx.begin(), idx.end());
 }
 
 bool shape::packed() const
@@ -596,7 +645,7 @@ shape shape::to_static(std::size_t x) const
                    static_lens.end(),
                    this->dyn_dims().cbegin(),
                    static_lens.begin(),
-                   [&](auto sl, auto dd) { return dd.is_fixed() ? sl : x; });
+                   [&](auto sl, const auto& dd) { return dd.is_fixed() ? sl : x; });
     return {type(), static_lens};
 }
 
@@ -616,6 +665,8 @@ bool shape::any_of_dynamic() const
         return s.any_of_dynamic();
     });
 }
+
+bool shape::computable() const { return is_computable(this->type()); }
 
 const std::vector<shape::dynamic_dimension>& shape::dyn_dims() const
 {
@@ -673,6 +724,19 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator-=(const std::size_t
     return *this;
 }
 
+shape::dynamic_dimension& shape::dynamic_dimension::operator*=(const std::size_t& x)
+{
+    this->min *= x;
+    this->max *= x;
+    std::set<std::size_t> new_optimals;
+    std::transform(this->optimals.begin(),
+                   this->optimals.end(),
+                   std::inserter(new_optimals, new_optimals.begin()),
+                   [&x](const auto& opt) { return (opt * x); });
+    this->optimals = new_optimals;
+    return *this;
+}
+
 bool operator==(const shape::dynamic_dimension& x, const shape::dynamic_dimension& y)
 {
     // don't check optimals if both are fixed
@@ -713,6 +777,17 @@ shape::dynamic_dimension operator-(const shape::dynamic_dimension& x, const std:
 {
     auto dd = x;
     return dd -= y;
+}
+
+shape::dynamic_dimension operator*(const shape::dynamic_dimension& x, const std::size_t& y)
+{
+    auto dd = x;
+    return dd *= y;
+}
+
+shape::dynamic_dimension operator*(const std::size_t& x, const shape::dynamic_dimension& y)
+{
+    return y * x;
 }
 
 bool operator==(const shape& x, const shape& y)
@@ -756,10 +831,13 @@ std::ostream& operator<<(std::ostream& os, const shape& x)
 shape::type_t shape::parse_type(const std::string& s)
 {
     static const std::unordered_map<std::string, shape::type_t> m = {
+    // clang-format off
 #define MIGRAPHX_SHAPE_GENERATE_TYPE_STRING_MAP(x, t) {#x, x}, {#t, x},
-        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_TYPE_STRING_MAP){"tuple_type",
-                                                                            tuple_type},
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_TYPE_STRING_MAP)
+        {"fp4x2_type", fp4x2_type},
+        {"tuple_type", tuple_type},
         {"tuple", tuple_type}};
+    // clang-format on
     return m.at(s);
 }
 
@@ -782,6 +860,8 @@ std::vector<shape> flatten(const std::vector<shape>& shapes)
     }
     return result;
 }
+
+std::size_t shape::tuple_size() const { return impl->m_shapes.size(); }
 
 void migraphx_to_value(value& v, const shape& s)
 {

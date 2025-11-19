@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -69,6 +69,24 @@ def add_bcast_test(g1):
         g1_input = tf.compat.v1.placeholder(tf.float32, shape=(2, 3), name='0')
         g2_input = tf.compat.v1.placeholder(tf.float32, shape=(2, 1), name='1')
         tf.math.add(g1_input, g2_input, name='add_bcast1')
+
+
+@tf_test
+def addn_test(g1):
+    with g1.as_default():
+        g1_input = tf.compat.v1.placeholder(tf.float32, shape=(2, 3), name='0')
+        g2_input = tf.compat.v1.placeholder(tf.float32, shape=(2, 3), name='1')
+        g3_input = tf.compat.v1.placeholder(tf.float32, shape=(2, 3), name='2')
+
+        tf.math.add_n([g1_input, g2_input, g3_input], name='addn1')        
+
+
+@tf_test
+def addn_single_test(g1):
+    with g1.as_default():
+        g1_input = tf.compat.v1.placeholder(tf.float32, shape=(2, 3), name='0')
+
+        tf.math.add_n([g1_input], name='addn1')
 
 
 @tf_test
@@ -554,6 +572,15 @@ def shape_test(g1):
                                             shape=(1, 3, 16, 16),
                                             name='0')
     g1.create_op(op_type='Shape', inputs=[g1_input])
+
+
+@tf_test
+def sigmoid_test(g1):
+    with g1.as_default():
+        g1_input = tf.compat.v1.placeholder(tf.float32,
+                                            shape=(1, 3, 16, 16),
+                                            name='0')
+        tf.math.sigmoid(g1_input, 'sigmoid')
 
 
 @tf_test

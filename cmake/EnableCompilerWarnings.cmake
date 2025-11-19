@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -78,6 +78,7 @@ else()
                 -Wodr
                 -Wshift-negative-value
                 -Wshift-overflow=2
+                -Wno-comment
             )
             endif()
         endif()
@@ -94,8 +95,10 @@ else()
                 -Wno-float-conversion
                 -Wno-gnu-anonymous-struct
                 -Wno-gnu-zero-variadic-macro-arguments
+                -Wno-missing-noreturn
                 -Wno-missing-prototypes
                 -Wno-nested-anon-types
+                -Wno-nrvo
                 -Wno-option-ignored
                 -Wno-padded
                 -Wno-shorten-64-to-32
@@ -104,8 +107,19 @@ else()
                 -Wno-weak-vtables
                 -Wno-c99-extensions
                 -Wno-unsafe-buffer-usage
+                # This is broken for now for moved values
+                -Wno-shadow-uncaptured-local
                 # -Wno-c++2a-designator
+                # -Weverything gives contradictory warnings, so disable the one that requires default in switch
+                -Wno-switch-default
             )
+            if(WIN32 AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "19")
+                list(APPEND CMAKE_COMPILER_WARNINGS
+                    -Wno-missing-include-dirs
+                    -Wno-switch-default
+                    -Wno-deprecated-pragma
+                )
+            endif()
         else()
             list(APPEND CMAKE_COMPILER_WARNINGS
                 -Wno-missing-field-initializers

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,15 +34,15 @@ TEST_CASE(shape_assign)
     migraphx_shape_t s2;
     migraphx_shape_create(&s2, migraphx_shape_float_type, lens.data(), lens.size());
     auto s2_cpp = migraphx::shape(s2, migraphx::own{});
-    CHECK(bool{s1_cpp != s2_cpp});
+    CHECK(s1_cpp != s2_cpp);
     // use C++ API for assignment
     s1_cpp.assign_to_handle(s2);
-    CHECK(bool{s1_cpp == s2_cpp});
+    CHECK(s1_cpp == s2_cpp);
 
     auto s3_cpp = migraphx::shape{migraphx_shape_float_type, lens};
     // use C API for assignment
     migraphx_shape_assign_to(s2, s3_cpp.get_handle_ptr());
-    CHECK(bool{s2_cpp == s3_cpp});
+    CHECK(s2_cpp == s3_cpp);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -136,6 +136,108 @@ struct resize
 
     std::string name() const { return "resize"; }
 
+    private:
+    // Helper struct to hold interpolation parameters for one dimension
+    struct interp_params
+    {
+        std::size_t i0; // lower index
+        std::size_t i1; // upper index
+        double weight;  // interpolation weight (0.0 to 1.0)
+    };
+
+    // Compute interpolation parameters for a single dimension
+    template <class IdxOp>
+    static interp_params compute_interp_params_1d(std::size_t in_len,
+                                                  std::size_t out_len,
+                                                  std::size_t out_idx,
+                                                  float scale,
+                                                  const IdxOp& idx_op)
+    {
+        // Handle degenerate dimension (length 1) to avoid NaNs
+        if(in_len <= 1)
+        {
+            return {0, 0, 0.0};
+        }
+
+        // Compute the original floating-point coordinate
+        double coord = idx_op(in_len, out_len, out_idx, scale);
+
+        // Clamp to valid input range [0, in_len-1]
+        double max_c = in_len > 0 ? static_cast<double>(in_len - 1) : 0.0;
+        coord        = std::max(0.0, std::min(max_c, coord));
+
+        std::size_t base = std::floor(coord);
+        std::size_t next = std::min(base + 1, (in_len == 0 ? 0 : in_len - 1));
+        double frac      = coord - static_cast<double>(base);
+
+        return {base, next, frac};
+    }
+
+    // Compute input indices for nearest neighbor mode
+    template <class NearestOp, class IdxOp>
+    static std::vector<std::size_t>
+    compute_nearest_indices(const std::vector<std::size_t>& in_lens,
+                            const std::vector<std::size_t>& out_lens,
+                            const std::vector<std::size_t>& out_idx_v,
+                            const std::vector<float>& vec_scale,
+                            const NearestOp& nearest_op,
+                            const IdxOp& idx_op)
+    {
+        std::vector<std::size_t> in_idx(out_idx_v.size());
+        for(std::size_t i = 0; i < out_idx_v.size(); ++i)
+        {
+            auto idx_val = idx_op(in_lens[i], out_lens[i], out_idx_v[i], vec_scale[i]);
+            in_idx[i]    = nearest_op(in_lens[i], idx_val);
+        }
+        return in_idx;
+    }
+
+    // Perform N-D multilinear interpolation for a single output point
+    template <class Data, class IdxOp>
+    static double compute_linear_interp_point(const Data& data,
+                                              const std::vector<std::size_t>& in_lens,
+                                              const std::vector<std::size_t>& out_lens,
+                                              const std::vector<std::size_t>& out_idx_v,
+                                              const std::vector<float>& vec_scale,
+                                              const IdxOp& idx_op)
+    {
+        const std::size_t ndim = out_idx_v.size();
+
+        // Precompute interpolation parameters for each dimension
+        std::vector<interp_params> params(ndim);
+        for(std::size_t d = 0; d < ndim; d++)
+        {
+            params[d] = compute_interp_params_1d(
+                in_lens[d], out_lens[d], out_idx_v[d], vec_scale[d], idx_op);
+        }
+
+        // Accumulate over 2^ndim corners
+        double acc                = 0.0;
+        const std::size_t corners = (ndim == 0) ? 1 : (1ULL << ndim);
+        std::vector<std::size_t> in_idx(ndim);
+
+        for(std::size_t mask = 0; mask < corners; ++mask)
+        {
+            double w = 1.0;
+            for(std::size_t d = 0; d < ndim; ++d)
+            {
+                const bool use_high = ((mask >> d) & 1U) != 0U;
+                w *= use_high ? params[d].weight : (1.0 - params[d].weight);
+                in_idx[d] = use_high ? params[d].i1 : params[d].i0;
+            }
+
+            if(w == 0.0)
+                continue;
+
+            using in_value_t = typename Data::value_type;
+            in_value_t v     = data(in_idx.begin(), in_idx.end());
+            acc += w * static_cast<double>(v);
+        }
+
+        return acc;
+    }
+
+    public:
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
@@ -150,8 +252,9 @@ struct resize
     {
         check_shapes{inputs, *this, true}.has(1, 2);
 
-        if(mode != "nearest")
-            MIGRAPHX_THROW("RESIZE: Only Nearest mode is supported");
+        // Allow nearest and linear; still reject others
+        if(mode != "nearest" and mode != "linear")
+            MIGRAPHX_THROW("RESIZE: Only 'nearest' and 'linear' modes are supported");
 
         // Inputs are X, sizes or scale, ROI and axes not supported.
         if(inputs.size() == 1)
@@ -161,7 +264,7 @@ struct resize
                 // Not supported at this point--needs different validity checking
                 MIGRAPHX_THROW("RESIZE: Single dynamic input not supported");
             }
-            auto input_s = inputs.front();
+            const auto& input_s = inputs.front();
             // No size/scale input.  Size/scale must be an attribute and so output will be static.
             if((sizes.empty()) == (scales.empty()))
                 MIGRAPHX_THROW(
@@ -203,9 +306,22 @@ struct resize
             // compute() method.  For any other target, there must be a compiler pass that replaces
             // this operation with a fixed-size output at runtime.
             std::size_t max_val = std::numeric_limits<std::size_t>::max();
-            std::vector<shape::dynamic_dimension> dyn_dims(inputs.back().lens().at(0),
-                                                           shape::dynamic_dimension{0, max_val});
-            return {inputs.front().type(), dyn_dims};
+            auto input          = inputs.front().to_dynamic();
+            std::vector<shape::dynamic_dimension> dyn_dims(input.ndim(), {0, max_val});
+
+            if(not scales.empty())
+            {
+                for(std::size_t i = 0; i < scales.size(); i++)
+                {
+                    dyn_dims[i].min = static_cast<std::size_t>(input.dyn_dims()[i].min * scales[i]);
+                    if(input.dyn_dims()[i].max != max_val)
+                    {
+                        dyn_dims[i].max =
+                            static_cast<std::size_t>(input.dyn_dims()[i].max * scales[i]);
+                    }
+                }
+            }
+            return {input.type(), dyn_dims};
         }
     }
 
@@ -230,7 +346,7 @@ struct resize
                                in_lens.begin(),
                                vec_scale.begin(),
                                [](size_t out_len, size_t in_len) {
-                                   return (in_len == 0 ? 1.f
+                                   return (in_len == 0 ? 1.0f
                                                        : static_cast<float>(out_len) / in_len);
                                });
             }
@@ -268,7 +384,6 @@ struct resize
                 else
                 {
                     // read the scale from args[1]
-                    //
                     std::copy(input.begin(), input.end(), vec_scale.begin());
                     // compute the output dimensions from the given scales.  This computation
                     // always rounds down, unlike the internal computation in Nearest mode
@@ -286,22 +401,41 @@ struct resize
 
         shape output_shape = {args[0].get_shape().type(), out_lens};
         argument result{output_shape};
-        auto nearest_op = get_nearest_op(nearest_mode);
-        auto idx_op     = get_original_idx_op(coordinate_transformation_mode);
 
-        // Populate each element in output by selecting "nearest" item in input.
-        visit_all(result, args[0])([&](auto output, auto data) {
-            migraphx::shape out_comp_shape{data.get_shape().type(), out_lens};
-            shape_for_each(out_comp_shape, [&](const auto& out_idx_v, size_t out_idx) {
-                std::vector<size_t> in_idx(out_idx_v.size());
-                for(auto ii = 0; ii < out_idx_v.size(); ++ii)
-                {
-                    auto idx_val = idx_op(in_lens[ii], out_lens[ii], out_idx_v[ii], vec_scale[ii]);
-                    in_idx[ii]   = nearest_op(in_lens[ii], idx_val);
-                }
-                output[out_idx] = data(in_idx.begin(), in_idx.end());
+        auto idx_op = get_original_idx_op(coordinate_transformation_mode);
+
+        if(mode == "nearest")
+        {
+            auto nearest_op = get_nearest_op(nearest_mode);
+            // Populate each element in output by selecting "nearest" item in input.
+            visit_all(result, args[0])([&](auto output, auto data) {
+                migraphx::shape out_comp_shape{data.get_shape().type(), out_lens};
+                shape_for_each(out_comp_shape, [&](const auto& out_idx_v, size_t out_idx) {
+                    auto in_idx = compute_nearest_indices(
+                        in_lens, out_lens, out_idx_v, vec_scale, nearest_op, idx_op);
+                    output[out_idx] = data(in_idx.begin(), in_idx.end());
+                });
             });
-        });
+        }
+        else if(mode == "linear")
+        {
+            // N-D multilinear interpolation
+            visit_all(result, args[0])([&](auto output, auto data) {
+                migraphx::shape out_comp_shape{data.get_shape().type(), out_lens};
+                shape_for_each(out_comp_shape, [&](const auto& out_idx_v, std::size_t out_idx) {
+                    double acc = compute_linear_interp_point(
+                        data, in_lens, out_lens, out_idx_v, vec_scale, idx_op);
+
+                    using out_value_t = typename decltype(output)::value_type;
+                    output[out_idx]   = static_cast<out_value_t>(acc);
+                });
+            });
+        }
+        else
+        {
+            MIGRAPHX_THROW("RESIZE: Unsupported mode in compute()");
+        }
+
         return result;
     }
 };

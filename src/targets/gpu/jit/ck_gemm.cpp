@@ -175,7 +175,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
                                        {"preamble", v.get("preamble", std::string{})},
                                        {"kernel", options.kernel_name}});
 
-        return compile_hip_code_object(src, options);
+        return compile_hip_code_object(ctx, src, options);
     }
 
     value create_settings(instruction_ref ins, const operation& op) const

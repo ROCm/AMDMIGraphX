@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -42,13 +42,16 @@ struct tensor_view_iterator_read
     }
 };
 
+template <class View>
+using tensor_view_iterator = basic_iota_iterator<tensor_view_iterator_read<View>, index_int>;
+
 template <class T, class Shape>
 struct tensor_view
 {
     using type        = T;
     using shape_type  = Shape;
     using index_array = typename Shape::index_array;
-    using iterator = basic_iota_iterator<tensor_view_iterator_read<const tensor_view>, index_int>;
+    using iterator    = tensor_view_iterator<const tensor_view>;
 
     constexpr Shape get_shape() const { return Shape{}; }
     constexpr auto size() const { return get_shape().elements(); }
@@ -56,15 +59,29 @@ struct tensor_view
     struct index_to_offset
     {
         index_int offset;
+#ifdef MIGRAPHX_DEBUG
+        index_int idx = 0;
+        template <class U>
+        constexpr index_to_offset(U i) : offset(Shape{}.index(i))
+        {
+            if constexpr(is_convertible<U, index_int>{})
+                idx = i;
+            else
+                idx = Shape{}.single(i);
+        }
+#else
         template <class U>
         constexpr index_to_offset(U i) : offset(Shape{}.index(i))
         {
         }
+#endif
     };
 
     constexpr T& operator[](MIGRAPHX_CAPTURE_SOURCE_LOCATION(index_to_offset) i) const
     {
         index_to_offset ito = i;
+        MIGRAPHX_WARN(
+            ito.idx < get_shape().elements(), i, "Out of bounds access at index: ", ito.idx);
         MIGRAPHX_WARN(ito.offset < get_shape().element_space(),
                       i,
                       "Out of bounds access at offset: ",
@@ -101,6 +118,12 @@ template <class T, class Shape>
 constexpr tensor_view<T, Shape> make_tensor_view(T* x, Shape)
 {
     return {x};
+}
+
+template <class T, class Permutation>
+constexpr auto reorder_tensor_view(T x, Permutation perm)
+{
+    return make_tensor_view(x.data(), reorder_shape(x.get_shape(), perm));
 }
 
 } // namespace migraphx

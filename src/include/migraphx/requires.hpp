@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -47,10 +47,10 @@ using bool_c = std::integral_constant<bool, B>;
 #define MIGRAPHX_REQUIRES(...) class = void
 #define MIGRAPHX_CLASS_REQUIRES(...) void
 #else
-#define MIGRAPHX_REQUIRES(...)                                           \
-    long MIGRAPHX_REQUIRES_VAR()            = __LINE__,                  \
-         typename std::enable_if<(MIGRAPHX_REQUIRES_VAR() == __LINE__ && \
-                                  (migraphx::and_<__VA_ARGS__>{})),      \
+#define MIGRAPHX_REQUIRES(...)                                            \
+    long MIGRAPHX_REQUIRES_VAR()            = __LINE__,                   \
+         typename std::enable_if<(MIGRAPHX_REQUIRES_VAR() == __LINE__ and \
+                                  (migraphx::and_<__VA_ARGS__>{})),       \
                                  int>::type = 0
 #define MIGRAPHX_CLASS_REQUIRES(...) typename std::enable_if<(migraphx::and_<__VA_ARGS__>{})>::type
 #endif

@@ -1,0 +1,6 @@
+transformers
+diffusers==0.34.0
+sentencepiece
+accelerate
+onnx
+tabulate

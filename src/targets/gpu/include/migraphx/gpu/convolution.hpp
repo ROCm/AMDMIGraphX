@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -78,7 +78,7 @@ struct miopen_convolution
 
     std::string name() const { return "gpu::" + op.name(); }
 
-    inline shape compute_shape(const std::vector<shape>& inputs) const
+    shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, op}.has(4);
         std::vector<shape> conv_inputs(inputs.begin(), inputs.begin() + 2);
@@ -339,7 +339,7 @@ struct miopen_convolution
 #endif
     }
 
-    inline std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {
         return shapes.size() - 1;
     }

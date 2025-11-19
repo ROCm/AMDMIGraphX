@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,10 +22,8 @@
  * THE SOFTWARE.
  */
 #include <iterator>
-#include <utility>
 #include <functional>
 #include <algorithm>
-#include <map>
 
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/instruction.hpp>
@@ -35,6 +33,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/program.hpp>
+#include <migraphx/fp8_types.hpp>
 
 #include <migraphx/op/common.hpp>
 #include <migraphx/op/dot.hpp>
@@ -47,14 +46,17 @@
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/gemm.hpp>
+#include <migraphx/gpu/hip_gemm.hpp>
 #include <migraphx/gpu/miopen.hpp>
 #include <migraphx/gpu/rocblas.hpp>
+#include <migraphx/gpu/hipblaslt.hpp>
 #include <migraphx/gpu/compiler.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MIOPEN_POOLING)
 
 struct miopen_apply
@@ -92,6 +94,7 @@ struct miopen_apply
 
         add_extend_op("argmax");
         add_extend_op("argmin");
+        add_extend_op("fixed_pad");
         add_extend_op("logsoftmax");
         add_extend_op("multinomial");
         add_extend_op("nonzero");
@@ -100,7 +103,6 @@ struct miopen_apply
         add_extend_op("rnn_var_sl_last_output");
         add_extend_op("rnn_var_sl_shift_output");
         add_extend_op("rnn_var_sl_shift_sequence");
-        add_extend_op("topk");
         add_generic_op("contiguous");
         add_pooling_op();
 #if MIGRAPHX_USE_MIOPEN
@@ -109,7 +111,7 @@ struct miopen_apply
         add_convolution_op("quant_convolution");
         add_extend_op("lrn");
 #endif
-#if MIGRAPHX_USE_ROCBLAS
+#if MIGRAPHX_USE_ROCBLAS or MIGRAPHX_USE_HIPBLASLT
         add_gemm_op<op::dot>("dot");
         add_gemm_op<op::quant_dot>("quant_dot");
 #endif
@@ -121,6 +123,7 @@ struct miopen_apply
         add_convolution_backwards_op();
         add_select_module_op();
         add_reshape_lazy_op();
+        add_concat_past_present_op();
         add_scan_slice_op();
     }
 
@@ -242,7 +245,7 @@ struct miopen_apply
         return mod->insert_instruction(ins, make_op("allocate", {{"shape", to_value(s)}}));
     }
 
-#if MIGRAPHX_USE_ROCBLAS
+#if MIGRAPHX_USE_ROCBLAS or MIGRAPHX_USE_HIPBLASLT
     template <typename Op>
     void add_gemm_op(const std::string& name)
     {
@@ -251,7 +254,34 @@ struct miopen_apply
             assert(refs.size() == 2);
             auto output = insert_allocation(ins, ins->get_shape());
             refs.push_back(output);
-            return mod->replace_instruction(ins, rocblas_gemm<Op>{Op{}, 1, 0, compute_fp32}, refs);
+
+            bool has_fp8_inputs =
+                std::any_of(ins->inputs().begin(), ins->inputs().end(), [](auto i_input) {
+                    return contains(fp8_types{}.get(), i_input->get_shape().type());
+                });
+
+            // Check if user explicitly sets rocBLAS as GEMM provider, or
+            // if the hardware cannot support hipblaslt, or
+            // if the hardware is defaulted to use rocBLAS (such as gfx90).
+            if(not has_fp8_inputs and
+               ((string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "rocblas") or
+                not hipblaslt_supported() or gpu::gfx_default_rocblas()))
+            {
+                return mod->replace_instruction(
+                    ins, rocblas_gemm<Op>{Op{}, 1, 0, compute_fp32}, refs);
+            }
+            std::string op_name = "gpu::hip_gemm";
+            if(contains(name, "quant_"))
+            {
+                op_name = "gpu::hip_quant_gemm";
+            }
+            operation gemm_op = make_op(op_name);
+            return mod->replace_instruction(
+                ins,
+                make_op("gpu::hipblaslt_op", {{"op", to_value(gemm_op)}}),
+                ins->inputs().at(0),
+                ins->inputs().at(1),
+                output);
         });
     }
 #endif
@@ -303,7 +333,8 @@ struct miopen_apply
 
     static bool use_miopen_pooling(instruction_ref ins)
     {
-        if(enabled(MIGRAPHX_DISABLE_MIOPEN_POOLING{}))
+        if(enabled(MIGRAPHX_DISABLE_MIOPEN_POOLING{}) or
+           not contains({shape::float_type, shape::half_type}, ins->get_shape().type()))
             return false;
         auto&& op   = ins->get_operator();
         auto op_val = op.to_value();
@@ -487,15 +518,26 @@ struct miopen_apply
             auto before_contig =
                 mod->insert_instruction(ins, make_op("gpu::contiguous"), {before_contiguous_args});
 
-            auto new_lazy_reshape = mod->insert_instruction(
+            auto new_reshape_lazy = mod->insert_instruction(
                 ins,
                 make_op("reshape_lazy", {{"dims", {ins->get_operator().to_value().at("dims")}}}),
                 before_contig);
 
-            std::vector<instruction_ref> after_contiguous_args = {new_lazy_reshape};
-            auto after_alloc = insert_allocation(new_lazy_reshape, new_lazy_reshape->get_shape());
+            std::vector<instruction_ref> after_contiguous_args = {new_reshape_lazy};
+            auto after_alloc = insert_allocation(new_reshape_lazy, new_reshape_lazy->get_shape());
             after_contiguous_args.push_back(after_alloc);
             return mod->replace_instruction(ins, make_op("gpu::contiguous"), after_contiguous_args);
+        });
+    }
+
+    void add_concat_past_present_op()
+    {
+        apply_map.emplace("concat_past_present", [=](instruction_ref ins) {
+            return mod->replace_instruction(ins,
+                                            make_op("gpu::precompile_op",
+                                                    {{"op", to_value(ins->get_operator())},
+                                                     {"output_shape", to_value(ins->get_shape())}}),
+                                            ins->inputs());
         });
     }
 

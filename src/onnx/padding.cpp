@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -39,31 +39,17 @@ void cal_auto_padding_size(onnx_parser::node_info info,
                            const std::vector<std::size_t>& in_lens,
                            std::vector<int64_t>& paddings)
 {
-    size_t kdims = in_lens.size() - 2;
-    assert(k_lens.size() == kdims and dilation.size() == kdims);
-
     if(not contains(info.attributes, "auto_pad"))
     {
         return;
     }
 
-    auto auto_pad = to_upper(info.attributes["auto_pad"].s());
-    if(auto_pad.find("SAME") != std::string::npos)
-    {
-        bool is_same_upper = (auto_pad.find("SAME_UPPER") != std::string::npos);
-        paddings.resize(2 * kdims);
-
-        for(size_t i = 0; i < paddings.size() / 2; i++)
-        {
-            calculate_padding(i,
-                              paddings,
-                              in_lens[i + 2],
-                              v["stride"][i].to<int64_t>(),
-                              dilation[i],
-                              k_lens[i],
-                              is_same_upper);
-        }
-    }
+    calc_auto_padding(info.attributes.at("auto_pad").s(),
+                      v["stride"].to_vector<std::size_t>(),
+                      k_lens,
+                      dilation,
+                      in_lens,
+                      paddings);
 }
 
 bool is_asym_padding(const std::vector<int64_t>& padding)
@@ -81,7 +67,7 @@ bool is_asym_padding(const std::vector<int64_t>& padding)
     return false;
 }
 
-void check_padding_mode(const onnx_parser::node_info& info, const std::string& op_name)
+void check_padding_mode(const onnx_parser::node_info& info, const std::string& onnx_name)
 {
     // ensure pads availabe only when auto_pad is "NOT_SET"
     if(contains(info.attributes, "pads") and contains(info.attributes, "auto_pad"))
@@ -89,7 +75,7 @@ void check_padding_mode(const onnx_parser::node_info& info, const std::string& o
         auto s = info.attributes.at("auto_pad").s();
         if(to_upper(s) != "NOTSET")
         {
-            MIGRAPHX_THROW("PARSE_" + op_name +
+            MIGRAPHX_THROW("PARSE_" + to_upper(onnx_name) +
                            ": auto_pad and padding cannot be specified simultaneously");
         }
     }

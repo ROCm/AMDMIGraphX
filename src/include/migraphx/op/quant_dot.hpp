@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,11 +28,21 @@
 #include <migraphx/config.hpp>
 #include <migraphx/gemm.hpp>
 #include <migraphx/value.hpp>
+#include <migraphx/fp8_types.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
+/**
+ * 2 input version:
+ * Standard quantized GEMM operation
+ * inputs = {A_mat, B_mat}
+ *
+ * 4 input version:
+ * Quantized GEMM with two sets of scales for A and B matricies.
+ * inputs = {A_mat, B_mat, scale_A, scale_B}
+ */
 struct quant_dot
 {
     value attributes() const { return {{"general_data_type", "dot"}}; }
@@ -40,22 +50,28 @@ struct quant_dot
     std::string name() const { return "quant_dot"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{{inputs.at(0), inputs.at(1)}, *this}.same_type().has(2);
+        check_shapes{inputs, *this}.has(2, 4);
+        check_shapes{{inputs.at(0), inputs.at(1)}, *this}.same_type();
+        if(inputs.size() == 4)
+        {
+            check_shapes{{inputs.at(2), inputs.at(3)}, *this}.same_type();
+        }
         const shape& a = inputs.at(0);
         const shape& b = inputs.at(1);
-        auto t         = a.type();
-        std::set<migraphx::shape::type_t> suppported_types = {
-            shape::int8_type, shape::uint8_type, shape::fp8e4m3fnuz_type};
-        if(not contains(suppported_types, t))
+        auto t                                            = a.type();
+        std::set<migraphx::shape::type_t> supported_types = fp8_types{}.get();
+        supported_types.insert(shape::int8_type);
+        supported_types.insert(shape::uint8_type);
+        // for how mxfp4 is handled with pack/unpack
+        supported_types.insert(shape::float_type);
+        if(not contains(supported_types, t))
         {
-            MIGRAPHX_THROW(
-                "QUANT_DOT: only support data type int8_t, uint8_t and fp8e4m3fnuz_type");
+            MIGRAPHX_THROW("QUANT_DOT: only supports int8_t, uint8_t, float, and fp8");
         }
-
         if(not std::all_of(
                inputs.begin(), inputs.end(), [](auto s) { return s.lens().size() >= 2; }))
         {
-            MIGRAPHX_THROW("QUANT_DOT: dot only accept 2 or more dims operands");
+            MIGRAPHX_THROW("QUANT_DOT: dot only accepts >= 2D operands");
         }
 
         // only handle the case that the batch size of a and b are the same
@@ -76,7 +92,8 @@ struct quant_dot
 
         auto out_lens   = a.lens();
         out_lens[dim_1] = b.lens()[dim_1];
-        if(t == shape::fp8e4m3fnuz_type)
+
+        if(inputs.size() == 4 or contains(fp8_types{}.get(), t))
         {
             return {shape::float_type, out_lens};
         } // else int8 gemm

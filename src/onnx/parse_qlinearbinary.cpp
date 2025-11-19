@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -107,10 +107,10 @@ struct parse_qlinearbinary : op_parser<parse_qlinearbinary>
     }
 
     // basic type checking for binary QLinear Operator
-    void check_inputs(const std::vector<instruction_ref>& args, const std::string& op_name) const
+    void check_inputs(const std::vector<instruction_ref>& args, const std::string& onnx_name) const
     {
         if(args.size() < 7)
-            MIGRAPHX_THROW(op_name + ": missing inputs");
+            MIGRAPHX_THROW(onnx_name + ": missing inputs");
 
         const auto& in_a = args[0];
         const auto& in_b = args[3];
@@ -121,11 +121,11 @@ struct parse_qlinearbinary : op_parser<parse_qlinearbinary>
         auto type_a = sh_a.type();
         auto type_b = sh_b.type();
         if(type_a != migraphx::shape::int8_type and type_a != migraphx::shape::uint8_type)
-            MIGRAPHX_THROW(op_name + ": unsupported input type");
+            MIGRAPHX_THROW(onnx_name + ": unsupported input type");
         if(type_b != migraphx::shape::int8_type and type_b != migraphx::shape::uint8_type)
-            MIGRAPHX_THROW(op_name + ": unsupported input type");
+            MIGRAPHX_THROW(onnx_name + ": unsupported input type");
         if(type_a != type_b)
-            MIGRAPHX_THROW(op_name + ": mismatched input types");
+            MIGRAPHX_THROW(onnx_name + ": mismatched input types");
     }
 
     instruction_ref parse(const op_desc& opd,
@@ -133,7 +133,7 @@ struct parse_qlinearbinary : op_parser<parse_qlinearbinary>
                           const onnx_parser::node_info& info,
                           const std::vector<instruction_ref>& args) const
     {
-        check_inputs(args, opd.op_name);
+        check_inputs(args, opd.onnx_name);
 
         // A
         const auto& in_a         = args[0];

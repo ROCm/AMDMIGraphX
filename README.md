@@ -1,10 +1,11 @@
 # AMD MIGraphX
 
 AMD MIGraphX is AMD's graph inference engine, which accelerates machine learning model inference.
-To use MIGraphX, you can install the binaries or build from source code. Refer to the following sections
-for Ubuntu installation instructions (we'll provide instructions for other Linux distributions in the future).
 
-> [!NOTE] 
+>[!NOTE]
+>The published documentation is available at [MIGraphX](https://rocm.docs.amd.com/projects/AMDMIGraphX/en/latest/) in an organized, easy-to-read format, with search and a table of contents. The documentation source files reside in the `docs` folder of this repository. As with all ROCm projects, the documentation is open source. For more information on contributing to the documentation, see [Contribute to ROCm documentation](https://rocm.docs.amd.com/en/latest/contribute/contributing.html).
+
+> [!NOTE]
 > You must [install ROCm](https://rocm.docs.amd.com/projects/install-on-linux/en/latest/index.html) before
 > installing MIGraphX.
 
@@ -16,14 +17,14 @@ Install binaries using:
 sudo apt update && sudo apt install -y migraphx
 ```
 
-Header files and libraries are installed under `/opt/rocm-<version>`, where `<version>` is the ROCm
+Header files and libraries are installed under ``/opt/rocm-<version>``, where ``<version>`` is the ROCm
 version.
 
 ## Building from source
 
 You have three options for building from source:
 
-* [ROCm build tool](#use-the-rocm-build-tool-rbuild): Uses
+* [ROCm build tool](#compile-using-the-rocm-build-tool-rbuild): Uses
   [rbuild](https://github.com/RadeonOpenCompute/rbuild) to install prerequisites, then you can build
   the libraries with a single command.
 
@@ -49,7 +50,7 @@ The following is a list of prerequisites for building MIGraphX.
 * [MessagePack](https://msgpack.org/index.html) for model serialization to binary format
 * [SQLite3](https://www.sqlite.org/index.html) to create database of kernels' tuning information or run queries on existing database
 
-### Use the ROCm build tool [rbuild](https://github.com/RadeonOpenCompute/rbuild).
+### Installing the ROCm build tool [rbuild](https://github.com/RadeonOpenCompute/rbuild).
 
 1. Install `rocm-cmake`, `pip3`, `rocblas`, and `miopen-hip`:
 
@@ -57,17 +58,32 @@ The following is a list of prerequisites for building MIGraphX.
     sudo apt install -y rocm-cmake python3-pip rocblas miopen-hip
     ```
 
-2. Install [rbuild](https://github.com/RadeonOpenCompute/rbuild) (sudo may be required):
-
+2. Set up and activate python venv for rbuild:
     ```bash
-    pip3 install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
+    python3 -m venv venv_rbuild
+    source venv_rbuild/bin/activate
     ```
 
-3. Build MIGraphX source code:
+3. Install [rbuild](https://github.com/RadeonOpenCompute/rbuild) in the python venv:
+
+    ```bash
+    pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
+    ```
+
+> [!NOTE]
+> You can deactivate the python virtual environment with `deactivate`.
+
+
+### Compile using the ROCm build tool [rbuild](https://github.com/RadeonOpenCompute/rbuild).
+
+1. Follow instructions in [installing rbuild](#installing-the-rocm-build-tool-rbuild)
+
+2. Build MIGraphX source code:
 
     ```bash
     rbuild build -d depend -B build -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*')
     ```
+
 
 Once completed, all prerequisites are in the `depend` folder and MIGraphX is in the `build` directory.
 
@@ -78,7 +94,9 @@ Once completed, all prerequisites are in the `depend` folder and MIGraphX is in 
 
 ### Use CMake to build MIGraphX
 
-1. Install the prerequisites:
+1. Follow instructions in [installing rbuild](#installing-the-rocm-build-tool)
+
+2. Install the prerequisites:
 
     ```bash
     rbuild prepare -d depend
@@ -94,14 +112,14 @@ Once completed, all prerequisites are in the `depend` folder and MIGraphX is in 
     users. For the default location, `sudo` is required to run the script. You can also specify a different
     location using `./tools/install_prereqs.sh $custom_location`.
 
-2. Go to the project folder and create a `build` directory:
+3. Go to the project folder and create a `build` directory:
 
     ```bash
     mkdir build
     cd build
     ```
 
-3. Configure CMake. If the prerequisites are installed at the default location `/usr/local`, use:
+4. Configure CMake. If the prerequisites are installed at the default location `/usr/local`, use:
 
     ```bash
     CXX=/opt/rocm/llvm/bin/clang++ cmake .. -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*')
@@ -109,7 +127,7 @@ Once completed, all prerequisites are in the `depend` folder and MIGraphX is in 
 
     Otherwise, you need to set `-DCMAKE_PREFIX_PATH=$your_loc` to configure CMake.
 
-4. Build MIGraphX source code:
+5. Build MIGraphX source code:
 
     ```cpp
     make -j$(nproc)
@@ -121,7 +139,7 @@ Once completed, all prerequisites are in the `depend` folder and MIGraphX is in 
     make -j$(nproc) check
     ```
 
-5. Install MIGraphX libraries:
+6. Install MIGraphX libraries:
 
     ```cpp
     make install
@@ -209,7 +227,7 @@ This will build a local searchable web site inside the docs/html folder.
 
 Documentation is built using [Doxygen](http://www.stack.nl/~dimitri/doxygen/download.html) and [rocm-docs-core](https://github.com/RadeonOpenCompute/rocm-docs-core)
 
-Run the steps below to build documentation locally.
+Run the steps below to build documentation locally. You can reuse the same venv from [installing rbuild](#installing-the-rocm-build-tool-rbuild).
 
 ```bash
 cd docs

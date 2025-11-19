@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,12 +28,13 @@
 #include <migraphx/program.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/make_op.hpp>
+#include <utility>
 
 template <class F>
 migraphx::module_ref create_pointwise_module(migraphx::program& p,
                                              const std::string& name,
                                              std::vector<migraphx::instruction_ref> inputs,
-                                             F f)
+                                             const F& f)
 {
     auto* pm = p.create_module(name);
     pm->set_bypass();
@@ -51,20 +52,20 @@ template <class F>
 migraphx::instruction_ref add_pointwise(migraphx::program& p,
                                         migraphx::module_ref mm,
                                         const std::string& name,
-                                        std::vector<migraphx::instruction_ref> inputs,
-                                        F f)
+                                        const std::vector<migraphx::instruction_ref>& inputs,
+                                        const F& f)
 {
-    auto* pm = create_pointwise_module(p, name, inputs, f);
+    auto* pm = create_pointwise_module(p, name, inputs, std::move(f));
     return mm->add_instruction(migraphx::make_op("pointwise"), inputs, {pm});
 }
 
 template <class F>
 migraphx::instruction_ref add_pointwise(migraphx::program& p,
                                         const std::string& name,
-                                        std::vector<migraphx::instruction_ref> inputs,
-                                        F f)
+                                        const std::vector<migraphx::instruction_ref>& inputs,
+                                        const F& f)
 {
-    return add_pointwise(p, p.get_main_module(), name, inputs, f);
+    return add_pointwise(p, p.get_main_module(), name, inputs, std::move(f));
 }
 
 inline auto noop_pointwise()

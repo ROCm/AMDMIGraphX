@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -48,13 +48,13 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_CMD_EXECUTE)
 
 #ifndef _WIN32
 
-std::function<void(const char*)> redirect_to(std::ostream& os)
+static std::function<void(const char*)> redirect_to(std::ostream& os)
 {
     return [&](const char* x) { os << x; };
 }
 
 template <class F>
-int exec(const std::string& cmd, const char* type, F f)
+static int exec(const std::string& cmd, const char* type, F f)
 {
     int ec = 0;
     if(enabled(MIGRAPHX_TRACE_CMD_EXECUTE{}))
@@ -73,7 +73,7 @@ int exec(const std::string& cmd, const char* type, F f)
     return ec;
 }
 
-int exec(const std::string& cmd, const std::function<void(const char*)>& std_out)
+static int exec(const std::string& cmd, const std::function<void(const char*)>& std_out)
 {
     return exec(cmd, "r", [&](FILE* f) {
         std::array<char, 128> buffer;
@@ -82,7 +82,7 @@ int exec(const std::string& cmd, const std::function<void(const char*)>& std_out
     });
 }
 
-int exec(const std::string& cmd, std::function<void(process::writer)> std_in)
+static int exec(const std::string& cmd, std::function<void(process::writer)> std_in)
 {
     return exec(cmd, "w", [&](FILE* f) {
         std_in([&](const char* buffer, std::size_t n) { std::fwrite(buffer, 1, n, f); });
@@ -207,7 +207,7 @@ int exec(const std::string& cmd, const std::string& cwd, const std::string& args
     constexpr std::size_t CMDLINE_LENGTH = 32767;
 
     // Build lpCommandLine parameter.
-    std::string cmdline = cmd;
+    std::string cmdline = quote_string(cmd);
     if(not args.empty())
         cmdline += " " + args;
 
@@ -248,6 +248,7 @@ int exec(const std::string& cmd, const std::string& cwd, const std::string& args
         info.hStdOutput = output.get_write_handle();
         info.hStdInput  = input.get_read_handle();
         info.dwFlags |= STARTF_USESTDHANDLES;
+        info.wShowWindow = SW_HIDE;
 
         ZeroMemory(&process_info, sizeof(process_info));
 
@@ -256,7 +257,7 @@ int exec(const std::string& cmd, const std::string& cwd, const std::string& args
                          nullptr,
                          nullptr,
                          TRUE,
-                         0,
+                         CREATE_NO_WINDOW,
                          environment.empty() ? nullptr : environment.data(),
                          cwd.empty() ? nullptr : static_cast<LPCSTR>(cwd.c_str()),
                          &info,

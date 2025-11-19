@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,7 +30,7 @@
 #include <basic_ops.hpp>
 #include <test.hpp>
 
-void run_pass(migraphx::module& m)
+static void run_pass(migraphx::module& m)
 {
     migraphx::run_passes(m, {migraphx::memory_coloring{"allocate", true}});
 }
@@ -59,22 +59,22 @@ struct allocate
     }
 };
 
-migraphx::instruction_ref add_alloc(migraphx::module& m, const migraphx::shape& s)
+static migraphx::instruction_ref add_alloc(migraphx::module& m, const migraphx::shape& s)
 {
     return m.add_instruction(allocate{s});
 }
 
-bool no_allocate(const migraphx::module& m)
+static bool no_allocate(const migraphx::module& m)
 {
     return std::none_of(m.begin(), m.end(), [](auto&& ins) { return ins.name() == "allocate"; });
 }
 
-bool is_overlap(std::pair<std::size_t, std::size_t> x, std::pair<std::size_t, std::size_t> y)
+static bool is_overlap(std::pair<std::size_t, std::size_t> x, std::pair<std::size_t, std::size_t> y)
 {
     return std::max(x.first, y.first) < std::min(x.second, y.second);
 }
 
-std::pair<std::size_t, std::size_t> get_load_interval(migraphx::instruction_ref a)
+static std::pair<std::size_t, std::size_t> get_load_interval(migraphx::instruction_ref a)
 {
     auto v      = a->get_operator().to_value();
     auto offset = v.at("offset").to<std::size_t>();
@@ -82,12 +82,12 @@ std::pair<std::size_t, std::size_t> get_load_interval(migraphx::instruction_ref 
     return {offset, offset + s.bytes()};
 }
 
-bool is_overlap_load(migraphx::instruction_ref a, migraphx::instruction_ref b)
+static bool is_overlap_load(migraphx::instruction_ref a, migraphx::instruction_ref b)
 {
     return is_overlap(get_load_interval(a), get_load_interval(b));
 }
 
-bool is_disjoint(const std::vector<migraphx::instruction_ref>& inss)
+static bool is_disjoint(const std::vector<migraphx::instruction_ref>& inss)
 {
     return std::none_of(inss.begin(), inss.end(), [&](auto ins1) {
         return std::none_of(inss.begin(), inss.end(), [&](auto ins2) {
@@ -3801,6 +3801,20 @@ TEST_CASE(test_tuple)
     m.add_instruction(pass_op{}, a2, m1);
     run_pass(m);
     CHECK(m.get_parameter_shape("scratch").bytes() == 68);
+    CHECK(no_allocate(m));
+    CHECK(is_disjoint({a1, a2}));
+}
+
+TEST_CASE(test_large_offsets)
+{
+    migraphx::module m;
+
+    auto a1 = add_alloc(m, {migraphx::shape::float_type, {10000000000}});
+    auto m1 = m.add_instruction(pass_op{}, a1);
+    auto a2 = add_alloc(m, {migraphx::shape::float_type, {10000000000}});
+    m.add_instruction(pass_op{}, a2, m1);
+    run_pass(m);
+    CHECK(m.get_parameter_shape("scratch").bytes() == 80000000000);
     CHECK(no_allocate(m));
     CHECK(is_disjoint({a1, a2}));
 }

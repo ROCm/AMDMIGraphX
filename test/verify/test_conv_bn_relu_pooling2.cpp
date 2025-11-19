@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -46,7 +46,9 @@ struct test_conv_bn_relu_pooling2 : verify_program<test_conv_bn_relu_pooling2<DT
 
         auto rt  = m.add_literal(migraphx::literal{DType, {0.5}});
         auto eps = m.add_literal(migraphx::literal{DType, {1e-5f}});
-        if constexpr((DType) == migraphx::shape::fp8e4m3fnuz_type)
+        if constexpr(DType == migraphx::shape::fp8e4m3fnuz_type or
+                     DType == migraphx::shape::fp8e4m3fn_type or
+                     DType == migraphx::shape::fp8e5m2_type)
         {
             // use 0.250 for fp8
             eps = m.add_literal(migraphx::literal{DType, {0.250}});
@@ -106,4 +108,8 @@ struct test_conv_bn_relu_pooling2 : verify_program<test_conv_bn_relu_pooling2<DT
 };
 
 template struct test_conv_bn_relu_pooling2<migraphx::shape::float_type>;
+template struct test_conv_bn_relu_pooling2<migraphx::shape::bf16_type>;
 template struct test_conv_bn_relu_pooling2<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_conv_bn_relu_pooling2<migraphx::shape::fp8e5m2fnuz_type>;
+template struct test_conv_bn_relu_pooling2<migraphx::shape::fp8e4m3fn_type>;
+template struct test_conv_bn_relu_pooling2<migraphx::shape::fp8e5m2_type>;

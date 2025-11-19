@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -57,6 +57,8 @@ struct test_arg_ops : verify_program<test_arg_ops<T, DType, Axis, LastIndex, Non
         mm->add_instruction(T{Axis, LastIndex}, param);
         return p;
     }
+
+    std::string section() const { return "reduce"; }
 };
 // transpose argmax tests
 template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::float_type, 0, true, 0>;
@@ -162,108 +164,3 @@ template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::float_type, 
 template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::float_type, -3, false, 3>;
 template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::float_type, -4, true, 3>;
 template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::float_type, -4, false, 3>;
-
-// transpose argmax tests
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, 0, true, 0>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, 0, false, 0>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, 1, true, 0>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, 1, false, 0>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, 2, true, 0>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, 2, false, 0>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, 3, true, 0>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, 3, false, 0>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, -1, true, 0>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, -1, false, 0>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, -2, true, 0>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, -2, false, 0>;
-// transpose argmin tests
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, 0, true, 0>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, 0, false, 0>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, 1, true, 0>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, 1, false, 0>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, 2, true, 0>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, 2, false, 0>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, 3, true, 0>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, 3, false, 0>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, -3, true, 0>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, -3, false, 0>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, -4, true, 0>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, -4, false, 0>;
-// broadcast argmax tests
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, 0, true, 1>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, 0, false, 1>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, 1, true, 1>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, 1, false, 1>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, 2, true, 1>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, 2, false, 1>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, 3, true, 1>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, 3, false, 1>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, -1, true, 1>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, -1, false, 1>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, -2, true, 1>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, -2, false, 1>;
-// broadcast argmin tests
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, 0, true, 1>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, 0, false, 1>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, 1, true, 1>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, 1, false, 1>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, 2, true, 1>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, 2, false, 1>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, 3, true, 1>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, 3, false, 1>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, -3, true, 1>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, -3, false, 1>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, -4, true, 1>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, -4, false, 1>;
-// slice argmax tests
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, 0, true, 2>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, 0, false, 2>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, 1, true, 2>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, 1, false, 2>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, 2, true, 2>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, 2, false, 2>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, 3, true, 2>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, 3, false, 2>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, -1, true, 2>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, -1, false, 2>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, -2, true, 2>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, -2, false, 2>;
-// slice argmin tests
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, 0, true, 2>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, 0, false, 2>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, 1, true, 2>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, 1, false, 2>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, 2, true, 2>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, 2, false, 2>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, 3, true, 2>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, 3, false, 2>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, -3, true, 2>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, -3, false, 2>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, -4, true, 2>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, -4, false, 2>;
-// default case, standard shape argmax tests
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, 0, true, 3>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, 0, false, 3>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, 1, true, 3>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, 1, false, 3>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, 2, true, 3>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, 2, false, 3>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, 3, true, 3>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, 3, false, 3>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, -1, true, 3>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, -1, false, 3>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, -2, true, 3>;
-template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::fp8e4m3fnuz_type, -2, false, 3>;
-// default case, standard shape argmin tests
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, 0, true, 3>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, 0, false, 3>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, 1, true, 3>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, 1, false, 3>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, 2, true, 3>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, 2, false, 3>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, 3, true, 3>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, 3, false, 3>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, -3, true, 3>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, -3, false, 3>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, -4, true, 3>;
-template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::fp8e4m3fnuz_type, -4, false, 3>;

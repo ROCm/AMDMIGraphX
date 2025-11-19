@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,7 +31,7 @@
 // NOLINTNEXTLINE
 #define MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(name, type) \
     template <class Container>                           \
-    void name();                                         \
+    static void name();                                  \
     TEST_CASE_REGISTER(name<std::vector<type>>);         \
     TEST_CASE_REGISTER(name<std::list<type>>);           \
     TEST_CASE_REGISTER(name<std::forward_list<type>>);   \
@@ -39,7 +39,8 @@
     void name()
 
 template <class Container, class Iterator>
-auto erase_iterator(Container& c, Iterator pos, Iterator last) -> decltype(c.erase_after(pos, last))
+static auto
+erase_iterator(Container& c, Iterator pos, Iterator last) -> decltype(c.erase_after(pos, last))
 {
     auto n  = std::distance(c.begin(), pos);
     auto it = n == 0 ? c.before_begin() : std::next(c.begin(), n - 1);
@@ -47,7 +48,8 @@ auto erase_iterator(Container& c, Iterator pos, Iterator last) -> decltype(c.era
 }
 
 template <class Container, class Iterator>
-auto erase_iterator(Container& c, Iterator pos, Iterator last) -> decltype(c.erase(pos, last))
+static auto erase_iterator(Container& c, Iterator pos, Iterator last) -> decltype(c.erase(pos,
+                                                                                          last))
 {
     return c.erase(pos, last);
 }
@@ -79,6 +81,70 @@ MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(adjacent_remove_if_non_equivalence, int)
     auto pred   = [](int a, int b) { return (b - a) == 1; };
     erase_iterator(v, migraphx::adjacent_remove_if(v.begin(), v.end(), pred), v.end());
     EXPECT(v == Container{1, 1, 1, 4, 2, 4, 2, 5, 6});
+}
+
+TEST_CASE(min_element_if_basic)
+{
+    std::vector<int> v = {5, 3, 7, 1, 9, 2};
+    auto is_even       = [](int x) { return x % 2 == 0; };
+    auto it            = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
+    EXPECT(it != v.end());
+    EXPECT(*it == 2);
+}
+
+TEST_CASE(min_element_if_no_valid)
+{
+    std::vector<int> v = {5, 3, 7, 1, 9};
+    auto is_even       = [](int x) { return x % 2 == 0; };
+    auto it            = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
+    EXPECT(it == v.end());
+}
+
+TEST_CASE(min_element_if_all_valid)
+{
+    std::vector<int> v = {6, 2, 8, 4, 10};
+    auto is_even       = [](int x) { return x % 2 == 0; };
+    auto it            = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
+    EXPECT(it != v.end());
+    EXPECT(*it == 2);
+}
+
+TEST_CASE(min_element_if_custom_compare)
+{
+    std::vector<int> v = {5, 3, 7, 1, 9, 2, 8};
+    auto is_even       = [](int x) { return x % 2 == 0; };
+    // Find the largest even number
+    auto it = migraphx::min_element_if(v.begin(), v.end(), is_even, std::greater<>{});
+    EXPECT(it != v.end());
+    EXPECT(*it == 8);
+}
+
+TEST_CASE(min_element_if_empty)
+{
+    std::vector<int> v;
+    auto is_even = [](int x) { return x % 2 == 0; };
+    auto it      = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
+    EXPECT(it == v.end());
+}
+
+TEST_CASE(min_element_if_first_element)
+{
+    std::vector<int> v = {2, 5, 3, 7, 1, 9};
+    auto is_even       = [](int x) { return x % 2 == 0; };
+    auto it            = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
+    EXPECT(it != v.end());
+    EXPECT(*it == 2);
+    EXPECT(it == v.begin());
+}
+
+TEST_CASE(min_element_if_complex_predicate)
+{
+    std::vector<int> v = {15, 3, 20, 1, 9, 25, 8, 12};
+    // Find the smallest number greater than 10
+    auto greater_than_10 = [](int x) { return x > 10; };
+    auto it = migraphx::min_element_if(v.begin(), v.end(), greater_than_10, std::less<>{});
+    EXPECT(it != v.end());
+    EXPECT(*it == 12);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

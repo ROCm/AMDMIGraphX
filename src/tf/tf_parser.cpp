@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -221,8 +221,9 @@ static std::vector<T> get_data_vals(const google::protobuf::RepeatedField<T>& da
 }
 
 template <class T>
-static literal
-create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, std::vector<T> data)
+static literal create_literal(shape::type_t shape_type,
+                              const std::vector<size_t>& dims,
+                              const std::vector<T>& data)
 {
     // assume if explicit value is mentioned in protobuf and dim size <= 1, treat as scalar
     if(dims.empty() or (dims.size() == 1 and dims.front() == 1))
@@ -312,7 +313,7 @@ void tf_parser::parse_graph(const tensorflow::GraphDef& graph)
     std::transform(output_node_names.begin(),
                    output_node_names.end(),
                    std::back_inserter(output_ins),
-                   [&](auto output_name) {
+                   [&](const auto& output_name) {
                        if(not contains(instructions, output_name))
                            MIGRAPHX_THROW("PARSE_TF: output name " + output_name +
                                           " not found in graph!");

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -43,8 +43,10 @@ struct test_reduce_mean_nhwc : verify_program<test_reduce_mean_nhwc<DType>>
         mm->add_return({sqrt});
         return p;
     };
+
+    std::string section() const { return "reduce"; }
 };
 
 template struct test_reduce_mean_nhwc<migraphx::shape::float_type>;
 template struct test_reduce_mean_nhwc<migraphx::shape::half_type>;
-template struct test_reduce_mean_nhwc<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_reduce_mean_nhwc<migraphx::shape::bf16_type>;

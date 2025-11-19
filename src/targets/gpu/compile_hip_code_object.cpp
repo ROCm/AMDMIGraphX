@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,12 +34,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-template <class T>
-std::string generate_index_ints(const std::vector<T>& v)
-{
-    return "index_ints<" + to_string_range(v) + ">{}";
-}
-
 std::string generate_make_shape(const shape& s)
 {
     return "make_shape(" + generate_index_ints(s.lens()) + ", " + generate_index_ints(s.strides()) +
@@ -57,7 +51,7 @@ struct make_tensor<${n}>
 };
 )__migraphx__";
 
-std::string generate_make_tensor(std::size_t n, const shape& s)
+static std::string generate_make_tensor(std::size_t n, const shape& s)
 {
     return interpolate_string(make_tensor_template,
                               {{"n", std::to_string(n)},
@@ -66,7 +60,7 @@ std::string generate_make_tensor(std::size_t n, const shape& s)
                                {"strides", generate_index_ints(s.strides())}});
 }
 
-std::string generate_args_hpp(const std::vector<shape>& inputs)
+static std::string generate_args_hpp(const std::vector<shape>& inputs)
 {
     std::string inner;
     for(std::size_t i = 0; i < inputs.size(); i++)
@@ -118,10 +112,14 @@ static std::vector<std::string> get_compiler_warnings()
 
     if(hip_has_flags({"-Werror", "-Wunsafe-buffer-usage"}))
         warnings.push_back("-Wno-unsafe-buffer-usage");
+
+    if(hip_has_flags({"-Werror", "-Wnrvo"}))
+        warnings.push_back("-Wno-nrvo");
+
     return warnings;
 }
 
-const std::vector<std::string>& compiler_warnings()
+const static std::vector<std::string>& compiler_warnings()
 {
     static std::vector<std::string> warnings = get_compiler_warnings();
     return warnings;
@@ -146,7 +144,7 @@ static bool hip_accept_non_uniform_wg()
 }
 
 std::function<std::size_t(std::size_t local)>
-compute_global_for(context& ctx, std::size_t n, std::size_t over)
+compute_global_for(const context& ctx, std::size_t n, std::size_t over)
 {
     assert(over > 0);
     std::size_t max_global = ctx.get_current_device().get_cu_count() *
@@ -164,14 +162,15 @@ compute_global_for(context& ctx, std::size_t n, std::size_t over)
     };
 }
 
-std::size_t compute_block_size(context& ctx, std::size_t n, std::size_t max_block_size)
+std::size_t compute_block_size(const context& ctx, std::size_t n, std::size_t max_block_size)
 {
     const std::size_t min_block_size = ctx.get_current_device().get_wavefront_size();
     auto block_size                  = (((n - 1) / min_block_size + 1)) * min_block_size;
     return std::min(std::max(min_block_size, block_size), max_block_size);
 }
 
-operation compile_hip_code_object(const std::string& content, hip_compile_options options)
+operation
+compile_hip_code_object(context& ctx, const std::string& content, hip_compile_options options)
 {
     assert(options.global > 0);
     assert(options.local > 0);
@@ -197,6 +196,8 @@ operation compile_hip_code_object(const std::string& content, hip_compile_option
 
     options.emplace_param("-DMIGRAPHX_NGLOBAL=" + std::to_string(options.global));
     options.emplace_param("-DMIGRAPHX_NLOCAL=" + std::to_string(options.local));
+    options.emplace_param("-DMIGRAPHX_WAVEFRONTSIZE=" +
+                          std::to_string(ctx.get_current_device().get_wavefront_size()));
     const auto& warnings = compiler_warnings();
     options.params.insert(options.params.end(), warnings.begin(), warnings.end());
     options.emplace_param("-ftemplate-backtrace-limit=0");
@@ -209,7 +210,8 @@ operation compile_hip_code_object(const std::string& content, hip_compile_option
                           options.global,
                           options.local,
                           options.inputs,
-                          options.output};
+                          options.output,
+                          options.output_arg};
 }
 
 } // namespace gpu

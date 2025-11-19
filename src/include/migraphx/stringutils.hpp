@@ -189,6 +189,8 @@ inline std::string to_c_id(const std::string& name, char rep = '_')
     return id;
 }
 
+inline std::string quote_string(const std::string& str) { return "\"" + str + "\""; }
+
 template <class Iterator>
 inline std::string to_string_range(Iterator start, Iterator last, const char* delim = ", ")
 {

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -40,6 +40,8 @@ struct test_layernorm : verify_program<test_layernorm>
         add_layernorm(*mm, x, dims);
         return p;
     }
+
+    std::string section() const { return "reduce"; }
 };
 
 struct test_layernorm2 : verify_program<test_layernorm2>
@@ -53,6 +55,8 @@ struct test_layernorm2 : verify_program<test_layernorm2>
         add_layernorm(*mm, x, dims);
         return p;
     }
+
+    std::string section() const { return "reduce"; }
 };
 
 struct test_layernorm_large : verify_program<test_layernorm_large>
@@ -66,6 +70,8 @@ struct test_layernorm_large : verify_program<test_layernorm_large>
         add_layernorm(*mm, x, dims);
         return p;
     }
+
+    std::string section() const { return "reduce"; }
 };
 
 struct test_layernorm_fp16 : verify_program<test_layernorm_fp16>
@@ -79,9 +85,26 @@ struct test_layernorm_fp16 : verify_program<test_layernorm_fp16>
         add_layernorm(*mm, x, dims);
         return p;
     }
+
+    std::string section() const { return "reduce"; }
 };
 
-struct test_layernorm_fp8 : verify_program<test_layernorm_fp8>
+struct test_layernorm_bf16 : verify_program<test_layernorm_bf16>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm                 = p.get_main_module();
+        std::vector<size_t> dims = {1, 24, 64};
+        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::bf16_type, dims});
+        add_layernorm(*mm, x, dims);
+        return p;
+    }
+
+    std::string section() const { return "reduce"; }
+};
+
+struct test_layernorm_fp8_1 : verify_program<test_layernorm_fp8_1>
 {
     migraphx::program create_program() const
     {
@@ -92,6 +115,53 @@ struct test_layernorm_fp8 : verify_program<test_layernorm_fp8>
         add_layernorm(*mm, x, dims);
         return p;
     }
+
+    std::string section() const { return "reduce"; }
+};
+
+struct test_layernorm_fp8_2 : verify_program<test_layernorm_fp8_2>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm                 = p.get_main_module();
+        std::vector<size_t> dims = {1, 24, 64};
+        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::fp8e5m2fnuz_type, dims});
+        add_layernorm(*mm, x, dims);
+        return p;
+    }
+
+    std::string section() const { return "reduce"; }
+};
+
+struct test_layernorm_fp8_3 : verify_program<test_layernorm_fp8_3>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm                 = p.get_main_module();
+        std::vector<size_t> dims = {1, 24, 64};
+        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::fp8e4m3fn_type, dims});
+        add_layernorm(*mm, x, dims);
+        return p;
+    }
+
+    std::string section() const { return "reduce"; }
+};
+
+struct test_layernorm_fp8_4 : verify_program<test_layernorm_fp8_4>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm                 = p.get_main_module();
+        std::vector<size_t> dims = {1, 24, 64};
+        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::fp8e5m2_type, dims});
+        add_layernorm(*mm, x, dims);
+        return p;
+    }
+
+    std::string section() const { return "reduce"; }
 };
 
 struct test_layernorm_eps : verify_program<test_layernorm_eps>
@@ -105,6 +175,8 @@ struct test_layernorm_eps : verify_program<test_layernorm_eps>
         add_layernorm(*mm, x, dims, 1e-5f);
         return p;
     }
+
+    std::string section() const { return "reduce"; }
 };
 
 struct test_layernorm_triadd : verify_program<test_layernorm_triadd>
@@ -122,6 +194,8 @@ struct test_layernorm_triadd : verify_program<test_layernorm_triadd>
         add_layernorm(*mm, add2, dims);
         return p;
     }
+
+    std::string section() const { return "reduce"; }
 };
 
 struct test_layernorm_triadd_large : verify_program<test_layernorm_triadd_large>
@@ -139,6 +213,8 @@ struct test_layernorm_triadd_large : verify_program<test_layernorm_triadd_large>
         add_layernorm(*mm, add2, dims);
         return p;
     }
+
+    std::string section() const { return "reduce"; }
 };
 
 struct test_add_layernorm_add_gemm_nonstd : verify_program<test_add_layernorm_add_gemm_nonstd>
@@ -158,4 +234,17 @@ struct test_add_layernorm_add_gemm_nonstd : verify_program<test_add_layernorm_ad
         return p;
     }
     std::string section() const { return "gemm"; }
+};
+
+struct test_pw_layernorm : verify_program<test_pw_layernorm>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm                 = p.get_main_module();
+        std::vector<size_t> dims = {1, 9, 6};
+        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, dims});
+        add_pointwise_layernorm(*mm, x, dims);
+        return p;
+    }
 };

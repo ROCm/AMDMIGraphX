@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,6 +27,8 @@
 #include <migraphx/config.hpp>
 #include <migraphx/module_ref.hpp>
 #include <migraphx/instruction_ref.hpp>
+#include <migraphx/shape.hpp>
+#include <migraphx/gpu/export.h>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -61,13 +63,32 @@ struct preload
     bool is_preloading() const;
     std::string str() const;
 };
+struct tile
+{
+    enum mode
+    {
+        store,
+        load,
+        none
+    };
+    std::vector<mode> args = {};
+    std::size_t axis       = 0;
+    std::size_t ntiles     = 0;
+    std::size_t block_size = 0;
+    std::vector<std::size_t> inner{};
+    std::vector<std::size_t> outer{};
+    static tile elements(const std::vector<shape>& inputs, std::size_t noutputs);
+    // bool is_preloading() const;
+    std::string str() const;
+};
 
-std::size_t find_fast_axis(const std::vector<shape>& inputs);
+MIGRAPHX_GPU_EXPORT std::size_t find_fast_axis(const shape& input);
+MIGRAPHX_GPU_EXPORT std::size_t find_fast_axis(const std::vector<shape>& inputs);
 
 std::string make_transformer_args(std::vector<std::string> transformers);
 
 template <class... Ts>
-std::string make_transformer_args(Ts... xs)
+std::string make_transformer_args(const Ts&... xs)
 {
     return make_transformer_args({xs.str()...});
 }

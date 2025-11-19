@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -23,12 +23,28 @@
 #####################################################################################
 
 include(ExportHeader)
+include(Embed)
 
 include(ROCMInstallTargets)
 include(ROCMPackageConfigHelpers)
 include(RegisterOp)
 include(CheckCXXLinkerFlag)
 include(CheckCXXSourceCompiles)
+
+set(CMAKE_REQUIRED_FLAGS "-Werror=deprecated-declarations")
+check_cxx_source_compiles("
+#include <algorithm>
+int main() { std::stable_sort((int *)0, (int*)0); }
+" COMPILER_IGNORES_DEPRECATED_DECL_IN_SYSTEM_HEADERS)
+
+execute_process(COMMAND gcc-11 --print-file-name ""
+		OUTPUT_VARIABLE LIBSTDCXX11_PATH
+		OUTPUT_STRIP_TRAILING_WHITESPACE
+		ERROR_QUIET)
+
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND NOT COMPILER_IGNORES_DEPRECATED_DECL_IN_SYSTEM_HEADERS AND EXISTS "${LIBSTDCXX11_PATH}")
+	add_compile_options("--gcc-install-dir=${LIBSTDCXX11_PATH}")
+endif()
 
 add_library(migraphx
     adjust_allocation.cpp
@@ -37,6 +53,7 @@ add_library(migraphx
     argument.cpp
     autocast_fp8.cpp
     auto_contiguous.cpp
+    base64.cpp
     common.cpp
     common_dims.cpp
     compile_src.cpp
@@ -57,22 +74,26 @@ add_library(migraphx
     file_buffer.cpp
     fileutils.cpp
     fp_to_double.cpp
+    fp8_ocp_to_fnuz.cpp
+    fuse_attention.cpp
     fuse_concat.cpp
     fuse_pointwise.cpp
     fuse_pointwise_reduce.cpp
     fuse_reduce.cpp
     generate.cpp
+    graphviz.cpp
     inline_module.cpp
     insert_pad.cpp
     instruction.cpp
     json.cpp
-    layout_nhwc.cpp
+    layout_convolution.cpp
     lexing.cpp
     load_save.cpp
     make_op.cpp
     memory_coloring.cpp
     module.cpp
     msgpack.cpp
+    netron_output.cpp
     normalize_attributes.cpp
     normalize_ops.cpp
     op_enums.cpp
@@ -87,15 +108,17 @@ add_library(migraphx
     process.cpp
     program.cpp
     propagate_constant.cpp
+    propagate_precision.cpp
     promote_literals.cpp
     quantization.cpp
-    quantize_fp16.cpp
+    quantize_int4.cpp
     quantize_8bits.cpp
     reduce_dims.cpp
     register_op.cpp
     register_target.cpp
     replace_allocate.cpp
     rewrite_reduce.cpp
+    rewrite_dot.cpp
     simplify_qdq.cpp
     split_reduce.cpp
     sqlite.cpp
@@ -104,6 +127,7 @@ add_library(migraphx
     rewrite_pooling.cpp
     rewrite_quantization.cpp
     rewrite_rnn.cpp
+    rewrite_topk.cpp
     schedule.cpp
     serialize.cpp
     shape.cpp
@@ -114,16 +138,30 @@ add_library(migraphx
     split_single_dyn_dim.cpp
     target.cpp
     tmp_dir.cpp
+    truncate_float.cpp
     value.cpp
     verify_args.cpp
 )
 
+file(GLOB BUILDER_SRCS CONFIGURE_DEPENDS op/builder/*.cpp)
+target_sources(migraphx PRIVATE ${BUILDER_SRCS})
+
 if(WIN32)
     # Due to compilation crashing, we need to use type-erased matchers on Windows.
     target_compile_definitions(migraphx PUBLIC MIGRAPHX_USE_TYPE_ERASED_MATCHERS=1)
+    target_compile_options(migraphx PUBLIC "-mno-ms-bitfields")
+    # Due to BinSkim errors EnableControlFlowGuard
+    target_compile_options(migraphx PUBLIC "SHELL:-Xclang -cfguard")
 endif()
 
 configure_file(version.h.in include/migraphx/version.h)
+add_library(migraphx_version INTERFACE)
+rocm_install_targets(
+  TARGETS migraphx_version
+  INCLUDE
+    ${CMAKE_CURRENT_BINARY_DIR}/include
+)
+
 rocm_set_soversion(migraphx ${MIGRAPHX_SO_VERSION})
 function(register_migraphx_ops)
     foreach(OP ${ARGN})
@@ -143,6 +181,7 @@ register_migraphx_ops(
     as_shape
     atanh
     atan
+    bit_cast
     bitwise_and
     broadcast
     broadcast_for_dot
@@ -151,6 +190,7 @@ register_migraphx_ops(
     ceil
     clip
     concat
+    concat_past_present
     contiguous
     convert
     convolution
@@ -166,13 +206,16 @@ register_migraphx_ops(
     erf
     exp
     fill
+    fixed_pad
     flatten
     floor
     fmod
     gather
     gathernd
     get_tuple_elem
+    gqa_rotary_embedding
     greater
+    group
     gru
     identity
     if_op
@@ -204,6 +247,7 @@ register_migraphx_ops(
     nonzero
     onehot
     outline
+    pack_fp4
     pack_int4
     pad
     pointwise
@@ -268,6 +312,7 @@ register_migraphx_ops(
     undefined
     unique
     unknown
+    unpack_fp4
     unpack_int4
     unsqueeze
     where
@@ -281,8 +326,9 @@ rocm_install_targets(
   TARGETS migraphx
   INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_BINARY_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/op/builder/include
 )
+target_link_libraries(migraphx PUBLIC migraphx_version)
 
 if(NOT WIN32)
     check_cxx_linker_flag(-lstdc++fs HAS_LIB_STD_FILESYSTEM)
@@ -314,13 +360,19 @@ target_link_libraries(migraphx PRIVATE nlohmann_json::nlohmann_json)
 find_package(SQLite3 REQUIRED)
 target_link_libraries(migraphx PRIVATE SQLite::SQLite3)
 
-find_package(msgpackc-cxx QUIET)
-if(NOT msgpackc-cxx_FOUND)
-    find_package(msgpack REQUIRED)
+# See: https://github.com/msgpack/msgpack-c/wiki/Q%26A#how-to-support-both-msgpack-c-c-version-5x-and-6x-
+# Prefer 6.x (msgpack-cxx)
+find_package(msgpack-cxx)
+if(msgpack-cxx_FOUND)
+    message(STATUS "Found msgpack-cxx (>=6.x)")
+else()
+    find_package(msgpackc-cxx REQUIRED NAMES msgpackc-cxx msgpack)
+    message(STATUS "Found msgpackc-cxx (<=5.x)")
+    add_library(msgpack-cxx ALIAS msgpackc-cxx)
 endif()
-target_link_libraries(migraphx PRIVATE msgpackc-cxx)
+target_link_libraries(migraphx PRIVATE msgpack-cxx)
 # Make this available to the tests
-target_link_libraries(migraphx INTERFACE $<BUILD_INTERFACE:msgpackc-cxx>)
+target_link_libraries(migraphx INTERFACE $<BUILD_INTERFACE:msgpack-cxx>)
 
 add_library(migraphx_all_targets INTERFACE)
 
@@ -345,6 +397,9 @@ if(MIGRAPHX_ENABLE_GPU)
     endif()
     if(MIGRAPHX_USE_ROCBLAS)
         list(APPEND MIGRAPHX_CONFIG_DEPENDS PACKAGE rocblas)
+    endif()
+    if(MIGRAPHX_USE_HIPBLASLT)
+        list(APPEND MIGRAPHX_CONFIG_DEPENDS PACKAGE hipblaslt)
     endif()
 add_subdirectory(targets/gpu)
 target_link_libraries(migraphx_all_targets INTERFACE migraphx_gpu)
@@ -379,5 +434,5 @@ rocm_export_targets(
     Threads
     ${MIGRAPHX_CONFIG_DEPENDS}
 )
- 
+
 

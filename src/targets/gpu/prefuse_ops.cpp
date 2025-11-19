@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,7 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/eliminate_common_subexpression.hpp>
 #ifdef MIGRAPHX_USE_COMPOSABLEKERNEL
 #include <migraphx/gpu/ck.hpp>
 #endif
@@ -38,7 +39,8 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_LAYERNORM_FUSION);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_LAYERNORM_FUSION);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MLIR);
 
 namespace {
 
@@ -152,19 +154,6 @@ auto is_ck_gemm()
     });
 }
 
-auto is_mlir_gemm()
-{
-    return match::make_basic_pred_matcher([=](instruction_ref ins) {
-        if(not mlir_attention_enabled())
-            return false;
-        if(ins->name() != "dot")
-            return false;
-        return std::all_of(ins->inputs().begin(), ins->inputs().end(), [&](auto i) {
-            return pre_gemm_softmax_gemm::is_mlir_supported_type(i->get_shape().type());
-        });
-    });
-}
-
 auto is_test_gemm(bool enable_attention)
 {
     return match::make_basic_pred_matcher([=](instruction_ref ins) {
@@ -192,8 +181,7 @@ struct find_gemm_softmax_gemm
     auto matcher() const
     {
         auto gemm1 = match::skip(match::name("contiguous"))(match::name("dot")(
-            match::any_of(is_ck_gemm(), is_mlir_gemm(), is_test_gemm(enable_attention))
-                .bind("gemm1")));
+            match::any_of(is_ck_gemm(), is_test_gemm(enable_attention)).bind("gemm1")));
         auto mul   = match::name("mul")(
             match::nargs(2), match::either_arg(0, 1)(match::is_constant().bind("scale"), gemm1));
         auto where = match::name("where")(match::arg(2)(match::is_constant().bind("select_const")),
@@ -207,8 +195,8 @@ struct find_gemm_softmax_gemm
                            .bind("softmax");
 
         return match::name("dot")(
-            match::any_of(is_ck_gemm(), is_mlir_gemm(), is_test_gemm(enable_attention))
-                .bind("gemm2"))(match::arg(0)(softmax));
+            match::any_of(is_ck_gemm(), is_test_gemm(enable_attention)).bind("gemm2"))(
+            match::arg(0)(softmax));
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
@@ -249,17 +237,37 @@ struct find_gemm_softmax_gemm
     }
 };
 
+void inline_group_sub_module(module_pass_manager& mpm)
+{
+    auto& m = mpm.get_module();
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() != "group")
+            continue;
+
+        const auto& mod_inputs = ins->module_inputs();
+        auto inline_mod        = m.insert_inline(ins, *mod_inputs.at(0), ins->inputs());
+        m.replace_instruction(ins, inline_mod.at(0));
+    }
+}
+
 } // namespace
 
 void prefuse_ops::apply(module_pass_manager& mpm) const
 {
-    if(not enabled(MIGRAPHX_DISABLE_LAYERNORM_FUSION{}))
+    if(enabled(MIGRAPHX_ENABLE_LAYERNORM_FUSION{}))
     {
         match::find_matches(mpm.get_module(), find_layernorm{});
         mpm.run_pass(dead_code_elimination{});
         match::find_matches(mpm.get_module(), find_add_layernorm{});
     }
     match::find_matches(mpm, find_gemm_softmax_gemm{enable_attention});
+
+    if(enabled(MIGRAPHX_DISABLE_MLIR{}))
+    {
+        inline_group_sub_module(mpm);
+        mpm.run_pass(dead_code_elimination{});
+    }
 }
 
 } // namespace gpu

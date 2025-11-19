@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -52,20 +52,10 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 project(migraphx LANGUAGES C CXX)
 include(CTest)
 
-find_package(ROCM REQUIRED)
+find_package(ROCmCMakeBuildTools REQUIRED)
 find_package(Threads REQUIRED)
 
-if(WIN32)
-option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" OFF)
-else()
 option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON)
-endif()
-
-if(WIN32)
-option(MIGRAPHX_USE_ROCBLAS "Enable MIGraphX to use rocBLAS" OFF)
-else()
-option(MIGRAPHX_USE_ROCBLAS "Enable MIGraphX to use rocBLAS" ON)
-endif()
 
 if(WIN32)
 option(MIGRAPHX_USE_MIOPEN "Enable MIGraphX to use MIOpen" OFF)
@@ -73,8 +63,23 @@ else()
 option(MIGRAPHX_USE_MIOPEN "Enable MIGraphX to use MIOpen" ON)
 endif()
 
+option(MIGRAPHX_USE_ROCBLAS "Enable MIGraphX to use rocBLAS" ON)
+option(MIGRAPHX_USE_HIPBLASLT "Enable MIGraphX to use hipBLASLt" ON)
+
+if(MIGRAPHX_USE_HIPBLASLT AND NOT MIGRAPHX_USE_ROCBLAS)
+    message(FATAL_ERROR "hipBLASLt requires rocBLAS, but MIGRAPHX_USE_ROCBLAS is OFF")
+endif()
+
 # By default build shared libraries
 option(BUILD_SHARED_LIBS "Create shared libraries" ON)
+
+option(MIGRAPHX_STRIP_SYMBOLS "Strip symbols in release mode" OFF)
+
+# Strip symbols for release
+if(MIGRAPHX_STRIP_SYMBOLS AND NOT WIN32 AND NOT APPLE)
+    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -s")
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -s")
+endif()
 
 if(WIN32) # CK is not yet ported to Windows
 option(MIGRAPHX_USE_COMPOSABLEKERNEL "Enable MIGraphX to use composable kernel JIT library" OFF)
@@ -100,7 +105,7 @@ include(ROCMSetupVersion)
 
 option(BUILD_DEV "Build for development purpose only" OFF)
 
-rocm_setup_version(VERSION 2.11.0)
+rocm_setup_version(VERSION 2.15.0)
 math(EXPR MIGRAPHX_SO_MAJOR_VERSION "(${PROJECT_VERSION_MAJOR} * 1000 * 1000) + (${PROJECT_VERSION_MINOR} * 1000) + ${PROJECT_VERSION_PATCH}")
 set(MIGRAPHX_SO_VERSION ${MIGRAPHX_SO_MAJOR_VERSION}.0)
 
@@ -123,10 +128,9 @@ set(MIGRAPHX_ENABLE_FPGA Off CACHE BOOL "")
 
 set(MIGRAPHX_HAS_EXECUTORS_DEFAULT Off)
 find_package(ParallelSTL QUIET)
-# TODO: resolve parallism issue
-# if(ParallelSTL_FOUND)
-# set(MIGRAPHX_HAS_EXECUTORS_DEFAULT On)
-# endif()
+if(ParallelSTL_FOUND)
+    set(MIGRAPHX_HAS_EXECUTORS_DEFAULT On)
+endif()
 option(MIGRAPHX_HAS_EXECUTORS "C++ supports parallel executors" ${MIGRAPHX_HAS_EXECUTORS_DEFAULT})
 if(MIGRAPHX_HAS_EXECUTORS AND ParallelSTL_USES_TBB)
     list(APPEND PACKAGE_DEPENDS libtbb2)
@@ -153,7 +157,6 @@ elseif(MIGRAPHX_ENABLE_GPU)
 endif()
 rocm_enable_clang_tidy(
     CHECKS
-        boost-*
         bugprone-*
         cert-*
         clang-analyzer-*
@@ -169,9 +172,12 @@ rocm_enable_clang_tidy(
         modernize-*
         performance-*
         readability-*
+        -bugprone-crtp-constructor-accessibility
         -bugprone-easily-swappable-parameters
         -bugprone-implicit-widening-of-multiplication-result
         -bugprone-macro-parentheses
+        -bugprone-nondeterministic-pointer-iteration-order
+        -bugprone-return-const-ref-from-parameter
         -bugprone-signed-char-misuse
         -bugprone-unchecked-optional-access
         # Disable the aliased reserved identifiers
@@ -196,12 +202,12 @@ rocm_enable_clang_tidy(
         clang-analyzer-alpha.cplusplus.MismatchedIterator
         clang-analyzer-alpha.cplusplus.MisusedMovedObject
         -bugprone-switch-missing-default-case
+        -bugprone-empty-catch
         -clang-analyzer-optin.performance.Padding
         -clang-diagnostic-deprecated-declarations
         -clang-diagnostic-disabled-macro-expansion
         -clang-diagnostic-extern-c-compat
         -clang-diagnostic-unused-command-line-argument
-        -cppcoreguidelines-avoid-capture-default-when-capturing-this
         -cppcoreguidelines-avoid-const-or-ref-data-members
         -cppcoreguidelines-avoid-do-while
         -cppcoreguidelines-explicit-virtual-functions
@@ -215,7 +221,6 @@ rocm_enable_clang_tidy(
         -cppcoreguidelines-pro-type-reinterpret-cast
         -cppcoreguidelines-pro-type-union-access
         -cppcoreguidelines-pro-type-vararg
-        -cppcoreguidelines-rvalue-reference-param-not-moved
         -cppcoreguidelines-special-member-functions
         -cppcoreguidelines-use-default-member-init
         -cppcoreguidelines-virtual-class-destructor
@@ -235,12 +240,16 @@ rocm_enable_clang_tidy(
         -modernize-use-transparent-functors
         -performance-avoid-endl
         -performance-type-promotion-in-math-fn
+        -performance-enum-size
         -readability-braces-around-statements
+        -readability-avoid-nested-conditional-operator
         -readability-convert-member-functions-to-static
         -readability-else-after-return
         -readability-function-cognitive-complexity
         -readability-identifier-length
+        -readability-math-missing-parentheses
         -readability-named-parameter
+        -readability-redundant-member-init
         -readability-redundant-string-init
         -readability-suspicious-call-argument
         -readability-uppercase-literal-suffix
@@ -362,6 +371,10 @@ if(MIGRAPHX_USE_MIOPEN)
 endif()
 if(MIGRAPHX_USE_ROCBLAS)
     list(APPEND PACKAGE_DEPENDS rocblas)
+endif()
+
+if(MIGRAPHX_USE_HIPBLASLT)
+    list(APPEND PACKAGE_DEPENDS hipblaslt)
 endif()
 
 rocm_package_add_deb_dependencies(SHARED_DEPENDS "hip-dev")

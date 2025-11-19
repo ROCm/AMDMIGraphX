@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -57,7 +57,7 @@ struct flatten
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1);
-        auto s = inputs[0];
+        const auto& s = inputs[0];
         if(s.dynamic())
         {
             // Doesn't handle optimals
@@ -80,7 +80,6 @@ struct flatten
         }
         else
         {
-            check_shapes{inputs, *this}.standard();
             auto&& lens = s.lens();
             auto x      = std::accumulate(
                 lens.begin(), lens.begin() + axis, std::size_t{1}, std::multiplies<>{});
@@ -91,9 +90,14 @@ struct flatten
     }
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        return args[0].reshape(dyn_out.computed_shape);
+        assert(dyn_out.computed_shape.standard());
+        argument result{dyn_out.computed_shape};
+
+        visit_all(result, args[0])([&](auto output, auto input) {
+            std::copy(input.begin(), input.end(), output.begin());
+        });
+        return result;
     }
-    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 } // namespace op

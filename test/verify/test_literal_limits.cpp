@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -55,6 +55,10 @@ struct test_literal_limits : verify_program<test_literal_limits<Q, T>>
 template struct test_literal_limits<migraphx::shape::float_type, float>;
 template struct test_literal_limits<migraphx::shape::double_type, double>;
 template struct test_literal_limits<migraphx::shape::half_type, migraphx::half>;
+template struct test_literal_limits<migraphx::shape::bf16_type, migraphx::bf16>;
 template struct test_literal_limits<migraphx::shape::int32_type, int32_t>;
 template struct test_literal_limits<migraphx::shape::int8_type, int8_t>;
 template struct test_literal_limits<migraphx::shape::fp8e4m3fnuz_type, migraphx::fp8::fp8e4m3fnuz>;
+template struct test_literal_limits<migraphx::shape::fp8e5m2fnuz_type, migraphx::fp8::fp8e5m2fnuz>;
+template struct test_literal_limits<migraphx::shape::fp8e4m3fn_type, migraphx::fp8::fp8e4m3fn>;
+template struct test_literal_limits<migraphx::shape::fp8e5m2_type, migraphx::fp8::fp8e5m2>;

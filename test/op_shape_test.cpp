@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,7 +34,7 @@
 #include "test.hpp"
 
 template <class... Ts>
-void expect_shape(const migraphx::shape& expected, const migraphx::operation& op, Ts... xs)
+static void expect_shape(const migraphx::shape& expected, const migraphx::operation& op, Ts... xs)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -53,7 +53,7 @@ void expect_shape(const migraphx::shape& expected, const migraphx::operation& op
 }
 
 template <class... Ts>
-void throws_shape(const migraphx::operation& op, Ts... xs)
+static void throws_shape(const migraphx::operation& op, Ts... xs)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -76,7 +76,7 @@ struct always_false : std::false_type
 };
 
 template <class... Ts>
-void throws_shape(const migraphx::shape&, Ts...)
+[[maybe_unused]] static void throws_shape(const migraphx::shape&, Ts...)
 {
     static_assert(always_false<Ts...>{},
                   "An expected shape should not be passed to throws_shape function");
@@ -199,6 +199,21 @@ TEST_CASE(binary_dyn_static_error)
     std::vector<migraphx::shape::dynamic_dimension> b{{1, 1}, {4, 4, {4}}, {4, 4}};
     migraphx::shape b_shape{migraphx::shape::float_type, b};
     throws_shape(migraphx::make_op("add"), a_shape, b_shape);
+}
+
+TEST_CASE(bit_cast_typesize_mismatch)
+{
+    migraphx::shape a_shape{migraphx::shape::int8_type, {1, 4, 4}};
+    throws_shape(migraphx::make_op("bit_cast", {{"target_type", migraphx::shape::int32_type}}),
+                 a_shape);
+}
+
+TEST_CASE(bit_cast_dyn)
+{
+    migraphx::shape a_shape{migraphx::shape::int8_type, {{1, 1}, {4, 8}, {4, 8}}};
+    expect_shape(migraphx::shape{migraphx::shape::uint8_type, {{1, 1}, {4, 8}, {4, 8}}},
+                 migraphx::make_op("bit_cast", {{"target_type", migraphx::shape::uint8_type}}),
+                 a_shape);
 }
 
 TEST_CASE(bitwise_and_not_integral_error)
@@ -356,7 +371,7 @@ TEST_CASE(conv_channel_mismatch)
     throws_shape(migraphx::make_op("convolution"), input_1d, weights_1d);
 }
 
-TEST_CASE(conv_3D)
+TEST_CASE(conv_3_d)
 {
     migraphx::shape output_3d{migraphx::shape::float_type, {4, 4, 1, 1, 1}};
     migraphx::shape input_3d{migraphx::shape::float_type, {4, 3, 3, 3, 3}};
@@ -578,6 +593,19 @@ TEST_CASE(convolution_backwards_2dilation)
                  weights);
 }
 
+TEST_CASE(convolution_backwards_2group)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 4, 4, 4}};
+    migraphx::shape weights{migraphx::shape::float_type, {4, 2, 4, 4}};
+    migraphx::shape output{migraphx::shape::float_type, {4, 4, 7, 7}};
+    expect_shape(output,
+                 migraphx::make_op(
+                     "convolution_backwards",
+                     {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}, {"group", 2}}),
+                 input,
+                 weights);
+}
+
 TEST_CASE(convolution_backwards_3d)
 {
     migraphx::shape input_3d{migraphx::shape::float_type, {4, 4, 1, 1, 1}};
@@ -604,6 +632,15 @@ TEST_CASE(convolution_backwards_dyn_batch_2d)
     migraphx::shape weights{migraphx::shape::float_type, {4, 3, 3, 3}};
     migraphx::shape output{migraphx::shape::float_type, {{1, 4}, {3, 3}, {3, 3}, {3, 3}}};
     expect_shape(output, migraphx::make_op("convolution_backwards"), input, weights);
+}
+
+TEST_CASE(convolution_backwards_dyn_batch_2dgroup)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {4, 4}, {4, 4}, {4, 4}}};
+    migraphx::shape weights{migraphx::shape::float_type, {4, 2, 4, 4}};
+    migraphx::shape output{migraphx::shape::float_type, {{1, 4}, {4, 4}, {7, 7}, {7, 7}}};
+    expect_shape(
+        output, migraphx::make_op("convolution_backwards", {{"group", 2}}), input, weights);
 }
 
 TEST_CASE(convolution_backwards_dyn_img_2d)
@@ -725,7 +762,7 @@ TEST_CASE(dot_mismatch_outer_error)
     throws_shape(migraphx::make_op("dot"), s_m1, s_m2);
 }
 
-TEST_CASE(dot_2D_test0)
+TEST_CASE(dot_2_d_test0)
 {
     migraphx::shape s_m1{migraphx::shape::float_type, {4, 5}};
     migraphx::shape s_m2{migraphx::shape::float_type, {5, 8}};
@@ -733,7 +770,7 @@ TEST_CASE(dot_2D_test0)
         migraphx::shape{migraphx::shape::float_type, {4, 8}}, migraphx::make_op("dot"), s_m1, s_m2);
 }
 
-TEST_CASE(dot_2D_test1)
+TEST_CASE(dot_2_d_test1)
 {
     migraphx::shape s_m1{migraphx::shape::float_type, {1, 5}};
     migraphx::shape s_m2{migraphx::shape::float_type, {5, 4}};
@@ -741,7 +778,7 @@ TEST_CASE(dot_2D_test1)
         migraphx::shape{migraphx::shape::float_type, {1, 4}}, migraphx::make_op("dot"), s_m1, s_m2);
 }
 
-TEST_CASE(dot_2D_test2)
+TEST_CASE(dot_2_d_test2)
 {
     migraphx::shape s_m1{migraphx::shape::float_type, {4, 5}};
     migraphx::shape s_m2{migraphx::shape::float_type, {5, 8}};
@@ -749,7 +786,7 @@ TEST_CASE(dot_2D_test2)
         migraphx::shape{migraphx::shape::float_type, {4, 8}}, migraphx::make_op("dot"), s_m1, s_m2);
 }
 
-TEST_CASE(dot_2D_test3)
+TEST_CASE(dot_2_d_test3)
 {
     migraphx::shape s_m1{migraphx::shape::float_type, {1, 1}};
     migraphx::shape s_m2{migraphx::shape::float_type, {1, 1}};
@@ -757,7 +794,7 @@ TEST_CASE(dot_2D_test3)
         migraphx::shape{migraphx::shape::float_type, {1, 1}}, migraphx::make_op("dot"), s_m1, s_m2);
 }
 
-TEST_CASE(dot_3D_test0)
+TEST_CASE(dot_3_d_test0)
 {
     migraphx::shape s_m1{migraphx::shape::float_type, {1, 4, 5}};
     migraphx::shape s_m2{migraphx::shape::float_type, {1, 5, 8}};
@@ -767,7 +804,7 @@ TEST_CASE(dot_3D_test0)
                  s_m2);
 }
 
-TEST_CASE(dot_3D_test_1)
+TEST_CASE(dot_3_d_test_1)
 {
     migraphx::shape s_m1{migraphx::shape::float_type, {6, 1, 5}};
     migraphx::shape s_m2{migraphx::shape::float_type, {6, 5, 4}};
@@ -777,7 +814,7 @@ TEST_CASE(dot_3D_test_1)
                  s_m2);
 }
 
-TEST_CASE(dot_3D_test2)
+TEST_CASE(dot_3_d_test2)
 {
     migraphx::shape s_m1{migraphx::shape::float_type, {1, 4, 5}};
     migraphx::shape s_m2{migraphx::shape::float_type, {1, 5, 7}};
@@ -787,7 +824,7 @@ TEST_CASE(dot_3D_test2)
                  s_m2);
 }
 
-TEST_CASE(dot_4D_test)
+TEST_CASE(dot_4_d_test)
 {
     migraphx::shape s_m1{migraphx::shape::float_type, {1, 6, 1, 5}};
     migraphx::shape s_m2{migraphx::shape::float_type, {1, 6, 5, 4}};
@@ -994,6 +1031,17 @@ TEST_CASE(broadcast_with_dims2)
                  migraphx::make_op("broadcast_with_dims"),
                  s0,
                  s1);
+}
+
+TEST_CASE(fixed_pad)
+{
+    using migraphx::shape;
+    shape input{migraphx::shape::float_type, {{2, 4, {}}, {3, 3}}};
+    shape input_static{migraphx::shape::float_type, {2, 3}};
+
+    shape output{migraphx::shape::float_type, {4, 3}};
+    expect_shape(output, migraphx::make_op("fixed_pad"), input);
+    expect_shape(input_static, migraphx::make_op("fixed_pad"), input_static); // effectively no-op
 }
 
 TEST_CASE(flatten_shape)
@@ -1294,6 +1342,56 @@ TEST_CASE(get_tuple_elem_test)
     throws_shape(migraphx::make_op("get_tuple_elem", {{"index", 0}}), s2);
 }
 
+TEST_CASE(group_op)
+{
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s0{migraphx::shape::float_type, {1, 2}};
+        std::vector<float> l0_data{0, 1};
+        auto l0 = mm->add_literal(migraphx::literal{s0, l0_data});
+        migraphx::module m1;
+        std::unordered_map<migraphx::instruction_ref, migraphx::instruction_ref> map_mm_to_m1;
+        m1.add_params({l0}, &map_mm_to_m1);
+        auto add =
+            m1.add_instruction(migraphx::make_op("add"), map_mm_to_m1.at(l0), map_mm_to_m1.at(l0));
+        m1.add_return({add});
+        migraphx::module_ref m1_ref = p.create_module("m_add", std::move(m1));
+        auto group =
+            mm->add_instruction(migraphx::make_op("group", {{"tag", "add"}}), {l0}, {m1_ref});
+        EXPECT(group->get_shape() == s0);
+    }
+
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s0{migraphx::shape::float_type, {1, 2}};
+        std::vector<float> l0_data{0, 1};
+        auto l0 = mm->add_literal(migraphx::literal{s0, l0_data});
+        migraphx::module m1;
+        std::unordered_map<migraphx::instruction_ref, migraphx::instruction_ref> map_mm_to_m1;
+        m1.add_params({l0}, &map_mm_to_m1);
+        auto add =
+            m1.add_instruction(migraphx::make_op("add"), map_mm_to_m1.at(l0), map_mm_to_m1.at(l0));
+        auto ret                    = m1.add_return({add, add});
+        migraphx::module_ref m1_ref = p.create_module("m_add", std::move(m1));
+        auto group =
+            mm->add_instruction(migraphx::make_op("group", {{"tag", "add"}}), {l0}, {m1_ref});
+        auto out_shapes = ret->get_shape();
+        EXPECT(group->get_shape() == out_shapes);
+    }
+
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s0{migraphx::shape::float_type, {1, 2}};
+        std::vector<float> l0_data{0, 1};
+        auto l0 = mm->add_literal(migraphx::literal{s0, l0_data});
+        EXPECT(test::throws(
+            [&] { mm->add_instruction(migraphx::make_op("group", {{"tag", "add"}}), {l0}, {}); }));
+    }
+}
+
 TEST_CASE(gru)
 {
     {
@@ -1509,7 +1607,7 @@ TEST_CASE(inconsistent_attr_shape)
                  input);
 }
 
-void test_softmax_variations(const std::string& name)
+static void test_softmax_variations(const std::string& name)
 {
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
@@ -2991,7 +3089,7 @@ TEST_CASE(dqlinear_mismatch_type)
     throws_shape(migraphx::make_op("dequantizelinear"), input, scales, zeros);
 }
 
-void test_reduce_ops(const std::string& name)
+static void test_reduce_ops(const std::string& name)
 {
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
@@ -3024,7 +3122,7 @@ void test_reduce_ops(const std::string& name)
 }
 
 // dynamic shape
-void test_dyn_reduce_ops(const std::string& name)
+static void test_dyn_reduce_ops(const std::string& name)
 {
     {
         migraphx::shape input{migraphx::shape::float_type, {{2, 3, {3}}, {2, 4, {4}}}};
@@ -3056,7 +3154,7 @@ void test_dyn_reduce_ops(const std::string& name)
     }
 }
 
-void test_reduce_ops_variable_axes(const std::string& name)
+static void test_reduce_ops_variable_axes(const std::string& name)
 {
     {
         migraphx::shape input_shape{migraphx::shape::float_type, {2, 3, 4}};
@@ -5214,6 +5312,15 @@ TEST_CASE(test_dyn_concat)
     // static and dynamic shapes together
     migraphx::shape sstat{migraphx::shape::float_type, {3, 4, 1, 6}};
     throws_shape(migraphx::make_op("concat", {{"axis", 2}}), sx, sstat);
+}
+
+TEST_CASE(test_binary_nonpacked)
+{
+    auto sx   = migraphx::shape(migraphx::shape::float_type, {4, 3}, {1, 8});
+    auto sy   = migraphx::shape(migraphx::shape::float_type, {4, 3}, {1, 16});
+    auto sout = migraphx::shape::from_permutation(migraphx::shape::float_type, {4, 3}, {1, 0});
+
+    expect_shape(sout, migraphx::make_op("mul"), sx, sy);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

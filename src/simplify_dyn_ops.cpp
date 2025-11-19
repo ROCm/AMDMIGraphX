@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -366,7 +366,7 @@ struct find_static_dimensions_of
         {
             // check if dynamic dimensions from start to end are fixed
             auto dds = input->get_shape().dyn_dims();
-            if(std::any_of(dds.begin() + start, dds.begin() + end, [](auto dd) {
+            if(std::any_of(dds.begin() + start, dds.begin() + end, [](const auto& dd) {
                    return not dd.is_fixed();
                }))
             {
@@ -592,7 +592,7 @@ struct simplify_select_module_output_shape
         auto shapes_ndim  = get_shapes_ndim(all_output_shapes.front());
         auto shapes_types = get_shapes_types(all_output_shapes.front());
         if(std::any_of(
-               all_output_shapes.begin() + 1, all_output_shapes.end(), [&](auto out_shapes) {
+               all_output_shapes.begin() + 1, all_output_shapes.end(), [&](const auto& out_shapes) {
                    bool same_types = get_shapes_types(out_shapes) == shapes_types;
                    bool same_ndim  = get_shapes_ndim(out_shapes) == shapes_ndim;
                    return not same_types or not same_ndim;

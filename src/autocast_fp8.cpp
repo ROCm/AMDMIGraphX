@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,6 +27,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/fp8_types.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -37,7 +38,7 @@ void autocast_fp8_pass::apply(module& m) const
     for(auto ins : iterator_for(m))
     {
         const auto& ins_name = ins->name();
-        if(ins_name == "@param" and contains(fp8_types, ins->get_shape().type()))
+        if(ins_name == "@param" and contains(fp8_types{}.get(), ins->get_shape().type()))
         {
             shape::type_t fp8_type    = ins->get_shape().type();
             migraphx::shape new_shape = ins->get_shape().with_type(target_type);
@@ -58,7 +59,7 @@ void autocast_fp8_pass::apply(module& m) const
             std::vector<instruction_ref> new_inputs;
             std::transform(
                 inputs.begin(), inputs.end(), std::back_inserter(new_inputs), [&](auto i) {
-                    if(contains(fp8_types, i->get_shape().type()))
+                    if(contains(fp8_types{}.get(), i->get_shape().type()))
                     {
                         return m.insert_instruction(
                             ins,

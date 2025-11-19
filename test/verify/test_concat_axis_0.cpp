@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -46,7 +46,11 @@ struct test_concat_axis_0 : verify_program<test_concat_axis_0<DType>>
     }
 };
 
-template struct test_concat_axis_0<migraphx::shape::fp8e4m3fnuz_type>;
 template struct test_concat_axis_0<migraphx::shape::half_type>;
+template struct test_concat_axis_0<migraphx::shape::bf16_type>;
 template struct test_concat_axis_0<migraphx::shape::float_type>;
 template struct test_concat_axis_0<migraphx::shape::int32_type>;
+template struct test_concat_axis_0<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_concat_axis_0<migraphx::shape::fp8e5m2fnuz_type>;
+template struct test_concat_axis_0<migraphx::shape::fp8e4m3fn_type>;
+template struct test_concat_axis_0<migraphx::shape::fp8e5m2_type>;

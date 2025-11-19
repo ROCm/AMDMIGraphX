@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -51,7 +51,7 @@ instruction_ref insert_apply_alpha_beta(module& m,
     auto op_res = m.insert_instruction(pos, op, a, b);
     if(args.size() == 3)
     {
-        if(not float_equal(beta.at<float>(0), 0.0) && args[2]->get_shape().elements() > 0)
+        if(not float_equal(beta.at<float>(0), 0.0) and args[2]->get_shape().elements() > 0)
         {
             auto out_lens = op_res->get_shape().lens();
             auto c        = args[2];

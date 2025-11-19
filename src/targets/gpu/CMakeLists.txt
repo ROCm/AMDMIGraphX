@@ -1,7 +1,7 @@
 # ####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -46,6 +46,16 @@ else()
     message(STATUS "MIGraphX build without rocBLAS")
 endif()
 
+if(MIGRAPHX_USE_HIPBLASLT)
+    # hipblaslt
+    find_package(hipblaslt REQUIRED)
+    # Making hipblas required to workaround the broken hipblaslt package.
+    find_package(hipblas REQUIRED)
+    message(STATUS "MIGraphx build with hipBLAS and hipBLASLt")
+else()
+    message(STATUS "MIGraphX build without hipBLAS and hipBLASLt")
+endif()
+
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)
     find_package(composable_kernel 1.0.0 REQUIRED COMPONENTS jit_library)
 endif()
@@ -66,7 +76,6 @@ if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
         ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/ck.hpp)
 endif()
 
-include(Embed)
 add_embed_library(migraphx_kernels ${KERNEL_FILES} RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/)
 
 configure_file(device/targets.hpp.in include/migraphx/gpu/device/targets.hpp)
@@ -75,7 +84,7 @@ add_library(migraphx_device ${DEVICE_GPU_SRCS})
 
 add_library(compile_for_gpu INTERFACE)
 target_compile_features(compile_for_gpu INTERFACE cxx_std_17)
-target_compile_options(compile_for_gpu INTERFACE -fno-gpu-rdc -Wno-cuda-compat -Wno-unused-command-line-argument -Xclang -fallow-half-arguments-and-returns)
+target_compile_options(compile_for_gpu INTERFACE -fno-gpu-rdc -Wno-cuda-compat -Wno-unused-command-line-argument -Xclang -fnative-half-arguments-and-returns)
 target_link_options(compile_for_gpu INTERFACE  -fno-gpu-rdc -Wno-invalid-command-line-argument -Wno-unused-command-line-argument -Wno-option-ignored)
 target_link_libraries(compile_for_gpu INTERFACE hip::device)
 check_cxx_compiler_flag("--cuda-host-only -fhip-lambda-host-device -x hip" HAS_HIP_LAMBDA_HOST_DEVICE)
@@ -94,7 +103,7 @@ if(NOT MIGRAPHX_USE_MIOPEN AND NOT MIGRAPHX_USE_ROCBLAS)
     target_link_libraries(migraphx_device INTERFACE hip::host)
 endif()
 target_include_directories(migraphx_device PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
-target_include_directories(migraphx_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINAR_DIR}/include>)
+target_include_directories(migraphx_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>)
 target_include_directories(migraphx_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/device/include>)
 target_compile_options(migraphx_device PRIVATE -Wno-ignored-attributes)
 migraphx_generate_export_header(migraphx_device DIRECTORY migraphx/gpu/device)
@@ -108,6 +117,7 @@ foreach(KERNEL_FILE ${KERNEL_FILES})
 endforeach()
 
 target_compile_definitions(kernel_file_check PRIVATE -DMIGRAPHX_NLOCAL=256)
+target_compile_definitions(kernel_file_check PRIVATE -DMIGRAPHX_WAVEFRONTSIZE=64)
 target_include_directories(kernel_file_check PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/>)
 target_link_libraries(kernel_file_check compile_for_gpu)
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)
@@ -138,15 +148,19 @@ add_library(migraphx_gpu
     compile_gen.cpp
     compile_hip.cpp
     compile_hip_code_object.cpp
+    compile_hipblaslt.cpp
     compile_miopen.cpp
     compile_pointwise.cpp
     compiler.cpp
     device_name.cpp
+    fixed_pad.cpp
     fuse_ck.cpp
     fuse_mlir.cpp
     fuse_ops.cpp
     gemm_impl.cpp
     hip.cpp
+    hipblaslt.cpp
+    hip_gemm_impl.cpp
     kernel.cpp
     lowering.cpp
     logsoftmax.cpp
@@ -187,6 +201,7 @@ endfunction()
 register_migraphx_gpu_ops(hip_
     argmax
     argmin
+    fixed_pad
     logsoftmax
     loop
     multinomial
@@ -217,6 +232,12 @@ if(MIGRAPHX_USE_ROCBLAS)
         OPERATORS gpu::rocblas_gemm<op::dot> gpu::rocblas_gemm<op::quant_dot>
         INCLUDES migraphx/gpu/context.hpp)
 endif()
+if(MIGRAPHX_USE_HIPBLASLT)
+    register_op(migraphx_gpu
+        HEADER migraphx/gpu/hip_gemm.hpp
+        OPERATORS gpu::hip_gemm<op::dot> gpu::hip_gemm<op::quant_dot>
+        INCLUDES migraphx/gpu/context.hpp)
+endif()
 if (MIGRAPHX_USE_MIOPEN)
     register_op(migraphx_gpu HEADER migraphx/gpu/convolution.hpp
         OPERATORS gpu::miopen_convolution<op::convolution> gpu::miopen_convolution<op::convolution_backwards> gpu::miopen_convolution<op::quant_convolution>
@@ -233,8 +254,11 @@ if(MIGRAPHX_ENABLE_MLIR)
     message(STATUS "Build with rocMLIR::rockCompiler ${rocMLIR_VERSION}")
     target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_MLIR")
     # Make this private to avoid multiple inclusions of LLVM symbols.
-    # TODO: Fix rocMLIR's library to hide LLVM internals.
     target_link_libraries(migraphx_gpu PRIVATE rocMLIR::rockCompiler)
+    # Hide LLVM internals that come from rocMLIR.
+    if(NOT WIN32 AND NOT APPLE AND BUILD_SHARED_LIBS)
+        target_link_options(migraphx_gpu PRIVATE "LINKER:--exclude-libs,ALL")
+    endif()
 endif()
 
 if(MIGRAPHX_USE_HIPRTC)
@@ -299,10 +323,14 @@ if(MIGRAPHX_USE_ROCBLAS)
     target_compile_definitions(migraphx_gpu PUBLIC MIGRAPHX_USE_ROCBLAS=1)
     # Beta API for automated GEMM tuning
     check_library_exists(roc::rocblas "rocblas_gemm_ex_get_solutions" "${ROCBLAS_LOCATION}" HAS_ROCBLAS_TUNING_BETA_FEATURE_API)
-    # rocblas FP8 API
-    check_library_exists(roc::rocblas "rocblas_gemm_strided_batched_ex3" "${ROCBLAS_LOCATION}" HAS_ROCBLAS_FP8_BETA_API)
 else()
     target_compile_definitions(migraphx_gpu PUBLIC MIGRAPHX_USE_ROCBLAS=0)
+endif()
+
+if(MIGRAPHX_USE_HIPBLASLT)
+    target_compile_definitions(migraphx_gpu PUBLIC MIGRAPHX_USE_HIPBLASLT=1)
+else()
+    target_compile_definitions(migraphx_gpu PUBLIC MIGRAPHX_USE_HIPBLASLT=0)
 endif()
 
 if(MIGRAPHX_USE_MIOPEN)
@@ -347,6 +375,10 @@ if(MIGRAPHX_USE_ROCBLAS)
 
 
     target_link_libraries(migraphx_gpu PUBLIC roc::rocblas)
+endif()
+
+if(MIGRAPHX_USE_HIPBLASLT)
+    target_link_libraries(migraphx_gpu PUBLIC roc::hipblaslt)
 endif()
 
 if(WIN32)

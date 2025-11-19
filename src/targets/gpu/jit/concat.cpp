@@ -124,7 +124,7 @@ struct concat_compiler : compiler<concat_compiler>
                                        {"transformers", make_transformer_args(vec)},
                                        {"preamble", v.get("preamble", std::string{})},
                                        {"axis", std::to_string(concat_axis)}});
-        return compile_hip_code_object(src, options);
+        return compile_hip_code_object(ctx, src, options);
     }
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const

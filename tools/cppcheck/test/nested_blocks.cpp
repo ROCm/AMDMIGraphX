@@ -10,7 +10,7 @@ void test_unnecessary_nested_blocks_1()
         }
     }
     (void)x; // Use variable to avoid warning
-}
+    }
 
 void test_unnecessary_nested_blocks_2()
 {
@@ -24,7 +24,7 @@ void test_unnecessary_nested_blocks_2()
         }
     }
     (void)y; // Use variable to avoid warning
-}
+    }
 
 void test_necessary_scope_blocks()
 {

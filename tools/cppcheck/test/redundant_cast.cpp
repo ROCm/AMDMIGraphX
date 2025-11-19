@@ -23,7 +23,11 @@ void test_redundant_auto_cast_3()
     (void)w;
 }
 
-void test_explicit_type_cast() { int x = static_cast<int>(5.5); (void)x; }
+void test_explicit_type_cast()
+{
+    int x = static_cast<int>(5.5);
+    (void)x;
+}
 
 void test_cast_to_different_type()
 {

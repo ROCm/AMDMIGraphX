@@ -27,6 +27,7 @@ void test_mutable_private_member()
         private:
         // TODO: migraphx-MutableVariable not triggered
         mutable double value;
+
         public:
         TestClass() : value(0.0) {}
     };
@@ -50,7 +51,11 @@ void test_const_variables()
     (void)cflag;
 }
 
-void test_static_variables() { static int sx = 15; (void)sx; }
+void test_static_variables()
+{
+    static int sx = 15;
+    (void)sx;
+}
 
 void test_good_class_members()
 {

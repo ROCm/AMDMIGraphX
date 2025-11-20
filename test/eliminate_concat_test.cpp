@@ -23,14 +23,15 @@
  */
 #include <migraphx/eliminate_concat.hpp>
 #include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/pass_manager.hpp>
-#include <migraphx/op/concat.hpp>
-#include <migraphx/op/load.hpp>
-#include <migraphx/op/identity.hpp>
-#include <migraphx/op/normalize_attribute.hpp>
-#include <migraphx/normalize_attributes.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/normalize_attributes.hpp>
+#include <migraphx/op/concat.hpp>
+#include <migraphx/op/identity.hpp>
+#include <migraphx/op/load.hpp>
+#include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/optional.hpp>
+#include <migraphx/pass_manager.hpp>
+#include <migraphx/register_op.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 
@@ -66,7 +67,7 @@ struct concat
     }
 };
 
-struct test_copy
+struct test_copy : migraphx::auto_register_op<test_copy>
 {
     template <class Self, class F>
     static auto reflect(Self&, F)

@@ -80,8 +80,8 @@ struct test_copy
         migraphx::check_shapes{inputs, *this}.has(2).same_dims();
         return inputs.at(1);
     }
-    migraphx::argument
-    compute(const migraphx::shape& output_shape, const std::vector<migraphx::argument>& args) const
+    migraphx::argument compute(const migraphx::shape& output_shape,
+                               const std::vector<migraphx::argument>& args) const
     {
         migraphx::argument result{output_shape};
 
@@ -125,15 +125,9 @@ struct concat_test_optimization
         return migraphx::any_cast<concat>(op).op;
     }
 
-    bool supports_non_packed_output(migraphx::instruction_ref) const
-    {
-        return true;
-    }
+    bool supports_non_packed_output(migraphx::instruction_ref) const { return true; }
 
-    test_allocation_model allocation() const
-    {
-        return test_allocation_model{};
-    }
+    test_allocation_model allocation() const { return test_allocation_model{}; }
 };
 
 static void run_pass(migraphx::module& m)

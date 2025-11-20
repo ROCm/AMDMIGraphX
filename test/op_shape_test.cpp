@@ -2729,7 +2729,6 @@ TEST_CASE(pointwise_broadcast_input)
     auto y  = mm->add_parameter("y", s2);
     auto z  = mm->add_parameter("z", s3);
     auto pw = mm->add_instruction(migraphx::make_op("pointwise"), {x, y, z}, {&pm});
-    ;
     EXPECT(pw->get_shape() == x->get_shape());
 }
 

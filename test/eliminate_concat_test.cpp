@@ -29,6 +29,7 @@
 #include <migraphx/op/identity.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/normalize_attributes.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/optional.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
@@ -65,6 +66,53 @@ struct concat
     }
 };
 
+struct test_copy
+{
+    template <class Self, class F>
+    static auto reflect(Self&, F)
+    {
+        return migraphx::pack();
+    }
+
+    std::string name() const { return "test::copy"; }
+    migraphx::shape compute_shape(const std::vector<migraphx::shape>& inputs) const
+    {
+        migraphx::check_shapes{inputs, *this}.has(2).same_dims();
+        return inputs.at(1);
+    }
+    migraphx::argument
+    compute(const migraphx::shape& output_shape, const std::vector<migraphx::argument>& args) const
+    {
+        migraphx::argument result{output_shape};
+
+        visit_all(result, args[0])([&](auto output, auto input) {
+            std::copy(input.begin(), input.end(), output.begin());
+        });
+
+        return result;
+    }
+
+    std::ptrdiff_t output_alias(const std::vector<migraphx::shape>& shapes) const
+    {
+        return shapes.size() - 1;
+    }
+};
+
+struct test_allocation_model
+{
+    std::string name() const { return "allocate"; }
+    std::string copy() const { return "test::copy"; }
+    migraphx::operation allocate(const migraphx::shape& s) const
+    {
+        return migraphx::make_op(name(), {{"shape", to_value(s)}});
+    }
+    migraphx::operation preallocate(const migraphx::shape&, const std::string&) const
+    {
+        MIGRAPHX_THROW("preallocate is not used by eliminate_concat");
+    }
+    bool needs_out_params() const { return false; }
+};
+
 struct concat_test_optimization
 {
     /// A unique name used to identify the allocate operator
@@ -75,6 +123,16 @@ struct concat_test_optimization
         if(op.name() != "eliminate_concat::concat")
             return std::nullopt;
         return migraphx::any_cast<concat>(op).op;
+    }
+
+    bool supports_non_packed_output(migraphx::instruction_ref) const
+    {
+        return true;
+    }
+
+    test_allocation_model allocation() const
+    {
+        return test_allocation_model{};
     }
 };
 

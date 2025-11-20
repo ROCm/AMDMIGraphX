@@ -373,19 +373,6 @@ struct dynamic_op
                      std::function<std::vector<argument>(
                          module_ref&, const std::unordered_map<std::string, argument>&)> run) const
     {
-        // for(auto ins : iterator_for(m))
-        // {
-        //     if(ins->name() != "gpu::precompile_op")
-        //         continue;
-        //     operation preop = any_cast<precompile_op>(ins->get_operator()).op;
-        //     cm.add_plan(ctx, preop, ins, &m);
-        // }
-        // cm.update_configs();
-        // cm.compile(m);
-        // // Compile already tuned configs
-        // cm.compile(m);
-        // assert(cm.cps.empty());
-
         auto temp_mod = module("temp_mod");
         std::vector<instruction_ref> args_ins;
         std::vector<size_t> idx(args.size());
@@ -398,20 +385,14 @@ struct dynamic_op
                            return temp_mod.add_parameter("x" + std::to_string(i), arg.get_shape());
                        });
         auto ins = temp_mod.add_instruction(pre_op, args_ins, module_args);
-        temp_mod.debug_print();
-        std::cout << "Getting tuning config" << std::endl;
         operation preop = any_cast<precompile_op>(ins->get_operator()).op;
-        std::cout << "Preop: " << preop << std::endl;
         auto config = get_tuning_config(ctx, ins, preop, false);
-        std::cout << "Config: " << std::endl;
         value solution = value{};
         if(config.has_value())
         {
             solution = config->solutions.front();
         }
-        std::cout << "Solution: " << solution << std::endl;
         auto compiled_op = compile(ctx, ins, preop, solution);
-        std::cout << "Compiled op: " << std::endl;
         compiled_op.replace(temp_mod, ins);
         run_passes(temp_mod, {dead_code_elimination{}});
         temp_mod.debug_print();
@@ -426,18 +407,12 @@ struct dynamic_op
             param_map["x" + std::to_string(i)] = args[i];
         }
         module_ref temp_mod_ref = &temp_mod;
-        std::cout << "Running module" << std::endl;
+
         auto results = run(temp_mod_ref, param_map);
-        std::cout << "Results: " << std::endl;
+
+        if(results.size() > 1)
+            return results;
         return results.front();
-
-        // auto input_shapes = to_shapes(args);
-        // auto config = get_tuning_config(ctx, input_shapes, module_args, pre_op, false);
-        // auto solution = config->solutions.front();
-        // // auto compiled_op = compile_op(pre_op.name(), ctx, input_shapes, solution);
-        // auto compiled_op = compile(ctx, ins, pre_op, solution);
-
-        // return argument{};
     }
 };
 

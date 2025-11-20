@@ -415,11 +415,11 @@ struct dynamic_op
         compiled_op.replace(temp_mod, ins);
         run_passes(temp_mod, {dead_code_elimination{}});
         temp_mod.debug_print();
-        
+
         // Finalize the module before execution
         std::vector<migraphx::context> contexts = {migraphx::context(ctx)};
         temp_mod.finalize(contexts);
-        
+
         auto param_map = std::unordered_map<std::string, argument>{};
         for(auto i : idx)
         {
@@ -429,7 +429,7 @@ struct dynamic_op
         std::cout << "Running module" << std::endl;
         auto results = run(temp_mod_ref, param_map);
         std::cout << "Results: " << std::endl;
-        return results;
+        return results.front();
 
         // auto input_shapes = to_shapes(args);
         // auto config = get_tuning_config(ctx, input_shapes, module_args, pre_op, false);

@@ -32,6 +32,8 @@ namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
+using dims_map = std::unordered_map<std::string, std::vector<std::size_t>>;
+
 verify::tolerance get_tolerances(const program& p,
                                  const verify_options& vo,
                                  std::optional<double> rms_tol,
@@ -44,23 +46,27 @@ bool verify_program(const std::string& name,
                     compile_options options     = compile_options{},
                     const verify_options& vo    = verify_options{},
                     const parameter_map& inputs = {},
+                    const dims_map& param_dims = {},
                     verify::tolerance tols      = verify::tolerance{});
 void verify_instructions(const program& prog,
                          const target& t,
                          compile_options options  = compile_options{},
                          const verify_options& vo = verify_options{},
+                         const dims_map& param_dims = {},
                          verify::tolerance tols   = verify::tolerance{});
 void verify_reduced_program(const program& p,
                             const target& t,
                             compile_options options     = compile_options{},
                             const verify_options& vo    = verify_options{},
                             const parameter_map& inputs = {},
+                            const dims_map& param_dims = {},
                             verify::tolerance tols      = verify::tolerance{});
 void verify_bisected_program(const program& p,
                              const target& t,
                              compile_options options     = compile_options{},
                              const verify_options& vo    = verify_options{},
                              const parameter_map& inputs = {},
+                             const dims_map& param_dims = {},
                              verify::tolerance tols      = verify::tolerance{});
 
 } // namespace MIGRAPHX_INLINE_NS

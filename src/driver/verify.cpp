@@ -99,7 +99,8 @@ static std::vector<argument> run_target(program p,
                                         const target& t,
                                         const compile_options& options,
                                         const verify_options& vo,
-                                        const parameter_map& inputs)
+                                        const parameter_map& inputs,
+                                        const dims_map& param_dims)
 {
     if(vo.compiled_model.empty())
     {
@@ -117,11 +118,30 @@ static std::vector<argument> run_target(program p,
     {
         p = load(vo.compiled_model);
     }
-
+    
     parameter_map m;
     for(auto&& x : p.get_parameter_shapes())
     {
-        auto arg   = inputs.count(x.first) == 0 ? generate_argument(x.second) : inputs.at(x.first);
+        argument arg;
+        if (contains(inputs, x.first))
+        {
+            arg = inputs.at(x.first);
+        }
+        else
+        {
+            if (x.second.dynamic())
+            {
+                if (not contains(param_dims, x.first))
+                {
+                    MIGRAPHX_THROW("Parameter " + x.first + " must be specifed when running in fully dynamic mode");
+                }
+                arg = generate_argument({x.second.type(), {param_dims.at(x.first)}});
+            }
+            else
+            {
+                arg = generate_argument(x.second);
+            }
+        }
         m[x.first] = options.offload_copy ? arg : t.copy_to(arg);
     }
     auto gpu_out = p.eval(m);
@@ -139,10 +159,11 @@ bool verify_program(const std::string& name,
                     compile_options options,
                     const verify_options& vo,
                     const parameter_map& inputs,
+                    const dims_map& param_dims,
                     verify::tolerance tols)
 {
     auto ref_outs    = run_ref(p, options, vo, inputs);
-    auto target_outs = run_target(p, t, options, vo, inputs);
+    auto target_outs = run_target(p, t, options, vo, inputs, param_dims);
 
     std::size_t output_num = ref_outs.size();
     bool passed            = true;
@@ -169,6 +190,7 @@ void verify_instructions(const program& prog,
                          const target& t,
                          compile_options options,
                          const verify_options& vo,
+                         const dims_map& param_dims,
                          verify::tolerance tols)
 {
     const auto* mm_prog = prog.get_main_module();
@@ -200,7 +222,7 @@ void verify_instructions(const program& prog,
         {
             std::cout << "Verify: " << ins.name() << std::endl;
             std::cout << p << std::endl;
-            verify_program(ins.name(), p, t, options, vo, create_param_map(p, false), tols);
+            verify_program(ins.name(), p, t, options, vo, create_param_map(p, false), param_dims, tols);
         }
         catch(...)
         {
@@ -216,6 +238,7 @@ static bool verify_reduced(program p,
                            compile_options options,
                            const verify_options& vo,
                            const parameter_map& inputs,
+                           const dims_map& param_dims,
                            verify::tolerance tols)
 {
     auto* mm  = p.get_main_module();
@@ -225,7 +248,7 @@ static bool verify_reduced(program p,
     std::cout << p << std::endl;
     try
     {
-        return verify_program(std::to_string(n), p, t, options, vo, inputs, tols);
+        return verify_program(std::to_string(n), p, t, options, vo, inputs, param_dims, tols);
     }
     catch(const std::exception& e)
     {
@@ -240,6 +263,7 @@ void verify_reduced_program(const program& p,
                             compile_options options,
                             const verify_options& vo,
                             const parameter_map& inputs,
+                            const dims_map& param_dims,
                             verify::tolerance tols)
 {
     const auto* mm = p.get_main_module();
@@ -253,7 +277,7 @@ void verify_reduced_program(const program& p,
             std::cout << "Skip: " << i << std::endl;
             continue;
         }
-        verify_reduced(p, i, t, options, vo, inputs, tols);
+        verify_reduced(p, i, t, options, vo, inputs, param_dims, tols);
     }
 }
 
@@ -313,6 +337,7 @@ void verify_bisected_program(const program& p,
                              compile_options options,
                              const verify_options& vo,
                              const parameter_map& inputs,
+                             const dims_map& param_dims,
                              verify::tolerance tols)
 {
     const auto* mm = p.get_main_module();
@@ -327,7 +352,7 @@ void verify_bisected_program(const program& p,
         std::int64_t mid = left + (right - left) / 2;
         assert(mid < trims.size() and mid >= 0);
         std::int64_t trim = trims.rbegin()[mid];
-        bool passed       = verify_reduced(p, trim, t, options, vo, inputs, tols);
+        bool passed       = verify_reduced(p, trim, t, options, vo, inputs, param_dims, tols);
         if(passed)
         {
             left = mid + 1;

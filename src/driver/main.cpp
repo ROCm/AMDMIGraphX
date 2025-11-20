@@ -65,8 +65,6 @@
 
 namespace {
 
-using dims_map = std::unordered_map<std::string, std::vector<std::size_t>>;
-
 std::vector<std::string>
 get_unrecognized_migraphx_envs(const char* envp[],
                                const std::map<std::string, std::string>& used_env)
@@ -521,7 +519,7 @@ struct program_params
                                                     map_input_dims[param.first]};
             else
                 static_param_shapes[param.first] = param.second.to_static(batch);
-        }
+        }   
 
         for(auto&& s : fill0)
             m[s] = fill_argument(static_param_shapes.at(s), 0);
@@ -742,8 +740,8 @@ struct verify : command<verify>
         std::cout << p << std::endl;
 
         auto t = c.ct.get_target();
-        auto m =
-            c.parameters.generate(p, t, true, c.l.batch, loader::parse_param_dims(c.l.param_dims));
+        auto param_dims = loader::parse_param_dims(c.l.param_dims);
+        auto m = c.parameters.generate(p, t, true, c.l.batch, param_dims);
 
         if(c.to_fp16)
         {
@@ -765,19 +763,19 @@ struct verify : command<verify>
 
         if(per_instruction)
         {
-            verify_instructions(p, t, c.co, vo, tols);
+            verify_instructions(p, t, c.co, vo, param_dims, tols);
         }
         else if(reduce)
         {
-            verify_reduced_program(p, t, c.co, vo, m, tols);
+            verify_reduced_program(p, t, c.co, vo, m, param_dims, tols);
         }
         else if(bisect)
         {
-            verify_bisected_program(p, t, c.co, vo, m, tols);
+            verify_bisected_program(p, t, c.co, vo, m, param_dims, tols);
         }
         else
         {
-            verify_program(c.l.file, p, t, c.co, vo, m, tols);
+            verify_program(c.l.file, p, t, c.co, vo, m, param_dims, tols);
         }
     }
 };

@@ -21,7 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <iterator>
 #include <migraphx/eliminate_concat.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
@@ -33,6 +32,7 @@
 
 #include <migraphx/dfor.hpp>
 #include <migraphx/tune_axis.hpp>
+#include <iterator>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

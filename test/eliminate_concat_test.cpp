@@ -324,7 +324,7 @@ TEST_CASE(simple)
         m2.add_return({id1});
     }
 
-    EXPECT(m1 == m2);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 TEST_CASE(negative_axis_last_axis)
@@ -342,7 +342,7 @@ TEST_CASE(negative_axis_last_axis)
     migraphx::module m2 = m1;
     run_pass(m1);
 
-    EXPECT(m1 == m2);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 TEST_CASE(negative_axis_last_axis_support_non_packed)
@@ -375,7 +375,7 @@ TEST_CASE(negative_axis_last_axis_support_non_packed)
         m2.add_return({id1});
     }
 
-    EXPECT(m1 == m2);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 TEST_CASE(negative_axis_first_axis)
@@ -404,7 +404,7 @@ TEST_CASE(negative_axis_first_axis)
         m2.add_return({id1});
     }
 
-    EXPECT(m1 == m2);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 TEST_CASE(negative_axis_middle_axis_with_empty_axis0)
@@ -433,7 +433,7 @@ TEST_CASE(negative_axis_middle_axis_with_empty_axis0)
         m2.add_return({id1});
     }
 
-    EXPECT(m1 == m2);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 TEST_CASE(reversed_arguments)
@@ -462,52 +462,50 @@ TEST_CASE(reversed_arguments)
         m2.add_return({id1});
     }
 
-    EXPECT(m1 == m2);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 TEST_CASE(nested)
 {
-    auto concat_test_program = [](auto& m) {
-        auto a1          = m.add_instruction(make_allocate(1));
-        auto m1          = m.add_instruction(simple_op{}, a1);
-        auto a2          = m.add_instruction(make_allocate(1));
-        auto m2          = m.add_instruction(simple_op{}, a2);
-        std::size_t axis = 0;
-        auto a3          = m.add_instruction(make_allocate(2));
-        return m.add_instruction(test_concat(axis), m1, m2, a3);
-    };
-    auto create_test_program = [&] {
-        migraphx::module m;
-        auto concat1     = concat_test_program(m);
-        auto concat2     = concat_test_program(m);
-        std::size_t axis = 0;
-        auto a1          = m.add_instruction(make_allocate(4));
-        m.add_instruction(test_concat(axis), concat1, concat2, a1);
-        return m;
-    };
-    auto concat_control_program = [](auto& m, auto a1) {
-        auto l1 = m.add_instruction(load{create_shape(1), 0}, a1);
-        auto m1 = m.add_instruction(simple_op{}, l1);
-        auto l2 = m.add_instruction(load{create_shape(1), 4}, a1);
-        auto m2 = m.add_instruction(simple_op{}, l2);
-        return m.add_instruction(identity{}, a1, m1, m2);
-    };
-    auto create_control_program = [&] {
-        migraphx::module m;
-        auto a1      = m.add_instruction(make_allocate(4));
-        auto l1      = m.add_instruction(load{create_shape(2), 0}, a1);
-        auto concat1 = concat_control_program(m, l1);
-        auto l2      = m.add_instruction(load{create_shape(2), 8}, a1);
-        auto concat2 = concat_control_program(m, l2);
-        m.add_instruction(identity{}, a1, concat1, concat2);
-        return m;
-    };
-
-    auto m1 = create_test_program();
-    auto m2 = create_control_program();
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(1));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto a2 = m1.add_instruction(make_allocate(1));
+        auto s2 = m1.add_instruction(simple_op{}, a2);
+        auto a3 = m1.add_instruction(make_allocate(2));
+        auto c1 = m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 0}}), s1, s2, a3);
+        auto a4 = m1.add_instruction(make_allocate(1));
+        auto s3 = m1.add_instruction(simple_op{}, a4);
+        auto a5 = m1.add_instruction(make_allocate(1));
+        auto s4 = m1.add_instruction(simple_op{}, a5);
+        auto a6 = m1.add_instruction(make_allocate(2));
+        auto c2 = m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 0}}), s3, s4, a6);
+        auto a7 = m1.add_instruction(make_allocate(4));
+        auto c3 = m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 0}}), c1, c2, a7);
+        m1.add_return({c3});
+    }
     run_pass(m1);
+    migraphx::module m2;
+    {
+        auto a1 = m2.add_instruction(make_allocate(4));
+        auto slice1 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {4}}}), a1);
+        auto slice2 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), a1);
+        auto slice3 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), slice2);
+        auto slice4 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), slice2);
+        auto s1 = m2.add_instruction(simple_op{}, slice4);
+        auto s2 = m2.add_instruction(simple_op{}, slice3);
+        auto id1 = m2.add_instruction(migraphx::make_op("identity"), slice2, s1, s2);
+        auto slice5 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), slice1);
+        auto slice6 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), slice1);
+        auto s3 = m2.add_instruction(simple_op{}, slice6);
+        auto s4 = m2.add_instruction(simple_op{}, slice5);
+        auto id2 = m2.add_instruction(migraphx::make_op("identity"), slice1, s3, s4);
+        auto id3 = m2.add_instruction(migraphx::make_op("identity"), a1, id1, id2);
+        m2.add_return({id3});
+    }
 
-    EXPECT(m1 == m2);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 TEST_CASE(concat_axis1_with_empty_axis0)
@@ -542,7 +540,7 @@ TEST_CASE(concat_axis1_with_empty_axis0)
         m2.add_return({id1});
     }
 
-    EXPECT(m1 == m2);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 TEST_CASE(non_packed_output_not_supported)
@@ -563,7 +561,7 @@ TEST_CASE(non_packed_output_not_supported)
     migraphx::module m2 = m1;
     run_pass(m1);
 
-    EXPECT(m1 == m2);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 TEST_CASE(non_packed_output_supported)
@@ -604,7 +602,7 @@ TEST_CASE(non_packed_output_supported)
         m2.add_return({id1});
     }
 
-    EXPECT(m1 == m2);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -63,7 +63,7 @@ struct concat_optimizer
     
     instruction_ref insert_copy(const operation& op, instruction_ref input, instruction_ref super)
     {
-        auto slice = m->insert_instruction(input, op, super);
+        auto slice = m->insert_instruction(std::next(super), op, super);
         // If its packed then replace the allocation with the slice instead
         if(not need_copy(input) and slice->get_shape().packed() and input->outputs().size() == 1)
         {

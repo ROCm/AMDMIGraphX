@@ -217,15 +217,16 @@ pipeline {
                     steps {
                         script {
                             gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - All Targets Release", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
+                                def docker_opts
                                 stage('All Targets Release - Setup') {
-                                    env.DOCKER_OPTS = setuprocmtest()
+                                    docker_opts = setuprocmtest()
                                 }
                                 stage('All Targets Release - Build') {
                                     buildrocmtest(
                                         [flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_ENABLE_GPU=On -DMIGRAPHX_ENABLE_CPU=On -DMIGRAPHX_ENABLE_FPGA=On -DGPU_TARGETS='${getgputargets()}'",
                                          compiler: '/opt/rocm/llvm/bin/clang++',
                                          gpu_debug: '0'],
-                                        env.DOCKER_OPTS
+                                        docker_opts
                                     )
                                 }
                             }
@@ -240,8 +241,9 @@ pipeline {
                     steps {
                         script {
                             gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Clang ASAN", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
+                                def docker_opts
                                 stage('Clang ASAN - Setup') {
-                                    env.DOCKER_OPTS = setuprocmtest()
+                                    docker_opts = setuprocmtest()
                                 }
                                 stage('Clang ASAN - Build') {
                                     def sanitizers = "undefined,address"
@@ -250,7 +252,7 @@ pipeline {
                                         [flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'",
                                          compiler: '/usr/bin/clang++-14',
                                          gpu_debug: '0'],
-                                        env.DOCKER_OPTS
+                                        docker_opts
                                     )
                                 }
                             }
@@ -265,8 +267,9 @@ pipeline {
                     steps {
                         script {
                             gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Clang libstdc++ Debug", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
+                                def docker_opts
                                 stage('Clang libstdc++ Debug - Setup') {
-                                    env.DOCKER_OPTS = setuprocmtest()
+                                    docker_opts = setuprocmtest()
                                 }
                                 stage('Clang libstdc++ Debug - Build') {
                                     def sanitizers = "undefined"
@@ -275,7 +278,7 @@ pipeline {
                                         [flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'",
                                          compiler: '/usr/bin/clang++-14',
                                          gpu_debug: '0'],
-                                        env.DOCKER_OPTS
+                                        docker_opts
                                     )
                                 }
                             }
@@ -290,15 +293,16 @@ pipeline {
                     steps {
                         script {
                             gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - HIP Clang Release", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
+                                def docker_opts
                                 stage('HIP Clang Release - Setup') {
-                                    env.DOCKER_OPTS = setuprocmtest()
+                                    docker_opts = setuprocmtest()
                                 }
                                 stage('HIP Clang Release - Build') {
                                     buildrocmtest(
                                         [flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getgputargets()}'",
                                          compiler: '/opt/rocm/llvm/bin/clang++',
                                          gpu_debug: '0'],
-                                        env.DOCKER_OPTS
+                                        docker_opts
                                     )
                                     stash includes: 'build/*.deb', name: 'migraphx-package'
                                 }
@@ -314,15 +318,16 @@ pipeline {
                     steps {
                         script {
                             gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - HIP Clang Release Navi32", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
+                                def docker_opts
                                 stage('HIP Clang Release Navi32 - Setup') {
-                                    env.DOCKER_OPTS = setuprocmtest()
+                                    docker_opts = setuprocmtest()
                                 }
                                 stage('HIP Clang Release Navi32 - Build') {
                                     buildrocmtest(
                                         [flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getnavi3xtargets()}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On",
                                          compiler: '/opt/rocm/llvm/bin/clang++',
                                          gpu_debug: '0'],
-                                        env.DOCKER_OPTS
+                                        docker_opts
                                     )
                                 }
                             }
@@ -337,15 +342,16 @@ pipeline {
                     steps {
                         script {
                             gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - HIP Clang Release Navi4x", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
+                                def docker_opts
                                 stage('HIP Clang Release Navi4x - Setup') {
-                                    env.DOCKER_OPTS = setuprocmtest()
+                                    docker_opts = setuprocmtest()
                                 }
                                 stage('HIP Clang Release Navi4x - Build') {
                                     buildrocmtest(
                                         [flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getnavi4xtargets()}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On",
                                          compiler: '/opt/rocm/llvm/bin/clang++',
                                          gpu_debug: '0'],
-                                        env.DOCKER_OPTS
+                                        docker_opts
                                     )
                                 }
                             }
@@ -363,8 +369,9 @@ pipeline {
                     steps {
                         script {
                             gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - HIP RTC Debug", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
+                                def docker_opts
                                 stage('HIP RTC Debug - Setup') {
-                                    env.DOCKER_OPTS = setuprocmtest()
+                                    docker_opts = setuprocmtest()
                                 }
                                 stage('HIP RTC Debug - Build') {
                                     // Disable MLIR since it doesnt work with all ub sanitizers
@@ -374,7 +381,7 @@ pipeline {
                                         [flags: "-DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang -DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DMIGRAPHX_USE_HIPRTC=On -DGPU_TARGETS='${getgputargets()}'",
                                          compiler: '/opt/rocm/llvm/bin/clang++',
                                          gpu_debug: '1'],
-                                        env.DOCKER_OPTS
+                                        docker_opts
                                     )
                                 }
                             }
@@ -399,8 +406,9 @@ pipeline {
                     steps {
                         script {
                             gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - MLIR Debug", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
+                                def docker_opts
                                 stage('MLIR Debug - Setup') {
-                                    env.DOCKER_OPTS = setuprocmtest()
+                                    docker_opts = setuprocmtest()
                                 }
                                 stage('MLIR Debug - Build') {
                                     def sanitizers = "undefined"
@@ -412,7 +420,7 @@ pipeline {
                                         [flags: "-DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang -DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_MLIR=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DGPU_TARGETS='${getgputargets()}'",
                                          compiler: '/opt/rocm/llvm/bin/clang++',
                                          gpu_debug: '0'],
-                                        env.DOCKER_OPTS
+                                        docker_opts
                                     )
                                 }
                             }
@@ -431,11 +439,12 @@ pipeline {
                     steps {
                         script {
                             gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - ONNX Runtime Tests", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
+                                def docker_opts
                                 stage('ONNX Runtime Tests - Setup') {
-                                    env.DOCKER_OPTS = setuponnxtest()
+                                    docker_opts = setuponnxtest()
                                 }
                                 stage('ONNX Runtime Tests - Build') {
-                                    buildonnxtest(env.DOCKER_OPTS)
+                                    buildonnxtest(docker_opts)
                                 }
                             }
                         }

@@ -62,8 +62,12 @@ struct test_concat : migraphx::auto_register_op<test_concat>
     std::string name() const { return "test::concat"; }
     migraphx::shape normalize_compute_shape(std::vector<migraphx::shape> inputs) const
     {
+        auto out = inputs.back();
         inputs.pop_back();
-        return op.normalize_compute_shape(std::move(inputs));
+        auto result = op.normalize_compute_shape(std::move(inputs));
+        if(result != out)
+            MIGRAPHX_THROW("Allocation doesnt match");
+        return result;
     }
     migraphx::argument compute(migraphx::context&,
                                const migraphx::shape& output_shape,
@@ -325,23 +329,49 @@ TEST_CASE(simple)
 
 TEST_CASE(negative_axis_last_axis)
 {
-    auto create_test_program = [] {
-        migraphx::module m;
-
-        auto a1          = m.add_instruction(make_allocate(2, 2));
-        auto m1          = m.add_instruction(simple_op{}, a1);
-        auto a2          = m.add_instruction(make_allocate(2, 2));
-        auto m2          = m.add_instruction(simple_op{}, a2);
-        std::size_t axis = -1;
-        auto a3          = m.add_instruction(make_allocate(4, 2));
-        m.add_instruction(test_concat(axis), m1, m2, a3);
-        return m;
-    };
-    auto create_control_program = create_test_program;
-
-    auto m1 = create_test_program();
-    auto m2 = create_control_program();
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(2, 2));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto a2 = m1.add_instruction(make_allocate(2, 2));
+        auto s2 = m1.add_instruction(simple_op{}, a2);
+        auto a3 = m1.add_instruction(make_allocate(2, 4));
+        auto c1 = m1.add_instruction(migraphx::make_op("test::concat", {{"axis", -1}}), s1, s2, a3);
+        m1.add_return({c1});
+    }
+    migraphx::module m2 = m1;
     run_pass(m1);
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(negative_axis_last_axis_support_non_packed)
+{
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(2, 2));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto a2 = m1.add_instruction(make_allocate(2, 2));
+        auto s2 = m1.add_instruction(simple_op{}, a2);
+        auto a3 = m1.add_instruction(make_allocate(2, 4));
+        auto c1 = m1.add_instruction(migraphx::make_op("test::concat", {{"axis", -1}}), s1, s2, a3);
+        m1.add_return({c1});
+    }
+    run_pass(m1, {.op_non_packed_output = {"simple_op"}});
+    migraphx::module m2;
+    {
+        auto a1 = m2.add_instruction(make_allocate(2, 4));
+        auto a2 = m2.add_instruction(make_allocate(2, 2));
+        auto slice1 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}}), a1);
+        auto s1 = m2.add_instruction(simple_op{}, a2);
+        auto cp1 = m2.add_instruction(migraphx::make_op("test::copy"), s1, slice1);
+        auto a3 = m2.add_instruction(make_allocate(2, 2));
+        auto slice2 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {4}}}), a1);
+        auto s2 = m2.add_instruction(simple_op{}, a3);
+        auto cp2 = m2.add_instruction(migraphx::make_op("test::copy"), s2, slice2);
+        auto id1 = m2.add_instruction(migraphx::make_op("identity"), a1, cp1, cp2);
+        m2.add_return({id1});
+    }
 
     EXPECT(m1 == m2);
 }
@@ -361,13 +391,11 @@ TEST_CASE(negative_axis_first_axis)
     run_pass(m1);
     migraphx::module m2;
     {
-        auto a1     = m2.add_instruction(make_allocate(4, 2));
-        auto slice1 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), a1);
-        auto s1     = m2.add_instruction(simple_op{}, slice1);
-        auto slice2 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {4}}}), a1);
-        auto s2  = m2.add_instruction(simple_op{}, slice2);
+        auto a1 = m2.add_instruction(make_allocate(4, 2));
+        auto slice1 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), a1);
+        auto s1 = m2.add_instruction(simple_op{}, slice1);
+        auto slice2 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {4}}}), a1);
+        auto s2 = m2.add_instruction(simple_op{}, slice2);
         auto id1 = m2.add_instruction(migraphx::make_op("identity"), a1, s1, s2);
         m2.add_return({id1});
     }
@@ -390,13 +418,11 @@ TEST_CASE(negative_axis_middle_axis_with_empty_axis0)
     run_pass(m1);
     migraphx::module m2;
     {
-        auto a1     = m2.add_instruction(make_allocate(1, 4, 2));
-        auto slice1 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}}), a1);
-        auto s1     = m2.add_instruction(simple_op{}, slice1);
-        auto slice2 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {4}}}), a1);
-        auto s2  = m2.add_instruction(simple_op{}, slice2);
+        auto a1 = m2.add_instruction(make_allocate(1, 4, 2));
+        auto slice1 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}}), a1);
+        auto s1 = m2.add_instruction(simple_op{}, slice1);
+        auto slice2 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {4}}}), a1);
+        auto s2 = m2.add_instruction(simple_op{}, slice2);
         auto id1 = m2.add_instruction(migraphx::make_op("identity"), a1, s1, s2);
         m2.add_return({id1});
     }

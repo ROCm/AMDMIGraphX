@@ -260,10 +260,10 @@ static void print_module(migraphx::module& m, const std::string& module_name)
 
 static void run_pass(migraphx::module& m, concat_test_optimization opt = {})
 {
-    print_module(m, "m1");
+    // print_module(m, "m1");
     migraphx::run_passes(m, {migraphx::eliminate_concat{opt}, migraphx::dead_code_elimination{}});
-    std::cout << "run_pass(m1);\n";
-    print_module(m, "m2");
+    // std::cout << "run_pass(m1);\n";
+    // print_module(m, "m2");
 }
 
 struct simple_op

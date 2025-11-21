@@ -488,18 +488,24 @@ TEST_CASE(nested)
     run_pass(m1);
     migraphx::module m2;
     {
-        auto a1 = m2.add_instruction(make_allocate(4));
-        auto slice1 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {4}}}), a1);
-        auto slice2 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), a1);
-        auto slice3 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), slice2);
-        auto slice4 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), slice2);
-        auto s1 = m2.add_instruction(simple_op{}, slice4);
-        auto s2 = m2.add_instruction(simple_op{}, slice3);
-        auto id1 = m2.add_instruction(migraphx::make_op("identity"), slice2, s1, s2);
-        auto slice5 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), slice1);
-        auto slice6 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), slice1);
-        auto s3 = m2.add_instruction(simple_op{}, slice6);
-        auto s4 = m2.add_instruction(simple_op{}, slice5);
+        auto a1     = m2.add_instruction(make_allocate(4));
+        auto slice1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {4}}}), a1);
+        auto slice2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), a1);
+        auto slice3 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), slice2);
+        auto slice4 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), slice2);
+        auto s1     = m2.add_instruction(simple_op{}, slice4);
+        auto s2     = m2.add_instruction(simple_op{}, slice3);
+        auto id1    = m2.add_instruction(migraphx::make_op("identity"), slice2, s1, s2);
+        auto slice5 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), slice1);
+        auto slice6 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), slice1);
+        auto s3  = m2.add_instruction(simple_op{}, slice6);
+        auto s4  = m2.add_instruction(simple_op{}, slice5);
         auto id2 = m2.add_instruction(migraphx::make_op("identity"), slice1, s3, s4);
         auto id3 = m2.add_instruction(migraphx::make_op("identity"), a1, id1, id2);
         m2.add_return({id3});

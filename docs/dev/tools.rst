@@ -55,11 +55,11 @@ Provides additional debug information related to data. Use for debugging purpose
 
 Example output:
 
-.. image:: ../data/roctx1.jpg
+.. image:: ../data/roctx1.png
 
 Hotspot kerel timing information:
 
-.. image:: ../data/roctx2.jpg
+.. image:: ../data/roctx2.png
 
 The output provides ``SUM``, ``MIN``, ``MAX`` and ``COUNT`` information for each kernel executed for a given model. It also
 provides the average total time. The following three files are provided for reference:

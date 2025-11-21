@@ -32,12 +32,18 @@
 #include <migraphx/optional.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/register_op.hpp>
+#include <migraphx/make_op.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 
-struct concat
+#include <migraphx/instruction.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/json.hpp>
+
+struct test_concat : migraphx::auto_register_op<test_concat>
 {
-    concat(std::size_t axis) { op.axis = axis; }
+    test_concat() = default;
+    test_concat(std::size_t axis) { op.axis = axis; }
     migraphx::op::concat op;
 
     template <class Self, class F>
@@ -53,7 +59,7 @@ struct concat
         return {{"normalize_axes", normalize}};
     }
 
-    std::string name() const { return "eliminate_concat::concat"; }
+    std::string name() const { return "test::concat"; }
     migraphx::shape normalize_compute_shape(std::vector<migraphx::shape> inputs) const
     {
         inputs.pop_back();
@@ -99,9 +105,36 @@ struct test_copy : migraphx::auto_register_op<test_copy>
     }
 };
 
-struct test_allocation_model
+struct test_allocate : migraphx::auto_register_op<test_allocate>
 {
-    std::string name() const { return "allocate"; }
+    migraphx::shape s{};
+
+    test_allocate() = default;
+    test_allocate(migraphx::shape ss) : migraphx::auto_register_op<test_allocate>(), s(ss) {}
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::pack(f(self.s, "shape"));
+    }
+
+    std::string name() const { return "test::allocate"; }
+    migraphx::shape compute_shape(const std::vector<migraphx::shape>& inputs) const
+    {
+        migraphx::check_shapes{inputs, *this}.has(0);
+        return s;
+    }
+    migraphx::argument compute(migraphx::context&,
+                               const migraphx::shape& output_shape,
+                               const std::vector<migraphx::argument>&) const
+    {
+        return migraphx::argument{output_shape};
+    }
+};
+
+struct test_allocation_model 
+{
+    std::string name() const { return "test::allocate"; }
     std::string copy() const { return "test::copy"; }
     migraphx::operation allocate(const migraphx::shape& s) const
     {
@@ -116,51 +149,116 @@ struct test_allocation_model
 
 struct concat_test_optimization
 {
+    std::unordered_set<std::string> op_non_packed_output = {};
     /// A unique name used to identify the allocate operator
     std::string allocate() const { return "allocate"; }
     /// Return the lowered concat operator
     std::optional<migraphx::op::concat> get_concat(const migraphx::operation& op) const
     {
-        if(op.name() != "eliminate_concat::concat")
+        if(op.name() != "test::concat")
             return std::nullopt;
-        return migraphx::any_cast<concat>(op).op;
+        return migraphx::any_cast<test_concat>(op).op;
     }
 
-    bool supports_non_packed_output(migraphx::instruction_ref) const { return true; }
+    bool supports_non_packed_output(migraphx::instruction_ref ins) const { 
+        return migraphx::contains(op_non_packed_output, ins->name());
+    }
 
     test_allocation_model allocation() const { return test_allocation_model{}; }
 };
 
-static void run_pass(migraphx::module& m)
+static void print_make_op(const migraphx::operation& op)
 {
-    migraphx::run_passes(m,
-                         {migraphx::eliminate_concat{concat_test_optimization{}},
-                          migraphx::dead_code_elimination{}});
+    auto v = op.to_value();
+    if(op.name() == "test::allocate")
+    {
+        auto s = migraphx::from_value<migraphx::shape>(v.at("shape"));
+        std::cout << "make_allocate(" << migraphx::to_string_range(s.lens()) << ")";
+        // auto shape_string = "migraphx::shape{migraphx::shape::" + s.type_string() + ", {" + migraphx::to_string_range(s.lens()) + "}";
+        // if(not s.standard())
+        //     shape_string += "{" + migraphx::to_string_range(s.strides()) + "}";
+        // shape_string += "}";
+        // fields.push_back("{\"shape\", " + shape_string + "}");
+    }
+    else if(op.name() == "simple_op")
+    {
+        std::cout << "simple_op{}";
+    }
+    else
+    {
+        std::vector<std::string> fields;
+        std::cout << "migraphx::make_op(\"" << op.name() << "\"";
+        if(not v.get_object().empty())
+        {
+            for(auto&& x:v)
+            {
+                fields.push_back("{\"" + x.get_key() + "\", " + migraphx::to_string(x.without_key()) + "}");
+            }
+        }
+        if(not fields.empty())
+        {
+            std::cout << ", {" << migraphx::to_string_range(fields) + "}";
+        }
+        std::cout << ")";
+    }
 }
 
-struct allocate
+static void print_module(migraphx::module& m, const std::string& module_name)
 {
-    migraphx::shape s{};
+    std::cout << "migraphx::module " << module_name << ";\n";
+    std::cout << "{\n";
+    const std::unordered_map<std::string, std::string> op_var_name = {
+        {"test::allocate", "a"},
+        {"simple_op", "s"},
+        {"test::concat", "c"},
+        {"test::copy", "cp"},
+        {"load", "l"},
+        {"test::identity", "id"},
+        {"identity", "id"},
+        {"slice", "slice"},
+    };
+    std::unordered_map<migraphx::instruction_ref, std::string> var_names;
+    std::unordered_map<std::string, int> var_counter;
+    auto last = std::prev(m.end());
+    for(auto ins : iterator_for(m))
+    {
+        // m.debug_print(ins);
+        std::vector<std::string> inputs;
+        std::transform(ins->inputs().begin(), ins->inputs().end(), std::back_inserter(inputs), [&](migraphx::instruction_ref i) {
+            return var_names.at(i);
+        });
+        if(ins->name() == "@return")
+        {
+            std::cout << "    " << module_name << ".add_return({" << migraphx::to_string_range(inputs) << "});\n";
+        }
+        else
+        {
+            std::string var_name = op_var_name.at(ins->name()) + std::to_string(++var_counter[ins->name()]);
+            std::cout << "    auto " << var_name << " = "<< module_name << ".add_instruction(";
+            print_make_op(ins->get_operator());
+            for(const auto& in : inputs)
+            {
+                std::cout << ", " << in;
+            }
+            std::cout << ");\n";
+            var_names[ins] = var_name;
+            if(ins == last)
+                std::cout << "    " << module_name << ".add_return({" << var_name << "});\n";
+        }
 
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::pack(f(self.s, "shape"));
     }
+    std::cout << "}\n";
+}
 
-    std::string name() const { return "allocate"; }
-    migraphx::shape compute_shape(const std::vector<migraphx::shape>& inputs) const
-    {
-        migraphx::check_shapes{inputs, *this}.has(0);
-        return s;
-    }
-    migraphx::argument compute(migraphx::context&,
-                               const migraphx::shape& output_shape,
-                               const std::vector<migraphx::argument>&) const
-    {
-        return migraphx::argument{output_shape};
-    }
-};
+static void run_pass(migraphx::module& m, concat_test_optimization opt = {})
+{
+    print_module(m, "m1");
+    migraphx::run_passes(m,
+                         {migraphx::eliminate_concat{opt},
+                          migraphx::dead_code_elimination{}});
+    std::cout << "run_pass(m1);\n";
+    print_module(m, "m2");
+}
 
 struct simple_op
 {
@@ -185,54 +283,54 @@ static migraphx::shape create_shape(Ts... xs)
     return migraphx::shape{migraphx::shape::float_type, {std::size_t(xs)...}};
 }
 
+template <class... Ts>
+static migraphx::operation make_allocate(Ts... xs)
+{
+    return migraphx::make_op("test::allocate", {{"shape", to_value(create_shape(xs...))}});
+}
+
 using load     = migraphx::op::load;
 using identity = migraphx::op::identity;
 
 TEST_CASE(simple)
 {
-    auto create_test_program = [] {
-        migraphx::module m;
-
-        auto a1          = m.add_instruction(allocate{create_shape(1)});
-        auto m1          = m.add_instruction(simple_op{}, a1);
-        auto a2          = m.add_instruction(allocate{create_shape(1)});
-        auto m2          = m.add_instruction(simple_op{}, a2);
-        std::size_t axis = 0;
-        auto a3          = m.add_instruction(allocate{create_shape(2)});
-        m.add_instruction(concat(axis), m1, m2, a3);
-        return m;
-    };
-    auto create_control_program = [] {
-        migraphx::module m;
-
-        auto a1 = m.add_instruction(allocate{create_shape(2)});
-        auto l1 = m.add_instruction(load{create_shape(1), 0}, a1);
-        auto m1 = m.add_instruction(simple_op{}, l1);
-        auto l2 = m.add_instruction(load{create_shape(1), 4}, a1);
-        auto m2 = m.add_instruction(simple_op{}, l2);
-        m.add_instruction(identity{}, a1, m1, m2);
-        return m;
-    };
-
-    auto m1 = create_test_program();
-    auto m2 = create_control_program();
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(1));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto a2 = m1.add_instruction(make_allocate(1));
+        auto s2 = m1.add_instruction(simple_op{}, a2);
+        auto a3 = m1.add_instruction(make_allocate(2));
+        auto c1 = m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 0}}), s1, s2, a3);
+        m1.add_return({c1});
+    }
     run_pass(m1);
+    migraphx::module m2;
+    {
+        auto a1 = m2.add_instruction(make_allocate(2));
+        auto slice1 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), a1);
+        auto s1 = m2.add_instruction(simple_op{}, slice1);
+        auto slice2 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), a1);
+        auto s2 = m2.add_instruction(simple_op{}, slice2);
+        auto id1 = m2.add_instruction(migraphx::make_op("identity"), a1, s1, s2);
+        m2.add_return({id1});
+    }
 
     EXPECT(m1 == m2);
 }
 
-TEST_CASE(negative_axis1)
+TEST_CASE(negative_axis_last_axis)
 {
     auto create_test_program = [] {
         migraphx::module m;
 
-        auto a1          = m.add_instruction(allocate{create_shape(2, 2)});
+        auto a1          = m.add_instruction(make_allocate(2, 2));
         auto m1          = m.add_instruction(simple_op{}, a1);
-        auto a2          = m.add_instruction(allocate{create_shape(2, 2)});
+        auto a2          = m.add_instruction(make_allocate(2, 2));
         auto m2          = m.add_instruction(simple_op{}, a2);
         std::size_t axis = -1;
-        auto a3          = m.add_instruction(allocate{create_shape(4, 2)});
-        m.add_instruction(concat(axis), m1, m2, a3);
+        auto a3          = m.add_instruction(make_allocate(4, 2));
+        m.add_instruction(test_concat(axis), m1, m2, a3);
         return m;
     };
     auto create_control_program = create_test_program;
@@ -244,101 +342,83 @@ TEST_CASE(negative_axis1)
     EXPECT(m1 == m2);
 }
 
-TEST_CASE(negative_axis2)
+TEST_CASE(negative_axis_first_axis)
 {
-    auto create_test_program = [] {
-        migraphx::module m;
-
-        auto a1          = m.add_instruction(allocate{create_shape(2, 2)});
-        auto m1          = m.add_instruction(simple_op{}, a1);
-        auto a2          = m.add_instruction(allocate{create_shape(2, 2)});
-        auto m2          = m.add_instruction(simple_op{}, a2);
-        std::size_t axis = -2;
-        auto a3          = m.add_instruction(allocate{create_shape(4, 2)});
-        m.add_instruction(concat(axis), m1, m2, a3);
-        return m;
-    };
-    auto create_control_program = [] {
-        migraphx::module m;
-
-        auto a1 = m.add_instruction(allocate{create_shape(4, 2)});
-        auto l1 = m.add_instruction(load{create_shape(2, 2), 0}, a1);
-        auto m1 = m.add_instruction(simple_op{}, l1);
-        auto l2 = m.add_instruction(load{create_shape(2, 2), 16}, a1);
-        auto m2 = m.add_instruction(simple_op{}, l2);
-        m.add_instruction(identity{}, a1, m1, m2);
-        return m;
-    };
-
-    auto m1 = create_test_program();
-    auto m2 = create_control_program();
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(2, 2));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto a2 = m1.add_instruction(make_allocate(2, 2));
+        auto s2 = m1.add_instruction(simple_op{}, a2);
+        auto a3 = m1.add_instruction(make_allocate(4, 2));
+        auto c1 = m1.add_instruction(migraphx::make_op("test::concat", {{"axis", -2}}), s1, s2, a3);
+        m1.add_return({c1});
+    }
     run_pass(m1);
+    migraphx::module m2;
+    {
+        auto a1 = m2.add_instruction(make_allocate(4, 2));
+        auto slice1 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), a1);
+        auto s1 = m2.add_instruction(simple_op{}, slice1);
+        auto slice2 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {4}}}), a1);
+        auto s2 = m2.add_instruction(simple_op{}, slice2);
+        auto id1 = m2.add_instruction(migraphx::make_op("identity"), a1, s1, s2);
+        m2.add_return({id1});
+    }
 
     EXPECT(m1 == m2);
 }
 
-TEST_CASE(negative_axis3)
+TEST_CASE(negative_axis_middle_axis_with_empty_axis0)
 {
-    auto create_test_program = [] {
-        migraphx::module m;
-
-        auto a1          = m.add_instruction(allocate{create_shape(1, 2, 2)});
-        auto m1          = m.add_instruction(simple_op{}, a1);
-        auto a2          = m.add_instruction(allocate{create_shape(1, 2, 2)});
-        auto m2          = m.add_instruction(simple_op{}, a2);
-        std::size_t axis = -2;
-        auto a3          = m.add_instruction(allocate{create_shape(1, 4, 2)});
-        m.add_instruction(concat(axis), m1, m2, a3);
-        return m;
-    };
-    auto create_control_program = [] {
-        migraphx::module m;
-
-        auto a1 = m.add_instruction(allocate{create_shape(1, 4, 2)});
-        auto l1 = m.add_instruction(load{create_shape(1, 2, 2), 0}, a1);
-        auto m1 = m.add_instruction(simple_op{}, l1);
-        auto l2 = m.add_instruction(load{create_shape(1, 2, 2), 16}, a1);
-        auto m2 = m.add_instruction(simple_op{}, l2);
-        m.add_instruction(identity{}, a1, m1, m2);
-        return m;
-    };
-
-    auto m1 = create_test_program();
-    auto m2 = create_control_program();
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(1, 2, 2));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto a2 = m1.add_instruction(make_allocate(1, 2, 2));
+        auto s2 = m1.add_instruction(simple_op{}, a2);
+        auto a3 = m1.add_instruction(make_allocate(1, 4, 2));
+        auto c1 = m1.add_instruction(migraphx::make_op("test::concat", {{"axis", -2}}), s1, s2, a3);
+        m1.add_return({c1});
+    }
     run_pass(m1);
+    migraphx::module m2;
+    {
+        auto a1 = m2.add_instruction(make_allocate(1, 4, 2));
+        auto slice1 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}}), a1);
+        auto s1 = m2.add_instruction(simple_op{}, slice1);
+        auto slice2 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {4}}}), a1);
+        auto s2 = m2.add_instruction(simple_op{}, slice2);
+        auto id1 = m2.add_instruction(migraphx::make_op("identity"), a1, s1, s2);
+        m2.add_return({id1});
+    }
 
     EXPECT(m1 == m2);
 }
 
-TEST_CASE(reversed)
+TEST_CASE(reversed_arguments)
 {
-    auto create_test_program = [] {
-        migraphx::module m;
-
-        auto a1          = m.add_instruction(allocate{create_shape(1)});
-        auto m1          = m.add_instruction(simple_op{}, a1);
-        auto a2          = m.add_instruction(allocate{create_shape(1)});
-        auto m2          = m.add_instruction(simple_op{}, a2);
-        std::size_t axis = 0;
-        auto a3          = m.add_instruction(allocate{create_shape(2)});
-        m.add_instruction(concat(axis), m2, m1, a3);
-        return m;
-    };
-    auto create_control_program = [] {
-        migraphx::module m;
-
-        auto a1 = m.add_instruction(allocate{create_shape(2)});
-        auto l1 = m.add_instruction(load{create_shape(1), 4}, a1);
-        auto m1 = m.add_instruction(simple_op{}, l1);
-        auto l2 = m.add_instruction(load{create_shape(1), 0}, a1);
-        auto m2 = m.add_instruction(simple_op{}, l2);
-        m.add_instruction(identity{}, a1, m2, m1);
-        return m;
-    };
-
-    auto m1 = create_test_program();
-    auto m2 = create_control_program();
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(1));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto a2 = m1.add_instruction(make_allocate(1));
+        auto s2 = m1.add_instruction(simple_op{}, a2);
+        auto a3 = m1.add_instruction(make_allocate(2));
+        auto c1 = m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 0}}), s2, s1, a3);
+        m1.add_return({c1});
+    }
     run_pass(m1);
+    migraphx::module m2;
+    {
+        auto a1 = m2.add_instruction(make_allocate(2));
+        auto slice1 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), a1);
+        auto s1 = m2.add_instruction(simple_op{}, slice1);
+        auto slice2 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), a1);
+        auto s2 = m2.add_instruction(simple_op{}, slice2);
+        auto id1 = m2.add_instruction(migraphx::make_op("identity"), a1, s2, s1);
+        m2.add_return({id1});
+    }
 
     EXPECT(m1 == m2);
 }
@@ -346,21 +426,21 @@ TEST_CASE(reversed)
 TEST_CASE(nested)
 {
     auto concat_test_program = [](auto& m) {
-        auto a1          = m.add_instruction(allocate{create_shape(1)});
+        auto a1          = m.add_instruction(make_allocate(1));
         auto m1          = m.add_instruction(simple_op{}, a1);
-        auto a2          = m.add_instruction(allocate{create_shape(1)});
+        auto a2          = m.add_instruction(make_allocate(1));
         auto m2          = m.add_instruction(simple_op{}, a2);
         std::size_t axis = 0;
-        auto a3          = m.add_instruction(allocate{create_shape(2)});
-        return m.add_instruction(concat(axis), m1, m2, a3);
+        auto a3          = m.add_instruction(make_allocate(2));
+        return m.add_instruction(test_concat(axis), m1, m2, a3);
     };
     auto create_test_program = [&] {
         migraphx::module m;
         auto concat1     = concat_test_program(m);
         auto concat2     = concat_test_program(m);
         std::size_t axis = 0;
-        auto a1          = m.add_instruction(allocate{create_shape(4)});
-        m.add_instruction(concat(axis), concat1, concat2, a1);
+        auto a1          = m.add_instruction(make_allocate(4));
+        m.add_instruction(test_concat(axis), concat1, concat2, a1);
         return m;
     };
     auto concat_control_program = [](auto& m, auto a1) {
@@ -372,7 +452,7 @@ TEST_CASE(nested)
     };
     auto create_control_program = [&] {
         migraphx::module m;
-        auto a1      = m.add_instruction(allocate{create_shape(4)});
+        auto a1      = m.add_instruction(make_allocate(4));
         auto l1      = m.add_instruction(load{create_shape(2), 0}, a1);
         auto concat1 = concat_control_program(m, l1);
         auto l2      = m.add_instruction(load{create_shape(2), 8}, a1);
@@ -388,89 +468,90 @@ TEST_CASE(nested)
     EXPECT(m1 == m2);
 }
 
-TEST_CASE(basic)
+TEST_CASE(concat_axis1_with_empty_axis0)
 {
-    auto create_test_program = [] {
-        migraphx::module m;
-        auto a1 =
-            m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {1, 2, 8, 8}}});
-        auto m1 = m.add_instruction(simple_op{}, a1);
-        auto a2 =
-            m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {1, 3, 8, 8}}});
-        auto m2 = m.add_instruction(simple_op{}, a2);
-        auto a3 =
-            m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {1, 5, 8, 8}}});
-        auto p3          = m.add_instruction(simple_op{}, a3);
-        std::size_t axis = 1;
-        auto a4          = m.add_instruction(
-            allocate{migraphx::shape{migraphx::shape::float_type, {1, 10, 8, 8}}});
-        m.add_instruction(concat(axis), m1, m2, p3, a4);
-        return m;
-    };
-    auto create_control_program = [] {
-        migraphx::module m;
-        auto a1 = m.add_instruction(
-            allocate{migraphx::shape{migraphx::shape::float_type, {1, 10, 8, 8}}});
-        auto l1 = m.add_instruction(
-            load{migraphx::shape{migraphx::shape::float_type, {1, 2, 8, 8}}, 0}, {a1});
-        auto m1 = m.add_instruction(simple_op{}, l1);
-        auto l2 = m.add_instruction(
-            load{migraphx::shape{migraphx::shape::float_type, {1, 3, 8, 8}}, 512}, {a1});
-        auto m2 = m.add_instruction(simple_op{}, l2);
-        auto l3 = m.add_instruction(
-            load{migraphx::shape{migraphx::shape::float_type, {1, 5, 8, 8}}, 1280}, {a1});
-        auto p3 = m.add_instruction(simple_op{}, l3);
-        m.add_instruction(identity{}, {a1, m1, m2, p3});
-        return m;
-    };
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(1, 2, 8, 8));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto a2 = m1.add_instruction(make_allocate(1, 3, 8, 8));
+        auto s2 = m1.add_instruction(simple_op{}, a2);
+        auto a3 = m1.add_instruction(make_allocate(1, 5, 8, 8));
+        auto s3 = m1.add_instruction(simple_op{}, a3);
+        auto a4 = m1.add_instruction(make_allocate(1, 10, 8, 8));
+        auto c1 = m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 1}}), s1, s2, s3, a4);
+        m1.add_return({c1});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto a1 = m2.add_instruction(make_allocate(1, 10, 8, 8));
+        auto slice1 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}}), a1);
+        auto s1 = m2.add_instruction(simple_op{}, slice1);
+        auto slice2 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {5}}}), a1);
+        auto s2 = m2.add_instruction(simple_op{}, slice2);
+        auto slice3 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {1}}, {"starts", {5}}, {"ends", {10}}}), a1);
+        auto s3 = m2.add_instruction(simple_op{}, slice3);
+        auto id1 = m2.add_instruction(migraphx::make_op("identity"), a1, s1, s2, s3);
+        m2.add_return({id1});
+    }
 
-    auto m1 = create_test_program();
-    auto m2 = create_control_program();
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(non_packed_output_not_supported)
+{
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(2, 2, 8, 8));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto a2 = m1.add_instruction(make_allocate(2, 3, 8, 8));
+        auto s2 = m1.add_instruction(simple_op{}, a2);
+        auto a3 = m1.add_instruction(make_allocate(2, 5, 8, 8));
+        auto s3 = m1.add_instruction(simple_op{}, a3);
+        auto a4 = m1.add_instruction(make_allocate(2, 10, 8, 8));
+        auto c1 = m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 1}}), s1, s2, s3, a4);
+        m1.add_return({c1});
+    }
+    migraphx::module m2 = m1;
     run_pass(m1);
 
     EXPECT(m1 == m2);
 }
 
-TEST_CASE(wont_work)
+TEST_CASE(non_packed_output_supported)
 {
-    auto create_test_program = [] {
-        migraphx::module m;
-        auto a1 =
-            m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 2, 8, 8}}});
-        auto m1 = m.add_instruction(simple_op{}, a1);
-        auto a2 =
-            m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 3, 8, 8}}});
-        auto m2 = m.add_instruction(simple_op{}, a2);
-        auto a3 =
-            m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 5, 8, 8}}});
-        auto p3          = m.add_instruction(simple_op{}, a3);
-        std::size_t axis = 1;
-        auto a4          = m.add_instruction(
-            allocate{migraphx::shape{migraphx::shape::float_type, {2, 10, 8, 8}}});
-        m.add_instruction(concat(axis), m1, m2, p3, a4);
-        return m;
-    };
-    auto create_control_program = [] {
-        migraphx::module m;
-        auto a1 =
-            m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 2, 8, 8}}});
-        auto m1 = m.add_instruction(simple_op{}, a1);
-        auto a2 =
-            m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 3, 8, 8}}});
-        auto m2 = m.add_instruction(simple_op{}, a2);
-        auto a3 =
-            m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 5, 8, 8}}});
-        auto p3          = m.add_instruction(simple_op{}, a3);
-        std::size_t axis = 1;
-        auto a4          = m.add_instruction(
-            allocate{migraphx::shape{migraphx::shape::float_type, {2, 10, 8, 8}}});
-        m.add_instruction(concat(axis), m1, m2, p3, a4);
-        return m;
-    };
-
-    auto m1 = create_test_program();
-    auto m2 = create_control_program();
-    run_pass(m1);
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(2, 2, 8, 8));
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto a2 = m1.add_instruction(make_allocate(2, 3, 8, 8));
+        auto s2 = m1.add_instruction(simple_op{}, a2);
+        auto a3 = m1.add_instruction(make_allocate(2, 5, 8, 8));
+        auto s3 = m1.add_instruction(simple_op{}, a3);
+        auto a4 = m1.add_instruction(make_allocate(2, 10, 8, 8));
+        auto c1 = m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 1}}), s1, s2, s3, a4);
+        m1.add_return({c1});
+    }
+    run_pass(m1, {.op_non_packed_output = {"simple_op"}});
+    migraphx::module m2;
+    {
+        auto a1 = m2.add_instruction(make_allocate(2, 10, 8, 8));
+        auto a2 = m2.add_instruction(make_allocate(2, 2, 8, 8));
+        auto slice1 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}}), a1);
+        auto s1 = m2.add_instruction(simple_op{}, a2);
+        auto cp1 = m2.add_instruction(migraphx::make_op("test::copy"), s1, slice1);
+        auto a3 = m2.add_instruction(make_allocate(2, 3, 8, 8));
+        auto slice2 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {5}}}), a1);
+        auto s2 = m2.add_instruction(simple_op{}, a3);
+        auto cp2 = m2.add_instruction(migraphx::make_op("test::copy"), s2, slice2);
+        auto a4 = m2.add_instruction(make_allocate(2, 5, 8, 8));
+        auto slice3 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {1}}, {"starts", {5}}, {"ends", {10}}}), a1);
+        auto s3 = m2.add_instruction(simple_op{}, a4);
+        auto cp3 = m2.add_instruction(migraphx::make_op("test::copy"), s3, slice3);
+        auto id1 = m2.add_instruction(migraphx::make_op("identity"), a1, cp1, cp2, cp3);
+        m2.add_return({id1});
+    }
 
     EXPECT(m1 == m2);
 }

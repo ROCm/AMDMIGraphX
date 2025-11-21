@@ -41,9 +41,9 @@ namespace op {
 struct cache_parameters
 {
     std::size_t batch_size              = 0; // Batch size used by input
-    std::size_t sequence_length         = 0; // Sequence length used by input
+    std::size_t sequence_length         = 0; // Sequence length of new tokens being processed
     std::size_t head_size               = 0; // Head size
-    std::size_t seqlen_present_kv_cache = 0; // Sequence length of present kv-cache
+    std::size_t seqlen_present_kv_cache = 0; // Total sequence length of present kv-cache buffer
 };
 
 struct concat_past_present
@@ -93,7 +93,10 @@ struct concat_past_present
         const std::size_t past_buffer_sequence_length    = params.seqlen_present_kv_cache;
         const std::size_t present_buffer_sequence_length = past_buffer_sequence_length;
 
-        const bool is_prompt                    = sequence_length != 1;
+        // Support prefix caching: determine if we have cached tokens to preserve
+        // For decode (seq_len=1): use seqlens_k to know where to append
+        // For prefill (seq_len>1): check if seqlens_k indicates cached prefix
+        // For initial prefill: seqlens_k=0 or past_buffer_seq_len, no cache to preserve
         const std::size_t packed_batch_stride   = kv_num_heads * sequence_length * head_size;
         const std::size_t kv_input_chunk_length = sequence_length * head_size; // L x H
         const std::size_t present_buff_chunk_length =
@@ -104,10 +107,22 @@ struct concat_past_present
         par_for(loop_len, [&](const auto i) {
             const std::size_t batch_index = i / kv_num_heads;
             const std::size_t head_index  = i % kv_num_heads;
-            const std::size_t past_seqlen =
-                sequence_length == 1 ? seqlens_k[batch_index] : past_buffer_sequence_length;
-            const std::size_t past_chunk_length = is_prompt ? 0 : past_seqlen * head_size;
-            auto current                        = present_key + packed_batch_stride * batch_index +
+            
+            // Use seqlens_k to determine actual past sequence length for this batch
+            // This supports:
+            // - Decode mode: seqlens_k[batch] = number of existing cached tokens
+            // - Prefill with prefix cache: seqlens_k[batch] = prefix length to preserve
+            // - Initial prefill: seqlens_k[batch] = 0 or past_buffer_seq_len (no preservation)
+            const std::size_t past_seqlen = seqlens_k[batch_index];
+            
+            // Only preserve past cache if past_seqlen is in valid range (0, past_buffer_seq_len)
+            // If past_seqlen == 0: no cache to preserve (initial prefill)
+            // If past_seqlen == past_buffer_seq_len: initial prefill, overwrite everything
+            const bool is_initial_prefill = (sequence_length > 1) && 
+                                           (past_seqlen == 0 || past_seqlen == past_buffer_sequence_length);
+            const std::size_t past_chunk_length = is_initial_prefill ? 0 : past_seqlen * head_size;
+            
+            auto current = present_key + packed_batch_stride * batch_index +
                            kv_input_chunk_length * head_index;
             concat_state_chunk(current,
                                past_key,

@@ -200,17 +200,40 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         auto mul = info.add_instruction(make_op("mul"), gemm1, scale_ins);
 
         instruction_ref seq_range;
+        instruction_ref adjusted_seq_range;
         if(sequence_length > 1)
         {
+            // Create range [0, 1, 2, ..., sequence_length-1] for the new tokens being processed
             std::vector<int> seq_range_vec(sequence_length);
             std::iota(seq_range_vec.begin(), seq_range_vec.end(), 0);
             shape seq_range_s{past_sl->get_shape().type(), {sequence_length}};
             seq_range = info.add_literal(seq_range_s, seq_range_vec);
             seq_range = info.add_instruction(make_op("reshape", {{"dims", {sequence_length, 1}}}),
                                              seq_range);
-            seq_range =
-                info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), seq_range);
-            auto causal_mask = info.add_instruction(make_op("greater"), bc_range, seq_range);
+            
+            // CRITICAL for prefix caching: Offset seq_range by past_sl to account for cached prefix
+            // Without this, causal mask assumes new tokens start at position 0, but they actually
+            // start at position past_sl when there's a cached prefix.
+            // 
+            // Example with prefix caching:
+            //   - Cached prefix: 7 tokens (positions 0-6)
+            //   - New tokens: 3 tokens (positions 7-9)
+            //   - seq_range before offset: [0, 1, 2]
+            //   - seq_range after offset: [7, 8, 9]
+            //   - Causal mask will now correctly allow:
+            //     * Token at pos 7 to attend to [0-7] (prefix + itself)
+            //     * Token at pos 8 to attend to [0-8] (prefix + prev token + itself)
+            //     * Token at pos 9 to attend to [0-9] (all previous)
+            auto bc_past_sl_for_range = info.add_instruction(
+                make_op("multibroadcast", {{"out_lens", {sequence_length, 1}}}), past_sl);
+            adjusted_seq_range = info.add_instruction(make_op("add"), seq_range, bc_past_sl_for_range);
+            
+            adjusted_seq_range =
+                info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), adjusted_seq_range);
+            
+            // Mask positions where: KV_position > Query_position
+            // This creates proper causal masking that respects the cached prefix
+            auto causal_mask = info.add_instruction(make_op("greater"), bc_range, adjusted_seq_range);
             causal_mask      = info.add_instruction(
                 make_op("convert", {{"target_type", shape::bool_type}}), causal_mask);
             mul = info.add_instruction(make_op("where"), causal_mask, ninf, mul);
@@ -222,14 +245,21 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
             info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), bc_past_sl);
         if(local_window_size > 0)
         {
+            // Window attention with prefix caching support
+            // The window should slide based on the absolute position (including cached prefix)
+            // not just the position within the new tokens
             bool is_prompt       = sequence_length > 1;
             auto window_size_lit = info.add_literal(
                 migraphx::literal{migraphx::shape{past_sl->get_shape().type(), {1}},
                                   {is_prompt ? -local_window_size : -(local_window_size + 1)}});
             window_size_lit = info.add_instruction(
                 migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}), window_size_lit);
+            
+            // For prefix caching with prompts: use adjusted_seq_range (includes prefix offset)
+            // For decode: use mask_comp (which is based on past_sl)
+            // This ensures the window is computed relative to absolute positions, not relative positions
             auto window_comp = info.add_instruction(
-                migraphx::make_op("add"), is_prompt ? seq_range : mask_comp, window_size_lit);
+                migraphx::make_op("add"), is_prompt ? adjusted_seq_range : mask_comp, window_size_lit);
             auto window_mask =
                 info.add_instruction(migraphx::make_op("greater"), window_comp, bc_range);
             window_mask = info.add_instruction(

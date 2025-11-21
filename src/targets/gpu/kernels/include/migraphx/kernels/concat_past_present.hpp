@@ -65,7 +65,11 @@ update_cache(const Present present, SeqLensK seqlens_k, Cache cache, Params para
     const index_int past_buffer_sequence_length    = params.seqlen_present_kv_cache;
     const index_int present_buffer_sequence_length = past_buffer_sequence_length;
     const index_int kv_num_heads                   = params.kv_num_heads;
-    const bool is_prompt                           = sequence_length != 1;
+    
+    // Support prefix caching: determine if we have cached tokens to preserve
+    // For decode (seq_len=1): use seqlens_k to know where to append
+    // For prefill (seq_len>1): check if seqlens_k indicates cached prefix
+    // For initial prefill: seqlens_k=0 or past_buffer_seq_len, no cache to preserve
     const index_int packed_batch_stride            = kv_num_heads * sequence_length * head_size;
     const index_int kv_input_chunk_length          = sequence_length * head_size;           // L x H
     const index_int present_buff_chunk_length = present_buffer_sequence_length * head_size; // T x H
@@ -75,12 +79,22 @@ update_cache(const Present present, SeqLensK seqlens_k, Cache cache, Params para
     const index_int inner_i  = idx % (sequence_length * head_size);
     if(i < loop_len)
     {
-        const index_int batch_index       = i / kv_num_heads;
-        const index_int head_index        = i % kv_num_heads;
-        const index_int past_seqlen       = sequence_length == 1
-                                                ? static_cast<index_int>(seqlens_k[batch_index])
-                                                : past_buffer_sequence_length;
-        const index_int past_chunk_length = is_prompt ? 0 : past_seqlen * head_size;
+        const index_int batch_index = i / kv_num_heads;
+        const index_int head_index  = i % kv_num_heads;
+        
+        // Use seqlens_k to determine actual past sequence length for this batch
+        // This supports:
+        // - Decode mode: seqlens_k[batch] = number of existing cached tokens
+        // - Prefill with prefix cache: seqlens_k[batch] = prefix length to preserve
+        // - Initial prefill: seqlens_k[batch] = 0 or past_buffer_seq_len (no preservation)
+        const index_int past_seqlen = static_cast<index_int>(seqlens_k[batch_index]);
+        
+        // Only preserve past cache if past_seqlen is in valid range (0, past_buffer_seq_len)
+        // If past_seqlen == 0: no cache to preserve (initial prefill)
+        // If past_seqlen == past_buffer_seq_len: initial prefill, overwrite everything
+        const bool is_initial_prefill = (sequence_length > 1) && 
+                                       (past_seqlen == 0 || past_seqlen == past_buffer_sequence_length);
+        const index_int past_chunk_length = is_initial_prefill ? 0 : past_seqlen * head_size;
 
         auto current =
             present + packed_batch_stride * batch_index + kv_input_chunk_length * head_index;

@@ -120,11 +120,9 @@ struct concat_optimizer
 
 bool is_packed(instruction_ref ins, std::size_t axis)
 {
-    auto alens = ins->get_shape().lens();
+    auto alens  = ins->get_shape().lens();
     alens[axis] = 1;
-    return shape{ins->get_shape().type(),
-                 alens,
-                 ins->get_shape().strides()}.packed();
+    return shape{ins->get_shape().type(), alens, ins->get_shape().strides()}.packed();
 }
 
 } // namespace

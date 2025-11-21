@@ -57,7 +57,7 @@ Example output:
 
 .. image:: ../data/roctx1.png
 
-Hotspot kerel timing information:
+Hotspot kernel timing information:
 
 .. image:: ../data/roctx2.png
 

@@ -120,12 +120,17 @@ struct concat_optimizer
 
 bool is_packed(instruction_ref ins, std::size_t axis)
 {
-    auto astride = ins->get_shape().strides()[axis];
-    return migraphx::equal(ins->get_shape().lens(), ins->get_shape().strides(), [&](std::size_t len, std::size_t stride) {
-        if(stride < astride)
-            return true;
-        return len == 1;
-    });
+    auto alens = ins->get_shape().lens();
+    alens[axis] = 1;
+    return shape{ins->get_shape().type(),
+                 alens,
+                 ins->get_shape().strides()}.packed();
+    // auto astride = ins->get_shape().strides()[axis];
+    // return migraphx::equal(ins->get_shape().lens(), ins->get_shape().strides(), [&](std::size_t len, std::size_t stride) {
+    //     if(stride < astride)
+    //         return true;
+    //     return len == 1;
+    // });
 }
 
 } // namespace

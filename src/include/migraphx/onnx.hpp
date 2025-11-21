@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -76,7 +76,7 @@ MIGRAPHX_ONNX_EXPORT program parse_onnx_buffer(const void* data,
                                                std::size_t size,
                                                const onnx_options& options);
 
-MIGRAPHX_ONNX_EXPORT std::vector<std::string> get_onnx_operators();
+MIGRAPHX_ONNX_EXPORT const std::vector<std::string>& get_onnx_operators();
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

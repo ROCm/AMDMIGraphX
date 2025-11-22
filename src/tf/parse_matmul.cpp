@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -64,7 +64,8 @@ struct parse_matmul : op_parser<parse_matmul>
             transb = info.attributes.at("adj_y").b();
         }
 
-        std::vector<int64_t> perm(args[0]->get_shape().lens().size());
+        size_t ndims = args[0]->get_shape().ndim();
+        std::vector<int64_t> perm(ndims);
         std::iota(perm.begin(), perm.end(), int64_t{0});
         // swap the last two elements
         std::iter_swap(perm.end() - 1, perm.end() - 2);

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -38,6 +38,9 @@ struct tf_options
     unsigned int batch_size = 1;
     /// Explicitly specify the dims of an input
     std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims = {};
+    /// Explicitly specify dynamic dims of an input (if both map_input_dims and map_dyn_input_dims
+    /// set parser throws)
+    std::unordered_map<std::string, std::vector<shape::dynamic_dimension>> map_dyn_input_dims = {};
     std::vector<std::string> output_node_names                               = {};
 };
 

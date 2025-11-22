@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -48,7 +48,6 @@ struct parse_batchnorm : op_parser<parse_batchnorm>
             epsilon = info.attributes.at("epsilon").f();
         }
 
-        auto x_lens = args[0]->get_shape().lens();
         auto x_type = args[0]->get_shape().type();
 
         // unsqueeze tensors of shape (C) to broadcast correctly

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,7 +31,7 @@ TEST_CASE(squeeze_test)
 
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 1}});
-    mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {0, 3}}}), l0);
+    mm->add_instruction(migraphx::make_op("squeeze"), l0);
     auto prog = optimize_tf("squeeze_test.pb", false);
 
     EXPECT(p == prog);

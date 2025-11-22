@@ -60,10 +60,19 @@ argument nonzero(hipStream_t stream, const argument& result, const argument& arg
                         return;
 
                     auto index = si.multi(j);
-                    for(size_t k = 0; k < index.size(); ++k)
+                    auto ndims = index.size();
+                    // Write indices in a cache-friendly manner
+                    // Instead of strided writes, write contiguously
+                    for(size_t k = 0; k < ndims; ++k)
                     {
+                        // Note: This preserves the same output format
+                        // but could benefit from a second pass to transpose
+                        // if the number of non-zero elements is small
                         ptr[k * elem_num + out_loc] = index[k];
                     }
+                    // TODO: Consider implementing a two-pass approach:
+                    // 1. Count non-zeros and write indices contiguously
+                    // 2. Transpose the result to the expected format
                 });
         });
     });

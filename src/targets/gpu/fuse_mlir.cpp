@@ -1457,7 +1457,17 @@ struct find_channel_slice_convolution
         {
             auto v      = output->get_operator().to_value();
             auto starts = v["starts"].to_vector<std::size_t>();
-            auto i      = starts.front() / output->get_shape().lens()[1]; // note integer truncation
+            if(starts.empty())
+            {
+                MIGRAPHX_THROW("slice operator missing 'starts' parameter");
+            }
+            auto output_shape_lens = output->get_shape().lens();
+            if(output_shape_lens.size() < 2)
+            {
+                MIGRAPHX_THROW("slice operator output shape must have at least 2 dimensions, got " + 
+                               std::to_string(output_shape_lens.size()));
+            }
+            auto i      = starts.front() / output_shape_lens[1]; // note integer truncation
             auto s      = mpm.get_module().insert_instruction(
                 output,
                 make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}),

@@ -222,6 +222,7 @@ static void print_module(migraphx::module& m, const std::string& module_name)
         {"test::identity", "id"},
         {"identity", "id"},
         {"slice", "slice"},
+        {"multibroadcast", "broadcast"},
     };
     std::unordered_map<migraphx::instruction_ref, std::string> var_names;
     std::unordered_map<std::string, int> var_counter;
@@ -260,10 +261,10 @@ static void print_module(migraphx::module& m, const std::string& module_name)
 
 static void run_pass(migraphx::module& m, concat_test_optimization opt = {})
 {
-    // print_module(m, "m1");
+    print_module(m, "m1");
     migraphx::run_passes(m, {migraphx::eliminate_concat{opt}, migraphx::dead_code_elimination{}});
-    // std::cout << "run_pass(m1);\n";
-    // print_module(m, "m2");
+    std::cout << "run_pass(m1);\n";
+    print_module(m, "m2");
 }
 
 struct simple_op
@@ -608,6 +609,36 @@ TEST_CASE(non_packed_output_supported)
         m2.add_return({id1});
     }
 
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(one_copy_with_one_broadcasted_input)
+{
+    migraphx::module m1;
+    {
+        auto a1 = m1.add_instruction(make_allocate(4, 16, 16)); 
+        auto s1 = m1.add_instruction(simple_op{}, a1);
+        auto a2 = m1.add_instruction(make_allocate(2, 16, 1));
+        auto s2 = m1.add_instruction(simple_op{}, a2);
+        auto s2b = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 16, 16}}}), s2);
+        auto a3 = m1.add_instruction(make_allocate(6, 16, 16));
+        auto c1 = m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 0}}), s1, s2b, a3);
+        m1.add_return({c1});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto a1 = m2.add_instruction(make_allocate(6, 16, 16));
+        auto slice1 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {6}}}), a1);
+        auto slice2 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}), a1);
+        auto s1 = m2.add_instruction(simple_op{}, slice2);
+        auto a2 = m2.add_instruction(make_allocate(2, 16, 1));
+        auto s2 = m2.add_instruction(simple_op{}, a2);
+        auto a2b = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 16, 16}}, {"out_dyn_dims", {}}}), s2);
+        auto cp1 = m2.add_instruction(migraphx::make_op("test::copy"), a2b, slice1);
+        auto id1 = m2.add_instruction(migraphx::make_op("identity"), a1, s1, cp1);
+        m2.add_return({id1});
+    }
     EXPECT(m1.sort() == m2.sort());
 }
 

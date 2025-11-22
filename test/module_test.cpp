@@ -1391,7 +1391,7 @@ TEST_CASE(pathological_dfs_graph_sort)
     EXPECT(is_sorted(m));
 }
 
-TEST_CASE(localized_sort)
+TEST_CASE(hoist_external_inputs)
 {
     migraphx::shape s1{migraphx::shape::float_type, {2, 3}};
     migraphx::shape s2{migraphx::shape::float_type, {3, 4}};
@@ -1416,8 +1416,8 @@ TEST_CASE(localized_sort)
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dot2);
     mm->add_return({add, transpose});
 
-    // Perform localized sort between dot1 and dot2
-    mm->localized_sort(dot1, dot2);
+    // Hoist external inputs between dot1 and dot2
+    mm->hoist_external_inputs(dot1, dot2);
 
     // Verify the module is still topologically sorted overall
     EXPECT(is_sorted(*mm));
@@ -1435,6 +1435,170 @@ TEST_CASE(localized_sort)
 
     // Verify transpose remains after dot2
     EXPECT(std::distance(mm->begin(), dot2) < std::distance(mm->begin(), transpose));
+}
+
+TEST_CASE(hoist_external_inputs_no_movement_needed)
+{
+    // Test where external dependencies are already before the fusion chain
+    migraphx::shape s1{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape s2{migraphx::shape::float_type, {3, 4}};
+    migraphx::shape s3{migraphx::shape::float_type, {2, 4}};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto a = mm->add_parameter("a", s1);
+    auto b = mm->add_parameter("b", s2);
+    auto c = mm->add_parameter("c", s3);
+
+    // External operations already positioned before the fusion chain
+    auto external1 = add_pointwise(p, "main:pointwise0", {a}, single_pointwise("relu"));
+    auto external2 = add_pointwise(p, "main:pointwise1", {b}, single_pointwise("tanh"));
+    auto external3 = add_pointwise(p, "main:pointwise2", {c}, single_pointwise("tanh"));
+
+    // Fusion chain
+    auto dot1 = mm->add_instruction(migraphx::make_op("dot"), external1, external2);
+    auto add  = add_pointwise(p, "main:pointwise3", {dot1, external3}, single_pointwise("add"));
+
+    mm->add_return({add});
+
+    // Record positions before hoist_external_inputs
+    auto dot1_pos_before = std::distance(mm->begin(), dot1);
+    auto add_pos_before  = std::distance(mm->begin(), add);
+
+    mm->hoist_external_inputs(dot1, add);
+
+    // Verify positions haven't changed (nothing needed to move)
+    EXPECT(std::distance(mm->begin(), dot1) == dot1_pos_before);
+    EXPECT(std::distance(mm->begin(), add) == add_pos_before);
+    EXPECT(is_sorted(*mm));
+}
+
+TEST_CASE(hoist_external_inputs_multiple_external_branches)
+{
+    // Test with multiple independent external branches that need to be moved
+    migraphx::shape s1{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape s2{migraphx::shape::float_type, {3, 4}};
+    migraphx::shape s3{migraphx::shape::float_type, {4, 3}};
+    migraphx::shape s4{migraphx::shape::float_type, {2, 4}};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto a = mm->add_parameter("a", s1);
+    auto b = mm->add_parameter("b", s2);
+    auto c = mm->add_parameter("c", s4);
+    auto d = mm->add_parameter("d", s3);
+
+    // Start of fusion chain
+    auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b); // {2, 4}
+
+    // External branch 1
+    auto ext1 = add_pointwise(p, "main:pointwise0", {c}, single_pointwise("relu"));   // {2, 4}
+    auto ext2 = add_pointwise(p, "main:pointwise1", {ext1}, single_pointwise("neg")); // {2, 4}
+
+    // External branch 2
+    auto ext3 = add_pointwise(p, "main:pointwise2", {d}, single_pointwise("tanh"));   // {4, 3}
+    auto ext4 = add_pointwise(p, "main:pointwise3", {ext3}, single_pointwise("abs")); // {4, 3}
+
+    // Continue fusion chain using external branches
+    auto add1 =
+        add_pointwise(p, "main:pointwise4", {dot1, ext2}, single_pointwise("add")); // {2, 4}
+    auto dot2 =
+        mm->add_instruction(migraphx::make_op("dot"), add1, ext4); // {2, 4} x {4, 3} = {2, 3}
+
+    mm->add_return({dot2});
+
+    mm->hoist_external_inputs(dot1, dot2);
+
+    EXPECT(is_sorted(*mm));
+
+    // Verify all external operations moved before dot1
+    EXPECT(std::distance(mm->begin(), ext1) < std::distance(mm->begin(), dot1));
+    EXPECT(std::distance(mm->begin(), ext2) < std::distance(mm->begin(), dot1));
+    EXPECT(std::distance(mm->begin(), ext3) < std::distance(mm->begin(), dot1));
+    EXPECT(std::distance(mm->begin(), ext4) < std::distance(mm->begin(), dot1));
+
+    // Verify fusion chain order preserved
+    EXPECT(std::distance(mm->begin(), dot1) < std::distance(mm->begin(), add1));
+    EXPECT(std::distance(mm->begin(), add1) < std::distance(mm->begin(), dot2));
+}
+
+TEST_CASE(hoist_external_inputs_long_fusion_chain)
+{
+    // Test with a longer fusion chain
+    migraphx::shape s{migraphx::shape::float_type, {4, 4}};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto a = mm->add_parameter("a", s);
+    auto b = mm->add_parameter("b", s);
+    auto c = mm->add_parameter("c", s);
+    auto d = mm->add_parameter("d", s);
+
+    // Long fusion chain
+    auto op1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
+
+    // External operations interspersed
+    auto ext1 = add_pointwise(p, "main:pointwise0", {d}, single_pointwise("exp"));
+
+    auto op2 = add_pointwise(p, "main:pointwise1", {op1, c}, single_pointwise("add"));
+
+    auto ext2 = add_pointwise(p, "main:pointwise2", {ext1}, single_pointwise("log"));
+
+    auto op3 = add_pointwise(p, "main:pointwise3", {op2}, single_pointwise("relu"));
+
+    auto ext3 = add_pointwise(p, "main:pointwise4", {ext2}, single_pointwise("abs"));
+
+    auto op4 = add_pointwise(p, "main:pointwise5", {op3}, single_pointwise("tanh"));
+    auto op5 = mm->add_instruction(migraphx::make_op("dot"), op4, ext3);
+
+    mm->add_return({op5});
+
+    mm->hoist_external_inputs(op1, op5);
+
+    EXPECT(is_sorted(*mm));
+
+    // All external operations moved before op1
+    EXPECT(std::distance(mm->begin(), ext1) < std::distance(mm->begin(), op1));
+    EXPECT(std::distance(mm->begin(), ext2) < std::distance(mm->begin(), op1));
+    EXPECT(std::distance(mm->begin(), ext3) < std::distance(mm->begin(), op1));
+
+    // Fusion chain order preserved
+    EXPECT(std::distance(mm->begin(), op1) < std::distance(mm->begin(), op2));
+    EXPECT(std::distance(mm->begin(), op2) < std::distance(mm->begin(), op3));
+    EXPECT(std::distance(mm->begin(), op3) < std::distance(mm->begin(), op4));
+    EXPECT(std::distance(mm->begin(), op4) < std::distance(mm->begin(), op5));
+}
+
+TEST_CASE(hoist_external_inputs_adjacent_instructions)
+{
+    // Test edge case where start and end are adjacent
+    migraphx::shape s1{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape s2{migraphx::shape::float_type, {3, 4}};
+    migraphx::shape s3{migraphx::shape::float_type, {4, 5}};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto a = mm->add_parameter("a", s1); // {2, 3}
+    auto b = mm->add_parameter("b", s2); // {3, 4}
+    auto c = mm->add_parameter("c", s3); // {4, 5}
+
+    auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b); // {2, 3} x {3, 4} = {2, 4}
+
+    // External operation between dot1 and dot2
+    auto external = add_pointwise(p, "main:pointwise0", {c}, single_pointwise("relu")); // {4, 5}
+
+    auto dot2 =
+        mm->add_instruction(migraphx::make_op("dot"), dot1, external); // {2, 4} x {4, 5} = {2, 5}
+
+    mm->add_return({dot2});
+
+    mm->hoist_external_inputs(dot1, dot2);
+
+    EXPECT(is_sorted(*mm));
+
+    // External should be moved before dot1
+    EXPECT(std::distance(mm->begin(), external) < std::distance(mm->begin(), dot1));
+    EXPECT(std::distance(mm->begin(), dot1) < std::distance(mm->begin(), dot2));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

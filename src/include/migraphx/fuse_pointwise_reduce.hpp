@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -35,7 +35,7 @@ struct module_pass_manager;
 
 struct MIGRAPHX_EXPORT fuse_pointwise_reduce
 {
-    std::size_t split_size = 32768;
+    std::size_t split_size = 65536;
     std::string name() const { return "fuse_pointwise_reduce"; }
     void apply(module_pass_manager& mpm) const;
 };

@@ -89,6 +89,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_REWRITE_LRN)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_FULL_DYNAMIC)
 
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
@@ -179,7 +180,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     // clang-format off
     return
     {
-        split_single_dyn_dim{},
+        enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), split_single_dyn_dim{}),
         dead_code_elimination{},
         simplify_dyn_ops{},
         dead_code_elimination{},
@@ -189,7 +190,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         enable_pass(not gpu::gfx_has_fp8ocp_intrinsics() and gpu::gfx_has_fp8fnuz_intrinsics(), fp8_ocp_to_fnuz{}),
         enable_pass(not gpu::gfx_has_fp8ocp_intrinsics() and gpu::gfx_has_fp8fnuz_intrinsics(), dead_code_elimination{}),
-        simplify_qdq{},
+        simplify_qdq{.use_mx_quant=gpu::gfx_has_mx_intrinsics()},
         enable_pass(not mlir_enabled(), rewrite_quantization{}),
         dead_code_elimination{},
         rewrite_rnn{},
@@ -204,7 +205,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         insert_pad{{"convolution"}},
         dead_code_elimination{},
         inline_module{},
-        rewrite_pooling{.rewrite_lrn = enabled(MIGRAPHX_REWRITE_LRN{})},
+        enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), rewrite_pooling{.rewrite_lrn = (not MIGRAPHX_USE_MIOPEN or enabled(MIGRAPHX_REWRITE_LRN{}))}),
         dead_code_elimination{},
         rewrite_gelu{options.fast_math},
         optimize_module{},
@@ -224,16 +225,16 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         simplify_reshapes{.enable_op_shape_transform_op=true},
         dead_code_elimination{},
-        enable_pass(mlir_attention_enabled(&ctx), fuse_attention{}),
+        enable_pass(mlir_enabled(), fuse_attention{mlir_attention_enabled(&ctx)}),
         dead_code_elimination{},
         optimize_module{},
-        fuse_pointwise_reduce{},
+        enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_pointwise_reduce{}),
         dead_code_elimination{},
 #ifndef _WIN32
         enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),
 #endif
         dead_code_elimination{},
-        enable_pass(mlir_enabled(), fuse_mlir{&ctx}),
+        enable_pass(mlir_enabled() and disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_mlir{&ctx}),
         dead_code_elimination{},
         fuse_concat{},
         dead_code_elimination{},

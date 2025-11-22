@@ -27,6 +27,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/value.hpp>
+#include <migraphx/ranges.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -34,10 +35,8 @@ namespace gpu {
 
 struct gqa_parameters
 {
-    float scale;
     std::uint32_t batch_size;              // Batch size used by input
     std::uint32_t sequence_length;         // Sequence length used by input
-    std::uint32_t hidden_size;             // Hidden size used by input
     std::uint32_t head_size;               // Head size
     std::uint32_t rotary_embedding_dim;    // Rotary embedding dimension.
     std::uint32_t num_heads;               // num_heads = hidden_size / head_size
@@ -49,19 +48,13 @@ struct gqa_parameters
                                            // sequence_length)
     std::uint32_t seqlen_present_kv_cache; // Sequence length of present kv-cache (4096 when using
                                            // shared buffer)
-    bool do_rotary;             // Whether to use rotary position embedding. Default value is 0.
-    std::uint32_t kv_num_heads; // Number of attention heads for k and v
-    int local_window_size;      // left_window_size for local attention. Default value is -1 meaning
-                                // unused.
-    bool rotary_interleaved;    // Rotate using interleaved pattern. Default value is 0 (False).
-    bool past_present_share_buffer; // Whether to use same buffer for KV-cache inputs and outputs
+    std::uint32_t kv_num_heads;            // Number of attention heads for k and v
+    bool interleaved; // Rotate using interleaved pattern. Default value is 0 (False).
 
     std::string make_init_str() const
     {
-        return "MIGRAPHX_MAKE_CONSTANT(float{" + std::to_string(scale) + "}), " +
-               "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(batch_size) + "}), " +
+        return "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(batch_size) + "}), " +
                "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(sequence_length) + "}), " +
-               "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(hidden_size) + "}), " +
                "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(head_size) + "}), " +
                "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(rotary_embedding_dim) + "}), " +
                "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(num_heads) + "}), " +
@@ -71,63 +64,53 @@ struct gqa_parameters
                "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(batch_stride) + "}), " +
                "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(position_ids_format) + "}), " +
                "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(seqlen_present_kv_cache) +
-               "}), " + "MIGRAPHX_MAKE_CONSTANT(bool{" +
-               std::to_string(static_cast<int>(do_rotary)) + "}), " +
-               "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(kv_num_heads) + "}), " +
-               "MIGRAPHX_MAKE_CONSTANT(int32_t{" + std::to_string(local_window_size) + "}), " +
-               "MIGRAPHX_MAKE_CONSTANT(bool{" +
-               std::to_string(static_cast<int>(rotary_interleaved)) + "}), " +
-               "MIGRAPHX_MAKE_CONSTANT(bool{" +
-               std::to_string(static_cast<int>(past_present_share_buffer)) + "})";
+               "}), " + "MIGRAPHX_MAKE_CONSTANT(uint32_t{" + std::to_string(kv_num_heads) + "}), " +
+               "MIGRAPHX_MAKE_CONSTANT(bool{" + std::to_string(static_cast<int>(interleaved)) +
+               "})";
     }
 };
 
 static inline gqa_parameters init_params(const std::vector<shape>& inputs, const value& v)
 {
-    auto num_heads          = v.at("num_heads").to<std::uint32_t>();
-    auto kv_num_heads       = v.at("kv_num_heads").to<std::uint32_t>();
-    auto do_rotary          = v.at("do_rotary").to<bool>();
-    auto local_window_size  = v.at("local_window_size").to<std::uint32_t>();
-    auto rotary_interleaved = v.at("rotary_interleaved").to<bool>();
-    auto scale              = v.at("scale").to<float>();
-    auto present_kv_seqlen  = inputs[1].lens().size() == 4 ? inputs[1].lens()[2] : 0;
+    std::size_t num_heads = -1;
+    if(contains(v, "num_heads"))
+        num_heads = v.at("num_heads").to<std::uint32_t>();
+    auto kv_num_heads = v.at("kv_num_heads").to<std::uint32_t>();
+    auto interleaved  = false;
+    if(v.contains("interleaved"))
+        interleaved = v.at("interleaved").to<bool>();
+    auto present_kv_seqlen = inputs[1].lens().size() == 4 ? inputs[1].lens()[2] : 0;
 
     const auto& q_shape               = inputs[0];
     const auto& q_lens                = q_shape.lens();
     const std::size_t batch_size      = q_lens[0];
     const std::size_t sequence_length = q_lens[2];
-    std::size_t head_size             = q_lens[3];
-    auto q_hidden_size                = kv_num_heads * head_size;
+    const std::size_t head_size       = q_lens[3];
 
     std::size_t rotary_dim = inputs.size() >= 4 ? inputs[3].lens()[1] * 2 : 0;
     if(inputs.size() == 3)
     {
         present_kv_seqlen = inputs[2].lens()[2];
     }
-    auto seq_stride                = head_size;
-    auto head_stride               = sequence_length * seq_stride;
-    auto batch_stride              = (num_heads + 2 * kv_num_heads) * head_stride;
-    auto position_ids_format       = sequence_length == 1 ? 1 : 0;
-    bool past_present_share_buffer = true;
+    auto seq_stride          = head_size;
+    auto head_stride         = sequence_length * seq_stride;
+    auto batch_stride        = (num_heads + 2 * kv_num_heads) * head_stride;
+    auto position_ids_format = sequence_length == 1 ? 1 : 0;
+
     gqa_parameters gqa_params;
-    gqa_params.batch_size                = batch_size;
-    gqa_params.sequence_length           = sequence_length;
-    gqa_params.hidden_size               = q_hidden_size;
-    gqa_params.head_size                 = head_size;
-    gqa_params.rotary_embedding_dim      = rotary_dim;
-    gqa_params.num_heads                 = num_heads;
-    gqa_params.max_sequence_length       = sequence_length;
-    gqa_params.seq_stride                = head_size;
-    gqa_params.head_stride               = head_stride;
-    gqa_params.batch_stride              = batch_stride;
-    gqa_params.position_ids_format       = position_ids_format;
-    gqa_params.seqlen_present_kv_cache   = present_kv_seqlen;
-    gqa_params.do_rotary                 = do_rotary;
-    gqa_params.kv_num_heads              = kv_num_heads;
-    gqa_params.local_window_size         = local_window_size;
-    gqa_params.rotary_interleaved        = rotary_interleaved;
-    gqa_params.scale                     = scale;
-    gqa_params.past_present_share_buffer = past_present_share_buffer;
+    gqa_params.batch_size              = batch_size;
+    gqa_params.sequence_length         = sequence_length;
+    gqa_params.head_size               = head_size;
+    gqa_params.rotary_embedding_dim    = rotary_dim;
+    gqa_params.num_heads               = num_heads;
+    gqa_params.max_sequence_length     = sequence_length;
+    gqa_params.seq_stride              = head_size;
+    gqa_params.head_stride             = head_stride;
+    gqa_params.batch_stride            = batch_stride;
+    gqa_params.position_ids_format     = position_ids_format;
+    gqa_params.seqlen_present_kv_cache = present_kv_seqlen;
+    gqa_params.kv_num_heads            = kv_num_heads;
+    gqa_params.interleaved             = interleaved;
 
     return gqa_params;
 }

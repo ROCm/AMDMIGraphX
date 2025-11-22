@@ -289,6 +289,13 @@ static void quantize_fp8_wrap(program& prog, const target& t, quantize_fp8_optio
     migraphx::quantize_fp8(prog, t, options.calibration);
 }
 
+static size_t get_onnx_operators_size() { return migraphx::get_onnx_operators().size(); }
+
+static char* get_onnx_operator_name_at_index(std::size_t index)
+{
+    return const_cast<char*>(get_onnx_operators().at(index).c_str()); // NOLINT
+}
+
 #ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wformat-nonliteral"
@@ -2413,6 +2420,19 @@ extern "C" migraphx_status migraphx_quantize_fp8(migraphx_program_t prog,
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
         migraphx::quantize_fp8_wrap((prog->object), (target->object), (options->object));
     });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_get_onnx_operator_name_at_index(char** out, size_t index)
+{
+    auto api_error_result =
+        migraphx::try_([&] { *out = migraphx::get_onnx_operator_name_at_index((index)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_get_onnx_operators_size(size_t* out)
+{
+    auto api_error_result = migraphx::try_([&] { *out = migraphx::get_onnx_operators_size(); });
     return api_error_result;
 }
 

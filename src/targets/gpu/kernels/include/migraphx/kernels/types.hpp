@@ -29,15 +29,6 @@
 namespace migraphx {
 
 #if defined(MIGRAPHX_USE_HIPRTC)
-using int8_t   = signed char;
-using uint8_t  = unsigned char;
-using int16_t  = signed short;
-using uint16_t = unsigned short;
-using int32_t  = signed int;
-using uint32_t = unsigned int;
-using int64_t  = signed long long;
-using uint64_t = unsigned long long;
-#elif defined(MIGRAPHX_USE_HIPRTC)
 using int8_t   = __hip_int8_t;
 using uint8_t  = __hip_uint8_t;
 using int16_t  = __hip_int16_t;

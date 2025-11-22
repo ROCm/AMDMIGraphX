@@ -169,6 +169,7 @@ static void move_output_instructions_after(module& m, instruction_ref src, instr
     fix([&](auto self, instruction_ref ins) {
         for(auto output : ins->outputs())
         {
+            assert(m.has_instruction(output));
             if(any_of(instructions, [&](const auto& p) { return p.second == output; }))
                 continue;
             auto i = std::distance(src, output);
@@ -246,9 +247,18 @@ static auto find_input_pointwise(const module& m, instruction_ref ins, bool mult
     if(it == ins->inputs().end() and multi_out)
     {
         it = std::find_if(ins->inputs().begin(), ins->inputs().end(), [&](auto i) {
+            if(not m.has_instruction(i))
+                return false;
+            auto base_distance = std::distance(i, ins);
             return i->name() == "pointwise" and
                    std::none_of(i->outputs().begin(), i->outputs().end(), [&](auto output) {
-                       return output != ins and reaches(output, ins, &m);
+                       if(not m.has_instruction(output))
+                           return true;
+                       if(output == ins)
+                           return false;
+                       if(std::distance(i, output) > base_distance)
+                           return false;
+                       return reaches(output, ins, &m);
                    });
         });
     }
@@ -265,9 +275,18 @@ find_output_pointwise(const module& m, instruction_ref ins, bool multi_out)
     std::copy_if(ins->outputs().begin(),
                  ins->outputs().end(),
                  std::back_inserter(outputs),
-                 [&](auto output) {
-                     return output->name() == "pointwise" and m.has_instruction(output) and
-                            not is_dead(output);
+                 [&](instruction_ref output) {
+                     if(output->name() != "pointwise")
+                         return false;
+                     if(not m.has_instruction(output))
+                         return false;
+                     if(is_dead(output))
+                         return false;
+                     // TODO: move_output_instructions_after doesnt handle outputs from different
+                     // modules so only fuse from the same module
+                     return std::all_of(output->outputs().begin(),
+                                        output->outputs().end(),
+                                        [&](auto out) { return m.has_instruction(out); });
                  });
     if(outputs.size() < 2)
         return result;
@@ -355,6 +374,7 @@ struct pointwise_broadcast_pointwise
 static void rewrite_broadcasts(module_pass_manager& mpm)
 {
     match::find_matches(mpm.get_module(), pointwise_broadcast_pointwise{});
+    mpm.run_pass(eliminate_common_subexpression{});
     mpm.run_pass(dead_code_elimination{});
 }
 

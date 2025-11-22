@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,6 +30,7 @@
 #include <migraphx/kernels/ops.hpp>
 #include <migraphx/kernels/scatter_reduction_modes.hpp>
 #include <migraphx/kernels/tuple.hpp>
+#include <migraphx/kernels/uninitialized_buffer.hpp>
 #include <migraphx/kernels/pp.hpp>
 
 namespace migraphx {
@@ -146,15 +147,13 @@ __device__ void dpp_reduce(T& in, Op op)
 // Navi21 doesn't support int32 dpp
 #if defined(__gfx1030__)
 // NOLINTNEXTLINE
-#define MIGRAPHX_DPP_REDUCE(op, prefix, sign)              \
-    MIGRAPHX_DPP_REDUCE_ASM_FUN(double, op, prefix##_f64); \
-    MIGRAPHX_DPP_REDUCE_ASM_FUN(float, op, prefix##_f32);  \
-    MIGRAPHX_DPP_REDUCE_ASM_FUN(half, op, prefix##_f16);   \
+#define MIGRAPHX_DPP_REDUCE(op, prefix, sign)             \
+    MIGRAPHX_DPP_REDUCE_ASM_FUN(float, op, prefix##_f32); \
+    MIGRAPHX_DPP_REDUCE_ASM_FUN(half, op, prefix##_f16);  \
     MIGRAPHX_DPP_REDUCE_ASM_FUN(uint32_t, op, prefix##_u32);
 #else
 // NOLINTNEXTLINE
 #define MIGRAPHX_DPP_REDUCE(op, prefix, sign)                   \
-    MIGRAPHX_DPP_REDUCE_ASM_FUN(double, op, prefix##_f64);      \
     MIGRAPHX_DPP_REDUCE_ASM_FUN(float, op, prefix##_f32);       \
     MIGRAPHX_DPP_REDUCE_ASM_FUN(half, op, prefix##_f16);        \
     MIGRAPHX_DPP_REDUCE_ASM_FUN(int32_t, op, prefix##sign##32); \
@@ -201,7 +200,7 @@ __device__ auto block_reduce(index idx, Op op, T init, Index n, F f)
 #endif
     constexpr index_int lanes_per_thread = MIGRAPHX_WAVEFRONTSIZE;
     using type = decltype(index::invoke_loop(f, 0, _c<0>));
-    __shared__ type buffer[idx.max_nlocal() / lanes_per_thread];
+    __shared__ uninitialized_buffer<type, decltype(idx.max_nlocal()){} / lanes_per_thread> buffer;
     auto x = type(init);
     idx.local_stride(n, [&](auto i, auto d) { x = op(x, index::invoke_loop(f, i, d)); });
     dpp_reduce(x, op);
@@ -226,7 +225,7 @@ __device__ auto block_reduce(index idx, Op op, T init, Index n, F f)
 {
     MIGRAPHX_ASSERT(idx.max_nlocal() == idx.nlocal());
     using type = decltype(index::invoke_loop(f, 0, _c<0>));
-    __shared__ type buffer[idx.max_nlocal()];
+    __shared__ uninitialized_buffer<type, decltype(idx.max_nlocal()){}> buffer;
     auto x = type(init);
     idx.local_stride(n, [&](auto i, auto d) { x = op(x, index::invoke_loop(f, i, d)); });
     buffer[idx.local] = x;

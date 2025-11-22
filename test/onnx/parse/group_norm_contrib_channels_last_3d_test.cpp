@@ -47,25 +47,28 @@ TEST_CASE(group_norm_contrib_channels_last_3d_test)
     auto x_transp =
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), x);
 
-    auto x_reshapedd =
+    auto x_dims = x_transp->get_shape().lens();
+
+    auto x_reshaped =
         mm->add_instruction(migraphx::make_op("reshape", {{"dims", reshape_dims}}), x_transp);
     auto mean =
-        mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", reduce_axes}}), x_reshapedd);
-    auto x_sub_mean    = add_common_op(*mm, migraphx::make_op("sub"), {x_reshapedd, mean});
-    auto x_sqdiff_mean = add_common_op(*mm, migraphx::make_op("sqdiff"), {x_reshapedd, mean});
+        mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", reduce_axes}}), x_reshaped);
+    auto x_sub_mean    = add_common_op(*mm, migraphx::make_op("sub"), {x_reshaped, mean});
+    auto x_sqdiff_mean = add_common_op(*mm, migraphx::make_op("sqdiff"), {x_reshaped, mean});
     auto var     = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", reduce_axes}}),
                                    x_sqdiff_mean);
     auto var_eps = add_common_op(*mm, migraphx::make_op("add"), {var, eps});
     auto rsqrt   = mm->add_instruction(migraphx::make_op("rsqrt"), {var_eps});
     auto result  = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, rsqrt});
+    auto result_reshaped =
+        mm->add_instruction(migraphx::make_op("reshape", {{"dims", x_dims}}), result);
     auto scale_bcast = mm->add_instruction(
-        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", reshape_dims}}), scale);
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", x_dims}}), scale);
     auto bias_bcast = mm->add_instruction(
-        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", reshape_dims}}), bias);
-    auto scaled      = mm->add_instruction(migraphx::make_op("mul"), {result, scale_bcast});
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", x_dims}}), bias);
+    auto scaled = mm->add_instruction(migraphx::make_op("mul"), {result_reshaped, scale_bcast});
     auto y           = mm->add_instruction(migraphx::make_op("add"), {scaled, bias_bcast});
-    auto reshape_out = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 4}}}), y);
-    mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), reshape_out);
+    mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), y);
 
     auto prog = optimize_onnx("group_norm_contrib_channels_last_3d_test.onnx");
     EXPECT(p == prog);

@@ -44,7 +44,9 @@ constexpr uint32_t stream_sync_test_val = 1337;
 
 // NOLINTNEXTLINE
 const std::string compare_numbers = R"__migraphx__(
+#ifndef __HIPCC_RTC__
 #include <hip/hip_runtime.h>
+#endif
 
 extern "C" {
 __global__ void compare(float* data) 
@@ -137,7 +139,7 @@ TEST_CASE(test_stream_sync)
     p.compile(migraphx::make_target("gpu"));
 
     // Run network and then verify with kernel
-    auto args = p.eval({{"x", ginput}, {"output", goutput}}, {pstream.get(), true});
+    auto args = p.eval({{"x", ginput}, {"main:#output_0", goutput}}, {pstream.get(), true});
     k1.launch(pstream.get(), m * m, 1024)(goutput.cast<float>());
 
     output = migraphx::gpu::from_gpu(goutput);

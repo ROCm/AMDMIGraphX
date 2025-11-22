@@ -29,6 +29,8 @@
 #include <migraphx/stringutils.hpp>
 #include <hip/hip_runtime_api.h>
 
+#include <iostream>
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
@@ -67,11 +69,16 @@ bool gfx_has_fp8ocp_intrinsics()
     return (is_navi_with_fp8ocp or is_mi_with_fp8ocp);
 }
 
-bool gfx_has_fp8fnuz_support()
+bool gfx_has_bf16_intrinsics()
 {
-    return (string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "rocblas"
-                ? gpu::rocblas_fp8_available()
-                : gfx_has_fp8fnuz_intrinsics());
+    const auto device_name = trim(split_string(get_device_name(), ':').front());
+    return not(starts_with(device_name, "gfx1030"));
+}
+
+bool gfx_has_mx_intrinsics()
+{
+    const auto device_name = trim(split_string(get_device_name(), ':').front());
+    return starts_with(device_name, "gfx9") and device_name >= "gfx950";
 }
 
 #if MIGRAPHX_USE_HIPBLASLT
@@ -85,6 +92,20 @@ bool gfx_default_rocblas()
                 : (device_name == "gfx90a"));
 }
 #endif
+
+bool hipblaslt_supported()
+{
+#if !MIGRAPHX_USE_HIPBLASLT
+    return false;
+#else
+    const auto device_name = trim(split_string(get_device_name(), ':').front());
+    // hipblaslt is supported for MI200 and above, and Navi3x and above.
+    return (device_name == "gfx90a" or
+            (starts_with(device_name, "gfx94") and device_name >= "gfx942") or
+            (starts_with(device_name, "gfx95") and device_name >= "gfx950") or
+            starts_with(device_name, "gfx110") or starts_with(device_name, "gfx120"));
+#endif
+}
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

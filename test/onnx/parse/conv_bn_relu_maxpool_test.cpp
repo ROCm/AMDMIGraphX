@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,7 +25,7 @@
 #include <onnx_test.hpp>
 #include <migraphx/op/pooling.hpp>
 
-TEST_CASE(conv_bn_relu_maxpool_test)
+static migraphx::program create_conv_bn_relu_maxpool(bool has_bias_value = true)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -41,10 +41,14 @@ TEST_CASE(conv_bn_relu_maxpool_test)
     auto eps = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {1e-5f}});
 
     uint64_t axis = 1;
+
+    auto no_bias = has_bias_value ? migraphx::instruction_ref()
+                                  : mm->add_instruction(migraphx::make_op("undefined"));
     auto l3 =
         mm->add_instruction(migraphx::make_op("convolution", {{"padding", {0, 0, 0, 0}}}), l0, l1);
     auto l4 = mm->add_instruction(
-        migraphx::make_op("broadcast", {{"axis", axis}, {"out_lens", l3->get_shape().lens()}}), l2);
+        migraphx::make_op("broadcast", {{"axis", axis}, {"out_lens", l3->get_shape().lens()}}),
+        has_bias_value ? l2 : no_bias);
     auto l5 = mm->add_instruction(migraphx::make_op("add"), l3, l4);
 
     auto usq_scale = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), p3);
@@ -67,7 +71,26 @@ TEST_CASE(conv_bn_relu_maxpool_test)
                                            {"lengths", {2, 2}},
                                            {"dilations", {1, 1}}}),
                         l7);
+    return p;
+}
 
-    auto prog = optimize_onnx("conv_bn_relu_maxpool_test.onnx");
+TEST_CASE(conv_bn_relu_maxpool_test)
+{
+    migraphx::program p = create_conv_bn_relu_maxpool();
+    auto prog           = optimize_onnx("conv_bn_relu_maxpool_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(conv_bn_relu_maxpool_unordered_test)
+{
+    migraphx::program p = create_conv_bn_relu_maxpool();
+    auto prog           = optimize_onnx("conv_bn_relu_maxpool_unordered_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(conv_bn_relu_maxpool_unordered_nonvalue_optional_ios_test)
+{
+    migraphx::program p = create_conv_bn_relu_maxpool(false);
+    auto prog = optimize_onnx("conv_bn_relu_maxpool_unordered_nonvalue_optional_ios_test.onnx");
     EXPECT(p == prog);
 }

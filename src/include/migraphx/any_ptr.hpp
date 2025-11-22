@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -58,7 +58,7 @@ struct any_ptr
     T get() const
     {
         static_assert(std::is_pointer<T>{}, "Must be a pointer");
-        assert(ptr != nullptr);
+        assert(not ti or ptr != nullptr);
         if(ti and std::type_index{typeid(T)} != *ti)
             MIGRAPHX_THROW("any_ptr: type mismatch: " + std::string{name} + " != " + get_name<T>());
         else if(name != get_name<T>())

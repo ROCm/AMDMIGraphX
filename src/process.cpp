@@ -248,6 +248,7 @@ int exec(const std::string& cmd, const std::string& cwd, const std::string& args
         info.hStdOutput = output.get_write_handle();
         info.hStdInput  = input.get_read_handle();
         info.dwFlags |= STARTF_USESTDHANDLES;
+        info.wShowWindow = SW_HIDE;
 
         ZeroMemory(&process_info, sizeof(process_info));
 
@@ -256,7 +257,7 @@ int exec(const std::string& cmd, const std::string& cwd, const std::string& args
                          nullptr,
                          nullptr,
                          TRUE,
-                         0,
+                         CREATE_NO_WINDOW,
                          environment.empty() ? nullptr : environment.data(),
                          cwd.empty() ? nullptr : static_cast<LPCSTR>(cwd.c_str()),
                          &info,

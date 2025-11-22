@@ -57,6 +57,7 @@ int get_onnx_type(shape::type_t s_type)
     case shape::fp8e5m2_type: return 19;
     case shape::fp8e5m2fnuz_type: return 20;
     case shape::tuple_type: return 0;
+    case shape::fp4x2_type: return 21; // TODO update this when the type is added
     }
     MIGRAPHX_THROW("MIGraphX type " + std::to_string(s_type) + " not supported");
 }
@@ -205,6 +206,10 @@ std::unordered_map<instruction_ref, std::string> make_ins_uids(const module& mod
         std::string var_name;
         var_name = mod.name() + ":";
         var_name.append(ins->name() + ":");
+        if(ins->name() == "@param")
+        {
+            var_name.append(any_cast<builtin::param>(ins->get_operator()).parameter + ":");
+        }
         var_name.append("@" + std::to_string(count));
         count++;
         ret.emplace(ins, var_name);

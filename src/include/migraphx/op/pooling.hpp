@@ -132,7 +132,10 @@ struct pooling
         return stride.size();
     }
 
-    value attributes() const { return {{"normalize_padding", "padding"}}; }
+    value attributes() const
+    {
+        return {{"normalize_padding", "padding"}, {"fillcolor", "#3CB371" /* medium sea green */}};
+    }
 
     std::size_t dilate_dim(std::size_t dim, std::size_t dilation) const
     {
@@ -350,7 +353,7 @@ struct pooling
                 if(end < start)
                 {
                     // This error can be caused by misc. bad input combinations
-                    MIGRAPHX_THROW("POOLING:  invalid attributes");
+                    MIGRAPHX_THROW("POOLING: invalid attributes");
                 }
                 win_size.push_back(end - start);
             }

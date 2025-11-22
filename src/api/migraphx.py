@@ -150,6 +150,17 @@ def argument(h):
              const=True)
 
 
+api.add_function('migraphx_argument_save',
+                 api.params(a='const migraphx::argument&', filename='const char*'),
+                 fname='migraphx::save_argument'
+                 )
+
+api.add_function('migraphx_argument_load',
+                 api.params(filename='const char*'),
+                 fname='migraphx::load_argument',
+                 returns='migraphx::argument'
+                 )
+
 api.add_function('migraphx_argument_generate',
                  api.params(s='const migraphx::shape&', seed='size_t'),
                  fname='migraphx::generate_argument',
@@ -428,6 +439,13 @@ api.add_function('migraphx_parse_tf',
                  fname='migraphx::parse_tf',
                  returns='migraphx::program')
 
+api.add_function('migraphx_parse_tf_buffer',
+                 api.params(data='const void*',
+                            size='size_t',
+                            options='migraphx::tf_options'),
+                 fname='migraphx::parse_tf_buffer',
+                 returns='migraphx::program')
+
 
 @api.handle('migraphx_quantize_op_names', 'std::vector<std::string>')
 def quantize_op_names(h):
@@ -443,6 +461,15 @@ api.add_function('migraphx_quantize_fp16_with_op_names',
 api.add_function('migraphx_quantize_fp16',
                  api.params(prog='migraphx::program&'),
                  fname='migraphx::quantize_fp16')
+
+api.add_function('migraphx_quantize_bf16_with_op_names',
+                 api.params(prog='migraphx::program&',
+                            name='std::vector<std::string>&'),
+                 fname='migraphx::quantize_bf16_with_op_names')
+
+api.add_function('migraphx_quantize_bf16',
+                 api.params(prog='migraphx::program&'),
+                 fname='migraphx::quantize_bf16')
 
 
 @auto_handle()
@@ -482,6 +509,16 @@ api.add_function('migraphx_quantize_fp8',
                             target='migraphx::target',
                             options='migraphx::quantize_fp8_options'),
                  fname='migraphx::quantize_fp8_wrap')
+
+api.add_function('migraphx_get_onnx_operator_name_at_index',
+                 api.params(index='size_t'),
+                 fname='migraphx::get_onnx_operator_name_at_index',
+                 returns='char *')
+
+api.add_function('migraphx_get_onnx_operators_size',
+                 fname='migraphx::get_onnx_operators_size',
+                 returns='size_t')
+
 
 
 @auto_handle(ref=True)

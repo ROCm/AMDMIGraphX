@@ -1,4 +1,4 @@
-group_norm_4d_half_test:Ë
+	group_norm_4d_half_test:Ë
 M
 x
 scale
@@ -17,16 +17,16 @@ num_groups group_norm_4d_half_testZ
 
 
 
-Z
+Z
 bias
 
 
 
-b
+b
 y
 
 
 
 
 
-B
+B

@@ -38,6 +38,7 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/convert_to_json.hpp>
+#include <migraphx/source_location.hpp>
 #include <array>
 #include <algorithm>
 #include <cstdarg>
@@ -54,7 +55,8 @@ extern "C" MIGRAPHX_C_EXPORT void migraphx_test_private_disable_exception_catch(
 #endif
 
 template <class F>
-migraphx_status try_(F f, bool output = true) // NOLINT
+migraphx_status
+try_(F f, bool output = true, source_location llc = source_location::current()) // NOLINT
 {
 #ifdef MIGRAPHX_BUILD_TESTING
     if(disable_exception_catch)
@@ -71,7 +73,7 @@ migraphx_status try_(F f, bool output = true) // NOLINT
         catch(const migraphx::exception& ex)
         {
             if(output)
-                std::cerr << "MIGraphX Error: " << ex.what() << std::endl;
+                std::cerr << llc.function_name() << ": Error: " << ex.what() << std::endl;
             if(ex.error > 0)
                 return migraphx_status(ex.error);
             else
@@ -80,7 +82,7 @@ migraphx_status try_(F f, bool output = true) // NOLINT
         catch(const std::exception& ex)
         {
             if(output)
-                std::cerr << "MIGraphX Error: " << ex.what() << std::endl;
+                std::cerr << llc.function_name() << ": Error: " << ex.what() << std::endl;
             return migraphx_status_unknown_error;
         }
         catch(...)
@@ -98,6 +100,7 @@ static shape::type_t to_shape_type(migraphx_shape_datatype_t t)
     switch(t)
     {
     case migraphx_shape_tuple_type: return shape::tuple_type;
+    case migraphx_shape_fp4x2_type: return shape::fp4x2_type;
 #define MIGRAPHX_DETAIL_SHAPE_CASE_CONVERT(x, y) \
     case migraphx_shape_##x: return shape::x;
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_DETAIL_SHAPE_CASE_CONVERT)
@@ -111,6 +114,7 @@ static migraphx_shape_datatype_t to_shape_type(shape::type_t t)
     switch(t)
     {
     case shape::tuple_type: return migraphx_shape_tuple_type;
+    case shape::fp4x2_type: return migraphx_shape_fp4x2_type;
 #define MIGRAPHX_DETAIL_SHAPE_CASE_CONVERT(x, y) \
     case shape::x: return migraphx_shape_##x;
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_DETAIL_SHAPE_CASE_CONVERT)
@@ -234,6 +238,16 @@ static void quantize_fp16_with_op_names(program& prog, std::vector<std::string>&
     migraphx::quantize_fp16(prog, names);
 }
 
+static void quantize_bf16_with_op_names(program& prog, std::vector<std::string>& names)
+{
+    if(names.empty())
+    {
+        names = {"all"};
+    }
+
+    migraphx::quantize_bf16(prog, names);
+}
+
 struct quantize_int8_options
 {
     std::vector<parameter_map> calibration   = {};
@@ -273,6 +287,13 @@ static void add_calibration_data(quantize_fp8_options& options, parameter_map& d
 static void quantize_fp8_wrap(program& prog, const target& t, quantize_fp8_options& options)
 {
     migraphx::quantize_fp8(prog, t, options.calibration);
+}
+
+static size_t get_onnx_operators_size() { return migraphx::get_onnx_operators().size(); }
+
+static char* get_onnx_operator_name_at_index(std::size_t index)
+{
+    return const_cast<char*>(get_onnx_operators().at(index).c_str()); // NOLINT
 }
 
 #ifdef __clang__
@@ -1249,6 +1270,23 @@ migraphx_argument_equal(bool* out, const_migraphx_argument_t argument, const_mig
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_argument_save(const_migraphx_argument_t a, const char* filename)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(a == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter a: Null pointer");
+        migraphx::save_argument((a->object), (filename));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_argument_load(migraphx_argument_t* out, const char* filename)
+{
+    auto api_error_result = migraphx::try_(
+        [&] { *out = allocate<migraphx_argument_t>(migraphx::load_argument((filename))); });
+    return api_error_result;
+}
+
 extern "C" migraphx_status
 migraphx_argument_generate(migraphx_argument_t* out, const_migraphx_shape_t s, size_t seed)
 {
@@ -2165,6 +2203,20 @@ migraphx_parse_tf(migraphx_program_t* out, const char* name, migraphx_tf_options
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_parse_tf_buffer(migraphx_program_t* out,
+                                                    const void* data,
+                                                    size_t size,
+                                                    migraphx_tf_options_t options)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
+        *out = allocate<migraphx_program_t>(
+            migraphx::parse_tf_buffer((data), (size), (options->object)));
+    });
+    return api_error_result;
+}
+
 extern "C" migraphx_status
 migraphx_quantize_op_names_destroy(migraphx_quantize_op_names_t quantize_op_names)
 {
@@ -2221,6 +2273,29 @@ extern "C" migraphx_status migraphx_quantize_fp16(migraphx_program_t prog)
         if(prog == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter prog: Null pointer");
         migraphx::quantize_fp16((prog->object));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_quantize_bf16_with_op_names(migraphx_program_t prog,
+                                                                migraphx_quantize_op_names_t name)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(prog == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter prog: Null pointer");
+        if(name == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter name: Null pointer");
+        migraphx::quantize_bf16_with_op_names((prog->object), (name->object));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_quantize_bf16(migraphx_program_t prog)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(prog == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter prog: Null pointer");
+        migraphx::quantize_bf16((prog->object));
     });
     return api_error_result;
 }
@@ -2345,6 +2420,19 @@ extern "C" migraphx_status migraphx_quantize_fp8(migraphx_program_t prog,
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
         migraphx::quantize_fp8_wrap((prog->object), (target->object), (options->object));
     });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_get_onnx_operator_name_at_index(char** out, size_t index)
+{
+    auto api_error_result =
+        migraphx::try_([&] { *out = migraphx::get_onnx_operator_name_at_index((index)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_get_onnx_operators_size(size_t* out)
+{
+    auto api_error_result = migraphx::try_([&] { *out = migraphx::get_onnx_operators_size(); });
     return api_error_result;
 }
 

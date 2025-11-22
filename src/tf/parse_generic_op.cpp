@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -40,8 +40,9 @@ struct parse_generic_op : op_parser<parse_generic_op>
                 {"LessEqual", "identity"},
                 {"Relu", "relu"},
                 {"Rsqrt", "rsqrt"},
-                {"Tanh", "tanh"},
-                {"StopGradient", "identity"}};
+                {"Sigmoid", "sigmoid"},
+                {"StopGradient", "identity"},
+                {"Tanh", "tanh"}};
     }
 
     instruction_ref parse(const op_desc& opd,

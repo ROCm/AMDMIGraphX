@@ -369,75 +369,75 @@ struct __attribute__((packed, may_alias)) generic_float
 // NOLINTBEGIN(cert-dcl58-cpp)
 namespace std {
 
-template <unsigned int E, unsigned int M, unsigned int F>
-class numeric_limits<migraphx::generic_float<E, M, F>>
+template <unsigned int M, unsigned int E, unsigned int F>
+class numeric_limits<migraphx::generic_float<M, E, F>>
 {
     public:
     static constexpr bool has_infinity = true;
-    static constexpr migraphx::generic_float<E, M, F> epsilon()
+    static constexpr migraphx::generic_float<M, E, F> epsilon()
     {
-        return migraphx::generic_float<E, M, F>::epsilon();
+        return migraphx::generic_float<M, E, F>::epsilon();
     }
 
-    static constexpr migraphx::generic_float<E, M, F> quiet_NaN()
+    static constexpr migraphx::generic_float<M, E, F> quiet_NaN()
     {
-        return migraphx::generic_float<E, M, F>::qnan();
+        return migraphx::generic_float<M, E, F>::qnan();
     }
 
-    static constexpr migraphx::generic_float<E, M, F> signaling_NaN()
+    static constexpr migraphx::generic_float<M, E, F> signaling_NaN()
     {
-        return migraphx::generic_float<E, M, F>::snan();
+        return migraphx::generic_float<M, E, F>::snan();
     }
 
-    static constexpr migraphx::generic_float<E, M, F> max()
+    static constexpr migraphx::generic_float<M, E, F> max()
     {
-        return migraphx::generic_float<E, M, F>::max();
+        return migraphx::generic_float<M, E, F>::max();
     }
 
-    static constexpr migraphx::generic_float<E, M, F> min()
+    static constexpr migraphx::generic_float<M, E, F> min()
     {
-        return migraphx::generic_float<E, M, F>::min();
+        return migraphx::generic_float<M, E, F>::min();
     }
 
-    static constexpr migraphx::generic_float<E, M, F> lowest()
+    static constexpr migraphx::generic_float<M, E, F> lowest()
     {
-        return migraphx::generic_float<E, M, F>::lowest();
+        return migraphx::generic_float<M, E, F>::lowest();
     }
 
-    static constexpr migraphx::generic_float<E, M, F> infinity()
+    static constexpr migraphx::generic_float<M, E, F> infinity()
     {
-        return migraphx::generic_float<E, M, F>::infinity();
+        return migraphx::generic_float<M, E, F>::infinity();
     }
 
-    static constexpr migraphx::generic_float<E, M, F> denorm_min()
+    static constexpr migraphx::generic_float<M, E, F> denorm_min()
     {
-        return migraphx::generic_float<E, M, F>::denorm_min();
+        return migraphx::generic_float<M, E, F>::denorm_min();
     }
 };
 
-template <unsigned int E, unsigned int M, unsigned int F, class T>
-struct common_type<migraphx::generic_float<E, M, F>, T> : std::common_type<float, T>
+template <unsigned int M, unsigned int E, unsigned int F, class T>
+struct common_type<migraphx::generic_float<M, E, F>, T> : std::common_type<float, T>
 {
 };
 
-template <unsigned int E, unsigned int M, unsigned int F, class T>
-struct common_type<T, migraphx::generic_float<E, M, F>> : std::common_type<float, T>
+template <unsigned int M, unsigned int E, unsigned int F, class T>
+struct common_type<T, migraphx::generic_float<M, E, F>> : std::common_type<float, T>
 {
 };
 
-template <unsigned int E, unsigned int M, unsigned int F>
-struct common_type<migraphx::generic_float<E, M, F>, migraphx::generic_float<E, M, F>>
+template <unsigned int M, unsigned int E, unsigned int F>
+struct common_type<migraphx::generic_float<M, E, F>, migraphx::generic_float<M, E, F>>
 {
-    using type = migraphx::generic_float<E, M, F>;
+    using type = migraphx::generic_float<M, E, F>;
 };
 
-template <unsigned int E1,
-          unsigned int M1,
+template <unsigned int M1,
+          unsigned int E1,
           unsigned int F1,
-          unsigned int E2,
           unsigned int M2,
+          unsigned int E2,
           unsigned int F2>
-struct common_type<migraphx::generic_float<E1, M1, F1>, migraphx::generic_float<E2, M2, F2>>
+struct common_type<migraphx::generic_float<M1, E1, F1>, migraphx::generic_float<M2, E2, F2>>
 {
     using type = float;
 };

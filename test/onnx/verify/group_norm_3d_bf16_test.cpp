@@ -30,17 +30,17 @@
 TEST_CASE(group_norm_bf16_test)
 {
     using migraphx::bf16;
-    std::vector<bf16> scale{bf16{1.2}, bf16{0.8}};
-    std::vector<bf16> bias{bf16{0.5}, bf16{0.2}};
+    std::vector<bf16> scale{bf16{1.2}, bf16{0.8}, bf16{0.4}, bf16{1.6}};
+    std::vector<bf16> bias{bf16{0.5}, bf16{0.2}, bf16{0.9}, bf16{0.4}};
     std::vector<bf16> result_vector =
         norm_test<bf16>({1, 4, 2}, scale, bias, read_onnx("group_norm_3d_bf16_test.onnx"));
-    std::vector<bf16> gold = {bf16{-1.10996256},
-                              bf16{-0.0366542},
-                              bf16{1.0366542},
-                              bf16{2.10996256},
-                              bf16{-0.87330837},
-                              bf16{-0.15776947},
-                              bf16{0.55776947},
-                              bf16{1.27330837}};
+    std::vector<bf16> gold = {bf16{-0.96093750},
+                              bf16{-0.37500000},
+                              bf16{0.78125000},
+                              bf16{1.17187500},
+                              bf16{0.41210938},
+                              bf16{0.60546875},
+                              bf16{1.56250000},
+                              bf16{2.34375000}};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

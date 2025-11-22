@@ -68,13 +68,60 @@ struct shape : equality_comparable<shape<Lens, Strides>>
     }
     constexpr auto skips() const
     {
-        return return_c([] {
-            auto lstrides = Strides{};
-            return none_of(lstrides.begin(), lstrides.end(), [](auto x) { return x == 1; });
-        });
+        if constexpr(decltype(this->elements()){} == 1)
+        {
+            return false_type{};
+        }
+        else
+        {
+            return return_c([] {
+                auto lstrides = Strides{};
+                return none_of(lstrides.begin(), lstrides.end(), [](auto x) { return x == 1; });
+            });
+        }
     }
 
-    constexpr auto standard() const { return packed() and not transposed(); }
+    constexpr auto standard() const
+    {
+        if constexpr(decltype(this->elements()){} == 1)
+        {
+            return true_type{};
+        }
+        else
+        {
+            return return_c([] {
+                constexpr auto n = decltype(this->elements()){};
+                struct state
+                {
+                    bool ok            = true;
+                    index_int expected = decltype(n){};
+                };
+                auto reduce = [](state acc, array<index_int, 2> x) -> state {
+                    index_int len    = x[0];
+                    index_int stride = x[1];
+                    if(not acc.ok)
+                        return acc;
+                    if(len == 1)
+                        return acc;
+                    if(acc.expected % len != 0)
+                        return {false};
+                    acc.expected /= len;
+                    if(stride != acc.expected)
+                        return {false};
+                    return acc;
+                };
+                auto ldims    = Lens{};
+                auto lstrides = Strides{};
+                return inner_product(ldims.begin(),
+                                     ldims.end(),
+                                     lstrides.begin(),
+                                     state{},
+                                     reduce,
+                                     MIGRAPHX_LIFT(make_array))
+                    .ok;
+            });
+        }
+    }
 
     constexpr index_int index(index_array x) const { return x.dot(strides); }
 
@@ -85,10 +132,7 @@ struct shape : equality_comparable<shape<Lens, Strides>>
             MIGRAPHX_ASSERT(i >= elements() or i == compute_index(i));
             return i;
         }
-        else
-        {
-            return compute_index(i);
-        }
+        return compute_index(i);
     }
 
     constexpr index_int compute_index(index_int i) const
@@ -187,7 +231,9 @@ template <class Lens, class Permutation>
 constexpr auto make_shape_from_permutation(Lens, Permutation)
 {
     constexpr auto new_lens = reorder_dims(Lens{}, Permutation{});
-    return reorder_shape(make_shape(new_lens), invert_permutation(Permutation{}));
+    constexpr auto result = reorder_shape(make_shape(new_lens), invert_permutation(Permutation{}));
+    static_assert(result.lens == Lens{});
+    return result;
 }
 
 template <class Shape>

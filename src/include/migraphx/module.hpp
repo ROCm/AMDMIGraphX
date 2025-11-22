@@ -48,7 +48,7 @@ const operation& get_operation(instruction_ref ins);
 struct module_impl;
 
 using parameter_map = std::unordered_map<std::string, argument>;
-using ins_dep_map   = std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>;
+using ins_dep_map   = std::unordered_map<instruction_ref, std::vector<instruction_ref>>;
 
 struct module_with_inputs;
 
@@ -259,16 +259,23 @@ struct MIGRAPHX_EXPORT module
                     std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
                     const std::function<shape(const shape&)>& shape_transform     = nullptr);
 
-    // Fuse the instruction into the module by inserting the instructions and
-    // parameters for any missing inputs.
+    /**
+     * Fuse the instruction into the module by inserting the instructions and
+     * parameters for any missing inputs.
+     * `map_ins` is mapping from previous instructions to new instructions.
+     */
     std::vector<instruction_ref>
     fuse(const std::vector<instruction_ref>& inss,
          std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
          inserter insert                                               = nullptr,
          const std::function<shape(const shape&)>& shape_transform     = nullptr);
 
-    // Fuse another module into this module by inserting the instructions and
-    // parameters from the module
+    /**
+     * Fuse another module into this module by inserting the instructions and
+     * parameters from the module
+     * map_ins is mapping from previous instructions to new instructions
+     * Returns output instructions to the module.
+     */
     std::vector<instruction_ref>
     fuse(const module& m,
          const std::vector<instruction_ref>& inputs,
@@ -321,6 +328,8 @@ struct MIGRAPHX_EXPORT module
        of the each instruction such that it appears before the instruction itself.
     */
     module& sort();
+
+    module& shuffle(std::vector<std::size_t> permutation);
     /* Any instruction "X" can have module arguments and those modules inside them can use any other
      * instruction "Y" from predecessor modules of the instruction "X". Such instruction "Y" inside
      * module args are not listed as input instructions to "X". But those instructions "Y" must be
@@ -330,6 +339,7 @@ struct MIGRAPHX_EXPORT module
     ins_dep_map calc_implicit_deps() const;
 
     void repeat_while_changes(std::size_t n, const std::function<void()>& f);
+    void hoist_external_inputs(instruction_ref start_ins, instruction_ref end_ins);
 
     MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const module& m);
     MIGRAPHX_EXPORT friend bool operator==(const module& x, const module& y);

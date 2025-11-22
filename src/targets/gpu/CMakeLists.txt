@@ -76,7 +76,6 @@ if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
         ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/ck.hpp)
 endif()
 
-include(Embed)
 add_embed_library(migraphx_kernels ${KERNEL_FILES} RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/)
 
 configure_file(device/targets.hpp.in include/migraphx/gpu/device/targets.hpp)
@@ -109,23 +108,26 @@ target_include_directories(migraphx_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CUR
 target_compile_options(migraphx_device PRIVATE -Wno-ignored-attributes)
 migraphx_generate_export_header(migraphx_device DIRECTORY migraphx/gpu/device)
 
-add_library(kernel_file_check EXCLUDE_FROM_ALL)
+add_library(compile_migraphx_gpu_kernels INTERFACE)
+target_compile_definitions(compile_migraphx_gpu_kernels INTERFACE -DMIGRAPHX_NLOCAL=256)
+target_compile_definitions(compile_migraphx_gpu_kernels INTERFACE -DMIGRAPHX_WAVEFRONTSIZE=64)
+target_include_directories(compile_migraphx_gpu_kernels INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/>)
+target_link_libraries(compile_migraphx_gpu_kernels INTERFACE compile_for_gpu)
+if(MIGRAPHX_USE_COMPOSABLEKERNEL)
+    target_link_libraries(compile_migraphx_gpu_kernels INTERFACE composable_kernel::jit_library)
+endif()
+
+add_library(migraphx_gpu_kernel_file_check EXCLUDE_FROM_ALL)
 
 foreach(KERNEL_FILE ${KERNEL_FILES})
     get_filename_component(KERNEL_BASE_FILE ${KERNEL_FILE} NAME_WE)
     file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/kernels/include/migraphx/kernels/${KERNEL_BASE_FILE}.cpp "#include <migraphx/kernels/${KERNEL_BASE_FILE}.hpp>\n")
-    target_sources(kernel_file_check PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/kernels/include/migraphx/kernels/${KERNEL_BASE_FILE}.cpp)
+    target_sources(migraphx_gpu_kernel_file_check PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/kernels/include/migraphx/kernels/${KERNEL_BASE_FILE}.cpp)
 endforeach()
 
-target_compile_definitions(kernel_file_check PRIVATE -DMIGRAPHX_NLOCAL=256)
-target_compile_definitions(kernel_file_check PRIVATE -DMIGRAPHX_WAVEFRONTSIZE=64)
-target_include_directories(kernel_file_check PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/>)
-target_link_libraries(kernel_file_check compile_for_gpu)
-if(MIGRAPHX_USE_COMPOSABLEKERNEL)
-    target_link_libraries(kernel_file_check composable_kernel::jit_library)
-endif()
+target_link_libraries(migraphx_gpu_kernel_file_check compile_migraphx_gpu_kernels)
 
-rocm_clang_tidy_check(kernel_file_check)
+rocm_clang_tidy_check(migraphx_gpu_kernel_file_check)
 
 file(GLOB JIT_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/jit/*.cpp)
 
@@ -154,6 +156,7 @@ add_library(migraphx_gpu
     compile_pointwise.cpp
     compiler.cpp
     device_name.cpp
+    fixed_pad.cpp
     fuse_ck.cpp
     fuse_mlir.cpp
     fuse_ops.cpp
@@ -201,6 +204,7 @@ endfunction()
 register_migraphx_gpu_ops(hip_
     argmax
     argmin
+    fixed_pad
     logsoftmax
     loop
     multinomial
@@ -253,8 +257,11 @@ if(MIGRAPHX_ENABLE_MLIR)
     message(STATUS "Build with rocMLIR::rockCompiler ${rocMLIR_VERSION}")
     target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_MLIR")
     # Make this private to avoid multiple inclusions of LLVM symbols.
-    # TODO: Fix rocMLIR's library to hide LLVM internals.
     target_link_libraries(migraphx_gpu PRIVATE rocMLIR::rockCompiler)
+    # Hide LLVM internals that come from rocMLIR.
+    if(NOT WIN32 AND NOT APPLE AND BUILD_SHARED_LIBS)
+        target_link_options(migraphx_gpu PRIVATE "LINKER:--exclude-libs,ALL")
+    endif()
 endif()
 
 if(MIGRAPHX_USE_HIPRTC)
@@ -319,8 +326,6 @@ if(MIGRAPHX_USE_ROCBLAS)
     target_compile_definitions(migraphx_gpu PUBLIC MIGRAPHX_USE_ROCBLAS=1)
     # Beta API for automated GEMM tuning
     check_library_exists(roc::rocblas "rocblas_gemm_ex_get_solutions" "${ROCBLAS_LOCATION}" HAS_ROCBLAS_TUNING_BETA_FEATURE_API)
-    # rocblas FP8 API
-    check_library_exists(roc::rocblas "rocblas_gemm_strided_batched_ex3" "${ROCBLAS_LOCATION}" HAS_ROCBLAS_FP8_BETA_API)
 else()
     target_compile_definitions(migraphx_gpu PUBLIC MIGRAPHX_USE_ROCBLAS=0)
 endif()

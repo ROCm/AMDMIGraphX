@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -92,11 +92,13 @@ void fuse_reductions(module& m)
     auto rs = find_parallel_reduce(find_reduce(m));
     if(rs.size() < 2)
         return;
-    // Only handle the same reduction operator for now
-    if(std::any_of(std::next(rs.begin()), rs.end(), [&](auto r) {
-           return rs.front()->name() != r->name();
+    // Only handle the same reduction operator (and its data-type) for now
+    if(std::any_of(std::next(rs.cbegin()), rs.cend(), [&](auto r) {
+           return (*rs.cbegin())->name() != r->name() or
+                  (*rs.cbegin())->get_shape().type() != r->get_shape().type();
        }))
         return;
+
     auto last = rs.front();
     auto op   = last->get_operator();
     std::vector<instruction_ref> inputs;

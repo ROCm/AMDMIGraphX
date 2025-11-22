@@ -1246,6 +1246,31 @@ TEST_CASE(simplify_concat_add_relu_broadcast_same_axis)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(simplify_concat_mul_broadcast_diff_size)
+{
+    auto s1 = migraphx::shape{migraphx::shape::int32_type, {1, 38, 154, 64}};
+    auto s2 = migraphx::shape{migraphx::shape::int32_type, {1, 38, 4096, 64}};
+    auto s3 = migraphx::shape{migraphx::shape::int32_type, {64}};
+    migraphx::module m1;
+    {
+        auto x     = m1.add_parameter("x", s1);
+        auto y     = m1.add_parameter("y", s2);
+        auto lit1  = m1.add_literal(migraphx::generate_literal(s3, 1));
+        auto lit2  = m1.add_literal(migraphx::generate_literal(s3, 2));
+        auto lit1b = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), lit1);
+        auto lit2b = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), lit2);
+        auto mul1   = m1.add_instruction(migraphx::make_op("mul"), x, lit1b);
+        auto mul2   = m1.add_instruction(migraphx::make_op("mul"), y, lit2b);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), mul1, mul2);
+        m1.add_return({concat});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(simplify_concat_clip)
 {
     auto s = migraphx::shape{migraphx::shape::int32_type, {1}};
@@ -1742,9 +1767,11 @@ TEST_CASE(simplify_zero_mult_const)
 
     migraphx::module m2;
     {
-        m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto x            = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
         auto zero = m2.add_literal(0);
-        m2.add_return({zero});
+        auto reshape_zero = m2.add_instruction(
+            migraphx::make_op("reshape", {{"dims", x->get_shape().lens()}}), zero);
+        m2.add_return({reshape_zero});
     }
 
     EXPECT(m1 == m2);
@@ -1763,12 +1790,68 @@ TEST_CASE(simplify_zero_mult_const2)
 
     migraphx::module m2;
     {
-        m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto x            = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
         auto zero = m2.add_literal(0);
-        m2.add_return({zero});
+        auto reshape_zero = m2.add_instruction(
+            migraphx::make_op("reshape", {{"dims", x->get_shape().lens()}}), zero);
+        m2.add_return({reshape_zero});
     }
 
     EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_zero_mult_unsqueeze)
+{
+
+    // unsqueeze axis 0
+    migraphx::module m1;
+    {
+        auto x          = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto zero       = m1.add_literal(0);
+        auto mul_x_zero = m1.add_instruction(migraphx::make_op("mul"), x, zero);
+        auto unsqueeze_ins =
+            m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), mul_x_zero);
+        m1.add_return({unsqueeze_ins});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x            = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto zero         = m2.add_literal(0);
+        auto reshape_zero = m2.add_instruction(
+            migraphx::make_op("reshape", {{"dims", x->get_shape().lens()}}), zero);
+        auto unsqueeze_ins =
+            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), reshape_zero);
+        m2.add_return({unsqueeze_ins});
+    }
+
+    EXPECT(m1 == m2);
+
+    // unsqueeze axis 1
+    migraphx::module m3;
+    {
+        auto x          = m3.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto zero       = m3.add_literal(0);
+        auto mul_x_zero = m3.add_instruction(migraphx::make_op("mul"), x, zero);
+        auto unsqueeze_ins =
+            m3.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), mul_x_zero);
+        m3.add_return({unsqueeze_ins});
+    }
+    run_pass(m3);
+
+    migraphx::module m4;
+    {
+        auto x            = m4.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto zero         = m4.add_literal(0);
+        auto reshape_zero = m4.add_instruction(
+            migraphx::make_op("reshape", {{"dims", x->get_shape().lens()}}), zero);
+        auto unsqueeze_ins =
+            m4.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), reshape_zero);
+        m4.add_return({unsqueeze_ins});
+    }
+
+    EXPECT(m3 == m4);
 }
 
 TEST_CASE(simplify_zero_mul_const_vec)
@@ -1839,8 +1922,10 @@ TEST_CASE(simplify_zero_div_const)
     migraphx::module m2;
     {
         auto zero = m2.add_literal(0);
-        m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        m2.add_return({zero});
+        auto x           = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto reshape_ins = m2.add_instruction(
+            migraphx::make_op("reshape", {{"dims", x->get_shape().lens()}}), zero);
+        m2.add_return({reshape_ins});
     }
 
     EXPECT(m1 == m2);
@@ -2331,6 +2416,32 @@ TEST_CASE(simplify_split_add_relu_reshape)
         m2.add_instruction(pass_op{}, add);
     }
     EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(simplify_split_mul_broadcast_diff_size)
+{
+    auto s1 = migraphx::shape{migraphx::shape::int32_type, {1, 38, 4250, 64}};
+    auto s2 = migraphx::shape{migraphx::shape::int32_type, {64}};
+    migraphx::module m1;
+    {
+        auto x      = m1.add_parameter("x", s1);
+        auto lit1   = m1.add_literal(migraphx::generate_literal(s2, 1));
+        auto lit2   = m1.add_literal(migraphx::generate_literal(s2, 2));
+        auto split1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {154}}}), x);
+        auto split2 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {154}}, {"ends", {4250}}}), x);
+        auto lit1b = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 38, 154, 64}}}), lit1);
+        auto lit2b = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 38, 4096, 64}}}), lit2);
+        auto mul1 = m1.add_instruction(migraphx::make_op("mul"), split1, lit1b);
+        auto mul2 = m1.add_instruction(migraphx::make_op("mul"), split2, lit2b);
+        m1.add_return({mul1, mul2});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
 }
 
 // Do not fuse with inter split group dependency
@@ -4265,6 +4376,29 @@ TEST_CASE(dot_mul_a)
         m2.add_return({dot});
     };
 
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(dot_mul_a_used_twice)
+{
+    migraphx::shape as{migraphx::shape::float_type, {2, 256, 32}};
+    migraphx::shape bs{migraphx::shape::float_type, {2, 32, 128}};
+    migraphx::module m1;
+    {
+        auto a   = m1.add_parameter("input", as);
+        auto b   = m1.add_literal(migraphx::generate_literal(bs));
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), a, b);
+        auto lit =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {1, 1, 128}}));
+        auto litb = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", dot->get_shape().lens()}}), lit);
+        auto mul  = m1.add_instruction(migraphx::make_op("mul"), dot, litb);
+        auto relu = m1.add_instruction(migraphx::make_op("relu"), mul);
+        auto add  = m1.add_instruction(migraphx::make_op("add"), dot, relu);
+        m1.add_return({add});
+    };
+    migraphx::module m2 = m1;
+    run_pass(m1);
     EXPECT(m1.sort() == m2.sort());
 }
 

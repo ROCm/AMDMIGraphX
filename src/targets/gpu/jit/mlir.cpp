@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -74,6 +74,61 @@ struct mlir_compiler : compiler<mlir_compiler>
 
     operation compile_op(context&, const std::vector<shape>&, const value&) const { return {}; }
 
+    std::optional<instruction_ref> input_is_param(const instruction_ref& ins) const
+    {
+        auto cur = instruction::get_output_alias(ins);
+        while(contains({"reshape", "contiguous"}, cur->name()))
+        {
+            cur = instruction::get_output_alias(cur->inputs().at(0));
+        }
+        if(cur->name() == "@param")
+        {
+            return cur;
+        }
+        return nullopt;
+    }
+
+    bool is_range_literal(const instruction_ref& ins) const
+    {
+        auto lit_elms = ins->get_shape().element_space();
+        if(not ins->can_eval() or lit_elms < 2)
+        {
+            return false;
+        }
+        bool is_range = false;
+        ins->eval().visit([&](auto l) {
+            is_range = std::adjacent_find(l.begin(), l.begin() + lit_elms, [](auto cur, auto next) {
+                           return not float_equal(next - cur, 1.0);
+                       }) == l.begin() + lit_elms;
+        });
+        return is_range;
+    }
+
+    void set_fill_map(compiler_replace& cr, const module& m) const
+    {
+        for(auto ins : iterator_for(m))
+        {
+            if(ins->name() != "greater")
+            {
+                continue;
+            }
+            auto fill_val      = ins->get_shape().lens().back() - 1;
+            bool has_range_lit = std::any_of(ins->inputs().begin(),
+                                             ins->inputs().end(),
+                                             [&](auto inp) { return is_range_literal(inp); });
+            for(auto inp : ins->inputs())
+            {
+                auto param = input_is_param(inp);
+                if(param.has_value() and has_range_lit)
+                {
+                    auto id = param.value()->get_shape().type_string() +
+                              migraphx::shape::to_sizes_string({param.value()->get_shape()});
+                    cr.fill_map[id] = static_cast<double>(fill_val);
+                }
+            }
+        }
+    }
+
     compiler_replace
     compile(context& ctx, instruction_ref ins, const operation&, const value& solution) const
     {
@@ -117,7 +172,9 @@ struct mlir_compiler : compiler<mlir_compiler>
                                                   mlir_code_object{any_cast<code_object_op>(cop2)}};
             return insert(cops, mod_splits, ins, split_ins);
         }
-        return insert(compile_mlir(ctx, *smod, to_shapes(ins->inputs()), solution));
+        auto cr = insert(compile_mlir(ctx, *smod, to_shapes(ins->inputs()), solution));
+        set_fill_map(cr, *smod);
+        return cr;
     }
 
     compiler_replace insert(const mlir_code_object& mco) const

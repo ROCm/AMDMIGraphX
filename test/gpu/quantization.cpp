@@ -33,7 +33,6 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/pass_manager.hpp>
-#include <migraphx/onnx.hpp>
 #include <test.hpp>
 #include <migraphx/half.hpp>
 

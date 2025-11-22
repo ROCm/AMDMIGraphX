@@ -69,7 +69,7 @@ find_inputs_impl(const std::unordered_map<instruction_ref, instruction_ref>& map
         if(not parent_has(input))
             continue;
         auto v      = param->get_operator().to_value();
-        auto name   = v.at("parameter").to<std::string>();
+        auto name   = v.at("parameter").template to<std::string>();
         names[name] = input;
     }
     std::transform(names.begin(), names.end(), std::back_inserter(result), [](const auto& p) {

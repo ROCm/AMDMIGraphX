@@ -31,6 +31,7 @@
 #include <numeric>
 #include <memory>
 #include <set>
+#include <limits>
 
 #include <migraphx/functional.hpp>
 #include <migraphx/errors.hpp>
@@ -73,7 +74,8 @@ struct MIGRAPHX_EXPORT shape
 #define MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES(x, t) x,
     enum type_t
     {
-        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES) tuple_type
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES) tuple_type,
+        fp4x2_type // packed fp4 contained in uint8
     };
 #undef MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES
 
@@ -162,6 +164,7 @@ struct MIGRAPHX_EXPORT shape
     static bool is_compatible(const shape& actual, const shape& expected);
 
     static bool is_unsigned(type_t t);
+    static bool is_computable(type_t t);
 
     shape();
     shape(type_t t);
@@ -197,23 +200,17 @@ struct MIGRAPHX_EXPORT shape
     explicit shape(const std::vector<shape>& subs);
 
     /**
-     * Creates an output shape with dimensions equal to the input lengths and strides determined
-     * by the permutation argument such that find_permutation() of the output shape returns the
-     * inputted permuation.
+     * Creates an output shape with dimensions `l` and strides computed to fulfill the given
+     * permutation.
      *
-     * 2D example:
-     *   parameters:
-     *     l = [2, 3], perm = [1, 0]
-     *   therefore:
-     *     "original" shape = {lens = [3, 2], strides = [2, 1]}
-     *     output_shape = {lens = [2, 3], strides = [1, 2]
+     * `t` = shape type
+     * `l` = output dimensions
+     * `perm` = order dimensions from slowest dimension to fastest dimension
      *
-     * 3D example:
-     *   parameters:
-     *     l = [2, 3, 4], perm = [1, 2, 0]
-     *   therefore:
-     *     "original" shape = {lens = [3, 4, 2], strides = [8, 2, 1]}
-     *     output_shape = {lens = [2, 3, 4], strides = [1, 8, 2]}
+     *  Example:
+     *      `t` = float_type, `l` = [2, 3, 4], `perm` = [1, 2, 0]
+     *      axis=1 to slowest dimension, axis=2 to second slowest, axis=0 to fastest
+     *      returns shape{type = float, lens = [2, 3, 4], strides = [1, 8 ,2]}
      */
     static shape
     from_permutation(type_t t, const std::vector<std::size_t>& l, const std::vector<int64_t>& perm);
@@ -340,6 +337,9 @@ struct MIGRAPHX_EXPORT shape
     /// Return true if this shape or any of the sub_shapes are dynamic
     bool any_of_dynamic() const;
 
+    /// If type is computable (can do math ops like add or divide) and has a visitor function
+    bool computable() const;
+
     shape normalize_standard() const;
 
     shape as_standard() const;
@@ -370,6 +370,8 @@ struct MIGRAPHX_EXPORT shape
 
         type nan() const { return std::numeric_limits<type>::quiet_NaN(); }
 
+        type epsilon() const { return std::numeric_limits<type>::epsilon(); }
+
         template <class U>
         type operator()(U u) const
         {
@@ -392,9 +394,9 @@ struct MIGRAPHX_EXPORT shape
 
         std::size_t size(std::size_t n = 1) const { return sizeof(type) * n; }
 
-        auto is_integral() const { return std::is_integral<type>{}; }
-        auto is_signed() const { return std::is_signed<type>{}; }
-        auto is_unsigned() const { return std::is_unsigned<type>{}; }
+        bool is_integral() const { return std::is_integral<type>{}; }
+        bool is_signed() const { return std::is_signed<type>{}; }
+        bool is_unsigned() const { return std::is_unsigned<type>{}; }
 
         template <class U>
         type* from(U* buffer, std::size_t n = 0) const
@@ -419,6 +421,9 @@ struct MIGRAPHX_EXPORT shape
         case tuple_type: {
             tv();
             return;
+        }
+        case fp4x2_type: {
+            MIGRAPHX_THROW("fp4x2_type cannot be visited.");
         }
 #define MIGRAPHX_SHAPE_GENERATE_VISITOR_CASE(x, t) \
     case x: v(as<t>()); return;
@@ -445,6 +450,7 @@ struct MIGRAPHX_EXPORT shape
     {
 #define MIGRAPHX_SHAPE_GENERATE_VISITOR_ALL(x, t) v(as<t>());
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_VISITOR_ALL)
+        v(as<uint8_t>());
 #undef MIGRAPHX_SHAPE_GENERATE_VISITOR_ALL
     }
 

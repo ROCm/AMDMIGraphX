@@ -1,8 +1,9 @@
-	"group_norm_invalid_bias_shape_test:Ã
-:
+	"group_norm_invalid_bias_shape_test:Ö
+M
 x
 scale
 biasy"GroupNormalization*
+epsilon¬Å'7 *
 
 num_groups "group_norm_invalid_bias_shape_testZ
 x
@@ -14,7 +15,7 @@ num_groups "group_norm_invalid_bias_shape_testZ
 scale
 
 
-Z
+Z
 bias
 
 

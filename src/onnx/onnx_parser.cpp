@@ -360,10 +360,6 @@ parse_inputs(const onnx_parser& parser,
         // input not in initializer_data, so it is a real input
         if(not contains(mod_insts, name))
         {
-            // ONNX specification does not specify how to deal with the
-            // scenario that a nested subgraph contains a parameter with the
-            // name existed in its parent graph.
-            // In the current implementation, MIGraphX throws an exception for that.
             if(contains(parser.instructions, name))
             {
                 MIGRAPHX_THROW("module \"" + mod->name() + "\" has parameter name \"" + name +
@@ -391,9 +387,157 @@ parse_inputs(const onnx_parser& parser,
     return mod_insts;
 }
 
+struct node_maps
+{
+    std::unordered_map<std::string, std::vector<size_t>> input_to_node_map;
+    std::unordered_map<size_t, std::vector<std::string>> node_to_output_map;
+};
+
+static node_maps create_node_maps(const onnx::GraphProto& graph)
+{
+    node_maps maps{};
+
+    for(size_t node_index = 0; node_index < graph.node_size(); node_index++)
+    {
+        const onnx::NodeProto& node = graph.node(node_index);
+
+        // To track actual node outputs, a future node will mention the current node's output
+        // in its list of inputs. For example:
+        // node A: outputs ["a_out"]
+        // node B: inputs ["a_out"]
+        // Here the output of node A is node B because "a_out" is the output of node A and
+        // input of node B.
+        // There can be multiple outputs, so if each new node sees an input already
+        // in the map, then append to it.
+        // In the prior example, if we add the following:
+        // node C: inputs ["a_out"]
+        // then we will have something like {"a_out": [node B, node C]} in our map.
+        for(auto&& input : node.input())
+        {
+            if(input.empty())
+                continue;
+            maps.input_to_node_map[input].push_back(node_index);
+        }
+
+        std::vector<std::string> node_outputs;
+        std::transform(node.output().begin(),
+                       node.output().end(),
+                       std::back_inserter(node_outputs),
+                       [](const auto& output) { return output; });
+
+        // Use this second map to keep track of all references of the output names to be used
+        // as inputs to future nodes.
+        maps.node_to_output_map.emplace(node_index, std::move(node_outputs));
+    }
+    return maps;
+}
+
+static void traverse(std::vector<size_t>& sorted_nodes,
+                     std::unordered_set<size_t>& visited_nodes,
+                     const std::unordered_map<std::string, std::vector<size_t>>& input_to_node_map,
+                     const std::unordered_map<size_t, std::vector<std::string>>& node_to_output_map,
+                     size_t curr_node)
+{
+    if(contains(visited_nodes, curr_node))
+        return;
+
+    visited_nodes.insert(curr_node);
+
+    for(const auto& out_node_name : node_to_output_map.at(curr_node))
+    {
+        // check if node output is used in graph
+        if(not out_node_name.empty() and contains(input_to_node_map, out_node_name))
+        {
+            for(const auto& in_node_name : input_to_node_map.at(out_node_name))
+                traverse(sorted_nodes,
+                         visited_nodes,
+                         input_to_node_map,
+                         node_to_output_map,
+                         in_node_name);
+        }
+    }
+    sorted_nodes.insert(sorted_nodes.begin(), curr_node);
+}
+
+static std::vector<size_t> toposort(const onnx::GraphProto& graph)
+{
+    node_maps maps = create_node_maps(graph);
+
+    std::vector<size_t> sorted_nodes;
+    std::unordered_set<size_t> visited_nodes;
+
+    for(size_t node_index = 0; node_index < graph.node_size(); node_index++)
+    {
+        traverse(sorted_nodes,
+                 visited_nodes,
+                 maps.input_to_node_map,
+                 maps.node_to_output_map,
+                 node_index);
+    }
+
+    return sorted_nodes;
+}
+
+static bool check_sorted(const onnx::GraphProto& graph,
+                         std::unordered_set<std::string>& parent_input_nodes)
+{
+    std::unordered_set<std::string> visited_nodes;
+
+    // first visit all graph inputs and initializers,
+    // keep track globally since subgraph nodes may depend on parent inputs
+    for(auto&& input : graph.input())
+    {
+        const std::string& input_name = input.name();
+
+        // ONNX specification does not specify how to deal with the
+        // scenario that a nested subgraph contains a parameter with the
+        // same name in its parent graph.
+        // In the current implementation, MIGraphX throws an exception for that.
+        if(contains(parent_input_nodes, input_name))
+            MIGRAPHX_THROW("subgraph \"" + graph.name() + "\" has parameter name \"" + input_name +
+                           "\" existing in parent graph!");
+        parent_input_nodes.insert(input_name);
+    }
+
+    for(auto&& initializer : graph.initializer())
+    {
+        parent_input_nodes.insert(initializer.name());
+    }
+
+    // propagate parent graph input nodes into visited nodes
+    visited_nodes.insert(parent_input_nodes.begin(), parent_input_nodes.end());
+
+    for(auto&& node : graph.node())
+    {
+        for(auto&& input : node.input())
+        {
+            // operators like resize can use empty strings to skip unused inputs
+            if(not input.empty())
+                if(not contains(visited_nodes, input))
+                    return false;
+        }
+        // node outputs struct is used to keep track of currently visited nodes
+        visited_nodes.insert(node.output().begin(), node.output().end());
+    }
+    return true;
+}
+
 std::vector<instruction_ref>
 onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlining)
 {
+    std::vector<size_t> node_indices(graph.node_size());
+
+    if(check_sorted(graph, parent_input_nodes))
+    {
+        std::iota(node_indices.begin(), node_indices.end(), 0);
+    }
+    else
+    {
+        std::cerr << "Warning: onnx model is not topologically sorted. Attempting to sort..."
+                  << std::endl;
+        node_indices = toposort(graph);
+    }
+
     std::unordered_map<std::string, instruction_ref> mod_insts =
         parse_intializer(*this, mod, graph);
 
@@ -401,10 +545,17 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
 
     std::copy(mod_insts.begin(), mod_insts.end(), std::inserter(instructions, instructions.end()));
 
-    for(auto&& node : graph.node())
+    for(auto& node_index : node_indices)
     {
+        const onnx::NodeProto& node = graph.node(node_index);
         if(enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
-            std::cout << "operator: " << node.op_type() << std::endl;
+        {
+            std::cout << "operator: " << node.op_type() << '\t' << node.name() << std::endl;
+            for(auto&& attr : node.attribute())
+            {
+                std::cout << "    " << attr.name() << " = " << to_string(attr) << std::endl;
+            }
+        }
 
         std::vector<instruction_ref> args;
         for(auto&& input : node.input())
@@ -503,6 +654,29 @@ literal onnx_parser::parse_value(const onnx::AttributeProto& attr) const
     case onnx::AttributeProto::GRAPHS: return {};
     }
     MIGRAPHX_THROW("PARSE_VALUE: Invalid attribute type " + std::to_string(attr.type()));
+}
+
+std::string onnx_parser::to_string(const onnx::AttributeProto& attr) const
+{
+    switch(attr.type())
+    {
+    case onnx::AttributeProto::FLOAT:
+    case onnx::AttributeProto::INT:
+    case onnx::AttributeProto::TENSOR:
+    case onnx::AttributeProto::FLOATS:
+    case onnx::AttributeProto::INTS: return migraphx::to_string(parse_value(attr));
+    case onnx::AttributeProto::STRING: return attr.s();
+    case onnx::AttributeProto::STRINGS: return to_string_range(attr.strings());
+    case onnx::AttributeProto::UNDEFINED: return "UNDEFINED";
+    case onnx::AttributeProto::GRAPH: return "GRAPH";
+    case onnx::AttributeProto::TENSORS: return "TENSORS";
+    case onnx::AttributeProto::SPARSE_TENSOR: return "SPARSE_TENSOR";
+    case onnx::AttributeProto::SPARSE_TENSORS: return "SPARSE_TENSORS";
+    case onnx::AttributeProto::TYPE_PROTOS: return "TYPE_PROTOS";
+    case onnx::AttributeProto::TYPE_PROTO: return "TYPE_PROTO";
+    case onnx::AttributeProto::GRAPHS: return "GRAPHS";
+    }
+    MIGRAPHX_THROW("TO_STRING: Invalid attribute type " + std::to_string(attr.type()));
 }
 
 static shape parse_tensor_shape(const onnx::TensorProto& t)
@@ -686,6 +860,7 @@ shape::type_t get_type(int dtype)
     case 18: return shape::fp8e4m3fnuz_type;
     case 21: return shape::uint8_type;
     case 22: return shape::int8_type;
+    case 23: return shape::fp4x2_type;
     case 14:
     case 15:
     case 16: return shape::bf16_type;

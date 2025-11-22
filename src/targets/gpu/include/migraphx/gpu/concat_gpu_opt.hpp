@@ -27,6 +27,8 @@
 #include <migraphx/op/concat.hpp>
 #include <migraphx/operation.hpp>
 #include <migraphx/serialize.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/gpu/allocation_model.hpp>
 
 namespace migraphx {
 namespace gpu {
@@ -42,6 +44,14 @@ struct concat_gpu_optimization
         if(r.name() == "concat")
             return any_cast<migraphx::op::concat>(r);
         return nullopt;
+    }
+    bool supports_non_packed_output(instruction_ref ins) const
+    {
+        return ins->name() == "gpu::precompile_op";
+    }
+    gpu_allocation_model allocation() const
+    {
+        return gpu_allocation_model{};
     }
 };
 

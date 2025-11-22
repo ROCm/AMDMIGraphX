@@ -292,7 +292,8 @@ static migraphx::shape create_shape(Ts... xs)
     if(sizeof...(Is) == 0)
         return migraphx::shape{migraphx::shape::float_type, {std::size_t(xs)...}};
     else
-        return migraphx::shape::from_permutation(migraphx::shape::float_type, {std::size_t(xs)...}, {Is...});
+        return migraphx::shape::from_permutation(
+            migraphx::shape::float_type, {std::size_t(xs)...}, {Is...});
 }
 
 template <std::size_t... Is, class... Ts>
@@ -593,23 +594,26 @@ TEST_CASE(concat_axis1_with_empty_axis0_nhwc_supports_non_packed_output)
     }
     run_pass(m1, {.op_non_packed_output = {"simple_op"}});
     migraphx::module m2;
-{
-    auto a1 = m2.add_instruction(make_allocate<0, 2, 3, 1>(1, 10, 8, 8));
-    auto slice1 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {1}}, {"starts", {5}}, {"ends", {10}}}), a1);
-    auto slice2 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {5}}}), a1);
-    auto slice3 = m2.add_instruction(migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}}), a1);
-    auto a2 = m2.add_instruction(make_allocate<0, 2, 3, 1>(1, 2, 8, 8));
-    auto s1 = m2.add_instruction(simple_op{}, a2);
-    auto cp1 = m2.add_instruction(migraphx::make_op("test::copy"), s1, slice3);
-    auto a3 = m2.add_instruction(make_allocate<0, 2, 3, 1>(1, 3, 8, 8));
-    auto s2 = m2.add_instruction(simple_op{}, a3);
-    auto cp2 = m2.add_instruction(migraphx::make_op("test::copy"), s2, slice2);
-    auto a4 = m2.add_instruction(make_allocate<0, 2, 3, 1>(1, 5, 8, 8));
-    auto s3 = m2.add_instruction(simple_op{}, a4);
-    auto cp3 = m2.add_instruction(migraphx::make_op("test::copy"), s3, slice1);
-    auto id1 = m2.add_instruction(migraphx::make_op("identity"), a1, cp1, cp2, cp3);
-    m2.add_return({id1});
-}
+    {
+        auto a1     = m2.add_instruction(make_allocate<0, 2, 3, 1>(1, 10, 8, 8));
+        auto slice1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {5}}, {"ends", {10}}}), a1);
+        auto slice2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {5}}}), a1);
+        auto slice3 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}}), a1);
+        auto a2  = m2.add_instruction(make_allocate<0, 2, 3, 1>(1, 2, 8, 8));
+        auto s1  = m2.add_instruction(simple_op{}, a2);
+        auto cp1 = m2.add_instruction(migraphx::make_op("test::copy"), s1, slice3);
+        auto a3  = m2.add_instruction(make_allocate<0, 2, 3, 1>(1, 3, 8, 8));
+        auto s2  = m2.add_instruction(simple_op{}, a3);
+        auto cp2 = m2.add_instruction(migraphx::make_op("test::copy"), s2, slice2);
+        auto a4  = m2.add_instruction(make_allocate<0, 2, 3, 1>(1, 5, 8, 8));
+        auto s3  = m2.add_instruction(simple_op{}, a4);
+        auto cp3 = m2.add_instruction(migraphx::make_op("test::copy"), s3, slice1);
+        auto id1 = m2.add_instruction(migraphx::make_op("identity"), a1, cp1, cp2, cp3);
+        m2.add_return({id1});
+    }
 
     EXPECT(m1.sort() == m2.sort());
 }

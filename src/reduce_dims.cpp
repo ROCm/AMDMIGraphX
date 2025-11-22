@@ -110,18 +110,20 @@ static std::vector<std::size_t> base_lens(const std::vector<shape>& shapes)
 static shape mask_shape(const shape& s, const std::vector<std::size_t>& lens)
 {
     assert(s.lens().size() == lens.size());
+
+    std::vector<std::size_t> mlens;
+    std::transform(s.lens().begin(), s.lens().end(), lens.begin(), std::back_inserter(mlens), [](auto x, auto y) -> std::size_t {
+        if(x != y)
+            return 1;
+        return x;
+    });
+    shape base{s.type(), mlens};
     std::vector<std::size_t> rstrides(lens.size());
-    std::size_t stride = 1;
-    for(std::size_t i = lens.size() - 1; i < lens.size(); i--)
+    for(std::size_t i = 0; i < lens.size(); i++)
     {
         if(lens[i] == s.lens()[i])
         {
-            rstrides[i] = stride;
-            stride *= lens[i];
-        }
-        else if(lens[i] != 1 and s.lens()[i] != 1)
-        {
-            return shape{};
+            rstrides[i] = base.strides()[i];
         }
     }
     return shape{s.type(), lens, rstrides};

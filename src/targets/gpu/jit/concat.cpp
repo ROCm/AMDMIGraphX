@@ -51,7 +51,7 @@ extern "C" {
 MIGRAPHX_GLOBAL void ${kernel}(${params}) 
 {
     transform_args(make_tensors(), rotate_last(), ${transformers})(${args})([](auto y, ${concat_params}, auto... xs) {
-        concat<${axis}>(${concat_args})(${post}, y, xs...);
+        concat::run<concat::${algo}, ${axis}>(${concat_args})(${post}, y, xs...);
     });
 }
 
@@ -81,6 +81,15 @@ struct concat_compiler : compiler<concat_compiler>
         return result;
     }
 
+    static std::size_t
+    max_size(const std::vector<shape>& inputs, std::size_t ninputs, std::size_t axis)
+    {
+        return std::max_element(inputs.begin(),
+                                inputs.begin() + ninputs,
+                                by(std::less<>{}, [&](const shape& s) { return s.lens()[axis]; }))
+            ->lens()[axis];
+    }
+
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
@@ -96,7 +105,6 @@ struct concat_compiler : compiler<concat_compiler>
         if(axis != concat_axis)
             vec = vectorize::elements(ctx, axis, options.virtual_inputs);
         auto nelements_per_op = options.virtual_inputs.back().elements() / op_names.size();
-        options.set_launch_params(v, compute_global_for(ctx, nelements_per_op / vec.size, 256));
         options.emplace_param("-Wno-float-equal");
         std::vector<std::string> concat_params;
         std::vector<std::string> concat_args;
@@ -114,6 +122,19 @@ struct concat_compiler : compiler<concat_compiler>
             });
             concat_args.push_back("pack(" + join_strings(pack_args, ", ") + ")");
         }
+#if 0
+        std::string algo = "simple";
+        options.set_launch_params(v, compute_global_for(ctx, nelements_per_op / vec.size, 256));
+#else
+        auto ninputs             = concat_params.size();
+        auto max_elements_per_op = max_size(options.virtual_inputs, ninputs, concat_axis);
+        auto group               = 16;
+        auto nslices             = options.virtual_inputs.back().elements() /
+                       options.virtual_inputs.back().lens()[concat_axis];
+        auto block_size  = compute_block_size(ctx, max_elements_per_op * group, 256);
+        std::string algo = "block_tile<" + std::to_string(group) + ">";
+        options.set_launch_params(v, (nslices / group) * block_size, block_size);
+#endif
         auto src = interpolate_string(concat_kernel,
                                       {{"kernel", options.kernel_name},
                                        {"params", enum_params(inputs.size(), "void * private_p")},
@@ -123,6 +144,7 @@ struct concat_compiler : compiler<concat_compiler>
                                        {"post", v.get("post", std::string{"op::id{}"})},
                                        {"transformers", make_transformer_args(vec)},
                                        {"preamble", v.get("preamble", std::string{})},
+                                       {"algo", algo},
                                        {"axis", std::to_string(concat_axis)}});
         return compile_hip_code_object(ctx, src, options);
     }

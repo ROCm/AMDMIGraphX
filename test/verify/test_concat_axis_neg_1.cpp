@@ -35,7 +35,7 @@ struct test_concat_axis_neg_1 : verify_program<test_concat_axis_neg_1<DType, N, 
         migraphx::program p;
         auto* mm = p.get_main_module();
         int axis = -1;
-        migraphx::shape s0{migraphx::shape::int32_type, {N, (Min+Max)/2}};
+        migraphx::shape s0{migraphx::shape::int32_type, {N, (Min + Max) / 2}};
         migraphx::shape s1{migraphx::shape::int32_type, {N, Max}};
         migraphx::shape s2{migraphx::shape::int32_type, {N, Min}};
         auto l0 = mm->add_parameter("x", s0);
@@ -49,4 +49,3 @@ struct test_concat_axis_neg_1 : verify_program<test_concat_axis_neg_1<DType, N, 
 template struct test_concat_axis_neg_1<migraphx::shape::int32_type, 2, 1, 3>;
 
 template struct test_concat_axis_neg_1<migraphx::shape::float_type, 16, 12>;
-

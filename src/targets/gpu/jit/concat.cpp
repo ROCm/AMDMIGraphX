@@ -127,7 +127,7 @@ struct concat_compiler : compiler<concat_compiler>
         options.set_launch_params(v, compute_global_for(ctx, nelements_per_op / vec.size, 256));
 #else
         auto ninputs             = concat_params.size();
-        auto max_elements_per_op = max_size(options.virtual_inputs, ninputs, concat_axis);
+        auto max_elements_per_op = max_size(options.virtual_inputs, ninputs, concat_axis) / vec.size;
         auto group               = 16;
         auto nslices             = options.virtual_inputs.back().elements() /
                        options.virtual_inputs.back().lens()[concat_axis];

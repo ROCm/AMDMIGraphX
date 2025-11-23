@@ -104,7 +104,7 @@ struct concat_compiler : compiler<concat_compiler>
         vectorize vec{};
         if(axis != concat_axis)
             vec = vectorize::elements(ctx, axis, options.virtual_inputs);
-        auto output = options.virtual_inputs.back();
+        auto output           = options.virtual_inputs.back();
         auto nelements_per_op = output.elements() / op_names.size();
         options.emplace_param("-Wno-float-equal");
         std::vector<std::string> concat_params;
@@ -128,15 +128,15 @@ struct concat_compiler : compiler<concat_compiler>
             max_size(options.virtual_inputs, ninputs, concat_axis) / vec.size;
         auto avg_elements_per_op = output.lens()[concat_axis] / op_names.size();
         std::string algo;
-        if(concat_axis == axis and max_elements_per_op < 64 and max_elements_per_op == avg_elements_per_op)
+        if(concat_axis == axis and max_elements_per_op < 64 and
+           max_elements_per_op == avg_elements_per_op)
         {
             std::size_t group = 1;
             if(concat_axis > 0)
-                group = compute_tile_factor(output.lens()[concat_axis-1], 16);
-            auto nslices             = output.elements() /
-                           output.lens()[concat_axis];
-            auto block_size  = compute_block_size(ctx, max_elements_per_op * group, 256);
-            algo = "block_tile<" + std::to_string(group) + ">";
+                group = compute_tile_factor(output.lens()[concat_axis - 1], 16);
+            auto nslices    = output.elements() / output.lens()[concat_axis];
+            auto block_size = compute_block_size(ctx, max_elements_per_op * group, 256);
+            algo            = "block_tile<" + std::to_string(group) + ">";
             options.set_launch_params(v, (nslices / group) * block_size, block_size);
         }
         else

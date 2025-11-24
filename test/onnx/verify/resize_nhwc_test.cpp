@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -44,7 +44,7 @@ TEST_CASE(resize_nhwc_test)
     migraphx::parameter_map pp;
     pp["X"] = migraphx::argument(sx, dx.data());
 
-    auto result = p.eval(pp).back();
+    auto result        = p.eval(pp).back();
     auto result_vector = result.to_vector<float>();
 
     // The output should be [1, 3, 4, 4] after:

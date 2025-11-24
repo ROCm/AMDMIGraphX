@@ -790,12 +790,12 @@ void fuse_attention::apply(module_pass_manager& mpm) const
     mpm.run_pass(dead_code_elimination{});
 
     // Only fuse plain attention when requested
-    if(attn_enabled)
-    {
+    // if(attn_enabled)
+    // {
         match::find_matches(mpm, find_attention{.counter = &counter});
         mpm.get_module().sort();
         mpm.run_pass(dead_code_elimination{});
-    }
+    // }
 
     std::size_t num_splits = 0;
     if(flash_decoding_num_splits.has_value())

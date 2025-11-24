@@ -63,6 +63,6 @@ struct test_attention_flash_decoding_4d : verify_program<test_attention_flash_de
 // MIGRAPHX_FLASH_DECODING_NUM_SPLITS=2 # or another split factor
 // MIGRAPHX_MLIR_USE_SPECIFIC_OPS=attention
 // TODO: fix needed in rocMLIR
-// template struct test_attention_flash_decoding_4d<migraphx::shape::half_type>;
-// template struct test_attention_flash_decoding_4d<migraphx::shape::bf16_type>;
-// template struct test_attention_flash_decoding_4d<migraphx::shape::float_type>;
+template struct test_attention_flash_decoding_4d<migraphx::shape::half_type>;
+template struct test_attention_flash_decoding_4d<migraphx::shape::bf16_type>;
+template struct test_attention_flash_decoding_4d<migraphx::shape::float_type>;

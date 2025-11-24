@@ -160,13 +160,49 @@ Model performance tunable variables change the compilation behavior of a model. 
 
       | Default: Split-k performance configurations are turned off.
 
-  * - | ``MIGRAPHX_FLASH_DECODING_NUM_SPLITS``
-      | Turns on flash decoding for attention fusion and sets the number of splits along the key-value sequence dimension.
-    
-    - | ``0``: Flash decoding is turned off (i.e., number of splits is 0).
-      | ``N`` (where N > 1): Enables flash decoding with N splits along the key-value sequence dimension. For example, ``2`` enables flash decoding with 2 splits, ``4`` with 4 splits, etc.
+  * - | ``MIGRAPHX_FLASH_DECODING_ENABLED``
+    - | When set, flash decoding optimization for attention fusion is enabled, which splits the key-value sequence dimension for improved performance on long sequences.
+    - | ``1``: Enables flash decoding optimization.
+      | ``0``: Disables flash decoding optimization.
 
-      | Default: flash decoding is turned off.
+      | Default: ``0`` (disabled).
+
+  * - | ``MIGRAPHX_FLASH_DECODING_NUM_SPLITS``
+      | Sets the number of splits along the key-value sequence dimension when flash decoding is enabled.
+    
+    - | ``0`` or negative: Automatically calculates optimal splits based on sequence length.
+      | ``N`` (where N > 0): Uses exactly N splits along the key-value sequence dimension.
+
+      | Default: ``0`` (automatic calculation).
+      
+      | Note: This variable is only used when ``MIGRAPHX_FLASH_DECODING_ENABLED=1``.
+
+  * - | ``MIGRAPHX_FLASH_DECODING_MIN_CHUNK_SIZE``
+      | Sets the minimum chunk size for automatic split calculation in flash decoding.
+    
+    - | Takes a positive integer representing the minimum size of each chunk after splitting.
+      
+      | Default: ``256``.
+      
+      | Note: Only used when automatic split calculation is enabled.
+
+  * - | ``MIGRAPHX_FLASH_DECODING_MAX_SPLITS``
+      | Sets the maximum number of splits allowed during automatic split calculation.
+    
+    - | Takes a positive integer representing the maximum number of splits.
+      
+      | Default: ``32``.
+      
+      | Note: Only used when automatic split calculation is enabled.
+
+  * - | ``MIGRAPHX_FLASH_DECODING_THRESHOLD``
+      | Sets the minimum sequence length threshold for flash decoding to be applied.
+    
+    - | Takes a positive integer. Flash decoding is only applied when the sequence length is greater than or equal to this threshold.
+      
+      | Default: ``1024``.
+      
+      | Note: Only used when automatic split calculation is enabled.
 
   * - | ``MIGRAPHX_DISABLE_FP16_INSTANCENORM_CONVERT``
       | When set, FP16 is not converted to FP32 in the ``InstanceNormalization`` ONNX operator. 

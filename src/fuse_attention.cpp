@@ -29,7 +29,7 @@
 #include <migraphx/match/softmax.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/fuse_attention_split_factor.hpp>
+#include <migraphx/split_factor.hpp>
 #include <queue>
 #include <optional>
 
@@ -38,14 +38,37 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
 
-// Environment variables for flash decoding configuration
+// env vars for flash decoding configuration
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_ENABLED);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_NUM_SPLITS);
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_AUTO_SPLIT);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_MIN_CHUNK_SIZE);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_MAX_SPLITS);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_THRESHOLD);
 
+// Check for MLIR attention ops usage
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_USE_SPECIFIC_OPS);
+
+bool is_mlir_attention_enabled()
+{
+    auto ops = string_value_of(MIGRAPHX_MLIR_USE_SPECIFIC_OPS{}, "");
+    return ops.find("attention") != std::string::npos;
+}
+
+bool is_flash_decoding_enabled() 
+{ 
+    // flash decoding is enabled if explicitly enabled
+    return enabled(MIGRAPHX_FLASH_DECODING_ENABLED{});
+}
+
 std::size_t get_num_splits() { return value_of(MIGRAPHX_FLASH_DECODING_NUM_SPLITS{}, 0); }
+
+// calculate optimal flash decoding splits
+inline std::size_t calculate_flash_decoding_splits(std::size_t sequence_length, 
+                                                    std::size_t min_chunk_size, 
+                                                    std::size_t max_splits)
+{
+    return split_dim_with_max(sequence_length, min_chunk_size, max_splits);
+}
 
 // TODO: Write this in matcher.hpp as a general matcher for iterating through inputs
 inline auto pointwise_inputs()
@@ -222,9 +245,9 @@ struct find_attention
 
 struct find_flash_decoding
 {
-    // number of groups (0 means auto-calculate)
+    // number of groups (0 or negative means auto-calculate)
     std::size_t groups;
-    bool use_auto_split = false;
+    bool auto_calculate = false;
 
     auto matcher() const
     {
@@ -274,7 +297,8 @@ struct find_flash_decoding
         std::vector<size_t> v_shape;           // final V shape: [B, G, N/G, D]
     };
 
-    transformed_shapes_result get_transformed_shapes(const std::vector<shape>& input_shapes) const
+    transformed_shapes_result get_transformed_shapes(const std::vector<shape>& input_shapes,
+                                                      std::size_t num_groups) const
     {
         assert(input_shapes.size() == 3 and "Expected Q, K, V shapes");
 
@@ -286,7 +310,7 @@ struct find_flash_decoding
         // 4D: Q_lens = [B, H, M, k]
         size_t ndim = q_lens.size();
         size_t n    = k_lens[ndim - 1];
-        size_t g    = groups;
+        size_t g    = num_groups;
 
         // TODO: handle uneven splits; this is caught in `apply` for now
         assert(n % g == 0 and
@@ -434,6 +458,7 @@ struct find_flash_decoding
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
+        std::cout << "apply flash decoding" << std::endl;
         auto& mm            = mpm.get_module();
         auto attn_group_ins = r.instructions["group"];
         auto* submod        = attn_group_ins->module_inputs().front();
@@ -462,15 +487,17 @@ struct find_flash_decoding
         
         // Determine actual number of splits to use
         std::size_t actual_groups = groups;
-        if(use_auto_split)
+        if(auto_calculate || groups <= 0)
         {
-            // Check if sequence length meets threshold for flash decoding
-            std::size_t threshold = value_of(MIGRAPHX_FLASH_DECODING_THRESHOLD{}, 1024);
-            if(sequence_length < threshold)
-                return;
-            
+            // Auto-calculate the optimal number of splits
             std::size_t min_chunk = value_of(MIGRAPHX_FLASH_DECODING_MIN_CHUNK_SIZE{}, 256);
             std::size_t max_splits = value_of(MIGRAPHX_FLASH_DECODING_MAX_SPLITS{}, 32);
+            std::size_t threshold = value_of(MIGRAPHX_FLASH_DECODING_THRESHOLD{}, 1024);
+
+            // Check if sequence length meets threshold for flash decoding
+            if(sequence_length < threshold)
+                return;
+
             actual_groups = calculate_flash_decoding_splits(sequence_length, min_chunk, max_splits);
             
             // Skip if auto-calculation determines no splitting needed
@@ -478,6 +505,10 @@ struct find_flash_decoding
                 return;
         }
         
+        // Skip if no actual splitting (num_splits must be > 1)
+        if(actual_groups <= 1)
+            return;
+            
         // check if N dimension is evenly divisible by num_splits
         if(sequence_length % actual_groups != 0)
             return;
@@ -486,14 +517,11 @@ struct find_flash_decoding
         auto qkv_shapes = get_qkv_shapes(q_param, k_param, v_param);
 
         // check shapes are ok and get flash decoding transformed shapes (Q', V', K')
-        auto transform_info = get_transformed_shapes(qkv_shapes);
+        auto transform_info = get_transformed_shapes(qkv_shapes, actual_groups);
 
         // create mapping from submodule params to main module inputs
         auto group_inputs      = attn_group_ins->inputs();
         auto map_param_to_main = map_submod_params_to_inputs(submod, group_inputs);
-        
-        // Use actual_groups for all subsequent operations
-        groups = actual_groups;
 
         // get actual Q, K, V instructions from main module
         auto q = map_param_to_main.at(q_param);
@@ -822,35 +850,72 @@ void fuse_attention::apply(module_pass_manager& mpm) const
     mpm.run_pass(dead_code_elimination{});
 
     // Only fuse plain attention when requested
-    if(attn_enabled)
+    if(attn_enabled || is_mlir_attention_enabled())
     {
+        std::cout << "fuse plain attention" << std::endl;
+        mpm.get_module().debug_print();
         match::find_matches(mpm, find_attention{.counter = &counter});
         mpm.get_module().sort();
         mpm.run_pass(dead_code_elimination{});
+        mpm.get_module().debug_print();
     }
 
-    // Determine split strategy
-    bool use_auto_split = enabled(MIGRAPHX_FLASH_DECODING_AUTO_SPLIT{});
+    // Check if flash decoding is enabled
+    bool flash_enabled = false;
     std::size_t num_splits = 0;
+    bool auto_calculate = false;
     
+    // for testing, check if the number of splits has been explicitly set
     if(flash_decoding_num_splits.has_value())
     {
-        // Use the value from the constructor (for testing)
-        num_splits = *flash_decoding_num_splits;
-        use_auto_split = false;  // Disable auto for testing
+        std::cout << "flash decoding is explicitly enabled via constructor" << std::endl;
+        std::cout << "flash_decoding_num_splits: " << *flash_decoding_num_splits << std::endl;
+        flash_enabled = true;
+        // constructor value provided (for testing) - consider it enabled if > 0
+        if(*flash_decoding_num_splits > 0)
+        {
+            num_splits = *flash_decoding_num_splits;
+            auto_calculate = false;
+        }
+        else
+        {
+            // constructor provided 0 or negative - enable with auto-calculation
+            num_splits = 0;
+            auto_calculate = true;
+        }
     }
-    else if(!use_auto_split)
+    else if(is_flash_decoding_enabled())
     {
-        // Legacy behavior: read from the env var (for non-test use)
+        std::cout << "flash decoding is explicitly enabled via environment variable" << std::endl;
+        // flash decoding is explicitly enabled via environment variable
+        flash_enabled = true;
+        
+        // check if user specified number of splits
         num_splits = get_num_splits();
+        std::cout << "num_splits: " << num_splits << std::endl;
+        if(num_splits > 0)
+        {
+            // user specified a positive number of splits - use it
+            auto_calculate = false;
+        }
+        else
+        {
+            // user didn't specify or specified 0/negative - auto-calculate
+            num_splits = 0;
+            auto_calculate = true;
+        }
     }
     
-    // Apply flash decoding with either manual or automatic splitting
-    if(use_auto_split || num_splits > 1)
+    // Apply flash decoding if enabled
+    if(flash_enabled)
     {
+        std::cout << "flash_enabled: " << flash_enabled << std::endl;
+        std::cout << "num_splits: " << num_splits << std::endl;
+        std::cout << "auto_calculate: " << auto_calculate << std::endl;
+        mpm.get_module().debug_print();
         match::find_matches(mpm, find_flash_decoding{
             .groups = num_splits,
-            .use_auto_split = use_auto_split
+            .auto_calculate = auto_calculate
         });
         mpm.run_pass(dead_code_elimination{});
     }

@@ -24,7 +24,7 @@
 
 #include <onnx_test.hpp>
 
-TEST_CASE(mxfixneuron_even_test)
+TEST_CASE(mxqdq_even_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -60,11 +60,11 @@ TEST_CASE(mxfixneuron_even_test)
     auto unpack_ins          = mm->add_instruction(migraphx::make_op("unpack_fp4"), pack_ins);
     mm->add_instruction(migraphx::make_op("dequantizelinear"), unpack_ins, block_scales_ins);
 
-    auto prog = optimize_onnx("mxfixneuron_even_test.onnx");
+    auto prog = optimize_onnx("mxqdq_even_test.onnx");
     EXPECT(p == prog);
 }
 
-TEST_CASE(mxfixneuron_odd_test)
+TEST_CASE(mxqdq_odd_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -109,6 +109,6 @@ TEST_CASE(mxfixneuron_odd_test)
         migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {5}}}), unpack_ins);
     mm->add_instruction(migraphx::make_op("dequantizelinear"), slice_ins, block_scales_ins);
 
-    auto prog = optimize_onnx("mxfixneuron_odd_test.onnx");
+    auto prog = optimize_onnx("mxqdq_odd_test.onnx");
     EXPECT(p == prog);
 }

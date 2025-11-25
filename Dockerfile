@@ -9,6 +9,12 @@ RUN dpkg --add-architecture i386
 RUN apt-get update && apt-get install -y software-properties-common gnupg2 --no-install-recommends curl && \
     curl -sL http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add -
 
+# Install Clang 17 for ASAN tests (ROCm 7.x ships with Clang 20 which has ODR false positives)
+RUN wget -O /tmp/llvm.sh https://apt.llvm.org/llvm.sh && \
+    chmod +x /tmp/llvm.sh && \
+    /tmp/llvm.sh 17 && \
+    rm /tmp/llvm.sh
+
 # Add rocm repository
 RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/7.1/ jammy main > /etc/apt/sources.list.d/rocm.list'
 
@@ -23,7 +29,6 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     apt-utils \
     bison \
     build-essential \
-    clang-14 \
     cmake \
     curl \
     flex \

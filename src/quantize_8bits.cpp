@@ -51,6 +51,11 @@ static std::vector<shape::type_t>& get_quantizable_type()
 
 void quantize_8bits_pass::apply(module& m) const // NOLINT
 {
+    // skip main module that contains select_module
+    if(any_of(m.begin(), m.end(), [](auto ins) { return ins.name() == "select_module"; }))
+    {
+        return;
+    }
     const auto& quantizable_types = get_quantizable_type();
     for(auto ins : iterator_for(m))
     {
@@ -97,6 +102,11 @@ void quantize_8bits_pass::apply(module& m) const // NOLINT
 
 void capture_arguments_pass::apply(module& m) const // NOLINT
 {
+    // skip main module that contains select_module
+    if(any_of(m.begin(), m.end(), [](auto ins) { return ins.name() == "select_module"; }))
+    {
+        return;
+    }
     assert(param_index != nullptr);
     const auto& quantizable_types = get_quantizable_type();
 

@@ -41,6 +41,7 @@ struct parse_generic_op : op_parser<parse_generic_op>
                 {"NoOp", "identity"},
                 {"Identity", "identity"},
                 {"LessEqual", "identity"},
+                {"LeakyRelu", "leaky_relu"},
                 {"Relu", "relu"},
                 {"Rsqrt", "rsqrt"},
                 {"Sigmoid", "sigmoid"},

@@ -43,6 +43,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MATCHERS);
+
 static auto lit_broadcast()
 {
     return match::any_of(match::is_constant(), match::name("broadcast"));
@@ -1653,6 +1655,7 @@ struct find_conv_dot_horiz_fusion
 
     void apply(module& m, const match::matcher_result& r) const
     {
+        std::cout << "HERE" << std::endl;
         auto ins = r.result;
 
         auto pred = [](auto i, auto j) {
@@ -1763,6 +1766,7 @@ struct find_unit_ops
 
     void apply(module& m, const match::matcher_result& r) const
     {
+        std::cout << "hit find_unit_ops" << std::endl;
         auto ins  = r.result;
         auto c_in = r.instructions["x"];
 
@@ -2121,34 +2125,68 @@ void simplify_algebra::apply(module& m) const
 {
     // Run simplifications multiple times
     m.repeat_while_changes(8, [&] {
-        match::find_matches(m,
-                            find_inner_broadcast{},
-                            find_dot_broadcast{},
-                            find_double_add_lit_broadcast{},
-                            find_add_lit_broadcast{},
-                            find_add_convs{},
-                            find_conv_dot_horiz_fusion{},
-                            find_mul_conv{},
-                            find_mul_slice_conv{},
-                            find_mul_dot{},
-                            find_dot_slice{},
-                            find_dot_mul{},
-                            find_mul_add{},
-                            find_unit_ops{},
-                            find_neg_unit_ops{},
-                            eliminate_zero_point{},
-                            find_zero_ops{},
-                            find_dot_add{},
-                            find_conv_add{},
-                            find_div_const{},
-                            find_sub_const{},
-                            find_rsqrt{},
-                            find_concat_conv{},
-                            find_concat_op{},
-                            find_split_concat{},
-                            find_splits{},
-                            find_split_reshape{},
-                            find_split_transpose{});
+        if(enabled(MIGRAPHX_DISABLE_MATCHERS{}))
+        {
+            match::find_matches(m,
+                                find_inner_broadcast{},
+                                find_dot_broadcast{},
+                                find_double_add_lit_broadcast{},
+                                find_add_lit_broadcast{},
+                                find_add_convs{},
+                                find_conv_dot_horiz_fusion{},
+                                // find_mul_conv{},
+                                // find_mul_slice_conv{},
+                                find_mul_dot{},
+                                find_dot_slice{},
+                                find_dot_mul{},
+                                find_mul_add{},
+                                // find_unit_ops{},
+                                // find_neg_unit_ops{},
+                                // eliminate_zero_point{},
+                                // find_zero_ops{},
+                                find_dot_add{},
+                                // find_conv_add{},
+                                find_div_const{},
+                                find_sub_const{},
+                                find_rsqrt{},
+                                find_concat_conv{},
+                                find_concat_op{},
+                                find_split_concat{},
+                                find_splits{},
+                                find_split_reshape{},
+                                find_split_transpose{});
+        }
+        else
+        {
+            match::find_matches(m,
+                                find_inner_broadcast{},
+                                find_dot_broadcast{},
+                                find_double_add_lit_broadcast{},
+                                find_add_lit_broadcast{},
+                                find_add_convs{},
+                                find_conv_dot_horiz_fusion{},
+                                find_mul_conv{},
+                                find_mul_slice_conv{},
+                                find_mul_dot{},
+                                find_dot_slice{},
+                                find_dot_mul{},
+                                find_mul_add{},
+                                find_unit_ops{},
+                                find_neg_unit_ops{},
+                                eliminate_zero_point{},
+                                find_zero_ops{},
+                                find_dot_add{},
+                                find_conv_add{},
+                                find_div_const{},
+                                find_sub_const{},
+                                find_rsqrt{},
+                                find_concat_conv{},
+                                find_concat_op{},
+                                find_split_concat{},
+                                find_splits{},
+                                find_split_reshape{},
+                                find_split_transpose{});
+        }
         dead_code_elimination{}.apply(m);
     });
 }

@@ -38,6 +38,11 @@ inline namespace MIGRAPHX_INLINE_NS {
 static void
 quantize_module(module& m, const std::vector<std::string>& ins_names, shape::type_t float_type)
 {
+    // skip main module that contains select_module
+    if(any_of(m.begin(), m.end(), [](auto ins) { return ins.name() == "select_module";} ))
+    {
+        return;
+    }
     for(auto ins : iterator_for(m))
     {
         // instructions are not in the set to be quantized

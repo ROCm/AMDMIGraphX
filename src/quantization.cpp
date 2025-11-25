@@ -30,6 +30,8 @@
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/eliminate_common_subexpression.hpp>
+#include <migraphx/split_single_dyn_dim.hpp>
+#include <migraphx/simplify_dyn_ops.hpp>
 #include <migraphx/optimize_module.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/program.hpp>
@@ -68,7 +70,11 @@ static tracer quant_tracer()
 void quantize_fp16(program& prog, const std::vector<std::string>& ins_names)
 {
     run_passes(prog,
-               {normalize_ops{},
+               {split_single_dyn_dim{},
+                dead_code_elimination{},
+                simplify_dyn_ops{},
+                dead_code_elimination{},
+                normalize_ops{},
                 optimize_module{{"quantizelinear", "dequantizelinear"}},
                 truncate_float_pass{ins_names, shape::half_type},
                 optimize_module{{"quantizelinear", "dequantizelinear"}}},
@@ -78,7 +84,11 @@ void quantize_fp16(program& prog, const std::vector<std::string>& ins_names)
 void quantize_bf16(program& prog, const std::vector<std::string>& ins_names)
 {
     run_passes(prog,
-               {normalize_ops{},
+               {split_single_dyn_dim{},
+                dead_code_elimination{},
+                simplify_dyn_ops{},
+                dead_code_elimination{},
+                normalize_ops{},
                 optimize_module{{"quantizelinear", "dequantizelinear"}},
                 truncate_float_pass{ins_names, shape::bf16_type},
                 optimize_module{{"quantizelinear", "dequantizelinear"}}},
@@ -93,7 +103,16 @@ static void quantize_8bits(program& prog,
 {
     // Run optimize_module() before converting to int8/fp8 to const eval and fold in FP32 to
     // avoid loss of precision.
-    run_passes(prog, {rewrite_rnn{}, normalize_ops{}, optimize_module{}}, quant_tracer());
+    run_passes(prog,
+               {split_single_dyn_dim{},
+               dead_code_elimination{},
+               simplify_dyn_ops{},
+               dead_code_elimination{},
+               rewrite_rnn{},
+               dead_code_elimination{},
+               normalize_ops{},
+               optimize_module{}},
+               quant_tracer());
 
     std::shared_ptr<std::vector<std::pair<float, float>>> quant_8bit_params =
         std::make_shared<std::vector<std::pair<float, float>>>();
@@ -188,7 +207,13 @@ void quantize_int8(program& prog,
 
 void quantize_int4_weights(program& prog)
 {
-    run_passes(prog, {normalize_ops{}, optimize_module{}, quantize_int4_pass{}}, quant_tracer());
+    run_passes(prog, {split_single_dyn_dim{},
+               dead_code_elimination{},
+               simplify_dyn_ops{},
+               dead_code_elimination{},
+               normalize_ops{},
+               optimize_module{},
+               quantize_int4_pass{}}, quant_tracer());
 }
 
 void quantize_fp8(program& prog, const target& t, const std::vector<parameter_map>& calibration)

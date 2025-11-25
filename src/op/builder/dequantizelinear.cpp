@@ -1,5 +1,4 @@
-/*
- * The MIT License (MIT)
+/* The MIT License (MIT)
  *
  * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
@@ -22,24 +21,36 @@
  * THE SOFTWARE.
  */
 
-#include <migraphx/onnx/quantize_dequantize_linear.hpp>
+#include <migraphx/op/builder/op_builder.hpp>
 #include <migraphx/op/builder/quantize_dequantize_linear.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace onnx {
+namespace op {
+namespace builder {
 
-std::vector<instruction_ref>
-transform_quantize_dequantize_linear_inputs(const onnx_parser::node_info& info,
-                                            const std::string& onnx_name,
-                                            int block_size,
-                                            int axis,
-                                            std::vector<instruction_ref> args)
+struct dequantizelinear : op_builder<dequantizelinear>
 {
-    return op::builder::transform_quantize_dequantize_linear_inputs(
-        info, onnx_name, block_size, axis, args);
-}
+    int axis = 1;
+    int block_size = 0;
 
-} // namespace onnx
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.axis, "axis"), f(self.block_size, "block_size"));
+    }
+
+    std::vector<instruction_ref>
+    insert(module& m, instruction_ref /*ins*/, const std::vector<instruction_ref>& args) const
+    {
+        auto args_new = transform_quantize_dequantize_linear_inputs(
+            m, name(), block_size, axis, args);
+
+        return {m.add_instruction(make_op(name()), args_new)};
+    }
+};
+
+} // namespace builder
+} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

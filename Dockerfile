@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y software-properties-common gnupg2 --no-
     curl -sL http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add -
 
 # Install Clang 17 for ASAN tests (ROCm 7.x ships with Clang 20 which has ODR false positives)
-RUN wget -O /tmp/llvm.sh https://apt.llvm.org/llvm.sh && \
+RUN curl -fsSL -o /tmp/llvm.sh https://apt.llvm.org/llvm.sh && \
     chmod +x /tmp/llvm.sh && \
     /tmp/llvm.sh 17 && \
     rm /tmp/llvm.sh

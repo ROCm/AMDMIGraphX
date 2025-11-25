@@ -96,7 +96,7 @@ has_one_unique_dyn_dim(const std::unordered_map<std::string, shape>& param_shape
 static bool any_sm_next(const_module_ref mm, const std::vector<dynamic_dimensions_check>& ddcs)
 {
     // skip main module that contains select_module (meaning this pass already ran)
-    if(any_of(mm->begin(), mm->end(), [](auto ins) { return ins.name() == "select_module";} ))
+    if(any_of(mm->begin(), mm->end(), [](auto ins) { return ins.name() == "select_module"; }))
     {
         return true;
     }

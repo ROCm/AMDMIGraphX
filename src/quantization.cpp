@@ -105,13 +105,13 @@ static void quantize_8bits(program& prog,
     // avoid loss of precision.
     run_passes(prog,
                {split_single_dyn_dim{},
-               dead_code_elimination{},
-               simplify_dyn_ops{},
-               dead_code_elimination{},
-               rewrite_rnn{},
-               dead_code_elimination{},
-               normalize_ops{},
-               optimize_module{}},
+                dead_code_elimination{},
+                simplify_dyn_ops{},
+                dead_code_elimination{},
+                rewrite_rnn{},
+                dead_code_elimination{},
+                normalize_ops{},
+                optimize_module{}},
                quant_tracer());
 
     std::shared_ptr<std::vector<std::pair<float, float>>> quant_8bit_params =
@@ -207,13 +207,15 @@ void quantize_int8(program& prog,
 
 void quantize_int4_weights(program& prog)
 {
-    run_passes(prog, {split_single_dyn_dim{},
-               dead_code_elimination{},
-               simplify_dyn_ops{},
-               dead_code_elimination{},
-               normalize_ops{},
-               optimize_module{},
-               quantize_int4_pass{}}, quant_tracer());
+    run_passes(prog,
+               {split_single_dyn_dim{},
+                dead_code_elimination{},
+                simplify_dyn_ops{},
+                dead_code_elimination{},
+                normalize_ops{},
+                optimize_module{},
+                quantize_int4_pass{}},
+               quant_tracer());
 }
 
 void quantize_fp8(program& prog, const target& t, const std::vector<parameter_map>& calibration)

@@ -55,13 +55,13 @@ Model performance tunable variables change the compilation behavior of a model. 
 
       | Default: ``rocblas`` on gfx90a; ``hipblaslt`` on all other architectures.
 
-  * - | ``MIGRAPHX_DISABLE_LAYERNORM_FUSION``
-      | When set, layernorm fusion isn't used.
+  * - | ``MIGRAPHX_ENABLE_LAYERNORM_FUSION``
+      | When set, layernorm fusion is used.
       
-    - | ``1``: Layernorm fusion won't be used.
+    - | ``1``: Layernorm fusion will be used.
       | ``0``: Returns to default behavior.
 
-      | Default: Layernorm fusion is used.
+      | Default: Layernorm fusion is not used.
   
   * - | ``MIGRAPHX_DISABLE_MIOPEN_POOLING``   
       | When set, MIGraphX pooling is used instead of MIOpen pooling.
@@ -159,6 +159,14 @@ Model performance tunable variables change the compilation behavior of a model. 
       | ``0``: Returns to default behavior.
 
       | Default: Split-k performance configurations are turned off.
+
+  * - | ``MIGRAPHX_FLASH_DECODING_NUM_SPLITS``
+      | Turns on flash decoding for attention fusion and sets the number of splits along the key-value sequence dimension.
+    
+    - | ``0``: Flash decoding is turned off (i.e., number of splits is 0).
+      | ``N`` (where N > 1): Enables flash decoding with N splits along the key-value sequence dimension. For example, ``2`` enables flash decoding with 2 splits, ``4`` with 4 splits, etc.
+
+      | Default: flash decoding is turned off.
 
   * - | ``MIGRAPHX_DISABLE_FP16_INSTANCENORM_CONVERT``
       | When set, FP16 is not converted to FP32 in the ``InstanceNormalization`` ONNX operator. 

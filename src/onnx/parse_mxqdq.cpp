@@ -32,7 +32,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-struct parse_mxquantizedequantize: op_parser<parse_mxquantizedequantize>
+struct parse_mxquantizedequantize : op_parser<parse_mxquantizedequantize>
 {
     std::vector<op_desc> operators() const { return {{"MXFixNeuron"}, {"MXQuantizeDequantize"}}; }
 
@@ -131,8 +131,8 @@ struct parse_mxquantizedequantize: op_parser<parse_mxquantizedequantize>
             block_scales_ins); // output is float_type
 
         // packing axis set to fastest dimension
-        auto quantized_shape     = q_ins->get_shape();
-        const auto& qs_strides   = quantized_shape.strides();
+        auto quantized_shape   = q_ins->get_shape();
+        const auto& qs_strides = quantized_shape.strides();
         if(qs_strides.empty())
         {
             MIGRAPHX_THROW("MXQuantizeDequantize: quantized_shape has no strides");

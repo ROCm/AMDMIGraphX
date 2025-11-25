@@ -1655,7 +1655,6 @@ struct find_conv_dot_horiz_fusion
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        std::cout << "HERE" << std::endl;
         auto ins = r.result;
 
         auto pred = [](auto i, auto j) {

@@ -9,12 +9,6 @@ RUN dpkg --add-architecture i386
 RUN apt-get update && apt-get install -y software-properties-common gnupg2 --no-install-recommends curl && \
     curl -sL http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add -
 
-# Install Clang 17 for ASAN tests (ROCm 7.x ships with Clang 20 which has ODR false positives)
-RUN curl -fsSL -o /tmp/llvm.sh https://apt.llvm.org/llvm.sh && \
-    chmod +x /tmp/llvm.sh && \
-    /tmp/llvm.sh 17 && \
-    rm /tmp/llvm.sh
-
 # Add rocm repository
 RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/7.1/ jammy main > /etc/apt/sources.list.d/rocm.list'
 
@@ -24,11 +18,17 @@ RUN sh -c "echo 'Package: *\nPin: release o=repo.radeon.com\nPin-priority: 600' 
 # rocgdb doesn't work on 22.04, workaround by installing the older python packages that are in 20.04
 RUN add-apt-repository -y ppa:deadsnakes/ppa
 
+# Add LLVM repository for Clang 17 (ROCm 7.x ships with Clang 20 which has ODR false positives in ASAN)
+RUN curl -sL https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \
+    add-apt-repository -y "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main"
+
 # Install dependencies
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
     apt-utils \
     bison \
     build-essential \
+    clang-17 \
+    libomp-17-dev \
     cmake \
     curl \
     flex \

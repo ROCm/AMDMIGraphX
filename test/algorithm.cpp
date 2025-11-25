@@ -49,7 +49,7 @@ erase_iterator(Container& c, Iterator pos, Iterator last) -> decltype(c.erase_af
 
 template <class Container, class Iterator>
 static auto erase_iterator(Container& c, Iterator pos, Iterator last) -> decltype(c.erase(pos,
-                                                                                        last))
+                                                                                          last))
 {
     return c.erase(pos, last);
 }

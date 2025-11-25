@@ -28,7 +28,6 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     bison \
     build-essential \
     clang-17 \
-    libomp-17-dev \
     cmake \
     curl \
     flex \
@@ -48,7 +47,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     hip-dev \
     libnuma-dev \
     miopen-hip \
-    libomp-dev \
+    libomp-17-dev \
     rocblas \
     hipfft \
     hipsolver \

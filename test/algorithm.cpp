@@ -49,7 +49,7 @@ erase_iterator(Container& c, Iterator pos, Iterator last) -> decltype(c.erase_af
 
 template <class Container, class Iterator>
 static auto erase_iterator(Container& c, Iterator pos, Iterator last) -> decltype(c.erase(pos,
-                                                                                          last))
+                                                                                        last))
 {
     return c.erase(pos, last);
 }
@@ -81,6 +81,70 @@ MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(adjacent_remove_if_non_equivalence, int)
     auto pred   = [](int a, int b) { return (b - a) == 1; };
     erase_iterator(v, migraphx::adjacent_remove_if(v.begin(), v.end(), pred), v.end());
     EXPECT(v == Container{1, 1, 1, 4, 2, 4, 2, 5, 6});
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(min_element_if_basic, int)
+{
+    Container v        = {5, 3, 7, 1, 9, 2};
+    auto is_even       = [](int x) { return x % 2 == 0; };
+    auto it            = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
+    EXPECT(it != v.end());
+    EXPECT(*it == 2);
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(min_element_if_no_valid, int)
+{
+    Container v        = {5, 3, 7, 1, 9};
+    auto is_even       = [](int x) { return x % 2 == 0; };
+    auto it            = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
+    EXPECT(it == v.end());
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(min_element_if_all_valid, int)
+{
+    Container v        = {6, 2, 8, 4, 10};
+    auto is_even       = [](int x) { return x % 2 == 0; };
+    auto it            = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
+    EXPECT(it != v.end());
+    EXPECT(*it == 2);
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(min_element_if_custom_compare, int)
+{
+    Container v        = {5, 3, 7, 1, 9, 2, 8};
+    auto is_even       = [](int x) { return x % 2 == 0; };
+    // Find the largest even number
+    auto it = migraphx::min_element_if(v.begin(), v.end(), is_even, std::greater<>{});
+    EXPECT(it != v.end());
+    EXPECT(*it == 8);
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(min_element_if_empty, int)
+{
+    Container v;
+    auto is_even = [](int x) { return x % 2 == 0; };
+    auto it      = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
+    EXPECT(it == v.end());
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(min_element_if_first_element, int)
+{
+    Container v        = {2, 5, 3, 7, 1, 9};
+    auto is_even       = [](int x) { return x % 2 == 0; };
+    auto it            = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
+    EXPECT(it != v.end());
+    EXPECT(*it == 2);
+    EXPECT(it == v.begin());
+}
+
+MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(min_element_if_complex_predicate, int)
+{
+    Container v = {15, 3, 20, 1, 9, 25, 8, 12};
+    // Find the smallest number greater than 10
+    auto greater_than_10 = [](int x) { return x > 10; };
+    auto it = migraphx::min_element_if(v.begin(), v.end(), greater_than_10, std::less<>{});
+    EXPECT(it != v.end());
+    EXPECT(*it == 12);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

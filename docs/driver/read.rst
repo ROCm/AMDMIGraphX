@@ -42,6 +42,10 @@ Treat tensorflow format as nchw
 
 Trim instructions from the end (Default: 0)
 
+.. option::  --trim-size, -s [unsigned int]
+
+Number of instructions in the trim model
+
 .. option::  --input-dim [std::vector<std::string>]
 
 Dim of a parameter (format: "@name d1 d2 dn")
@@ -54,6 +58,14 @@ Set dynamic dimensions of a parameter using JSON formatting (format "@name" "dyn
 
 Set the default dynamic dimension (format {min:x, max:y, optimals:[o1,o2,...]})
 
+.. option:: --dim-param [std::vector<std::string>]
+
+Symbolic parameter dimension name (fixed / dynamic) - (fixed format): "@dim_param_name" "x" / (dynamic format): "@dim_param_name" "{min:x, max:y, optimals:[o1,o2]}"
+
+.. option:: --output-names [std::vector<std::string>]
+
+Names of node output (format: "name_1 name_2 name_n")
+
 .. option::  --optimize, -O
 
 Optimize when reading
@@ -61,6 +73,10 @@ Optimize when reading
 .. option::  --apply-pass, -p
 
 Passes to apply to model
+
+.. option:: --mlir
+
+Offload everything to mlir
 
 .. option::  --graphviz, -g
 

@@ -26,6 +26,10 @@ The table below summarizes the MIGraphX driver commands.
       - Description
    *  - op
       - Prints all operators of MIGraphX when followed by the option ``--list`` or ``-l``
+   *  - onnx
+      - Lists all ONNX operators supported by MIGraphX when followed by the option ``--list`` or ``-l``
+   *  - tf
+      - Lists all TensorFlow operators supported by MIGraphX when followed by the option ``--list`` or ``-l``
    *  - params
       - Prints the input and output parameter shapes
    *  - run
@@ -38,6 +42,10 @@ The table below summarizes the MIGraphX driver commands.
       - Runs reference and GPU implementations and checks outputs for consistency
    *  - perf
       - Compiles and runs input graph followed by printing the performance report
+   *  - time
+      - Compiles, allocates parameters, runs model, and prints total execution time
+   *  - roctx
+      - Runs with roctx markers for profiling with rocprof
 
 Options
 ----------
@@ -71,6 +79,8 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
       - Skips unknown operators when parsing and continues to parse.
    *  - --trim | -t
       - Trims instructions from the end.
+   *  - --trim-size | -s
+      - Number of instructions in the trim model.
    *  - --optimize | -O
       - Optimizes read
    *  - --graphviz | -g
@@ -79,6 +89,8 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
       - Makes the output brief
    *  - --cpp
       - Prints the program in .cpp format
+   *  - --python | --py
+      - Prints the program as python program
    *  - --json
       - Prints the program in .json format
    *  - --text
@@ -99,6 +111,14 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
       - Sets dynamic dimensions of a parameter
    *  - --default-dyn-dim
       - Sets default dynamic dimension
+   *  - --dim-param
+      - Sets symbolic parameter dimension name (fixed / dynamic)
+   *  - --output-names
+      - Names of node output
+   *  - --apply-pass | -p
+      - Passes to apply to model
+   *  - --mlir
+      - Offload everything to mlir
    *  - --gpu
       - Compiles on the GPU
    *  - --cpu
@@ -119,6 +139,10 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
       - Quantizes for int8
    *  - --fp8
       - Quantize for ``Float8E4M3FNUZ`` type
+   *  - --int4-weights
+      - Quantizes weights for int4
+   *  - --load-arg
+      - Load arguments for the model (format: "@name filename")
    *  - --rms-tol
       - Sets tolerance for the RMS error (Default: 0.001)
    *  - --atol
@@ -129,6 +153,14 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
       - Verifies each instruction
    *  - --reduce | -r
       - Reduces program and verifies
+   *  - --bisect | -b
+      - Bisects program and verifies
+   *  - --ref-use-double
+      - Converts floating point values to double for the ref target
+   *  - --compiled-model | -c
+      - Compiled model to use for verify
+   *  - --detailed | -d
+      - Show a more detailed summary report for perf
    *  - --iterations | -n
       - Sets the number of iterations to run for perf report
    *  - --list | -l

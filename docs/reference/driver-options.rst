@@ -52,6 +52,10 @@ Compiles and runs input graph then prints performance report.
 
 Sets number of iterations to run for perf report (Default: 100)
 
+.. option:: --detailed, -d
+
+Show a more detailed summary report
+
 verify
 ------
 
@@ -82,9 +86,17 @@ Verifies each instruction
 
 Reduces program and verifies
 
+.. option:: -b, --bisect
+
+Bisects program and verifies
+
 .. option:: --ref-use-double
 
 Converts floating point values to double for the ref target
+
+.. option:: --compiled-model, -c [std::string]
+
+Compiled model to use
 
 .. _roctx:
 
@@ -106,3 +118,63 @@ To understand the interactions between API calls, utilize the :ref:`roctx.py <to
 
 .. include:: ../driver/read.rst
 .. include:: ../driver/compile.rst
+
+time
+----
+
+.. program:: migraphx-driver time
+
+Compiles, allocates parameters, runs model, and prints total execution time.
+
+.. include:: ../driver/read.rst
+.. include:: ../driver/compile.rst
+
+.. option::  --iterations, -n [unsigned int]
+
+Number of iterations to run (Default: 100)
+
+params
+------
+
+.. program:: migraphx-driver params
+
+Prints the input and output parameter shapes.
+
+.. include:: ../driver/read.rst
+
+op
+--
+
+.. program:: migraphx-driver op
+
+Displays information about MIGraphX operators.
+
+.. option:: <MIGraphX operator name>
+
+Name of the operator to display
+
+.. option:: --list, -l
+
+List all the operators of MIGraphX
+
+onnx
+----
+
+.. program:: migraphx-driver onnx
+
+Lists ONNX operators supported by MIGraphX.
+
+.. option:: --list, -l
+
+List all onnx operators supported by MIGraphX
+
+tf
+--
+
+.. program:: migraphx-driver tf
+
+Lists TensorFlow operators supported by MIGraphX.
+
+.. option:: --list, -l
+
+List all tf operators supported by MIGraphX

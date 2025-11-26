@@ -6,6 +6,10 @@ Fill parameter with 0s
 
 Fill parameter with 1s
 
+.. option:: --load-arg [std::vector<std::string>]
+
+Load arguments for the model (format: "@name filename")
+
 .. option::  --gpu
 
 Compile on the gpu
@@ -45,3 +49,7 @@ Quantize for int8
 .. option:: --fp8
 
 Quantize for Float8E4M3FNUZ type
+
+.. option:: --int4-weights
+
+Quantize weights for int4

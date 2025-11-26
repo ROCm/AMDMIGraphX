@@ -74,8 +74,7 @@ struct parse_dequantizelinear : op_parser<parse_dequantizelinear>
             options.insert({"block_size", info.attributes.at("block_size").i()});
         }
 
-        auto ret = op::builder::add("dequantizelinear", *info.mod, args, options).at(0);
-        return ret;
+        return op::builder::add("dequantizelinear", *info.mod, args, options).at(0);
     }
 };
 

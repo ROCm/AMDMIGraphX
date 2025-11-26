@@ -106,9 +106,9 @@ Print out program in text format.
 
 Print out program in binary format.
 
-.. option::  --py
+.. option::  --python, --py
 
-Print out program using python API.
+Print out the program as python program.
 
 .. option::  --output, -o [std::string]
 

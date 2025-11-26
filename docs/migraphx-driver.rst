@@ -86,7 +86,7 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
    *  - --cpp
       - Prints the program in .cpp format
    *  - --python | --py
-      - Prints the program in .py format
+      - Prints the program as python program
    *  - --json
       - Prints the program in .json format
    *  - --text

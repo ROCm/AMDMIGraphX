@@ -1007,6 +1007,24 @@ using find_mlir_standalone_conv_backwards_op = find_mlir_standalone_op<&is_mlir_
 using find_mlir_standalone_conv_op           = find_mlir_standalone_op<&is_mlir_conv>;
 using find_mlir_standalone_dot_op            = find_mlir_standalone_op<&is_mlir_dot>;
 
+struct find_mlir_kv_cache_attention_op
+{
+    mlir_mode dot_mode = mlir_mode::none;
+
+    auto matcher() const
+    {
+        return match::name("group")(match::has_op_value("tag", "kv_cache_attention"));
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto group   = r.result;
+        auto* m_attn = group->module_inputs()[0];
+        mpm.get_module().replace_instruction(
+            group, mlir_op{group->get_operator()}, mlir_contiguous(mpm, group->inputs()), {m_attn});
+    }
+};
+
 struct find_mlir_attention_op
 {
     auto matcher() const
@@ -1474,6 +1492,9 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     };
 
     match::find_matches(mpm, find_channel_slice_convolution{});
+    mpm.run_pass(dead_code_elimination{});
+
+    match::find_matches(mpm, find_mlir_kv_cache_attention_op{mlir_mode::all});
     mpm.run_pass(dead_code_elimination{});
 
     match::find_matches(mpm, find_mlir_attention_op{});

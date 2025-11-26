@@ -27,8 +27,8 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-template <migraphx::shape::type_t T, int Axis = -1>
-struct test_pack_fp4 : verify_program<test_pack_fp4<T, Axis>>
+template <migraphx::shape::type_t T>
+struct test_pack_fp4 : verify_program<test_pack_fp4<T>>
 {
     migraphx::program create_program() const
     {
@@ -36,10 +36,9 @@ struct test_pack_fp4 : verify_program<test_pack_fp4<T, Axis>>
         auto* mm = p.get_main_module();
 
         auto x = mm->add_parameter("x", migraphx::shape{T, {64, 32}});
-        mm->add_instruction(migraphx::make_op("pack_fp4", {{"axis", Axis}}), x);
+        mm->add_instruction(migraphx::make_op("pack_fp4"), x);
         return p;
     }
 };
 
 template struct test_pack_fp4<migraphx::shape::float_type>;
-template struct test_pack_fp4<migraphx::shape::float_type, 0>;

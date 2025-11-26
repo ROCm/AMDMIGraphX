@@ -38,6 +38,8 @@ The table below summarizes the MIGraphX driver commands.
       - Runs reference and GPU implementations and checks outputs for consistency
    *  - perf
       - Compiles and runs input graph followed by printing the performance report
+   *  - time
+      - Compiles and runs input graph and reports total time
 
 Options
 ----------

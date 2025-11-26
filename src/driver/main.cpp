@@ -94,7 +94,7 @@ std::string get_formatted_timestamp(std::chrono::time_point<std::chrono::system_
     return ss.str();
 }
 
-struct global_options
+struct logger_options
 {
     std::string log_level;
     std::vector<std::string> log_files;
@@ -158,32 +158,32 @@ struct global_options
     }
 };
 
-bool parse_and_apply_global_options(std::vector<std::string>& args)
+bool parse_and_apply_logger_options(std::vector<std::string>& args)
 {
-    // Extract only global option flags from args for parsing
-    std::vector<std::string> global_args;
+    // Extract only logger option flags from args for parsing
+    std::vector<std::string> logger_args;
     auto it = args.begin();
     while(it != args.end())
     {
         if(*it == "--log-level")
         {
-            global_args.push_back(*it);
+            logger_args.push_back(*it);
             it = args.erase(it);
             // Grab the single value if present
             if(it != args.end() && !it->empty() && (*it)[0] != '-')
             {
-                global_args.push_back(*it);
+                logger_args.push_back(*it);
                 it = args.erase(it);
             }
         }
         else if(*it == "--log-file")
         {
-            global_args.push_back(*it);
+            logger_args.push_back(*it);
             it = args.erase(it);
             // Grab all values until the next flag (for unlimited log files)
             while(it != args.end() && !it->empty() && (*it)[0] != '-')
             {
-                global_args.push_back(*it);
+                logger_args.push_back(*it);
                 it = args.erase(it);
             }
         }
@@ -193,13 +193,13 @@ bool parse_and_apply_global_options(std::vector<std::string>& args)
         }
     }
 
-    if(!global_args.empty())
+    if(!logger_args.empty())
     {
-        global_options opts;
+        logger_options opts;
         migraphx::driver::argument_parser ap;
         opts.parse(ap);
 
-        if(ap.parse(global_args))
+        if(ap.parse(logger_args))
             return false;
 
         opts.apply();
@@ -1110,8 +1110,8 @@ int main(int argc, const char* argv[], const char* envp[])
     // Save original args for display purposes before they get modified
     const std::vector<std::string> original_args = args;
 
-    // Parse and apply global options (--log-level, --log-file)
-    if(!parse_and_apply_global_options(args))
+    // Parse and apply logger options (--log-level, --log-file)
+    if(!parse_and_apply_logger_options(args))
         return 1;
 
     // no argument, print the help infomration by default
@@ -1136,18 +1136,6 @@ int main(int argc, const char* argv[], const char* envp[])
 
     if(m.count(cmd) > 0)
     {
-        migraphx::log::error()("Testing error logging");
-        migraphx::log::warn()("Testing warn logging");
-        migraphx::log::info()("Testing info logging");
-        migraphx::log::debug()("Testing debug logging");
-        migraphx::log::trace()("Testing trace logging");
-
-        migraphx::log::error() << "Testing error logging stream";
-        migraphx::log::warn() << "Testing warn logging stream";
-        migraphx::log::info() << "Testing info logging stream";
-        migraphx::log::debug() << "Testing debug logging stream";
-        migraphx::log::trace() << "Testing trace logging stream";
-
         std::string driver_invocation =
             std::string(argv[0]) + " " + migraphx::to_string_range(original_args, " ");
         std::cout << "Running [ " << get_version() << " ]: " << driver_invocation << std::endl;

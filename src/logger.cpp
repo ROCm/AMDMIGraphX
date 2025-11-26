@@ -22,9 +22,6 @@
  * THE SOFTWARE.
  */
 #include <migraphx/logger.hpp>
-#include <chrono>
-#include <iomanip>
-#include <iostream>
 #include "spdlog/sinks/basic_file_sink.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
 
@@ -94,18 +91,6 @@ static void init_stderr_logger()
         logger->set_level(to_spdlog_level(static_cast<severity>(get_log_level())));
         initialized = true;
     }
-}
-
-std::string get_formatted_timestamp(std::chrono::time_point<std::chrono::system_clock> time)
-{
-    auto now_in_time_t = std::chrono::system_clock::to_time_t(time);
-    auto us =
-        std::chrono::duration_cast<std::chrono::microseconds>(time.time_since_epoch()) % 1000000;
-    auto* now_as_tm_date = std::localtime(&now_in_time_t);
-    std::stringstream ss;
-    ss << std::put_time(now_as_tm_date, "%Y-%m-%d %H:%M:%S") << "." << std::setfill('0')
-       << std::setw(6) << us.count();
-    return ss.str();
 }
 
 void record(severity s, std::string_view msg, source_location loc)

@@ -260,7 +260,7 @@ struct compile_plan
                            run_passes(*bench_mm, {dead_code_elimination{}});
                            // by default, measure runtime with bundle of 1 benchmark config,
                            // repeat 20 times
-                           auto t = time_program(*ctx, bench_prog, cr->replace.fill_map, 1, 20);
+                           auto t = time_program(*ctx, bench_prog, cr->replace.fill_map, 5, 20);
                            if(trace_level > 1)
                                std::cout << t << "ms" << std::endl;
                            return t;

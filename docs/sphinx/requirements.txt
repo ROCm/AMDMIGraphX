@@ -19,8 +19,6 @@ babel==2.17.0
     # via
     #   pydata-sphinx-theme
     #   sphinx
-beartype==0.22.6
-    # via sphinx-substitution-extensions
 beautifulsoup4==4.14.2
     # via pydata-sphinx-theme
 breathe==4.36.0
@@ -45,14 +43,11 @@ debugpy==1.8.17
     # via ipykernel
 decorator==5.2.1
     # via ipython
-defusedxml==0.7.1
-    # via sphinxcontrib-datatemplates
 docutils==0.21.2
     # via
     #   myst-parser
     #   pydata-sphinx-theme
     #   sphinx
-    #   sphinx-substitution-extensions
 exceptiongroup==1.3.1
     # via ipython
 executing==2.2.1
@@ -120,9 +115,7 @@ mdurl==0.1.2
 myst-nb==1.3.0
     # via rocm-docs-core
 myst-parser==4.0.1
-    # via
-    #   myst-nb
-    #   sphinx-substitution-extensions
+    # via myst-nb
 nbclient==0.10.2
     # via
     #   jupyter-cache
@@ -137,7 +130,6 @@ nest-asyncio==1.6.0
 packaging==25.0
     # via
     #   ipykernel
-    #   pydata-sphinx-theme
     #   sphinx
 parso==0.8.5
     # via jedi
@@ -155,7 +147,7 @@ pure-eval==0.2.3
     # via stack-data
 pycparser==2.23
     # via cffi
-pydata-sphinx-theme==0.15.4
+pydata-sphinx-theme==0.16.1
     # via
     #   rocm-docs-core
     #   sphinx-book-theme
@@ -180,7 +172,6 @@ pyyaml==6.0.3
     #   myst-parser
     #   rocm-docs-core
     #   sphinx-external-toc
-    #   sphinxcontrib-datatemplates
 pyzmq==27.1.0
     # via
     #   ipykernel
@@ -193,7 +184,7 @@ requests==2.32.5
     # via
     #   pygithub
     #   sphinx
-rocm-docs-core==1.20.1
+rocm-docs-core==1.25.0
     # via -r requirements.in
 rpds-py==0.29.0
     # via
@@ -215,15 +206,15 @@ sphinx==8.1.3
     #   pydata-sphinx-theme
     #   rocm-docs-core
     #   sphinx-book-theme
+    #   sphinx-collapse
     #   sphinx-copybutton
     #   sphinx-design
     #   sphinx-external-toc
     #   sphinx-notfound-page
-    #   sphinx-substitution-extensions
-    #   sphinxcontrib-datatemplates
-    #   sphinxcontrib-runcmd
-sphinx-book-theme==1.1.4
+sphinx-book-theme==1.1.3
     # via rocm-docs-core
+sphinx-collapse==0.1.3
+    # via -r requirements.in
 sphinx-copybutton==0.5.2
     # via rocm-docs-core
 sphinx-design==0.6.1
@@ -232,12 +223,8 @@ sphinx-external-toc==1.0.1
     # via rocm-docs-core
 sphinx-notfound-page==1.1.0
     # via rocm-docs-core
-sphinx-substitution-extensions==2025.10.24
-    # via -r requirements.in
 sphinxcontrib-applehelp==2.0.0
     # via sphinx
-sphinxcontrib-datatemplates==0.11.0
-    # via -r requirements.in
 sphinxcontrib-devhelp==2.0.0
     # via sphinx
 sphinxcontrib-htmlhelp==2.1.0
@@ -246,8 +233,6 @@ sphinxcontrib-jsmath==1.0.1
     # via sphinx
 sphinxcontrib-qthelp==2.0.0
     # via sphinx
-sphinxcontrib-runcmd==0.2.0
-    # via sphinxcontrib-datatemplates
 sphinxcontrib-serializinghtml==2.0.0
     # via sphinx
 sqlalchemy==2.0.44

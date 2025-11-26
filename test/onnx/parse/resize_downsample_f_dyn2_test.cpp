@@ -24,26 +24,32 @@
 
 #include <onnx_test.hpp>
 
-TEST_CASE(upsample_test)
+TEST_CASE(resize_downsample_f_dyn2_test)
 {
+    // Dynamic, but not in the sense of the dynamic shape type.
+    // output shape is an inference-time input (even though we use
+    // a literal for the test)
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape ss{migraphx::shape::float_type, {4}};
-    mm->add_literal(migraphx::literal(ss, {1.0f, 1.0f, 2.0f, 3.0f}));
+    migraphx::shape ss{migraphx::shape::int64_type, {4}};
 
-    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
-    auto ix = mm->add_parameter("X", sx);
+    auto li = mm->add_literal(migraphx::literal{ss, {2, 1, 3, 5}});
+
     mm->add_instruction(migraphx::make_op("undefined"));
+    migraphx::shape sx{migraphx::shape::float_type, {{1, 4, {1, 4}}, {1, 1}, {5, 5}, {9, 9}}};
+    auto inx = mm->add_parameter("X", sx);
+    auto r =
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"mode", "nearest"},
+                                               {"nearest_mode", "floor"},
+                                               {"coordinate_transformation_mode", "asymmetric"}}),
+                            inx,
+                            li);
 
-    migraphx::shape si{migraphx::shape::int32_type, {1, 1, 4, 6}};
-    std::vector<int> ind = {0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 3, 3};
-
-    auto li  = mm->add_literal(migraphx::literal(si, ind));
-    auto rsp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), ix);
-    auto r   = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), rsp, li);
     mm->add_return({r});
+    migraphx::onnx_options options;
+    options.map_dyn_input_dims["X"] = {{1, 4, {1, 4}}, {1, 1}, {5, 5}, {9, 9}};
 
-    auto prog = read_onnx("upsample_test.onnx");
-
+    auto prog = read_onnx("resize_downsample_f_dyn2_test.onnx", options);
     EXPECT(p == prog);
 }

@@ -24,7 +24,6 @@
 
 #include <atomic>
 #include <algorithm>
-#include <array>
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
@@ -395,12 +394,14 @@ inline std::atomic<int>& failures()
     return f;
 }
 
+inline void report_failure(int n = 1) { failures() += n; }
+
 template <class T, class F>
 void failed(const T& x, const char* msg, const char* func, const char* file, int line, F f)
 {
     if(not bool(x.value()))
     {
-        failures()++;
+        report_failure();
         std::cout << func << std::endl;
         std::cout << file << ":" << line << ":" << std::endl;
         std::cout << color::bold << color::fg_red << "    FAILED: " << color::reset << msg << " "
@@ -763,6 +764,22 @@ struct driver
         out() << std::endl;
     }
 
+    template <class Range>
+    void run_test_cases(Range&& cases, const string_map& args)
+    {
+        if(on_selected_cases and args.count("--continue") == 0)
+        {
+            std::vector<std::string> selected_cases;
+            std::transform(cases.begin(),
+                           cases.end(),
+                           std::back_inserter(selected_cases),
+                           [](const auto& p) { return p.first; });
+            on_selected_cases(selected_cases);
+        }
+        for(auto&& p : cases)
+            run_test_case(p.first, p.second, args);
+    }
+
     void run(int argc, const char* argv[])
     {
         auto args = parse(argc, argv);
@@ -784,8 +801,7 @@ struct driver
         auto cases = args[""];
         if(cases.empty())
         {
-            for(auto&& tc : get_test_cases())
-                run_test_case(tc.first, tc.second, args);
+            run_test_cases(get_test_cases(), args);
         }
         else
         {
@@ -813,8 +829,7 @@ struct driver
                           << color::reset << std::endl;
                     failed.push_back(iname);
                 }
-                for(auto&& p : found_cases)
-                    run_test_case(p.first, p.second, args);
+                run_test_cases(found_cases, args);
             }
         }
         out() << color::fg_green << "[==========] " << color::fg_yellow << ran << " tests ran"
@@ -830,6 +845,7 @@ struct driver
         }
     }
 
+    std::function<void(const std::vector<std::string>&)> on_selected_cases = nullptr;
     std::function<std::vector<std::string>(const std::string&)> get_case_names =
         [](const std::string& name) -> std::vector<std::string> { return {name}; };
     std::vector<argument> arguments = {};

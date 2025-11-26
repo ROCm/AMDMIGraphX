@@ -39,7 +39,7 @@ namespace builder {
 template<typename Builder>
 std::vector<instruction_ref>
 transform_quantize_dequantize_linear_inputs(Builder& bldr,
-                                            const std::string& onnx_name,
+                                            const std::string& op_name,
                                             int block_size,
                                             int axis,
                                             std::vector<instruction_ref> args)
@@ -62,10 +62,10 @@ transform_quantize_dequantize_linear_inputs(Builder& bldr,
     // Per-axis granularity
     else if(y_scale_rank == 1)
     {
-        axis = tune_axis(x_rank, axis, onnx_name);
+        axis = tune_axis(x_rank, axis, op_name);
         if(x_lens[axis] != y_scale_lens[0])
         {
-            MIGRAPHX_THROW(onnx_name +
+            MIGRAPHX_THROW(op_name +
                            ": For per axis granularity the length of y_scale (actual: " +
                            to_string(y_scale_lens[0]) + ") must be equal to size of x on axis " +
                            to_string(axis) + "(actual: " + to_string(x_lens[axis]) + ")");
@@ -79,11 +79,11 @@ transform_quantize_dequantize_linear_inputs(Builder& bldr,
     // Blocked granularity
     else
     {
-        axis = tune_axis(x_rank, axis, onnx_name);
+        axis = tune_axis(x_rank, axis, op_name);
 
         if(x_rank != y_scale_rank)
         {
-            MIGRAPHX_THROW(onnx_name + ": x(rank: " + to_string(x_rank) +
+            MIGRAPHX_THROW(op_name + ": x(rank: " + to_string(x_rank) +
                            ") and y_scale(rank: " + to_string(y_scale_rank) +
                            ") must be of same rank for block granularity");
         }
@@ -92,7 +92,7 @@ transform_quantize_dequantize_linear_inputs(Builder& bldr,
         {
             if(x_lens[i] != y_scale_lens[i] and i != axis)
             {
-                MIGRAPHX_THROW(onnx_name + ": x(shape: " + to_string_range(x_lens) +
+                MIGRAPHX_THROW(op_name + ": x(shape: " + to_string_range(x_lens) +
                                ") and y_scale(shape: " + to_string_range(y_scale_lens) +
                                ") shapes may only differ along provided axis(" + to_string(axis) +
                                ")");
@@ -109,7 +109,7 @@ transform_quantize_dequantize_linear_inputs(Builder& bldr,
         if(block_size == 0)
             block_size = block_size_min;
         if(block_size < block_size_min or block_size > block_size_max)
-            MIGRAPHX_THROW(onnx_name + ": Block size(actual: " + to_string(block_size) +
+            MIGRAPHX_THROW(op_name + ": Block size(actual: " + to_string(block_size) +
                            ") must be within range [" + to_string(block_size_min) + ", " +
                            to_string(block_size_max) + "]");
 

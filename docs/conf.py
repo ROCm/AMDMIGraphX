@@ -30,8 +30,8 @@
 
 import re
 
-html_theme = "rocm"
-html_theme_options = {"flavor": "rocm"}
+html_theme = "rocm_docs_theme"
+html_theme_options = {"flavor": "rocm-docs-home"}
 
 templates_path = ["."]  # Use the current folder for templates
 

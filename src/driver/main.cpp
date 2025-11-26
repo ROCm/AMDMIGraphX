@@ -66,6 +66,9 @@
 #include <optional>
 
 namespace {
+
+using dims_map = std::unordered_map<std::string, std::vector<std::size_t>>;
+
 std::vector<std::string>
 get_unrecognized_migraphx_envs(const char* envp[],
                                const std::map<std::string, std::string>& used_env)
@@ -329,7 +332,7 @@ struct loader
 
     static auto parse_param_dims(const std::vector<std::string>& param_dims_info)
     {
-        std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
+        dims_map map_input_dims;
         std::string name = "";
         for(auto&& x : param_dims_info)
         {
@@ -618,16 +621,24 @@ struct program_params
         return map_load_args;
     }
 
-    auto generate(const program& p, const target& t, bool offload, unsigned batch)
+    auto generate(const program& p,
+                  const target& t,
+                  bool offload,
+                  unsigned batch,
+                  dims_map map_input_dims = {})
     {
         parameter_map m;
         auto param_shapes = p.get_parameter_shapes();
         std::unordered_map<std::string, shape> static_param_shapes;
-        std::transform(
-            param_shapes.cbegin(),
-            param_shapes.cend(),
-            std::inserter(static_param_shapes, static_param_shapes.end()),
-            [&](const auto& x) { return std::make_pair(x.first, x.second.to_static(batch)); });
+        for(auto&& param : param_shapes)
+        {
+            if(contains(map_input_dims, param.first))
+                static_param_shapes[param.first] = {param.second.type(),
+                                                    map_input_dims[param.first]};
+            else
+                static_param_shapes[param.first] = param.second.to_static(batch);
+        }
+
         for(auto&& s : fill0)
             m[s] = fill_argument(static_param_shapes.at(s), 0);
         for(auto&& s : fill1)
@@ -707,7 +718,8 @@ struct compiler
 
     auto params(const program& p)
     {
-        return parameters.generate(p, ct.get_target(), co.offload_copy, l.batch);
+        return parameters.generate(
+            p, ct.get_target(), co.offload_copy, l.batch, loader::parse_param_dims(l.param_dims));
     }
 
     auto host_params(const program& p)
@@ -834,7 +846,8 @@ struct verify : command<verify>
         ap(bisect, {"-b", "--bisect"}, ap.help("Bisect program and verify"), ap.set_value(true));
         ap(vo.ref_use_double,
            {"--ref-use-double"},
-           ap.help("Convert floating point values to double on ref"),
+           ap.help(
+               "Convert floating point values to double on ref. Also removes Q/DQ pairs on ref."),
            ap.set_value(true));
         ap(vo.compiled_model, {"--compiled-model", "-c"}, ap.help("Compiled model to use"));
     }
@@ -846,7 +859,8 @@ struct verify : command<verify>
         std::cout << p << std::endl;
 
         auto t = c.ct.get_target();
-        auto m = c.parameters.generate(p, t, true, c.l.batch);
+        auto m =
+            c.parameters.generate(p, t, true, c.l.batch, loader::parse_param_dims(c.l.param_dims));
 
         if(c.to_fp16)
         {

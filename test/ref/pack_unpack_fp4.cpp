@@ -75,8 +75,8 @@ TEST_CASE(pack_unpack_fp4)
     auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {2, 2}};
     auto l0       = mm->add_literal(migraphx::literal{s, {-2.f, 3.4f, 3.5f, 0.f}});
-    auto pack_ins = mm->add_instruction(migraphx::make_op("pack_fp4", {{"axis", 0}}), l0);
-    mm->add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 0}}), pack_ins);
+    auto pack_ins = mm->add_instruction(migraphx::make_op("pack_fp4"), l0);
+    mm->add_instruction(migraphx::make_op("unpack_fp4"), pack_ins);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
     std::vector<float> results_vector(4);

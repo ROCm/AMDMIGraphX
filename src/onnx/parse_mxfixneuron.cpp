@@ -26,6 +26,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/tune_axis.hpp>
+#include <algorithm>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -33,7 +34,7 @@ namespace onnx {
 
 struct parse_mxfixneuron : op_parser<parse_mxfixneuron>
 {
-    std::vector<op_desc> operators() const { return {{"MXFixNeuron"}}; }
+    std::vector<op_desc> operators() const { return {{"MXFixNeuron"}, {"MXQuantizeDequantize"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& /*parser*/,
@@ -129,32 +130,38 @@ struct parse_mxfixneuron : op_parser<parse_mxfixneuron>
             input,
             block_scales_ins); // output is float_type
 
-        // ravel tensor to 1D for handling possible odd number of elements for packing
+        // packing axis set to fastest dimension
         auto quantized_shape     = q_ins->get_shape();
-        std::size_t num_elements = quantized_shape.elements();
-        auto ravel_ins =
-            info.add_instruction(make_op("reshape", {{"dims", {num_elements}}}), q_ins);
-        bool odd_num_elem = (num_elements % 2 == 1);
-        if(odd_num_elem)
+        const auto& qs_strides   = quantized_shape.strides();
+        if(qs_strides.empty())
         {
-            // pad one element at end if odd number of elements
-            ravel_ins = info.add_instruction(make_op("pad", {{"pads", {0, 1}}}), ravel_ins);
+            MIGRAPHX_THROW("MXFixNeuron: quantized_shape has no strides");
         }
-        auto pack_ins =
-            info.add_instruction(make_op("pack_fp4"), ravel_ins); // output is fp4x2_type
-        auto unpack_ins =
-            info.add_instruction(make_op("unpack_fp4"), pack_ins); // output is fp8e4m3fn_type
-        if(odd_num_elem)
+        int fast_axis =
+            std::min_element(qs_strides.cbegin(), qs_strides.cend()) - qs_strides.cbegin();
+        bool odd_fast_axis = (quantized_shape.lens().at(fast_axis) % 2 == 1);
+        if(odd_fast_axis)
         {
-            // slice off padded value
-            unpack_ins = info.add_instruction(
-                make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {num_elements}}}),
-                unpack_ins);
+            // pad fastest dimension by 1 if it is odd
+            std::vector<int64_t> padding(2 * quantized_shape.ndim(), 0);
+            padding.at(fast_axis * 2 + 1) = 1;
+            q_ins = info.add_instruction(make_op("pad", {{"pads", padding}}), q_ins);
         }
-        auto reshape_unpack_ins = info.add_instruction(
-            make_op("reshape", {{"dims", quantized_shape.lens()}}), unpack_ins);
-        return info.add_instruction(
-            make_op("dequantizelinear"), reshape_unpack_ins, block_scales_ins);
+        auto pack_ins   = info.add_instruction(make_op("pack_fp4"),
+                                             q_ins); // output is fp4x2_type
+        auto unpack_ins = info.add_instruction(make_op("unpack_fp4"),
+                                               pack_ins); // output is fp8e4m3fn_type
+        if(odd_fast_axis)
+        {
+            // slice off padded values
+            unpack_ins =
+                info.add_instruction(make_op("slice",
+                                             {{"axes", {fast_axis}},
+                                              {"starts", {0}},
+                                              {"ends", {quantized_shape.lens().at(fast_axis)}}}),
+                                     unpack_ins);
+        }
+        return info.add_instruction(make_op("dequantizelinear"), unpack_ins, block_scales_ins);
     }
 };
 

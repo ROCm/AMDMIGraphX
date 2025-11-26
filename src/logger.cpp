@@ -79,7 +79,7 @@ static void init_stderr_logger()
     static bool initialized = false;
     if(!initialized)
     {
-        auto* logger = get_migraphx_logger();
+        auto* logger     = get_migraphx_logger();
         auto stderr_sink = std::make_shared<spdlog::sinks::stderr_color_sink_mt>();
         // Use spdlog pattern with colors for the color sink
         // %^ ... %$ = wrap entire line with color based on log level

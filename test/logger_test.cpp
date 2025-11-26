@@ -51,7 +51,7 @@ TEST_CASE(logger_is_enabled)
 {
     // Set to INFO level
     migraphx::log::set_log_level(migraphx::log::severity::INFO);
-    
+
     // Check severity ordering: ERROR < WARN < INFO < DEBUG < TRACE
     EXPECT(migraphx::log::is_enabled(migraphx::log::severity::ERROR));
     EXPECT(migraphx::log::is_enabled(migraphx::log::severity::WARN));
@@ -64,14 +64,14 @@ TEST_CASE(logger_basic_logging)
 {
     // Test that logging doesn't crash or throw
     migraphx::log::set_log_level(migraphx::log::severity::TRACE);
-    
+
     // Test stream operator
     migraphx::log::error() << "Test error message";
     migraphx::log::warn() << "Test warn message";
     migraphx::log::info() << "Test info message";
     migraphx::log::debug() << "Test debug message";
     migraphx::log::trace() << "Test trace message";
-    
+
     // Test function call operator
     migraphx::log::error()("Error message");
     migraphx::log::warn()("Warn message");
@@ -83,19 +83,19 @@ TEST_CASE(logger_basic_logging)
 TEST_CASE(logger_stream_composition)
 {
     migraphx::log::set_log_level(migraphx::log::severity::INFO);
-    
+
     // Test composing multiple values in a single log message
-    int value = 42;
-    double pi = 3.14;
+    int value        = 42;
+    double pi        = 3.14;
     std::string text = "hello";
-    
+
     migraphx::log::info() << "Multiple values: " << value << ", " << pi << ", " << text;
 }
 
 TEST_CASE(logger_function_call_multiple_args)
 {
     migraphx::log::set_log_level(migraphx::log::severity::INFO);
-    
+
     // Test function call operator with multiple arguments
     migraphx::log::info()("Multiple", " ", "arguments");
     migraphx::log::error()("Error code: ", 404);
@@ -105,13 +105,13 @@ TEST_CASE(logger_disabled_levels)
 {
     // Set to ERROR level - only errors should be enabled
     migraphx::log::set_log_level(migraphx::log::severity::ERROR);
-    
+
     EXPECT(migraphx::log::is_enabled(migraphx::log::severity::ERROR));
     EXPECT(not migraphx::log::is_enabled(migraphx::log::severity::WARN));
     EXPECT(not migraphx::log::is_enabled(migraphx::log::severity::INFO));
     EXPECT(not migraphx::log::is_enabled(migraphx::log::severity::DEBUG));
     EXPECT(not migraphx::log::is_enabled(migraphx::log::severity::TRACE));
-    
+
     // These should not cause any output or crash
     migraphx::log::warn() << "This should be suppressed";
     migraphx::log::info() << "This should be suppressed";
@@ -122,7 +122,7 @@ TEST_CASE(logger_none_level)
 {
     // Set to NONE - nothing should be enabled
     migraphx::log::set_log_level(migraphx::log::severity::NONE);
-    
+
     EXPECT(not migraphx::log::is_enabled(migraphx::log::severity::ERROR));
     EXPECT(not migraphx::log::is_enabled(migraphx::log::severity::WARN));
     EXPECT(not migraphx::log::is_enabled(migraphx::log::severity::INFO));
@@ -134,23 +134,23 @@ TEST_CASE(logger_severity_ordering)
 {
     // Test that severity levels are properly ordered
     // NONE(0) < ERROR(1) < WARN(2) < INFO(3) < DEBUG(4) < TRACE(5)
-    
-    EXPECT(static_cast<int>(migraphx::log::severity::NONE) < 
+
+    EXPECT(static_cast<int>(migraphx::log::severity::NONE) <
            static_cast<int>(migraphx::log::severity::ERROR));
-    EXPECT(static_cast<int>(migraphx::log::severity::ERROR) < 
+    EXPECT(static_cast<int>(migraphx::log::severity::ERROR) <
            static_cast<int>(migraphx::log::severity::WARN));
-    EXPECT(static_cast<int>(migraphx::log::severity::WARN) < 
+    EXPECT(static_cast<int>(migraphx::log::severity::WARN) <
            static_cast<int>(migraphx::log::severity::INFO));
-    EXPECT(static_cast<int>(migraphx::log::severity::INFO) < 
+    EXPECT(static_cast<int>(migraphx::log::severity::INFO) <
            static_cast<int>(migraphx::log::severity::DEBUG));
-    EXPECT(static_cast<int>(migraphx::log::severity::DEBUG) < 
+    EXPECT(static_cast<int>(migraphx::log::severity::DEBUG) <
            static_cast<int>(migraphx::log::severity::TRACE));
 }
 
 TEST_CASE(logger_empty_messages)
 {
     migraphx::log::set_log_level(migraphx::log::severity::INFO);
-    
+
     // Test logging empty messages doesn't crash
     migraphx::log::info() << "";
     migraphx::log::error()("");
@@ -159,7 +159,7 @@ TEST_CASE(logger_empty_messages)
 TEST_CASE(logger_special_characters)
 {
     migraphx::log::set_log_level(migraphx::log::severity::INFO);
-    
+
     // Test logging special characters
     migraphx::log::info() << "Special chars: \n\t\\";
     migraphx::log::info()("Unicode: ", "日本語");
@@ -168,7 +168,7 @@ TEST_CASE(logger_special_characters)
 TEST_CASE(logger_long_messages)
 {
     migraphx::log::set_log_level(migraphx::log::severity::INFO);
-    
+
     // Test logging a very long message
     std::string long_msg(1000, 'x');
     migraphx::log::info() << "Long message: " << long_msg;
@@ -177,14 +177,14 @@ TEST_CASE(logger_long_messages)
 TEST_CASE(logger_conditional_logging)
 {
     migraphx::log::set_log_level(migraphx::log::severity::INFO);
-    
+
     // Test conditional logging based on is_enabled
     if(migraphx::log::is_enabled(migraphx::log::severity::DEBUG))
     {
         // This should not execute
         migraphx::log::debug() << "Should not appear";
     }
-    
+
     if(migraphx::log::is_enabled(migraphx::log::severity::INFO))
     {
         // This should execute
@@ -193,4 +193,3 @@ TEST_CASE(logger_conditional_logging)
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }
-

@@ -71,14 +71,22 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
       - Skips unknown operators when parsing and continues to parse.
    *  - --trim | -t
       - Trims instructions from the end.
+   *  - --trim-size | -s
+      - Number of instructions in the trim model.
    *  - --optimize | -O
       - Optimizes read
+   *  - --mlir
+      - Offloads everything to MLIR
+   *  - --apply-pass | -p
+      - Passes to apply to model
    *  - --graphviz | -g
       - Prints a graphviz representation
    *  - --brief
       - Makes the output brief
    *  - --cpp
       - Prints the program in .cpp format
+   *  - --python | --py
+      - Prints the program in .py format
    *  - --json
       - Prints the program in .json format
    *  - --text
@@ -95,10 +103,14 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
       - Fills parameter with 1s
    *  - --input-dim
       - Sets static dimensions of a parameter
+   *  - --dim-param
+      - Symbolic parameter dimension name (fixed / dynamic)
    *  - --dyn-input-dim
       - Sets dynamic dimensions of a parameter
    *  - --default-dyn-dim
       - Sets default dynamic dimension
+   *  - --output-names
+      - Names of node output
    *  - --gpu
       - Compiles on the GPU
    *  - --cpu
@@ -110,7 +122,7 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
    *  - --disable-fast-math
       - Disables fast math optimization
    *  - --exhaustive-tune
-      - Enables exhaustive search to find the fastest kernel
+      - Exhaustively searches for best tuning parameters for kernels
    *  - --fp16
       - Quantizes for fp16
    *  - --bf16
@@ -118,7 +130,9 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
    *  - --int8
       - Quantizes for int8
    *  - --fp8
-      - Quantize for ``Float8E4M3FNUZ`` type
+      - Quantizes for fp8
+   *  - --int4-weights
+      - Quantizes weights for int4
    *  - --rms-tol
       - Sets tolerance for the RMS error (Default: 0.001)
    *  - --atol
@@ -129,6 +143,10 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
       - Verifies each instruction
    *  - --reduce | -r
       - Reduces program and verifies
+   *  - --bisect | -b
+      - Bisects program and verifies
+   *  - --compiled-model | -c
+      - Compiled model to use
    *  - --iterations | -n
       - Sets the number of iterations to run for perf report
    *  - --list | -l

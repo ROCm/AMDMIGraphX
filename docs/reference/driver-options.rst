@@ -82,6 +82,14 @@ Verifies each instruction
 
 Reduces program and verifies
 
+.. option::  -b, --bisect
+
+Bisects program and verifies
+
+.. option::  -c, --compiled-model [std::string]
+
+Compiled model to use
+
 .. option:: --ref-use-double
 
 Converts floating point values to double for the ref target

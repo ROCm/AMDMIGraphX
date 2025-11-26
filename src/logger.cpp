@@ -26,12 +26,7 @@
 #include <iomanip>
 #include <iostream>
 #include "spdlog/sinks/basic_file_sink.h"
-
-#ifdef _WIN32
-#include "spdlog/sinks/wincolor_sink.h"
-#else
 #include "spdlog/sinks/stdout_color_sinks.h"
-#endif
 
 namespace migraphx {
 namespace log {
@@ -85,11 +80,7 @@ static void init_stderr_logger()
     if(!initialized)
     {
         auto* logger = get_migraphx_logger();
-#ifdef _WIN32
-        auto stderr_sink = std::make_shared<spdlog::sinks::wincolor_stderr_sink_mt>();
-#else
         auto stderr_sink = std::make_shared<spdlog::sinks::stderr_color_sink_mt>();
-#endif
         // Use spdlog pattern with colors for the color sink
         // %^ ... %$ = wrap entire line with color based on log level
         // %Y-%m-%d %H:%M:%S.%f = timestamp with microseconds

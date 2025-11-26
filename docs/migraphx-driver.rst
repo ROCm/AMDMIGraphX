@@ -124,15 +124,15 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
    *  - --exhaustive-tune
       - Exhaustively searches for best tuning parameters for kernels
    *  - --fp16
-      - Quantizes for fp16
+      - Quantizes for FP16
    *  - --bf16
-      - Quantizes for bf16
+      - Quantizes for BF16
    *  - --int8
-      - Quantizes for int8
+      - Quantizes for INT8
    *  - --fp8
-      - Quantizes for fp8
+      - Quantizes for FP8
    *  - --int4-weights
-      - Quantizes weights for int4
+      - Quantizes weights for INT4
    *  - --rms-tol
       - Sets tolerance for the RMS error (Default: 0.001)
    *  - --atol

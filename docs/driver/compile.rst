@@ -32,20 +32,20 @@ Exhaustively search for best tuning parameters for kernels
 
 .. option::  --fp16
 
-Quantize for fp16
+Quantize for FP16
 
 .. option::  --bf16
 
-Quantize for bf16
+Quantize for BF16
 
 .. option::  --int8
 
-Quantize for int8
+Quantize for INT8
 
 .. option:: --fp8
 
-Quantize for fp8
+Quantize for FP8
 
 .. option:: --int4-weights
 
-Quantize weights for int4
+Quantize weights for INT4

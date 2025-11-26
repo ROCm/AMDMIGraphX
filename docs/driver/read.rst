@@ -72,7 +72,7 @@ Optimize when reading
 
 .. option::  --mlir
 
-Offload everything to mlir
+Offload everything to MLIR
 
 .. option::  --apply-pass, -p
 

@@ -108,11 +108,10 @@ static shape get_output_shape(const shape& s, const std::vector<T>& axes)
 }
 
 template <class ReduceLens>
-static std::string get_reduce_algo(context& ctx, const std::vector<shape>& inputs, ReduceLens rlens)
+static bool is_strided_reduce(const std::vector<shape>& inputs, const ReduceLens& rlens)
 {
     const auto init = std::numeric_limits<std::size_t>::max();
-    auto relements  = std::accumulate(rlens.begin(), rlens.end(), 1, std::multiplies<>{});
-    bool is_strided_reduce = std::all_of(inputs.begin(), inputs.end(), [&](const shape& input) {
+    return std::all_of(inputs.begin(), inputs.end(), [&](const shape& input) {
         // The minimum stride
         auto min_stride = std::inner_product(
             rlens.begin(),
@@ -123,7 +122,81 @@ static std::string get_reduce_algo(context& ctx, const std::vector<shape>& input
             [](auto len, auto stride) { return len == 1 ? init : stride; });
         return min_stride > 2;
     });
-    if(is_strided_reduce)
+}
+
+static std::size_t compute_subwave_size(context& ctx, std::size_t n)
+{
+    std::size_t max_wavefront_size = ctx.get_current_device().get_wavefront_size();
+    std::size_t wavefront_size     = 1;
+    while(wavefront_size <= n and wavefront_size < max_wavefront_size)
+        wavefront_size *= 2;
+    return wavefront_size;
+}
+
+struct reduce_parameters
+{
+    std::size_t tile_size = 1;
+    std::size_t batch_per_block = 1;
+
+
+    template <class ReduceLens>
+    static reduce_parameters get_reduce_parameters(context& ctx, const value& v, const std::vector<shape>& inputs, ReduceLens rlens)
+    {
+        reduce_parameters params;
+        if(v.contains("tile_size"))
+        {
+            params.tile_size = v.at("tile_size").to<std::size_t>();
+            params.batch_per_block = v.get("batch_per_block", 1);
+        }
+        else
+        {
+            if(is_strided_reduce(inputs, rlens))
+                return params;
+            auto relements  = std::accumulate(rlens.begin(), rlens.end(), 1, std::multiplies<>{}) / 4;
+            params.tile_size = compute_block_size(ctx, relements, 256);
+            if(params.tile_size <= ctx.get_current_device().get_wavefront_size())
+            {
+                params.tile_size = compute_subwave_size(ctx, relements);
+            }
+        }
+        return params;
+    }
+
+    std::size_t get_block_size(context& ctx) const
+    {
+        if(tile_size == 1)
+            return 1024;
+        if(tile_size > ctx.get_current_device().get_wavefront_size())
+            return tile_size;
+        return ctx.get_current_device().get_wavefront_size();
+    }
+
+    void set_launch_params(hip_compile_options& options, context& ctx, const value& v, std::size_t nelements) const
+    {
+        auto block_size = get_block_size(ctx);
+        options.set_launch_params(v, compute_global_for(ctx, nelements * block_size, 256), block_size);
+    }
+
+    std::string get_algo(context& ctx, std::size_t relements = 1) const
+    {
+        if(tile_size == 1)
+            return "lane";
+        if(tile_size == ctx.get_current_device().get_wavefront_size())
+            return "wave";
+        if(tile_size < ctx.get_current_device().get_wavefront_size())
+            return "subwave<" + std::to_string(tile_size) + ">";
+        auto block_size = get_block_size(ctx);
+        if(relements >= block_size * 256)
+            return "block_large";
+        return "block";
+    }
+};
+
+template <class ReduceLens>
+static std::string get_reduce_algo(context& ctx, const std::vector<shape>& inputs, ReduceLens rlens)
+{
+    auto relements  = std::accumulate(rlens.begin(), rlens.end(), 1, std::multiplies<>{});
+    if(is_strided_reduce(inputs, rlens))
         return "lane";
     if(relements <= ctx.get_current_device().get_wavefront_size())
         return "wave";
@@ -134,15 +207,6 @@ static std::string get_reduce_algo(context& ctx, const std::vector<shape>& input
 {
     auto rlens = get_reduce_lens(inputs.front().lens(), inputs.back().lens());
     return get_reduce_algo(ctx, inputs, rlens);
-}
-
-static std::size_t compute_subwave_size(context& ctx, std::size_t n)
-{
-    std::size_t max_wavefront_size = ctx.get_current_device().get_wavefront_size();
-    std::size_t wavefront_size     = 1;
-    while(wavefront_size <= n and wavefront_size < max_wavefront_size)
-        wavefront_size *= 2;
-    return wavefront_size;
 }
 
 /// This will adjust the input shapes so a partial reduction is done per workgroup.
@@ -349,39 +413,15 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         auto faxis             = find_fast_axis({options.virtual_inputs.front()});
         vectorize vec{};
         auto nelements = reduce_output_shape.elements();
-        auto algo =
-            v.get("algo", get_reduce_algo(ctx, options.virtual_inputs, reduction_shape.lens()));
-        if(algo == "block" or algo == "wave")
+        auto rparams = reduce_parameters::get_reduce_parameters(ctx, v, options.virtual_inputs, reduction_shape.lens());
+        if(rparams.tile_size != 1)
         {
             // Vectorize if the axis is a reduction axis
             if(reduce_output_shape.lens()[faxis] == 1)
                 vec = vectorize::elements(ctx, faxis, options.virtual_inputs);
-            auto relements  = reduction_shape.elements() / vec.size;
-            if(algo == "block")
-            {
-                auto block_size = v.get("block_size", compute_block_size(ctx, relements, 256));
-                if(relements >= block_size * 256)
-                    algo = "block_large";
-                options.set_launch_params(
-                    v, compute_global_for(ctx, nelements * block_size, 256), block_size);
-            }
-            else
-            {
-                auto subwave_size = v.get("subwave_size", compute_subwave_size(ctx, relements));
-                algo              = "subwave<" + std::to_string(subwave_size) + ">";
-                options.set_launch_params(v,
-                                          compute_global_for(ctx, nelements * subwave_size, 256),
-                                          ctx.get_current_device().get_wavefront_size());
-            }
         }
-        else if(algo == "lane")
-        {
-            options.set_launch_params(v, compute_global_for(ctx, nelements, 256));
-        }
-        else
-        {
-            MIGRAPHX_THROW("Unknown reduce algo: " + algo);
-        }
+        auto algo = rparams.get_algo(ctx, reduction_shape.elements());
+        rparams.set_launch_params(options, ctx, v, nelements);
         options.kernel_name = v.get("kernel", "reduce_kernel");
         auto src            = interpolate_string(
             fused_reduce_kernel,
@@ -424,12 +464,13 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
             return nullopt;
         tuning_config tc;
         auto shapes       = to_shapes(ins->inputs());
-        tc.problem        = to_value(shapes);
         auto axes         = op.to_value().at("axes").to_vector<std::size_t>();
         auto input_shape  = get_input_shape(shapes);
         auto reduce_shape = get_reduced_shape(input_shape, axes);
         auto relements    = reduce_shape.elements();
-        std::unordered_set<std::size_t> tile_sizes;
+        // tc.problem        = to_value(shapes);
+        tc.problem        = relements;
+        std::unordered_set<std::size_t> tile_sizes = {1};
         for(auto per_lane : {1, 2, 4, 8, 16})
         {
             std::size_t x = relements / per_lane;
@@ -440,12 +481,11 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         }
         for(auto tile_size : tile_sizes)
         {
-            if(tile_size > ctx.get_current_device().get_wavefront_size())
-                tc.solutions.push_back({{"algo", "block"}, {"block_size", tile_size}});
-            else
-                tc.solutions.push_back({{"algo", "wave"}, {"subwave_size", tile_size}});
+            for(auto batch_per_block : {1, 2, 4, 8, 16})
+            {
+                tc.solutions.push_back({{"tile_size", tile_size}, {"batch_per_block", batch_per_block}});
+            }
         }
-        tc.solutions.push_back({{"algo", "lane"}});
         return tc;
     }
 };

@@ -28,6 +28,7 @@
 #include <migraphx/gpu/compile_gen.hpp>
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/float_equal.hpp>
+#include <migraphx/op/pad.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -49,7 +50,7 @@ MIGRAPHX_GLOBAL void pad_kernel(void* input_p, void* output_p)
     auto offsets = index_ints<${offsets}>{};
     auto idx     = make_index();
     make_tensors()(input_p, output_p)([&](auto input, auto output) {
-        pad(idx, offsets, input, output, ${pad_val});
+        pad(idx, offsets, input, output, ${pad_val}, ${pad_mode});
     });
 }
     
@@ -105,9 +106,23 @@ struct pad_compiler : compiler<pad_compiler>
         if(float_equal(pad_val, std::numeric_limits<float>::max()))
             pad_val_string = "highest{}";
 
+        // Get pad mode, default to constant
+        auto pad_mode_val = v.get("mode", static_cast<int>(op::pad::constant_pad));
+        std::string pad_mode_string;
+        if(pad_mode_val == op::pad::constant_pad)
+            pad_mode_string = "migraphx::pad_mode_t::constant";
+        else if(pad_mode_val == op::pad::reflect_pad)
+            pad_mode_string = "migraphx::pad_mode_t::reflect";
+        else if(pad_mode_val == op::pad::edge_pad)
+            pad_mode_string = "migraphx::pad_mode_t::edge";
+        else
+            pad_mode_string = "migraphx::pad_mode_t::constant"; // fallback
+
         auto src = interpolate_string(
             pointwise_kernel,
-            {{"pad_val", to_string(pad_val_string)}, {"offsets", to_string_range(roffsets)}});
+            {{"pad_val", to_string(pad_val_string)}, 
+             {"offsets", to_string_range(roffsets)},
+             {"pad_mode", pad_mode_string}});
         return compile_hip_code_object(ctx, src, options);
     }
 

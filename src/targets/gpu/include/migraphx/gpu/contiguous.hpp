@@ -40,7 +40,11 @@ struct miopen_contiguous : unary_device<miopen_contiguous, &device::contiguous>
     std::string name() const { return "gpu::contiguous"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        check_shapes{inputs, *this}.has(2);
+        check_shapes{inputs, *this, true}.has(2);
+        if (inputs.at(0).dynamic())
+        {
+            return inputs.at(0);
+        }
         auto lens = inputs.at(0).lens();
         auto t    = inputs.at(0).type();
         return {t, lens};

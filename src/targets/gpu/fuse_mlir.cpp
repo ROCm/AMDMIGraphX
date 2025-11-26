@@ -159,7 +159,7 @@ struct mlir_op
     // Check if the shape can be created from a transpose/broadcast/slice
     static bool is_mlir_compatible(const shape& s)
     {
-        if(s.standard() or s.packed() or s.scalar() or s.ndim() == 1)
+        if(s.standard() or s.packed() or s.scalar() or s.ndim() == 1 or s.dynamic())
             return true;
         auto ns = reorder_shape(s, find_permutation(s));
         std::vector<std::size_t> stride_ratios;
@@ -184,7 +184,7 @@ struct mlir_op
     shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>& mods) const
     {
         module_ref mod = mods[0];
-        check_shapes{inputs, *this}.has_at_least(1);
+        check_shapes{inputs, *this, true}.has_at_least(1);
         if(mods.size() != 1)
             MIGRAPHX_THROW("should have one submodule.");
 
@@ -301,6 +301,8 @@ auto is_mlir_dot(mlir_mode mode)
             return false;
         if(ins->name() != "dot" and ins->name() != "quant_dot")
             return false;
+        if(ins->get_shape().dynamic())
+            return true;
         // dot operation where (FP8 * FP8 = FP8) is not available in MLIR. rocBLAS/hipBLASLt should
         // have the support for it.
         if(contains(fp8_types{}.get(), ins->get_shape().type()))
@@ -337,6 +339,8 @@ auto is_mlir_conv(mlir_mode mode)
             return false;
         if(ins->name() != "convolution" and ins->name() != "quant_convolution")
             return false;
+        if(ins->get_shape().dynamic())
+            return true;
         auto input = ins->inputs().front()->get_shape();
         value v    = ins->get_operator().to_value();
         auto group = v.at("group").to<int>();
@@ -392,6 +396,8 @@ std::unordered_map<instruction_ref, instruction_ref>
 create_param_map_with_literals(module_ref mm, const module* pm, const shape& shape)
 {
     std::unordered_map<instruction_ref, instruction_ref> ins_map;
+    mm->debug_print();
+    pm->debug_print();
     for(auto ins : iterator_for(*pm))
     {
         if(ins->name() != "@literal")
@@ -680,7 +686,7 @@ struct find_mlir_split_reduce
  * Fuses rocMLIR compatible dot or conv op -> reshapes -> pointwise
  * into a mlir_op with submodule.
  */
-struct find_mlir_fused_ops
+struct find_mlir_fused_ops : match::supports_dynamic_shapes
 {
     mlir_mode conv_mode = mlir_mode::none;
     mlir_mode dot_mode  = mlir_mode::none;
@@ -720,7 +726,7 @@ struct find_mlir_fused_ops
                return i != x_ins and reaches(gemm_based_op, i);
            }))
             return;
-
+        
         std::unordered_map<instruction_ref, instruction_ref> map_ins;
         module_ref mm = mpm.create_module("mlir_" + pm->name());
         mm->set_bypass();
@@ -745,10 +751,14 @@ struct find_mlir_fused_ops
             rins.push_back(map_ins.at(gemm_based_op));
         }
         mm->add_return(rins);
-
+        std::cout << "mm after add return" << std::endl;
+        mm->debug_print();
+        
         auto inputs    = find_inputs(map_ins, &mpm.get_module(), mm);
         auto fused_ins = mpm.get_module().insert_instruction(
             pw_ins, mlir_op{gemm_based_op->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
+
+        mpm.get_module().debug_print();
         if(gemm_has_multi_outs)
         {
             auto dot_ins = mpm.get_module().insert_instruction(
@@ -775,6 +785,8 @@ struct find_mlir_fused_ops
         }
         else
         {
+            std::cout << "mm after replace instruction" << std::endl;
+            mm->debug_print();
             mpm.get_module().replace_instruction(pw_ins, fused_ins);
         }
     }

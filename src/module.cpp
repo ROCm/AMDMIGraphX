@@ -717,7 +717,7 @@ std::vector<shape> module::compute_shapes(const std::vector<shape>& inputs,
                                ins->get_shape().type_string() + " but passed " +
                                ins_shapes[ins].type_string());
             }
-            if(options.strict_lens and ins->get_shape().lens() != ins_shapes[ins].lens())
+            if(not ins->get_shape().dynamic() and options.strict_lens and ins->get_shape().lens() != ins_shapes[ins].lens())
             {
                 MIGRAPHX_THROW(options.name + ": Mismatched lens: expected {" +
                                to_string_range(ins->get_shape().lens()) + "} but passed {" +
@@ -1078,7 +1078,11 @@ module::fuse(const module& m,
     std::unordered_map<instruction_ref, instruction_ref> default_map_ins;
     if(map_ins == nullptr)
         map_ins = &default_map_ins;
+    std::cout << "module before insert params" << std::endl;
+    this->debug_print();
     insert_params(*this, inputs, *map_ins, shape_transform);
+    std::cout << "module after insert params" << std::endl;
+    this->debug_print();
     auto param_map = m.get_ins_param_map(inputs, true);
     for(auto&& [param, input] : param_map)
     {

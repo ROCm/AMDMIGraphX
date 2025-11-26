@@ -324,16 +324,21 @@ void program::compile(const target& t, compile_options options)
     options.trace();
     auto&& passes = t.get_passes(this->impl->contexts.front(), options);
     run_passes(*this, passes, options.trace);
+    this->debug_print();
     auto mods = this->get_modules();
     // Validate and finalize
     for(const auto& mod : reverse(mods))
     {
+        std::cout << "module before validate" << std::endl;
+        mod->debug_print();
         auto invalid = mod->validate();
         if(invalid != mod->end())
         {
             MIGRAPHX_THROW("Invalid module " + mod->name() + " from compilation at instruction " +
                            std::to_string(std::distance(mod->begin(), invalid)));
         }
+        std::cout << "module after validate" << std::endl;
+        mod->debug_print();
         auto dangling = mod->find_dangling_reference();
         if(dangling != mod->end())
         {
@@ -342,6 +347,8 @@ void program::compile(const target& t, compile_options options)
                            std::to_string(index));
         }
         mod->finalize(this->impl->contexts);
+        std::cout << "module after finalize" << std::endl;
+        mod->debug_print();
     }
 }
 

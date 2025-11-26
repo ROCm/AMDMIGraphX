@@ -135,24 +135,27 @@ static std::size_t compute_subwave_size(context& ctx, std::size_t n)
 
 struct reduce_parameters
 {
-    std::size_t tile_size = 1;
+    std::size_t tile_size       = 1;
     std::size_t batch_per_block = 1;
 
-
     template <class ReduceLens>
-    static reduce_parameters get_reduce_parameters(context& ctx, const value& v, const std::vector<shape>& inputs, ReduceLens rlens)
+    static reduce_parameters get_reduce_parameters(context& ctx,
+                                                   const value& v,
+                                                   const std::vector<shape>& inputs,
+                                                   ReduceLens rlens)
     {
         reduce_parameters params;
         if(v.contains("tile_size"))
         {
-            params.tile_size = v.at("tile_size").to<std::size_t>();
+            params.tile_size       = v.at("tile_size").to<std::size_t>();
             params.batch_per_block = v.get("batch_per_block", 1);
         }
         else
         {
             if(is_strided_reduce(inputs, rlens))
                 return params;
-            auto relements  = std::accumulate(rlens.begin(), rlens.end(), 1, std::multiplies<>{}) / 4;
+            auto relements =
+                std::accumulate(rlens.begin(), rlens.end(), 1, std::multiplies<>{}) / 4;
             params.tile_size = compute_block_size(ctx, relements, 256);
             if(params.tile_size <= ctx.get_current_device().get_wavefront_size())
             {
@@ -171,10 +174,14 @@ struct reduce_parameters
         return ctx.get_current_device().get_wavefront_size();
     }
 
-    void set_launch_params(hip_compile_options& options, context& ctx, const value& v, std::size_t nelements) const
+    void set_launch_params(hip_compile_options& options,
+                           context& ctx,
+                           const value& v,
+                           std::size_t nelements) const
     {
         auto block_size = get_block_size(ctx);
-        options.set_launch_params(v, compute_global_for(ctx, nelements * block_size, 256), block_size);
+        options.set_launch_params(
+            v, compute_global_for(ctx, nelements * block_size, 256), block_size);
     }
 
     std::string get_algo(context& ctx, std::size_t relements = 1) const
@@ -195,7 +202,7 @@ struct reduce_parameters
 template <class ReduceLens>
 static std::string get_reduce_algo(context& ctx, const std::vector<shape>& inputs, ReduceLens rlens)
 {
-    auto relements  = std::accumulate(rlens.begin(), rlens.end(), 1, std::multiplies<>{});
+    auto relements = std::accumulate(rlens.begin(), rlens.end(), 1, std::multiplies<>{});
     if(is_strided_reduce(inputs, rlens))
         return "lane";
     if(relements <= ctx.get_current_device().get_wavefront_size())
@@ -413,7 +420,8 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         auto faxis             = find_fast_axis({options.virtual_inputs.front()});
         vectorize vec{};
         auto nelements = reduce_output_shape.elements();
-        auto rparams = reduce_parameters::get_reduce_parameters(ctx, v, options.virtual_inputs, reduction_shape.lens());
+        auto rparams   = reduce_parameters::get_reduce_parameters(
+            ctx, v, options.virtual_inputs, reduction_shape.lens());
         if(rparams.tile_size != 1)
         {
             // Vectorize if the axis is a reduction axis
@@ -469,7 +477,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         auto reduce_shape = get_reduced_shape(input_shape, axes);
         auto relements    = reduce_shape.elements();
         // tc.problem        = to_value(shapes);
-        tc.problem        = relements;
+        tc.problem                                 = relements;
         std::unordered_set<std::size_t> tile_sizes = {1};
         for(auto per_lane : {1, 2, 4, 8, 16})
         {
@@ -483,7 +491,8 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         {
             for(auto batch_per_block : {1, 2, 4, 8, 16})
             {
-                tc.solutions.push_back({{"tile_size", tile_size}, {"batch_per_block", batch_per_block}});
+                tc.solutions.push_back(
+                    {{"tile_size", tile_size}, {"batch_per_block", batch_per_block}});
             }
         }
         return tc;

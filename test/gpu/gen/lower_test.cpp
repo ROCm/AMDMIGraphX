@@ -27,6 +27,8 @@
 #include <migraphx/module.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/pass_manager.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/instruction.hpp>
 
 void run_lower_pass(migraphx::module& m)
 {
@@ -49,7 +51,7 @@ TEST_CASE(test_gen_lower_empty_module)
         m1.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 3}});
     }
     run_lower_pass(m1);
-
+    
     migraphx::module m2;
     {
         m2.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 3}});
@@ -62,10 +64,11 @@ TEST_CASE(test_gen_lower_with_tile_region)
     migraphx::module m1;
     {
         auto x = m1.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {64, 64}});
-        auto tile_op = migraphx::make_op(
-            "gpu::gen::tile_region",
-            {{"tile_dims", std::vector<std::size_t>{8, 8}}, {"axis", std::size_t{0}}});
-        auto tiled = m1.add_instruction(tile_op, x);
+        auto wg_id = m1.add_instruction(migraphx::make_op("gpu::gen::workgroup_id"));
+        auto tile_op = migraphx::make_op("gpu::gen::tile_region",
+                                          {{"tile_dims", std::vector<std::size_t>{8, 8}},
+                                           {"axis", std::size_t{0}}});
+        auto tiled = m1.add_instruction(tile_op, x, wg_id);
         m1.add_return({tiled});
     }
     run_lower_pass(m1);
@@ -75,23 +78,27 @@ TEST_CASE(test_gen_lower_with_tile_region)
     migraphx::module m2;
     {
         auto x = m2.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {64, 64}});
-        auto tile_op = migraphx::make_op(
-            "gpu::gen::tile_region",
-            {{"tile_dims", std::vector<std::size_t>{8, 8}}, {"axis", std::size_t{0}}});
-        auto tiled = m2.add_instruction(tile_op, x);
+        auto wg_id = m2.add_instruction(migraphx::make_op("gpu::gen::workgroup_id"));
+        auto tile_op = migraphx::make_op("gpu::gen::tile_region",
+                                          {{"tile_dims", std::vector<std::size_t>{8, 8}},
+                                           {"axis", std::size_t{0}}});
+        auto tiled = m2.add_instruction(tile_op, x, wg_id);
         m2.add_return({tiled});
     }
     EXPECT(m1.sort() == m2.sort());
 }
 
-TEST_CASE(test_gen_lower_copy)
+TEST_CASE(test_gen_lower_copy_per_thread)
 {
-    // Test that copy operation gets lowered to vector_load/vector_store
+    // Test that copy operation with per_thread schedule gets lowered to vector_load/vector_store
     migraphx::module m1;
     {
-        auto src  = m1.add_parameter("src", migraphx::shape{migraphx::shape::float_type, {64}});
-        auto dst  = m1.add_parameter("dst", migraphx::shape{migraphx::shape::float_type, {64}});
-        auto copy = m1.add_instruction(migraphx::make_op("gpu::gen::copy"), src, dst);
+        auto src = m1.add_parameter("src", migraphx::shape{migraphx::shape::float_type, {64}});
+        auto dst = m1.add_parameter("dst", migraphx::shape{migraphx::shape::float_type, {64}});
+        auto copy = m1.add_instruction(
+            migraphx::make_op("gpu::gen::copy", {{"schedule", std::string("per_thread")}}),
+            src,
+            dst);
         m1.add_return({copy});
     }
     run_lower_pass(m1);
@@ -100,19 +107,56 @@ TEST_CASE(test_gen_lower_copy)
     // Vector size is 8 because 64 % 8 == 0
     migraphx::module m2;
     {
-        auto src  = m2.add_parameter("src", migraphx::shape{migraphx::shape::float_type, {64}});
-        auto dst  = m2.add_parameter("dst", migraphx::shape{migraphx::shape::float_type, {64}});
-        auto gid  = m2.add_instruction(migraphx::make_op("gpu::gen::global_id"));
+        auto src = m2.add_parameter("src", migraphx::shape{migraphx::shape::float_type, {64}});
+        auto dst = m2.add_parameter("dst", migraphx::shape{migraphx::shape::float_type, {64}});
+        auto gid = m2.add_instruction(migraphx::make_op("gpu::gen::global_id"));
         auto load = m2.add_instruction(
             migraphx::make_op("gpu::gen::vector_load", {{"size", std::size_t{8}}}), src, gid);
         auto store = m2.add_instruction(
-            migraphx::make_op("gpu::gen::vector_store", {{"size", std::size_t{8}}}),
-            dst,
-            gid,
-            load);
+            migraphx::make_op("gpu::gen::vector_store", {{"size", std::size_t{8}}}), dst, gid, load);
         m2.add_return({store});
     }
     EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(test_gen_lower_copy_per_block)
+{
+    // Test that copy with per_block schedule gets tiled lowering
+    migraphx::module m1;
+    {
+        auto src = m1.add_parameter("src", migraphx::shape{migraphx::shape::float_type, {64, 128}});
+        auto dst = m1.add_parameter("dst", migraphx::shape{migraphx::shape::float_type, {64, 128}});
+        auto copy = m1.add_instruction(
+            migraphx::make_op("gpu::gen::copy", {{"schedule", std::string("per_block")}}),
+            src,
+            dst);
+        m1.add_return({copy});
+    }
+    run_lower_pass(m1);
+
+    // Check that the module contains tile_region operations
+    bool has_tile_region = false;
+    bool has_local_id    = false;
+    for(auto ins : migraphx::iterator_for(m1))
+    {
+        if(ins->name() == "gpu::gen::tile_region")
+            has_tile_region = true;
+        if(ins->name() == "gpu::gen::local_id")
+            has_local_id = true;
+    }
+    EXPECT(has_tile_region);
+    EXPECT(has_local_id);
+}
+
+TEST_CASE(test_lds_allocate_op)
+{
+    // Test lds_allocate operation
+    auto lds_shape = migraphx::shape{migraphx::shape::float_type, {32, 64}, {65, 1}};
+    auto op        = migraphx::make_op("gpu::gen::lds_allocate", {{"shape", migraphx::to_value(lds_shape)}});
+    EXPECT(op.name() == "gpu::gen::lds_allocate");
+
+    auto s = op.compute_shape({});
+    EXPECT(s == lds_shape);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

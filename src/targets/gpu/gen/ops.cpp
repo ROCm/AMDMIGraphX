@@ -60,11 +60,14 @@ struct pointwise
 };
 MIGRAPHX_REGISTER_OP(pointwise);
 
-/// Tile region operation - represents a tiled computation region
+/// Tile region operation - represents a tiled view of a tensor for a specific workgroup
+/// Input 0: tensor (the full tensor to tile)
+/// Input 1: workgroup_id (which tile this workgroup processes)
+/// Output: a view into the tensor for the current tile
 struct tile_region
 {
-    std::vector<std::size_t> tile_dims = {};
-    std::size_t axis                   = 0;
+    std::vector<std::size_t> tile_dims = {}; // Size of each tile
+    std::size_t axis                   = 0;  // Starting axis for tiling
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -74,12 +77,35 @@ struct tile_region
 
     std::string name() const { return "gpu::gen::tile_region"; }
 
-    value attributes() const { return {{"point_op", "tile<${tile_dims}>(${0})"}}; }
-
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this, true}.has(1);
-        return inputs.front();
+        check_shapes{inputs, *this, true}.has(2);
+        auto tensor_shape = inputs.front();
+
+        // Compute the tiled output shape
+        // Dimensions before axis stay as 1 (batch dims processed by outer tiles)
+        // Dimensions at axis onwards are replaced by tile_dims
+        std::vector<std::size_t> out_lens;
+        std::vector<std::size_t> out_strides;
+
+        auto orig_lens    = tensor_shape.lens();
+        auto orig_strides = tensor_shape.strides();
+
+        // Keep dimensions before axis as 1
+        for(std::size_t i = 0; i < axis && i < orig_lens.size(); i++)
+        {
+            out_lens.push_back(1);
+            out_strides.push_back(orig_strides[i]);
+        }
+
+        // Add tile dimensions
+        for(std::size_t i = 0; i < tile_dims.size() && (axis + i) < orig_lens.size(); i++)
+        {
+            out_lens.push_back(tile_dims[i]);
+            out_strides.push_back(orig_strides[axis + i]);
+        }
+
+        return shape{tensor_shape.type(), out_lens, out_strides};
     }
 };
 MIGRAPHX_REGISTER_OP(tile_region);
@@ -291,10 +317,12 @@ MIGRAPHX_REGISTER_OP(vector_store);
 /// Output: destination tensor (aliased)
 struct copy
 {
+    std::string schedule = "per_thread"; // "per_thread" or "per_block"
+
     template <class Self, class F>
-    static auto reflect(Self&, F)
+    static auto reflect(Self& self, F f)
     {
-        return pack();
+        return pack(f(self.schedule, "schedule"));
     }
 
     std::string name() const { return "gpu::gen::copy"; }
@@ -312,6 +340,29 @@ struct copy
     }
 };
 MIGRAPHX_REGISTER_OP(copy);
+
+/// LDS allocate - allocates shared memory (LDS) for a tile
+/// No inputs - shape is specified in the operation
+/// Output: a tensor_view pointing to LDS memory
+struct lds_allocate
+{
+    shape s; // Shape of the LDS allocation (with padding to avoid bank conflicts)
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.s, "shape"));
+    }
+
+    std::string name() const { return "gpu::gen::lds_allocate"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this, true}.has(0);
+        return s;
+    }
+};
+MIGRAPHX_REGISTER_OP(lds_allocate);
 
 } // namespace gen
 } // namespace gpu

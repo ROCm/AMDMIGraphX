@@ -61,13 +61,13 @@ TEST_CASE(test_tile_region_op)
         {{"tile_dims", std::vector<std::size_t>{32, 64}}, {"axis", std::size_t{1}}});
     EXPECT(op.name() == "gpu::gen::tile_region");
 
-    auto attrs = op.attributes();
-    EXPECT(attrs.contains("point_op"));
-
-    // Test compute_shape
-    auto s = op.compute_shape({migraphx::shape{migraphx::shape::float_type, {128, 256}}});
+    // Test compute_shape - tile_region takes (tensor, workgroup_id)
+    auto tensor_shape = migraphx::shape{migraphx::shape::float_type, {128, 256, 512}, {131072, 512, 1}};
+    auto wg_id_shape  = migraphx::shape{migraphx::shape::uint64_type};
+    auto s            = op.compute_shape({tensor_shape, wg_id_shape});
     EXPECT(s.type() == migraphx::shape::float_type);
-    EXPECT(s.lens() == std::vector<std::size_t>{128, 256});
+    // Output shape: dims before axis=1 become 1, tile_dims replace remaining dims
+    EXPECT(s.lens() == std::vector<std::size_t>{1, 32, 64});
 }
 
 TEST_CASE(test_lane_id_op)
@@ -193,6 +193,7 @@ TEST_CASE(test_vector_store_op)
 
 TEST_CASE(test_copy_op)
 {
+    // Test copy with default schedule
     auto op = migraphx::make_op("gpu::gen::copy");
     EXPECT(op.name() == "gpu::gen::copy");
 
@@ -201,6 +202,16 @@ TEST_CASE(test_copy_op)
     auto dst_shape = migraphx::shape{migraphx::shape::float_type, {64, 64}};
     auto s         = op.compute_shape({src_shape, dst_shape});
     EXPECT(s == dst_shape);
+}
+
+TEST_CASE(test_copy_op_with_schedule)
+{
+    // Test copy with per_block schedule
+    auto op = migraphx::make_op("gpu::gen::copy", {{"schedule", std::string("per_block")}});
+    EXPECT(op.name() == "gpu::gen::copy");
+
+    auto v = op.to_value();
+    EXPECT(v.at("schedule").to<std::string>() == "per_block");
 }
 
 // Runtime tests - compile and run on GPU using MIGRAPHX_CHECK

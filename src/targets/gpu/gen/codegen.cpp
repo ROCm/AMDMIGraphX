@@ -217,6 +217,46 @@ std::string generate_gen_code(const module& m, const std::string& /* kernel_name
         {
             body << "        __syncthreads();\n";
         }
+        else if(ins->name() == "gpu::gen::tile_region")
+        {
+            // Tile region: compute offset into tensor based on workgroup_id
+            auto tensor    = get_arg(ins->inputs()[0]);
+            auto wg_id     = get_arg(ins->inputs()[1]);
+            auto v         = ins->get_operator().to_value();
+            auto tile_dims = v.at("tile_dims").to_vector<std::size_t>();
+            auto axis      = v.at("axis").to<std::size_t>();
+
+            // Generate tile offset calculation
+            // tile_offset = wg_id * tile_size (for simple 1D tiling)
+            std::size_t tile_size = 1;
+            for(auto d : tile_dims)
+                tile_size *= d;
+
+            body << "        // Tile region: axis=" << axis << ", tile_dims=[";
+            for(std::size_t i = 0; i < tile_dims.size(); i++)
+            {
+                if(i > 0)
+                    body << ",";
+                body << tile_dims[i];
+            }
+            body << "]\n";
+            body << "        auto " << ins_name << "_offset = " << wg_id << " * " << tile_size
+                 << ";\n";
+            body << "        auto " << ins_name
+                 << " = make_tensor_view(" << tensor << ".data() + " << ins_name << "_offset, "
+                 << tensor << ".get_shape());\n";
+        }
+        else if(ins->name() == "gpu::gen::lds_allocate")
+        {
+            // LDS allocation: declare __shared__ buffer
+            auto s          = ins->get_shape();
+            auto elem_space = s.element_space();
+            body << "        __shared__ " << shape::cpp_type(s.type()) << " " << ins_name
+                 << "_buffer[" << elem_space << "];\n";
+            body << "        auto " << ins_name << " = make_tensor_view(" << ins_name
+                 << "_buffer, make_shape(" << generate_index_ints(s.lens()) << ", "
+                 << generate_index_ints(s.strides()) << "));\n";
+        }
         else if(ins->name() == "@literal")
         {
             // Generate literal value - simple scalar literals

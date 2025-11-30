@@ -49,6 +49,13 @@ static std::size_t compute_vector_size(const std::vector<shape>& inputs, std::si
        }))
         return 1;
 
+    if(inputs.empty())
+        return 1;
+
+    auto ndims = inputs.front().ndim();
+    if(axis >= ndims)
+        return 1;
+
     // Check if all inputs have unit length on axis
     if(std::all_of(
            inputs.begin(), inputs.end(), [&](const auto& s) { return s.lens()[axis] == 1; }))
@@ -83,6 +90,119 @@ static std::size_t compute_vector_size(const std::vector<shape>& inputs, std::si
     return *std::min_element(max_vec_sizes.begin(), max_vec_sizes.end());
 }
 
+// Check if a shape needs LDS copy (non-contiguous on fast axis)
+static bool needs_lds_copy(const shape& s, std::size_t fast_axis)
+{
+    if(s.ndim() == 0)
+        return false;
+    if(fast_axis >= s.ndim())
+        return false;
+
+    // If stride on fast axis is not 0 or 1, it's strided/transposed
+    auto stride = s.strides()[fast_axis];
+    return stride != 0 && stride != 1;
+}
+
+// Compute LDS shape with padding to avoid bank conflicts
+static shape compute_lds_shape(const shape& s)
+{
+    auto lens    = s.lens();
+    auto strides = s.strides();
+
+    // Add 1 element padding on the last dimension to avoid bank conflicts
+    if(not strides.empty())
+    {
+        strides.back() = strides.back() + 1;
+    }
+
+    return shape{s.type(), lens, strides};
+}
+
+// Compute tile dimensions for a given shape
+static std::vector<std::size_t> compute_tile_dims(const shape& s, std::size_t tile_axis)
+{
+    std::vector<std::size_t> tile_dims;
+    auto lens = s.lens();
+
+    // Start from tile_axis to the end
+    for(std::size_t i = tile_axis; i < lens.size(); i++)
+    {
+        // Use reasonable tile sizes - these can be tuned
+        std::size_t tile_size = 32;
+        if(i == lens.size() - 1)
+        {
+            // Last dimension: use 64 for better vectorization
+            tile_size = 64;
+        }
+        tile_dims.push_back(std::min(tile_size, lens[i]));
+    }
+
+    return tile_dims;
+}
+
+// Lower a simple 1D copy to vector_load/vector_store
+static void lower_simple_copy(module& m,
+                              instruction_ref ins,
+                              instruction_ref src,
+                              instruction_ref dst,
+                              std::size_t vec_size)
+{
+    // Insert global_id for 1D case
+    auto gid = m.insert_instruction(ins, make_op("gpu::gen::global_id"));
+
+    // Insert vector_load from source
+    auto load = m.insert_instruction(
+        ins, make_op("gpu::gen::vector_load", {{"size", vec_size}}), src, gid);
+
+    // Insert vector_store to destination
+    auto store = m.insert_instruction(
+        ins, make_op("gpu::gen::vector_store", {{"size", vec_size}}), dst, gid, load);
+
+    // Replace the copy with the store
+    m.replace_instruction(ins, store);
+}
+
+// Lower a tiled multi-dimensional copy
+static void lower_tiled_copy(module& m,
+                             instruction_ref ins,
+                             instruction_ref src,
+                             instruction_ref dst,
+                             const std::vector<std::size_t>& tile_dims,
+                             std::size_t tile_axis,
+                             std::size_t vec_size)
+{
+    // Insert workgroup_id
+    auto wg_id = m.insert_instruction(ins, make_op("gpu::gen::workgroup_id"));
+
+    // Create tile_region for source
+    auto src_tile = m.insert_instruction(
+        ins,
+        make_op("gpu::gen::tile_region", {{"tile_dims", tile_dims}, {"axis", tile_axis}}),
+        src,
+        wg_id);
+
+    // Create tile_region for destination
+    auto dst_tile = m.insert_instruction(
+        ins,
+        make_op("gpu::gen::tile_region", {{"tile_dims", tile_dims}, {"axis", tile_axis}}),
+        dst,
+        wg_id);
+
+    // Insert local_id for within-tile indexing
+    auto lid = m.insert_instruction(ins, make_op("gpu::gen::local_id"));
+
+    // Insert vector_load from source tile
+    auto load = m.insert_instruction(
+        ins, make_op("gpu::gen::vector_load", {{"size", vec_size}}), src_tile, lid);
+
+    // Insert vector_store to destination tile
+    auto store = m.insert_instruction(
+        ins, make_op("gpu::gen::vector_store", {{"size", vec_size}}), dst_tile, lid, load);
+
+    // Replace the copy with the store
+    m.replace_instruction(ins, store);
+}
+
 void gen_lower::apply(module& m) const
 {
     // Collect copy instructions to lower
@@ -95,15 +215,21 @@ void gen_lower::apply(module& m) const
         }
     }
 
-    // Lower copy operations to vector_load/vector_store
+    // Lower copy operations
     for(auto ins : copies_to_lower)
     {
         auto inputs = ins->inputs();
         if(inputs.size() != 2)
             continue;
 
-        auto src_shape = inputs[0]->get_shape();
-        auto dst_shape = inputs[1]->get_shape();
+        auto src       = inputs[0];
+        auto dst       = inputs[1];
+        auto src_shape = src->get_shape();
+        auto dst_shape = dst->get_shape();
+
+        // Get schedule from operation
+        auto v        = ins->get_operator().to_value();
+        auto schedule = v.get("schedule", std::string("per_thread"));
 
         // Determine vectorization
         std::vector<shape> shapes = {src_shape, dst_shape};
@@ -114,94 +240,29 @@ void gen_lower::apply(module& m) const
         if(vec_size <= 1)
             vec_size = 1;
 
-        // Insert global_id
-        auto gid = m.insert_instruction(ins, make_op("gpu::gen::global_id"));
+        // Check if this is a multi-dimensional tensor that needs tiling
+        bool needs_tiling = src_shape.ndim() > 1 && schedule == "per_block";
 
-        // Insert vector_load from source
-        auto load = m.insert_instruction(
-            ins, make_op("gpu::gen::vector_load", {{"size", vec_size}}), inputs[0], gid);
+        if(needs_tiling)
+        {
+            // Determine tile axis (usually 1 for batch dims)
+            std::size_t tile_axis = 1;
+            if(src_shape.ndim() <= 1)
+                tile_axis = 0;
 
-        // Insert vector_store to destination
-        auto store = m.insert_instruction(
-            ins, make_op("gpu::gen::vector_store", {{"size", vec_size}}), inputs[1], gid, load);
-
-        // Replace the copy with the store and remove the original copy
-        m.replace_instruction(ins, store);
+            auto tile_dims = compute_tile_dims(src_shape, tile_axis);
+            lower_tiled_copy(m, ins, src, dst, tile_dims, tile_axis, vec_size);
+        }
+        else
+        {
+            // Simple 1D lowering
+            lower_simple_copy(m, ins, src, dst, vec_size);
+        }
     }
 
-    // Process remaining instructions
+    // Process tile_region operations (currently just for validation)
     for(auto ins : iterator_for(m))
     {
-        // Lower pointwise operations to vector_load/vector_store
-        if(ins->name() == "pointwise")
-        {
-            if(ins->module_inputs().empty())
-                continue;
-
-            auto inputs = ins->inputs();
-            if(inputs.empty())
-                continue;
-
-            // Get input shapes
-            std::vector<shape> input_shapes;
-            for(auto input : inputs)
-            {
-                input_shapes.push_back(input->get_shape());
-            }
-
-            // Determine vectorization parameters
-            auto normalized = reduce_dims(normalize_permutation(input_shapes));
-            auto axis       = gpu::gen::find_fast_axis(normalized);
-            auto vec_size   = compute_vector_size(normalized, axis);
-
-            // If no vectorization possible, skip lowering for now
-            // (the existing pointwise path will handle it)
-            if(vec_size <= 1)
-                continue;
-
-            // Calculate number of elements per thread
-            std::size_t total_elements      = input_shapes.front().elements();
-            std::size_t elements_per_thread = vec_size;
-
-            // Insert global_id to get thread index
-            auto gid = m.insert_instruction(ins, make_op("gpu::gen::global_id"));
-
-            // Insert vector_load for each input (except the output allocation)
-            std::vector<instruction_ref> loaded_inputs;
-            for(std::size_t i = 0; i < inputs.size() - 1; i++)
-            {
-                auto load = m.insert_instruction(
-                    ins, make_op("gpu::gen::vector_load", {{"size", vec_size}}), inputs[i], gid);
-                loaded_inputs.push_back(load);
-            }
-
-            // The inner pointwise module operates on the loaded vectors
-            // For now, we keep the original pointwise and let code generation handle it
-            // Future: inline the pointwise computation
-
-            // Insert vector_store for the output
-            // The output is the last input (allocation buffer)
-            auto output_tensor = inputs.back();
-
-            // Create a new pointwise that operates on vector inputs
-            // For now, we mark this instruction as lowered and let codegen handle it
-            // by adding metadata to the instruction
-
-            (void)loaded_inputs;
-            (void)output_tensor;
-            (void)total_elements;
-            (void)elements_per_thread;
-
-            // Note: Full lowering would replace the pointwise instruction with:
-            // 1. global_id
-            // 2. vector_load for each input
-            // 3. inline pointwise computation on vectors
-            // 4. vector_store for output
-            //
-            // For now, the gen_pointwise_compiler handles this via arg transformers
-        }
-
-        // Lower tile_region operations
         if(ins->name() == "gpu::gen::tile_region")
         {
             // Get tile parameters via to_value()
@@ -209,9 +270,7 @@ void gen_lower::apply(module& m) const
             auto tile_dims = v.at("tile_dims").to_vector<std::size_t>();
             auto axis      = v.at("axis").to<std::size_t>();
 
-            // For now, tile lowering is handled during code generation
-            // Future: expand tile into explicit loop structure with
-            // global_id, local_id, and barrier operations
+            // For now, tile_region is kept in IR and handled during code generation
             (void)tile_dims;
             (void)axis;
         }

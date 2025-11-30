@@ -149,18 +149,33 @@ struct reduce_parameters
         {
             params.tile_size       = v.at("tile_size").to<std::size_t>();
             params.batch_per_block = v.get("batch_per_block", 1);
+            return params;
+        }
+        if(is_strided_reduce(inputs, rlens))
+            return params;
+        auto relements =
+            std::accumulate(rlens.begin(), rlens.end(), 1, std::multiplies<>{});
+        std::size_t per_lane = 1;
+        if(ctx.get_current_device().get_wavefront_size() == 64)
+        {
+            if(relements < 8)
+                per_lane = 2;
+            else
+                per_lane = 4;
         }
         else
         {
-            if(is_strided_reduce(inputs, rlens))
-                return params;
-            auto relements =
-                std::accumulate(rlens.begin(), rlens.end(), 1, std::multiplies<>{}) / 4;
-            params.tile_size = compute_block_size(ctx, relements, 256);
-            if(params.tile_size <= ctx.get_current_device().get_wavefront_size())
-            {
-                params.tile_size = compute_subwave_size(ctx, relements);
-            }
+            if(relements < 8)
+                per_lane = 2;
+            else if(relements <= 128)
+                per_lane = 8;
+            else
+                per_lane = 16;
+        }
+        params.tile_size = compute_block_size(ctx, relements / per_lane, 256);
+        if(params.tile_size <= ctx.get_current_device().get_wavefront_size())
+        {
+            params.tile_size = std::max<std::size_t>(2, compute_subwave_size(ctx, relements / per_lane));
         }
         return params;
     }
@@ -479,7 +494,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         // tc.problem        = to_value(shapes);
         tc.problem                                 = relements;
         std::unordered_set<std::size_t> tile_sizes = {1};
-        for(auto per_lane : {1, 2, 4, 8, 16})
+        for(auto per_lane : {1, 2, 4, 8, 16, 32})
         {
             std::size_t x = relements / per_lane;
             for(auto max_block : {256, 512, 1024})

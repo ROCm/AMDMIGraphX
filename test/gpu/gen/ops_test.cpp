@@ -143,7 +143,8 @@ TEST_CASE(test_barrier_op)
 
     auto attrs = op.attributes();
     EXPECT(attrs.contains("point_op"));
-    EXPECT(attrs["point_op"].to<std::string>() == "__syncthreads()");
+    // (void) prefix indicates this returns void and should not create a variable
+    EXPECT(attrs["point_op"].to<std::string>() == "(void)__syncthreads()");
 }
 
 TEST_CASE(test_check_op)
@@ -153,7 +154,8 @@ TEST_CASE(test_check_op)
 
     auto attrs = op.attributes();
     EXPECT(attrs.contains("point_op"));
-    EXPECT(attrs["point_op"].to<std::string>() == "MIGRAPHX_CHECK(${0})");
+    // (void) prefix indicates this returns void and should not create a variable
+    EXPECT(attrs["point_op"].to<std::string>() == "(void)MIGRAPHX_CHECK(${0})");
 
     // check returns an empty shape (no output, just side effect)
     auto s = op.compute_shape({migraphx::shape{migraphx::shape::bool_type}});

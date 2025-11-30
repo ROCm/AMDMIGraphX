@@ -41,7 +41,6 @@ namespace gpu {
 namespace gen {
 
 // Use gpu::gen namespace for compile_gen utilities
-// Note: tile here refers to the compile_gen tile struct, not our tile_region operation
 using migraphx::gpu::gen::find_fast_axis;
 using migraphx::gpu::gen::generate_name_from_ops;
 using migraphx::gpu::gen::generate_pointwise;
@@ -49,7 +48,7 @@ using migraphx::gpu::gen::make_transformer_args;
 using migraphx::gpu::gen::tile;
 using migraphx::gpu::gen::vectorize;
 
-// Kernel template for gen pointwise operations (used by gen_pointwise_compiler)
+// Kernel template for gen pointwise operations
 static const char* const gen_pointwise_kernel = R"__migraphx__(
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/pointwise.hpp>
@@ -72,38 +71,34 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 
 )__migraphx__";
 
-// Kernel template for lowered gen IR with explicit vector_load/vector_store
+// Kernel template for lowered gen IR
 static const char* const gen_lowered_kernel = R"__migraphx__(
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/debug.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
 #include <migraphx/kernels/vec.hpp>
 #include <migraphx/kernels/vectorize.hpp>
+#include <migraphx/kernels/gen.hpp>
 #include <args.hpp>
 
 namespace migraphx {
 
-${preamble}
-
-extern "C" {
-
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-variable"
+
+${preamble}
+
+#pragma clang diagnostic pop
+
+extern "C" {
 
 MIGRAPHX_GLOBAL void ${kernel}(${params}) 
 {
     auto idx = make_index();
-    make_tensors()(${args})([&](auto... tensors) {
-        auto get_tensor = [&](auto i) {
-            return std::get<decltype(i)::value>(std::tie(tensors...));
-        };
-        (void)idx;
-        (void)get_tensor;
-        ${body}
+    make_tensors()(${args})([&](auto... xs) {
+        ${func_name}(xs..., idx);
     });
 }
-
-#pragma clang diagnostic pop
     
 }
 
@@ -113,454 +108,147 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 
 std::string generate_pointwise_kernel(const module& m, const std::string& kernel_name)
 {
-    // Use the existing generate_pointwise function from compile_gen
     return migraphx::gpu::gen::generate_pointwise(m, kernel_name, true);
 }
 
-// Generate C++ code for a gen IR module
-std::string generate_gen_code(const module& m, const std::string& /* kernel_name */)
+// Helper to generate shape expression
+static std::string generate_shape_expr(const shape& s)
 {
-    std::unordered_map<instruction_ref, std::string> names;
-    std::size_t idx = 0;
+    return "make_shape(" + generate_index_ints(s.lens()) + ", " + generate_index_ints(s.strides()) +
+           ")";
+}
 
-    // Assign names to parameters (they map to tensor indices)
-    auto param_names = m.get_parameter_names();
-    std::sort(param_names.begin(), param_names.end());
-    for(const auto& name : param_names)
+// Generate code for a single gen IR instruction
+static std::string generate_gen_instruction(cpp_generator& g,
+                                            instruction_ref ins,
+                                            const std::vector<std::string>& args)
+{
+    // Try to use cpp_generator for operations with point_op
+    try
     {
-        auto param   = m.get_parameter(name);
-        names[param] = "get_tensor(_c<" + std::to_string(idx) + ">)";
-        idx++;
+        return g.generate_point_op(ins->get_operator(), args);
+    }
+    catch(...)
+    {
+        // Fall through to manual handling
     }
 
-    std::ostringstream body;
-
-    // Generate code for each instruction
-    for(auto ins : iterator_for(m))
+    // Handle operations that need special code generation
+    if(ins->name() == "gpu::gen::offset")
     {
-        if(ins->name() == "@param")
-            continue;
-        if(ins->name() == "@return")
-            continue;
-
-        std::string ins_name = "v" + std::to_string(idx++);
-        names[ins]           = ins_name;
-
-        auto get_arg = [&](instruction_ref arg) -> std::string {
-            auto it = names.find(arg);
-            if(it != names.end())
-                return it->second;
-            return "/* unknown */";
-        };
-
-        if(ins->name() == "gpu::gen::global_id")
+        auto v = ins->get_operator().to_value();
+        auto s = from_value<shape>(v.at("shape"));
+        return "gen::compute_offset(" + generate_shape_expr(s) + ", " + args[0] + ")";
+    }
+    if(ins->name() == "gpu::gen::shape_index")
+    {
+        auto v = ins->get_operator().to_value();
+        auto s = from_value<shape>(v.at("input_shape"));
+        return "gen::compute_offset(" + generate_shape_expr(s) + ", " + args[0] + ")";
+    }
+    if(ins->name() == "gpu::gen::vector_load")
+    {
+        auto size = ins->get_operator().to_value().at("size").to<std::size_t>();
+        if(size <= 1)
+            return args[0] + ".data()[" + args[1] + "]";
+        return "gen::vec_load<" + std::to_string(size) + ">(" + args[0] + ".data(), " + args[1] +
+               ")";
+    }
+    if(ins->name() == "gpu::gen::vector_store")
+    {
+        auto size = ins->get_operator().to_value().at("size").to<std::size_t>();
+        if(size <= 1)
+            return "(void)(" + args[0] + ".data()[" + args[1] + "] = " + args[2] + ")";
+        return "(void)gen::vec_store<" + std::to_string(size) + ">(" + args[0] + ".data(), " +
+               args[1] + ", " + args[2] + ")";
+    }
+    if(ins->name() == "gpu::gen::tile_region")
+    {
+        auto v         = ins->get_operator().to_value();
+        auto tile_dims = v.at("tile_dims").to_vector<std::size_t>();
+        std::size_t tile_size = 1;
+        for(auto d : tile_dims)
+            tile_size *= d;
+        return "make_tensor_view(" + args[0] + ".data() + " + args[1] + " * " +
+               std::to_string(tile_size) + ", " + args[0] + ".get_shape())";
+    }
+    if(ins->name() == "gpu::gen::lds_allocate")
+    {
+        auto s = ins->get_shape();
+        return "/* lds_allocate: " + std::to_string(s.element_space()) + " */";
+    }
+    if(ins->name() == "gpu::gen::pad_index")
+    {
+        auto v    = ins->get_operator().to_value();
+        auto pads = v.at("pads").to_vector<std::size_t>();
+        auto s    = from_value<shape>(v.at("input_shape"));
+        return "gen::pad_index(" + generate_shape_expr(s) + ", " + generate_index_ints(pads) +
+               ", " + args[0] + ")";
+    }
+    if(ins->name() == "gpu::gen::reverse_index")
+    {
+        auto v    = ins->get_operator().to_value();
+        auto axes = v.at("axes").to_vector<std::size_t>();
+        auto s    = from_value<shape>(v.at("input_shape"));
+        return "gen::reverse_index(" + generate_shape_expr(s) + ", " + generate_index_ints(axes) +
+               ", " + args[0] + ")";
+    }
+    if(ins->name() == "gpu::gen::gather_index")
+    {
+        auto v    = ins->get_operator().to_value();
+        auto axis = v.at("axis").to<std::size_t>();
+        auto s    = from_value<shape>(v.at("input_shape"));
+        return "gen::gather_index<decltype(" + generate_shape_expr(s) + "), decltype(" + args[1] +
+               "), " + std::to_string(axis) + ">(" + generate_shape_expr(s) + ", " + args[1] +
+               ", " + args[0] + ")";
+    }
+    if(ins->name() == "gpu::gen::conditional_load")
+    {
+        auto size = ins->get_operator().to_value().at("size").to<std::size_t>();
+        if(size <= 1)
+            return "gen::conditional_load(" + args[0] + ", " + args[1] + ", " + args[2] + ")";
+        return "(" + args[1] + " >= 0) ? gen::vec_load<" + std::to_string(size) + ">(" + args[0] +
+               ".data(), " + args[1] + ") : " + args[2];
+    }
+    if(ins->name() == "pointwise")
+    {
+        if(not ins->module_inputs().empty())
         {
-            body << "        auto " << ins_name << " = idx.global;\n";
-        }
-        else if(ins->name() == "gpu::gen::local_id")
-        {
-            body << "        auto " << ins_name << " = idx.local;\n";
-        }
-        else if(ins->name() == "gpu::gen::workgroup_id")
-        {
-            body << "        auto " << ins_name << " = idx.group;\n";
-        }
-        else if(ins->name() == "gpu::gen::workgroup_size")
-        {
-            body << "        auto " << ins_name << " = idx.nlocal();\n";
-        }
-        else if(ins->name() == "gpu::gen::lane_id")
-        {
-            body << "        auto " << ins_name << " = idx.local_wave();\n";
-        }
-        else if(ins->name() == "gpu::gen::vector_load")
-        {
-            auto tensor = get_arg(ins->inputs()[0]);
-            auto index  = get_arg(ins->inputs()[1]);
-            auto size   = ins->get_operator().to_value().at("size").to<std::size_t>();
-            if(size <= 1)
-            {
-                // Scalar load
-                body << "        auto " << ins_name << " = " << tensor << "[" << index << "];\n";
-            }
-            else
-            {
-                // Vector load: use as_vec to get vectorized pointer, then load
-                body << "        auto " << ins_name << " = as_vec<" << size << ">(remove_bool("
-                     << tensor << ".data()))[" << index << "];\n";
-            }
-        }
-        else if(ins->name() == "gpu::gen::vector_store")
-        {
-            auto tensor = get_arg(ins->inputs()[0]);
-            auto index  = get_arg(ins->inputs()[1]);
-            auto data   = get_arg(ins->inputs()[2]);
-            auto size   = ins->get_operator().to_value().at("size").to<std::size_t>();
-            if(size <= 1)
-            {
-                // Scalar store
-                body << "        " << tensor << "[" << index << "] = " << data << ";\n";
-            }
-            else
-            {
-                // Vector store: use as_vec to get vectorized pointer, then store
-                body << "        as_vec<" << size << ">(remove_bool(" << tensor << ".data()))["
-                     << index << "] = " << data << ";\n";
-            }
-        }
-        else if(ins->name() == "gpu::gen::check")
-        {
-            auto cond = get_arg(ins->inputs()[0]);
-            body << "        MIGRAPHX_CHECK(" << cond << ");\n";
-        }
-        else if(ins->name() == "gpu::gen::barrier")
-        {
-            body << "        __syncthreads();\n";
-        }
-        else if(ins->name() == "gpu::gen::tile_region")
-        {
-            // Tile region: compute offset into tensor based on workgroup_id
-            auto tensor    = get_arg(ins->inputs()[0]);
-            auto wg_id     = get_arg(ins->inputs()[1]);
-            auto v         = ins->get_operator().to_value();
-            auto tile_dims = v.at("tile_dims").to_vector<std::size_t>();
-            auto axis      = v.at("axis").to<std::size_t>();
-
-            // Generate tile offset calculation
-            // tile_offset = wg_id * tile_size (for simple 1D tiling)
-            std::size_t tile_size = 1;
-            for(auto d : tile_dims)
-                tile_size *= d;
-
-            body << "        // Tile region: axis=" << axis << ", tile_dims=[";
-            for(std::size_t i = 0; i < tile_dims.size(); i++)
-            {
-                if(i > 0)
-                    body << ",";
-                body << tile_dims[i];
-            }
-            body << "]\n";
-            body << "        auto " << ins_name << "_offset = " << wg_id << " * " << tile_size
-                 << ";\n";
-            body << "        auto " << ins_name << " = make_tensor_view(" << tensor << ".data() + "
-                 << ins_name << "_offset, " << tensor << ".get_shape());\n";
-        }
-        else if(ins->name() == "gpu::gen::lds_allocate")
-        {
-            // LDS allocation: declare __shared__ buffer
-            auto s          = ins->get_shape();
-            auto elem_space = s.element_space();
-            body << "        __shared__ " << shape::cpp_type(s.type()) << " " << ins_name
-                 << "_buffer[" << elem_space << "];\n";
-            body << "        auto " << ins_name << " = make_tensor_view(" << ins_name
-                 << "_buffer, make_shape(" << generate_index_ints(s.lens()) << ", "
-                 << generate_index_ints(s.strides()) << "));\n";
-        }
-        else if(ins->name() == "gpu::gen::offset")
-        {
-            // Compute linear offset from logical index using tensor strides
-            auto index = get_arg(ins->inputs()[0]);
-            auto v     = ins->get_operator().to_value();
-            auto s     = from_value<shape>(v.at("shape"));
-
-            // Generate offset computation using strides
-            // offset = sum(multi_idx[i] * stride[i])
-            body << "        auto " << ins_name << " = [&]() {\n";
-            body << "            auto linear_idx = " << index << ";\n";
-            body << "            index_int offset = 0;\n";
-            body << "            constexpr auto lens = " << generate_index_ints(s.lens()) << ";\n";
-            body << "            constexpr auto strides = " << generate_index_ints(s.strides())
-                 << ";\n";
-            body << "            for(index_int i = lens.size() - 1; i >= 0; i--) {\n";
-            body << "                auto dim_idx = linear_idx % lens[i];\n";
-            body << "                offset += dim_idx * strides[i];\n";
-            body << "                linear_idx /= lens[i];\n";
-            body << "            }\n";
-            body << "            return offset;\n";
-            body << "        }();\n";
-        }
-        else if(ins->name() == "gpu::gen::pad_index")
-        {
-            // Transform index for padding - returns -1 if in padding region
-            auto index = get_arg(ins->inputs()[0]);
-            auto v     = ins->get_operator().to_value();
-            auto pads  = v.at("pads").to_vector<std::size_t>();
-            auto s     = from_value<shape>(v.at("input_shape"));
-
-            body << "        auto " << ins_name << " = [&]() -> int64_t {\n";
-            body << "            auto linear_idx = " << index << ";\n";
-            body << "            constexpr auto lens = " << generate_index_ints(s.lens()) << ";\n";
-            body << "            constexpr index_int pads_arr[] = {";
-            for(std::size_t i = 0; i < pads.size(); i++)
-            {
-                if(i > 0)
-                    body << ", ";
-                body << pads[i];
-            }
-            body << "};\n";
-            body << "            int64_t result_idx = 0;\n";
-            body << "            int64_t stride = 1;\n";
-            body << "            for(int i = lens.size() - 1; i >= 0; i--) {\n";
-            body
-                << "                auto padded_len = lens[i] + pads_arr[2*i] + pads_arr[2*i+1];\n";
-            body << "                auto dim_idx = linear_idx % padded_len;\n";
-            body << "                auto src_idx = dim_idx - pads_arr[2*i];\n";
-            body << "                if(src_idx < 0 || src_idx >= lens[i]) return -1;\n";
-            body << "                result_idx += src_idx * stride;\n";
-            body << "                stride *= lens[i];\n";
-            body << "                linear_idx /= padded_len;\n";
-            body << "            }\n";
-            body << "            return result_idx;\n";
-            body << "        }();\n";
-        }
-        else if(ins->name() == "gpu::gen::reverse_index")
-        {
-            // Transform index for reversing along axes
-            auto index = get_arg(ins->inputs()[0]);
-            auto v     = ins->get_operator().to_value();
-            auto axes  = v.at("axes").to_vector<std::size_t>();
-            auto s     = from_value<shape>(v.at("input_shape"));
-
-            body << "        auto " << ins_name << " = [&]() {\n";
-            body << "            auto linear_idx = " << index << ";\n";
-            body << "            constexpr auto lens = " << generate_index_ints(s.lens()) << ";\n";
-            body << "            constexpr bool reversed[] = {";
-            for(std::size_t i = 0; i < s.lens().size(); i++)
-            {
-                if(i > 0)
-                    body << ", ";
-                body << (std::find(axes.begin(), axes.end(), i) != axes.end() ? "true" : "false");
-            }
-            body << "};\n";
-            body << "            index_int result_idx = 0;\n";
-            body << "            index_int stride = 1;\n";
-            body << "            for(int i = lens.size() - 1; i >= 0; i--) {\n";
-            body << "                auto dim_idx = linear_idx % lens[i];\n";
-            body << "                if(reversed[i]) dim_idx = lens[i] - 1 - dim_idx;\n";
-            body << "                result_idx += dim_idx * stride;\n";
-            body << "                stride *= lens[i];\n";
-            body << "                linear_idx /= lens[i];\n";
-            body << "            }\n";
-            body << "            return result_idx;\n";
-            body << "        }();\n";
-        }
-        else if(ins->name() == "gpu::gen::slice_index")
-        {
-            // Transform index for slicing
-            auto index  = get_arg(ins->inputs()[0]);
-            auto v      = ins->get_operator().to_value();
-            auto starts = v.at("starts").to_vector<std::size_t>();
-            auto axes   = v.at("axes").to_vector<std::size_t>();
-            auto s      = from_value<shape>(v.at("input_shape"));
-
-            body << "        auto " << ins_name << " = [&]() {\n";
-            body << "            auto linear_idx = " << index << ";\n";
-            body << "            constexpr auto lens = " << generate_index_ints(s.lens()) << ";\n";
-            // Generate slice starts array
-            std::vector<std::size_t> slice_starts(s.lens().size(), 0);
-            for(std::size_t i = 0; i < axes.size(); i++)
-                slice_starts[axes[i]] = starts[i];
-            body << "            constexpr index_int starts_arr[] = {";
-            for(std::size_t i = 0; i < slice_starts.size(); i++)
-            {
-                if(i > 0)
-                    body << ", ";
-                body << slice_starts[i];
-            }
-            body << "};\n";
-            body << "            index_int result_idx = 0;\n";
-            body << "            index_int stride = 1;\n";
-            body << "            for(int i = lens.size() - 1; i >= 0; i--) {\n";
-            body << "                auto dim_idx = linear_idx % lens[i];\n";
-            body << "                result_idx += (dim_idx + starts_arr[i]) * stride;\n";
-            body << "                stride *= lens[i];\n";
-            body << "                linear_idx /= lens[i];\n";
-            body << "            }\n";
-            body << "            return result_idx;\n";
-            body << "        }();\n";
-        }
-        else if(ins->name() == "gpu::gen::broadcast_index")
-        {
-            // Transform index for broadcasting
-            auto index = get_arg(ins->inputs()[0]);
-            auto v     = ins->get_operator().to_value();
-            auto s_in  = from_value<shape>(v.at("input_shape"));
-            auto s_out = from_value<shape>(v.at("output_shape"));
-
-            body << "        auto " << ins_name << " = [&]() {\n";
-            body << "            auto linear_idx = " << index << ";\n";
-            body << "            constexpr auto in_lens = " << generate_index_ints(s_in.lens())
-                 << ";\n";
-            body << "            constexpr auto out_lens = " << generate_index_ints(s_out.lens())
-                 << ";\n";
-            body << "            index_int result_idx = 0;\n";
-            body << "            index_int in_stride = 1;\n";
-            body << "            for(int i = in_lens.size() - 1; i >= 0; i--) {\n";
-            body << "                auto out_dim_idx = linear_idx % out_lens[i];\n";
-            body << "                auto in_dim_idx = (in_lens[i] == 1) ? 0 : out_dim_idx;\n";
-            body << "                result_idx += in_dim_idx * in_stride;\n";
-            body << "                in_stride *= in_lens[i];\n";
-            body << "                linear_idx /= out_lens[i];\n";
-            body << "            }\n";
-            body << "            return result_idx;\n";
-            body << "        }();\n";
-        }
-        else if(ins->name() == "gpu::gen::transpose_index")
-        {
-            // Transform index for transposition
-            auto index = get_arg(ins->inputs()[0]);
-            auto v     = ins->get_operator().to_value();
-            auto perm  = v.at("permutation").to_vector<std::size_t>();
-            auto s     = from_value<shape>(v.at("input_shape"));
-
-            body << "        auto " << ins_name << " = [&]() {\n";
-            body << "            auto linear_idx = " << index << ";\n";
-            body << "            constexpr auto in_lens = " << generate_index_ints(s.lens())
-                 << ";\n";
-            // Compute output lens after transpose
-            std::vector<std::size_t> out_lens(perm.size());
-            for(std::size_t i = 0; i < perm.size(); i++)
-                out_lens[i] = s.lens()[perm[i]];
-            body << "            constexpr auto out_lens = " << generate_index_ints(out_lens)
-                 << ";\n";
-            body << "            constexpr index_int perm[] = {";
-            for(std::size_t i = 0; i < perm.size(); i++)
-            {
-                if(i > 0)
-                    body << ", ";
-                body << perm[i];
-            }
-            body << "};\n";
-            body << "            // Compute multi-index in output space\n";
-            body << "            index_int out_multi[" << perm.size() << "];\n";
-            body << "            for(int i = out_lens.size() - 1; i >= 0; i--) {\n";
-            body << "                out_multi[i] = linear_idx % out_lens[i];\n";
-            body << "                linear_idx /= out_lens[i];\n";
-            body << "            }\n";
-            body << "            // Apply inverse permutation to get input multi-index\n";
-            body << "            index_int result_idx = 0;\n";
-            body << "            index_int in_stride = 1;\n";
-            body << "            for(int i = in_lens.size() - 1; i >= 0; i--) {\n";
-            body << "                result_idx += out_multi[perm[i]] * in_stride;\n";
-            body << "                in_stride *= in_lens[i];\n";
-            body << "            }\n";
-            body << "            return result_idx;\n";
-            body << "        }();\n";
-        }
-        else if(ins->name() == "gpu::gen::gather_index")
-        {
-            // Transform index using gather indices tensor
-            auto index   = get_arg(ins->inputs()[0]);
-            auto indices = get_arg(ins->inputs()[1]);
-            auto v       = ins->get_operator().to_value();
-            auto axis    = v.at("axis").to<std::size_t>();
-            auto s       = from_value<shape>(v.at("input_shape"));
-
-            body << "        auto " << ins_name << " = [&]() {\n";
-            body << "            auto linear_idx = " << index << ";\n";
-            body << "            constexpr auto in_lens = " << generate_index_ints(s.lens())
-                 << ";\n";
-            body << "            constexpr index_int axis = " << axis << ";\n";
-            body << "            // Decompose linear index into multi-index\n";
-            body << "            index_int multi_idx[" << s.lens().size() << "];\n";
-            body << "            for(int i = in_lens.size() - 1; i >= 0; i--) {\n";
-            body << "                multi_idx[i] = linear_idx % in_lens[i];\n";
-            body << "                linear_idx /= in_lens[i];\n";
-            body << "            }\n";
-            body << "            // Replace axis index with gathered value\n";
-            body << "            multi_idx[axis] = " << indices << "[multi_idx[axis]];\n";
-            body << "            // Recompute linear index\n";
-            body << "            index_int result_idx = 0;\n";
-            body << "            index_int stride = 1;\n";
-            body << "            for(int i = in_lens.size() - 1; i >= 0; i--) {\n";
-            body << "                result_idx += multi_idx[i] * stride;\n";
-            body << "                stride *= in_lens[i];\n";
-            body << "            }\n";
-            body << "            return result_idx;\n";
-            body << "        }();\n";
-        }
-        else if(ins->name() == "gpu::gen::conditional_load")
-        {
-            // Load from tensor if offset is valid, otherwise use fill value
-            auto tensor = get_arg(ins->inputs()[0]);
-            auto offset = get_arg(ins->inputs()[1]);
-            auto fill   = get_arg(ins->inputs()[2]);
-            auto size   = ins->get_operator().to_value().at("size").to<std::size_t>();
-
-            if(size <= 1)
-            {
-                body << "        auto " << ins_name << " = (" << offset << " >= 0) ? " << tensor
-                     << ".data()[" << offset << "] : " << fill << ";\n";
-            }
-            else
-            {
-                body << "        auto " << ins_name << " = (" << offset << " >= 0) ? as_vec<"
-                     << size << ">(remove_bool(" << tensor << ".data()))[" << offset
-                     << "] : " << fill << ";\n";
-            }
-        }
-        else if(ins->name() == "@literal")
-        {
-            // Generate literal value - simple scalar literals
-            auto lit       = ins->get_literal();
-            auto lit_shape = lit.get_shape();
-            if(lit_shape.elements() == 1)
-            {
-                lit_shape.visit_type([&](auto as) {
-                    body << "        auto " << ins_name << " = static_cast<"
-                         << shape::cpp_type(lit_shape.type()) << ">(" << as.from(lit.data())
-                         << ");\n";
-                });
-            }
-        }
-        else if(ins->name() == "pointwise")
-        {
-            // Handle inner pointwise operations
-            if(not ins->module_inputs().empty())
-            {
-                auto* pm = ins->module_inputs().front();
-                auto pf  = generate_pointwise(*pm, ins_name + "_inner", true);
-                body << "        // Pointwise: " << ins_name << "\n";
-                // Generate inline pointwise call
-                body << "        auto " << ins_name << " = [&]() {\n";
-                body << "            " << ins_name << "_inner(";
-                bool first = true;
-                for(auto arg : ins->inputs())
-                {
-                    if(not first)
-                        body << ", ";
-                    body << get_arg(arg);
-                    first = false;
-                }
-                body << ");\n";
-                body << "        }();\n";
-            }
-        }
-        else
-        {
-            // For other operations, try to use point_op attribute
-            auto attrs = ins->get_operator().attributes();
-            if(attrs.contains("point_op"))
-            {
-                auto point_op = attrs.at("point_op").to<std::string>();
-                // Simple substitution for ${N} placeholders
-                std::string result = point_op;
-                for(std::size_t i = 0; i < ins->inputs().size(); i++)
-                {
-                    result = replace_string(
-                        result, "${" + std::to_string(i) + "}", get_arg(ins->inputs()[i]));
-                }
-                body << "        auto " << ins_name << " = " << result << ";\n";
-            }
-            else
-            {
-                // Skip unsupported operations
-                body << "        // Unsupported: " << ins->name() << "\n";
-            }
+            auto* pm = ins->module_inputs().front();
+            return to_c_id(pm->name()) + "(" + join_strings(args, ", ") + ")";
         }
     }
 
-    return body.str();
+    return "/* unsupported: " + ins->name() + " */";
+}
+
+// Generate a function for a gen IR module using cpp_generator
+static void generate_gen_function(cpp_generator& g,
+                                  const module& m,
+                                  const std::string& func_name)
+{
+    // Register gen IR operations as point_ops
+    g.add_point_op("gpu::gen::global_id", "idx.global");
+    g.add_point_op("gpu::gen::local_id", "idx.local");
+    g.add_point_op("gpu::gen::workgroup_id", "idx.group");
+    g.add_point_op("gpu::gen::workgroup_size", "idx.nlocal()");
+    g.add_point_op("gpu::gen::lane_id", "idx.local_wave()");
+    g.add_point_op("gpu::gen::barrier", "(void)__syncthreads()");
+    g.add_point_op("gpu::gen::check", "(void)MIGRAPHX_CHECK(${0})");
+
+    // Use generate_module with custom callback
+    auto f = g.generate_module(m, [&](instruction_ref ins, const auto& names) {
+        return generate_gen_instruction(g, ins, cpp_generator::to_args(ins->inputs(), names));
+    });
+
+    // Set function name and attributes - idx is passed first, then tensors
+    f.set_name(func_name)
+        .set_generic_types(m)
+        .add_generic_param("idx")
+        .set_attributes({"__device__"});
+
+    // Create the function (writes to g's internal stream)
+    g.create_function(f);
 }
 
 // Compile a gen IR program to a GPU code object
@@ -572,16 +260,13 @@ operation compile_gen(context& ctx, const program& p, const std::string& kernel_
     options.kernel_name = kernel_name;
     options.emplace_param("-Wno-float-equal");
 
-    // Collect parameter shapes for args.hpp generation
     auto param_names = mm->get_parameter_names();
     std::sort(param_names.begin(), param_names.end());
     for(const auto& name : param_names)
     {
-        auto shape = mm->get_parameter_shape(name);
-        options.inputs.push_back(shape);
+        options.inputs.push_back(mm->get_parameter_shape(name));
     }
 
-    // Determine output shape (last parameter by convention)
     if(not options.inputs.empty())
         options.output = options.inputs.back();
     else
@@ -589,7 +274,6 @@ operation compile_gen(context& ctx, const program& p, const std::string& kernel_
 
     options.virtual_inputs = options.inputs;
 
-    // For now, use simple launch params - can be optimized later
     std::size_t total_elements = 1;
     if(not options.inputs.empty())
         total_elements = options.inputs.front().elements();
@@ -602,10 +286,12 @@ operation compile_gen(context& ctx, const program& p, const std::string& kernel_
         options.local  = 1;
     }
 
-    // Generate the kernel body
-    std::string body = generate_gen_code(*mm, kernel_name);
+    // Generate the function using cpp_generator
+    cpp_generator g;
+    std::string func_name = "gen_func";
+    generate_gen_function(g, *mm, func_name);
+    std::string preamble = g.str();
 
-    // Generate parameters and args
     std::string params;
     std::string args;
     for(std::size_t i = 0; i < options.inputs.size(); i++)
@@ -623,13 +309,13 @@ operation compile_gen(context& ctx, const program& p, const std::string& kernel_
                                   {{"kernel", options.kernel_name},
                                    {"params", params},
                                    {"args", args},
-                                   {"preamble", ""},
-                                   {"body", body}});
+                                   {"preamble", preamble},
+                                   {"func_name", func_name}});
 
     return compile_hip_code_object(ctx, src, options);
 }
 
-/// Gen pointwise compiler - compiles gpu::gen::pointwise operations using gen IR
+/// Gen pointwise compiler
 struct gen_pointwise_compiler : compiler<gen_pointwise_compiler>
 {
     std::vector<std::string> names() const { return {"gpu::gen::pointwise"}; }
@@ -675,7 +361,6 @@ struct gen_pointwise_compiler : compiler<gen_pointwise_compiler>
         assert(not ins->module_inputs().empty());
         const_module_ref pm = ins->module_inputs().front();
 
-        // Generate the pointwise preamble using gen IR
         auto pf            = generate_pointwise_kernel(*pm, "gen_inner_pointwise");
         std::string lambda = "MIGRAPHX_LIFT(gen_inner_pointwise)";
         auto kernel_name   = generate_name_from_ops(*pm, "gen_kernel");

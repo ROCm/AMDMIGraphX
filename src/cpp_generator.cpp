@@ -60,9 +60,18 @@ cpp_generator::function::set_body(const module& m, const cpp_generator::generate
         }
         else
         {
-            std::string n = prefix + std::to_string(names.size());
-            names[ins]    = n;
-            ss << "auto " << n << " = " << g(ins, names) << ";\n";
+            auto code = g(ins, names);
+            // If code starts with (void), it's a void expression - don't create a variable
+            if(starts_with(code, "(void)"))
+            {
+                ss << code.substr(6) << ";\n";
+            }
+            else
+            {
+                std::string n = prefix + std::to_string(names.size());
+                names[ins]    = n;
+                ss << "auto " << n << " = " << code << ";\n";
+            }
         }
     }
     ss << "return " << names.at(return_ins) << ";\n";

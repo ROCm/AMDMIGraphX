@@ -402,8 +402,9 @@ MIGRAPHX_REGISTER_OP(lds_allocate);
 /// Output: the transformed index into the source tensor (or -1 if in padding region)
 struct pad_index
 {
-    std::vector<std::size_t> pads = {}; // Padding values [before_0, after_0, before_1, after_1, ...]
-    shape input_shape;                  // Shape of the input (unpadded) tensor
+    std::vector<std::size_t> pads =
+        {};            // Padding values [before_0, after_0, before_1, after_1, ...]
+    shape input_shape; // Shape of the input (unpadded) tensor
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

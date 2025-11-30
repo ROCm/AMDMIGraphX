@@ -301,7 +301,8 @@ std::string generate_gen_code(const module& m, const std::string& /* kernel_name
             body << "            int64_t result_idx = 0;\n";
             body << "            int64_t stride = 1;\n";
             body << "            for(int i = lens.size() - 1; i >= 0; i--) {\n";
-            body << "                auto padded_len = lens[i] + pads_arr[2*i] + pads_arr[2*i+1];\n";
+            body
+                << "                auto padded_len = lens[i] + pads_arr[2*i] + pads_arr[2*i+1];\n";
             body << "                auto dim_idx = linear_idx % padded_len;\n";
             body << "                auto src_idx = dim_idx - pads_arr[2*i];\n";
             body << "                if(src_idx < 0 || src_idx >= lens[i]) return -1;\n";
@@ -494,8 +495,8 @@ std::string generate_gen_code(const module& m, const std::string& /* kernel_name
             else
             {
                 body << "        auto " << ins_name << " = (" << offset << " >= 0) ? as_vec<"
-                     << size << ">(remove_bool(" << tensor << ".data()))[" << offset << "] : "
-                     << fill << ";\n";
+                     << size << ">(remove_bool(" << tensor << ".data()))[" << offset
+                     << "] : " << fill << ";\n";
             }
         }
         else if(ins->name() == "@literal")

@@ -109,25 +109,63 @@ tile_config tile_config::compute(const std::vector<shape>& inputs, std::size_t /
 
 void gen_tiling::apply(module& m) const
 {
-    // Get input shapes from module parameters
-    auto param_shapes = m.get_parameter_shapes();
-    if(param_shapes.empty())
-        return;
-
-    std::vector<shape> inputs;
-    for(const auto& p : param_shapes)
+    // Collect copy instructions to tile
+    std::vector<instruction_ref> copies_to_tile;
+    for(auto ins : iterator_for(m))
     {
-        inputs.push_back(p.second);
+        if(ins->name() == "gpu::gen::copy")
+        {
+            copies_to_tile.push_back(ins);
+        }
     }
 
-    // Compute tiling configuration
-    auto config = tile_config::compute(inputs, 1);
-    if(not config.is_tiled())
-        return;
+    for(auto ins : copies_to_tile)
+    {
+        auto inputs = ins->inputs();
+        if(inputs.size() != 2)
+            continue;
 
-    // For now, just annotate the module with tiling info
-    // Future: insert explicit tile operations into the IR
-    (void)config;
+        auto src       = inputs[0];
+        auto dst       = inputs[1];
+        auto src_shape = src->get_shape();
+
+        // Skip if already tiled (inputs are tile_region)
+        if(src->name() == "gpu::gen::tile_region")
+            continue;
+
+        // Only tile multi-dimensional tensors
+        if(src_shape.ndim() <= 1)
+            continue;
+
+        // Compute tiling configuration
+        std::vector<shape> shapes = {src_shape, dst->get_shape()};
+        auto config               = tile_config::compute(shapes, 1);
+
+        if(not config.is_tiled())
+            continue;
+
+        // Insert workgroup_id
+        auto wg_id = m.insert_instruction(ins, make_op("gpu::gen::workgroup_id"));
+
+        // Create tile_region for source
+        auto src_tile = m.insert_instruction(
+            ins,
+            make_op("gpu::gen::tile_region",
+                    {{"tile_dims", config.tile_dims}, {"axis", config.axis}}),
+            src,
+            wg_id);
+
+        // Create tile_region for destination
+        auto dst_tile = m.insert_instruction(
+            ins,
+            make_op("gpu::gen::tile_region",
+                    {{"tile_dims", config.tile_dims}, {"axis", config.axis}}),
+            dst,
+            wg_id);
+
+        // Replace the copy's inputs with tile_regions
+        m.replace_instruction(ins, ins->get_operator(), {src_tile, dst_tile});
+    }
 }
 
 } // namespace gen

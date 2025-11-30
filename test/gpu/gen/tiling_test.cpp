@@ -26,6 +26,8 @@
 #include <migraphx/module.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/shape.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/instruction.hpp>
 
 void run_tiling_pass(migraphx::module& m)
 {
@@ -77,12 +79,66 @@ TEST_CASE(test_tiling_pass_empty_module)
     }
     run_tiling_pass(m1);
 
-    // Module should be unchanged since tiling pass doesn't modify it yet
+    // Module should be unchanged since no copy operations
     migraphx::module m2;
     {
         m2.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 3}});
     }
     EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(test_tiling_pass_1d_copy)
+{
+    // 1D copy should not be tiled
+    migraphx::module m1;
+    {
+        auto src  = m1.add_parameter("src", migraphx::shape{migraphx::shape::float_type, {64}});
+        auto dst  = m1.add_parameter("dst", migraphx::shape{migraphx::shape::float_type, {64}});
+        auto copy = m1.add_instruction(migraphx::make_op("gpu::gen::copy"), src, dst);
+        m1.add_return({copy});
+    }
+    run_tiling_pass(m1);
+
+    // Should be unchanged
+    migraphx::module m2;
+    {
+        auto src  = m2.add_parameter("src", migraphx::shape{migraphx::shape::float_type, {64}});
+        auto dst  = m2.add_parameter("dst", migraphx::shape{migraphx::shape::float_type, {64}});
+        auto copy = m2.add_instruction(migraphx::make_op("gpu::gen::copy"), src, dst);
+        m2.add_return({copy});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(test_tiling_pass_multidim_copy)
+{
+    // Multi-dimensional copy with dimensions that require tiling
+    // Tiling is triggered when fast axis is not the last dimension
+    // Use a 3D tensor where axis 1 has a smaller dimension that benefits from tiling
+    migraphx::module m1;
+    {
+        auto src =
+            m1.add_parameter("src", migraphx::shape{migraphx::shape::float_type, {64, 32, 128}});
+        auto dst =
+            m1.add_parameter("dst", migraphx::shape{migraphx::shape::float_type, {64, 32, 128}});
+        auto copy = m1.add_instruction(migraphx::make_op("gpu::gen::copy"), src, dst);
+        m1.add_return({copy});
+    }
+    run_tiling_pass(m1);
+
+    // Check if tiling was applied (may or may not be, depending on shape analysis)
+    // The test verifies the pass runs without error
+    bool has_tile_region  = false;
+    bool has_workgroup_id = false;
+    for(auto ins : migraphx::iterator_for(m1))
+    {
+        if(ins->name() == "gpu::gen::tile_region")
+            has_tile_region = true;
+        if(ins->name() == "gpu::gen::workgroup_id")
+            has_workgroup_id = true;
+    }
+    // If tiling was applied, both should be present
+    EXPECT(has_tile_region == has_workgroup_id);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

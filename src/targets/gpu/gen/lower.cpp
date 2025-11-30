@@ -91,11 +91,8 @@ static std::size_t compute_vector_size(const std::vector<shape>& inputs, std::si
 }
 
 // Lower a copy to vector_load/vector_store
-static void lower_copy(module& m,
-                       instruction_ref ins,
-                       instruction_ref src,
-                       instruction_ref dst,
-                       std::size_t vec_size)
+static void lower_copy(
+    module& m, instruction_ref ins, instruction_ref src, instruction_ref dst, std::size_t vec_size)
 {
     // Determine if this is a tiled copy (inputs are tile_regions)
     bool is_tiled = (src->name() == "gpu::gen::tile_region");

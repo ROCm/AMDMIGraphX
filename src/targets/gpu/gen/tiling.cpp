@@ -148,20 +148,20 @@ void gen_tiling::apply(module& m) const
         auto wg_id = m.insert_instruction(ins, make_op("gpu::gen::workgroup_id"));
 
         // Create tile_region for source
-        auto src_tile = m.insert_instruction(
-            ins,
-            make_op("gpu::gen::tile_region",
-                    {{"tile_dims", config.tile_dims}, {"axis", config.axis}}),
-            src,
-            wg_id);
+        auto src_tile =
+            m.insert_instruction(ins,
+                                 make_op("gpu::gen::tile_region",
+                                         {{"tile_dims", config.tile_dims}, {"axis", config.axis}}),
+                                 src,
+                                 wg_id);
 
         // Create tile_region for destination
-        auto dst_tile = m.insert_instruction(
-            ins,
-            make_op("gpu::gen::tile_region",
-                    {{"tile_dims", config.tile_dims}, {"axis", config.axis}}),
-            dst,
-            wg_id);
+        auto dst_tile =
+            m.insert_instruction(ins,
+                                 make_op("gpu::gen::tile_region",
+                                         {{"tile_dims", config.tile_dims}, {"axis", config.axis}}),
+                                 dst,
+                                 wg_id);
 
         // Replace the copy's inputs with tile_regions
         m.replace_instruction(ins, ins->get_operator(), {src_tile, dst_tile});

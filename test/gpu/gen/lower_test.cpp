@@ -131,7 +131,7 @@ TEST_CASE(test_gen_lower_tiled_copy)
         auto src = m1.add_parameter("src", migraphx::shape{migraphx::shape::float_type, {64, 128}});
         auto dst = m1.add_parameter("dst", migraphx::shape{migraphx::shape::float_type, {64, 128}});
         // Simulate what tiling pass produces
-        auto wg_id = m1.add_instruction(migraphx::make_op("gpu::gen::workgroup_id"));
+        auto wg_id   = m1.add_instruction(migraphx::make_op("gpu::gen::workgroup_id"));
         auto tile_op = migraphx::make_op(
             "gpu::gen::tile_region",
             {{"tile_dims", std::vector<std::size_t>{32, 64}}, {"axis", std::size_t{0}}});
@@ -147,7 +147,7 @@ TEST_CASE(test_gen_lower_tiled_copy)
     {
         auto src = m2.add_parameter("src", migraphx::shape{migraphx::shape::float_type, {64, 128}});
         auto dst = m2.add_parameter("dst", migraphx::shape{migraphx::shape::float_type, {64, 128}});
-        auto wg_id = m2.add_instruction(migraphx::make_op("gpu::gen::workgroup_id"));
+        auto wg_id   = m2.add_instruction(migraphx::make_op("gpu::gen::workgroup_id"));
         auto tile_op = migraphx::make_op(
             "gpu::gen::tile_region",
             {{"tile_dims", std::vector<std::size_t>{32, 64}}, {"axis", std::size_t{0}}});

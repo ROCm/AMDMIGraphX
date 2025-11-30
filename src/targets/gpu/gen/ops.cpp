@@ -258,9 +258,34 @@ struct check
 };
 MIGRAPHX_REGISTER_OP(check);
 
-/// Vector load - loads a vector of elements from a tensor at an index
+/// Offset - computes the linear memory offset from a logical index using tensor shape
+/// Input 0: index (the logical linear index)
+/// Attribute shape: the tensor shape used to compute strides
+/// Output: the memory offset
+struct offset
+{
+    shape s; // Shape used to compute the offset (defines strides)
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.s, "shape"));
+    }
+
+    std::string name() const { return "gpu::gen::offset"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this, true}.has(1);
+        // Output is a single offset value
+        return shape{shape::uint64_type};
+    }
+};
+MIGRAPHX_REGISTER_OP(offset);
+
+/// Vector load - loads a vector of elements from a tensor at an offset
 /// Input 0: tensor (the tensor_view parameter)
-/// Input 1: index (the linear index to load from)
+/// Input 1: offset (the memory offset to load from, computed by offset op)
 /// Output: vector of `size` elements
 struct vector_load
 {
@@ -277,7 +302,7 @@ struct vector_load
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(2);
-        // First input is the tensor, second is the index
+        // First input is the tensor, second is the offset
         auto tensor_type = inputs.front().type();
         // Output is a vector of `size` elements
         return shape{tensor_type, {size}};
@@ -285,9 +310,9 @@ struct vector_load
 };
 MIGRAPHX_REGISTER_OP(vector_load);
 
-/// Vector store - stores a vector of elements to a tensor at an index
+/// Vector store - stores a vector of elements to a tensor at an offset
 /// Input 0: tensor (the tensor_view parameter - destination)
-/// Input 1: index (the linear index to store at)
+/// Input 1: offset (the memory offset to store at, computed by offset op)
 /// Input 2: data (the vector of elements to store)
 /// No output (side effect only)
 struct vector_store
@@ -363,6 +388,201 @@ struct lds_allocate
     }
 };
 MIGRAPHX_REGISTER_OP(lds_allocate);
+
+// ============================================================================
+// Index Transformation Operators
+// These operators transform logical indices, enabling fusion of operations
+// like pad, gather, and reverse without materializing intermediate tensors.
+// ============================================================================
+
+/// Pad index - transforms an index for a padded tensor
+/// Returns the adjusted index into the source tensor, or a sentinel value if out of bounds
+/// Input 0: index (the logical index in the padded output)
+/// Attributes: pads (before/after padding for each dimension), input_shape
+/// Output: the transformed index into the source tensor (or -1 if in padding region)
+struct pad_index
+{
+    std::vector<std::size_t> pads = {}; // Padding values [before_0, after_0, before_1, after_1, ...]
+    shape input_shape;                  // Shape of the input (unpadded) tensor
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.pads, "pads"), f(self.input_shape, "input_shape"));
+    }
+
+    std::string name() const { return "gpu::gen::pad_index"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this, true}.has(1);
+        // Output is a transformed index (int64 to handle -1 sentinel)
+        return shape{shape::int64_type};
+    }
+};
+MIGRAPHX_REGISTER_OP(pad_index);
+
+/// Gather index - transforms an index using a gather indices tensor
+/// Input 0: index (the logical index in the output)
+/// Input 1: indices tensor (the gather indices)
+/// Attributes: axis (the axis to gather along), input_shape
+/// Output: the transformed index into the source tensor
+struct gather_index
+{
+    std::size_t axis = 0; // Axis to gather along
+    shape input_shape;    // Shape of the input tensor being gathered from
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.axis, "axis"), f(self.input_shape, "input_shape"));
+    }
+
+    std::string name() const { return "gpu::gen::gather_index"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this, true}.has(2);
+        // Output is a transformed index
+        return shape{shape::int64_type};
+    }
+};
+MIGRAPHX_REGISTER_OP(gather_index);
+
+/// Reverse index - transforms an index for a reversed tensor
+/// Input 0: index (the logical index in the output)
+/// Attributes: axes (dimensions to reverse), input_shape
+/// Output: the transformed index into the source tensor
+struct reverse_index
+{
+    std::vector<std::size_t> axes = {}; // Axes to reverse
+    shape input_shape;                  // Shape of the input tensor
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.axes, "axes"), f(self.input_shape, "input_shape"));
+    }
+
+    std::string name() const { return "gpu::gen::reverse_index"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this, true}.has(1);
+        // Output is a transformed index
+        return shape{shape::int64_type};
+    }
+};
+MIGRAPHX_REGISTER_OP(reverse_index);
+
+/// Slice index - transforms an index for a sliced tensor
+/// Input 0: index (the logical index in the output)
+/// Attributes: starts, ends, axes, input_shape
+/// Output: the transformed index into the source tensor
+struct slice_index
+{
+    std::vector<std::size_t> starts = {}; // Start indices for each axis
+    std::vector<std::size_t> ends   = {}; // End indices for each axis
+    std::vector<std::size_t> axes   = {}; // Axes being sliced
+    shape input_shape;                    // Shape of the input tensor
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.starts, "starts"),
+                    f(self.ends, "ends"),
+                    f(self.axes, "axes"),
+                    f(self.input_shape, "input_shape"));
+    }
+
+    std::string name() const { return "gpu::gen::slice_index"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this, true}.has(1);
+        // Output is a transformed index
+        return shape{shape::int64_type};
+    }
+};
+MIGRAPHX_REGISTER_OP(slice_index);
+
+/// Broadcast index - transforms an index for a broadcasted tensor
+/// Input 0: index (the logical index in the output)
+/// Attributes: input_shape (original shape), output_shape (broadcasted shape)
+/// Output: the transformed index into the source tensor
+struct broadcast_index
+{
+    shape input_shape;  // Shape of the input (unbroadcasted) tensor
+    shape output_shape; // Shape of the broadcasted output
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.input_shape, "input_shape"), f(self.output_shape, "output_shape"));
+    }
+
+    std::string name() const { return "gpu::gen::broadcast_index"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this, true}.has(1);
+        // Output is a transformed index
+        return shape{shape::int64_type};
+    }
+};
+MIGRAPHX_REGISTER_OP(broadcast_index);
+
+/// Transpose index - transforms an index for a transposed tensor
+/// Input 0: index (the logical index in the output)
+/// Attributes: permutation, input_shape
+/// Output: the transformed index into the source tensor
+struct transpose_index
+{
+    std::vector<std::size_t> permutation = {}; // Axis permutation
+    shape input_shape;                         // Shape of the input tensor
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.permutation, "permutation"), f(self.input_shape, "input_shape"));
+    }
+
+    std::string name() const { return "gpu::gen::transpose_index"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this, true}.has(1);
+        // Output is a transformed index
+        return shape{shape::int64_type};
+    }
+};
+MIGRAPHX_REGISTER_OP(transpose_index);
+
+/// Conditional load - loads from tensor if index is valid, otherwise returns fill value
+/// Input 0: tensor
+/// Input 1: offset (from offset op, may be -1 for invalid indices)
+/// Input 2: fill value (used when index is invalid, e.g., for padding)
+/// Output: loaded value or fill value
+struct conditional_load
+{
+    std::size_t size = 1; // Vector size
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.size, "size"));
+    }
+
+    std::string name() const { return "gpu::gen::conditional_load"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this, true}.has(3);
+        auto tensor_type = inputs.front().type();
+        return shape{tensor_type, {size}};
+    }
+};
+MIGRAPHX_REGISTER_OP(conditional_load);
 
 } // namespace gen
 } // namespace gpu

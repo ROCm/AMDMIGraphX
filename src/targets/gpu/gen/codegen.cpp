@@ -256,6 +256,248 @@ std::string generate_gen_code(const module& m, const std::string& /* kernel_name
                  << "_buffer, make_shape(" << generate_index_ints(s.lens()) << ", "
                  << generate_index_ints(s.strides()) << "));\n";
         }
+        else if(ins->name() == "gpu::gen::offset")
+        {
+            // Compute linear offset from logical index using tensor strides
+            auto index = get_arg(ins->inputs()[0]);
+            auto v     = ins->get_operator().to_value();
+            auto s     = from_value<shape>(v.at("shape"));
+
+            // Generate offset computation using strides
+            // offset = sum(multi_idx[i] * stride[i])
+            body << "        auto " << ins_name << " = [&]() {\n";
+            body << "            auto linear_idx = " << index << ";\n";
+            body << "            index_int offset = 0;\n";
+            body << "            constexpr auto lens = " << generate_index_ints(s.lens()) << ";\n";
+            body << "            constexpr auto strides = " << generate_index_ints(s.strides())
+                 << ";\n";
+            body << "            for(index_int i = lens.size() - 1; i >= 0; i--) {\n";
+            body << "                auto dim_idx = linear_idx % lens[i];\n";
+            body << "                offset += dim_idx * strides[i];\n";
+            body << "                linear_idx /= lens[i];\n";
+            body << "            }\n";
+            body << "            return offset;\n";
+            body << "        }();\n";
+        }
+        else if(ins->name() == "gpu::gen::pad_index")
+        {
+            // Transform index for padding - returns -1 if in padding region
+            auto index = get_arg(ins->inputs()[0]);
+            auto v     = ins->get_operator().to_value();
+            auto pads  = v.at("pads").to_vector<std::size_t>();
+            auto s     = from_value<shape>(v.at("input_shape"));
+
+            body << "        auto " << ins_name << " = [&]() -> int64_t {\n";
+            body << "            auto linear_idx = " << index << ";\n";
+            body << "            constexpr auto lens = " << generate_index_ints(s.lens()) << ";\n";
+            body << "            constexpr index_int pads_arr[] = {";
+            for(std::size_t i = 0; i < pads.size(); i++)
+            {
+                if(i > 0)
+                    body << ", ";
+                body << pads[i];
+            }
+            body << "};\n";
+            body << "            int64_t result_idx = 0;\n";
+            body << "            int64_t stride = 1;\n";
+            body << "            for(int i = lens.size() - 1; i >= 0; i--) {\n";
+            body << "                auto padded_len = lens[i] + pads_arr[2*i] + pads_arr[2*i+1];\n";
+            body << "                auto dim_idx = linear_idx % padded_len;\n";
+            body << "                auto src_idx = dim_idx - pads_arr[2*i];\n";
+            body << "                if(src_idx < 0 || src_idx >= lens[i]) return -1;\n";
+            body << "                result_idx += src_idx * stride;\n";
+            body << "                stride *= lens[i];\n";
+            body << "                linear_idx /= padded_len;\n";
+            body << "            }\n";
+            body << "            return result_idx;\n";
+            body << "        }();\n";
+        }
+        else if(ins->name() == "gpu::gen::reverse_index")
+        {
+            // Transform index for reversing along axes
+            auto index = get_arg(ins->inputs()[0]);
+            auto v     = ins->get_operator().to_value();
+            auto axes  = v.at("axes").to_vector<std::size_t>();
+            auto s     = from_value<shape>(v.at("input_shape"));
+
+            body << "        auto " << ins_name << " = [&]() {\n";
+            body << "            auto linear_idx = " << index << ";\n";
+            body << "            constexpr auto lens = " << generate_index_ints(s.lens()) << ";\n";
+            body << "            constexpr bool reversed[] = {";
+            for(std::size_t i = 0; i < s.lens().size(); i++)
+            {
+                if(i > 0)
+                    body << ", ";
+                body << (std::find(axes.begin(), axes.end(), i) != axes.end() ? "true" : "false");
+            }
+            body << "};\n";
+            body << "            index_int result_idx = 0;\n";
+            body << "            index_int stride = 1;\n";
+            body << "            for(int i = lens.size() - 1; i >= 0; i--) {\n";
+            body << "                auto dim_idx = linear_idx % lens[i];\n";
+            body << "                if(reversed[i]) dim_idx = lens[i] - 1 - dim_idx;\n";
+            body << "                result_idx += dim_idx * stride;\n";
+            body << "                stride *= lens[i];\n";
+            body << "                linear_idx /= lens[i];\n";
+            body << "            }\n";
+            body << "            return result_idx;\n";
+            body << "        }();\n";
+        }
+        else if(ins->name() == "gpu::gen::slice_index")
+        {
+            // Transform index for slicing
+            auto index  = get_arg(ins->inputs()[0]);
+            auto v      = ins->get_operator().to_value();
+            auto starts = v.at("starts").to_vector<std::size_t>();
+            auto axes   = v.at("axes").to_vector<std::size_t>();
+            auto s      = from_value<shape>(v.at("input_shape"));
+
+            body << "        auto " << ins_name << " = [&]() {\n";
+            body << "            auto linear_idx = " << index << ";\n";
+            body << "            constexpr auto lens = " << generate_index_ints(s.lens()) << ";\n";
+            // Generate slice starts array
+            std::vector<std::size_t> slice_starts(s.lens().size(), 0);
+            for(std::size_t i = 0; i < axes.size(); i++)
+                slice_starts[axes[i]] = starts[i];
+            body << "            constexpr index_int starts_arr[] = {";
+            for(std::size_t i = 0; i < slice_starts.size(); i++)
+            {
+                if(i > 0)
+                    body << ", ";
+                body << slice_starts[i];
+            }
+            body << "};\n";
+            body << "            index_int result_idx = 0;\n";
+            body << "            index_int stride = 1;\n";
+            body << "            for(int i = lens.size() - 1; i >= 0; i--) {\n";
+            body << "                auto dim_idx = linear_idx % lens[i];\n";
+            body << "                result_idx += (dim_idx + starts_arr[i]) * stride;\n";
+            body << "                stride *= lens[i];\n";
+            body << "                linear_idx /= lens[i];\n";
+            body << "            }\n";
+            body << "            return result_idx;\n";
+            body << "        }();\n";
+        }
+        else if(ins->name() == "gpu::gen::broadcast_index")
+        {
+            // Transform index for broadcasting
+            auto index = get_arg(ins->inputs()[0]);
+            auto v     = ins->get_operator().to_value();
+            auto s_in  = from_value<shape>(v.at("input_shape"));
+            auto s_out = from_value<shape>(v.at("output_shape"));
+
+            body << "        auto " << ins_name << " = [&]() {\n";
+            body << "            auto linear_idx = " << index << ";\n";
+            body << "            constexpr auto in_lens = " << generate_index_ints(s_in.lens())
+                 << ";\n";
+            body << "            constexpr auto out_lens = " << generate_index_ints(s_out.lens())
+                 << ";\n";
+            body << "            index_int result_idx = 0;\n";
+            body << "            index_int in_stride = 1;\n";
+            body << "            for(int i = in_lens.size() - 1; i >= 0; i--) {\n";
+            body << "                auto out_dim_idx = linear_idx % out_lens[i];\n";
+            body << "                auto in_dim_idx = (in_lens[i] == 1) ? 0 : out_dim_idx;\n";
+            body << "                result_idx += in_dim_idx * in_stride;\n";
+            body << "                in_stride *= in_lens[i];\n";
+            body << "                linear_idx /= out_lens[i];\n";
+            body << "            }\n";
+            body << "            return result_idx;\n";
+            body << "        }();\n";
+        }
+        else if(ins->name() == "gpu::gen::transpose_index")
+        {
+            // Transform index for transposition
+            auto index = get_arg(ins->inputs()[0]);
+            auto v     = ins->get_operator().to_value();
+            auto perm  = v.at("permutation").to_vector<std::size_t>();
+            auto s     = from_value<shape>(v.at("input_shape"));
+
+            body << "        auto " << ins_name << " = [&]() {\n";
+            body << "            auto linear_idx = " << index << ";\n";
+            body << "            constexpr auto in_lens = " << generate_index_ints(s.lens())
+                 << ";\n";
+            // Compute output lens after transpose
+            std::vector<std::size_t> out_lens(perm.size());
+            for(std::size_t i = 0; i < perm.size(); i++)
+                out_lens[i] = s.lens()[perm[i]];
+            body << "            constexpr auto out_lens = " << generate_index_ints(out_lens)
+                 << ";\n";
+            body << "            constexpr index_int perm[] = {";
+            for(std::size_t i = 0; i < perm.size(); i++)
+            {
+                if(i > 0)
+                    body << ", ";
+                body << perm[i];
+            }
+            body << "};\n";
+            body << "            // Compute multi-index in output space\n";
+            body << "            index_int out_multi[" << perm.size() << "];\n";
+            body << "            for(int i = out_lens.size() - 1; i >= 0; i--) {\n";
+            body << "                out_multi[i] = linear_idx % out_lens[i];\n";
+            body << "                linear_idx /= out_lens[i];\n";
+            body << "            }\n";
+            body << "            // Apply inverse permutation to get input multi-index\n";
+            body << "            index_int result_idx = 0;\n";
+            body << "            index_int in_stride = 1;\n";
+            body << "            for(int i = in_lens.size() - 1; i >= 0; i--) {\n";
+            body << "                result_idx += out_multi[perm[i]] * in_stride;\n";
+            body << "                in_stride *= in_lens[i];\n";
+            body << "            }\n";
+            body << "            return result_idx;\n";
+            body << "        }();\n";
+        }
+        else if(ins->name() == "gpu::gen::gather_index")
+        {
+            // Transform index using gather indices tensor
+            auto index   = get_arg(ins->inputs()[0]);
+            auto indices = get_arg(ins->inputs()[1]);
+            auto v       = ins->get_operator().to_value();
+            auto axis    = v.at("axis").to<std::size_t>();
+            auto s       = from_value<shape>(v.at("input_shape"));
+
+            body << "        auto " << ins_name << " = [&]() {\n";
+            body << "            auto linear_idx = " << index << ";\n";
+            body << "            constexpr auto in_lens = " << generate_index_ints(s.lens())
+                 << ";\n";
+            body << "            constexpr index_int axis = " << axis << ";\n";
+            body << "            // Decompose linear index into multi-index\n";
+            body << "            index_int multi_idx[" << s.lens().size() << "];\n";
+            body << "            for(int i = in_lens.size() - 1; i >= 0; i--) {\n";
+            body << "                multi_idx[i] = linear_idx % in_lens[i];\n";
+            body << "                linear_idx /= in_lens[i];\n";
+            body << "            }\n";
+            body << "            // Replace axis index with gathered value\n";
+            body << "            multi_idx[axis] = " << indices << "[multi_idx[axis]];\n";
+            body << "            // Recompute linear index\n";
+            body << "            index_int result_idx = 0;\n";
+            body << "            index_int stride = 1;\n";
+            body << "            for(int i = in_lens.size() - 1; i >= 0; i--) {\n";
+            body << "                result_idx += multi_idx[i] * stride;\n";
+            body << "                stride *= in_lens[i];\n";
+            body << "            }\n";
+            body << "            return result_idx;\n";
+            body << "        }();\n";
+        }
+        else if(ins->name() == "gpu::gen::conditional_load")
+        {
+            // Load from tensor if offset is valid, otherwise use fill value
+            auto tensor = get_arg(ins->inputs()[0]);
+            auto offset = get_arg(ins->inputs()[1]);
+            auto fill   = get_arg(ins->inputs()[2]);
+            auto size   = ins->get_operator().to_value().at("size").to<std::size_t>();
+
+            if(size <= 1)
+            {
+                body << "        auto " << ins_name << " = (" << offset << " >= 0) ? " << tensor
+                     << ".data()[" << offset << "] : " << fill << ";\n";
+            }
+            else
+            {
+                body << "        auto " << ins_name << " = (" << offset << " >= 0) ? as_vec<"
+                     << size << ">(remove_bool(" << tensor << ".data()))[" << offset << "] : "
+                     << fill << ";\n";
+            }
+        }
         else if(ins->name() == "@literal")
         {
             // Generate literal value - simple scalar literals

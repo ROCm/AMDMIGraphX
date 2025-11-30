@@ -153,8 +153,7 @@ struct reduce_parameters
         }
         if(is_strided_reduce(inputs, rlens))
             return params;
-        auto relements =
-            std::accumulate(rlens.begin(), rlens.end(), 1, std::multiplies<>{});
+        auto relements       = std::accumulate(rlens.begin(), rlens.end(), 1, std::multiplies<>{});
         std::size_t per_lane = 1;
         if(ctx.get_current_device().get_wavefront_size() == 64)
         {
@@ -175,7 +174,8 @@ struct reduce_parameters
         params.tile_size = compute_block_size(ctx, relements / per_lane, 256);
         if(params.tile_size <= ctx.get_current_device().get_wavefront_size())
         {
-            params.tile_size = std::max<std::size_t>(2, compute_subwave_size(ctx, relements / per_lane));
+            params.tile_size =
+                std::max<std::size_t>(2, compute_subwave_size(ctx, relements / per_lane));
         }
         return params;
     }

@@ -49,42 +49,28 @@ TEST_CASE(test_lane_id_op)
 
     auto attrs = op.attributes();
     EXPECT(attrs.contains("point_op"));
-    EXPECT(attrs["point_op"].to<std::string>() == "__lane_id()");
+    EXPECT(attrs["point_op"].to<std::string>() == "idx.local_wave()");
 
     auto s = op.compute_shape({});
-    EXPECT(s.type() == migraphx::shape::uint32_type);
+    EXPECT(s.type() == migraphx::shape::uint64_type);
 }
 
 TEST_CASE(test_local_id_op)
 {
-    auto op = migraphx::make_op("gpu::gen::local_id", {{"dim", std::size_t{0}}});
+    auto op = migraphx::make_op("gpu::gen::local_id");
     EXPECT(op.name() == "gpu::gen::local_id");
 
     auto attrs = op.attributes();
     EXPECT(attrs.contains("point_op"));
-    EXPECT(attrs["point_op"].to<std::string>() == "threadIdx.x");
+    EXPECT(attrs["point_op"].to<std::string>() == "idx.local");
 
     auto s = op.compute_shape({});
-    EXPECT(s.type() == migraphx::shape::uint32_type);
-}
-
-TEST_CASE(test_local_id_dim_y)
-{
-    auto op    = migraphx::make_op("gpu::gen::local_id", {{"dim", std::size_t{1}}});
-    auto attrs = op.attributes();
-    EXPECT(attrs["point_op"].to<std::string>() == "threadIdx.y");
-}
-
-TEST_CASE(test_local_id_dim_z)
-{
-    auto op    = migraphx::make_op("gpu::gen::local_id", {{"dim", std::size_t{2}}});
-    auto attrs = op.attributes();
-    EXPECT(attrs["point_op"].to<std::string>() == "threadIdx.z");
+    EXPECT(s.type() == migraphx::shape::uint64_type);
 }
 
 TEST_CASE(test_global_id_op)
 {
-    auto op = migraphx::make_op("gpu::gen::global_id", {{"dim", std::size_t{0}}});
+    auto op = migraphx::make_op("gpu::gen::global_id");
     EXPECT(op.name() == "gpu::gen::global_id");
 
     auto attrs = op.attributes();
@@ -97,28 +83,28 @@ TEST_CASE(test_global_id_op)
 
 TEST_CASE(test_workgroup_id_op)
 {
-    auto op = migraphx::make_op("gpu::gen::workgroup_id", {{"dim", std::size_t{0}}});
+    auto op = migraphx::make_op("gpu::gen::workgroup_id");
     EXPECT(op.name() == "gpu::gen::workgroup_id");
 
     auto attrs = op.attributes();
     EXPECT(attrs.contains("point_op"));
-    EXPECT(attrs["point_op"].to<std::string>() == "blockIdx.x");
+    EXPECT(attrs["point_op"].to<std::string>() == "idx.group");
 
     auto s = op.compute_shape({});
-    EXPECT(s.type() == migraphx::shape::uint32_type);
+    EXPECT(s.type() == migraphx::shape::uint64_type);
 }
 
 TEST_CASE(test_workgroup_size_op)
 {
-    auto op = migraphx::make_op("gpu::gen::workgroup_size", {{"dim", std::size_t{1}}});
+    auto op = migraphx::make_op("gpu::gen::workgroup_size");
     EXPECT(op.name() == "gpu::gen::workgroup_size");
 
     auto attrs = op.attributes();
     EXPECT(attrs.contains("point_op"));
-    EXPECT(attrs["point_op"].to<std::string>() == "blockDim.y");
+    EXPECT(attrs["point_op"].to<std::string>() == "idx.nlocal()");
 
     auto s = op.compute_shape({});
-    EXPECT(s.type() == migraphx::shape::uint32_type);
+    EXPECT(s.type() == migraphx::shape::uint64_type);
 }
 
 TEST_CASE(test_barrier_op)

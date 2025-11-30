@@ -95,41 +95,33 @@ struct lane_id
 
     std::string name() const { return "gpu::gen::lane_id"; }
 
-    value attributes() const { return {{"point_op", "__lane_id()"}}; }
+    value attributes() const { return {{"point_op", "idx.local_wave()"}}; }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(0);
-        return shape{shape::uint32_type};
+        return shape{shape::uint64_type};
     }
 };
 MIGRAPHX_REGISTER_OP(lane_id);
 
-/// Local ID - returns the thread index within a workgroup for a given dimension
+/// Local ID - returns the thread index within a workgroup
 struct local_id
 {
-    std::size_t dim = 0; // x=0, y=1, z=2
-
     template <class Self, class F>
-    static auto reflect(Self& self, F f)
+    static auto reflect(Self&, F)
     {
-        return pack(f(self.dim, "dim"));
+        return pack();
     }
 
     std::string name() const { return "gpu::gen::local_id"; }
 
-    std::string dim_name() const
-    {
-        static const char* names[] = {"x", "y", "z"};
-        return names[dim % 3];
-    }
-
-    value attributes() const { return {{"point_op", "threadIdx." + dim_name()}}; }
+    value attributes() const { return {{"point_op", "idx.local"}}; }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(0);
-        return shape{shape::uint32_type};
+        return shape{shape::uint64_type};
     }
 };
 MIGRAPHX_REGISTER_OP(local_id);
@@ -137,12 +129,10 @@ MIGRAPHX_REGISTER_OP(local_id);
 /// Global ID - returns the global thread index
 struct global_id
 {
-    std::size_t dim = 0; // x=0, y=1, z=2
-
     template <class Self, class F>
-    static auto reflect(Self& self, F f)
+    static auto reflect(Self&, F)
     {
-        return pack(f(self.dim, "dim"));
+        return pack();
     }
 
     std::string name() const { return "gpu::gen::global_id"; }
@@ -157,60 +147,44 @@ struct global_id
 };
 MIGRAPHX_REGISTER_OP(global_id);
 
-/// Workgroup ID - returns the workgroup index for a given dimension
+/// Workgroup ID - returns the workgroup index
 struct workgroup_id
 {
-    std::size_t dim = 0; // x=0, y=1, z=2
-
     template <class Self, class F>
-    static auto reflect(Self& self, F f)
+    static auto reflect(Self&, F)
     {
-        return pack(f(self.dim, "dim"));
+        return pack();
     }
 
     std::string name() const { return "gpu::gen::workgroup_id"; }
 
-    std::string dim_name() const
-    {
-        static const char* names[] = {"x", "y", "z"};
-        return names[dim % 3];
-    }
-
-    value attributes() const { return {{"point_op", "blockIdx." + dim_name()}}; }
+    value attributes() const { return {{"point_op", "idx.group"}}; }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(0);
-        return shape{shape::uint32_type};
+        return shape{shape::uint64_type};
     }
 };
 MIGRAPHX_REGISTER_OP(workgroup_id);
 
-/// Workgroup size - returns the workgroup size for a given dimension
+/// Workgroup size - returns the workgroup size
 struct workgroup_size
 {
-    std::size_t dim = 0; // x=0, y=1, z=2
-
     template <class Self, class F>
-    static auto reflect(Self& self, F f)
+    static auto reflect(Self&, F)
     {
-        return pack(f(self.dim, "dim"));
+        return pack();
     }
 
     std::string name() const { return "gpu::gen::workgroup_size"; }
 
-    std::string dim_name() const
-    {
-        static const char* names[] = {"x", "y", "z"};
-        return names[dim % 3];
-    }
-
-    value attributes() const { return {{"point_op", "blockDim." + dim_name()}}; }
+    value attributes() const { return {{"point_op", "idx.nlocal()"}}; }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(0);
-        return shape{shape::uint32_type};
+        return shape{shape::uint64_type};
     }
 };
 MIGRAPHX_REGISTER_OP(workgroup_size);

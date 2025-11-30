@@ -164,8 +164,8 @@ static std::string generate_gen_instruction(cpp_generator& g,
     }
     if(ins->name() == "gpu::gen::tile_region")
     {
-        auto v         = ins->get_operator().to_value();
-        auto tile_dims = v.at("tile_dims").to_vector<std::size_t>();
+        auto v                = ins->get_operator().to_value();
+        auto tile_dims        = v.at("tile_dims").to_vector<std::size_t>();
         std::size_t tile_size = 1;
         for(auto d : tile_dims)
             tile_size *= d;
@@ -223,9 +223,7 @@ static std::string generate_gen_instruction(cpp_generator& g,
 }
 
 // Generate a function for a gen IR module using cpp_generator
-static void generate_gen_function(cpp_generator& g,
-                                  const module& m,
-                                  const std::string& func_name)
+static void generate_gen_function(cpp_generator& g, const module& m, const std::string& func_name)
 {
     // Register gen IR operations as point_ops
     g.add_point_op("gpu::gen::global_id", "idx.global");
@@ -242,10 +240,8 @@ static void generate_gen_function(cpp_generator& g,
     });
 
     // Set function name and attributes - idx is passed first, then tensors
-    f.set_name(func_name)
-        .set_generic_types(m)
-        .add_generic_param("idx")
-        .set_attributes({"__device__"});
+    f.set_name(func_name).set_generic_types(m).add_generic_param("idx").set_attributes(
+        {"__device__"});
 
     // Create the function (writes to g's internal stream)
     g.create_function(f);

@@ -49,7 +49,7 @@ TEST_CASE(test_gen_lower_empty_module)
         m1.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 3}});
     }
     run_lower_pass(m1);
-    
+
     migraphx::module m2;
     {
         m2.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 3}});
@@ -62,9 +62,9 @@ TEST_CASE(test_gen_lower_with_tile_region)
     migraphx::module m1;
     {
         auto x = m1.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {64, 64}});
-        auto tile_op = migraphx::make_op("gpu::gen::tile_region",
-                                          {{"tile_dims", std::vector<std::size_t>{8, 8}},
-                                           {"axis", std::size_t{0}}});
+        auto tile_op = migraphx::make_op(
+            "gpu::gen::tile_region",
+            {{"tile_dims", std::vector<std::size_t>{8, 8}}, {"axis", std::size_t{0}}});
         auto tiled = m1.add_instruction(tile_op, x);
         m1.add_return({tiled});
     }
@@ -75,9 +75,9 @@ TEST_CASE(test_gen_lower_with_tile_region)
     migraphx::module m2;
     {
         auto x = m2.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {64, 64}});
-        auto tile_op = migraphx::make_op("gpu::gen::tile_region",
-                                          {{"tile_dims", std::vector<std::size_t>{8, 8}},
-                                           {"axis", std::size_t{0}}});
+        auto tile_op = migraphx::make_op(
+            "gpu::gen::tile_region",
+            {{"tile_dims", std::vector<std::size_t>{8, 8}}, {"axis", std::size_t{0}}});
         auto tiled = m2.add_instruction(tile_op, x);
         m2.add_return({tiled});
     }
@@ -89,8 +89,8 @@ TEST_CASE(test_gen_lower_copy)
     // Test that copy operation gets lowered to vector_load/vector_store
     migraphx::module m1;
     {
-        auto src = m1.add_parameter("src", migraphx::shape{migraphx::shape::float_type, {64}});
-        auto dst = m1.add_parameter("dst", migraphx::shape{migraphx::shape::float_type, {64}});
+        auto src  = m1.add_parameter("src", migraphx::shape{migraphx::shape::float_type, {64}});
+        auto dst  = m1.add_parameter("dst", migraphx::shape{migraphx::shape::float_type, {64}});
         auto copy = m1.add_instruction(migraphx::make_op("gpu::gen::copy"), src, dst);
         m1.add_return({copy});
     }
@@ -100,13 +100,16 @@ TEST_CASE(test_gen_lower_copy)
     // Vector size is 8 because 64 % 8 == 0
     migraphx::module m2;
     {
-        auto src = m2.add_parameter("src", migraphx::shape{migraphx::shape::float_type, {64}});
-        auto dst = m2.add_parameter("dst", migraphx::shape{migraphx::shape::float_type, {64}});
-        auto gid = m2.add_instruction(migraphx::make_op("gpu::gen::global_id"));
+        auto src  = m2.add_parameter("src", migraphx::shape{migraphx::shape::float_type, {64}});
+        auto dst  = m2.add_parameter("dst", migraphx::shape{migraphx::shape::float_type, {64}});
+        auto gid  = m2.add_instruction(migraphx::make_op("gpu::gen::global_id"));
         auto load = m2.add_instruction(
             migraphx::make_op("gpu::gen::vector_load", {{"size", std::size_t{8}}}), src, gid);
         auto store = m2.add_instruction(
-            migraphx::make_op("gpu::gen::vector_store", {{"size", std::size_t{8}}}), dst, gid, load);
+            migraphx::make_op("gpu::gen::vector_store", {{"size", std::size_t{8}}}),
+            dst,
+            gid,
+            load);
         m2.add_return({store});
     }
     EXPECT(m1.sort() == m2.sort());

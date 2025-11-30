@@ -311,7 +311,7 @@ operation compile_gen(context& ctx, const program& p, const std::string& kernel_
     std::size_t total_elements = 1;
     if(not options.inputs.empty())
         total_elements = options.inputs.front().elements();
-    
+
     options.global = total_elements;
     options.local  = std::min<std::size_t>(256, total_elements);
     if(options.global == 0)
@@ -337,13 +337,12 @@ operation compile_gen(context& ctx, const program& p, const std::string& kernel_
         args += "private_p" + std::to_string(i);
     }
 
-    auto src =
-        interpolate_string(gen_lowered_kernel,
-                           {{"kernel", options.kernel_name},
-                            {"params", params},
-                            {"args", args},
-                            {"preamble", ""},
-                            {"body", body}});
+    auto src = interpolate_string(gen_lowered_kernel,
+                                  {{"kernel", options.kernel_name},
+                                   {"params", params},
+                                   {"args", args},
+                                   {"preamble", ""},
+                                   {"body", body}});
 
     return compile_hip_code_object(ctx, src, options);
 }

@@ -153,7 +153,8 @@ struct reduce_parameters
         }
         if(is_strided_reduce(inputs, rlens))
             return params;
-        auto relements       = std::accumulate(rlens.begin(), rlens.end(), 1, std::multiplies<>{});
+        auto relements =
+            std::accumulate(rlens.begin(), rlens.end(), 1, std::multiplies<>{});
         std::size_t per_lane = 1;
         if(ctx.get_current_device().get_wavefront_size() == 64)
         {
@@ -174,8 +175,7 @@ struct reduce_parameters
         params.tile_size = compute_block_size(ctx, relements / per_lane, 256);
         if(params.tile_size <= ctx.get_current_device().get_wavefront_size())
         {
-            params.tile_size =
-                std::max<std::size_t>(2, compute_subwave_size(ctx, relements / per_lane));
+            params.tile_size = std::max<std::size_t>(2, compute_subwave_size(ctx, relements / per_lane));
         }
         return params;
     }
@@ -186,7 +186,7 @@ struct reduce_parameters
             return 1024;
         if(tile_size > ctx.get_current_device().get_wavefront_size())
             return tile_size;
-        return ctx.get_current_device().get_wavefront_size();
+        return ctx.get_current_device().get_wavefront_size() * batch_per_block;
     }
 
     void set_launch_params(hip_compile_options& options,
@@ -196,7 +196,7 @@ struct reduce_parameters
     {
         auto block_size = get_block_size(ctx);
         options.set_launch_params(
-            v, compute_global_for(ctx, nelements * block_size, 256), block_size);
+            v, compute_global_for(ctx, (nelements / batch_per_block) * tile_size, 256), block_size);
     }
 
     std::string get_algo(context& ctx, std::size_t relements = 1) const

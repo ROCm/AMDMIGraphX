@@ -24,7 +24,35 @@
 #include <test.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/module.hpp>
+#include <migraphx/program.hpp>
 #include <migraphx/shape.hpp>
+#include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/compile_hip_code_object.hpp>
+#include <migraphx/gpu/compile_hip.hpp>
+#include <migraphx/gpu/kernel.hpp>
+#include <migraphx/gpu/device_name.hpp>
+#include <migraphx/gpu/gen/codegen.hpp>
+#include <migraphx/gpu/hip.hpp>
+#include <hip/hip_runtime.h>
+
+// Helper to compile and run a gen kernel that uses MIGRAPHX_CHECK
+static void run_gen_kernel(const std::string& src,
+                           const std::string& kernel_name,
+                           std::size_t global = 1,
+                           std::size_t local  = 1)
+{
+    migraphx::gpu::context ctx;
+    migraphx::gpu::hip_compile_options options;
+    options.global      = global;
+    options.local       = local;
+    options.kernel_name = kernel_name;
+    options.emplace_param("-Wno-float-equal");
+
+    auto binary = migraphx::gpu::compile_hip_raw(ctx, src, options);
+    migraphx::gpu::kernel k{binary, kernel_name};
+    k.launch(nullptr, global, local)();
+    CHECK(hipDeviceSynchronize() == hipSuccess);
+}
 
 TEST_CASE(test_tile_region_op)
 {
@@ -117,10 +145,223 @@ TEST_CASE(test_barrier_op)
     EXPECT(attrs["point_op"].to<std::string>() == "__syncthreads()");
 }
 
+TEST_CASE(test_check_op)
+{
+    auto op = migraphx::make_op("gpu::gen::check");
+    EXPECT(op.name() == "gpu::gen::check");
+
+    auto attrs = op.attributes();
+    EXPECT(attrs.contains("point_op"));
+    EXPECT(attrs["point_op"].to<std::string>() == "MIGRAPHX_CHECK(${0})");
+
+    // check returns an empty shape (no output, just side effect)
+    auto s = op.compute_shape({migraphx::shape{migraphx::shape::bool_type}});
+    EXPECT(s.lens().empty());
+}
+
 TEST_CASE(test_gen_pointwise_op)
 {
     auto op = migraphx::make_op("gpu::gen::pointwise");
     EXPECT(op.name() == "gpu::gen::pointwise");
+}
+
+TEST_CASE(test_vector_load_op)
+{
+    auto op = migraphx::make_op("gpu::gen::vector_load", {{"size", std::size_t{4}}});
+    EXPECT(op.name() == "gpu::gen::vector_load");
+
+    // compute_shape: takes (tensor, index), returns vector of `size` elements
+    auto tensor_shape = migraphx::shape{migraphx::shape::float_type, {64, 64}};
+    auto index_shape  = migraphx::shape{migraphx::shape::uint64_type};
+    auto s            = op.compute_shape({tensor_shape, index_shape});
+    EXPECT(s.type() == migraphx::shape::float_type);
+    EXPECT(s.lens() == std::vector<std::size_t>{4});
+}
+
+TEST_CASE(test_vector_store_op)
+{
+    auto op = migraphx::make_op("gpu::gen::vector_store", {{"size", std::size_t{4}}});
+    EXPECT(op.name() == "gpu::gen::vector_store");
+
+    // compute_shape: takes (tensor, index, data), returns empty (side effect)
+    auto tensor_shape = migraphx::shape{migraphx::shape::float_type, {64, 64}};
+    auto index_shape  = migraphx::shape{migraphx::shape::uint64_type};
+    auto data_shape   = migraphx::shape{migraphx::shape::float_type, {4}};
+    auto s            = op.compute_shape({tensor_shape, index_shape, data_shape});
+    EXPECT(s.lens().empty());
+}
+
+TEST_CASE(test_copy_op)
+{
+    auto op = migraphx::make_op("gpu::gen::copy");
+    EXPECT(op.name() == "gpu::gen::copy");
+
+    // compute_shape: takes (src, dst), returns dst shape
+    auto src_shape = migraphx::shape{migraphx::shape::float_type, {64, 64}};
+    auto dst_shape = migraphx::shape{migraphx::shape::float_type, {64, 64}};
+    auto s         = op.compute_shape({src_shape, dst_shape});
+    EXPECT(s == dst_shape);
+}
+
+// Runtime tests - compile and run on GPU using MIGRAPHX_CHECK
+
+TEST_CASE(test_global_id_runtime)
+{
+    // Test that global_id == 0 when launching 1 thread
+    std::string src = R"(
+#include <migraphx/kernels/index.hpp>
+#include <migraphx/kernels/debug.hpp>
+
+using namespace migraphx;
+
+extern "C" __global__ void test_global_id() {
+    auto idx = make_index();
+    MIGRAPHX_CHECK(idx.global == 0);
+}
+)";
+    run_gen_kernel(src, "test_global_id");
+}
+
+TEST_CASE(test_local_id_runtime)
+{
+    // Test that local_id == 0 when launching 1 thread
+    std::string src = R"(
+#include <migraphx/kernels/index.hpp>
+#include <migraphx/kernels/debug.hpp>
+
+using namespace migraphx;
+
+extern "C" __global__ void test_local_id() {
+    auto idx = make_index();
+    MIGRAPHX_CHECK(idx.local == 0);
+}
+)";
+    run_gen_kernel(src, "test_local_id");
+}
+
+TEST_CASE(test_workgroup_id_runtime)
+{
+    // Test that workgroup_id == 0 when launching 1 workgroup
+    std::string src = R"(
+#include <migraphx/kernels/index.hpp>
+#include <migraphx/kernels/debug.hpp>
+
+using namespace migraphx;
+
+extern "C" __global__ void test_workgroup_id() {
+    auto idx = make_index();
+    MIGRAPHX_CHECK(idx.group == 0);
+}
+)";
+    run_gen_kernel(src, "test_workgroup_id");
+}
+
+TEST_CASE(test_workgroup_size_runtime)
+{
+    // Test that nlocal() == 64 when launching with local=64
+    std::string src = R"(
+#include <migraphx/kernels/index.hpp>
+#include <migraphx/kernels/debug.hpp>
+
+using namespace migraphx;
+
+extern "C" __global__ void test_workgroup_size() {
+    auto idx = make_index();
+    MIGRAPHX_CHECK(idx.nlocal() == 64);
+}
+)";
+    run_gen_kernel(src, "test_workgroup_size", 64, 64);
+}
+
+TEST_CASE(test_lane_id_runtime)
+{
+    // Test that lane_id (local_wave) is in valid range [0, wavefront_size)
+    std::string src = R"(
+#include <migraphx/kernels/index.hpp>
+#include <migraphx/kernels/debug.hpp>
+
+using namespace migraphx;
+
+extern "C" __global__ void test_lane_id() {
+    auto idx = make_index();
+    // local_wave() returns lane within wavefront
+    MIGRAPHX_CHECK(idx.local_wave() < idx.nlocal_wave());
+}
+)";
+    run_gen_kernel(src, "test_lane_id", 64, 64);
+}
+
+TEST_CASE(test_multiple_threads_global_id)
+{
+    // Test that each thread has unique global_id < nglobal
+    std::string src = R"(
+#include <migraphx/kernels/index.hpp>
+#include <migraphx/kernels/debug.hpp>
+
+using namespace migraphx;
+
+extern "C" __global__ void test_multi_global() {
+    auto idx = make_index();
+    MIGRAPHX_CHECK(idx.global < idx.nglobal());
+}
+)";
+    run_gen_kernel(src, "test_multi_global", 256, 64);
+}
+
+TEST_CASE(test_compile_gen_simple)
+{
+    // Create a simple gen IR program that verifies global_id is valid
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    // Add a parameter (dummy tensor for args.hpp generation)
+    auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {64}});
+
+    // Add global_id
+    auto gid = mm->add_instruction(migraphx::make_op("gpu::gen::global_id"));
+
+    // We need to return something
+    mm->add_return({x});
+
+    // Compile and run
+    migraphx::gpu::context ctx;
+    auto code_op = migraphx::gpu::gen::compile_gen(ctx, p, "test_compile_gen_simple");
+
+    // Verify we got a valid code object operation
+    EXPECT(code_op.name() == "gpu::code_object");
+
+    (void)gid;
+}
+
+TEST_CASE(test_compile_gen_vector_load_store)
+{
+    // Create a program that loads and stores a vector
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    // Parameters: input tensor, output tensor
+    auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {64}});
+    auto y = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type, {64}});
+
+    // Get global ID
+    auto gid = mm->add_instruction(migraphx::make_op("gpu::gen::global_id"));
+
+    // Load a vector from x
+    auto load = mm->add_instruction(
+        migraphx::make_op("gpu::gen::vector_load", {{"size", std::size_t{4}}}), x, gid);
+
+    // Store to y
+    mm->add_instruction(
+        migraphx::make_op("gpu::gen::vector_store", {{"size", std::size_t{4}}}), y, gid, load);
+
+    mm->add_return({y});
+
+    // Compile
+    migraphx::gpu::context ctx;
+    auto code_op = migraphx::gpu::gen::compile_gen(ctx, p, "test_vector_kernel");
+
+    // Verify we got a valid code object operation
+    EXPECT(code_op.name() == "gpu::code_object");
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

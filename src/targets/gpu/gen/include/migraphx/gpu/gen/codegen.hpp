@@ -26,6 +26,8 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/module.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/operation.hpp>
 #include <migraphx/gpu/gen/export.h>
 #include <string>
 
@@ -40,6 +42,19 @@ namespace gen {
 /// Generate kernel code for a pointwise module using gen IR passes
 MIGRAPHX_GPU_GEN_EXPORT std::string generate_pointwise_kernel(const module& m,
                                                               const std::string& kernel_name);
+
+/// Compile a gen IR program to a GPU code object operation
+/// The program should contain lowered gen IR operations (vector_load, vector_store, etc.)
+/// Parameters in the IR correspond to tensor_views in the generated kernel
+/// Returns a code_object_op that can be run on the GPU
+MIGRAPHX_GPU_GEN_EXPORT operation compile_gen(context& ctx,
+                                              const program& p,
+                                              const std::string& kernel_name = "gen_kernel");
+
+/// Generate C++ code for a gen IR module
+/// Used internally by compile_gen
+MIGRAPHX_GPU_GEN_EXPORT std::string generate_gen_code(const module& m,
+                                                      const std::string& kernel_name);
 
 } // namespace gen
 } // namespace gpu

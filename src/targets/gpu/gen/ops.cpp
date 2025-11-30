@@ -210,6 +210,109 @@ struct barrier
 };
 MIGRAPHX_REGISTER_OP(barrier);
 
+/// Check - asserts a condition is true, aborts if false
+struct check
+{
+    template <class Self, class F>
+    static auto reflect(Self&, F)
+    {
+        return pack();
+    }
+
+    std::string name() const { return "gpu::gen::check"; }
+
+    value attributes() const { return {{"point_op", "MIGRAPHX_CHECK(${0})"}}; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this, true}.has(1);
+        // Check takes a boolean condition and returns nothing
+        return shape{};
+    }
+};
+MIGRAPHX_REGISTER_OP(check);
+
+/// Vector load - loads a vector of elements from a tensor at an index
+/// Input 0: tensor (the tensor_view parameter)
+/// Input 1: index (the linear index to load from)
+/// Output: vector of `size` elements
+struct vector_load
+{
+    std::size_t size = 1; // Vector size (1, 2, 4, 8, etc.)
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.size, "size"));
+    }
+
+    std::string name() const { return "gpu::gen::vector_load"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this, true}.has(2);
+        // First input is the tensor, second is the index
+        auto tensor_type = inputs.front().type();
+        // Output is a vector of `size` elements
+        return shape{tensor_type, {size}};
+    }
+};
+MIGRAPHX_REGISTER_OP(vector_load);
+
+/// Vector store - stores a vector of elements to a tensor at an index
+/// Input 0: tensor (the tensor_view parameter - destination)
+/// Input 1: index (the linear index to store at)
+/// Input 2: data (the vector of elements to store)
+/// No output (side effect only)
+struct vector_store
+{
+    std::size_t size = 1; // Vector size (1, 2, 4, 8, etc.)
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.size, "size"));
+    }
+
+    std::string name() const { return "gpu::gen::vector_store"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this, true}.has(3);
+        // No output, just side effect
+        return shape{};
+    }
+};
+MIGRAPHX_REGISTER_OP(vector_store);
+
+/// Copy - copies data from source to destination tensor
+/// Input 0: source tensor
+/// Input 1: destination tensor
+/// Output: destination tensor (aliased)
+struct copy
+{
+    template <class Self, class F>
+    static auto reflect(Self&, F)
+    {
+        return pack();
+    }
+
+    std::string name() const { return "gpu::gen::copy"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this, true}.has(2);
+        // Output shape matches destination
+        return inputs.back();
+    }
+
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    {
+        return shapes.size() - 1;
+    }
+};
+MIGRAPHX_REGISTER_OP(copy);
+
 } // namespace gen
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

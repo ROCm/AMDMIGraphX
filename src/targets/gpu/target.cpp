@@ -70,6 +70,7 @@
 #include <migraphx/gpu/fuse_ck.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
+#include <migraphx/gpu/gen/fuse_gen.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/gpu/schedule_model.hpp>
@@ -235,6 +236,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 #endif
         dead_code_elimination{},
         enable_pass(mlir_enabled() and disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_mlir{&ctx}),
+        dead_code_elimination{},
+        gen::fuse_gen{&ctx},
         dead_code_elimination{},
         fuse_concat{},
         dead_code_elimination{},

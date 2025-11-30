@@ -28,14 +28,14 @@
 
 TEST_CASE(test_tile_region_op)
 {
-    auto op = migraphx::make_op("gpu::gen::tile_region", 
-                                 {{"tile_dims", std::vector<std::size_t>{32, 64}}, 
-                                  {"axis", std::size_t{1}}});
+    auto op = migraphx::make_op(
+        "gpu::gen::tile_region",
+        {{"tile_dims", std::vector<std::size_t>{32, 64}}, {"axis", std::size_t{1}}});
     EXPECT(op.name() == "gpu::gen::tile_region");
-    
+
     auto attrs = op.attributes();
     EXPECT(attrs.contains("point_op"));
-    
+
     // Test compute_shape
     auto s = op.compute_shape({migraphx::shape{migraphx::shape::float_type, {128, 256}}});
     EXPECT(s.type() == migraphx::shape::float_type);
@@ -70,14 +70,14 @@ TEST_CASE(test_local_id_op)
 
 TEST_CASE(test_local_id_dim_y)
 {
-    auto op = migraphx::make_op("gpu::gen::local_id", {{"dim", std::size_t{1}}});
+    auto op    = migraphx::make_op("gpu::gen::local_id", {{"dim", std::size_t{1}}});
     auto attrs = op.attributes();
     EXPECT(attrs["point_op"].to<std::string>() == "threadIdx.y");
 }
 
 TEST_CASE(test_local_id_dim_z)
 {
-    auto op = migraphx::make_op("gpu::gen::local_id", {{"dim", std::size_t{2}}});
+    auto op    = migraphx::make_op("gpu::gen::local_id", {{"dim", std::size_t{2}}});
     auto attrs = op.attributes();
     EXPECT(attrs["point_op"].to<std::string>() == "threadIdx.z");
 }

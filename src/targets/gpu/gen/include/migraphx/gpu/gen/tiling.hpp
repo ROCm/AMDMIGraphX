@@ -67,4 +67,3 @@ struct MIGRAPHX_GPU_GEN_EXPORT gen_tiling
 } // namespace migraphx
 
 #endif // MIGRAPHX_GUARD_GPU_GEN_TILING_HPP
-

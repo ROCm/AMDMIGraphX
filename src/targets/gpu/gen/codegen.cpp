@@ -39,12 +39,12 @@ namespace gen {
 
 // Use gpu::gen namespace for compile_gen utilities
 // Note: tile here refers to the compile_gen tile struct, not our tile_region operation
-using migraphx::gpu::gen::vectorize;
-using migraphx::gpu::gen::tile;
 using migraphx::gpu::gen::find_fast_axis;
-using migraphx::gpu::gen::generate_pointwise;
 using migraphx::gpu::gen::generate_name_from_ops;
+using migraphx::gpu::gen::generate_pointwise;
 using migraphx::gpu::gen::make_transformer_args;
+using migraphx::gpu::gen::tile;
+using migraphx::gpu::gen::vectorize;
 
 // Kernel template for gen pointwise operations
 static const char* const gen_pointwise_kernel = R"__migraphx__(
@@ -88,10 +88,10 @@ struct gen_pointwise_compiler : compiler<gen_pointwise_compiler>
         options.virtual_inputs = reduce_dims(normalize_permutation(options.inputs));
         options.emplace_param("-Wno-float-equal");
 
-        auto axis   = find_fast_axis(options.virtual_inputs);
-        auto vec    = vectorize::elements(ctx, axis, options.virtual_inputs);
+        auto axis     = find_fast_axis(options.virtual_inputs);
+        auto vec      = vectorize::elements(ctx, axis, options.virtual_inputs);
         auto noutputs = options.inputs.size() - inputs.size() + 1;
-        auto t      = tile::elements(options.virtual_inputs, noutputs);
+        auto t        = tile::elements(options.virtual_inputs, noutputs);
 
         options.kernel_name = v.get("kernel", "gen_pointwise_kernel");
 
@@ -102,16 +102,16 @@ struct gen_pointwise_compiler : compiler<gen_pointwise_compiler>
             options.set_launch_params(
                 v, compute_global_for(ctx, t.ntiles * t.block_size, 256), t.block_size);
 
-        auto src = interpolate_string(
-            gen_pointwise_kernel,
-            {{"kernel", options.kernel_name},
-             {"params", enum_params(options.inputs.size(), "void * private_p")},
-             {"args", enum_params(options.inputs.size(), "private_p")},
-             {"lambda", v.at("lambda").to<std::string>()},
-             {"transformers", make_transformer_args(t, vec)},
-             {"tiled", t.ntiles > 0 ? "true" : "false"},
-             {"noutputs", std::to_string(noutputs)},
-             {"preamble", v.get("preamble", std::string{})}});
+        auto src =
+            interpolate_string(gen_pointwise_kernel,
+                               {{"kernel", options.kernel_name},
+                                {"params", enum_params(options.inputs.size(), "void * private_p")},
+                                {"args", enum_params(options.inputs.size(), "private_p")},
+                                {"lambda", v.at("lambda").to<std::string>()},
+                                {"transformers", make_transformer_args(t, vec)},
+                                {"tiled", t.ntiles > 0 ? "true" : "false"},
+                                {"noutputs", std::to_string(noutputs)},
+                                {"preamble", v.get("preamble", std::string{})}});
 
         return compile_hip_code_object(ctx, src, options);
     }
@@ -122,9 +122,9 @@ struct gen_pointwise_compiler : compiler<gen_pointwise_compiler>
         const_module_ref pm = ins->module_inputs().front();
 
         // Generate the pointwise preamble using gen IR
-        auto pf          = generate_pointwise_kernel(*pm, "gen_inner_pointwise");
+        auto pf            = generate_pointwise_kernel(*pm, "gen_inner_pointwise");
         std::string lambda = "MIGRAPHX_LIFT(gen_inner_pointwise)";
-        auto kernel_name = generate_name_from_ops(*pm, "gen_kernel");
+        auto kernel_name   = generate_name_from_ops(*pm, "gen_kernel");
 
         return compile_op(ctx,
                           to_shapes(ins->inputs()),
@@ -136,5 +136,3 @@ struct gen_pointwise_compiler : compiler<gen_pointwise_compiler>
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-

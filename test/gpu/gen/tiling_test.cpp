@@ -49,9 +49,8 @@ TEST_CASE(test_tile_config_empty)
 TEST_CASE(test_tile_config_small_tensor)
 {
     // Small tensor that shouldn't be tiled
-    std::vector<migraphx::shape> inputs = {
-        migraphx::shape{migraphx::shape::float_type, {4, 4}}};
-    auto config = migraphx::gpu::gen::tile_config::compute(inputs, 1);
+    std::vector<migraphx::shape> inputs = {migraphx::shape{migraphx::shape::float_type, {4, 4}}};
+    auto config                         = migraphx::gpu::gen::tile_config::compute(inputs, 1);
     // Small tensors may not be tiled
     (void)config;
 }
@@ -77,7 +76,7 @@ TEST_CASE(test_tiling_pass_empty_module)
         m1.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 3}});
     }
     run_tiling_pass(m1);
-    
+
     // Module should be unchanged since tiling pass doesn't modify it yet
     migraphx::module m2;
     {

@@ -40,9 +40,9 @@ void gen_lower::apply(module& m) const
         if(ins->name() == "gpu::gen::tile_region")
         {
             // Get tile parameters via to_value()
-            auto v = ins->get_operator().to_value();
+            auto v         = ins->get_operator().to_value();
             auto tile_dims = v.at("tile_dims").to_vector<std::size_t>();
-            auto axis = v.at("axis").to<std::size_t>();
+            auto axis      = v.at("axis").to<std::size_t>();
 
             // For now, tile lowering is handled during code generation
             // Future: expand tile into explicit loop structure with

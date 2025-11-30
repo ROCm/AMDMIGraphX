@@ -59,7 +59,7 @@ void fuse_gen::apply(module_pass_manager& mpm) const
         };
         if(has_broadcast(ins->get_shape()))
             continue;
-        bool skip = false;
+        bool skip     = false;
         auto out_type = ins->get_shape().type();
         for(auto input : ins->inputs())
         {
@@ -80,8 +80,8 @@ void fuse_gen::apply(module_pass_manager& mpm) const
 
         // Get inputs and create allocation for output
         auto inputs = ins->inputs();
-        auto alloc  = m.insert_instruction(
-            ins, make_op("allocate", {{"shape", to_value(ins->get_shape())}}));
+        auto alloc =
+            m.insert_instruction(ins, make_op("allocate", {{"shape", to_value(ins->get_shape())}}));
         inputs.push_back(alloc);
 
         // Create gen::pointwise operation wrapped in precompile_op

@@ -32,9 +32,9 @@ TEST_CASE(test_generate_pointwise_kernel)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    
-    auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type});
-    auto y = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type});
+
+    auto x      = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type});
+    auto y      = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type});
     auto add_op = mm->add_instruction(migraphx::make_op("add"), x, y);
     mm->add_return({add_op});
 
@@ -47,8 +47,8 @@ TEST_CASE(test_generate_unary_kernel)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    
-    auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type});
+
+    auto x      = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type});
     auto neg_op = mm->add_instruction(migraphx::make_op("neg"), x);
     mm->add_return({neg_op});
 
@@ -61,9 +61,9 @@ TEST_CASE(test_generate_complex_pointwise_kernel)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    
-    auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type});
-    auto y = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type});
+
+    auto x       = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type});
+    auto y       = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type});
     auto add_res = mm->add_instruction(migraphx::make_op("add"), x, y);
     auto mul_res = mm->add_instruction(migraphx::make_op("mul"), add_res, x);
     mm->add_return({mul_res});

@@ -46,7 +46,7 @@ TEST_CASE(test_gen_lower_empty_module)
         m1.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 3}});
     }
     run_lower_pass(m1);
-    
+
     migraphx::module m2;
     {
         m2.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 3}});
@@ -59,9 +59,9 @@ TEST_CASE(test_gen_lower_with_tile_region)
     migraphx::module m1;
     {
         auto x = m1.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {64, 64}});
-        auto tile_op = migraphx::make_op("gpu::gen::tile_region",
-                                          {{"tile_dims", std::vector<std::size_t>{8, 8}},
-                                           {"axis", std::size_t{0}}});
+        auto tile_op = migraphx::make_op(
+            "gpu::gen::tile_region",
+            {{"tile_dims", std::vector<std::size_t>{8, 8}}, {"axis", std::size_t{0}}});
         auto tiled = m1.add_instruction(tile_op, x);
         m1.add_return({tiled});
     }
@@ -72,9 +72,9 @@ TEST_CASE(test_gen_lower_with_tile_region)
     migraphx::module m2;
     {
         auto x = m2.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {64, 64}});
-        auto tile_op = migraphx::make_op("gpu::gen::tile_region",
-                                          {{"tile_dims", std::vector<std::size_t>{8, 8}},
-                                           {"axis", std::size_t{0}}});
+        auto tile_op = migraphx::make_op(
+            "gpu::gen::tile_region",
+            {{"tile_dims", std::vector<std::size_t>{8, 8}}, {"axis", std::size_t{0}}});
         auto tiled = m2.add_instruction(tile_op, x);
         m2.add_return({tiled});
     }

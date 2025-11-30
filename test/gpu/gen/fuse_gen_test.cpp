@@ -43,23 +43,23 @@ TEST_CASE(test_fuse_gen_pass_disabled_by_default)
     // fuse_gen should not modify the module when MIGRAPHX_ENABLE_GEN is not set
     migraphx::module m1;
     {
-        auto x = m1.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 3}});
-        auto y = m1.add_parameter("y", migraphx::shape{migraphx::shape::float_type, {2, 3}});
+        auto x      = m1.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 3}});
+        auto y      = m1.add_parameter("y", migraphx::shape{migraphx::shape::float_type, {2, 3}});
         auto add_op = m1.add_instruction(migraphx::make_op("add"), x, y);
         m1.add_return({add_op});
     }
-    
+
     // Expected: module unchanged since MIGRAPHX_ENABLE_GEN is not set
     migraphx::module m2;
     {
-        auto x = m2.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 3}});
-        auto y = m2.add_parameter("y", migraphx::shape{migraphx::shape::float_type, {2, 3}});
+        auto x      = m2.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 3}});
+        auto y      = m2.add_parameter("y", migraphx::shape{migraphx::shape::float_type, {2, 3}});
         auto add_op = m2.add_instruction(migraphx::make_op("add"), x, y);
         m2.add_return({add_op});
     }
 
     run_fuse_gen_pass(m1);
-    
+
     EXPECT(m1.sort() == m2.sort());
 }
 
@@ -68,8 +68,8 @@ TEST_CASE(test_gen_pointwise_compute_shape)
     // Create a simple pointwise module
     migraphx::module pm;
     {
-        auto px = pm.add_parameter("x0", migraphx::shape{migraphx::shape::float_type});
-        auto py = pm.add_parameter("x1", migraphx::shape{migraphx::shape::float_type});
+        auto px   = pm.add_parameter("x0", migraphx::shape{migraphx::shape::float_type});
+        auto py   = pm.add_parameter("x1", migraphx::shape{migraphx::shape::float_type});
         auto padd = pm.add_instruction(migraphx::make_op("add"), px, py);
         pm.add_return({padd});
     }

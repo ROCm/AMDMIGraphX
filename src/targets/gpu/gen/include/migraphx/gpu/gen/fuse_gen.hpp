@@ -53,5 +53,3 @@ struct MIGRAPHX_GPU_GEN_EXPORT fuse_gen
 } // namespace migraphx
 
 #endif // MIGRAPHX_GUARD_GPU_GEN_FUSE_GEN_HPP
-
-

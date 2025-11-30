@@ -49,4 +49,3 @@ struct MIGRAPHX_GPU_GEN_EXPORT gen_lower
 } // namespace migraphx
 
 #endif // MIGRAPHX_GUARD_GPU_GEN_LOWER_HPP
-

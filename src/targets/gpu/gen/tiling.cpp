@@ -67,10 +67,9 @@ tile_config tile_config::compute(const std::vector<shape>& inputs, std::size_t /
 
     // Find fast axis for each input
     std::vector<std::size_t> faxes;
-    std::transform(inputs.begin(),
-                   inputs.end(),
-                   std::back_inserter(faxes),
-                   [](const shape& s) { return migraphx::gpu::gen::find_fast_axis(s); });
+    std::transform(inputs.begin(), inputs.end(), std::back_inserter(faxes), [](const shape& s) {
+        return migraphx::gpu::gen::find_fast_axis(s);
+    });
 
     result.axis = std::accumulate(
         faxes.begin(), faxes.end(), ndim, [](auto a, auto b) { return std::min(a, b); });
@@ -135,5 +134,3 @@ void gen_tiling::apply(module& m) const
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-

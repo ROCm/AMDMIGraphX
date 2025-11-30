@@ -74,10 +74,7 @@ struct tile_region
 
     std::string name() const { return "gpu::gen::tile_region"; }
 
-    value attributes() const
-    {
-        return {{"point_op", "tile<${tile_dims}>(${0})"}};
-    }
+    value attributes() const { return {{"point_op", "tile<${tile_dims}>(${0})"}}; }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
@@ -98,10 +95,7 @@ struct lane_id
 
     std::string name() const { return "gpu::gen::lane_id"; }
 
-    value attributes() const
-    {
-        return {{"point_op", "__lane_id()"}};
-    }
+    value attributes() const { return {{"point_op", "__lane_id()"}}; }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
@@ -130,10 +124,7 @@ struct local_id
         return names[dim % 3];
     }
 
-    value attributes() const
-    {
-        return {{"point_op", "threadIdx." + dim_name()}};
-    }
+    value attributes() const { return {{"point_op", "threadIdx." + dim_name()}}; }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
@@ -156,10 +147,7 @@ struct global_id
 
     std::string name() const { return "gpu::gen::global_id"; }
 
-    value attributes() const
-    {
-        return {{"point_op", "idx.global"}};
-    }
+    value attributes() const { return {{"point_op", "idx.global"}}; }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
@@ -188,10 +176,7 @@ struct workgroup_id
         return names[dim % 3];
     }
 
-    value attributes() const
-    {
-        return {{"point_op", "blockIdx." + dim_name()}};
-    }
+    value attributes() const { return {{"point_op", "blockIdx." + dim_name()}}; }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
@@ -220,10 +205,7 @@ struct workgroup_size
         return names[dim % 3];
     }
 
-    value attributes() const
-    {
-        return {{"point_op", "blockDim." + dim_name()}};
-    }
+    value attributes() const { return {{"point_op", "blockDim." + dim_name()}}; }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
@@ -244,10 +226,7 @@ struct barrier
 
     std::string name() const { return "gpu::gen::barrier"; }
 
-    value attributes() const
-    {
-        return {{"point_op", "__syncthreads()"}};
-    }
+    value attributes() const { return {{"point_op", "__syncthreads()"}}; }
 
     shape compute_shape(std::vector<shape> inputs) const
     {

@@ -39,7 +39,7 @@ namespace gen {
 
 /// Generate kernel code for a pointwise module using gen IR passes
 MIGRAPHX_GPU_GEN_EXPORT std::string generate_pointwise_kernel(const module& m,
-                                                               const std::string& kernel_name);
+                                                              const std::string& kernel_name);
 
 } // namespace gen
 } // namespace gpu
@@ -47,5 +47,3 @@ MIGRAPHX_GPU_GEN_EXPORT std::string generate_pointwise_kernel(const module& m,
 } // namespace migraphx
 
 #endif // MIGRAPHX_GUARD_GPU_GEN_CODEGEN_HPP
-
-

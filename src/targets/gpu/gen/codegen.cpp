@@ -242,9 +242,8 @@ std::string generate_gen_code(const module& m, const std::string& /* kernel_name
             body << "]\n";
             body << "        auto " << ins_name << "_offset = " << wg_id << " * " << tile_size
                  << ";\n";
-            body << "        auto " << ins_name
-                 << " = make_tensor_view(" << tensor << ".data() + " << ins_name << "_offset, "
-                 << tensor << ".get_shape());\n";
+            body << "        auto " << ins_name << " = make_tensor_view(" << tensor << ".data() + "
+                 << ins_name << "_offset, " << tensor << ".get_shape());\n";
         }
         else if(ins->name() == "gpu::gen::lds_allocate")
         {

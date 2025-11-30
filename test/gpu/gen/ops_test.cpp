@@ -62,9 +62,10 @@ TEST_CASE(test_tile_region_op)
     EXPECT(op.name() == "gpu::gen::tile_region");
 
     // Test compute_shape - tile_region takes (tensor, workgroup_id)
-    auto tensor_shape = migraphx::shape{migraphx::shape::float_type, {128, 256, 512}, {131072, 512, 1}};
-    auto wg_id_shape  = migraphx::shape{migraphx::shape::uint64_type};
-    auto s            = op.compute_shape({tensor_shape, wg_id_shape});
+    auto tensor_shape =
+        migraphx::shape{migraphx::shape::float_type, {128, 256, 512}, {131072, 512, 1}};
+    auto wg_id_shape = migraphx::shape{migraphx::shape::uint64_type};
+    auto s           = op.compute_shape({tensor_shape, wg_id_shape});
     EXPECT(s.type() == migraphx::shape::float_type);
     // Output shape: dims before axis=1 become 1, tile_dims replace remaining dims
     EXPECT(s.lens() == std::vector<std::size_t>{1, 32, 64});

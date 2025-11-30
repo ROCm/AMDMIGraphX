@@ -141,18 +141,15 @@ static std::vector<std::size_t> compute_tile_dims(const shape& s, std::size_t ti
 }
 
 // Lower a simple 1D copy to vector_load/vector_store
-static void lower_simple_copy(module& m,
-                              instruction_ref ins,
-                              instruction_ref src,
-                              instruction_ref dst,
-                              std::size_t vec_size)
+static void lower_simple_copy(
+    module& m, instruction_ref ins, instruction_ref src, instruction_ref dst, std::size_t vec_size)
 {
     // Insert global_id for 1D case
     auto gid = m.insert_instruction(ins, make_op("gpu::gen::global_id"));
 
     // Insert vector_load from source
-    auto load = m.insert_instruction(
-        ins, make_op("gpu::gen::vector_load", {{"size", vec_size}}), src, gid);
+    auto load =
+        m.insert_instruction(ins, make_op("gpu::gen::vector_load", {{"size", vec_size}}), src, gid);
 
     // Insert vector_store to destination
     auto store = m.insert_instruction(

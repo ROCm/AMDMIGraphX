@@ -396,8 +396,6 @@ std::unordered_map<instruction_ref, instruction_ref>
 create_param_map_with_literals(module_ref mm, const module* pm, const shape& shape)
 {
     std::unordered_map<instruction_ref, instruction_ref> ins_map;
-    mm->debug_print();
-    pm->debug_print();
     for(auto ins : iterator_for(*pm))
     {
         if(ins->name() != "@literal")
@@ -751,14 +749,11 @@ struct find_mlir_fused_ops : match::supports_dynamic_shapes
             rins.push_back(map_ins.at(gemm_based_op));
         }
         mm->add_return(rins);
-        std::cout << "mm after add return" << std::endl;
-        mm->debug_print();
         
         auto inputs    = find_inputs(map_ins, &mpm.get_module(), mm);
         auto fused_ins = mpm.get_module().insert_instruction(
             pw_ins, mlir_op{gemm_based_op->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
 
-        mpm.get_module().debug_print();
         if(gemm_has_multi_outs)
         {
             auto dot_ins = mpm.get_module().insert_instruction(
@@ -785,8 +780,6 @@ struct find_mlir_fused_ops : match::supports_dynamic_shapes
         }
         else
         {
-            std::cout << "mm after replace instruction" << std::endl;
-            mm->debug_print();
             mpm.get_module().replace_instruction(pw_ins, fused_ins);
         }
     }

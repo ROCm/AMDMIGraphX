@@ -1078,11 +1078,7 @@ module::fuse(const module& m,
     std::unordered_map<instruction_ref, instruction_ref> default_map_ins;
     if(map_ins == nullptr)
         map_ins = &default_map_ins;
-    std::cout << "module before insert params" << std::endl;
-    this->debug_print();
     insert_params(*this, inputs, *map_ins, shape_transform);
-    std::cout << "module after insert params" << std::endl;
-    this->debug_print();
     auto param_map = m.get_ins_param_map(inputs, true);
     for(auto&& [param, input] : param_map)
     {

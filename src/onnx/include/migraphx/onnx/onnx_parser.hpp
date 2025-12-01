@@ -110,6 +110,7 @@ struct onnx_parser
     std::unordered_map<std::string, op_func> ops;
 
     onnx_parser();
+    value load_to_value(const std::string& name, const node_info& info) const;
     operation load(const std::string& name, const node_info& info) const;
 
     void parse_undefined(module* mod, const std::string& name);

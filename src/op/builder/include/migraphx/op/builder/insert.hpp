@@ -35,29 +35,31 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 namespace builder {
 
+value get_default_options();
+
 MIGRAPHX_EXPORT std::vector<instruction_ref> insert(const std::string& name,
                                                     module& m,
                                                     instruction_ref ins,
                                                     const std::vector<instruction_ref>& args,
-                                                    const value& options = value("", {}, false));
+                                                    const value& options = get_default_options());
 
 MIGRAPHX_EXPORT std::vector<instruction_ref> insert(const std::string& name,
                                                     module& m,
                                                     instruction_ref ins,
                                                     const std::vector<instruction_ref>& args,
                                                     const std::vector<module_ref>& module_args,
-                                                    const value& options = value("", {}, false));
+                                                    const value& options = get_default_options());
 
 MIGRAPHX_EXPORT std::vector<instruction_ref> add(const std::string& name,
                                                  module& m,
                                                  const std::vector<instruction_ref>& args,
-                                                 const value& options = value("", {}, false));
+                                                 const value& options = get_default_options());
 
 MIGRAPHX_EXPORT std::vector<instruction_ref> add(const std::string& name,
                                                  module& m,
                                                  const std::vector<instruction_ref>& args,
                                                  const std::vector<module_ref>& module_args,
-                                                 const value& options = value("", {}, false));
+                                                 const value& options = get_default_options());
 template <class... Ins>
 instruction_ref
 insert_common_op(module& m, instruction_ref ins, const std::string& op_name, Ins... args)

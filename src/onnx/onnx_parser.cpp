@@ -204,7 +204,7 @@ onnx_parser::onnx_parser()
         ops.emplace(name, get_op_parser(name));
 }
 
-operation onnx_parser::load(const std::string& name, const node_info& info) const
+value onnx_parser::load_to_value(const std::string& name, const node_info& info) const
 {
     auto op = make_op(name);
     auto v  = op.to_value();
@@ -228,7 +228,13 @@ operation onnx_parser::load(const std::string& name, const node_info& info) cons
             s.visit([&](auto y) { x = y.front(); });
         }
     }
-    op.from_value(v);
+    return v;
+}
+
+operation onnx_parser::load(const std::string& name, const node_info& info) const
+{
+    auto op = make_op(name);
+    op.from_value(load_to_value(name, info));
     return op;
 }
 

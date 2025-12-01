@@ -32,6 +32,12 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 namespace builder {
 
+value get_default_options()
+{
+    value default_value = value("", {}, false);
+    return default_value;
+}
+
 static std::unordered_map<std::string, builder_func>& builder_map()
 {
     static std::unordered_map<std::string, builder_func> m; // NOLINT
@@ -43,10 +49,12 @@ void register_builder(const std::string& name, builder_func f)
     builder_map()[name] = std::move(f);
 }
 
-static std::vector<instruction_ref>
-default_op_builder(module& m, const std::vector<instruction_ref>& args, const value& options)
+static std::vector<instruction_ref> default_op_builder(module& m,
+                                                       const std::vector<instruction_ref>& args,
+                                                       const std::string& name,
+                                                       const value& options)
 {
-    const auto& op = migraphx::from_value<operation>(options);
+    const auto& op = make_op(name, options);
     return {m.add_instruction(op, args)};
 }
 
@@ -57,7 +65,7 @@ std::vector<instruction_ref> insert(const std::string& name,
                                     const value& options)
 {
     return contains(builder_map(), name) ? builder_map()[name](m, ins, args, {}, options)
-                                         : default_op_builder(m, args, options);
+                                         : default_op_builder(m, args, name, options);
 }
 
 std::vector<instruction_ref> insert(const std::string& name,
@@ -68,7 +76,7 @@ std::vector<instruction_ref> insert(const std::string& name,
                                     const value& options)
 {
     return contains(builder_map(), name) ? builder_map()[name](m, ins, args, module_args, options)
-                                         : default_op_builder(m, args, options);
+                                         : default_op_builder(m, args, name, options);
 }
 
 std::vector<instruction_ref> add(const std::string& name,
@@ -77,7 +85,7 @@ std::vector<instruction_ref> add(const std::string& name,
                                  const value& options)
 {
     return contains(builder_map(), name) ? builder_map()[name](m, m.end(), args, {}, options)
-                                         : default_op_builder(m, args, options);
+                                         : default_op_builder(m, args, name, options);
 }
 
 std::vector<instruction_ref> add(const std::string& name,
@@ -88,7 +96,7 @@ std::vector<instruction_ref> add(const std::string& name,
 {
     return contains(builder_map(), name)
                ? builder_map()[name](m, m.end(), args, module_args, options)
-               : default_op_builder(m, args, options);
+               : default_op_builder(m, args, name, options);
 }
 
 } // namespace builder

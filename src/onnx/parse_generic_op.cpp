@@ -76,8 +76,8 @@ struct parse_generic_op : op_parser<parse_generic_op>
                           const onnx_parser::node_info& info,
                           const std::vector<instruction_ref>& args) const
     {
-        const auto& op = parser.load(opd.op_name, info);
-        return op::builder::add(opd.op_name, *info.mod, args, to_value(op)).at(0);
+        const auto& val = parser.load_to_value(opd.op_name, info);
+        return op::builder::add(opd.op_name, *info.mod, args, val).at(0);
     }
 };
 

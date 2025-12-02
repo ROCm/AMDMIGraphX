@@ -22,99 +22,195 @@
  * THE SOFTWARE.
  */
 #include <migraphx/logger.hpp>
-#include "spdlog/sinks/basic_file_sink.h"
-#include "spdlog/sinks/stdout_color_sinks.h"
+#include <chrono>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <vector>
 
 namespace migraphx {
-namespace log {
 inline namespace MIGRAPHX_INLINE_NS {
+namespace log {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_LOG_LEVEL)
 
-static spdlog::logger* get_migraphx_logger()
+// Internal sink entry: stores sink callback and severity level
+struct sink_entry
 {
-    static std::vector<spdlog::sink_ptr> sinks;
-    static spdlog::logger* migraphx_logger =
-        new spdlog::logger("migraphx_logger", begin(sinks), end(sinks));
-    return migraphx_logger;
+    sink callback;
+    severity level;
+};
+
+static std::string format_timestamp()
+{
+    auto now        = std::chrono::system_clock::now();
+    auto now_time_t = std::chrono::system_clock::to_time_t(now);
+    auto now_us =
+        std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()) % 1000000;
+    auto* now_tm = std::localtime(&now_time_t);
+    std::ostringstream ss;
+    ss << std::put_time(now_tm, "%Y-%m-%d %H:%M:%S") << "." << std::setfill('0') << std::setw(6)
+       << now_us.count();
+    return ss.str();
 }
 
-static size_t& get_log_level()
+static char severity_char(severity s)
 {
-    static size_t level = value_of(MIGRAPHX_LOG_LEVEL{}, static_cast<size_t>(severity::INFO));
-    return level;
-}
-
-static spdlog::level::level_enum to_spdlog_level(severity s)
-{
-    // Convert migraphx severity to spdlog level
-    // migraphx: NONE(0) < ERROR(1) < WARN(2) < INFO(3) < DEBUG(4) < TRACE(5)
-    // spdlog:   off(6) > critical(5) > err(4) > warn(3) > info(2) > debug(1) > trace(0)
     switch(s)
     {
-    case severity::NONE: return spdlog::level::off;
-    case severity::ERROR: return spdlog::level::err;
-    case severity::WARN: return spdlog::level::warn;
-    case severity::INFO: return spdlog::level::info;
-    case severity::DEBUG: return spdlog::level::debug;
-    case severity::TRACE: return spdlog::level::trace;
+    case severity::none: return 'N';
+    case severity::error: return 'E';
+    case severity::warn: return 'W';
+    case severity::info: return 'I';
+    case severity::debug: return 'D';
+    case severity::trace: return 'T';
     }
-    return spdlog::level::info;
+    return '?';
 }
 
-void add_file_logger(std::string_view filename, severity s)
+static const char* severity_color(severity s)
 {
-    auto* logger   = get_migraphx_logger();
-    auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(std::string(filename));
-    file_sink->set_pattern("%Y-%m-%d %H:%M:%S.%f [%L] [%s:%#] %v");
-    file_sink->set_level(to_spdlog_level(s));
-    logger->sinks().push_back(file_sink);
-}
-
-static void init_stderr_logger()
-{
-    static bool initialized = false;
-    if(!initialized)
+    switch(s)
     {
-        auto* logger     = get_migraphx_logger();
-        auto stderr_sink = std::make_shared<spdlog::sinks::stderr_color_sink_mt>();
-        // Use spdlog pattern with colors for the color sink
-        // %^ ... %$ = wrap entire line with color based on log level
-        // %Y-%m-%d %H:%M:%S.%f = timestamp with microseconds
-        // [%L] = log level
-        // [%s:%#] = source file and line
-        // %v = the actual message
-        stderr_sink->set_pattern("%^%Y-%m-%d %H:%M:%S.%f [%L] [%s:%#] %v%$");
-        // Set info level to use default terminal color
-        stderr_sink->set_color(spdlog::level::info, "");
-        logger->sinks().push_back(stderr_sink);
-        logger->set_level(to_spdlog_level(static_cast<severity>(get_log_level())));
-        initialized = true;
+    case severity::none: return "";
+    case severity::error: return "\033[31m"; // Red
+    case severity::warn: return "\033[33m";  // Yellow
+    case severity::info: return "";          // Default
+    case severity::debug: return "\033[36m"; // Cyan
+    case severity::trace: return "\033[37m"; // White/Gray
     }
+    return "";
+}
+
+static const char* reset_color() { return "\033[0m"; }
+
+// Create the default stderr sink
+static sink make_stderr_sink()
+{
+    return [](severity s, std::string_view msg, source_location loc) {
+        std::cerr << severity_color(s) << format_timestamp() << " [" << severity_char(s) << "] ["
+                  << loc.file_name() << ":" << loc.line() << "] " << msg << reset_color()
+                  << std::endl;
+    };
+}
+
+// Create a file sink
+static sink make_file_sink(const std::string& filename)
+{
+    auto file = std::make_shared<std::ofstream>(filename, std::ios::app);
+    return [file](severity s, std::string_view msg, source_location loc) {
+        if(file->is_open())
+        {
+            *file << format_timestamp() << " [" << severity_char(s) << "] [" << loc.file_name()
+                  << ":" << loc.line() << "] " << msg << std::endl;
+        }
+    };
+}
+
+// Shared state for all sinks - must be outside template to ensure single instance
+static std::mutex& get_sinks_mutex()
+{
+    static std::mutex m;
+    return m;
+}
+
+static std::vector<std::optional<sink_entry>>& get_sinks()
+{
+    static auto sinks = []() {
+        auto level = static_cast<severity>(
+            value_of(MIGRAPHX_LOG_LEVEL{}, static_cast<size_t>(severity::info)));
+        return std::vector<std::optional<sink_entry>>{sink_entry{make_stderr_sink(), level}};
+    }();
+    return sinks;
+}
+
+// Thread-safe access to sinks (stderr sink is automatically initialized at index 0)
+template <class F>
+static void access_sinks(F f)
+{
+    std::lock_guard<std::mutex> lock(get_sinks_mutex());
+    f(get_sinks());
+}
+
+size_t add_sink(sink s, severity level)
+{
+    size_t id = 0;
+    access_sinks([&](std::vector<std::optional<sink_entry>>& sinks) {
+        // Find an empty slot or add a new one
+        for(size_t i = 0; i < sinks.size(); ++i)
+        {
+            if(not sinks[i].has_value())
+            {
+                sinks[i] = sink_entry{std::move(s), level};
+                id       = i;
+                return;
+            }
+        }
+        id = sinks.size();
+        sinks.push_back(sink_entry{std::move(s), level});
+    });
+    return id;
+}
+
+void remove_sink(size_t id)
+{
+    access_sinks([&](std::vector<std::optional<sink_entry>>& sinks) {
+        if(id < sinks.size())
+        {
+            sinks[id] = std::nullopt;
+        }
+    });
+}
+
+void set_severity(severity level, size_t id)
+{
+    access_sinks([&](std::vector<std::optional<sink_entry>>& sinks) {
+        if(id < sinks.size() && sinks[id].has_value())
+        {
+            sinks[id]->level = level;
+        }
+    });
+}
+
+size_t add_file_logger(std::string_view filename, severity s)
+{
+    return add_sink(make_file_sink(std::string(filename)), s);
 }
 
 void record(severity s, std::string_view msg, source_location loc)
 {
-    init_stderr_logger();
-    auto* logger = get_migraphx_logger();
-
-    // Convert migraphx source_location to spdlog source_loc
-    spdlog::source_loc spdlog_loc{loc.file_name(), static_cast<int>(loc.line()), ""};
-
-    // Use spdlog's log method with source location
-    // The pattern formatting handles timestamp, level, location, and colors
-    logger->log(spdlog_loc, to_spdlog_level(s), "{}", msg);
+    access_sinks([&](std::vector<std::optional<sink_entry>>& sinks) {
+        for(auto& entry : sinks)
+        {
+            if(entry.has_value() &&
+               static_cast<size_t>(s) <= static_cast<size_t>(entry->level))
+            {
+                entry->callback(s, msg, loc);
+            }
+        }
+    });
 }
 
-bool is_enabled(severity s) { return static_cast<size_t>(s) <= get_log_level(); }
-
-void set_log_level(severity s)
+bool is_enabled(severity s)
 {
-    get_log_level() = static_cast<size_t>(s);
-    init_stderr_logger(); // Ensure logger is initialized
-    auto* logger = get_migraphx_logger();
-    logger->set_level(to_spdlog_level(s));
+    bool result = false;
+    access_sinks([&](std::vector<std::optional<sink_entry>>& sinks) {
+        for(const auto& entry : sinks)
+        {
+            if(entry.has_value() &&
+               static_cast<size_t>(s) <= static_cast<size_t>(entry->level))
+            {
+                result = true;
+                return;
+            }
+        }
+    });
+    return result;
 }
-} // namespace MIGRAPHX_INLINE_NS
+
 } // namespace log
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

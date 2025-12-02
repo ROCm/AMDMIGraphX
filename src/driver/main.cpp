@@ -132,7 +132,7 @@ struct logger_options
         {
             auto level = parse_log_level_string(log_level);
             if(level)
-                migraphx::log::set_log_level(*level);
+                migraphx::log::set_severity(*level);
         }
         for(const auto& log_file : log_files)
         {
@@ -145,17 +145,17 @@ struct logger_options
     parse_log_level_string(const std::string& level_str)
     {
         if(level_str == "trace" || level_str == "5")
-            return migraphx::log::severity::TRACE;
+            return migraphx::log::severity::trace;
         else if(level_str == "debug" || level_str == "4")
-            return migraphx::log::severity::DEBUG;
+            return migraphx::log::severity::debug;
         else if(level_str == "info" || level_str == "3")
-            return migraphx::log::severity::INFO;
+            return migraphx::log::severity::info;
         else if(level_str == "warn" || level_str == "warning" || level_str == "2")
-            return migraphx::log::severity::WARN;
+            return migraphx::log::severity::warn;
         else if(level_str == "error" || level_str == "1")
-            return migraphx::log::severity::ERROR;
+            return migraphx::log::severity::error;
         else if(level_str == "none" || level_str == "off" || level_str == "0")
-            return migraphx::log::severity::NONE;
+            return migraphx::log::severity::none;
 
         return std::nullopt;
     }

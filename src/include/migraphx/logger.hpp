@@ -26,29 +26,36 @@
 
 #include <migraphx/env.hpp>
 #include <migraphx/source_location.hpp>
+#include <functional>
 #include <sstream>
 
 namespace migraphx {
-namespace log {
 inline namespace MIGRAPHX_INLINE_NS {
+namespace log {
 
 enum class severity
 {
-    NONE,
-    ERROR,
-    WARN,
-    INFO,
-    DEBUG,
-    TRACE
+    none,
+    error,
+    warn,
+    info,
+    debug,
+    trace
 };
+
+using sink = std::function<void(severity, std::string_view, source_location)>;
 
 void record(severity s, std::string_view msg, source_location loc = source_location::current());
 
 bool is_enabled(severity s);
 
-void set_log_level(severity s);
+size_t add_sink(sink s, severity level = severity::info);
 
-void add_file_logger(std::string_view filename, severity s = severity::INFO);
+void remove_sink(size_t id);
+
+void set_severity(severity level, size_t id = 0);
+
+size_t add_file_logger(std::string_view filename, severity s = severity::info);
 
 template <severity Severity>
 struct print
@@ -82,7 +89,7 @@ struct print
         stream(const stream&)            = delete;
         stream& operator=(const stream&) = delete;
 
-        severity s = severity::NONE;
+        severity s = severity::none;
         source_location loc;
         bool enabled;
         std::ostringstream ss;
@@ -111,13 +118,13 @@ struct print
     source_location loc;
 };
 
-using error = print<severity::ERROR>;
-using warn  = print<severity::WARN>;
-using info  = print<severity::INFO>;
-using debug = print<severity::DEBUG>;
-using trace = print<severity::TRACE>;
+using error = print<severity::error>;
+using warn  = print<severity::warn>;
+using info  = print<severity::info>;
+using debug = print<severity::debug>;
+using trace = print<severity::trace>;
 
-} // namespace MIGRAPHX_INLINE_NS
 } // namespace log
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 #endif

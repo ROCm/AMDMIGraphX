@@ -45,7 +45,7 @@ struct parse_concat : op_parser<parse_concat>
         const auto& concat_args =
             std::vector<instruction_ref>{args.begin(), args.begin() + args.size() - 1};
         auto op = make_op("concat", {{"axis", axis}});
-        return op::builder::add(op.name(), *info.mm, concat_args, to_value(op)).at(0);
+        return op::builder::add(op.name(), *info.mm, concat_args, op.to_value()).at(0);
     }
 };
 

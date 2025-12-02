@@ -46,7 +46,8 @@ enum class severity
 using sink = std::function<void(severity, std::string_view, source_location)>;
 
 /**
- * @brief Records a log message. This will invoke the callback for all sinks that are enabled at the given severity.
+ * @brief Records a log message. This will invoke the callback for all sinks that are enabled at the
+ * given severity.
  *
  * @param s The severity of the log message
  * @param msg The message to log

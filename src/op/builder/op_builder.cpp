@@ -32,6 +32,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 namespace builder {
 
+// NOLINTNEXTLINE(modernize-return-braced-init-list)
 value get_default_options() { return value("", {}, false); }
 
 static std::unordered_map<std::string, builder_func>& builder_map()

@@ -185,8 +185,7 @@ void record(severity s, std::string_view msg, source_location loc)
     access_sinks([&](std::vector<std::optional<sink_entry>>& sinks) {
         for(auto& entry : sinks)
         {
-            if(entry.has_value() &&
-               static_cast<size_t>(s) <= static_cast<size_t>(entry->level))
+            if(entry.has_value() && static_cast<size_t>(s) <= static_cast<size_t>(entry->level))
             {
                 entry->callback(s, msg, loc);
             }
@@ -200,8 +199,7 @@ bool is_enabled(severity s)
     access_sinks([&](std::vector<std::optional<sink_entry>>& sinks) {
         for(const auto& entry : sinks)
         {
-            if(entry.has_value() &&
-               static_cast<size_t>(s) <= static_cast<size_t>(entry->level))
+            if(entry.has_value() && static_cast<size_t>(s) <= static_cast<size_t>(entry->level))
             {
                 result = true;
                 return;

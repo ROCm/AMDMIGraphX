@@ -265,11 +265,11 @@ TEST_CASE(logger_set_severity_default)
 {
     // set_severity with default ID should change stderr sink (ID 0)
     migraphx::log::set_severity(migraphx::log::severity::error);
-    
+
     // Now only ERROR should go to stderr
     // (This just tests it doesn't crash - actual filtering is internal)
     migraphx::log::error() << "Error after set_severity";
-    
+
     // Reset for other tests
     migraphx::log::set_severity(migraphx::log::severity::info);
 }
@@ -279,7 +279,8 @@ TEST_CASE(logger_file_sink_returns_id)
     migraphx::log::set_severity(migraphx::log::severity::info);
 
     // add_file_logger should return an ID > 0
-    auto file_id = migraphx::log::add_file_logger("test_sink_log.txt", migraphx::log::severity::info);
+    auto file_id =
+        migraphx::log::add_file_logger("test_sink_log.txt", migraphx::log::severity::info);
     EXPECT(file_id > 0);
 
     // Log something

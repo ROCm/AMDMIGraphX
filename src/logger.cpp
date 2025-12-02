@@ -50,9 +50,10 @@ static std::string format_timestamp()
     auto now_time_t = std::chrono::system_clock::to_time_t(now);
     auto now_us =
         std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()) % 1000000;
-    auto* now_tm = std::localtime(&now_time_t);
+    std::tm now_tm{};
+    localtime_r(&now_time_t, &now_tm);
     std::ostringstream ss;
-    ss << std::put_time(now_tm, "%Y-%m-%d %H:%M:%S") << "." << std::setfill('0') << std::setw(6)
+    ss << std::put_time(&now_tm, "%Y-%m-%d %H:%M:%S") << "." << std::setfill('0') << std::setw(6)
        << now_us.count();
     return ss.str();
 }
@@ -101,6 +102,10 @@ static sink make_stderr_sink()
 static sink make_file_sink(const std::string& filename)
 {
     auto file = std::make_shared<std::ofstream>(filename, std::ios::app);
+    if(not file->is_open())
+    {
+        std::cerr << "Failed to open log file: " << filename << std::endl;
+    }
     return [file](severity s, std::string_view msg, source_location loc) {
         if(file->is_open())
         {
@@ -175,9 +180,9 @@ void set_severity(severity level, size_t id)
     });
 }
 
-size_t add_file_logger(std::string_view filename, severity s)
+size_t add_file_logger(std::string_view filename, severity level)
 {
-    return add_sink(make_file_sink(std::string(filename)), s);
+    return add_sink(make_file_sink(std::string(filename)), level);
 }
 
 void record(severity s, std::string_view msg, source_location loc)
@@ -193,13 +198,13 @@ void record(severity s, std::string_view msg, source_location loc)
     });
 }
 
-bool is_enabled(severity s)
+bool is_enabled(severity level)
 {
     bool result = false;
     access_sinks([&](std::vector<std::optional<sink_entry>>& sinks) {
         for(const auto& entry : sinks)
         {
-            if(entry.has_value() && static_cast<size_t>(s) <= static_cast<size_t>(entry->level))
+            if(entry.has_value() && static_cast<size_t>(level) <= static_cast<size_t>(entry->level))
             {
                 result = true;
                 return;

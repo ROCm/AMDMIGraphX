@@ -45,17 +45,55 @@ enum class severity
 
 using sink = std::function<void(severity, std::string_view, source_location)>;
 
+/**
+ * @brief Records a log message. This will invoke the callback for all sinks that are enabled at the given severity.
+ *
+ * @param s The severity of the log message
+ * @param msg The message to log
+ * @param loc The source location of the log message
+ */
 void record(severity s, std::string_view msg, source_location loc = source_location::current());
 
-bool is_enabled(severity s);
+/**
+ * @brief Checks if any sink is enabled at the given severity.
+ *
+ * @param level The severity to check
+ * @return true if any sink is enabled at the given severity, false otherwise
+ */
+bool is_enabled(severity level);
 
+/**
+ * @brief Adds a sink to the logger.
+ *
+ * @param s The sink to add
+ * @param level The severity level of the sink
+ * @return The ID of the added sink
+ */
 size_t add_sink(sink s, severity level = severity::info);
 
+/**
+ * @brief Removes a sink from the logger.
+ *
+ * @param id The ID of the sink to remove
+ */
 void remove_sink(size_t id);
 
+/**
+ * @brief Sets the severity level for a specific sink.
+ *
+ * @param level The severity level to set
+ * @param id The ID of the sink to set the severity for; defaults to 0 for the stderr sink
+ */
 void set_severity(severity level, size_t id = 0);
 
-size_t add_file_logger(std::string_view filename, severity s = severity::info);
+/**
+ * @brief Adds a file sink to the logger.
+ *
+ * @param filename The name of the file to log to
+ * @param level The severity level of the file logger
+ * @return The ID of the added file logger
+ */
+size_t add_file_logger(std::string_view filename, severity level = severity::info);
 
 template <severity Severity>
 struct print

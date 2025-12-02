@@ -108,10 +108,10 @@ struct logger_options
            {"--log-level"},
            ap.help("Set log level (none/0, error/1, warn/2, info/3, debug/4, trace/5)"),
            ap.validate([](auto&, auto&, auto& params) {
-               if(!params.empty())
+               if(not params.empty())
                {
                    auto level_str = params.back();
-                   if(!parse_log_level_string(level_str))
+                   if(not parse_log_level_string(level_str))
                    {
                        throw std::runtime_error(
                            "Invalid log level: " + level_str +
@@ -128,7 +128,7 @@ struct logger_options
 
     void apply() const
     {
-        if(!log_level.empty())
+        if(not log_level.empty())
         {
             auto level = parse_log_level_string(log_level);
             if(level)
@@ -144,17 +144,17 @@ struct logger_options
     static std::optional<migraphx::log::severity>
     parse_log_level_string(const std::string& level_str)
     {
-        if(level_str == "trace" || level_str == "5")
+        if(level_str == "trace" or level_str == "5")
             return migraphx::log::severity::trace;
-        else if(level_str == "debug" || level_str == "4")
+        else if(level_str == "debug" or level_str == "4")
             return migraphx::log::severity::debug;
-        else if(level_str == "info" || level_str == "3")
+        else if(level_str == "info" or level_str == "3")
             return migraphx::log::severity::info;
-        else if(level_str == "warn" || level_str == "warning" || level_str == "2")
+        else if(level_str == "warn" or level_str == "2")
             return migraphx::log::severity::warn;
-        else if(level_str == "error" || level_str == "1")
+        else if(level_str == "error" or level_str == "1")
             return migraphx::log::severity::error;
-        else if(level_str == "none" || level_str == "off" || level_str == "0")
+        else if(level_str == "none" or level_str == "0")
             return migraphx::log::severity::none;
 
         return std::nullopt;
@@ -173,7 +173,7 @@ bool parse_and_apply_logger_options(std::vector<std::string>& args)
             logger_args.push_back(*it);
             it = args.erase(it);
             // Grab the single value if present
-            if(it != args.end() && !it->empty() && (*it)[0] != '-')
+            if(it != args.end() and not it->empty() and (*it)[0] != '-')
             {
                 logger_args.push_back(*it);
                 it = args.erase(it);
@@ -184,7 +184,7 @@ bool parse_and_apply_logger_options(std::vector<std::string>& args)
             logger_args.push_back(*it);
             it = args.erase(it);
             // Grab all values until the next flag (for unlimited log files)
-            while(it != args.end() && !it->empty() && (*it)[0] != '-')
+            while(it != args.end() and not it->empty() and (*it)[0] != '-')
             {
                 logger_args.push_back(*it);
                 it = args.erase(it);
@@ -196,7 +196,7 @@ bool parse_and_apply_logger_options(std::vector<std::string>& args)
         }
     }
 
-    if(!logger_args.empty())
+    if(not logger_args.empty())
     {
         logger_options opts;
         migraphx::driver::argument_parser ap;
@@ -1125,7 +1125,7 @@ int main(int argc, const char* argv[], const char* envp[])
     const std::vector<std::string> original_args = args;
 
     // Parse and apply logger options (--log-level, --log-file)
-    if(!parse_and_apply_logger_options(args))
+    if(not parse_and_apply_logger_options(args))
         return 1;
 
     // no argument, print the help infomration by default

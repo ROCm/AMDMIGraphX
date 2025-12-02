@@ -280,7 +280,7 @@ TEST_CASE(logger_file_sink_returns_id)
 
     // add_file_logger should return an ID > 0
     auto file_id =
-        migraphx::log::add_file_logger("test_sink_log.txt", migraphx::log::severity::info);
+        migraphx::log::add_file_logger("/tmp/migraphx_test_log.txt", migraphx::log::severity::info);
     EXPECT(file_id > 0);
 
     // Log something

@@ -32,11 +32,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 namespace builder {
 
-value get_default_options()
-{
-    value default_value = value("", {}, false);
-    return default_value;
-}
+value get_default_options() { return value("", {}, false); }
 
 static std::unordered_map<std::string, builder_func>& builder_map()
 {

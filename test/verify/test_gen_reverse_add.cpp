@@ -88,4 +88,3 @@ struct test_gen_reverse_relu : verify_program<test_gen_reverse_relu<DType>>
 
 template struct test_gen_reverse_relu<migraphx::shape::float_type>;
 template struct test_gen_reverse_relu<migraphx::shape::half_type>;
-

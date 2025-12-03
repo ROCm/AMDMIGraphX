@@ -39,7 +39,7 @@ struct test_gen_pad_layernorm : verify_program<test_gen_pad_layernorm<DType>>
         migraphx::program p;
         auto* mm                 = p.get_main_module();
         std::vector<size_t> dims = {1, 2, 4};
-        auto x = mm->add_parameter("x", migraphx::shape{DType, dims});
+        auto x                   = mm->add_parameter("x", migraphx::shape{DType, dims});
         // Pad the input
         std::vector<int64_t> pads = {0, 0, 1, 0, 0, 1};
         auto padded = mm->add_instruction(migraphx::make_op("pad", {{"pads", pads}}), x);
@@ -64,8 +64,9 @@ struct test_gen_gather_layernorm : verify_program<test_gen_gather_layernorm<DTyp
         auto* mm = p.get_main_module();
         migraphx::shape s_data{DType, {8, 4, 16}};
         migraphx::shape s_indices{migraphx::shape::int32_type, {4}};
-        auto data    = mm->add_parameter("data", s_data);
-        auto indices = mm->add_literal(migraphx::literal{s_indices, std::vector<int32_t>{0, 2, 4, 6}});
+        auto data = mm->add_parameter("data", s_data);
+        auto indices =
+            mm->add_literal(migraphx::literal{s_indices, std::vector<int32_t>{0, 2, 4, 6}});
         auto gathered =
             mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
         // Gathered shape: {4, 4, 16}
@@ -89,9 +90,9 @@ struct test_gen_add_layernorm : verify_program<test_gen_add_layernorm<DType>>
         migraphx::program p;
         auto* mm                 = p.get_main_module();
         std::vector<size_t> dims = {2, 4, 8};
-        auto x   = mm->add_parameter("x", migraphx::shape{DType, dims});
-        auto y   = mm->add_parameter("y", migraphx::shape{DType, dims});
-        auto add = mm->add_instruction(migraphx::make_op("add"), x, y);
+        auto x                   = mm->add_parameter("x", migraphx::shape{DType, dims});
+        auto y                   = mm->add_parameter("y", migraphx::shape{DType, dims});
+        auto add                 = mm->add_instruction(migraphx::make_op("add"), x, y);
         add_layernorm(*mm, add, dims);
         return p;
     }
@@ -100,5 +101,3 @@ struct test_gen_add_layernorm : verify_program<test_gen_add_layernorm<DType>>
 
 template struct test_gen_add_layernorm<migraphx::shape::float_type>;
 template struct test_gen_add_layernorm<migraphx::shape::half_type>;
-
-

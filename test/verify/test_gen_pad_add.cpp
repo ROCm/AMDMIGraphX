@@ -39,7 +39,7 @@ struct test_gen_pad_add : verify_program<test_gen_pad_add<DType>>
         migraphx::shape s{DType, {4, 8, 16}};
         // Pad format: [before_d0, before_d1, before_d2, after_d0, after_d1, after_d2]
         std::vector<int64_t> pads = {0, 1, 1, 0, 1, 1};
-        auto x      = mm->add_parameter("x", s);
+        auto x                    = mm->add_parameter("x", s);
         auto padded = mm->add_instruction(migraphx::make_op("pad", {{"pads", pads}}), x);
         // Padded shape: {4, 10, 18}
         migraphx::shape s_padded{DType, {4, 10, 18}};
@@ -63,9 +63,9 @@ struct test_gen_pad_mul : verify_program<test_gen_pad_mul<DType>>
         migraphx::shape s{DType, {2, 4, 8}};
         // Pad format: [before_d0, before_d1, before_d2, after_d0, after_d1, after_d2]
         std::vector<int64_t> pads = {1, 1, 0, 1, 1, 0};
-        auto x      = mm->add_parameter("x", s);
-        auto padded = mm->add_instruction(
-            migraphx::make_op("pad", {{"pads", pads}, {"value", 1.0f}}), x);
+        auto x                    = mm->add_parameter("x", s);
+        auto padded =
+            mm->add_instruction(migraphx::make_op("pad", {{"pads", pads}, {"value", 1.0f}}), x);
         // Padded shape: {4, 6, 8}
         migraphx::shape s_padded{DType, {4, 6, 8}};
         auto y = mm->add_parameter("y", s_padded);

@@ -86,8 +86,9 @@ struct test_gen_gather_add_reduce : verify_program<test_gen_gather_add_reduce<DT
         auto* mm = p.get_main_module();
         migraphx::shape s_data{DType, {16, 8}};
         migraphx::shape s_indices{migraphx::shape::int32_type, {4}};
-        auto data    = mm->add_parameter("data", s_data);
-        auto indices = mm->add_literal(migraphx::literal{s_indices, std::vector<int32_t>{0, 4, 8, 12}});
+        auto data = mm->add_parameter("data", s_data);
+        auto indices =
+            mm->add_literal(migraphx::literal{s_indices, std::vector<int32_t>{0, 4, 8, 12}});
         auto gathered =
             mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
         // Gathered shape: {4, 8}
@@ -102,5 +103,3 @@ struct test_gen_gather_add_reduce : verify_program<test_gen_gather_add_reduce<DT
 
 template struct test_gen_gather_add_reduce<migraphx::shape::float_type>;
 template struct test_gen_gather_add_reduce<migraphx::shape::half_type>;
-
-

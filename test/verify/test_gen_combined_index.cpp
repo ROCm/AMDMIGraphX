@@ -39,7 +39,7 @@ struct test_gen_pad_reverse_add : verify_program<test_gen_pad_reverse_add<DType>
         migraphx::shape s{DType, {4, 8}};
         // Pad format: [before_d0, before_d1, after_d0, after_d1]
         std::vector<int64_t> pads = {1, 0, 1, 0};
-        auto x      = mm->add_parameter("x", s);
+        auto x                    = mm->add_parameter("x", s);
         auto padded = mm->add_instruction(migraphx::make_op("pad", {{"pads", pads}}), x);
         // Padded shape: {6, 8}
         std::vector<int64_t> axes = {0};
@@ -88,9 +88,9 @@ struct test_gen_broadcast_add : verify_program<test_gen_broadcast_add<DType>>
         auto* mm = p.get_main_module();
         migraphx::shape s_x{DType, {1, 8, 1}};
         migraphx::shape s_y{DType, {4, 8, 16}};
-        auto x           = mm->add_parameter("x", s_x);
-        auto broadcasted = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {4, 8, 16}}}), x);
+        auto x = mm->add_parameter("x", s_x);
+        auto broadcasted =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 8, 16}}}), x);
         auto y = mm->add_parameter("y", s_y);
         mm->add_instruction(migraphx::make_op("add"), broadcasted, y);
         return p;
@@ -122,4 +122,3 @@ struct test_gen_transpose_add : verify_program<test_gen_transpose_add<DType>>
 
 template struct test_gen_transpose_add<migraphx::shape::float_type>;
 template struct test_gen_transpose_add<migraphx::shape::half_type>;
-

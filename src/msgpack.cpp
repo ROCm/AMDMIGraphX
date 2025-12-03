@@ -247,17 +247,7 @@ std::vector<char> to_msgpack(const value& v)
 }
 value from_msgpack(const char* buffer, std::size_t size)
 {
-    // Use higher limits for deeply nested structures (e.g., shapes with tuple_type containing sub_shapes)
-    msgpack::unpack_limit limits(
-        0xffffffff,  // array - no limit
-        0xffffffff,  // map - no limit
-        0xffffffff,  // str - no limit
-        0xffffffff,  // bin - no limit
-        0xffffffff,  // ext - no limit
-        0xffffffff   // depth - allow very deep nesting for complex models
-    );
-
-    msgpack::object_handle oh = msgpack::unpack(buffer, size, nullptr, nullptr, limits);
+    msgpack::object_handle oh = msgpack::unpack(buffer, size);
     return oh.get().as<value>();
 }
 value from_msgpack(const std::vector<char>& buffer)

@@ -542,6 +542,7 @@ std::string generate_reduce(module m, const std::string& name)
 static std::vector<std::string> get_op_names(const module& m)
 {
     std::vector<std::string> result;
+    std::vector<std::string> bmkn;
     for(auto& ins : m)
     {
         if(starts_with(ins.name(), "@"))
@@ -556,6 +557,23 @@ static std::vector<std::string> get_op_names(const module& m)
         else
         {
             result.push_back(ins.name());
+        }
+        if(ins.name() == "dot")
+        {
+            auto a_lens = ins.inputs().front()->get_shape().lens();
+            auto b_lens = ins.inputs().at(1)->get_shape().lens();
+            bmkn.push_back("b" + std::to_string(a_lens.at(0)));
+            bmkn.push_back("m" + std::to_string(a_lens.at(1)));
+            bmkn.push_back("k" + std::to_string(a_lens.at(2)));
+            bmkn.push_back("n" + std::to_string(b_lens.at(2)));
+        }
+        
+    }
+    if(not bmkn.empty())
+    {
+        for(auto val: bmkn)
+        {
+            result.push_back(val);
         }
     }
     return result;

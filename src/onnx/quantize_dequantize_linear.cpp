@@ -37,7 +37,7 @@ transform_quantize_dequantize_linear_inputs(const onnx_parser::node_info& info,
                                             std::vector<instruction_ref> args)
 {
     return op::builder::transform_quantize_dequantize_linear_inputs(
-        info, onnx_name, block_size, axis, args);
+        info, onnx_name, block_size, axis, std::move(args));
 }
 
 } // namespace onnx

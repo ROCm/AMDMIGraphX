@@ -43,6 +43,7 @@ namespace gpu {
 namespace gen {
 
 // Use gpu::gen namespace for compile_gen utilities
+using migraphx::gpu::generate_make_shape;
 using migraphx::gpu::gen::find_fast_axis;
 using migraphx::gpu::gen::generate_name_from_ops;
 using migraphx::gpu::gen::generate_pointwise;
@@ -50,7 +51,6 @@ using migraphx::gpu::gen::generate_reduce;
 using migraphx::gpu::gen::make_transformer_args;
 using migraphx::gpu::gen::tile;
 using migraphx::gpu::gen::vectorize;
-using migraphx::gpu::generate_make_shape;
 
 // Kernel template for gen pointwise operations
 static const char* const gen_pointwise_kernel = R"__migraphx__(
@@ -289,7 +289,8 @@ static std::string generate_gen_instruction(cpp_generator& g,
         // args[0] = value, args[1] = lds buffer
         // Need wave_id and lane_id - generate them inline
         return "gen::block_reduce_" + func_suffix + "(" + args[0] + ", " + args[1] +
-               ".data(), idx.nlocal() / MIGRAPHX_WAVEFRONTSIZE, idx.local / MIGRAPHX_WAVEFRONTSIZE, idx.local_wave())";
+               ".data(), idx.nlocal() / MIGRAPHX_WAVEFRONTSIZE, idx.local / "
+               "MIGRAPHX_WAVEFRONTSIZE, idx.local_wave())";
     }
 
     return "/* unsupported: " + ins->name() + " */";
@@ -385,7 +386,8 @@ operation compile_gen(context& ctx, const program& p, const std::string& kernel_
 }
 
 /// Gen compiler - compiles gpu::gen::op which contains a submodule with high-level operations
-/// The tiling pass determines the algorithm, block_size, and global workitems based on the operations.
+/// The tiling pass determines the algorithm, block_size, and global workitems based on the
+/// operations.
 struct gen_compiler : compiler<gen_compiler>
 {
     std::vector<std::string> names() const { return {"gpu::gen::op"}; }

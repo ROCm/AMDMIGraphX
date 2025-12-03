@@ -60,10 +60,7 @@ static bool is_fusable_input_op(const std::string& name)
 }
 
 // Check if instruction is used only once
-static bool is_used_once(instruction_ref ins)
-{
-    return ins->outputs().size() == 1;
-}
+static bool is_used_once(instruction_ref ins) { return ins->outputs().size() == 1; }
 
 // Get the chain of fusable input operations from an input
 // Only includes operations that are used once
@@ -168,7 +165,8 @@ static bool try_fuse_op(module& m, module_pass_manager& mpm, instruction_ref ins
     if(needs_input_fusion)
     {
         // Create a new module that includes fused input operations
-        std::string mod_name = "gen_" + ins->name() + "_" + std::to_string(ins->get_shape().elements());
+        std::string mod_name =
+            "gen_" + ins->name() + "_" + std::to_string(ins->get_shape().elements());
         if(m.name() != "main")
             mod_name = m.name() + ":" + mod_name;
 

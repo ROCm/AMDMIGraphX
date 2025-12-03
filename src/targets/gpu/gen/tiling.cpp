@@ -111,16 +111,18 @@ tile_config tile_config::compute(const std::vector<shape>& inputs, std::size_t /
 // Reduction operations that need special handling
 static const std::unordered_set<std::string>& reduction_ops()
 {
-    static const std::unordered_set<std::string> names = {
-        "reduce_sum", "reduce_mean", "reduce_max", "reduce_min", "reduce_prod", "reduce_any", "reduce_all"};
+    static const std::unordered_set<std::string> names = {"reduce_sum",
+                                                          "reduce_mean",
+                                                          "reduce_max",
+                                                          "reduce_min",
+                                                          "reduce_prod",
+                                                          "reduce_any",
+                                                          "reduce_all"};
     return names;
 }
 
 // Check if an instruction is a reduction
-static bool is_reduction(instruction_ref ins)
-{
-    return contains(reduction_ops(), ins->name());
-}
+static bool is_reduction(instruction_ref ins) { return contains(reduction_ops(), ins->name()); }
 
 // Check if module contains any reduction operations
 static bool contains_reduction(const module& m)
@@ -186,7 +188,7 @@ static reduce_config compute_reduce_config(const module& m, std::size_t wavefron
         reduce_elements *= input_shape.lens()[axis];
     }
 
-    result.reduce_axes    = std::vector<std::size_t>(axes.begin(), axes.end());
+    result.reduce_axes     = std::vector<std::size_t>(axes.begin(), axes.end());
     result.reduce_elements = reduce_elements;
     result.output_elements = input_shape.elements() / reduce_elements;
 

@@ -135,10 +135,7 @@ static const std::unordered_map<std::string, std::string>& reduction_op_map()
 }
 
 // Check if an instruction is a reduction
-static bool is_reduction(instruction_ref ins)
-{
-    return contains(reduction_op_map(), ins->name());
-}
+static bool is_reduction(instruction_ref ins) { return contains(reduction_op_map(), ins->name()); }
 
 // Get the reduction type (sum, max, min, product)
 static std::string get_reduction_type(const std::string& op_name)
@@ -180,34 +177,33 @@ static void lower_reduction(module& m, instruction_ref ins)
 
     // Compute elements per thread (strided access)
     // Each thread accumulates elements with a stride equal to workgroup size
-    auto workgroup_size =
-        m.insert_instruction(ins, make_op("gpu::gen::workgroup_size"));
+    auto workgroup_size = m.insert_instruction(ins, make_op("gpu::gen::workgroup_size"));
 
     // Create zero constant for initial accumulator value
     auto zero_lit = m.add_literal(literal{shape{input_shape.type()}, {0}});
 
     // Strided load and accumulation loop
-    // Each thread loads elements at indices: local_id, local_id + wg_size, local_id + 2*wg_size, ...
-    auto strided_load = m.insert_instruction(
-        ins,
-        make_op("gpu::gen::strided_load"),
-        input,
-        local_id,
-        local_id,           // base
-        workgroup_size);    // stride
+    // Each thread loads elements at indices: local_id, local_id + wg_size, local_id + 2*wg_size,
+    // ...
+    auto strided_load = m.insert_instruction(ins,
+                                             make_op("gpu::gen::strided_load"),
+                                             input,
+                                             local_id,
+                                             local_id,        // base
+                                             workgroup_size); // stride
 
     // Accumulate the loaded value
     auto accumulated = m.insert_instruction(
         ins, make_op("gpu::gen::accumulate", {{"op", reduce_type}}), zero_lit, strided_load);
 
     // Wave-level reduction using DPP
-    auto wave_reduced =
-        m.insert_instruction(ins, make_op("gpu::gen::dpp_reduce", {{"op", reduce_type}}), accumulated);
+    auto wave_reduced = m.insert_instruction(
+        ins, make_op("gpu::gen::dpp_reduce", {{"op", reduce_type}}), accumulated);
 
     // Allocate LDS for cross-wave reduction (8 waves max)
     auto lds_shape = shape{input_shape.type(), {8}};
-    auto lds =
-        m.insert_instruction(ins, make_op("gpu::gen::lds_allocate", {{"shape", to_value(lds_shape)}}));
+    auto lds       = m.insert_instruction(
+        ins, make_op("gpu::gen::lds_allocate", {{"shape", to_value(lds_shape)}}));
 
     // Block-level reduction across waves
     auto block_reduced = m.insert_instruction(
@@ -216,9 +212,8 @@ static void lower_reduction(module& m, instruction_ref ins)
     // For reduce_mean, divide by number of elements
     if(ins->name() == "reduce_mean")
     {
-        auto count_lit = m.add_literal(literal{shape{input_shape.type()}, {reduce_elements}});
-        auto mean_result =
-            m.insert_instruction(ins, make_op("div"), block_reduced, count_lit);
+        auto count_lit   = m.add_literal(literal{shape{input_shape.type()}, {reduce_elements}});
+        auto mean_result = m.insert_instruction(ins, make_op("div"), block_reduced, count_lit);
         m.replace_instruction(ins, mean_result);
     }
     else

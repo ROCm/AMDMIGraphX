@@ -386,7 +386,7 @@ TEST_CASE(test_strided_load_op)
     // Test compute_shape - takes tensor, base, iter, stride
     auto tensor_shape = migraphx::shape{migraphx::shape::float_type, {1024}};
     auto idx_shape    = migraphx::shape{migraphx::shape::uint64_type};
-    auto s = op.compute_shape({tensor_shape, idx_shape, idx_shape, idx_shape});
+    auto s            = op.compute_shape({tensor_shape, idx_shape, idx_shape, idx_shape});
     EXPECT(s.type() == migraphx::shape::float_type);
     EXPECT(s.elements() == 1);
 }

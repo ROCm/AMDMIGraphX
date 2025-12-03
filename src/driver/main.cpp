@@ -45,6 +45,7 @@
 #include <migraphx/json.hpp>
 #include <migraphx/version.h>
 #include <migraphx/env.hpp>
+#include <migraphx/logger.hpp>
 
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_identity.hpp>
@@ -62,6 +63,7 @@
 
 #include <fstream>
 #include <iomanip>
+#include <optional>
 
 namespace {
 
@@ -93,6 +95,120 @@ std::string get_formatted_timestamp(std::chrono::time_point<std::chrono::system_
     std::stringstream ss;
     ss << std::put_time(now_as_tm_date, "%Y-%m-%d %H:%M:%S");
     return ss.str();
+}
+
+struct logger_options
+{
+    std::string log_level;
+    std::vector<std::string> log_files;
+
+    void parse(migraphx::driver::argument_parser& ap)
+    {
+        ap(log_level,
+           {"--log-level"},
+           ap.help("Set log level (none/0, error/1, warn/2, info/3, debug/4, trace/5)"),
+           ap.validate([](auto&, auto&, auto& params) {
+               if(not params.empty())
+               {
+                   auto level_str = params.back();
+                   if(not parse_log_level_string(level_str))
+                   {
+                       throw std::runtime_error(
+                           "Invalid log level: " + level_str +
+                           ". Valid levels: none/0, error/1, warn/2, info/3, debug/4, trace/5");
+                   }
+               }
+           }));
+        ap(log_files,
+           {"--log-file"},
+           ap.help("Log to file(s) (--log-file file1.log file2.log ...)"),
+           ap.append(),
+           ap.nargs(2));
+    }
+
+    void apply() const
+    {
+        if(not log_level.empty())
+        {
+            auto level = parse_log_level_string(log_level);
+            if(level)
+                migraphx::log::set_severity(*level);
+        }
+        for(const auto& log_file : log_files)
+        {
+            migraphx::log::add_file_logger(log_file);
+        }
+    }
+
+    private:
+    static std::optional<migraphx::log::severity>
+    parse_log_level_string(const std::string& level_str)
+    {
+        if(level_str == "trace" or level_str == "5")
+            return migraphx::log::severity::trace;
+        else if(level_str == "debug" or level_str == "4")
+            return migraphx::log::severity::debug;
+        else if(level_str == "info" or level_str == "3")
+            return migraphx::log::severity::info;
+        else if(level_str == "warn" or level_str == "2")
+            return migraphx::log::severity::warn;
+        else if(level_str == "error" or level_str == "1")
+            return migraphx::log::severity::error;
+        else if(level_str == "none" or level_str == "0")
+            return migraphx::log::severity::none;
+
+        return std::nullopt;
+    }
+};
+
+bool parse_and_apply_logger_options(std::vector<std::string>& args)
+{
+    // Extract only logger option flags from args for parsing
+    std::vector<std::string> logger_args;
+    auto it = args.begin();
+    while(it != args.end())
+    {
+        if(*it == "--log-level")
+        {
+            logger_args.push_back(*it);
+            it = args.erase(it);
+            // Grab the single value if present
+            if(it != args.end() and not it->empty() and (*it)[0] != '-')
+            {
+                logger_args.push_back(*it);
+                it = args.erase(it);
+            }
+        }
+        else if(*it == "--log-file")
+        {
+            logger_args.push_back(*it);
+            it = args.erase(it);
+            // Grab all values until the next flag (for unlimited log files)
+            while(it != args.end() and not it->empty() and (*it)[0] != '-')
+            {
+                logger_args.push_back(*it);
+                it = args.erase(it);
+            }
+        }
+        else
+        {
+            ++it;
+        }
+    }
+
+    if(not logger_args.empty())
+    {
+        logger_options opts;
+        migraphx::driver::argument_parser ap;
+        opts.parse(ap);
+
+        if(ap.parse(logger_args))
+            return false;
+
+        opts.apply();
+    }
+
+    return true;
 }
 } // namespace
 
@@ -1005,6 +1121,13 @@ using namespace migraphx::driver; // NOLINT
 int main(int argc, const char* argv[], const char* envp[])
 {
     std::vector<std::string> args(argv + 1, argv + argc);
+    // Save original args for display purposes before they get modified
+    const std::vector<std::string> original_args = args;
+
+    // Parse and apply logger options (--log-level, --log-file)
+    if(not parse_and_apply_logger_options(args))
+        return 1;
+
     // no argument, print the help infomration by default
     if(args.empty())
     {
@@ -1028,7 +1151,7 @@ int main(int argc, const char* argv[], const char* envp[])
     if(m.count(cmd) > 0)
     {
         std::string driver_invocation =
-            std::string(argv[0]) + " " + migraphx::to_string_range(args, " ");
+            std::string(argv[0]) + " " + migraphx::to_string_range(original_args, " ");
         std::cout << "Running [ " << get_version() << " ]: " << driver_invocation << std::endl;
 
         // Print start timestamp

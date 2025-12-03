@@ -44,14 +44,14 @@ __device__ auto compute_offset(Shape shape, index_int i)
 template <class Shape, class Pads>
 __device__ auto pad_index(Shape shape, Pads pads, index_int i) -> int64_t
 {
-    auto multi = shape.multi(i);
+    auto multi       = shape.multi(i);
     index_int result = 0;
     index_int stride = 1;
     for(index_int j = shape.lens.size(); j-- > 0;)
     {
         auto pad_before = pads[j];
-        auto len = shape.lens[j];
-        int64_t idx = static_cast<int64_t>(multi[j]) - static_cast<int64_t>(pad_before);
+        auto len        = shape.lens[j];
+        int64_t idx     = static_cast<int64_t>(multi[j]) - static_cast<int64_t>(pad_before);
         if(idx < 0 || idx >= static_cast<int64_t>(len))
             return -1;
         result += idx * stride;
@@ -67,7 +67,7 @@ __device__ auto reverse_index(Shape shape, Axes axes, index_int i)
     auto multi = shape.multi(i);
     for(index_int j = 0; j < axes.size(); j++)
     {
-        auto axis = axes[j];
+        auto axis   = axes[j];
         multi[axis] = shape.lens[axis] - 1 - multi[axis];
     }
     return shape.single(multi);
@@ -77,7 +77,7 @@ __device__ auto reverse_index(Shape shape, Axes axes, index_int i)
 template <class Shape, class Indices, index_int Axis>
 __device__ auto gather_index(Shape shape, Indices indices, index_int i)
 {
-    auto multi = shape.multi(i);
+    auto multi  = shape.multi(i);
     multi[Axis] = indices[multi[Axis]];
     return shape.single(multi);
 }
@@ -180,7 +180,8 @@ __device__ auto wave_reduce(T x, Op op)
 ///   lane_id - this lane's index within wave
 ///   op - reduction operation
 template <class T, class Op>
-__device__ auto block_reduce(T x, T* lds, index_int nwaves, index_int wave_id, index_int lane_id, Op op)
+__device__ auto
+block_reduce(T x, T* lds, index_int nwaves, index_int wave_id, index_int lane_id, Op op)
 {
     // Last lane of each wave writes to LDS
     if(lane_id == MIGRAPHX_WAVEFRONTSIZE - 1)
@@ -239,25 +240,29 @@ __device__ auto dpp_reduce_min(T x)
 
 /// Block reduce with specific operation
 template <class T>
-__device__ auto block_reduce_sum(T x, T* lds, index_int nwaves, index_int wave_id, index_int lane_id)
+__device__ auto
+block_reduce_sum(T x, T* lds, index_int nwaves, index_int wave_id, index_int lane_id)
 {
     return block_reduce(x, lds, nwaves, wave_id, lane_id, op::sum{});
 }
 
 template <class T>
-__device__ auto block_reduce_product(T x, T* lds, index_int nwaves, index_int wave_id, index_int lane_id)
+__device__ auto
+block_reduce_product(T x, T* lds, index_int nwaves, index_int wave_id, index_int lane_id)
 {
     return block_reduce(x, lds, nwaves, wave_id, lane_id, op::product{});
 }
 
 template <class T>
-__device__ auto block_reduce_max(T x, T* lds, index_int nwaves, index_int wave_id, index_int lane_id)
+__device__ auto
+block_reduce_max(T x, T* lds, index_int nwaves, index_int wave_id, index_int lane_id)
 {
     return block_reduce(x, lds, nwaves, wave_id, lane_id, op::max{});
 }
 
 template <class T>
-__device__ auto block_reduce_min(T x, T* lds, index_int nwaves, index_int wave_id, index_int lane_id)
+__device__ auto
+block_reduce_min(T x, T* lds, index_int nwaves, index_int wave_id, index_int lane_id)
 {
     return block_reduce(x, lds, nwaves, wave_id, lane_id, op::min{});
 }
@@ -266,4 +271,3 @@ __device__ auto block_reduce_min(T x, T* lds, index_int nwaves, index_int wave_i
 } // namespace migraphx
 
 #endif // MIGRAPHX_GUARD_KERNELS_GEN_HPP
-

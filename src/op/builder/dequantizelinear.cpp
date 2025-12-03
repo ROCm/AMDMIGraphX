@@ -31,7 +31,7 @@ namespace builder {
 
 struct dequantizelinear : op_builder<dequantizelinear>
 {
-    int axis = 1;
+    int axis       = 1;
     int block_size = 0;
 
     template <class Self, class F>
@@ -43,8 +43,8 @@ struct dequantizelinear : op_builder<dequantizelinear>
     std::vector<instruction_ref>
     insert(module& m, instruction_ref /*ins*/, const std::vector<instruction_ref>& args) const
     {
-        auto args_new = transform_quantize_dequantize_linear_inputs(
-            m, name(), block_size, axis, args);
+        auto args_new =
+            transform_quantize_dequantize_linear_inputs(m, name(), block_size, axis, args);
 
         return {m.add_instruction(make_op(name()), args_new)};
     }

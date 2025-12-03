@@ -36,7 +36,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 namespace builder {
 
-template<typename Builder>
+template <typename Builder>
 std::vector<instruction_ref>
 transform_quantize_dequantize_linear_inputs(Builder& bldr,
                                             const std::string& op_name,
@@ -65,8 +65,7 @@ transform_quantize_dequantize_linear_inputs(Builder& bldr,
         axis = tune_axis(x_rank, axis, op_name);
         if(x_lens[axis] != y_scale_lens[0])
         {
-            MIGRAPHX_THROW(op_name +
-                           ": For per axis granularity the length of y_scale (actual: " +
+            MIGRAPHX_THROW(op_name + ": For per axis granularity the length of y_scale (actual: " +
                            to_string(y_scale_lens[0]) + ") must be equal to size of x on axis " +
                            to_string(axis) + "(actual: " + to_string(x_lens[axis]) + ")");
         }

@@ -29,6 +29,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/array.hpp>
+#include <migraphx/ranges.hpp>
 #include <numeric>
 
 namespace migraphx {
@@ -107,8 +108,121 @@ tile_config tile_config::compute(const std::vector<shape>& inputs, std::size_t /
     return result;
 }
 
+// Reduction operations that need special handling
+static const std::unordered_set<std::string>& reduction_ops()
+{
+    static const std::unordered_set<std::string> names = {
+        "reduce_sum", "reduce_mean", "reduce_max", "reduce_min", "reduce_prod", "reduce_any", "reduce_all"};
+    return names;
+}
+
+// Check if an instruction is a reduction
+static bool is_reduction(instruction_ref ins)
+{
+    return contains(reduction_ops(), ins->name());
+}
+
+// Check if module contains any reduction operations
+static bool contains_reduction(const module& m)
+{
+    for(auto ins : iterator_for(m))
+    {
+        if(is_reduction(ins))
+            return true;
+    }
+    return false;
+}
+
+// Compute reduction configuration
+struct reduce_config
+{
+    std::vector<std::size_t> reduce_axes;
+    std::size_t reduce_elements = 0;
+    std::size_t output_elements = 0;
+    std::string algo            = "lane"; // lane, wave, block
+    std::size_t block_size      = 64;
+
+    bool is_valid() const { return not reduce_axes.empty(); }
+};
+
+static reduce_config compute_reduce_config(const module& m, std::size_t wavefront_size = 64)
+{
+    reduce_config result;
+
+    // Find the reduction instruction
+    instruction_ref reduce_ins;
+    for(auto ins : iterator_for(m))
+    {
+        if(is_reduction(ins))
+        {
+            reduce_ins = ins;
+            break;
+        }
+    }
+
+    if(reduce_ins == m.end())
+        return result;
+
+    // Get axes from the reduction
+    auto v    = reduce_ins->get_operator().to_value();
+    auto axes = v.at("axes").to_vector<std::int64_t>();
+
+    // Get input shape
+    auto input_shape = reduce_ins->inputs().front()->get_shape();
+    auto ndim        = input_shape.ndim();
+
+    // Normalize negative axes
+    for(auto& axis : axes)
+    {
+        if(axis < 0)
+            axis += ndim;
+    }
+    std::sort(axes.begin(), axes.end());
+
+    // Compute reduce elements
+    std::size_t reduce_elements = 1;
+    for(auto axis : axes)
+    {
+        reduce_elements *= input_shape.lens()[axis];
+    }
+
+    result.reduce_axes    = std::vector<std::size_t>(axes.begin(), axes.end());
+    result.reduce_elements = reduce_elements;
+    result.output_elements = input_shape.elements() / reduce_elements;
+
+    // Select algorithm based on reduction size
+    if(reduce_elements <= wavefront_size)
+    {
+        result.algo       = "wave";
+        result.block_size = wavefront_size;
+    }
+    else if(reduce_elements <= 256)
+    {
+        result.algo       = "block";
+        result.block_size = std::min<std::size_t>(256, reduce_elements);
+    }
+    else
+    {
+        result.algo       = "lane";
+        result.block_size = 256;
+    }
+
+    return result;
+}
+
 void gen_tiling::apply(module& m) const
 {
+    // First check if module contains reductions - handle differently
+    if(contains_reduction(m))
+    {
+        // For reductions, we don't tile the same way as copies
+        // The reduction lowering pass will handle the tiling pattern
+        // Just compute and store the reduction config for later use
+        auto config = compute_reduce_config(m);
+        (void)config; // Will be used by lower pass
+        return;
+    }
+
     // Collect copy instructions to tile
     std::vector<instruction_ref> copies_to_tile;
     for(auto ins : iterator_for(m))

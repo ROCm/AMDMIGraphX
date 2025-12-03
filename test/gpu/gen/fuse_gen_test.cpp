@@ -63,20 +63,11 @@ TEST_CASE(test_fuse_gen_pass_disabled_by_default)
     EXPECT(m1.sort() == m2.sort());
 }
 
-TEST_CASE(test_gen_pointwise_compute_shape)
+TEST_CASE(test_gen_op_basic)
 {
-    // Create a simple pointwise module
-    migraphx::module pm;
-    {
-        auto px   = pm.add_parameter("x0", migraphx::shape{migraphx::shape::float_type});
-        auto py   = pm.add_parameter("x1", migraphx::shape{migraphx::shape::float_type});
-        auto padd = pm.add_instruction(migraphx::make_op("add"), px, py);
-        pm.add_return({padd});
-    }
-
-    // Test that gen::pointwise operation can be created
-    auto gen_pw_op = migraphx::make_op("gpu::gen::pointwise");
-    EXPECT(gen_pw_op.name() == "gpu::gen::pointwise");
+    // Test that gpu::gen::op can be created
+    auto gen_op = migraphx::make_op("gpu::gen::op");
+    EXPECT(gen_op.name() == "gpu::gen::op");
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

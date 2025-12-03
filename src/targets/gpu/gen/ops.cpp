@@ -36,8 +36,11 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace gen {
 
-/// Gen pointwise operation - wraps a pointwise module for gen IR compilation
-struct pointwise
+/// Gen operation - wraps a submodule containing high-level tensor operations
+/// (pointwise, reduce, pad, gather, etc.) for gen IR compilation.
+/// Similar to mlir_op, this uses the submodule to compute shapes and
+/// the tiling/lower passes generate the tiles and loads/stores needed.
+struct op
 {
     template <class Self, class F>
     static auto reflect(Self&, F)
@@ -45,11 +48,12 @@ struct pointwise
         return pack();
     }
 
-    std::string name() const { return "gpu::gen::pointwise"; }
+    std::string name() const { return "gpu::gen::op"; }
 
     shape compute_shape(std::vector<shape> inputs, const std::vector<module_ref>&) const
     {
-        // Output shape is always the allocation (last input)
+        // The last input is always the output allocation
+        // Return its shape as the output
         return inputs.back();
     }
 
@@ -58,7 +62,7 @@ struct pointwise
         return shapes.size() - 1;
     }
 };
-MIGRAPHX_REGISTER_OP(pointwise);
+MIGRAPHX_REGISTER_OP(op);
 
 /// Tile region operation - represents a tiled view of a tensor for a specific workgroup
 /// Input 0: tensor (the full tensor to tile)
@@ -338,6 +342,84 @@ struct vector_store
 };
 MIGRAPHX_REGISTER_OP(vector_store);
 
+/// Strided load - loads a single element at a strided position
+/// Used for reductions where each thread loads elements at: base + i * stride
+/// Input 0: tensor (the tensor_view to load from)
+/// Input 1: base index (starting position for this thread)
+/// Input 2: iteration index (which iteration of the reduction loop)
+/// Input 3: stride (distance between consecutive loads, typically nthreads)
+/// Output: loaded value
+struct strided_load
+{
+    template <class Self, class F>
+    static auto reflect(Self&, F)
+    {
+        return pack();
+    }
+
+    std::string name() const { return "gpu::gen::strided_load"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this, true}.has(4);
+        // Output is a scalar of the tensor's element type
+        auto tensor_type = inputs.front().type();
+        return shape{tensor_type};
+    }
+};
+MIGRAPHX_REGISTER_OP(strided_load);
+
+/// Strided store - stores a value to tensor at an index
+/// Input 0: tensor (the tensor_view to store to)
+/// Input 1: index (where to store)
+/// Input 2: value (the value to store)
+/// No output (side effect only)
+struct strided_store
+{
+    template <class Self, class F>
+    static auto reflect(Self&, F)
+    {
+        return pack();
+    }
+
+    std::string name() const { return "gpu::gen::strided_store"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this, true}.has(3);
+        // No output, just side effect
+        return shape{};
+    }
+};
+MIGRAPHX_REGISTER_OP(strided_store);
+
+/// Accumulate - accumulates a value into an accumulator using an operation
+/// Used for per-lane accumulation in reductions
+/// Input 0: accumulator (current accumulated value)
+/// Input 1: value (new value to accumulate)
+/// Attribute: op (accumulation operation: "sum", "product", "max", "min")
+/// Output: new accumulated value
+struct accumulate
+{
+    std::string op = "sum"; // Accumulation operation
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.op, "op"));
+    }
+
+    std::string name() const { return "gpu::gen::accumulate"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this, true}.has(2);
+        // Output has same type as inputs
+        return inputs.front();
+    }
+};
+MIGRAPHX_REGISTER_OP(accumulate);
+
 /// Copy - copies data from source to destination tensor
 /// Input 0: source tensor
 /// Input 1: destination tensor
@@ -530,6 +612,68 @@ struct conditional_load
     }
 };
 MIGRAPHX_REGISTER_OP(conditional_load);
+
+// ============================================================================
+// Reduction Operators
+// These operators implement efficient GPU reductions using DPP and LDS.
+// ============================================================================
+
+/// DPP reduce - reduces values within a wavefront using DPP instructions
+/// Input 0: value to reduce
+/// Attribute: op (the reduction operation: "sum", "product", "max", "min")
+/// Output: reduced value (broadcast to all lanes in the wave)
+struct dpp_reduce
+{
+    std::string op = "sum"; // Reduction operation: "sum", "product", "max", "min"
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.op, "op"));
+    }
+
+    std::string name() const { return "gpu::gen::dpp_reduce"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this, true}.has(1);
+        // Output has same type as input
+        return inputs.front();
+    }
+};
+MIGRAPHX_REGISTER_OP(dpp_reduce);
+
+/// Reduce waves - reduces values across wavefronts within a workgroup using LDS
+/// Input 0: value (the per-wave reduced value, one per wave)
+/// Input 1: LDS buffer (allocated via lds_allocate, size = number of waves)
+/// Attribute: op (the reduction operation: "sum", "product", "max", "min")
+/// Output: final reduced value (available to all threads after barrier)
+///
+/// The operation flow is:
+/// 1. Each wave writes its partial result to LDS[wave_id]
+/// 2. Barrier synchronization
+/// 3. First wave reads all partial results and reduces them
+/// 4. Result is broadcast to all threads
+struct reduce_waves
+{
+    std::string op = "sum"; // Reduction operation: "sum", "product", "max", "min"
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.op, "op"));
+    }
+
+    std::string name() const { return "gpu::gen::reduce_waves"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this, true}.has(2);
+        // Output has same type as the input value
+        return inputs.front();
+    }
+};
+MIGRAPHX_REGISTER_OP(reduce_waves);
 
 } // namespace gen
 } // namespace gpu

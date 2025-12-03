@@ -34,6 +34,8 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/cpp_generator.hpp>
+#include <numeric>
+#include <limits>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -44,9 +46,11 @@ namespace gen {
 using migraphx::gpu::gen::find_fast_axis;
 using migraphx::gpu::gen::generate_name_from_ops;
 using migraphx::gpu::gen::generate_pointwise;
+using migraphx::gpu::gen::generate_reduce;
 using migraphx::gpu::gen::make_transformer_args;
 using migraphx::gpu::gen::tile;
 using migraphx::gpu::gen::vectorize;
+using migraphx::gpu::generate_make_shape;
 
 // Kernel template for gen pointwise operations
 static const char* const gen_pointwise_kernel = R"__migraphx__(
@@ -218,6 +222,75 @@ static std::string generate_gen_instruction(cpp_generator& g,
             return to_c_id(pm->name()) + "(" + join_strings(args, ", ") + ")";
         }
     }
+    if(ins->name() == "gpu::gen::strided_load")
+    {
+        // args: tensor, base, iter, stride
+        return "gen::strided_load(" + args[0] + ".data(), " + args[1] + ", " + args[2] + ", " +
+               args[3] + ")";
+    }
+    if(ins->name() == "gpu::gen::strided_store")
+    {
+        // args: tensor, index, value
+        return "(void)gen::strided_store(" + args[0] + ".data(), " + args[1] + ", " + args[2] + ")";
+    }
+    if(ins->name() == "gpu::gen::accumulate")
+    {
+        auto v  = ins->get_operator().to_value();
+        auto op = v.at("op").to<std::string>();
+        // Map operation name to function suffix
+        std::string func_suffix;
+        if(op == "sum")
+            func_suffix = "sum";
+        else if(op == "product")
+            func_suffix = "product";
+        else if(op == "max")
+            func_suffix = "max";
+        else if(op == "min")
+            func_suffix = "min";
+        else
+            func_suffix = "sum"; // Default
+        // args: accumulator, value
+        return "gen::accumulate_" + func_suffix + "(" + args[0] + ", " + args[1] + ")";
+    }
+    if(ins->name() == "gpu::gen::dpp_reduce")
+    {
+        auto v  = ins->get_operator().to_value();
+        auto op = v.at("op").to<std::string>();
+        // Map operation name to function suffix
+        std::string func_suffix;
+        if(op == "sum")
+            func_suffix = "sum";
+        else if(op == "product")
+            func_suffix = "product";
+        else if(op == "max")
+            func_suffix = "max";
+        else if(op == "min")
+            func_suffix = "min";
+        else
+            func_suffix = "sum"; // Default
+        return "gen::dpp_reduce_" + func_suffix + "(" + args[0] + ")";
+    }
+    if(ins->name() == "gpu::gen::reduce_waves")
+    {
+        auto v  = ins->get_operator().to_value();
+        auto op = v.at("op").to<std::string>();
+        // Map operation name to function suffix
+        std::string func_suffix;
+        if(op == "sum")
+            func_suffix = "sum";
+        else if(op == "product")
+            func_suffix = "product";
+        else if(op == "max")
+            func_suffix = "max";
+        else if(op == "min")
+            func_suffix = "min";
+        else
+            func_suffix = "sum"; // Default
+        // args[0] = value, args[1] = lds buffer
+        // Need wave_id and lane_id - generate them inline
+        return "gen::block_reduce_" + func_suffix + "(" + args[0] + ", " + args[1] +
+               ".data(), idx.nlocal() / MIGRAPHX_WAVEFRONTSIZE, idx.local / MIGRAPHX_WAVEFRONTSIZE, idx.local_wave())";
+    }
 
     return "/* unsupported: " + ins->name() + " */";
 }
@@ -311,10 +384,11 @@ operation compile_gen(context& ctx, const program& p, const std::string& kernel_
     return compile_hip_code_object(ctx, src, options);
 }
 
-/// Gen pointwise compiler
-struct gen_pointwise_compiler : compiler<gen_pointwise_compiler>
+/// Gen compiler - compiles gpu::gen::op which contains a submodule with high-level operations
+/// The tiling pass determines the algorithm, block_size, and global workitems based on the operations.
+struct gen_compiler : compiler<gen_compiler>
 {
-    std::vector<std::string> names() const { return {"gpu::gen::pointwise"}; }
+    std::vector<std::string> names() const { return {"gpu::gen::op"}; }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
@@ -329,7 +403,7 @@ struct gen_pointwise_compiler : compiler<gen_pointwise_compiler>
         auto noutputs = options.inputs.size() - inputs.size() + 1;
         auto t        = tile::elements(options.virtual_inputs, noutputs);
 
-        options.kernel_name = v.get("kernel", "gen_pointwise_kernel");
+        options.kernel_name = v.get("kernel", std::string("gen_kernel"));
 
         if(t.ntiles == 0)
             options.set_launch_params(
@@ -357,9 +431,12 @@ struct gen_pointwise_compiler : compiler<gen_pointwise_compiler>
         assert(not ins->module_inputs().empty());
         const_module_ref pm = ins->module_inputs().front();
 
-        auto pf            = generate_pointwise_kernel(*pm, "gen_inner_pointwise");
-        std::string lambda = "MIGRAPHX_LIFT(gen_inner_pointwise)";
-        auto kernel_name   = generate_name_from_ops(*pm, "gen_kernel");
+        // Generate pointwise kernel from the submodule
+        // TODO: In the future, the tiling and lower passes will handle different
+        // operation types (reduce, pad, gather, etc.) and generate appropriate code
+        auto pf            = generate_pointwise_kernel(*pm, "gen_op_inner");
+        std::string lambda = "MIGRAPHX_LIFT(gen_op_inner)";
+        auto kernel_name   = generate_name_from_ops(*pm, "gen_op");
 
         return compile_op(ctx,
                           to_shapes(ins->inputs()),

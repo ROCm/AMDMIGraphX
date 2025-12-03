@@ -122,15 +122,126 @@ static void lower_copy(
     m.replace_instruction(ins, store);
 }
 
+// Reduction operations mapping
+static const std::unordered_map<std::string, std::string>& reduction_op_map()
+{
+    static const std::unordered_map<std::string, std::string> ops = {
+        {"reduce_sum", "sum"},
+        {"reduce_mean", "sum"}, // mean uses sum reduction then divides
+        {"reduce_max", "max"},
+        {"reduce_min", "min"},
+        {"reduce_prod", "product"}};
+    return ops;
+}
+
+// Check if an instruction is a reduction
+static bool is_reduction(instruction_ref ins)
+{
+    return contains(reduction_op_map(), ins->name());
+}
+
+// Get the reduction type (sum, max, min, product)
+static std::string get_reduction_type(const std::string& op_name)
+{
+    auto it = reduction_op_map().find(op_name);
+    if(it != reduction_op_map().end())
+        return it->second;
+    return "sum";
+}
+
+// Lower a reduction to strided_load/accumulate/dpp_reduce/reduce_waves
+static void lower_reduction(module& m, instruction_ref ins)
+{
+    auto reduce_type = get_reduction_type(ins->name());
+    auto input       = ins->inputs().front();
+    auto input_shape = input->get_shape();
+
+    // Get reduction axes
+    auto v    = ins->get_operator().to_value();
+    auto axes = v.at("axes").to_vector<std::int64_t>();
+    auto ndim = input_shape.ndim();
+
+    // Normalize negative axes
+    for(auto& axis : axes)
+    {
+        if(axis < 0)
+            axis += ndim;
+    }
+
+    // Compute reduction elements
+    std::size_t reduce_elements = 1;
+    for(auto axis : axes)
+    {
+        reduce_elements *= input_shape.lens()[axis];
+    }
+
+    // Insert local_id for per-thread indexing
+    auto local_id = m.insert_instruction(ins, make_op("gpu::gen::local_id"));
+
+    // Compute elements per thread (strided access)
+    // Each thread accumulates elements with a stride equal to workgroup size
+    auto workgroup_size =
+        m.insert_instruction(ins, make_op("gpu::gen::workgroup_size"));
+
+    // Create zero constant for initial accumulator value
+    auto zero_lit = m.add_literal(literal{shape{input_shape.type()}, {0}});
+
+    // Strided load and accumulation loop
+    // Each thread loads elements at indices: local_id, local_id + wg_size, local_id + 2*wg_size, ...
+    auto strided_load = m.insert_instruction(
+        ins,
+        make_op("gpu::gen::strided_load"),
+        input,
+        local_id,
+        local_id,           // base
+        workgroup_size);    // stride
+
+    // Accumulate the loaded value
+    auto accumulated = m.insert_instruction(
+        ins, make_op("gpu::gen::accumulate", {{"op", reduce_type}}), zero_lit, strided_load);
+
+    // Wave-level reduction using DPP
+    auto wave_reduced =
+        m.insert_instruction(ins, make_op("gpu::gen::dpp_reduce", {{"op", reduce_type}}), accumulated);
+
+    // Allocate LDS for cross-wave reduction (8 waves max)
+    auto lds_shape = shape{input_shape.type(), {8}};
+    auto lds =
+        m.insert_instruction(ins, make_op("gpu::gen::lds_allocate", {{"shape", to_value(lds_shape)}}));
+
+    // Block-level reduction across waves
+    auto block_reduced = m.insert_instruction(
+        ins, make_op("gpu::gen::reduce_waves", {{"op", reduce_type}}), wave_reduced, lds);
+
+    // For reduce_mean, divide by number of elements
+    if(ins->name() == "reduce_mean")
+    {
+        auto count_lit = m.add_literal(literal{shape{input_shape.type()}, {reduce_elements}});
+        auto mean_result =
+            m.insert_instruction(ins, make_op("div"), block_reduced, count_lit);
+        m.replace_instruction(ins, mean_result);
+    }
+    else
+    {
+        m.replace_instruction(ins, block_reduced);
+    }
+}
+
 void gen_lower::apply(module& m) const
 {
-    // Collect copy instructions to lower
+    // Collect instructions to lower
     std::vector<instruction_ref> copies_to_lower;
+    std::vector<instruction_ref> reductions_to_lower;
+
     for(auto ins : iterator_for(m))
     {
         if(ins->name() == "gpu::gen::copy")
         {
             copies_to_lower.push_back(ins);
+        }
+        else if(is_reduction(ins))
+        {
+            reductions_to_lower.push_back(ins);
         }
     }
 
@@ -157,6 +268,12 @@ void gen_lower::apply(module& m) const
 
         // Lower copy to vector_load/vector_store
         lower_copy(m, ins, src, dst, vec_size);
+    }
+
+    // Lower reduction operations
+    for(auto ins : reductions_to_lower)
+    {
+        lower_reduction(m, ins);
     }
 }
 

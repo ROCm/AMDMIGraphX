@@ -162,10 +162,10 @@ TEST_CASE(test_check_op)
     EXPECT(s.lens().empty());
 }
 
-TEST_CASE(test_gen_pointwise_op)
+TEST_CASE(test_gen_op)
 {
-    auto op = migraphx::make_op("gpu::gen::pointwise");
-    EXPECT(op.name() == "gpu::gen::pointwise");
+    auto op = migraphx::make_op("gpu::gen::op");
+    EXPECT(op.name() == "gpu::gen::op");
 }
 
 TEST_CASE(test_vector_load_op)
@@ -376,6 +376,90 @@ TEST_CASE(test_compile_gen_vector_load_store)
 
     // Verify we got a valid code object operation
     EXPECT(code_op.name() == "gpu::code_object");
+}
+
+TEST_CASE(test_strided_load_op)
+{
+    auto op = migraphx::make_op("gpu::gen::strided_load");
+    EXPECT(op.name() == "gpu::gen::strided_load");
+
+    // Test compute_shape - takes tensor, base, iter, stride
+    auto tensor_shape = migraphx::shape{migraphx::shape::float_type, {1024}};
+    auto idx_shape    = migraphx::shape{migraphx::shape::uint64_type};
+    auto s = op.compute_shape({tensor_shape, idx_shape, idx_shape, idx_shape});
+    EXPECT(s.type() == migraphx::shape::float_type);
+    EXPECT(s.elements() == 1);
+}
+
+TEST_CASE(test_strided_store_op)
+{
+    auto op = migraphx::make_op("gpu::gen::strided_store");
+    EXPECT(op.name() == "gpu::gen::strided_store");
+
+    // Test compute_shape - takes tensor, index, value
+    auto tensor_shape = migraphx::shape{migraphx::shape::float_type, {1024}};
+    auto idx_shape    = migraphx::shape{migraphx::shape::uint64_type};
+    auto value_shape  = migraphx::shape{migraphx::shape::float_type};
+    auto s            = op.compute_shape({tensor_shape, idx_shape, value_shape});
+    EXPECT(s == migraphx::shape{});
+}
+
+TEST_CASE(test_accumulate_op)
+{
+    auto op = migraphx::make_op("gpu::gen::accumulate", {{"op", std::string("sum")}});
+    EXPECT(op.name() == "gpu::gen::accumulate");
+
+    // Test compute_shape - takes accumulator, value
+    auto value_shape = migraphx::shape{migraphx::shape::float_type};
+    auto s           = op.compute_shape({value_shape, value_shape});
+    EXPECT(s == value_shape);
+
+    // Test different operations
+    auto op_max = migraphx::make_op("gpu::gen::accumulate", {{"op", std::string("max")}});
+    EXPECT(op_max.name() == "gpu::gen::accumulate");
+
+    auto op_min = migraphx::make_op("gpu::gen::accumulate", {{"op", std::string("min")}});
+    EXPECT(op_min.name() == "gpu::gen::accumulate");
+
+    auto op_product = migraphx::make_op("gpu::gen::accumulate", {{"op", std::string("product")}});
+    EXPECT(op_product.name() == "gpu::gen::accumulate");
+}
+
+TEST_CASE(test_dpp_reduce_op)
+{
+    auto op = migraphx::make_op("gpu::gen::dpp_reduce", {{"op", std::string("sum")}});
+    EXPECT(op.name() == "gpu::gen::dpp_reduce");
+
+    // Test compute_shape - preserves input shape
+    auto input_shape = migraphx::shape{migraphx::shape::float_type, {1}};
+    auto s           = op.compute_shape({input_shape});
+    EXPECT(s == input_shape);
+
+    // Test different operations
+    auto op_max = migraphx::make_op("gpu::gen::dpp_reduce", {{"op", std::string("max")}});
+    EXPECT(op_max.name() == "gpu::gen::dpp_reduce");
+
+    auto op_min = migraphx::make_op("gpu::gen::dpp_reduce", {{"op", std::string("min")}});
+    EXPECT(op_min.name() == "gpu::gen::dpp_reduce");
+
+    auto op_product = migraphx::make_op("gpu::gen::dpp_reduce", {{"op", std::string("product")}});
+    EXPECT(op_product.name() == "gpu::gen::dpp_reduce");
+}
+
+TEST_CASE(test_reduce_waves_op)
+{
+    auto op = migraphx::make_op("gpu::gen::reduce_waves", {{"op", std::string("sum")}});
+    EXPECT(op.name() == "gpu::gen::reduce_waves");
+
+    // Test compute_shape - takes value and LDS buffer, returns value shape
+    auto value_shape = migraphx::shape{migraphx::shape::float_type, {1}};
+    auto lds_shape   = migraphx::shape{migraphx::shape::float_type, {8}}; // 8 wavefronts
+    auto s           = op.compute_shape({value_shape, lds_shape});
+    EXPECT(s == value_shape);
+
+    // Test different operations
+    auto op_max = migraphx::make_op("gpu::gen::reduce_waves", {{"op", std::string("max")}});
+    EXPECT(op_max.name() == "gpu::gen::reduce_waves");
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

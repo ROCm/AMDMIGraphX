@@ -818,10 +818,10 @@ struct find_mlir_fused_geg_ops
 
         // gemm0: (m x k) @ (k x n) -> (m x n)
         // gemm1: (m x n) @ (n x g) -> (m x g)
-        std::size_t m = shape_a1.lens()[shape_a1.lens().size() - 2];
-        std::size_t n = shape_b1.lens().back();
-        std::size_t k = shape_a1.lens().back();
-        std::size_t g = shape_b2.lens().back();
+        std::int64_t m = shape_a1.lens()[shape_a1.lens().size() - 2];
+        std::int64_t n = shape_b1.lens().back();
+        std::int64_t k = shape_a1.lens().back();
+        std::int64_t g = shape_b2.lens().back();
 
         // skip if any dimension is 0 (extraction failed)
         if(m == 0 or n == 0 or k == 0 or g == 0)
@@ -835,27 +835,27 @@ struct find_mlir_fused_geg_ops
         const double threshold = 1000.0;
 
         // calculate average differences for m being large
-        double m_minus_n        = static_cast<double>(m) - static_cast<double>(n);
-        double m_minus_k        = static_cast<double>(m) - static_cast<double>(k);
-        double m_minus_g        = static_cast<double>(m) - static_cast<double>(g);
+        double m_minus_n        = m - n;
+        double m_minus_k        = m - k;
+        double m_minus_g        = m - g;
         double m_avg_difference = (m_minus_n + m_minus_k + m_minus_g) / 3.0;
 
         // calculate average differences for n being large
-        double n_minus_m        = static_cast<double>(n) - static_cast<double>(m);
-        double n_minus_k        = static_cast<double>(n) - static_cast<double>(k);
-        double n_minus_g        = static_cast<double>(n) - static_cast<double>(g);
+        double n_minus_m        = n - m;
+        double n_minus_k        = n - k;
+        double n_minus_g        = n - g;
         double n_avg_difference = (n_minus_m + n_minus_k + n_minus_g) / 3.0;
 
         // calculate average differences for k being large (detrimental case)
-        double k_minus_m        = static_cast<double>(k) - static_cast<double>(m);
-        double k_minus_n        = static_cast<double>(k) - static_cast<double>(n);
-        double k_minus_g        = static_cast<double>(k) - static_cast<double>(g);
+        double k_minus_m        = k - m;
+        double k_minus_n        = k - n;
+        double k_minus_g        = k - g;
         double k_avg_difference = (k_minus_m + k_minus_n + k_minus_g) / 3.0;
 
         // calculate average differences for g being large (detrimental case)
-        double g_minus_m        = static_cast<double>(g) - static_cast<double>(m);
-        double g_minus_n        = static_cast<double>(g) - static_cast<double>(n);
-        double g_minus_k        = static_cast<double>(g) - static_cast<double>(k);
+        double g_minus_m        = g - m;
+        double g_minus_n        = g - n;
+        double g_minus_k        = g - k;
         double g_avg_difference = (g_minus_m + g_minus_n + g_minus_k) / 3.0;
 
         // fusion is good if m or n is significantly larger than others

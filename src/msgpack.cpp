@@ -25,6 +25,11 @@
 #include <migraphx/serialize.hpp>
 #include <msgpack.hpp>
 
+// Increase msgpack buffer size for large models
+#ifndef MSGPACK_UNPACKER_INIT_BUFFER_SIZE
+#define MSGPACK_UNPACKER_INIT_BUFFER_SIZE (64*1024)
+#endif
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
@@ -244,7 +249,17 @@ std::vector<char> to_msgpack(const value& v)
 }
 value from_msgpack(const char* buffer, std::size_t size)
 {
-    msgpack::object_handle oh = msgpack::unpack(buffer, size);
+    // Use higher limits for deeply nested structures (e.g., shapes with tuple_type)
+    msgpack::unpack_limit limits(
+        0xffffffff,  // array
+        0xffffffff,  // map
+        0xffffffff,  // str
+        0xffffffff,  // bin
+        0xffffffff,  // ext
+        0xffffffff   // depth - allow very deep nesting
+    );
+
+    msgpack::object_handle oh = msgpack::unpack(buffer, size, nullptr, nullptr, limits);
     return oh.get().as<value>();
 }
 value from_msgpack(const std::vector<char>& buffer)

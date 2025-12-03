@@ -29,8 +29,8 @@
 namespace {
 struct test_ctx
 {
-    test_ctx(std::vector<size_t> x_lens,
-             std::vector<size_t> s_lens,
+    test_ctx(const std::vector<size_t>& x_lens,
+             const std::vector<size_t>& s_lens,
              migraphx::shape::type_t x_type = migraphx::shape::int8_type,
              migraphx::shape::type_t s_type = migraphx::shape::float_type)
         : x_shape{x_type, x_lens},
@@ -45,7 +45,7 @@ struct test_ctx
     }
 
     migraphx::module make_op_bldr()
-    {
+    { 
         return make_op_module(
             "dequantizelinear", {{"axis", axis}, {"block_size", block_size}}, m.get_parameters());
     }
@@ -64,22 +64,22 @@ struct test_ctx
     migraphx::instruction_ref zp;
 };
 
-test_ctx per_tensor_ctx(std::vector<size_t> x_lens) { return test_ctx{x_lens, {1}}; }
+test_ctx per_tensor_ctx(const std::vector<size_t>& x_lens) { return test_ctx{x_lens, {1}}; }
 
-test_ctx per_axis_ctx(std::vector<size_t> x_lens, size_t s_dim, int axis)
+test_ctx per_axis_ctx(const std::vector<size_t>& x_lens, size_t s_dim, int axis)
 {
     test_ctx ctx{x_lens, {s_dim}};
     ctx.axis = axis;
     return ctx;
 }
 
-test_ctx per_axis_ctx_valid(std::vector<size_t> x_lens, int axis)
+test_ctx per_axis_ctx_valid(const std::vector<size_t>& x_lens, int axis)
 {
     return per_axis_ctx(x_lens, x_lens[axis], axis);
 }
 
 test_ctx
-blocked_ctx(std::vector<size_t> x_lens, std::vector<size_t> s_lens, int axis, int block_size)
+blocked_ctx(const std::vector<size_t>& x_lens, const std::vector<size_t>& s_lens, int axis, int block_size)
 {
     test_ctx ctx{x_lens, s_lens};
     ctx.axis       = axis;

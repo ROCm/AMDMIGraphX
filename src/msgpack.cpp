@@ -83,6 +83,8 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
                 break;
             }
             case msgpack::type::FLOAT32:
+                v = o.as<float>();
+                break;
             case msgpack::type::FLOAT64: {
                 v = o.as<double>();
                 break;

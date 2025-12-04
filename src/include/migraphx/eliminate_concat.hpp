@@ -35,7 +35,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct module;
 
 /**
- * Remove concat operators by having each operator can write to different chunk of memory.
+ * Remove concat operators by having each operator write to different chunk of memory.
  */
 struct MIGRAPHX_EXPORT eliminate_concat
 {

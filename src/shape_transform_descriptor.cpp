@@ -330,7 +330,6 @@ struct rebase_ambiguity_resolver
     // Returns the axes mapping that can be used for rebase
     auto resolve()
     {
-
         std::vector<std::pair<dimension::sub, std::size_t>> subs_to_insert;
         {
             axes_map_t axes_map = group_axes(desc->dimensions);

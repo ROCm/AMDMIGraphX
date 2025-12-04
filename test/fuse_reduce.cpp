@@ -939,6 +939,59 @@ TEST_CASE(reduce_contiguous_reshape_pointwise)
     EXPECT(p1.sort() == p2.sort());
 }
 
+// @411 = pointwise(@404), [main:pointwise256] -> float_type, {1, 1, 1, 1, 1, 1, 32, 10, 16, 1, 90, 160}, {73728000, 73728000, 73728000, 73728000, 73728000, 73728000, 144000, 14400, 4608000, 14400, 160, 1}
+// @414 = unsqueeze[axes={1, 2, 3, 4, 5, 8, 9, 10, 11},steps={}](@408) -> float_type, {1, 1, 1, 1, 1, 1, 32, 1, 1, 1, 1, 1}, {32, 32, 32, 32, 32, 32, 1, 1, 1, 1, 1, 1}
+
+// @415 = fused_reduce[axes={7, 8, 9, 10, 11}](@411,@414), [main:pointwise257:main:reduce_sum37:main:pointwise258_reshape] -> float_type, {1, 1, 1, 1, 1, 1, 32, 1, 1, 1, 1, 1}, {32, 32, 32, 32, 32, 32, 1, 1, 1, 1, 1, 1}
+// @419 = multibroadcast[out_lens={1, 1, 1, 1, 1, 1, 32, 10, 16, 1, 90, 160},out_dyn_dims={}](@418) -> float_type, {1, 1, 1, 1, 1, 1, 32, 10, 16, 1, 90, 160}, {32, 32, 32, 32, 32, 32, 1, 0, 0, 1, 0, 0}
+// @421 = pointwise(@404,@410,@419,@420), [main:pointwise255] -> half_type, {1, 1, 1, 1, 1, 1, 32, 10, 16, 1, 90, 160}, {73728000, 73728000, 73728000, 73728000, 73728000, 73728000, 144000, 14400, 4608000, 14400, 160, 1}
+
+// ops: squeeze[axes={1, 2, 3, 4, 5, 7, 8, 9, 10}], unsqueeze[axes={1, 2, 3, 4, 5, 7, 8, 10, 11},steps={}], multibroadcast[out_lens={1, 1, 1, 1, 1, 1, 32, 10, 16, 1, 90, 160},out_dyn_dims={}]
+// desc: {[1:0], [1:1], [1:2], [1:3], [1:4], [1:5], [32:6], [10:7x1], [16:], [1:7x0], [16:8], [160:11x1, 90:10, 1:11x0]}
+
+
+TEST_CASE(reduce_squeeze_unsqueeze_pointwise1)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1, 1, 1, 1, 1, 1, 32, 10, 16, 1, 90, 160}};
+    migraphx::shape s2{migraphx::shape::float_type, {8, 8, 2, 2}};
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", s1);
+        auto y     = mm->add_parameter("y", s2);
+        auto rsum  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {7, 8, 9, 10, 11}}}), x);
+        auto squeeze = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1, 2, 3, 4, 5, 7, 8, 9, 10}}}), rsum);
+        auto unsqueeze = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2, 3, 4, 5, 7, 8, 10, 11}}}), squeeze);
+        auto rsumb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), unsqueeze);
+        auto add = add_pointwise(p1, "main:pointwise0", {rsumb, y}, single_pointwise("add"));
+        mm->add_return({add});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s1);
+        auto y   = mm->add_parameter("y", s2);
+        auto xr  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), x);
+        auto add = add_reduce(
+            p2,
+            "main:reduce_sum0_reshape:main:pointwise0",
+            {xr, y},
+            {2, 3},
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto rsum  = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
+                                                inputs[0]);
+                auto rsumb = rm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), rsum);
+                return add_pointwise(
+                    p2, rm, "main:pointwise0", {rsumb, inputs[1]}, single_pointwise("add"));
+            });
+        mm->add_return({add});
+    }
+    EXPECT(p1 == p2);
+}
+
 TEST_CASE(reduce_reshape_reduce)
 {
     migraphx::shape s1{migraphx::shape::float_type, {2, 32, 4096}};

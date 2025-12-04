@@ -1571,13 +1571,12 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     mlir_mode geg_conv_mode =
         enabled(MIGRAPHX_DISABLE_MLIR_GEG_CONV_FUSION{}) ? mlir_mode::none : mlir_mode::fast;
 
-    match::find_matches(
-        mpm,
-        find_mlir_fused_geg_ops{.conv_mode = geg_conv_mode,
-                                .dot_mode  = geg_dot_mode,
-                                .gfx_name  = device_name,
-                                .enable_geg_multi_out_intermediates =
-                                    enable_geg_multi_out_intermediates});
+    match::find_matches(mpm,
+                        find_mlir_fused_geg_ops{.conv_mode = geg_conv_mode,
+                                                .dot_mode  = geg_dot_mode,
+                                                .gfx_name  = device_name,
+                                                .enable_geg_multi_out_intermediates =
+                                                    enable_geg_multi_out_intermediates});
     mpm.run_pass(dead_code_elimination{});
 
     match::find_matches(

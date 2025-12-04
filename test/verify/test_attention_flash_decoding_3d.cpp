@@ -32,27 +32,35 @@ struct test_attention_flash_decoding_3d : verify_program<test_attention_flash_de
 {
     migraphx::program create_program() const
     {
-        // 3D Shape: [batch, sequence_length, head_dim]
-        migraphx::shape s_3d{DType, {1, 256, 256}};
+        // Q = [B, M, k]
+        // K = [B, k, N]
+        // V = [B, N, D]
+        // B = 1
+        // M = 64
+        // k = 16
+        // N = 256
+        // D = 32
+        migraphx::shape q_shape{DType, {1, 64, 16}};
+        migraphx::shape k_shape{DType, {1, 16, 256}};
+        migraphx::shape v_shape{DType, {1, 256, 32}};
 
         migraphx::program p1;
         auto* mm = p1.get_main_module();
-        auto a   = mm->add_parameter("q", s_3d);
-        auto b   = mm->add_parameter("k", s_3d);
-        auto b1  = mm->add_parameter("v", s_3d);
-        b  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), b);
-        b1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), b1);
-        auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
-        auto rmax  = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), gemm1);
-        rmax = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s_3d.lens()}}),
+        auto a   = mm->add_parameter("q", q_shape);
+        auto b   = mm->add_parameter("k", k_shape);
+        auto b1  = mm->add_parameter("v", v_shape);
+
+        auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), a, b); // {1, 64, 256}
+        auto rmax  = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), gemm1); // {1, 64, 1}
+        rmax = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 64, 256}}}),
                                    rmax);
-        auto sub  = mm->add_instruction(migraphx::make_op("sub"), gemm1, rmax);
-        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
-        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), exp);
-        rsum = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s_3d.lens()}}),
-                                   rsum);
-        auto div   = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
-        auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, b1);
+        auto sub  = mm->add_instruction(migraphx::make_op("sub"), gemm1, rmax); // {1, 64, 256}
+        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub); // {1, 64, 256}
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), exp); // {1, 64, 1}
+        rsum = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 64, 256}}}),
+                                   rsum); // {1, 64, 256}
+        auto div   = mm->add_instruction(migraphx::make_op("div"), exp, rsum); // {1, 64, 256}
+        auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, b1); // {1, 64, 32}
         mm->add_return({gemm2});
         return p1;
     }

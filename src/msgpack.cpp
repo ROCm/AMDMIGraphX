@@ -34,7 +34,7 @@ constexpr std::size_t msgpack_size_limit = std::numeric_limits<uint32_t>::max() 
 template <class Range>
 static std::size_t msgpack_chunk_size(const Range& r)
 {
-    if(r.size() == 0)
+    if (r.size() == 0)
         return 1;  // Even empty data needs one chunk
     return 1 + (r.size() - 1) / msgpack_size_limit;
 }

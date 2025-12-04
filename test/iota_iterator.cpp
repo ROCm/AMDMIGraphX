@@ -24,10 +24,9 @@
 #include <migraphx/iota_iterator.hpp>
 #include <migraphx/functional.hpp>
 #include <algorithm>
+#include <array>
 #include <numeric>
 #include <vector>
-#include <string>
-#include <utility>
 #include <cstdint>
 #include <limits>
 #include <test.hpp>

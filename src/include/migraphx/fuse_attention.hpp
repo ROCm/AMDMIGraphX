@@ -27,6 +27,8 @@
 
 #include <migraphx/config.hpp>
 #include <string>
+#include <optional>
+#include <cstddef>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -35,6 +37,10 @@ struct module_pass_manager;
 
 struct MIGRAPHX_EXPORT fuse_attention
 {
+    std::optional<std::size_t> flash_decoding_num_splits = std::nullopt;
+
+    bool attn_enabled = false;
+
     std::string name() const { return "fuse_attention"; }
     void apply(module_pass_manager& mpm) const;
 };

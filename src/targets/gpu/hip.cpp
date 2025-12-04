@@ -148,11 +148,11 @@ static std::vector<T> read_from_gpu(const void* x, std::size_t sz)
     return result;
 }
 
-static std::shared_ptr<void> write_to_gpu(const void* x, std::size_t sz, bool host = false)
+std::shared_ptr<void> write_to_gpu(const void* x, std::size_t sz, bool host)
 {
     gpu_sync();
     auto result = allocate_gpu(sz, host);
-    assert(is_device_ptr(result.get()));
+    assert(host or is_device_ptr(result.get()));
     assert(not is_device_ptr(x));
     auto status = hipMemcpy(result.get(), x, sz, hipMemcpyHostToDevice);
     if(status != hipSuccess)

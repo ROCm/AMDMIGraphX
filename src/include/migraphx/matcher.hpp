@@ -51,6 +51,10 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 namespace match {
 
+struct supports_dynamic_shapes
+{
+};
+
 struct matcher_context
 {
     matcher_context(module& m) : mod(&m) {}
@@ -407,10 +411,28 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MATCHES_FOR)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_VALIDATE_MATCHES)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TIME_MATCHERS)
 
+MIGRAPHX_PRED_MATCHER(not_dynamic_shape, instruction_ref ins)
+{
+    return not ins->get_shape().dynamic();
+}
+
+template <class Finder>
+auto get_matcher(const Finder& f)
+{
+    if constexpr(std::is_base_of<supports_dynamic_shapes, Finder>{})
+    {
+        return f.matcher();
+    }
+    else
+    {
+        return not_dynamic_shape(f.matcher());
+    }
+}
+
 template <class Finder>
 auto make_match_runner_with_trace(source_location location, Finder& f)
 {
-    auto m                  = f.matcher();
+    auto m                  = get_matcher(f);
     const int trace         = value_of(MIGRAPHX_TRACE_MATCHES{});
     const bool validate     = enabled(MIGRAPHX_VALIDATE_MATCHES{});
     const auto trace_filter = string_value_of(MIGRAPHX_TRACE_MATCHES_FOR{});
@@ -485,7 +507,7 @@ auto make_match_runner_with_trace(source_location location, Finder& f)
 template <class Finder>
 auto make_match_runner(Finder& f)
 {
-    auto m = f.matcher();
+    auto m = get_matcher(f);
     return [=, &f](auto& mod, instruction_ref ins) -> bool {
         match::matcher_result r = match::match_instruction(get_module(mod), ins, m);
         if(r.result == get_module(mod).end())

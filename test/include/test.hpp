@@ -24,7 +24,6 @@
 
 #include <atomic>
 #include <algorithm>
-#include <array>
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
@@ -133,8 +132,26 @@ Stream& print_stream_impl(rank<0>, Stream& s, const T&)
     return s;
 }
 
+template <class Stream, class Range>
+auto print_stream_impl(rank<1>, Stream& s, const Range& v)
+    -> decltype(v.end(), print_stream(s, *v.begin()), void())
+{
+    auto start = v.begin();
+    auto last  = v.end();
+    s << "{ ";
+    if(start != last)
+    {
+        print_stream(s, *start);
+        std::for_each(std::next(start), last, [&](auto&& x) {
+            s << ", ";
+            print_stream(s, x);
+        });
+    }
+    s << "}";
+}
+
 template <class Stream, class T>
-auto print_stream_impl(rank<1>, Stream& s, const T& x)
+auto print_stream_impl(rank<2>, Stream& s, const T& x)
     -> decltype(s << x) // NOLINT(bugprone-multi-level-implicit-pointer-conversion)
 {
     if constexpr(std::is_pointer<T>{})
@@ -156,40 +173,21 @@ auto print_stream_impl(rank<1>, Stream& s, const T& x)
 }
 
 template <class Stream, class T, class U>
-Stream& print_stream_impl(rank<2>, Stream& s, const std::pair<T, U>& p)
+Stream& print_stream_impl(rank<3>, Stream& s, const std::pair<T, U>& p)
 {
     s << "{";
-    s << p.first << ", " << p.second;
+    print_stream(s, p.first);
+    s << ", ";
+    print_stream(s, p.second);
     s << "}";
     return s;
 }
 
 template <class Stream>
-Stream& print_stream_impl(rank<3>, Stream& s, std::nullptr_t)
+Stream& print_stream_impl(rank<4>, Stream& s, std::nullptr_t)
 {
     s << "nullptr";
     return s;
-}
-
-template <class Stream,
-          class Range,
-          class = typename std::enable_if<not std::is_convertible<Range, std::string>{}>::type>
-auto print_stream_impl(rank<4>, Stream& s, const Range& v) -> decltype(v.end(),
-                                                                       s << *v.begin(),
-                                                                       void())
-{
-    auto start = v.begin();
-    auto last  = v.end();
-    s << "{ ";
-    if(start != last)
-    {
-        print_stream(s, *start);
-        std::for_each(std::next(start), last, [&](auto&& x) {
-            s << ", ";
-            print_stream(s, x);
-        });
-    }
-    s << "}";
 }
 
 template <class Stream, class T>
@@ -396,12 +394,14 @@ inline std::atomic<int>& failures()
     return f;
 }
 
+inline void report_failure(int n = 1) { failures() += n; }
+
 template <class T, class F>
 void failed(const T& x, const char* msg, const char* func, const char* file, int line, F f)
 {
     if(not bool(x.value()))
     {
-        failures()++;
+        report_failure();
         std::cout << func << std::endl;
         std::cout << file << ":" << line << ":" << std::endl;
         std::cout << color::bold << color::fg_red << "    FAILED: " << color::reset << msg << " "
@@ -764,6 +764,22 @@ struct driver
         out() << std::endl;
     }
 
+    template <class Range>
+    void run_test_cases(Range&& cases, const string_map& args)
+    {
+        if(on_selected_cases and args.count("--continue") == 0)
+        {
+            std::vector<std::string> selected_cases;
+            std::transform(cases.begin(),
+                           cases.end(),
+                           std::back_inserter(selected_cases),
+                           [](const auto& p) { return p.first; });
+            on_selected_cases(selected_cases);
+        }
+        for(auto&& p : cases)
+            run_test_case(p.first, p.second, args);
+    }
+
     void run(int argc, const char* argv[])
     {
         auto args = parse(argc, argv);
@@ -785,8 +801,7 @@ struct driver
         auto cases = args[""];
         if(cases.empty())
         {
-            for(auto&& tc : get_test_cases())
-                run_test_case(tc.first, tc.second, args);
+            run_test_cases(get_test_cases(), args);
         }
         else
         {
@@ -814,8 +829,7 @@ struct driver
                           << color::reset << std::endl;
                     failed.push_back(iname);
                 }
-                for(auto&& p : found_cases)
-                    run_test_case(p.first, p.second, args);
+                run_test_cases(found_cases, args);
             }
         }
         out() << color::fg_green << "[==========] " << color::fg_yellow << ran << " tests ran"
@@ -831,6 +845,7 @@ struct driver
         }
     }
 
+    std::function<void(const std::vector<std::string>&)> on_selected_cases = nullptr;
     std::function<std::vector<std::string>(const std::string&)> get_case_names =
         [](const std::string& name) -> std::vector<std::string> { return {name}; };
     std::vector<argument> arguments = {};

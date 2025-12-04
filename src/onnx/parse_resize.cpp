@@ -31,6 +31,9 @@
 #include <migraphx/make_op.hpp>
 #include <vector>
 #include <map>
+#include <algorithm>
+#include <cmath>
+#include <tuple>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -157,6 +160,7 @@ struct parse_resize : op_parser<parse_resize>
         std::string get_nearest_mode() const { return r_attr.nearest_mode; }
         std::string get_coord_trans_mode() const { return r_attr.coord_t_mode; }
         std::string get_mode() const { return r_attr.mode; }
+        float get_cubic_coeff() const {return r_attr.cubic_coeff_a; }
 
         void set_scales_sizes_arg(instruction_ref ref) { scales_sizes_arg = ref; }
 
@@ -278,11 +282,11 @@ struct parse_resize : op_parser<parse_resize>
         void set_mode(const onnx_parser::attribute_map& attr)
         {
             if(contains(attr, "mode"))
-            { // TODO: Add support for cubic mode
+            { 
                 auto mode = attr.at("mode").s();
-                if(mode != "nearest" and mode != "linear")
+                if(mode != "nearest" and mode != "linear" and mode != "cubic")
                 {
-                    MIGRAPHX_THROW("PARSE_RESIZE: only nearest and linear modes are supported!");
+                    MIGRAPHX_THROW("PARSE_RESIZE: only cubic, linear, and nearest modes are supported!");
                 }
                 r_attr.mode = mode;
             }
@@ -390,7 +394,33 @@ struct parse_resize : op_parser<parse_resize>
         {
             return arg->get_shape().lens().at(0) == in_lens.size();
         }
+
+        size_t get_input_rank() const
+        {
+            return in_lens.size();
+        }
+
+        size_t get_scale_or_size_rank() const
+        {
+            return vec_scale.size();
+        }
+
+        // Get Dimension of the data - relevant to how we'll scale and dimensions
+        // if dims are 2 or 3 they're treated as input with channel and batch set to 1
+
+        // 2D - (batch, channel, height, width) or (height, width)
+        bool is_2d_image() const
+        {
+            return (get_input_rank() == 2 or get_input_rank() == 4);
+        }
+
+        // 3D - (batch, channel, height, width, depth) or (height, width, depth)
+        bool is_3d_image() const
+        {
+            return (get_input_rank() == 3 or get_input_rank() == 5);
+        }
     };
+
 
     // Helper to add a "reshape" and "gather" instruction.  These can implement
     // Nearest mode resizing if all sizes are known at compile time.
@@ -568,6 +598,258 @@ struct parse_resize : op_parser<parse_resize>
         return data;
     }
 
+
+    // Generate cubic sample value based on the following piecewise function for cubic interpolation
+    static float get_cubic_key_value(const float& s, const float& a)
+    {
+        auto abs_s = std::abs(s);
+
+        if (abs_s < 1.0)
+            return  (a + 2.0f) * std::pow(abs_s, 3) - (a + 3.0f) * std::pow(abs_s, 2) + 1.0;
+
+        if (abs_s < 2.0)
+            return a * std::pow(abs_s, 3) - 5.0f * a * std::pow(abs_s, 2) + 8.0f * a * abs_s - 4.0f * a;
+
+        return 0.0f;
+    }
+
+    // Generate the coefficient vector used for the desired scaling for a given dimension
+    static std::vector<float> build_cubic_matrix(const size_t& input_size,
+                                                 const size_t& output_size,
+                                                 const float& scale, 
+                                                 const float& cubic_coefficient, 
+                                                 const float& tolerance, 
+                                                 const std::string& mode)
+    {
+        std::vector<float> matrix(input_size * output_size, 0.0f);
+
+        // Used to get the indexing mode use to generate interpolation "center"
+        // center changes based on mode but always takes input, output, index and scale 
+        // to calculate based on the pixel coorednate transform mode
+        auto idx_op = op::resize::get_original_idx_op(mode);
+
+        for (size_t o_idx = 0; o_idx < output_size; ++o_idx)
+        {
+            auto input_coord = idx_op(input_size, output_size, o_idx, scale);
+
+            auto base = static_cast<size_t>(std::floor(input_coord));
+
+            for(size_t i = 0; i < 4; ++i)
+            {
+                auto pos = base + i;
+                auto t = input_coord - pos;
+                auto weight =  get_cubic_key_value(t, cubic_coefficient);
+
+                // clamp position to valid input range with proper boundary handling
+                auto clamped_pos = std::max(0UL, std::min(pos, input_size -1));
+
+                // Skip near zero weights
+                if (std::abs(weight) > tolerance)
+                {
+                    // Matrix is stored in row-major order: matrix[row * cols+col]
+                    // want matrix[ input_pos, output_pos] = weight
+                    auto matrix_idx = clamped_pos * output_size + o_idx;
+                    matrix[matrix_idx] += weight;
+
+                }
+            }
+        }
+
+        return matrix;
+    }
+
+    static std::vector<float> gen_identity_matrix(const size_t& num_rows, const size_t& num_cols)
+    {
+        std::vector<float> identity_mat(num_rows * num_cols, 0.0f);
+        for(std::ptrdiff_t i = 0; i < num_rows; ++i)
+        {
+            if(i < num_cols and i >= 0)
+                identity_mat[(num_cols + 1) * i ] = char{1};
+        }
+        return identity_mat;
+    }
+
+
+    // Optimized kroneker product of  A ⊗ B with sparsity exploitation
+    // Take in two matricies A and B and return the flattented result of 
+    // as (A rows * B rows) x (A cols * B cols)
+    //  Optimizations:
+    // - Skip computation for near-zero elements in A
+    // - Pre-compute non-zero indices in B for efficiency
+    // - Use vectorized operations where possible
+    static std::vector<float> kronker_product_optimized(const std::vector<float>& a_mat, const size_t& a_rows, const size_t& a_cols,
+                                                        const std::vector<float>& b_mat, const size_t& b_rows, const size_t& b_cols,
+                                                        const float& tolerance)
+    {
+        auto result_rows = a_rows * b_rows;
+        auto result_cols = a_cols * b_rows;
+        std::vector<float> result(result_rows * result_cols, 0.0f);
+
+        std::vector<std::tuple<size_t, size_t, float>> b_nonzero{};
+
+        // Find nonzero b value
+        for (size_t bi = 0; bi < b_rows; ++bi)
+        {
+            for (size_t bj = 0; bj < b_cols; ++bj)
+            {
+                auto b_val = b_mat.at(bi * b_cols + bj);
+                if (std::abs(b_val) > tolerance)
+                    b_nonzero.push_back({bi, bj, b_val});
+            }
+        }
+
+        // Find nonzero A value
+        for (size_t ai = 0; ai < a_rows; ++ai)
+        {
+            for (size_t aj = 0; aj < a_cols; ++aj)
+            {
+                auto a_val = a_mat.at(ai * a_cols + aj);
+                if (std::abs(a_val) > tolerance)
+                {
+                    auto block_start_row = ai * b_rows;
+                    auto block_start_col = aj * b_cols;
+
+                    for(auto& b_tuple: b_nonzero)
+                    {
+                        auto bi    = std::get<0>(b_tuple);
+                        auto bj    = std::get<1>(b_tuple);
+                        auto b_val = std::get<2>(b_tuple);
+                        auto result_row = block_start_row + bi;
+                        auto result_col = block_start_col + bj;
+
+                        result.at(result_row * result_col + result_col) = a_val * b_val;
+                    }
+                }
+            }
+        }
+
+        return result;
+    }
+
+    // Builds the final in Dimension matrix as as series of literal matricies that are multiplied together using the kronker product
+    // This means these can later be const folded to a final matrix product 
+    static instruction_ref build_n_cubic_interpolation_matrix(const onnx_parser::node_info& info,
+                                                              const resize_args& resize)
+    {
+    
+        auto in_lens   = resize.in_lens;
+        auto out_lens  = resize.out_lens;
+        auto vec_scale = resize.vec_scale;
+
+        float tolerance        = 1e-8;
+        auto  pixel_mode       = resize.get_coord_trans_mode();
+        auto cubic_coefficient = resize.get_cubic_coeff();
+
+        // Store data as {rows, cols, data} for each input as we generate the final matrix
+        std::vector<std::tuple<size_t, size_t, std::vector<float>>> matrix_list;
+
+        // Generate matrix per dimension thats used for the scaling
+        size_t dim_index = 0;
+        for (const auto& scale: vec_scale)
+        {
+            std::cout << scale << std::endl;
+            // Perform identity of scale up based on value of input. 
+            if (std::abs(scale - 1.0f) < tolerance)
+            {
+                auto size = in_lens.at(dim_index);
+                matrix_list.push_back({size, size, gen_identity_matrix(size, size)});
+            }
+            else
+            {
+                std::cout << "Build scale for matrix:" << scale << std::endl;
+                auto matrix_data = build_cubic_matrix(in_lens.at(dim_index),
+                                                      out_lens.at(dim_index),
+                                                      scale,
+                                                      cubic_coefficient, 
+                                                      tolerance, 
+                                                      pixel_mode);
+                auto size = in_lens.at(dim_index);
+                matrix_list.push_back({size, size, matrix_data});
+            }
+            ++dim_index;
+        }
+
+        // Work off the precomunted data and optimize out sparsity
+        auto result_rows = std::get<0>(matrix_list.at(0));
+        auto result_cols = std::get<1>(matrix_list.at(0));
+        auto result_mat  = std::get<2>(matrix_list.at(0));
+
+        float zero_tolerance = 1e-12; // determines our baseline for "zero" or near zero
+
+        for(auto index = 1; index < matrix_list.size(); ++index)
+        {
+            auto rows   = std::get<0>(matrix_list.at(index));
+            auto cols   = std::get<1>(matrix_list.at(index));
+            auto matrix = std::get<2>(matrix_list.at(index));
+
+            result_mat  = kronker_product_optimized(result_mat, result_rows, result_cols,
+                                                      matrix, rows, cols, zero_tolerance);
+            result_rows *= rows;
+            result_cols *= cols;
+        }
+        
+        // Generate a final literal based on the optimized output to return
+        return info.add_literal(migraphx::literal(migraphx::shape{migraphx::shape::float_type, {result_rows, result_cols}}, result_mat));
+    }
+
+    static instruction_ref
+    reshape_input_for_dot(const onnx_parser::node_info& info, resize_args& resize)
+    {
+        auto in_lens  = resize.in_s.lens();
+        auto batch    = in_lens.at(0);
+        auto channels = in_lens.at(1);
+        auto count = 0;
+        auto combined_channels = 1;
+
+        // Handle trailing dimensions to get final resize value
+        for (const auto& dim: in_lens)
+        {
+            count++;
+            if (count < 2)
+                continue;
+
+            combined_channels *= dim;    
+        }
+
+        // reshape input to one-dimension
+        std::vector<int64_t> rsp_lens{static_cast<int64_t>(batch*channels), 
+                                      static_cast<int64_t>(combined_channels)};
+        return info.add_instruction(make_op("reshape", {{"dims", rsp_lens}}), resize.x);
+    }
+
+    // Cubic interpolation can be done by convolution of a fixed coefficients that are scaled based
+    // on the sampleing (up/down) of the axis using the original image 
+    // 
+    // We generate the standard symmetric kernel used for cubic interpolation which acts as a filter and results in 5 
+    // values that can be used for a 1d convolution across each dimenion we wish to scale.
+    // we First reshape the original input into a 1D layer, and then run a convolution across it using the input kernel
+    // thats been generatd by generate_cubic_conv_kernel and scaled by items via gen_dim_sample_scaling
+    // Since the kernel and sample coefficients can be found at compile time (as vec_scales is constant), the 
+    // mul operand for each will const folded before used in the 1d convolution against the input.
+    // Each convolution happens serially until all dimensions are handled correctly. 
+    static instruction_ref handle_cubic_mode(const op_desc& opd,
+                                             const onnx_parser::node_info& info,
+                                             resize_args& resize)
+    {
+        auto in_s      = resize.in_s;
+        auto out_lens  = resize.out_lens;
+
+        // out_lens and other variables can't be populated if non-constant (runtime) size
+        // inputs.
+        if(not resize.is_constant_scale_input())
+            MIGRAPHX_THROW("PARSE_" + opd.onnx_name +
+                           ": cubic mode not supported for non-constant inputs");
+
+        auto interpolation_mat = build_n_cubic_interpolation_matrix(info, resize);
+
+        auto rsp = reshape_input_for_dot(info, resize);
+
+        auto interpolated_output = info.add_instruction(make_op("dot"), rsp, interpolation_mat);
+
+        // return output image to the proper output shape based on the output lengs
+        return info.add_instruction(make_op("reshape", {{"dims", out_lens}}), interpolated_output);
+    }
+
     static void set_resize_attributes(const onnx_parser::node_info& info,
                                       const std::vector<instruction_ref>& args,
                                       resize_args& resize)
@@ -642,10 +924,13 @@ struct parse_resize : op_parser<parse_resize>
         {
             return handle_nearest_neighbor(info, resize, args[0]);
         }
-        // linear mode
-        else
+        else if(resize.get_mode() == "linear")
         {
             return handle_linear_mode(opd, info, resize, args[0]);
+        }
+        else
+        {
+            return handle_cubic_mode(opd, info, resize);
         }
     }
 };

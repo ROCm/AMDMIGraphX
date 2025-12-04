@@ -1791,7 +1791,8 @@ TEST_CASE(dot_add_dot)
         auto b    = mm->add_parameter("b", s2);
         auto x    = mm->add_parameter("x", s3);
         auto y    = mm->add_parameter("y", s4);
-        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b); // {1024,4}, m + 1000 > avg (n, k, gemmO)
+        auto dot1 = mm->add_instruction(
+            migraphx::make_op("dot"), a, b); // {1024,4}, m + 1000 > avg (n, k, gemmO)
         auto add =
             add_pointwise(p1, "main:pointwise0", {dot1, x}, single_pointwise("add")); // {1024,4}
         auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, y);            // {1024,2}
@@ -1836,7 +1837,8 @@ TEST_CASE(dot_add_dot_abc_f32)
         auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b); // {1024,4}
         auto add =
             add_pointwise(p1, "main:pointwise0", {dot1, x}, single_pointwise("add")); // {1024, 4}
-        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, y); // {1024, 4}*{4, 2} = {1024, 2}
+        auto dot2 =
+            mm->add_instruction(migraphx::make_op("dot"), add, y); // {1024, 4}*{4, 2} = {1024, 2}
         mm->add_return({dot2});
     }
     run_pass(p1);
@@ -1874,7 +1876,8 @@ TEST_CASE(dot_add_dot_abc_fp16)
         auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b); // {1024,4}
         auto add =
             add_pointwise(p1, "main:pointwise0", {dot1, x}, single_pointwise("add")); // {1024, 4}
-        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, y); // {1024, 4}*{4, 2} = {1024, 2}
+        auto dot2 =
+            mm->add_instruction(migraphx::make_op("dot"), add, y); // {1024, 4}*{4, 2} = {1024, 2}
         mm->add_return({dot2});
     }
     run_pass(p1);
@@ -1931,7 +1934,8 @@ TEST_CASE(dot_mul_dot)
         auto b    = mm->add_parameter("b", s2);
         auto x    = mm->add_parameter("x", s3);
         auto y    = mm->add_parameter("y", s4);
-        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b); // {1024,4}, m + 1000 > avg (n, k, gemmO)
+        auto dot1 = mm->add_instruction(
+            migraphx::make_op("dot"), a, b); // {1024,4}, m + 1000 > avg (n, k, gemmO)
         auto mul =
             add_pointwise(p1, "main:pointwise0", {dot1, x}, single_pointwise("mul")); // {1024,4}
         auto dot2 = mm->add_instruction(migraphx::make_op("dot"), mul, y);            // {1024,2}
@@ -2038,7 +2042,8 @@ TEST_CASE(conv_add_dot)
                      });
         mm->add_return({fused});
     }
-    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_CEG_FUSION{}) or migraphx::enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_CEG_FUSION{}) or
+       migraphx::enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
         return;
     EXPECT(p1.sort() == p2.sort());
 }
@@ -2100,9 +2105,14 @@ TEST_CASE(dot_add_multi_user_dot)
         auto b    = mm->add_parameter("b", s2);
         auto c    = mm->add_parameter("c", s3);
         auto d    = mm->add_parameter("d", s4);
-        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b); // {1024, 3} x {3, 4} = {1024, 4}
-        auto add  = add_pointwise(p1, "main:pointwise0", {dot1, c}, single_pointwise("add")); // {1024, 4} + {1024, 4} = {1024, 4}
-        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, d); // {1024, 4} x {4, 2} = {1024, 2}
+        auto dot1 =
+            mm->add_instruction(migraphx::make_op("dot"), a, b); // {1024, 3} x {3, 4} = {1024, 4}
+        auto add = add_pointwise(p1,
+                                 "main:pointwise0",
+                                 {dot1, c},
+                                 single_pointwise("add")); // {1024, 4} + {1024, 4} = {1024, 4}
+        auto dot2 =
+            mm->add_instruction(migraphx::make_op("dot"), add, d); // {1024, 4} x {4, 2} = {1024, 2}
         auto transpose =
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dot2);
         mm->add_return({add, transpose});
@@ -2259,11 +2269,11 @@ TEST_CASE(dot_add_multi_user_dot_input_used_before)
     migraphx::shape s4{migraphx::shape::half_type, {4, 2}};
     migraphx::program p1;
     {
-        auto* mm  = p1.get_main_module();
-        auto a    = mm->add_parameter("a", s1);
-        auto b    = mm->add_parameter("b", s2);
-        auto c    = mm->add_parameter("c", s3);
-        auto d    = mm->add_parameter("d", s4);
+        auto* mm = p1.get_main_module();
+        auto a   = mm->add_parameter("a", s1);
+        auto b   = mm->add_parameter("b", s2);
+        auto c   = mm->add_parameter("c", s3);
+        auto d   = mm->add_parameter("d", s4);
 
         auto external_relu = add_pointwise(p1, "main:pointwise1", {d}, single_pointwise("relu"));
 
@@ -2321,10 +2331,10 @@ TEST_CASE(dot_add_multi_user_dot_input_used_after)
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
-        auto a    = mm->add_parameter("a", s1);
-        auto b    = mm->add_parameter("b", s2);
-        auto c    = mm->add_parameter("c", s3);
-        auto d    = mm->add_parameter("d", s4);
+        auto a             = mm->add_parameter("a", s1);
+        auto b             = mm->add_parameter("b", s2);
+        auto c             = mm->add_parameter("c", s3);
+        auto d             = mm->add_parameter("d", s4);
         auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
         auto add  = add_pointwise(p1, "main:pointwise0", {dot1, c}, single_pointwise("add"));
         auto external_relu = add_pointwise(p1, "main:pointwise1", {d}, single_pointwise("relu"));
@@ -2379,11 +2389,11 @@ TEST_CASE(dot_add_multi_user_dot_input_used_before_in_chain)
     migraphx::shape s4{migraphx::shape::half_type, {4, 2}};
     migraphx::program p1;
     {
-        auto* mm  = p1.get_main_module();
-        auto a    = mm->add_parameter("a", s1);
-        auto b    = mm->add_parameter("b", s2);
-        auto c    = mm->add_parameter("c", s3);
-        auto d    = mm->add_parameter("d", s4);
+        auto* mm = p1.get_main_module();
+        auto a   = mm->add_parameter("a", s1);
+        auto b   = mm->add_parameter("b", s2);
+        auto c   = mm->add_parameter("c", s3);
+        auto d   = mm->add_parameter("d", s4);
 
         auto external_relu = add_pointwise(p1, "main:pointwise1", {d}, single_pointwise("relu"));
         auto external_mul =
@@ -2475,11 +2485,11 @@ TEST_CASE(dot_add_multi_user_dot_input_used_after_in_chain)
     migraphx::shape s4{migraphx::shape::half_type, {4, 2}};
     migraphx::program p1;
     {
-        auto* mm  = p1.get_main_module();
-        auto a    = mm->add_parameter("a", s1);
-        auto b    = mm->add_parameter("b", s2);
-        auto c    = mm->add_parameter("c", s3);
-        auto d    = mm->add_parameter("d", s4);
+        auto* mm = p1.get_main_module();
+        auto a   = mm->add_parameter("a", s1);
+        auto b   = mm->add_parameter("b", s2);
+        auto c   = mm->add_parameter("c", s3);
+        auto d   = mm->add_parameter("d", s4);
 
         auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
         auto add  = add_pointwise(p1, "main:pointwise0", {dot1, c}, single_pointwise("add"));
@@ -2574,14 +2584,19 @@ TEST_CASE(dot_pw_multi_user_dot)
         auto c    = mm->add_parameter("c", s3);
         auto d    = mm->add_parameter("d", s3);
         auto e    = mm->add_parameter("e", s4);
-        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b); // {1024, 3} x {3, 4} = {1024, 4}
+        auto dot1 =
+            mm->add_instruction(migraphx::make_op("dot"), a, b); // {1024, 3} x {3, 4} = {1024, 4}
         auto elemwise =
             add_pointwise(p1, "main:pointwise0", {dot1, c, d}, [=](auto* pm, const auto& inputs) {
-                auto add =
-                    pm->add_instruction(migraphx::make_op("add"), inputs.at(0), inputs.at(1)); // {1024, 4} + {1024, 4} = {1024, 4}
-                return pm->add_instruction(migraphx::make_op("mul"), add, inputs.at(2)); // {1024, 4} x {1024, 4} = {1024, 4}
+                auto add = pm->add_instruction(migraphx::make_op("add"),
+                                               inputs.at(0),
+                                               inputs.at(1)); // {1024, 4} + {1024, 4} = {1024, 4}
+                return pm->add_instruction(migraphx::make_op("mul"),
+                                           add,
+                                           inputs.at(2)); // {1024, 4} x {1024, 4} = {1024, 4}
             });
-        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), elemwise, e); // {1024, 4} * {4, 2} = {1024, 2}
+        auto dot2 = mm->add_instruction(
+            migraphx::make_op("dot"), elemwise, e); // {1024, 4} * {4, 2} = {1024, 2}
         auto transpose =
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dot2);
         mm->add_return({elemwise, transpose});

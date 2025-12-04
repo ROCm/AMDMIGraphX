@@ -31,6 +31,7 @@
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/reduce_dims.hpp>
+#include <migraphx/dyn_output.hpp>
 #include <utility>
 #include <iostream>
 
@@ -56,7 +57,7 @@ struct device_base : oper<Derived>
 
     argument get_arg(const std::vector<argument>& args, std::size_t i) const
     {
-        if(reduce_shapes.empty())
+        if(reduce_shapes.empty() or reduce_shapes.at(i).dynamic())
             return args[i];
         return args.at(i).reshape(reduce_shapes.at(i));
     }
@@ -81,10 +82,16 @@ struct device_base : oper<Derived>
 template <class Derived, void (*F)(hipStream_t, const argument&, const argument&)>
 struct unary_device : device_base<Derived, 1>
 {
-    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
+    argument compute(context& ctx, const dyn_output& dyn_out, const std::vector<argument>& args) const
     {
-        F(ctx.get_stream().get(), this->get_arg(args, 1), this->get_arg(args, 0));
-        return args[1];
+        auto input_arg = this->get_arg(args, 0);
+        auto output_arg = this->get_arg(args, 1);
+        if (this->reduce_shapes.at(1).dynamic())
+        {
+            output_arg = output_arg.reshape(dyn_out.computed_shape);
+        }
+        F(ctx.get_stream().get(), output_arg, input_arg);
+        return output_arg;
     }
 };
 

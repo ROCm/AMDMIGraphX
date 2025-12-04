@@ -152,13 +152,21 @@ Model performance tunable variables change the compilation behavior of a model. 
 
       | Default: Reduction fusions are turned off.
 
-  * - | ``MIGRAPHX_ENABLE_MLIR_GEG_FUSION``
-      | Turns on GEMM+GEMM fusions in MLIR.
-    
-    - | ``1``: Turns on G+G fusions.
+  * - | ``MIGRAPHX_DISABLE_MLIR_GEG_FUSION``
+      | Turns off heuristic-based GEMM+GEMM fusions in MLIR.
+
+    - | ``1``: Turns off G+G fusions.
       | ``0``: Returns to default behavior.
 
-      | Default: GEMM+GEMM fusions are turned off.
+      | Default: GEMM+GEMM fusions are applied according to a heuristic based on GEMM sizes.
+
+  * - | ``MIGRAPHX_ENABLE_MLIR_CEG_FUSION``
+      | Turns on convolution+GEMM fusions in MLIR.
+
+    - | ``1``: Turns on convolution+GEMM fusions.
+      | ``0``: Returns to default behavior.
+
+      | Default: convolution+GEMM fusions are turned off.
 
   * - | ``MIGRAPHX_MLIR_ENABLE_SPLITK``
       | Turns on Split-k performance configurations during MLIR tuning.

@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_KERNELS_DEBUG_HPP
 
 #include <migraphx/kernels/hip.hpp>
+#include <migraphx/kernels/pp.hpp>
 
 namespace migraphx {
 
@@ -149,6 +150,21 @@ struct source_location_capture
     // declval is a workaround since default constructor for "U" is not working with rocm-5.6
     template <class U>
     static U&& declval();
+
+    template <class... Us>
+    using convert = decltype(T(declval<Us>()...));
+
+#define MIGRAPHX_SOURCE_LOCATION_CAPTURE_CONSTRUCTOR(n, ...)                                     \
+    template <class U, MIGRAPHX_PP_ENUM(n, class U), class = convert<U, MIGRAPHX_PP_ENUM(n, U)>> \
+    constexpr source_location_capture(                                                           \
+        U px, MIGRAPHX_PP_ENUM(n, U, px), source_location ploc = source_location{})              \
+        : x(px, MIGRAPHX_PP_ENUM(n, px)), loc(ploc)                                              \
+    {                                                                                            \
+    }
+
+    MIGRAPHX_PP_EXPAND(MIGRAPHX_PP_REPEAT(8)(
+        MIGRAPHX_PP_DEFER_UNTIL(MIGRAPHX_SOURCE_LOCATION_CAPTURE_CONSTRUCTOR), ))
+
     template <class U, class = decltype(T(declval<U>()))>
     constexpr source_location_capture(U px, source_location ploc = source_location{})
         : x(px), loc(ploc)

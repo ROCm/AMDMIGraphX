@@ -108,7 +108,7 @@ __device__ void dpp_reduce(T& in, Op op)
     MIGRAPHX_PP_CAT(MIGRAPHX_DPP_REDUCE_ASM, i)(ins) "s_nop 1\n"
 #define MIGRAPHX_DPP_REDUCE_ASM(n, x, ins, ...)                                                 \
     {                                                                                           \
-        __asm__ volatile("s_nop 4\n" MIGRAPHX_PP_REPEAT(n, MIGRAPHX_DPP_REDUCE_ASM_REPEAT, ins) \
+        __asm__ volatile("s_nop 4\n" MIGRAPHX_PP_REPEAT(n)(MIGRAPHX_DPP_REDUCE_ASM_REPEAT, ins) \
                          : "=v"(x)                                                              \
                          : "0"(x));                                                             \
         __VA_ARGS__                                                                             \

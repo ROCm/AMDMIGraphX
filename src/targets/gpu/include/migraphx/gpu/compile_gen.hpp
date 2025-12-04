@@ -63,6 +63,8 @@ struct preload
     bool is_preloading() const;
     std::string str() const;
 };
+
+std::size_t compute_tile_factor(std::size_t r, std::size_t max_size = 64);
 struct tile
 {
     enum mode

@@ -38,7 +38,7 @@ struct parse_addn : op_parser<parse_addn>
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& /*parser*/,
                           const tf_parser::node_info& info,
-                          std::vector<instruction_ref> args) const
+                          const std::vector<instruction_ref>& args) const
     {
         instruction_ref sum = args[0];
         for(auto i = 1; i < args.size(); i++)

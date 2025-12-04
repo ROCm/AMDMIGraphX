@@ -32,6 +32,9 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 namespace builder {
 
+// NOLINTNEXTLINE(modernize-return-braced-init-list)
+value get_default_options() { return value("", {}, false); }
+
 static std::unordered_map<std::string, builder_func>& builder_map()
 {
     static std::unordered_map<std::string, builder_func> m; // NOLINT
@@ -43,13 +46,23 @@ void register_builder(const std::string& name, builder_func f)
     builder_map()[name] = std::move(f);
 }
 
+static std::vector<instruction_ref> default_op_builder(module& m,
+                                                       const std::vector<instruction_ref>& args,
+                                                       const std::string& name,
+                                                       const value& options)
+{
+    const auto& op = make_op(name, options);
+    return {m.add_instruction(op, args)};
+}
+
 std::vector<instruction_ref> insert(const std::string& name,
                                     module& m,
                                     instruction_ref ins,
                                     const std::vector<instruction_ref>& args,
                                     const value& options)
 {
-    return at(builder_map(), name, "Builder not found: " + name)(m, ins, args, {}, options);
+    return contains(builder_map(), name) ? builder_map()[name](m, ins, args, {}, options)
+                                         : default_op_builder(m, args, name, options);
 }
 
 std::vector<instruction_ref> insert(const std::string& name,
@@ -59,8 +72,8 @@ std::vector<instruction_ref> insert(const std::string& name,
                                     const std::vector<module_ref>& module_args,
                                     const value& options)
 {
-    return at(builder_map(), name, "Builder not found: " + name)(
-        m, ins, args, module_args, options);
+    return contains(builder_map(), name) ? builder_map()[name](m, ins, args, module_args, options)
+                                         : default_op_builder(m, args, name, options);
 }
 
 std::vector<instruction_ref> add(const std::string& name,
@@ -68,7 +81,8 @@ std::vector<instruction_ref> add(const std::string& name,
                                  const std::vector<instruction_ref>& args,
                                  const value& options)
 {
-    return at(builder_map(), name, "Builder not found: " + name)(m, m.end(), args, {}, options);
+    return contains(builder_map(), name) ? builder_map()[name](m, m.end(), args, {}, options)
+                                         : default_op_builder(m, args, name, options);
 }
 
 std::vector<instruction_ref> add(const std::string& name,
@@ -77,8 +91,9 @@ std::vector<instruction_ref> add(const std::string& name,
                                  const std::vector<module_ref>& module_args,
                                  const value& options)
 {
-    return at(builder_map(), name, "Builder not found: " + name)(
-        m, m.end(), args, module_args, options);
+    return contains(builder_map(), name)
+               ? builder_map()[name](m, m.end(), args, module_args, options)
+               : default_op_builder(m, args, name, options);
 }
 
 } // namespace builder

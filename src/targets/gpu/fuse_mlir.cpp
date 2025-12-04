@@ -50,6 +50,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_EXTRA_MLIR);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MLIR_GEG_FUSION);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MLIR_GEG_CONV_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MLIR);
 /**
  * @brief Declares a new MIGraphX environment variable which forces to generate
@@ -1565,17 +1566,19 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     match::find_matches(mpm, find_mlir_attention_op{});
     mpm.run_pass(dead_code_elimination{});
 
-    if(not enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
-    {
-        match::find_matches(
-            mpm,
-            find_mlir_fused_geg_ops{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
-                                    .dot_mode  = get_mode("fused_dot", mlir_mode::fast),
-                                    .gfx_name  = device_name,
-                                    .enable_geg_multi_out_intermediates =
-                                        enable_geg_multi_out_intermediates});
-        mpm.run_pass(dead_code_elimination{});
-    }
+    mlir_mode geg_dot_mode =
+        enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}) ? mlir_mode::none : mlir_mode::fast;
+    mlir_mode geg_conv_mode =
+        enabled(MIGRAPHX_DISABLE_MLIR_GEG_CONV_FUSION{}) ? mlir_mode::none : mlir_mode::fast;
+
+    match::find_matches(
+        mpm,
+        find_mlir_fused_geg_ops{.conv_mode = geg_conv_mode,
+                                .dot_mode  = geg_dot_mode,
+                                .gfx_name  = device_name,
+                                .enable_geg_multi_out_intermediates =
+                                    enable_geg_multi_out_intermediates});
+    mpm.run_pass(dead_code_elimination{});
 
     match::find_matches(
         mpm,

@@ -45,7 +45,7 @@ struct test_ctx
     }
 
     migraphx::module make_op_bldr()
-    { 
+    {
         return make_op_module(
             "dequantizelinear", {{"axis", axis}, {"block_size", block_size}}, m.get_parameters());
     }
@@ -78,8 +78,10 @@ test_ctx per_axis_ctx_valid(const std::vector<size_t>& x_lens, int axis)
     return per_axis_ctx(x_lens, x_lens[axis], axis);
 }
 
-test_ctx
-blocked_ctx(const std::vector<size_t>& x_lens, const std::vector<size_t>& s_lens, int axis, int block_size)
+test_ctx blocked_ctx(const std::vector<size_t>& x_lens,
+                     const std::vector<size_t>& s_lens,
+                     int axis,
+                     int block_size)
 {
     test_ctx ctx{x_lens, s_lens};
     ctx.axis       = axis;

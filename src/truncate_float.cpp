@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -38,6 +38,11 @@ inline namespace MIGRAPHX_INLINE_NS {
 static void
 quantize_module(module& m, const std::vector<std::string>& ins_names, shape::type_t float_type)
 {
+    // skip main module that contains select_module
+    if(any_of(m.begin(), m.end(), [](auto ins) { return ins.name() == "select_module"; }))
+    {
+        return;
+    }
     for(auto ins : iterator_for(m))
     {
         // instructions are not in the set to be quantized

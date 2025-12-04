@@ -83,7 +83,7 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
                 break;
             }
             case msgpack::type::FLOAT32:
-            /* Intentional Fall Through This is due to value encoding floats as double */
+            /* Intentional Fall Through This is due to value encoding floats as double. */
             case msgpack::type::FLOAT64: {
                 v = o.as<double>();
                 break;

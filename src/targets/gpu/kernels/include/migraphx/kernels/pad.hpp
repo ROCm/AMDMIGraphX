@@ -39,36 +39,44 @@ enum class pad_mode_t
     edge     = 2
 };
 
-// Helper function to calculate reflected index for a single dimension
+// Helper function to calculate reflected index for left padding
+// Pattern: dist=1 -> 1, dist=2 -> 2, ..., with bouncing
 template <class T>
-__device__ auto reflect_index(T idx, T size) -> T
+__device__ auto reflect_index_left(T dist, T size) -> T
 {
     if(size == 1)
         return 0;
 
     auto period = 2 * (size - 1);
+    auto pos    = (dist - 1) % period;
+    return (pos < size - 1) ? (pos + 1) : (period - 1 - pos);
+}
 
-    if(idx < 0)
-    {
-        // Left padding: -1 -> size-1, -2 -> size-2, etc., with bouncing
-        auto dist = -idx;
-        auto pos  = (dist - 1) % period;
-        return (pos < size) ? (size - 1 - pos) : (pos - (size - 1));
-    }
+// Helper function to calculate reflected index for right padding
+// Pattern: dist=1 -> size-2, dist=2 -> size-3, ..., with bouncing
+template <class T>
+__device__ auto reflect_index_right(T dist, T size) -> T
+{
+    if(size == 1)
+        return 0;
 
-    // Right padding: size -> 0, size+1 -> 1, etc., with bouncing
-    auto dist = idx - size + 1;
-    auto pos  = (dist - 1) % period;
-    return (pos < size - 1) ? pos : (period - pos);
+    auto period = 2 * (size - 1);
+    auto pos    = (dist - 1) % period;
+    return (pos < size - 1) ? (size - 2 - pos) : (pos - size + 2);
 }
 
 // Apply edge padding: clamp to valid range
-template <class IndexType, class BoundsType, class Range>
-__device__ void apply_edge_padding(IndexType& input_idx, const BoundsType& input_bounds, Range range_multi)
+// Uses multi and offsets to determine left vs right padding (avoids unsigned underflow issues)
+template <class IndexType, class MultiType, class OffsetsType, class BoundsType, class Range>
+__device__ void apply_edge_padding(IndexType& input_idx,
+                                   const MultiType& multi,
+                                   const OffsetsType& offsets,
+                                   const BoundsType& input_bounds,
+                                   Range range_multi)
 {
     for(auto j : range_multi)
     {
-        if(input_idx[j] < 0)
+        if(multi[j] < offsets[j])
             input_idx[j] = 0;
         else if(input_idx[j] >= input_bounds[j])
             input_idx[j] = input_bounds[j] - 1;
@@ -76,13 +84,28 @@ __device__ void apply_edge_padding(IndexType& input_idx, const BoundsType& input
 }
 
 // Apply reflect padding: mirror around boundaries
-template <class IndexType, class BoundsType, class Range>
-__device__ void apply_reflect_padding(IndexType& input_idx, const BoundsType& input_bounds, Range range_multi)
+// Uses multi and offsets to determine left vs right padding (avoids unsigned underflow issues)
+template <class IndexType, class MultiType, class OffsetsType, class BoundsType, class Range>
+__device__ void apply_reflect_padding(IndexType& input_idx,
+                                      const MultiType& multi,
+                                      const OffsetsType& offsets,
+                                      const BoundsType& input_bounds,
+                                      Range range_multi)
 {
     for(auto j : range_multi)
     {
-        if(input_idx[j] < 0 or input_idx[j] >= input_bounds[j])
-            input_idx[j] = reflect_index(input_idx[j], input_bounds[j]);
+        if(multi[j] < offsets[j])
+        {
+            // Left padding: compute distance from left boundary
+            auto dist      = offsets[j] - multi[j];
+            input_idx[j] = reflect_index_left(dist, input_bounds[j]);
+        }
+        else if(input_idx[j] >= input_bounds[j])
+        {
+            // Right padding: compute distance from right boundary
+            auto dist      = input_idx[j] - input_bounds[j] + 1;
+            input_idx[j] = reflect_index_right(dist, input_bounds[j]);
+        }
     }
 }
 
@@ -120,12 +143,12 @@ __device__ void pad(const index& idx,
         }
         else if(mode == pad_mode_t::reflect)
         {
-            apply_reflect_padding(input_idx, input_bounds, range_multi);
+            apply_reflect_padding(input_idx, multi, offsets, input_bounds, range_multi);
             output[multi] = implicit_conversion(input[input_idx]);
         }
         else // pad_mode_t::edge
         {
-            apply_edge_padding(input_idx, input_bounds, range_multi);
+            apply_edge_padding(input_idx, multi, offsets, input_bounds, range_multi);
             output[multi] = implicit_conversion(input[input_idx]);
         }
     });

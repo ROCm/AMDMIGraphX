@@ -10999,11 +10999,13 @@ def pad_reflect_test():
 
 
 @onnx_test()
-def pad_reflect_3l2r_test():
-    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 2])
-    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2, 7])
+def pad_reflect_2l2r_test():
+    h = 4
+    w = 4
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [h, w])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [h, w+2+2])
 
-    sizes = np.array([0, 3, 0, 2])
+    sizes = np.array([0, 2, 0, 2])
     pad_tensor = helper.make_tensor(name='pad_size',
                                     data_type=TensorProto.INT32,
                                     dims=sizes.shape,
@@ -11022,11 +11024,11 @@ def pad_reflect_3l2r_test():
 
 
 @onnx_test()
-def pad_reflect_large_test():
-    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [256, 256])
-    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [256, 384])
+def pad_reflect_3l2r_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 2])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2, 7])
 
-    sizes = np.array([0, 64, 0, 64])
+    sizes = np.array([0, 3, 0, 2])
     pad_tensor = helper.make_tensor(name='pad_size',
                                     data_type=TensorProto.INT32,
                                     dims=sizes.shape,

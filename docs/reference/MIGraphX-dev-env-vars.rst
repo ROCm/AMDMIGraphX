@@ -183,7 +183,7 @@ Model performance tunable variables change the compilation behavior of a model. 
 
       | Default: ``0`` (automatic calculation).
       
-      | Note: This variable is only used when ``MIGRAPHX_FLASH_DECODING_ENABLED=1``.
+      | Note: This variable implicitly sets ``MIGRAPHX_FLASH_DECODING_ENABLED=1``.
 
   * - | ``MIGRAPHX_FLASH_DECODING_MIN_CHUNK_SIZE``
       | Sets the minimum chunk size for automatic split calculation in flash decoding.

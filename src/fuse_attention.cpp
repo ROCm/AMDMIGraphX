@@ -47,7 +47,18 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_THRESHOLD);
 
 bool is_flash_decoding_enabled() { return enabled(MIGRAPHX_FLASH_DECODING_ENABLED{}); }
 
-std::size_t get_num_splits() { return value_of(MIGRAPHX_FLASH_DECODING_NUM_SPLITS{}, 0); }
+// Get num_splits with priority: struct member > env var > 0 (not set)
+std::size_t get_num_splits(const std::optional<std::size_t>& member_num_splits)
+{
+    // struct member var is used for testing
+    if(member_num_splits.has_value())
+    {
+        return *member_num_splits;
+    }
+
+    // otherwise return env var value, or 0 if not set
+    return value_of(MIGRAPHX_FLASH_DECODING_NUM_SPLITS{}, 0);
+}
 
 // calculate optimal flash decoding splits
 inline std::size_t calculate_flash_decoding_splits(std::size_t sequence_length,
@@ -475,23 +486,22 @@ struct find_flash_decoding
         std::size_t actual_groups = groups;
         if(auto_calculate || groups <= 0)
         {
-            // Auto-calculate the optimal number of splits
-            std::size_t min_chunk  = value_of(MIGRAPHX_FLASH_DECODING_MIN_CHUNK_SIZE{}, 256);
-            std::size_t max_splits = value_of(MIGRAPHX_FLASH_DECODING_MAX_SPLITS{}, 32);
-            std::size_t threshold  = value_of(MIGRAPHX_FLASH_DECODING_THRESHOLD{}, 1024);
+            // TODO: run experiments to find the optimal values for min_chunk and max_splits
+            std::size_t min_chunk  = value_of(MIGRAPHX_FLASH_DECODING_MIN_CHUNK_SIZE{}, 32);
+            std::size_t max_splits = value_of(MIGRAPHX_FLASH_DECODING_MAX_SPLITS{}, 16);
+            std::size_t threshold  = value_of(MIGRAPHX_FLASH_DECODING_THRESHOLD{}, 32);
 
-            // Check if sequence length meets threshold for flash decoding
             if(sequence_length < threshold)
                 return;
 
             actual_groups = calculate_flash_decoding_splits(sequence_length, min_chunk, max_splits);
 
-            // Skip if auto-calculation determines no splitting needed
+            // skip if auto-calculation determines no splitting needed
             if(actual_groups <= 1)
                 return;
         }
 
-        // Skip if no actual splitting (num_splits must be > 1)
+        // skip if no actual splitting (actual_groups must be > 1)
         if(actual_groups <= 1)
             return;
 
@@ -848,35 +858,21 @@ void fuse_attention::apply(module_pass_manager& mpm) const
     std::size_t num_splits = 0;
     bool auto_calculate    = false;
 
-    // for testing, check if the number of splits has been explicitly set
-    if(flash_decoding_num_splits.has_value())
-    {
-        flash_enabled = true;
-        // constructor value provided (for testing) - consider it enabled if > 0
-        if(*flash_decoding_num_splits > 0)
-        {
-            num_splits     = *flash_decoding_num_splits;
-            auto_calculate = false;
-        }
-        else
-        {
-            // constructor provided 0 or negative - enable with auto-calculation
-            num_splits     = 0;
-            auto_calculate = true;
-        }
-    }
-    else if(is_flash_decoding_enabled())
-    {
-        // flash decoding is explicitly enabled via environment variable
-        flash_enabled = true;
+    std::size_t configured_splits = get_num_splits(flash_decoding_num_splits);
 
-        // check if user specified number of splits
-        num_splits = get_num_splits();
-        if(num_splits > 0)
+    // enable flash decoding if splits configured or explicitly enabled
+    if(configured_splits > 0 or is_flash_decoding_enabled())
+    {
+        flash_enabled = true;
+    
+        if(configured_splits > 0)
+        {
+            num_splits     = configured_splits;
             auto_calculate = false;
+        }
         else
         {
-            // user didn't specify or specified 0/negative - auto-calculate
+            // 0 means auto-calculate
             num_splits     = 0;
             auto_calculate = true;
         }

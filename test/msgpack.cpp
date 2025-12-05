@@ -230,8 +230,8 @@ TEST_CASE(test_msgpack_binary_empty)
 TEST_CASE(test_msgpack_binary_roundtrip_empty)
 {
     migraphx::value bin = migraphx::value::binary{};
-    auto buffer = migraphx::to_msgpack(bin);
-    auto mp     = migraphx::from_msgpack(buffer);
+    auto buffer         = migraphx::to_msgpack(bin);
+    auto mp             = migraphx::from_msgpack(buffer);
     EXPECT(mp == bin);
 }
 

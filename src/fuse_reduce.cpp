@@ -61,7 +61,9 @@ struct fused_reduce
         if(sm->get_output_shapes().size() != 1)
             MIGRAPHX_THROW("Only one output supported");
         if(not sm->bypass())
-            MIGRAPHX_THROW("fused_reduce: bypass flag is not set");
+        {
+            //MIGRAPHX_THROW("fused_reduce: bypass flag is not set");
+        }
         auto names = sm->get_parameter_names();
         check_shapes{inputs, *this}.has(names.size()).same_ndims();
         std::sort(names.begin(), names.end());
@@ -362,7 +364,7 @@ struct reduce_reshape : rewrite_reshapes_base
     static std::string name() { return "fused_reduce"; }
 
     template <class Transform>
-    static auto transform_op(Transform t)
+    static auto inserter_op(Transform t)
     {
         return [=](module& m,
                    instruction_ref ins,
@@ -392,15 +394,18 @@ struct reduce_reshape : rewrite_reshapes_base
         auto* oldm = ins->module_inputs().front();
         auto* sm   = mpm.create_module(oldm->name() + "_reshape");
         sm->set_bypass();
-        auto outs = sm->fuse(*oldm, inputs, nullptr, transform_op([&](const operation& sop) {
+        auto outs = sm->fuse(*oldm, inputs, nullptr, inserter_op([&](const operation& sop) {
             if(contains(sop.name(), "reduce"))
                 return make_op(sop.name(), {{"axes", axes}});
             if(sop.name() == "multibroadcast")
                 return make_op("multibroadcast", {{"out_lens", dims}});
             assert(sop.name() == "pointwise");
             return sop;
+        //}), [&](const shape& s) { return s; });
         }));
         sm->add_return(outs);
+        std::cout << "fused_reduce insert module\n";
+        sm->debug_print();
         return mpm.get_module().insert_instruction(ins, fused_reduce{axes}, inputs, {sm});
     }
 

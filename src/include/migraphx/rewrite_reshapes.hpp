@@ -81,11 +81,11 @@ struct rewrite_reshapes
                                         "contiguous",
                                         "multibroadcast",
                                         "broadcast")(match::used_once());
-            auto pointwise         = match::name(op1)(match::used_once());
-            auto reshapes_pointwise =
-                reshapes(match::arg(0)(match::skip(reshapes())(pointwise.bind("x"))));
+            auto op1_matcher = match::name(op1)(match::used_once());
+            auto op1_reshapes=
+                reshapes(match::arg(0)(match::skip(reshapes())(op1_matcher.bind("x"))));
             return match::name(op2)(
-                match::any_of[match::inputs()](reshapes_pointwise.bind("input")));
+                match::any_of[match::inputs()](op1_reshapes.bind("input")));
         }
 
         template <class F>
@@ -136,6 +136,15 @@ struct rewrite_reshapes
             auto x_ins       = r.instructions["x"];
             auto input_ins   = r.instructions["input"];
 
+            const auto& curr_mod = mpm.get_module();
+            curr_mod.debug_print();
+            std::cout << "ins:";
+            curr_mod.debug_print(ins);
+            std::cout << "x_ins:";
+            curr_mod.debug_print(x_ins);
+            std::cout << "input_ins:";
+            curr_mod.debug_print(input_ins);
+
             // If its just a broadcast then skip
             if(not any_input_of(input_ins, x_ins, [](instruction_ref x) {
                    return not contains({"multibroadcast", "broadcast", "contiguous"}, x->name());
@@ -160,10 +169,23 @@ struct rewrite_reshapes
 
             auto desc =
                 shape_transform_descriptor::create(x_ins->get_shape().lens(), ops).rebase(dims2);
+            std::cout << "desc create: ";
+            std::cout << desc << std::endl;
             if(desc.empty())
                 return;
 
+            if(desc.elements() != elements(dims2))
+                return;
+
             auto cdims         = desc.common_dims();
+            std::cout << "cdims\n";
+            std::cout << "[ ";
+            for(auto i : cdims)
+            {
+                std::cout << i << ", ";
+            }
+            std::cout << "]\n";
+            
             auto reshape_input = [&](const auto& ins_to_insert, const auto& gdesc) {
                 return [&](auto input) {
                     auto gops  = gdesc.generate(input->get_shape().lens());
@@ -180,6 +202,9 @@ struct rewrite_reshapes
                            x_inputs.end(),
                            x_inputs.begin(),
                            reshape_input(x_ins, desc.to_common_from_src()));
+            std::cout << "desc to_common_from_src: ";
+            std::cout << desc.to_common_from_src() << std::endl;
+            // this insert is already flawed b/c of going to standard shape
             auto new_x_ins = insert(mpm, x_ins, x_inputs, desc.common_axes_map_from_src());
             if(new_x_ins->get_shape().lens() != cdims)
             {
@@ -187,14 +212,44 @@ struct rewrite_reshapes
                     x_ins, make_op("multibroadcast", {{"out_lens", cdims}}), new_x_ins);
             }
 
+            std::cout << "new_x_ins\n";
+            mpm.get_module().debug_print(new_x_ins);
+
             auto inputs = ins->inputs();
             std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
                 if(input == input_ins)
                     return new_x_ins;
                 return reshape_input(ins, desc.to_common_from_dst())(input);
             });
+
+
+            curr_mod.debug_print();
+            std::cout << "desc reshape_input1: ";
+            std::cout << desc << std::endl;
+            std::cout << "desc common_axes_map_from_dst: ";
+            auto a = desc.common_axes_map_from_dst();
+            std::cout << "{";
+            for( auto i : a )
+            {   
+                std::cout << "[";
+                for(auto j : i)
+                {
+                    std::cout << j << ", ";
+                }
+                std::cout << "], ";
+            }
+            std::cout << "}\n";
+
+            // This insert fails pointwise shape requirements b/c of previous mb going to common_dims
             auto pw = insert(mpm, ins, inputs, desc.common_axes_map_from_dst());
+            curr_mod.debug_print();
+            std::cout << "to_dst_from_common: ";
+            std::cout << desc.to_dst_from_common() << std::endl;
             auto rins = reshape_input(ins, desc.to_dst_from_common())(pw);
+            std::cout << "desc reshape_input2: ";
+            std::cout << desc << std::endl;
+            std::cout << "before_replace\n";
+            curr_mod.debug_print();
             mpm.get_module().replace_instruction(ins, rins);
         }
 

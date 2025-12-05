@@ -1028,6 +1028,7 @@ static void insert_params(module& m,
         if(contains(map_ins, input))
             continue;
         auto s         = shape_transform ? shape_transform(input->get_shape())
+                                         //: input->get_shape();
                                          : input->get_shape().as_standard();
         map_ins[input] = m.add_parameter(param_name(n++), s);
     }
@@ -1079,12 +1080,17 @@ module::fuse(const module& m,
     if(map_ins == nullptr)
         map_ins = &default_map_ins;
     insert_params(*this, inputs, *map_ins, shape_transform);
+    std::cout << "module::fuse0\n";
+    debug_print();
     auto param_map = m.get_ins_param_map(inputs, true);
     for(auto&& [param, input] : param_map)
     {
         (*map_ins)[param] = map_ins->at(input);
     }
-    return this->add_instructions(&m, map_ins, std::move(insert));
+    auto ret = this->add_instructions(&m, map_ins, std::move(insert));
+    std::cout << "module::fuse1\n";
+    debug_print();
+    return ret;
 }
 
 std::vector<instruction_ref>

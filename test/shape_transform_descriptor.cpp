@@ -996,7 +996,24 @@ TEST_CASE(rebase_transpose_reshape_1s)
                                make_op("reshape", {{"dims", {1, 512, 512, 3}}}));
 
     {
+        std::cout << "before rebase: " << base_desc << "\n";
+        auto tmp = get_final_lens(base_desc);
+        std::cout << "before final_lens: [";
+        for(auto i : tmp)
+        {
+            std::cout << i << ", ";
+        }
+        std::cout << "]\n";
+        std::cout << "]\n";
         auto desc = base_desc.rebase({1, 3, 1, 1, 1, 1});
+        std::cout << "after rebase: " << base_desc << "\n";
+        tmp = get_final_lens(desc);
+        std::cout << "after final_lens: [";
+        for(auto i : tmp)
+        {
+            std::cout << i << ", ";
+        }
+        std::cout << "]\n";
         EXPECT(get_final_lens(desc) == final_lens{1, 1, 1, 3});
         EXPECT(get_all_lens(desc) == all_lens{{1}, {1, 1}, {1, 1}, {3}});
         EXPECT(desc.generate() == ops{
@@ -1219,6 +1236,30 @@ TEST_CASE(rebase_adjust_axes_many_moved_groups)
                ops{
                    make_op("reshape", {{"dims", {1, 1, 1, 1, 1, 1, 1, 2, 32}}}),
                    make_op("multibroadcast", {{"out_lens", {2, 4, 2, 2, 2, 3, 2, 2, 32}}}),
+               });
+    }
+}
+
+TEST_CASE(rebase_broadcasted_scalar)
+{
+    // Taken from bug found when compiling Llama3.2
+    auto base_desc =
+        make_simple_descriptor({1, 1, 1},
+                               make_op("unsqueeze", {{"axes", {2, 4}}}),
+                               make_op("multibroadcast", {{"out_lens", {1, 1, 64, 1, 32}}}));
+
+    {
+        // Multiple axes with different shortage/excess patterns - use broadcast mode
+        auto desc = base_desc.rebase({1, 1, 2048});
+        EXPECT(not desc.empty());
+        EXPECT(get_final_lens(desc) == final_lens{1, 1, 64, 2048, 32});
+        EXPECT(get_all_lens(desc) == all_lens{{1}, {1}, {64}, {2048}, {32}});
+        //EXPECT(get_all_axes(desc) == all_axes{d_axes{{0}}, d_axes{{1}}, d_axes{{2, 0}}, d_axes{{2, 1}}, d_axes{{2, 2}}});
+        auto generated = desc.generate();
+        EXPECT(generated ==
+               ops{
+                   make_op("unsqueeze", {{"axes", {2, 4}}}),
+                   make_op("multibroadcast", {{"out_lens", {1, 1, 64, 2048, 32}}}),
                });
     }
 }

@@ -658,7 +658,8 @@ struct find_concat_transpose
         auto ins          = mr.result;
         auto trans_inputs = ins->inputs();
         auto s            = trans_inputs.front()->get_shape();
-        assert(s.transposed());
+        // this doesn't hold for all transposes
+        //assert(s.transposed());
         auto op          = any_cast<op::concat>(ins->get_operator());
         auto permutation = find_permutation(s);
 

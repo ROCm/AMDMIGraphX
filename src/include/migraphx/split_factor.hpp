@@ -66,7 +66,6 @@ inline std::size_t split_dim(std::size_t& r, std::size_t min_size)
 }
 
 /**
- * TODO: lessen code reuse, save factor array
  * Calculate split factor with maximum splits constraint.
  * 
  * Similar to split_dim but also respects a maximum number of splits.

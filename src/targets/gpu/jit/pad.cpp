@@ -107,7 +107,7 @@ struct pad_compiler : compiler<pad_compiler>
             pad_val_string = "highest{}";
 
         // Get pad mode, default to constant
-        auto pad_mode_val = v.get("mode", static_cast<int>(op::pad::constant_pad));
+        auto pad_mode_val           = v.get("mode", static_cast<int>(op::pad::constant_pad));
         std::string pad_mode_string = "migraphx::pad_mode_t::constant";
         if(pad_mode_val == op::pad::reflect_pad)
             pad_mode_string = "migraphx::pad_mode_t::reflect";

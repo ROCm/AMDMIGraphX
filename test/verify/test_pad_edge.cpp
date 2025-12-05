@@ -22,22 +22,38 @@
  * THE SOFTWARE.
  */
 
-#include <onnx_test.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/op/pad.hpp>
 
-TEST_CASE(pad_reflect_test)
+struct test_pad_edge_1d : verify_program<test_pad_edge_1d>
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 2}});
-    mm->add_literal({migraphx::shape{migraphx::shape::int32_type, {4}}, {0, 2, 0, 1}});
-    auto r = mm->add_instruction(
-        migraphx::make_op("pad",
-                          {{"pads", {0, 2, 0, 1}}, {"mode", migraphx::op::pad::reflect_pad}}),
-        l0);
-    mm->add_return({r});
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s0{migraphx::shape::float_type, {4}};
+        std::vector<int64_t> pads0 = {2, 3};
+        auto l0                    = mm->add_parameter("x", s0);
+        mm->add_instruction(
+            migraphx::make_op("pad", {{"pads", pads0}, {"mode", migraphx::op::pad::edge_pad}}), l0);
+        return p;
+    }
+};
 
-    auto prog = read_onnx("pad_reflect_test.onnx");
-
-    EXPECT(p == prog);
-}
+struct test_pad_edge_2d : verify_program<test_pad_edge_2d>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s0{migraphx::shape::float_type, {3, 3}};
+        std::vector<int64_t> pads0 = {1, 2, 1, 2};
+        auto l0                    = mm->add_parameter("x", s0);
+        mm->add_instruction(
+            migraphx::make_op("pad", {{"pads", pads0}, {"mode", migraphx::op::pad::edge_pad}}), l0);
+        return p;
+    }
+};

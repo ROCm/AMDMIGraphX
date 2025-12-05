@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,6 +23,7 @@
  */
 
 #include <onnx_test.hpp>
+#include <migraphx/op/pad.hpp>
 
 TEST_CASE(pad_reflect_with_axes_test)
 {
@@ -31,13 +32,10 @@ TEST_CASE(pad_reflect_with_axes_test)
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 2}});
     mm->add_literal({migraphx::shape{migraphx::shape::int32_type, {1}}, {1}});
     mm->add_literal({migraphx::shape{migraphx::shape::int32_type, {2}}, {2, 1}});
-    auto l1 = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {0, 1}}, {"ends", {2, 2}}}), l0);
-    auto l2 = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {0, 0}}, {"ends", {2, 1}}}), l0);
-    auto l3 = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {0, 0}}, {"ends", {2, 1}}}), l0);
-    auto r = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), l2, l1, l0, l3);
+    auto r = mm->add_instruction(
+        migraphx::make_op("pad",
+                          {{"pads", {0, 2, 0, 1}}, {"mode", migraphx::op::pad::reflect_pad}}),
+        l0);
     mm->add_return({r});
 
     auto prog = read_onnx("pad_reflect_with_axes_test.onnx");

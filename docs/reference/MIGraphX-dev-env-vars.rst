@@ -190,7 +190,7 @@ Model performance tunable variables change the compilation behavior of a model. 
     
     - | Takes a positive integer representing the minimum size of each chunk after splitting.
       
-      | Default: ``256``.
+      | Default: ``32``.
       
       | Note: Only used when automatic split calculation is enabled.
 
@@ -199,7 +199,7 @@ Model performance tunable variables change the compilation behavior of a model. 
     
     - | Takes a positive integer representing the maximum number of splits.
       
-      | Default: ``32``.
+      | Default: ``16``.
       
       | Note: Only used when automatic split calculation is enabled.
 
@@ -208,7 +208,7 @@ Model performance tunable variables change the compilation behavior of a model. 
     
     - | Takes a positive integer. Flash decoding is only applied when the sequence length is greater than or equal to this threshold.
       
-      | Default: ``1024``.
+      | Default: ``32``.
       
       | Note: Only used when automatic split calculation is enabled.
 

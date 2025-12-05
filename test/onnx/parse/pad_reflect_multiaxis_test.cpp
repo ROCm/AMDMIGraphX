@@ -31,7 +31,10 @@ TEST_CASE(pad_reflect_multiaxis_test)
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3}});
     mm->add_literal({migraphx::shape{migraphx::shape::int32_type, {4}}, {0, 2, 2, 0}});
-    auto r = mm->add_instruction(migraphx::make_op("pad", {{"pads", {0, 2, 2, 0}}, {"mode", migraphx::op::pad::reflect_pad}}), l0);
+    auto r = mm->add_instruction(
+        migraphx::make_op("pad",
+                          {{"pads", {0, 2, 2, 0}}, {"mode", migraphx::op::pad::reflect_pad}}),
+        l0);
     mm->add_return({r});
 
     auto prog = read_onnx("pad_reflect_multiaxis_test.onnx");

@@ -118,11 +118,10 @@ struct pad_compiler : compiler<pad_compiler>
         else
             pad_mode_string = "migraphx::pad_mode_t::constant"; // fallback
 
-        auto src = interpolate_string(
-            pointwise_kernel,
-            {{"pad_val", to_string(pad_val_string)}, 
-             {"offsets", to_string_range(roffsets)},
-             {"pad_mode", pad_mode_string}});
+        auto src = interpolate_string(pointwise_kernel,
+                                      {{"pad_val", to_string(pad_val_string)},
+                                       {"offsets", to_string_range(roffsets)},
+                                       {"pad_mode", pad_mode_string}});
         return compile_hip_code_object(ctx, src, options);
     }
 

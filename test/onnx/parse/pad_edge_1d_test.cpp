@@ -31,7 +31,8 @@ TEST_CASE(pad_edge_1d_test)
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {4}});
     mm->add_literal({migraphx::shape{migraphx::shape::int32_type, {2}}, {2, 3}});
-    auto r = mm->add_instruction(migraphx::make_op("pad", {{"pads", {2, 3}}, {"mode", migraphx::op::pad::edge_pad}}), l0);
+    auto r = mm->add_instruction(
+        migraphx::make_op("pad", {{"pads", {2, 3}}, {"mode", migraphx::op::pad::edge_pad}}), l0);
     mm->add_return({r});
 
     auto prog = read_onnx("pad_edge_1d_test.onnx");

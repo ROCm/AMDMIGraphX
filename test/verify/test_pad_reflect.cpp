@@ -37,7 +37,9 @@ struct test_pad_reflect : verify_program<test_pad_reflect>
         migraphx::shape s0{migraphx::shape::float_type, {2, 2}};
         std::vector<int64_t> pads0 = {0, 2, 0, 1};
         auto l0                    = mm->add_parameter("x", s0);
-        mm->add_instruction(migraphx::make_op("pad", {{"pads", pads0}, {"mode", migraphx::op::pad::reflect_pad}}), l0);
+        mm->add_instruction(
+            migraphx::make_op("pad", {{"pads", pads0}, {"mode", migraphx::op::pad::reflect_pad}}),
+            l0);
         return p;
     }
 };
@@ -51,7 +53,9 @@ struct test_pad_reflect_2l2r : verify_program<test_pad_reflect_2l2r>
         migraphx::shape s0{migraphx::shape::float_type, {4, 4}};
         std::vector<int64_t> pads0 = {0, 2, 0, 2};
         auto l0                    = mm->add_parameter("x", s0);
-        mm->add_instruction(migraphx::make_op("pad", {{"pads", pads0}, {"mode", migraphx::op::pad::reflect_pad}}), l0);
+        mm->add_instruction(
+            migraphx::make_op("pad", {{"pads", pads0}, {"mode", migraphx::op::pad::reflect_pad}}),
+            l0);
         return p;
     }
 };
@@ -65,7 +69,9 @@ struct test_pad_reflect_3l2r : verify_program<test_pad_reflect_3l2r>
         migraphx::shape s0{migraphx::shape::float_type, {4, 4}};
         std::vector<int64_t> pads0 = {0, 3, 0, 2};
         auto l0                    = mm->add_parameter("x", s0);
-        mm->add_instruction(migraphx::make_op("pad", {{"pads", pads0}, {"mode", migraphx::op::pad::reflect_pad}}), l0);
+        mm->add_instruction(
+            migraphx::make_op("pad", {{"pads", pads0}, {"mode", migraphx::op::pad::reflect_pad}}),
+            l0);
         return p;
     }
 };
@@ -79,7 +85,9 @@ struct test_pad_reflect_multiaxis : verify_program<test_pad_reflect_multiaxis>
         migraphx::shape s0{migraphx::shape::float_type, {4, 4}};
         std::vector<int64_t> pads0 = {0, 2, 2, 0};
         auto l0                    = mm->add_parameter("x", s0);
-        mm->add_instruction(migraphx::make_op("pad", {{"pads", pads0}, {"mode", migraphx::op::pad::reflect_pad}}), l0);
+        mm->add_instruction(
+            migraphx::make_op("pad", {{"pads", pads0}, {"mode", migraphx::op::pad::reflect_pad}}),
+            l0);
         return p;
     }
 };

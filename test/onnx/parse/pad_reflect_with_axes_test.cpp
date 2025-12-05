@@ -32,7 +32,10 @@ TEST_CASE(pad_reflect_with_axes_test)
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 2}});
     mm->add_literal({migraphx::shape{migraphx::shape::int32_type, {1}}, {1}});
     mm->add_literal({migraphx::shape{migraphx::shape::int32_type, {2}}, {2, 1}});
-    auto r = mm->add_instruction(migraphx::make_op("pad", {{"pads", {0, 2, 0, 1}}, {"mode", migraphx::op::pad::reflect_pad}}), l0);
+    auto r = mm->add_instruction(
+        migraphx::make_op("pad",
+                          {{"pads", {0, 2, 0, 1}}, {"mode", migraphx::op::pad::reflect_pad}}),
+        l0);
     mm->add_return({r});
 
     auto prog = read_onnx("pad_reflect_with_axes_test.onnx");

@@ -318,7 +318,7 @@ struct parse_pad : op_parser<parse_pad>
         }
 
         // Map mode string to pad_op_mode_t enum
-        auto mode_val = op::pad::constant_pad;  // default to constant
+        auto mode_val = op::pad::constant_pad; // default to constant
         if(mode == "reflect")
         {
             mode_val = op::pad::reflect_pad;

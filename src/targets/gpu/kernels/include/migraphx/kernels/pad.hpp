@@ -97,13 +97,13 @@ __device__ void apply_reflect_padding(IndexType& input_idx,
         if(multi[j] < offsets[j])
         {
             // Left padding: compute distance from left boundary
-            auto dist      = offsets[j] - multi[j];
+            auto dist    = offsets[j] - multi[j];
             input_idx[j] = reflect_index_left(dist, input_bounds[j]);
         }
         else if(input_idx[j] >= input_bounds[j])
         {
             // Right padding: compute distance from right boundary
-            auto dist      = input_idx[j] - input_bounds[j] + 1;
+            auto dist    = input_idx[j] - input_bounds[j] + 1;
             input_idx[j] = reflect_index_right(dist, input_bounds[j]);
         }
     }

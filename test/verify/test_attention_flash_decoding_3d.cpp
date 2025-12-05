@@ -51,16 +51,19 @@ struct test_attention_flash_decoding_3d : verify_program<test_attention_flash_de
         auto b1  = mm->add_parameter("v", v_shape);
 
         auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), a, b); // {1, 64, 256}
-        auto rmax  = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), gemm1); // {1, 64, 1}
-        rmax = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 64, 256}}}),
-                                   rmax);
+        auto rmax  = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}),
+                                        gemm1); // {1, 64, 1}
+        rmax       = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 64, 256}}}), rmax);
         auto sub  = mm->add_instruction(migraphx::make_op("sub"), gemm1, rmax); // {1, 64, 256}
-        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub); // {1, 64, 256}
-        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), exp); // {1, 64, 1}
-        rsum = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 64, 256}}}),
-                                   rsum); // {1, 64, 256}
+        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);         // {1, 64, 256}
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}),
+                                        exp); // {1, 64, 1}
+        rsum =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 64, 256}}}),
+                                rsum);                                         // {1, 64, 256}
         auto div   = mm->add_instruction(migraphx::make_op("div"), exp, rsum); // {1, 64, 256}
-        auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, b1); // {1, 64, 32}
+        auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, b1);   // {1, 64, 32}
         mm->add_return({gemm2});
         return p1;
     }

@@ -33,16 +33,16 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 /**
  * Calculate split factor for a dimension to make it less than min_size.
- * 
- * This function finds the largest divisor that can divide the dimension 
- * to make it less than min_size. It uses prime factors [2, 3, 5, 7, 11] 
+ *
+ * This function finds the largest divisor that can divide the dimension
+ * to make it less than min_size. It uses prime factors [2, 3, 5, 7, 11]
  * to find good divisors that work well for parallel execution.
- * 
+ *
  * Used by:
  * - rewrite_topk: Splits large topk operations for better performance
  * - flash_decoding: Splits attention sequence dimension for parallelization
  * - split_reduce (GPU JIT): Splits reduction operations
- * 
+ *
  * @param r The dimension size to split (will be modified to remaining size)
  * @param min_size The minimum size threshold
  * @return The split factor (number of groups)
@@ -54,9 +54,7 @@ inline std::size_t split_dim(std::size_t& r, std::size_t min_size)
     while(r > min_size)
     {
         // NOLINTNEXTLINE(readability-qualified-auto)
-        auto it = std::find_if(factors.begin(), factors.end(), [&](auto d) { 
-            return r % d == 0; 
-        });
+        auto it = std::find_if(factors.begin(), factors.end(), [&](auto d) { return r % d == 0; });
         if(it == factors.end())
             break;
         r /= *it;
@@ -67,27 +65,26 @@ inline std::size_t split_dim(std::size_t& r, std::size_t min_size)
 
 /**
  * Calculate split factor with maximum splits constraint.
- * 
+ *
  * Similar to split_dim but also respects a maximum number of splits.
  * Useful when there's a limit on parallelization due to hardware constraints.
- * 
+ *
  * @param dimension The dimension size to split
- * @param min_size Minimum size per chunk after splitting  
+ * @param min_size Minimum size per chunk after splitting
  * @param max_splits Maximum number of splits allowed (0 = no limit)
  * @return The split factor that respects both constraints
  */
-inline std::size_t split_dim_with_max(std::size_t dimension,
-                                      std::size_t min_size,
-                                      std::size_t max_splits = 0)
+inline std::size_t
+split_dim_with_max(std::size_t dimension, std::size_t min_size, std::size_t max_splits = 0)
 {
     // Make a copy since split_dim modifies the value
-    std::size_t remaining = dimension;
+    std::size_t remaining  = dimension;
     std::size_t num_splits = split_dim(remaining, min_size);
-    
+
     // If no max constraint or already within limit, return as is
     if(max_splits == 0 || num_splits <= max_splits)
         return num_splits;
-    
+
     // Reduce splits to respect max_splits constraint
     auto factors = make_array(2, 3, 5, 7, 11);
     while(num_splits > max_splits)
@@ -106,7 +103,7 @@ inline std::size_t split_dim_with_max(std::size_t dimension,
         if(num_splits > max_splits && num_splits < 2)
             break;
     }
-    
+
     return num_splits;
 }
 

@@ -45,17 +45,14 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_MIN_CHUNK_SIZE);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_MAX_SPLITS);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_THRESHOLD);
 
-bool is_flash_decoding_enabled() 
-{
-    return enabled(MIGRAPHX_FLASH_DECODING_ENABLED{});
-}
+bool is_flash_decoding_enabled() { return enabled(MIGRAPHX_FLASH_DECODING_ENABLED{}); }
 
 std::size_t get_num_splits() { return value_of(MIGRAPHX_FLASH_DECODING_NUM_SPLITS{}, 0); }
 
 // calculate optimal flash decoding splits
-inline std::size_t calculate_flash_decoding_splits(std::size_t sequence_length, 
-                                                    std::size_t min_chunk_size, 
-                                                    std::size_t max_splits)
+inline std::size_t calculate_flash_decoding_splits(std::size_t sequence_length,
+                                                   std::size_t min_chunk_size,
+                                                   std::size_t max_splits)
 {
     return split_dim_with_max(sequence_length, min_chunk_size, max_splits);
 }
@@ -288,7 +285,7 @@ struct find_flash_decoding
     };
 
     transformed_shapes_result get_transformed_shapes(const std::vector<shape>& input_shapes,
-                                                      std::size_t num_groups) const
+                                                     std::size_t num_groups) const
     {
         assert(input_shapes.size() == 3 and "Expected Q, K, V shapes");
 
@@ -471,33 +468,33 @@ struct find_flash_decoding
         assert(v_param->name() == "@param" and "V should be a parameter");
 
         // Get sequence length from K shape
-        auto k_shape = k_param->get_shape();
+        auto k_shape                = k_param->get_shape();
         std::size_t sequence_length = k_shape.lens().back();
-        
+
         // Determine actual number of splits to use
         std::size_t actual_groups = groups;
         if(auto_calculate || groups <= 0)
         {
             // Auto-calculate the optimal number of splits
-            std::size_t min_chunk = value_of(MIGRAPHX_FLASH_DECODING_MIN_CHUNK_SIZE{}, 256);
+            std::size_t min_chunk  = value_of(MIGRAPHX_FLASH_DECODING_MIN_CHUNK_SIZE{}, 256);
             std::size_t max_splits = value_of(MIGRAPHX_FLASH_DECODING_MAX_SPLITS{}, 32);
-            std::size_t threshold = value_of(MIGRAPHX_FLASH_DECODING_THRESHOLD{}, 1024);
+            std::size_t threshold  = value_of(MIGRAPHX_FLASH_DECODING_THRESHOLD{}, 1024);
 
             // Check if sequence length meets threshold for flash decoding
             if(sequence_length < threshold)
                 return;
 
             actual_groups = calculate_flash_decoding_splits(sequence_length, min_chunk, max_splits);
-            
+
             // Skip if auto-calculation determines no splitting needed
             if(actual_groups <= 1)
                 return;
         }
-        
+
         // Skip if no actual splitting (num_splits must be > 1)
         if(actual_groups <= 1)
             return;
-            
+
         // check if N dimension is evenly divisible by num_splits
         if(sequence_length % actual_groups != 0)
             return;
@@ -847,10 +844,10 @@ void fuse_attention::apply(module_pass_manager& mpm) const
     }
 
     // Apply flash decoding if enabled
-    bool flash_enabled = false;
+    bool flash_enabled     = false;
     std::size_t num_splits = 0;
-    bool auto_calculate = false;
-    
+    bool auto_calculate    = false;
+
     // for testing, check if the number of splits has been explicitly set
     if(flash_decoding_num_splits.has_value())
     {
@@ -858,13 +855,13 @@ void fuse_attention::apply(module_pass_manager& mpm) const
         // constructor value provided (for testing) - consider it enabled if > 0
         if(*flash_decoding_num_splits > 0)
         {
-            num_splits = *flash_decoding_num_splits;
+            num_splits     = *flash_decoding_num_splits;
             auto_calculate = false;
         }
         else
         {
             // constructor provided 0 or negative - enable with auto-calculation
-            num_splits = 0;
+            num_splits     = 0;
             auto_calculate = true;
         }
     }
@@ -872,7 +869,7 @@ void fuse_attention::apply(module_pass_manager& mpm) const
     {
         // flash decoding is explicitly enabled via environment variable
         flash_enabled = true;
-        
+
         // check if user specified number of splits
         num_splits = get_num_splits();
         if(num_splits > 0)
@@ -880,17 +877,15 @@ void fuse_attention::apply(module_pass_manager& mpm) const
         else
         {
             // user didn't specify or specified 0/negative - auto-calculate
-            num_splits = 0;
+            num_splits     = 0;
             auto_calculate = true;
         }
     }
-    
+
     if(flash_enabled)
     {
-        match::find_matches(mpm, find_flash_decoding{
-            .groups = num_splits,
-            .auto_calculate = auto_calculate
-        });
+        match::find_matches(
+            mpm, find_flash_decoding{.groups = num_splits, .auto_calculate = auto_calculate});
         mpm.run_pass(dead_code_elimination{});
     }
 }

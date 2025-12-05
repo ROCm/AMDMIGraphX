@@ -339,6 +339,9 @@ struct rebase_ambiguity_resolver
             if(shortage_axes.empty())
                 return axes_map;
 
+            if(try_trivial_direct_mapping())
+                return regroup_axes();
+
             process_axis_groups(axes_map, subs_to_insert);
 
             if(shortage_axes.size() == initial_shortage_count)
@@ -351,10 +354,7 @@ struct rebase_ambiguity_resolver
         sort_hidden_axes_groups();
         sort_moved_axes_groups();
 
-        axes_map_t regroup_axes = group_axes(desc->dimensions);
-        renumber_axes(regroup_axes);
-
-        return regroup_axes;
+        return regroup_axes();
     }
 
     private:
@@ -366,6 +366,13 @@ struct rebase_ambiguity_resolver
         if((x % y) != 0)
             return 0;
         return x / y;
+    }
+
+    axes_map_t regroup_axes()
+    {
+        axes_map_t result = group_axes(desc->dimensions);
+        renumber_axes(result);
+        return result;
     }
 
     // Identifies axes where the target dimension is larger than current subdimensions
@@ -382,6 +389,69 @@ struct rebase_ambiguity_resolver
             shortage_axes.emplace(shortage, axis);
         }
         initial_shortage_count = shortage_axes.size();
+    }
+
+    bool try_trivial_direct_mapping()
+    {
+        if(desc->lens() != *dims)
+            return false;
+        if(not std::all_of(desc->dimensions.begin(), desc->dimensions.end(), [&](const dimension& d) {
+            if(d.subdimensions.empty())
+                return false;
+            if(d.len() == 1)
+                return true;
+            if(std::any_of(d.subdimensions.begin(), d.subdimensions.end(), [&](const dimension::sub& s) {
+                if(s.origin_axis().empty())
+                    return false;
+                if(s.origin_axis().size() != 1)
+                    return true;
+                if(s.len == 1)
+                    return false;
+                if(s.has_hidden_axis())
+                    return false;
+                return ((*dims)[s.origin_axis().front()] != s.len);
+            }))
+                return false;
+            if(d.subdimensions.size() == 1)
+                return true;
+            auto n1dims = std::count_if(d.subdimensions.begin(),
+                                        d.subdimensions.end(),
+                                        [](const dimension::sub& s) { return s.len == 1; });
+            return n1dims + 1 == d.subdimensions.size();
+        }))
+            return false;
+        std::vector<std::size_t> axes;
+        for_each_subdimension(desc->dimensions, [&](auto& s) {
+            if(s.origin_axis().empty())
+                return;
+            axes.push_back(s.origin_axis().front());
+        });
+        // TODO: Handle permutations
+        if(not std::is_sorted(axes.begin(), axes.end()))
+            return false;
+        for(std::size_t i:range(desc->dimensions.size()))
+        {
+            auto& dim = desc->dimensions[i];
+            if(dim.subdimensions.empty())
+                continue;
+            auto sub = std::find_if(dim.subdimensions.begin(), dim.subdimensions.end(), [&](const dimension::sub& s) {
+                return s.len != 1;
+            });
+            if(sub ==dim.subdimensions.end())
+                sub = dim.subdimensions.begin();
+            sub->expose();
+            sub->axis = {i};
+
+            auto remove_axis = [](dimension::sub& s) {
+                s.axis.clear();
+                s.hidden_axis.clear();
+                s.len = 1;
+            };
+            std::for_each(dim.subdimensions.begin(), sub, remove_axis);
+            std::for_each(std::next(sub), dim.subdimensions.end(), remove_axis);
+        }
+        shortage_axes.clear();
+        return true;
     }
 
     // Processes each axis group to resolve ambiguous axis assignments

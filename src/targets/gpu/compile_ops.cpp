@@ -271,7 +271,7 @@ struct compile_plan
                            auto t = time_program(*ctx,
                                                  bench_prog,
                                                  cr->replace.fill_map,
-                                                 /* bundle */ 20,
+                                                 /* bundle */ 10,
                                                  /* nrun */ 20);
                            if(trace_level > 1)
                                std::cout << t << "ms" << std::endl;

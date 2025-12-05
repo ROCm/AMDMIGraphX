@@ -45,18 +45,8 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_MIN_CHUNK_SIZE);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_MAX_SPLITS);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_THRESHOLD);
 
-// Check for MLIR attention ops usage
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_USE_SPECIFIC_OPS);
-
-bool is_mlir_attention_enabled()
-{
-    auto ops = string_value_of(MIGRAPHX_MLIR_USE_SPECIFIC_OPS{}, "");
-    return ops.find("attention") != std::string::npos;
-}
-
 bool is_flash_decoding_enabled() 
-{ 
-    // flash decoding is enabled if explicitly enabled
+{
     return enabled(MIGRAPHX_FLASH_DECODING_ENABLED{});
 }
 
@@ -458,7 +448,6 @@ struct find_flash_decoding
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        std::cout << "apply flash decoding" << std::endl;
         auto& mm            = mpm.get_module();
         auto attn_group_ins = r.instructions["group"];
         auto* submod        = attn_group_ins->module_inputs().front();
@@ -850,17 +839,14 @@ void fuse_attention::apply(module_pass_manager& mpm) const
     mpm.run_pass(dead_code_elimination{});
 
     // Only fuse plain attention when requested
-    if(attn_enabled || is_mlir_attention_enabled())
+    if(attn_enabled)
     {
-        std::cout << "fuse plain attention" << std::endl;
-        mpm.get_module().debug_print();
         match::find_matches(mpm, find_attention{.counter = &counter});
         mpm.get_module().sort();
         mpm.run_pass(dead_code_elimination{});
-        mpm.get_module().debug_print();
     }
 
-    // Check if flash decoding is enabled
+    // Apply flash decoding if enabled
     bool flash_enabled = false;
     std::size_t num_splits = 0;
     bool auto_calculate = false;
@@ -868,8 +854,6 @@ void fuse_attention::apply(module_pass_manager& mpm) const
     // for testing, check if the number of splits has been explicitly set
     if(flash_decoding_num_splits.has_value())
     {
-        std::cout << "flash decoding is explicitly enabled via constructor" << std::endl;
-        std::cout << "flash_decoding_num_splits: " << *flash_decoding_num_splits << std::endl;
         flash_enabled = true;
         // constructor value provided (for testing) - consider it enabled if > 0
         if(*flash_decoding_num_splits > 0)
@@ -886,18 +870,13 @@ void fuse_attention::apply(module_pass_manager& mpm) const
     }
     else if(is_flash_decoding_enabled())
     {
-        std::cout << "flash decoding is explicitly enabled via environment variable" << std::endl;
         // flash decoding is explicitly enabled via environment variable
         flash_enabled = true;
         
         // check if user specified number of splits
         num_splits = get_num_splits();
-        std::cout << "num_splits: " << num_splits << std::endl;
         if(num_splits > 0)
-        {
-            // user specified a positive number of splits - use it
             auto_calculate = false;
-        }
         else
         {
             // user didn't specify or specified 0/negative - auto-calculate
@@ -906,13 +885,8 @@ void fuse_attention::apply(module_pass_manager& mpm) const
         }
     }
     
-    // Apply flash decoding if enabled
     if(flash_enabled)
     {
-        std::cout << "flash_enabled: " << flash_enabled << std::endl;
-        std::cout << "num_splits: " << num_splits << std::endl;
-        std::cout << "auto_calculate: " << auto_calculate << std::endl;
-        mpm.get_module().debug_print();
         match::find_matches(mpm, find_flash_decoding{
             .groups = num_splits,
             .auto_calculate = auto_calculate

@@ -41,6 +41,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
+#include <execution>
 
 #ifndef MIGRAPHX_USE_TYPE_ERASED_MATCHERS
 #define MIGRAPHX_USE_TYPE_ERASED_MATCHERS 0
@@ -495,6 +496,22 @@ auto make_match_runner(Finder& f)
     };
 }
 
+template <class Finder>
+auto make_match_runner_vector(Finder& f)
+{
+    auto m = f.matcher();
+    return std::make_pair(
+        [=](auto& mod, instruction_ref ins) -> bool {
+            match::matcher_result r = match::match_instruction(get_module(mod), ins, m);
+            return r.result != get_module(mod).end();
+        },
+        [=, &f](auto& mod, instruction_ref ins) {
+            match::matcher_result r = match::match_instruction(get_module(mod), ins, m);
+            f.apply(mod, r);
+        }
+    );
+}
+
 template <class Mod, class RunnerPack>
 void find_matches_for(Mod& mod, instruction_ref ins, const RunnerPack& rp)
 {
@@ -618,35 +635,51 @@ find_matches(Mod& mod, Ms&&... ms) -> find_matches<Mod, Ms...>;
 template <class Mod, class Matcher>
 struct find_matches_vector
 {
-    find_matches_vector(Mod& mod, std::vector<Matcher>& mv, source_location location = source_location::current())
+    find_matches_vector(Mod& mod, std::vector<Matcher>& mv)
     {
-        const int trace       = value_of(MIGRAPHX_TRACE_MATCHES{});
-        const bool validate   = enabled(MIGRAPHX_VALIDATE_MATCHES{});
-        const bool need_trace = trace > 0 or validate;
+        typedef std::function<bool(Mod&, instruction_ref)> Matcher_function;
+        typedef std::function<void(Mod&, instruction_ref)> Apply_function;
+        typedef std::pair<Matcher_function, Apply_function> Matcher_obj;
+        std::vector<Matcher_obj> m_runners;
 
-        std::vector<std::function<bool(Mod&, instruction_ref)>> m_runners;
         m_runners.reserve(mv.size());
-        if(need_trace)
+        for (auto m : mv)
         {
-            for (auto m : mv)
-            {
-                m_runners.push_back(make_match_runner_with_trace(location, *m));
-            }
+            m_runners.push_back(make_match_runner_vector(*m));
         }
-        else
-        {
-            for (auto m : mv)
-            {
-                m_runners.push_back(make_match_runner(*m));
-            }
-        }
+
+        // Track which matchers have matched at least once
+        std::vector<bool> matcher_used(m_runners.size(), false);
 
         for(auto ins : iterator_for(get_module(mod)))
         {
-            (void)std::find_if(m_runners.begin(), m_runners.end(),
-                [&mod, &ins](std::function<bool(Mod&, instruction_ref)>& runner) {
-                    return runner(mod, ins);
+            auto it = std::find_if(std::execution::par, m_runners.begin(), m_runners.end(),
+                [&mod, &ins](Matcher_obj& runner) {
+                    return runner.first(mod, ins);
                 });
+
+            if (it != m_runners.end())
+            {
+                // Mark this matcher as used
+                std::size_t idx = std::distance(m_runners.begin(), it);
+                matcher_used[idx] = true;
+                
+                (*it).second(mod, ins);
+            }
+        }
+
+        // Remove matchers from mv that were never used
+        auto mv_it = mv.begin();
+        for (std::size_t i = 0; i < matcher_used.size(); ++i)
+        {
+            if (not matcher_used[i])
+            {
+                mv_it = mv.erase(mv_it);
+            }
+            else
+            {
+                ++mv_it;
+            }
         }
     }
 };

@@ -177,25 +177,88 @@ struct cpu_pad
 
     std::string name() const { return "cpu::pad"; }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
+
+    // Calculate reflected index for a single dimension
+    // Pattern for size N: 1, 2, ..., N-1, N-2, ..., 1, 0, 1, 2, ... (period = 2*(N-1))
+    static std::size_t reflect_index(int64_t idx, std::size_t size)
+    {
+        if(size == 1)
+            return 0;
+
+        std::size_t period = 2 * (size - 1);
+
+        if(idx < 0)
+        {
+            // Left padding: -1 -> 1, -2 -> 2, ..., with bouncing
+            std::size_t dist = -idx;
+            std::size_t pos  = (dist - 1) % period;
+            return (pos < size - 1) ? (pos + 1) : (period - 1 - pos);
+        }
+
+        // Right padding: size -> size-2, size+1 -> size-3, ..., with bouncing
+        std::size_t dist = idx - size + 1;
+        std::size_t pos  = (dist - 1) % period;
+        return (pos < size - 1) ? (size - 2 - pos) : (pos - size + 2);
+    }
+
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         assert(output_shape.standard());
         argument result{output_shape};
-        result.visit([&](auto output) {
-            using type = typename decltype(output)::value_type;
-            std::fill(output.begin(), output.end(), pad_clamp<type>(op.value));
-        });
+        auto input_shape = args[0].get_shape();
+        auto input_lens  = input_shape.lens();
+        auto ndim        = input_lens.size();
 
-        visit_all(result, args[0])([&](auto output, auto input) {
-            shape_for_each(input.get_shape(), [&](const auto& idx) {
-                std::vector<std::size_t> new_idx(idx.size());
-                std::transform(
-                    idx.begin(), idx.end(), op.pads.begin(), new_idx.begin(), [](auto i, auto j) {
-                        return i + j;
-                    });
-                output(new_idx.begin(), new_idx.end()) = input(idx.begin(), idx.end());
+        if(op.mode == op::pad::constant_pad)
+        {
+            // Constant padding: fill with value, then copy input
+            result.visit([&](auto output) {
+                using type = typename decltype(output)::value_type;
+                std::fill(output.begin(), output.end(), pad_clamp<type>(op.value));
             });
-        });
+
+            visit_all(result, args[0])([&](auto output, auto input) {
+                shape_for_each(input_shape, [&](const auto& idx) {
+                    std::vector<std::size_t> new_idx(idx.size());
+                    std::transform(idx.begin(),
+                                   idx.end(),
+                                   op.pads.begin(),
+                                   new_idx.begin(),
+                                   [](auto i, auto j) { return i + j; });
+                    output(new_idx.begin(), new_idx.end()) = input(idx.begin(), idx.end());
+                });
+            });
+        }
+        else
+        {
+            // Reflect or edge padding: iterate over output and map to input
+            visit_all(result, args[0])([&](auto output, auto input) {
+                shape_for_each(output_shape, [&](const auto& out_idx) {
+                    std::vector<std::size_t> in_idx(ndim);
+
+                    for(std::size_t d = 0; d < ndim; ++d)
+                    {
+                        // Use signed arithmetic for subtraction (op.pads is int64_t)
+                        auto idx = static_cast<int64_t>(out_idx[d]) - op.pads[d];
+
+                        if(idx >= 0 and idx < static_cast<int64_t>(input_lens[d]))
+                        {
+                            in_idx[d] = static_cast<std::size_t>(idx);
+                        }
+                        else if(op.mode == op::pad::reflect_pad)
+                        {
+                            in_idx[d] = reflect_index(idx, input_lens[d]);
+                        }
+                        else // edge_pad
+                        {
+                            in_idx[d] = (idx < 0) ? 0 : input_lens[d] - 1;
+                        }
+                    }
+
+                    output(out_idx.begin(), out_idx.end()) = input(in_idx.begin(), in_idx.end());
+                });
+            });
+        }
 
         return result;
     }

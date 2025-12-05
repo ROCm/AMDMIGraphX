@@ -26,7 +26,7 @@
 #include <migraphx/module.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/array.hpp>
+#include <migraphx/split_factor.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -37,23 +37,6 @@ struct find_large_topk
 {
     std::size_t n_threshold = 0;
     auto matcher() const { return match::name("topk"); }
-
-    static std::size_t split_dim(std::size_t& r, std::size_t min_size)
-    {
-        std::size_t n = 1;
-        auto factors  = make_array(2, 3, 5, 7, 11);
-        while(r > min_size)
-        {
-            // NOLINTNEXTLINE(readability-qualified-auto)
-            auto it =
-                std::find_if(factors.begin(), factors.end(), [&](auto d) { return r % d == 0; });
-            if(it == factors.end())
-                break;
-            r /= *it;
-            n *= *it;
-        }
-        return n;
-    }
 
     void apply(module& m, const match::matcher_result& r) const
     {

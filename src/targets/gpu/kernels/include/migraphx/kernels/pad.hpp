@@ -117,12 +117,9 @@ __device__ void pad(const index& idx,
             auto input_idx   = multi - offsets;
             auto range_multi = range(multi.size());
 
-            // Check if we're in the padding region
-            bool in_padding = any_of(range_multi.begin(), range_multi.end(), [&](auto j) {
-                return multi[j] < offsets[j] or input_idx[j] >= input_bounds[j];
-            });
-
-            if(in_padding)
+            if(any_of(range_multi.begin(), range_multi.end(), [&](auto j) {
+                   return multi[j] < offsets[j] or input_idx[j] >= input_bounds[j];
+               }))
                 output[multi] = implicit_conversion(pad_val);
             else
                 output[multi] = implicit_conversion(input[input_idx]);

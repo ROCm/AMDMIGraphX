@@ -80,9 +80,8 @@ __device__ auto transform_reflect(const MultiType& multi,
 // Transform index array for edge padding - returns clamped index array
 // Uses multi and offsets to compute signed index (avoids unsigned underflow)
 template <class MultiType, class OffsetsType, class BoundsType>
-__device__ auto transform_edge(const MultiType& multi,
-                               const OffsetsType& offsets,
-                               const BoundsType& input_bounds)
+__device__ auto
+transform_edge(const MultiType& multi, const OffsetsType& offsets, const BoundsType& input_bounds)
 {
     auto result = multi;
     for(size_t j = 0; j < multi.size(); ++j)

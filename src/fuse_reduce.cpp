@@ -176,7 +176,7 @@ static auto any_input(Ms... ms)
 
 static bool is_valid_broadcast(const instruction_ref b, std::vector<size_t> reduce_axes)
 {
-    const auto& blens = b->get_shape().lens();
+    const auto& blens    = b->get_shape().lens();
     const auto& bstrides = b->get_shape().strides();
     reduce_axes.erase(std::remove_if(reduce_axes.begin(),
                                      reduce_axes.end(),
@@ -184,9 +184,9 @@ static bool is_valid_broadcast(const instruction_ref b, std::vector<size_t> redu
                       reduce_axes.end());
 
     std::vector<size_t> broadcast_axes;
-    copy_if(range(bstrides.size()),
-            std::back_inserter(broadcast_axes),
-            [&](size_t i) { return bstrides.at(i) == 0 and blens.at(i) != 1; });
+    copy_if(range(bstrides.size()), std::back_inserter(broadcast_axes), [&](size_t i) {
+        return bstrides.at(i) == 0 and blens.at(i) != 1;
+    });
 
     return broadcast_axes == reduce_axes;
 }

@@ -395,30 +395,33 @@ struct rebase_ambiguity_resolver
     {
         if(desc->lens() != *dims)
             return false;
-        if(not std::all_of(desc->dimensions.begin(), desc->dimensions.end(), [&](const dimension& d) {
-            if(d.subdimensions.empty())
-                return false;
-            if(d.len() == 1)
-                return true;
-            if(std::any_of(d.subdimensions.begin(), d.subdimensions.end(), [&](const dimension::sub& s) {
-                if(s.origin_axis().empty())
-                    return false;
-                if(s.origin_axis().size() != 1)
-                    return true;
-                if(s.len == 1)
-                    return false;
-                if(s.has_hidden_axis())
-                    return false;
-                return ((*dims)[s.origin_axis().front()] != s.len);
-            }))
-                return false;
-            if(d.subdimensions.size() == 1)
-                return true;
-            auto n1dims = std::count_if(d.subdimensions.begin(),
-                                        d.subdimensions.end(),
-                                        [](const dimension::sub& s) { return s.len == 1; });
-            return n1dims + 1 == d.subdimensions.size();
-        }))
+        if(not std::all_of(
+               desc->dimensions.begin(), desc->dimensions.end(), [&](const dimension& d) {
+                   if(d.subdimensions.empty())
+                       return false;
+                   if(d.len() == 1)
+                       return true;
+                   if(std::any_of(d.subdimensions.begin(),
+                                  d.subdimensions.end(),
+                                  [&](const dimension::sub& s) {
+                                      if(s.origin_axis().empty())
+                                          return false;
+                                      if(s.origin_axis().size() != 1)
+                                          return true;
+                                      if(s.len == 1)
+                                          return false;
+                                      if(s.has_hidden_axis())
+                                          return false;
+                                      return ((*dims)[s.origin_axis().front()] != s.len);
+                                  }))
+                       return false;
+                   if(d.subdimensions.size() == 1)
+                       return true;
+                   auto n1dims = std::count_if(d.subdimensions.begin(),
+                                               d.subdimensions.end(),
+                                               [](const dimension::sub& s) { return s.len == 1; });
+                   return n1dims + 1 == d.subdimensions.size();
+               }))
             return false;
         std::vector<std::size_t> axes;
         for_each_subdimension(desc->dimensions, [&](auto& s) {
@@ -429,15 +432,15 @@ struct rebase_ambiguity_resolver
         // TODO: Handle permutations
         if(not std::is_sorted(axes.begin(), axes.end()))
             return false;
-        for(std::size_t i:range(desc->dimensions.size()))
+        for(std::size_t i : range(desc->dimensions.size()))
         {
             auto& dim = desc->dimensions[i];
             if(dim.subdimensions.empty())
                 continue;
-            auto sub = std::find_if(dim.subdimensions.begin(), dim.subdimensions.end(), [&](const dimension::sub& s) {
-                return s.len != 1;
-            });
-            if(sub ==dim.subdimensions.end())
+            auto sub = std::find_if(dim.subdimensions.begin(),
+                                    dim.subdimensions.end(),
+                                    [&](const dimension::sub& s) { return s.len != 1; });
+            if(sub == dim.subdimensions.end())
                 sub = dim.subdimensions.begin();
             sub->expose();
             sub->axis = {i};

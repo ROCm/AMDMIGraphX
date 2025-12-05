@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include "migraphx/shape.hpp"
 #include <iterator>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/module.hpp>
@@ -1466,6 +1467,77 @@ std::vector<module_ref> module::get_sub_modules(bool shallow) const
     return vec_modules;
 }
 
+module module::with_static_shapes(const std::vector<shape>& input_shapes)
+{
+    // This routine creates a new module with the same instructions but with different input shapes.
+    // The sequence of instructions (operators and interconnectivity) is copied, but all input parameter shapes are replaced with new "input_shapes".
+    // The return value is the new module (returned by value).
+
+    // Safety: Requires that input_shapes size matches the number of parameters in this module.
+
+    // First, get the parameter names and ensure input_shapes is the same length as the parameters.
+    auto param_names = this->get_parameter_names();
+    assert(param_names.size() == input_shapes.size() && "Mismatch between input_shapes and parameter count");
+    
+    // Make a mapping from the parameter names to the new shapes.
+    std::unordered_map<std::string, shape> shape_map;
+    for(std::size_t i = 0; i < param_names.size(); ++i)
+        shape_map[param_names[i]] = input_shapes[i];
+
+    // Create new module
+    module new_mod;
+
+    // This will map old instruction_ref -> new instruction_ref in the new module
+    std::unordered_map<instruction_ref, instruction_ref> ins_map;
+
+    // First, create parameters with new shapes in new_mod and fill ins_map for params
+    for(auto ins : iterator_for(*this))
+    {
+        if(ins->name() == "@param")
+        {
+            auto pname = any_cast<builtin::param>(ins->get_operator()).parameter;
+            assert(shape_map.count(pname) > 0);
+            ins_map[ins] = new_mod.add_parameter(pname, shape_map.at(pname));
+        }
+    }
+
+    // Copy remaining instructions (except parameters) in order
+    for(auto ins : iterator_for(*this))
+    {
+        if(ins->name() == "@param")
+            continue;
+
+        // Gather new input refs for this instruction
+        std::vector<instruction_ref> new_args;
+        for(auto arg : ins->inputs())
+            new_args.push_back(ins_map.at(arg));
+
+        // Gather new module argument refs if present
+        std::vector<module_ref> new_mod_args;
+        for(auto modarg : ins->module_inputs())
+            new_mod_args.push_back(modarg); // Modules are *not* recreated, just reused
+
+        instruction_ref new_ins;
+        if(ins->name() == "@literal")
+        {
+            new_ins = new_mod.add_literal(ins->get_literal());
+        }
+        else if(ins->name() == "@return")
+        {
+            new_ins = new_mod.add_return(new_args);
+        }
+        else
+        {
+            if(new_mod_args.empty())
+                new_ins = new_mod.add_instruction(ins->get_operator(), new_args);
+            else
+                new_ins = new_mod.add_instruction(ins->get_operator(), new_args, new_mod_args);
+        }
+        ins_map[ins] = new_ins;
+    }
+
+    return new_mod;
+}
 module& module::sort()
 {
     if(this->begin() == this->end())

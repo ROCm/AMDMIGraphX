@@ -382,9 +382,14 @@ struct dynamic_op
                        idx.begin(),
                        std::back_inserter(args_ins),
                        [&](const auto& arg, const auto& i) {
-                           return temp_mod.add_parameter("x" + std::to_string(i), arg.get_shape());
+                           return temp_mod.add_parameter("temp_mod:x" + std::to_string(i), arg.get_shape());
                        });
-        auto ins = temp_mod.add_instruction(pre_op, args_ins, module_args);
+        //rewrite module without dynamic shapes
+        auto mod_args = std::vector<argument>{args.begin(), args.end()-1};
+        auto static_mod = module_args.front()->with_static_shapes(to_shapes(mod_args));
+        
+        auto ins = temp_mod.add_instruction(pre_op, args_ins, {&static_mod});
+        temp_mod.add_return({ins});
         operation preop = any_cast<precompile_op>(ins->get_operator()).op;
         auto config = get_tuning_config(ctx, ins, preop, false);
         value solution = value{};
@@ -395,16 +400,16 @@ struct dynamic_op
         auto compiled_op = compile(ctx, ins, preop, solution);
         compiled_op.replace(temp_mod, ins);
         run_passes(temp_mod, {dead_code_elimination{}});
-        temp_mod.debug_print();
 
         // Finalize the module before execution
         std::vector<migraphx::context> contexts = {migraphx::context(ctx)};
         temp_mod.finalize(contexts);
 
+        // Build param_map based on ACTUAL parameters that exist
         auto param_map = std::unordered_map<std::string, argument>{};
         for(auto i : idx)
         {
-            param_map["x" + std::to_string(i)] = args[i];
+            param_map["temp_mod:x" + std::to_string(i)] = args[i];
         }
         module_ref temp_mod_ref = &temp_mod;
 

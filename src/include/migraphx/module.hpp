@@ -330,6 +330,11 @@ struct MIGRAPHX_EXPORT module
     module& sort();
 
     module& shuffle(std::vector<std::size_t> permutation);
+    
+    /// Create a new module with the same instructions but with different input parameter shapes.
+    /// Returns the new module by value without modifying the original.
+    module with_static_shapes(const std::vector<shape>& input_shapes);
+    
     /* Any instruction "X" can have module arguments and those modules inside them can use any other
      * instruction "Y" from predecessor modules of the instruction "X". Such instruction "Y" inside
      * module args are not listed as input instructions to "X". But those instructions "Y" must be

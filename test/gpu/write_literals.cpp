@@ -45,7 +45,7 @@
 // The actual GPU memory usage after compilation may be significantly less than
 // the conservative estimates used during the pass.
 
-void run_pass(migraphx::module& m, migraphx::gpu::write_literals p = {})
+static void run_pass(migraphx::module& m, migraphx::gpu::write_literals p = {})
 {
     migraphx::run_passes(m, {p, migraphx::dead_code_elimination{}});
 }
@@ -505,7 +505,7 @@ TEST_CASE(allocations_with_literals)
 }
 
 // Helper to run pass with full pipeline for memory coloring analysis
-void run_pass_with_memory_coloring(migraphx::module& m, migraphx::gpu::write_literals p = {})
+static void run_pass_with_memory_coloring(migraphx::module& m, migraphx::gpu::write_literals p = {})
 {
     // Create a dummy GPU context for lowering
     migraphx::gpu::context ctx;
@@ -524,7 +524,7 @@ void run_pass_with_memory_coloring(migraphx::module& m, migraphx::gpu::write_lit
 }
 
 // Helper to count literals with host=false vs host=true
-std::pair<std::size_t, std::size_t> count_gpu_host_literals(const migraphx::module& m)
+static std::pair<std::size_t, std::size_t> count_gpu_host_literals(const migraphx::module& m)
 {
     std::size_t gpu_literals  = 0;
     std::size_t host_literals = 0;
@@ -554,7 +554,7 @@ std::pair<std::size_t, std::size_t> count_gpu_host_literals(const migraphx::modu
 }
 
 // Calculate GPU memory usage: gpu literals + scratch buffer
-std::size_t calculate_gpu_memory_usage(const migraphx::module& m)
+static std::size_t calculate_gpu_memory_usage(const migraphx::module& m)
 {
     std::size_t gpu_literal_size = 0;
     std::size_t scratch_size     = 0;
@@ -574,7 +574,7 @@ std::size_t calculate_gpu_memory_usage(const migraphx::module& m)
                     break;
                 }
             }
-            if(!is_host)
+            if( not is_host)
             {
                 gpu_literal_size += ins->get_shape().bytes();
             }
@@ -593,7 +593,7 @@ std::size_t calculate_gpu_memory_usage(const migraphx::module& m)
 }
 
 // Get the size of the scratch buffer added by memory coloring
-std::size_t get_scratch_size(const migraphx::module& m)
+static std::size_t get_scratch_size(const migraphx::module& m)
 {
     auto param_names = m.get_parameter_names();
     if(std::find(param_names.begin(), param_names.end(), "scratch") != param_names.end())

@@ -216,27 +216,20 @@ struct ref_pad
     std::string name() const { return "ref::pad"; }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
 
-    // Calculate reflected index for a single dimension
-    // Pattern for size N: 1, 2, ..., N-1, N-2, ..., 1, 0, 1, 2, ... (period = 2*(N-1))
+    // Calculate reflected index using triangle wave formula
     static std::size_t reflect_index(int64_t idx, std::size_t size)
     {
         if(size == 1)
             return 0;
 
-        std::size_t period = 2 * (size - 1);
+        auto period = size - 1;
 
-        if(idx < 0)
-        {
-            // Left padding: -1 -> 1, -2 -> 2, ..., with bouncing
-            std::size_t dist = -idx;
-            std::size_t pos  = (dist - 1) % period;
-            return (pos < size - 1) ? (pos + 1) : (period - 1 - pos);
-        }
+        // Handle negative indices by taking absolute value
+        auto shifted = idx < 0 ? static_cast<std::size_t>(-idx) : static_cast<std::size_t>(idx);
 
-        // Right padding: size -> size-2, size+1 -> size-3, ..., with bouncing
-        std::size_t dist = idx - size + 1;
-        std::size_t pos  = (dist - 1) % period;
-        return (pos < size - 1) ? (size - 2 - pos) : (pos - size + 2);
+        // Triangle wave: oscillates between 0 and period
+        auto mod_val = shifted % (2 * period);
+        return (mod_val <= period) ? mod_val : (2 * period - mod_val);
     }
 
     argument compute(context&, const dyn_output& dyn_out, std::vector<argument> args) const

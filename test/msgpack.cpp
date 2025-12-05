@@ -227,5 +227,11 @@ TEST_CASE(test_msgpack_binary_empty)
     EXPECT(migraphx::to_msgpack(bin) == msgpack_buffer(bin));
 }
 
+TEST_CASE(test_msgpack_binary_roundtrip_empty)
+{
+    migraphx::value bin = migraphx::value::binary{};
+    EXPECT(migraphx::to_msgpack(bin) == msgpack_buffer(bin));
+}
+
 #endif
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

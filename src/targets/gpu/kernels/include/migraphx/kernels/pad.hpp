@@ -32,124 +32,111 @@
 
 namespace migraphx {
 
-enum class pad_mode_t
+struct pad_constant
 {
-    constant = 0,
-    reflect  = 1,
-    edge     = 2
+};
+struct pad_reflect
+{
+};
+struct pad_edge
+{
 };
 
-// Helper function to calculate reflected index for left padding
-// Pattern: dist=1 -> 1, dist=2 -> 2, ..., with bouncing
-template <class T>
-__device__ auto reflect_index_left(T dist, T size) -> T
+// Unified reflect index using triangle wave formula
+// Handles any signed index with proper bouncing pattern
+template <class T, class S>
+__device__ auto reflect_index(T idx, S size) -> S
 {
     if(size == 1)
         return 0;
 
-    auto period = 2 * (size - 1);
-    auto pos    = (dist - 1) % period;
-    return (pos < size - 1) ? (pos + 1) : (period - 1 - pos);
+    auto period = size - 1;
+
+    // Handle negative indices by taking absolute value
+    auto shifted = idx < 0 ? static_cast<S>(-idx) : static_cast<S>(idx);
+
+    // Triangle wave: oscillates between 0 and period
+    auto mod_val = shifted % (2 * period);
+    return (mod_val <= period) ? mod_val : (2 * period - mod_val);
 }
 
-// Helper function to calculate reflected index for right padding
-// Pattern: dist=1 -> size-2, dist=2 -> size-3, ..., with bouncing
-template <class T>
-__device__ auto reflect_index_right(T dist, T size) -> T
+// Transform index array for reflect padding - returns new index array
+// Uses multi and offsets to compute signed index (avoids unsigned underflow)
+template <class MultiType, class OffsetsType, class BoundsType>
+__device__ auto transform_reflect(const MultiType& multi,
+                                  const OffsetsType& offsets,
+                                  const BoundsType& input_bounds)
 {
-    if(size == 1)
-        return 0;
-
-    auto period = 2 * (size - 1);
-    auto pos    = (dist - 1) % period;
-    return (pos < size - 1) ? (size - 2 - pos) : (pos - size + 2);
-}
-
-// Apply edge padding: clamp to valid range
-// Uses multi and offsets to determine left vs right padding (avoids unsigned underflow issues)
-template <class IndexType, class MultiType, class OffsetsType, class BoundsType, class Range>
-__device__ void apply_edge_padding(IndexType& input_idx,
-                                   const MultiType& multi,
-                                   const OffsetsType& offsets,
-                                   const BoundsType& input_bounds,
-                                   Range range_multi)
-{
-    for(auto j : range_multi)
+    auto result = multi;
+    for(size_t j = 0; j < multi.size(); ++j)
     {
-        if(multi[j] < offsets[j])
-            input_idx[j] = 0;
-        else if(input_idx[j] >= input_bounds[j])
-            input_idx[j] = input_bounds[j] - 1;
+        // Compute signed index to avoid unsigned underflow
+        auto idx  = static_cast<int64_t>(multi[j]) - static_cast<int64_t>(offsets[j]);
+        result[j] = reflect_index(idx, input_bounds[j]);
     }
+    return result;
 }
 
-// Apply reflect padding: mirror around boundaries
-// Uses multi and offsets to determine left vs right padding (avoids unsigned underflow issues)
-template <class IndexType, class MultiType, class OffsetsType, class BoundsType, class Range>
-__device__ void apply_reflect_padding(IndexType& input_idx,
-                                      const MultiType& multi,
-                                      const OffsetsType& offsets,
-                                      const BoundsType& input_bounds,
-                                      Range range_multi)
+// Transform index array for edge padding - returns clamped index array
+// Uses multi and offsets to compute signed index (avoids unsigned underflow)
+template <class MultiType, class OffsetsType, class BoundsType>
+__device__ auto transform_edge(const MultiType& multi,
+                               const OffsetsType& offsets,
+                               const BoundsType& input_bounds)
 {
-    for(auto j : range_multi)
+    auto result = multi;
+    for(size_t j = 0; j < multi.size(); ++j)
     {
-        if(multi[j] < offsets[j])
-        {
-            // Left padding: compute distance from left boundary
-            auto dist    = offsets[j] - multi[j];
-            input_idx[j] = reflect_index_left(dist, input_bounds[j]);
-        }
-        else if(input_idx[j] >= input_bounds[j])
-        {
-            // Right padding: compute distance from right boundary
-            auto dist    = input_idx[j] - input_bounds[j] + 1;
-            input_idx[j] = reflect_index_right(dist, input_bounds[j]);
-        }
+        // Compute signed index to avoid unsigned underflow
+        auto idx = static_cast<int64_t>(multi[j]) - static_cast<int64_t>(offsets[j]);
+        if(idx < 0)
+            result[j] = 0;
+        else if(idx >= static_cast<int64_t>(input_bounds[j]))
+            result[j] = input_bounds[j] - 1;
+        else
+            result[j] = idx;
     }
+    return result;
 }
 
-template <class Offsets, class Input, class Output, class PadVal>
+template <class Offsets, class Input, class Output, class PadVal, class PadMode>
 __device__ void pad(const index& idx,
                     const Offsets& offsets,
                     const Input& input,
                     Output& output,
                     const PadVal& pad_val,
-                    pad_mode_t mode = pad_mode_t::constant)
+                    PadMode)
 {
     auto output_shape = output.get_shape();
     auto input_bounds = input.get_shape().lens;
 
     idx.global_stride(output_shape.elements(), [&](auto i) {
-        auto multi       = output_shape.multi(i);
-        auto input_idx   = multi - offsets;
-        auto range_multi = range(multi.size());
+        auto multi = output_shape.multi(i);
 
-        // Check if we're in the padding region
-        bool in_padding = any_of(range_multi.begin(), range_multi.end(), [&](auto j) {
-            return multi[j] < offsets[j] or input_idx[j] >= input_bounds[j];
-        });
+        if constexpr(is_same<PadMode, pad_constant>{})
+        {
+            auto input_idx   = multi - offsets;
+            auto range_multi = range(multi.size());
 
-        if(not in_padding)
-        {
-            output[multi] = implicit_conversion(input[input_idx]);
-            return;
-        }
+            // Check if we're in the padding region
+            bool in_padding = any_of(range_multi.begin(), range_multi.end(), [&](auto j) {
+                return multi[j] < offsets[j] or input_idx[j] >= input_bounds[j];
+            });
 
-        // Handle padding based on mode
-        if(mode == pad_mode_t::constant)
-        {
-            output[multi] = implicit_conversion(pad_val);
+            if(in_padding)
+                output[multi] = implicit_conversion(pad_val);
+            else
+                output[multi] = implicit_conversion(input[input_idx]);
         }
-        else if(mode == pad_mode_t::reflect)
+        else if constexpr(is_same<PadMode, pad_reflect>{})
         {
-            apply_reflect_padding(input_idx, multi, offsets, input_bounds, range_multi);
-            output[multi] = implicit_conversion(input[input_idx]);
+            auto input_idx = transform_reflect(multi, offsets, input_bounds);
+            output[multi]  = implicit_conversion(input[input_idx]);
         }
-        else // pad_mode_t::edge
+        else if constexpr(is_same<PadMode, pad_edge>{})
         {
-            apply_edge_padding(input_idx, multi, offsets, input_bounds, range_multi);
-            output[multi] = implicit_conversion(input[input_idx]);
+            auto input_idx = transform_edge(multi, offsets, input_bounds);
+            output[multi]  = implicit_conversion(input[input_idx]);
         }
     });
 }

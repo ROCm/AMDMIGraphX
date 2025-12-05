@@ -108,11 +108,11 @@ struct pad_compiler : compiler<pad_compiler>
 
         // Get pad mode, default to constant
         auto pad_mode_val           = v.get("mode", static_cast<int>(op::pad::constant_pad));
-        std::string pad_mode_string = "migraphx::pad_mode_t::constant";
+        std::string pad_mode_string = "migraphx::pad_constant{}";
         if(pad_mode_val == op::pad::reflect_pad)
-            pad_mode_string = "migraphx::pad_mode_t::reflect";
+            pad_mode_string = "migraphx::pad_reflect{}";
         else if(pad_mode_val == op::pad::edge_pad)
-            pad_mode_string = "migraphx::pad_mode_t::edge";
+            pad_mode_string = "migraphx::pad_edge{}";
 
         auto src = interpolate_string(pointwise_kernel,
                                       {{"pad_val", to_string(pad_val_string)},

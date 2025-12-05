@@ -1249,17 +1249,15 @@ TEST_CASE(rebase_broadcasted_scalar)
                                make_op("multibroadcast", {{"out_lens", {1, 1, 64, 1, 32}}}));
 
     {
-        // Multiple axes with different shortage/excess patterns - use broadcast mode
         auto desc = base_desc.rebase({1, 1, 2048});
         EXPECT(not desc.empty());
-        EXPECT(get_final_lens(desc) == final_lens{1, 1, 64, 2048, 32});
-        EXPECT(get_all_lens(desc) == all_lens{{1}, {1}, {64}, {2048}, {32}});
-        //EXPECT(get_all_axes(desc) == all_axes{d_axes{{0}}, d_axes{{1}}, d_axes{{2, 0}}, d_axes{{2, 1}}, d_axes{{2, 2}}});
+        EXPECT(get_final_lens(desc) == final_lens{1, 1, 64, 1, 32});
+        EXPECT(get_all_lens(desc) == all_lens{{1}, {1}, {64}, {1}, {32}});
+        EXPECT(get_all_axes(desc) == all_axes{d_axes{{0}}, d_axes{{1}}, d_axes{{2, 0}}, d_axes{{2, 1}}, d_axes{{2, 2}}});
         auto generated = desc.generate();
         EXPECT(generated ==
                ops{
-                   make_op("unsqueeze", {{"axes", {2, 4}}}),
-                   make_op("multibroadcast", {{"out_lens", {1, 1, 64, 2048, 32}}}),
+                   make_op("reshape", {{"out_lens", {1, 1, 64, 1, 32}}}),
                });
     }
 }

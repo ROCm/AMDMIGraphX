@@ -400,8 +400,9 @@ struct reduce_reshape : rewrite_reshapes_base
             if(sop.name() == "multibroadcast")
                 return make_op("multibroadcast", {{"out_lens", dims}});
             assert(sop.name() == "pointwise");
+            std::cout << "fuse_reduce pointwise module:\n";
+            sop.module_inputs().front().debug_print()
             return sop;
-        //}), [&](const shape& s) { return s; });
         }));
         sm->add_return(outs);
         std::cout << "fused_reduce insert module\n";

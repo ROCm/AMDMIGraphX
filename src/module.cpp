@@ -1028,7 +1028,6 @@ static void insert_params(module& m,
         if(contains(map_ins, input))
             continue;
         auto s         = shape_transform ? shape_transform(input->get_shape())
-                                         //: input->get_shape();
                                          : input->get_shape().as_standard();
         map_ins[input] = m.add_parameter(param_name(n++), s);
     }

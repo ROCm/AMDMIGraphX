@@ -174,9 +174,6 @@ struct rewrite_reshapes
             if(desc.empty())
                 return;
 
-            if(desc.elements() != elements(dims2))
-                return;
-
             auto cdims         = desc.common_dims();
             std::cout << "cdims\n";
             std::cout << "[ ";
@@ -205,12 +202,16 @@ struct rewrite_reshapes
             std::cout << "desc to_common_from_src: ";
             std::cout << desc.to_common_from_src() << std::endl;
             // this insert is already flawed b/c of going to standard shape
+            // trying a change in module::fuse to not call shape.as_standard(); Doesn't fix pointwise changing to standard
             auto new_x_ins = insert(mpm, x_ins, x_inputs, desc.common_axes_map_from_src());
-            if(new_x_ins->get_shape().lens() != cdims)
-            {
-                new_x_ins = mpm.get_module().insert_instruction(
-                    x_ins, make_op("multibroadcast", {{"out_lens", cdims}}), new_x_ins);
-            }
+
+            // Disabling this broadcast because the common_dims are {1, 1, 64, 2048, 32}
+            // which makes a shape mismatch for the pointwise after this ins
+            //if(new_x_ins->get_shape().lens() != cdims)
+            //{
+            //    new_x_ins = mpm.get_module().insert_instruction(
+            //        x_ins, make_op("multibroadcast", {{"out_lens", cdims}}), new_x_ins);
+            //}
 
             std::cout << "new_x_ins\n";
             mpm.get_module().debug_print(new_x_ins);
@@ -222,32 +223,29 @@ struct rewrite_reshapes
                 return reshape_input(ins, desc.to_common_from_dst())(input);
             });
 
-
-            curr_mod.debug_print();
-            std::cout << "desc reshape_input1: ";
-            std::cout << desc << std::endl;
-            std::cout << "desc common_axes_map_from_dst: ";
-            auto a = desc.common_axes_map_from_dst();
-            std::cout << "{";
-            for( auto i : a )
-            {   
-                std::cout << "[";
-                for(auto j : i)
-                {
-                    std::cout << j << ", ";
-                }
-                std::cout << "], ";
-            }
-            std::cout << "}\n";
+            //std::cout << "desc common_axes_map_from_dst: ";
+            //auto a = desc.common_axes_map_from_dst();
+            //std::cout << "{";
+            //for( auto i : a )
+            //{   
+            //    std::cout << "[";
+            //    for(auto j : i)
+            //    {
+            //        std::cout << j << ", ";
+            //    }
+            //    std::cout << "], ";
+            //}
+            //std::cout << "}\n";
 
             // This insert fails pointwise shape requirements b/c of previous mb going to common_dims
             auto pw = insert(mpm, ins, inputs, desc.common_axes_map_from_dst());
-            curr_mod.debug_print();
+
             std::cout << "to_dst_from_common: ";
             std::cout << desc.to_dst_from_common() << std::endl;
+            curr_mod.debug_print();
+
             auto rins = reshape_input(ins, desc.to_dst_from_common())(pw);
-            std::cout << "desc reshape_input2: ";
-            std::cout << desc << std::endl;
+
             std::cout << "before_replace\n";
             curr_mod.debug_print();
             mpm.get_module().replace_instruction(ins, rins);

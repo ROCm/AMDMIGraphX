@@ -310,9 +310,9 @@ struct find_flash_decoding
         size_t n    = k_lens[ndim - 1];
         size_t g    = num_groups;
 
-        // TODO: handle uneven splits; this is caught in `apply` for now
+        // Note: sequence length may have been padded to be divisible by num_groups
         assert(n % g == 0 and
-               "Key-value sequence length must be divisible by number of splits/groups");
+               "Key-value sequence length must be divisible by number of splits/groups (after padding)");
         size_t n_split = n / g;
 
         transformed_shapes_result result;
@@ -505,15 +505,15 @@ struct find_flash_decoding
         if(actual_groups <= 1)
             return;
 
-        // check if N dimension is evenly divisible by num_splits
+        // calculate padded sequence length if not evenly divisible
+        std::size_t padded_sequence_length = sequence_length;
+        std::size_t padding_needed         = 0;
         if(sequence_length % actual_groups != 0)
-            return;
-
-        // get Q, V, K shapes from gemms
-        auto qkv_shapes = get_qkv_shapes(q_param, k_param, v_param);
-
-        // check shapes are ok and get flash decoding transformed shapes (Q', V', K')
-        auto transform_info = get_transformed_shapes(qkv_shapes, actual_groups);
+        {
+            // round up to nearest multiple of actual_groups
+            padded_sequence_length = ((sequence_length + actual_groups - 1) / actual_groups) * actual_groups;
+            padding_needed         = padded_sequence_length - sequence_length;
+        }
 
         // create mapping from submodule params to main module inputs
         auto group_inputs      = attn_group_ins->inputs();
@@ -523,6 +523,28 @@ struct find_flash_decoding
         auto q = map_param_to_main.at(q_param);
         auto k = map_param_to_main.at(k_param);
         auto v = map_param_to_main.at(v_param);
+
+        // pad K and V if necessary
+        if(padding_needed > 0)
+        {
+            // K shape: [B, k, N] or [B, H, k, N] for 4D. Padding on N
+            auto k_ndim = k->get_shape().ndim();
+            std::vector<std::size_t> k_pads(2 * k_ndim, 0);
+            k_pads[k_ndim + k_ndim - 1] = padding_needed; // pad right on last dim
+            k = mm.insert_instruction(attn_group_ins, make_op("pad", {{"pads", k_pads}}), k);
+
+            // V shape: [B, N, D] or [B, H, N, D] for 4D
+            auto v_ndim = v->get_shape().ndim();
+            std::vector<std::size_t> v_pads(2 * v_ndim, 0);
+            v_pads[v_ndim + v_ndim - 2] = padding_needed; // pad right on N dim
+            v = mm.insert_instruction(attn_group_ins, make_op("pad", {{"pads", v_pads}}), v);
+        }
+
+        // get Q, K, V shapes (using potentially padded K and V)
+        auto qkv_shapes = get_qkv_shapes(q, k, v);
+
+        // check shapes are ok and get flash decoding transformed shapes (Q', V', K')
+        auto transform_info = get_transformed_shapes(qkv_shapes, actual_groups);
 
         // insert reshape operations before group, for Q, K, V
         auto q_ndim    = q->get_shape().lens().size();

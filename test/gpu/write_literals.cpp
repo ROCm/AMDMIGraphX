@@ -574,7 +574,7 @@ static std::size_t calculate_gpu_memory_usage(const migraphx::module& m)
                     break;
                 }
             }
-            if( not is_host)
+            if(not is_host)
             {
                 gpu_literal_size += ins->get_shape().bytes();
             }

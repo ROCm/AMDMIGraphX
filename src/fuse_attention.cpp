@@ -886,7 +886,7 @@ void fuse_attention::apply(module_pass_manager& mpm) const
     if(configured_splits > 0 or is_flash_decoding_enabled())
     {
         flash_enabled = true;
-    
+
         if(configured_splits > 0)
         {
             num_splits     = configured_splits;

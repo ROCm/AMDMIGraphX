@@ -260,10 +260,19 @@ struct compile_plan
                            bench_mm->add_return({bench_ins});
                            cr->replace.replace(*bench_mm, bench_ins);
                            // do dead code elimination
-                           run_passes(*bench_mm, {eliminate_identity{}, dead_code_elimination{}, memory_coloring{"hip::allocate"},});
+                           run_passes(*bench_mm,
+                                      {
+                                          eliminate_identity{},
+                                          dead_code_elimination{},
+                                          memory_coloring{"hip::allocate"},
+                                      });
                            if(trace_level > 2)
                                std::cout << bench_prog << std::endl;
-                           auto t = time_program(*ctx, bench_prog, cr->replace.fill_map, /* bundle */ 20, /* nrun */ 20);
+                           auto t = time_program(*ctx,
+                                                 bench_prog,
+                                                 cr->replace.fill_map,
+                                                 /* bundle */ 20,
+                                                 /* nrun */ 20);
                            if(trace_level > 1)
                                std::cout << t << "ms" << std::endl;
                            return t;

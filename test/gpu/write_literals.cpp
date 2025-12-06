@@ -80,7 +80,7 @@ static std::size_t get_scratch_size(const migraphx::module& m)
     return 0;
 }
 
-template<class F>
+template <class F>
 void for_each_literal(const migraphx::module& m, F f)
 {
     for(auto ins : iterator_for(m))

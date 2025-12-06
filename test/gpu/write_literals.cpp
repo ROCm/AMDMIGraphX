@@ -81,7 +81,7 @@ static std::size_t get_scratch_size(const migraphx::module& m)
 }
 
 template <class F>
-void for_each_literal(const migraphx::module& m, F f)
+static void for_each_literal(const migraphx::module& m, F f)
 {
     for(auto ins : iterator_for(m))
     {
@@ -734,12 +734,12 @@ TEST_CASE(dense_network_memory_pressure)
         std::vector<migraphx::instruction_ref> weights;
 
         // Add 10 consecutive convolutions
-        for(int i = 0; i < 10; i++)
+        for(std::size_t i:migraphx::range(10))
         {
             std::size_t in_channels = (i == 0) ? 3 : 16;
             auto w                  = m.add_literal(migraphx::generate_literal(
                 migraphx::shape{migraphx::shape::float_type, {16, in_channels, 3, 3}},
-                static_cast<unsigned long>(400 + i)));
+                400 + i));
             weights.push_back(w);
             current = m.add_instruction(migraphx::make_op("convolution"), current, w);
 

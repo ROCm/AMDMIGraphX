@@ -124,6 +124,7 @@ struct onnx_parser
     literal parse_tensor(const onnx::TensorProto& t) const;
     shape parse_type(const onnx::TypeProto& t) const;
     shape parse_type(const onnx::TypeProto& t, const std::vector<std::size_t>& input_dims) const;
+    std::string to_string(const onnx::AttributeProto& attr) const;
 };
 
 shape::type_t get_type(int dtype);

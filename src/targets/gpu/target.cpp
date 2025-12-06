@@ -72,6 +72,7 @@
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
 #include <migraphx/gpu/lowering.hpp>
+#include <migraphx/gpu/optimize_gather.hpp>
 #include <migraphx/gpu/schedule_model.hpp>
 #include <migraphx/gpu/sync_device.hpp>
 #include <migraphx/gpu/target.hpp>
@@ -244,6 +245,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         eliminate_contiguous{"gpu::contiguous"},
         dead_code_elimination{},
         eliminate_concat{concat_gpu_optimization{}},
+        dead_code_elimination{},
+        optimize_gather{},
         dead_code_elimination{},
 #if MIGRAPHX_USE_MIOPEN
         compile_miopen{&gctx},

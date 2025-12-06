@@ -173,6 +173,7 @@ add_library(migraphx_gpu
     multinomial.cpp
     no_device.cpp
     nonzero.cpp
+    optimize_gather.cpp
     pack_args.cpp
     prefuse_ops.cpp
     prepare_reduce.cpp

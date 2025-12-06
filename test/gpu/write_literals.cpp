@@ -734,12 +734,11 @@ TEST_CASE(dense_network_memory_pressure)
         std::vector<migraphx::instruction_ref> weights;
 
         // Add 10 consecutive convolutions
-        for(std::size_t i:migraphx::range(10))
+        for(std::size_t i : migraphx::range(10))
         {
             std::size_t in_channels = (i == 0) ? 3 : 16;
             auto w                  = m.add_literal(migraphx::generate_literal(
-                migraphx::shape{migraphx::shape::float_type, {16, in_channels, 3, 3}},
-                400 + i));
+                migraphx::shape{migraphx::shape::float_type, {16, in_channels, 3, 3}}, 400 + i));
             weights.push_back(w);
             current = m.add_instruction(migraphx::make_op("convolution"), current, w);
 

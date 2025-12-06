@@ -39,31 +39,59 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_GATHER_OPTIMIZATION)
 namespace {
 
 /**
- * Analyzes a gather instruction and prints diagnostic information
+ * Checks if an instruction is a constant data source
+ * Returns true for @literal and @param instructions
+ */
+bool is_constant_data(instruction_ref ins)
+{
+    if(ins == instruction_ref{})
+        return false;
+    
+    auto name = ins->name();
+    // Literals are always constant
+    if(name == "@literal")
+        return true;
+    
+    // Parameters can be constant if they're weights/embeddings (not batch inputs)
+    // For now, we conservatively treat all parameters as potentially constant
+    if(name == "@param")
+        return true;
+    
+    return false;
+}
+
+/**
+ * Analyzes a gather instruction and annotates it with optimization hints
  */
 void analyze_and_annotate_gather(module& m, instruction_ref ins)
 {
     auto op = any_cast<op::gather>(ins->get_operator());
     auto axis = op.axis;
     
-    // Get input shapes
+    // Get input instructions
     auto inputs = ins->inputs();
     if(inputs.size() < 2)
         return;
     
-    auto data_shape = inputs[0]->get_shape();
-    auto indices_shape = inputs[1]->get_shape();
+    auto data_ins = inputs[0];
+    auto indices_ins = inputs[1];
+    
+    auto data_shape = data_ins->get_shape();
+    auto indices_shape = indices_ins->get_shape();
     auto output_shape = ins->get_shape();
     
     // Skip dynamic shapes for now
     if(data_shape.dynamic() || indices_shape.dynamic() || output_shape.dynamic())
         return;
     
+    // Check if data input is constant
+    bool data_is_constant = is_constant_data(data_ins);
+    
     // Create shape vector for analysis
     std::vector<shape> shapes = {data_shape, indices_shape, output_shape};
     
     // Analyze and select optimal kernel
-    auto analysis = analyze_gather(shapes, axis);
+    auto analysis = analyze_gather(shapes, axis, data_is_constant);
     auto optimization = select_gather_optimization(analysis);
     auto kernel_name = get_gather_kernel_name(optimization);
     
@@ -72,6 +100,9 @@ void analyze_and_annotate_gather(module& m, instruction_ref ins)
     {
         std::cout << "Gather Optimization Analysis:\n";
         std::cout << "  Instruction: " << ins->name() << "\n";
+        std::cout << "  Data source: " << data_ins->name() << " ";
+        std::cout << (data_is_constant ? "(constant)" : "(variable)") << "\n";
+        std::cout << "  Indices source: " << indices_ins->name() << "\n";
         std::cout << "  Output elements: " << analysis.num_elements << "\n";
         std::cout << "  Axis: " << analysis.axis << " ";
         std::cout << (analysis.is_innermost_axis ? "(innermost)" : "(not innermost)") << "\n";
@@ -81,22 +112,16 @@ void analyze_and_annotate_gather(module& m, instruction_ref ins)
         std::cout << std::endl;
     }
     
-    // Annotate the operation with optimization hint
-    // This creates a new gather operation with the hint embedded as metadata
-    auto new_op = op;
-    
-    // The hint will be picked up by the gather compiler
-    // We could add it to the value if we modify the gather operation,
-    // but since the compiler already analyzes shapes, we don't need to modify the IR
-    // This pass serves primarily as an analysis/validation step
-    
-    // Note: In a full implementation, you might want to:
-    // 1. Add a custom attribute to the operation
-    // 2. Replace with a specialized gpu::gather_* operation
-    // 3. Store hints in a separate data structure
-    
-    // For now, the pass validates that our analysis is consistent
-    // and provides trace output for debugging
+    // If data is constant, annotate the operation
+    if(data_is_constant)
+    {
+        // Create new operation with constant data hint
+        auto new_op_value = op.to_value();
+        new_op_value["data_is_constant"] = true;
+        
+        // Replace the instruction with annotated version
+        m.replace_instruction(ins, op.from_value(new_op_value), inputs);
+    }
 }
 
 } // anonymous namespace

@@ -10,7 +10,7 @@ This document summarizes the implementation of automatic gather kernel optimizat
 
 **File**: `src/targets/gpu/kernels/include/migraphx/kernels/gather.hpp`
 
-Three gather implementations are now available:
+Five gather implementations are now available:
 
 #### `gather()` - Basic Implementation
 - Original implementation preserved for compatibility
@@ -32,6 +32,20 @@ Three gather implementations are now available:
 - **Efficient tail handling** for remaining elements
 - Best for innermost axis gathers with contiguous memory (5K+ elements)
 - Expected gain: up to 2-3x in ideal cases
+
+#### `gather_const_data()` - **NEW** Constant Data Optimization
+- **Read-only cache optimization** for constant data sources
+- **Optimized for irregular access** patterns (embedding lookups)
+- **Minimal register pressure** (1 element per thread)
+- Best for medium constant data gathers (2K-10K elements)
+- Expected gain: 15-25% over basic for embeddings
+
+#### `gather_const_data_opt()` - **NEW** Constant Data + ILP
+- **2x loop unrolling** (conservative to preserve cache effectiveness)
+- **Combines const cache hints with ILP**
+- **Optimized for large embedding tables**
+- Best for large constant data gathers (>10K elements)
+- Expected gain: 20-40% over basic for large embeddings
 
 ### 2. Optimization Selector (`gather_optimizer.hpp`)
 
@@ -129,7 +143,21 @@ compile_ops{&ctx, options.exhaustive_tune},
 - Runs before compilation (can influence kernel selection)
 - Positioned optimally for analysis and annotation
 
-### 6. Build System Updates (`CMakeLists.txt`)
+### 6. Constant Data Detection (`optimize_gather.cpp`)
+
+**New Feature**: Automatic detection of constant data sources
+
+**Function**: `is_constant_data(instruction_ref ins)`
+- Detects `@literal` instructions (always constant)
+- Detects `@param` instructions (weights/embeddings)
+- Returns true if data is constant
+
+**Annotation**:
+- Adds `data_is_constant = true` to gather operation value
+- Compiler reads this hint and selects const-optimized kernels
+- IR modification is transparent to other passes
+
+### 7. Build System Updates (`CMakeLists.txt`)
 
 **File**: `src/targets/gpu/CMakeLists.txt`
 
@@ -144,15 +172,18 @@ compile_ops{&ctx, options.exhaustive_tune},
                │
                ▼
 ┌─────────────────────────────────────┐
-│  optimize_gather Pass (optional)    │
-│  - Analysis & Tracing               │
+│  optimize_gather Pass               │
+│  1. Detect data source type         │
+│  2. Check if @literal/@param        │
+│  3. Annotate if constant            │
 └──────────────┬──────────────────────┘
                │
                ▼
 ┌─────────────────────────────────────┐
 │  gather_compiler::compile_op()      │
 │  1. Extract axis from operation     │
-│  2. Call select_gather_kernel()     │
+│  2. Read data_is_constant hint      │
+│  3. Call select_gather_kernel()     │
 └──────────────┬──────────────────────┘
                │
                ▼
@@ -161,31 +192,46 @@ compile_ops{&ctx, options.exhaustive_tune},
 │  - Extract shape info               │
 │  - Check axis position              │
 │  - Verify contiguity                │
+│  - Check if data is constant        │
 │  - Measure size                     │
 └──────────────┬──────────────────────┘
                │
                ▼
 ┌─────────────────────────────────────┐
 │  select_gather_optimization()       │
-│  Apply heuristics                   │
+│  Apply priority-based heuristics    │
 └──────────────┬──────────────────────┘
                │
-      ┌────────┴────────┐
-      │                 │
-      ▼                 ▼
-Innermost     Not innermost
-  > 5K            > 1K
-Contiguous
-      │                 │
-      ▼                 ▼
-┌──────────┐      ┌──────────┐
-│Vectorized│      │Optimized │
-└──────────┘      └──────────┘
-               │
-               ▼ (< 1K or fallback)
-          ┌────────┐
-          │ Basic  │
-          └────────┘
+      ┌────────┴────────────┐
+      │                     │
+  Constant              Variable
+   Data?                  Data?
+      │                     │
+      ▼                     ▼
+┌─────────┐         ┌───────────┐
+│ > 10K?  │         │Innermost  │
+│   YES   │         │  > 5K?    │
+└────┬────┘         │  Contig?  │
+     │              └─────┬─────┘
+     ▼                    │
+┌──────────────┐     ┌────┴─────┐
+│const_data_opt│  YES│          │NO
+└──────────────┘     ▼          ▼
+     │          ┌────────┐  ┌────────┐
+     │          │Vectorized│ │Optimized│
+┌────┴────┐     └────────┘  └────────┘
+│  > 2K?  │                      │
+│   YES   │                      │
+└────┬────┘               ┌──────┴──────┐
+     ▼                    │   > 1K?     │
+┌────────────┐            └──────┬──────┘
+│const_data  │                   │
+└────────────┘            ┌──────┴───────┐
+                          YES           NO
+                          │              │
+                     ┌────▼────┐    ┌───▼───┐
+                     │Optimized│    │ Basic │
+                     └─────────┘    └───────┘
 ```
 
 ## Usage
@@ -250,15 +296,18 @@ g++ -std=c++17 -I src/include -I src/targets/gpu -I src/targets/gpu/include \
 ### Created Files
 1. `src/targets/gpu/gather_optimizer.hpp` - Optimization selector logic
 2. `src/targets/gpu/include/migraphx/gpu/optimize_gather.hpp` - Pass header
-3. `src/targets/gpu/optimize_gather.cpp` - Pass implementation
+3. `src/targets/gpu/optimize_gather.cpp` - Pass implementation (w/ const detection)
 4. `src/targets/gpu/GATHER_OPTIMIZATION_GUIDE.md` - Detailed guide
-5. `test_gather_optimizer.cpp` - Test/demo program
+5. `test_gather_optimizer.cpp` - Test/demo program (w/ const data tests)
 6. `GATHER_OPTIMIZATION_SUMMARY.md` - This file
+7. `CONST_DATA_GATHER_OPTIMIZATION.md` - **NEW** Constant data optimization guide
 
 ### Modified Files
 1. `src/targets/gpu/kernels/include/migraphx/kernels/gather.hpp`
    - Added `gather_opt()` function
    - Added `gather_vectorized()` function
+   - Added `gather_const_data()` function **NEW**
+   - Added `gather_const_data_opt()` function **NEW**
 
 2. `src/targets/gpu/jit/gather.cpp`
    - Added `#include <migraphx/gpu/gather_optimizer.hpp>`

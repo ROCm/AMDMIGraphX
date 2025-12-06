@@ -38,9 +38,11 @@ namespace gpu {
  */
 enum class gather_optimization
 {
-    basic,       ///< Basic gather implementation (always works)
-    optimized,   ///< Optimized gather with ILP and caching
-    vectorized   ///< Vectorized gather for contiguous patterns
+    basic,            ///< Basic gather implementation (always works)
+    optimized,        ///< Optimized gather with ILP and caching
+    vectorized,       ///< Vectorized gather for contiguous patterns
+    const_data,       ///< Optimized for constant data with variable indices
+    const_data_opt    ///< Constant data with ILP optimization
 };
 
 /**
@@ -56,6 +58,7 @@ struct gather_analysis
     bool is_contiguous_input;        ///< True if input has standard layout
     bool is_large_gather;            ///< True if output > 10K elements
     bool indices_are_contiguous;     ///< True if indices have standard layout
+    bool is_data_constant;           ///< True if data input is constant (@literal or fixed @param)
 };
 
 /**
@@ -63,9 +66,12 @@ struct gather_analysis
  * 
  * @param inputs Vector of input shapes [data, indices, output]
  * @param axis The gather axis
+ * @param data_is_constant Optional hint if data input is known to be constant
  * @return Analysis results
  */
-inline gather_analysis analyze_gather(const std::vector<shape>& inputs, int axis)
+inline gather_analysis analyze_gather(const std::vector<shape>& inputs, 
+                                      int axis, 
+                                      bool data_is_constant = false)
 {
     gather_analysis analysis{};
     
@@ -80,6 +86,7 @@ inline gather_analysis analyze_gather(const std::vector<shape>& inputs, int axis
     analysis.num_elements = output_shape.elements();
     analysis.axis = axis;
     analysis.num_indices = indices_shape.elements();
+    analysis.is_data_constant = data_is_constant;
     
     // Check if shapes are standard (contiguous)
     analysis.is_contiguous_input = data_shape.standard();
@@ -106,10 +113,11 @@ inline gather_analysis analyze_gather(const std::vector<shape>& inputs, int axis
  * Selects the best gather optimization strategy based on operation characteristics
  * 
  * Strategy selection logic:
- * 1. Vectorized: When gathering on innermost dimension with contiguous memory
- *    and large enough data to benefit from vectorization
- * 2. Optimized: For medium to large gathers where ILP can be exploited
- * 3. Basic: Fallback for small operations or when other optimizations may not help
+ * 1. Const Data Optimized: For large constant data gathers (embeddings)
+ * 2. Const Data: For medium constant data gathers  
+ * 3. Vectorized: When gathering on innermost dimension with contiguous memory
+ * 4. Optimized: For medium to large gathers where ILP can be exploited
+ * 5. Basic: Fallback for small operations or when other optimizations may not help
  * 
  * @param analysis The gather operation analysis
  * @return The recommended optimization strategy
@@ -122,18 +130,48 @@ inline gather_optimization select_gather_optimization(const gather_analysis& ana
     // Threshold for vectorization (elements)
     constexpr std::size_t vec_threshold = 5000;
     
-    // Use vectorized optimization for:
+    // Threshold for constant data optimization (elements)
+    constexpr std::size_t const_data_threshold = 2000;
+    
+    // Threshold for constant data with ILP (elements)
+    constexpr std::size_t const_data_opt_threshold = 10000;
+    
+    // Priority 1: Constant data optimizations (common for embeddings/lookups)
+    // These work best when:
+    // - Data is constant (embedding tables, weight matrices)
+    // - Indices are variable (batch processing, sequence inputs)
+    // - Access patterns are irregular (not predictable)
+    if(analysis.is_data_constant)
+    {
+        // For very large constant data gathers, use ILP version
+        if(analysis.num_elements > const_data_opt_threshold)
+        {
+            return gather_optimization::const_data_opt;
+        }
+        
+        // For medium constant data gathers, use basic const version
+        if(analysis.num_elements > const_data_threshold)
+        {
+            return gather_optimization::const_data;
+        }
+        
+        // Fall through to standard selection for small constant gathers
+    }
+    
+    // Priority 2: Vectorized optimization for:
     // - Innermost axis gathers (best memory coalescing)
     // - Large operations (> 5K elements)
     // - Contiguous input data
-    if(analysis.is_innermost_axis && 
+    // - NOT constant data (const data opts are better for that case)
+    if(!analysis.is_data_constant &&
+       analysis.is_innermost_axis && 
        analysis.num_elements > vec_threshold &&
        analysis.is_contiguous_input)
     {
         return gather_optimization::vectorized;
     }
     
-    // Use optimized (ILP) version for:
+    // Priority 3: Optimized (ILP) version for:
     // - Medium to large operations (> 1K elements)
     // - Not on innermost axis OR not contiguous (vectorized won't help much)
     if(analysis.is_large_gather && analysis.num_elements > opt_threshold)
@@ -156,6 +194,10 @@ inline std::string get_gather_kernel_name(gather_optimization opt)
             return "gather_vectorized";
         case gather_optimization::optimized:
             return "gather_opt";
+        case gather_optimization::const_data:
+            return "gather_const_data";
+        case gather_optimization::const_data_opt:
+            return "gather_const_data_opt";
         case gather_optimization::basic:
         default:
             return "gather";
@@ -167,11 +209,14 @@ inline std::string get_gather_kernel_name(gather_optimization opt)
  * 
  * @param inputs Vector of input shapes [data, indices, output]
  * @param axis The gather axis
+ * @param data_is_constant Whether the data input is constant
  * @return String name of the kernel function to use
  */
-inline std::string select_gather_kernel(const std::vector<shape>& inputs, int axis)
+inline std::string select_gather_kernel(const std::vector<shape>& inputs, 
+                                       int axis, 
+                                       bool data_is_constant = false)
 {
-    auto analysis = analyze_gather(inputs, axis);
+    auto analysis = analyze_gather(inputs, axis, data_is_constant);
     auto optimization = select_gather_optimization(analysis);
     return get_gather_kernel_name(optimization);
 }

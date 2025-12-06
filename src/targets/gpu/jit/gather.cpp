@@ -74,25 +74,27 @@ struct gather_compiler : compiler<gather_compiler>
         auto axis = v.at("axis").to<int>();
         auto axis_str = std::to_string(axis);
         
+        // Check if data input is constant (from value hint or default to false)
+        bool data_is_constant = v.get("data_is_constant", false);
+        
         // Analyze and select the best gather kernel
-        auto kernel_func = select_gather_kernel(inputs, axis);
+        auto kernel_func = select_gather_kernel(inputs, axis, data_is_constant);
         
         // Generate the appropriate kernel call based on selected optimization
-        std::string kernel_call;
-        if(kernel_func == "gather_vectorized")
-        {
-            kernel_call = kernel_func + "<" + axis_str + ">(xs...);";
-        }
-        else
-        {
-            kernel_call = kernel_func + "<" + axis_str + ">(xs...);";
-        }
+        std::string kernel_call = kernel_func + "<" + axis_str + ">(xs...);";
         
         // Adjust launch parameters based on kernel type
         if(kernel_func == "gather_opt")
         {
             // Optimized kernel processes 4 elements per thread
             constexpr std::size_t unroll_factor = 4;
+            auto global_size = (out_s.elements() + unroll_factor - 1) / unroll_factor;
+            options.set_launch_params(v, compute_global_for(ctx, global_size));
+        }
+        else if(kernel_func == "gather_const_data_opt")
+        {
+            // Constant data optimized kernel processes 2 elements per thread
+            constexpr std::size_t unroll_factor = 2;
             auto global_size = (out_s.elements() + unroll_factor - 1) / unroll_factor;
             options.set_launch_params(v, compute_global_for(ctx, global_size));
         }
@@ -105,7 +107,7 @@ struct gather_compiler : compiler<gather_compiler>
         }
         else
         {
-            // Basic kernel: one thread per element
+            // Basic, const_data kernels: one thread per element
             options.set_launch_params(v, compute_global_for(ctx, out_s.elements()));
         }
 

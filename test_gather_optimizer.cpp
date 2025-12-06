@@ -113,6 +113,61 @@ int main()
         },
     };
     
+    std::cout << "\n" << std::string(60, '=') << "\n";
+    std::cout << "Testing Constant Data Optimizations\n";
+    std::cout << std::string(60, '=') << "\n";
+    
+    // Additional tests for constant data optimizations
+    std::vector<test_case> const_data_cases = {
+        // Medium const data gather
+        {
+            "Medium Const Data Gather (const_data Expected)",
+            {512, 300},     // data shape (embedding table)
+            {100},          // indices shape
+            0,              // axis
+            "gather_const_data" // expected
+        },
+        
+        // Large const data gather  
+        {
+            "Large Const Data Gather (const_data_opt Expected)",
+            {10000, 768},   // data shape (large embedding)
+            {256},          // indices shape
+            0,              // axis
+            "gather_const_data_opt" // expected
+        },
+    };
+    
+    // Test constant data cases
+    for(const auto& tc : const_data_cases)
+    {
+        shape data_shape{shape::float_type, tc.data_shape};
+        shape indices_shape{shape::int32_type, tc.indices_shape};
+        
+        auto output_lens = tc.data_shape;
+        output_lens[tc.axis] = indices_shape.elements();
+        shape output_shape{shape::float_type, output_lens};
+        
+        std::vector<shape> inputs = {data_shape, indices_shape, output_shape};
+        
+        // Analyze with constant data flag
+        auto analysis = analyze_gather(inputs, tc.axis, true);  // true = constant data
+        auto selected_kernel = select_gather_kernel(inputs, tc.axis, true);
+        
+        print_analysis(tc.name, analysis, selected_kernel);
+        
+        bool matches = (selected_kernel == tc.expected_kernel);
+        std::cout << "Expected: " << tc.expected_kernel << "\n";
+        std::cout << "Result:   " << (matches ? "✓ PASS" : "✗ FAIL") << "\n";
+        
+        if(matches)
+            passed++;
+        else
+            failed++;
+        
+        test_cases.push_back(tc);  // Add to total count
+    }
+    
     int passed = 0;
     int failed = 0;
     

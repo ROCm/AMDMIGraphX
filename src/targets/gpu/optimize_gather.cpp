@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/gpu/optimize_gather.hpp>
-#include <migraphx/gpu/gather_optimizer.hpp>
+#include <migraphx/gather_optimizer.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>

@@ -27,7 +27,7 @@
 
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
-#include <migraphx/gpu/gather_optimizer.hpp>
+#include <migraphx/gather_optimizer.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

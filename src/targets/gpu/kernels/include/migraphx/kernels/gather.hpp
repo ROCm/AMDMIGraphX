@@ -136,8 +136,6 @@ __device__ void gather_opt(Input input, Indices indices, Output output)
 template <int Axis, class Input, class Indices, class Output, int VecSize = 4>
 __device__ void gather_vectorized(Input input, Indices indices, Output output)
 {
-    using value_type = decltype(input[0]);
-    
     auto ind = make_index();
     const auto axis_dim_size = input.get_shape().lens[Axis];
     const auto num_elements = output.get_shape().elements();

@@ -171,6 +171,7 @@ add_library(migraphx_gpu
     logsoftmax.cpp
     loop.cpp
     lrn.cpp
+    merge_parallel_gathers.cpp
     mlir.cpp
     multinomial.cpp
     no_device.cpp

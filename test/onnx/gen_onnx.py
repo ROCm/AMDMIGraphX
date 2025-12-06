@@ -13058,7 +13058,7 @@ def resize_nhwc_test():
                                  outputs=['Y'],
                                  perm=[0, 3, 1, 2])
 
-    return ([trn1, resize, trn2], [X], [Y], [scale_tensor])
+    return ([trn1, resize, trn2], [X, TX, TY], [Y], [scale_tensor])
 
 
 @onnx_test()

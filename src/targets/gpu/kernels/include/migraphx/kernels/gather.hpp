@@ -85,9 +85,6 @@ __device__ void gather_opt(Input input, Indices indices, Output output)
 
     constexpr auto out_comp = gather_shape<Axis>(get_shape_c<Input>{}, get_shape_c<Indices>{});
     
-    // Cache output shape properties
-    const auto out_shape = output.get_shape();
-    
     // Process multiple elements per thread to improve instruction-level parallelism
     constexpr index_int unroll_factor = 4;
     const auto base_idx = ind.global * unroll_factor;

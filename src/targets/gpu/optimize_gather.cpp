@@ -40,7 +40,7 @@ namespace {
 
 /**
  * Checks if an instruction is a constant data source
- * Returns true for @literal and @param instructions
+ * Returns true for literal and param instructions
  */
 bool is_constant_data(instruction_ref ins)
 {
@@ -119,8 +119,11 @@ void analyze_and_annotate_gather(module& m, instruction_ref ins)
         auto new_op_value = op.to_value();
         new_op_value["data_is_constant"] = true;
         
+        // Create new gather operation with the annotated value
+        auto new_op = make_op("gather", new_op_value);
+        
         // Replace the instruction with annotated version
-        m.replace_instruction(ins, op.from_value(new_op_value), inputs);
+        m.replace_instruction(ins, new_op, inputs);
     }
 }
 

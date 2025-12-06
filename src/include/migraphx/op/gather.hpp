@@ -36,6 +36,8 @@
 #include <migraphx/op/normalize_attribute.hpp>
 #include <cmath>
 #include <utility>
+#include <unordered_map>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -44,6 +46,9 @@ namespace op {
 struct gather
 {
     int64_t axis = 0;
+    
+    // Optional compiler metadata (not part of operation semantics)
+    mutable std::unordered_map<std::string, value> metadata;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -59,6 +64,55 @@ struct gather
     }
 
     std::string name() const { return "gather"; }
+    
+    /**
+     * Serialize gather operation to value object
+     * Includes both the axis parameter and any compiler metadata
+     */
+    value to_value() const
+    {
+        value v;
+        v["axis"] = axis;
+        
+        // Include any compiler metadata (e.g., data_is_constant)
+        for(const auto& [key, val] : metadata)
+        {
+            v[key] = val;
+        }
+        
+        return v;
+    }
+    
+    /**
+     * Deserialize gather operation from value object
+     * Reads the axis parameter and preserves any additional metadata
+     */
+    void from_value(const value& v)
+    {
+        axis = v.at("axis").to<int64_t>();
+        
+        // Preserve any additional metadata for compiler use
+        metadata.clear();
+        for(const auto& item : v)
+        {
+            auto key = item.get_key();
+            if(key != "axis")  // Skip the axis field (already handled)
+            {
+                metadata[key] = item.without_key();
+            }
+        }
+    }
+    
+    /**
+     * Get metadata value if it exists
+     */
+    template<typename T>
+    T get_metadata(const std::string& key, T default_value) const
+    {
+        if(metadata.count(key))
+            return metadata.at(key).to<T>();
+        return default_value;
+    }
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {

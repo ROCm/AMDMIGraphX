@@ -158,6 +158,7 @@ add_library(migraphx_gpu
     device_name.cpp
     fixed_pad.cpp
     fuse_ck.cpp
+    fuse_gather_concat.cpp
     fuse_mlir.cpp
     fuse_ops.cpp
     gemm_impl.cpp

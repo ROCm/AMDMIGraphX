@@ -68,6 +68,7 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/fuse_ck.hpp>
+#include <migraphx/gpu/fuse_gather_concat.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
@@ -247,6 +248,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         eliminate_concat{concat_gpu_optimization{}},
         dead_code_elimination{},
         optimize_gather{},
+        dead_code_elimination{},
+        fuse_gather_concat{},
         dead_code_elimination{},
 #if MIGRAPHX_USE_MIOPEN
         compile_miopen{&gctx},

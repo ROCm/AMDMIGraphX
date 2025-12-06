@@ -340,7 +340,7 @@ struct cpu_apply
         extend_op("softmax", "dnnl::softmax");
 
         extend_op("im2col", "cpu::im2col", false);
-        extend_op("leaky_relu", "cpu::leaky_relu", false);
+        // extend_op("leaky_relu", "cpu::leaky_relu", false);
         extend_op("pad", "cpu::pad", false);
         extend_op("rnn_var_sl_last_output", "cpu::rnn_var_sl_last_output", false);
     }

@@ -209,7 +209,7 @@ __device__ void gather_vectorized(Input input, Indices indices, Output output)
  * 4. Better instruction scheduling: Compiler can optimize constant loads
  * 
  * Best for: Embedding tables, lookup operations, constant weight gathers
- * Requirements: Data input must be constant (from @literal or fixed @param)
+ * Requirements: Data input must be constant (from literal or fixed param)
  * 
  * Performance characteristics:
  * - Leverages read-only data cache on GPU (typically 32-48 KB)

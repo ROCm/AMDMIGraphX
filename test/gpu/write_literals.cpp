@@ -50,6 +50,81 @@ static void run_pass(migraphx::module& m, migraphx::gpu::write_literals p = {})
     migraphx::run_passes(m, {p, migraphx::dead_code_elimination{}});
 }
 
+// Helper to run pass with full pipeline for memory coloring analysis
+static void run_pass_with_memory_coloring(migraphx::module& m, migraphx::gpu::write_literals p = {})
+{
+    // Create a dummy GPU context for lowering
+    migraphx::gpu::context ctx;
+
+    // Run the full pipeline that would happen in GPU compilation
+    migraphx::run_passes(
+        m,
+        {
+            migraphx::gpu::lowering{&ctx, false}, // Lower high-level ops like convolution
+            migraphx::replace_allocate{
+                migraphx::gpu::gpu_allocation_model{}}, // Replace allocate with hip::allocate
+            p,                                          // The write_literals pass we're testing
+            migraphx::memory_coloring{"hip::allocate"}, // Memory coloring optimization
+            migraphx::dead_code_elimination{}           // Clean up unused instructions
+        });
+}
+
+// Get the size of the scratch buffer added by memory coloring
+static std::size_t get_scratch_size(const migraphx::module& m)
+{
+    auto scratch_param = m.get_parameter("scratch");
+    if(scratch_param != m.end())
+    {
+        return scratch_param->get_shape().bytes();
+    }
+    return 0;
+}
+
+template<class F>
+void for_each_literal(const migraphx::module& m, F f)
+{
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() != "gpu::literal")
+            continue;
+        bool is_host = std::any_of(ins->outputs().begin(), ins->outputs().end(), [&](auto out) {
+            return out->name() == "hip::copy";
+        });
+        f(ins, is_host);
+    }
+}
+
+// Helper to count literals with host=false vs host=true
+static std::pair<std::size_t, std::size_t> count_gpu_host_literals(const migraphx::module& m)
+{
+    std::size_t gpu_literals  = 0;
+    std::size_t host_literals = 0;
+
+    for_each_literal(m, [&](auto, bool is_host) {
+        if(is_host)
+            host_literals++;
+        else
+            gpu_literals++;
+    });
+
+    return {gpu_literals, host_literals};
+}
+
+// Calculate GPU memory usage: gpu literals + scratch buffer
+static std::size_t calculate_gpu_memory_usage(const migraphx::module& m)
+{
+    std::size_t gpu_literal_size = 0;
+
+    for_each_literal(m, [&](auto ins, bool is_host) {
+        if(not is_host)
+        {
+            gpu_literal_size += ins->get_shape().bytes();
+        }
+    });
+
+    return gpu_literal_size + get_scratch_size(m);
+}
+
 TEST_CASE(single_literal_basic)
 {
     migraphx::module m1;
@@ -502,106 +577,6 @@ TEST_CASE(allocations_with_literals)
         m2.add_return({copy2});
     }
     EXPECT(m1 == m2);
-}
-
-// Helper to run pass with full pipeline for memory coloring analysis
-static void run_pass_with_memory_coloring(migraphx::module& m, migraphx::gpu::write_literals p = {})
-{
-    // Create a dummy GPU context for lowering
-    migraphx::gpu::context ctx;
-
-    // Run the full pipeline that would happen in GPU compilation
-    migraphx::run_passes(
-        m,
-        {
-            migraphx::gpu::lowering{&ctx, false}, // Lower high-level ops like convolution
-            migraphx::replace_allocate{
-                migraphx::gpu::gpu_allocation_model{}}, // Replace allocate with hip::allocate
-            p,                                          // The write_literals pass we're testing
-            migraphx::memory_coloring{"hip::allocate"}, // Memory coloring optimization
-            migraphx::dead_code_elimination{}           // Clean up unused instructions
-        });
-}
-
-// Helper to count literals with host=false vs host=true
-static std::pair<std::size_t, std::size_t> count_gpu_host_literals(const migraphx::module& m)
-{
-    std::size_t gpu_literals  = 0;
-    std::size_t host_literals = 0;
-
-    for(auto ins : iterator_for(m))
-    {
-        if(ins->name() == "gpu::literal")
-        {
-            // Check if it's followed by hip::allocate and hip::copy (indicates host=true)
-            auto outputs = ins->outputs();
-            bool is_host = false;
-            for(auto out : outputs)
-            {
-                if(out->name() == "hip::copy")
-                {
-                    is_host = true;
-                    break;
-                }
-            }
-            if(is_host)
-                host_literals++;
-            else
-                gpu_literals++;
-        }
-    }
-    return {gpu_literals, host_literals};
-}
-
-// Calculate GPU memory usage: gpu literals + scratch buffer
-static std::size_t calculate_gpu_memory_usage(const migraphx::module& m)
-{
-    std::size_t gpu_literal_size = 0;
-    std::size_t scratch_size     = 0;
-
-    for(auto ins : iterator_for(m))
-    {
-        if(ins->name() == "gpu::literal")
-        {
-            // Only count GPU literals (not host copies)
-            auto outputs = ins->outputs();
-            bool is_host = false;
-            for(auto out : outputs)
-            {
-                if(out->name() == "hip::copy")
-                {
-                    is_host = true;
-                    break;
-                }
-            }
-            if(not is_host)
-            {
-                gpu_literal_size += ins->get_shape().bytes();
-            }
-        }
-    }
-
-    // Check for scratch parameter added by memory coloring
-    auto param_names = m.get_parameter_names();
-    if(std::find(param_names.begin(), param_names.end(), "scratch") != param_names.end())
-    {
-        auto scratch_param = m.get_parameter("scratch");
-        scratch_size       = scratch_param->get_shape().bytes();
-    }
-
-    return gpu_literal_size + scratch_size;
-}
-
-// Get the size of the scratch buffer added by memory coloring
-static std::size_t get_scratch_size(const migraphx::module& m)
-{
-    auto param_names = m.get_parameter_names();
-    if(std::find(param_names.begin(), param_names.end(), "scratch") != param_names.end())
-    {
-        auto scratch_param = m.get_parameter("scratch");
-        return scratch_param->get_shape().bytes();
-    }
-    return 0;
 }
 
 TEST_CASE(convolution_with_memory_limit)

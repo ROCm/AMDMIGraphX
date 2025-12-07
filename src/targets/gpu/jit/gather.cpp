@@ -74,43 +74,16 @@ struct gather_compiler : compiler<gather_compiler>
         auto axis = v.at("axis").to<int>();
         auto axis_str = std::to_string(axis);
         
-        // Check if data input is constant (from value hint or default to false)
-        bool data_is_constant = v.get("data_is_constant", false);
+        // SIMPLIFIED: We now always use the unified "gather" kernel
+        // No need to analyze or select - one optimized kernel handles all cases
+        std::string kernel_call = "gather<" + axis_str + ">(xs...);";
         
-        // Analyze and select the best gather kernel
-        auto kernel_func = select_gather_kernel(inputs, axis, data_is_constant);
-        
-        // Generate the appropriate kernel call based on selected optimization
-        std::string kernel_call = kernel_func + "<" + axis_str + ">(xs...);";
-        
-        // Adjust launch parameters based on kernel type
-        if(kernel_func == "gather_opt")
-        {
-            // Optimized kernel processes 4 elements per thread
-            constexpr std::size_t unroll_factor = 4;
-            auto global_size = (out_s.elements() + unroll_factor - 1) / unroll_factor;
-            options.set_launch_params(v, compute_global_for(ctx, global_size));
-        }
-        else if(kernel_func == "gather_const_data_opt")
-        {
-            // Constant data optimized kernel processes 4 elements per thread (increased from 2)
-            // More aggressive unrolling is safe due to excellent cache behavior of constant data
-            constexpr std::size_t unroll_factor = 4;
-            auto global_size = (out_s.elements() + unroll_factor - 1) / unroll_factor;
-            options.set_launch_params(v, compute_global_for(ctx, global_size));
-        }
-        else if(kernel_func == "gather_vectorized")
-        {
-            // Vectorized kernel processes VecSize elements per iteration
-            constexpr std::size_t vec_size = 4;
-            auto global_size = (out_s.elements() + vec_size - 1) / vec_size;
-            options.set_launch_params(v, compute_global_for(ctx, global_size));
-        }
-        else
-        {
-            // Basic, const_data kernels: one thread per element
-            options.set_launch_params(v, compute_global_for(ctx, out_s.elements()));
-        }
+        // The unified gather kernel ALWAYS uses 4× unrolling
+        // This is optimal for all sizes (tiny to huge) and all data types
+        // (constant or variable). Launch parameters are consistent.
+        constexpr std::size_t unroll_factor = 4;
+        auto global_size = (out_s.elements() + unroll_factor - 1) / unroll_factor;
+        options.set_launch_params(v, compute_global_for(ctx, global_size));
 
         auto src = interpolate_string(gather_kernel, 
                                      {{"axis", axis_str}, 

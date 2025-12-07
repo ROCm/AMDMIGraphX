@@ -40,29 +40,49 @@ constexpr auto gather_shape(Input input, Indices indices)
     return make_shape(lengths, input.strides);
 }
 
+/**
+ * Basic gather kernel with lightweight optimizations
+ * 
+ * NOTE: This is now optimized to be a lightweight version of gather_opt.
+ * Not selected by default (gather_opt is preferred), but provides
+ * decent performance if explicitly requested for debugging or fallback.
+ * 
+ * Optimizations applied:
+ * 1. Const caching of axis_dim_size
+ * 2. Branch prediction hints (__builtin_expect)
+ * 3. Reduced redundant shape lookups
+ * 
+ * Still simpler than gather_opt (no loop unrolling), making it useful
+ * for debugging when you want to avoid ILP complexity.
+ */
 template <int Axis, class Input, class Indices, class Output>
 __device__ void gather(Input input, Indices indices, Output output)
 {
     auto ind           = make_index();
-    auto axis_dim_size = input.get_shape().lens[Axis];
+    const auto axis_dim_size = input.get_shape().lens[Axis];  // Cache as const
+    const auto num_elements = output.get_shape().elements();  // Cache element count
 
     constexpr auto out_comp = gather_shape<Axis>(get_shape_c<Input>{}, get_shape_c<Indices>{});
 
-    ind.global_stride(output.get_shape().elements(), [&](auto i) {
+    ind.global_stride(num_elements, [&](auto i) {
         auto idx      = out_comp.multi(i);
         auto in_index = indices[idx[Axis]];
 
-        auto new_in_index = (in_index < 0) ? in_index + axis_dim_size : in_index;
+        // Normalize negative indices
+        in_index = (in_index < 0) ? in_index + axis_dim_size : in_index;
 
-        idx[Axis] = new_in_index;
+        // Update output index
+        idx[Axis] = in_index;
 
-        if(idx[Axis] < 0 or idx[Axis] >= axis_dim_size)
-        { // Don't gather on this just throw and exit
-            MIGRAPHX_ASSERT(false && "Gather out of bounds access");
-            return;
+        // Bounds check with branch prediction hint (valid index is the common case)
+        if(__builtin_expect(in_index >= 0 and in_index < axis_dim_size, 1))
+        {
+            output[i] = input[idx];
         }
-
-        output[i] = input[idx];
+        else
+        {
+            MIGRAPHX_ASSERT(false && "Gather out of bounds access");
+        }
     });
 }
 
@@ -257,15 +277,20 @@ __device__ void gather_const_data(Input input, Indices indices, Output output)
 }
 
 /**
- * Hybrid gather kernel combining const data optimization with unrolling:
+ * Hybrid gather kernel combining const data optimization with aggressive unrolling:
  * 
  * 1. Combines benefits of gather_const_data and gather_opt
- * 2. Loop unrolling (2x) for better ILP without excessive register pressure
+ * 2. Loop unrolling (4x) for maximum ILP - now matches gather_opt
  * 3. Read-only cache utilization for constant data
- * 4. Optimized for medium to large embedding lookups
+ * 4. Optimized for all sizes of constant data gathers
  * 
- * Best for: Large embedding tables with batch processing
- * Note: Less aggressive unrolling than gather_opt to preserve cache effectiveness
+ * Best for: All constant data operations (embeddings, lookups, weight tables)
+ * 
+ * Changed from 2x to 4x unrolling because:
+ * - Constant data has excellent cache behavior anyway
+ * - Read-only cache reduces memory pressure
+ * - ILP benefits outweigh any marginal cache concerns
+ * - Now selected by default for all constant gathers (even medium-sized)
  */
 template <int Axis, class Input, class Indices, class Output>
 __device__ void gather_const_data_opt(Input input, Indices indices, Output output)
@@ -276,9 +301,9 @@ __device__ void gather_const_data_opt(Input input, Indices indices, Output outpu
 
     constexpr auto out_comp = gather_shape<Axis>(get_shape_c<Input>{}, get_shape_c<Indices>{});
     
-    // Use 2x unrolling (less aggressive than gather_opt's 4x)
-    // This balances ILP with cache utilization for constant data
-    constexpr index_int unroll_factor = 2;
+    // Use 4x unrolling to match gather_opt
+    // Constant data cache behavior allows for aggressive unrolling without penalty
+    constexpr index_int unroll_factor = 4;
     const auto base_idx = ind.global * unroll_factor;
     
     #pragma unroll
@@ -294,7 +319,7 @@ __device__ void gather_const_data_opt(Input input, Indices indices, Output outpu
         // Normalize negative indices
         in_index = (in_index < 0) ? in_index + axis_dim_size : in_index;
         
-        // Bounds check
+        // Bounds check with branch prediction hint
         if(__builtin_expect(in_index >= 0 and in_index < axis_dim_size, 1))
         {
             idx[Axis] = in_index;

@@ -93,8 +93,9 @@ struct gather_compiler : compiler<gather_compiler>
         }
         else if(kernel_func == "gather_const_data_opt")
         {
-            // Constant data optimized kernel processes 2 elements per thread
-            constexpr std::size_t unroll_factor = 2;
+            // Constant data optimized kernel processes 4 elements per thread (increased from 2)
+            // More aggressive unrolling is safe due to excellent cache behavior of constant data
+            constexpr std::size_t unroll_factor = 4;
             auto global_size = (out_s.elements() + unroll_factor - 1) / unroll_factor;
             options.set_launch_params(v, compute_global_for(ctx, global_size));
         }

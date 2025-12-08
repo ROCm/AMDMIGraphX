@@ -1222,5 +1222,39 @@ TEST_CASE(rebase_adjust_axes_many_moved_groups)
                });
     }
 }
+// TODO fix shape_transform_descriptor error
+// See also: test/fuse_reduce.cpp
+/*
+TEST_CASE(rebase_broadcasted_scalar_from_reduce)
+{
+    // Taken from bug found when compiling Llama3.2
+    // input_ids = @param:input_ids -> int64_type, {8, 1}, {1, 1}
+    // @34 = pointwise(input_ids), [main:pointwise0] -> float_type, {8, 1}, {1, 1}
+    // @35 = gather[axis=0](@32,@34) -> float_type, {8, 1, 2048}, {2048, 2048, 1}
+    // @36 = broadcast[axis=2,out_lens={8, 1, 64, 1, 32}](@5) -> float_type, {8, 1, 64, 1, 32}, {0, 0, 32, 32, 1}
+    // @37 = reshape[dims={8, 1, 64, 1, 32}](@35) -> float_type, {8, 1, 64, 1, 32}, {2048, 2048, 32, 32, 1}
+    // @38 = fused_reduce[axes={2}](@35), [main:pointwise1:main:reduce_sum0:main:pointwise3] -> float_type, {8, 1, 1}, {1, 1, 1}
+    // @39 = unsqueeze[axes={2, 4},steps={}](@38) -> float_type, {8, 1, 1, 1, 1}, {1, 1, 1, 1, 1}
+    // @40 = multibroadcast[out_lens={8, 1, 64, 1, 32},out_dyn_dims={}](@39) -> float_type, {8, 1, 64, 1, 32}, {1, 1, 0, 1, 0}
+    // @41 = pointwise(@37,@40,@36), [main:pointwise6] -> float_type, {8, 1, 64, 1, 32}, {2048, 2048, 32, 32, 1}
 
+    auto base_desc =
+        make_simple_descriptor({8, 1, 1},
+                               make_op("unsqueeze", {{"axes", {2, 4}}}),
+                               make_op("multibroadcast", {{"out_lens", {8, 1, 64, 1, 32}}}));
+
+    {
+        auto desc = base_desc.rebase({8, 1, 2048});
+        EXPECT(not desc.empty());
+        EXPECT(get_final_lens(desc) == final_lens{8, 1, 64, 1, 32});
+        EXPECT(get_all_lens(desc) == all_lens{{8}, {1}, {64}, {1}, {32}});
+        EXPECT(get_all_axes(desc) == all_axes{d_axes{{0}}, d_axes{{1}}, d_axes{{2, 0}}, d_axes{{2, 1}}, d_axes{{2, 2}}});
+        auto generated = desc.generate();
+        EXPECT(generated ==
+               ops{
+                   make_op("reshape", {{"out_lens", {8, 1, 64, 1, 32}}}),
+               });
+    }
+}
+*/
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

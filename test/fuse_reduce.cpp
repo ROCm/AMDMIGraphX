@@ -1127,7 +1127,7 @@ TEST_CASE(reshape_reduce_reduce_reduce_diff_axes)
 /*
 TEST_CASE(reduce_to_scalar_and_broadcast)
 {
-    // Taken from bug found when compiling Llama3.2
+    // Taken from bug found when compiling Llama 3.2
     // input_ids = @param:input_ids -> int64_type, {8, 1}, {1, 1}
     // @34 = pointwise(input_ids), [main:pointwise0] -> float_type, {8, 1}, {1, 1}
     // @35 = gather[axis=0](@32,@34) -> float_type, {8, 1, 2048}, {2048, 2048, 1}
@@ -1140,7 +1140,6 @@ TEST_CASE(reduce_to_scalar_and_broadcast)
     
     migraphx::shape shape_l1{migraphx::shape::float_type, {128256, 2048}};
     migraphx::shape shape_x1{migraphx::shape::float_type, {8, 1}};
-    migraphx::shape s3{migraphx::shape::float_type, {25088, 256}};
 
     migraphx::program p1;
     {

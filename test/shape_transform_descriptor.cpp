@@ -1227,7 +1227,7 @@ TEST_CASE(rebase_adjust_axes_many_moved_groups)
 /*
 TEST_CASE(rebase_broadcasted_scalar_from_reduce)
 {
-    // Taken from bug found when compiling Llama3.2
+    // Taken from bug found when compiling Llama 3.2
     // input_ids = @param:input_ids -> int64_type, {8, 1}, {1, 1}
     // @34 = pointwise(input_ids), [main:pointwise0] -> float_type, {8, 1}, {1, 1}
     // @35 = gather[axis=0](@32,@34) -> float_type, {8, 1, 2048}, {2048, 2048, 1}

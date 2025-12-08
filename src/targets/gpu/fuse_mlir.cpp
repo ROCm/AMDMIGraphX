@@ -50,6 +50,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_GEG_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MLIR);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_USE_ATTN_ONLY);
 /**
  * @brief Declares a new MIGraphX environment variable which forces to generate
  * only specific MLIR operations.
@@ -319,6 +320,9 @@ auto is_mlir_dot(mlir_mode mode)
         auto m = a.lens()[a.lens().size() - 2];
         auto n = b.lens().back();
         auto k = a.lens().back();
+        // if(m == 14 and k == 1500)
+        //     return true;
+        // return false;
         // Skipping GEMMs with a K dimension greater than 2048 is a course-grained strategy
         // to avoid poor-performing GEMM kernels from MLIR
         // TODO: Investigate a more precise strategy
@@ -1488,8 +1492,11 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         return std::max(m1, m2);
     };
 
-    match::find_matches(mpm, find_channel_slice_convolution{});
-    mpm.run_pass(dead_code_elimination{});
+    if(not enabled(MIGRAPHX_MLIR_USE_ATTN_ONLY{}))
+    {
+        match::find_matches(mpm, find_channel_slice_convolution{});
+        mpm.run_pass(dead_code_elimination{});
+    }
 
     match::find_matches(mpm, find_mlir_kv_cache_attention_op{mlir_mode::all});
     mpm.run_pass(dead_code_elimination{});
@@ -1497,47 +1504,51 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     match::find_matches(mpm, find_mlir_attention_op{});
     mpm.run_pass(dead_code_elimination{});
 
-    if(enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}))
+    
+
+    if(not enabled(MIGRAPHX_MLIR_USE_ATTN_ONLY{}))
     {
+        if(enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}))
+        {
+            match::find_matches(
+                mpm,
+                find_mlir_fused_geg_ops{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
+                                        .dot_mode  = get_mode("fused_dot", mlir_mode::fast),
+                                        .gfx_name  = device_name,
+                                        .enable_geg_multi_out_intermediates =
+                                            enable_geg_multi_out_intermediates});
+            mpm.run_pass(dead_code_elimination{});
+        }
+
         match::find_matches(
             mpm,
-            find_mlir_fused_geg_ops{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
-                                    .dot_mode  = get_mode("fused_dot", mlir_mode::fast),
-                                    .gfx_name  = device_name,
-                                    .enable_geg_multi_out_intermediates =
-                                        enable_geg_multi_out_intermediates});
+            find_mlir_fused_ops{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
+                                .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
+
+        match::find_matches(
+            mpm,
+            find_mlir_standalone_conv_op{.mode    = get_mode("convolution", mlir_mode::fast),
+                                        .counter = &counter},
+            find_mlir_standalone_conv_backwards_op{
+                .mode    = get_mode("convolution_backwards",
+                                MIGRAPHX_USE_MIOPEN ? mlir_mode::none : mlir_mode::all),
+                .counter = &counter},
+            find_mlir_standalone_dot_op{.mode = get_mode("dot", mlir_mode::fast), .counter = &counter});
         mpm.run_pass(dead_code_elimination{});
+        if(enabled(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION{}))
+        {
+            match::find_matches(
+                mpm,
+                find_mlir_split_reduce{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
+                                    .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
+        }
+
+        match::find_matches(mpm, find_pointwise_mlir{});
+        match::find_matches(mpm, find_unpack_int4_mlir_op{});
+        match::find_matches(mpm, find_unpack_fp4_mlir_op{});
+
+        match::find_matches(mpm, find_mlir_output_reshape_ops{});
     }
-
-    match::find_matches(
-        mpm,
-        find_mlir_fused_ops{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
-                            .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
-
-    match::find_matches(
-        mpm,
-        find_mlir_standalone_conv_op{.mode    = get_mode("convolution", mlir_mode::fast),
-                                     .counter = &counter},
-        find_mlir_standalone_conv_backwards_op{
-            .mode    = get_mode("convolution_backwards",
-                             MIGRAPHX_USE_MIOPEN ? mlir_mode::none : mlir_mode::all),
-            .counter = &counter},
-        find_mlir_standalone_dot_op{.mode = get_mode("dot", mlir_mode::fast), .counter = &counter});
-
-    mpm.run_pass(dead_code_elimination{});
-    if(enabled(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION{}))
-    {
-        match::find_matches(
-            mpm,
-            find_mlir_split_reduce{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
-                                   .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
-    }
-
-    match::find_matches(mpm, find_pointwise_mlir{});
-    match::find_matches(mpm, find_unpack_int4_mlir_op{});
-    match::find_matches(mpm, find_unpack_fp4_mlir_op{});
-
-    match::find_matches(mpm, find_mlir_output_reshape_ops{});
 
 #else
     (void)mpm;

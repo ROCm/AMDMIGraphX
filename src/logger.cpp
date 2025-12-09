@@ -173,7 +173,7 @@ void remove_sink(size_t id)
 void set_severity(severity level, size_t id)
 {
     access_sinks([&](std::vector<std::optional<sink_entry>>& sinks) {
-        if(id < sinks.size() && sinks[id].has_value())
+        if(id < sinks.size() and sinks[id].has_value())
         {
             sinks[id]->level = level;
         }
@@ -190,7 +190,7 @@ void record(severity s, std::string_view msg, source_location loc)
     access_sinks([&](std::vector<std::optional<sink_entry>>& sinks) {
         for(auto& entry : sinks)
         {
-            if(entry.has_value() && static_cast<size_t>(s) <= static_cast<size_t>(entry->level))
+            if(entry.has_value() and static_cast<size_t>(s) <= static_cast<size_t>(entry->level))
             {
                 entry->callback(s, msg, loc);
             }
@@ -204,7 +204,8 @@ bool is_enabled(severity level)
     access_sinks([&](std::vector<std::optional<sink_entry>>& sinks) {
         for(const auto& entry : sinks)
         {
-            if(entry.has_value() && static_cast<size_t>(level) <= static_cast<size_t>(entry->level))
+            if(entry.has_value() and
+               static_cast<size_t>(level) <= static_cast<size_t>(entry->level))
             {
                 result = true;
                 return;

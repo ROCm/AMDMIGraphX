@@ -110,7 +110,7 @@ struct logger_options
            ap.validate([](auto&, auto&, auto& params) {
                if(not params.empty())
                {
-                   auto level_str = params.back();
+                   auto const& level_str = params.back();
                    if(not parse_log_level_string(level_str))
                    {
                        throw std::runtime_error(

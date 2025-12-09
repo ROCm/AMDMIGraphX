@@ -55,6 +55,8 @@ struct MIGRAPHX_GPU_EXPORT mlir_code_object
 
 MIGRAPHX_GPU_EXPORT bool is_reduce(const instruction& ins);
 
+MIGRAPHX_GPU_EXPORT void adjust_param_shapes(module& m, const std::vector<shape>& inputs);
+
 MIGRAPHX_GPU_EXPORT mlir_code_object compile_mlir(const context& migraphx_ctx,
                                                   module m,
                                                   const std::vector<shape>& in_shapes,

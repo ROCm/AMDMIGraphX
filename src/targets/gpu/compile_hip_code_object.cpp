@@ -169,14 +169,11 @@ std::size_t compute_block_size(const context& ctx, std::size_t n, std::size_t ma
     return std::min(std::max(min_block_size, block_size), max_block_size);
 }
 
-operation
-compile_hip_code_object(context& ctx, const std::string& content, hip_compile_options options)
+std::vector<char>
+compile_hip_raw(context& ctx, const std::string& content, hip_compile_options options)
 {
     assert(options.global > 0);
     assert(options.local > 0);
-    assert(not options.inputs.empty());
-    assert(options.inputs.size() == options.virtual_inputs.size() or
-           options.virtual_inputs.empty());
     std::vector<src_file> srcs = options.additional_src_files;
     static auto kernels{::migraphx_kernels()};
     std::transform(
@@ -185,9 +182,6 @@ compile_hip_code_object(context& ctx, const std::string& content, hip_compile_op
         std::back_inserter(srcs),
         [](const std::pair<std::string_view, std::string_view>& elem) { return src_file{elem}; });
     srcs.emplace_back("main.cpp", content);
-    auto args_hpp =
-        generate_args_hpp(options.virtual_inputs.empty() ? options.inputs : options.virtual_inputs);
-    srcs.emplace_back("args.hpp", args_hpp);
 
     if(options.global % options.local != 0 and hip_accept_non_uniform_wg())
         options.emplace_param("-fno-offload-uniform-block");
@@ -202,10 +196,23 @@ compile_hip_code_object(context& ctx, const std::string& content, hip_compile_op
     options.params.insert(options.params.end(), warnings.begin(), warnings.end());
     options.emplace_param("-ftemplate-backtrace-limit=0");
     options.emplace_param("-Werror");
-    auto cos = compile_hip_src(srcs, options.params, get_device_name());
+    auto cos = compile_hip_src(srcs, options.params, ctx.get_current_device().get_device_name());
     if(cos.size() != 1)
         MIGRAPHX_THROW("No code object");
-    return code_object_op{value::binary{cos.front()},
+    return cos.front();
+}
+
+operation
+compile_hip_code_object(context& ctx, const std::string& content, hip_compile_options options)
+{
+    assert(not options.inputs.empty());
+    assert(options.inputs.size() == options.virtual_inputs.size() or
+           options.virtual_inputs.empty());
+    auto args_hpp =
+        generate_args_hpp(options.virtual_inputs.empty() ? options.inputs : options.virtual_inputs);
+    options.additional_src_files.emplace_back("args.hpp", args_hpp);
+
+    return code_object_op{value::binary{compile_hip_raw(ctx, content, options)},
                           options.kernel_name,
                           options.global,
                           options.local,

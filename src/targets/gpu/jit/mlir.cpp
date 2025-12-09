@@ -52,33 +52,35 @@ static module create_pointwise_module(module_ref in_mod)
             pw_mod.add_parameter(any_cast<builtin::param>(param->get_operator()).parameter,
                                  shape{param->get_shape().type()});
     }
-    auto return_args = pw_mod.add_instructions(
-        in_mod,
-        &map_ins,
-        [](module& m,
-           instruction_ref ins,
-           const operation& op,
-           const std::vector<instruction_ref>& inputs,
-           const std::vector<module_ref>& mod_args) -> instruction_ref {
-            auto out_alias = op.output_alias(to_shapes(inputs));
-            if(out_alias >= 0)
-                return inputs.at(out_alias);
-            else
-                return m.insert_instruction(ins, op, inputs, mod_args);
-        });
+    auto return_args =
+        pw_mod.add_instructions(in_mod,
+                                &map_ins,
+                                [](module& m,
+                                   instruction_ref ins,
+                                   const operation& op,
+                                   const std::vector<instruction_ref>& inputs,
+                                   const std::vector<module_ref>& mod_args) -> instruction_ref {
+                                    auto out_alias = op.output_alias(to_shapes(inputs));
+                                    if(out_alias >= 0)
+                                        return inputs.at(out_alias);
+                                    else
+                                        return m.insert_instruction(ins, op, inputs, mod_args);
+                                });
     pw_mod.add_return(return_args);
     return pw_mod;
 }
 
-static code_object_op compile_pointwise_module(context& ctx, const std::vector<shape>& inputs, module_ref mod)
+static code_object_op
+compile_pointwise_module(context& ctx, const std::vector<shape>& inputs, module_ref mod)
 {
     operation cop;
-    auto pw_mod                        = create_pointwise_module(mod);
+    auto pw_mod = create_pointwise_module(mod);
     if(any_of(mod->get_parameters(), [&](instruction_ref param) {
-        if(param->outputs().size() != 1)
-            return false;
-        return instruction::get_output_alias(param->outputs().front(), /* shallow */true) == param;
-    }))
+           if(param->outputs().size() != 1)
+               return false;
+           return instruction::get_output_alias(param->outputs().front(), /* shallow */ true) ==
+                  param;
+       }))
     {
         auto mod2 = *mod;
         adjust_param_shapes(mod2, inputs);
@@ -89,11 +91,14 @@ static code_object_op compile_pointwise_module(context& ctx, const std::vector<s
                        names.end(),
                        std::back_inserter(new_shapes),
                        [&](const std::string& name) {
-                            auto param = mod2.get_parameter(name);
-                            auto output_path = get_output_path(param);
-                            auto it = std::adjacent_find(output_path.begin(), output_path.end(), [&](instruction_ref, instruction_ref output) {
-                                return instruction::get_output_alias(output) != param;
-                            });
+                           auto param       = mod2.get_parameter(name);
+                           auto output_path = get_output_path(param);
+                           auto it          = std::adjacent_find(
+                               output_path.begin(),
+                               output_path.end(),
+                               [&](instruction_ref, instruction_ref output) {
+                                   return instruction::get_output_alias(output) != param;
+                               });
                            return (*it)->get_shape();
                        });
         std::copy(inputs.begin() + new_shapes.size(), inputs.end(), std::back_inserter(new_shapes));
@@ -103,11 +108,10 @@ static code_object_op compile_pointwise_module(context& ctx, const std::vector<s
     {
         cop = compile_pointwise(ctx, inputs, &pw_mod);
     }
-    auto co = any_cast<code_object_op>(cop);
+    auto co            = any_cast<code_object_op>(cop);
     co.expected_inputs = inputs;
     return co;
 }
-
 
 struct mlir_compiler : compiler<mlir_compiler>
 {
@@ -190,7 +194,7 @@ struct mlir_compiler : compiler<mlir_compiler>
             // remove alloc buffer
             input_args.pop_back();
             auto split_ins = gemm_like_ins; // TODO: Compute split after add/mul
-            std::array<module_with_inputs, 2> mod_splits           = smod->split(input_args, {split_ins});
+            std::array<module_with_inputs, 2> mod_splits = smod->split(input_args, {split_ins});
             auto dot_mlir_inputs = to_shapes(mod_splits[0].inputs);
             // add alloc for the gemm output
             dot_mlir_inputs.push_back(mod_splits[0].mod.get_output_shapes().front());
@@ -205,9 +209,8 @@ struct mlir_compiler : compiler<mlir_compiler>
                 pw_shapes.push_back(shape{mod_splits[1].mod.get_output_shapes()});
             }
             assert(pw_shapes.back() == ins->get_shape());
-            auto cop2                          = compile_pointwise_module(ctx, pw_shapes, &mod_splits[1].mod);
-            std::vector<mlir_code_object> cops = {cop1,
-                                                  mlir_code_object{cop2}};
+            auto cop2 = compile_pointwise_module(ctx, pw_shapes, &mod_splits[1].mod);
+            std::vector<mlir_code_object> cops = {cop1, mlir_code_object{cop2}};
             return insert(cops, mod_splits, ins, split_ins);
         }
         auto cr = insert(compile_mlir(ctx, *smod, to_shapes(ins->inputs()), solution));

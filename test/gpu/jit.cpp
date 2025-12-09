@@ -232,16 +232,20 @@ TEST_CASE(compile_target)
 TEST_CASE(compile_errors)
 {
     EXPECT(test::throws([&] {
-        migraphx::gpu::compile_hip_src(
-            {make_src_file("main.cpp", incorrect_program)}, {}, migraphx::gpu::get_device_name());
+        migraphx::gpu::compile_hip_src({make_src_file("main.cpp", incorrect_program)},
+                                       {},
+                                       migraphx::gpu::get_device_name(),
+                                       true);
     }));
 }
 
 TEST_CASE(compile_warnings)
 {
     auto compile = [](const std::vector<std::string>& params) {
-        return migraphx::gpu::compile_hip_src(
-            {make_src_file("main.cpp", unused_param)}, params, migraphx::gpu::get_device_name());
+        return migraphx::gpu::compile_hip_src({make_src_file("main.cpp", unused_param)},
+                                              params,
+                                              migraphx::gpu::get_device_name(),
+                                              true);
     };
 
     EXPECT(not compile({}).empty());

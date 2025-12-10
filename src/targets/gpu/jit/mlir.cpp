@@ -117,22 +117,20 @@ static instruction_ref find_final_split(instruction_ref split_ins)
 {
     auto output_path = get_output_path(split_ins);
     auto it          = std::adjacent_find(
-                               output_path.begin(),
-                               output_path.end(),
-                               [&](instruction_ref input, instruction_ref output) {
-                                   if(contains({"reshape", "squeeze", "unsqueeze", "transpose"}, output->name()))
-                                    return false;
-                                   if(contains({"add", "mul"}, output->name()))
-                                   {
-                                        auto aux = *std::find_if(output->inputs().begin(), output->inputs().end(), [&](instruction_ref i) {
-                                            return i != input;
-                                        });
-                                        if(aux->can_eval())
-                                            return false;
-                                        return instruction::get_output_alias(aux)->name() != "@param";
-                                   }
-                                   return true;
-                               });
+        output_path.begin(), output_path.end(), [&](instruction_ref input, instruction_ref output) {
+            if(contains({"reshape", "squeeze", "unsqueeze", "transpose"}, output->name()))
+                return false;
+            if(contains({"add", "mul"}, output->name()))
+            {
+                auto aux = *std::find_if(output->inputs().begin(),
+                                         output->inputs().end(),
+                                         [&](instruction_ref i) { return i != input; });
+                if(aux->can_eval())
+                    return false;
+                return instruction::get_output_alias(aux)->name() != "@param";
+            }
+            return true;
+        });
     return *it;
 }
 

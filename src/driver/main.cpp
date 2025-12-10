@@ -470,11 +470,17 @@ struct program_params
 {
     std::vector<std::string> fill0{};
     std::vector<std::string> fill1{};
+    std::vector<std::string> padded_fill1{};
     std::vector<std::string> load_args_info;
     void parse(argument_parser& ap)
     {
         ap(fill0, {"--fill0"}, ap.help("Fill parameter with 0s"), ap.append(), ap.nargs(2));
         ap(fill1, {"--fill1"}, ap.help("Fill parameter with 1s"), ap.append(), ap.nargs(2));
+        ap(padded_fill1,
+           {"--padded_fill1"},
+           ap.help("Fill first N elements with 1s, rest with 0s (format: \"N param_name\")"),
+           ap.append(),
+           ap.nargs(2));
         ap(load_args_info,
            {"--load-arg"},
            ap.help("Load arguments for the model (format: \"@name filename\")"),
@@ -505,6 +511,45 @@ struct program_params
         return map_load_args;
     }
 
+    static auto parse_padded_fill1(const std::vector<std::string>& padded_fill1_info)
+    {
+        std::unordered_map<std::string, std::size_t> padded_map;
+        for(std::size_t i = 0; i < padded_fill1_info.size(); i += 2)
+        {
+            if(i + 1 < padded_fill1_info.size())
+            {
+                std::size_t n = std::stoull(padded_fill1_info[i]);
+                std::string param_name = padded_fill1_info[i + 1];
+                padded_map[param_name] = n;
+            }
+        }
+        return padded_map;
+    }
+
+    static argument create_padded_argument(const shape& s, std::size_t num_ones)
+    {
+        if(s.type() == shape::tuple_type)
+        {
+            MIGRAPHX_THROW("Padded fill not supported for tuple types");
+        }
+        
+        argument result;
+        s.visit_type([&](auto as) {
+            using type = typename decltype(as)::type;
+            auto buffer = make_shared_array<type>(s.element_space());
+            std::size_t count = std::min(num_ones, s.elements());
+            
+            // Fill first 'count' elements with 1
+            std::fill(buffer.get(), buffer.get() + count, type(1));
+            // Fill remaining elements with 0
+            std::fill(buffer.get() + count, buffer.get() + s.element_space(), type(0));
+            
+            result = argument{s, buffer};
+        });
+        
+        return result;
+    }
+
     auto generate(const program& p,
                   const target& t,
                   bool offload,
@@ -527,6 +572,14 @@ struct program_params
             m[s] = fill_argument(static_param_shapes.at(s), 0);
         for(auto&& s : fill1)
             m[s] = fill_argument(static_param_shapes.at(s), 1);
+        
+        // Handle padded_fill1
+        auto padded_map = parse_padded_fill1(padded_fill1);
+        for(auto&& [param_name, num_ones] : padded_map)
+        {
+            m[param_name] = create_padded_argument(static_param_shapes.at(param_name), num_ones);
+        }
+        
         fill_param_map(m, static_param_shapes, t, offload);
         auto load_arg_map = program_params::parse_load_args(load_args_info, t, offload);
         for(auto&& arg : load_arg_map)

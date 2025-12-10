@@ -13432,8 +13432,6 @@ def resize_nhwc_test():
                                       vals=scales.flatten().astype(np.float32))
 
     X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 3, 2, 2])
-    TX = helper.make_tensor_value_info('TX', TensorProto.FLOAT, [1, 2, 2, 3])
-    TY = helper.make_tensor_value_info('TY', TensorProto.FLOAT, [1, 4, 4, 3])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 3, 4, 4])
 
     # Transpose NCHW to NHWC
@@ -13455,7 +13453,7 @@ def resize_nhwc_test():
                                  outputs=['Y'],
                                  perm=[0, 3, 1, 2])
 
-    return ([trn1, resize, trn2], [X, TX, TY], [Y], [scale_tensor])
+    return ([trn1, resize, trn2], [X], [Y], [scale_tensor])
 
 
 @onnx_test()

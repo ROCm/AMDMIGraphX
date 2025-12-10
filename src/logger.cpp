@@ -126,6 +126,7 @@ static std::mutex& get_sinks_mutex()
 static std::vector<std::optional<sink_entry>>& get_sinks()
 {
     static auto sinks = []() {
+        // cppcheck-suppress migraphx-RedundantCast
         auto level = static_cast<severity>(
             value_of(MIGRAPHX_LOG_LEVEL{}, static_cast<size_t>(severity::info)));
         return std::vector<std::optional<sink_entry>>{sink_entry{make_stderr_sink(), level}};

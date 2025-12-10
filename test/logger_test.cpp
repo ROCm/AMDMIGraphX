@@ -256,6 +256,7 @@ TEST_CASE(logger_sink_level)
     // Now INFO should work
     migraphx::log::info() << "Info after level change";
     EXPECT(not messages.empty());
+    // cppcheck-suppress containerOutOfBounds
     EXPECT(messages.back() == "Info after level change");
 
     migraphx::log::remove_sink(sink_id);

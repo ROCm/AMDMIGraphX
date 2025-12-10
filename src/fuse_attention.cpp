@@ -288,6 +288,976 @@ struct find_attention
     }
 };
 
+struct find_gqa_flash_decoding
+{
+    std::size_t groups;
+    
+    // Struct to hold all attention dimensions
+    struct attention_dims
+    {
+        std::size_t batch_size;
+        std::size_t num_heads;            // Q heads
+        std::size_t kv_heads;             // K and V heads
+        std::size_t concat_heads;         // total heads in QKV tensor
+        std::size_t sequence_length;
+        std::size_t max_seq_length;
+        std::size_t head_dim;
+        std::size_t seq_length_per_group; // sequence length per group after splitting max sequence length
+        
+        // constructor from parameters
+        attention_dims(instruction_ref q_param, instruction_ref k_param, std::size_t num_groups)
+        {
+            auto q_shape = q_param->get_shape();
+            auto k_shape = k_param->get_shape();
+            
+            batch_size = q_shape.lens()[0];
+            concat_heads = q_shape.lens()[1];
+            sequence_length = q_shape.lens()[2];
+            head_dim = q_shape.lens()[3];
+            
+            kv_heads = k_shape.lens()[1];
+            max_seq_length = k_shape.lens()[2];
+            
+            // calculate Q heads from concat_heads = num_heads + 2 * kv_heads
+            num_heads = concat_heads - 2 * kv_heads;
+            
+            // calculate sequence length per group
+            if(max_seq_length % num_groups != 0) {
+                std::cout << "Max sequence length " << max_seq_length 
+                          << " not divisible by " << num_groups << " groups" << std::endl;
+                // TODO: Add padding support
+                seq_length_per_group = 0;  // Set to 0 to indicate error
+                return;
+            }
+            seq_length_per_group = max_seq_length / num_groups;
+        }
+    };
+
+    auto matcher() const
+    {
+        return match::name("group")(match::has_op_value("tag", "kv_cache_attention")).bind("group");
+    }
+
+    std::pair<instruction_ref, instruction_ref> get_gemms(module_ref submod) const
+    {
+        std::vector<instruction_ref> gemms;
+        for(auto it = submod->begin(); it != submod->end(); ++it)
+        {
+            if(it->name() == "dot")
+                gemms.push_back(it);
+        }
+        assert(gemms.size() == 2 and "Expected exactly 2 gemm operations in attention submodule");
+
+        // gemms[0] is Q@K, gemms[1] is P@V
+        // gemms are in order since we iterate from begin to end
+        return {gemms[0], gemms[1]};
+    }
+
+    // Helper to extract Q, K, V parameters from the attention submodule's gemm inputs
+    struct qkv_params {
+        instruction_ref q_param;  // Parameter containing Q (full QKV tensor)
+        instruction_ref k_param;  // Parameter for K (concat_past_present output)
+        instruction_ref v_param;  // Parameter for V (concat_past_present output)
+    };
+    
+    std::unordered_map<instruction_ref, instruction_ref>
+    map_submod_params_to_inputs(module_ref submod,
+                                const std::vector<instruction_ref>& group_inputs) const
+    {
+        auto map_param_to_main = submod->get_ins_param_map(group_inputs, true);
+        // verify the mapping is correct
+        auto expected_inputs = submod->get_inputs(map_param_to_main);
+        assert(expected_inputs == group_inputs and "Mapped inputs don't match group inputs");
+        return map_param_to_main;
+    }
+
+    // rebuild GQA attention operations in flash decoding submodule
+    // Helper to find early exit masking operations
+    struct early_exit_mask_ops {
+        instruction_ref pos_literal;      // Literal with position indices {0,1,2,3...}
+        instruction_ref pos_broadcast;    // Broadcast of position literal
+        instruction_ref seq_len_param;    // Sequence length parameter
+        instruction_ref seq_multicast;    // Multibroadcast of seq_len
+        instruction_ref greater_op;       // Greater comparison
+        instruction_ref convert_op;       // Convert to bool
+        instruction_ref unsqueeze_op;     // Unsqueeze mask
+        instruction_ref mask_broadcast;   // Final multibroadcast of mask
+        instruction_ref ninf_literal;     // -inf literal for masking
+        instruction_ref ninf_broadcast;   // Multibroadcast of -inf
+        instruction_ref where_op;         // Where operation applying mask
+        
+        // Flags to track which operations were found
+        bool found = false;
+        bool has_pos_literal = false;
+        bool has_pos_broadcast = false;
+        bool has_seq_len_param = false;
+        bool has_seq_multicast = false;
+        bool has_greater = false;
+        bool has_convert = false;
+        bool has_unsqueeze = false;
+        bool has_mask_broadcast = false;
+        bool has_ninf_literal = false;
+        bool has_ninf_broadcast = false;
+    };
+    
+    early_exit_mask_ops find_early_exit_masking_ops(
+        const module& source_mod,
+        instruction_ref scaled_scores,
+        const std::unordered_map<instruction_ref, instruction_ref>& map_old_to_new) const
+    {
+        early_exit_mask_ops mask_ops;
+        
+        // Find the where operation that uses our scaled scores
+        for(auto ins : iterator_for(source_mod)) {
+            if(ins->name() == "where") {
+                // Check if one of its inputs is our scaled scores (through the mapping)
+                for(auto input : ins->inputs()) {
+                    if(contains(map_old_to_new, input) && map_old_to_new.at(input) == scaled_scores) {
+                        mask_ops.where_op = ins;
+                        mask_ops.found = true;
+                        break;
+                    }
+                }
+                if(mask_ops.found) break;
+            }
+        }
+        
+        if(!mask_ops.found) {
+            return mask_ops;
+        }
+        
+        // Get the three inputs to where: mask, true_value (-inf), false_value (scores)
+        auto mask_input = mask_ops.where_op->inputs()[0];
+        mask_ops.ninf_broadcast = mask_ops.where_op->inputs()[1];
+        
+        // Trace back the mask to find multibroadcast -> unsqueeze -> convert -> greater
+        instruction_ref current = mask_input;
+        
+        // Should be multibroadcast
+        if(current->name() == "multibroadcast") {
+            mask_ops.mask_broadcast = current;
+            mask_ops.has_mask_broadcast = true;
+            current = current->inputs()[0];
+        }
+        
+        // Should be unsqueeze
+        if(current->name() == "unsqueeze") {
+            mask_ops.unsqueeze_op = current;
+            mask_ops.has_unsqueeze = true;
+            current = current->inputs()[0];
+        }
+        
+        // Should be convert
+        if(current->name() == "convert") {
+            mask_ops.convert_op = current;
+            mask_ops.has_convert = true;
+            current = current->inputs()[0];
+        }
+        
+        // Should be greater
+        if(current->name() == "greater") {
+            mask_ops.greater_op = current;
+            mask_ops.has_greater = true;
+            
+            // Get inputs to greater
+            auto pos_input = mask_ops.greater_op->inputs()[0];
+            auto seq_input = mask_ops.greater_op->inputs()[1];
+            
+            // Position side: broadcast -> literal
+            if(pos_input->name() == "broadcast") {
+                mask_ops.pos_broadcast = pos_input;
+                mask_ops.has_pos_broadcast = true;
+                mask_ops.pos_literal = pos_input->inputs()[0];
+                mask_ops.has_pos_literal = true;
+            }
+            
+            // Sequence length side: multibroadcast -> param
+            if(seq_input->name() == "multibroadcast") {
+                mask_ops.seq_multicast = seq_input;
+                mask_ops.has_seq_multicast = true;
+                mask_ops.seq_len_param = seq_input->inputs()[0];
+                mask_ops.has_seq_len_param = true;
+            }
+        }
+        
+        // Find the -inf literal source
+        if(mask_ops.ninf_broadcast->name() == "multibroadcast") {
+            mask_ops.has_ninf_broadcast = true;
+            mask_ops.ninf_literal = mask_ops.ninf_broadcast->inputs()[0];
+            mask_ops.has_ninf_literal = true;
+        }
+        
+        return mask_ops;
+    }
+
+    void rebuild_gqa_attention(module& target_mod, 
+                               const module& source_mod,
+                               const std::unordered_map<instruction_ref, instruction_ref>& param_map,
+                               instruction_ref q_param,
+                               instruction_ref k_param,
+                               instruction_ref v_param,
+                               const attention_dims& dims,
+                               std::size_t num_groups) const
+    {
+        // map from instructions in old module to new module
+        std::unordered_map<instruction_ref, instruction_ref> map_old_to_new = param_map;
+        
+        // TODO can do this better, and also make it better for other flash decoding case
+        // track softmax components for LSE calculation
+        std::unordered_map<std::string, instruction_ref> softmax_parts;
+
+        assert(contains(param_map, q_param) && "Q parameter must be mapped");
+        assert(contains(param_map, k_param) && "K parameter must be mapped");
+        assert(contains(param_map, v_param) && "V parameter must be mapped");
+        (void)v_param; // Will be used later for V operations
+        
+        // handle Q extraction
+        // since we slice on axis 1 (concat_heads) and groups are at axis 2, no change needed
+        for(auto ins : iterator_for(source_mod)) {
+            if(ins->name() == "slice" && ins->inputs()[0] == q_param) {
+                auto op = ins->get_operator();
+                auto new_q = map_old_to_new.at(q_param);
+                auto sliced_q = target_mod.add_instruction(op, new_q);
+                map_old_to_new[ins] = sliced_q;
+                std::cout << "  Q slice created, shape: " << sliced_q->get_shape() << std::endl;
+                break;
+            }
+        }
+        
+        // handle K transpose
+        instruction_ref transposed_k;
+        for(auto ins : iterator_for(source_mod)) {
+            if(ins->name() == "transpose") {
+                auto transpose_input = ins->inputs()[0];
+                if(transpose_input == k_param) {
+                    auto op = ins->get_operator();
+                    auto perm = op.to_value()["permutation"].to_vector<int64_t>();
+                    
+                    // dims.batch_size, dims.kv_heads, groups, dims.seq_length_per_group, dims.head_dim}
+                    // perm is now [0, 1, 2, 4, 3] for [B, H, G, D, S]
+                    std::vector<int64_t> new_perm = {0, 1, 2, 4, 3};
+                    auto new_transpose_op = make_op("transpose", {{"permutation", new_perm}});
+                    auto new_k = map_old_to_new.at(k_param);
+                    transposed_k = target_mod.add_instruction(new_transpose_op, new_k);
+                    map_old_to_new[ins] = transposed_k;
+                    
+                    break;
+                }
+            }
+        }
+        
+        // ninf is of shape
+        // {batch_size, num_heads, sequence_length, max_seq_len}
+
+
+        // handle literal constants and their broadcasts
+        for(auto ins : iterator_for(source_mod)) {
+            if(ins->name() == "@literal") {
+                // copy literals directly
+                auto lit_val = ins->get_literal();
+                auto new_lit = target_mod.add_literal(lit_val);
+                map_old_to_new[ins] = new_lit;
+                std::cout << "  Added literal with shape: " << new_lit->get_shape() << std::endl;
+            }
+        }
+
+        // TODO handle when kv_heads != num_heads
+        // define expected broadcast shapes for literals
+        std::vector<std::size_t> bnsm{dims.batch_size, dims.num_heads, dims.sequence_length, dims.max_seq_length};
+        std::vector<std::size_t> bngsm{dims.batch_size, dims.num_heads, num_groups, dims.sequence_length, dims.seq_length_per_group};
+
+        // update multibroadcast shapes for literals
+        // if broadcasting to [B, N, S, M] shape, change to [B, N, G, S, M/G]
+        // Keep track of specific broadcasts for -inf and scale
+        instruction_ref ninf_broadcast;
+        instruction_ref scale_broadcast;
+        
+        for(auto ins : iterator_for(source_mod)) {
+            if(ins->name() == "multibroadcast" && 
+               !contains(map_old_to_new, ins)) {
+                auto input = ins->inputs()[0];
+                
+                // check if input is a literal and is already mapped
+                if(contains(map_old_to_new, input) && input->name() == "@literal") {
+                    auto op = ins->get_operator();
+                    auto out_lens = op.to_value()["out_lens"].to_vector<std::size_t>();
+                    
+                    // check if the shape matches [B, N, S, M] pattern for attention scores
+                    if(out_lens == bnsm) {
+                        // use the pre-defined bngsm shape
+                        auto new_op = make_op("multibroadcast", {{"out_lens", bngsm}});
+                        auto new_input = map_old_to_new.at(input);
+                        auto new_broadcast = target_mod.add_instruction(new_op, new_input);
+                        map_old_to_new[ins] = new_broadcast;
+                        
+                        // Check the literal value to identify -inf or scale
+                        auto lit = input->get_literal();
+                        if(lit.get_shape().type() == migraphx::shape::half_type) {
+                            // Get the literal value as a string for comparison
+                            auto lit_str = lit.to_string();
+                            if(lit_str == "-inf") {
+                                ninf_broadcast = new_broadcast;
+                                std::cout << "adjusted -inf multibroadcast from BNSM to BNGSM: " 
+                                          << new_broadcast->get_shape() << std::endl;
+                            } else {
+                                // Assume it's the scale value
+                                scale_broadcast = new_broadcast;
+                                std::cout << "adjusted scale multibroadcast from BNSM to BNGSM: " 
+                                          << new_broadcast->get_shape() << " (value: " << lit_str << ")" << std::endl;
+                            }
+                        }
+                    } else {
+                        // for other shapes, just copy the multibroadcast as-is
+                        auto new_input = map_old_to_new.at(input);
+                        auto new_broadcast = target_mod.add_instruction(op, new_input);
+                        map_old_to_new[ins] = new_broadcast;
+                    }
+                }
+            }
+        }
+        
+        // Q slice [batch, num heads, groups, sl, max sl]
+        // check if we found the specific broadcasts
+        bool has_scale = false;
+        bool has_ninf = false;
+        for(auto ins : iterator_for(target_mod)) {
+            if(ins == scale_broadcast) has_scale = true;
+            if(ins == ninf_broadcast) has_ninf = true;
+        }
+        
+        if(has_scale) {
+            std::cout << "  found scale broadcast for attention scaling" << std::endl;
+        }
+        if(has_ninf) {
+            std::cout << "  found -inf broadcast for masking" << std::endl;
+        }
+        
+        // handle first dot product (Q @ K^T)
+        std::cout << "rebuilding first dot product (Q @ K^T)..." << std::endl;
+        instruction_ref dot1;
+        for(auto ins : iterator_for(source_mod)) {
+            if(ins->name() == "dot") {
+                // check if this is the first dot (Q @ K^T)
+                // it should have Q (or sliced Q) as first input and K transpose as second
+                auto input0 = ins->inputs()[0];
+                auto input1 = ins->inputs()[1];
+                
+                // check if we've already mapped these inputs (Q slice and K transpose)
+                if(contains(map_old_to_new, input0) && contains(map_old_to_new, input1)) {
+                    auto new_q = map_old_to_new.at(input0);
+                    auto new_kt = map_old_to_new.at(input1);
+                    
+                    // create the dot product with transformed inputs
+                    dot1 = target_mod.add_instruction(make_op("dot"), new_q, new_kt);
+                    map_old_to_new[ins] = dot1;
+                    
+                    std::cout << "  created dot1 (Q @ K^T) with shape: " << dot1->get_shape() << std::endl;
+                    break;  // assume first dot is Q @ K^T
+                }
+            }
+        }
+        
+        // handle scaling (mul with scale factor)
+        std::cout << "finding and rebuilding scale multiplication..." << std::endl;
+        instruction_ref scaled_scores;
+        
+        // check if we have both dot1 and scale_broadcast
+        bool has_dot1 = false;
+        bool has_scale_bc = false;
+        for(auto ins : iterator_for(target_mod)) {
+            if(ins == dot1) has_dot1 = true;
+            if(ins == scale_broadcast) has_scale_bc = true;
+        }
+        
+        if(has_dot1 && has_scale_bc) {
+            scaled_scores = target_mod.add_instruction(make_op("mul"), dot1, scale_broadcast);
+            std::cout << "  created scaled scores with shape: " << scaled_scores->get_shape() << std::endl;
+        } else if(has_dot1) {
+            // ff we don't have scale_broadcast, try to find the mul in the original
+            for(auto ins : iterator_for(source_mod)) {
+                if(ins->name() == "mul") {
+                    auto input0 = ins->inputs()[0];
+                    auto input1 = ins->inputs()[1];
+                    
+                    if(contains(map_old_to_new, input0) && contains(map_old_to_new, input1)) {
+                        bool input0_is_dot = (map_old_to_new.at(input0)->name() == "dot");
+                        bool input1_is_dot = (map_old_to_new.at(input1)->name() == "dot");
+                        
+                        if(input0_is_dot || input1_is_dot) {
+                            auto new_input0 = map_old_to_new.at(input0);
+                            auto new_input1 = map_old_to_new.at(input1);
+                            
+                            scaled_scores = target_mod.add_instruction(make_op("mul"), new_input0, new_input1);
+                            map_old_to_new[ins] = scaled_scores;
+                            
+                            std::cout << "  created scaled scores with shape: " << scaled_scores->get_shape() << std::endl;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // For kv_cache_attention, rebuild early exit masking with modified broadcast shapes
+        std::cout << "rebuilding early exit masking with adjusted broadcasts..." << std::endl;
+        
+        // Find the range literal (position indices like {0,1,2,3...})
+        instruction_ref range_literal;
+        bool found_range = false;
+        for(auto ins : iterator_for(source_mod)) {
+            if(ins->name() == "@literal") {
+                auto shape = ins->get_literal().get_shape();
+                if(shape.type() == migraphx::shape::int32_type && 
+                   shape.lens().size() == 1 &&
+                   shape.lens()[0] == dims.max_seq_length) {
+                    range_literal = ins;
+                    found_range = true;
+                    std::cout << "  found range literal with shape: " << shape << std::endl;
+                    break;
+                }
+            }
+        }
+        
+        // Find the past_sl parameter (past sequence length)
+        instruction_ref past_sl_param;
+        bool found_past_sl = false;
+        for(auto param : iterator_for(source_mod)) {
+            if(param->name() == "@param") {
+                auto shape = param->get_shape();
+                // past_sl is int32 type with batch_size elements (e.g., [2,1])
+                if(shape.type() == migraphx::shape::int32_type && 
+                   shape.elements() == dims.batch_size) {
+                    past_sl_param = param;
+                    found_past_sl = true;
+                    std::cout << "  found past_sl param with shape: " << shape << std::endl;
+                    break;
+                }
+            }
+        }
+        
+        if(!found_range) {
+            std::cout << "  WARNING: Could not find range literal" << std::endl;
+        }
+        if(!found_past_sl) {
+            std::cout << "  WARNING: Could not find past_sl parameter" << std::endl;
+        }
+        
+        // create broadcast shape vector
+        std::vector<std::size_t> broadcast_shape = {dims.batch_size, num_groups, dims.seq_length_per_group};
+        std::cout << "  broadcast shape: [" << dims.batch_size << ", " << num_groups << ", " 
+                  << dims.seq_length_per_group << "]" << std::endl;
+        
+        instruction_ref range_broadcast;
+        instruction_ref past_sl_reshaped;
+        
+        if(found_range && found_past_sl && contains(param_map, past_sl_param)) {
+            // range literal broadcast to [batch_size, num_groups, seq_length_per_group]
+            if(!contains(map_old_to_new, range_literal)) {
+                auto lit_val = range_literal->get_literal();
+                auto new_lit = target_mod.add_literal(lit_val);
+                map_old_to_new[range_literal] = new_lit;
+            }
+            
+            // Broadcast range literal directly, matching original pattern
+            // Use axis=1 to match the original pattern (broadcast[axis=1] adds batch dimension at front)
+            std::vector<std::size_t> intermediate_bc_shape = {dims.batch_size, dims.max_seq_length};
+            auto range_broadcast_intermediate = target_mod.add_instruction(
+                make_op("broadcast", {{"axis", 1}, {"out_lens", intermediate_bc_shape}}),
+                map_old_to_new.at(range_literal));
+            std::cout << "  broadcasted range to: " << range_broadcast_intermediate->get_shape() << std::endl;
+            
+            // Then reshape to final shape [batch_size, num_groups, seq_length_per_group]
+            range_broadcast = target_mod.add_instruction(
+                make_op("reshape", {{"dims", broadcast_shape}}),
+                range_broadcast_intermediate);
+            std::cout << "  reshaped range to final shape: " << range_broadcast->get_shape() << std::endl;
+            
+            // past_sl param from [batch_size, 1] to [batch_size, max_seq_length]
+            // then reshape to [batch_size, num_groups, seq_length_per_group]
+            auto past_sl_new = param_map.at(past_sl_param);
+            
+            std::vector<std::size_t> intermediate_shape = {dims.batch_size, dims.max_seq_length};
+            auto past_sl_broadcast = target_mod.add_instruction(
+                make_op("multibroadcast", {{"out_lens", intermediate_shape}}),
+                past_sl_new);
+            std::cout << "  multibroadcasted past_sl to: " << past_sl_broadcast->get_shape() << std::endl;
+            
+            past_sl_reshaped = target_mod.add_instruction(
+                make_op("reshape", {{"dims", broadcast_shape}}),
+                past_sl_broadcast);
+            std::cout << "  reshaped past_sl to: " << past_sl_reshaped->get_shape() << std::endl;
+            
+            auto greater = target_mod.add_instruction(
+                make_op("greater"), range_broadcast, past_sl_reshaped);
+            auto convert = target_mod.add_instruction(
+                make_op("convert", {{"target_type", migraphx::shape::bool_type}}), greater);
+            auto unsqueeze = target_mod.add_instruction(
+                make_op("unsqueeze", {{"axes", {1, 3}}}), convert);
+            auto multibroadcast = target_mod.add_instruction(
+                make_op("multibroadcast", {{"out_lens", bngsm}}), unsqueeze);
+            
+            // Check if we have the ninf_broadcast before using it
+            bool has_ninf_bc = false;
+            for(auto ins : iterator_for(target_mod)) {
+                if(ins == ninf_broadcast) {
+                    has_ninf_bc = true;
+                    break;
+                }
+            }
+            
+            if(has_ninf_bc) {
+                auto where = target_mod.add_instruction(make_op("where"), multibroadcast, ninf_broadcast, scaled_scores);
+                scaled_scores = where; // Update scaled_scores to the masked version
+                
+            } else {
+                std::cout << "  WARNING: Could not find ninf_broadcast for where operation" << std::endl;
+            }
+        }
+        
+        // quick implementation of remaining ops for testing
+        
+        // convert to float for softmax computation
+        auto convert_to_float = target_mod.add_instruction(
+            make_op("convert", {{"target_type", migraphx::shape::float_type}}), scaled_scores);
+        
+        // Reduce max along last axis (axis 4 in BNGSM)
+        auto reduce_max = target_mod.add_instruction(
+            make_op("reduce_max", {{"axes", {4}}}), convert_to_float);
+        
+        // Broadcast max back to original shape
+        auto max_broadcast = target_mod.add_instruction(
+            make_op("multibroadcast", {{"out_lens", bngsm}}), reduce_max);
+        
+        // Subtract max for numerical stability
+        auto sub = target_mod.add_instruction(
+            make_op("sub"), convert_to_float, max_broadcast);
+        
+        // Exp
+        auto exp_scores = target_mod.add_instruction(
+            make_op("exp"), sub);
+        
+        // Reduce sum along last axis
+        auto reduce_sum = target_mod.add_instruction(
+            make_op("reduce_sum", {{"axes", {4}}}), exp_scores);
+        
+        // Broadcast sum back
+        auto sum_broadcast = target_mod.add_instruction(
+            make_op("multibroadcast", {{"out_lens", bngsm}}), reduce_sum);
+        
+        // Divide to get softmax
+        auto softmax = target_mod.add_instruction(
+            make_op("div"), exp_scores, sum_broadcast);
+        
+        // Convert back to half
+        auto convert_to_half = target_mod.add_instruction(
+            make_op("convert", {{"target_type", migraphx::shape::half_type}}), softmax);
+
+        std::cout << "now doing the dot between the convert and v";
+        std::cout << v_param->get_shape() << std::endl;
+
+        // We need to use the mapped V parameter, not the original v_param
+        // The v_param passed in is from the original submodule, we need the one in param_map
+        auto v_mapped = param_map.at(v_param);
+        std::cout << "V mapped shape: " << v_mapped->get_shape() << std::endl;
+        
+        // Dot with V
+        auto dot2 = target_mod.add_instruction(
+            make_op("dot"), convert_to_half, v_mapped);
+        std::cout << "Dot2 shape: " << dot2->get_shape() << std::endl;
+        
+
+        
+        // for flash decoding, we keep the group dimension and return it
+        // kernel 2 will handle the LSE-weighted reduction
+        // dot2 is currently [B, N, G, S, D]
+        
+        // transpose to [B, G, S, N, D] to match flash decoding output pattern
+        auto transpose_out = target_mod.add_instruction(
+            make_op("transpose", {{"permutation", {0, 2, 3, 1, 4}}}), dot2);
+        std::cout << "Transpose shape: " << transpose_out->get_shape() << std::endl;
+        
+        // reshape to [B, G, S, N*D]
+        std::vector<std::size_t> final_shape = {dims.batch_size, num_groups, dims.sequence_length, dims.num_heads * dims.head_dim};
+        auto reshape_out = target_mod.add_instruction(
+            make_op("reshape", {{"dims", final_shape}}), transpose_out);
+        std::cout << "Final reshape shape (with groups): " << reshape_out->get_shape() << std::endl;
+        
+        // for LSE (log-sum-exp), we need log(sum_exp) + max
+        // we already have reduce_max and reduce_sum from softmax computation
+        // LSE shape is [B, N, G, S, 1] which is correct for flash decoding
+        auto log_sum = target_mod.add_instruction(make_op("log"), reduce_sum);
+        auto lse = target_mod.add_instruction(make_op("add"), reduce_max, log_sum);
+        std::cout << "LSE shape: " << lse->get_shape() << std::endl;
+        
+        target_mod.add_return({reshape_out, lse});
+        
+        // print the complete submodule
+        std::cout << "\n=== Complete GQA Flash Decoding Submodule ===" << std::endl;
+        std::cout << target_mod << std::endl;
+        std::cout << "=== End Submodule ===" << std::endl;
+    }
+
+    std::optional<qkv_params> extract_qkv_params(instruction_ref gemm1, instruction_ref gemm2) const
+    {
+        qkv_params result;
+        
+        // Q: gemm1's first input should be a slice from the QKV tensor
+        auto q_input = gemm1->inputs()[0];
+        if(q_input->name() == "slice") {
+            // trace back from slice to find the parameter
+            auto before_slice = q_input->inputs()[0];
+            
+            instruction_ref current = before_slice;
+            while(current->name() != "@param") {
+                if(current->inputs().empty()) {
+                    std::cout << "Cannot trace Q back to parameter" << std::endl;
+                    return std::nullopt;
+                }
+                current = current->inputs()[0];
+            }
+            result.q_param = current;
+        } else {
+            std::cout << "Expected Q to come from slice, got: " << q_input->name() << std::endl;
+            return std::nullopt;
+        }
+        
+        // K: gemm1's second input should be transposed K from concat_past_present
+        auto k_input = gemm1->inputs()[1];
+        if(k_input->name() == "transpose") {
+            result.k_param = k_input->inputs()[0];
+        } else {
+            result.k_param = k_input;
+        }
+        
+        if(result.k_param->name() != "@param") {
+            std::cout << "Expected K to be a parameter, got: " << result.k_param->name() << std::endl;
+            return std::nullopt;
+        }
+        
+        // V: gemm2's second input should be V from concat_past_present
+        result.v_param = gemm2->inputs()[1];
+        if(result.v_param->name() != "@param") {
+            std::cout << "Expected V to be a parameter, got: " << result.v_param->name() << std::endl;
+            return std::nullopt;
+        }
+        
+        return result;
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto& mm            = mpm.get_module();
+        auto attn_group_ins = r.instructions["group"];
+        auto* submod        = attn_group_ins->module_inputs().front();
+
+        std::cout << "GQA flash decoding detected" << std::endl;
+
+        // check multiple returns
+        auto return_ins = std::prev(submod->end());
+        assert(return_ins->name() == "@return" and
+               "Last instruction must be a @return instruction");
+        if(return_ins->inputs().size() > 1) {
+            std::cout << "KV cache attention unexpected multiple returns" << std::endl;
+            return;
+        }
+
+        // get gemm1 and gemm2
+        auto [gemm1, gemm2] = get_gemms(submod);
+
+        // Extract Q, K, V parameters from gemm inputs
+        auto qkv_opt = extract_qkv_params(gemm1, gemm2);
+        if(!qkv_opt) {
+            std::cout << "Failed to extract Q, K, V parameters" << std::endl;
+            return;
+        }
+        
+        auto [q_param, k_param, v_param] = *qkv_opt;
+        
+        std::cout << "Q attn module param shape: " << q_param->get_shape() << std::endl;
+        std::cout << "K attn module param shape: " << k_param->get_shape() << std::endl;
+        std::cout << "V attn module param shape: " << v_param->get_shape() << std::endl;
+
+        // derive dim values
+        attention_dims dims(q_param, k_param, groups);
+        
+        std::cout << "Max sequence length: " << dims.max_seq_length << std::endl;
+
+        if(groups <= 1) {
+            std::cout << "No splitting requested (groups=" << groups << ")" << std::endl;
+            return;
+        }
+        
+        // check if dimensions were calculated successfully
+        if(dims.seq_length_per_group == 0) {
+            std::cout << "Failed to calculate sequence length per group, returning" << std::endl;
+            return;
+        }
+
+        // map submodule params to main module inputs
+        auto group_inputs      = attn_group_ins->inputs();
+        auto map_param_to_main = map_submod_params_to_inputs(submod, group_inputs);
+        
+        // get actual Q, K, V instructions from main module
+        auto q = map_param_to_main.at(q_param);  // maps to the QKV tensor
+        auto k = map_param_to_main.at(k_param);  // maps to K concat_past_present output 
+        auto v = map_param_to_main.at(v_param);  // maps to V concat_past_present output
+
+        std::cout << "Main module Q shape: " << q->get_shape() << std::endl;
+        std::cout << "Main module K shape: " << k->get_shape() << std::endl;
+        std::cout << "Main module V shape: " << v->get_shape() << std::endl;
+        
+        // GQA flash decoding:
+        // - Q (QKV tensor): broadcast across groups (no split)
+        // - K: split sequence dimension into groups
+        // - V: split sequence dimension into groups
+        
+        // shapes before group transformation
+        auto q_shape = q->get_shape();
+        auto k_shape_main = k->get_shape(); 
+        auto v_shape_main = v->get_shape();
+        
+        // insert group dimension at position -2 for all tensors
+        // K and V: [B, kv_heads, N, D] -> [B, kv_heads, G, N/G, D] (split)
+        // build transformed shapes
+        std::vector<std::size_t> q_transformed_shape;
+        std::vector<std::size_t> k_transformed_shape;
+        std::vector<std::size_t> v_transformed_shape;
+        
+        // Q shape transformation (broadcast group dimension)
+        q_transformed_shape = {dims.batch_size, dims.concat_heads, groups, dims.sequence_length, dims.head_dim};
+        k_transformed_shape = {dims.batch_size, dims.kv_heads, groups, dims.seq_length_per_group, dims.head_dim};
+        v_transformed_shape = {dims.batch_size, dims.kv_heads, groups, dims.seq_length_per_group, dims.head_dim};
+
+        std::cout << "Q transformed shape: ";
+        for(auto d : q_transformed_shape) std::cout << d << " ";
+        std::cout << std::endl;
+        
+        std::cout << "K transformed shape: ";
+        for(auto d : k_transformed_shape) std::cout << d << " ";
+        std::cout << std::endl;
+        
+        std::cout << "V transformed shape: ";
+        for(auto d : v_transformed_shape) std::cout << d << " ";
+        std::cout << std::endl;
+
+        // insert reshape operations before the attention group
+        // [B, concat_heads, seq, head_dim] -> [B, concat_heads, 1, seq, head_dim] -> [B, concat_heads, G, seq, head_dim]
+        auto q_unsqueezed = mm.insert_instruction(
+            attn_group_ins, 
+            make_op("unsqueeze", {{"axes", {2}}}),
+            q);
+        
+        auto q_reshaped = mm.insert_instruction(
+            attn_group_ins,
+            make_op("multibroadcast", {{"out_lens", q_transformed_shape}}),
+            q_unsqueezed);
+        
+        // K: reshape to split sequence dimension
+        auto k_reshaped = mm.insert_instruction(
+            attn_group_ins,
+            make_op("reshape", {{"dims", k_transformed_shape}}),
+            k);
+        
+        // V: reshape to split sequence dimension
+        auto v_reshaped = mm.insert_instruction(
+            attn_group_ins,
+            make_op("reshape", {{"dims", v_transformed_shape}}),
+            v);
+        
+        std::cout << "Q reshaped: " << q_reshaped->get_shape() << std::endl;
+        std::cout << "K reshaped: " << k_reshaped->get_shape() << std::endl;
+        std::cout << "V reshaped: " << v_reshaped->get_shape() << std::endl;
+        
+        // No need to handle positions outside the submodule
+        // We'll adjust broadcast patterns inside for early exit masking
+
+        // TODO can probably do this simpler
+        // Create new input list by replacing Q, K, V with reshaped versions
+        std::vector<instruction_ref> new_group_inputs = group_inputs;
+        for(size_t i = 0; i < group_inputs.size(); ++i) {
+            if(group_inputs[i] == q) {
+                new_group_inputs[i] = q_reshaped;
+            } else if(group_inputs[i] == k) {
+                new_group_inputs[i] = k_reshaped;
+            } else if(group_inputs[i] == v) {
+                new_group_inputs[i] = v_reshaped;
+            }
+            // Other inputs (like seq_len) stay the same
+        }
+
+        // Create new flash decoding submodule
+        module m_flash_decode;
+        m_flash_decode.set_bypass();
+        
+        // Get parameter names from original submodule
+        auto get_param_name = [](instruction_ref param) -> std::string {
+            assert(param->name() == "@param");
+            return param->get_operator().to_value()["parameter"].to<std::string>();
+        };
+        
+        auto q_name = get_param_name(q_param);
+        auto k_name = get_param_name(k_param);
+        auto v_name = get_param_name(v_param);
+        
+        // Add parameters to new submodule with transformed shapes
+        auto new_q_param = m_flash_decode.add_parameter(
+            q_name, shape{q_shape.type(), q_transformed_shape});
+        auto new_k_param = m_flash_decode.add_parameter(
+            k_name, shape{k_shape_main.type(), k_transformed_shape});
+        auto new_v_param = m_flash_decode.add_parameter(
+            v_name, shape{v_shape_main.type(), v_transformed_shape});
+        
+        // Build mapping from old params to new params
+        std::unordered_map<instruction_ref, instruction_ref> map_old_params_to_new;
+        map_old_params_to_new[q_param] = new_q_param;
+        map_old_params_to_new[k_param] = new_k_param;
+        map_old_params_to_new[v_param] = new_v_param;
+        
+        // Add other parameters (like seq_len) that don't change shape
+        for(auto param : iterator_for(*submod)) {
+            if(param->name() == "@param") {
+                if(param != q_param && param != k_param && param != v_param) {
+                    auto param_name = get_param_name(param);
+                    auto param_shape = param->get_shape();
+                    auto new_param = m_flash_decode.add_parameter(param_name, param_shape);
+                    map_old_params_to_new[param] = new_param;
+                    std::cout << "Added unchanged param: " << param_name 
+                              << " with shape: " << param_shape << std::endl;
+                }
+            }
+        }
+        
+        // TODO all the param stuff before this can be simplified
+
+        // rebuild the attention operations in the flash decode submodule
+        std::cout << "Rebuilding GQA attention operations..." << std::endl;
+        rebuild_gqa_attention(m_flash_decode, *submod, map_old_params_to_new, 
+                             q_param, k_param, v_param, dims, groups);
+        
+        // create the module in the module pass manager
+        auto original_submod_name = attn_group_ins->module_inputs().front()->name();
+        std::string new_mod_name = original_submod_name + "_gqa_flash_decoding";
+        
+        module_ref mpm_flash_mod = mpm.create_module(new_mod_name, std::move(m_flash_decode));
+        mpm_flash_mod->set_bypass();
+        
+        // insert the new group operation
+        auto new_group_ins = mm.insert_instruction(
+            attn_group_ins,
+            make_op("group", {{"tag", "attention"}}),
+            new_group_inputs,
+            {mpm_flash_mod});
+        
+        std::cout << "Created GQA flash decoding group" << std::endl;
+        std::cout << "Group output shape: " << new_group_ins->get_shape() << std::endl;
+        
+        // unpack O' and LSE
+        auto partial_output_o_prime = mm.insert_instruction(
+            attn_group_ins, make_op("get_tuple_elem", {{"index", 0}}), new_group_ins);
+        auto lse = mm.insert_instruction(
+            attn_group_ins, make_op("get_tuple_elem", {{"index", 1}}), new_group_ins);
+
+        // LSE-weighted combination
+        std::cout << "\n=== Kernel 2: LSE-weighted combination ===" << std::endl;
+        std::cout << "Input LSE shape: " << lse->get_shape() << std::endl;  // [B, N, G, S, 1] = [2, 2, 2, 1, 1]
+        std::cout << "Input O' shape: " << partial_output_o_prime->get_shape() << std::endl;  // [B, G, S, N*D] = [2, 2, 1, 4]
+        
+        // align LSE with O' for proper weighting
+        // LSE is [B, N, G, S, 1], match group dimension of O' [B, G, S, N*D]
+        
+        // [B, N, G, S, 1] -> [B, G, N, S, 1]
+        std::cout << "\n1. Transposing LSE to align group dimension..." << std::endl;
+        auto lse_transposed = mm.insert_instruction(
+            attn_group_ins, make_op("transpose", {{"permutation", {0, 2, 1, 3, 4}}}), lse);
+        std::cout << "   LSE transposed shape: " << lse_transposed->get_shape() << std::endl;  // [2, 2, 2, 1, 1]
+        
+        // average across heads (N) since all heads in a group share the same weight
+        // [B, G, N, S, 1] -> [B, G, S, 1] (reduce over axis 2, then squeeze)
+        std::cout << "\n2. Averaging LSE across heads within each group..." << std::endl;
+        auto lse_avg = mm.insert_instruction(
+            attn_group_ins, make_op("reduce_mean", {{"axes", {2}}}), lse_transposed);
+        std::cout << "   LSE averaged shape: " << lse_avg->get_shape() << std::endl;  // [2, 2, 1, 1, 1]
+        
+        // squeeze axes 2 and 4: [B, G, 1, S, 1] -> [B, G, S]
+        auto lse_squeezed = mm.insert_instruction(
+            attn_group_ins, make_op("squeeze", {{"axes", {2, 4}}}), lse_avg);
+        std::cout << "   LSE squeezed shape: " << lse_squeezed->get_shape() << std::endl;  // [2, 2, 1]
+        
+        // softmax across groups for LSE weights
+        std::cout << "\n3. Computing softmax of LSE across groups..." << std::endl;
+        
+        // find max across groups for numerical stability
+        auto lse_max = mm.insert_instruction(
+            attn_group_ins, make_op("reduce_max", {{"axes", {1}}}), lse_squeezed);
+        std::cout << "   Max LSE shape: " << lse_max->get_shape() << std::endl;  // [2, 1, 1]
+        
+        // broadcast max back to original shape
+        auto lse_max_bcast = mm.insert_instruction(
+            attn_group_ins,
+            make_op("multibroadcast", {{"out_lens", lse_squeezed->get_shape().lens()}}),
+            lse_max);
+        
+        // exp(LSE - max_LSE)
+        auto lse_sub = mm.insert_instruction(attn_group_ins, make_op("sub"), lse_squeezed, lse_max_bcast);
+        auto lse_exp = mm.insert_instruction(attn_group_ins, make_op("exp"), lse_sub);
+        std::cout << "   Exp(LSE) shape: " << lse_exp->get_shape() << std::endl;  // [2, 2, 1]
+        
+        // sum exp across groups
+        auto lse_sum = mm.insert_instruction(
+            attn_group_ins, make_op("reduce_sum", {{"axes", {1}}}), lse_exp);
+        std::cout << "   Sum exp shape: " << lse_sum->get_shape() << std::endl;  // [2, 1, 1]
+        
+        // broadcast sum back
+        auto lse_sum_bcast = mm.insert_instruction(
+            attn_group_ins,
+            make_op("multibroadcast", {{"out_lens", lse_exp->get_shape().lens()}}),
+            lse_sum);
+        
+        auto weights = mm.insert_instruction(attn_group_ins, make_op("div"), lse_exp, lse_sum_bcast);
+        std::cout << "   Softmax weights shape: " << weights->get_shape() << std::endl;  // [2, 2, 1]
+        
+        // weights is [B, G, S], O' is [B, G, S, N*D]
+        // [B, G, S] -> [B, G, S, 1]
+        std::cout << "\n4. Preparing weights for multiplication with O'..." << std::endl;
+        auto weights_unsqueezed = mm.insert_instruction(
+            attn_group_ins, make_op("unsqueeze", {{"axes", {3}}}), weights);
+        std::cout << "   Weights unsqueezed shape: " << weights_unsqueezed->get_shape() << std::endl;  // [2, 2, 1, 1]
+        
+        // broadcast to match O' shape
+        auto weights_bcast = mm.insert_instruction(
+            attn_group_ins,
+            make_op("multibroadcast", {{"out_lens", partial_output_o_prime->get_shape().lens()}}),
+            weights_unsqueezed);
+        std::cout << "   Weights broadcast shape: " << weights_bcast->get_shape() << std::endl;  // [2, 2, 1, 4]
+        
+        // convert weights to match O' type
+        auto output_type = partial_output_o_prime->get_shape().type();
+        auto weights_converted = mm.insert_instruction(
+            attn_group_ins, make_op("convert", {{"target_type", output_type}}), weights_bcast);
+        
+        // multiply O' by weights
+        std::cout << "\n5. Multiplying O' by softmax weights..." << std::endl;
+        auto weighted_output = mm.insert_instruction(
+            attn_group_ins, make_op("mul"), partial_output_o_prime, weights_converted);
+        std::cout << "   Weighted output shape: " << weighted_output->get_shape() << std::endl;  // [2, 2, 1, 4]
+        
+        // sum across groups to get final output
+        std::cout << "\n6. Summing weighted outputs across groups..." << std::endl;
+        auto final_output = mm.insert_instruction(
+            attn_group_ins, make_op("reduce_sum", {{"axes", {1}}}), weighted_output);
+        std::cout << "   Final output shape: " << final_output->get_shape() << std::endl;  // [2, 1, 1, 4]
+        
+        // squeeze the reduced group dimension
+        auto final_squeezed = mm.insert_instruction(
+            attn_group_ins, make_op("squeeze", {{"axes", {1}}}), final_output);
+        std::cout << "   Final squeezed shape: " << final_squeezed->get_shape() << std::endl;  // [2, 1, 4]
+        
+        mm.replace_instruction(attn_group_ins, final_squeezed);
+        
+        std::cout << "\n=== Kernel 2 complete: LSE-weighted combination successful ===" << std::endl;
+    }
+};
+
 struct find_flash_decoding
 {
     // configuration from fuse_attention pass config
@@ -947,12 +1917,17 @@ void fuse_attention::apply(module_pass_manager& mpm) const
     std::size_t configured_splits = get_num_splits(flash_decoding_num_splits);
     if(configured_splits > 0 or flash_decoding_enabled)
     {
+        // flash decoding for regular attention, single & multi-headed
         match::find_matches(
             mpm,
             find_flash_decoding{.configured_splits         = flash_decoding_num_splits,
                                 .configured_threshold      = flash_decoding_threshold,
                                 .configured_max_splits     = flash_decoding_max_splits,
                                 .configured_min_chunk_size = flash_decoding_min_chunk_size});
+
+        // flash decoding for GQA attention
+        match::find_matches(
+            mpm, find_gqa_flash_decoding{.groups = num_splits});
         mpm.run_pass(dead_code_elimination{});
     }
 }

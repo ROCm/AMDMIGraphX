@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/logger.hpp>
+#include <algorithm>
 #include <chrono>
 #include <fstream>
 #include <iomanip>
@@ -202,15 +203,10 @@ bool is_enabled(severity level)
 {
     bool result = false;
     access_sinks([&](std::vector<std::optional<sink_entry>>& sinks) {
-        for(const auto& entry : sinks)
-        {
-            if(entry.has_value() and
-               static_cast<size_t>(level) <= static_cast<size_t>(entry->level))
-            {
-                result = true;
-                return;
-            }
-        }
+        result = std::any_of(sinks.begin(), sinks.end(), [&](const auto& entry) {
+            return entry.has_value() and
+                   static_cast<size_t>(level) <= static_cast<size_t>(entry->level);
+        });
     });
     return result;
 }

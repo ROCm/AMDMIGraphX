@@ -225,7 +225,7 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
             //     * Token at pos 8 to attend to [0-8] (prefix + prev token + itself)
             //     * Token at pos 9 to attend to [0-9] (all previous)
             auto bc_past_sl_for_range = info.add_instruction(
-                make_op("multibroadcast", {{"out_lens", {sequence_length, 1}}}), past_sl);
+                make_op("multibroadcast", {{"out_lens", {sequence_length, 1}}}), slk);
             adjusted_seq_range = info.add_instruction(make_op("add"), seq_range, bc_past_sl_for_range);
             
             adjusted_seq_range =
@@ -267,10 +267,13 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
                 window_mask);
             mul = info.add_instruction(migraphx::make_op("where"), window_mask, ninf, mul);
         }
-        auto mask = info.add_instruction(make_op("greater"), bc_range, mask_comp);
-        mask = info.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), mask);
-        auto where   = info.add_instruction(make_op("where"), mask, ninf, mul);
-        auto softmax = info.add_instruction(make_op("softmax", {{"axis", 3}}), where);
+        if(sequence_length == 1)
+        {
+            auto mask = info.add_instruction(make_op("greater"), bc_range, mask_comp);
+            mask = info.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), mask);
+            mul   = info.add_instruction(make_op("where"), mask, ninf, mul);
+        }
+        auto softmax = info.add_instruction(make_op("softmax", {{"axis", 3}}), mul);
         auto scores  = info.add_instruction(make_op("dot"), softmax, v);
         auto out =
             info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), scores);

@@ -620,29 +620,70 @@ struct find_kv_cache_attention
 
         auto keys =
             match::skip(match::name(skip_set))(match::name("concat_past_present")).bind("pres_k");
+
         auto k_transpose =
             match::skip(match::name(skip_set))(match::name("transpose")(match::arg(0)(keys)));
-        auto queries = match::name("slice");
+        auto queries = match::name("slice")(match::arg(0)(match::any().bind("rotary")));
         auto gemm1   = match::name("dot")(match::arg(0)(queries), match::arg(1)(k_transpose));
         auto scale   = match::name("mul")(match::any_arg(0, 1)(gemm1));
+        // return scale;
         auto broadcasted_const = match::name("multibroadcast")(match::arg(0)(match::is_constant()));
+        auto add = match::name("add")(match::arg(0)(match::is_constant()), match::arg(1)(match::skip_broadcasts(match::any().bind("total_sl"))));
+        auto adjusted_seq_range = match::name("multibroadcast")(match::arg(0)(add));
+        // return adjusted_seq_range;
+        auto greater1 = match::name("greater")(match::arg(1)(adjusted_seq_range)); 
+        // return greater1;
         auto attn_scores       = match::any_of(scale, gemm1);
+        auto conv_greater1 =
+            match::skip(match::name("unsqueeze"))(match::name("convert")(match::arg(0)(greater1)));
+        auto bc_greater1         = match::name("multibroadcast")(match::arg(0)(conv_greater1));
         auto causal_mask =
-            match::name("where")(match::arg(0)(broadcasted_const), match::arg(2)(attn_scores));
-        auto greater = match::name("greater")(match::arg(1)(match::any().bind("total_sl")));
+            match::name("where")(match::arg(0)(bc_greater1), match::arg(2)(attn_scores));
+        auto greater = match::name("greater")(match::arg(1)(match::any()/* .bind("total_sl") */));
         auto conv_greater =
             match::skip(match::name("unsqueeze"))(match::name("convert")(match::arg(0)(greater)));
         auto bc_greater         = match::name("multibroadcast")(match::arg(0)(conv_greater));
         auto mask               = match::name("where")(match::arg(0)(bc_greater),
                                          match::arg(2)(match::any_of(causal_mask, scale, gemm1)));
         auto attn_probabilities = match::skip(match::name("convert"))(
-            match::softmax_input(match::skip(match::name("convert"))(mask)));
+            match::softmax_input(match::skip(match::name("convert"))(match::any_of(causal_mask, mask))));
         auto values =
             match::skip(match::name(skip_set))(match::name("concat_past_present")).bind("pres_v");
         auto gemm2 = match::name("dot")(match::arg(0)(attn_probabilities), match::arg(1)(values));
         auto transpose_out = match::name("transpose")(match::arg(0)(gemm2));
         return match::name("reshape")(match::arg(0)(transpose_out));
     }
+
+    // auto matcher() const
+    // {
+    //     static const std::unordered_set<std::string> skip_set = {
+    //         "multibroadcast", "reshape", "unsqueeze"};
+
+    //     auto keys =
+    //         match::skip(match::name(skip_set))(match::name("concat_past_present")).bind("pres_k");
+    //     auto k_transpose =
+    //         match::skip(match::name(skip_set))(match::name("transpose")(match::arg(0)(keys)));
+    //     auto queries = match::name("slice");
+    //     auto gemm1   = match::name("dot")(match::arg(0)(queries), match::arg(1)(k_transpose));
+    //     auto scale   = match::name("mul")(match::any_arg(0, 1)(gemm1));
+    //     auto broadcasted_const = match::name("multibroadcast")(match::arg(0)(match::is_constant()));
+    //     auto attn_scores       = match::any_of(scale, gemm1);
+    //     auto causal_mask =
+    //         match::name("where")(match::arg(0)(broadcasted_const), match::arg(2)(attn_scores));
+    //     auto greater = match::name("greater")(match::arg(1)(match::any().bind("total_sl")));
+    //     auto conv_greater =
+    //         match::skip(match::name("unsqueeze"))(match::name("convert")(match::arg(0)(greater)));
+    //     auto bc_greater         = match::name("multibroadcast")(match::arg(0)(conv_greater));
+    //     auto mask               = match::name("where")(match::arg(0)(bc_greater),
+    //                                      match::arg(2)(match::any_of(causal_mask, scale, gemm1)));
+    //     auto attn_probabilities = match::skip(match::name("convert"))(
+    //         match::softmax_input(match::skip(match::name("convert"))(mask)));
+    //     auto values =
+    //         match::skip(match::name(skip_set))(match::name("concat_past_present")).bind("pres_v");
+    //     auto gemm2 = match::name("dot")(match::arg(0)(attn_probabilities), match::arg(1)(values));
+    //     auto transpose_out = match::name("transpose")(match::arg(0)(gemm2));
+    //     return match::name("reshape")(match::arg(0)(transpose_out));
+    // }
 
     std::string get_count() const { return std::to_string((*counter)++); }
 
@@ -658,41 +699,77 @@ struct find_kv_cache_attention
         return inverse_map;
     }
 
+    // std::vector<instruction_ref>
+    // get_attn_instructions(module& m, instruction_ref start, instruction_ref end) const
+    // {
+    //     std::queue<instruction_ref> inputs;
+    //     std::unordered_set<instruction_ref> inss;
+    //     inputs.push(end);
+
+    //     static const std::unordered_set<std::string> valid_attn_ops = {"softmax",
+    //                                                                    "broadcast",
+    //                                                                    "add",
+    //                                                                    "dot",
+    //                                                                    "slice",
+    //                                                                    "transpose",
+    //                                                                    "greater",
+    //                                                                    "convert",
+    //                                                                    "where",
+    //                                                                    "reshape",
+    //                                                                    "reduce_sum",
+    //                                                                    "reduce_max",
+    //                                                                    "broadcast",
+    //                                                                    "multibroadcast",
+    //                                                                    "@literal",
+    //                                                                    "unsqueeze"};
+
+    //     auto is_valid_attn_op = [&](auto i) {
+    //         return i->get_operator().attributes().get("pointwise", false) or
+    //                contains(valid_attn_ops, i->get_operator().name()) or i == start or i == end;
+    //     };
+    //     auto num_red_sum = 0;
+
+    //     while(not inputs.empty())
+    //     {
+    //         auto current_inp = inputs.front();
+    //         inputs.pop();
+
+    //         if(current_inp->get_operator().name() == "reduce_sum")
+    //         {
+    //             num_red_sum++;
+    //         }
+    //         // bool skip_red_sum = num_red_sum > 1 and current_inp->get_operator().name() == "reduce_sum";
+    //         if(is_valid_attn_op(current_inp) and inss.insert(current_inp).second and
+    //            current_inp != start and not num_red_sum)
+    //         {
+    //             for(auto i : current_inp->inputs())
+    //             {
+    //                 if(not (i->get_operator().name() == "reduce_sum" and num_red_sum > 1))
+    //                     inputs.push(i);
+    //             }
+    //         }
+    //     }
+    //     std::vector<instruction_ref> sorted_inss(inss.begin(), inss.end());
+    //     std::sort(
+    //         sorted_inss.begin(), sorted_inss.end(), [&](instruction_ref x, instruction_ref y) {
+    //             return std::distance(m.begin(), x) < std::distance(m.begin(), y);
+    //         });
+    //     return sorted_inss;
+    // }
+
     std::vector<instruction_ref>
-    get_attn_instructions(module& m, instruction_ref start, instruction_ref end) const
+    get_instructions(module& m, std::unordered_set<instruction_ref> starts, instruction_ref end) const
     {
         std::queue<instruction_ref> inputs;
         std::unordered_set<instruction_ref> inss;
         inputs.push(end);
-
-        static const std::unordered_set<std::string> valid_attn_ops = {"softmax",
-                                                                       "broadcast",
-                                                                       "dot",
-                                                                       "slice",
-                                                                       "transpose",
-                                                                       "greater",
-                                                                       "convert",
-                                                                       "where",
-                                                                       "reshape",
-                                                                       "reduce_sum",
-                                                                       "reduce_max",
-                                                                       "broadcast",
-                                                                       "multibroadcast",
-                                                                       "@literal",
-                                                                       "unsqueeze"};
-
-        auto is_valid_attn_op = [&](auto i) {
-            return i->get_operator().attributes().get("pointwise", false) or
-                   contains(valid_attn_ops, i->get_operator().name()) or i == start or i == end;
-        };
 
         while(not inputs.empty())
         {
             auto current_inp = inputs.front();
             inputs.pop();
 
-            if(is_valid_attn_op(current_inp) and inss.insert(current_inp).second and
-               current_inp != start)
+            if(not contains(starts, current_inp) and inss.insert(current_inp).second)
             {
                 for(auto i : current_inp->inputs())
                 {
@@ -710,11 +787,20 @@ struct find_kv_cache_attention
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
+        // std::cout << "matched" << std::endl;
+        // return;
         auto total_sl = r.instructions["total_sl"];
         auto reshape  = r.result;
-
+        auto pres_k = r.instructions["pres_k"];
+        auto pres_v = r.instructions["pres_v"];
+        auto rotary = r.instructions["rotary"];
         // Capture all instructions part of the attention op
-        auto attn_inss = get_attn_instructions(mpm.get_module(), total_sl, reshape);
+        // auto attn_inss = get_attn_instructions(mpm.get_module(), tsl, reshape);
+        auto attn_inss = get_instructions(mpm.get_module(), {rotary, pres_k, pres_v, total_sl}, reshape);
+        // for(auto ins : attn_inss)
+        // {
+        //     ins->debug_print();
+        // }
 
         // Add captured instructions to new submodule
         module m_attn;

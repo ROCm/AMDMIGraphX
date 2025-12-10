@@ -28,7 +28,6 @@
 #include <migraphx/ranges.hpp>
 #include "test.hpp"
 
-#include <array>
 #include <limits>
 #include <sstream>
 

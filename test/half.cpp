@@ -27,9 +27,9 @@
 #include <migraphx/half.hpp>
 #include "test.hpp"
 
-#include <array>
 #include <limits>
 #include <map>
+#include <iomanip>
 
 template <class T, class U>
 static bool bit_equal(const T& x, const U& y)

@@ -61,15 +61,6 @@ MIGRAPHX_GPU_EXPORT argument get_preallocation(context& ctx, const std::string& 
 
 MIGRAPHX_GPU_EXPORT void gpu_fill(context& ctx, const argument& dst, int value = 0);
 
-MIGRAPHX_GPU_EXPORT std::shared_ptr<void>
-write_to_gpu(const void* x, std::size_t sz, bool host = false);
-
-template <class T>
-std::shared_ptr<T> write_to_gpu(const T& x, bool host = false)
-{
-    return std::static_pointer_cast<T>(write_to_gpu(&x, sizeof(T), host));
-}
-
 struct hip_allocate
 {
     shape s;

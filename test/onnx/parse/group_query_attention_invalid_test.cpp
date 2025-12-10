@@ -33,13 +33,3 @@ TEST_CASE(group_query_attention_softcap_test)
 {
     EXPECT(test::throws([&] { read_onnx("group_query_attention_softcap_test.onnx"); }));
 }
-
-TEST_CASE(group_query_attention_num_heads_test)
-{
-    EXPECT(test::throws([&] { read_onnx("group_query_attention_num_heads_test.onnx"); }));
-}
-
-TEST_CASE(group_query_attention_kv_num_heads_test)
-{
-    EXPECT(test::throws([&] { read_onnx("group_query_attention_kv_num_heads_test.onnx"); }));
-}

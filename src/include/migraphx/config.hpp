@@ -43,24 +43,18 @@
         MIGRAPHX_VERSION_PATCH)
 
 #define MIGRAPHX_INLINE_NS MIGRAPHX_VERSION_CONCAT(version, MIGRAPHX_VERSION)
-#endif // BUILD_DEV
-#endif // MIGRAPHX_USE_CLANG_TIDY
+#endif // build_dev
+#endif // clang_tidy
 
 #ifdef DOXYGEN
 #define MIGRAPHX_INLINE_NS internal
-#endif // DOXYGEN
+#endif // doxygen
 
 #ifdef MIGRAPHX_USE_CLANG_TIDY
 #define MIGRAPHX_TIDY_CONST const
 #else
 #define MIGRAPHX_TIDY_CONST
-#endif // MIGRAPHX_USE_CLANG_TIDY
-
-#ifdef CPPCHECK
-#define MIGRAPHX_CPPCHECK_CONST const
-#else
-#define MIGRAPHX_CPPCHECK_CONST
-#endif // CPPCHECK
+#endif // tidy_const
 
 #ifdef NDEBUG
 #define MIGRAPHX_DEBUG_USED [[maybe_unused]]
@@ -68,4 +62,4 @@
 #define MIGRAPHX_DEBUG_USED
 #endif
 
-#endif // MIGRAPHX_GUARD_CONFIG_HPP
+#endif // clang_tidy

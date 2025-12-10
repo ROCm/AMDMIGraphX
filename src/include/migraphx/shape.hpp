@@ -31,7 +31,6 @@
 #include <numeric>
 #include <memory>
 #include <set>
-#include <limits>
 
 #include <migraphx/functional.hpp>
 #include <migraphx/errors.hpp>
@@ -369,8 +368,6 @@ struct MIGRAPHX_EXPORT shape
         type min() const { return std::numeric_limits<type>::lowest(); }
 
         type nan() const { return std::numeric_limits<type>::quiet_NaN(); }
-
-        type epsilon() const { return std::numeric_limits<type>::epsilon(); }
 
         template <class U>
         type operator()(U u) const

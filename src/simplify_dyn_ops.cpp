@@ -39,7 +39,7 @@ inline namespace MIGRAPHX_INLINE_NS {
  *    into multibroadcast op with a static output shape attribute.
  *
  */
-struct find_broadcast_with_dims_static : match::supports_dynamic_shapes
+struct find_broadcast_with_dims_static
 {
     auto matcher() const
     {
@@ -80,7 +80,7 @@ struct find_broadcast_with_dims_static : match::supports_dynamic_shapes
  *   At time of writing, Resize allows either 1 or 2 inputs
  * but the 1-input case is never created by Onnx parsing.
  */
-struct find_resize_static : match::supports_dynamic_shapes
+struct find_resize_static
 {
 
     auto matcher() const
@@ -168,7 +168,7 @@ struct find_resize_static : match::supports_dynamic_shapes
  * To:
  * broadcast_op(argument_with_static_shape); broadcast_op.out_lens = constant_output_dims
  */
-struct find_static_2in_broadcasts : match::supports_dynamic_shapes
+struct find_static_2in_broadcasts
 {
     auto matcher() const
     {
@@ -201,7 +201,7 @@ struct find_static_2in_broadcasts : match::supports_dynamic_shapes
  * To:
  * slice(data); slice.starts, slice.ends. slice.axes set
  */
-struct find_const_2in_slice : match::supports_dynamic_shapes
+struct find_const_2in_slice
 {
     auto matcher() const
     {
@@ -255,7 +255,7 @@ struct find_const_2in_slice : match::supports_dynamic_shapes
  * To:
  * slice(data); slice.starts, slice.ends. slice.axes set
  */
-struct find_const_3in_slice : match::supports_dynamic_shapes
+struct find_const_3in_slice
 {
     auto matcher() const
     {
@@ -266,10 +266,10 @@ struct find_const_3in_slice : match::supports_dynamic_shapes
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto ins       = mr.result;
-        auto inputs    = ins->inputs();
-        auto slice_op  = any_cast<op::slice>(ins->get_operator());
-        auto set_attrs = slice_op.get_set_attributes();
+        auto ins            = mr.result;
+        auto inputs         = ins->inputs();
+        auto slice_op       = any_cast<op::slice>(ins->get_operator());
+        auto set_attrs      = slice_op.get_set_attributes();
         std::vector<int64_t> starts_vec;
         std::vector<int64_t> ends_vec;
         std::vector<int64_t> axes_vec;
@@ -314,7 +314,7 @@ struct find_const_3in_slice : match::supports_dynamic_shapes
  * To:
  * slice(data); slice.starts, slice.ends. slice.axes set
  */
-struct find_const_4in_slice : match::supports_dynamic_shapes
+struct find_const_4in_slice
 {
     auto matcher() const
     {
@@ -351,7 +351,7 @@ struct find_const_4in_slice : match::supports_dynamic_shapes
  * Simplify dimensions_of to a literal when the input arugment has a static shape
  * or the dynamic dimensions from `start` to `end` are fixed.
  */
-struct find_static_dimensions_of : match::supports_dynamic_shapes
+struct find_static_dimensions_of
 {
     auto matcher() const { return match::name("dimensions_of")(); }
 
@@ -396,7 +396,7 @@ struct find_static_dimensions_of : match::supports_dynamic_shapes
  * To:
  * reshape(data); reshape.dims = constant_output_dims
  */
-struct find_const_alloc_reshapes : match::supports_dynamic_shapes
+struct find_const_alloc_reshapes
 {
     auto matcher() const
     {
@@ -430,7 +430,7 @@ struct find_const_alloc_reshapes : match::supports_dynamic_shapes
  * To:
  * literal
  */
-struct find_const_alloc_fill : match::supports_dynamic_shapes
+struct find_const_alloc_fill
 {
     auto matcher() const
     {
@@ -454,7 +454,7 @@ struct find_const_alloc_fill : match::supports_dynamic_shapes
  * To:
  * multibroadcast(static_shape_arg); output_lens = static_broadcast_for_doted_shape
  */
-struct find_static_broadcast_for_dot : match::supports_dynamic_shapes
+struct find_static_broadcast_for_dot
 {
     auto matcher() const
     {
@@ -496,7 +496,7 @@ struct find_static_broadcast_for_dot : match::supports_dynamic_shapes
  * (on_value - off_value) * mask + off_value when we have `fill` working
  * on the GPU.
  */
-struct find_static_onehot : match::supports_dynamic_shapes
+struct find_static_onehot
 {
     auto matcher() const
     {
@@ -530,7 +530,7 @@ struct find_static_onehot : match::supports_dynamic_shapes
             depth_ins->eval().visit([&](auto d) { depth_val = d[0]; });
             values_ins = onehot_inputs[2];
         }
-        shape values_shape                          = values_ins->get_shape();
+        shape values_shape  = values_ins->get_shape();
         std::vector<std::size_t> static_output_lens = indices_shape.lens();
         auto normalized_axis =
             (onehot_op.axis < 0) ? onehot_op.axis + indices_shape.ndim() + 1 : onehot_op.axis;
@@ -574,7 +574,7 @@ struct find_static_onehot : match::supports_dynamic_shapes
  * This version ignores dynamic_dimension opt values.
  * Intended to be run after the other simplify_dyn_ops passes.
  */
-struct simplify_select_module_output_shape : match::supports_dynamic_shapes
+struct simplify_select_module_output_shape
 {
     auto matcher() const { return match::name("select_module"); }
 

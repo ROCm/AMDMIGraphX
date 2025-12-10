@@ -62,7 +62,6 @@ if(MIGRAPHX_ENABLE_GPU)
         endif()
         target_link_libraries(test_gpu_${BASE_NAME} migraphx_gpu migraphx_kernels register_targets)
     endforeach()
-    add_subdirectory(gpu/kernels)
 endif()
 
 if(MIGRAPHX_ENABLE_FPGA)

@@ -79,8 +79,6 @@ kernel::kernel(const char* image, const std::string& name) : impl(std::make_shar
         MIGRAPHX_THROW("Failed to get function: " + name + ": " + hip_error(status));
 }
 
-bool kernel::empty() const { return impl == nullptr; }
-
 static void launch_kernel(hipFunction_t fun,
                           hipStream_t stream,
                           std::size_t global,

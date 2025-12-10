@@ -237,6 +237,255 @@ struct find_gemm_softmax_gemm
     }
 };
 
+struct base_group_query_attention
+{
+    bool do_rotary           = false;
+    std::size_t kv_num_heads = 0;
+    int local_window_size    = -1;
+    std::size_t num_heads    = 1;
+    bool rotary_interleaved  = false;
+    float scale              = 1.0;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.do_rotary, "do_rotary"),
+                    f(self.kv_num_heads, "kv_num_heads"),
+                    f(self.local_window_size, "local_window_size"),
+                    f(self.num_heads, "num_heads"),
+                    f(self.rotary_interleaved, "rotary_interleaved"),
+                    f(self.scale, "scale"));
+    }
+};
+
+struct gpu_gqa_rotary_embedding : base_group_query_attention
+{
+    std::string name() const { return "gpu::gqa_rotary_embedding"; }
+
+    shape compute_shape(std::vector<shape> inputs) const { return inputs.front(); }
+};
+MIGRAPHX_REGISTER_OP(gpu_gqa_rotary_embedding);
+
+struct gpu_concat_past_present : base_group_query_attention
+{
+    std::string name() const { return "gpu::concat_past_present"; }
+
+    shape compute_shape(std::vector<shape> inputs) const { return inputs.back(); }
+
+    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
+};
+MIGRAPHX_REGISTER_OP(gpu_concat_past_present);
+
+struct find_group_query_attention
+{
+    std::size_t* counter = nullptr;
+
+    auto matcher() const { return match::name("group_query_attention"); }
+
+    auto finalize_attention_module(module_ref m) const
+    {
+        eliminate_common_subexpression{}.apply(*m);
+        dead_code_elimination{}.apply(*m);
+    }
+
+    std::string get_count() const
+    {
+        if(counter == nullptr)
+            MIGRAPHX_THROW("Invalid counter");
+        return std::to_string((*counter)++);
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto ins    = r.result;
+        auto inputs = ins->inputs();
+        auto val    = ins->get_operator().to_value();
+
+        auto num_heads          = val.at("num_heads").to<std::size_t>();
+        auto kv_num_heads       = val.at("kv_num_heads").to<std::size_t>();
+        auto do_rotary          = val.at("do_rotary").to<bool>();
+        auto local_window_size  = val.at("local_window_size").to<int>();
+        auto rotary_interleaved = val.at("rotary_interleaved").to<bool>();
+        auto scale              = val.at("scale").to<float>();
+
+        auto q_shape                      = inputs[0]->get_shape();
+        const auto& q_lens                = q_shape.lens();
+        const std::size_t batch_size      = q_lens[0];
+        const std::size_t sequence_length = q_lens[1];
+        std::size_t q_hidden_size         = q_lens[2];
+        std::size_t head_size             = q_hidden_size / (num_heads + 2 * kv_num_heads);
+
+        std::vector<std::size_t> bsnh{
+            batch_size, sequence_length, num_heads + 2 * kv_num_heads, head_size};
+
+        auto transposed_qkv = mpm.get_module().insert_instruction(
+            ins, make_op("reshape", {{"dims", bsnh}}), inputs.at(0));
+
+        transposed_qkv = mpm.get_module().insert_instruction(
+            ins, make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), transposed_qkv);
+
+        auto rotary_qkv = transposed_qkv;
+        if(do_rotary)
+        {
+            std::vector<instruction_ref> rotary_inputs{
+                transposed_qkv, inputs.at(5), inputs.at(7), inputs.at(8)};
+            rotary_qkv =
+                mpm.get_module().insert_instruction(ins,
+                                                    gpu_gqa_rotary_embedding{do_rotary,
+                                                                             kv_num_heads,
+                                                                             local_window_size,
+                                                                             num_heads,
+                                                                             rotary_interleaved,
+                                                                             scale},
+                                                    rotary_inputs);
+        }
+
+        auto pres_k   = inputs.at(3);
+        auto pres_v   = inputs.at(4);
+        auto slk      = inputs.at(5);
+        auto rotary_k = mpm.get_module().insert_instruction(
+            ins,
+            make_op("slice",
+                    {{"axes", {1}}, {"starts", {num_heads}}, {"ends", {num_heads + kv_num_heads}}}),
+            rotary_qkv);
+        auto rotary_v = mpm.get_module().insert_instruction(
+            ins,
+            make_op("slice",
+                    {{"axes", {1}},
+                     {"starts", {num_heads + kv_num_heads}},
+                     {"ends", {num_heads + (2 * kv_num_heads)}}}),
+            rotary_qkv);
+        std::vector<instruction_ref> concat_k_inputs{rotary_k, slk, pres_k};
+        std::vector<instruction_ref> concat_v_inputs{rotary_v, slk, pres_v};
+
+        pres_k = mpm.get_module().insert_instruction(
+            ins,
+            gpu_concat_past_present{
+                do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale},
+            concat_k_inputs);
+        pres_v = mpm.get_module().insert_instruction(
+            ins,
+            gpu_concat_past_present{
+                do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale},
+            concat_v_inputs);
+
+        // Adding 1 to seq_lens_k, aka past_seq_lens, to allow range literals to start at 0.
+        // Putting the add inside the mlir module currently causes an error on their side,
+        // so we're leaving it here until that can be solved.
+        auto past_sl = mpm.get_module().insert_instruction(
+            ins, make_op("convert", {{"target_type", shape::int32_type}}), inputs.at(5));
+        auto one_lit = mpm.get_module().insert_literal(
+            ins, literal{shape{past_sl->get_shape().type(), {1}}, {1}});
+        one_lit = mpm.get_module().insert_instruction(
+            ins, make_op("multibroadcast", {{"out_lens", past_sl->get_shape().lens()}}), one_lit);
+        auto total_sl = mpm.get_module().insert_instruction(ins, make_op("add"), past_sl, one_lit);
+
+        auto get_tuple_elm_0 = std::next(ins);
+        auto get_tuple_elm_1 = std::next(get_tuple_elm_0);
+        auto get_tuple_elm_2 = std::next(get_tuple_elm_1);
+
+        mpm.get_module().replace_instruction(get_tuple_elm_2, pres_v);
+        mpm.get_module().replace_instruction(get_tuple_elm_1, pres_k);
+
+        auto kv_num_heads_factor = num_heads / kv_num_heads;
+        auto max_seq_len         = pres_k->get_shape().lens()[2];
+        total_sl                 = mpm.get_module().insert_instruction(
+            ins, make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), total_sl);
+        std::vector<instruction_ref> new_inputs{rotary_qkv, pres_k, pres_v, total_sl};
+
+        module m_attn;
+        std::vector<instruction_ref> attn_inputs = {rotary_qkv, pres_k, pres_v, total_sl};
+        std::unordered_map<instruction_ref, instruction_ref> map_main_to_mattn;
+        m_attn.add_params(attn_inputs, &map_main_to_mattn);
+
+        auto q = m_attn.add_instruction(
+            make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {num_heads}}}),
+            map_main_to_mattn.at(rotary_qkv));
+        auto k = map_main_to_mattn.at(pres_k);
+        auto v = map_main_to_mattn.at(pres_v);
+        if(kv_num_heads_factor != 1)
+        {
+            auto kv_new_lens  = k->get_shape().lens();
+            kv_new_lens.at(1) = num_heads;
+            k                 = m_attn.add_instruction(make_op("unsqueeze", {{"axes", {2}}}), k);
+            v                 = m_attn.add_instruction(make_op("unsqueeze", {{"axes", {2}}}), v);
+            auto kv_unsqueezed_lens  = k->get_shape().lens();
+            kv_unsqueezed_lens.at(2) = kv_num_heads_factor;
+            k                        = m_attn.add_instruction(
+                make_op("multibroadcast", {{"out_lens", kv_unsqueezed_lens}}), k);
+            v = m_attn.add_instruction(
+                make_op("multibroadcast", {{"out_lens", kv_unsqueezed_lens}}), v);
+            k = m_attn.add_instruction(make_op("reshape", {{"dims", kv_new_lens}}), k);
+            v = m_attn.add_instruction(make_op("reshape", {{"dims", kv_new_lens}}), v);
+        }
+        auto kt = m_attn.add_instruction(make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), k);
+        auto gemm1 = m_attn.add_instruction(make_op("dot"), q, kt);
+
+        std::vector<int> range_vec(max_seq_len);
+        std::iota(range_vec.begin(), range_vec.end(), 0);
+        shape range_s{total_sl->get_shape().type(), {max_seq_len}};
+        auto range = m_attn.add_literal(range_s, range_vec);
+        std::vector<std::size_t> bnsm{batch_size, num_heads, sequence_length, max_seq_len};
+        auto bc_range =
+            m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), range);
+
+        auto scalar_s = shape{rotary_qkv->get_shape().type(), {1}};
+        auto ninf =
+            m_attn.add_literal(literal{scalar_s, {-std::numeric_limits<float>::infinity()}});
+        ninf = m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), ninf);
+
+        if(float_equal(scale, 0.0))
+        {
+            scale = 1.0f / std::sqrt(static_cast<float>(head_size));
+        }
+        auto scale_ins = m_attn.add_literal(literal{scalar_s, {scale}});
+        scale_ins =
+            m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), scale_ins);
+        auto mul = m_attn.add_instruction(make_op("mul"), gemm1, scale_ins);
+
+        if(sequence_length > 1)
+        {
+            std::vector<int> seq_range_vec(sequence_length);
+            std::iota(seq_range_vec.begin(), seq_range_vec.end(), 0);
+            shape seq_range_s{total_sl->get_shape().type(), {sequence_length}};
+            auto seq_range = m_attn.add_literal(seq_range_s, seq_range_vec);
+            seq_range = m_attn.add_instruction(make_op("reshape", {{"dims", {sequence_length, 1}}}),
+                                               seq_range);
+            seq_range =
+                m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), seq_range);
+            auto causal_mask = m_attn.add_instruction(make_op("greater"), bc_range, seq_range);
+            causal_mask      = m_attn.add_instruction(
+                make_op("convert", {{"target_type", shape::bool_type}}), causal_mask);
+            mul = m_attn.add_instruction(make_op("where"), causal_mask, ninf, mul);
+        }
+
+        auto bc_total_sl =
+            m_attn.add_instruction(make_op("reshape", {{"dims", {batch_size, num_heads, 1, 1}}}),
+                                   map_main_to_mattn.at(total_sl));
+        auto mask_comp =
+            m_attn.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), bc_total_sl);
+        auto mask = m_attn.add_instruction(make_op("greater"), bc_range, mask_comp);
+        mask =
+            m_attn.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), mask);
+        auto where   = m_attn.add_instruction(make_op("where"), mask, ninf, mul);
+        auto softmax = m_attn.add_instruction(make_op("softmax", {{"axis", 3}}), where);
+        auto scores  = m_attn.add_instruction(make_op("dot"), softmax, v);
+        auto out =
+            m_attn.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), scores);
+        out = m_attn.add_instruction(
+            make_op("reshape", {{"dims", get_tuple_elm_0->get_shape().lens()}}), out);
+        m_attn.add_return({out});
+
+        finalize_attention_module(&m_attn);
+        module_ref mpm_attn = mpm.create_module("mlir_attn" + get_count(), std::move(m_attn));
+        mpm_attn->set_bypass();
+
+        auto group_op = mpm.get_module().insert_instruction(
+            ins, make_op("group", {{"tag", "attention"}}), new_inputs, {mpm_attn});
+        mpm.get_module().replace_instruction(get_tuple_elm_0, group_op);
+    }
+};
+
 void inline_group_sub_module(module_pass_manager& mpm)
 {
     auto& m = mpm.get_module();
@@ -255,6 +504,7 @@ void inline_group_sub_module(module_pass_manager& mpm)
 
 void prefuse_ops::apply(module_pass_manager& mpm) const
 {
+    std::size_t counter = 0;
     if(enabled(MIGRAPHX_ENABLE_LAYERNORM_FUSION{}))
     {
         match::find_matches(mpm.get_module(), find_layernorm{});
@@ -262,6 +512,7 @@ void prefuse_ops::apply(module_pass_manager& mpm) const
         match::find_matches(mpm.get_module(), find_add_layernorm{});
     }
     match::find_matches(mpm, find_gemm_softmax_gemm{enable_attention});
+    match::find_matches(mpm, find_group_query_attention{.counter = &counter});
 
     if(enabled(MIGRAPHX_DISABLE_MLIR{}))
     {

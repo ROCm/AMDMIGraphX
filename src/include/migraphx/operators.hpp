@@ -43,7 +43,6 @@
 #include <migraphx/op/clip.hpp>
 #include <migraphx/op/common.hpp>
 #include <migraphx/op/concat.hpp>
-#include <migraphx/op/concat_past_present.hpp>
 #include <migraphx/op/contiguous.hpp>
 #include <migraphx/op/convert.hpp>
 #include <migraphx/op/convolution.hpp>
@@ -64,8 +63,8 @@
 #include <migraphx/op/gather.hpp>
 #include <migraphx/op/gathernd.hpp>
 #include <migraphx/op/get_tuple_elem.hpp>
-#include <migraphx/op/gqa_rotary_embedding.hpp>
 #include <migraphx/op/greater.hpp>
+#include <migraphx/op/group_query_attention.hpp>
 #include <migraphx/op/group.hpp>
 #include <migraphx/op/gru.hpp>
 #include <migraphx/op/identity.hpp>

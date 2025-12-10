@@ -67,8 +67,6 @@ struct MIGRAPHX_GPU_EXPORT kernel
     {
     }
 
-    bool empty() const;
-
     void launch(hipStream_t stream,
                 std::size_t global,
                 std::size_t local,

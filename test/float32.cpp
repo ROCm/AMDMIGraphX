@@ -21,14 +21,13 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/generic_float.hpp>
+#include <cmath>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/bit_cast.hpp>
 #include <migraphx/ranges.hpp>
 #include "test.hpp"
+#include <iostream>
 
-#include <array>
-#include <cmath>
 #include <limits>
 
 using fp32 = migraphx::generic_float<23, 8>;

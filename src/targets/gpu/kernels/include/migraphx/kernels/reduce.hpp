@@ -30,7 +30,6 @@
 #include <migraphx/kernels/ops.hpp>
 #include <migraphx/kernels/scatter_reduction_modes.hpp>
 #include <migraphx/kernels/tuple.hpp>
-#include <migraphx/kernels/uninitialized_buffer.hpp>
 #include <migraphx/kernels/pp.hpp>
 
 namespace migraphx {
@@ -200,7 +199,7 @@ __device__ auto block_reduce(index idx, Op op, T init, Index n, F f)
 #endif
     constexpr index_int lanes_per_thread = MIGRAPHX_WAVEFRONTSIZE;
     using type = decltype(index::invoke_loop(f, 0, _c<0>));
-    __shared__ uninitialized_buffer<type, decltype(idx.max_nlocal()){} / lanes_per_thread> buffer;
+    __shared__ type buffer[idx.max_nlocal() / lanes_per_thread];
     auto x = type(init);
     idx.local_stride(n, [&](auto i, auto d) { x = op(x, index::invoke_loop(f, i, d)); });
     dpp_reduce(x, op);
@@ -225,7 +224,7 @@ __device__ auto block_reduce(index idx, Op op, T init, Index n, F f)
 {
     MIGRAPHX_ASSERT(idx.max_nlocal() == idx.nlocal());
     using type = decltype(index::invoke_loop(f, 0, _c<0>));
-    __shared__ uninitialized_buffer<type, decltype(idx.max_nlocal()){}> buffer;
+    __shared__ type buffer[idx.max_nlocal()];
     auto x = type(init);
     idx.local_stride(n, [&](auto i, auto d) { x = op(x, index::invoke_loop(f, i, d)); });
     buffer[idx.local] = x;

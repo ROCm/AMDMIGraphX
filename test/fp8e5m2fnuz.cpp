@@ -28,7 +28,6 @@
 #include <migraphx/ranges.hpp>
 #include "test.hpp"
 
-#include <array>
 #include <limits>
 
 static float fp8e5m2fnuz_to_fp32_value(uint8_t input)

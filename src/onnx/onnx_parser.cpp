@@ -549,13 +549,7 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
     {
         const onnx::NodeProto& node = graph.node(node_index);
         if(enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
-        {
             std::cout << "operator: " << node.op_type() << '\t' << node.name() << std::endl;
-            for(auto&& attr : node.attribute())
-            {
-                std::cout << "    " << attr.name() << " = " << to_string(attr) << std::endl;
-            }
-        }
 
         std::vector<instruction_ref> args;
         for(auto&& input : node.input())
@@ -654,29 +648,6 @@ literal onnx_parser::parse_value(const onnx::AttributeProto& attr) const
     case onnx::AttributeProto::GRAPHS: return {};
     }
     MIGRAPHX_THROW("PARSE_VALUE: Invalid attribute type " + std::to_string(attr.type()));
-}
-
-std::string onnx_parser::to_string(const onnx::AttributeProto& attr) const
-{
-    switch(attr.type())
-    {
-    case onnx::AttributeProto::FLOAT:
-    case onnx::AttributeProto::INT:
-    case onnx::AttributeProto::TENSOR:
-    case onnx::AttributeProto::FLOATS:
-    case onnx::AttributeProto::INTS: return migraphx::to_string(parse_value(attr));
-    case onnx::AttributeProto::STRING: return attr.s();
-    case onnx::AttributeProto::STRINGS: return to_string_range(attr.strings());
-    case onnx::AttributeProto::UNDEFINED: return "UNDEFINED";
-    case onnx::AttributeProto::GRAPH: return "GRAPH";
-    case onnx::AttributeProto::TENSORS: return "TENSORS";
-    case onnx::AttributeProto::SPARSE_TENSOR: return "SPARSE_TENSOR";
-    case onnx::AttributeProto::SPARSE_TENSORS: return "SPARSE_TENSORS";
-    case onnx::AttributeProto::TYPE_PROTOS: return "TYPE_PROTOS";
-    case onnx::AttributeProto::TYPE_PROTO: return "TYPE_PROTO";
-    case onnx::AttributeProto::GRAPHS: return "GRAPHS";
-    }
-    MIGRAPHX_THROW("TO_STRING: Invalid attribute type " + std::to_string(attr.type()));
 }
 
 static shape parse_tensor_shape(const onnx::TensorProto& t)

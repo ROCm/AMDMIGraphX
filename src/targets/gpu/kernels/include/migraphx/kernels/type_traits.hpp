@@ -262,7 +262,7 @@ constexpr T numeric_max()
         return __FLT_MAX__;
     else if constexpr(is_same<T, migraphx::half>{})
         return __FLT16_MAX__;
-    else if constexpr(is_same<T, migraphx::bf16>{}) // cppcheck-suppress UnnecessaryElseStatement
+    else if constexpr(is_same<T, migraphx::bf16>{})
     {
         unsigned short us = 0x7f7f; // Max +ve number encoding in BF16
         return __builtin_bit_cast(T, us);

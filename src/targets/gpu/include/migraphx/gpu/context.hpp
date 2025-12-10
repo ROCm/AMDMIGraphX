@@ -42,6 +42,12 @@
 #include <unordered_map>
 #include <memory>
 
+// HSA is only available on non-Windows platforms
+#ifndef _WIN32
+#include "hsa/hsa.h"
+#include "hsa/hsa_ext_amd.h"
+#endif
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
@@ -209,6 +215,75 @@ struct hip_device
     std::size_t get_device_minor() const { return device_props.minor; }
 
     std::size_t get_cu_count() const { return device_props.multiProcessorCount; }
+
+    std::size_t get_chiplet_count() const
+    {
+#ifndef _WIN32
+        // Structure to pass data through HSA agent iteration
+        struct agent_info
+        {
+            std::size_t target_device_id;
+            std::size_t gpu_count;
+            uint32_t num_chiplets;
+            bool found;
+        };
+
+        hsa_status_t status = hsa_init();
+        if(status != HSA_STATUS_SUCCESS)
+        {
+            // If HSA init fails, return 1 as default (single chiplet)
+            return 1;
+        }
+
+        agent_info info{};
+        info.target_device_id = device_id;
+        info.gpu_count        = 0;
+        info.num_chiplets     = 0;
+        info.found            = false;
+
+        // Callback function for hsa_iterate_agents
+        // GPUs are enumerated in the same order as HIP device IDs
+        auto agent_callback = [](hsa_agent_t agent, void* data) -> hsa_status_t {
+            auto* info = static_cast<agent_info*>(data);
+
+            hsa_device_type_t device_type;
+            hsa_status_t err =
+                hsa_agent_get_info(agent, HSA_AGENT_INFO_DEVICE, &device_type);
+            if(err != HSA_STATUS_SUCCESS)
+                return err;
+
+            if(device_type == HSA_DEVICE_TYPE_GPU)
+            {
+                // Check if this is the GPU we're looking for (by enumeration order)
+                if(info->gpu_count == info->target_device_id)
+                {
+                    err = hsa_agent_get_info(
+                        agent,
+                        static_cast<hsa_agent_info_t>(HSA_AMD_AGENT_INFO_NUM_XCC),
+                        &info->num_chiplets);
+                    if(err != HSA_STATUS_SUCCESS)
+                        return err;
+
+                    info->found = true;
+                    return HSA_STATUS_INFO_BREAK; // Stop iteration
+                }
+                info->gpu_count++;
+            }
+
+            return HSA_STATUS_SUCCESS;
+        };
+
+        // Iterate through all HSA agents to find matching GPU
+        status = hsa_iterate_agents(agent_callback, &info);
+
+        hsa_shut_down();
+        return info.num_chiplets;
+#else
+        // HSA not available on Windows, assume single chiplet
+        return 1;
+#endif
+    }
+
 
     std::size_t get_max_workitems_per_cu() const
     {

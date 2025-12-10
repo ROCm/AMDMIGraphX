@@ -214,7 +214,7 @@ struct mlir_compiler : compiler<mlir_compiler>
             auto input_args = ins->inputs();
             // remove alloc buffer
             input_args.pop_back();
-            auto split_ins = find_final_split(gemm_like_ins);
+            auto split_ins                               = find_final_split(gemm_like_ins);
             std::array<module_with_inputs, 2> mod_splits = smod->split(input_args, {split_ins});
             auto dot_mlir_inputs = to_shapes(mod_splits[0].inputs);
             // add alloc for the gemm output

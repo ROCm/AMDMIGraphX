@@ -604,7 +604,7 @@ void remove_zero_scales(module& m)
         auto scale = ins->inputs().at(1);
         if(not scale->can_eval())
             continue;
-        auto a        = scale->eval();
+        auto a         = scale->eval();
         bool all_zeros = false;
         a.visit([&](auto t) {
             all_zeros = std::all_of(t.begin(), t.end(), [](auto x) { return float_equal(x, 0); });
@@ -613,7 +613,7 @@ void remove_zero_scales(module& m)
             continue;
 
         // Replace entire dequantizelinear with zero literal
-        auto zero_lit = m.add_literal(literal{shape{ins->get_shape().type()}, {0}});
+        auto zero_lit       = m.add_literal(literal{shape{ins->get_shape().type()}, {0}});
         auto zero_broadcast = m.insert_instruction(
             ins, make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}}), zero_lit);
         m.replace_instruction(ins, zero_broadcast);

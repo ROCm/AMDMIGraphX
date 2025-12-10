@@ -113,6 +113,36 @@ compile_pointwise_module(context& ctx, const std::vector<shape>& inputs, module_
     return co;
 }
 
+static instruction_ref find_final_split(instruction_ref split_ins)
+{
+    auto output_path = get_output_path(split_ins);
+    auto it          = std::adjacent_find(
+                               output_path.begin(),
+                               output_path.end(),
+                               [&](instruction_ref input, instruction_ref output) {
+                                    // ss << "input: " << input->name() << std::endl;
+                                    // ss << "output: " << output->name() << std::endl;
+                                   if(contains({"reshape", "squeeze", "unsqueeze", "transpose"}, output->name()))
+                                    return false;
+                                   if(contains({"add", "mul"}, output->name()))
+                                   {
+                                        // ss << "output->inputs(): ";
+                                        // for(auto in : output->inputs())
+                                            // ss << in->name() << ", ";
+                                        // ss << std::endl;
+                                        auto aux = *std::find_if(output->inputs().begin(), output->inputs().end(), [&](instruction_ref i) {
+                                            return i != input;
+                                        });
+                                        // ss << "aux: " << aux->name() << std::endl;
+                                        if(aux->can_eval())
+                                            return false;
+                                        return instruction::get_output_alias(aux)->name() != "@param";
+                                   }
+                                   return true;
+                               });
+    return *it;
+}
+
 struct mlir_compiler : compiler<mlir_compiler>
 {
     std::vector<std::string> names() const { return {"gpu::mlir_op"}; }
@@ -193,7 +223,7 @@ struct mlir_compiler : compiler<mlir_compiler>
             auto input_args = ins->inputs();
             // remove alloc buffer
             input_args.pop_back();
-            auto split_ins = gemm_like_ins; // TODO: Compute split after add/mul
+            auto split_ins = find_final_split(gemm_like_ins);
             std::array<module_with_inputs, 2> mod_splits = smod->split(input_args, {split_ins});
             auto dot_mlir_inputs = to_shapes(mod_splits[0].inputs);
             // add alloc for the gemm output

@@ -279,6 +279,9 @@ struct hip_device
         return info.num_chiplets;
 #else
         // HSA not available on Windows, assume single chiplet
+        // TODO: for future archs that have multiple chiplets,
+        // need a way to query on Windows or just hardcode
+        // based on gfx number
         return 1;
 #endif
     }

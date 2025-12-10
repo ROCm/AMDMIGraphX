@@ -120,20 +120,13 @@ static instruction_ref find_final_split(instruction_ref split_ins)
                                output_path.begin(),
                                output_path.end(),
                                [&](instruction_ref input, instruction_ref output) {
-                                    // ss << "input: " << input->name() << std::endl;
-                                    // ss << "output: " << output->name() << std::endl;
                                    if(contains({"reshape", "squeeze", "unsqueeze", "transpose"}, output->name()))
                                     return false;
                                    if(contains({"add", "mul"}, output->name()))
                                    {
-                                        // ss << "output->inputs(): ";
-                                        // for(auto in : output->inputs())
-                                            // ss << in->name() << ", ";
-                                        // ss << std::endl;
                                         auto aux = *std::find_if(output->inputs().begin(), output->inputs().end(), [&](instruction_ref i) {
                                             return i != input;
                                         });
-                                        // ss << "aux: " << aux->name() << std::endl;
                                         if(aux->can_eval())
                                             return false;
                                         return instruction::get_output_alias(aux)->name() != "@param";

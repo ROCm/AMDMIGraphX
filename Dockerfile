@@ -18,12 +18,16 @@ RUN sh -c "echo 'Package: *\nPin: release o=repo.radeon.com\nPin-priority: 600' 
 # rocgdb doesn't work on 22.04, workaround by installing the older python packages that are in 20.04
 RUN add-apt-repository -y ppa:deadsnakes/ppa
 
+# Add LLVM repository for Clang 17 (ROCm 7.x ships with Clang 20 which has ODR false positives in ASAN)
+RUN curl -sL https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \
+    add-apt-repository -y "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main"
+
 # Install dependencies
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
     apt-utils \
     bison \
     build-essential \
-    clang-14 \
+    clang-17 \
     cmake \
     curl \
     flex \
@@ -43,7 +47,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     hip-dev \
     libnuma-dev \
     miopen-hip \
-    libomp-dev \
+    libomp-17-dev \
     rocblas \
     hipfft \
     hipsolver \

@@ -900,7 +900,7 @@ struct mlir_program
         const auto& device = migraphx_ctx.get_current_device();
         target_arch        = device.get_device_name();
         num_cu             = device.get_cu_count();
-        num_chiplets        = device.get_chiplet_count();
+        num_chiplets       = device.get_chiplet_count();
     }
 
     std::pair<std::size_t, std::size_t> get_launch_params() const

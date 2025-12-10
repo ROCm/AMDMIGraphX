@@ -247,8 +247,7 @@ struct hip_device
             auto* info = static_cast<agent_info*>(data);
 
             hsa_device_type_t device_type;
-            hsa_status_t err =
-                hsa_agent_get_info(agent, HSA_AGENT_INFO_DEVICE, &device_type);
+            hsa_status_t err = hsa_agent_get_info(agent, HSA_AGENT_INFO_DEVICE, &device_type);
             if(err != HSA_STATUS_SUCCESS)
                 return err;
 
@@ -283,7 +282,6 @@ struct hip_device
         return 1;
 #endif
     }
-
 
     std::size_t get_max_workitems_per_cu() const
     {

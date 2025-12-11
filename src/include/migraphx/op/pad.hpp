@@ -144,11 +144,10 @@ struct pad
             visit_all(result, args[0])([&](auto output, auto input) {
                 shape_for_each(input_shape, [&](const auto& idx) {
                     std::vector<std::size_t> new_idx(idx.size());
-                    std::transform(idx.begin(),
-                                   idx.end(),
-                                   pads.begin(),
-                                   new_idx.begin(),
-                                   [](auto i, auto j) { return i + j; });
+                    std::transform(
+                        idx.begin(), idx.end(), pads.begin(), new_idx.begin(), [](auto i, auto j) {
+                            return i + j;
+                        });
                     output(new_idx.begin(), new_idx.end()) = input(idx.begin(), idx.end());
                 });
             });

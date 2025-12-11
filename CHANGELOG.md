@@ -3,20 +3,58 @@
 Full documentation for MIGraphX is available at
 [https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/](https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/).
 
-## Develop Branch
+## MIGraphX 2.15 for ROCm 7.2.0
 
 ### Added
-* Added MXFP4 support for Quark and Brevitas quantized models (GEMMs only) (#4343)
+
+* Added MXFP4 support for Quark and Brevitas quantized models
+* Added a mxr file in /tmp on compile error
+* Added dynamic shape support for DepthToSpace Op
+* Added updated inputs for multihead attention
+* Added GEMM+GEMM fusions
+* Added dim_params input to parse_onnx python api
+* Created an API to query supported ONNX Operators
+* Added right pad masking mode for Multihead Attention
+* Added support for Flash Decoding
+* Added Torch-MIGraphX installation instructions
+* Added Op Builders and documentation
+
 
 ### Changed
 
-* Updated README `rbuild` installation instructions to use python venv to avoid warning (#4405)
+* Updated Resize op to support linear mode
+* Add index range check in Gather Operator
+* Use --input-dim for specifying dynamic shapes at driver runtime
+* Dont fuse pointwise when its used across submodules
+* Support different stride in if branches with ONNX
+* ONNX version change to 1.18.0 to support PyTorch 2.9
+* Refactor GroupQueryAttention
+* Enable PipelineRepoRef parameter in CI
+* Hide LLVM symbols that come from ROCmlir and provide option for stripping in release mode
+
 
 ### Fixed
 
 * Fixed `pointwise: Wrong number of arguments` error when quantizing certain models to `int8` [(#4398)](https://github.com/ROCm/AMDMIGraphX/pull/4398).
+* TopK exception bugfix (#4329)
+* Updated SD3 example for change in optimum-onnx[onnxruntime] (#4344)
+* Check if instruction is actually a literal (#4388)
+* Fix wrong number of arguments for pointwise (#4398)
+* Fix issue when broadcasting a reduction with different dimensions as the input (#4408)
+* Fixing invalid characters inside path name on Windows (#4420)
+* Quiet nrvo and noreturn warnings (#4429)
+* Fix "reduce_sum: axes: value out of range" error in simplify_reshapes (#4443)
+* Updated README `rbuild` installation instructions to use python venv to avoid warning (#4405)
+* Create directory before dumping (#4383)
+
 
 ### Optimized
+
+* Bump SQlite3 to 3.50.4
+* Lower lrn to pooling
+* Streamline find_matches function
+* Reduce the number of splits used for split_reduce
+* Improve layout propagation in poinwise fusion when using broadcasted inputs
 
 
 ### Removed

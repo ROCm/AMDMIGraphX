@@ -28,6 +28,7 @@
 #include <migraphx/matcher.hpp>
 #include <migraphx/match/softmax.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/generic_float.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/split_factor.hpp>
 #include <queue>
@@ -511,9 +512,8 @@ struct find_flash_decoding
         if(sequence_length % actual_groups != 0)
         {
             // round up to nearest multiple of actual_groups
-            padded_sequence_length =
-                ((sequence_length + actual_groups - 1) / actual_groups) * actual_groups;
-            padding_needed = padded_sequence_length - sequence_length;
+            padded_sequence_length = ceil_mul_of(sequence_length, actual_groups);
+            padding_needed         = padded_sequence_length - sequence_length;
         }
 
         // create mapping from submodule params to main module inputs

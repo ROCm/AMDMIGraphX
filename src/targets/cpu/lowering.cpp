@@ -194,6 +194,18 @@ struct cpu_pad
         return (mod_val <= period) ? mod_val : (2 * period - mod_val);
     }
 
+    // Map output index to input index for reflect/edge padding
+    std::size_t map_index(int64_t idx, std::size_t dim_size) const
+    {
+        if(idx >= 0 and idx < static_cast<int64_t>(dim_size))
+            return static_cast<std::size_t>(idx);
+        if(op.mode == op::pad::reflect_pad)
+            return reflect_index(idx, dim_size);
+        // edge padding: clamp to boundary
+        return (idx < 0) ? 0 : dim_size - 1;
+    }
+
+    // NOLINTNEXTLINE
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         assert(output_shape.standard());
@@ -228,26 +240,11 @@ struct cpu_pad
             visit_all(result, args[0])([&](auto output, auto input) {
                 shape_for_each(output_shape, [&](const auto& out_idx) {
                     std::vector<std::size_t> in_idx(ndim);
-
                     for(std::size_t d = 0; d < ndim; ++d)
                     {
-                        // Use signed arithmetic for subtraction (op.pads is int64_t)
-                        auto idx = static_cast<int64_t>(out_idx[d]) - op.pads[d];
-
-                        if(idx >= 0 and idx < static_cast<int64_t>(input_lens[d]))
-                        {
-                            in_idx[d] = static_cast<std::size_t>(idx);
-                        }
-                        else if(op.mode == op::pad::reflect_pad)
-                        {
-                            in_idx[d] = reflect_index(idx, input_lens[d]);
-                        }
-                        else // edge_pad
-                        {
-                            in_idx[d] = (idx < 0) ? 0 : input_lens[d] - 1;
-                        }
+                        auto idx  = static_cast<int64_t>(out_idx[d]) - op.pads[d];
+                        in_idx[d] = map_index(idx, input_lens[d]);
                     }
-
                     output(out_idx.begin(), out_idx.end()) = input(in_idx.begin(), in_idx.end());
                 });
             });

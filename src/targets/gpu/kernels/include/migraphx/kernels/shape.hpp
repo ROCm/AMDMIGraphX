@@ -122,11 +122,14 @@ struct shape : equality_comparable<shape<Lens, Strides>>
             });
         }
     }
-    
+
     constexpr index_int index(index_array x) const { return x.dot(strides); }
-    
-    template<class T, index_int N>
-    constexpr index_int index(array<T, N> x) const { return index(x.template to<index_int>()); }
+
+    template <class T, index_int N>
+    constexpr index_int index(array<T, N> x) const
+    {
+        return index(x.template to<index_int>());
+    }
 
     constexpr index_int index(index_int i) const
     {
@@ -174,8 +177,11 @@ struct shape : equality_comparable<shape<Lens, Strides>>
                                 [](auto len, auto i) -> array<index_int, 2> { return {i, len}; });
     }
 
-    template<class T, index_int N>
-    constexpr index_int single(array<T, N> idx) const { return single(idx.template to<index_array>()); }
+    template <class T, index_int N>
+    constexpr index_int single(array<T, N> idx) const
+    {
+        return single(idx.template to<index_array>());
+    }
 
     constexpr shape get_shape() const { return *this; }
 

@@ -35,24 +35,21 @@ namespace migraphx {
 
 struct pad_constant
 {
-    constexpr diff_int operator()(diff_int idx, diff_int) const
-    {
-        return idx;
-    }
+    constexpr diff_int operator()(diff_int idx, diff_int) const { return idx; }
 };
 struct pad_reflect
 {
     constexpr diff_int operator()(diff_int idx, diff_int size) const
     {
         if(size == 1)
-                return 0;
+            return 0;
 
-            auto period = size - 1;
+        auto period = size - 1;
 
-            // Triangle wave: oscillates between 0 and period
-            // Handle negative indices by taking absolute value
-            auto mod_val = abs(idx) % (2 * period);
-            return (mod_val <= period) ? mod_val : (2 * period - mod_val);
+        // Triangle wave: oscillates between 0 and period
+        // Handle negative indices by taking absolute value
+        auto mod_val = abs(idx) % (2 * period);
+        return (mod_val <= period) ? mod_val : (2 * period - mod_val);
     }
 };
 struct pad_edge
@@ -61,7 +58,6 @@ struct pad_edge
     {
         return min(max(idx, 0), size - 1);
     }
-
 };
 
 template <class Offsets, class Input, class Output, class PadVal, class PadMode>
@@ -76,11 +72,11 @@ __device__ void pad(const index& idx,
     auto input_bounds = input.get_shape().lens.template to<diff_int>();
 
     idx.global_stride(output_shape.elements(), [&](auto gid) {
-        auto out_idx = output_shape.multi(gid).template to<diff_int>();
-        auto input_idx   = array_transform(out_idx - offsets, input_bounds)(pad_mode);
+        auto out_idx   = output_shape.multi(gid).template to<diff_int>();
+        auto input_idx = array_transform(out_idx - offsets, input_bounds)(pad_mode);
         bool in_bounds = array_transform(input_idx, input_bounds)([&](auto i, auto bound) {
-            return i < bound and i >= 0;
-        }).all();
+                             return i < bound and i >= 0;
+                         }).all();
         if(in_bounds)
             output[out_idx] = implicit_conversion(input[input_idx]);
         else

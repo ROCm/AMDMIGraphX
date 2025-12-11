@@ -189,10 +189,7 @@ struct array
         return reduce([](auto x, auto y) { return x or y; }, false);
     }
 
-    constexpr T none() const
-    {
-        return not any();
-    }
+    constexpr T none() const { return not any(); }
 
     constexpr T single(index_int width = 100) const
     {
@@ -214,7 +211,7 @@ struct array
         return result;
     }
 
-    template<class U>
+    template <class U>
     constexpr auto to() const
     {
         array<U, N> result;
@@ -339,7 +336,6 @@ struct array
     }
 };
 
-
 template <class T, class... Ts>
 constexpr array<T, sizeof...(Ts) + 1> make_array(T x, Ts... xs)
 {
@@ -350,7 +346,7 @@ struct integral_const_array : array<T, sizeof...(Xs)>
 {
     using base_array = array<T, sizeof...(Xs)>;
     MIGRAPHX_DEVICE_CONSTEXPR integral_const_array() : base_array({Xs...}) {}
-    
+
     constexpr const base_array& base() const { return *this; }
 };
 
@@ -408,7 +404,7 @@ constexpr auto array_at(T x, I i)
     }
 }
 
-template<class... Ts>
+template <class... Ts>
 constexpr auto array_transform(Ts... xs)
 {
     return [=](auto f) {
@@ -422,7 +418,7 @@ constexpr auto array_transform(Ts... xs)
             return f(xs...);
         else
         {
-            using type                  = decltype(f(array_at(xs, 0)...));
+            using type = decltype(f(array_at(xs, 0)...));
             array<type, common_size> result;
             for(int i = 0; i < common_size; i++)
                 result[i] = f(array_at(xs, i)...);

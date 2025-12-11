@@ -29,74 +29,40 @@
 #include <migraphx/kernels/algorithm.hpp>
 #include <migraphx/kernels/ranges.hpp>
 #include <migraphx/kernels/vec.hpp>
+#include <migraphx/kernels/math.hpp>
 
 namespace migraphx {
 
 struct pad_constant
 {
+    constexpr diff_int operator()(diff_int idx, diff_int) const
+    {
+        return idx;
+    }
 };
 struct pad_reflect
 {
+    constexpr diff_int operator()(diff_int idx, diff_int size) const
+    {
+        if(size == 1)
+                return 0;
+
+            auto period = size - 1;
+
+            // Triangle wave: oscillates between 0 and period
+            // Handle negative indices by taking absolute value
+            auto mod_val = abs(idx) % (2 * period);
+            return (mod_val <= period) ? mod_val : (2 * period - mod_val);
+    }
 };
 struct pad_edge
 {
+    constexpr diff_int operator()(diff_int idx, diff_int size) const
+    {
+        return min(max(idx, 0), size - 1);
+    }
+
 };
-
-// Unified reflect index using triangle wave formula
-// Handles any signed index with proper bouncing pattern
-template <class T, class S>
-__device__ auto reflect_index(T idx, S size) -> S
-{
-    if(size == 1)
-        return 0;
-
-    auto period = size - 1;
-
-    // Handle negative indices by taking absolute value
-    auto shifted = idx < 0 ? static_cast<S>(-idx) : static_cast<S>(idx);
-
-    // Triangle wave: oscillates between 0 and period
-    auto mod_val = shifted % (2 * period);
-    return (mod_val <= period) ? mod_val : (2 * period - mod_val);
-}
-
-// Transform index array for reflect padding - returns new index array
-// Uses multi and offsets to compute signed index (avoids unsigned underflow)
-template <class MultiType, class OffsetsType, class BoundsType>
-__device__ auto transform_reflect(const MultiType& multi,
-                                  const OffsetsType& offsets,
-                                  const BoundsType& input_bounds)
-{
-    auto result = multi;
-    for(size_t j = 0; j < multi.size(); ++j)
-    {
-        // Compute signed index to avoid unsigned underflow
-        auto idx  = static_cast<int64_t>(multi[j]) - static_cast<int64_t>(offsets[j]);
-        result[j] = reflect_index(idx, input_bounds[j]);
-    }
-    return result;
-}
-
-// Transform index array for edge padding - returns clamped index array
-// Uses multi and offsets to compute signed index (avoids unsigned underflow)
-template <class MultiType, class OffsetsType, class BoundsType>
-__device__ auto
-transform_edge(const MultiType& multi, const OffsetsType& offsets, const BoundsType& input_bounds)
-{
-    auto result = multi;
-    for(size_t j = 0; j < multi.size(); ++j)
-    {
-        // Compute signed index to avoid unsigned underflow
-        auto idx = static_cast<int64_t>(multi[j]) - static_cast<int64_t>(offsets[j]);
-        if(idx < 0)
-            result[j] = 0;
-        else if(idx >= static_cast<int64_t>(input_bounds[j]))
-            result[j] = input_bounds[j] - 1;
-        else
-            result[j] = idx;
-    }
-    return result;
-}
 
 template <class Offsets, class Input, class Output, class PadVal, class PadMode>
 __device__ void pad(const index& idx,
@@ -104,36 +70,21 @@ __device__ void pad(const index& idx,
                     const Input& input,
                     Output& output,
                     const PadVal& pad_val,
-                    PadMode)
+                    PadMode pad_mode)
 {
     auto output_shape = output.get_shape();
-    auto input_bounds = input.get_shape().lens;
+    auto input_bounds = input.get_shape().lens.template to<diff_int>();
 
-    idx.global_stride(output_shape.elements(), [&](auto i) {
-        auto multi = output_shape.multi(i);
-
-        if constexpr(is_same<PadMode, pad_constant>{})
-        {
-            auto input_idx   = multi - offsets;
-            auto range_multi = range(multi.size());
-
-            if(any_of(range_multi.begin(), range_multi.end(), [&](auto j) {
-                   return multi[j] < offsets[j] or input_idx[j] >= input_bounds[j];
-               }))
-                output[multi] = implicit_conversion(pad_val);
-            else
-                output[multi] = implicit_conversion(input[input_idx]);
-        }
-        else if constexpr(is_same<PadMode, pad_reflect>{})
-        {
-            auto input_idx = transform_reflect(multi, offsets, input_bounds);
-            output[multi]  = implicit_conversion(input[input_idx]);
-        }
-        else if constexpr(is_same<PadMode, pad_edge>{})
-        {
-            auto input_idx = transform_edge(multi, offsets, input_bounds);
-            output[multi]  = implicit_conversion(input[input_idx]);
-        }
+    idx.global_stride(output_shape.elements(), [&](auto gid) {
+        auto out_idx = output_shape.multi(gid).template to<diff_int>();
+        auto input_idx   = array_transform(out_idx - offsets, input_bounds)(pad_mode);
+        bool in_bounds = array_transform(input_idx, input_bounds)([&](auto i, auto bound) {
+            return i < bound and i >= 0;
+        }).all();
+        if(in_bounds)
+            output[out_idx] = implicit_conversion(input[input_idx]);
+        else
+            output[out_idx] = implicit_conversion(pad_val);
     });
 }
 

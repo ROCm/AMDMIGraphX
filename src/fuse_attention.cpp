@@ -311,8 +311,8 @@ struct find_flash_decoding
         size_t g    = num_groups;
 
         // Note: sequence length may have been padded to be divisible by num_groups
-        assert(n % g == 0 and
-               "Key-value sequence length must be divisible by number of splits/groups (after padding)");
+        assert(n % g == 0 and "Key-value sequence length must be divisible by number of "
+                              "splits/groups (after padding)");
         size_t n_split = n / g;
 
         transformed_shapes_result result;
@@ -511,8 +511,9 @@ struct find_flash_decoding
         if(sequence_length % actual_groups != 0)
         {
             // round up to nearest multiple of actual_groups
-            padded_sequence_length = ((sequence_length + actual_groups - 1) / actual_groups) * actual_groups;
-            padding_needed         = padded_sequence_length - sequence_length;
+            padded_sequence_length =
+                ((sequence_length + actual_groups - 1) / actual_groups) * actual_groups;
+            padding_needed = padded_sequence_length - sequence_length;
         }
 
         // create mapping from submodule params to main module inputs

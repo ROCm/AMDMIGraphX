@@ -177,25 +177,78 @@ struct cpu_pad
 
     std::string name() const { return "cpu::pad"; }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
+
+    // Calculate reflected index using triangle wave formula
+    static std::size_t reflect_index(int64_t idx, std::size_t size)
+    {
+        if(size == 1)
+            return 0;
+
+        auto period = size - 1;
+
+        // Handle negative indices by taking absolute value
+        auto shifted = idx < 0 ? static_cast<std::size_t>(-idx) : static_cast<std::size_t>(idx);
+
+        // Triangle wave: oscillates between 0 and period
+        auto mod_val = shifted % (2 * period);
+        return (mod_val <= period) ? mod_val : (2 * period - mod_val);
+    }
+
+    // Map output index to input index for reflect/edge padding
+    std::size_t map_index(int64_t idx, std::size_t dim_size) const
+    {
+        if(idx >= 0 and idx < static_cast<int64_t>(dim_size))
+            return static_cast<std::size_t>(idx);
+        if(op.mode == op::pad::reflect_pad)
+            return reflect_index(idx, dim_size);
+        // edge padding: clamp to boundary
+        return (idx < 0) ? 0 : dim_size - 1;
+    }
+
+    // NOLINTNEXTLINE
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         assert(output_shape.standard());
         argument result{output_shape};
-        result.visit([&](auto output) {
-            using type = typename decltype(output)::value_type;
-            std::fill(output.begin(), output.end(), pad_clamp<type>(op.value));
-        });
+        auto input_shape = args[0].get_shape();
+        auto input_lens  = input_shape.lens();
+        auto ndim        = input_lens.size();
 
-        visit_all(result, args[0])([&](auto output, auto input) {
-            shape_for_each(input.get_shape(), [&](const auto& idx) {
-                std::vector<std::size_t> new_idx(idx.size());
-                std::transform(
-                    idx.begin(), idx.end(), op.pads.begin(), new_idx.begin(), [](auto i, auto j) {
-                        return i + j;
-                    });
-                output(new_idx.begin(), new_idx.end()) = input(idx.begin(), idx.end());
+        if(op.mode == op::pad::constant_pad)
+        {
+            // Constant padding: fill with value, then copy input
+            result.visit([&](auto output) {
+                using type = typename decltype(output)::value_type;
+                std::fill(output.begin(), output.end(), pad_clamp<type>(op.value));
             });
-        });
+
+            visit_all(result, args[0])([&](auto output, auto input) {
+                shape_for_each(input_shape, [&](const auto& idx) {
+                    std::vector<std::size_t> new_idx(idx.size());
+                    std::transform(idx.begin(),
+                                   idx.end(),
+                                   op.pads.begin(),
+                                   new_idx.begin(),
+                                   [](auto i, auto j) { return i + j; });
+                    output(new_idx.begin(), new_idx.end()) = input(idx.begin(), idx.end());
+                });
+            });
+        }
+        else
+        {
+            // Reflect or edge padding: iterate over output and map to input
+            visit_all(result, args[0])([&](auto output, auto input) {
+                shape_for_each(output_shape, [&](const auto& out_idx) {
+                    std::vector<std::size_t> in_idx(ndim);
+                    for(std::size_t d = 0; d < ndim; ++d)
+                    {
+                        auto idx  = static_cast<int64_t>(out_idx[d]) - op.pads[d];
+                        in_idx[d] = map_index(idx, input_lens[d]);
+                    }
+                    output(out_idx.begin(), out_idx.end()) = input(in_idx.begin(), in_idx.end());
+                });
+            });
+        }
 
         return result;
     }

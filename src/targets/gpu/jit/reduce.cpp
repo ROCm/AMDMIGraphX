@@ -175,7 +175,7 @@ static std::vector<shape> split_reduce(const std::vector<shape>& inputs,
 
     assert(faxis < reduce_shape.lens().size());
 
-    auto r = input_shape.lens()[faxis];
+    std::size_t r = input_shape.lens()[faxis];
     std::size_t n = split_dim(r, min_size, max_splits);
     assert(n != 1);
     std::transform(

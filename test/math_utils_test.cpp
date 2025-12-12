@@ -169,23 +169,42 @@ TEST_CASE(split_dim_basic)
 
     // Should split 100 into chunks > 10
     // 100 = 2^2 * 5^2; factors: 2,2,5,5 -> splits = 20, remaining = 5
-    EXPECT(migraphx::split_dim(100, 10) == 20);  // 100/20 = 5, stops because 5 <= 10
+    std::size_t dim100 = 100;
+    std::size_t result100 = migraphx::split_dim(dim100, 10);
+    EXPECT(result100 == 20);  // 100/20 = 5, stops because 5 <= 10
 
     // Should split 64 into chunks > 10  
     // 64 = 2^6; can use 2,2,2 -> splits = 8, remaining = 8
-    EXPECT(migraphx::split_dim(64, 10) == 8);   // 64/8 = 8, stops because 8 <= 10
+    std::size_t dim64 = 64;
+    std::size_t result64 = migraphx::split_dim(dim64, 10);
+    EXPECT(result64 == 8);   // 64/8 = 8, stops because 8 <= 10
 
     // Should not split if already small enough
-    EXPECT(migraphx::split_dim(10, 10) == 1);   // 10 is not > 10, so no split
-    EXPECT(migraphx::split_dim(11, 10) == 11);  // 11 is a factor itself, 11/11 = 1
+    std::size_t dim10 = 10;
+    std::size_t result10 = migraphx::split_dim(dim10, 10);
+    EXPECT(result10 == 1);   // 10 is not > 10, so no split
+
+    std::size_t dim11 = 11;
+    std::size_t result11 = migraphx::split_dim(dim11, 10);
+    EXPECT(result11 == 11);  // 11 is a factor itself, 11/11 = 1
 
     // Prime numbers that can't be factored
-    EXPECT(migraphx::split_dim(13, 10) == 1);   // 13 is prime (not in factor list)
-    EXPECT(migraphx::split_dim(17, 10) == 1);   // 17 is prime (not in factor list)
+    std::size_t dim13 = 13;
+    std::size_t result13 = migraphx::split_dim(dim13, 10);
+    EXPECT(result13 == 1);   // 13 is prime (not in factor list)
+
+    std::size_t dim17 = 17;
+    std::size_t result17 = migraphx::split_dim(dim17, 10);
+    EXPECT(result17 == 1);   // 17 is prime (not in factor list)
 
     // Numbers with factors in [2,3,5,7,11]
-    EXPECT(migraphx::split_dim(30, 5) == 6);    // 30 = 2*3*5, splits to 5
-    EXPECT(migraphx::split_dim(77, 10) == 77);   // can be evenly split into 11 size chunks; next divisor splits to 1 size chunks
+    std::size_t dim30 = 30;
+    std::size_t result30 = migraphx::split_dim(dim30, 5);
+    EXPECT(result30 == 6);    // 30 = 2*3*5, splits to 5
+
+    std::size_t dim77 = 77;
+    std::size_t result77 = migraphx::split_dim(dim77, 10);
+    EXPECT(result77 == 77);   // can be evenly split into 11 size chunks; next divisor splits to 1 size chunks
 }
 
 TEST_CASE(split_dim_with_max_splits)
@@ -194,17 +213,35 @@ TEST_CASE(split_dim_with_max_splits)
     // Note: max_splits is NOT a hard cap - function returns smallest split factor > max_splits that evenly divides dimension
 
     // When split factor would exceed max_splits, returns next valid divisor
-    EXPECT(migraphx::split_dim(100, 10, 4) == 4);  // 100 can be divided by 2*2, which is 4 splits, which is not less than max_splits=4
-    EXPECT(migraphx::split_dim(100, 10, 2) == 2);
+    std::size_t dim100a = 100;
+    std::size_t result100a = migraphx::split_dim(dim100a, 10, 4);
+    EXPECT(result100a == 4);  // 100 can be divided by 2*2, which is 4 splits, which is not less than max_splits=4
+
+    std::size_t dim100b = 100;
+    std::size_t result100b = migraphx::split_dim(dim100b, 10, 2);
+    EXPECT(result100b == 2);
 
     // Max splits doesn't force splitting if min_size constraint would be violated
-    EXPECT(migraphx::split_dim(20, 10, 4) == 2);    // Can only split to 2 (20/2=10, not > 10)
-    EXPECT(migraphx::split_dim(15, 10, 4) == 3);    // 15 = 3*5, splits to 3, remaining = 5
+    std::size_t dim20 = 20;
+    std::size_t result20 = migraphx::split_dim(dim20, 10, 4);
+    EXPECT(result20 == 2);    // Can only split to 2 (20/2=10, not > 10)
+
+    std::size_t dim15 = 15;
+    std::size_t result15 = migraphx::split_dim(dim15, 10, 4);
+    EXPECT(result15 == 3);    // 15 = 3*5, splits to 3, remaining = 5
 
     // Test with powers of 2
-    EXPECT(migraphx::split_dim(128, 10, 8) == 8);  // 128 can be divided by 2*2*2, which is 8 splits, which is not less than max_splits=8
-    EXPECT(migraphx::split_dim(128, 10, 4) == 4);   // 128 can be divided by 2*2, which is 4 splits, which is not less than max_splits=4
-    EXPECT(migraphx::split_dim(128, 20, 8) == 8);   // 128 can be divided by 2*2*2, which is 8 splits, which is not less than max_splits=8
+    std::size_t dim128a = 128;
+    std::size_t result128a = migraphx::split_dim(dim128a, 10, 8);
+    EXPECT(result128a == 8);  // 128 can be divided by 2*2*2, which is 8 splits, which is not less than max_splits=8
+
+    std::size_t dim128b = 128;
+    std::size_t result128b = migraphx::split_dim(dim128b, 10, 4);
+    EXPECT(result128b == 4);   // 128 can be divided by 2*2, which is 4 splits, which is not less than max_splits=4
+
+    std::size_t dim128c = 128;
+    std::size_t result128c = migraphx::split_dim(dim128c, 20, 8);
+    EXPECT(result128c == 8);   // 128 can be divided by 2*2*2, which is 8 splits, which is not less than max_splits=8
 }
 
 TEST_CASE(split_dim_edge_cases)
@@ -212,18 +249,39 @@ TEST_CASE(split_dim_edge_cases)
     // Test edge cases
 
     // Very small dimensions
-    EXPECT(migraphx::split_dim(1, 0) == 1);     // 1 can't be split
-    EXPECT(migraphx::split_dim(2, 0) == 2);     // 2/2 = 1 > 0
-    EXPECT(migraphx::split_dim(2, 1) == 2);     // 2/2 = 1, but we continue while r > min_size, so 2 > 1 allows split
+    std::size_t dim1 = 1;
+    std::size_t result1 = migraphx::split_dim(dim1, 0);
+    EXPECT(result1 == 1);     // 1 can't be split
+
+    std::size_t dim2a = 2;
+    std::size_t result2a = migraphx::split_dim(dim2a, 0);
+    EXPECT(result2a == 2);     // 2/2 = 1 > 0
+
+    std::size_t dim2b = 2;
+    std::size_t result2b = migraphx::split_dim(dim2b, 1);
+    EXPECT(result2b == 2);     // 2/2 = 1, but we continue while r > min_size, so 2 > 1 allows split
 
     // Exact boundary conditions
-    EXPECT(migraphx::split_dim(20, 9) == 4);    // 20 = 2^2 * 5, factors 2,2 before 20/4=5 <= 9
-    EXPECT(migraphx::split_dim(20, 10) == 2);   // 20 = 2^2 * 5, factors 2 before 20/2=10 <= 10
-    EXPECT(migraphx::split_dim(21, 10) == 3);   // 21 = 3*7, splits by 3 first, 21/3 = 7 <= 10
+    std::size_t dim20a = 20;
+    std::size_t result20a = migraphx::split_dim(dim20a, 9);
+    EXPECT(result20a == 4);    // 20 = 2^2 * 5, factors 2,2 before 20/4=5 <= 9
+
+    std::size_t dim20b = 20;
+    std::size_t result20b = migraphx::split_dim(dim20b, 10);
+    EXPECT(result20b == 2);   // 20 = 2^2 * 5, factors 2 before 20/2=10 <= 10
+
+    std::size_t dim21 = 21;
+    std::size_t result21 = migraphx::split_dim(dim21, 10);
+    EXPECT(result21 == 3);   // 21 = 3*7, splits by 3 first, 21/3 = 7 <= 10
 
     // Large prime numbers
-    EXPECT(migraphx::split_dim(97, 10) == 1);   // 97 is prime
-    EXPECT(migraphx::split_dim(101, 10) == 1);  // 101 is prime
+    std::size_t dim97 = 97;
+    std::size_t result97 = migraphx::split_dim(dim97, 10);
+    EXPECT(result97 == 1);   // 97 is prime
+
+    std::size_t dim101 = 101;
+    std::size_t result101 = migraphx::split_dim(dim101, 10);
+    EXPECT(result101 == 1);  // 101 is prime
 }
 
 TEST_CASE(split_dim_factorization_order)
@@ -233,16 +291,22 @@ TEST_CASE(split_dim_factorization_order)
     // 60 = 2^2 * 3 * 5
     // With min_size=10: 60->30->15->5 (stops because 5 <= 10)
     // Factors used: 2, 2, 3 (product = 12)
-    EXPECT(migraphx::split_dim(60, 10) == 12);   // 60/12 = 5
+    std::size_t dim60 = 60;
+    std::size_t result60 = migraphx::split_dim(dim60, 10);
+    EXPECT(result60 == 12);   // 60/12 = 5
 
     // 210 = 2 * 3 * 5 * 7
     // With min_size=20: continues factoring while 210 > 20
     // Factors all: 2*3*5*7 = 210, but stops at 2*3*5 = 30 since 210/30 = 7 <= 20
-    EXPECT(migraphx::split_dim(210, 20) == 30);  // 210/30 = 7
+    std::size_t dim210 = 210;
+    std::size_t result210 = migraphx::split_dim(dim210, 20);
+    EXPECT(result210 == 30);  // 210/30 = 7
 
     // 462 = 2 * 3 * 7 * 11
     // With min_size=30: 462->231->77->11 (stops because 11 <= 30)
-    EXPECT(migraphx::split_dim(462, 30) == 42);  // 462/42 = 11 <= 30
+    std::size_t dim462 = 462;
+    std::size_t result462 = migraphx::split_dim(dim462, 30);
+    EXPECT(result462 == 42);  // 462/42 = 11 <= 30
 }
 
 TEST_CASE(split_dim_reduce_use_case)
@@ -251,12 +315,22 @@ TEST_CASE(split_dim_reduce_use_case)
     // These are realistic values that might appear in reduction operations
 
     // Large reduction dimension with typical min_size and max_splits
-    EXPECT(migraphx::split_dim(1024, 64, 16) == 16);   // 1024 = 2^10; when n=8 < 16, multiplies to 16; when n=16 < 16 is false, stops
-    EXPECT(migraphx::split_dim(1000, 64, 16) == 40);    // 1000 = 2^3 * 5^3; n=8, r=125 > 64, so next would be n=40 > 16
+    std::size_t dim1024 = 1024;
+    std::size_t result1024 = migraphx::split_dim(dim1024, 64, 16);
+    EXPECT(result1024 == 16);   // 1024 = 2^10; when n=8 < 16, multiplies to 16; when n=16 < 16 is false, stops
+
+    std::size_t dim1000 = 1000;
+    std::size_t result1000 = migraphx::split_dim(dim1000, 64, 16);
+    EXPECT(result1000 == 40);    // 1000 = 2^3 * 5^3; n=8, r=125 > 64, so next would be n=40 > 16
 
     // Smaller dimensions
-    EXPECT(migraphx::split_dim(256, 32, 8) == 8);     // 256 = 2^8; would split to 16 (256/16=16), exceeds max_splits=8
-    EXPECT(migraphx::split_dim(200, 32, 8) == 8);     // 200 = 2^3 * 5^2; would split to 8 (200/8=25), exceeds max_splits=8
+    std::size_t dim256 = 256;
+    std::size_t result256 = migraphx::split_dim(dim256, 32, 8);
+    EXPECT(result256 == 8);     // 256 = 2^8; would split to 16 (256/16=16), exceeds max_splits=8
+
+    std::size_t dim200 = 200;
+    std::size_t result200 = migraphx::split_dim(dim200, 32, 8);
+    EXPECT(result200 == 8);     // 200 = 2^3 * 5^2; would split to 8 (200/8=25), exceeds max_splits=8
 }
 
 TEST_CASE(split_dim_flash_attention_use_case)
@@ -265,18 +339,33 @@ TEST_CASE(split_dim_flash_attention_use_case)
     // Sequence lengths need to be split for parallel processing
 
     // Typical sequence lengths in attention
-    EXPECT(migraphx::split_dim(2048, 128, 16) == 16);  // 2048 = 2^11; when n=8 < 16, multiplies to 16; when n=16 < 16 is false, stops
-    EXPECT(migraphx::split_dim(4096, 256, 16) == 16);  // 4096 = 2^12; splits to 16 (4096/16=256)
+    std::size_t dim2048 = 2048;
+    std::size_t result2048 = migraphx::split_dim(dim2048, 128, 16);
+    EXPECT(result2048 == 16);  // 2048 = 2^11; when n=8 < 16, multiplies to 16; when n=16 < 16 is false, stops
+
+    std::size_t dim4096 = 4096;
+    std::size_t result4096 = migraphx::split_dim(dim4096, 256, 16);
+    EXPECT(result4096 == 16);  // 4096 = 2^12; splits to 16 (4096/16=256)
 
     // Non-aligned sequence lengths
     // 1536 = 2^9 * 3; would continue past max_splits=16 to get 1536/24=64 < 128
-    EXPECT(migraphx::split_dim(1536, 128, 16) == 16);  // 1536 = 2^9 * 3; n=16, r=128, stops (r not > 128)
+    std::size_t dim1536 = 1536;
+    std::size_t result1536 = migraphx::split_dim(dim1536, 128, 16);
+    EXPECT(result1536 == 16);  // 1536 = 2^9 * 3; n=16, r=128, stops (r not > 128)
+
     // 3000 = 2^3 * 3 * 5^3
-    EXPECT(migraphx::split_dim(3000, 200, 16) == 24);  // 3*5 = 24, 3000/24 = 125
+    std::size_t dim3000 = 3000;
+    std::size_t result3000 = migraphx::split_dim(dim3000, 200, 16);
+    EXPECT(result3000 == 24);  // 3*5 = 24, 3000/24 = 125
 
     // Smaller sequences
-    EXPECT(migraphx::split_dim(512, 64, 8) == 8);      // 512 = 2^9; stops at n=8 (512/8=64)
-    EXPECT(migraphx::split_dim(768, 64, 8) == 8);      // 768 = 2^8 * 3; n=8, r=128 > 64, stops (r not > 128)
+    std::size_t dim512 = 512;
+    std::size_t result512 = migraphx::split_dim(dim512, 64, 8);
+    EXPECT(result512 == 8);      // 512 = 2^9; stops at n=8 (512/8=64)
+
+    std::size_t dim768 = 768;
+    std::size_t result768 = migraphx::split_dim(dim768, 64, 8);
+    EXPECT(result768 == 8);      // 768 = 2^8 * 3; n=8, r=128 > 64, stops (r not > 128)
 }
 
 TEST_CASE(split_dim_no_limit_vs_explicit_max)
@@ -285,14 +374,37 @@ TEST_CASE(split_dim_no_limit_vs_explicit_max)
     std::size_t large_max = std::numeric_limits<std::size_t>::max();
 
     // These should produce identical results
-    EXPECT(migraphx::split_dim(1000, 10) == migraphx::split_dim(1000, 10, large_max));
-    EXPECT(migraphx::split_dim(512, 32) == migraphx::split_dim(512, 32, large_max));
-    EXPECT(migraphx::split_dim(360, 20) == migraphx::split_dim(360, 20, large_max));
+    std::size_t dim1000a = 1000;
+    std::size_t result1000a = migraphx::split_dim(dim1000a, 10);
+    std::size_t dim1000b = 1000;
+    std::size_t result1000b = migraphx::split_dim(dim1000b, 10, large_max);
+    EXPECT(result1000a == result1000b);
+
+    std::size_t dim512a = 512;
+    std::size_t result512a = migraphx::split_dim(dim512a, 32);
+    std::size_t dim512b = 512;
+    std::size_t result512b = migraphx::split_dim(dim512b, 32, large_max);
+    EXPECT(result512a == result512b);
+
+    std::size_t dim360a = 360;
+    std::size_t result360a = migraphx::split_dim(dim360a, 20);
+    std::size_t dim360b = 360;
+    std::size_t result360b = migraphx::split_dim(dim360b, 20, large_max);
+    EXPECT(result360a == result360b);
 
     // Test that max_splits affects the result (but doesn't necessarily limit it)
     // max_splits acts as a threshold - result may exceed it
-    EXPECT(migraphx::split_dim(1000, 10) != migraphx::split_dim(1000, 10, 8));
-    EXPECT(migraphx::split_dim(512, 8) != migraphx::split_dim(512, 8, 16));
+    std::size_t dim1000c = 1000;
+    std::size_t result1000c = migraphx::split_dim(dim1000c, 10);
+    std::size_t dim1000d = 1000;
+    std::size_t result1000d = migraphx::split_dim(dim1000d, 10, 8);
+    EXPECT(result1000c != result1000d);
+
+    std::size_t dim512c = 512;
+    std::size_t result512c = migraphx::split_dim(dim512c, 8);
+    std::size_t dim512d = 512;
+    std::size_t result512d = migraphx::split_dim(dim512d, 8, 16);
+    EXPECT(result512c != result512d);
 }
 
 TEST_CASE(split_dim_consistency_check)
@@ -305,7 +417,8 @@ TEST_CASE(split_dim_consistency_check)
     {
         for(std::size_t min_size : {8, 16, 32, 64})
         {
-            std::size_t splits = migraphx::split_dim(dim, min_size);
+            std::size_t dim_copy = dim;
+            std::size_t splits = migraphx::split_dim(dim_copy, min_size);
             if(splits > 1)
             {
                 // The algorithm continues while r > min_size,
@@ -324,7 +437,8 @@ TEST_CASE(split_dim_consistency_check)
     {
         for(std::size_t max_splits : {4, 8, 16})
         {
-            std::size_t splits = migraphx::split_dim(dim, 10, max_splits);
+            std::size_t dim_copy = dim;
+            std::size_t splits = migraphx::split_dim(dim_copy, 10, max_splits);
             // Result should evenly divide dimension
             EXPECT(dim % splits == 0);
             // Result should make remaining size < min_size (10)
@@ -335,9 +449,12 @@ TEST_CASE(split_dim_consistency_check)
     // Property 3: Increasing min_size decreases or maintains splits
     for(std::size_t dim : {256, 512, 1024})
     {
-        std::size_t splits_8 = migraphx::split_dim(dim, 8);
-        std::size_t splits_16 = migraphx::split_dim(dim, 16);
-        std::size_t splits_32 = migraphx::split_dim(dim, 32);
+        std::size_t dim_copy1 = dim;
+        std::size_t splits_8 = migraphx::split_dim(dim_copy1, 8);
+        std::size_t dim_copy2 = dim;
+        std::size_t splits_16 = migraphx::split_dim(dim_copy2, 16);
+        std::size_t dim_copy3 = dim;
+        std::size_t splits_32 = migraphx::split_dim(dim_copy3, 32);
 
         EXPECT(splits_8 >= splits_16);
         EXPECT(splits_16 >= splits_32);

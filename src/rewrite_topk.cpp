@@ -26,6 +26,7 @@
 #include <migraphx/module.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/array.hpp>
 #include <migraphx/split_factor.hpp>
 
 namespace migraphx {

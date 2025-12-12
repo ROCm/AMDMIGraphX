@@ -66,7 +66,8 @@ inline std::size_t calculate_flash_decoding_splits(std::size_t sequence_length,
                                                    std::size_t min_chunk_size,
                                                    std::size_t max_splits)
 {
-    return split_dim(sequence_length, min_chunk_size, max_splits);
+    std::size_t r = sequence_length;
+    return split_dim(r, min_chunk_size, max_splits);
 }
 
 // TODO: Write this in matcher.hpp as a general matcher for iterating through inputs
@@ -244,9 +245,8 @@ struct find_attention
 
 struct find_flash_decoding
 {
-    // number of groups (0 or negative means auto-calculate)
+    // number of groups (0 means auto-calculate)
     std::size_t groups;
-    bool auto_calculate = false;
 
     auto matcher() const
     {
@@ -485,7 +485,7 @@ struct find_flash_decoding
 
         // Determine actual number of splits to use
         std::size_t actual_groups = groups;
-        if(auto_calculate || groups <= 0)
+        if(groups == 0)
         {
             // TODO: run experiments to find the optimal values for min_chunk and max_splits
             std::size_t min_chunk  = value_of(MIGRAPHX_FLASH_DECODING_MIN_CHUNK_SIZE{}, 32);
@@ -879,7 +879,6 @@ void fuse_attention::apply(module_pass_manager& mpm) const
     // Apply flash decoding if enabled
     bool flash_enabled     = false;
     std::size_t num_splits = 0;
-    bool auto_calculate    = false;
 
     std::size_t configured_splits = get_num_splits(flash_decoding_num_splits);
 
@@ -888,23 +887,14 @@ void fuse_attention::apply(module_pass_manager& mpm) const
     {
         flash_enabled = true;
 
-        if(configured_splits > 0)
-        {
-            num_splits     = configured_splits;
-            auto_calculate = false;
-        }
-        else
-        {
-            // 0 means auto-calculate
-            num_splits     = 0;
-            auto_calculate = true;
-        }
+        // 0 means auto-calculate
+        num_splits = configured_splits > 0 ? configured_splits : 0;
     }
 
     if(flash_enabled)
     {
         match::find_matches(
-            mpm, find_flash_decoding{.groups = num_splits, .auto_calculate = auto_calculate});
+            mpm, find_flash_decoding{.groups = num_splits});
         mpm.run_pass(dead_code_elimination{});
     }
 }

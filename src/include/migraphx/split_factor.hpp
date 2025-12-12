@@ -45,19 +45,21 @@ inline namespace MIGRAPHX_INLINE_NS {
  *
  * @param r The value to split. This is passed by reference and will be modified to the remaining value after splitting.
  * @param min_size Target threshold - splits until remaining size is less than this value
- * @param max_splits Target threshold - if reached, returns the smallest split factor greater than or equal to max_splits that evenly divides dimension. Optional
+ * @param max_splits Target threshold - if reached, returns the smallest split factor greater than
+ * or equal to max_splits that evenly divides dimension. Optional
  * @return The split factor that respects both constraints
  */
 
-inline std::size_t split_dim(std::size_t& r, std::size_t min_size, std::size_t max_splits = std::numeric_limits<std::size_t>::max())
+inline std::size_t split_dim(std::size_t& r,
+                             std::size_t min_size,
+                             std::size_t max_splits = std::numeric_limits<std::size_t>::max())
 {
     std::size_t n = 1;
     auto factors  = make_array(2, 3, 5, 7, 11);
     while(r > min_size and n < max_splits)
     {
         // NOLINTNEXTLINE(readability-qualified-auto)
-        auto it =
-            std::find_if(factors.begin(), factors.end(), [&](auto d) { return r % d == 0; });
+        auto it = std::find_if(factors.begin(), factors.end(), [&](auto d) { return r % d == 0; });
         if(it == factors.end())
             break;
         r /= *it;

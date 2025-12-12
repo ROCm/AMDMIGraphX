@@ -506,14 +506,12 @@ struct find_flash_decoding
         if(actual_groups <= 1)
             return;
 
-        // calculate padded sequence length if not evenly divisible
-        std::size_t padded_sequence_length = sequence_length;
-        std::size_t padding_needed         = 0;
+        // calculate padding if sequence length not evenly divisible
+        std::size_t padding_needed = 0;
         if(sequence_length % actual_groups != 0)
         {
             // round up to nearest multiple of actual_groups
-            padded_sequence_length = ceil_mul_of(sequence_length, actual_groups);
-            padding_needed         = padded_sequence_length - sequence_length;
+            padding_needed            = ceil_mul_of(sequence_length, actual_groups) - sequence_length;
         }
 
         // create mapping from submodule params to main module inputs

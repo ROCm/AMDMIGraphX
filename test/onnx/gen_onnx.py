@@ -10377,10 +10377,10 @@ def multinomial_int64_test():
 
 
 @onnx_test()
-def mxfixneuron_even_test():
+def mxqdq_even_test():
     in_tv = helper.make_tensor_value_info('input', TensorProto.FLOAT, [3, 64, 4, 4])
     out_tv = helper.make_tensor_value_info('output', TensorProto.FLOAT, [3, 64, 4, 4])
-    node = onnx.helper.make_node('MXFixNeuron',
+    node = onnx.helper.make_node('MXQuantizeDequantize',
             inputs=['input'],
             axis=1,
             block_size=32,
@@ -10391,10 +10391,10 @@ def mxfixneuron_even_test():
 
 
 @onnx_test()
-def mxfixneuron_odd_test():
+def mxqdq_odd_test():
     in_tv = helper.make_tensor_value_info('input', TensorProto.FLOAT, [71, 5, 5])
     out_tv = helper.make_tensor_value_info('output', TensorProto.FLOAT, [71, 5, 5])
-    node = onnx.helper.make_node('MXFixNeuron',
+    node = onnx.helper.make_node('MXQuantizeDequantize',
             inputs=['input'],
             axis=0,
             block_size=32,
@@ -10405,10 +10405,10 @@ def mxfixneuron_odd_test():
 
 
 @onnx_test()
-def mxfixneuron_small_test():
+def mxqdq_small_test():
     in_tv = helper.make_tensor_value_info('input', TensorProto.FLOAT, [4, 4])
     out_tv = helper.make_tensor_value_info('output', TensorProto.FLOAT, [4, 4])
-    node = onnx.helper.make_node('MXFixNeuron',
+    node = onnx.helper.make_node('MXQuantizeDequantize',
             inputs=['input'],
             axis=1,
             block_size=32,
@@ -13235,6 +13235,7 @@ def resize_nonstd_input_test():
 
 @onnx_test()
 def resize_outsize_test():
+    # Takes output sizes as an input, with scales as a null placeholder
     out_lens = np.array([1, 1, 4, 6], dtype=np.int64)
     out_lens_tensor = helper.make_tensor(name='out_lens',
                                          data_type=TensorProto.INT64,
@@ -17700,7 +17701,7 @@ def upsample_test():
 
     node = onnx.helper.make_node(
         'Upsample',
-        inputs=['X', 'scales'],
+        inputs=['X', '', 'scales'],
         outputs=['Y'],
         mode='nearest',
     )

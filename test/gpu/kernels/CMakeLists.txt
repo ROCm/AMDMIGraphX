@@ -21,12 +21,18 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-abseil/abseil-cpp@20250512.0 -DABSL_ENABLE_INSTALL=ON -DCMAKE_POSITION_INDEPENDENT_CODE=ON
-google/protobuf@v30.0 -DCMAKE_POSITION_INDEPENDENT_CODE=On -Dprotobuf_BUILD_TESTS=Off -DCMAKE_POLICY_VERSION_MINIMUM=3.5
-nlohmann/json@v3.8.0 -DCMAKE_POLICY_VERSION_MINIMUM=3.5
-ROCm/half@rocm-5.6.0
-pybind/pybind11@3e9dfa2866941655c56877882565e7577de6fc7b --build
-msgpack/msgpack-c@cpp-3.3.0 -DMSGPACK_BUILD_TESTS=Off -DMSGPACK_BUILD_EXAMPLES=Off -DCMAKE_POLICY_VERSION_MINIMUM=3.5
-sqlite3@3.50.4 -DCMAKE_POSITION_INDEPENDENT_CODE=On
-ROCm/composable_kernel@b7775add2d28251674d81e220cd4a857b90b997a -DCK_BUILD_JIT_LIB=On -DCMAKE_POSITION_INDEPENDENT_CODE=On
-ROCm/rocMLIR@008b645822e87847fac3ff9b618ffa17f5a63f80 -DBUILD_FAT_LIBROCKCOMPILER=On -DLLVM_INCLUDE_TESTS=Off
+
+file(GLOB KERNELS_TESTS CONFIGURE_DEPENDS *.cpp)
+list(REMOVE_ITEM KERNELS_TESTS ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp)
+
+message("KERNELS_TESTS: ${KERNELS_TESTS}")
+
+add_embed_library(kernel_tests ${KERNELS_TESTS} RELATIVE ${CMAKE_CURRENT_SOURCE_DIR})
+rocm_add_test_executable(test_gpu_kernels main.cpp)
+
+target_link_libraries(test_gpu_kernels migraphx migraphx_gpu kernel_tests)
+
+add_library(migraphx_gpu_test_kernel_file_check EXCLUDE_FROM_ALL ${KERNELS_TESTS})
+target_link_libraries(migraphx_gpu_test_kernel_file_check compile_migraphx_gpu_kernels)
+rocm_clang_tidy_check(migraphx_gpu_test_kernel_file_check)
+

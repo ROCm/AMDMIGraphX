@@ -44,6 +44,9 @@ shape code_object_op::compute_shape(std::vector<shape> inputs) const
     if(not migraphx::equal(flatten(einputs), flatten(inputs), &shape::is_compatible))
         MIGRAPHX_THROW("Input shapes have changed: [" + to_string_range(einputs) + "] -> [" +
                        to_string_range(inputs) + "]");
+    auto output_buffer_shape = inputs.at(get_output_arg(inputs.size()));
+    if(not shape::is_compatible(output_buffer_shape, output))
+        MIGRAPHX_THROW("Output buffer [" + to_string(output_buffer_shape) + "] doesnt match the expected output shape from the kernel [" + to_string(output) + "]");
     return output;
 }
 

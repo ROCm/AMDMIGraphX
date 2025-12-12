@@ -26,85 +26,50 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <limits>
 #include <migraphx/array.hpp>
-
+#include <iostream>
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 /**
- * Calculate split factor for a dimension to make it less than min_size.
- *
- * This function finds the largest divisor that can divide the dimension
- * to make it less than min_size. It uses prime factors [2, 3, 5, 7, 11]
- * to find good divisors that work well for parallel execution.
+ * Calculate split factor with or without maximum splits constraint.
  *
  * Used by:
  * - rewrite_topk: Splits large topk operations for better performance
  * - flash_decoding: Splits attention sequence dimension for parallelization
  * - split_reduce (GPU JIT): Splits reduction operations
  *
- * @param r The dimension size to split (will be modified to remaining size)
- * @param min_size The minimum size threshold
- * @return The split factor (number of groups)
- */
-inline std::size_t split_dim(std::size_t& r, std::size_t min_size)
-{
-    std::size_t n = 1;
-    auto factors  = make_array(2, 3, 5, 7, 11);
-    while(r > min_size)
-    {
-        // NOLINTNEXTLINE(readability-qualified-auto)
-        auto it = std::find_if(factors.begin(), factors.end(), [&](auto d) { return r % d == 0; });
-        if(it == factors.end())
-            break;
-        r /= *it;
-        n *= *it;
-    }
-    return n;
-}
-
-/**
- * Calculate split factor with maximum splits constraint.
- *
- * Similar to split_dim but also respects a maximum number of splits.
- * Useful when there's a limit on parallelization due to hardware constraints.
+ * To compute the number of split groups it finds the largest
+ * divisor that can divide dimension to make it less than min_size.
  *
  * @param dimension The dimension size to split
- * @param min_size Minimum size per chunk after splitting
- * @param max_splits Maximum number of splits allowed (0 = no limit)
+ * @param min_size Target threshold - splits until remaining size is less than this value
+ * @param max_splits Target threshold - if reached, returns the smallest split factor greater than or equal to max_splits that evenly divides dimension. Optional
  * @return The split factor that respects both constraints
  */
 inline std::size_t
-split_dim_with_max(std::size_t dimension, std::size_t min_size, std::size_t max_splits = 0)
+split_dim(std::size_t dimension, std::size_t min_size, std::size_t max_splits = std::numeric_limits<std::size_t>::max())
 {
-    // Make a copy since split_dim modifies the value
-    std::size_t remaining  = dimension;
-    std::size_t num_splits = split_dim(remaining, min_size);
+    std::size_t n = 1;
+    std::size_t r = dimension;
+    auto factors  = make_array(2, 3, 5, 7, 11);
 
-    // If no max constraint or already within limit, return as is
-    if(max_splits == 0 || num_splits <= max_splits)
-        return num_splits;
-
-    // Reduce splits to respect max_splits constraint
-    auto factors = make_array(2, 3, 5, 7, 11);
-    while(num_splits > max_splits)
+    while(r > min_size and n < max_splits)
     {
-        // Remove the smallest prime factor to reduce splits
-        for(auto factor : factors)
-        {
-            if(num_splits % factor == 0)
-            {
-                num_splits /= factor;
-                remaining *= factor;
-                break;
-            }
-        }
-        // Safety check to avoid infinite loop
-        if(num_splits > max_splits && num_splits < 2)
+        // NOLINTNEXTLINE(readability-qualified-auto)
+        auto it = std::find_if(factors.begin(), factors.end(), 
+                               [&](auto d) { return r % d == 0; });
+        if(it == factors.end())
             break;
+
+        // Note: current functionality is to return the smallest split factor greater than max_splits that evenly divides dimension; max_splits
+        // is not a cap; n can be >= max_splits.
+        r /= *it;
+        n *= *it;
     }
 
-    return num_splits;
+    return n;
 }
 
 } // namespace MIGRAPHX_INLINE_NS

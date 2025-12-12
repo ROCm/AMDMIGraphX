@@ -42,6 +42,13 @@ constexpr std::size_t integer_divide_ceil(std::size_t x, std::size_t y)
     return (x + y - std::size_t{1}) / y;
 }
 
+// compute the smallest multiple of y that is greater than or equal to x
+// this is equivalent to y * ceil(x / y)
+constexpr std::size_t ceil_mul_of(std::size_t x, std::size_t y)
+{
+    return y * integer_divide_ceil(x, y);
+}
+
 template <unsigned int Bytes>
 struct unsigned_type
 {

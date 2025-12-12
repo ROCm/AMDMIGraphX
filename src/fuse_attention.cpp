@@ -66,7 +66,7 @@ inline std::size_t calculate_flash_decoding_splits(std::size_t sequence_length,
                                                    std::size_t min_chunk_size,
                                                    std::size_t max_splits)
 {
-    return split_dim_with_max(sequence_length, min_chunk_size, max_splits);
+    return split_dim(sequence_length, min_chunk_size, max_splits);
 }
 
 // TODO: Write this in matcher.hpp as a general matcher for iterating through inputs

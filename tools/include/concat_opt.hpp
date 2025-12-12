@@ -36,6 +36,7 @@
 #include <migraphx/operation.hpp>
 #include <migraphx/op/concat.hpp>
 #include <migraphx/optional.hpp>
+#include <migraphx/instruction_ref.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

@@ -614,7 +614,7 @@ struct mlir_program
     }
 
     MlirBlock
-    insert(MlirBlock body, const module& m, std::unordered_map<instruction_ref, MlirValue>& ins_map)
+    insert(MlirBlock body, const module& m, const std::vector<shape>& outputs, std::unordered_map<instruction_ref, MlirValue>& ins_map)
     {
         auto names = m.get_parameter_names();
         std::sort(names.begin(), names.end());
@@ -624,7 +624,6 @@ struct mlir_program
             names.end(),
             std::back_inserter(input_shapes),
             [&](const std::string& name) { return get_shape_for_mlir(m.get_parameter(name)); });
-        std::vector<shape> outputs = m.get_output_shapes();
 
         std::vector<MlirLocation> arg_locs(input_shapes.size(), location);
         auto body_inputs   = make_mlir_shapeds(input_shapes);
@@ -761,13 +760,23 @@ struct mlir_program
             MIGRAPHX_THROW("Missing @return as last instruction.");
     }
 
-    void parse(const module& m)
+    static std::vector<shape> get_output_shapes(const module& m, const std::vector<shape>& input_shapes = {})
+    {
+        if(input_shapes.empty())
+            return m.get_output_shapes();
+        auto r = input_shapes.back();
+        if(r.type() != shape::tuple_type)
+            return {r};
+        return r.sub_shapes();
+    }
+
+    void parse(const module& m, const std::vector<shape>& input_shapes = {})
     {
         validate(m);
         sym_name   = get_symbol_name(m);
         auto mbody = mlirModuleGetBody(mmodule.get());
         std::unordered_map<instruction_ref, MlirValue> ins_map;
-        auto fbody = insert(mbody, m, ins_map);
+        auto fbody = insert(mbody, m, get_output_shapes(m, input_shapes), ins_map);
 
         for(auto ins : iterator_for(m))
         {
@@ -1173,7 +1182,7 @@ std::string dump_mlir(module m, const std::vector<shape>& inputs)
     }
     rewrite_reduce(m);
     mlir_program mp;
-    mp.parse(*mr);
+    mp.parse(*mr, inputs);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     return mlir_print(&mlirOperationPrint, mod_op);
 }
@@ -1239,7 +1248,7 @@ void dump_mlir_to_file(module m, const std::vector<shape>& inputs, const fs::pat
     std::cout << "Dumping MLIR file to: " << f << std::endl;
 
     mlir_program mp;
-    mp.parse(m);
+    mp.parse(m, inputs);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
 
     std::string mlir_str = mlir_print(&mlirOperationPrint, mod_op);
@@ -1268,7 +1277,7 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     mlir_program mp;
 
     mp.set_gpu_properties(migraphx_ctx);
-    mp.parse(m);
+    mp.parse(m, in_shapes);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     if(trace)
     {
@@ -1339,7 +1348,7 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
     rewrite_reduce(m);
     mlir_program mp;
     mp.set_gpu_properties(migraphx_ctx);
-    mp.parse(m);
+    mp.parse(m, inputs);
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
     if(trace)
     {

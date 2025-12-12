@@ -135,9 +135,7 @@ struct pad
             par_for(output_shape.elements(), [&](std::int64_t i) {
                 auto out_idx = output_shape.multi(i);
                 std::vector<std::int64_t> in_idx(ndim);
-                transform(out_idx, pads, in_idx.begin(), [&](std::int64_t o, std::int64_t p) {
-                    return o - p;
-                });
+                transform(out_idx, pads, in_idx.begin(), std::minus<std::int64_t>{});
                 transform(in_idx, input_lens, in_idx.begin(), pad_func);
                 if(migraphx::equal(in_idx, input_lens, std::less<std::size_t>{}))
                     output(out_idx.begin(), out_idx.end()) = input(in_idx.begin(), in_idx.end());

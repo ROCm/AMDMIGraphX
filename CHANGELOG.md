@@ -7,53 +7,53 @@ Full documentation for MIGraphX is available at
 
 ### Added
 
-* Added MXFP4 support for Quark and Brevitas quantized models
-* Added dynamic shape support for DepthToSpace Op
-* Added `bias` and `key_mask_padding` inputs for the `MultiHeadAttention` operator 
-* Added GEMM+GEMM fusions
+* Added MXFP4 support for Quark and Brevitas quantized models.
+* Added dynamic shape support for DepthToSpace Op.
+* Added `bias` and `key_mask_padding` inputs for the `MultiHeadAttention` operator.
+* Added GEMM+GEMM fusions.
 * Added the `dim_params` input parameter to the `parse_onnx` python call.
-* Created an API to query supported ONNX Operators `get_onnx_operators()` 
-* Added right pad masking mode for Multihead Attention
-* Added support for Flash Decoding
-* Added Torch-MIGraphX installation instructions
-* Added Operator Builders with supporting documentation
-* Added index range check to the Gather operator
+* Created an API to query supported ONNX Operators `get_onnx_operators()`.
+* Added right pad masking mode for Multihead Attention.
+* Added support for Flash Decoding.
+* Added Torch-MIGraphX installation instructions.
+* Added Operator Builders with supporting documentation.
+* Added index range check to the Gather operator.
 
 
 ### Changed
 
-* Updated the Resize operator to support linear mode for Dynamic shapes
-* Switch to `--input-dim` instead of `--batch`  to set any dynamic dimensions when using `migraphx-driver`
-* Different stride sizes are now supported in ONNX `if` branches
-* ONNX version change to 1.18.0 to support PyTorch 2.9
-* Refactor GroupQueryAttention
-* Enable PipelineRepoRef parameter in CI
-* Hide LLVM symbols that come from ROCmlir and provide option for stripping in release mode
-* Model compilation failures now produce an mxr file for debugging the failure
-* Bump SQlite3 to 3.50.4
+* Updated the Resize operator to support linear mode for Dynamic shapes.
+* Switch to `--input-dim` instead of `--batch`  to set any dynamic dimensions when using `migraphx-driver`.
+* Different stride sizes are now supported in ONNX `if` branches.
+* ONNX version change to 1.18.0 to support PyTorch 2.9.
+* Refactor GroupQueryAttention.
+* Enable PipelineRepoRef parameter in CI.
+* Hide LLVM symbols that come from ROCmlir and provide option for stripping in release mode.
+* Model compilation failures now produce an mxr file for debugging the failure.
+* Bump SQlite3 to 3.50.4.
 
 
 ### Resolved issues
 
-* Quiet nrvo and noreturn warnings (#4429)
-* Fixed `pointwise: Wrong number of arguments` error when quantizing certain models to `int8` (#4398)
-* TopK exception bugfix (#4329)
-* Updated SD3 example for change in optimum-onnx[onnxruntime] (#4344)
+* Quiet nrvo and noreturn warnings (#4429).
+* Fixed `pointwise: Wrong number of arguments` error when quantizing certain models to `int8` (#4398).
+* TopK exception bugfix (#4329).
+* Updated SD3 example for change in optimum-onnx[onnxruntime] (#4344).
 * Fixed an issue with Torch-MIGraphX where the model compilation would fail (#4388)
-* Fixed an issue where a reduction was broadcast with different dimensions than the input (#4408)
-* Resolved a path name issue stopping some files being created on Windows for debugging (#4420)
-* Fix "reduce_sum: axes: value out of range" error in simplify_reshapes (#4443)
-* Updated README `rbuild` installation instructions to use python venv to avoid warning (#4405)
-* Ensured directories exist when generating files for debugging (#4383)
-* Resolved a compilation hang issue (#4428)
+* Fixed an issue where a reduction was broadcast with different dimensions than the input (#4408).
+* Resolved a path name issue stopping some files being created on Windows for debugging (#4420).
+* Fix "reduce_sum: axes: value out of range" error in simplify_reshapes (#4443).
+* Updated README `rbuild` installation instructions to use python venv to avoid warning (#4405).
+* Ensured directories exist when generating files for debugging (#4383).
+* Resolved a compilation hang issue (#4428).
 
 
 ### Optimized
 
-* Converted the `LRN` operator to an optimized `pooling` operator
-* Streamlined the `find_matches` function
-* Reduce the number of splits used for `split_reduce`
-* Improve layout propagation in poinwise fusion when using broadcasted inputs
+* Converted the `LRN` operator to an optimized `pooling` operator.
+* Streamlined the `find_matches` function.
+* Reduce the number of splits used for `split_reduce`.
+* Improve layout propagation in poinwise fusion when using broadcasted inputs.
 
 
 ### Removed

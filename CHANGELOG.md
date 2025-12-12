@@ -13,7 +13,7 @@ Full documentation for MIGraphX is available at
 * Added updated inputs for multihead attention.
 * Added GEMM+GEMM fusions.
 * Added the `dim_params` input parameter to the `parse_onnx` python call.
-* Created `get_onnx_operators` to query supported ONNX operators.
+* Added `get_onnx_operators` to query supported ONNX operators.
 * Added right pad masking mode for Multihead Attention.
 * Added support for Flash Decoding.
 * Added Torch-MIGraphX installation instructions.
@@ -56,10 +56,6 @@ Full documentation for MIGraphX is available at
 * Streamline find_matches function
 * Reduce the number of splits used for split_reduce
 * Improve layout propagation in poinwise fusion when using broadcasted inputs
-
-
-### Removed
-
 
 
 ## MIGraphX 2.14 for ROCm 7.1.0

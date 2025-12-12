@@ -70,6 +70,39 @@ inline std::size_t calculate_flash_decoding_splits(std::size_t sequence_length,
     return split_dim(r, min_chunk_size, max_splits);
 }
 
+// calculate the actual number of groups for flash decoding
+// returns 0 if no splitting should be performed
+inline std::size_t calculate_groups(std::size_t groups, std::size_t sequence_length)
+{
+    // if groups is explicitly set and valid, use it
+    if(groups > 1)
+        return groups;
+
+    // if groups is 0, auto-calculate based on sequence length
+    if(groups == 0)
+    {
+        // TODO: run experiments to find the optimal values for min_chunk and max_splits
+        std::size_t min_chunk  = value_of(MIGRAPHX_FLASH_DECODING_MIN_CHUNK_SIZE{}, 32);
+        std::size_t max_splits = value_of(MIGRAPHX_FLASH_DECODING_MAX_SPLITS{}, 16);
+        std::size_t threshold  = value_of(MIGRAPHX_FLASH_DECODING_THRESHOLD{}, 32);
+
+        // skip if sequence is too short
+        if(sequence_length < threshold)
+            return 0;
+
+        std::size_t actual_groups = calculate_flash_decoding_splits(sequence_length, min_chunk, max_splits);
+
+        // return 0 if auto-calculation determines no splitting needed
+        if(actual_groups <= 1)
+            return 0;
+
+        return actual_groups;
+    }
+
+    // groups == 1 or invalid, no splitting
+    return 0;
+}
+
 // TODO: Write this in matcher.hpp as a general matcher for iterating through inputs
 inline auto pointwise_inputs()
 {
@@ -483,27 +516,8 @@ struct find_flash_decoding
         auto k_shape                = k_param->get_shape();
         std::size_t sequence_length = k_shape.lens().back();
 
-        // Determine actual number of splits to use
-        std::size_t actual_groups = groups;
-        if(groups == 0)
-        {
-            // TODO: run experiments to find the optimal values for min_chunk and max_splits
-            std::size_t min_chunk  = value_of(MIGRAPHX_FLASH_DECODING_MIN_CHUNK_SIZE{}, 32);
-            std::size_t max_splits = value_of(MIGRAPHX_FLASH_DECODING_MAX_SPLITS{}, 16);
-            std::size_t threshold  = value_of(MIGRAPHX_FLASH_DECODING_THRESHOLD{}, 32);
-
-            if(sequence_length < threshold)
-                return;
-
-            actual_groups = calculate_flash_decoding_splits(sequence_length, min_chunk, max_splits);
-
-            // skip if auto-calculation determines no splitting needed
-            if(actual_groups <= 1)
-                return;
-        }
-
-        // skip if no actual splitting (actual_groups must be > 1)
-        if(actual_groups <= 1)
+        std::size_t actual_groups = calculate_groups(groups, sequence_length);
+        if(actual_groups == 0)
             return;
 
         // calculate padding if sequence length not evenly divisible

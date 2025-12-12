@@ -43,7 +43,8 @@ inline namespace MIGRAPHX_INLINE_NS {
  * To compute the number of split groups it finds the largest
  * divisor that can divide dimension to make it less than min_size.
  *
- * @param r The value to split. This is passed by reference and will be modified to the remaining value after splitting.
+ * @param r The value to split. This is passed by reference and will be modified to the remaining
+ * value after splitting.
  * @param min_size Target threshold - splits until remaining size is less than this value
  * @param max_splits Target threshold - if reached, returns the smallest split factor greater than
  * or equal to max_splits that evenly divides dimension. Optional

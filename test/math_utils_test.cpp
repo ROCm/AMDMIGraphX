@@ -127,10 +127,10 @@ TEST_CASE(ceil_mul_of_consistency_with_integer_divide_ceil)
     // Verify that ceil_mul_of(x, y) == y * integer_divide_ceil(x, y)
     // This tests the implementation relationship
 
-    std::size_t test_cases[][2] = {
+    const std::size_t test_cases[][2] = {
         {10, 3}, {15, 4}, {100, 7}, {256, 32}, {1000, 13}, {1, 10}, {0, 5}};
 
-    for(const auto& tc : test_cases)
+    for(const auto* const tc : test_cases)
     {
         std::size_t x = tc[0];
         std::size_t y = tc[1];
@@ -445,7 +445,7 @@ TEST_CASE(split_dim_consistency_check)
             // Result should evenly divide dimension
             EXPECT(dim % splits == 0);
             // Result should make remaining size < min_size (10)
-            EXPECT(dim / splits < 10 || splits >= max_splits);
+            EXPECT(dim / splits < 10 or splits >= max_splits);
         }
     }
 

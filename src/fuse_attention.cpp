@@ -72,7 +72,8 @@ inline std::size_t calculate_flash_decoding_splits(std::size_t sequence_length,
 
 // calculate the actual number of groups for flash decoding
 // returns 0 if no splitting should be performed
-inline std::size_t calculate_groups(std::size_t groups, std::size_t sequence_length, std::size_t threshold)
+inline std::size_t
+calculate_groups(std::size_t groups, std::size_t sequence_length, std::size_t threshold)
 {
     // if groups is explicitly set and valid, use it
     if(groups > 1)
@@ -89,7 +90,8 @@ inline std::size_t calculate_groups(std::size_t groups, std::size_t sequence_len
         std::size_t min_chunk  = value_of(MIGRAPHX_FLASH_DECODING_MIN_CHUNK_SIZE{}, 32);
         std::size_t max_splits = value_of(MIGRAPHX_FLASH_DECODING_MAX_SPLITS{}, 16);
 
-        std::size_t actual_groups = calculate_flash_decoding_splits(sequence_length, min_chunk, max_splits);
+        std::size_t actual_groups =
+            calculate_flash_decoding_splits(sequence_length, min_chunk, max_splits);
 
         // return 0 if auto-calculation determines no splitting needed
         if(actual_groups <= 1)
@@ -516,7 +518,7 @@ struct find_flash_decoding
         std::size_t sequence_length = k_shape.lens().back();
 
         // read groups configuration from pass config or environment variable
-        std::size_t groups = get_num_splits(configured_splits);
+        std::size_t groups    = get_num_splits(configured_splits);
         std::size_t threshold = value_of(MIGRAPHX_FLASH_DECODING_THRESHOLD{}, 32);
 
         std::size_t actual_groups = calculate_groups(groups, sequence_length, threshold);
@@ -528,7 +530,7 @@ struct find_flash_decoding
         if(sequence_length % actual_groups != 0)
         {
             // round up to nearest multiple of actual_groups
-            padding_needed            = ceil_mul_of(sequence_length, actual_groups) - sequence_length;
+            padding_needed = ceil_mul_of(sequence_length, actual_groups) - sequence_length;
         }
 
         // create mapping from submodule params to main module inputs
@@ -895,7 +897,8 @@ void fuse_attention::apply(module_pass_manager& mpm) const
     std::size_t configured_splits = get_num_splits(flash_decoding_num_splits);
     if(configured_splits > 0 or is_flash_decoding_enabled())
     {
-        match::find_matches(mpm, find_flash_decoding{.configured_splits = flash_decoding_num_splits});
+        match::find_matches(mpm,
+                            find_flash_decoding{.configured_splits = flash_decoding_num_splits});
         mpm.run_pass(dead_code_elimination{});
     }
 }

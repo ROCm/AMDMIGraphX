@@ -35,7 +35,6 @@
 #include <migraphx/op/logsoftmax.hpp>
 #include <migraphx/op/loop.hpp>
 #include <migraphx/op/lrn.hpp>
-#include <migraphx/op/pad.hpp>
 #include <migraphx/op/softmax.hpp>
 #include <migraphx/op/argmax.hpp>
 #include <migraphx/op/argmin.hpp>

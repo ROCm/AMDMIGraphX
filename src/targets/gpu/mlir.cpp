@@ -613,8 +613,10 @@ struct mlir_program
         return result;
     }
 
-    MlirBlock
-    insert(MlirBlock body, const module& m, const std::vector<shape>& outputs, std::unordered_map<instruction_ref, MlirValue>& ins_map)
+    MlirBlock insert(MlirBlock body,
+                     const module& m,
+                     const std::vector<shape>& outputs,
+                     std::unordered_map<instruction_ref, MlirValue>& ins_map)
     {
         auto names = m.get_parameter_names();
         std::sort(names.begin(), names.end());
@@ -760,7 +762,8 @@ struct mlir_program
             MIGRAPHX_THROW("Missing @return as last instruction.");
     }
 
-    static std::vector<shape> get_output_shapes(const module& m, const std::vector<shape>& input_shapes = {})
+    static std::vector<shape> get_output_shapes(const module& m,
+                                                const std::vector<shape>& input_shapes = {})
     {
         if(input_shapes.empty())
             return m.get_output_shapes();

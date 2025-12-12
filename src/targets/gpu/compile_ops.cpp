@@ -373,26 +373,40 @@ struct dynamic_op
                      std::function<std::vector<argument>(
                          module_ref&, const std::unordered_map<std::string, argument>&)> run) const
     {
+
+        // rewrite module without dynamic shapes
+        auto mod_args   = std::vector<argument>{args.begin(), args.end() - 1};
+        auto static_mod = module_args.front()->with_static_shapes(to_shapes(mod_args));
+
+        // compute output arg shape
+        auto static_args = std::vector<argument>{args.begin(), args.end()};
+        auto output_arg  = static_args.back();
+        if(output_arg.get_shape().dynamic())
+        {
+            auto out_shapes = static_mod.compute_shapes(to_shapes(mod_args));
+            auto rsp_shape = (out_shapes.size() > 1) ? shape{out_shapes} : out_shapes.front();
+            static_args[static_args.size() - 1] = output_arg.reshape(rsp_shape);
+        }
+
         auto temp_mod = module("temp_mod");
         std::vector<instruction_ref> args_ins;
-        std::vector<size_t> idx(args.size());
+        std::vector<size_t> idx(static_args.size());
         std::iota(std::begin(idx), std::end(idx), 0);
-        std::transform(args.begin(),
-                       args.end(),
+        std::transform(static_args.begin(),
+                       static_args.end(),
                        idx.begin(),
                        std::back_inserter(args_ins),
                        [&](const auto& arg, const auto& i) {
-                           return temp_mod.add_parameter("temp_mod:x" + std::to_string(i), arg.get_shape());
+                           return temp_mod.add_parameter("temp_mod:x" + std::to_string(i),
+                                                         arg.get_shape());
                        });
-        //rewrite module without dynamic shapes
-        auto mod_args = std::vector<argument>{args.begin(), args.end()-1};
-        auto static_mod = module_args.front()->with_static_shapes(to_shapes(mod_args));
-        
+
         auto ins = temp_mod.add_instruction(pre_op, args_ins, {&static_mod});
         temp_mod.add_return({ins});
+
         operation preop = any_cast<precompile_op>(ins->get_operator()).op;
-        auto config = get_tuning_config(ctx, ins, preop, false);
-        value solution = value{};
+        auto config     = get_tuning_config(ctx, ins, preop, false);
+        value solution  = value{};
         if(config.has_value())
         {
             solution = config->solutions.front();
@@ -409,7 +423,7 @@ struct dynamic_op
         auto param_map = std::unordered_map<std::string, argument>{};
         for(auto i : idx)
         {
-            param_map["temp_mod:x" + std::to_string(i)] = args[i];
+            param_map["temp_mod:x" + std::to_string(i)] = static_args[i];
         }
         module_ref temp_mod_ref = &temp_mod;
 

@@ -99,14 +99,14 @@ struct pad
 
     std::function<std::int64_t(std::int64_t idx, std::int64_t size)> get_pad_func() const
     {
-        switch (mode) {
-        case op::pad::constant_pad:
-            return [](std::int64_t idx, std::int64_t) { return idx; };
+        switch(mode)
+        {
+        case op::pad::constant_pad: return [](std::int64_t idx, std::int64_t) { return idx; };
         case op::pad::reflect_pad:
             return [](std::int64_t idx, std::int64_t size) -> std::int64_t {
                 if(size <= 1)
                     return 0;
-                auto period = size - 1;
+                auto period  = size - 1;
                 auto mod_val = std::abs(idx) % (2 * period);
                 return (mod_val <= period) ? mod_val : (2 * period - mod_val);
             };

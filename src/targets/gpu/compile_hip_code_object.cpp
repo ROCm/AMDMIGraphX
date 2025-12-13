@@ -151,6 +151,10 @@ compute_global_for(const context& ctx, std::size_t n, std::size_t over)
                              ctx.get_current_device().get_max_workitems_per_cu();
     return [n, over, max_global](std::size_t local) {
         std::size_t num_elements = n;
+
+        if (num_elements == 0)
+            num_elements = 1;
+
         if(not hip_accept_non_uniform_wg())
         {
             num_elements = (1 + (n - 1) / local) * local;

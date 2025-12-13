@@ -362,11 +362,6 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
                 auto block_size = v.get("block_size", compute_block_size(ctx, relements, 256));
                 if(relements >= block_size * 256)
                     algo = "block_large";
-
-                std::cout <<" Fused reduce block" << std::endl;
-                std::cout << "Elements:" << nelements << std::endl;
-                std::cout << "block size:" << block_size << std::endl;
-
                 options.set_launch_params(
                     v, compute_global_for(ctx, nelements * block_size, 256), block_size);
             }

@@ -161,7 +161,7 @@ compute_global_for(const context& ctx, std::size_t n, std::size_t over)
 
         if (n == 0)
         {
-            std::cout <<"error Generating nglobal = 0" << std:endl;
+            std::cout <<"error Generating nglobal = 0" << std::endl;
             std::cout << "num_elements:"<< num_elements << std::endl;
             std::cout << "max_blocks:"<< max_blocks << std::endl;
             std::cout << "over:" << over << std::endl;

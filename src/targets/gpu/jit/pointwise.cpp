@@ -92,7 +92,7 @@ struct pointwise_compiler : compiler<pointwise_compiler>
                 std::cout <<" t.ntiles == 0" << std::endl;
                 std::cout << "Elements:" << options.inputs.front().elements() << std::endl;
                 std::cout << "Vec size:" << vec.size << std::endl;
-                std::cout << "No outputs:" << nooutputs << std::endl;
+                std::cout << "No outputs:" << noutputs << std::endl;
             }
 
             options.set_launch_params(
@@ -107,7 +107,7 @@ struct pointwise_compiler : compiler<pointwise_compiler>
                 std::cout <<" t.ntiles == 0" << std::endl;
                 std::cout << "t.ntiles:" << t.ntiles << std::endl;
                 std::cout << "block_size:" << t.block_size << std::endl;
-                std::cout << "No outputs:" << nooutputs << std::endl;
+                std::cout << "No outputs:" << noutputs << std::endl;
             }
 
             options.set_launch_params(

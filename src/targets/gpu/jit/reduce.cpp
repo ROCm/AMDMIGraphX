@@ -362,6 +362,11 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
                 auto block_size = v.get("block_size", compute_block_size(ctx, relements, 256));
                 if(relements >= block_size * 256)
                     algo = "block_large";
+
+                std::cout <<" Fused reduce block" << std::endl;
+                std::cout << "Elements:" << nelements << std::endl;
+                std::cout << "block size:" << block_size << std::endl;
+
                 options.set_launch_params(
                     v, compute_global_for(ctx, nelements * block_size, 256), block_size);
             }
@@ -369,6 +374,10 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
             {
                 auto subwave_size = v.get("subwave_size", compute_subwave_size(ctx, relements));
                 algo              = "subwave<" + std::to_string(subwave_size) + ">";
+                std::cout <<" Fused reduce non block" << std::endl;
+                std::cout << "Elements:" << nelements << std::endl;
+                std::cout << "subwave:" << subwave_size << std::endl;
+
                 options.set_launch_params(v,
                                           compute_global_for(ctx, nelements * subwave_size, 256),
                                           ctx.get_current_device().get_wavefront_size());

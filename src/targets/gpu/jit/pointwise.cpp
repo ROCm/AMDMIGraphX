@@ -81,12 +81,38 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         auto noutputs = options.inputs.size() - inputs.size() + 1;
         auto t                 = tile::elements(options.virtual_inputs, noutputs);
         // auto t = tile{};
-        if(t.ntiles == 0)
+        if(t.ntiles == 0) {
+
+            auto elements = options.inputs.front().elements() / vec.size;
+
+            if (elements <= 0 or vec.size <= 0) {
+                std::cout << options.kernel_name "Zero element or size "<< std::endl;
+                for(auto &in : inputs)
+                    std::cout << "input:" << in << std::endl; 
+                std::cout <<" t.ntiles == 0" << std::endl;
+                std::cout << "Elements:" << options.inputs.front().elements() << std::endl;
+                std::cout << "Vec size:" << vec.size << std::endl;
+                std::cout << "No outputs:" << nooutputs << std::endl;
+            }
+
             options.set_launch_params(
-                v, compute_global_for(ctx, options.inputs.front().elements() / vec.size, 256));
+                v, compute_global_for(ctx, elements, 256));
+        }
         else
+        {
+            if (t.block_size <= 0 or t.ntiles <= 0) {
+                std::cout << options.kernel_name "Zero ntiles or block size "<< std::endl;
+                for(auto &in : inputs)
+                    std::cout << "input:" << in << std::endl; 
+                std::cout <<" t.ntiles == 0" << std::endl;
+                std::cout << "t.ntiles:" << t.ntiles << std::endl;
+                std::cout << "block_size:" << t.block_size << std::endl;
+                std::cout << "No outputs:" << nooutputs << std::endl;
+            }
+
             options.set_launch_params(
                 v, compute_global_for(ctx, t.ntiles * t.block_size, 256), t.block_size);
+        }
         auto src =
             interpolate_string(pointwise_kernel,
                                {{"kernel", options.kernel_name},

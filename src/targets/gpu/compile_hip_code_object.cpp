@@ -158,6 +158,18 @@ compute_global_for(const context& ctx, std::size_t n, std::size_t over)
         std::size_t groups     = 1 + (num_elements - 1) / local;
         std::size_t max_blocks = max_global / local;
         std::size_t nglobal    = std::min(max_blocks * over, groups) * local;
+
+        if (n == 0)
+        {
+            std::cout <<"error Generating nglobal = 0" << std:endl
+            std::cout << "num_elements:"<< num_elements << std::endl;
+            std::cout << "max_blocks:"<< max_blocks << std::endl;
+            std::cout << "over:" << over << std::endl;
+            std::cout << "Groups: " << groups << std::endl;
+            std::cout << "Local:" << local << std::endl;
+            std::cout << "nglobal:" << nglobal << std::endl;
+        }
+
         return std::min(nglobal, num_elements);
     };
 }

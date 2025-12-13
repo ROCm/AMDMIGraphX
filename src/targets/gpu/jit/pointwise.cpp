@@ -86,7 +86,7 @@ struct pointwise_compiler : compiler<pointwise_compiler>
             auto elements = options.inputs.front().elements() / vec.size;
 
             if (elements <= 0 or vec.size <= 0) {
-                std::cout << options.kernel_name "Zero element or size "<< std::endl;
+                std::cout << options.kernel_name << "Zero element or size "<< std::endl;
                 for(auto &in : inputs)
                     std::cout << "input:" << in << std::endl; 
                 std::cout <<" t.ntiles == 0" << std::endl;
@@ -101,7 +101,7 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         else
         {
             if (t.block_size <= 0 or t.ntiles <= 0) {
-                std::cout << options.kernel_name "Zero ntiles or block size "<< std::endl;
+                std::cout << options.kernel_name << "Zero ntiles or block size "<< std::endl;
                 for(auto &in : inputs)
                     std::cout << "input:" << in << std::endl; 
                 std::cout <<" t.ntiles == 0" << std::endl;

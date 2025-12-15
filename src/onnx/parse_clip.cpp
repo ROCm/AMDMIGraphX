@@ -41,12 +41,14 @@ struct parse_clip : op_parser<parse_clip>
 
         std::optional<instruction_ref> min;
         std::optional<instruction_ref> max;
+
+        std::vector<instruction_ref> get_args()
+        {
+            return {input, min.value(), max.value()};
+        }
     };
 
-    std::vector<instruction_ref> get_args(clip_args& arg)
-    {
-        return {arg.input, arg.min.value(), arg.max.value()};
-    }
+
 
     static std::optional<instruction_ref>
     check_type_and_shape(size_t index, shape::type_t type,
@@ -110,14 +112,14 @@ struct parse_clip : op_parser<parse_clip>
         clip_args clip_parser;
 
         clip_parser.input = args.at(0);
-        auto input_type = clip_parser.input.value()->get_shape().type();
+        auto input_type = clip_parser.input->get_shape().type();
 
         clip_parser.min = check_type_and_shape(1, input_type, args);
         clip_parser.max = check_type_and_shape(2, input_type, args);
 
-        handle_limits(clip_parser);
+        handle_limits(info, clip_parser);
 
-        return op::builder::add("clip", *info.mod, get_args(clip_parser), {}).at(0);
+        return op::builder::add("clip", *info.mod, clip_parser.get_args(), {}).at(0);
     }
 
     // Parser for Opset V6 version

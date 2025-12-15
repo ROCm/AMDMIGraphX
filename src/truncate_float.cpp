@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -53,8 +53,24 @@ quantize_module(module& m, const std::vector<std::string>& ins_names, shape::typ
 
         auto mod_inputs = ins->module_inputs();
         auto s          = ins->get_shape();
-        // Convert each of the inputs that are floating point to float type
+
+        // Skip instructions with 0 elements or any 0-element inputs - they can cause
+        // issues in JIT pointwise kernel compilation due to size_t underflow in
+        // compute_global_for. We must skip the entire instruction to avoid type
+        // mismatches (e.g., in concat where some inputs would be converted and others not).
+        // Note: tuple shapes return 0 for elements() but should not be skipped.
+        if(not s.dynamic() and s.type() != shape::tuple_type and s.elements() == 0)
+            continue;
         auto inputs = ins->inputs();
+        bool has_zero_element_input = std::any_of(inputs.begin(), inputs.end(), [](auto input) {
+            const auto& input_shape = input->get_shape();
+            return not input_shape.dynamic() and input_shape.type() != shape::tuple_type and
+                   input_shape.elements() == 0;
+        });
+        if(has_zero_element_input)
+            continue;
+
+        // Convert each of the inputs that are floating point to float type
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
             auto input_type = input->get_shape().type();
             if(input_type != shape::float_type and input_type != shape::double_type)

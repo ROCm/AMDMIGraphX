@@ -81,26 +81,26 @@ struct parse_clip : op_parser<parse_clip>
         // min
         if(not clip_parser.min.has_value())
         {  
-           clip_parser.min = info.add_literal(migraphx::literal{migraphx::shape::float_type, {1}, {0}}, {std::numeric_limits<float>::lowest()});
+           clip_parser.min = info.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}, {0}}, {std::numeric_limits<float>::lowest()}});
         }
         else
         {
            if(clip_parser.min.value()->can_eval())
            {
-              clip_parser.min = info.add_literal(migraphx::literal{migraphx::shape::float_type, {1}, {0}}, {clip_parser.min.value()->eval().at<float>()});
+              clip_parser.min = info.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}, {0}}, {clip_parser.min.value()->eval().at<float>()}});
            }
         }
 
         // max
         if(not clip_parser.max.has_value())
         {
-           clip_parser.max = info.add_literal(migraphx::literal{migraphx::shape::float_type, {1}, {0}}, {std::numeric_limits<float>::max()});
+           clip_parser.max = info.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}, {0}}, {std::numeric_limits<float>::max()}});
         }
         else
         {
            if(clip_parser.max.value()->can_eval())
            {
-             clip_parser.max = info.add_literal(migraphx::literal{migraphx::shape::float_type, {1}, {0}}, {clip_parser.max.value()->eval().at<float>()});
+             clip_parser.max = info.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}, {0}}, {clip_parser.max.value()->eval().at<float>()}});
            }
         }
     }

@@ -69,7 +69,7 @@ struct parse_clip : op_parser<parse_clip>
 
             return ref;
         }
-        return {};
+        return std::nullopt;
     }
 
     static void handle_limits(onnx_parser::node_info info,

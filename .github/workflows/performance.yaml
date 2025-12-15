@@ -12,7 +12,7 @@ on:
       rocm_release:
         description: ROCm Version
         required: true
-        default: '7.1'
+        default: '7.1.1'
       performance_reports_repo:
         description: Repository where performance reports are stored
         required: true
@@ -60,7 +60,7 @@ jobs:
       perf_timeout: ${{ steps.read_config.outputs.perf_timeout }}
     steps:
       - name: checkout
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v6.0.1
       - name: read_config
         id: read_config
         run: |
@@ -83,7 +83,7 @@ jobs:
       
   call_reusable:
     needs: get_config
-    uses: ROCm/migraphx-benchmark/.github/workflows/perf-test.yml@main
+    uses: ROCm/migraphx-benchmark/.github/workflows/perf-test.yml@nobranchfailure
     with:
       rocm_release: ${{ github.event.inputs.rocm_release || needs.get_config.outputs.rocm_version }}
       benchmark_utils_repo: ${{ github.event.inputs.benchmark_utils_repo || needs.get_config.outputs.utils_repo }}

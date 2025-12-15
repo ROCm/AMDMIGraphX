@@ -83,25 +83,11 @@ struct parse_clip : op_parser<parse_clip>
         {  
            clip_parser.min = info.add_literal(std::numeric_limits<float>::lowest());
         }
-        else
-        {
-           if(clip_parser.min.value()->can_eval())
-           {
-              clip_parser.min = info.add_literal(clip_parser.min.value()->eval().at<float>());
-           }
-        }
 
         // max
         if(not clip_parser.max.has_value())
         {
            clip_parser.max = info.add_literal(std::numeric_limits<float>::max());
-        }
-        else
-        {
-           if(clip_parser.max.value()->can_eval())
-           {
-             clip_parser.max = info.add_literal(clip_parser.max.value()->eval().at<float>());
-           }
         }
     }
 
@@ -150,6 +136,7 @@ struct parse_clip : op_parser<parse_clip>
     {
         if(parser.opset_version < 11)
         {
+            
             return clip_v6(parser, info, args);
         }
         else

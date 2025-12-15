@@ -481,6 +481,88 @@ TEST_CASE(topk)
     EXPECT(p1 == p2);
 }
 
+// Test that instructions with 0-element shapes are skipped during quantization
+// to avoid issues in JIT pointwise kernel compilation
+TEST_CASE(zero_element_shape)
+{
+    // Test 1: Instruction with 0-element output shape should be skipped
+    auto create_program_zero_output = [] {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        // Create a shape with 0 elements in one dimension
+        migraphx::shape s_zero{migraphx::shape::float_type, {2, 0, 3}};
+        migraphx::shape s_normal{migraphx::shape::float_type, {2, 3}};
+        auto p1 = mm->add_parameter("x", s_zero);
+        auto p2 = mm->add_parameter("y", s_normal);
+        // This add has a 0-element output and should be skipped
+        auto sum_zero = mm->add_instruction(migraphx::make_op("add"), p1, p1);
+        // This add has normal output and should be quantized
+        auto sum_normal = mm->add_instruction(migraphx::make_op("add"), p2, p2);
+        mm->add_return({sum_zero, sum_normal});
+        return p;
+    };
+
+    auto create_expected_zero_output = [] {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s_zero{migraphx::shape::float_type, {2, 0, 3}};
+        migraphx::shape s_normal{migraphx::shape::float_type, {2, 3}};
+        auto p1 = mm->add_parameter("x", s_zero);
+        auto p2 = mm->add_parameter("y", s_normal);
+        // 0-element instruction is NOT converted (skipped)
+        auto sum_zero = mm->add_instruction(migraphx::make_op("add"), p1, p1);
+        // Normal instruction IS converted
+        auto hp2 = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), p2);
+        auto hsum = mm->add_instruction(migraphx::make_op("add"), hp2, hp2);
+        auto sum_normal = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), hsum);
+        mm->add_return({sum_zero, sum_normal});
+        return p;
+    };
+
+    {
+        auto p1 = create_program_zero_output();
+        migraphx::quantize_fp16(p1);
+        auto p2 = create_expected_zero_output();
+        EXPECT(p1 == p2);
+    }
+
+    // Test 2: Instruction with 0-element input should be skipped
+    auto create_program_zero_input = [] {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s_zero{migraphx::shape::float_type, {0, 3}};
+        migraphx::shape s_normal{migraphx::shape::float_type, {2, 3}};
+        auto p1 = mm->add_parameter("x", s_zero);
+        auto p2 = mm->add_parameter("y", s_normal);
+        // Concat with a 0-element input should be skipped entirely
+        auto concat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), p1, p2);
+        mm->add_return({concat});
+        return p;
+    };
+
+    auto create_expected_zero_input = [] {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s_zero{migraphx::shape::float_type, {0, 3}};
+        migraphx::shape s_normal{migraphx::shape::float_type, {2, 3}};
+        auto p1 = mm->add_parameter("x", s_zero);
+        auto p2 = mm->add_parameter("y", s_normal);
+        // Concat with 0-element input is NOT converted (skipped)
+        auto concat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), p1, p2);
+        mm->add_return({concat});
+        return p;
+    };
+
+    {
+        auto p1 = create_program_zero_input();
+        migraphx::quantize_fp16(p1);
+        auto p2 = create_expected_zero_input();
+        EXPECT(p1 == p2);
+    }
+}
+
 TEST_CASE(op_capture)
 {
     auto create_program_float = [] {

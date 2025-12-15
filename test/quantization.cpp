@@ -514,7 +514,7 @@ TEST_CASE(zero_element_shape)
         // Normal instruction IS converted
         auto hp2 = mm->add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), p2);
-        auto hsum = mm->add_instruction(migraphx::make_op("add"), hp2, hp2);
+        auto hsum       = mm->add_instruction(migraphx::make_op("add"), hp2, hp2);
         auto sum_normal = mm->add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), hsum);
         mm->add_return({sum_zero, sum_normal});

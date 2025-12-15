@@ -33,7 +33,7 @@ namespace onnx {
 struct parse_clip : op_parser<parse_clip>
 {
     std::vector<op_desc> operators() const { return {{"Clip"}}; }
-    
+
     struct clip_args
     {
         // All operators have this
@@ -49,25 +49,25 @@ struct parse_clip : op_parser<parse_clip>
     }
 
     static std::optional<instruction_ref>
-    check_type_and_shape(size_t index, shape::type type,
+    check_type_and_shape(size_t index, shape::type_t type,
                          const std::vector<instruction_ref>& args)
     {
 
         if (args.size() > index)
         {
             std::optional<instruction_ref> ref = args.at(index);
-            auto shape_scalar = ref.get_shape().scalar();
-            auto ref_type = ref.get_shape().type();
+            auto shape_scalar = ref.value().get_shape().scalar();
+            auto ref_type = ref.value().get_shape().type();
 
             if(not shape_scaler)
-               MIGRAPHX_THROW("Invalid input for CLIP at index" << index << " Input must be scalar")
+               MIGRAPHX_THROW("Invalid input for CLIP must be scalar");
 
             if (ref_type != type)
-               MIGRAPHX_THROW("Invalid input type for clip op at " << index << "min/max must match input type");
+               MIGRAPHX_THROW("Invalid input type for clip min/max must match input type");
 
             return ref;
         }
-        return {}
+        return {};
     }
 
     static void handle_limits(onnx_parser::node_info info,
@@ -110,7 +110,7 @@ struct parse_clip : op_parser<parse_clip>
         clip_args clip_parser;
 
         clip_parser.input = args.at(0);
-        auto input_type = clip_parser.input.get_shape().type();
+        auto input_type = clip_parser.input.value().get_shape().type();
 
         clip_parser.min = check_type_and_shape(1, input_type, args);
         clip_parser.max = check_type_and_shape(2, input_type, args);

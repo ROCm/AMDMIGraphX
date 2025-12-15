@@ -106,7 +106,7 @@ struct parse_clip : op_parser<parse_clip>
     }
 
     // Parser for Opset 11, 12, 13 
-    static void clip_v_11_12_13(onnx_parser::node_info info,
+    static instruction_ref clip_v_11_12_13(onnx_parser::node_info info,
                                 const std::vector<instruction_ref>& args)
     {   
         clip_args clip_parser;
@@ -123,7 +123,7 @@ struct parse_clip : op_parser<parse_clip>
     }
 
     // Parser for Opset V6 version
-    static void clip_v6(const onnx_parser& parser,
+    static instruction_ref clip_v6(const onnx_parser& parser,
                         onnx_parser::node_info info,
                         std::vector<instruction_ref>& args)
     {

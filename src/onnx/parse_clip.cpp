@@ -33,14 +33,7 @@ namespace onnx {
 struct parse_clip : op_parser<parse_clip>
 {
     std::vector<op_desc> operators() const { return {{"Clip"}}; }
-
-    // Default max /min values based on numeric limits for float value
-    struct clip_attr
-    {
-        float max = std::numeric_limits<float>::max();
-        float min = std::numeric_limits<float>::min();
-    }
-
+    
     struct clip_args
     {
         // All operators have this

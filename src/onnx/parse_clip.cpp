@@ -148,7 +148,7 @@ struct parse_clip : op_parser<parse_clip>
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-        if(parser.get_opset_version() < 11)
+        if(parser.opset_version < 11)
         {
             return clip_v6(parser, info, args);
         }

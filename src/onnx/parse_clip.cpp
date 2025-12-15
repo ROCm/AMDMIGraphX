@@ -34,22 +34,60 @@ struct parse_clip : op_parser<parse_clip>
 {
     std::vector<op_desc> operators() const { return {{"Clip"}}; }
 
+    // Default max /min values based on numeric limits for float value
+    struct clip_attr
+    {
+        float max = std::numeric_limits<float>::max();
+        float min = std::numeric_limits<float>::min();
+    }
+
+    struct clip_args
+    {
+        // All operators have this
+        instruction_ref input;
+
+        std::optional<instruction_ref> min;
+        std::optional<instruction_ref> max;
+
+        int opset_version = -1;
+    };
+
+    // Opset V1-V6 only defiend min/max by their attributes
+    bool is_opset_v6(size_t args_size) const 
+    {
+        return (args_size() == 1);
+    }
+
+    // Parser for Opset V6 version
+    static void clip_v6(const onnx_parser& parser,
+                        onnx_parser::node_info info,
+                        std::vector<instruction_ref> args)
+    {
+        // Always set defaults for when input isn't set
+        float min_val = std::numeric_limits<float>::lowest();
+        float max_val = std::numeric_limits<float>::max();
+
+        if (contains(info.attributes, "min"))
+            min_val = parser.parse_value(info.attributes.at("min")).at<float>();
+
+        if(contains(info.attributes, "max"))
+            max_val = parser.parse_value(info.attributes.at("max")).at<float>();
+
+        args.push_back(info.add_literal(min_val));
+        args.push_back(info.add_literal(max_val));
+
+        return op::builder::add("clip", *info.mod, args, {}).at(0);
+    }
+
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-        if(args.size() == 1 and contains(info.attributes, "min") and
-           contains(info.attributes, "max"))
+        if(is_opset_v6(args.size()))
         {
-
-            float min_val = parser.parse_value(info.attributes.at("min")).at<float>();
-            float max_val = parser.parse_value(info.attributes.at("max")).at<float>();
-            args.push_back(info.add_literal(min_val));
-            args.push_back(info.add_literal(max_val));
+            return clip_v6(parser, info, args);
         }
-
-        return op::builder::add("clip", *info.mod, args, {}).at(0);
     }
 };
 

@@ -87,7 +87,7 @@ struct parse_clip : op_parser<parse_clip>
         {
            if(clip_parser.min.value()->can_eval())
            {
-              clip_parser.min = info.add_literal(clip_parser.min.value()->eval());
+              clip_parser.min = info.add_literal(clip_parser.min.value()->eval().at<float>());
            }
         }
 
@@ -100,7 +100,7 @@ struct parse_clip : op_parser<parse_clip>
         {
            if(clip_parser.max.value()->can_eval())
            {
-             clip_parser.max = info.add_literal(clip_parser.max.value()->eval());
+             clip_parser.max = info.add_literal(clip_parser.max.value()->eval().at<float>());
            }
         }
     }

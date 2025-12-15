@@ -48,20 +48,89 @@ struct parse_clip : op_parser<parse_clip>
 
         std::optional<instruction_ref> min;
         std::optional<instruction_ref> max;
-
-        int opset_version = -1;
     };
 
-    // Opset V1-V6 only defiend min/max by their attributes
-    bool is_opset_v6(size_t args_size) const 
+    std::vector<instruction_ref> get_args()
     {
-        return (args_size() == 1);
+        return {input, min.value(), max.value()};
+    }
+
+    static std::optional<instruction_ref>
+    check_type_and_shape(size_t index, shape::type type,
+                         const std::vector<instruction_ref>& args)
+    {
+
+        if (args.size() > index)
+        {
+            std::optional<instruction_ref> ref = args.at(index);
+            auto shape_scalar = ref.get_shape().scalar();
+            auto ref_type = ref.get_shape().type();
+
+            if(not shape_scaler)
+               MIGRAPHX_THROW("Invalid input for CLIP at index" << index << " Input must be scalar")
+
+            if (ref_type != type)
+               MIGRAPHX_THROW("Invalid input type for clip op at " << index << "min/max must match input type");
+
+            return ref;
+        }
+        return {}
+    }
+
+    static void handle_limits(onnx_parser::node_info info,
+                              clip_args& clip_parser)
+    {
+        // Set default if types/inputs aren't set
+        // Try to see if we can fold limit value during parse
+
+        // min
+        if(not clip_parser.min.has_value())
+        {  
+           clip_parser.min = info.add_literal(std::numeric_limits<float>::lowest());
+        }
+        else
+        {
+           if(clip_parser.min->value()->front()->can_eval())
+           {
+              clip_parser.min = info.add_literal(clip_parser.min.value()->front()->eval());
+           }
+        }
+
+        // max
+        if(not clip_parser.max.has_value())
+        {
+           clip_parser.max = info.add_literal(std::numeric_limits<float>::max());
+        }
+        else
+        {
+           if(clip_parser.max->value()->front()->can_eval())
+           {
+             clip_parser.max = info.add_literal(clip_parser.max.value()->front()->eval());
+           }
+        }
+    }
+
+    // Parser for Opset 11, 12, 13 
+    static void clip_v_11_12_13(onnx_parser::node_info info,
+                                const std::vector<instruction_ref>& args)
+    {   
+        clip_args clip_parser;
+
+        clip_parser.input = args.at(0);
+        auto input_type = clip_parser.input.get_shape().type();
+
+        clip_parser.min = check_type_and_shape(1, input_type, args);
+        clip_parser.max = check_type_and_shape(2, input_type, args);
+
+        handle_limits(clip_parser);
+
+        return op::builder::add("clip", *info.mod, clip_parser.get_args(), {}).at(0);
     }
 
     // Parser for Opset V6 version
     static void clip_v6(const onnx_parser& parser,
                         onnx_parser::node_info info,
-                        std::vector<instruction_ref> args)
+                        std::vector<instruction_ref>& args)
     {
         // Always set defaults for when input isn't set
         float min_val = std::numeric_limits<float>::lowest();
@@ -84,9 +153,13 @@ struct parse_clip : op_parser<parse_clip>
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-        if(is_opset_v6(args.size()))
+        if(parser.get_opset_version() < 11)
         {
             return clip_v6(parser, info, args);
+        }
+        else
+        {
+            return clip_v_11_12_13(info, args);
         }
     }
 };

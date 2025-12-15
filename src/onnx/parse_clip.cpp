@@ -56,10 +56,10 @@ struct parse_clip : op_parser<parse_clip>
         if (args.size() > index)
         {
             std::optional<instruction_ref> ref = args.at(index);
-            auto shape_scalar = ref.value().get_shape().scalar();
-            auto ref_type = ref.value().get_shape().type();
+            auto shape_scalar = ref.value()->get_shape().scalar();
+            auto ref_type = ref.value()->get_shape().type();
 
-            if(not shape_scaler)
+            if(not shape_scalar)
                MIGRAPHX_THROW("Invalid input for CLIP must be scalar");
 
             if (ref_type != type)
@@ -83,7 +83,7 @@ struct parse_clip : op_parser<parse_clip>
         }
         else
         {
-           if(clip_parser.min->value()->front()->can_eval())
+           if(clip_parser.min.value()->front()->can_eval())
            {
               clip_parser.min = info.add_literal(clip_parser.min.value()->front()->eval());
            }
@@ -96,7 +96,7 @@ struct parse_clip : op_parser<parse_clip>
         }
         else
         {
-           if(clip_parser.max->value()->front()->can_eval())
+           if(clip_parser.max.value()->front()->can_eval())
            {
              clip_parser.max = info.add_literal(clip_parser.max.value()->front()->eval());
            }
@@ -110,7 +110,7 @@ struct parse_clip : op_parser<parse_clip>
         clip_args clip_parser;
 
         clip_parser.input = args.at(0);
-        auto input_type = clip_parser.input.value().get_shape().type();
+        auto input_type = clip_parser.input.value()->get_shape().type();
 
         clip_parser.min = check_type_and_shape(1, input_type, args);
         clip_parser.max = check_type_and_shape(2, input_type, args);

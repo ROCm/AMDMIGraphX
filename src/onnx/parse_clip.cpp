@@ -43,9 +43,9 @@ struct parse_clip : op_parser<parse_clip>
         std::optional<instruction_ref> max;
     };
 
-    std::vector<instruction_ref> get_args()
+    std::vector<instruction_ref> get_args(clip_args& arg)
     {
-        return {input, min.value(), max.value()};
+        return {arg.input, arg.min.value(), arg.max.value()};
     }
 
     static std::optional<instruction_ref>
@@ -117,7 +117,7 @@ struct parse_clip : op_parser<parse_clip>
 
         handle_limits(clip_parser);
 
-        return op::builder::add("clip", *info.mod, clip_parser.get_args(), {}).at(0);
+        return op::builder::add("clip", *info.mod, get_args(clip_parser), {}).at(0);
     }
 
     // Parser for Opset V6 version

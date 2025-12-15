@@ -562,7 +562,8 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
         {
             if(input.empty())
             {
-                if(MIGRAPHX_TRACE_ONNX_PARSER)
+
+                if(enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
                    std::cout << "Node: " << node.name() << " Contains empty inputs" << std::endl;
 
                 this->parse_undefined(mod, input);

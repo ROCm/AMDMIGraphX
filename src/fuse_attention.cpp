@@ -38,6 +38,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_NUM_SPLITS);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_PAGED_ATTN);
 
 std::size_t get_num_splits() { return value_of(MIGRAPHX_FLASH_DECODING_NUM_SPLITS{}, 0); }
 
@@ -778,6 +779,916 @@ struct find_kv_cache_attention
     }
 };
 
+/// Transforms KV cache to use paged attention with scatter/gather
+/// This replaces concat_past_present with:
+///   - scatter_none (for writing new K/V to block slots)
+///   - gather (for reading K/V blocks into contiguous view)
+/// Works directly on concat_past_present ops without requiring attention fusion
+struct find_paged_attention
+{
+    paged_attention_config config;
+    mutable std::unordered_set<instruction_ref> processed_concats;
+
+    auto matcher() const
+    {
+        // Match concat_past_present directly in the main module
+        return match::name("concat_past_present").bind("concat_kv");
+    }
+
+    /// Calculate the number of blocks needed for a given max sequence length
+    std::size_t calculate_num_blocks(std::size_t max_seq_len) const
+    {
+        return (max_seq_len + config.tokens_per_block - 1) / config.tokens_per_block;
+    }
+
+    /// KV cache info extracted from a single concat_past_present
+    struct kv_cache_info
+    {
+        instruction_ref concat_ins;        // The concat_past_present instruction
+        instruction_ref past_kv_param;     // @param for past K or V cache
+        instruction_ref new_kv;            // New K or V values input
+        instruction_ref seqlens;           // Sequence lengths input
+        std::size_t num_kv_heads;
+        std::size_t max_seq_len;
+        std::size_t head_dim;
+        std::size_t batch_size;
+    };
+
+    std::optional<kv_cache_info> extract_kv_info(instruction_ref concat_ins) const
+    {
+        kv_cache_info info{};
+        info.concat_ins = concat_ins;
+
+        // concat_past_present takes (present, seqlens, past)
+        auto inputs = concat_ins->inputs();
+        if(inputs.size() != 3)
+            return std::nullopt;
+
+        info.new_kv       = inputs[0];  // present K or V
+        info.seqlens      = inputs[1];  // sequence lengths
+        info.past_kv_param = inputs[2]; // past K or V cache
+
+        // Extract shape info from past cache: {batch, num_kv_heads, max_seq_len, head_dim}
+        auto past_shape = info.past_kv_param->get_shape();
+        auto past_lens  = past_shape.lens();
+
+        if(past_lens.size() != 4)
+            return std::nullopt;
+
+        info.batch_size   = past_lens[0];
+        info.num_kv_heads = past_lens[1];
+        info.max_seq_len  = past_lens[2];
+        info.head_dim     = past_lens[3];
+
+        return info;
+    }
+
+    /// Reshape existing KV cache to paged format
+    /// From: {batch, num_kv_heads, max_seq_len, head_dim}
+    /// To:   {num_blocks, num_kv_heads, tokens_per_block, head_dim}
+    instruction_ref reshape_to_paged(module& m,
+                                     instruction_ref past_kv,
+                                     instruction_ref insert_point,
+                                     const kv_cache_info& info) const
+    {
+        std::size_t max_blocks_per_seq = calculate_num_blocks(info.max_seq_len);
+        std::size_t total_blocks = info.batch_size * max_blocks_per_seq;
+
+        auto reshaped = m.insert_instruction(
+            insert_point,
+            make_op("reshape",
+                    {{"dims",
+                      {static_cast<int64_t>(total_blocks),
+                       static_cast<int64_t>(info.num_kv_heads),
+                       static_cast<int64_t>(config.tokens_per_block),
+                       static_cast<int64_t>(info.head_dim)}}}),
+            past_kv);
+
+        return reshaped;
+    }
+
+    /// Get or create control parameters (block_table, slot_mapping)
+    /// These are shared across all concat_past_present ops
+    struct control_params
+    {
+        instruction_ref block_table;
+        instruction_ref slot_mapping;
+    };
+
+    control_params get_control_params(module& m, const kv_cache_info& info) const
+    {
+        control_params params{};
+
+        std::size_t max_blocks_per_seq = calculate_num_blocks(info.max_seq_len);
+
+        // Get num_new_tokens from new_kv shape: {batch, num_kv_heads, seq_len, head_dim}
+        auto new_kv_shape = info.new_kv->get_shape();
+        std::size_t num_new_tokens = new_kv_shape.lens()[0] * new_kv_shape.lens()[2];
+
+        // Check if parameters already exist
+        auto param_names = m.get_parameter_names();
+
+        if(contains(param_names, "block_table"))
+        {
+            params.block_table = m.get_parameter("block_table");
+        }
+        else
+        {
+            shape block_table_shape{shape::int32_type, {info.batch_size, max_blocks_per_seq}};
+            params.block_table = m.add_parameter("block_table", block_table_shape);
+        }
+
+        if(contains(param_names, "slot_mapping"))
+        {
+            params.slot_mapping = m.get_parameter("slot_mapping");
+        }
+        else
+        {
+            shape slot_mapping_shape{shape::int32_type, {num_new_tokens}};
+            params.slot_mapping = m.add_parameter("slot_mapping", slot_mapping_shape);
+        }
+
+        return params;
+    }
+
+    /// Create scatter operation to write new K/V tokens to paged cache
+    instruction_ref create_scatter_write(module& m,
+                                         instruction_ref insert_point,
+                                         instruction_ref cache_paged,
+                                         instruction_ref slot_mapping,
+                                         instruction_ref new_kv,
+                                         const kv_cache_info& info) const
+    {
+        auto paged_shape = cache_paged->get_shape();
+        auto paged_lens = paged_shape.lens();
+        std::size_t num_blocks = paged_lens[0];
+        std::size_t total_slots = num_blocks * config.tokens_per_block;
+
+        // Flatten the paged cache for scatter: {total_slots, num_kv_heads, head_dim}
+        auto cache_flat = m.insert_instruction(
+            insert_point,
+            make_op("reshape",
+                    {{"dims",
+                      {static_cast<int64_t>(total_slots),
+                       static_cast<int64_t>(info.num_kv_heads),
+                       static_cast<int64_t>(info.head_dim)}}}),
+            cache_paged);
+
+        // Get new_kv shape: {batch, num_kv_heads, seq_len, head_dim}
+        auto new_kv_shape = new_kv->get_shape();
+        auto new_kv_lens = new_kv_shape.lens();
+        std::size_t num_new_tokens = new_kv_lens[0] * new_kv_lens[2]; // batch * seq_len
+
+        // Reshape new_kv for scatter: {num_new_tokens, num_kv_heads, head_dim}
+        // First transpose to {batch, seq_len, num_kv_heads, head_dim}
+        auto new_kv_transposed = m.insert_instruction(
+            insert_point,
+            make_op("transpose", {{"permutation", std::vector<int64_t>{0, 2, 1, 3}}}),
+            new_kv);
+
+        // Then reshape to {num_new_tokens, num_kv_heads, head_dim}
+        auto new_kv_flat = m.insert_instruction(
+            insert_point,
+            make_op("reshape",
+                    {{"dims",
+                      {static_cast<int64_t>(num_new_tokens),
+                       static_cast<int64_t>(info.num_kv_heads),
+                       static_cast<int64_t>(info.head_dim)}}}),
+            new_kv_transposed);
+
+        // Reshape slot_mapping to match updates rank: {num_new_tokens} -> {num_new_tokens, 1, 1}
+        auto slot_mapping_reshaped = m.insert_instruction(
+            insert_point,
+            make_op("reshape",
+                    {{"dims",
+                      {static_cast<int64_t>(num_new_tokens),
+                       static_cast<int64_t>(1),
+                       static_cast<int64_t>(1)}}}),
+            slot_mapping);
+
+        // Broadcast to match updates shape: {num_new_tokens, num_kv_heads, head_dim}
+        auto slot_mapping_broadcast = m.insert_instruction(
+            insert_point,
+            make_op("multibroadcast",
+                    {{"out_lens",
+                      {static_cast<int64_t>(num_new_tokens),
+                       static_cast<int64_t>(info.num_kv_heads),
+                       static_cast<int64_t>(info.head_dim)}}}),
+            slot_mapping_reshaped);
+
+        // Scatter write: updates cache_flat at positions specified by slot_mapping
+        auto scattered = m.insert_instruction(
+            insert_point,
+            make_op("scatter_none", {{"axis", 0}}),
+            cache_flat,
+            slot_mapping_broadcast,
+            new_kv_flat);
+
+        // Reshape back to paged shape: {num_blocks, num_kv_heads, tokens_per_block, head_dim}
+        auto cache_updated = m.insert_instruction(
+            insert_point,
+            make_op("reshape",
+                    {{"dims",
+                      {static_cast<int64_t>(num_blocks),
+                       static_cast<int64_t>(info.num_kv_heads),
+                       static_cast<int64_t>(config.tokens_per_block),
+                       static_cast<int64_t>(info.head_dim)}}}),
+            scattered);
+
+        return cache_updated;
+    }
+
+    /// Create gather operation to read K/V blocks for attention
+    instruction_ref create_gather_read(module& m,
+                                       instruction_ref insert_point,
+                                       instruction_ref cache_paged,
+                                       instruction_ref block_table,
+                                       const kv_cache_info& info) const
+    {
+        auto block_table_shape = block_table->get_shape();
+        auto block_table_lens = block_table_shape.lens();
+
+        std::size_t batch_size = block_table_lens[0];
+        std::size_t max_blocks_per_seq = block_table_lens[1];
+
+        // Flatten block_table for gather: {batch * max_blocks_per_seq}
+        auto block_table_flat = m.insert_instruction(
+            insert_point,
+            make_op("reshape",
+                    {{"dims", {static_cast<int64_t>(batch_size * max_blocks_per_seq)}}}),
+            block_table);
+
+        // Gather blocks: cache_paged[block_table_flat]
+        // Input: {num_blocks, num_kv_heads, tokens_per_block, head_dim}
+        // Output: {batch * max_blocks_per_seq, num_kv_heads, tokens_per_block, head_dim}
+        auto gathered = m.insert_instruction(
+            insert_point,
+            make_op("gather", {{"axis", 0}}),
+            cache_paged,
+            block_table_flat);
+
+        // Reshape to {batch, max_blocks_per_seq, num_kv_heads, tokens_per_block, head_dim}
+        auto gathered_reshaped = m.insert_instruction(
+            insert_point,
+            make_op("reshape",
+                    {{"dims",
+                      {static_cast<int64_t>(batch_size),
+                       static_cast<int64_t>(max_blocks_per_seq),
+                       static_cast<int64_t>(info.num_kv_heads),
+                       static_cast<int64_t>(config.tokens_per_block),
+                       static_cast<int64_t>(info.head_dim)}}}),
+            gathered);
+
+        // Transpose to {batch, num_kv_heads, max_blocks_per_seq, tokens_per_block, head_dim}
+        auto gathered_transposed = m.insert_instruction(
+            insert_point,
+            make_op("transpose", {{"permutation", std::vector<int64_t>{0, 2, 1, 3, 4}}}),
+            gathered_reshaped);
+
+        // Reshape to contiguous view: {batch, num_kv_heads, max_seq_len, head_dim}
+        std::size_t max_seq_from_blocks = max_blocks_per_seq * config.tokens_per_block;
+        auto contiguous_view = m.insert_instruction(
+            insert_point,
+            make_op("reshape",
+                    {{"dims",
+                      {static_cast<int64_t>(batch_size),
+                       static_cast<int64_t>(info.num_kv_heads),
+                       static_cast<int64_t>(max_seq_from_blocks),
+                       static_cast<int64_t>(info.head_dim)}}}),
+            gathered_transposed);
+
+        return contiguous_view;
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto& m = mpm.get_module();
+        auto concat_ins = r.instructions["concat_kv"];
+
+        // Skip if already processed (we process each concat independently)
+        if(processed_concats.count(concat_ins) > 0)
+            return;
+
+        // Extract info from this concat_past_present
+        auto info_opt = extract_kv_info(concat_ins);
+        if(!info_opt)
+            return;
+
+        auto info = *info_opt;
+
+        // Mark as processed
+        processed_concats.insert(concat_ins);
+
+        // Get or create control parameters (shared across all concat ops)
+        auto ctrl_params = get_control_params(m, info);
+
+        // Reshape past cache to paged format (insert before concat_ins)
+        auto cache_paged = reshape_to_paged(m, info.past_kv_param, concat_ins, info);
+
+        // Create scatter to write new tokens (insert before concat_ins)
+        auto cache_updated = create_scatter_write(
+            m, concat_ins, cache_paged, ctrl_params.slot_mapping, info.new_kv, info);
+
+        // Create gather to read contiguous view (insert before concat_ins)
+        auto gathered = create_gather_read(
+            m, concat_ins, cache_updated, ctrl_params.block_table, info);
+
+        // Replace concat_past_present with gathered result
+        m.replace_instruction(concat_ins, gathered);
+    }
+};
+
+/// Paged attention with combined KV cache format (dimension 2 for K/V separation)
+/// This format is compatible with external KV cache manager APIs.
+/// 
+/// Cache shapes:
+///   - Combined KV cache: {2, num_blocks, tokens_per_block, num_kv_heads, head_dim}
+///                         ^-- 0 = Key blocks, 1 = Value blocks
+///   - Block table: {batch_size, 2, max_blocks_per_seq}
+///                               ^-- 0 = K block indices, 1 = V block indices
+///
+/// This pass matches pairs of concat_past_present (K and V) and transforms them
+/// to use a single combined paged cache with scatter/gather operations.
+struct find_paged_attention_combined
+{
+    paged_attention_config config;
+    mutable std::unordered_set<instruction_ref> processed_concats;
+
+    auto matcher() const
+    {
+        // Match concat_past_present directly - we'll pair K and V in apply
+        return match::name("concat_past_present").bind("concat_kv");
+    }
+
+    std::size_t calculate_num_blocks(std::size_t max_seq_len) const
+    {
+        return (max_seq_len + config.tokens_per_block - 1) / config.tokens_per_block;
+    }
+
+    /// KV cache info for a single concat_past_present
+    struct kv_cache_info
+    {
+        instruction_ref concat_ins;
+        instruction_ref past_kv_param;
+        instruction_ref new_kv;
+        instruction_ref seqlens;
+        std::size_t num_kv_heads;
+        std::size_t max_seq_len;
+        std::size_t head_dim;
+        std::size_t batch_size;
+    };
+
+    /// Combined KV pair info
+    struct kv_pair_info
+    {
+        kv_cache_info k_info;
+        kv_cache_info v_info;
+    };
+
+    std::optional<kv_cache_info> extract_kv_info(instruction_ref concat_ins) const
+    {
+        kv_cache_info info{};
+        info.concat_ins = concat_ins;
+
+        auto inputs = concat_ins->inputs();
+        if(inputs.size() != 3)
+            return std::nullopt;
+
+        info.new_kv        = inputs[0];
+        info.seqlens       = inputs[1];
+        info.past_kv_param = inputs[2];
+
+        auto past_shape = info.past_kv_param->get_shape();
+        auto past_lens  = past_shape.lens();
+
+        if(past_lens.size() != 4)
+            return std::nullopt;
+
+        info.batch_size   = past_lens[0];
+        info.num_kv_heads = past_lens[1];
+        info.max_seq_len  = past_lens[2];
+        info.head_dim     = past_lens[3];
+
+        return info;
+    }
+
+    /// Find the paired concat_past_present for V given K's concat
+    /// Returns nullopt if no valid pair found
+    std::optional<instruction_ref> find_paired_concat(module& m, instruction_ref k_concat) const
+    {
+        // Look for another concat_past_present that shares the same seqlens input
+        auto k_seqlens = k_concat->inputs()[1];
+        
+        for(auto ins : iterator_for(m))
+        {
+            if(ins->name() != "concat_past_present")
+                continue;
+            if(ins == k_concat)
+                continue;
+            if(processed_concats.count(ins) > 0)
+                continue;
+            
+            // Check if they share the same seqlens
+            if(ins->inputs().size() == 3 and ins->inputs()[1] == k_seqlens)
+            {
+                return ins;
+            }
+        }
+        return std::nullopt;
+    }
+
+    /// Control parameters for combined KV cache
+    /// Block table shape: {batch_size, 2, max_blocks_per_seq}
+    ///                                 ^-- 0 = K indices, 1 = V indices
+    struct control_params_combined
+    {
+        instruction_ref block_table;   // {batch, 2, max_blocks}
+        instruction_ref slot_mapping;  // {num_new_tokens}
+    };
+
+    control_params_combined get_control_params(module& m, const kv_cache_info& info) const
+    {
+        control_params_combined params{};
+        std::size_t max_blocks_per_seq = calculate_num_blocks(info.max_seq_len);
+
+        auto new_kv_shape     = info.new_kv->get_shape();
+        std::size_t num_new_tokens = new_kv_shape.lens()[0] * new_kv_shape.lens()[2];
+
+        auto param_names = m.get_parameter_names();
+
+        if(contains(param_names, "block_table"))
+        {
+            params.block_table = m.get_parameter("block_table");
+        }
+        else
+        {
+            // Shape: {batch_size, 2, max_blocks_per_seq}
+            // The dimension of 2 separates K and V block indices
+            shape block_table_shape{shape::int32_type,
+                                    {info.batch_size, 2, max_blocks_per_seq}};
+            params.block_table = m.add_parameter("block_table", block_table_shape);
+        }
+
+        if(contains(param_names, "slot_mapping"))
+        {
+            params.slot_mapping = m.get_parameter("slot_mapping");
+        }
+        else
+        {
+            shape slot_mapping_shape{shape::int32_type, {num_new_tokens}};
+            params.slot_mapping = m.add_parameter("slot_mapping", slot_mapping_shape);
+        }
+
+        return params;
+    }
+
+    /// Reshape separate K and V past caches to combined paged format
+    /// Input K: {batch, num_kv_heads, max_seq_len, head_dim}
+    /// Input V: {batch, num_kv_heads, max_seq_len, head_dim}
+    /// Output: {2, num_blocks, tokens_per_block, num_kv_heads, head_dim}
+    ///
+    /// The transformation requires both reshape AND transpose because:
+    /// - Input layout: [batch, heads, seq, dim] - all seq positions per head are contiguous
+    /// - Output layout: [batch, blocks, tokens, heads, dim] - enables contiguous seq when flattened
+    /// 
+    /// Steps:
+    /// 1. Reshape: {batch, heads, seq, dim} -> {batch, heads, blocks, tokens_per_block, dim}
+    /// 2. Transpose: {batch, heads, blocks, tokens, dim} -> {batch, blocks, tokens, heads, dim}
+    instruction_ref reshape_to_combined_paged(module& m,
+                                              instruction_ref past_k,
+                                              instruction_ref past_v,
+                                              instruction_ref insert_point,
+                                              const kv_cache_info& info) const
+    {
+        std::size_t max_blocks_per_seq = calculate_num_blocks(info.max_seq_len);
+        std::size_t total_blocks       = info.batch_size * max_blocks_per_seq;
+
+        // Step 1: Reshape K from {batch, heads, seq, dim} to {batch, heads, blocks, tokens_per_block, dim}
+        // This splits the sequence dimension into blocks and tokens_per_block
+        auto k_reshaped = m.insert_instruction(
+            insert_point,
+            make_op("reshape",
+                    {{"dims",
+                      {static_cast<int64_t>(info.batch_size),
+                       static_cast<int64_t>(info.num_kv_heads),
+                       static_cast<int64_t>(max_blocks_per_seq),
+                       static_cast<int64_t>(config.tokens_per_block),
+                       static_cast<int64_t>(info.head_dim)}}}),
+            past_k);
+
+        // Step 2: Transpose K from {batch, heads, blocks, tokens, dim} to {batch, blocks, tokens, heads, dim}
+        // Permutation {0, 2, 3, 1, 4} moves heads after tokens so that flattening blocks*tokens gives seq
+        auto k_transposed = m.insert_instruction(
+            insert_point,
+            make_op("transpose", {{"permutation", std::vector<int64_t>{0, 2, 3, 1, 4}}}),
+            k_reshaped);
+
+        // Reshape to flatten batch into blocks: {1, total_blocks, tokens_per_block, heads, dim}
+        auto k_paged = m.insert_instruction(
+            insert_point,
+            make_op("reshape",
+                    {{"dims",
+                      {static_cast<int64_t>(1),
+                       static_cast<int64_t>(total_blocks),
+                       static_cast<int64_t>(config.tokens_per_block),
+                       static_cast<int64_t>(info.num_kv_heads),
+                       static_cast<int64_t>(info.head_dim)}}}),
+            k_transposed);
+
+        // Repeat for V
+        auto v_reshaped = m.insert_instruction(
+            insert_point,
+            make_op("reshape",
+                    {{"dims",
+                      {static_cast<int64_t>(info.batch_size),
+                       static_cast<int64_t>(info.num_kv_heads),
+                       static_cast<int64_t>(max_blocks_per_seq),
+                       static_cast<int64_t>(config.tokens_per_block),
+                       static_cast<int64_t>(info.head_dim)}}}),
+            past_v);
+
+        auto v_transposed = m.insert_instruction(
+            insert_point,
+            make_op("transpose", {{"permutation", std::vector<int64_t>{0, 2, 3, 1, 4}}}),
+            v_reshaped);
+
+        auto v_paged = m.insert_instruction(
+            insert_point,
+            make_op("reshape",
+                    {{"dims",
+                      {static_cast<int64_t>(1),
+                       static_cast<int64_t>(total_blocks),
+                       static_cast<int64_t>(config.tokens_per_block),
+                       static_cast<int64_t>(info.num_kv_heads),
+                       static_cast<int64_t>(info.head_dim)}}}),
+            v_transposed);
+
+        // Concatenate along dimension 0 to get {2, blocks, tokens, heads, dim}
+        auto kv_combined = m.insert_instruction(
+            insert_point, make_op("concat", {{"axis", 0}}), k_paged, v_paged);
+
+        return kv_combined;
+    }
+
+    /// Create scatter write for combined KV cache
+    /// Writes new K and V tokens to their respective slots in the combined cache
+    instruction_ref create_scatter_write_combined(module& m,
+                                                  instruction_ref insert_point,
+                                                  instruction_ref cache_combined,
+                                                  instruction_ref slot_mapping,
+                                                  instruction_ref new_k,
+                                                  instruction_ref new_v,
+                                                  const kv_cache_info& info) const
+    {
+        auto paged_shape       = cache_combined->get_shape();
+        auto paged_lens        = paged_shape.lens();
+        std::size_t num_blocks = paged_lens[1];
+        std::size_t total_slots = num_blocks * config.tokens_per_block;
+
+        // Flatten combined cache for scatter: {2, total_slots, num_kv_heads, head_dim}
+        auto cache_flat = m.insert_instruction(
+            insert_point,
+            make_op("reshape",
+                    {{"dims",
+                      {static_cast<int64_t>(2),
+                       static_cast<int64_t>(total_slots),
+                       static_cast<int64_t>(info.num_kv_heads),
+                       static_cast<int64_t>(info.head_dim)}}}),
+            cache_combined);
+
+        // Slice to get K cache: {1, total_slots, num_kv_heads, head_dim}
+        auto k_cache_slice = m.insert_instruction(
+            insert_point,
+            make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}),
+            cache_flat);
+
+        // Slice to get V cache: {1, total_slots, num_kv_heads, head_dim}
+        auto v_cache_slice = m.insert_instruction(
+            insert_point,
+            make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}),
+            cache_flat);
+
+        // Squeeze the leading dimension for scatter
+        auto k_cache_squeezed = m.insert_instruction(
+            insert_point, make_op("squeeze", {{"axes", {0}}}), k_cache_slice);
+
+        auto v_cache_squeezed = m.insert_instruction(
+            insert_point, make_op("squeeze", {{"axes", {0}}}), v_cache_slice);
+
+        // Prepare new K for scatter
+        auto new_k_shape              = new_k->get_shape();
+        auto new_k_lens               = new_k_shape.lens();
+        std::size_t num_new_tokens = new_k_lens[0] * new_k_lens[2];
+
+        // Transpose new K: {batch, heads, seq, dim} -> {batch, seq, heads, dim}
+        auto new_k_transposed = m.insert_instruction(
+            insert_point,
+            make_op("transpose", {{"permutation", std::vector<int64_t>{0, 2, 1, 3}}}),
+            new_k);
+
+        // Reshape to {num_new_tokens, num_kv_heads, head_dim}
+        auto new_k_flat = m.insert_instruction(
+            insert_point,
+            make_op("reshape",
+                    {{"dims",
+                      {static_cast<int64_t>(num_new_tokens),
+                       static_cast<int64_t>(info.num_kv_heads),
+                       static_cast<int64_t>(info.head_dim)}}}),
+            new_k_transposed);
+
+        // Same for new V
+        auto new_v_transposed = m.insert_instruction(
+            insert_point,
+            make_op("transpose", {{"permutation", std::vector<int64_t>{0, 2, 1, 3}}}),
+            new_v);
+
+        auto new_v_flat = m.insert_instruction(
+            insert_point,
+            make_op("reshape",
+                    {{"dims",
+                      {static_cast<int64_t>(num_new_tokens),
+                       static_cast<int64_t>(info.num_kv_heads),
+                       static_cast<int64_t>(info.head_dim)}}}),
+            new_v_transposed);
+
+        // Prepare slot_mapping for broadcast
+        auto slot_mapping_reshaped = m.insert_instruction(
+            insert_point,
+            make_op("reshape",
+                    {{"dims",
+                      {static_cast<int64_t>(num_new_tokens),
+                       static_cast<int64_t>(1),
+                       static_cast<int64_t>(1)}}}),
+            slot_mapping);
+
+        auto slot_mapping_broadcast = m.insert_instruction(
+            insert_point,
+            make_op("multibroadcast",
+                    {{"out_lens",
+                      {static_cast<int64_t>(num_new_tokens),
+                       static_cast<int64_t>(info.num_kv_heads),
+                       static_cast<int64_t>(info.head_dim)}}}),
+            slot_mapping_reshaped);
+
+        // Scatter K
+        auto k_scattered = m.insert_instruction(insert_point,
+                                                make_op("scatter_none", {{"axis", 0}}),
+                                                k_cache_squeezed,
+                                                slot_mapping_broadcast,
+                                                new_k_flat);
+
+        // Scatter V
+        auto v_scattered = m.insert_instruction(insert_point,
+                                                make_op("scatter_none", {{"axis", 0}}),
+                                                v_cache_squeezed,
+                                                slot_mapping_broadcast,
+                                                new_v_flat);
+
+        // Unsqueeze back to add leading dimension
+        auto k_updated = m.insert_instruction(
+            insert_point, make_op("unsqueeze", {{"axes", {0}}}), k_scattered);
+
+        auto v_updated = m.insert_instruction(
+            insert_point, make_op("unsqueeze", {{"axes", {0}}}), v_scattered);
+
+        // Concat back to combined format: {2, total_slots, heads, dim}
+        auto cache_updated_flat =
+            m.insert_instruction(insert_point, make_op("concat", {{"axis", 0}}), k_updated, v_updated);
+
+        // Reshape back to paged shape: {2, num_blocks, tokens_per_block, heads, dim}
+        auto cache_updated = m.insert_instruction(
+            insert_point,
+            make_op("reshape",
+                    {{"dims",
+                      {static_cast<int64_t>(2),
+                       static_cast<int64_t>(num_blocks),
+                       static_cast<int64_t>(config.tokens_per_block),
+                       static_cast<int64_t>(info.num_kv_heads),
+                       static_cast<int64_t>(info.head_dim)}}}),
+            cache_updated_flat);
+
+        return cache_updated;
+    }
+
+    /// Create gather read for combined KV cache
+    /// block_table shape: {batch, 2, max_blocks_per_seq}
+    /// Returns separate K and V views for attention computation
+    struct gathered_kv_result
+    {
+        instruction_ref k_view;  // {batch, num_kv_heads, max_seq_len, head_dim}
+        instruction_ref v_view;  // {batch, num_kv_heads, max_seq_len, head_dim}
+    };
+
+    gathered_kv_result create_gather_read_combined(module& m,
+                                                   instruction_ref insert_point,
+                                                   instruction_ref cache_combined,
+                                                   instruction_ref block_table,
+                                                   const kv_cache_info& info) const
+    {
+        auto block_table_shape           = block_table->get_shape();
+        auto block_table_lens            = block_table_shape.lens();
+        std::size_t batch_size           = block_table_lens[0];
+        std::size_t max_blocks_per_seq = block_table_lens[2];
+
+        // Slice block_table to get K indices: {batch, 1, max_blocks} -> {batch, max_blocks}
+        auto k_block_table_slice = m.insert_instruction(
+            insert_point,
+            make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}),
+            block_table);
+
+        auto k_block_table = m.insert_instruction(
+            insert_point, make_op("squeeze", {{"axes", {1}}}), k_block_table_slice);
+
+        // Slice block_table to get V indices
+        auto v_block_table_slice = m.insert_instruction(
+            insert_point,
+            make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}),
+            block_table);
+
+        auto v_block_table = m.insert_instruction(
+            insert_point, make_op("squeeze", {{"axes", {1}}}), v_block_table_slice);
+
+        // Cache layout from scatter: {2, blocks, tokens, heads, dim}
+        // Slice combined cache to get K cache: {1, blocks, tokens, heads, dim} -> {blocks, tokens, heads, dim}
+        auto k_cache_slice = m.insert_instruction(
+            insert_point,
+            make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}),
+            cache_combined);
+
+        auto k_cache = m.insert_instruction(
+            insert_point, make_op("squeeze", {{"axes", {0}}}), k_cache_slice);
+
+        // Slice to get V cache
+        auto v_cache_slice = m.insert_instruction(
+            insert_point,
+            make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}),
+            cache_combined);
+
+        auto v_cache = m.insert_instruction(
+            insert_point, make_op("squeeze", {{"axes", {0}}}), v_cache_slice);
+
+        // Flatten block tables for gather: {batch * max_blocks}
+        auto k_block_flat = m.insert_instruction(
+            insert_point,
+            make_op("reshape",
+                    {{"dims", {static_cast<int64_t>(batch_size * max_blocks_per_seq)}}}),
+            k_block_table);
+
+        auto v_block_flat = m.insert_instruction(
+            insert_point,
+            make_op("reshape",
+                    {{"dims", {static_cast<int64_t>(batch_size * max_blocks_per_seq)}}}),
+            v_block_table);
+
+        // Gather K blocks along axis 0 (blocks dimension)
+        // k_cache: {blocks, tokens, heads, dim}
+        // Result: {batch * max_blocks, tokens, heads, dim}
+        auto k_gathered =
+            m.insert_instruction(insert_point, make_op("gather", {{"axis", 0}}), k_cache, k_block_flat);
+
+        // Gather V blocks
+        auto v_gathered =
+            m.insert_instruction(insert_point, make_op("gather", {{"axis", 0}}), v_cache, v_block_flat);
+
+        // Reshape K from {batch * max_blocks, tokens, heads, dim} to {batch, max_blocks, tokens, heads, dim}
+        auto k_reshaped = m.insert_instruction(
+            insert_point,
+            make_op("reshape",
+                    {{"dims",
+                      {static_cast<int64_t>(batch_size),
+                       static_cast<int64_t>(max_blocks_per_seq),
+                       static_cast<int64_t>(config.tokens_per_block),
+                       static_cast<int64_t>(info.num_kv_heads),
+                       static_cast<int64_t>(info.head_dim)}}}),
+            k_gathered);
+
+        // Transpose to {batch, heads, max_blocks, tokens, dim}
+        // Permutation {0, 3, 1, 2, 4} moves heads from position 3 to position 1
+        auto k_transposed = m.insert_instruction(
+            insert_point,
+            make_op("transpose", {{"permutation", std::vector<int64_t>{0, 3, 1, 2, 4}}}),
+            k_reshaped);
+
+        // Reshape to {batch, heads, seq, dim} by merging blocks and tokens
+        std::size_t max_seq_from_blocks = max_blocks_per_seq * config.tokens_per_block;
+        auto k_merged                   = m.insert_instruction(
+            insert_point,
+            make_op("reshape",
+                    {{"dims",
+                      {static_cast<int64_t>(batch_size),
+                       static_cast<int64_t>(info.num_kv_heads),
+                       static_cast<int64_t>(max_seq_from_blocks),
+                       static_cast<int64_t>(info.head_dim)}}}),
+            k_transposed);
+
+        // Make contiguous - required for attention kernel
+        auto k_view =
+            m.insert_instruction(insert_point, make_op("contiguous"), k_merged);
+
+        // Same for V
+        // Reshape from {batch * max_blocks, tokens, heads, dim} to {batch, max_blocks, tokens, heads, dim}
+        auto v_reshaped = m.insert_instruction(
+            insert_point,
+            make_op("reshape",
+                    {{"dims",
+                      {static_cast<int64_t>(batch_size),
+                       static_cast<int64_t>(max_blocks_per_seq),
+                       static_cast<int64_t>(config.tokens_per_block),
+                       static_cast<int64_t>(info.num_kv_heads),
+                       static_cast<int64_t>(info.head_dim)}}}),
+            v_gathered);
+
+        // Transpose to {batch, heads, max_blocks, tokens, dim}
+        auto v_transposed = m.insert_instruction(
+            insert_point,
+            make_op("transpose", {{"permutation", std::vector<int64_t>{0, 3, 1, 2, 4}}}),
+            v_reshaped);
+
+        // Reshape to {batch, heads, seq, dim}
+        auto v_merged = m.insert_instruction(
+            insert_point,
+            make_op("reshape",
+                    {{"dims",
+                      {static_cast<int64_t>(batch_size),
+                       static_cast<int64_t>(info.num_kv_heads),
+                       static_cast<int64_t>(max_seq_from_blocks),
+                       static_cast<int64_t>(info.head_dim)}}}),
+            v_transposed);
+
+        // Make contiguous
+        auto v_view =
+            m.insert_instruction(insert_point, make_op("contiguous"), v_merged);
+
+        return {k_view, v_view};
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto& m         = mpm.get_module();
+        auto concat_ins = r.instructions["concat_kv"];
+
+        // Skip if already processed
+        if(processed_concats.count(concat_ins) > 0)
+            return;
+
+        // Extract info from this concat (assume it's K)
+        auto k_info_opt = extract_kv_info(concat_ins);
+        if(not k_info_opt)
+            return;
+
+        auto k_info = *k_info_opt;
+
+        // Find paired V concat
+        auto v_concat_opt = find_paired_concat(m, concat_ins);
+        if(not v_concat_opt)
+        {
+            // No pair found, fall back to separate processing
+            // (or skip - depending on desired behavior)
+            return;
+        }
+
+        auto v_concat   = *v_concat_opt;
+        auto v_info_opt = extract_kv_info(v_concat);
+        if(not v_info_opt)
+            return;
+
+        auto v_info = *v_info_opt;
+
+        // Mark both as processed
+        processed_concats.insert(concat_ins);
+        processed_concats.insert(v_concat);
+
+        // Get control parameters with combined block table format
+        auto ctrl_params = get_control_params(m, k_info);
+
+        // Determine insert point (use the later of the two concats)
+        auto k_pos = std::distance(m.begin(), concat_ins);
+        auto v_pos = std::distance(m.begin(), v_concat);
+        auto insert_point = (k_pos > v_pos) ? concat_ins : v_concat;
+
+        // Reshape K and V to combined paged format
+        auto cache_combined = reshape_to_combined_paged(
+            m, k_info.past_kv_param, v_info.past_kv_param, insert_point, k_info);
+
+        // Scatter write new K and V tokens
+        auto cache_updated = create_scatter_write_combined(m,
+                                                           insert_point,
+                                                           cache_combined,
+                                                           ctrl_params.slot_mapping,
+                                                           k_info.new_kv,
+                                                           v_info.new_kv,
+                                                           k_info);
+
+        // Gather read for attention
+        auto [k_view, v_view] =
+            create_gather_read_combined(m, insert_point, cache_updated, ctrl_params.block_table, k_info);
+
+        // Replace the original concat_past_present instructions
+        m.replace_instruction(concat_ins, k_view);
+        m.replace_instruction(v_concat, v_view);
+    }
+};
+
 } // namespace
 
 void fuse_attention::apply(module_pass_manager& mpm) const
@@ -788,6 +1699,28 @@ void fuse_attention::apply(module_pass_manager& mpm) const
     match::find_matches(mpm, find_kv_cache_attention{.counter = &counter});
     mpm.get_module().sort();
     mpm.run_pass(dead_code_elimination{});
+    
+
+    // Transform to paged attention if enabled
+    // Matches concat_past_present directly, so can run before or after find_kv_cache_attention
+    if(enabled(MIGRAPHX_ENABLE_PAGED_ATTN{}))
+    {
+        if(paged_attn_config.use_combined_kv)
+        {
+            // Use combined KV format with dimension 2 for K/V separation
+            // Compatible with external KV cache manager APIs
+            match::find_matches(mpm, find_paged_attention_combined{.config = paged_attn_config, 
+                                                                   .processed_concats = {}});
+        }
+        else
+        {
+            // Use separate K and V tensors (default MIGraphX behavior)
+            match::find_matches(mpm, find_paged_attention{.config = paged_attn_config, 
+                                                          .processed_concats = {}});
+        }
+        mpm.get_module().sort();
+        mpm.run_pass(dead_code_elimination{});
+    }
 
     // Only fuse plain attention when requested
     if(attn_enabled)

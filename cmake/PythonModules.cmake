@@ -122,24 +122,22 @@ set(PYTHON_DISABLE_VERSIONS "" CACHE STRING "")
 set(_PYTHON_VERSIONS)
 
 if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
-    find_program(PY_EXECUTABLE py.exe PATHS ENV windir REQUIRED)
-    py_exec(COMMAND "${PY_EXECUTABLE}" -0p OUTPUT_VARIABLE _found_pythons)
-    string(REPLACE "\n" ";" _found_pythons ${_found_pythons})
-    foreach(_found_python ${_found_pythons})
-        string(STRIP "${_found_python}" _found_python)
-        # Ignore virtual environments
-        if(NOT _found_python MATCHES "^\\*[ \t]*")
-            string(REGEX REPLACE "^-V:([0-9]*\\.[0-9]*t?)[ \\t]*\\*?[ \\t]*" "\\1;" _tuple ${_found_python})
-            list(GET _tuple 0 _version)
-            # Ignore if the Python version is disabled
-            if(NOT _version IN_LIST PYTHON_DISABLE_VERSIONS)
-                list(GET _tuple 1 _python_executable)
-                find_python(${_version} "${_python_executable}")
-                message(STATUS "Python ${_version} found.")
-                list(APPEND _PYTHON_VERSIONS ${_version})
-            endif()
-        endif()
-    endforeach()
+    set(PYTHON_EXE "$ENV{CONDA_PREFIX}/python.exe")
+    execute_process(COMMAND "${PYTHON_EXE}" --version
+                    OUTPUT_VARIABLE _py_version
+                    OUTPUT_STRIP_TRAILING_WHITESPACE
+                    ERROR_QUIET)
+    string(REGEX REPLACE "^Python ([0-9]+\\.[0-9]+).*" "\\1" _version "${_py_version}")
+
+    if(NOT _version)
+        message(FATAL_ERROR "Cannot determine Python version from ${PYTHON_EXE}")
+    endif()
+
+    if(NOT _version IN_LIST PYTHON_DISABLE_VERSIONS)
+        find_python(${_version} "${PYTHON_EXE}")
+        message(STATUS "Using user-specified Python ${_version}: ${PYTHON_EXE}")
+        list(APPEND _PYTHON_VERSIONS ${_version})
+    endif()
 else()
     set(PYTHON_SEARCH_VERSIONS 3.6 3.7 3.8 3.9 3.10 3.11 3.12 3.13)
     foreach(PYTHON_DISABLE_VERSION ${PYTHON_DISABLE_VERSIONS})

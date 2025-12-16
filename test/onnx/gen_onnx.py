@@ -10377,10 +10377,10 @@ def multinomial_int64_test():
 
 
 @onnx_test()
-def mxfixneuron_even_test():
+def mxqdq_even_test():
     in_tv = helper.make_tensor_value_info('input', TensorProto.FLOAT, [3, 64, 4, 4])
     out_tv = helper.make_tensor_value_info('output', TensorProto.FLOAT, [3, 64, 4, 4])
-    node = onnx.helper.make_node('MXFixNeuron',
+    node = onnx.helper.make_node('MXQuantizeDequantize',
             inputs=['input'],
             axis=1,
             block_size=32,
@@ -10391,10 +10391,10 @@ def mxfixneuron_even_test():
 
 
 @onnx_test()
-def mxfixneuron_odd_test():
+def mxqdq_odd_test():
     in_tv = helper.make_tensor_value_info('input', TensorProto.FLOAT, [71, 5, 5])
     out_tv = helper.make_tensor_value_info('output', TensorProto.FLOAT, [71, 5, 5])
-    node = onnx.helper.make_node('MXFixNeuron',
+    node = onnx.helper.make_node('MXQuantizeDequantize',
             inputs=['input'],
             axis=0,
             block_size=32,
@@ -10405,10 +10405,10 @@ def mxfixneuron_odd_test():
 
 
 @onnx_test()
-def mxfixneuron_small_test():
+def mxqdq_small_test():
     in_tv = helper.make_tensor_value_info('input', TensorProto.FLOAT, [4, 4])
     out_tv = helper.make_tensor_value_info('output', TensorProto.FLOAT, [4, 4])
-    node = onnx.helper.make_node('MXFixNeuron',
+    node = onnx.helper.make_node('MXQuantizeDequantize',
             inputs=['input'],
             axis=1,
             block_size=32,
@@ -13418,6 +13418,43 @@ def resize_with_same_inout_shapes_test():
                                  nearest_mode='floor')
 
     return ([node], [X], [Y], [sizes_tensor])
+
+
+@onnx_test()
+def resize_nhwc_test():
+    # Test resize with NHWC layout (non-standard shape)
+    # Original NCHW shape: [1, 3, 2, 2] 
+    # Transposed to NHWC: [1, 2, 2, 3]
+    scales = np.array([1.0, 2.0, 2.0, 1.0], dtype=np.float32)
+    scale_tensor = helper.make_tensor(name='scales',
+                                      data_type=TensorProto.FLOAT,
+                                      dims=scales.shape,
+                                      vals=scales.flatten().astype(np.float32))
+
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 3, 2, 2])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 3, 4, 4])
+
+    # Transpose NCHW to NHWC
+    trn1 = onnx.helper.make_node('Transpose',
+                                 inputs=['X'],
+                                 outputs=['TX'],
+                                 perm=[0, 2, 3, 1])
+
+    # Resize in NHWC format
+    resize = onnx.helper.make_node('Resize',
+                                   inputs=['TX', '', 'scales'],
+                                   outputs=['TY'],
+                                   coordinate_transformation_mode='asymmetric',
+                                   mode='linear')
+
+    # Transpose back NHWC to NCHW
+    trn2 = onnx.helper.make_node('Transpose',
+                                 inputs=['TY'],
+                                 outputs=['Y'],
+                                 perm=[0, 3, 1, 2])
+
+    return ([trn1, resize, trn2], [X], [Y], [scale_tensor])
+
 
 @onnx_test()
 def reversesequence_4D_test():

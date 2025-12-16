@@ -163,6 +163,9 @@ struct rewrite_reshapes
             if(desc.empty())
                 return;
 
+            if(desc.elements() != elements(dims2))
+                return;
+
             auto cdims         = desc.common_dims();
             auto reshape_input = [&](const auto& ins_to_insert, const auto& gdesc) {
                 return [&](auto input) {

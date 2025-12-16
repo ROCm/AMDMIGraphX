@@ -174,16 +174,19 @@ static auto any_input(Ms... ms)
     return match::any_of[match::inputs()](match::any(ms...).bind("input"));
 }
 
-static bool is_valid_broadcast(const instruction_ref b, const std::vector<size_t>& reduce_axes)
+static bool is_valid_broadcast(const instruction_ref b, std::vector<size_t> reduce_axes)
 {
-    std::vector<size_t> broadcast_axes;
-    auto bstrides = b->get_shape().strides();
+    const auto& blens    = b->get_shape().lens();
+    const auto& bstrides = b->get_shape().strides();
+    reduce_axes.erase(std::remove_if(reduce_axes.begin(),
+                                     reduce_axes.end(),
+                                     [&](size_t axis) { return blens.at(axis) == 1; }),
+                      reduce_axes.end());
 
-    for(size_t i = 0; i < bstrides.size(); ++i)
-    {
-        if(bstrides.at(i) == 0)
-            broadcast_axes.push_back(i);
-    }
+    std::vector<size_t> broadcast_axes;
+    copy_if(range(bstrides.size()), std::back_inserter(broadcast_axes), [&](size_t i) {
+        return bstrides.at(i) == 0 and blens.at(i) != 1;
+    });
 
     return broadcast_axes == reduce_axes;
 }

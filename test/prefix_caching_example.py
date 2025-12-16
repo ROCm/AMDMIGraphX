@@ -186,8 +186,15 @@ def main():
     print("=" * 70)
     
     # Example configuration (adjust to your model)
-    prefix_cached_prefill_model_path = "/data/alibaba_small_llm/migraphx_model/qwen_pc_1500.mxr"
-    no_prefix_cached_prefill_model_path = "/data/alibaba_small_llm/migraphx_model/qwen_pc_3000.mxr"
+    import argparse
+    parser = argparse.ArgumentParser(description="MIGraphX Prefix Caching Demo")
+    parser.add_argument("--prefix_cached_prefill_model_path", type=str, required=False,
+                        help="Path to the compiled MIGraphX prefix-cached prefill model (.mxr)")
+    parser.add_argument("--no_prefix_cached_prefill_model_path", type=str, required=False,
+                        help="Path to the compiled MIGraphX no-prefix-cached prefill model (.mxr)")
+    args = parser.parse_args()
+    prefix_cached_prefill_model_path = args.prefix_cached_prefill_model_path or "/data/alibaba_small_llm/migraphx_model/qwen_pc_1500.mxr"
+    no_prefix_cached_prefill_model_path = args.no_prefix_cached_prefill_model_path or "/data/alibaba_small_llm/migraphx_model/qwen_pc_3000.mxr"
     max_seq_len = 4096
     num_kv_heads = 2
     head_dim = 64

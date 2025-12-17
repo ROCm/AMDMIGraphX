@@ -250,7 +250,7 @@ pipeline {
                                     def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
                                     buildrocmtest(
                                         [flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'",
-                                         compiler: '/usr/bin/clang++-14',
+                                         compiler: '/usr/bin/clang++-17',
                                          gpu_debug: '0'],
                                         docker_opts
                                     )
@@ -276,7 +276,7 @@ pipeline {
                                     def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers} -D_GLIBCXX_DEBUG"
                                     buildrocmtest(
                                         [flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'",
-                                         compiler: '/usr/bin/clang++-14',
+                                         compiler: '/usr/bin/clang++-17',
                                          gpu_debug: '0'],
                                         docker_opts
                                     )

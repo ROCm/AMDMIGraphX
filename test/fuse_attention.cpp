@@ -68,34 +68,31 @@ TEST_CASE(get_num_splits_from_member)
 
 TEST_CASE(calculate_flash_decoding_splits_basic)
 {
-    // Test the calculate_flash_decoding_splits function indirectly through split_dim
-    // Since it's essentially a wrapper around split_dim, we test the behavior
-
-    // Test case 1: sequence_length that can be split evenly
+    // sequence_length that can be split evenly
     // 256 with min_chunk=32 should split to 8 (256/8 = 32)
     std::size_t seq_len1 = 256;
     std::size_t result1  = migraphx::split_dim(seq_len1, 32, 16);
     EXPECT(result1 == 8);
 
-    // Test case 2: sequence_length with max_splits constraint
+    // sequence_length with max_splits constraint
     // 1024 with min_chunk=64 and max_splits=8 should be limited to 8
     std::size_t seq_len2 = 1024;
     std::size_t result2  = migraphx::split_dim(seq_len2, 64, 8);
     EXPECT(result2 == 8);
 
-    // Test case 3: small sequence that shouldn't be split
+    // small sequence that shouldn't be split
     // 32 with min_chunk=32 should return 1 (no split)
     std::size_t seq_len3 = 32;
     std::size_t result3  = migraphx::split_dim(seq_len3, 32, 16);
     EXPECT(result3 == 1);
 
-    // Test case 4: prime number sequence length
+    // prime number sequence length
     // 97 with min_chunk=10 should return 1 (can't split prime)
     std::size_t seq_len4 = 97;
     std::size_t result4  = migraphx::split_dim(seq_len4, 10, 16);
     EXPECT(result4 == 1);
 
-    // Test case 5: typical attention sequence lengths
+    // typical attention sequence lengths
     // 2048 with min_chunk=128 and max_splits=16
     std::size_t seq_len5 = 2048;
     std::size_t result5  = migraphx::split_dim(seq_len5, 128, 16);
@@ -104,31 +101,21 @@ TEST_CASE(calculate_flash_decoding_splits_basic)
 
 TEST_CASE(padding_calculation)
 {
-    // Test padding calculation for flash decoding
-    // When sequence_length is not evenly divisible by actual_groups
-
-    // Test case 1: evenly divisible - no padding needed
-    std::size_t seq_len1 = 256;
-    std::size_t groups1  = 8;
-    // 256 % 8 == 0, so no padding needed
-    std::size_t padding1 = 0;
-    EXPECT(padding1 == 0);
-
-    // Test case 2: not evenly divisible - padding needed
+    // not evenly divisible - padding needed
     std::size_t seq_len2 = 100;
     std::size_t groups2  = 8;
     // 100 % 8 != 0, so padding is needed
     std::size_t padding2 = migraphx::ceil_mul_of(seq_len2, groups2) - seq_len2;
     EXPECT(padding2 == 4); // 104 - 100 = 4
 
-    // Test case 3: sequence length = 127, groups = 16
+    // sequence length = 127, groups = 16
     std::size_t seq_len3 = 127;
     std::size_t groups3  = 16;
     // 127 % 16 != 0, so padding is needed
     std::size_t padding3 = migraphx::ceil_mul_of(seq_len3, groups3) - seq_len3;
     EXPECT(padding3 == 1); // 128 - 127 = 1
 
-    // Test case 4: large sequence with padding
+    // large sequence with padding
     std::size_t seq_len4 = 2049;
     std::size_t groups4  = 32;
     // 2049 % 32 != 0, so padding is needed

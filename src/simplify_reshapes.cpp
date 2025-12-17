@@ -574,6 +574,70 @@ struct find_concat_multibroadcasts
     }
 };
 
+struct find_zero_element_literal
+{
+    auto matcher() const
+    {
+        return match::name("@literal");
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto lit = mr.result;
+        auto s   = lit->get_shape();
+
+        if(s.elements() == 0)
+        {
+            std::cout << "Found zero element literal" << std::endl;
+            lit->debug_print();
+            m.remove_instruction(lit);
+        }
+    }
+};
+
+struct find_concat_zero_element_inputs
+{
+    auto matcher() const
+    {
+        return match::name("concat");
+    }
+ 
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins    = mr.result;
+        auto inputs = ins->inputs();
+        auto outs   = ins->outputs();
+        auto op     = any_cast<op::concat>(ins->get_operator());
+
+        std::vector<instruction_ref> new_inputs;
+
+        // Filter inputs that don't have zero element shapes
+        migraphx::transform_if(
+            inputs.begin(),
+            inputs.end(),
+            std::back_inserter(new_inputs),
+            [&](const auto& in) { return in->get_shape().elements() != 0; },
+            [&](const auto& in) { return in; });
+         
+
+        // Replace old concat with updated concat with updated inputs
+        if(new_inputs.size() == 0)
+        {
+            std::cout << "found instruction to remove" << std::endl;
+            ins->debug_print();
+            m.remove_instruction(ins);
+        }
+        else if (new_inputs.size() < inputs.size())
+        {
+            std::cout << "found instruction to replace" << std::endl;
+            ins->debug_print();
+            auto concat = m.insert_instruction(ins, op, new_inputs);
+            concat->debug_print();
+            m.replace_instruction(ins, concat);
+        }
+    }
+};
+
 struct find_concat_slice
 {
     auto matcher() const
@@ -1422,6 +1486,7 @@ void simplify_reshapes::apply(module& m) const
 {
     m.repeat_while_changes(depth, [&] {
         match::find_matches(m,
+                            find_zero_element_literal{},
                             find_where_op{},
                             find_resize{},
                             find_nop_reshapes{},
@@ -1432,6 +1497,7 @@ void simplify_reshapes::apply(module& m) const
                             find_concat_transpose{},
                             find_concat_reshape{},
                             find_concat_multibroadcasts{},
+                            find_concat_zero_element_inputs{},
                             find_nested_slice{},
                             find_nested_concat{},
                             find_transpose_slice{},

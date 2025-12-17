@@ -23,16 +23,23 @@
  */
 
 #include <op_builder_test_utils.hpp>
-
 #include <migraphx/op/builder/quantize_dequantize_linear.hpp>
 
+#include <migraphx/program.hpp>
+#include <migraphx/register_target.hpp>
+#include <migraphx/verify.hpp>
+
 namespace {
+template <typename x_t = int8_t, typename s_t = float>
 struct test_ctx
 {
+    using x_typ = x_t;
+    using s_typ = s_t;
+
     test_ctx(const std::vector<size_t>& x_lens,
              const std::vector<size_t>& s_lens,
-             migraphx::shape::type_t x_type = migraphx::shape::int8_type,
-             migraphx::shape::type_t s_type = migraphx::shape::float_type)
+             migraphx::shape::type_t x_type = migraphx::shape::get_type<x_typ>::value,
+             migraphx::shape::type_t s_type = migraphx::shape::get_type<s_typ>::value)
         : x_shape{x_type, x_lens},
           s_shape{s_type, s_lens},
           zp_shape{x_type, s_lens},
@@ -52,6 +59,30 @@ struct test_ctx
 
     void expect() { EXPECT(m == make_op_bldr()); }
 
+    void expect_verify(const std::vector<float>& expected, const std::vector<float>& result)
+    {
+        EXPECT(migraphx::verify::verify_rms_range(result, expected));
+    }
+
+    std::vector<float>
+    run_with_data(std::vector<x_typ> x_data, std::vector<s_typ> s_data, std::vector<x_typ> zp_data)
+    {
+        m = make_op_bldr();
+        migraphx::program p{std::move(m)};
+        p.compile(migraphx::make_target("ref"));
+
+        migraphx::parameter_map params;
+        params["x"]  = migraphx::argument(x_shape, x_data.data());
+        params["s"]  = migraphx::argument(s_shape, s_data.data());
+        params["zp"] = migraphx::argument(zp_shape, zp_data.data());
+
+        auto result = p.eval(params).back();
+        std::vector<float> result_data(result.get_shape().elements());
+        result.visit(
+            [&](auto output) { std::copy(output.begin(), output.end(), result_data.begin()); });
+        return result_data;
+    }
+
     migraphx::module m;
     migraphx::shape x_shape;
     migraphx::shape s_shape;
@@ -64,26 +95,33 @@ struct test_ctx
     migraphx::instruction_ref zp;
 };
 
-test_ctx per_tensor_ctx(const std::vector<size_t>& x_lens) { return test_ctx{x_lens, {1}}; }
-
-test_ctx per_axis_ctx(const std::vector<size_t>& x_lens, size_t s_dim, int axis)
+template <typename x_t = int8_t, typename s_t = float>
+test_ctx<x_t, s_t> per_tensor_ctx(const std::vector<size_t>& x_lens)
 {
-    test_ctx ctx{x_lens, {s_dim}};
+    return test_ctx<x_t, s_t>{x_lens, {1}};
+}
+
+template <typename x_t = int8_t, typename s_t = float>
+test_ctx<x_t, s_t> per_axis_ctx(const std::vector<size_t>& x_lens, size_t s_dim, int axis)
+{
+    test_ctx<x_t, s_t> ctx{x_lens, {s_dim}};
     ctx.axis = axis;
     return ctx;
 }
 
-test_ctx per_axis_ctx_valid(const std::vector<size_t>& x_lens, int axis)
+template <typename x_t = int8_t, typename s_t = float>
+test_ctx<x_t, s_t> per_axis_ctx_valid(const std::vector<size_t>& x_lens, int axis)
 {
-    return per_axis_ctx(x_lens, x_lens[axis], axis);
+    return per_axis_ctx<x_t, s_t>(x_lens, x_lens[axis], axis);
 }
 
-test_ctx blocked_ctx(const std::vector<size_t>& x_lens,
-                     const std::vector<size_t>& s_lens,
-                     int axis,
-                     int block_size)
+template <typename x_t = int8_t, typename s_t = float>
+test_ctx<x_t, s_t> blocked_ctx(const std::vector<size_t>& x_lens,
+                               const std::vector<size_t>& s_lens,
+                               int axis,
+                               int block_size)
 {
-    test_ctx ctx{x_lens, s_lens};
+    test_ctx<x_t, s_t> ctx{x_lens, s_lens};
     ctx.axis       = axis;
     ctx.block_size = block_size;
     return ctx;
@@ -216,4 +254,148 @@ TEST_CASE(dequantizelinear_blocked_blocksize_one_op_builder_test)
     m.add_instruction(migraphx::make_op("dequantizelinear"), ctx.x, ctx.s, ctx.zp);
 
     ctx.expect();
+}
+
+// verify tests
+// per-tensor
+TEST_CASE(dequantizelinear_verify_per_tensor_op_builder_test)
+{
+    /*
+    y = (x - zp) * s
+
+    same 's' and 'zp' scalar is applied to each and every element of the input tensor
+
+    E.g.  For x = 64, zp = -128, s = 0.1
+              y = (64 - (-128)) * 0.1 = 19.2
+
+    input:
+    {
+        -128,   -64,    0,
+        64,     127,    0,
+        64,     -64,    -128,
+        32,     -32,    16
+    }
+
+    expected output:
+    {
+        0,      6.4,    12.8,
+        19.2,   25.5,   12.8,
+        19.2,   6.4,    0,
+        16,     9.6,    14.4
+    }
+    */
+
+    auto ctx = per_tensor_ctx({4, 3});
+
+    std::vector<int8_t> x  = {-128, -64, 0, 64, 127, 0, 64, -64, -128, 32, -32, 16};
+    std::vector<float> s   = {0.1f};
+    std::vector<int8_t> zp = {-128};
+
+    std::vector<float> expected_result = {
+        0, 6.4, 12.8, 19.2, 25.5, 12.8, 19.2, 6.4, 0, 16, 9.6, 14.4};
+
+    auto result = ctx.run_with_data(x, s, zp);
+    ctx.expect_verify(expected_result, result);
+}
+
+// per-axis
+TEST_CASE(dequantizelinear_verify_per_axis_op_builder_test)
+{
+    /*
+    different scale and zero-point is applied for the elements of the tensor along the specified
+    axis E.g.: s[1] = 1.0 and zp[1] = 1 will be applied for column 1, so: x = -64, zp = 1 y = (-64 -
+    (1)) * 1.0 = -65
+
+    input scale :       {0.1, 1.0, 10.0}
+    input zero-points:  {-128, 1, 64 }
+    'axis': 1
+
+    input:
+    {
+        -128,   -64,    0,
+        64,     127,    0,
+        64,     -64,    -128,
+        32,     -32,    16
+    }
+
+    expected output:
+    {
+        0,      -65,    -640,
+        19.2,   126,    -640,
+        19.2,   -65,    -1920,
+        16,     -33,    -480
+    }
+    */
+
+    auto ctx = per_axis_ctx_valid({4, 3}, 1);
+
+    std::vector<int8_t> x  = {-128, -64, 0, 64, 127, 0, 64, -64, -128, 32, -32, 16};
+    std::vector<float> s   = {0.1f, 1.0f, 10.0f};
+    std::vector<int8_t> zp = {-128, 1, 64};
+
+    std::vector<float> expected_result = {
+        0, -65, -640, 19.2, 126, -640, 19.2, -65, -1920, 16, -33, -480};
+
+    auto result = ctx.run_with_data(x, s, zp);
+    ctx.expect_verify(expected_result, result);
+}
+
+// blocked
+TEST_CASE(dequantizelinear_verify_blocked_op_builder_test)
+{
+    /*
+    input:
+    {
+        -128,   -64,    0,      64,    127,     0,
+        64,     -64, -128,      32,    -32,     16,
+        -16,    -32,  -64,    -128,      0,     64,
+        127,    0,     64,     -64,    -128,    32
+    }
+
+    the input will be split into blocks along the specified axis:
+    input_sliced:
+    {
+        -128, -64,          0,  64,          127,  0,
+        64,   -64,       -128,  32,          -32, 16,
+        -16,  -32,        -64,-128,            0, 64,
+        127,    0,         64, -64,         -128, 32
+    }
+
+    the scales and zero-points will be applied per block
+    E.g. for block 0 (elements along axis 1: -128, -64),
+         s[0] = 1.0, zp[0] = 1
+         so for x = -64,
+         y = (-64 - (1)) * 1.0 = -65
+
+    or
+    for block 1 in the last row (elements along axis 1: 64, -64),
+         s[3,1] = 10, zp[3,1] = 1
+         so for x = 64,
+         y = (64 - (1)) * 10 = 5.4
+         and for x = -64
+         y = (-64 - (1)) * 10 = -650
+
+    expected output:
+    {
+        -129, -65,      -1, 5.4,        1270, 0,
+        108, -148,    12.8, 3.2,           0, 0,
+        0, 0,            0,   0,           0, 0,
+        0, 0,          630,-650,       -12.8, 3.2
+    }
+    */
+
+    auto ctx = blocked_ctx(/*x_lens*/ {4, 6}, /*s_lens*/ {4, 3}, /*axis*/ 1, /*block_size*/ 2);
+
+    std::vector<int8_t> x = {-128, -64, 0,   64,   127, 0,  64,  -64, -128, 32,  -32,  16,
+                             -16,  -32, -64, -128, 0,   64, 127, 0,   64,   -64, -128, 32};
+    std::vector<float> s  = {
+         1.0f, 0.1f, 10.0f, 2.0f, 0.1f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 10.0f, 0.1f};
+    std::vector<int8_t> zp = {1, 10, 0, 10, 0, 1, 0, 0, 0, 0, 1, 0};
+
+    std::vector<float> expected_result = {-129,  -65, -1, 5.4, 1270, 0,    108,   -148,
+                                          -12.8, 3.2, 0,  0,   0,    0,    0,     0,
+                                          0,     0,   0,  0,   630,  -650, -12.8, 3.2};
+
+    auto result = ctx.run_with_data(x, s, zp);
+    ctx.expect_verify(expected_result, result);
 }

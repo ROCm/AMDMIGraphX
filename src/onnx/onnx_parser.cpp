@@ -24,6 +24,8 @@
 #include <migraphx/onnx/onnx_parser.hpp>
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/fallthrough.hpp>
+#include <migraphx/register_op.hpp>
+#include <migraphx/op/builder/op_builder.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/ranges.hpp>
@@ -206,8 +208,20 @@ onnx_parser::onnx_parser()
 
 value onnx_parser::load_to_value(const std::string& name, const node_info& info) const
 {
-    auto op = make_op(name);
-    auto v  = op.to_value();
+    value v{};
+    if(has_op(name))
+    {
+        v = make_op(name).to_value();
+    }
+    else if(op::builder::has_op_builder(name))
+    {
+        v = op::builder::get_op_builder_value(name);
+    }
+    else
+    {
+        MIGRAPHX_THROW("LOAD_TO_VALUE: Operator|OpBuilder not found: " + name);
+    }
+
     for(auto&& x : v)
     {
         if(info.attributes.count(x.get_key()) == 0)
@@ -672,9 +686,9 @@ static shape parse_tensor_shape(const onnx::TensorProto& t)
 
 literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
 {
-    auto tensor_shape  = parse_tensor_shape(t);
-    const auto& dims   = tensor_shape.lens();
-    auto type          = tensor_shape.type();
+    auto tensor_shape         = parse_tensor_shape(t);
+    const auto& dims          = tensor_shape.lens();
+    auto type                 = tensor_shape.type();
     const auto& external_data = t.external_data();
 
     if(not external_data.empty())

@@ -23,7 +23,6 @@
  */
 
 #include <unordered_map>
-#include <migraphx/ranges.hpp>
 #include <migraphx/op/builder/op_builder.hpp>
 #include <migraphx/op/builder/insert.hpp>
 
@@ -35,15 +34,24 @@ namespace builder {
 // NOLINTNEXTLINE(modernize-return-braced-init-list)
 value get_default_options() { return value("", {}, false); }
 
-static std::unordered_map<std::string, builder_func>& builder_map()
+static std::unordered_map<std::string, op_builder_if>& builder_map()
 {
-    static std::unordered_map<std::string, builder_func> m; // NOLINT
+    static std::unordered_map<std::string, op_builder_if> m; // NOLINT
     return m;
 }
 
-void register_builder(const std::string& name, builder_func f)
+bool has_op_builder(const std::string& name) { return builder_map().count(name) == 1; }
+
+void register_builder(const std::string& name, op_builder_if opb_if)
 {
-    builder_map()[name] = std::move(f);
+    builder_map()[name] = std::move(opb_if);
+}
+
+value get_op_builder_value(const std::string& name)
+{
+    if(not has_op_builder(name))
+        MIGRAPHX_THROW("GET_OP_BUILDER_VALUE: OpBuilder not found: " + name);
+    return builder_map().at(name).to_val_func();
 }
 
 static std::vector<instruction_ref> default_op_builder(module& m,
@@ -61,8 +69,8 @@ std::vector<instruction_ref> insert(const std::string& name,
                                     const std::vector<instruction_ref>& args,
                                     const value& options)
 {
-    return contains(builder_map(), name) ? builder_map()[name](m, ins, args, {}, options)
-                                         : default_op_builder(m, args, name, options);
+    return has_op_builder(name) ? builder_map()[name].bld_func(m, ins, args, {}, options)
+                                : default_op_builder(m, args, name, options);
 }
 
 std::vector<instruction_ref> insert(const std::string& name,
@@ -72,8 +80,8 @@ std::vector<instruction_ref> insert(const std::string& name,
                                     const std::vector<module_ref>& module_args,
                                     const value& options)
 {
-    return contains(builder_map(), name) ? builder_map()[name](m, ins, args, module_args, options)
-                                         : default_op_builder(m, args, name, options);
+    return has_op_builder(name) ? builder_map()[name].bld_func(m, ins, args, module_args, options)
+                                : default_op_builder(m, args, name, options);
 }
 
 std::vector<instruction_ref> add(const std::string& name,
@@ -81,8 +89,8 @@ std::vector<instruction_ref> add(const std::string& name,
                                  const std::vector<instruction_ref>& args,
                                  const value& options)
 {
-    return contains(builder_map(), name) ? builder_map()[name](m, m.end(), args, {}, options)
-                                         : default_op_builder(m, args, name, options);
+    return has_op_builder(name) ? builder_map()[name].bld_func(m, m.end(), args, {}, options)
+                                : default_op_builder(m, args, name, options);
 }
 
 std::vector<instruction_ref> add(const std::string& name,
@@ -91,8 +99,8 @@ std::vector<instruction_ref> add(const std::string& name,
                                  const std::vector<module_ref>& module_args,
                                  const value& options)
 {
-    return contains(builder_map(), name)
-               ? builder_map()[name](m, m.end(), args, module_args, options)
+    return has_op_builder(name)
+               ? builder_map()[name].bld_func(m, m.end(), args, module_args, options)
                : default_op_builder(m, args, name, options);
 }
 

@@ -43,7 +43,15 @@ using builder_func =
                                                const std::vector<module_ref>& module_args,
                                                const value& options)>;
 
-MIGRAPHX_EXPORT void register_builder(const std::string& name, builder_func f);
+using to_value_func = std::function<value()>;
+
+struct op_builder_if
+{
+    builder_func bld_func;
+    to_value_func to_val_func;
+};
+
+MIGRAPHX_EXPORT void register_builder(const std::string& name, op_builder_if opb_if);
 
 template <class T>
 auto invoke_builder(const std::string& /*name*/,
@@ -98,6 +106,12 @@ auto invoke_builder(const std::string& name,
 }
 
 template <class T>
+value get_op_builder_value()
+{
+    return migraphx::to_value(T{});
+}
+
+template <class T>
 void register_builder()
 {
     for(const auto& name : T::names())
@@ -109,7 +123,8 @@ void register_builder()
                              const value& options) {
             return invoke_builder<T>(name, m, ins, args, module_args, options);
         };
-        register_builder(name, std::move(f));
+        to_value_func tvf = []() { return get_op_builder_value<T>(); };
+        register_builder(name, op_builder_if{std::move(f), std::move(tvf)});
     }
 }
 
@@ -131,6 +146,9 @@ struct op_builder : auto_register<register_builder_action, T>
         return {name.substr(name.rfind("::") + 2)};
     }
 };
+
+MIGRAPHX_EXPORT bool has_op_builder(const std::string& name);
+MIGRAPHX_EXPORT value get_op_builder_value(const std::string& name);
 
 } // namespace builder
 } // namespace op

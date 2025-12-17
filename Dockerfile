@@ -62,6 +62,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     hipblas  \
     hipify-clang \
     hiprand-dev \
+    hipsparselt \
     half \
     libssl-dev \
     zlib1g-dev && \

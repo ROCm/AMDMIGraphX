@@ -248,7 +248,7 @@ tile tile::elements(const std::vector<shape>& inputs, std::size_t noutputs)
     auto tile_size = dim1 * dim2;
     result.ntiles  = s.elements() / tile_size;
     // equivalent to dim1 * (dim2 + 1) to avoid bank conflicts
-    auto tile_bytes = (tile_size + dim1) * s.type_size();
+    auto tile_bytes = (tile_size + std::max(dim1, dim2)) * s.type_size();
     if(tile_bytes > 65536)
         return {};
 

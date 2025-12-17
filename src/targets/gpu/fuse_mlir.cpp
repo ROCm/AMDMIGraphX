@@ -50,6 +50,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_GEG_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MLIR);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TRANSB);
 /**
  * @brief Declares a new MIGraphX environment variable which forces to generate
  * only specific MLIR operations.
@@ -241,19 +242,58 @@ get_fusable_input_op_stream(instruction_ref lower_input)
 
 void fuse_input_ops(module_ref mm,
                     const std::vector<instruction_ref>& inputs,
-                    std::unordered_map<instruction_ref, instruction_ref>* map_ins)
+                    std::unordered_map<instruction_ref, instruction_ref>* map_ins,
+                    int transb_input_idx = -1)
 {
     assert(map_ins != nullptr);
     size_t input_cnt = mm->get_parameters().size();
+    int current_idx  = 0;
     for(instruction_ref input : inputs)
     {
+        bool apply_transb = (current_idx == transb_input_idx);
+        current_idx++;
+
         if(contains(*map_ins, input))
             continue;
         auto [upper_input, op_stream] = get_fusable_input_op_stream(input);
+        instruction_ref start_ins; // The instruction to start the chain from
+
         if(not contains(*map_ins, upper_input))
-            (*map_ins)[upper_input] =
-                mm->add_parameter(param_name(input_cnt++), upper_input->get_shape().as_standard());
-        instruction_ref prev_input = (*map_ins)[upper_input];
+        {
+            auto param_shape = upper_input->get_shape().as_standard();
+
+            // For transB: create parameter with SAME shape but COLUMN-MAJOR strides
+            // rocMLIR will recognize column-major strides and use transB internally
+            // Note: Only apply if param won't be broadcast - rocMLIR doesn't detect transB
+            // correctly when there are broadcast strides (stride=0) in the tensor
+            if(apply_transb and param_shape.lens().size() >= 2 and op_stream.empty())
+            {
+                auto lens  = param_shape.lens();
+                auto ndims = lens.size();
+                // Create column-major strides for the last two dimensions
+                std::vector<std::size_t> strides(ndims);
+                strides[ndims - 1] = lens[ndims - 2];  // stride for N = K
+                strides[ndims - 2] = 1;                 // stride for K = 1
+                // Fill in batch dimensions if any
+                std::size_t inner_size = lens[ndims - 2] * lens[ndims - 1];
+                for(int i = static_cast<int>(ndims) - 3; i >= 0; --i)
+                {
+                    strides[i] = inner_size;
+                    inner_size *= lens[i];
+                }
+                param_shape = shape{param_shape.type(), lens, strides};
+            }
+
+            auto param          = mm->add_parameter(param_name(input_cnt++), param_shape);
+            (*map_ins)[upper_input] = param; // Keep param in map_ins for find_inputs
+            start_ins           = param;
+        }
+        else
+        {
+            start_ins = (*map_ins)[upper_input];
+        }
+
+        instruction_ref prev_input = start_ins;
         for(const auto& op : reverse(op_stream))
         {
             prev_input = mm->add_instruction(op, {prev_input});
@@ -262,11 +302,16 @@ void fuse_input_ops(module_ref mm,
     }
 }
 
-std::tuple<instruction_ref, std::vector<instruction_ref>>
+// Returns: {anchor_op, top_inputs, transb_enabled}
+std::tuple<instruction_ref, std::vector<instruction_ref>, bool>
 fuse_input_ops_and_gemm_based_op(module_ref mm,
                                  const std::vector<instruction_ref>& gemm_based_op_inputs,
                                  const operation& gemm_based_op)
 {
+    // Check if we should force transB for dot operations
+    bool force_transb = enabled(MIGRAPHX_MLIR_TRANSB{}) and
+                        (gemm_based_op.name() == "dot" or gemm_based_op.name() == "quant_dot");
+
     std::vector<instruction_ref> top_inputs;
     std::vector<instruction_ref> imm_inputs;
     size_t input_cnt = 0;
@@ -274,8 +319,34 @@ fuse_input_ops_and_gemm_based_op(module_ref mm,
     {
         auto [upper_input, op_stream] = get_fusable_input_op_stream(input);
         top_inputs.push_back(upper_input);
+
+        auto param_shape = upper_input->get_shape().as_standard();
+
+        // For the B input (index 1) when force_transb is enabled:
+        // Create parameter with SAME shape but COLUMN-MAJOR strides
+        // rocMLIR will recognize column-major strides and use transB internally
+        bool is_b_input = (input_cnt == 1) and force_transb;
+        if(is_b_input and param_shape.lens().size() >= 2)
+        {
+            auto lens    = param_shape.lens();
+            auto ndims   = lens.size();
+            // Create column-major strides for the last two dimensions
+            std::vector<std::size_t> strides(ndims);
+            strides[ndims - 1] = lens[ndims - 2];  // stride for N = K
+            strides[ndims - 2] = 1;                 // stride for K = 1
+            // Fill in batch dimensions if any
+            std::size_t inner_size = lens[ndims - 2] * lens[ndims - 1];
+            for(int i = static_cast<int>(ndims) - 3; i >= 0; --i)
+            {
+                strides[i] = inner_size;
+                inner_size *= lens[i];
+            }
+            param_shape = shape{param_shape.type(), lens, strides};
+        }
+
         instruction_ref prev_input =
-            mm->add_parameter(param_name(input_cnt++, "y"), upper_input->get_shape().as_standard());
+            mm->add_parameter(param_name(input_cnt++, "y"), param_shape);
+
         for(const auto& op : reverse(op_stream))
         {
             prev_input = mm->add_instruction(op, {prev_input});
@@ -283,7 +354,7 @@ fuse_input_ops_and_gemm_based_op(module_ref mm,
         imm_inputs.push_back(prev_input);
     }
     instruction_ref new_gemm_based_op = mm->add_instruction(gemm_based_op, imm_inputs);
-    return {new_gemm_based_op, top_inputs};
+    return {new_gemm_based_op, top_inputs, force_transb};
 }
 
 enum class mlir_mode
@@ -724,7 +795,15 @@ struct find_mlir_fused_ops
         std::unordered_map<instruction_ref, instruction_ref> map_ins;
         module_ref mm = mpm.create_module("mlir_" + pm->name());
         mm->set_bypass();
-        fuse_input_ops(mm, gemm_based_op->inputs(), &map_ins);
+
+        // Determine transB index for dot operations
+        int transb_idx = -1;
+        if(enabled(MIGRAPHX_MLIR_TRANSB{}) and
+           (gemm_based_op->name() == "dot" or gemm_based_op->name() == "quant_dot"))
+        {
+            transb_idx = 1; // B input is at index 1
+        }
+        fuse_input_ops(mm, gemm_based_op->inputs(), &map_ins, transb_idx);
 
         bool gemm_has_multi_outs = gemm_based_op->outputs().size() > 1;
         std::vector<instruction_ref> inss_to_insert;
@@ -747,6 +826,10 @@ struct find_mlir_fused_ops
         mm->add_return(rins);
 
         auto inputs    = find_inputs(map_ins, &mpm.get_module(), mm);
+
+        // For transB: no outer transformation needed since we're passing column-major strides
+        // directly to the MLIR parameter via fuse_input_ops
+
         auto fused_ins = mpm.get_module().insert_instruction(
             pw_ins, mlir_op{gemm_based_op->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
         if(gemm_has_multi_outs)
@@ -853,7 +936,15 @@ struct find_mlir_fused_geg_ops
         module_ref mm =
             mpm.create_module("mlir_" + elemwise_ins->module_inputs().front()->name() + "_geg");
         mm->set_bypass();
-        fuse_input_ops(mm, first_gemm_ins->inputs(), &map_ins);
+
+        // Determine transB index for first GEMM
+        int first_gemm_transb_idx = -1;
+        if(enabled(MIGRAPHX_MLIR_TRANSB{}) and
+           (first_gemm_ins->name() == "dot" or first_gemm_ins->name() == "quant_dot"))
+        {
+            first_gemm_transb_idx = 1;
+        }
+        fuse_input_ops(mm, first_gemm_ins->inputs(), &map_ins, first_gemm_transb_idx);
 
         // need to track multi-user scenarios for both intermediates
         bool first_gemm_has_multi_outs = first_gemm_ins->outputs().size() > 1;
@@ -885,7 +976,14 @@ struct find_mlir_fused_geg_ops
         map_ins[elemwise_ins] = elemwise_rins.front();
 
         // fuse external inputs for the second gemm
-        fuse_input_ops(mm, second_gemm_inputs, &map_ins);
+        // Determine transB index for second GEMM
+        int second_gemm_transb_idx = -1;
+        if(enabled(MIGRAPHX_MLIR_TRANSB{}) and
+           (second_gemm_ins->name() == "dot" or second_gemm_ins->name() == "quant_dot"))
+        {
+            second_gemm_transb_idx = 1;
+        }
+        fuse_input_ops(mm, second_gemm_inputs, &map_ins, second_gemm_transb_idx);
 
         // add the second gemm to the new module
         std::vector<instruction_ref> second_gemm_mapped_inputs;
@@ -990,9 +1088,14 @@ struct find_mlir_standalone_op
             module_name = mpm.get_module().name() + ":" + module_name;
         module_ref mm = mpm.create_module(module_name);
         mm->set_bypass();
-        auto [anchor_op, top_inputs] = fuse_input_ops_and_gemm_based_op(
+        auto [anchor_op, top_inputs, force_transb] = fuse_input_ops_and_gemm_based_op(
             mm, gemm_based_op->inputs(), gemm_based_op->get_operator());
         mm->add_return({anchor_op});
+
+        // For transB: no outer transformation needed since we're passing column-major strides
+        // directly to the MLIR parameter. The mlir_op will handle the stride mismatch.
+        (void)force_transb; // Suppress unused variable warning
+
         mpm.get_module().replace_instruction(gemm_based_op,
                                              mlir_op{gemm_based_op->get_operator()},
                                              mlir_contiguous(mpm, top_inputs),

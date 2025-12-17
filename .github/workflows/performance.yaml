@@ -61,6 +61,8 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v4.2.2
+        with:
+          ref: ${{ github.head_ref || github.ref }}
       - name: read_config
         id: read_config
         run: |

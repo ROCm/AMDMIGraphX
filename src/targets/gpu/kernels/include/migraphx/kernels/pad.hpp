@@ -41,7 +41,7 @@ struct pad_reflect
 {
     constexpr diff_int operator()(diff_int idx, diff_int size) const
     {
-        if(size == 1)
+        if(size <= 1)
             return 0;
 
         auto period = size - 1;

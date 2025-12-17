@@ -656,24 +656,24 @@ struct parse_resize : op_parser<parse_resize>
     }
 
 
-    // Optimized kroneker product of  A ⊗ B with sparsity exploitation
-    // Take in two matricies A and B and return the flattented result of 
+    // Optimized kronecker product of  A ⊗ B with sparsity exploitation
+    // Take in two matrices A and B and return the flattened result of 
     // as (A rows * B rows) x (A cols * B cols)
     //  Optimizations:
     // - Skip computation for near-zero elements in A
     // - Pre-compute non-zero indices in B for efficiency
     // - Use vectorized operations where possible
-    static std::vector<float> kronker_product_optimized(const std::vector<float>& a_mat, const size_t& a_rows, const size_t& a_cols,
-                                                        const std::vector<float>& b_mat, const size_t& b_rows, const size_t& b_cols,
-                                                        const float& tolerance)
+    static std::vector<float> kronecker_product_optimized(const std::vector<float>& a_mat, const size_t& a_rows, const size_t& a_cols,
+                                                          const std::vector<float>& b_mat, const size_t& b_rows, const size_t& b_cols,
+                                                          const float& tolerance)
     {
         auto result_rows = a_rows * b_rows;
-        auto result_cols = a_cols * b_rows;
+        auto result_cols = a_cols * b_cols;
         std::vector<float> result(result_rows * result_cols, 0.0f);
 
         std::vector<std::tuple<size_t, size_t, float>> b_nonzero{};
 
-        // Find nonzero b value
+        // Find nonzero b values
         for (size_t bi = 0; bi < b_rows; ++bi)
         {
             for (size_t bj = 0; bj < b_cols; ++bj)
@@ -684,7 +684,7 @@ struct parse_resize : op_parser<parse_resize>
             }
         }
 
-        // Find nonzero A value
+        // Find nonzero A values and compute kronecker product
         for (size_t ai = 0; ai < a_rows; ++ai)
         {
             for (size_t aj = 0; aj < a_cols; ++aj)
@@ -695,7 +695,7 @@ struct parse_resize : op_parser<parse_resize>
                     auto block_start_row = ai * b_rows;
                     auto block_start_col = aj * b_cols;
 
-                    for(auto& b_tuple: b_nonzero)
+                    for(const auto& b_tuple: b_nonzero)
                     {
                         auto bi    = std::get<0>(b_tuple);
                         auto bj    = std::get<1>(b_tuple);
@@ -703,7 +703,7 @@ struct parse_resize : op_parser<parse_resize>
                         auto result_row = block_start_row + bi;
                         auto result_col = block_start_col + bj;
 
-                        result.at(result_row * result_col + result_col) = a_val * b_val;
+                        result.at(result_row * result_cols + result_col) = a_val * b_val;
                     }
                 }
             }
@@ -712,12 +712,12 @@ struct parse_resize : op_parser<parse_resize>
         return result;
     }
 
-    // Builds the final in Dimension matrix as as series of literal matricies that are multiplied together using the kronker product
-    // This means these can later be const folded to a final matrix product 
+    // Builds the interpolation matrix for spatial dimensions only using kronecker product
+    // For image tensor [N, C, H, W], this builds a matrix for H and W dimensions only
+    // The result is a matrix of shape [H_in*W_in, H_out*W_out] that can be applied to each N*C slice
     static instruction_ref build_n_cubic_interpolation_matrix(const onnx_parser::node_info& info,
                                                               const resize_args& resize)
     {
-    
         auto in_lens   = resize.in_lens;
         auto out_lens  = resize.out_lens;
         auto vec_scale = resize.vec_scale;
@@ -726,114 +726,129 @@ struct parse_resize : op_parser<parse_resize>
         auto  pixel_mode       = resize.get_coord_trans_mode();
         auto cubic_coefficient = resize.get_cubic_coeff();
 
-        // Store data as {rows, cols, data} for each input as we generate the final matrix
+        // Store data as {rows, cols, data} for each spatial dimension
         std::vector<std::tuple<size_t, size_t, std::vector<float>>> matrix_list;
 
-        // Generate matrix per dimension thats used for the scaling
-        size_t dim_index = 0;
-        for (const auto& scale: vec_scale)
+        // Skip first 2 dimensions (batch and channel), only process spatial dimensions
+        // For a 4D tensor [N, C, H, W], we process H and W (indices 2 and 3)
+        size_t spatial_start = std::min(static_cast<size_t>(2), in_lens.size());
+        
+        for (size_t dim_index = spatial_start; dim_index < vec_scale.size(); ++dim_index)
         {
-            std::cout << scale << std::endl;
-            // Perform identity of scale up based on value of input. 
+            auto scale = vec_scale.at(dim_index);
+            auto in_size = in_lens.at(dim_index);
+            auto out_size = out_lens.at(dim_index);
+            
+            // Perform identity if scale is 1.0 (no resize needed for this dimension)
             if (std::abs(scale - 1.0f) < tolerance)
             {
-                auto size = in_lens.at(dim_index);
-                matrix_list.push_back({size, size, gen_identity_matrix(size, size)});
+                matrix_list.push_back({in_size, in_size, gen_identity_matrix(in_size, in_size)});
             }
             else
             {
-                std::cout << "Build scale for matrix:" << scale << std::endl;
-                auto matrix_data = build_cubic_matrix(in_lens.at(dim_index),
-                                                      out_lens.at(dim_index),
+                auto matrix_data = build_cubic_matrix(in_size,
+                                                      out_size,
                                                       scale,
                                                       cubic_coefficient, 
                                                       tolerance, 
                                                       pixel_mode);
-                auto size = in_lens.at(dim_index);
-                matrix_list.push_back({size, size, matrix_data});
+                // Matrix dimensions are (in_size rows, out_size cols) for proper dot product
+                matrix_list.push_back({in_size, out_size, matrix_data});
             }
-            ++dim_index;
         }
 
-        // Work off the precomunted data and optimize out sparsity
+        // Handle case where there are no spatial dimensions to process
+        if (matrix_list.empty())
+        {
+            // Return identity matrix of size 1x1
+            return info.add_literal(migraphx::literal(
+                migraphx::shape{migraphx::shape::float_type, {1, 1}}, 
+                std::vector<float>{1.0f}));
+        }
+
+        // Combine matrices using kronecker product
         auto result_rows = std::get<0>(matrix_list.at(0));
         auto result_cols = std::get<1>(matrix_list.at(0));
         auto result_mat  = std::get<2>(matrix_list.at(0));
 
         float zero_tolerance = 1e-12; // determines our baseline for "zero" or near zero
 
-        for(auto index = 1; index < matrix_list.size(); ++index)
+        for(size_t index = 1; index < matrix_list.size(); ++index)
         {
             auto rows   = std::get<0>(matrix_list.at(index));
             auto cols   = std::get<1>(matrix_list.at(index));
             auto matrix = std::get<2>(matrix_list.at(index));
 
-            result_mat  = kronker_product_optimized(result_mat, result_rows, result_cols,
-                                                      matrix, rows, cols, zero_tolerance);
+            result_mat  = kronecker_product_optimized(result_mat, result_rows, result_cols,
+                                                       matrix, rows, cols, zero_tolerance);
             result_rows *= rows;
             result_cols *= cols;
         }
         
         // Generate a final literal based on the optimized output to return
-        return info.add_literal(migraphx::literal(migraphx::shape{migraphx::shape::float_type, {result_rows, result_cols}}, result_mat));
+        return info.add_literal(migraphx::literal(
+            migraphx::shape{migraphx::shape::float_type, {result_rows, result_cols}}, 
+            result_mat));
     }
 
     static instruction_ref
     reshape_input_for_dot(const onnx_parser::node_info& info, resize_args& resize)
     {
         auto in_lens  = resize.in_s.lens();
-        auto batch    = in_lens.at(0);
-        auto channels = in_lens.at(1);
-        auto count = 0;
-        auto combined_channels = 1;
-
-        // Handle trailing dimensions to get final resize value
-        for (const auto& dim: in_lens)
+        
+        // For image tensor [N, C, H, W], we need to flatten spatial dimensions
+        // and combine batch/channel for proper matrix multiplication
+        // Result shape: [N*C, H*W] to multiply with interpolation matrix [H*W, H_out*W_out]
+        
+        size_t batch_channel = 1;
+        size_t spatial = 1;
+        
+        // First two dimensions are batch and channel (or equivalent)
+        for (size_t i = 0; i < 2 && i < in_lens.size(); ++i)
         {
-            count++;
-            if (count < 2)
-                continue;
-
-            combined_channels *= dim;    
+            batch_channel *= in_lens.at(i);
+        }
+        
+        // Remaining dimensions are spatial
+        for (size_t i = 2; i < in_lens.size(); ++i)
+        {
+            spatial *= in_lens.at(i);
         }
 
-        // reshape input to one-dimension
-        std::vector<int64_t> rsp_lens{static_cast<int64_t>(batch*channels), 
-                                      static_cast<int64_t>(combined_channels)};
+        // reshape input for dot product: [N*C, H*W]
+        std::vector<int64_t> rsp_lens{static_cast<int64_t>(batch_channel), 
+                                      static_cast<int64_t>(spatial)};
         return info.add_instruction(make_op("reshape", {{"dims", rsp_lens}}), resize.x);
     }
 
-    // Cubic interpolation can be done by convolution of a fixed coefficients that are scaled based
-    // on the sampleing (up/down) of the axis using the original image 
-    // 
-    // We generate the standard symmetric kernel used for cubic interpolation which acts as a filter and results in 5 
-    // values that can be used for a 1d convolution across each dimenion we wish to scale.
-    // we First reshape the original input into a 1D layer, and then run a convolution across it using the input kernel
-    // thats been generatd by generate_cubic_conv_kernel and scaled by items via gen_dim_sample_scaling
-    // Since the kernel and sample coefficients can be found at compile time (as vec_scales is constant), the 
-    // mul operand for each will const folded before used in the 1d convolution against the input.
-    // Each convolution happens serially until all dimensions are handled correctly. 
+    // Cubic interpolation using matrix multiplication approach:
+    // 1. Reshape input [N, C, H, W] to [N*C, H*W] (flatten spatial dims, combine batch/channel)
+    // 2. Build interpolation matrix [H_in*W_in, H_out*W_out] using kronecker product of per-dim cubic matrices
+    // 3. Matrix multiply: [N*C, H*W] @ [H*W, H_out*W_out] = [N*C, H_out*W_out]
+    // 4. Reshape result to [N, C, H_out, W_out]
     static instruction_ref handle_cubic_mode(const op_desc& opd,
                                              const onnx_parser::node_info& info,
                                              resize_args& resize)
     {
-        auto in_s      = resize.in_s;
         auto out_lens  = resize.out_lens;
 
-        // out_lens and other variables can't be populated if non-constant (runtime) size
-        // inputs.
+        // out_lens and other variables can't be populated if non-constant (runtime) size inputs
         if(not resize.is_constant_scale_input())
             MIGRAPHX_THROW("PARSE_" + opd.onnx_name +
                            ": cubic mode not supported for non-constant inputs");
 
+        // Build interpolation matrix for spatial dimensions only
         auto interpolation_mat = build_n_cubic_interpolation_matrix(info, resize);
 
+        // Reshape input to [N*C, H*W] for matrix multiplication
         auto rsp = reshape_input_for_dot(info, resize);
 
+        // Apply interpolation: [N*C, H*W] @ [H*W, H_out*W_out] = [N*C, H_out*W_out]
         auto interpolated_output = info.add_instruction(make_op("dot"), rsp, interpolation_mat);
 
-        // return output image to the proper output shape based on the output lengs
-        return info.add_instruction(make_op("reshape", {{"dims", out_lens}}), interpolated_output);
+        // Reshape to final output shape [N, C, H_out, W_out]
+        std::vector<int64_t> out_dims(out_lens.begin(), out_lens.end());
+        return info.add_instruction(make_op("reshape", {{"dims", out_dims}}), interpolated_output);
     }
 
     static void set_resize_attributes(const onnx_parser::node_info& info,

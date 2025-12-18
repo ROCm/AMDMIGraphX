@@ -574,7 +574,7 @@ struct find_concat_multibroadcasts
     }
 };
 
-struct find_zero_element_literal
+/*struct find_zero_element_literal
 {
     auto matcher() const
     {
@@ -593,7 +593,7 @@ struct find_zero_element_literal
             m.remove_instruction(lit);
         }
     }
-};
+}; */
 
 struct find_concat_zero_element_inputs
 {
@@ -1486,7 +1486,7 @@ void simplify_reshapes::apply(module& m) const
 {
     m.repeat_while_changes(depth, [&] {
         match::find_matches(m,
-                            find_zero_element_literal{},
+                            //find_zero_element_literal{},
                             find_where_op{},
                             find_resize{},
                             find_nop_reshapes{},
@@ -1497,9 +1497,9 @@ void simplify_reshapes::apply(module& m) const
                             find_concat_transpose{},
                             find_concat_reshape{},
                             find_concat_multibroadcasts{},
-                            find_concat_zero_element_inputs{},
                             find_nested_slice{},
                             find_nested_concat{},
+                            find_concat_zero_element_inputs{},
                             find_transpose_slice{},
                             find_slice_transpose{},
                             find_unary_shape_transforms{},

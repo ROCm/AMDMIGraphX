@@ -3679,8 +3679,6 @@ TEST_CASE(concat_zero_element_inputs_all_zero)
     {
         auto s1 = migraphx::shape{migraphx::shape::float_type, {2, 0, 3}};
         auto s2 = migraphx::shape{migraphx::shape::float_type, {2, 0, 3}};
-        auto x  = m2.add_parameter("x", s1);
-        auto y  = m2.add_parameter("y", s2);
         // concat should be removed, but we still need a return value
         // The optimization removes the concat, leaving the graph incomplete
         // This test verifies the concat is removed

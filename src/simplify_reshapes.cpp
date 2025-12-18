@@ -574,27 +574,6 @@ struct find_concat_multibroadcasts
     }
 };
 
-/*struct find_zero_element_literal
-{
-    auto matcher() const
-    {
-        return match::name("@literal");
-    }
-
-    void apply(module& m, const match::matcher_result& mr) const
-    {
-        auto lit = mr.result;
-        auto s   = lit->get_shape();
-
-        if(s.elements() == 0)
-        {
-            std::cout << "Found zero element literal" << std::endl;
-            lit->debug_print();
-            m.remove_instruction(lit);
-        }
-    }
-}; */
-
 struct find_concat_zero_element_inputs
 {
     auto matcher() const
@@ -623,16 +602,11 @@ struct find_concat_zero_element_inputs
         // Replace old concat with updated concat with updated inputs
         if(new_inputs.size() == 0)
         {
-            std::cout << "found instruction to remove" << std::endl;
-            ins->debug_print();
             m.remove_instruction(ins);
         }
         else if (new_inputs.size() < inputs.size())
         {
-            std::cout << "found instruction to replace" << std::endl;
-            ins->debug_print();
             auto concat = m.insert_instruction(ins, op, new_inputs);
-            concat->debug_print();
             m.replace_instruction(ins, concat);
         }
     }
@@ -1486,7 +1460,6 @@ void simplify_reshapes::apply(module& m) const
 {
     m.repeat_while_changes(depth, [&] {
         match::find_matches(m,
-                            //find_zero_element_literal{},
                             find_where_op{},
                             find_resize{},
                             find_nop_reshapes{},

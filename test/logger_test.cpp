@@ -24,6 +24,7 @@
 
 #include <migraphx/logger.hpp>
 #include "test.hpp"
+#include <fstream>
 
 TEST_CASE(logger_set_log_level)
 {
@@ -98,7 +99,7 @@ TEST_CASE(logger_function_call_multiple_args)
 
     // Test function call operator with multiple arguments
     migraphx::log::info()("Multiple", " ", "arguments");
-    migraphx::log::error()("Error code: ", 404);
+    migraphx::log::info()("Multiple arguments with different types: ", 42, ", ", "hello");
 }
 
 TEST_CASE(logger_disabled_levels)
@@ -112,10 +113,23 @@ TEST_CASE(logger_disabled_levels)
     EXPECT(not migraphx::log::is_enabled(migraphx::log::severity::debug));
     EXPECT(not migraphx::log::is_enabled(migraphx::log::severity::trace));
 
-    // These should not cause any output or crash
+    // Track messages to verify suppression
+    std::vector<std::string> messages;
+    auto sink_id = migraphx::log::add_sink(
+        [&](migraphx::log::severity, std::string_view msg, migraphx::source_location) {
+            messages.push_back(std::string(msg));
+        },
+        migraphx::log::severity::error);
+
+    // These should not cause any output
     migraphx::log::warn() << "This should be suppressed";
     migraphx::log::info() << "This should be suppressed";
     migraphx::log::debug() << "This should be suppressed";
+
+    // Verify no messages were captured (they were suppressed)
+    EXPECT(messages.empty());
+
+    migraphx::log::remove_sink(sink_id);
 }
 
 TEST_CASE(logger_none_level)
@@ -147,13 +161,23 @@ TEST_CASE(logger_severity_ordering)
            static_cast<int>(migraphx::log::severity::trace));
 }
 
+TEST_CASE(logger_set_severity_default)
+{
+    // set_severity with default ID should change stderr sink (ID 0)
+    migraphx::log::set_severity(migraphx::log::severity::error);
+
+    // Now only ERROR should go to stderr
+    // (This just tests it doesn't crash - actual filtering is internal)
+    migraphx::log::error() << "This message should appear";
+    migraphx::log::info() << "This message should not appear";
+}
+
 TEST_CASE(logger_empty_messages)
 {
     migraphx::log::set_severity(migraphx::log::severity::info);
 
     // Test logging empty messages doesn't crash
     migraphx::log::info() << "";
-    migraphx::log::error()("");
 }
 
 TEST_CASE(logger_special_characters)
@@ -182,19 +206,20 @@ TEST_CASE(logger_conditional_logging)
     if(migraphx::log::is_enabled(migraphx::log::severity::debug))
     {
         // This should not execute
-        migraphx::log::debug() << "Should not appear";
+        migraphx::log::debug() << "This message should not appear";
     }
 
     if(migraphx::log::is_enabled(migraphx::log::severity::info))
     {
         // This should execute
-        migraphx::log::info() << "Should appear";
+        migraphx::log::info() << "This message should appear";
     }
 }
 
 TEST_CASE(logger_custom_sink)
 {
-    migraphx::log::set_severity(migraphx::log::severity::info);
+    // Prevent stderr output
+    migraphx::log::set_severity(migraphx::log::severity::none);
 
     // Track messages received by custom sink
     std::vector<std::string> messages;
@@ -229,7 +254,8 @@ TEST_CASE(logger_custom_sink)
 
 TEST_CASE(logger_sink_level)
 {
-    migraphx::log::set_severity(migraphx::log::severity::trace);
+    // Prevent stderr output
+    migraphx::log::set_severity(migraphx::log::severity::none);
 
     std::vector<std::string> messages;
 
@@ -241,43 +267,32 @@ TEST_CASE(logger_sink_level)
         migraphx::log::severity::error);
 
     // INFO message should not go to this sink
-    migraphx::log::info() << "Info message";
+    migraphx::log::info() << "This message should not appear";
     EXPECT(messages.empty());
 
     // ERROR message should go to this sink
-    migraphx::log::error() << "Error message";
+    migraphx::log::error() << "This message should appear";
     EXPECT(not messages.empty());
-    EXPECT(messages.back() == "Error message");
+    EXPECT(messages.back() == "This message should appear");
 
     // Change sink level to INFO
     messages.clear();
     migraphx::log::set_severity(migraphx::log::severity::info, sink_id);
 
     // Now INFO should work
-    migraphx::log::info() << "Info after level change";
+    migraphx::log::info() << "This second message should appear";
     EXPECT(not messages.empty());
     // cppcheck-suppress containerOutOfBounds
-    EXPECT(messages.back() == "Info after level change");
+    EXPECT(messages.back() ==
+           "This second message should appear"); // suppresion is needed due to false positive
 
     migraphx::log::remove_sink(sink_id);
 }
 
-TEST_CASE(logger_set_severity_default)
+TEST_CASE(logger_file_sink)
 {
-    // set_severity with default ID should change stderr sink (ID 0)
-    migraphx::log::set_severity(migraphx::log::severity::error);
-
-    // Now only ERROR should go to stderr
-    // (This just tests it doesn't crash - actual filtering is internal)
-    migraphx::log::error() << "Error after set_severity";
-
-    // Reset for other tests
-    migraphx::log::set_severity(migraphx::log::severity::info);
-}
-
-TEST_CASE(logger_file_sink_returns_id)
-{
-    migraphx::log::set_severity(migraphx::log::severity::info);
+    // Prevent stderr output
+    migraphx::log::set_severity(migraphx::log::severity::none);
 
     // add_file_logger should return an ID > 0
     auto file_id =
@@ -287,11 +302,60 @@ TEST_CASE(logger_file_sink_returns_id)
     // Log something
     migraphx::log::info() << "File sink test";
 
+    // Log a debug message that should not be written to the file
+    migraphx::log::debug() << "This message should not be written to the file";
+
     // Can modify the file sink level
-    migraphx::log::set_severity(migraphx::log::severity::error, file_id);
+    migraphx::log::set_severity(migraphx::log::severity::debug, file_id);
+
+    // Log a debug message that should be written to the file
+    migraphx::log::debug() << "This message should be written to the file";
+
+    // Verify the file has two messages
+    std::ifstream file("/tmp/migraphx_test_log.txt");
+    std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    EXPECT(content.find("File sink test") != std::string::npos);
+    EXPECT(content.find("This message should be written to the file") != std::string::npos);
+    EXPECT(content.find("This message should not be written to the file") == std::string::npos);
+
+    // Remove the file
+    std::remove("/tmp/migraphx_test_log.txt");
 
     // Can remove the file sink
     migraphx::log::remove_sink(file_id);
+}
+
+TEST_CASE(logger_file_sink_existing_file)
+{
+    // Prevent stderr output
+    migraphx::log::set_severity(migraphx::log::severity::none);
+
+    const char* log_path = "/tmp/migraphx_test_existing_log.txt";
+
+    // Create a file logger and write some content
+    auto file_id1 = migraphx::log::add_file_logger(log_path, migraphx::log::severity::info);
+    EXPECT(file_id1 > 0);
+    migraphx::log::info() << "First message";
+    migraphx::log::remove_sink(file_id1);
+
+    // Add a file logger to the same path (file now exists)
+    auto file_id2 = migraphx::log::add_file_logger(log_path, migraphx::log::severity::info);
+    EXPECT(file_id2 > 0);
+
+    // Log another message
+    migraphx::log::info() << "Second message";
+
+    // Verify the file has two messages
+    std::ifstream file(log_path);
+    std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    EXPECT(content.find("First message") != std::string::npos);
+    EXPECT(content.find("Second message") != std::string::npos);
+
+    // Remove the file
+    std::remove(log_path);
+
+    // Clean up
+    migraphx::log::remove_sink(file_id2);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

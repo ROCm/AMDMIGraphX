@@ -39,6 +39,8 @@ namespace {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_NUM_SPLITS);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_PAGED_ATTN);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TOKENS_PER_BLOCK);
+
 
 std::size_t get_num_splits() { return value_of(MIGRAPHX_FLASH_DECODING_NUM_SPLITS{}, 0); }
 
@@ -1700,6 +1702,10 @@ void fuse_attention::apply(module_pass_manager& mpm) const
     mpm.get_module().sort();
     mpm.run_pass(dead_code_elimination{});
     
+    paged_attention_config paged_attn_config = {
+        .tokens_per_block = value_of(MIGRAPHX_TOKENS_PER_BLOCK{}, 16),
+        .use_combined_kv = true
+    };
 
     // Transform to paged attention if enabled
     // Matches concat_past_present directly, so can run before or after find_kv_cache_attention

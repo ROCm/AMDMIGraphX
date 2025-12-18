@@ -46,7 +46,7 @@ struct paged_attention_config
     ///                   ^-- 0 = Key, 1 = Value
     ///   - Block table shape: {batch_size, 2, max_blocks_per_seq}
     ///                                     ^-- 0 = K pointers, 1 = V pointers
-    /// When false, K and V are processed as separate tensors (default MIGraphX behavior).
+    /// When false, K and V are processed as separate tensors.
     bool use_combined_kv = true;
 };
 
@@ -54,7 +54,7 @@ struct MIGRAPHX_EXPORT fuse_attention
 {
     bool attn_enabled = false;
     std::optional<std::size_t> flash_decoding_num_splits = std::nullopt;
-    paged_attention_config paged_attn_config = {};
+    // paged_attention_config paged_attn_config = {};
 
     std::string name() const { return "fuse_attention"; }
     void apply(module_pass_manager& mpm) const;

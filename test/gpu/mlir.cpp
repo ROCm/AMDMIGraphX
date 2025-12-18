@@ -676,4 +676,197 @@ module {
     EXPECT(verify_mlir(m));
 }
 
+// Test for paged attention MLIR encoding
+// This tests the scatter/gather pattern that is fused with attention
+TEST_CASE(paged_attention_scatter_gather)
+{
+    // Expected MLIR output for paged attention scatter/gather pattern
+    // Note: scatter_none requires indices to have same rank as data/updates
+    std::string mlir_output = R"__migraphx__(
+module {
+  func.func @mlir_multibroadcast_scatter_none_gather(%arg0: !migraphx.shaped<5xsi32, 1>, %arg1: !migraphx.shaped<8x2x16xf16, 32x16x1>, %arg2: !migraphx.shaped<8xsi32, 1>, %arg3: !migraphx.shaped<10x2x16xf16, 32x16x1>) -> !migraphx.shaped<5x2x16xf16, 32x16x1> attributes ${attrs} {
+    %0 = migraphx.multibroadcast %arg2 {out_dyn_dims = [], out_lens = [8, 2, 16]} : <8xsi32, 1> -> <8x2x16xsi32, 1x0x0>
+    %1 = migraphx.scatter_none %arg3, %0, %arg1 {axis = 0 : i64} : <10x2x16xf16, 32x16x1>, <8x2x16xsi32, 1x0x0>, <8x2x16xf16, 32x16x1> -> <10x2x16xf16, 32x16x1>
+    %2 = migraphx.gather %1, %arg0 {axis = 0 : i64} : <10x2x16xf16, 32x16x1>, <5xsi32, 1> -> <5x2x16xf16, 32x16x1>
+    return %2 : !migraphx.shaped<5x2x16xf16, 32x16x1>
+  }
+}
+)__migraphx__";
+
+    // Build the paged attention scatter/gather pattern
+    // This represents: cache -> scatter (write new tokens) -> gather (read blocks)
+    migraphx::module m;
+
+    // Cache: {total_slots, num_kv_heads, head_dim} = {10, 2, 16}
+    auto cache =
+        m.add_parameter("cache", {migraphx::shape::half_type, {10, 2, 16}, {32, 16, 1}});
+
+    // Slot mapping: {seq_len} = {8} - indices for scatter axis 0
+    auto slot_mapping = m.add_parameter("slot_mapping", {migraphx::shape::int32_type, {8}});
+
+    // New tokens to write: {seq_len, num_kv_heads, head_dim} = {8, 2, 16}
+    auto new_tokens =
+        m.add_parameter("new_tokens", {migraphx::shape::half_type, {8, 2, 16}, {32, 16, 1}});
+
+    // Block indices for gather: {max_blocks_per_seq} = {5}
+    auto block_indices = m.add_parameter("block_indices", {migraphx::shape::int32_type, {5}});
+
+    // Broadcast slot_mapping to match updates shape for scatter_none
+    // scatter_none requires indices to have same rank as data and updates
+    auto slot_bc = m.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {8, 2, 16}}}), slot_mapping);
+
+    // Scatter: write new tokens into cache at slot positions
+    auto scattered = m.add_instruction(
+        migraphx::make_op("scatter_none", {{"axis", 0}}), cache, slot_bc, new_tokens);
+
+    // Gather: read blocks from updated cache
+    auto gathered =
+        m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), scattered, block_indices);
+
+    m.add_return({gathered});
+
+    auto s = migraphx::gpu::dump_mlir(m);
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
+    EXPECT(verify_mlir(m));
+}
+
+// Test for full paged attention pattern with dot (attention computation)
+TEST_CASE(paged_attention_with_dot)
+{
+    // Build a simplified paged attention pattern:
+    // Q: {batch, heads, seq, dim}
+    // K_cache: {total_slots, heads, dim} -> scatter -> gather -> K_view
+    // V_cache: {total_slots, heads, dim} -> scatter -> gather -> V_view
+    // Attention: Q @ K^T -> softmax -> @ V
+
+    migraphx::module m;
+
+    // Dimensions
+    const int64_t batch       = 1;
+    const int64_t num_heads   = 2;
+    const int64_t seq_len     = 8;
+    const int64_t head_dim    = 16;
+    const int64_t total_slots = 10;
+    const int64_t num_blocks  = 5;
+
+    // Query: {batch, num_heads, seq_len, head_dim}
+    auto query = m.add_parameter(
+        "query", {migraphx::shape::half_type, {batch, num_heads, seq_len, head_dim}});
+
+    // K cache: {total_slots, num_heads, head_dim}
+    auto k_cache =
+        m.add_parameter("k_cache", {migraphx::shape::half_type, {total_slots, num_heads, head_dim}});
+
+    // V cache: {total_slots, num_heads, head_dim}
+    auto v_cache =
+        m.add_parameter("v_cache", {migraphx::shape::half_type, {total_slots, num_heads, head_dim}});
+
+    // Slot mapping for scatter
+    auto slot_mapping = m.add_parameter("slot_mapping", {migraphx::shape::int32_type, {seq_len}});
+
+    // New K tokens: {seq_len, num_heads, head_dim}
+    auto new_k =
+        m.add_parameter("new_k", {migraphx::shape::half_type, {seq_len, num_heads, head_dim}});
+
+    // New V tokens: {seq_len, num_heads, head_dim}
+    auto new_v =
+        m.add_parameter("new_v", {migraphx::shape::half_type, {seq_len, num_heads, head_dim}});
+
+    // Block indices for gather
+    auto block_indices = m.add_parameter("block_indices", {migraphx::shape::int32_type, {num_blocks}});
+
+    // Broadcast slot_mapping to match updates shape for scatter_none
+    // scatter_none requires indices to have same rank as data and updates
+    auto slot_bc = m.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {seq_len, num_heads, head_dim}}}),
+        slot_mapping);
+
+    // Scatter K: write new K tokens to cache
+    auto k_scattered = m.add_instruction(
+        migraphx::make_op("scatter_none", {{"axis", 0}}), k_cache, slot_bc, new_k);
+
+    // Scatter V: write new V tokens to cache
+    auto v_scattered = m.add_instruction(
+        migraphx::make_op("scatter_none", {{"axis", 0}}), v_cache, slot_bc, new_v);
+
+    // Gather K: read K blocks
+    auto k_gathered =
+        m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), k_scattered, block_indices);
+
+    // Gather V: read V blocks
+    auto v_gathered =
+        m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), v_scattered, block_indices);
+
+    // Reshape gathered K to {batch, num_heads, num_blocks, head_dim}
+    auto k_reshaped = m.add_instruction(
+        migraphx::make_op("reshape", {{"dims", {batch, num_blocks, num_heads, head_dim}}}),
+        k_gathered);
+
+    // Transpose to {batch, num_heads, num_blocks, head_dim}
+    auto k_transposed = m.add_instruction(
+        migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), k_reshaped);
+
+    // Same for V
+    auto v_reshaped = m.add_instruction(
+        migraphx::make_op("reshape", {{"dims", {batch, num_blocks, num_heads, head_dim}}}),
+        v_gathered);
+    auto v_transposed = m.add_instruction(
+        migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), v_reshaped);
+
+    // Transpose K for attention: {batch, heads, dim, seq} for Q @ K^T
+    auto k_t = m.add_instruction(
+        migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), k_transposed);
+
+    // Attention scores: Q @ K^T -> {batch, heads, seq, num_blocks}
+    auto scores = m.add_instruction(migraphx::make_op("dot"), query, k_t);
+
+    // Scale
+    auto scale_val =
+        m.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::half_type, {1}}, {0.25f}});
+    auto scale_bc = m.add_instruction(
+        migraphx::make_op("multibroadcast",
+                          {{"out_lens", {batch, num_heads, seq_len, num_blocks}}}),
+        scale_val);
+    auto scaled = m.add_instruction(migraphx::make_op("mul"), scores, scale_bc);
+
+    // Softmax
+    auto scores_f32 = m.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), scaled);
+    auto max_val = m.add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), scores_f32);
+    auto max_bc  = m.add_instruction(
+        migraphx::make_op("multibroadcast",
+                           {{"out_lens", {batch, num_heads, seq_len, num_blocks}}}),
+        max_val);
+    auto sub     = m.add_instruction(migraphx::make_op("sub"), scores_f32, max_bc);
+    auto exp_val = m.add_instruction(migraphx::make_op("exp"), sub);
+    auto sum_val = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp_val);
+    auto sum_bc  = m.add_instruction(
+        migraphx::make_op("multibroadcast",
+                           {{"out_lens", {batch, num_heads, seq_len, num_blocks}}}),
+        sum_val);
+    auto probs_f32 = m.add_instruction(migraphx::make_op("div"), exp_val, sum_bc);
+    auto probs     = m.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), probs_f32);
+
+    // Attention output: probs @ V
+    auto attn_out = m.add_instruction(migraphx::make_op("dot"), probs, v_transposed);
+
+    m.add_return({attn_out});
+
+    auto s = migraphx::gpu::dump_mlir(m);
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+
+    // Verify the MLIR encoding compiles and produces correct results
+    EXPECT(verify_mlir(m));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

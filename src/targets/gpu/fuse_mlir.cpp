@@ -1022,6 +1022,236 @@ struct find_mlir_kv_cache_attention_op
     }
 };
 
+/**
+ * Fuses paged attention pattern: scatter (K/V write) + gather (K/V read) + kv_cache_attention
+ * into a single paged_attention op.
+ *
+ * Pattern matched (from gqa_compile.txt):
+ *   past_key_values -> reshape -> concat -> transpose -> reshape (combined cache)
+ *   -> slice -> squeeze -> scatter_none (write new K tokens)
+ *   -> unsqueeze -> concat -> reshape (updated cache)
+ *   -> slice -> squeeze -> gather (read K blocks via block_table)
+ *   -> unsqueeze -> transpose -> reshape (K view for attention)
+ *   (same pattern for V)
+ *   -> group[tag=kv_cache_attention](Q, K_view, seqlen, V_view)
+ *
+ * This creates a fused module containing:
+ *   - scatter_none ops for writing new K/V to cache
+ *   - gather ops for reading K/V blocks
+ *   - the attention computation
+ */
+struct find_mlir_paged_attention_op
+{
+    mlir_mode dot_mode = mlir_mode::none;
+
+    // Helper to trace back through reshape/transpose/unsqueeze chain to find gather
+    static instruction_ref find_gather_source(instruction_ref ins)
+    {
+        static const std::unordered_set<std::string> trace_ops = {
+            "reshape", "reshape_lazy", "transpose", "unsqueeze", "squeeze", "contiguous", "slice"};
+
+        instruction_ref current = ins;
+        while(contains(trace_ops, current->name()) and not current->inputs().empty())
+        {
+            current = current->inputs().front();
+        }
+        return current;
+    }
+
+    // Helper to find scatter that feeds into a gather chain
+    static instruction_ref find_scatter_source(instruction_ref gather_ins)
+    {
+        if(gather_ins->name() != "gather")
+            return gather_ins;
+
+        // The data input to gather (inputs[0]) should trace back to scatter
+        auto data_input = gather_ins->inputs().front();
+        static const std::unordered_set<std::string> trace_ops = {
+            "reshape", "reshape_lazy", "squeeze", "slice", "contiguous"};
+
+        instruction_ref current = data_input;
+        while(contains(trace_ops, current->name()) and not current->inputs().empty())
+        {
+            current = current->inputs().front();
+        }
+        return current;
+    }
+
+    // Check if instruction is part of paged attention pattern (has scatter -> gather chain)
+    static bool has_paged_attention_pattern(instruction_ref group)
+    {
+        if(group->inputs().size() < 4)
+            return false;
+
+        // Inputs to kv_cache_attention: [Q, K, seqlen, V]
+        // K is input[1], V is input[3]
+        auto k_input = group->inputs()[1];
+        auto v_input = group->inputs()[3];
+
+        // Trace K back to gather
+        auto k_gather = find_gather_source(k_input);
+        if(k_gather->name() != "gather")
+            return false;
+
+        // Trace V back to gather
+        auto v_gather = find_gather_source(v_input);
+        if(v_gather->name() != "gather")
+            return false;
+
+        // Check if gather sources trace back to scatter
+        auto k_scatter = find_scatter_source(k_gather);
+        auto v_scatter = find_scatter_source(v_gather);
+
+        return k_scatter->name() == "scatter_none" and v_scatter->name() == "scatter_none";
+    }
+
+    auto matcher() const
+    {
+        return match::name("group")(match::has_op_value("tag", "kv_cache_attention"))(
+            match::make_basic_pred_matcher(
+                [](instruction_ref ins) { return has_paged_attention_pattern(ins); }));
+    }
+
+    // Collect all instructions in the scatter -> gather -> attention chain
+    static void collect_paged_attention_instructions(
+        instruction_ref group,
+        std::vector<instruction_ref>& instructions,
+        std::unordered_set<instruction_ref>& visited)
+    {
+        // Trace from group inputs back to scatters, collecting all instructions
+        std::function<void(instruction_ref)> trace_back = [&](instruction_ref ins) {
+            if(contains(visited, ins))
+                return;
+            if(ins->name() == "@param" or ins->name() == "@literal")
+                return;
+
+            visited.insert(ins);
+
+            // Recurse on inputs first (to maintain topological order)
+            for(auto input : ins->inputs())
+            {
+                trace_back(input);
+            }
+
+            instructions.push_back(ins);
+        };
+
+        // Trace K input (input[1])
+        trace_back(group->inputs()[1]);
+        // Trace V input (input[3])
+        trace_back(group->inputs()[3]);
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto group   = r.result;
+        auto* m_attn = group->module_inputs()[0];
+
+        // Create new module for paged attention
+        std::string module_name = "paged_" + m_attn->name();
+        module_ref mm           = mpm.create_module(module_name);
+        mm->set_bypass();
+
+        std::unordered_map<instruction_ref, instruction_ref> map_ins;
+        std::unordered_set<instruction_ref> visited;
+        std::vector<instruction_ref> paged_instructions;
+
+        // Collect all instructions in the paged attention chain
+        collect_paged_attention_instructions(group, paged_instructions, visited);
+
+        // Add parameters for external inputs (past_key_values, slot_mapping, block_table, etc.)
+        std::size_t param_idx = 0;
+        auto add_param_if_needed = [&](instruction_ref ins) {
+            if(contains(map_ins, ins))
+                return;
+            if(ins->name() == "@param")
+            {
+                map_ins[ins] = mm->add_parameter(param_name(param_idx++),
+                                                 ins->get_shape().as_standard());
+            }
+            else if(ins->name() == "@literal")
+            {
+                map_ins[ins] = mm->add_literal(ins->get_literal());
+            }
+        };
+
+        // First pass: add all parameters and literals
+        for(auto ins : paged_instructions)
+        {
+            for(auto input : ins->inputs())
+            {
+                add_param_if_needed(input);
+            }
+        }
+
+        // Also add parameters for group inputs not already covered
+        for(auto input : group->inputs())
+        {
+            auto [upper_input, op_stream] = get_fusable_input_op_stream(input);
+            if(not contains(map_ins, upper_input))
+            {
+                if(upper_input->name() == "@param")
+                {
+                    map_ins[upper_input] =
+                        mm->add_parameter(param_name(param_idx++),
+                                          upper_input->get_shape().as_standard());
+                }
+                else if(upper_input->name() == "@literal")
+                {
+                    map_ins[upper_input] = mm->add_literal(upper_input->get_literal());
+                }
+            }
+            // Apply op stream
+            instruction_ref prev_input = map_ins[upper_input];
+            for(const auto& op : reverse(op_stream))
+            {
+                prev_input = mm->add_instruction(op, {prev_input});
+            }
+            map_ins[input] = prev_input;
+        }
+
+        // Second pass: add all scatter/gather/reshape instructions
+        for(auto ins : paged_instructions)
+        {
+            if(contains(map_ins, ins))
+                continue;
+
+            std::vector<instruction_ref> new_inputs;
+            for(auto input : ins->inputs())
+            {
+                if(not contains(map_ins, input))
+                {
+                    // Handle any remaining parameters
+                    add_param_if_needed(input);
+                }
+                new_inputs.push_back(map_ins.at(input));
+            }
+
+            map_ins[ins] = mm->add_instruction(ins->get_operator(), new_inputs);
+        }
+
+        // Fuse the attention module
+        std::vector<instruction_ref> attn_inputs;
+        for(auto input : group->inputs())
+        {
+            attn_inputs.push_back(map_ins.at(input));
+        }
+
+        auto attn_outs = mm->fuse(*m_attn, attn_inputs, &map_ins);
+        mm->add_return(attn_outs);
+
+        // Find all external inputs to the fused module
+        auto new_inputs = find_inputs(map_ins, &mpm.get_module(), mm);
+
+        // Create the paged_attention operation with a custom tag
+        auto paged_op = make_op("group", {{"tag", "paged_attention"}});
+
+        // Replace original group with fused paged attention
+        mpm.get_module().replace_instruction(
+            group, mlir_op{paged_op}, mlir_contiguous(mpm, new_inputs), {mm});
+    }
+};
+
 struct find_mlir_attention_op
 {
     auto matcher() const
@@ -1491,6 +1721,11 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     match::find_matches(mpm, find_channel_slice_convolution{});
     mpm.run_pass(dead_code_elimination{});
 
+    // Try paged attention fusion first (includes scatter/gather + attention)
+    match::find_matches(mpm, find_mlir_paged_attention_op{mlir_mode::all});
+    mpm.run_pass(dead_code_elimination{});
+
+    // Fall back to regular kv_cache_attention for non-paged patterns
     match::find_matches(mpm, find_mlir_kv_cache_attention_op{mlir_mode::all});
     mpm.run_pass(dead_code_elimination{});
 

@@ -284,7 +284,7 @@ TEST_CASE(logger_sink_level)
     EXPECT(not messages.empty());
     // cppcheck-suppress containerOutOfBounds
     EXPECT(messages.back() ==
-           "This second message should appear"); // suppresion is needed due to false positive
+           "This second message should appear"); // suppression is needed due to false positive
 
     migraphx::log::remove_sink(sink_id);
 }

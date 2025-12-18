@@ -32,6 +32,11 @@
 #include <optional>
 #include <vector>
 
+#ifdef _WIN32
+// cppcheck-suppress [definePrefix, defineUpperCase]
+#define localtime_r(time_t, tm) localtime_s(tm, time_t)
+#endif
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace log {

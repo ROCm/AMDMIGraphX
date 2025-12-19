@@ -55,13 +55,13 @@ Model performance tunable variables change the compilation behavior of a model. 
 
       | Default: ``rocblas`` on gfx90a; ``hipblaslt`` on all other architectures.
 
-  * - | ``MIGRAPHX_DISABLE_LAYERNORM_FUSION``
-      | When set, layernorm fusion isn't used.
+  * - | ``MIGRAPHX_ENABLE_LAYERNORM_FUSION``
+      | When set, layernorm fusion is used.
       
-    - | ``1``: Layernorm fusion won't be used.
+    - | ``1``: Layernorm fusion will be used.
       | ``0``: Returns to default behavior.
 
-      | Default: Layernorm fusion is used.
+      | Default: Layernorm fusion is not used.
   
   * - | ``MIGRAPHX_DISABLE_MIOPEN_POOLING``   
       | When set, MIGraphX pooling is used instead of MIOpen pooling.
@@ -120,6 +120,14 @@ Model performance tunable variables change the compilation behavior of a model. 
 
       | Default: No MLIR tuning is used.
 
+  * - | ``MIGRAPHX_ENABLE_GEMM_TUNING``
+      | When set, exhaustive tuning for GEMM operations is used to find the optimal configuration, even when ``--exhaustive-tune`` option isn't set.
+
+    - | ``1``: Exhaustive tuning for GEMM is used.
+      | ``0``: Returns to default behavior.
+
+      | Default: Exhaustive GEMM tuning isn't used.
+
   * - | ``MIGRAPHX_ENABLE_HIP_GEMM_TUNING``
       | When set, exhaustive tuning for hipBLASLt is used to find the optimal configuration.
 
@@ -159,6 +167,14 @@ Model performance tunable variables change the compilation behavior of a model. 
       | ``0``: Returns to default behavior.
 
       | Default: Split-k performance configurations are turned off.
+
+  * - | ``MIGRAPHX_FLASH_DECODING_NUM_SPLITS``
+      | Turns on flash decoding for attention fusion and sets the number of splits along the key-value sequence dimension.
+    
+    - | ``0``: Flash decoding is turned off (i.e., number of splits is 0).
+      | ``N`` (where N > 1): Enables flash decoding with N splits along the key-value sequence dimension. For example, ``2`` enables flash decoding with 2 splits, ``4`` with 4 splits, etc.
+
+      | Default: flash decoding is turned off.
 
   * - | ``MIGRAPHX_DISABLE_FP16_INSTANCENORM_CONVERT``
       | When set, FP16 is not converted to FP32 in the ``InstanceNormalization`` ONNX operator. 
@@ -221,6 +237,14 @@ Model performance tunable variables change the compilation behavior of a model. 
 
       | Default: No tuning is done for composable kernels.
 
+  * - | ``MIGRAPHX_ENABLE_CK_WORKAROUNDS``
+      | When set, enables workarounds for known issues in Composable Kernel library.
+
+    - | ``1``: Composable Kernel workarounds are enabled.
+      | ``0``: Returns to default behavior.
+
+      | Default: Composable Kernel workarounds are disabled.
+
   * - | ``MIGRAPHX_REWRITE_LRN``
       | Turns on LRN-to-pooling lowering in the rewrite_pooling pass.
       
@@ -228,6 +252,14 @@ Model performance tunable variables change the compilation behavior of a model. 
       | ``0``: Returns to default behavior.
 
       | Default: LRN-to-pooling lowering is turned off.
+
+  * - | ``MIGRAPHX_ENABLE_FULL_DYNAMIC``
+      | Enables full dynamic shape support and disables certain passes that are incompatible with dynamic shapes.
+      
+    - | ``1``: Full dynamic shape support is enabled.
+      | ``0``: Returns to default behavior.
+
+      | Default: Full dynamic shape support is disabled.
                
 Matching
 **********
@@ -355,6 +387,14 @@ Debug settings for passes.
       | ``0``: Returns to default behavior.
 
       | Default: The ``fuse_reduce`` pass is run.
+
+  * - | ``MIGRAPHX_DISABLE_MULTI_OUTPUT_FUSION``
+      | When set, multi-output pointwise fusion is disabled.
+
+    - | ``1``: Multi-output pointwise fusion is disabled.
+      | ``0``: Returns to default behavior.
+
+      | Default: Multi-output pointwise fusion is enabled.
 
   * - | ``MIGRAPHX_TRACE_PASSES``
       | Turns on printing of the compile passes and the program after the passes.
@@ -617,14 +657,6 @@ Advanced settings
       | ``0``: Returns to default behavior.
 
       | Default: nary device functions aren't printed out.
-
-  * - | ``MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS``
-      | When set, the workarounds for known bugs in HIPRTC are used.
-
-    - | ``1``: HIPRTC workarounds are used.
-      | ``0``: Returns to default behavior.
-
-      | Default: HIPRTC workarounds aren't used.
 
   * - | ``MIGRAPHX_ENABLE_NULL_STREAM``
       | Whem set, a null stream can be used for MIOpen and HIP stream handling.

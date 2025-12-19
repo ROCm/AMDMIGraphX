@@ -1,5 +1,5 @@
 #=====ROCM INFO=====
-ROCM_VERSION : '7.0'
+ROCM_VERSION : '7.1.1'
 #default ROCm version to be used
 ROCM_BASE_IMAGE : 'rocm/dev-ubuntu-22.04'
 #base image from dockerhub to be used

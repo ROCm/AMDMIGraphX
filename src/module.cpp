@@ -1672,9 +1672,9 @@ void module::repeat_while_changes(std::size_t n, const std::function<void()>& f)
     }
 }
 
-// For topologically sorting a region in a module, canonically, such that the
-// dependent chain between the two input instructions is last
-void module::localized_sort(instruction_ref start_ins, instruction_ref end_ins)
+// Hoists external inputs (instructions not in the dependency chain between start_ins and end_ins)
+// to before start_ins, while preserving topological order
+void module::hoist_external_inputs(instruction_ref start_ins, instruction_ref end_ins)
 {
     // get the chain of instructions between start_ins and end_ins, inclusive
     auto fusion_ins = find_instructions_between(start_ins, end_ins, this);
@@ -1686,15 +1686,33 @@ void module::localized_sort(instruction_ref start_ins, instruction_ref end_ins)
     {
         if(fusion_ins.count(it) == 0)
         {
-            auto next = std::next(it); // move_instruction updates the iterator
-            this->move_instruction(it, start_ins);
-            it = next;
+            // only move if none of its inputs are after start_ins
+            bool has_input_in_range =
+                std::any_of(it->inputs().begin(), it->inputs().end(), [&](instruction_ref input) {
+                    if(not has_instruction(input))
+                        return false;
+                    // verify: start_ins < input < it
+                    return std::find(std::next(start_ins), it, input) != it;
+                });
+
+            if(has_input_in_range)
+            {
+                // input is after start_ins, meaning can't move this instruction
+                ++it;
+            }
+            else
+            {
+                auto next = std::next(it);
+                this->move_instruction(it, start_ins);
+                it = next;
+            }
         }
         else
         {
             ++it;
         }
     }
+    assert(this->validate() == this->end());
 }
 
 bool operator==(const module& x, const module& y) { return to_string(x) == to_string(y); }

@@ -34,42 +34,35 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
+/**
+ * Packs fastest dimension of tensor into fp4x2_type such that the
+ * output dimensions are [x_0, ..., x_pack/2, ...]
+ */
 struct pack_fp4
 {
-    int64_t axis = -1;
-
     std::string name() const { return "pack_fp4"; }
-
-    value attributes() const
-    {
-        value normalize   = value::object{};
-        normalize["axis"] = value::array{normalize_attribute::include_min};
-        return {{"normalize_axes", normalize}};
-    }
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.axis, "axis"));
-    }
 
     migraphx::shape normalize_compute_shape(std::vector<migraphx::shape> inputs) const
     {
         check_shapes{inputs, *this}.same_dims().has(1);
         const auto& in_shape = inputs.front();
-        auto new_lens        = in_shape.lens();
-        if(new_lens[axis] % 2 != 0)
+        int fast_axis = std::min_element(in_shape.strides().cbegin(), in_shape.strides().cend()) -
+                        in_shape.strides().cbegin();
+        auto new_lens = in_shape.lens();
+        if(new_lens.at(fast_axis) % 2 != 0)
         {
-            MIGRAPHX_THROW("PACK_FP4: Can not pack axis that has odd lengths");
+            MIGRAPHX_THROW("PACK_FP4: Fast dimension is odd, cannot pack");
         }
-        new_lens[axis] /= 2;
-        return {migraphx::shape::fp4x2_type, new_lens};
+        new_lens[fast_axis] /= 2;
+        return in_shape.with_lens(migraphx::shape::fp4x2_type, new_lens);
     }
 
     argument compute(const shape& output_shape, const std::vector<argument>& args) const
     {
         const auto& input = args.front();
         auto in_shape = input.get_shape();
+        int fast_axis = std::min_element(in_shape.strides().cbegin(), in_shape.strides().cend()) -
+                        in_shape.strides().cbegin();
 
         argument result{output_shape};
         auto out = result.get<uint8_t>();
@@ -78,9 +71,9 @@ struct pack_fp4
                 using inp_type         = typename decltype(inp)::value_type;
                 auto data_idx          = output_shape.multi(i);
                 auto in_data_multi_idx = data_idx;
-                in_data_multi_idx[axis] *= 2;
+                in_data_multi_idx[fast_axis] *= 2;
                 inp_type inp_val0 = inp[in_data_multi_idx];
-                in_data_multi_idx[axis] += 1;
+                in_data_multi_idx[fast_axis] += 1;
                 inp_type inp_val1 = inp[in_data_multi_idx];
                 uint8_t out_val0  = cast_to_fp4(inp_val0);
                 uint8_t out_val1  = cast_to_fp4(inp_val1);

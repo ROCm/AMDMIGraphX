@@ -600,7 +600,7 @@ struct find_concat_zero_element_inputs
          
 
         // Replace old concat with updated concat with updated inputs
-        if(new_inputs.size() == 0)
+        if(new_inputs.empty() == 0)
         {
             m.remove_instruction(ins);
         }

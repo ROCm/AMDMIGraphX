@@ -603,9 +603,16 @@ struct find_concat_zero_element_inputs
         }
         else if(new_inputs.size() < inputs.size())
         {
-            auto op     = any_cast<op::concat>(ins->get_operator());
-            auto concat = m.insert_instruction(ins, op, new_inputs);
-            m.replace_instruction(ins, concat);
+            if(new_inputs.size() == 1)
+            {
+                m.replace_instruction(ins, new_inputs.front());
+            }
+            else
+            {
+               auto op     = any_cast<op::concat>(ins->get_operator());
+               auto concat = m.insert_instruction(ins, op, new_inputs);
+               m.replace_instruction(ins, concat);
+            }
         }
     }
 };

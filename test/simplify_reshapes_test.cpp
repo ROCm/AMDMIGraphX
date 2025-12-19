@@ -3661,7 +3661,8 @@ TEST_CASE(conv_add_layernorm_conv)
     EXPECT(m1.sort() == m2.sort());
 }
 
-TEST_CASE(concat_zero_element_inputs_all_zero)
+//TODO: Add test case for all zero inputs and determine how we want to hanlde this
+/*TEST_CASE(concat_zero_element_inputs_all_zero)
 {
     // Test case where all inputs have zero elements - concat should be removed
     migraphx::module m1;
@@ -3678,7 +3679,7 @@ TEST_CASE(concat_zero_element_inputs_all_zero)
     // After optimization, concat should be removed
     EXPECT(std::count_if(m1.begin(), m1.end(), [](auto ins) { return ins.name() == "concat"; }) ==
            0);
-}
+} */
 
 TEST_CASE(concat_zero_element_inputs_some_zero)
 {

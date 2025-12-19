@@ -601,7 +601,7 @@ struct find_concat_zero_element_inputs
         {
             m.remove_instruction(ins);
         }
-        else if (new_inputs.size() < inputs.size())
+        else if(new_inputs.size() < inputs.size())
         {
             auto op     = any_cast<op::concat>(ins->get_operator());
             auto concat = m.insert_instruction(ins, op, new_inputs);

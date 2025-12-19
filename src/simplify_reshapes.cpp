@@ -578,7 +578,7 @@ struct find_concat_zero_element_inputs
 {
     auto matcher() const
     {
-        return match::name("concat");
+        return match::name("concat")(match::any_of[match::inputs()](match::make_basic_pred_matcher([](const auto& ins) { return ins->get_shape().elements() != 0; })));
     }
  
     void apply(module& m, const match::matcher_result& mr) const
@@ -595,7 +595,7 @@ struct find_concat_zero_element_inputs
             std::back_inserter(new_inputs),
             [&](const auto& in) { return in->get_shape().elements() != 0; },
             [&](const auto& in) { return in; });
-         
+        
         // Replace old concat with updated concat with updated inputs
         if(new_inputs.empty())
         {

@@ -90,6 +90,12 @@ struct concat
             {
                 if(ll != axis)
                 {
+                    // Skip if any input dimension is 0 since we'll optimize this out later
+                    if(std::any_of(inputs.begin(), inputs.end(), [&](auto s) { return s.lens()[ll] == 0; }))
+                    {
+                        continue;
+                    }
+
                     if(not std::all_of(inputs.begin(), inputs.end(), [&](auto s) {
                            return s.lens()[ll] == first_shape_lens[ll];
                        }))

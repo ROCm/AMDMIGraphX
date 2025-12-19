@@ -585,8 +585,6 @@ struct find_concat_zero_element_inputs
     {
         auto ins    = mr.result;
         auto inputs = ins->inputs();
-        auto outs   = ins->outputs();
-        auto op     = any_cast<op::concat>(ins->get_operator());
 
         std::vector<instruction_ref> new_inputs;
 
@@ -598,14 +596,14 @@ struct find_concat_zero_element_inputs
             [&](const auto& in) { return in->get_shape().elements() != 0; },
             [&](const auto& in) { return in; });
          
-
         // Replace old concat with updated concat with updated inputs
-        if(new_inputs.empty() == 0)
+        if(new_inputs.empty())
         {
             m.remove_instruction(ins);
         }
         else if (new_inputs.size() < inputs.size())
         {
+            auto op     = any_cast<op::concat>(ins->get_operator());
             auto concat = m.insert_instruction(ins, op, new_inputs);
             m.replace_instruction(ins, concat);
         }

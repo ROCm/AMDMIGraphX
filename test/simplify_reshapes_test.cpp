@@ -3661,7 +3661,7 @@ TEST_CASE(conv_add_layernorm_conv)
     EXPECT(m1.sort() == m2.sort());
 }
 
-//TODO: Add test case for all zero inputs and determine how we want to hanlde this
+// TODO: Add test case for all zero inputs and determine how we want to hanlde this
 /*TEST_CASE(concat_zero_element_inputs_all_zero)
 {
     // Test case where all inputs have zero elements - concat should be removed
@@ -3686,12 +3686,12 @@ TEST_CASE(concat_zero_element_inputs_some_zero)
     // Test case where some inputs have zero elements - they should be filtered out
     migraphx::module m1;
     {
-        auto s1 = migraphx::shape{migraphx::shape::float_type, {2, 3, 4}};
-        auto s2 = migraphx::shape{migraphx::shape::float_type, {2, 0, 4}};
-        auto s3 = migraphx::shape{migraphx::shape::float_type, {2, 5, 4}};
-        auto x  = m1.add_parameter("x", s1);
-        auto y  = m1.add_parameter("y", s2);
-        auto z  = m1.add_parameter("z", s3);
+        auto s1     = migraphx::shape{migraphx::shape::float_type, {2, 3, 4}};
+        auto s2     = migraphx::shape{migraphx::shape::float_type, {2, 0, 4}};
+        auto s3     = migraphx::shape{migraphx::shape::float_type, {2, 5, 4}};
+        auto x      = m1.add_parameter("x", s1);
+        auto y      = m1.add_parameter("y", s2);
+        auto z      = m1.add_parameter("z", s3);
         auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, y, z);
         m1.add_return({concat});
     }
@@ -3704,7 +3704,7 @@ TEST_CASE(concat_zero_element_inputs_some_zero)
         auto s3 = migraphx::shape{migraphx::shape::float_type, {2, 5, 4}};
         auto x  = m2.add_parameter("x", s1);
         m2.add_parameter("y", s2);
-        auto z  = m2.add_parameter("z", s3);
+        auto z = m2.add_parameter("z", s3);
         // Only x and z should remain in the concat (y is filtered out)
         auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, z);
         m2.add_return({concat});
@@ -3718,12 +3718,12 @@ TEST_CASE(concat_zero_element_inputs_first_zero)
     // Test case where the first input has zero elements
     migraphx::module m1;
     {
-        auto s1 = migraphx::shape{migraphx::shape::float_type, {2, 0, 4}};
-        auto s2 = migraphx::shape{migraphx::shape::float_type, {2, 3, 4}};
-        auto s3 = migraphx::shape{migraphx::shape::float_type, {2, 5, 4}};
-        auto x  = m1.add_parameter("x", s1);
-        auto y  = m1.add_parameter("y", s2);
-        auto z  = m1.add_parameter("z", s3);
+        auto s1     = migraphx::shape{migraphx::shape::float_type, {2, 0, 4}};
+        auto s2     = migraphx::shape{migraphx::shape::float_type, {2, 3, 4}};
+        auto s3     = migraphx::shape{migraphx::shape::float_type, {2, 5, 4}};
+        auto x      = m1.add_parameter("x", s1);
+        auto y      = m1.add_parameter("y", s2);
+        auto z      = m1.add_parameter("z", s3);
         auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, y, z);
         m1.add_return({concat});
     }
@@ -3735,8 +3735,8 @@ TEST_CASE(concat_zero_element_inputs_first_zero)
         auto s2 = migraphx::shape{migraphx::shape::float_type, {2, 3, 4}};
         auto s3 = migraphx::shape{migraphx::shape::float_type, {2, 5, 4}};
         m2.add_parameter("x", s1);
-        auto y  = m2.add_parameter("y", s2);
-        auto z  = m2.add_parameter("z", s3);
+        auto y      = m2.add_parameter("y", s2);
+        auto z      = m2.add_parameter("z", s3);
         auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), y, z);
         m2.add_return({concat});
     }
@@ -3749,12 +3749,12 @@ TEST_CASE(concat_zero_element_inputs_last_zero)
     // Test case where the last input has zero elements
     migraphx::module m1;
     {
-        auto s1 = migraphx::shape{migraphx::shape::float_type, {2, 3, 4}};
-        auto s2 = migraphx::shape{migraphx::shape::float_type, {2, 5, 4}};
-        auto s3 = migraphx::shape{migraphx::shape::float_type, {2, 0, 4}};
-        auto x  = m1.add_parameter("x", s1);
-        auto y  = m1.add_parameter("y", s2);
-        auto z  = m1.add_parameter("z", s3);
+        auto s1     = migraphx::shape{migraphx::shape::float_type, {2, 3, 4}};
+        auto s2     = migraphx::shape{migraphx::shape::float_type, {2, 5, 4}};
+        auto s3     = migraphx::shape{migraphx::shape::float_type, {2, 0, 4}};
+        auto x      = m1.add_parameter("x", s1);
+        auto y      = m1.add_parameter("y", s2);
+        auto z      = m1.add_parameter("z", s3);
         auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, y, z);
         m1.add_return({concat});
     }
@@ -3780,16 +3780,15 @@ TEST_CASE(concat_zero_element_inputs_multiple_zero)
     // Test case where multiple inputs have zero elements
     migraphx::module m1;
     {
-        auto s1 = migraphx::shape{migraphx::shape::float_type, {2, 0, 4}};
-        auto s2 = migraphx::shape{migraphx::shape::float_type, {2, 3, 4}};
-        auto s3 = migraphx::shape{migraphx::shape::float_type, {2, 0, 4}};
-        auto s4 = migraphx::shape{migraphx::shape::float_type, {2, 5, 4}};
-        auto w  = m1.add_parameter("w", s1);
-        auto x  = m1.add_parameter("x", s2);
-        auto y  = m1.add_parameter("y", s3);
-        auto z  = m1.add_parameter("z", s4);
-        auto concat =
-            m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), w, x, y, z);
+        auto s1     = migraphx::shape{migraphx::shape::float_type, {2, 0, 4}};
+        auto s2     = migraphx::shape{migraphx::shape::float_type, {2, 3, 4}};
+        auto s3     = migraphx::shape{migraphx::shape::float_type, {2, 0, 4}};
+        auto s4     = migraphx::shape{migraphx::shape::float_type, {2, 5, 4}};
+        auto w      = m1.add_parameter("w", s1);
+        auto x      = m1.add_parameter("x", s2);
+        auto y      = m1.add_parameter("y", s3);
+        auto z      = m1.add_parameter("z", s4);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), w, x, y, z);
         m1.add_return({concat});
     }
     run_pass(m1);
@@ -3801,9 +3800,9 @@ TEST_CASE(concat_zero_element_inputs_multiple_zero)
         auto s3 = migraphx::shape{migraphx::shape::float_type, {2, 0, 4}};
         auto s4 = migraphx::shape{migraphx::shape::float_type, {2, 5, 4}};
         m2.add_parameter("w", s1);
-        auto x  = m2.add_parameter("x", s2);
+        auto x = m2.add_parameter("x", s2);
         m2.add_parameter("y", s3);
-        auto z  = m2.add_parameter("z", s4);
+        auto z      = m2.add_parameter("z", s4);
         auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, z);
         m2.add_return({concat});
     }
@@ -3816,12 +3815,12 @@ TEST_CASE(concat_zero_element_inputs_no_zero)
     // Test case where no inputs have zero elements - concat should remain unchanged
     migraphx::module m1;
     {
-        auto s1 = migraphx::shape{migraphx::shape::float_type, {2, 3, 4}};
-        auto s2 = migraphx::shape{migraphx::shape::float_type, {2, 5, 4}};
-        auto s3 = migraphx::shape{migraphx::shape::float_type, {2, 7, 4}};
-        auto x  = m1.add_parameter("x", s1);
-        auto y  = m1.add_parameter("y", s2);
-        auto z  = m1.add_parameter("z", s3);
+        auto s1     = migraphx::shape{migraphx::shape::float_type, {2, 3, 4}};
+        auto s2     = migraphx::shape{migraphx::shape::float_type, {2, 5, 4}};
+        auto s3     = migraphx::shape{migraphx::shape::float_type, {2, 7, 4}};
+        auto x      = m1.add_parameter("x", s1);
+        auto y      = m1.add_parameter("y", s2);
+        auto z      = m1.add_parameter("z", s3);
         auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, y, z);
         m1.add_return({concat});
     }
@@ -3837,12 +3836,12 @@ TEST_CASE(concat_zero_element_inputs_different_axis)
     // Test case with zero elements on a different axis
     migraphx::module m1;
     {
-        auto s1 = migraphx::shape{migraphx::shape::float_type, {2, 3, 4}};
-        auto s2 = migraphx::shape{migraphx::shape::float_type, {2, 0, 4}};
-        auto s3 = migraphx::shape{migraphx::shape::float_type, {2, 3, 5}};
-        auto x  = m1.add_parameter("x", s1);
-        auto y  = m1.add_parameter("y", s2);
-        auto z  = m1.add_parameter("z", s3);
+        auto s1     = migraphx::shape{migraphx::shape::float_type, {2, 3, 4}};
+        auto s2     = migraphx::shape{migraphx::shape::float_type, {2, 0, 4}};
+        auto s3     = migraphx::shape{migraphx::shape::float_type, {2, 3, 5}};
+        auto x      = m1.add_parameter("x", s1);
+        auto y      = m1.add_parameter("y", s2);
+        auto z      = m1.add_parameter("z", s3);
         auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), x, y, z);
         m1.add_return({concat});
     }
@@ -3855,7 +3854,7 @@ TEST_CASE(concat_zero_element_inputs_different_axis)
         auto s3 = migraphx::shape{migraphx::shape::float_type, {2, 3, 5}};
         auto x  = m2.add_parameter("x", s1);
         m2.add_parameter("y", s2);
-        auto z  = m2.add_parameter("z", s3);
+        auto z      = m2.add_parameter("z", s3);
         auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), x, z);
         m2.add_return({concat});
     }
@@ -3868,12 +3867,12 @@ TEST_CASE(concat_zero_element_one_input)
     // Test case with zero elements on a different axis
     migraphx::module m1;
     {
-        auto s1 = migraphx::shape{migraphx::shape::float_type, {2, 3, 0}};
-        auto s2 = migraphx::shape{migraphx::shape::float_type, {2, 3, 0}};
-        auto s3 = migraphx::shape{migraphx::shape::float_type, {2, 3, 4}};
-        auto x  = m1.add_parameter("x", s1);
-        auto y  = m1.add_parameter("y", s2);
-        auto z  = m1.add_parameter("z", s3);
+        auto s1     = migraphx::shape{migraphx::shape::float_type, {2, 3, 0}};
+        auto s2     = migraphx::shape{migraphx::shape::float_type, {2, 3, 0}};
+        auto s3     = migraphx::shape{migraphx::shape::float_type, {2, 3, 4}};
+        auto x      = m1.add_parameter("x", s1);
+        auto y      = m1.add_parameter("y", s2);
+        auto z      = m1.add_parameter("z", s3);
         auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), x, y, z);
         m1.add_return({concat});
     }
@@ -3887,7 +3886,7 @@ TEST_CASE(concat_zero_element_one_input)
         m2.add_parameter("x", s1);
         m2.add_parameter("y", s2);
         auto z = m2.add_parameter("z", s3);
- 
+
         m2.add_return({z});
     }
 

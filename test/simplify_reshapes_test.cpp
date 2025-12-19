@@ -3675,15 +3675,6 @@ TEST_CASE(concat_zero_element_inputs_all_zero)
     }
     run_pass(m1);
 
-    migraphx::module m2;
-    {
-        auto s1 = migraphx::shape{migraphx::shape::float_type, {2, 0, 3}};
-        auto s2 = migraphx::shape{migraphx::shape::float_type, {2, 0, 3}};
-        // concat should be removed, but we still need a return value
-        // The optimization removes the concat, leaving the graph incomplete
-        // This test verifies the concat is removed
-    }
-
     // After optimization, concat should be removed
     EXPECT(std::count_if(m1.begin(), m1.end(), [](auto ins) { return ins.name() == "concat"; }) ==
            0);

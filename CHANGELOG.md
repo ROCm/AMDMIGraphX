@@ -4,13 +4,13 @@ Full documentation for MIGraphX is available at
 [https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/](https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/).
 
 
-## MIGraphX 2.16 for ROCm 7.2.1
+## Develop
 
 ### Added
 
 ### Changed
 
-### Resolved Issues
+### Resolved issues
 * Fixed BF16/FP16 Quantization failure via zero element concats (#4512).
 
 ### Optimized

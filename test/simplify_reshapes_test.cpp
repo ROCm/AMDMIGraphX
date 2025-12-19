@@ -3827,7 +3827,7 @@ TEST_CASE(concat_zero_element_inputs_different_axis)
     migraphx::module m1;
     {
         auto s1 = migraphx::shape{migraphx::shape::float_type, {2, 3, 4}};
-        auto s2 = migraphx::shape{migraphx::shape::float_type, {2, 3, 0}};
+        auto s2 = migraphx::shape{migraphx::shape::float_type, {0, 2, 4}};
         auto s3 = migraphx::shape{migraphx::shape::float_type, {2, 3, 5}};
         auto x  = m1.add_parameter("x", s1);
         auto y  = m1.add_parameter("y", s2);

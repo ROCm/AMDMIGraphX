@@ -230,17 +230,17 @@ tile tile::elements(const std::vector<shape>& inputs, std::size_t noutputs)
     if(nargs != 1)
         return {};
 
-    const auto& s   = inputs.front();
-    auto dim1       = compute_tile_factor(s.lens()[result.axis]);
-    auto dim2       = compute_tile_factor(s.lens().back(), 4096 / dim1);
-    auto tile_size  = dim1 * dim2;
+    const auto& s  = inputs.front();
+    auto dim1      = compute_tile_factor(s.lens()[result.axis]);
+    auto dim2      = compute_tile_factor(s.lens().back(), 4096 / dim1);
+    auto tile_size = dim1 * dim2;
     // equivalent to dim1 * (dim2 + 1) to avoid bank conflicts
     auto tile_bytes = (tile_size + dim1) * s.type_size();
 
     if(dim1 <= 1 or dim2 <= 1 or tile_bytes > 65536)
         return {};
 
-    result.ntiles  = s.elements() / tile_size;
+    result.ntiles = s.elements() / tile_size;
 
     result.inner = s.lens();
     std::fill(result.inner.begin(), result.inner.end(), 1);

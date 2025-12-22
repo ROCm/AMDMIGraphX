@@ -54,6 +54,7 @@ Full documentation for MIGraphX is available at
 * Streamlined the `find_matches` function.
 * Reduce the number of splits used for `split_reduce`.
 * Improve layout propagation in poinwise fusion when using broadcasted inputs.
+* Added early return for element tile calculation to avoid unnecessary computations.
 
 
 ### Removed

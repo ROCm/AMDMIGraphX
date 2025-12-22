@@ -30,6 +30,7 @@
 #include <migraphx/op/transpose.hpp>
 #include <migraphx/op/concat.hpp>
 #include <migraphx/op/slice.hpp>
+#include <migraphx/op/gather.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/matcher.hpp>
@@ -588,8 +589,6 @@ struct find_concat_multibroadcasts
 
         if(s.elements() == 0)
         {
-            std::cout << "Found zero element literal" << std::endl;
-            lit->debug_print();
             m.remove_instruction(lit);
         }
     }
@@ -623,16 +622,11 @@ struct find_concat_zero_element_inputs
         // Replace old concat with updated concat with updated inputs
         if(new_inputs.size() == 0)
         {
-            std::cout << "found instruction to remove" << std::endl;
-            ins->debug_print();
             m.remove_instruction(ins);
         }
         else if (new_inputs.size() < inputs.size())
         {
-            std::cout << "found instruction to replace" << std::endl;
-            ins->debug_print();
             auto concat = m.insert_instruction(ins, op, new_inputs);
-            concat->debug_print();
             m.replace_instruction(ins, concat);
         }
     }
@@ -850,6 +844,7 @@ struct find_nested_concat
                     args.push_back(i);
             }
         })(ins->inputs());
+
         m.replace_instruction(ins, ins->get_operator(), args);
     }
 };
@@ -1013,6 +1008,79 @@ struct find_where_op
         {
             m.replace_instruction(ins, inputs.at(1));
         }
+    }
+};
+
+// Convert gather with a scalar constant index to slice + squeeze.
+// This is more efficient as slice can be implemented as pointer arithmetic
+// (zero-copy) and squeeze is just a shape transformation.
+//
+// Example:
+//   gather[axis=2](data{1, 32, 19}, @literal{0}) -> {1, 32}
+// Becomes:
+//   squeeze[axes={2}](slice[axes={2}, starts={0}, ends={1}](data)) -> {1, 32}
+//
+struct find_gather_to_slice
+{
+    auto matcher() const
+    {
+        return match::name("gather")(
+            match::args(match::any().bind("data"), match::is_constant().bind("ind")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins     = r.result;
+        auto data    = r.instructions["data"];
+        auto ins_ind = r.instructions["ind"];
+
+        // Only handle scalar constant indices
+        if(not ins_ind->get_shape().scalar())
+        {
+            return;
+        }
+
+        // Evaluate the constant index
+        auto arg_ind = ins_ind->eval();
+        if(arg_ind.empty())
+        {
+            return;
+        }
+
+        int64_t idx = 0;
+        arg_ind.visit([&](auto v) { idx = v.front(); });
+
+        auto gop  = any_cast<op::gather>(ins->get_operator());
+        auto axis = gop.axis;
+
+        const auto& data_shape = data->get_shape();
+        auto data_lens         = data_shape.lens();
+
+        // Handle negative index
+        auto axis_dim = static_cast<int64_t>(data_lens[axis]);
+        if(idx < 0)
+        {
+            idx += axis_dim;
+        }
+
+        // Check bounds
+        if(idx < 0 or idx >= axis_dim)
+        {
+            return;
+        }
+
+        // Create slice: slice[axes={axis}, starts={idx}, ends={idx+1}]
+        auto slice_ins = m.insert_instruction(
+            ins,
+            make_op("slice",
+                    {{"axes", std::vector<int64_t>{axis}},
+                     {"starts", std::vector<int64_t>{idx}},
+                     {"ends", std::vector<int64_t>{idx + 1}}}),
+            data);
+
+        // Create squeeze to remove the sliced dimension
+        m.replace_instruction(
+            ins, make_op("squeeze", {{"axes", std::vector<int64_t>{axis}}}), slice_ins);
     }
 };
 
@@ -1487,6 +1555,7 @@ void simplify_reshapes::apply(module& m) const
     m.repeat_while_changes(depth, [&] {
         match::find_matches(m,
                             //find_zero_element_literal{},
+                            find_gather_to_slice{},
                             find_where_op{},
                             find_resize{},
                             find_nop_reshapes{},

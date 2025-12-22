@@ -100,6 +100,12 @@ std::string generate_reduce(module m, const std::string& name);
 
 std::string generate_name_from_ops(const module& m, const std::string& postname = "");
 
+// Check if a module contains a gather operation
+bool module_has_gather(const module& m);
+
+// Get the gather axis from a module containing a gather operation
+std::size_t get_gather_axis(const module& m);
+
 struct reduce_op
 {
     std::vector<std::string> inputs = {};

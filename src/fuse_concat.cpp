@@ -38,17 +38,31 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct fused_concat
 {
     int64_t axis = 0;
+    // Gather fusion attributes (optional, used when fusing gather+concat)
+    bool gather_fusion     = false;
+    int64_t gather_axis    = 0;
+    std::size_t num_gathers = 0;
 
     std::string name() const { return "fused_concat"; }
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axis, "axis"));
+        return pack(f(self.axis, "axis"),
+                    f(self.gather_fusion, "gather_fusion"),
+                    f(self.gather_axis, "gather_axis"),
+                    f(self.num_gathers, "num_gathers"));
     }
 
     shape compute_shape(std::vector<shape> inputs, const std::vector<module_ref>& mods) const
     {
+        // Gather fusion mode: inputs are [emb1, idx1, emb2, idx2, ..., output_alloc]
+        if(gather_fusion)
+        {
+            // The output shape is the last input (the allocation)
+            return inputs.back();
+        }
+
         check_shapes{inputs, *this}.same_ndims();
         // original concat can have multiple inputs. Let's say it has `n` input args.
         // Each of those `n` input args are converted into pointwise modules that take atleast 1

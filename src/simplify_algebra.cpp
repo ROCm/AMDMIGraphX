@@ -30,6 +30,8 @@
 #include <migraphx/op/broadcast.hpp>
 #include <migraphx/op/reshape.hpp>
 #include <migraphx/op/transpose.hpp>
+#include <migraphx/op/gather.hpp>
+#include <migraphx/op/reduce_sum.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/literal.hpp>
@@ -39,6 +41,7 @@
 
 #include <migraphx/algorithm.hpp>
 #include <unordered_set>
+#include <unordered_map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -2116,8 +2119,1342 @@ struct find_split_transpose
     }
 };
 
+// Transform concat + mul + reduce_sum pattern where reduce axis == concat axis
+// Pattern: reduce_sum[axes={N}](mul(concat[axis=N](A, B, C, D), broadcast(W)))
+// where each concat input has dimension 1 on the concat axis
+//
+// Transform to: add(mul(A, slice(W,0)), mul(B, slice(W,1)), ...)
+// This eliminates the concat and reduce operations
+//
+// Mathematical basis: sum_i(X_i * W_i) = X_0*W_0 + X_1*W_1 + ... + X_n*W_n
+struct find_concat_mul_reduce
+{
+    void apply(module& m) const
+    {
+        std::unordered_set<const instruction*> processed_concats;
+        bool changed = true;
+        while(changed)
+        {
+            changed = false;
+            for(auto ins : iterator_for(m))
+            {
+                // Look for reduce_sum with single axis
+                if(ins->name() != "reduce_sum")
+                    continue;
+                
+                auto reduce_op = any_cast<op::reduce_sum>(ins->get_operator());
+                if(reduce_op.axes.size() != 1)
+                    continue;
+                
+                int64_t reduce_axis = reduce_op.axes[0];
+                
+                // The input to reduce should be mul (raw, not yet fused to pointwise)
+                auto mul_ins = ins->inputs().front();
+                if(mul_ins->name() != "mul")
+                    continue;
+                
+                // mul should have exactly one output (the reduce)
+                if(mul_ins->outputs().size() != 1)
+                    continue;
+                
+                // One of mul's inputs should be concat, the other should be broadcast
+                instruction_ref concat_ins;
+                instruction_ref broadcast_ins;
+                bool found_concat = false;
+                bool found_broadcast = false;
+                
+                for(const auto& input : mul_ins->inputs())
+                {
+                    if(input->name() == "concat")
+                    {
+                        concat_ins = input;
+                        found_concat = true;
+                    }
+                    else if(input->name() == "broadcast" || input->name() == "multibroadcast")
+                    {
+                        broadcast_ins = input;
+                        found_broadcast = true;
+                    }
+                }
+                
+                if(!found_concat || !found_broadcast)
+                    continue;
+                
+                // concat should have exactly one output (the mul)
+                if(concat_ins->outputs().size() != 1)
+                    continue;
+                
+                // Skip if we've already processed this concat
+                if(processed_concats.count(std::addressof(*concat_ins)) > 0)
+                    continue;
+                
+                // Check concat axis matches reduce axis
+                auto concat_op = any_cast<op::concat>(concat_ins->get_operator());
+                int64_t concat_axis = concat_op.axis;
+                
+                // Normalize negative axes
+                auto ndim = static_cast<int64_t>(concat_ins->get_shape().lens().size());
+                if(concat_axis < 0)
+                    concat_axis += ndim;
+                if(reduce_axis < 0)
+                    reduce_axis += ndim;
+                
+                if(concat_axis != reduce_axis)
+                    continue;
+                
+                // Get concat inputs
+                auto concat_inputs = concat_ins->inputs();
+                if(concat_inputs.empty())
+                    continue;
+                
+                // All concat inputs should have dimension 1 on the concat axis
+                bool valid_inputs = true;
+                for(const auto& input : concat_inputs)
+                {
+                    const auto& lens = input->get_shape().lens();
+                    if(static_cast<std::size_t>(concat_axis) >= lens.size())
+                    {
+                        valid_inputs = false;
+                        break;
+                    }
+                    if(lens[concat_axis] != 1)
+                    {
+                        valid_inputs = false;
+                        break;
+                    }
+                }
+                if(!valid_inputs)
+                    continue;
+                
+                // Get the broadcast source (the weights before broadcasting)
+                auto weight_src = broadcast_ins->inputs().front();
+                const auto& weight_shape = weight_src->get_shape();
+                
+                // Weight should have dimension equal to number of concat inputs on reduce_axis
+                if(static_cast<std::size_t>(concat_axis) >= weight_shape.lens().size())
+                    continue;
+                if(weight_shape.lens()[concat_axis] != concat_inputs.size())
+                    continue;
+                
+                // We have a valid pattern! Now rewrite it.
+                // The output shape should match the first concat input's shape
+                auto output_shape = concat_inputs.front()->get_shape();
+                
+                // Create slices of the weights and broadcast each
+                // Then multiply with each concat input and sum
+                instruction_ref result;
+                bool first = true;
+                
+                for(std::size_t i = 0; i < concat_inputs.size(); ++i)
+                {
+                    // Slice weight at position i on concat_axis
+                    auto slice_ins = m.insert_instruction(
+                        ins,
+                        make_op("slice", 
+                                {{"axes", std::vector<int64_t>{concat_axis}},
+                                 {"starts", std::vector<int64_t>{static_cast<int64_t>(i)}},
+                                 {"ends", std::vector<int64_t>{static_cast<int64_t>(i + 1)}}}),
+                        weight_src);
+                    
+                    // If weight has fewer dimensions than output, unsqueeze to match
+                    instruction_ref weight_to_broadcast = slice_ins;
+                    auto slice_ndim = slice_ins->get_shape().lens().size();
+                    auto output_ndim = output_shape.lens().size();
+                    if(slice_ndim < output_ndim)
+                    {
+                        // Add missing dimensions at the end
+                        std::vector<int64_t> unsqueeze_axes;
+                        for(std::size_t d = slice_ndim; d < output_ndim; ++d)
+                            unsqueeze_axes.push_back(static_cast<int64_t>(d));
+                        weight_to_broadcast = m.insert_instruction(
+                            ins,
+                            make_op("unsqueeze", {{"axes", unsqueeze_axes}}),
+                            slice_ins);
+                    }
+                    
+                    // Broadcast the slice to match concat input shape
+                    auto bc_ins = m.insert_instruction(
+                        ins,
+                        make_op("multibroadcast", {{"out_lens", output_shape.lens()}}),
+                        weight_to_broadcast);
+                    
+                    // Multiply with concat input
+                    auto mul_result = m.insert_instruction(
+                        ins,
+                        make_op("mul"),
+                        concat_inputs[i], bc_ins);
+                    
+                    // Add to accumulator
+                    if(first)
+                    {
+                        result = mul_result;
+                        first = false;
+                    }
+                    else
+                    {
+                        result = m.insert_instruction(
+                            ins,
+                            make_op("add"),
+                            result, mul_result);
+                    }
+                }
+                
+                // Mark the concat as processed before replacing
+                processed_concats.insert(std::addressof(*concat_ins));
+                
+                // Replace the reduce with the final result
+                m.replace_instruction(ins, result);
+                changed = true;
+                break; // Restart iteration
+            }
+        }
+    }
+};
+
+// Transform concat with grouped repeated inputs into concat of multibroadcasts
+// Pattern: concat(A, A, A, B, B, B, B, C, ..., axis=0) where A,B,C have dim=1 on concat axis
+// Transform: concat(multibroadcast(A, {3,...}), multibroadcast(B, {4,...}), C, ..., axis=0)
+// This reduces the number of concat inputs by grouping repeated consecutive inputs
+struct find_grouped_concat_to_broadcast
+{
+    // Minimum consecutive repeats to convert to broadcast
+    static constexpr std::size_t min_repeats = 2;
+
+    void apply(module& m) const
+    {
+        for(auto ins : iterator_for(m))
+        {
+            if(ins->name() != "concat")
+                continue;
+
+            auto inputs = ins->inputs();
+            if(inputs.size() < 4) // Need enough inputs to make grouping worthwhile
+                continue;
+
+            auto concat_op = any_cast<op::concat>(ins->get_operator());
+            auto concat_axis = concat_op.axis;
+
+            // Normalize axis
+            auto output_shape = ins->get_shape();
+            if(output_shape.dynamic())
+                continue;
+
+            auto ndim = output_shape.ndim();
+            if(concat_axis < 0)
+                concat_axis += static_cast<int64_t>(ndim);
+
+            auto concat_axis_idx = static_cast<std::size_t>(concat_axis);
+
+            // Group consecutive identical inputs
+            std::vector<std::pair<instruction_ref, std::size_t>> groups; // (input, count)
+            instruction_ref current = inputs[0];
+            std::size_t count = 1;
+
+            for(std::size_t i = 1; i < inputs.size(); i++)
+            {
+                if(inputs[i] == current)
+                {
+                    count++;
+                }
+                else
+                {
+                    groups.push_back({current, count});
+                    current = inputs[i];
+                    count = 1;
+                }
+            }
+            groups.push_back({current, count});
+
+            // Check if grouping would reduce inputs significantly
+            // Only proceed if we have groups with repeats >= min_repeats
+            std::size_t total_grouped = 0;
+            for(auto& [inp, cnt] : groups)
+            {
+                if(cnt >= min_repeats)
+                {
+                    // Check if input has dimension 1 on concat axis (required for broadcast)
+                    auto inp_shape = inp->get_shape();
+                    if(inp_shape.dynamic() || inp_shape.lens().size() <= concat_axis_idx)
+                        continue;
+                    if(inp_shape.lens()[concat_axis_idx] == 1)
+                        total_grouped += cnt - 1; // Savings = repeats - 1
+                }
+            }
+
+            // Only transform if we save at least 4 inputs
+            if(total_grouped < 4)
+                continue;
+
+            // Build new inputs with broadcasts for repeated groups
+            std::vector<instruction_ref> new_inputs;
+            for(auto& [inp, cnt] : groups)
+            {
+                auto inp_shape = inp->get_shape();
+                bool can_broadcast = !inp_shape.dynamic() && 
+                                     inp_shape.lens().size() > concat_axis_idx &&
+                                     inp_shape.lens()[concat_axis_idx] == 1;
+
+                if(cnt >= min_repeats && can_broadcast)
+                {
+                    // Replace repeated inputs with a single multibroadcast
+                    auto new_lens = inp_shape.lens();
+                    new_lens[concat_axis_idx] = cnt;
+                    auto broadcast_op = make_op("multibroadcast", {{"out_lens", new_lens}});
+                    auto broadcast_ins = m.insert_instruction(ins, broadcast_op, inp);
+                    new_inputs.push_back(broadcast_ins);
+                }
+                else
+                {
+                    // Keep original inputs
+                    for(std::size_t j = 0; j < cnt; j++)
+                    {
+                        new_inputs.push_back(inp);
+                    }
+                }
+            }
+
+            // Replace concat with new inputs
+            if(new_inputs.size() < inputs.size())
+            {
+                if(new_inputs.size() == 1)
+                {
+                    m.replace_instruction(ins, new_inputs.front());
+                }
+                else
+                {
+                    m.replace_instruction(ins, ins->get_operator(), new_inputs);
+                }
+            }
+        }
+    }
+};
+
+// Transform concat of slices from the same source into gather + reshape
+// Pattern: concat(slice(X, [a:a+1]), slice(X, [b:b+1]), ..., axis=concat_axis)
+//          where slices are on a different axis than concat_axis
+// Transform: gather(X, [a, b, ...], slice_axis) -> reshape -> fits in concat
+// This reduces kernel launch overhead by batching multiple slice operations
+struct find_slice_concat_to_gather
+{
+    // Minimum number of slices from same source to transform
+    static constexpr std::size_t min_slices = 4;
+
+    void apply(module& m) const
+    {
+        for(auto concat_ins : iterator_for(m))
+        {
+            if(concat_ins->name() != "concat")
+                continue;
+
+            auto concat_op = any_cast<op::concat>(concat_ins->get_operator());
+            auto concat_axis = concat_op.axis;
+
+            // Normalize concat axis
+            auto output_shape = concat_ins->get_shape();
+            if(output_shape.dynamic())
+                continue;
+
+            auto ndim = output_shape.ndim();
+            if(concat_axis < 0)
+                concat_axis += static_cast<int64_t>(ndim);
+
+            auto inputs = concat_ins->inputs();
+
+            // Group slice inputs by (source, slice_axis)
+            // Key: (source pointer, slice_axis) -> vector of (input_index, slice_start)
+            std::map<std::pair<const instruction*, int64_t>,
+                     std::vector<std::pair<std::size_t, int64_t>>> slice_groups;
+            std::map<std::pair<const instruction*, int64_t>, instruction_ref> source_refs;
+
+            for(std::size_t i = 0; i < inputs.size(); i++)
+            {
+                auto input = inputs[i];
+                if(input->name() != "slice")
+                    continue;
+
+                auto sop = any_cast<op::slice>(input->get_operator());
+                // Only handle single-axis slices that extract exactly 1 element
+                if(sop.axes.size() != 1)
+                    continue;
+                if(sop.ends.front() - sop.starts.front() != 1)
+                    continue;
+
+                auto slice_axis = sop.axes.front();
+                // Skip if slice axis equals concat axis - this is handled elsewhere
+                if(slice_axis == concat_axis)
+                    continue;
+
+                auto source = input->inputs().front();
+                if(source->get_shape().dynamic())
+                    continue;
+
+                auto key = std::make_pair(std::addressof(*source), slice_axis);
+                slice_groups[key].push_back({i, sop.starts.front()});
+                source_refs[key] = source;
+            }
+
+            // Find groups with enough slices to optimize
+            bool changed = false;
+            for(auto& [key, slices] : slice_groups)
+            {
+                if(slices.size() < min_slices)
+                    continue;
+
+                auto source = source_refs[key];
+                auto slice_axis = key.second;
+
+                // All slices must produce the same shape (they should, since slice size is 1)
+                auto first_slice_ins = inputs[slices[0].first];
+                auto slice_shape = first_slice_ins->get_shape();
+                bool all_same_shape = std::all_of(
+                    slices.begin(), slices.end(),
+                    [&](auto& p) { return inputs[p.first]->get_shape() == slice_shape; });
+                if(!all_same_shape)
+                    continue;
+
+                // Build gather indices
+                std::vector<int64_t> indices;
+                indices.reserve(slices.size());
+                for(auto& [idx, start] : slices)
+                {
+                    indices.push_back(start);
+                }
+
+                // Create gather operation
+                // gather(source, indices, axis=slice_axis) -> {num_slices, ...rest of shape...}
+                auto idx_shape = shape{shape::int64_type, {indices.size()}};
+                auto idx_lit = m.add_literal(literal{idx_shape, indices});
+
+                auto gather_op = make_op("gather", {{"axis", slice_axis}});
+                auto gather_ins = m.insert_instruction(
+                    concat_ins, gather_op, source, idx_lit);
+
+                // The gather output has shape where slice_axis dimension now has size = num_slices
+                // We need to reshape to match what concat expects
+                // 
+                // Example: slice_axis=0, concat_axis=2, original slices produce {1, 96, 6}
+                // Gather of K slices: {K, 96, 6}
+                // Target shape for concat: {1, 96, K*6}
+                //
+                // Strategy: transpose to move gathered dim next to concat dim, then reshape
+                auto gather_lens = gather_ins->get_shape().lens();
+                auto num_gathered = slices.size();
+
+                // Only handle case where slice_axis < concat_axis for now
+                if(static_cast<std::size_t>(slice_axis) < static_cast<std::size_t>(concat_axis))
+                {
+                    // Build transpose permutation to move slice_axis next to concat_axis
+                    // E.g., {K, M, N} with slice_axis=0, concat_axis=2
+                    // Want perm = [1, 2, 0] to get {M, N, K}
+                    std::vector<int64_t> perm;
+                    for(std::size_t d = 0; d < ndim; d++)
+                    {
+                        if(d != static_cast<std::size_t>(slice_axis))
+                            perm.push_back(static_cast<int64_t>(d));
+                    }
+                    perm.push_back(slice_axis); // Move slice_axis to end (next to concat_axis)
+
+                    auto transpose_ins = m.insert_instruction(
+                        concat_ins, make_op("transpose", {{"permutation", perm}}), gather_ins);
+
+                    // Now reshape to merge the last dim (gathered count) with concat_axis dim
+                    // E.g., {M, N, K} -> {1, M, N*K} where original slice shape was {1, M, N}
+                    auto trans_lens = transpose_ins->get_shape().lens();
+                    
+                    // Build target shape matching original slice shape but with merged concat dim
+                    auto target_lens = slice_shape.lens(); // Original slice shape like {1, 96, 6}
+                    auto concat_axis_idx = static_cast<std::size_t>(concat_axis);
+                    target_lens[concat_axis_idx] = target_lens[concat_axis_idx] * num_gathered;
+
+                    auto reshape_ins = m.insert_instruction(
+                        concat_ins, 
+                        make_op("reshape", {{"dims", target_lens}}), 
+                        transpose_ins);
+
+                    // Replace slice inputs with this reshaped result
+                    auto first_slice_idx = slices[0].first;
+                    inputs[first_slice_idx] = reshape_ins;
+
+                    // Mark other slices to be removed
+                    for(std::size_t j = 1; j < slices.size(); j++)
+                    {
+                        inputs[slices[j].first] = reshape_ins;
+                    }
+                    changed = true;
+                }
+            }
+
+            if(changed)
+            {
+                // Remove duplicate inputs (those that were replaced with same instruction)
+                std::vector<instruction_ref> new_inputs;
+                std::unordered_set<const instruction*> seen;
+                for(auto& inp : inputs)
+                {
+                    if(seen.insert(std::addressof(*inp)).second)
+                    {
+                        new_inputs.push_back(inp);
+                    }
+                }
+
+                if(new_inputs.size() == 1)
+                {
+                    m.replace_instruction(concat_ins, new_inputs.front());
+                }
+                else
+                {
+                    m.replace_instruction(concat_ins, concat_ins->get_operator(), new_inputs);
+                }
+            }
+        }
+    }
+};
+
+// Replace concat with identical inputs with multibroadcast
+// Transforms: concat(x, x, x, x) along axis where x has dimension 1 on that axis
+// Into: multibroadcast(x, output_shape)
+// This avoids materializing the concatenated tensor and uses broadcast's stride-0 optimization
+struct find_replicated_concat
+{
+    void apply(module& m) const
+    {
+        for(auto ins : iterator_for(m))
+        {
+            if(ins->name() != "concat")
+                continue;
+
+            auto inputs = ins->inputs();
+
+            // Need at least 2 inputs to be a replicated concat
+            if(inputs.size() < 2)
+                continue;
+
+            // Check that all inputs are identical
+            auto first_input = inputs.front();
+            bool all_same =
+                std::all_of(inputs.begin(), inputs.end(), [&](auto inp) { return inp == first_input; });
+
+            if(not all_same)
+                continue;
+
+            // Get concat axis
+            auto concat_op = any_cast<op::concat>(ins->get_operator());
+            auto raw_axis  = concat_op.axis;
+
+            // Check input shape - the concat axis dimension should be 1 for broadcast to work
+            const auto& input_shape = first_input->get_shape();
+            if(input_shape.dynamic())
+                continue;
+
+            if(input_shape.lens().empty())
+                continue;
+
+            auto ndim = input_shape.lens().size();
+
+            // Normalize negative axis
+            auto axis = raw_axis < 0 ? raw_axis + static_cast<int64_t>(ndim) : raw_axis;
+            if(axis < 0 || static_cast<std::size_t>(axis) >= ndim)
+                continue;
+
+            auto axis_idx = static_cast<std::size_t>(axis);
+            if(input_shape.lens()[axis_idx] != 1)
+                continue; // Can't use broadcast if the axis dimension isn't 1
+
+            // Replace concat with multibroadcast
+            auto output_lens = input_shape.lens();
+            output_lens[axis_idx] = inputs.size();
+            auto broadcast_op = make_op("multibroadcast", {{"out_lens", output_lens}});
+            m.replace_instruction(ins, broadcast_op, first_input);
+        }
+    }
+};
+
+// Batched Multi-Hash Gather Fusion
+// Transforms multiple gather operations from the same embedding table into a single
+// batched gather operation, reducing kernel launch overhead.
+//
+// Pattern:
+//   out0 = gather[axis=0](emb, idx0)
+//   out1 = gather[axis=0](emb, idx1)
+//   out2 = gather[axis=0](emb, idx2)
+//   out3 = gather[axis=0](emb, idx3)
+//
+// Becomes:
+//   combined_idx = concat[axis=0](idx0, idx1, idx2, idx3)
+//   batched = gather[axis=0](emb, combined_idx)
+//   out0 = slice[axis=0](batched, 0, idx0_len)
+//   out1 = slice[axis=0](batched, idx0_len, idx0_len+idx1_len)
+//   ... etc
+//
+struct find_batched_gather
+{
+    // Minimum number of gathers to batch together
+    static constexpr std::size_t min_batch_size = 2;
+
+    void apply(module& m) const
+    {
+        // Group gathers by their embedding (data) input
+        std::unordered_map<instruction_ref, std::vector<instruction_ref>> gather_groups;
+
+        for(auto ins : iterator_for(m))
+        {
+            if(ins->name() != "gather")
+                continue;
+
+            auto gop = any_cast<op::gather>(ins->get_operator());
+            // Only batch axis=0 gathers (embedding lookups)
+            if(gop.axis != 0)
+                continue;
+
+            // Skip dynamic shapes
+            if(ins->get_shape().dynamic())
+                continue;
+
+            auto data_input = ins->inputs().at(0);
+            auto idx_input  = ins->inputs().at(1);
+
+            // Only batch if indices have compatible shapes for concatenation
+            // Indices must have the same shape except possibly different first dimension
+            if(idx_input->get_shape().dynamic())
+                continue;
+
+            gather_groups[data_input].push_back(ins);
+        }
+
+        // Build position map for safe iterator comparison
+        std::unordered_map<const instruction*, std::size_t> position_map;
+        {
+            std::size_t pos = 0;
+            for(auto ins : iterator_for(m))
+            {
+                position_map[std::addressof(*ins)] = pos++;
+            }
+        }
+
+        // Process each group
+        for(auto& [emb, gathers] : gather_groups)
+        {
+            if(gathers.size() < min_batch_size)
+                continue;
+
+            // Sort gathers by their position in the module for deterministic behavior
+            // Note: Can't use std::distance directly for std::list iterators in comparator
+            std::sort(gathers.begin(), gathers.end(), [&position_map](auto a, auto b) {
+                return position_map[std::addressof(*a)] < position_map[std::addressof(*b)];
+            });
+
+            // Check that all gathers have compatible index shapes for concatenation
+            // For axis=0 gather, indices are typically 1D or 2D
+            auto first_idx       = gathers.front()->inputs().at(1);
+            const auto& idx_lens = first_idx->get_shape().lens();
+
+            bool compatible = std::all_of(gathers.begin(), gathers.end(), [&](auto g) {
+                auto idx        = g->inputs().at(1);
+                const auto& ish = idx->get_shape();
+                // Same number of dimensions
+                if(ish.lens().size() != idx_lens.size())
+                    return false;
+                // Same dimensions except the first (which we'll concatenate along)
+                for(std::size_t i = 1; i < ish.lens().size(); i++)
+                {
+                    if(ish.lens()[i] != idx_lens[i])
+                        return false;
+                }
+                return true;
+            });
+
+            if(not compatible)
+                continue;
+
+            // Find insertion point (after the last gather in the group)
+            auto last_gather = *std::max_element(
+                gathers.begin(), gathers.end(), [&position_map](auto a, auto b) { 
+                    return position_map[std::addressof(*a)] < position_map[std::addressof(*b)]; 
+                });
+            auto insert_pt = std::next(last_gather);
+
+            // Collect all index inputs
+            std::vector<instruction_ref> idx_inputs;
+            std::vector<std::size_t> idx_sizes;
+            for(auto g : gathers)
+            {
+                auto idx = g->inputs().at(1);
+                idx_inputs.push_back(idx);
+                // Size along the first dimension (what we concatenate)
+                idx_sizes.push_back(idx->get_shape().lens().front());
+            }
+
+            // Create concatenated indices: concat[axis=0](idx0, idx1, ...)
+            auto concat_idx =
+                m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), idx_inputs);
+
+            // Create single batched gather
+            auto batched_gather =
+                m.insert_instruction(insert_pt, make_op("gather", {{"axis", 0}}), emb, concat_idx);
+
+            // Create slices to extract individual results
+            std::size_t offset = 0;
+            for(std::size_t i = 0; i < gathers.size(); i++)
+            {
+                auto g         = gathers[i];
+                auto idx_size  = idx_sizes[i];
+                auto start     = static_cast<int64_t>(offset);
+                auto end       = static_cast<int64_t>(offset + idx_size);
+
+                // slice[axis=0](batched_gather, start, end)
+                auto slice_ins = m.insert_instruction(
+                    insert_pt,
+                    make_op(
+                        "slice",
+                        {{"axes", std::vector<int64_t>{0}},
+                         {"starts", std::vector<int64_t>{start}},
+                         {"ends", std::vector<int64_t>{end}}}),
+                    batched_gather);
+
+                // Replace the original gather with the slice
+                m.replace_instruction(g, slice_ins);
+
+                offset += idx_size;
+            }
+        }
+    }
+};
+
+// Advanced Optimization 1: Batch gathers across different embedding tables with same dimension
+//
+// Pattern:
+//   out0 = gather[axis=0](emb0, idx0)  // emb0 has shape {N0, D}
+//   out1 = gather[axis=0](emb1, idx1)  // emb1 has shape {N1, D}
+//   out2 = gather[axis=0](emb2, idx2)  // emb2 has shape {N2, D}
+//   ... (all embeddings have same dimension D but different sizes N)
+//
+// Becomes:
+//   combined_emb = concat[axis=0](emb0, emb1, emb2, ...)  // shape {N0+N1+N2+..., D}
+//   adjusted_idx0 = idx0                                  // offset 0
+//   adjusted_idx1 = add(idx1, N0)                         // offset N0
+//   adjusted_idx2 = add(idx2, N0+N1)                      // offset N0+N1
+//   combined_idx = concat[axis=0](adjusted_idx0, adjusted_idx1, adjusted_idx2, ...)
+//   batched = gather[axis=0](combined_emb, combined_idx)
+//   out0 = slice[axis=0](batched, 0, idx0_size)
+//   out1 = slice[axis=0](batched, idx0_size, idx0_size+idx1_size)
+//   ... etc
+//
+struct find_cross_embedding_gather
+{
+    // Minimum number of gathers to batch together
+    static constexpr std::size_t min_batch_size = 4;
+
+    void apply(module& m) const
+    {
+        // Group gathers by their embedding dimension (last dimension of embedding table)
+        // Key: embedding_dimension -> list of (gather_instruction, embedding_size)
+        std::map<std::size_t, std::vector<instruction_ref>> gather_by_emb_dim;
+
+        for(auto ins : iterator_for(m))
+        {
+            if(ins->name() != "gather")
+                continue;
+
+            auto gop = any_cast<op::gather>(ins->get_operator());
+            // Only batch axis=0 gathers (embedding lookups)
+            if(gop.axis != 0)
+                continue;
+
+            // Skip dynamic shapes
+            if(ins->get_shape().dynamic())
+                continue;
+
+            auto data_input = ins->inputs().at(0);
+            auto idx_input  = ins->inputs().at(1);
+
+            // Skip if embedding or index has dynamic shape
+            if(data_input->get_shape().dynamic() || idx_input->get_shape().dynamic())
+                continue;
+
+            const auto& emb_shape = data_input->get_shape();
+            // Embedding must be 2D: {num_rows, embedding_dim}
+            if(emb_shape.lens().size() != 2)
+                continue;
+
+            // Skip if embedding is not a literal (we can only concat constant embeddings)
+            if(not data_input->can_eval())
+                continue;
+
+            std::size_t emb_dim = emb_shape.lens().back();
+            gather_by_emb_dim[emb_dim].push_back(ins);
+        }
+
+        // Process each dimension group
+        for(auto& [emb_dim, gathers] : gather_by_emb_dim)
+        {
+            if(gathers.size() < min_batch_size)
+                continue;
+            // Sort gathers by their position in the module for deterministic behavior
+            // Note: Can't use std::distance directly in comparator for std::list iterators
+            // because std::distance(a, b) when a > b causes undefined behavior
+            // Instead, build a position map first
+            std::unordered_map<const instruction*, std::size_t> position_map;
+            std::size_t pos = 0;
+            for(auto ins : iterator_for(m))
+            {
+                position_map[std::addressof(*ins)] = pos++;
+            }
+            std::sort(gathers.begin(), gathers.end(), [&position_map](auto a, auto b) {
+                return position_map[std::addressof(*a)] < position_map[std::addressof(*b)];
+            });
+
+            // Check that all gathers have compatible index shapes for concatenation
+            auto first_idx       = gathers.front()->inputs().at(1);
+            const auto& idx_lens = first_idx->get_shape().lens();
+            auto idx_type        = first_idx->get_shape().type();
+
+            // Skip if indices are scalar (empty lens) - can't concatenate scalars meaningfully
+            if(idx_lens.empty())
+                continue;
+
+            bool compatible = std::all_of(gathers.begin(), gathers.end(), [&](auto g) {
+                auto idx        = g->inputs().at(1);
+                const auto& ish = idx->get_shape();
+                // Same type
+                if(ish.type() != idx_type)
+                    return false;
+                // Same number of dimensions (and not empty)
+                if(ish.lens().size() != idx_lens.size())
+                    return false;
+                if(ish.lens().empty())
+                    return false;
+                // Same dimensions except the first (which we'll concatenate along)
+                for(std::size_t i = 1; i < ish.lens().size(); i++)
+                {
+                    if(ish.lens()[i] != idx_lens[i])
+                        return false;
+                }
+                return true;
+            });
+
+            if(not compatible)
+                continue;
+
+            // Find insertion point (after the last gather in the group)
+            auto last_gather = *std::max_element(
+                gathers.begin(), gathers.end(), [&position_map](auto a, auto b) { 
+                    return position_map[std::addressof(*a)] < position_map[std::addressof(*b)]; 
+                });
+            auto insert_pt = std::next(last_gather);
+
+            // Collect embedding inputs and compute offsets
+            std::vector<instruction_ref> emb_inputs;
+            std::vector<std::size_t> emb_sizes;    // Size of each embedding table (num rows)
+            std::vector<std::size_t> emb_offsets;  // Cumulative offset for each embedding
+            std::size_t cumulative_offset = 0;
+
+            for(auto g : gathers)
+            {
+                auto emb = g->inputs().at(0);
+                emb_inputs.push_back(emb);
+                std::size_t emb_size = emb->get_shape().lens().front();
+                emb_sizes.push_back(emb_size);
+                emb_offsets.push_back(cumulative_offset);
+                cumulative_offset += emb_size;
+            }
+
+            // Create concatenated embedding table
+            auto concat_emb =
+                m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), emb_inputs);
+
+            // Create adjusted indices with offsets and collect them
+            std::vector<instruction_ref> adjusted_idx_inputs;
+            std::vector<std::size_t> idx_sizes;
+
+            for(std::size_t i = 0; i < gathers.size(); i++)
+            {
+                auto g      = gathers[i];
+                auto idx    = g->inputs().at(1);
+                auto offset = emb_offsets[i];
+
+                instruction_ref adjusted_idx;
+                if(offset == 0)
+                {
+                    // No adjustment needed for first embedding
+                    adjusted_idx = idx;
+                }
+                else
+                {
+                    // Add offset to indices: adjusted_idx = idx + offset
+                    // Create a scalar literal with the offset value and broadcast it
+                    instruction_ref offset_scalar;
+                    if(idx_type == shape::int32_type)
+                    {
+                        offset_scalar = m.add_literal(static_cast<int32_t>(offset));
+                    }
+                    else if(idx_type == shape::int64_type)
+                    {
+                        offset_scalar = m.add_literal(static_cast<int64_t>(offset));
+                    }
+                    else if(idx_type == shape::float_type)
+                    {
+                        offset_scalar = m.add_literal(static_cast<float>(offset));
+                    }
+                    else if(idx_type == shape::half_type)
+                    {
+                        offset_scalar = m.add_literal(half{static_cast<float>(offset)});
+                    }
+                    else if(idx_type == shape::double_type)
+                    {
+                        offset_scalar = m.add_literal(static_cast<double>(offset));
+                    }
+                    else
+                    {
+                        // Unsupported type - this shouldn't happen given our earlier checks
+                        offset_scalar = m.add_literal(static_cast<float>(offset));
+                    }
+
+                    // Broadcast the scalar to match index shape
+                    auto offset_broadcast = m.insert_instruction(
+                        insert_pt,
+                        make_op("multibroadcast", {{"out_lens", idx->get_shape().lens()}}),
+                        offset_scalar);
+
+                    adjusted_idx = m.insert_instruction(
+                        insert_pt, make_op("add"), idx, offset_broadcast);
+                }
+
+                adjusted_idx_inputs.push_back(adjusted_idx);
+                idx_sizes.push_back(idx->get_shape().lens().front());
+            }
+
+            // Create concatenated adjusted indices
+            auto concat_idx =
+                m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), adjusted_idx_inputs);
+
+            // Create single batched gather
+            auto batched_gather =
+                m.insert_instruction(insert_pt, make_op("gather", {{"axis", 0}}), concat_emb, concat_idx);
+
+            // Create slices to extract individual results
+            std::size_t slice_offset = 0;
+            for(std::size_t i = 0; i < gathers.size(); i++)
+            {
+                auto g         = gathers[i];
+                auto idx_size  = idx_sizes[i];
+                auto start     = static_cast<int64_t>(slice_offset);
+                auto end       = static_cast<int64_t>(slice_offset + idx_size);
+
+                auto slice_ins = m.insert_instruction(
+                    insert_pt,
+                    make_op("slice",
+                            {{"axes", std::vector<int64_t>{0}},
+                             {"starts", std::vector<int64_t>{start}},
+                             {"ends", std::vector<int64_t>{end}}}),
+                    batched_gather);
+
+                // Replace the original gather with the slice
+                m.replace_instruction(g, slice_ins);
+
+                slice_offset += idx_size;
+            }
+        }
+    }
+};
+
+// Advanced Optimization: Multi-Embedding Gather with Sliced Indices to Concat
+//
+// Pattern (partial matching supported):
+//   indices: {batch, seq, num_emb}  (shared index tensor)
+//   for i in 0..N-1:
+//       idx_i = squeeze(slice(indices, axis=2, i, i+1))  // {batch, seq}
+//       out_i = gather[axis=0](emb_i, idx_i)             // {batch, seq, emb_dim}
+//   output = concat(out_0, ..., out_N-1, other_inputs..., axis=-1)
+//
+// Optimized to:
+//   1. Stack matching embedding tables: stacked_emb = concat(emb_0, emb_1, ..., axis=0)
+//   2. Adjust indices with offsets for each column
+//   3. Single batched gather with reshaped output
+//   4. Rebuild concat with batched result + other non-matching inputs
+//
+// This reduces N gather kernel launches to 1 gather + offset computation
+//
+struct find_multi_embedding_slice_gather
+{
+    // Minimum number of gathers to fuse together
+    static constexpr std::size_t min_gathers = 4;
+
+    // Info about a matching gather
+    struct gather_match_info
+    {
+        instruction_ref gather_ins;
+        instruction_ref emb;
+        std::size_t emb_size;
+        int64_t slice_idx;
+        std::size_t concat_input_idx; // Position in concat inputs
+    };
+
+    // Helper to check if an instruction is squeeze(slice(...))
+    static bool is_squeeze_slice(instruction_ref ins)
+    {
+        if(ins->name() != "squeeze")
+            return false;
+        if(ins->inputs().empty())
+            return false;
+        return ins->inputs().front()->name() == "slice";
+    }
+
+    // Helper to extract slice info from squeeze(slice(...))
+    // Returns: (source, axis, start, end)
+    static std::tuple<instruction_ref, int64_t, int64_t, int64_t>
+    get_slice_info(instruction_ref squeeze_ins)
+    {
+        auto slice_ins = squeeze_ins->inputs().front();
+        auto slice_op  = any_cast<op::slice>(slice_ins->get_operator());
+
+        auto source = slice_ins->inputs().front();
+        int64_t axis  = slice_op.axes.empty() ? 0 : slice_op.axes.front();
+        int64_t start = slice_op.starts.front();
+        int64_t end   = slice_op.ends.front();
+
+        return {source, axis, start, end};
+    }
+
+    // Check if a gather matches our pattern and extract info
+    // Returns nullopt if not matching
+    static std::optional<std::tuple<instruction_ref, int64_t, int64_t, instruction_ref, std::size_t, std::size_t>>
+    check_gather_match(instruction_ref g, std::size_t target_emb_dim)
+    {
+        if(g->name() != "gather")
+            return std::nullopt;
+
+        auto gop = any_cast<op::gather>(g->get_operator());
+        if(gop.axis != 0)
+            return std::nullopt;
+
+        auto emb = g->inputs().at(0);
+        auto idx = g->inputs().at(1);
+
+        // Embedding must be evaluable (constant)
+        if(not emb->can_eval())
+            return std::nullopt;
+
+        // Embedding must be 2D
+        if(emb->get_shape().lens().size() != 2)
+            return std::nullopt;
+
+        // Check embedding dimension
+        std::size_t this_emb_dim = emb->get_shape().lens().back();
+        if(target_emb_dim != 0 && this_emb_dim != target_emb_dim)
+            return std::nullopt;
+
+        // Check if index comes from squeeze(slice(...))
+        if(not is_squeeze_slice(idx))
+            return std::nullopt;
+
+        auto [source, axis, start, end] = get_slice_info(idx);
+
+        // Slice must extract exactly one element
+        if(end - start != 1)
+            return std::nullopt;
+
+        std::size_t emb_size = emb->get_shape().lens().front();
+
+        return std::make_tuple(source, axis, start, emb, emb_size, this_emb_dim);
+    }
+
+    void apply(module& m) const
+    {
+        // Track processed concats to avoid infinite loops
+        std::set<const instruction*> processed_concats;
+        
+        bool changed = true;
+        std::size_t max_iterations = 100; // Safety limit
+        std::size_t iteration = 0;
+        
+        while(changed && iteration < max_iterations)
+        {
+            changed = false;
+            iteration++;
+            
+            for(auto concat_ins : iterator_for(m))
+            {
+                if(concat_ins->name() != "concat")
+                    continue;
+                
+                // Skip if we've already processed this concat
+                if(processed_concats.count(std::addressof(*concat_ins)) > 0)
+                    continue;
+
+                auto concat_op = any_cast<op::concat>(concat_ins->get_operator());
+                auto concat_axis = concat_op.axis;
+
+                // Normalize concat axis
+                auto ndim = concat_ins->get_shape().ndim();
+                if(concat_axis < 0)
+                    concat_axis += static_cast<int64_t>(ndim);
+
+                // Scan inputs and find groups of matching gathers
+                // Key: (common_source_ptr, slice_axis, emb_dim) -> list of matching gathers
+                // Use pointer address for comparison since instruction_ref has no < operator
+                std::map<std::tuple<const instruction*, int64_t, std::size_t>,
+                         std::vector<gather_match_info>> gather_groups;
+                // Also track source instruction_ref for each key
+                std::map<std::tuple<const instruction*, int64_t, std::size_t>,
+                         instruction_ref> source_map;
+
+                auto inputs = concat_ins->inputs();
+                for(std::size_t i = 0; i < inputs.size(); i++)
+                {
+                    auto input = inputs[i];
+                    if(input->name() != "gather")
+                        continue;
+
+                    // Only consider single-use gathers
+                    if(input->outputs().size() != 1)
+                        continue;
+
+                    // Try to match with emb_dim=0 (any dimension initially)
+                    auto match = check_gather_match(input, 0);
+                    if(!match)
+                        continue;
+
+                    auto [source, axis, start, emb, emb_size, emb_dim] = *match;
+
+                    auto key = std::make_tuple(std::addressof(*source), axis, emb_dim);
+                    gather_groups[key].push_back({input, emb, emb_size, start, i});
+                    source_map[key] = source;
+                }
+
+                // Find the largest group with consecutive slices
+                std::vector<gather_match_info>* best_group = nullptr;
+                instruction_ref best_source;
+                int64_t best_slice_axis = -1;
+                std::size_t best_emb_dim = 0;
+
+                for(auto& [key, group] : gather_groups)
+                {
+                    if(group.size() < min_gathers)
+                        continue;
+
+                    // Sort by slice index
+                    std::sort(group.begin(), group.end(),
+                              [](const auto& a, const auto& b) { return a.slice_idx < b.slice_idx; });
+
+                    // Check for consecutive slices starting from 0
+                    bool consecutive = true;
+                    for(std::size_t i = 0; i < group.size(); i++)
+                    {
+                        if(group[i].slice_idx != static_cast<int64_t>(i))
+                        {
+                            consecutive = false;
+                            break;
+                        }
+                    }
+
+                    if(not consecutive)
+                        continue;
+
+                    // Check concat axis is the last axis
+                    auto sample_shape = group.front().gather_ins->get_shape();
+                    if(static_cast<std::size_t>(concat_axis) != sample_shape.ndim() - 1)
+                        continue;
+
+                    // This is a valid group
+                    if(best_group == nullptr || group.size() > best_group->size())
+                    {
+                        best_group = &group;
+                        best_source = source_map[key];
+                        best_slice_axis = std::get<1>(key);
+                        best_emb_dim = std::get<2>(key);
+                    }
+                }
+
+                if(best_group == nullptr)
+                {
+                    // No match found, mark as processed to avoid rechecking
+                    processed_concats.insert(std::addressof(*concat_ins));
+                    continue;
+                }
+
+                auto& group = *best_group;
+                std::size_t num_emb = group.size();
+
+                // === OPTIMIZATION: Transform matching gathers to batched gather ===
+
+                // 1. Concatenate embedding tables
+                std::vector<instruction_ref> emb_inputs;
+                std::vector<std::size_t> emb_offsets;
+                std::size_t cumulative_offset = 0;
+                for(const auto& gi : group)
+                {
+                    emb_inputs.push_back(gi.emb);
+                    emb_offsets.push_back(cumulative_offset);
+                    cumulative_offset += gi.emb_size;
+                }
+
+                auto stacked_emb = m.insert_instruction(
+                    concat_ins, make_op("concat", {{"axis", 0}}), emb_inputs);
+
+                // 2. Adjust indices with offsets
+                const auto& source_shape = best_source->get_shape();
+                auto idx_type = source_shape.type();
+
+                // Create offset literal of shape {1, 1, num_emb}
+                shape offset_shape{idx_type, {1, 1, num_emb}};
+                instruction_ref offset_lit;
+
+                if(idx_type == shape::int32_type)
+                {
+                    std::vector<int32_t> offset_values;
+                    for(std::size_t i = 0; i < num_emb; i++)
+                        offset_values.push_back(static_cast<int32_t>(emb_offsets[i]));
+                    offset_lit = m.add_literal(literal{offset_shape, offset_values});
+                }
+                else if(idx_type == shape::int64_type)
+                {
+                    std::vector<int64_t> offset_values;
+                    for(std::size_t i = 0; i < num_emb; i++)
+                        offset_values.push_back(static_cast<int64_t>(emb_offsets[i]));
+                    offset_lit = m.add_literal(literal{offset_shape, offset_values});
+                }
+                else if(idx_type == shape::float_type)
+                {
+                    std::vector<float> offset_values;
+                    for(std::size_t i = 0; i < num_emb; i++)
+                        offset_values.push_back(static_cast<float>(emb_offsets[i]));
+                    offset_lit = m.add_literal(literal{offset_shape, offset_values});
+                }
+                else
+                {
+                    continue; // Unsupported type
+                }
+
+                // Slice source to get only the columns we need
+                instruction_ref sliced_source;
+                if(source_shape.lens()[static_cast<std::size_t>(best_slice_axis)] != num_emb)
+                {
+                    sliced_source = m.insert_instruction(
+                        concat_ins,
+                        make_op("slice",
+                                {{"axes", std::vector<int64_t>{best_slice_axis}},
+                                 {"starts", std::vector<int64_t>{0}},
+                                 {"ends", std::vector<int64_t>{static_cast<int64_t>(num_emb)}}}),
+                        best_source);
+                }
+                else
+                {
+                    sliced_source = best_source;
+                }
+
+                // Broadcast offsets
+                auto broadcast_offsets = m.insert_instruction(
+                    concat_ins,
+                    make_op("multibroadcast", {{"out_lens", sliced_source->get_shape().lens()}}),
+                    offset_lit);
+
+                // Add offsets to indices
+                auto adjusted_idx = m.insert_instruction(
+                    concat_ins, make_op("add"), sliced_source, broadcast_offsets);
+
+                // 3. Reshape indices for flat gather
+                const auto& adj_idx_lens = adjusted_idx->get_shape().lens();
+                std::size_t batch = adj_idx_lens[0];
+                std::size_t seq = adj_idx_lens[1];
+                std::size_t total_idx = batch * seq * num_emb;
+
+                auto flat_idx = m.insert_instruction(
+                    concat_ins,
+                    make_op("reshape", {{"dims", std::vector<int64_t>{static_cast<int64_t>(total_idx)}}}),
+                    adjusted_idx);
+
+                // 4. Single batched gather
+                auto batched_gather = m.insert_instruction(
+                    concat_ins, make_op("gather", {{"axis", 0}}), stacked_emb, flat_idx);
+
+                // 5. Reshape to {batch, seq, num_emb * emb_dim}
+                auto batched_result = m.insert_instruction(
+                    concat_ins,
+                    make_op("reshape",
+                            {{"dims", std::vector<int64_t>{static_cast<int64_t>(batch),
+                                                           static_cast<int64_t>(seq),
+                                                           static_cast<int64_t>(num_emb * best_emb_dim)}}}),
+                    batched_gather);
+
+                // 6. Build new concat inputs, replacing matching gathers with batched result
+                std::set<std::size_t> replaced_indices;
+                for(const auto& gi : group)
+                {
+                    replaced_indices.insert(gi.concat_input_idx);
+                }
+
+                std::vector<instruction_ref> new_concat_inputs;
+                bool inserted_batched = false;
+                for(std::size_t i = 0; i < inputs.size(); i++)
+                {
+                    if(replaced_indices.count(i) > 0)
+                    {
+                        // This is a replaced gather
+                        if(not inserted_batched)
+                        {
+                            // Insert batched result at the position of the first replaced gather
+                            new_concat_inputs.push_back(batched_result);
+                            inserted_batched = true;
+                        }
+                        // Skip the original gather
+                    }
+                    else
+                    {
+                        // Keep non-matching inputs
+                        new_concat_inputs.push_back(inputs[i]);
+                    }
+                }
+
+                // 7. Replace concat or create new one
+                if(new_concat_inputs.size() == 1)
+                {
+                    // Only the batched result, no need for concat
+                    m.replace_instruction(concat_ins, new_concat_inputs.front());
+                }
+                else
+                {
+                    // Create new concat with remaining inputs
+                    auto new_concat = m.insert_instruction(
+                        concat_ins,
+                        make_op("concat", {{"axis", concat_axis}}),
+                        new_concat_inputs);
+                    
+                    // Mark the new concat as processed to avoid reprocessing
+                    processed_concats.insert(std::addressof(*new_concat));
+                    m.replace_instruction(concat_ins, new_concat);
+                }
+
+                changed = true;
+                break; // Restart iteration since we modified the module
+            }
+        }
+    }
+};
+
 void simplify_algebra::apply(module& m) const
 {
+    // Run replicated concat optimization early (converts Tile patterns to multibroadcast)
+    find_replicated_concat{}.apply(m);
+
+    // Run grouped concat to broadcast optimization (reduces concat inputs)
+    find_grouped_concat_to_broadcast{}.apply(m);
+    
+    // Run concat + mul + reduce_sum optimization (eliminates concat+reduce patterns)
+    find_concat_mul_reduce{}.apply(m);
+
+    // Note: find_slice_concat_to_gather disabled - adds transpose/gather overhead
+    // that roughly equals the concat savings, providing no net benefit.
+    // find_slice_concat_to_gather{}.apply(m);
+
+    // Run multi-embedding slice-gather-concat optimization (highest impact)
+    find_multi_embedding_slice_gather{}.apply(m);
+
+    // Run cross-embedding gather optimization (larger fusion opportunity)
+    find_cross_embedding_gather{}.apply(m);
+
+    // Run batched gather optimization
+    find_batched_gather{}.apply(m);
+
     // Run simplifications multiple times
     m.repeat_while_changes(8, [&] {
         match::find_matches(m,

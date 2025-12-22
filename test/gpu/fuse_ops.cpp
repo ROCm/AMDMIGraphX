@@ -421,4 +421,169 @@ TEST_CASE(concat_pointwise_contiguous)
     EXPECT(p1 == p2);
 }
 
+TEST_CASE(concat_gather)
+{
+    // Test fusing multiple gather operations feeding into concat
+    // Pattern: concat(gather(emb1, idx), gather(emb2, idx), ...) -> gpu::concat_gather
+    migraphx::shape emb_shape1{migraphx::shape::float_type, {100, 32}};  // 100 embeddings, 32 dim
+    migraphx::shape emb_shape2{migraphx::shape::float_type, {100, 64}};  // 100 embeddings, 64 dim
+    migraphx::shape idx_shape{migraphx::shape::int64_type, {10}};        // 10 indices
+    migraphx::shape gather1_shape{migraphx::shape::float_type, {10, 32}};
+    migraphx::shape gather2_shape{migraphx::shape::float_type, {10, 64}};
+    migraphx::shape output_shape{migraphx::shape::float_type, {10, 96}}; // concat along axis=1
+
+    auto create_program = [=]() {
+        migraphx::program p;
+        auto* mm  = p.get_main_module();
+        auto emb1 = mm->add_parameter("emb1", emb_shape1);
+        auto emb2 = mm->add_parameter("emb2", emb_shape2);
+        auto idx  = mm->add_parameter("idx", idx_shape);
+
+        // gather1: emb1[idx] -> shape {10, 32}
+        auto gather1_alloc = mm->add_instruction(
+            migraphx::make_op("allocate", {{"shape", migraphx::to_value(gather1_shape)}}));
+        auto gather1 = mm->add_instruction(
+            make_precompile_op(migraphx::make_op("gather", {{"axis", 0}})),
+            emb1,
+            idx,
+            gather1_alloc);
+
+        // gather2: emb2[idx] -> shape {10, 64}
+        auto gather2_alloc = mm->add_instruction(
+            migraphx::make_op("allocate", {{"shape", migraphx::to_value(gather2_shape)}}));
+        auto gather2 = mm->add_instruction(
+            make_precompile_op(migraphx::make_op("gather", {{"axis", 0}})),
+            emb2,
+            idx,
+            gather2_alloc);
+
+        // concat along axis=1 -> shape {10, 96}
+        auto concat_alloc = mm->add_instruction(
+            migraphx::make_op("allocate", {{"shape", migraphx::to_value(output_shape)}}));
+        auto concat = mm->add_instruction(
+            migraphx::make_op("concat", {{"axis", 1}}), gather1, gather2, concat_alloc);
+
+        mm->add_return({concat});
+        return p;
+    };
+
+    auto create_fused_program = [=]() {
+        migraphx::program p;
+        auto* mm  = p.get_main_module();
+        auto emb1 = mm->add_parameter("emb1", emb_shape1);
+        auto emb2 = mm->add_parameter("emb2", emb_shape2);
+        auto idx  = mm->add_parameter("idx", idx_shape);
+
+        // fused op: fused_concat with gather_fusion flag
+        auto fused_alloc = mm->add_instruction(
+            migraphx::make_op("allocate", {{"shape", migraphx::to_value(output_shape)}}));
+        auto fused =
+            mm->add_instruction(migraphx::make_op("fused_concat",
+                                                  {{"axis", 1},
+                                                   {"gather_fusion", true},
+                                                   {"gather_axis", 0},
+                                                   {"num_gathers", 2}}),
+                                emb1,
+                                idx,
+                                emb2,
+                                idx,
+                                fused_alloc);
+
+        mm->add_return({fused});
+        return p;
+    };
+
+    migraphx::program p1 = create_program();
+    run_pass(p1);
+    migraphx::program p2 = create_fused_program();
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(concat_gather_multi)
+{
+    // Test fusing multiple (4) gather operations with concat along axis=1
+    // Embedding table: [vocab_size, emb_dim]
+    // gather[axis=0] with indices [batch] -> [batch, emb_dim]
+    migraphx::shape emb_shape1{migraphx::shape::float_type, {100, 8}};  // vocab=100, dim=8
+    migraphx::shape emb_shape2{migraphx::shape::float_type, {100, 16}}; // vocab=100, dim=16
+    migraphx::shape emb_shape3{migraphx::shape::float_type, {100, 8}};  // vocab=100, dim=8
+    migraphx::shape emb_shape4{migraphx::shape::float_type, {100, 16}}; // vocab=100, dim=16
+    migraphx::shape idx_shape{migraphx::shape::int64_type, {32}};       // batch=32 indices
+    migraphx::shape gather_shape1{migraphx::shape::float_type, {32, 8}};
+    migraphx::shape gather_shape2{migraphx::shape::float_type, {32, 16}};
+    // Concat 4 gathers along axis=1: {32, 8+16+8+16} = {32, 48}
+    migraphx::shape output_shape{migraphx::shape::float_type, {32, 48}};
+
+    auto create_program = [=]() {
+        migraphx::program p;
+        auto* mm  = p.get_main_module();
+        auto emb1 = mm->add_parameter("emb1", emb_shape1);
+        auto emb2 = mm->add_parameter("emb2", emb_shape2);
+        auto emb3 = mm->add_parameter("emb3", emb_shape3);
+        auto emb4 = mm->add_parameter("emb4", emb_shape4);
+        auto idx  = mm->add_parameter("idx", idx_shape);
+
+        auto g1_alloc = mm->add_instruction(
+            migraphx::make_op("allocate", {{"shape", migraphx::to_value(gather_shape1)}}));
+        auto g1 = mm->add_instruction(
+            make_precompile_op(migraphx::make_op("gather", {{"axis", 0}})),
+            emb1, idx, g1_alloc);
+
+        auto g2_alloc = mm->add_instruction(
+            migraphx::make_op("allocate", {{"shape", migraphx::to_value(gather_shape2)}}));
+        auto g2 = mm->add_instruction(
+            make_precompile_op(migraphx::make_op("gather", {{"axis", 0}})),
+            emb2, idx, g2_alloc);
+
+        auto g3_alloc = mm->add_instruction(
+            migraphx::make_op("allocate", {{"shape", migraphx::to_value(gather_shape1)}}));
+        auto g3 = mm->add_instruction(
+            make_precompile_op(migraphx::make_op("gather", {{"axis", 0}})),
+            emb3, idx, g3_alloc);
+
+        auto g4_alloc = mm->add_instruction(
+            migraphx::make_op("allocate", {{"shape", migraphx::to_value(gather_shape2)}}));
+        auto g4 = mm->add_instruction(
+            make_precompile_op(migraphx::make_op("gather", {{"axis", 0}})),
+            emb4, idx, g4_alloc);
+
+        // concat along axis=1 (last axis for 2D)
+        auto concat_alloc = mm->add_instruction(
+            migraphx::make_op("allocate", {{"shape", migraphx::to_value(output_shape)}}));
+        auto concat = mm->add_instruction(
+            migraphx::make_op("concat", {{"axis", 1}}), g1, g2, g3, g4, concat_alloc);
+
+        mm->add_return({concat});
+        return p;
+    };
+
+    auto create_fused_program = [=]() {
+        migraphx::program p;
+        auto* mm  = p.get_main_module();
+        auto emb1 = mm->add_parameter("emb1", emb_shape1);
+        auto emb2 = mm->add_parameter("emb2", emb_shape2);
+        auto emb3 = mm->add_parameter("emb3", emb_shape3);
+        auto emb4 = mm->add_parameter("emb4", emb_shape4);
+        auto idx  = mm->add_parameter("idx", idx_shape);
+
+        auto fused_alloc = mm->add_instruction(
+            migraphx::make_op("allocate", {{"shape", migraphx::to_value(output_shape)}}));
+        auto fused =
+            mm->add_instruction(migraphx::make_op("fused_concat",
+                                                  {{"axis", 1},
+                                                   {"gather_fusion", true},
+                                                   {"gather_axis", 0},
+                                                   {"num_gathers", 4}}),
+                                emb1, idx, emb2, idx, emb3, idx, emb4, idx, fused_alloc);
+
+        mm->add_return({fused});
+        return p;
+    };
+
+    migraphx::program p1 = create_program();
+    run_pass(p1);
+    migraphx::program p2 = create_fused_program();
+    EXPECT(p1.sort() == p2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

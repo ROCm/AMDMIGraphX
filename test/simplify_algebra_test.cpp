@@ -4733,4 +4733,295 @@ TEST_CASE(find_concat_different_broadcast_axes)
     EXPECT(m1.sort() == m2.sort());
 }
 
+// Test batched gather fusion for multi-hash embedding pattern
+// Pattern: Same embedding table, same base input, indices derived via mul+mod with different constants
+// idx_k = mod(base_input * 2^k, vocab_size) for k = 0, 1, 2, 3
+TEST_CASE(batched_gather_multihash_fusion)
+{
+    // Embedding shape: {vocab_size, emb_dim} - like genrec's {2000000, 96}
+    migraphx::shape emb_shape{migraphx::shape::float_type, {100000, 64}};
+    // Base input shape: {batch, seq_len} - like genrec's {1, 96}
+    migraphx::shape base_shape{migraphx::shape::int64_type, {1, 96}};
+    migraphx::shape scalar_shape{migraphx::shape::int64_type, {1}};
+
+    migraphx::module m1;
+    {
+        auto emb = m1.add_parameter("emb", emb_shape);
+        auto base_input = m1.add_parameter("base_input", base_shape);
+
+        // Constants for multi-hash: powers of 2 and modulus
+        auto mul1 = m1.add_literal(migraphx::literal{scalar_shape, {1}});   // 2^0
+        auto mul2 = m1.add_literal(migraphx::literal{scalar_shape, {2}});   // 2^1
+        auto mul4 = m1.add_literal(migraphx::literal{scalar_shape, {4}});   // 2^2
+        auto mul8 = m1.add_literal(migraphx::literal{scalar_shape, {8}});   // 2^3
+        auto mod_val = m1.add_literal(migraphx::literal{scalar_shape, {100000}});
+
+        // Broadcast multipliers and modulus to match base_input shape
+        auto mul1_bc = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 96}}}), mul1);
+        auto mul2_bc = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 96}}}), mul2);
+        auto mul4_bc = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 96}}}), mul4);
+        auto mul8_bc = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 96}}}), mul8);
+        auto mod_bc = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 96}}}), mod_val);
+
+        // Compute indices: idx_k = mod(base_input * 2^k, vocab_size)
+        auto prod0 = m1.add_instruction(migraphx::make_op("mul"), base_input, mul1_bc);
+        auto idx0 = m1.add_instruction(migraphx::make_op("mod"), prod0, mod_bc);
+
+        auto prod1 = m1.add_instruction(migraphx::make_op("mul"), base_input, mul2_bc);
+        auto idx1 = m1.add_instruction(migraphx::make_op("mod"), prod1, mod_bc);
+
+        auto prod2 = m1.add_instruction(migraphx::make_op("mul"), base_input, mul4_bc);
+        auto idx2 = m1.add_instruction(migraphx::make_op("mod"), prod2, mod_bc);
+
+        auto prod3 = m1.add_instruction(migraphx::make_op("mul"), base_input, mul8_bc);
+        auto idx3 = m1.add_instruction(migraphx::make_op("mod"), prod3, mod_bc);
+
+        // 4 gathers from the same embedding with different hash-derived indices
+        // Each gather: {1, 96} indices into {100000, 64} embedding -> output {1, 96, 64}
+        auto g0 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx0);
+        auto g1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx1);
+        auto g2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx2);
+        auto g3 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx3);
+
+        // Multi-hash embedding: sum all the gathered embeddings
+        auto sum01 = m1.add_instruction(migraphx::make_op("add"), g0, g1);
+        auto sum23 = m1.add_instruction(migraphx::make_op("add"), g2, g3);
+        auto sum = m1.add_instruction(migraphx::make_op("add"), sum01, sum23);
+        m1.add_return({sum});
+    }
+
+    auto m_before = m1;
+    run_pass(m1);
+
+    // Verify transformation occurred:
+    // - Original: 4 gather operations
+    // - After: 1 gather + 4 slices
+    auto count_op = [](const migraphx::module& m, const std::string& op_name) {
+        return std::count_if(m.begin(), m.end(), [&](const auto& ins) {
+            return ins.name() == op_name;
+        });
+    };
+
+    // Before: 4 gathers, 0 slices
+    EXPECT(count_op(m_before, "gather") == 4);
+    EXPECT(count_op(m_before, "slice") == 0);
+
+    // After: 1 gather, 4 slices
+    EXPECT(count_op(m1, "gather") == 1);
+    EXPECT(count_op(m1, "slice") == 4);
+
+    // Note: concat count may vary due to find_concat_op pushing concats through pointwise ops
+    // The key optimization is reducing 4 gathers to 1 gather + 4 slices
+}
+
+// Test that non-axis-0 gathers are not batched
+TEST_CASE(batched_gather_axis1_no_fusion)
+{
+    migraphx::shape emb_shape{migraphx::shape::float_type, {64, 1000}};
+    migraphx::shape idx_shape{migraphx::shape::int64_type, {32}};
+
+    migraphx::module m1;
+    {
+        auto emb = m1.add_parameter("emb", emb_shape);
+        auto idx0 = m1.add_parameter("idx0", idx_shape);
+        auto idx1 = m1.add_parameter("idx1", idx_shape);
+
+        // Gathers on axis=1 should not be batched
+        auto g0 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), emb, idx0);
+        auto g1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), emb, idx1);
+
+        auto sum = m1.add_instruction(migraphx::make_op("add"), g0, g1);
+        m1.add_return({sum});
+    }
+
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    // Should remain unchanged - no batching for axis != 0
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Test single gather is not modified
+TEST_CASE(batched_gather_single_no_fusion)
+{
+    migraphx::shape emb_shape{migraphx::shape::float_type, {1000, 64}};
+    migraphx::shape idx_shape{migraphx::shape::int64_type, {1, 32}};
+
+    migraphx::module m1;
+    {
+        auto emb = m1.add_parameter("emb", emb_shape);
+        auto idx0 = m1.add_parameter("idx0", idx_shape);
+
+        auto g0 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx0);
+        m1.add_return({g0});
+    }
+
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    // Should remain unchanged - need at least 2 gathers to batch
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Test replicated concat optimization: concat(x, x, x, x) -> multibroadcast
+TEST_CASE(replicated_concat_to_broadcast)
+{
+    migraphx::shape input_shape{migraphx::shape::float_type, {1, 96}};
+
+    migraphx::module m1;
+    {
+        auto input = m1.add_parameter("input", input_shape);
+
+        // concat(input, input, input, input) axis=0 -> {4, 96}
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                                         input,
+                                         input,
+                                         input,
+                                         input);
+        m1.add_return({concat});
+    }
+
+    migraphx::module m2;
+    {
+        auto input = m2.add_parameter("input", input_shape);
+
+        // Should become multibroadcast
+        auto broadcast = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", std::vector<std::size_t>{4, 96}}}),
+            input);
+        m2.add_return({broadcast});
+    }
+
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Test that concat with different inputs is NOT replaced
+TEST_CASE(replicated_concat_different_inputs_no_change)
+{
+    migraphx::shape input_shape{migraphx::shape::float_type, {1, 96}};
+
+    migraphx::module m1;
+    {
+        auto input1 = m1.add_parameter("input1", input_shape);
+        auto input2 = m1.add_parameter("input2", input_shape);
+
+        // concat(input1, input2, input1, input2) - not all same
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                                         input1,
+                                         input2,
+                                         input1,
+                                         input2);
+        m1.add_return({concat});
+    }
+
+    auto m_before = m1;
+    run_pass(m1);
+
+    // Count concats - should still have 1 concat (not replaced with broadcast)
+    auto count_op = [](const migraphx::module& m, const std::string& op_name) {
+        return std::count_if(m.begin(), m.end(), [&](const auto& ins) {
+            return ins.name() == op_name;
+        });
+    };
+
+    EXPECT(count_op(m1, "concat") == 1);
+    EXPECT(count_op(m1, "multibroadcast") == 0);
+}
+
+// Test cross-embedding gather fusion
+// Multiple gathers from different embeddings with the same dimension
+TEST_CASE(cross_embedding_gather_fusion)
+{
+    migraphx::shape emb_shape1{migraphx::shape::float_type, {100, 8}};  // 100 rows, dim 8
+    migraphx::shape emb_shape2{migraphx::shape::float_type, {200, 8}};  // 200 rows, dim 8
+    migraphx::shape emb_shape3{migraphx::shape::float_type, {150, 8}};  // 150 rows, dim 8
+    migraphx::shape emb_shape4{migraphx::shape::float_type, {120, 8}};  // 120 rows, dim 8
+    migraphx::shape idx_shape{migraphx::shape::int32_type, {32}};       // 32 indices
+
+    migraphx::module m1;
+    {
+        // 4 embedding tables with same dimension (8) but different sizes
+        auto emb1 = m1.add_literal(migraphx::generate_literal(emb_shape1, 0));
+        auto emb2 = m1.add_literal(migraphx::generate_literal(emb_shape2, 1));
+        auto emb3 = m1.add_literal(migraphx::generate_literal(emb_shape3, 2));
+        auto emb4 = m1.add_literal(migraphx::generate_literal(emb_shape4, 3));
+
+        // Different indices for each gather
+        auto idx1 = m1.add_parameter("idx1", idx_shape);
+        auto idx2 = m1.add_parameter("idx2", idx_shape);
+        auto idx3 = m1.add_parameter("idx3", idx_shape);
+        auto idx4 = m1.add_parameter("idx4", idx_shape);
+
+        // 4 separate gathers
+        auto g1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb1, idx1);
+        auto g2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb2, idx2);
+        auto g3 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb3, idx3);
+        auto g4 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb4, idx4);
+
+        // Use all outputs
+        auto sum1 = m1.add_instruction(migraphx::make_op("add"), g1, g2);
+        auto sum2 = m1.add_instruction(migraphx::make_op("add"), g3, g4);
+        auto sum  = m1.add_instruction(migraphx::make_op("add"), sum1, sum2);
+        m1.add_return({sum});
+    }
+
+    auto count_op = [](const migraphx::module& m, const std::string& op_name) {
+        return std::count_if(m.begin(), m.end(), [&](const auto& ins) {
+            return ins.name() == op_name;
+        });
+    };
+
+    // Before: 4 gathers
+    EXPECT(count_op(m1, "gather") == 4);
+
+    run_pass(m1);
+
+    // After: 1 gather (all 4 fused into one) - this is the key optimization
+    EXPECT(count_op(m1, "gather") == 1);
+    // Should have 4 slices to extract individual results
+    EXPECT(count_op(m1, "slice") == 4);
+    // Note: find_concat_op may transform concat(add(...), add(...)) patterns,
+    // creating additional concats. We just verify the gather fusion worked.
+}
+
+// Test that cross-embedding gather doesn't fuse when dimensions differ
+TEST_CASE(cross_embedding_different_dims_no_fusion)
+{
+    migraphx::shape emb_shape1{migraphx::shape::float_type, {100, 8}};   // dim 8
+    migraphx::shape emb_shape2{migraphx::shape::float_type, {200, 16}};  // dim 16 (different!)
+    migraphx::shape idx_shape{migraphx::shape::int32_type, {32}};
+
+    migraphx::module m1;
+    {
+        auto emb1 = m1.add_literal(migraphx::generate_literal(emb_shape1, 0));
+        auto emb2 = m1.add_literal(migraphx::generate_literal(emb_shape2, 1));
+        auto idx1 = m1.add_parameter("idx1", idx_shape);
+        auto idx2 = m1.add_parameter("idx2", idx_shape);
+
+        auto g1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb1, idx1);
+        auto g2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb2, idx2);
+
+        m1.add_return({g1, g2});
+    }
+
+    auto count_op = [](const migraphx::module& m, const std::string& op_name) {
+        return std::count_if(m.begin(), m.end(), [&](const auto& ins) {
+            return ins.name() == op_name;
+        });
+    };
+
+    // Before: 2 gathers
+    EXPECT(count_op(m1, "gather") == 2);
+
+    run_pass(m1);
+
+    // After: still 2 gathers (not fused because dimensions differ)
+    EXPECT(count_op(m1, "gather") == 2);
+    EXPECT(count_op(m1, "slice") == 0);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

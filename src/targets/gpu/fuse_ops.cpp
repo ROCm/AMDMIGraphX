@@ -983,6 +983,104 @@ struct find_layernorm_pointwise
     }
 };
 
+// Helper to get the underlying op from a precompile_op
+inline operation get_precompile_op(instruction_ref ins)
+{
+    return from_value<operation>(ins->get_operator().to_value().at("op"));
+}
+
+// Fuse multiple gather operations that feed into a concat
+// Pattern: concat(gather(emb1, idx1), gather(emb2, idx2), ...) -> fused_concat
+// The concat compiler detects gather inputs and uses the appropriate kernel
+struct find_concat_gather
+{
+    auto matcher() const
+    {
+        // Match concat where all inputs are precompiled gathers
+        auto gather_input = precompile_name("gather")(match::used_once());
+        return match::name("concat")(match::all_of[match::inputs()](
+            match::any_of(gather_input, match::name("allocate"))));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto concat_ins = r.result;
+        auto concat_v   = concat_ins->get_operator().to_value();
+        auto raw_axis   = concat_v.contains("axis") ? concat_v.at("axis").to<int64_t>() : int64_t{0};
+
+        // Get all gather inputs (excluding the output allocation)
+        std::vector<instruction_ref> gather_inputs;
+        for(auto input : concat_ins->inputs())
+        {
+            if(input->name() == "gpu::precompile_op")
+            {
+                auto op = get_precompile_op(input);
+                if(op.name() == "gather")
+                {
+                    gather_inputs.push_back(input);
+                }
+            }
+        }
+
+        // Must have at least 2 gathers
+        if(gather_inputs.size() < 2)
+            return;
+
+        // Normalize concat axis (handle negative axis)
+        auto ndim = gather_inputs.front()->get_shape().ndim();
+        auto concat_axis =
+            static_cast<std::size_t>(raw_axis < 0 ? raw_axis + ndim : raw_axis);
+
+        // Check that all gathers have the same axis (only axis=0 supported for now)
+        std::size_t gather_axis = 0;
+        for(auto gather : gather_inputs)
+        {
+            auto op   = get_precompile_op(gather);
+            auto gv   = op.to_value();
+            auto axis = gv.at("axis").to<int64_t>();
+            // Normalize gather axis
+            auto emb_ndim      = gather->inputs()[0]->get_shape().ndim();
+            auto norm_axis = static_cast<std::size_t>(axis < 0 ? axis + emb_ndim : axis);
+            if(norm_axis != 0)
+                return; // Only support gather axis=0 for now
+            gather_axis = norm_axis;
+        }
+
+        // Build inputs for fused op: [emb1, idx1, emb2, idx2, ..., output_alloc]
+        std::vector<instruction_ref> fused_inputs;
+        for(auto gather : gather_inputs)
+        {
+            // gather inputs are: [emb, idx, alloc]
+            fused_inputs.push_back(gather->inputs()[0]); // embedding table
+            fused_inputs.push_back(gather->inputs()[1]); // indices
+        }
+
+        // Compute output shape: concatenate gather output shapes along concat_axis
+        auto output_lens = gather_inputs.front()->get_shape().lens();
+        std::size_t concat_dim = 0;
+        for(auto gather : gather_inputs)
+        {
+            concat_dim += gather->get_shape().lens()[concat_axis];
+        }
+        output_lens[concat_axis] = concat_dim;
+        shape output_shape{gather_inputs.front()->get_shape().type(), output_lens};
+
+        // Add output allocation
+        auto alloc = m.insert_instruction(
+            concat_ins, make_op("allocate", {{"shape", to_value(output_shape)}}));
+        fused_inputs.push_back(alloc);
+
+        // Create fused_concat with gather-specific metadata
+        auto fused_op = make_op("fused_concat",
+                                {{"axis", concat_axis},
+                                 {"gather_fusion", true},
+                                 {"gather_axis", gather_axis},
+                                 {"num_gathers", gather_inputs.size()}});
+
+        m.replace_instruction(concat_ins, fused_op, fused_inputs);
+    }
+};
+
 struct find_concat_pointwise
 {
     auto matcher() const
@@ -1030,6 +1128,8 @@ void fuse_ops::apply(module& m) const
 #if MIGRAPHX_USE_HIPBLASLT
     match::find_matches(m, find_hipblas_gemm_pointwise{});
 #endif
+    match::find_matches(m, find_concat_gather{});
+    run_passes(m, {dead_code_elimination{}});
     match::find_matches(m,
                         find_layernorm_pointwise{},
                         find_concat_pointwise{},

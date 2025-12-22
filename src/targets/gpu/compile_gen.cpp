@@ -571,6 +571,23 @@ std::string generate_name_from_ops(const module& m, const std::string& postname)
     return join_strings(op_names, "_");
 }
 
+bool module_has_gather(const module& m)
+{
+    return std::any_of(m.begin(), m.end(), [](const auto& ins) { return ins.name() == "gather"; });
+}
+
+std::size_t get_gather_axis(const module& m)
+{
+    auto gather_it =
+        std::find_if(m.begin(), m.end(), [](const auto& ins) { return ins.name() == "gather"; });
+    if(gather_it == m.end())
+    {
+        MIGRAPHX_THROW("get_gather_axis: no gather instruction found in module");
+    }
+    auto v = gather_it->get_operator().to_value();
+    return v.at("axis").to<std::size_t>();
+}
+
 } // namespace gen
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

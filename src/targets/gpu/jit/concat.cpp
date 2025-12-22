@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -35,6 +35,31 @@ namespace gpu {
 
 using namespace migraphx::gpu::gen; // NOLINT
 
+// Kernel template for fused concat with gather operations
+// Generated dynamically based on number of gathers
+// NOLINTNEXTLINE
+static const char* const concat_gather_kernel = R"__migraphx__(
+#include <migraphx/kernels/concat_gather.hpp>
+#include <args.hpp>
+
+namespace migraphx {
+
+extern "C" {
+
+MIGRAPHX_GLOBAL void ${kernel}(${params}) 
+{
+    auto idx = make_index();
+    make_tensors()(${args})([&](${tensor_params}) {
+        ${gather_calls}
+    });
+}
+
+}
+
+} // namespace migraphx
+
+)__migraphx__";
+
 // NOLINTNEXTLINE
 static const char* const concat_kernel = R"__migraphx__(
 #include <migraphx/kernels/concat.hpp>
@@ -64,6 +89,59 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 struct concat_compiler : compiler<concat_compiler>
 {
     std::vector<std::string> names() const { return {"fused_concat", "concat"}; }
+
+    // Compile gather variant of fused concat
+    operation compile_gather_op(context& ctx,
+                                const std::vector<shape>& inputs,
+                                const value& v) const
+    {
+        hip_compile_options options;
+        options.inputs      = inputs;
+        options.output      = inputs.back();
+
+        auto num_gathers = v.at("num_gathers").to<std::size_t>();
+        auto concat_axis = v.at("axis").to<std::size_t>();
+        auto gather_axis = v.at("gather_axis").to<std::size_t>();
+
+        options.kernel_name = "gather_concat_kernel";
+        options.set_launch_params(v, compute_global_for(ctx, options.output.elements()));
+
+        // Generate tensor parameters: emb0, idx0, emb1, idx1, ..., output
+        std::vector<std::string> tensor_params;
+        for(std::size_t i = 0; i < num_gathers; i++)
+        {
+            tensor_params.push_back("auto emb" + std::to_string(i));
+            tensor_params.push_back("auto idx" + std::to_string(i));
+        }
+        tensor_params.push_back("auto output");
+
+        // Generate gather_to_slice calls for each gather
+        // Each gather writes to a slice of the output at the appropriate offset
+        std::string gather_calls;
+        std::size_t offset = 0;
+        for(std::size_t i = 0; i < num_gathers; i++)
+        {
+            // Get the slice size from the embedding dimension along concat axis
+            // inputs are: [emb0, idx0, emb1, idx1, ..., output]
+            auto emb_shape = inputs[i * 2];
+            std::size_t slice_size = emb_shape.lens()[concat_axis];
+
+            gather_calls += "gather_to_slice<" + std::to_string(concat_axis) + ", " +
+                            std::to_string(gather_axis) + ">(idx, emb" + std::to_string(i) +
+                            ", idx" + std::to_string(i) + ", output, " + std::to_string(offset) +
+                            ", " + std::to_string(slice_size) + ");\n        ";
+            offset += slice_size;
+        }
+
+        auto src = interpolate_string(concat_gather_kernel,
+                                      {{"kernel", options.kernel_name},
+                                       {"params", enum_params(inputs.size(), "void * private_p")},
+                                       {"args", enum_params(inputs.size(), "private_p")},
+                                       {"tensor_params", join_strings(tensor_params, ", ")},
+                                       {"gather_calls", gather_calls}});
+
+        return compile_hip_code_object(ctx, src, options);
+    }
 
     static std::vector<shape> normalize(std::vector<shape> inputs, std::size_t& axis)
     {
@@ -132,6 +210,11 @@ struct concat_compiler : compiler<concat_compiler>
         auto v = op.to_value();
         if(op.name() == "fused_concat")
         {
+            // Check if this is a gather fusion (indicated by gather_fusion flag)
+            if(v.get("gather_fusion", false))
+            {
+                return compile_gather_op(ctx, to_shapes(ins->inputs()), v);
+            }
             std::unordered_map<std::string, std::string> mod_names_lookup;
             transform(range(ins->module_inputs().size()),
                       std::inserter(mod_names_lookup, mod_names_lookup.end()),

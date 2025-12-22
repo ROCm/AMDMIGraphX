@@ -157,6 +157,7 @@ MIGRAPHX_PRED_MATCHER(used_once_except_broadcast, instruction_ref ins)
 
     return false;
 }
+
 } // namespace
 template <class... Ms>
 static auto match_broadcast(Ms... ms)
@@ -424,6 +425,7 @@ void fuse_reduce::apply(module_pass_manager& mpm) const
 {
     if(enabled(MIGRAPHX_DISABLE_REDUCE_FUSION{}))
         return;
+    
     create_reduce_modules(mpm);
     mpm.run_pass(dead_code_elimination{});
     for(int i = 0; i < 4; i++)

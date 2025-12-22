@@ -34,22 +34,114 @@ struct parse_clip : op_parser<parse_clip>
 {
     std::vector<op_desc> operators() const { return {{"Clip"}}; }
 
+    struct clip_args
+    {
+        // All operators have this
+        instruction_ref input;
+
+        std::optional<instruction_ref> min;
+        std::optional<instruction_ref> max;
+
+        std::vector<instruction_ref> get_args()
+        {
+            return {input, min.value(), max.value()};
+        }
+    };
+
+
+
+    static std::optional<instruction_ref>
+    check_type_and_shape(size_t index, shape::type_t type,
+                         const std::vector<instruction_ref>& args)
+    {
+
+        if (args.size() > index)
+        {
+            std::optional<instruction_ref> ref = args.at(index);
+            auto ref_shape                     = ref.value()->get_shape();
+
+            if(not ref_shape.lens().empty())
+            {
+                auto ref_type     = ref_shape.type();
+
+                if (ref_type != type)
+                MIGRAPHX_THROW("Invalid input type for clip min/max must match input type");
+
+                return ref;
+            }
+        }
+        return std::nullopt;
+    }
+
+    static void handle_limits(onnx_parser::node_info info,
+                              clip_args& clip_parser)
+    {
+        // Set default if types/inputs aren't set
+        // min
+        if(not clip_parser.min.has_value())
+        {  
+           clip_parser.min = info.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}, {0}}, {std::numeric_limits<float>::lowest()}});
+        }
+
+        // max
+        if(not clip_parser.max.has_value())
+        {
+           clip_parser.max = info.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}, {0}}, {std::numeric_limits<float>::max()}});
+        }
+    }
+
+    // Parser for Opset 11, 12, 13 
+    static instruction_ref clip_v_11_12_13(onnx_parser::node_info info,
+                                const std::vector<instruction_ref>& args)
+    {   
+        clip_args clip_parser;
+
+        clip_parser.input = args.at(0);
+        auto input_type = clip_parser.input->get_shape().type();
+
+        clip_parser.min = check_type_and_shape(1, input_type, args);
+        clip_parser.max = check_type_and_shape(2, input_type, args);
+
+        handle_limits(info, clip_parser);
+
+        return op::builder::add("clip", *info.mod, clip_parser.get_args(), {}).at(0);
+    }
+
+    // Parser for Opset V6 version
+    static instruction_ref clip_v6(const onnx_parser& parser,
+                        onnx_parser::node_info info,
+                        std::vector<instruction_ref>& args)
+    {
+        // Always set defaults for when input isn't set
+        float min_val = std::numeric_limits<float>::lowest();
+        float max_val = std::numeric_limits<float>::max();
+
+        if (contains(info.attributes, "min"))
+            min_val = parser.parse_value(info.attributes.at("min")).at<float>();
+
+        if(contains(info.attributes, "max"))
+            max_val = parser.parse_value(info.attributes.at("max")).at<float>();
+
+        args.push_back(info.add_literal(min_val));
+        args.push_back(info.add_literal(max_val));
+
+        return op::builder::add("clip", *info.mod, args, {}).at(0);
+    }
+
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-        if(args.size() == 1 and contains(info.attributes, "min") and
-           contains(info.attributes, "max"))
+        if(parser.opset_version < 11)
         {
-
-            float min_val = parser.parse_value(info.attributes.at("min")).at<float>();
-            float max_val = parser.parse_value(info.attributes.at("max")).at<float>();
-            args.push_back(info.add_literal(min_val));
-            args.push_back(info.add_literal(max_val));
+            
+            return clip_v6(parser, info, args);
         }
-
-        return op::builder::add("clip", *info.mod, args, {}).at(0);
+        else
+        {
+            return clip_v_11_12_13(info, args);
+        }
     }
 };
 

@@ -62,11 +62,7 @@ struct parse_clip : op_parser<parse_clip>
 
             if(not ref_shape.lens().empty())
             {
-                auto shape_scalar = ref_shape.scalar();
                 auto ref_type     = ref_shape.type();
-
-                if(not shape_scalar)
-                MIGRAPHX_THROW("Invalid input for CLIP must be scalar");
 
                 if (ref_type != type)
                 MIGRAPHX_THROW("Invalid input type for clip min/max must match input type");
@@ -81,32 +77,16 @@ struct parse_clip : op_parser<parse_clip>
                               clip_args& clip_parser)
     {
         // Set default if types/inputs aren't set
-        // Try to see if we can fold limit value during parse
-
         // min
         if(not clip_parser.min.has_value())
         {  
            clip_parser.min = info.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}, {0}}, {std::numeric_limits<float>::lowest()}});
-        }
-        else
-        {
-           if(clip_parser.min.value()->can_eval())
-           {
-              clip_parser.min = info.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}, {0}}, {clip_parser.min.value()->eval().at<float>()}});
-           }
         }
 
         // max
         if(not clip_parser.max.has_value())
         {
            clip_parser.max = info.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}, {0}}, {std::numeric_limits<float>::max()}});
-        }
-        else
-        {
-           if(clip_parser.max.value()->can_eval())
-           {
-             clip_parser.max = info.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}, {0}}, {clip_parser.max.value()->eval().at<float>()}});
-           }
         }
     }
 

@@ -115,10 +115,21 @@ static std::optional<instruction_ref> get_next_input(instruction_ref ins)
     return nullopt;
 }
 
+// Check if two types are in the same category (both integral or both floating-point)
+static bool same_type_category(shape::type_t t1, shape::type_t t2)
+{
+    bool t1_integral = false;
+    bool t2_integral = false;
+    shape::visit(t1, [&](auto x) { t1_integral = x.is_integral(); });
+    shape::visit(t2, [&](auto x) { t2_integral = x.is_integral(); });
+    return t1_integral == t2_integral;
+}
+
 // Find all adjacent instructions that could be upgraded with higher precision
 // by traversing the inputs from a convert
 
-static std::unordered_set<instruction_ref> find_adjacent_inputs(instruction_ref start)
+static std::unordered_set<instruction_ref> find_adjacent_inputs(instruction_ref start,
+                                                                 shape::type_t target_type)
 {
     std::unordered_set<instruction_ref> result;
     // Promote inputs
@@ -126,6 +137,9 @@ static std::unordered_set<instruction_ref> find_adjacent_inputs(instruction_ref 
         if(not is_pointwise_or_reduce(ins))
             return;
         if(contains(result, ins))
+            return;
+        // Don't propagate across integral/floating-point boundary
+        if(not same_type_category(ins->get_shape().type(), target_type))
             return;
         auto next = get_next_input(ins);
         if(not next.has_value())
@@ -138,7 +152,8 @@ static std::unordered_set<instruction_ref> find_adjacent_inputs(instruction_ref 
 
 // Find all adjacent instructions that could be upgraded with higher precision
 // by traversing the outputs from a convert
-static std::unordered_set<instruction_ref> find_adjacent_outputs(instruction_ref start)
+static std::unordered_set<instruction_ref> find_adjacent_outputs(instruction_ref start,
+                                                                  shape::type_t target_type)
 {
     std::unordered_set<instruction_ref> result;
     // Promote outputs
@@ -148,6 +163,9 @@ static std::unordered_set<instruction_ref> find_adjacent_outputs(instruction_ref
             if(not is_pointwise_or_reduce(output))
                 continue;
             if(contains(result, output))
+                continue;
+            // Don't propagate across integral/floating-point boundary
+            if(not same_type_category(output->get_shape().type(), target_type))
                 continue;
             auto next = get_next_input(output);
             if(not next.has_value())
@@ -196,11 +214,11 @@ static std::unordered_map<instruction_ref, shape::type_t> find_instruction_to_up
             continue;
         if(input < output)
         {
-            insert_instructions_to_upgrade(result, find_adjacent_inputs(ins), output.type);
+            insert_instructions_to_upgrade(result, find_adjacent_inputs(ins, output.type), output.type);
         }
         else if(input > output)
         {
-            insert_instructions_to_upgrade(result, find_adjacent_outputs(ins), input.type);
+            insert_instructions_to_upgrade(result, find_adjacent_outputs(ins, input.type), input.type);
         }
     }
     return result;

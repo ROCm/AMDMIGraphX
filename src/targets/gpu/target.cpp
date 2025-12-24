@@ -107,6 +107,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_types.erase(shape::type_t::int8_type);
     unsupported_types.erase(shape::type_t::uint8_type);
     unsupported_types.erase(shape::type_t::int32_type);
+    unsupported_types.erase(shape::type_t::int64_type);
     unsupported_types.erase(shape::type_t::tuple_type);
 
     // No BF-16 Support on Navi21

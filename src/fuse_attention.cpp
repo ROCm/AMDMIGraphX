@@ -40,21 +40,32 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace {
 
 // env vars for flash decoding configuration
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_ENABLED);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_NUM_SPLITS);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_MIN_CHUNK_SIZE);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_MAX_SPLITS);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_THRESHOLD);
 
-bool is_flash_decoding_enabled() { return enabled(MIGRAPHX_FLASH_DECODING_ENABLED{}); }
+// Helper function to get config value with priority: struct member (if not default) > env var > default
+template<typename EnvVar>
+std::size_t get_config_value(std::size_t struct_value, std::size_t default_value, EnvVar env_var)
+{
+    // if struct member is not the default value, use it
+    if(struct_value != default_value)
+    {
+        return struct_value;
+    }
+
+    // otherwise return env var value, or default if not set
+    return value_of(env_var, default_value);
+}
 
 // Get num_splits with priority: struct member > env var > 0 (not set)
-std::size_t get_num_splits(const std::optional<std::size_t>& member_num_splits)
+std::size_t get_num_splits(std::size_t member_num_splits)
 {
-    // struct member var is used for testing
-    if(member_num_splits.has_value())
+    // if struct member is set (non-zero), use it
+    if(member_num_splits > 0)
     {
-        return *member_num_splits;
+        return member_num_splits;
     }
 
     // otherwise return env var value, or 0 if not set
@@ -73,7 +84,7 @@ inline std::size_t calculate_flash_decoding_splits(std::size_t sequence_length,
 // calculate the actual number of groups for flash decoding
 // returns 0 if no splitting should be performed
 inline std::size_t
-calculate_groups(std::size_t groups, std::size_t sequence_length, std::size_t threshold)
+calculate_groups(std::size_t groups, std::size_t sequence_length, std::size_t threshold, std::size_t min_chunk_size, std::size_t max_splits)
 {
     // if groups is explicitly set and valid, use it
     if(groups > 1)
@@ -86,12 +97,8 @@ calculate_groups(std::size_t groups, std::size_t sequence_length, std::size_t th
         if(sequence_length < threshold)
             return 0;
 
-        // TODO: run experiments to find the optimal values for min_chunk and max_splits
-        std::size_t min_chunk  = value_of(MIGRAPHX_FLASH_DECODING_MIN_CHUNK_SIZE{}, 32);
-        std::size_t max_splits = value_of(MIGRAPHX_FLASH_DECODING_MAX_SPLITS{}, 16);
-
         std::size_t actual_groups =
-            calculate_flash_decoding_splits(sequence_length, min_chunk, max_splits);
+            calculate_flash_decoding_splits(sequence_length, min_chunk_size, max_splits);
 
         // return 0 if auto-calculation determines no splitting needed
         if(actual_groups <= 1)
@@ -279,8 +286,11 @@ struct find_attention
 
 struct find_flash_decoding
 {
-    // optional number of splits from fuse_attention pass config
-    std::optional<std::size_t> configured_splits;
+    // configuration from fuse_attention pass config
+    std::size_t configured_splits;
+    std::size_t configured_threshold;
+    std::size_t configured_max_splits;
+    std::size_t configured_min_chunk_size;
 
     auto matcher() const
     {
@@ -517,11 +527,13 @@ struct find_flash_decoding
         auto k_shape                = k_param->get_shape();
         std::size_t sequence_length = k_shape.lens().back();
 
-        // read groups configuration from pass config or environment variable
-        std::size_t groups    = get_num_splits(configured_splits);
-        std::size_t threshold = value_of(MIGRAPHX_FLASH_DECODING_THRESHOLD{}, 32);
+        // read configuration with priority: struct member (if not default) > env var > default
+        std::size_t groups = get_num_splits(configured_splits);
+        std::size_t threshold = get_config_value(configured_threshold, 32, MIGRAPHX_FLASH_DECODING_THRESHOLD{});
+        std::size_t min_chunk_size = get_config_value(configured_min_chunk_size, 32, MIGRAPHX_FLASH_DECODING_MIN_CHUNK_SIZE{});
+        std::size_t max_splits = get_config_value(configured_max_splits, 16, MIGRAPHX_FLASH_DECODING_MAX_SPLITS{});
 
-        std::size_t actual_groups = calculate_groups(groups, sequence_length, threshold);
+        std::size_t actual_groups = calculate_groups(groups, sequence_length, threshold, min_chunk_size, max_splits);
         if(actual_groups == 0)
             return;
 
@@ -893,12 +905,15 @@ void fuse_attention::apply(module_pass_manager& mpm) const
         mpm.run_pass(dead_code_elimination{});
     }
 
-    // enable flash decoding if splits configured or explicitly enabled
+    // enable flash decoding if splits configured or flash decoding is enabled
     std::size_t configured_splits = get_num_splits(flash_decoding_num_splits);
-    if(configured_splits > 0 or is_flash_decoding_enabled())
+    if(configured_splits > 0 or flash_decoding_enabled)
     {
         match::find_matches(mpm,
-                            find_flash_decoding{.configured_splits = flash_decoding_num_splits});
+                            find_flash_decoding{.configured_splits = flash_decoding_num_splits,
+                                                .configured_threshold = flash_decoding_threshold,
+                                                .configured_max_splits = flash_decoding_max_splits,
+                                                .configured_min_chunk_size = flash_decoding_min_chunk_size});
         mpm.run_pass(dead_code_elimination{});
     }
 }

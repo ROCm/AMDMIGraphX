@@ -48,6 +48,7 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_EXTRA_MLIR);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_ENABLED);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_GEG_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MLIR);
 /**
@@ -140,6 +141,27 @@ bool mlir_attention_enabled(context* ctx)
     return specific_op<requested>("attention");
 #else
     return false;
+#endif
+}
+
+bool mlir_flash_decoding_enabled(context* ctx)
+{
+#ifdef MIGRAPHX_MLIR
+    if(not mlir_enabled())
+        return false;
+
+    // Check if explicitly enabled via environment variable
+    if(enabled(MIGRAPHX_FLASH_DECODING_ENABLED{}))
+        return true;
+
+    // Enable flash decoding by default for mi300 (when MLIR is available)
+    if(ctx != nullptr and starts_with(ctx->get_current_device().get_gfx_name(), "gfx94"))
+        return true;
+
+    return false;
+#else
+    // Without MLIR, only enable if explicitly requested via env var
+    return enabled(MIGRAPHX_FLASH_DECODING_ENABLED{});
 #endif
 }
 

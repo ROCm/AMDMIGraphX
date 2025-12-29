@@ -35,6 +35,7 @@ namespace gpu {
 
 MIGRAPHX_GPU_EXPORT bool mlir_enabled();
 MIGRAPHX_GPU_EXPORT bool mlir_attention_enabled(context* ctx);
+MIGRAPHX_GPU_EXPORT bool mlir_flash_decoding_enabled(context* ctx);
 MIGRAPHX_GPU_EXPORT bool mlir_geg_multi_user_intermediates_supported();
 
 struct MIGRAPHX_GPU_EXPORT fuse_mlir

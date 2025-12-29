@@ -212,6 +212,8 @@ register_migraphx_ops(
     fmod
     gather
     gathernd
+    gather_slice_concat
+    multi_gather_concat
     get_tuple_elem
     gqa_rotary_embedding
     greater

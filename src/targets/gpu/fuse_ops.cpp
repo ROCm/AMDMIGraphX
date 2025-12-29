@@ -989,6 +989,93 @@ inline operation get_precompile_op(instruction_ref ins)
     return from_value<operation>(ins->get_operator().to_value().at("op"));
 }
 
+// Helper to check if a pointwise module is a simple convert operation
+inline bool is_convert_pointwise(const_module_ref pm)
+{
+    auto last = std::prev(pm->end());
+    if(last->name() != "@return")
+        return false;
+    if(last->inputs().size() != 1)
+        return false;
+    auto rins = last->inputs().front();
+    // Find the first non-param, non-literal, non-broadcast instruction
+    auto op_ins = std::find_if(pm->begin(), pm->end(), [](const instruction& x) {
+        return not contains({"@param", "@literal", "broadcast", "multibroadcast"}, x.name());
+    });
+    if(op_ins == pm->end())
+        return false;
+    if(&(*op_ins) != &(*rins))
+        return false;
+    return op_ins->name() == "convert";
+}
+
+// Fuse convert → gather pattern where convert changes index types
+// Handles both float→int and int→int conversions (e.g., int64→int32)
+// Pattern: gather(emb, convert(indices)) → gather_with_convert(emb, indices)
+struct find_convert_gather
+{
+    auto matcher() const
+    {
+        // Match pattern: gather(emb, convert_pointwise(indices))
+        auto convert_input =
+            precompile_name("pointwise")(match::nargs(2), // input + output alloc
+                                         match::used_once())
+                .bind("convert");
+
+        return precompile_name("gather")(match::arg(1)(convert_input)); // indices is arg 1
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto gather_ins  = r.result;
+        auto convert_ins = r.instructions["convert"];
+
+        // Verify the convert instruction has a pointwise module
+        if(convert_ins->module_inputs().empty())
+            return;
+
+        auto* convert_pm = convert_ins->module_inputs().front();
+
+        // Check if it's a simple convert operation
+        if(not is_convert_pointwise(convert_pm))
+            return;
+
+        // Get the input/output types
+        auto original_indices = convert_ins->inputs().front();
+        auto input_type       = original_indices->get_shape().type();
+        auto output_type      = convert_ins->get_shape().type();
+
+        // Only fuse if output is integral (for gather indices)
+        if(not shape::is_integral(output_type))
+            return;
+
+        // Allow conversion from:
+        // 1. Float types to integral types (float→int64, float→int32, etc.)
+        // 2. Integral to integral of different size (int64→int32, etc.)
+        bool is_float_to_int = not shape::is_integral(input_type);
+        bool is_int_to_int   = shape::is_integral(input_type) and input_type != output_type;
+
+        if(not is_float_to_int and not is_int_to_int)
+            return;
+
+        // Get original gather inputs
+        auto embedding = gather_ins->inputs()[0];
+        auto alloc     = gather_ins->inputs().back();
+
+        // Get the gather operation and create new one with convert_indices=true
+        auto gather_op     = get_precompile_op(gather_ins);
+        auto gather_v      = gather_op.to_value();
+        auto new_gather_op = make_op("gather",
+                                     {{"axis", gather_v.at("axis")},
+                                      {"convert_indices", true}});
+
+        // Replace with fused gather that accepts original indices directly
+        m.replace_instruction(gather_ins,
+                              make_op("gpu::precompile_op", {{"op", to_value(new_gather_op)}}),
+                              {embedding, original_indices, alloc});
+    }
+};
+
 // Fuse multiple gather operations that feed into a concat
 // Pattern: concat(gather(emb1, idx1), gather(emb2, idx2), ...) -> fused_concat
 // The concat compiler detects gather inputs and uses the appropriate kernel
@@ -1128,6 +1215,9 @@ void fuse_ops::apply(module& m) const
 #if MIGRAPHX_USE_HIPBLASLT
     match::find_matches(m, find_hipblas_gemm_pointwise{});
 #endif
+    // Fuse convert → gather first, so concat_gather can detect fused gathers
+    match::find_matches(m, find_convert_gather{});
+    run_passes(m, {dead_code_elimination{}});
     match::find_matches(m, find_concat_gather{});
     run_passes(m, {dead_code_elimination{}});
     match::find_matches(m,

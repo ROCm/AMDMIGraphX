@@ -43,12 +43,13 @@ namespace op {
 
 struct gather
 {
-    int64_t axis = 0;
+    int64_t axis            = 0;
+    bool convert_indices    = false;  // Fuse index type conversion into gather kernel
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axis, "axis"));
+        return pack(f(self.axis, "axis"), f(self.convert_indices, "convert_indices"));
     }
 
     value attributes() const

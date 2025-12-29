@@ -57,6 +57,31 @@ MIGRAPHX_GLOBAL void gather_kernel(void* in_data, void* in_indices, void* output
 
 )__migraphx__";
 
+// NOLINTNEXTLINE
+static const char* const gather_with_convert_kernel = R"__migraphx__(
+#include <migraphx/kernels/gather.hpp>
+#include <migraphx/kernels/ops.hpp>
+#include <migraphx/kernels/integral_constant.hpp>
+#include <migraphx/kernels/generic_constant.hpp>
+#include <args.hpp>
+
+namespace migraphx {
+
+extern "C" {
+
+MIGRAPHX_GLOBAL void gather_with_convert_kernel(void* in_data, void* in_indices, void* output) 
+{
+    make_tensors()(in_data, in_indices, output)([](auto&&... xs) { 
+        gather_with_convert<${axis}>(xs...); 
+    });
+}
+
+}
+
+} // namespace migraphx
+
+)__migraphx__";
+
 struct gather_compiler : compiler<gather_compiler>
 {
     std::vector<std::string> names() const { return {"gather"}; }
@@ -68,12 +93,24 @@ struct gather_compiler : compiler<gather_compiler>
         options.set_launch_params(v, compute_global_for(ctx, out_s.elements()));
         options.inputs         = inputs;
         options.output         = out_s;
-        options.kernel_name    = "gather_kernel";
         options.virtual_inputs = inputs;
 
         auto axis = v.at("axis").to<std::string>();
+        bool convert_indices = v.get("convert_indices", false);
 
-        auto src = interpolate_string(gather_kernel, {{"axis", axis}});
+        const char* kernel_src;
+        if(convert_indices)
+        {
+            options.kernel_name = "gather_with_convert_kernel";
+            kernel_src = gather_with_convert_kernel;
+        }
+        else
+        {
+            options.kernel_name = "gather_kernel";
+            kernel_src = gather_kernel;
+        }
+
+        auto src = interpolate_string(kernel_src, {{"axis", axis}});
 
         return compile_hip_code_object(ctx, src, options);
     }

@@ -66,5 +66,33 @@ __device__ void gather(Input input, Indices indices, Output output)
     });
 }
 
+// Gather with inline conversion from float indices to int64
+template <int Axis, class Input, class Indices, class Output>
+__device__ void gather_with_convert(Input input, Indices indices, Output output)
+{
+    auto ind           = make_index();
+    auto axis_dim_size = input.get_shape().lens[Axis];
+
+    constexpr auto out_comp = gather_shape<Axis>(get_shape_c<Input>{}, get_shape_c<Indices>{});
+
+    ind.global_stride(output.get_shape().elements(), [&](auto i) {
+        auto idx = out_comp.multi(i);
+        // Convert float index to int64 inline
+        auto in_index = static_cast<int64_t>(indices[idx[Axis]]);
+
+        auto new_in_index = (in_index < 0) ? in_index + axis_dim_size : in_index;
+
+        idx[Axis] = new_in_index;
+
+        if(idx[Axis] < 0 or idx[Axis] >= axis_dim_size)
+        {
+            MIGRAPHX_ASSERT(false && "Gather out of bounds access");
+            return;
+        }
+
+        output[i] = input[idx];
+    });
+}
+
 } // namespace migraphx
 #endif

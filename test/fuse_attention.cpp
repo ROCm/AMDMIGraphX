@@ -42,7 +42,6 @@
 #include <utility>
 #include <cstdlib>
 
-
 static void run_pass(migraphx::program& p, migraphx::fuse_attention fa = {})
 {
     migraphx::run_passes(p, {fa, migraphx::dead_code_elimination{}});
@@ -57,8 +56,8 @@ TEST_CASE(get_num_splits_from_member)
 
     // Test that struct members are set correctly
     EXPECT(fa.flash_decoding_num_splits == 8);
-    EXPECT(fa.flash_decoding_threshold == 32);  // default value
-    EXPECT(fa.flash_decoding_max_splits == 16); // default value
+    EXPECT(fa.flash_decoding_threshold == 32);      // default value
+    EXPECT(fa.flash_decoding_max_splits == 16);     // default value
     EXPECT(fa.flash_decoding_min_chunk_size == 32); // default value
 }
 
@@ -519,7 +518,8 @@ TEST_CASE(gemm_softmax_gemm_flash_decoding)
         auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, b1);
         mm->add_return({gemm2});
     }
-    run_pass(p1, {.attn_enabled = true, .flash_decoding_enabled = true, .flash_decoding_num_splits = 2});
+    run_pass(
+        p1, {.attn_enabled = true, .flash_decoding_enabled = true, .flash_decoding_num_splits = 2});
     migraphx::program p2;
     {
         auto* mm         = p2.get_main_module();
@@ -620,7 +620,8 @@ TEST_CASE(flash_decoding_3d)
         auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, b1);
         mm->add_return({gemm2});
     }
-    run_pass(p1, {.attn_enabled = true, .flash_decoding_enabled = true, .flash_decoding_num_splits = 2});
+    run_pass(
+        p1, {.attn_enabled = true, .flash_decoding_enabled = true, .flash_decoding_num_splits = 2});
 
     migraphx::program p2;
     {
@@ -708,7 +709,6 @@ TEST_CASE(flash_decoding_3d)
     }
     EXPECT(p1.sort() == p2.sort());
 }
-
 
 TEST_CASE(kv_cache_attention)
 {
@@ -916,7 +916,8 @@ TEST_CASE(flash_decoding_3d_auto_split_large_sequence)
         mm->add_return({gemm2});
     }
     // Use auto-splitting: num_splits = 0, with sequence length 512 > threshold 32
-    run_pass(p1, {.attn_enabled = true, .flash_decoding_enabled = true, .flash_decoding_num_splits = 0});
+    run_pass(
+        p1, {.attn_enabled = true, .flash_decoding_enabled = true, .flash_decoding_num_splits = 0});
 
     // Expected program with automatic splitting (should calculate 16 splits for 512 sequence)
     const std::size_t expected_splits = 16; // 512 = 2^9, split until chunk = 32, so 512/16 = 32
@@ -930,7 +931,7 @@ TEST_CASE(flash_decoding_3d_auto_split_large_sequence)
 
         // New shapes for flash decoding with calculated splits
         std::vector<size_t> q_prime_shape = {1, expected_splits, 512, 512};
-        std::vector<size_t> k_prime_shape = {1, expected_splits, 512, 32};  // 512/16 = 32
+        std::vector<size_t> k_prime_shape = {1, expected_splits, 512, 32}; // 512/16 = 32
         std::vector<size_t> v_prime_shape = {1, expected_splits, 32, 512};
 
         auto a_unsqueeze =
@@ -963,14 +964,16 @@ TEST_CASE(flash_decoding_3d_auto_split_large_sequence)
                 auto rmax =
                     gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), gemm1);
                 auto rmax_broad = gm->add_instruction(
-                    migraphx::make_op("multibroadcast", {{"out_lens", {1, expected_splits, 512, 32}}}),
+                    migraphx::make_op("multibroadcast",
+                                      {{"out_lens", {1, expected_splits, 512, 32}}}),
                     rmax);
                 auto sub = gm->add_instruction(migraphx::make_op("sub"), gemm1, rmax_broad);
                 auto exp = gm->add_instruction(migraphx::make_op("exp"), sub);
                 auto rsum =
                     gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
                 auto rsum_broad = gm->add_instruction(
-                    migraphx::make_op("multibroadcast", {{"out_lens", {1, expected_splits, 512, 32}}}),
+                    migraphx::make_op("multibroadcast",
+                                      {{"out_lens", {1, expected_splits, 512, 32}}}),
                     rsum);
                 auto div   = gm->add_instruction(migraphx::make_op("div"), exp, rsum_broad);
                 auto gemm2 = gm->add_instruction(migraphx::make_op("dot"), div, inputs[2]);
@@ -985,13 +988,15 @@ TEST_CASE(flash_decoding_3d_auto_split_large_sequence)
         auto k2_rmax =
             mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {g_axis}}}), lse);
         auto k2_broad1 = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {1, expected_splits, 512, 1}}}), k2_rmax);
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, expected_splits, 512, 1}}}),
+            k2_rmax);
         auto k2_sub = mm->add_instruction(migraphx::make_op("sub"), lse, k2_broad1);
         auto k2_exp = mm->add_instruction(migraphx::make_op("exp"), k2_sub);
         auto k2_rsum1 =
             mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {g_axis}}}), k2_exp);
         auto k2_broad2 = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {1, expected_splits, 512, 1}}}), k2_rsum1);
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, expected_splits, 512, 1}}}),
+            k2_rsum1);
         auto k2_div    = mm->add_instruction(migraphx::make_op("div"), k2_exp, k2_broad2);
         auto k2_broad3 = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", q_prime_shape}}), k2_div);
@@ -1009,7 +1014,8 @@ TEST_CASE(flash_decoding_3d_auto_split_large_sequence)
 
 TEST_CASE(flash_decoding_3d_auto_split_small_sequence)
 {
-    // 3D Shape: [batch, sequence_length, head_dim] - Small sequence that should NOT trigger splitting
+    // 3D Shape: [batch, sequence_length, head_dim] - Small sequence that should NOT trigger
+    // splitting
     migraphx::shape s_3d{migraphx::shape::half_type, {1, 16, 16}};
 
     migraphx::program p1;
@@ -1034,7 +1040,8 @@ TEST_CASE(flash_decoding_3d_auto_split_small_sequence)
         mm->add_return({gemm2});
     }
     // Use auto-splitting: num_splits = 0, with small sequence length 16 < threshold 32
-    run_pass(p1, {.attn_enabled = true, .flash_decoding_enabled = true, .flash_decoding_num_splits = 0});
+    run_pass(
+        p1, {.attn_enabled = true, .flash_decoding_enabled = true, .flash_decoding_num_splits = 0});
 
     // Expected program with regular attention (no flash decoding for small sequence)
     migraphx::program p2;
@@ -1043,7 +1050,7 @@ TEST_CASE(flash_decoding_3d_auto_split_small_sequence)
         auto a   = mm->add_parameter("q", s_3d);
         auto b   = mm->add_parameter("k", s_3d);
         auto b1  = mm->add_parameter("v", s_3d);
-        b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), b);
+        b  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), b);
         b1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), b1);
         auto group = add_group(
             p2,
@@ -1056,13 +1063,15 @@ TEST_CASE(flash_decoding_3d_auto_split_small_sequence)
                 auto rmax =
                     gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), gemm1);
                 auto rmax_broad = gm->add_instruction(
-                    migraphx::make_op("multibroadcast", {{"out_lens", gemm1->get_shape().lens()}}), rmax);
+                    migraphx::make_op("multibroadcast", {{"out_lens", gemm1->get_shape().lens()}}),
+                    rmax);
                 auto sub = gm->add_instruction(migraphx::make_op("sub"), gemm1, rmax_broad);
                 auto exp = gm->add_instruction(migraphx::make_op("exp"), sub);
                 auto rsum =
                     gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), exp);
                 auto rsum_broad = gm->add_instruction(
-                    migraphx::make_op("multibroadcast", {{"out_lens", gemm1->get_shape().lens()}}), rsum);
+                    migraphx::make_op("multibroadcast", {{"out_lens", gemm1->get_shape().lens()}}),
+                    rsum);
                 auto div   = gm->add_instruction(migraphx::make_op("div"), exp, rsum_broad);
                 auto gemm2 = gm->add_instruction(migraphx::make_op("dot"), div, inputs[2]);
                 return std::vector<migraphx::instruction_ref>{gemm2};
@@ -1100,12 +1109,13 @@ TEST_CASE(flash_decoding_4d_auto_split_custom_params)
         mm->add_return({gemm2});
     }
     // Test with custom min_chunk_size and max_splits
-    run_pass(p1, {.attn_enabled = true,
-                  .flash_decoding_enabled = true,
-                  .flash_decoding_num_splits = 0,         // Auto-calculate
-                  .flash_decoding_threshold = 32,
-                  .flash_decoding_max_splits = 4,         // Smaller max splits
-                  .flash_decoding_min_chunk_size = 64});  // Larger chunk size
+    run_pass(p1,
+             {.attn_enabled                  = true,
+              .flash_decoding_enabled        = true,
+              .flash_decoding_num_splits     = 0, // Auto-calculate
+              .flash_decoding_threshold      = 32,
+              .flash_decoding_max_splits     = 4,    // Smaller max splits
+              .flash_decoding_min_chunk_size = 64}); // Larger chunk size
 
     // Check for flash decoding
     bool found_flash_decoding = false;
@@ -1149,12 +1159,13 @@ TEST_CASE(flash_decoding_auto_split_threshold_behavior)
         auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, b1);
         mm->add_return({gemm2});
     }
-    run_pass(p1, {.attn_enabled = true,
-                  .flash_decoding_enabled = true,
-                  .flash_decoding_num_splits = 0,
-                  .flash_decoding_threshold = 128,  // Greater than sequence length (127)
-                  .flash_decoding_max_splits = 8,
-                  .flash_decoding_min_chunk_size = 32});
+    run_pass(p1,
+             {.attn_enabled                  = true,
+              .flash_decoding_enabled        = true,
+              .flash_decoding_num_splits     = 0,
+              .flash_decoding_threshold      = 128, // Greater than sequence length (127)
+              .flash_decoding_max_splits     = 8,
+              .flash_decoding_min_chunk_size = 32});
 
     // Test 2: sequence length at threshold - should split
     migraphx::shape s_3d_larger{migraphx::shape::half_type, {1, 128, 128}};
@@ -1178,12 +1189,13 @@ TEST_CASE(flash_decoding_auto_split_threshold_behavior)
         auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, b1);
         mm->add_return({gemm2});
     }
-    run_pass(p2, {.attn_enabled = true,
-                  .flash_decoding_enabled = true,
-                  .flash_decoding_num_splits = 0,
-                  .flash_decoding_threshold = 128,  // Equal to sequence length (128)
-                  .flash_decoding_max_splits = 8,
-                  .flash_decoding_min_chunk_size = 32});
+    run_pass(p2,
+             {.attn_enabled                  = true,
+              .flash_decoding_enabled        = true,
+              .flash_decoding_num_splits     = 0,
+              .flash_decoding_threshold      = 128, // Equal to sequence length (128)
+              .flash_decoding_max_splits     = 8,
+              .flash_decoding_min_chunk_size = 32});
 
     // Check results - look for flash decoding by checking module names
     bool found_flash_decoding_p1 = false, found_flash_decoding_p2 = false;
@@ -1228,7 +1240,7 @@ TEST_CASE(flash_decoding_auto_split_threshold_behavior)
 
     // Below threshold: should have regular attention, not flash decoding
     EXPECT(not found_flash_decoding_p1);
-    EXPECT(found_regular_attention_p1);  // Should have regular attention instead
+    EXPECT(found_regular_attention_p1); // Should have regular attention instead
     // At threshold: should have flash decoding
     EXPECT(found_flash_decoding_p2);
 }
@@ -1260,12 +1272,13 @@ TEST_CASE(flash_decoding_auto_split_max_splits_constraint)
         mm->add_return({gemm2});
     }
     // Use small max_splits to test constraint
-    run_pass(p1, {.attn_enabled = true,
-                  .flash_decoding_enabled = true,
-                  .flash_decoding_num_splits = 0,  // Auto-calculate
-                  .flash_decoding_threshold = 32,
-                  .flash_decoding_max_splits = 4,  // Small max_splits
-                  .flash_decoding_min_chunk_size = 64});
+    run_pass(p1,
+             {.attn_enabled                  = true,
+              .flash_decoding_enabled        = true,
+              .flash_decoding_num_splits     = 0, // Auto-calculate
+              .flash_decoding_threshold      = 32,
+              .flash_decoding_max_splits     = 4, // Small max_splits
+              .flash_decoding_min_chunk_size = 64});
 
     // Check that flash decoding was applied
     bool found_flash_decoding = false;

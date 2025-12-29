@@ -38,10 +38,10 @@ struct module_pass_manager;
 struct MIGRAPHX_EXPORT fuse_attention
 {
     bool attn_enabled = false;
-    bool flash_decoding_enabled = false;
-    std::size_t flash_decoding_num_splits = 0;
-    std::size_t flash_decoding_threshold = 32;
-    std::size_t flash_decoding_max_splits = 16;
+    bool flash_decoding_enabled               = false;
+    std::size_t flash_decoding_num_splits     = 0;
+    std::size_t flash_decoding_threshold      = 32;
+    std::size_t flash_decoding_max_splits     = 16;
     std::size_t flash_decoding_min_chunk_size = 32;
 
     std::string name() const { return "fuse_attention"; }

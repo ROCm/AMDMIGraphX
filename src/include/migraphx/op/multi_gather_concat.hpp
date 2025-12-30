@@ -52,7 +52,7 @@ namespace op {
 struct multi_gather_concat
 {
     // Per-source metadata:
-    // - row_indices[i] = which row to select from gather output for source i
+    // - row_indices[i] = which logical row to select from gather output for source i
     // - embed_dims[i] = embedding dimension for source i
     // - col_offsets[i] = starting column in output for source i
     std::vector<int64_t> row_indices;    // Which gather row to select per source
@@ -60,6 +60,7 @@ struct multi_gather_concat
     std::vector<int64_t> col_offsets;    // Output column offset per source
     int64_t total_embed_dim = 0;         // Sum of all embed_dims
     int64_t num_sources = 0;             // Number of (embedding, indices) pairs
+    int64_t batch_size = 1;              // Batch size (rows per logical gather row)
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -68,7 +69,8 @@ struct multi_gather_concat
                     f(self.embed_dims, "embed_dims"),
                     f(self.col_offsets, "col_offsets"),
                     f(self.total_embed_dim, "total_embed_dim"),
-                    f(self.num_sources, "num_sources"));
+                    f(self.num_sources, "num_sources"),
+                    f(self.batch_size, "batch_size"));
     }
 
     std::string name() const { return "multi_gather_concat"; }
@@ -84,10 +86,10 @@ struct multi_gather_concat
         auto idx_shape = inputs[1];
         auto idx_lens = idx_shape.lens();
         
-        // Output: [batch, seq_len, total_embed_dim]
-        // where batch and seq_len come from indices shape (minus first dim which is sliced)
+        // Output: [batch_size, seq_len, total_embed_dim]
+        // where seq_len comes from indices shape (second dim)
         std::vector<std::size_t> out_lens;
-        out_lens.push_back(1);  // After slice on axis 0
+        out_lens.push_back(static_cast<std::size_t>(batch_size));  // Batch dimension
         for(std::size_t i = 1; i < idx_lens.size(); i++)
             out_lens.push_back(idx_lens[i]);
         out_lens.push_back(static_cast<std::size_t>(total_embed_dim));

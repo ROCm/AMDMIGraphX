@@ -50,6 +50,7 @@ namespace migraphx {
 
 // Source metadata - generated at compile time
 constexpr index_int num_sources = ${num_sources};
+constexpr index_int batch_size = ${batch_size};
 __device__ constexpr index_int row_indices[${num_sources}] = {${row_indices_str}};
 __device__ constexpr index_int col_offsets[${num_sources}] = {${col_offsets_str}};
 
@@ -81,17 +82,19 @@ MIGRAPHX_GLOBAL void multi_gather_concat_kernel(${param_list})
             auto out_idx = out_shape.multi(i);
             
             // out_idx = [batch, seq, col]
-            // batch is always 0 (after slice), seq comes from indices, col is the concat dim
+            // At batch_size > 1, the physical indices row = row_index * batch_size + batch
+            index_int batch = out_idx[0];
             index_int seq = out_idx[1];
             index_int col = out_idx[2];
             
             // Find which source this column belongs to
             index_int src = find_source(col);
             index_int local_col = col - col_offsets[src];
-            index_int gather_row = row_indices[src];
+            // Compute physical row in indices tensor: logical_row * batch_size + batch
+            index_int gather_row = row_indices[src] * batch_size + batch;
             
             // Get the embedding row from indices
-            // Each indices tensor has shape [N, seq_len]
+            // Each indices tensor has shape [N * batch_size, seq_len]
             ${source_switch}
         });
     });
@@ -121,6 +124,7 @@ struct multi_gather_concat_compiler : compiler<multi_gather_concat_compiler>
         auto row_indices = v.at("row_indices").to_vector<int64_t>();
         auto col_offsets = v.at("col_offsets").to_vector<int64_t>();
         auto num_sources = v.at("num_sources").to<int64_t>();
+        auto batch_size = v.at("batch_size").to<int64_t>();
 
         // Build array initializer strings
         auto to_array_str = [](const std::vector<int64_t>& vec) {
@@ -184,6 +188,7 @@ struct multi_gather_concat_compiler : compiler<multi_gather_concat_compiler>
 
         auto src = interpolate_string(multi_gather_concat_kernel,
                                       {{"num_sources", std::to_string(num_sources)},
+                                       {"batch_size", std::to_string(batch_size)},
                                        {"row_indices_str", to_array_str(row_indices)},
                                        {"col_offsets_str", to_array_str(col_offsets)},
                                        {"param_list", param_list},

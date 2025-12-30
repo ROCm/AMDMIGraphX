@@ -384,11 +384,20 @@ struct find_multi_gather_concat
         auto starts  = slice_v.at("starts").to_vector<int64_t>();
         auto ends    = slice_v.at("ends").to_vector<int64_t>();
 
-        // Only handle single-axis slices on axis 0 with size 1
+        // Only handle single-axis slices on axis 0
         if(axes.size() != 1 || axes[0] != 0)
             return false;
-        if(ends[0] - starts[0] != 1)
+        
+        // Get batch size from the slice output shape (first dimension)
+        auto batch_size = static_cast<int64_t>(input->get_shape().lens()[0]);
+        auto slice_size = ends[0] - starts[0];
+        
+        // Slice size must equal batch size (each batch element gets one logical row)
+        if(slice_size != batch_size)
             return false;
+        
+        // Compute logical row index (divide by batch size)
+        auto row_index = starts[0] / batch_size;
 
         auto slice_source = input->inputs().front();
 
@@ -410,7 +419,7 @@ struct find_multi_gather_concat
         // Get embedding dimension
         auto embed_dim = static_cast<int64_t>(embedding->get_shape().lens()[1]);
 
-        out = {embedding, indices, starts[0], embed_dim, input, pos};
+        out = {embedding, indices, row_index, embed_dim, input, pos};
         return true;
     }
 
@@ -468,6 +477,9 @@ struct find_multi_gather_concat
             }
         }
 
+        // Get batch size from the first matching slice output shape
+        auto batch_size = static_cast<int64_t>(matching[0].original_input->get_shape().lens()[0]);
+
         // Build metadata for the fused operation
         std::vector<int64_t> row_indices;
         std::vector<int64_t> embed_dims;
@@ -496,12 +508,13 @@ struct find_multi_gather_concat
                                  {"embed_dims", embed_dims},
                                  {"col_offsets", col_offsets},
                                  {"total_embed_dim", total_fused_embed_dim},
-                                 {"num_sources", static_cast<int64_t>(matching.size())}});
+                                 {"num_sources", static_cast<int64_t>(matching.size())},
+                                 {"batch_size", batch_size}});
 
         // Get output shape for the fused op
-        // Shape: [1, seq_len, total_fused_embed_dim]
+        // Shape: [batch_size, seq_len, total_fused_embed_dim]
         std::vector<std::size_t> fused_shape;
-        fused_shape.push_back(1);  // After slice on axis 0
+        fused_shape.push_back(static_cast<std::size_t>(batch_size));
         for(std::size_t d = 1; d < first_idx_lens.size(); d++)
             fused_shape.push_back(first_idx_lens[d]);
         fused_shape.push_back(static_cast<std::size_t>(total_fused_embed_dim));

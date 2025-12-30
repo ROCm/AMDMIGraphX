@@ -1119,7 +1119,7 @@ TEST_CASE(flash_decoding_4d_auto_split_custom_params)
 
     // Check for flash decoding
     bool found_flash_decoding = false;
-    for(auto ins : *p1.get_main_module())
+    for(const auto& ins : *p1.get_main_module())
     {
         if(ins.name().find("group") != std::string::npos)
         {
@@ -1136,7 +1136,8 @@ TEST_CASE(flash_decoding_auto_split_threshold_behavior)
     // Test threshold behavior - sequence right at the threshold boundary
     migraphx::shape s_3d{migraphx::shape::half_type, {1, 127, 127}};
 
-    migraphx::program p1, p2;
+    migraphx::program p1;
+    migraphx::program p2;
 
     // Test 1: sequence length below threshold - should NOT split
     {
@@ -1198,18 +1199,19 @@ TEST_CASE(flash_decoding_auto_split_threshold_behavior)
               .flash_decoding_min_chunk_size = 32});
 
     // Check results - look for flash decoding by checking module names
-    bool found_flash_decoding_p1 = false, found_flash_decoding_p2 = false;
+    bool found_flash_decoding_p1 = false;
+    bool found_flash_decoding_p2 = false;
     bool found_regular_attention_p1 = false;
 
-    for(auto ins : *p1.get_main_module())
+    for(const auto& ins : *p1.get_main_module())
     {
         if(ins.name().find("group") != std::string::npos)
         {
             // Check the module name to distinguish flash decoding from regular attention
-            auto module_inputs = ins.module_inputs();
-            if(!module_inputs.empty())
+            const auto& module_inputs = ins.module_inputs();
+            if(not module_inputs.empty())
             {
-                auto mod_name = module_inputs[0]->name();
+                const auto& mod_name = module_inputs[0]->name();
                 if(mod_name.find("flash_decoding") != std::string::npos)
                 {
                     found_flash_decoding_p1 = true;
@@ -1222,14 +1224,14 @@ TEST_CASE(flash_decoding_auto_split_threshold_behavior)
         }
     }
 
-    for(auto ins : *p2.get_main_module())
+    for(const auto& ins : *p2.get_main_module())
     {
         if(ins.name().find("group") != std::string::npos)
         {
-            auto module_inputs = ins.module_inputs();
-            if(!module_inputs.empty())
+            const auto& module_inputs = ins.module_inputs();
+            if(not module_inputs.empty())
             {
-                auto mod_name = module_inputs[0]->name();
+                const auto& mod_name = module_inputs[0]->name();
                 if(mod_name.find("flash_decoding") != std::string::npos)
                 {
                     found_flash_decoding_p2 = true;
@@ -1282,7 +1284,7 @@ TEST_CASE(flash_decoding_auto_split_max_splits_constraint)
 
     // Check that flash decoding was applied
     bool found_flash_decoding = false;
-    for(auto ins : *p1.get_main_module())
+    for(const auto& ins : *p1.get_main_module())
     {
         if(ins.name().find("group") != std::string::npos)
         {
@@ -1292,6 +1294,30 @@ TEST_CASE(flash_decoding_auto_split_max_splits_constraint)
     }
 
     EXPECT(found_flash_decoding);
+}
+
+TEST_CASE(ceil_mul_of_function)
+{
+    // Test the ceil_mul_of function used for padding calculations
+
+    // Test exact multiples - no padding needed
+    EXPECT(migraphx::ceil_mul_of(16, 4) == 16);  // 16 is multiple of 4
+    EXPECT(migraphx::ceil_mul_of(32, 8) == 32);  // 32 is multiple of 8
+    EXPECT(migraphx::ceil_mul_of(100, 10) == 100); // 100 is multiple of 10
+
+    // Test non-multiples - padding needed
+    EXPECT(migraphx::ceil_mul_of(17, 4) == 20);  // 17 -> 20 (next multiple of 4)
+    EXPECT(migraphx::ceil_mul_of(33, 8) == 40);  // 33 -> 40 (next multiple of 8)
+    EXPECT(migraphx::ceil_mul_of(101, 10) == 110); // 101 -> 110 (next multiple of 10)
+
+    // Test edge cases
+    EXPECT(migraphx::ceil_mul_of(1, 4) == 4);    // 1 -> 4
+    EXPECT(migraphx::ceil_mul_of(0, 4) == 0);    // 0 -> 0
+
+    // Test specific cases from attention fusion
+    EXPECT(migraphx::ceil_mul_of(100, 8) == 104); // 100 -> 104 (padding = 4)
+    EXPECT(migraphx::ceil_mul_of(127, 16) == 128); // 127 -> 128 (padding = 1)
+    EXPECT(migraphx::ceil_mul_of(2049, 32) == 2080); // 2049 -> 2080 (padding = 31)
 }
 
 int main(int argc, const char* argv[])

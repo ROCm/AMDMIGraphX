@@ -738,16 +738,15 @@ struct find_flash_decoding
         {
             // need to slice the sequence dimension to remove padding
             // final_squeezed_o has shape like [B, M_padded, D], need to slice M back to original
-            auto output_shape = final_squeezed_o->get_shape();
-            auto output_lens  = output_shape.lens();
-            std::size_t seq_dim_idx = output_lens.size() - 2; // sequence dim is second to last
+            auto output_shape            = final_squeezed_o->get_shape();
+            const auto& output_lens      = output_shape.lens();
+            std::size_t seq_dim_idx      = output_lens.size() - 2; // sequence dim is second to last
             std::size_t original_seq_len = output_lens[seq_dim_idx] - padding_needed;
 
             final_result = mm.insert_instruction(
                 attn_group_ins,
-                make_op("slice", {{"axes", {seq_dim_idx}},
-                                  {"starts", {0}},
-                                  {"ends", {original_seq_len}}}),
+                make_op("slice",
+                        {{"axes", {seq_dim_idx}}, {"starts", {0}}, {"ends", {original_seq_len}}}),
                 final_squeezed_o);
         }
 

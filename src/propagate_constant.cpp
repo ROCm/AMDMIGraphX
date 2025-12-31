@@ -27,6 +27,7 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/simple_par_for.hpp>
+#include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/env.hpp>
 #include <thread>
 #include <unordered_set>
@@ -71,7 +72,7 @@ static argument as_packed(const argument& c)
 
 void propagate_constant::apply(module& m) const
 {
-    std::unordered_set<instruction_ref> const_instrs;
+    std::vector<instruction_ref> const_instrs;
     auto last = std::prev(m.end());
 
     // Find instructions that can be evaluated to a literal
@@ -83,7 +84,7 @@ void propagate_constant::apply(module& m) const
 
         if(i == last and is_const)
         {
-            const_instrs.insert(i);
+            const_instrs.push_back(i);
         }
         else
         {
@@ -97,21 +98,23 @@ void propagate_constant::apply(module& m) const
     }
 
     // Compute literals in parallel
-    std::vector<instruction_ref> const_instrs_vec{const_instrs.begin(), const_instrs.end()};
-    std::vector<argument> literals(const_instrs_vec.size());
-    std::size_t grainsize = 1;
+    //std::vector<instruction_ref> const_instrs_vec{const_instrs.begin(), const_instrs.end()};
+    //std::vector<argument> literals(const_instrs_vec.size());
+    /*std::size_t grainsize = 1;
 #if !MIGRAPHX_HAS_EXECUTORS
     std::size_t n = std::max<std::size_t>(2048 / std::thread::hardware_concurrency(), 1);
     grainsize     = const_instrs_vec.size() / n;
 #endif
     simple_par_for(const_instrs_vec.size(), grainsize, [&](const auto i) {
         literals[i] = as_packed(const_instrs_vec[i]->eval());
-    });
+    });*/
 
     // Replace instructions in m
-    for(size_t i = 0; i < const_instrs_vec.size(); i++)
+    for(size_t i = 0; i < const_instrs.size(); i++)
     {
-        if(not literals[i].empty())
+        auto literal = as_packed(const_instrs[i]->eval());
+
+        if(not literal.empty())
         {
             if(enabled(MIGRAPHX_TRACE_PROPAGATE_CONSTANT{}))
             {
@@ -123,13 +126,13 @@ void propagate_constant::apply(module& m) const
                     for(auto input : ins->inputs())
                         self(input);
                     inss.push_back(ins);
-                })(const_instrs_vec[i]);
+                })(const_instrs[i]);
                 m.debug_print(inss);
             }
-            assert(literals[i].get_shape().lens() == const_instrs_vec[i]->get_shape().lens());
-            assert(literals[i].get_shape().bytes() <= const_instrs_vec[i]->get_shape().bytes());
-            auto l = m.add_literal(literals[i].get_shape(), literals[i].data());
-            m.replace_instruction(const_instrs_vec[i], l);
+            assert(literal.get_shape().lens() == const_instrs[i]->get_shape().lens());
+            assert(literal.get_shape().bytes() <= const_instrs[i]->get_shape().bytes());
+            auto l = m.add_literal(literal.get_shape(), literal.data());
+            m.replace_instruction(const_instrs[i], l);
         }
     }
 }

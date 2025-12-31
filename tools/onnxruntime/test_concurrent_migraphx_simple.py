@@ -11,6 +11,7 @@ import argparse
 import numpy as np
 import onnxruntime as ort
 from collections import defaultdict
+from tqdm import tqdm
 
 
 # Global storage for metrics
@@ -20,9 +21,10 @@ thread_results = {}  # {thread_id: {'batch_size': X, 'iterations': Y, ...}}
 
 
 def run_inference_thread(thread_id, model_path, cache_dir, batch_size, num_iterations, max_dynamic_batch, 
-                         verbose, optimization_level):
+                         verbose, optimization_level, warmup=3, show_io=False):
     """Run inference in a single thread"""
-    print(f"\n[Thread-{thread_id}] Starting with batch_size={batch_size}, max_dynamic_batch={max_dynamic_batch}")
+    if show_io:
+        print(f"\n[Thread-{thread_id}] Starting with batch_size={batch_size}, max_dynamic_batch={max_dynamic_batch}")
 
     # Set environment variables
     os.environ['ORT_MIGRAPHX_MODEL_CACHE_PATH'] = cache_dir
@@ -35,7 +37,8 @@ def run_inference_thread(thread_id, model_path, cache_dir, batch_size, num_itera
     if verbose:
         session_options.log_severity_level = 0  # Verbose (0 = Verbose, 1 = Info, 2 = Warning, 3 = Error, 4 = Fatal)
         session_options.log_verbosity_level = 0  # Detailed logs
-        print(f"[Thread-{thread_id}] Verbose logging: ENABLED")
+        if show_io:
+            print(f"[Thread-{thread_id}] Verbose logging: ENABLED")
     else:
         session_options.log_severity_level = 2  # Warning level (less verbose)
         session_options.log_verbosity_level = 0  # Standard verbosity
@@ -48,13 +51,14 @@ def run_inference_thread(thread_id, model_path, cache_dir, batch_size, num_itera
         99: ort.GraphOptimizationLevel.ORT_ENABLE_ALL
     }
     session_options.graph_optimization_level = opt_level_map.get(optimization_level, ort.GraphOptimizationLevel.ORT_DISABLE_ALL)
-    opt_level_names = {
-        0: "ORT_DISABLE_ALL",
-        1: "ORT_ENABLE_BASIC",
-        2: "ORT_ENABLE_EXTENDED",
-        99: "ORT_ENABLE_ALL"
-    }
-    print(f"[Thread-{thread_id}] Graph optimization: {opt_level_names.get(optimization_level, 'ORT_DISABLE_ALL')}")
+    if show_io:
+        opt_level_names = {
+            0: "ORT_DISABLE_ALL",
+            1: "ORT_ENABLE_BASIC",
+            2: "ORT_ENABLE_EXTENDED",
+            99: "ORT_ENABLE_ALL"
+        }
+        print(f"[Thread-{thread_id}] Graph optimization: {opt_level_names.get(optimization_level, 'ORT_DISABLE_ALL')}")
 
     # Configure MIGraphX provider with max_dynamic_batch
     migraphx_options = {
@@ -74,63 +78,82 @@ def run_inference_thread(thread_id, model_path, cache_dir, batch_size, num_itera
 
     try:
         session = ort.InferenceSession(model_path, sess_options=session_options, providers=providers)
-        print(f"[Thread-{thread_id}] Session created. Providers: {session.get_providers()}")
+        if show_io:
+            print(f"[Thread-{thread_id}] Session created. Providers: {session.get_providers()}")
 
         # Get ALL input info
         all_inputs = session.get_inputs()
-        print(f"[Thread-{thread_id}] Model has {len(all_inputs)} inputs:")
-        for inp in all_inputs:
-            print(f"  - {inp.name}: {inp.shape} ({inp.type})")
+        if show_io:
+            print(f"[Thread-{thread_id}] Model has {len(all_inputs)} inputs:")
+            for inp in all_inputs:
+                print(f"  - {inp.name}: {inp.shape} ({inp.type})")
 
-        # Run iterations
-        for i in range(num_iterations):
-            # Generate random input data for ALL inputs
-            input_feed = {}
-            
+        # Helper function to generate input data
+        def generate_input_data(batch_sz):
+            feed = {}
             for inp in all_inputs:
                 input_shape = list(inp.shape)
-                
-                # Replace dynamic batch dimension (first dimension) with actual batch size
-                if isinstance(input_shape[0], str) or input_shape[0] < 0:
-                    input_shape[0] = batch_size
-                
-                # Replace any other dynamic dimensions with reasonable defaults
+                if len(input_shape) > 0 and (isinstance(input_shape[0], str) or input_shape[0] < 0):
+                    input_shape[0] = batch_sz
                 for dim_idx in range(len(input_shape)):
                     if isinstance(input_shape[dim_idx], str) or input_shape[dim_idx] < 0:
-                        input_shape[dim_idx] = 1  # Default to 1 for other dynamic dims
-                
-                # Generate random data based on input type
+                        input_shape[dim_idx] = 1
                 if inp.type == 'tensor(float)':
-                    data = np.random.randn(*input_shape).astype(np.float32)
+                    feed[inp.name] = np.random.randn(*input_shape).astype(np.float32)
                 elif inp.type == 'tensor(double)':
-                    data = np.random.randn(*input_shape).astype(np.float64)
+                    feed[inp.name] = np.random.randn(*input_shape).astype(np.float64)
                 elif inp.type == 'tensor(int64)':
-                    data = np.random.randint(0, 100, size=input_shape).astype(np.int64)
+                    feed[inp.name] = np.random.randint(0, 100, size=input_shape).astype(np.int64)
                 elif inp.type == 'tensor(int32)':
-                    data = np.random.randint(0, 100, size=input_shape).astype(np.int32)
+                    feed[inp.name] = np.random.randint(0, 100, size=input_shape).astype(np.int32)
                 elif inp.type == 'tensor(int16)':
-                    data = np.random.randint(0, 100, size=input_shape).astype(np.int16)
+                    feed[inp.name] = np.random.randint(0, 100, size=input_shape).astype(np.int16)
                 elif inp.type == 'tensor(int8)':
-                    data = np.random.randint(0, 100, size=input_shape).astype(np.int8)
+                    feed[inp.name] = np.random.randint(0, 100, size=input_shape).astype(np.int8)
                 elif inp.type == 'tensor(bool)':
-                    data = np.random.randint(0, 2, size=input_shape).astype(np.bool_)
+                    feed[inp.name] = np.random.randint(0, 2, size=input_shape).astype(np.bool_)
                 else:
-                    # Default to float32 for unknown types
-                    print(f"[Thread-{thread_id}] WARNING: Unknown type {inp.type} for {inp.name}, using float32")
-                    data = np.random.randn(*input_shape).astype(np.float32)
-                
-                input_feed[inp.name] = data
+                    feed[inp.name] = np.random.randn(*input_shape).astype(np.float32)
+            return feed
+
+        # WARMUP: Run warmup iterations to exclude compilation time from measurements
+        if warmup > 0:
+            if show_io:
+                print(f"[Thread-{thread_id}] Running {warmup} warmup iterations (not measured)...")
+            for w in range(warmup):
+                warmup_feed = generate_input_data(batch_size)
+                warmup_start = time.perf_counter()
+                _ = session.run(None, warmup_feed)
+                warmup_time = (time.perf_counter() - warmup_start) * 1000
+                if show_io:
+                    print(f"[Thread-{thread_id}] Warmup {w+1}/{warmup}: {warmup_time:.2f}ms")
+            if show_io:
+                print(f"[Thread-{thread_id}] Warmup complete, starting measured iterations...")
+
+        # Run iterations with progress bar (when show_io is off)
+        if show_io:
+            iter_range = range(num_iterations)
+        else:
+            iter_range = tqdm(range(num_iterations), 
+                             desc=f"Thread-{thread_id} batch={batch_size}", 
+                             position=thread_id-1, 
+                             leave=True,
+                             ncols=80)
+        
+        for i in iter_range:
+            # Generate random input data for ALL inputs
+            input_feed = generate_input_data(batch_size)
             
-            # Log input shapes on first iteration
-            if i == 0:
+            # Log input shapes on first iteration (only if show_io enabled)
+            if show_io and i == 0:
                 print(f"[Thread-{thread_id}] Generated input shapes:")
                 for name, data in input_feed.items():
                     print(f"    {name}: {data.shape}")
 
-            # Run inference with ALL inputs
-            start = time.time()
+            # Run inference with ALL inputs - use perf_counter for accurate timing
+            start = time.perf_counter()
             outputs = session.run(None, input_feed)
-            elapsed_ms = (time.time() - start) * 1000
+            elapsed_ms = (time.perf_counter() - start) * 1000
 
             # Track latency
             latencies.append(elapsed_ms)
@@ -159,18 +182,24 @@ def run_inference_thread(thread_id, model_path, cache_dir, batch_size, num_itera
             
             match_symbol = "✅" if batch_match else "❌"
             
-            # Log iteration summary
-            print(f"[Thread-{thread_id}] Iter {i+1}: {elapsed_ms:.2f}ms, in_batch={batch_size} {match_symbol}")
+            # Update progress bar with latest latency (when not show_io)
+            if not show_io and hasattr(iter_range, 'set_postfix'):
+                iter_range.set_postfix({'ms': f'{elapsed_ms:.1f}', 'ok': match_symbol})
             
-            # Log detailed output verification on first iteration or if mismatch
-            if i == 0 or not batch_match:
+            # Log iteration summary (always show if mismatch, otherwise only if show_io)
+            if show_io or not batch_match:
+                print(f"[Thread-{thread_id}] Iter {i+1}: {elapsed_ms:.2f}ms, in_batch={batch_size} {match_symbol}")
+            
+            # Log detailed output verification (only if show_io enabled or mismatch)
+            if show_io or not batch_match:
                 print(f"[Thread-{thread_id}] Output verification ({len(outputs)} outputs):")
                 for detail in output_details:
                     print(f"[Thread-{thread_id}]   {detail}")
 
             time.sleep(0.05)  # Small delay
 
-        print(f"[Thread-{thread_id}] Completed {num_iterations} iterations")
+        if show_io:
+            print(f"[Thread-{thread_id}] Completed {num_iterations} iterations")
 
         # Store results
         with metrics_lock:
@@ -207,6 +236,10 @@ def main():
                        help='Number of concurrent threads (default: 2)')
     parser.add_argument('--max-dynamic-batch', type=int, default=0,
                        help='Max dynamic batch size for pre-compilation (0=disabled, power of 2 recommended)')
+    parser.add_argument('--warmup', type=int, default=3,
+                       help='Number of warmup iterations to exclude compilation from timing (default: 3)')
+    parser.add_argument('--show_io', action='store_true', default=False,
+                       help='Show detailed input/output info for each iteration (default: OFF, only shows mismatches)')
     parser.add_argument('--verbose', action='store_true', default=False,
                        help='Enable verbose ONNX Runtime logging (default: OFF)')
     parser.add_argument('--optimization-level', type=int, choices=[0, 1, 2, 99], default=0,
@@ -250,6 +283,8 @@ def main():
     print(f"Concurrent Threads: {args.threads}")
     print(f"Iterations per thread: {args.iterations}")
     print(f"Batch sizes: {args.batches}")
+    print(f"Warmup iterations: {args.warmup}")
+    print(f"Show I/O details: {'ON' if args.show_io else 'OFF (only mismatches)'}")
     print(f"Verbose logging: {'ON' if args.verbose else 'OFF'}")
     opt_level_names = {0: "DISABLE_ALL", 1: "ENABLE_BASIC", 2: "ENABLE_EXTENDED", 99: "ENABLE_ALL"}
     print(f"Graph optimization: {opt_level_names.get(args.optimization_level, 'DISABLE_ALL')}")
@@ -263,7 +298,7 @@ def main():
         thread = threading.Thread(
             target=run_inference_thread,
             args=(i+1, args.model, args.cache, batch_size, args.iterations, args.max_dynamic_batch,
-                  args.verbose, args.optimization_level)
+                  args.verbose, args.optimization_level, args.warmup, args.show_io)
         )
         threads.append(thread)
 

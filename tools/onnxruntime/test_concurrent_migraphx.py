@@ -15,25 +15,29 @@ import numpy as np
 import onnxruntime as ort
 from datetime import datetime
 from collections import defaultdict
+from tqdm import tqdm
 
 
 class ConcurrentInferenceTest:
     """Test harness for concurrent MIGraphX inference"""
 
-    def __init__(self, model_path, cache_dir, max_dynamic_batch=0, verbose=False, optimization_level=0):
+    def __init__(self, model_path, cache_dir, max_dynamic_batch=0, verbose=False, optimization_level=0, warmup=3, show_io=False):
         self.model_path = model_path
         self.cache_dir = cache_dir
         self.max_dynamic_batch = max_dynamic_batch
         self.verbose = verbose
         self.optimization_level = optimization_level
+        self.warmup = warmup
+        self.show_io = show_io
         self.sessions = {}
         self.results = defaultdict(list)
         self.lock = threading.Lock()
 
     def create_session(self, thread_id):
         """Create an ONNX Runtime session with MIGraphX EP"""
-        print(f"[Thread-{thread_id}] Creating session with MIGraphX EP...")
-        print(f"[Thread-{thread_id}] Max dynamic batch: {self.max_dynamic_batch}")
+        if self.show_io:
+            print(f"[Thread-{thread_id}] Creating session with MIGraphX EP...")
+            print(f"[Thread-{thread_id}] Max dynamic batch: {self.max_dynamic_batch}")
 
         # Set environment variables for MIGraphX
         os.environ['ORT_MIGRAPHX_MODEL_CACHE_PATH'] = self.cache_dir
@@ -46,7 +50,8 @@ class ConcurrentInferenceTest:
         if self.verbose:
             session_options.log_severity_level = 0  # Verbose (0 = Verbose, 1 = Info, 2 = Warning, 3 = Error, 4 = Fatal)
             session_options.log_verbosity_level = 0  # Detailed logs
-            print(f"[Thread-{thread_id}] Verbose logging: ENABLED")
+            if self.show_io:
+                print(f"[Thread-{thread_id}] Verbose logging: ENABLED")
         else:
             session_options.log_severity_level = 2  # Warning level (less verbose)
             session_options.log_verbosity_level = 0  # Standard verbosity
@@ -59,13 +64,14 @@ class ConcurrentInferenceTest:
             99: ort.GraphOptimizationLevel.ORT_ENABLE_ALL
         }
         session_options.graph_optimization_level = opt_level_map.get(self.optimization_level, ort.GraphOptimizationLevel.ORT_DISABLE_ALL)
-        opt_level_names = {
-            0: "ORT_DISABLE_ALL",
-            1: "ORT_ENABLE_BASIC",
-            2: "ORT_ENABLE_EXTENDED",
-            99: "ORT_ENABLE_ALL"
-        }
-        print(f"[Thread-{thread_id}] Graph optimization: {opt_level_names.get(self.optimization_level, 'ORT_DISABLE_ALL')}")
+        if self.show_io:
+            opt_level_names = {
+                0: "ORT_DISABLE_ALL",
+                1: "ORT_ENABLE_BASIC",
+                2: "ORT_ENABLE_EXTENDED",
+                99: "ORT_ENABLE_ALL"
+            }
+            print(f"[Thread-{thread_id}] Graph optimization: {opt_level_names.get(self.optimization_level, 'ORT_DISABLE_ALL')}")
 
         # Configure MIGraphX execution provider
         migraphx_provider_options = {
@@ -92,17 +98,19 @@ class ConcurrentInferenceTest:
                 providers=providers
             )
 
-            print(f"[Thread-{thread_id}] Session created successfully")
-            print(f"[Thread-{thread_id}] Active providers: {session.get_providers()}")
+            if self.show_io:
+                print(f"[Thread-{thread_id}] Session created successfully")
+                print(f"[Thread-{thread_id}] Active providers: {session.get_providers()}")
 
-            # Print input/output info
-            print(f"[Thread-{thread_id}] Model inputs:")
-            for inp in session.get_inputs():
-                print(f"  - {inp.name}: {inp.shape} ({inp.type})")
+            # Print input/output info (only if show_io enabled)
+            if self.show_io:
+                print(f"[Thread-{thread_id}] Model inputs:")
+                for inp in session.get_inputs():
+                    print(f"  - {inp.name}: {inp.shape} ({inp.type})")
 
-            print(f"[Thread-{thread_id}] Model outputs:")
-            for out in session.get_outputs():
-                print(f"  - {out.name}: {out.shape} ({out.type})")
+                print(f"[Thread-{thread_id}] Model outputs:")
+                for out in session.get_outputs():
+                    print(f"  - {out.name}: {out.shape} ({out.type})")
 
             return session
 
@@ -164,32 +172,55 @@ class ConcurrentInferenceTest:
             # Create session (each thread gets its own session)
             session = self.create_session(thread_id)
 
-            print(f"\n[Thread-{thread_id}] Starting {iterations} iterations with batch_size={batch_size}")
-            print(f"[Thread-{thread_id}] " + "="*60)
+            if self.show_io:
+                print(f"\n[Thread-{thread_id}] Starting {iterations} iterations with batch_size={batch_size}")
+                print(f"[Thread-{thread_id}] " + "="*60)
 
-            for i in range(iterations):
-                iter_start = time.time()
+            # WARMUP: Run warmup iterations to exclude compilation time from measurements
+            if self.warmup > 0:
+                if self.show_io:
+                    print(f"[Thread-{thread_id}] Running {self.warmup} warmup iterations (not measured)...")
+                for w in range(self.warmup):
+                    warmup_inputs = self.generate_input_data(session, batch_size)
+                    warmup_start = time.perf_counter()
+                    _ = session.run(None, warmup_inputs)
+                    warmup_time = (time.perf_counter() - warmup_start) * 1000
+                    if self.show_io:
+                        print(f"[Thread-{thread_id}] Warmup {w+1}/{self.warmup}: {warmup_time:.2f}ms")
+                if self.show_io:
+                    print(f"[Thread-{thread_id}] Warmup complete, starting measured iterations...")
+
+            # Run iterations with progress bar (when show_io is off)
+            if self.show_io:
+                iter_range = range(iterations)
+            else:
+                iter_range = tqdm(range(iterations), 
+                                 desc=f"Thread-{thread_id} batch={batch_size}", 
+                                 position=thread_id-1, 
+                                 leave=True,
+                                 ncols=80)
+            
+            for i in iter_range:
+                iter_start = time.perf_counter()
 
                 # Generate input data
                 inputs = self.generate_input_data(session, batch_size)
 
-                # Log input shapes
-                input_shapes = {name: data.shape for name, data in inputs.items()}
-                print(f"\n[Thread-{thread_id}] Iteration {i+1}/{iterations}")
-                print(f"[Thread-{thread_id}] Input shapes: {input_shapes}")
-                print(f"[Thread-{thread_id}] Batch size requested: {batch_size}")
+                # Log input shapes (only if show_io enabled)
+                if self.show_io:
+                    input_shapes = {name: data.shape for name, data in inputs.items()}
+                    print(f"\n[Thread-{thread_id}] Iteration {i+1}/{iterations}")
+                    print(f"[Thread-{thread_id}] Input shapes: {input_shapes}")
+                    print(f"[Thread-{thread_id}] Batch size requested: {batch_size}")
 
-                # Run inference
-                inference_start = time.time()
+                # Run inference - use perf_counter for accurate timing
+                inference_start = time.perf_counter()
                 outputs = session.run(None, inputs)
-                inference_time = (time.time() - inference_start) * 1000  # ms
+                inference_time = (time.perf_counter() - inference_start) * 1000  # ms
 
                 # Get ALL output info
                 output_infos = session.get_outputs()
                 output_shapes = {}
-                
-                # Log output shapes with detailed info
-                print(f"[Thread-{thread_id}] Verifying {len(outputs)} outputs:")
                 
                 # Verify batch size in ALL outputs
                 batch_match = True
@@ -212,27 +243,43 @@ class ConcurrentInferenceTest:
                                 f"shape={output_shape}, type={output_type}, "
                                 f"batch={output_batch} (expected {batch_size})"
                             )
-                            print(f"[Thread-{thread_id}]   ❌ {output_name}: {output_shape} "
-                                  f"(batch={output_batch}, expected={batch_size})")
+
+                # Update progress bar with latest latency (when not show_io)
+                if not self.show_io and hasattr(iter_range, 'set_postfix'):
+                    match_symbol = "✅" if batch_match else "❌"
+                    iter_range.set_postfix({'ms': f'{inference_time:.1f}', 'ok': match_symbol})
+
+                # Log output shapes with detailed info (only if show_io or mismatch)
+                if self.show_io or not batch_match:
+                    print(f"[Thread-{thread_id}] Verifying {len(outputs)} outputs:")
+                    for output_idx, (output_info, output_data) in enumerate(zip(output_infos, outputs)):
+                        output_name = output_info.name
+                        output_shape = output_data.shape
+                        if len(output_shape) > 0:
+                            output_batch = output_shape[0]
+                            if output_batch != batch_size:
+                                print(f"[Thread-{thread_id}]   ❌ {output_name}: {output_shape} "
+                                      f"(batch={output_batch}, expected={batch_size})")
+                            else:
+                                print(f"[Thread-{thread_id}]   ✅ {output_name}: {output_shape} "
+                                      f"(batch={output_batch})")
                         else:
-                            print(f"[Thread-{thread_id}]   ✅ {output_name}: {output_shape} "
-                                  f"(batch={output_batch})")
+                            print(f"[Thread-{thread_id}]   ⚠️  {output_name}: {output_shape} "
+                                  f"(scalar, no batch dim)")
+
+                # Summary verification (only if show_io or mismatch)
+                if self.show_io or not batch_match:
+                    if batch_match:
+                        print(f"[Thread-{thread_id}] ✅ All {len(outputs)} outputs have correct batch size: {batch_size}")
                     else:
-                        # Scalar output (no batch dimension)
-                        print(f"[Thread-{thread_id}]   ⚠️  {output_name}: {output_shape} "
-                              f"(scalar, no batch dim)")
+                        print(f"[Thread-{thread_id}] ❌ BATCH SIZE MISMATCH DETECTED!")
+                        for detail in batch_mismatch_details:
+                            print(f"[Thread-{thread_id}] {detail}")
 
-                # Summary verification
-                if batch_match:
-                    print(f"[Thread-{thread_id}] ✅ All {len(outputs)} outputs have correct batch size: {batch_size}")
-                else:
-                    print(f"[Thread-{thread_id}] ❌ BATCH SIZE MISMATCH DETECTED!")
-                    for detail in batch_mismatch_details:
-                        print(f"[Thread-{thread_id}] {detail}")
-
-                iter_time = (time.time() - iter_start) * 1000  # ms
-                print(f"[Thread-{thread_id}] Inference time: {inference_time:.2f}ms, "
-                      f"Total time: {iter_time:.2f}ms")
+                iter_time = (time.perf_counter() - iter_start) * 1000  # ms
+                if self.show_io or not batch_match:
+                    print(f"[Thread-{thread_id}] Inference time: {inference_time:.2f}ms, "
+                          f"Total time: {iter_time:.2f}ms")
 
                 # Store results
                 with self.lock:
@@ -249,8 +296,9 @@ class ConcurrentInferenceTest:
                 if i < iterations - 1:
                     time.sleep(0.1)
 
-            print(f"\n[Thread-{thread_id}] Completed all {iterations} iterations")
-            print(f"[Thread-{thread_id}] " + "="*60)
+            if self.show_io:
+                print(f"\n[Thread-{thread_id}] Completed all {iterations} iterations")
+                print(f"[Thread-{thread_id}] " + "="*60)
 
         except Exception as e:
             print(f"\n[Thread-{thread_id}] ERROR during inference: {e}")
@@ -356,6 +404,10 @@ def main():
                        help='Iterations per thread (default: 5)')
     parser.add_argument('--batches', nargs='+', type=int, default=[1, 2, 4, 8],
                        help='Batch sizes to test (default: 1 2 4 8)')
+    parser.add_argument('--warmup', type=int, default=3,
+                       help='Number of warmup iterations to exclude compilation from timing (default: 3)')
+    parser.add_argument('--show_io', action='store_true', default=False,
+                       help='Show detailed input/output info for each iteration (default: OFF, only shows mismatches)')
     parser.add_argument('--verbose', action='store_true', default=False,
                        help='Enable verbose ONNX Runtime logging (default: OFF)')
     parser.add_argument('--optimization-level', type=int, choices=[0, 1, 2, 99], default=0,
@@ -374,6 +426,8 @@ def main():
     print(f"Concurrent threads: {args.threads}")
     print(f"Iterations per thread: {args.iterations}")
     print(f"Batch sizes: {args.batches}")
+    print(f"Warmup iterations: {args.warmup}")
+    print(f"Show I/O details: {'ON' if args.show_io else 'OFF (only mismatches)'}")
     print(f"Random batches: {'YES' if args.random_batches else 'NO (cycle through list)'}")
     print(f"Verbose logging: {'ON' if args.verbose else 'OFF'}")
     opt_level_names = {0: "DISABLE_ALL", 1: "ENABLE_BASIC", 2: "ENABLE_EXTENDED", 99: "ENABLE_ALL"}
@@ -388,7 +442,7 @@ def main():
 
     # Create test harness
     test = ConcurrentInferenceTest(args.model, args.cache, args.max_dynamic_batch, 
-                                   args.verbose, args.optimization_level)
+                                   args.verbose, args.optimization_level, args.warmup, args.show_io)
 
     # Define test scenarios based on args.threads
     test_scenarios = []

@@ -562,9 +562,20 @@ struct find_flash_decoding
         auto k = map_param_to_main.at(k_param);
         auto v = map_param_to_main.at(v_param);
 
-        // pad K and V if necessary
+        // save original references before padding (needed for group_inputs replacement later)
+        auto q_orig = q;
+        auto k_orig = k;
+        auto v_orig = v;
+
+        // pad Q, K and V if necessary
         if(padding_needed > 0)
         {
+            // Q shape: [B, M, k] or [B, H, M, k] for 4D. Padding on M (sequence length dim)
+            auto q_ndim = q->get_shape().ndim();
+            std::vector<std::size_t> q_pads(2 * q_ndim, 0);
+            q_pads[q_ndim + q_ndim - 2] = padding_needed; // pad right on M dim (second to last)
+            q = mm.insert_instruction(attn_group_ins, make_op("pad", {{"pads", q_pads}}), q);
+
             // K shape: [B, k, N] or [B, H, k, N] for 4D. Padding on N
             auto k_ndim = k->get_shape().ndim();
             std::vector<std::size_t> k_pads(2 * k_ndim, 0);
@@ -609,18 +620,19 @@ struct find_flash_decoding
             attn_group_ins, make_op("reshape", {{"dims", transform_info.v_shape}}), v);
 
         // create new input list by replacing Q, K, V with reshaped versions
+        // use original references (before padding) for comparison
         std::vector<instruction_ref> new_group_inputs = group_inputs;
         for(size_t i = 0; i < group_inputs.size(); ++i)
         {
-            if(group_inputs[i] == q)
+            if(group_inputs[i] == q_orig)
             {
                 new_group_inputs[i] = q_reshaped;
             }
-            else if(group_inputs[i] == k)
+            else if(group_inputs[i] == k_orig)
             {
                 new_group_inputs[i] = k_reshaped;
             }
-            else if(group_inputs[i] == v)
+            else if(group_inputs[i] == v_orig)
             {
                 new_group_inputs[i] = v_reshaped;
             }
@@ -720,8 +732,27 @@ struct find_flash_decoding
         auto final_squeezed_o = mm.insert_instruction(
             attn_group_ins, make_op("squeeze", {{"axes", {g_axis}}}), final_output_o);
 
+        // if padding was applied, slice to remove it
+        instruction_ref final_result = final_squeezed_o;
+        if(padding_needed > 0)
+        {
+            // need to slice the sequence dimension to remove padding
+            // final_squeezed_o has shape like [B, M_padded, D], need to slice M back to original
+            auto output_shape = final_squeezed_o->get_shape();
+            auto output_lens  = output_shape.lens();
+            std::size_t seq_dim_idx = output_lens.size() - 2; // sequence dim is second to last
+            std::size_t original_seq_len = output_lens[seq_dim_idx] - padding_needed;
+
+            final_result = mm.insert_instruction(
+                attn_group_ins,
+                make_op("slice", {{"axes", {seq_dim_idx}},
+                                  {"starts", {0}},
+                                  {"ends", {original_seq_len}}}),
+                final_squeezed_o);
+        }
+
         // replace the original group instruction with the final result
-        mm.replace_instruction(attn_group_ins, final_squeezed_o);
+        mm.replace_instruction(attn_group_ins, final_result);
     }
 };
 

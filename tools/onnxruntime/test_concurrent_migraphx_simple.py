@@ -75,6 +75,7 @@ def run_inference_thread(thread_id, model_path, cache_dir, batch_size, num_itera
 
     latencies = []
     successful_iterations = 0
+    batch_mismatches = 0
 
     try:
         session = ort.InferenceSession(model_path, sess_options=session_options, providers=providers)
@@ -182,16 +183,17 @@ def run_inference_thread(thread_id, model_path, cache_dir, batch_size, num_itera
             
             match_symbol = "✅" if batch_match else "❌"
             
+            # Track batch mismatches
+            if not batch_match:
+                batch_mismatches += 1
+            
             # Update progress bar with latest latency (when not show_io)
             if not show_io and hasattr(iter_range, 'set_postfix'):
                 iter_range.set_postfix({'ms': f'{elapsed_ms:.1f}', 'ok': match_symbol})
             
-            # Log iteration summary (always show if mismatch, otherwise only if show_io)
-            if show_io or not batch_match:
+            # Log iteration details (only if show_io enabled)
+            if show_io:
                 print(f"[Thread-{thread_id}] Iter {i+1}: {elapsed_ms:.2f}ms, in_batch={batch_size} {match_symbol}")
-            
-            # Log detailed output verification (only if show_io enabled or mismatch)
-            if show_io or not batch_match:
                 print(f"[Thread-{thread_id}] Output verification ({len(outputs)} outputs):")
                 for detail in output_details:
                     print(f"[Thread-{thread_id}]   {detail}")
@@ -207,6 +209,7 @@ def run_inference_thread(thread_id, model_path, cache_dir, batch_size, num_itera
             thread_results[thread_id] = {
                 'batch_size': batch_size,
                 'iterations': successful_iterations,
+                'batch_mismatches': batch_mismatches,
                 'avg_latency': np.mean(latencies) if latencies else 0,
                 'min_latency': np.min(latencies) if latencies else 0,
                 'max_latency': np.max(latencies) if latencies else 0,
@@ -239,7 +242,9 @@ def main():
     parser.add_argument('--warmup', type=int, default=3,
                        help='Number of warmup iterations to exclude compilation from timing (default: 3)')
     parser.add_argument('--show_io', action='store_true', default=False,
-                       help='Show detailed input/output info for each iteration (default: OFF, only shows mismatches)')
+                       help='Show detailed input/output info for each iteration (default: OFF)')
+    parser.add_argument('--thread-details', action='store_true', default=False,
+                       help='Show per-thread statistics in final report (default: OFF)')
     parser.add_argument('--verbose', action='store_true', default=False,
                        help='Enable verbose ONNX Runtime logging (default: OFF)')
     parser.add_argument('--optimization-level', type=int, choices=[0, 1, 2, 99], default=0,
@@ -321,12 +326,12 @@ def main():
     print("="*80)
 
     # Calculate and display metrics
-    print_metrics(total_time)
+    print_metrics(total_time, args.thread_details)
 
     return 0
 
 
-def print_metrics(total_time):
+def print_metrics(total_time, thread_details=False):
     """Calculate and print comprehensive metrics"""
     print("\n" + "="*80)
     print("PERFORMANCE METRICS")
@@ -336,55 +341,69 @@ def print_metrics(total_time):
     all_latencies_combined = []
     total_inferences = 0
     total_samples_processed = 0
+    total_batch_mismatches = 0
+    total_errors = 0
 
-    print("\n--- Per-Thread Statistics ---")
+    # First pass: collect totals
     for thread_id in sorted(thread_results.keys()):
         result = thread_results[thread_id]
-
         if 'error' in result:
-            print(f"\nThread-{thread_id}: ERROR - {result['error']}")
+            total_errors += 1
             continue
+        total_inferences += result['iterations']
+        total_samples_processed += result['iterations'] * result['batch_size']
+        total_batch_mismatches += result.get('batch_mismatches', 0)
+        all_latencies_combined.extend(all_latencies[thread_id])
 
-        batch_size = result['batch_size']
-        iterations = result['iterations']
-        latencies = all_latencies[thread_id]
+    # Per-thread statistics (only if thread_details is enabled)
+    if thread_details:
+        print("\n--- Per-Thread Statistics ---")
+        for thread_id in sorted(thread_results.keys()):
+            result = thread_results[thread_id]
 
-        if not latencies:
-            print(f"\nThread-{thread_id}: No latencies recorded")
-            continue
+            if 'error' in result:
+                print(f"\nThread-{thread_id}: ERROR - {result['error']}")
+                continue
 
-        total_inferences += iterations
-        total_samples_processed += iterations * batch_size
-        all_latencies_combined.extend(latencies)
+            batch_size = result['batch_size']
+            iterations = result['iterations']
+            mismatches = result.get('batch_mismatches', 0)
+            latencies = all_latencies[thread_id]
 
-        # Calculate percentiles
-        p50 = np.percentile(latencies, 50)
-        p90 = np.percentile(latencies, 90)
-        p95 = np.percentile(latencies, 95)
-        p99 = np.percentile(latencies, 99)
-        avg = np.mean(latencies)
-        min_lat = np.min(latencies)
-        max_lat = np.max(latencies)
-        std = np.std(latencies)
+            if not latencies:
+                print(f"\nThread-{thread_id}: No latencies recorded")
+                continue
 
-        print(f"\nThread-{thread_id} (Batch Size: {batch_size}):")
-        print(f"  Iterations: {iterations}")
-        print(f"  Samples Processed: {iterations * batch_size}")
-        if 'num_outputs' in result and result['num_outputs'] > 0:
-            print(f"  Model Outputs Verified: {result['num_outputs']}")
-        print(f"  Latency (ms):")
-        print(f"    Min:    {min_lat:8.2f}")
-        print(f"    Mean:   {avg:8.2f}")
-        print(f"    Median: {p50:8.2f}")
-        print(f"    P90:    {p90:8.2f}")
-        print(f"    P95:    {p95:8.2f}")
-        print(f"    P99:    {p99:8.2f}")
-        print(f"    Max:    {max_lat:8.2f}")
-        print(f"    StdDev: {std:8.2f}")
+            # Calculate percentiles
+            p50 = np.percentile(latencies, 50)
+            p90 = np.percentile(latencies, 90)
+            p95 = np.percentile(latencies, 95)
+            p99 = np.percentile(latencies, 99)
+            avg = np.mean(latencies)
+            min_lat = np.min(latencies)
+            max_lat = np.max(latencies)
+            std = np.std(latencies)
 
-        # Single-thread throughput
-        single_thread_throughput = (iterations * batch_size) / (sum(latencies) / 1000)
-        print(f"  Single-Thread Throughput: {single_thread_throughput:.2f} inferences/sec")
+            print(f"\nThread-{thread_id} (Batch Size: {batch_size}):")
+            print(f"  Iterations: {iterations}")
+            print(f"  Samples Processed: {iterations * batch_size}")
+            if mismatches > 0:
+                print(f"  ❌ Batch Mismatches: {mismatches}")
+            if 'num_outputs' in result and result['num_outputs'] > 0:
+                print(f"  Model Outputs Verified: {result['num_outputs']}")
+            print(f"  Latency (ms):")
+            print(f"    Min:    {min_lat:8.2f}")
+            print(f"    Mean:   {avg:8.2f}")
+            print(f"    Median: {p50:8.2f}")
+            print(f"    P90:    {p90:8.2f}")
+            print(f"    P95:    {p95:8.2f}")
+            print(f"    P99:    {p99:8.2f}")
+            print(f"    Max:    {max_lat:8.2f}")
+            print(f"    StdDev: {std:8.2f}")
+
+            # Single-thread throughput
+            single_thread_throughput = (iterations * batch_size) / (sum(latencies) / 1000)
+            print(f"  Single-Thread Throughput: {single_thread_throughput:.2f} inferences/sec")
 
     # Overall statistics
     if all_latencies_combined:
@@ -428,6 +447,16 @@ def print_metrics(total_time):
             efficiency = (speedup / num_threads) * 100 if num_threads > 0 else 0
             print(f"\n⚡ Concurrency Speedup: {speedup:.2f}x")
             print(f"📈 Parallel Efficiency: {efficiency:.1f}%")
+
+        # Validation summary
+        print(f"\n--- Validation Summary ---")
+        print(f"Total Threads: {len(thread_results)}")
+        if total_errors > 0:
+            print(f"❌ Thread Errors: {total_errors}")
+        if total_batch_mismatches > 0:
+            print(f"❌ Batch Mismatches: {total_batch_mismatches}/{total_inferences} ({100*total_batch_mismatches/total_inferences:.1f}%)")
+        else:
+            print(f"✅ All {total_inferences} inferences passed batch validation")
 
     print("\n" + "="*80)
 

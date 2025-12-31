@@ -21,7 +21,7 @@ from tqdm import tqdm
 class ConcurrentInferenceTest:
     """Test harness for concurrent MIGraphX inference"""
 
-    def __init__(self, model_path, cache_dir, max_dynamic_batch=0, verbose=False, optimization_level=0, warmup=3, show_io=False):
+    def __init__(self, model_path, cache_dir, max_dynamic_batch=0, verbose=False, optimization_level=0, warmup=3, show_io=False, thread_details=False):
         self.model_path = model_path
         self.cache_dir = cache_dir
         self.max_dynamic_batch = max_dynamic_batch
@@ -29,6 +29,7 @@ class ConcurrentInferenceTest:
         self.optimization_level = optimization_level
         self.warmup = warmup
         self.show_io = show_io
+        self.thread_details = thread_details
         self.sessions = {}
         self.results = defaultdict(list)
         self.lock = threading.Lock()
@@ -245,12 +246,12 @@ class ConcurrentInferenceTest:
                             )
 
                 # Update progress bar with latest latency (when not show_io)
+                match_symbol = "✅" if batch_match else "❌"
                 if not self.show_io and hasattr(iter_range, 'set_postfix'):
-                    match_symbol = "✅" if batch_match else "❌"
                     iter_range.set_postfix({'ms': f'{inference_time:.1f}', 'ok': match_symbol})
 
-                # Log output shapes with detailed info (only if show_io or mismatch)
-                if self.show_io or not batch_match:
+                # Log output shapes with detailed info (only if show_io enabled)
+                if self.show_io:
                     print(f"[Thread-{thread_id}] Verifying {len(outputs)} outputs:")
                     for output_idx, (output_info, output_data) in enumerate(zip(output_infos, outputs)):
                         output_name = output_info.name
@@ -267,8 +268,7 @@ class ConcurrentInferenceTest:
                             print(f"[Thread-{thread_id}]   ⚠️  {output_name}: {output_shape} "
                                   f"(scalar, no batch dim)")
 
-                # Summary verification (only if show_io or mismatch)
-                if self.show_io or not batch_match:
+                    # Summary verification
                     if batch_match:
                         print(f"[Thread-{thread_id}] ✅ All {len(outputs)} outputs have correct batch size: {batch_size}")
                     else:
@@ -277,7 +277,7 @@ class ConcurrentInferenceTest:
                             print(f"[Thread-{thread_id}] {detail}")
 
                 iter_time = (time.perf_counter() - iter_start) * 1000  # ms
-                if self.show_io or not batch_match:
+                if self.show_io:
                     print(f"[Thread-{thread_id}] Inference time: {inference_time:.2f}ms, "
                           f"Total time: {iter_time:.2f}ms")
 
@@ -314,52 +314,64 @@ class ConcurrentInferenceTest:
         all_latencies = []
         total_inferences = 0
         total_samples = 0
+        total_batch_mismatches = 0
 
-        # Per-thread statistics
-        print("\n--- Per-Thread Statistics ---")
+        # First pass: collect totals
         for thread_id, results in sorted(self.results.items()):
             if not results:
-                print(f"\nThread-{thread_id}: No results recorded")
                 continue
-
             batch_size = results[0]['batch_size']
             inference_times = [r['inference_time_ms'] for r in results]
             all_latencies.extend(inference_times)
-
             iterations = len(results)
             total_inferences += iterations
             total_samples += iterations * batch_size
+            mismatches = sum(1 for r in results if not r['batch_match'])
+            total_batch_mismatches += mismatches
 
-            # Calculate percentiles
-            p50 = np.percentile(inference_times, 50)
-            p90 = np.percentile(inference_times, 90)
-            p95 = np.percentile(inference_times, 95)
-            p99 = np.percentile(inference_times, 99)
-            avg = np.mean(inference_times)
-            min_lat = np.min(inference_times)
-            max_lat = np.max(inference_times)
-            std = np.std(inference_times)
+        # Per-thread statistics (only if thread_details is enabled)
+        if self.thread_details:
+            print("\n--- Per-Thread Statistics ---")
+            for thread_id, results in sorted(self.results.items()):
+                if not results:
+                    print(f"\nThread-{thread_id}: No results recorded")
+                    continue
 
-            all_match = all(r['batch_match'] for r in results)
+                batch_size = results[0]['batch_size']
+                inference_times = [r['inference_time_ms'] for r in results]
 
-            print(f"\nThread-{thread_id} (Batch Size: {batch_size}):")
-            print(f"  Iterations: {iterations}")
-            print(f"  Samples Processed: {iterations * batch_size}")
-            print(f"  Batch Verification: {'✅ ALL PASSED' if all_match else '❌ SOME FAILED'}")
-            print(f"  Inference Latency (ms):")
-            print(f"    Min:    {min_lat:8.2f}")
-            print(f"    Mean:   {avg:8.2f}")
-            print(f"    Median: {p50:8.2f}")
-            print(f"    P90:    {p90:8.2f}")
-            print(f"    P95:    {p95:8.2f}")
-            print(f"    P99:    {p99:8.2f}")
-            print(f"    Max:    {max_lat:8.2f}")
-            print(f"    StdDev: {std:8.2f}")
+                iterations = len(results)
+                mismatches = sum(1 for r in results if not r['batch_match'])
 
-            # Single-thread throughput
-            total_time_sec = sum(inference_times) / 1000
-            single_thread_throughput = (iterations * batch_size) / total_time_sec if total_time_sec > 0 else 0
-            print(f"  Single-Thread Throughput: {single_thread_throughput:.2f} inferences/sec")
+                # Calculate percentiles
+                p50 = np.percentile(inference_times, 50)
+                p90 = np.percentile(inference_times, 90)
+                p95 = np.percentile(inference_times, 95)
+                p99 = np.percentile(inference_times, 99)
+                avg = np.mean(inference_times)
+                min_lat = np.min(inference_times)
+                max_lat = np.max(inference_times)
+                std = np.std(inference_times)
+
+                print(f"\nThread-{thread_id} (Batch Size: {batch_size}):")
+                print(f"  Iterations: {iterations}")
+                print(f"  Samples Processed: {iterations * batch_size}")
+                if mismatches > 0:
+                    print(f"  ❌ Batch Mismatches: {mismatches}")
+                print(f"  Inference Latency (ms):")
+                print(f"    Min:    {min_lat:8.2f}")
+                print(f"    Mean:   {avg:8.2f}")
+                print(f"    Median: {p50:8.2f}")
+                print(f"    P90:    {p90:8.2f}")
+                print(f"    P95:    {p95:8.2f}")
+                print(f"    P99:    {p99:8.2f}")
+                print(f"    Max:    {max_lat:8.2f}")
+                print(f"    StdDev: {std:8.2f}")
+
+                # Single-thread throughput
+                total_time_sec = sum(inference_times) / 1000
+                single_thread_throughput = (iterations * batch_size) / total_time_sec if total_time_sec > 0 else 0
+                print(f"  Single-Thread Throughput: {single_thread_throughput:.2f} inferences/sec")
 
         # Overall combined statistics
         if all_latencies:
@@ -386,6 +398,14 @@ class ConcurrentInferenceTest:
             print(f"\nTotal Inferences: {total_inferences}")
             print(f"Total Samples Processed: {total_samples}")
 
+            # Validation summary
+            print(f"\n--- Validation Summary ---")
+            print(f"Total Threads: {len(self.results)}")
+            if total_batch_mismatches > 0:
+                print(f"❌ Batch Mismatches: {total_batch_mismatches}/{total_inferences} ({100*total_batch_mismatches/total_inferences:.1f}%)")
+            else:
+                print(f"✅ All {total_inferences} inferences passed batch validation")
+
         print("\n" + "="*80)
 
 
@@ -407,7 +427,9 @@ def main():
     parser.add_argument('--warmup', type=int, default=3,
                        help='Number of warmup iterations to exclude compilation from timing (default: 3)')
     parser.add_argument('--show_io', action='store_true', default=False,
-                       help='Show detailed input/output info for each iteration (default: OFF, only shows mismatches)')
+                       help='Show detailed input/output info for each iteration (default: OFF)')
+    parser.add_argument('--thread-details', action='store_true', default=False,
+                       help='Show per-thread statistics in final report (default: OFF)')
     parser.add_argument('--verbose', action='store_true', default=False,
                        help='Enable verbose ONNX Runtime logging (default: OFF)')
     parser.add_argument('--optimization-level', type=int, choices=[0, 1, 2, 99], default=0,
@@ -442,7 +464,8 @@ def main():
 
     # Create test harness
     test = ConcurrentInferenceTest(args.model, args.cache, args.max_dynamic_batch, 
-                                   args.verbose, args.optimization_level, args.warmup, args.show_io)
+                                   args.verbose, args.optimization_level, args.warmup, args.show_io,
+                                   args.thread_details)
 
     # Define test scenarios based on args.threads
     test_scenarios = []

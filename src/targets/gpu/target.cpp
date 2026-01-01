@@ -226,7 +226,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         simplify_reshapes{.enable_op_shape_transform_op=true},
         dead_code_elimination{},
         enable_pass(mlir_enabled(), fuse_attention{.attn_enabled = mlir_attention_enabled(&ctx),
-                                                   .flash_decoding_enabled = mlir_flash_decoding_enabled(&ctx)}),
+                                                   .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
         dead_code_elimination{},
         optimize_module{},
         enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_pointwise_reduce{}),

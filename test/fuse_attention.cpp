@@ -1382,15 +1382,10 @@ TEST_CASE(flash_decoding_4d_auto_split_custom_params)
               .flash_decoding_min_chunk_size = 64}); // Larger chunk size
 
     // Check for flash decoding
-    bool found_flash_decoding = false;
-    for(const auto& ins : *p1.get_main_module())
-    {
-        if(ins.name().find("group") != std::string::npos)
-        {
-            found_flash_decoding = true;
-            break;
-        }
-    }
+    auto* mod                 = p1.get_main_module();
+    bool found_flash_decoding = std::any_of(mod->begin(), mod->end(), [](const auto& ins) {
+        return ins.name().find("group") != std::string::npos;
+    });
 
     EXPECT(found_flash_decoding);
 }

@@ -144,7 +144,7 @@ bool mlir_attention_enabled(context* ctx)
 #endif
 }
 
-bool mlir_flash_decoding_enabled(context* ctx)
+bool mlir_flash_decoding_enabled()
 {
 #ifdef MIGRAPHX_MLIR
     if(not mlir_enabled())
@@ -152,10 +152,6 @@ bool mlir_flash_decoding_enabled(context* ctx)
 
     // Check if explicitly enabled via environment variable
     if(enabled(MIGRAPHX_FLASH_DECODING_ENABLED{}))
-        return true;
-
-    // Enable flash decoding by default for mi300 (when MLIR is available)
-    if(ctx != nullptr and starts_with(ctx->get_current_device().get_gfx_name(), "gfx94"))
         return true;
 
     return false;

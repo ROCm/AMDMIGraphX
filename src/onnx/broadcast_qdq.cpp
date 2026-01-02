@@ -61,6 +61,42 @@ instruction_ref bcast_qdq_instr(const std::string& op_name,
     return info.add_instruction(migraphx::make_op(op_name), x_in, bcast_scale, bcast_zero_pt);
 }
 
+instruction_ref bcast_qdq_instr_matmul(const std::string& op_name,
+                                       instruction_ref x_in,
+                                       instruction_ref arg_fscale,
+                                       instruction_ref arg_z_pt,
+                                       const onnx_parser::node_info& info)
+{
+    auto in_lens = x_in->get_shape().lens();
+
+    // prep 1: broadcast scale. it can come as a scalar or a 1-D tensor.
+    instruction_ref bcast_scale;
+    if (arg_fscale->get_shape().elements() > 1)
+    {
+        auto axis = x_in->get_shape().lens().size() - arg_fscale->get_shape().lens().size();
+        bcast_scale = info.add_instruction(
+            migraphx::make_op("broadcast", { {"axis", axis}, {"out_lens", in_lens} }), arg_fscale);
+    }
+    else
+        bcast_scale = info.add_instruction(
+            migraphx::make_op("multibroadcast", { {"out_lens", in_lens} }), arg_fscale);
+
+    // prep 2: broadcast zero point. it can come as a scalar or a 1-D tensor.
+    instruction_ref bcast_zero_pt;
+    if (arg_z_pt->get_shape().elements() > 1)
+    {
+        auto axis = x_in->get_shape().lens().size() - arg_z_pt->get_shape().lens().size();
+        bcast_zero_pt = info.add_instruction(
+            migraphx::make_op("broadcast", { {"axis", axis}, {"out_lens", in_lens} }), arg_z_pt);
+    }
+    else
+        bcast_zero_pt = info.add_instruction(
+            migraphx::make_op("multibroadcast", { {"out_lens", in_lens} }), arg_z_pt);
+
+    // op_name is either quantizelinear or dequantizelinear:
+    return info.add_instruction(migraphx::make_op(op_name), x_in, bcast_scale, bcast_zero_pt);
+}
+
 // Multibroadcast a scaler..
 instruction_ref bcast_scalar_instr(const migraphx::shape& shape_out,
                                    instruction_ref arg_in,

@@ -84,10 +84,14 @@ def run_inference_thread(thread_id, model_path, cache_dir, batch_size, num_itera
 
         # Get ALL input info
         all_inputs = session.get_inputs()
+        all_outputs_info = session.get_outputs()
         if show_io:
             print(f"[Thread-{thread_id}] Model has {len(all_inputs)} inputs:")
             for inp in all_inputs:
                 print(f"  - {inp.name}: {inp.shape} ({inp.type})")
+            print(f"[Thread-{thread_id}] Model has {len(all_outputs_info)} outputs:")
+            for out in all_outputs_info:
+                print(f"  - {out.name}: {out.shape} ({out.type})")
 
         # Helper function to generate input data
         def generate_input_data(batch_sz):
@@ -151,21 +155,35 @@ def run_inference_thread(thread_id, model_path, cache_dir, batch_size, num_itera
                 for name, data in input_feed.items():
                     print(f"    {name}: {data.shape}")
 
-            # Run inference with ALL inputs - use perf_counter for accurate timing
+            # Use IO Binding for accurate GPU-only timing
+            io_binding = session.io_binding()
+            
+            # Bind inputs to device (GPU)
+            for name, data in input_feed.items():
+                io_binding.bind_cpu_input(name, data)
+            
+            # Bind outputs to device (GPU)
+            for output_info in all_outputs_info:
+                io_binding.bind_output(output_info.name, 'cuda')
+            
+            # Run inference with IO binding - time only GPU execution
             start = time.perf_counter()
-            outputs = session.run(None, input_feed)
+            session.run_with_iobinding(io_binding)
+            io_binding.synchronize_outputs()  # Wait for GPU to complete
             elapsed_ms = (time.perf_counter() - start) * 1000
+            
+            # Get outputs from GPU (after timing)
+            outputs = io_binding.copy_outputs_to_cpu()
 
             # Track latency
             latencies.append(elapsed_ms)
             successful_iterations += 1
 
             # Check ALL output batch sizes
-            all_outputs = session.get_outputs()
             batch_match = True
             output_details = []
             
-            for output_idx, (output_info, output_data) in enumerate(zip(all_outputs, outputs)):
+            for output_idx, (output_info, output_data) in enumerate(zip(all_outputs_info, outputs)):
                 output_name = output_info.name
                 output_shape = output_data.shape
                 
@@ -180,6 +198,10 @@ def run_inference_thread(thread_id, model_path, cache_dir, batch_size, num_itera
                 else:
                     # Scalar output (no batch dimension)
                     output_details.append(f"⚠️  {output_name}: {output_shape} (scalar, no batch dim)")
+            
+            # Clear IO binding for next iteration
+            io_binding.clear_binding_inputs()
+            io_binding.clear_binding_outputs()
             
             match_symbol = "✅" if batch_match else "❌"
             

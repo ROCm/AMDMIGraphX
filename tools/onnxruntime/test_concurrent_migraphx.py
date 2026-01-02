@@ -177,6 +177,9 @@ class ConcurrentInferenceTest:
                 print(f"\n[Thread-{thread_id}] Starting {iterations} iterations with batch_size={batch_size}")
                 print(f"[Thread-{thread_id}] " + "="*60)
 
+            # Get output info for IO binding
+            output_infos = session.get_outputs()
+
             # WARMUP: Run warmup iterations to exclude compilation time from measurements
             if self.warmup > 0:
                 if self.show_io:
@@ -214,13 +217,26 @@ class ConcurrentInferenceTest:
                     print(f"[Thread-{thread_id}] Input shapes: {input_shapes}")
                     print(f"[Thread-{thread_id}] Batch size requested: {batch_size}")
 
-                # Run inference - use perf_counter for accurate timing
-                inference_start = time.perf_counter()
-                outputs = session.run(None, inputs)
-                inference_time = (time.perf_counter() - inference_start) * 1000  # ms
+                # Use IO Binding for accurate GPU-only timing
+                io_binding = session.io_binding()
+                
+                # Bind inputs to device (GPU)
+                for name, data in inputs.items():
+                    io_binding.bind_cpu_input(name, data)
+                
+                # Bind outputs to device (GPU)
+                for output_info in output_infos:
+                    io_binding.bind_output(output_info.name, 'cuda')
 
-                # Get ALL output info
-                output_infos = session.get_outputs()
+                # Run inference with IO binding - time only GPU execution
+                inference_start = time.perf_counter()
+                session.run_with_iobinding(io_binding)
+                io_binding.synchronize_outputs()  # Wait for GPU to complete
+                inference_time = (time.perf_counter() - inference_start) * 1000  # ms
+                
+                # Get outputs from GPU (after timing)
+                outputs = io_binding.copy_outputs_to_cpu()
+
                 output_shapes = {}
                 
                 # Verify batch size in ALL outputs
@@ -244,6 +260,10 @@ class ConcurrentInferenceTest:
                                 f"shape={output_shape}, type={output_type}, "
                                 f"batch={output_batch} (expected {batch_size})"
                             )
+
+                # Clear IO binding for next iteration
+                io_binding.clear_binding_inputs()
+                io_binding.clear_binding_outputs()
 
                 # Update progress bar with latest latency (when not show_io)
                 match_symbol = "✅" if batch_match else "❌"

@@ -148,7 +148,7 @@ def buildonnxtest(String docker_opts) {
     }
 }
 
-def rocmtest(String name, Map conf = [:]) {
+def rocmtest = { String name, Map conf = [:] ->
     def doStash = conf.get("stash", false)
     gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - ${name}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
         def docker_opts
@@ -232,7 +232,7 @@ pipeline {
                     }
                     steps {
                         script {
-                            this.rocmtest('All Targets Release', flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_ENABLE_GPU=On -DMIGRAPHX_ENABLE_CPU=On -DMIGRAPHX_ENABLE_FPGA=On -DGPU_TARGETS='${getgputargets()}'", compiler: '/opt/rocm/llvm/bin/clang++', gpu_debug: '0')
+                            rocmtest('All Targets Release', flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_ENABLE_GPU=On -DMIGRAPHX_ENABLE_CPU=On -DMIGRAPHX_ENABLE_FPGA=On -DGPU_TARGETS='${getgputargets()}'", compiler: '/opt/rocm/llvm/bin/clang++', gpu_debug: '0')
                         }
                     }
                 }
@@ -245,7 +245,7 @@ pipeline {
                         script {
                             def sanitizers = "undefined,address"
                             def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
-                            this.rocmtest('Clang ASAN', flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'", compiler: '/usr/bin/clang++-17', gpu_debug: '0')
+                            rocmtest('Clang ASAN', flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'", compiler: '/usr/bin/clang++-17', gpu_debug: '0')
                         }
                     }
                 }
@@ -258,7 +258,7 @@ pipeline {
                         script {
                             def sanitizers = "undefined"
                             def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers} -D_GLIBCXX_DEBUG"
-                            this.rocmtest('Clang libstdc++ Debug', flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'", compiler: '/usr/bin/clang++-17', gpu_debug: '0')
+                            rocmtest('Clang libstdc++ Debug', flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'", compiler: '/usr/bin/clang++-17', gpu_debug: '0')
                         }
                     }
                 }
@@ -269,7 +269,7 @@ pipeline {
                     }
                     steps {
                         script {
-                            this.rocmtest('HIP Clang Release', flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getgputargets()}'", compiler: '/opt/rocm/llvm/bin/clang++', gpu_debug: '0', stash: true)
+                            rocmtest('HIP Clang Release', flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getgputargets()}'", compiler: '/opt/rocm/llvm/bin/clang++', gpu_debug: '0', stash: true)
                         }
                     }
                 }
@@ -280,7 +280,7 @@ pipeline {
                     }
                     steps {
                         script {
-                            this.rocmtest('HIP Clang Release Navi32', flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getnavi3xtargets()}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On", compiler: '/opt/rocm/llvm/bin/clang++', gpu_debug: '0')
+                            rocmtest('HIP Clang Release Navi32', flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getnavi3xtargets()}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On", compiler: '/opt/rocm/llvm/bin/clang++', gpu_debug: '0')
                         }
                     }
                 }
@@ -291,7 +291,7 @@ pipeline {
                     }
                     steps {
                         script {
-                            this.rocmtest('HIP Clang Release Navi4x', flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getnavi4xtargets()}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On", compiler: '/opt/rocm/llvm/bin/clang++', gpu_debug: '0')
+                            rocmtest('HIP Clang Release Navi4x', flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getnavi4xtargets()}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On", compiler: '/opt/rocm/llvm/bin/clang++', gpu_debug: '0')
                         }
                     }
                 }
@@ -308,7 +308,7 @@ pipeline {
                             // Disable MLIR since it doesnt work with all ub sanitizers
                             def sanitizers = "undefined"
                             def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
-                            this.rocmtest('HIP RTC Debug', flags: "-DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang -DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DMIGRAPHX_USE_HIPRTC=On -DGPU_TARGETS='${getgputargets()}'", compiler: '/opt/rocm/llvm/bin/clang++', gpu_debug: '1')
+                            rocmtest('HIP RTC Debug', flags: "-DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang -DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DMIGRAPHX_USE_HIPRTC=On -DGPU_TARGETS='${getgputargets()}'", compiler: '/opt/rocm/llvm/bin/clang++', gpu_debug: '1')
                         }
                     }
                 }
@@ -334,7 +334,7 @@ pipeline {
                             def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
                             // Since the purpose of this run is to verify all things MLIR supports,
                             // enabling all possible types of offloads
-                            this.rocmtest('MLIR Debug', flags: "-DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang -DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_MLIR=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DGPU_TARGETS='${getgputargets()}'", compiler: '/opt/rocm/llvm/bin/clang++', gpu_debug: '0')
+                            rocmtest('MLIR Debug', flags: "-DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang -DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_MLIR=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DGPU_TARGETS='${getgputargets()}'", compiler: '/opt/rocm/llvm/bin/clang++', gpu_debug: '0')
                         }
                     }
                 }

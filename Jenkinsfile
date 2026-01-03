@@ -202,46 +202,42 @@ def cmake_build = { bconf ->
     }
 }
 
-def rocmtestbase = { Map parent -> 
-    def setup = parent.get("setup", {})
-    return { Map conf, body ->
-        def variant = conf.get("variant", env.STAGE_NAME)
+def rocmtest2 = { Map conf, body ->
+    def variant = conf.get("variant", env.STAGE_NAME)
+    def setup = conf.get("setup", {})
 
-        def docker_args = conf.get("docker_args", "")
-        def ccache = "/workspaces/.cache/ccache"
-        env.CCACHE_COMPRESSLEVEL = 7
-        env.CCACHE_DIR = ccache
-        env.HSA_ENABLE_SDMA = 0
-        gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX') {
-            stage("setup ${variant}") {
-                sh 'printenv'
-                checkout scm
+    def docker_args = conf.get("docker_args", "")
+    def ccache = "/workspaces/.cache/ccache"
+    env.CCACHE_COMPRESSLEVEL = 7
+    env.CCACHE_DIR = ccache
+    env.HSA_ENABLE_SDMA = 0
+    gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX') {
+        stage("setup ${variant}") {
+            sh 'printenv'
+            checkout scm
 
-                def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3').trim()
-                def render_id = sh(returnStdout: true, script: 'getent group render | cut -d: -f3').trim()
-                def docker_opts = "--device=/dev/kfd --device=/dev/dri --cap-add SYS_PTRACE -v=${env.WORKSPACE}/../:/workspaces:rw,z"
-                docker_opts = docker_opts + " --group-add=${video_id} --group-add=${render_id} "
-                echo "Docker flags: ${docker_opts}"
+            def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3').trim()
+            def render_id = sh(returnStdout: true, script: 'getent group render | cut -d: -f3').trim()
+            def docker_opts = "--device=/dev/kfd --device=/dev/dri --cap-add SYS_PTRACE -v=${env.WORKSPACE}/../:/workspaces:rw,z"
+            docker_opts = docker_opts + " --group-add=${video_id} --group-add=${render_id} "
+            echo "Docker flags: ${docker_opts}"
 
-                withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
-                    sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
-                    setup()
-                    sh "docker pull ${DOCKER_IMAGE}:${env.IMAGE_TAG}"
-                }
+            withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
+                sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
+                setup()
+                sh "docker pull ${DOCKER_IMAGE}:${env.IMAGE_TAG}"
             }
+        }
 
-            stage("build ${variant}") {
-                withDockerContainer(image: "${DOCKER_IMAGE}:${env.IMAGE_TAG}", args: docker_opts + docker_args) {
-                    timeout(time: 4, unit: 'HOURS') {
-                        body()
-                    }
+        stage("build ${variant}") {
+            withDockerContainer(image: "${DOCKER_IMAGE}:${env.IMAGE_TAG}", args: docker_opts + docker_args) {
+                timeout(time: 4, unit: 'HOURS') {
+                    body()
                 }
             }
         }
     }
 }
-
-def rocmtest2 = rocmtestbase()
 
 pipeline {
     agent {
@@ -324,9 +320,9 @@ pipeline {
                     }
                     steps {
                         script {
-                            def sanitizers = "undefined,address"
-                            def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
                             rocmtest2() {
+                                def sanitizers = "undefined,address"
+                                def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
                                 cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'", compiler: '/usr/bin/clang++-17', gpu_debug: '0')
                             }
                         }
@@ -339,9 +335,9 @@ pipeline {
                     }
                     steps {
                         script {
-                            def sanitizers = "undefined"
-                            def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers} -D_GLIBCXX_DEBUG"
                             rocmtest2() {
+                                def sanitizers = "undefined"
+                                def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers} -D_GLIBCXX_DEBUG"
                                 cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'", compiler: '/usr/bin/clang++-17', gpu_debug: '0')
                             }
                         }
@@ -393,14 +389,14 @@ pipeline {
                         label rocmnodename('mi200+')
                     }
                     environment {
+                        // Disable MLIR since it doesnt work with all ub sanitizers
                         MIGRAPHX_DISABLE_MLIR = '1'
                     }
                     steps {
                         script {
-                            // Disable MLIR since it doesnt work with all ub sanitizers
-                            def sanitizers = "undefined"
-                            def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
                             rocmtest2() {
+                                def sanitizers = "undefined"
+                                def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
                                 cmake_build(flags: "-DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang -DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DMIGRAPHX_USE_HIPRTC=On -DGPU_TARGETS='${getgputargets()}'", compiler: '/opt/rocm/llvm/bin/clang++', gpu_debug: '1')
                             }
                         }
@@ -412,6 +408,8 @@ pipeline {
                         label rocmnodename('mi100+')
                     }
                     environment {
+                        // Since the purpose of this run is to verify all things MLIR supports,
+                        // enabling all possible types of offloads
                         MIGRAPHX_ENABLE_EXTRA_MLIR = '1'
                         MIGRAPHX_MLIR_USE_SPECIFIC_OPS = 'fused,attention,convolution,dot,convolution_backwards'
                         MIGRAPHX_ENABLE_MLIR_INPUT_FUSION = '1'
@@ -423,12 +421,10 @@ pipeline {
                     }
                     steps {
                         script {
-                            // Note: the -fno-sanitize= is copied from upstream LLVM_UBSAN_FLAGS.
-                            def sanitizers = "undefined"
-                            def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
-                            // Since the purpose of this run is to verify all things MLIR supports,
-                            // enabling all possible types of offloads
                             rocmtest2() {
+                                // Note: the -fno-sanitize= is copied from upstream LLVM_UBSAN_FLAGS.
+                                def sanitizers = "undefined"
+                                def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
                                 cmake_build(flags: "-DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang -DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_MLIR=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DGPU_TARGETS='${getgputargets()}'", compiler: '/opt/rocm/llvm/bin/clang++', gpu_debug: '0')
                             }
                         }

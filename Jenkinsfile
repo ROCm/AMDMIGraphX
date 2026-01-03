@@ -307,7 +307,7 @@ pipeline {
                     }
                     steps {
                         script {
-                            rocmtest2() {
+                            rocmtest2([:]) {
                                 cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_ENABLE_GPU=On -DMIGRAPHX_ENABLE_CPU=On -DMIGRAPHX_ENABLE_FPGA=On -DGPU_TARGETS='${getgputargets()}'", compiler: '/opt/rocm/llvm/bin/clang++', gpu_debug: '0')
                             }
                         }
@@ -320,7 +320,7 @@ pipeline {
                     }
                     steps {
                         script {
-                            rocmtest2() {
+                            rocmtest2([:]) {
                                 def sanitizers = "undefined,address"
                                 def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
                                 cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'", compiler: '/usr/bin/clang++-17', gpu_debug: '0')
@@ -335,7 +335,7 @@ pipeline {
                     }
                     steps {
                         script {
-                            rocmtest2() {
+                            rocmtest2([:]) {
                                 def sanitizers = "undefined"
                                 def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers} -D_GLIBCXX_DEBUG"
                                 cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'", compiler: '/usr/bin/clang++-17', gpu_debug: '0')
@@ -350,7 +350,7 @@ pipeline {
                     }
                     steps {
                         script {
-                            rocmtest2() {
+                            rocmtest2([:]) {
                                 cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getgputargets()}'", compiler: '/opt/rocm/llvm/bin/clang++', gpu_debug: '0')
                                 stash includes: 'build/*.deb', name: 'migraphx-package'
                             }
@@ -364,7 +364,7 @@ pipeline {
                     }
                     steps {
                         script {
-                            rocmtest2() {
+                            rocmtest2([:]) {
                                 cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getnavi3xtargets()}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On", compiler: '/opt/rocm/llvm/bin/clang++', gpu_debug: '0')
                             }
                         }
@@ -377,7 +377,7 @@ pipeline {
                     }
                     steps {
                         script {
-                            rocmtest2() {
+                            rocmtest2([:]) {
                                 cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getnavi4xtargets()}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On", compiler: '/opt/rocm/llvm/bin/clang++', gpu_debug: '0')
                             }
                         }
@@ -394,7 +394,7 @@ pipeline {
                     }
                     steps {
                         script {
-                            rocmtest2() {
+                            rocmtest2([:]) {
                                 def sanitizers = "undefined"
                                 def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
                                 cmake_build(flags: "-DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang -DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DMIGRAPHX_USE_HIPRTC=On -DGPU_TARGETS='${getgputargets()}'", compiler: '/opt/rocm/llvm/bin/clang++', gpu_debug: '1')
@@ -421,7 +421,7 @@ pipeline {
                     }
                     steps {
                         script {
-                            rocmtest2() {
+                            rocmtest2([:]) {
                                 // Note: the -fno-sanitize= is copied from upstream LLVM_UBSAN_FLAGS.
                                 def sanitizers = "undefined"
                                 def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"

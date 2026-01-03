@@ -202,7 +202,7 @@ def cmake_build = { bconf ->
     }
 }
 
-def rocmtest2 = { Map conf = [:], body ->
+def rocmtest2 = { Map conf = [:], Closure body ->
     def variant = conf.get("variant", env.STAGE_NAME)
     def setup = conf.get("setup", {})
 

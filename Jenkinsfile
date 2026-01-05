@@ -447,7 +447,7 @@ pipeline {
                     }
                     steps {
                         script {
-                            rocmtest2(setup: setuppackage) {
+                            rocmtest2(setup: setuppackage, docker_args: '-u root') {
                                 sh '''
                                     apt install half
                                     #ls -lR

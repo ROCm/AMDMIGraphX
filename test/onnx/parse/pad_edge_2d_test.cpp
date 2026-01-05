@@ -23,6 +23,7 @@
  */
 
 #include <onnx_test.hpp>
+#include <migraphx/op/pad.hpp>
 
 TEST_CASE(pad_edge_2d_test)
 {
@@ -30,16 +31,9 @@ TEST_CASE(pad_edge_2d_test)
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3, 3}});
     mm->add_literal({migraphx::shape{migraphx::shape::int32_type, {4}}, {1, 2, 1, 2}});
-    auto l1 = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {0, 0}}, {"ends", {3, 1}}}), l0);
-    auto l2 = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {0, 2}}, {"ends", {3, 3}}}), l0);
-    auto l4 = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), l1, l1, l0, l2, l2);
-    auto l5 = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {0, 0}}, {"ends", {1, 7}}}), l4);
-    auto l6 = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {2, 0}}, {"ends", {3, 7}}}), l4);
-    auto r = mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), l5, l4, l6);
+    auto r = mm->add_instruction(
+        migraphx::make_op("pad", {{"pads", {1, 2, 1, 2}}, {"mode", migraphx::op::pad::edge_pad}}),
+        l0);
     mm->add_return({r});
 
     auto prog = read_onnx("pad_edge_2d_test.onnx");

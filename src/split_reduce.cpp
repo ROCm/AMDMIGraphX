@@ -175,7 +175,7 @@ void split_reduce::apply(module_pass_manager& mpm) const
 {
     for(auto ins : iterator_for(mpm.get_module()))
     {
-        if(ins->name() != "fused_reduce")
+        if(ins->name() != "fused_reduce" or ins->get_shape().dynamic())
             continue;
         auto* rm = ins->module_inputs().front();
         if(get_reduce_size(rm) < split_size)

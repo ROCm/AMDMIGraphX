@@ -961,7 +961,7 @@ struct find_mlir_fused_geg_ops
 };
 
 template <auto Matcher>
-struct find_mlir_standalone_op
+struct find_mlir_standalone_op : match::supports_dynamic_shapes
 {
     mlir_mode mode       = mlir_mode::none;
     std::size_t* counter = nullptr;

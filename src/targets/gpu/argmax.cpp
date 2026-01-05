@@ -32,7 +32,7 @@ namespace gpu {
 
 shape hip_argmax::compute_shape(const std::vector<shape>& inputs) const
 {
-    check_shapes{inputs, *this}.has(2);
+    check_shapes{inputs, *this, true}.has(2);
     return op.normalize_compute_shape({inputs.at(0)});
 }
 

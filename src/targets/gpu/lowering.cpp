@@ -349,7 +349,8 @@ struct miopen_apply
     static bool use_miopen_pooling(instruction_ref ins)
     {
         if(enabled(MIGRAPHX_DISABLE_MIOPEN_POOLING{}) or
-           not contains({shape::float_type, shape::half_type}, ins->get_shape().type()))
+           not contains({shape::float_type, shape::half_type}, ins->get_shape().type()) or
+           ins->get_shape().dynamic())
             return false;
         auto&& op   = ins->get_operator();
         auto op_val = op.to_value();
@@ -369,8 +370,10 @@ struct miopen_apply
     void add_pooling_op()
     {
         apply_map.emplace("pooling", [=](instruction_ref ins) {
-            if(not use_miopen_pooling(ins))
-                return insert_precompile_op(ins);
+            if(not use_miopen_pooling(ins)){
+                auto preop = insert_precompile_op(ins);
+                return insert_dynamic_op(preop);
+            }
 #if MIGRAPHX_USE_MIOPEN
             auto output                       = insert_allocation(ins, ins->get_shape());
             std::vector<instruction_ref> refs = ins->inputs();
@@ -378,7 +381,8 @@ struct miopen_apply
             refs.push_back(output);
             return mod->replace_instruction(ins, make_op("gpu::pooling", op.to_value()), refs);
 #else 
-            return insert_precompile_op(ins);
+            auto preop = insert_precompile_op(ins);
+            return insert_dynamic_op(preop);
 #endif
         });
     }

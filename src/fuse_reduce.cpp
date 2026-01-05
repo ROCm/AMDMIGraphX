@@ -63,18 +63,21 @@ struct fused_reduce
         if(not sm->bypass())
             MIGRAPHX_THROW("fused_reduce: bypass flag is not set");
         auto names = sm->get_parameter_names();
-        check_shapes{inputs, *this}.has(names.size()).same_ndims();
+        check_shapes{inputs, *this, true}.has(names.size()).same_ndims();
         std::sort(names.begin(), names.end());
         auto shapes = sm->get_parameter_shapes();
         // Check dimension matches for each input
         if(not equal(names, inputs, [&](const auto& name, const auto& input) {
-               return shapes.at(name).lens() == input.lens();
+               auto s = shapes.at(name);
+               return input.dynamic() or s.dynamic() or s.lens() == input.lens();
            }))
             MIGRAPHX_THROW("Input dimension does not match the submodule.");
 
+        if(sm->get_output_shapes().front().dynamic())
+            return sm->get_output_shapes().front();
         return shape::from_permutation(sm->get_output_shapes().front().type(),
-                                       sm->get_output_shapes().front().lens(),
-                                       find_permutation(inputs));
+                                        sm->get_output_shapes().front().lens(),
+                                        find_permutation(inputs));
     }
 
     std::string name() const { return "fused_reduce"; }
@@ -230,7 +233,7 @@ static void finalize_reduce_module(module_ref m)
 }
 
 namespace {
-struct find_pointwise_reduce
+struct find_pointwise_reduce : match::supports_dynamic_shapes
 {
     auto matcher() const
     {
@@ -270,7 +273,7 @@ struct find_pointwise_reduce
     }
 };
 
-struct find_reduce_pointwise
+struct find_reduce_pointwise : match::supports_dynamic_shapes
 {
 
     auto matcher() const
@@ -312,7 +315,7 @@ struct find_reduce_pointwise
     }
 };
 
-struct find_reduce_reduce
+struct find_reduce_reduce : match::supports_dynamic_shapes
 {
     auto matcher() const
     {

@@ -228,13 +228,13 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         enable_pass(mlir_enabled(), fuse_attention{mlir_attention_enabled(&ctx)}),
         dead_code_elimination{},
         optimize_module{},
-        enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_pointwise_reduce{}),
+        fuse_pointwise_reduce{},
         dead_code_elimination{},
 #ifndef _WIN32
         enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),
 #endif
         dead_code_elimination{},
-        enable_pass(mlir_enabled() and disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_mlir{&ctx}),
+        enable_pass(mlir_enabled(), fuse_mlir{&ctx}),
         dead_code_elimination{},
         fuse_concat{},
         dead_code_elimination{},

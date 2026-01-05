@@ -231,16 +231,18 @@ struct parse_qlinearconv : op_parser<parse_qlinearconv>
         if(args.size() > 8)
         {
             const auto& in_b = args[8];
-            auto b_sh = in_b->get_shape();
+            auto b_sh        = in_b->get_shape();
 
             auto bcast_scale_x = info.add_instruction(
-                migraphx::make_op("multibroadcast", { {"out_lens", in_scale_w->get_shape().lens()} }),
+                migraphx::make_op("multibroadcast", {{"out_lens", in_scale_w->get_shape().lens()}}),
                 in_scale_x);
 
-            auto bias_scale = info.add_instruction(migraphx::make_op("mul"), bcast_scale_x, in_scale_w);
-            auto zero_lit = info.add_literal(migraphx::literal{ migraphx::shape{migraphx::shape::int32_type}, {0} });
+            auto bias_scale =
+                info.add_instruction(migraphx::make_op("mul"), bcast_scale_x, in_scale_w);
+            auto zero_lit = info.add_literal(
+                migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {0}});
             auto bias_zp = info.add_instruction(
-                migraphx::make_op("multibroadcast", { {"out_lens", b_sh.lens()} }), zero_lit);
+                migraphx::make_op("multibroadcast", {{"out_lens", b_sh.lens()}}), zero_lit);
             auto dquant_bias = info.add_instruction(
                 migraphx::make_op("dequantizelinear"), args[8], bias_scale, bias_zp);
 

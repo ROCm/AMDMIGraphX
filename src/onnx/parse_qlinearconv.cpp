@@ -230,8 +230,8 @@ struct parse_qlinearconv : op_parser<parse_qlinearconv>
         // Biases, if any.. : is an optional argument.
         if(args.size() > 8)
         {
-            const auto& in_B = args[8];
-            auto b_sh = in_B->get_shape();
+            const auto& in_b = args[8];
+            auto b_sh = in_b->get_shape();
 
             auto bcast_scale_x = info.add_instruction(
                 migraphx::make_op("multibroadcast", { {"out_lens", in_scale_w->get_shape().lens()} }),

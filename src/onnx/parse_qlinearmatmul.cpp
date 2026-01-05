@@ -147,7 +147,7 @@ struct parse_qlinearmatmul : op_parser<parse_qlinearmatmul>
         size_t dim_scale_b       = in_scale_b->get_shape().lens().size();
         size_t dim_zero_pt_b     = in_zero_pt_b->get_shape().lens().size();
 
-        if ((dim_scale_b > 1) || (dim_zero_pt_b > 1))
+        if ((dim_scale_b > 1) or (dim_zero_pt_b > 1))
             MIGRAPHX_THROW("QLINEARMATMUL: unsupported row/column quantization");
     }
 

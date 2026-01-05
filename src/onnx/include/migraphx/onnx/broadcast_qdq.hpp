@@ -45,7 +45,6 @@ instruction_ref bcast_qdq_instr(const std::string& op_name,
                                 const onnx_parser::node_info& info,
                                 int axis = 0);
 
-
 instruction_ref bcast_qdq_instr_matmul(const std::string& op_name,
                                        instruction_ref x_in,
                                        instruction_ref arg_fscale,

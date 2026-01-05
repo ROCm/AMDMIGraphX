@@ -71,27 +71,27 @@ instruction_ref bcast_qdq_instr_matmul(const std::string& op_name,
 
     // prep 1: broadcast scale. it can come as a scalar or a 1-D tensor.
     instruction_ref bcast_scale;
-    if (arg_fscale->get_shape().elements() > 1)
+    if(arg_fscale->get_shape().elements() > 1)
     {
-        auto axis = x_in->get_shape().lens().size() - arg_fscale->get_shape().lens().size();
+        auto axis   = x_in->get_shape().lens().size() - arg_fscale->get_shape().lens().size();
         bcast_scale = info.add_instruction(
-            migraphx::make_op("broadcast", { {"axis", axis}, {"out_lens", in_lens} }), arg_fscale);
+            migraphx::make_op("broadcast", {{"axis", axis}, {"out_lens", in_lens}}), arg_fscale);
     }
     else
         bcast_scale = info.add_instruction(
-            migraphx::make_op("multibroadcast", { {"out_lens", in_lens} }), arg_fscale);
+            migraphx::make_op("multibroadcast", {{"out_lens", in_lens}}), arg_fscale);
 
     // prep 2: broadcast zero point. it can come as a scalar or a 1-D tensor.
     instruction_ref bcast_zero_pt;
-    if (arg_z_pt->get_shape().elements() > 1)
+    if(arg_z_pt->get_shape().elements() > 1)
     {
-        auto axis = x_in->get_shape().lens().size() - arg_z_pt->get_shape().lens().size();
+        auto axis     = x_in->get_shape().lens().size() - arg_z_pt->get_shape().lens().size();
         bcast_zero_pt = info.add_instruction(
-            migraphx::make_op("broadcast", { {"axis", axis}, {"out_lens", in_lens} }), arg_z_pt);
+            migraphx::make_op("broadcast", {{"axis", axis}, {"out_lens", in_lens}}), arg_z_pt);
     }
     else
         bcast_zero_pt = info.add_instruction(
-            migraphx::make_op("multibroadcast", { {"out_lens", in_lens} }), arg_z_pt);
+            migraphx::make_op("multibroadcast", {{"out_lens", in_lens}}), arg_z_pt);
 
     // op_name is either quantizelinear or dequantizelinear:
     return info.add_instruction(migraphx::make_op(op_name), x_in, bcast_scale, bcast_zero_pt);

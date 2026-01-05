@@ -216,6 +216,7 @@ def rocmtest2 = { Map conf = [:], Closure body ->
         stage("setup ${variant}") {
             sh 'printenv'
             checkout scm
+            setup()
 
             def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3').trim()
             def render_id = sh(returnStdout: true, script: 'getent group render | cut -d: -f3').trim()
@@ -225,7 +226,6 @@ def rocmtest2 = { Map conf = [:], Closure body ->
 
             withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
                 sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
-                setup()
                 sh "docker pull ${DOCKER_IMAGE}:${env.IMAGE_TAG}"
             }
         }
@@ -238,6 +238,11 @@ def rocmtest2 = { Map conf = [:], Closure body ->
             }
         }
     }
+}
+
+def setuppackage = {
+    sh 'rm -rf ./build/*.deb'
+    unstash 'migraphx-package'
 }
 
 pipeline {
@@ -442,14 +447,15 @@ pipeline {
                     }
                     steps {
                         script {
-                            gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - ONNX Runtime Tests", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
-                                def docker_opts
-                                stage('ONNX Runtime Tests - Setup') {
-                                    docker_opts = setuponnxtest()
-                                }
-                                stage('ONNX Runtime Tests - Build') {
-                                    buildonnxtest(docker_opts)
-                                }
+                            rocmtest2(setup: setuppackage) {
+                                sh '''
+                                    apt install half
+                                    #ls -lR
+                                    md5sum ./build/*.deb
+                                    dpkg -i ./build/*.deb
+                                    env
+                                    cd /onnxruntime && ./build_and_test_onnxrt.sh
+                                '''
                             }
                         }
                     }

@@ -124,8 +124,8 @@ static sink make_file_sink(const std::string& filename)
     return [file](severity s, std::string_view msg, source_location loc) {
         if(file->is_open())
         {
-            *file << format_timestamp() << " [" << to_string(s) << "] [" << loc.file_name()
-                  << ":" << loc.line() << "] " << msg << std::endl;
+            *file << format_timestamp() << " [" << to_string(s) << "] [" << loc.file_name() << ":"
+                  << loc.line() << "] " << msg << std::endl;
         }
     };
 }
@@ -224,10 +224,7 @@ void record(severity s, std::string_view msg, source_location loc)
     });
 }
 
-bool is_enabled(severity level)
-{
-    return level <= max_enabled_level.load();
-}
+bool is_enabled(severity level) { return level <= max_enabled_level.load(); }
 
 } // namespace log
 } // namespace MIGRAPHX_INLINE_NS

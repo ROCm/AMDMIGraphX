@@ -78,4 +78,3 @@ inline std::string colorize(color c, const std::string& s)
 } // namespace migraphx
 
 #endif
-

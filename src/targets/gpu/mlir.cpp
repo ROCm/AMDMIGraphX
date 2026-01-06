@@ -1333,9 +1333,9 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
 
-    auto co = mp.compile(solution);
+    auto co            = mp.compile(solution);
     co.expected_inputs = in_shapes;
-    co.output = in_shapes.back();
+    co.output          = in_shapes.back();
 
     mlir_code_object mco;
     mco.cop                 = co;

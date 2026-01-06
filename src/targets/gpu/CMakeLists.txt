@@ -74,12 +74,6 @@ if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
         ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/ck_gemm.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/ck_gemm_softmax_gemm.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/ck.hpp)
-# Temporary workaround for tidy issue that arises from the fact that CK no longer exposes headers to the host code
-else()
-    list(REMOVE_ITEM KERNEL_FILES
-        ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/ck_gemm.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/ck_gemm_softmax_gemm.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/ck.hpp)
 endif()
 
 add_embed_library(migraphx_kernels ${KERNEL_FILES} RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/)
@@ -125,8 +119,13 @@ endif()
 
 add_library(migraphx_gpu_kernel_file_check EXCLUDE_FROM_ALL)
 
+set(CK_TIDY_SKIP_KERNEL_FILES "ck" "ck_gemm" "ck_gemm_softmax_gemm")
 foreach(KERNEL_FILE ${KERNEL_FILES})
     get_filename_component(KERNEL_BASE_FILE ${KERNEL_FILE} NAME_WE)
+    # Temporary workaround for tidy issue that arises from the fact that CK no longer exposes headers to the host code
+    if(${KERNEL_BASE_FILE} IN_LIST CK_TIDY_SKIP_KERNEL_FILES)
+        continue()
+    endif()
     file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/kernels/include/migraphx/kernels/${KERNEL_BASE_FILE}.cpp "#include <migraphx/kernels/${KERNEL_BASE_FILE}.hpp>\n")
     target_sources(migraphx_gpu_kernel_file_check PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/kernels/include/migraphx/kernels/${KERNEL_BASE_FILE}.cpp)
 endforeach()

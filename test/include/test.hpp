@@ -742,7 +742,7 @@ struct driver
             catch(const skip_test& s)
             {
                 skipped.push_back({name, s.reason});
-                out() << color::fg_yellow << "[ SKIPPED  ] " << color::reset << color::bold 
+                out() << color::fg_yellow << "[ SKIPPED  ] " << color::reset << color::bold
                       << name << color::reset;
                 if(!s.reason.empty())
                     out() << ": " << color::fg_yellow << s.reason << color::reset;

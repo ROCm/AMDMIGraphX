@@ -936,9 +936,6 @@ inline void run(int argc, const char* argv[])
     static void __VA_ARGS__()
 
 // NOLINTNEXTLINE
-#define SKIP(...) test::skip(__VA_ARGS__)
-
-// NOLINTNEXTLINE
 #define TEST_CASE_SKIP(name, reason)                              \
     static void name##_body();                                    \
     static void name() {                                          \

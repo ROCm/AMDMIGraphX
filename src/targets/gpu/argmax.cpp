@@ -42,6 +42,9 @@ argument hip_argmax::compute(context& ctx, const shape&, const std::vector<argum
     int64_t tuned_axis = tune_axis(n_dim, op.axis, op.name());
     device::argmax(
         ctx.get_stream().get(), args.back(), args.front(), tuned_axis, op.select_last_index);
+    if (args.back().get_shape().dynamic()) {
+        return args.back().reshape(op.normalize_compute_shape(to_shapes({args.front()})));
+    }
     return args.back();
 }
 

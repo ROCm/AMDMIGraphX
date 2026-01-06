@@ -373,19 +373,38 @@ struct dynamic_op
                      std::function<std::vector<argument>(
                          module_ref&, const std::unordered_map<std::string, argument>&)> run) const
     {
+        std::cout << "pre_op: " << any_cast<precompile_op>(pre_op).op << std::endl;
+        // INSERT_YOUR_CODE
+        std::cout << "Argument shapes:" << std::endl;
+        for(const auto& arg : args)
+        {
+            std::cout << " - " << arg.get_shape() << std::endl;
+        }
 
-        // rewrite module without dynamic shapes
-        auto mod_args   = std::vector<argument>{args.begin(), args.end() - 1};
-        auto static_mod = module_args.front()->with_static_shapes(to_shapes(mod_args));
-
-        // compute output arg shape
         auto static_args = std::vector<argument>{args.begin(), args.end()};
         auto output_arg  = static_args.back();
-        if(output_arg.get_shape().dynamic())
+        module static_mod;
+        if(not module_args.empty())
         {
-            auto out_shapes = static_mod.compute_shapes(to_shapes(mod_args));
-            auto rsp_shape = (out_shapes.size() > 1) ? shape{out_shapes} : out_shapes.front();
-            static_args[static_args.size() - 1] = output_arg.reshape(rsp_shape);
+            // rewrite module without dynamic shapes
+            auto mod_args = std::vector<argument>{args.begin(), args.end() - 1};
+            static_mod = module_args.front()->with_static_shapes(to_shapes(mod_args));
+            static_mod.set_bypass(true);
+
+            // compute output arg shape
+            if(output_arg.get_shape().dynamic())
+            {
+                auto out_shapes = static_mod.compute_shapes(to_shapes(mod_args));
+                auto rsp_shape  = (out_shapes.size() > 1) ? shape{out_shapes} : out_shapes.front();
+                static_args[static_args.size() - 1] = output_arg.reshape(rsp_shape);
+            }
+        }
+        else {
+            if(output_arg.get_shape().dynamic())
+            {
+                auto out_shape = pre_op.compute_shape(to_shapes(static_args));
+                static_args[static_args.size() - 1] = output_arg.reshape(out_shape);
+            }
         }
 
         auto temp_mod = module("temp_mod");
@@ -400,8 +419,12 @@ struct dynamic_op
                            return temp_mod.add_parameter("temp_mod:x" + std::to_string(i),
                                                          arg.get_shape());
                        });
-
-        auto ins = temp_mod.add_instruction(pre_op, args_ins, {&static_mod});
+        instruction_ref ins;
+        if (not module_args.empty()) {
+            ins = temp_mod.add_instruction(pre_op, args_ins, {&static_mod});
+        } else {
+            ins = temp_mod.add_instruction(pre_op, args_ins);
+        }
         temp_mod.add_return({ins});
 
         operation preop = any_cast<precompile_op>(ins->get_operator()).op;

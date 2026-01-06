@@ -149,16 +149,11 @@ TEST_CASE(logger_severity_ordering)
     // Test that severity levels are properly ordered
     // NONE(0) < ERROR(1) < WARN(2) < INFO(3) < DEBUG(4) < TRACE(5)
 
-    EXPECT(static_cast<int>(migraphx::log::severity::none) <
-           static_cast<int>(migraphx::log::severity::error));
-    EXPECT(static_cast<int>(migraphx::log::severity::error) <
-           static_cast<int>(migraphx::log::severity::warn));
-    EXPECT(static_cast<int>(migraphx::log::severity::warn) <
-           static_cast<int>(migraphx::log::severity::info));
-    EXPECT(static_cast<int>(migraphx::log::severity::info) <
-           static_cast<int>(migraphx::log::severity::debug));
-    EXPECT(static_cast<int>(migraphx::log::severity::debug) <
-           static_cast<int>(migraphx::log::severity::trace));
+    EXPECT(migraphx::log::severity::none < migraphx::log::severity::error);
+    EXPECT(migraphx::log::severity::error < migraphx::log::severity::warn);
+    EXPECT(migraphx::log::severity::warn < migraphx::log::severity::info);
+    EXPECT(migraphx::log::severity::info < migraphx::log::severity::debug);
+    EXPECT(migraphx::log::severity::debug < migraphx::log::severity::trace);
 }
 
 TEST_CASE(logger_set_severity_default)

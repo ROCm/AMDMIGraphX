@@ -22,14 +22,17 @@
  * THE SOFTWARE.
  */
 #include <migraphx/logger.hpp>
-#include <algorithm>
+#include <migraphx/color.hpp>
+#include <atomic>
 #include <chrono>
 #include <fstream>
+#include <functional>
 #include <iomanip>
 #include <iostream>
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <sstream>
 #include <vector>
 
 #ifdef _WIN32
@@ -64,41 +67,47 @@ static std::string format_timestamp()
     return ss.str();
 }
 
-static char severity_char(severity s)
+static std::string to_string(severity s)
 {
     switch(s)
     {
-    case severity::none: return 'N';
-    case severity::error: return 'E';
-    case severity::warn: return 'W';
-    case severity::info: return 'I';
-    case severity::debug: return 'D';
-    case severity::trace: return 'T';
+    case severity::none: return "NONE";
+    case severity::error: return "ERROR";
+    case severity::warn: return "WARN";
+    case severity::info: return "INFO";
+    case severity::debug: return "DEBUG";
+    case severity::trace: return "TRACE";
     }
-    return '?';
+    return "UNKNOWN";
 }
 
-static const char* severity_color(severity s)
+static std::string severity_color(severity s)
 {
+    std::ostringstream ss;
     switch(s)
     {
-    case severity::none: return "";
-    case severity::error: return "\033[31m"; // Red
-    case severity::warn: return "\033[33m";  // Yellow
-    case severity::info: return "";          // Default
-    case severity::debug: return "\033[36m"; // Cyan
-    case severity::trace: return "\033[37m"; // White/Gray
+    case severity::none: break;
+    case severity::error: ss << color::fg_red; break;
+    case severity::warn: ss << color::fg_yellow; break;
+    case severity::info: break;
+    case severity::debug: ss << color::fg_cyan; break;
+    case severity::trace: ss << color::fg_white; break;
     }
-    return "";
+    return ss.str();
 }
 
-static const char* reset_color() { return "\033[0m"; }
+static std::string reset_color()
+{
+    std::ostringstream ss;
+    ss << color::reset;
+    return ss.str();
+}
 
 // Create the default stderr sink
 static sink make_stderr_sink()
 {
     return [](severity s, std::string_view msg, source_location loc) {
-        std::cerr << severity_color(s) << format_timestamp() << " [" << severity_char(s) << "] ["
+        std::cerr << severity_color(s) << format_timestamp() << " [" << to_string(s) << "] ["
                   << loc.file_name() << ":" << loc.line() << "] " << msg << reset_color()
                   << std::endl;
     };
@@ -115,36 +124,42 @@ static sink make_file_sink(const std::string& filename)
     return [file](severity s, std::string_view msg, source_location loc) {
         if(file->is_open())
         {
-            *file << format_timestamp() << " [" << severity_char(s) << "] [" << loc.file_name()
+            *file << format_timestamp() << " [" << to_string(s) << "] [" << loc.file_name()
                   << ":" << loc.line() << "] " << msg << std::endl;
         }
     };
 }
 
-// Shared state for all sinks - must be outside template to ensure single instance
-static std::mutex& get_sinks_mutex()
+static std::atomic<severity> max_enabled_level{severity::info};
+
+static void update_enabled_level(const std::vector<std::optional<sink_entry>>& sinks)
 {
-    static std::mutex m;
-    return m;
+    severity max_level = severity::none;
+    for(const auto& entry : sinks)
+    {
+        if(entry.has_value() and entry->level > max_level)
+        {
+            max_level = entry->level;
+        }
+    }
+    max_enabled_level.store(max_level);
 }
 
-static std::vector<std::optional<sink_entry>>& get_sinks()
+// Thread-safe access to sinks (stderr sink is automatically initialized at index 0)
+static void access_sinks(std::function<void(std::vector<std::optional<sink_entry>>&)> f)
 {
+    static std::mutex m;
     static auto sinks = []() {
         // cppcheck-suppress migraphx-RedundantCast
         auto level = static_cast<severity>(
             value_of(MIGRAPHX_LOG_LEVEL{}, static_cast<size_t>(severity::info)));
+
+        // If MIGRAPHX_LOG_LEVEL is set, this will store the value into the atomic when first called
+        max_enabled_level.store(level);
         return std::vector<std::optional<sink_entry>>{sink_entry{make_stderr_sink(), level}};
     }();
-    return sinks;
-}
-
-// Thread-safe access to sinks (stderr sink is automatically initialized at index 0)
-template <class F>
-static void access_sinks(F f)
-{
-    std::lock_guard<std::mutex> lock(get_sinks_mutex());
-    f(get_sinks());
+    std::lock_guard<std::mutex> lock(m);
+    f(sinks);
 }
 
 size_t add_sink(sink s, severity level)
@@ -158,11 +173,13 @@ size_t add_sink(sink s, severity level)
             {
                 sinks[i] = sink_entry{std::move(s), level};
                 id       = i;
+                update_enabled_level(sinks);
                 return;
             }
         }
         id = sinks.size();
         sinks.push_back(sink_entry{std::move(s), level});
+        update_enabled_level(sinks);
     });
     return id;
 }
@@ -173,6 +190,7 @@ void remove_sink(size_t id)
         if(id < sinks.size())
         {
             sinks[id] = std::nullopt;
+            update_enabled_level(sinks);
         }
     });
 }
@@ -183,6 +201,7 @@ void set_severity(severity level, size_t id)
         if(id < sinks.size() and sinks[id].has_value())
         {
             sinks[id]->level = level;
+            update_enabled_level(sinks);
         }
     });
 }
@@ -197,7 +216,7 @@ void record(severity s, std::string_view msg, source_location loc)
     access_sinks([&](std::vector<std::optional<sink_entry>>& sinks) {
         for(auto& entry : sinks)
         {
-            if(entry.has_value() and static_cast<size_t>(s) <= static_cast<size_t>(entry->level))
+            if(entry.has_value() and s <= entry->level)
             {
                 entry->callback(s, msg, loc);
             }
@@ -207,14 +226,7 @@ void record(severity s, std::string_view msg, source_location loc)
 
 bool is_enabled(severity level)
 {
-    bool result = false;
-    access_sinks([&](std::vector<std::optional<sink_entry>>& sinks) {
-        result = std::any_of(sinks.begin(), sinks.end(), [&](const auto& entry) {
-            return entry.has_value() and
-                   static_cast<size_t>(level) <= static_cast<size_t>(entry->level);
-        });
-    });
-    return result;
+    return level <= max_enabled_level.load();
 }
 
 } // namespace log

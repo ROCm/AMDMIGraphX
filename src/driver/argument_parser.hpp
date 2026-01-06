@@ -28,6 +28,7 @@
 #include <functional>
 #include <iostream>
 #include <list>
+#include <optional>
 #include <set>
 #include <string>
 #include <sstream>
@@ -38,6 +39,7 @@
 #include <vector>
 
 #include <migraphx/config.hpp>
+#include <migraphx/color.hpp>
 #include <migraphx/requires.hpp>
 #include <migraphx/type_name.hpp>
 #include <migraphx/functional.hpp>
@@ -46,10 +48,6 @@
 #include <migraphx/algorithm.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/rank.hpp>
-
-#ifndef _WIN32
-#include <unistd.h>
-#endif
 
 namespace migraphx {
 namespace driver {
@@ -81,40 +79,9 @@ template <class T>
 using is_multi_value =
     std::integral_constant<bool, (is_container<T>{} and not std::is_convertible<T, std::string>{})>;
 
-enum class color
-{
-    reset      = 0,
-    bold       = 1,
-    underlined = 4,
-    fg_red     = 31,
-    fg_green   = 32,
-    fg_yellow  = 33,
-    fg_blue    = 34,
-    fg_default = 39,
-    bg_red     = 41,
-    bg_green   = 42,
-    bg_yellow  = 43,
-    bg_blue    = 44,
-    bg_default = 49
-};
-inline std::ostream& operator<<(std::ostream& os, const color& c)
-{
-#ifndef _WIN32
-    static const bool use_color = isatty(STDOUT_FILENO) != 0;
-    if(use_color)
-        return os << "\033[" << static_cast<std::size_t>(c) << "m";
-#else
-    (void)c;
-#endif
-    return os;
-}
-
-inline std::string colorize(color c, const std::string& s)
-{
-    std::stringstream ss;
-    ss << c << s << color::reset;
-    return ss.str();
-}
+// Use color utilities from migraphx::color
+using migraphx::color;
+using migraphx::colorize;
 
 template <class T>
 struct type_name

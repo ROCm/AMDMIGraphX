@@ -2727,53 +2727,6 @@ TEST_CASE_SKIP(dot_add_dot_both_multi_user, "Not supported in rocMLIR")
     EXPECT(p1.sort() == p2.sort());
 }
 
-TEST_CASE_SKIP(dot_add_relu_dot_add_relu, "TODO")
-// criteoterabyte use case
-{
-    migraphx::shape s1{migraphx::shape::half_type, {1024, 3}};
-    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
-    migraphx::shape s3{migraphx::shape::half_type, {1024, 4}};
-    migraphx::shape s4{migraphx::shape::half_type, {4, 2}};
-    migraphx::shape s5{migraphx::shape::half_type, {1024, 2}};
-    migraphx::program p1;
-    {
-        auto* mm  = p1.get_main_module();
-        auto a    = mm->add_parameter("a", s1);
-        auto b    = mm->add_parameter("b", s2);
-        auto x    = mm->add_parameter("x", s3);
-        auto y    = mm->add_parameter("y", s4);
-        auto z    = mm->add_parameter("z", s5);
-        auto dot1 = mm->add_instruction(
-            migraphx::make_op("dot"), a, b); // {1024,4}, m + 1000 > avg (n, k, gemmO)
-        auto add =
-            add_pointwise(p1, "main:pointwise0", {dot1, x}, single_pointwise("add")); // {1024,4}
-        auto relu1 = add_pointwise(p1, "main:pointwise1", {add}, single_pointwise("relu"));
-        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), relu1, y);            // {1024,2}
-        auto add2 = add_pointwise(p1, "main:pointwise2", {dot2, z}, single_pointwise("add"));
-        auto relu2 = add_pointwise(p1, "main:pointwise3", {add2}, single_pointwise("relu"));
-        mm->add_return({relu2});
-    }
-    run_pass(p1);
-    migraphx::program p2;
-    {
-        auto* mm   = p2.get_main_module();
-        auto a     = mm->add_parameter("a", s1);
-        auto b     = mm->add_parameter("b", s2);
-        auto x     = mm->add_parameter("x", s3);
-        auto y     = mm->add_parameter("y", s4);
-        auto fused = add_mlir(
-            p2, "mlir_main:pointwise0_geg", {a, b, x, y}, [=](auto* pm, const auto& inputs) {
-                auto dot1 = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
-                auto add  = pm->add_instruction(migraphx::make_op("add"), dot1, inputs[2]);
-                auto dot2 = pm->add_instruction(migraphx::make_op("dot"), add, inputs[3]);
-                return std::make_tuple(dot2->get_operator(), dot2);
-            });
-        mm->add_return({fused});
-    }
-    if(migraphx::enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
-        return;
-    EXPECT(p1.sort() == p2.sort());
-}
 
 int main(int argc, const char* argv[])
 {

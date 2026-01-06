@@ -126,10 +126,25 @@ void schedule_model::record(module& m, instruction_ref ins, std::size_t wait_id)
 
 static std::unordered_map<std::string, std::size_t> create_weight_map()
 {
-    return {{"hip::load_literal", 0},
+    return {// Memory operations - no GPU compute
+            {"hip::load_literal", 0},
+            {"hip::hip_copy_literal", 0},
             {"hip::hip_allocate_memory", 0},
             {"hip::hip_load_memory", 0},
             {"hip::allocate", 0},
+            {"load", 0},
+            // Lazy view operations - no GPU compute
+            {"multibroadcast", 0},
+            {"broadcast", 0},
+            {"unsqueeze", 0},
+            {"squeeze", 0},
+            {"reshape", 0},
+            {"reshape_lazy", 0},
+            {"slice", 0},
+            {"transpose", 0},
+            {"contiguous", 0},
+            {"get_tuple_elem", 0},
+            // GPU compute operations
             {"gpu::convolution", 8},
             {"gpu::conv_bias_relu", 8},
             {"gpu::pooling", 4},

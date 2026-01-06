@@ -942,7 +942,7 @@ inline void run(int argc, const char* argv[])
 #define TEST_CASE_SKIP(name, reason)                              \
     static void name##_body();                                    \
     static void name() {                                          \
-        (void)&name##_body;                                       \
+        (void)&name##_body; /* to avoid unused func warning */    \
         test::skip(reason);                                       \
     }                                                             \
     TEST_CASE_REGISTER(name)                                      \

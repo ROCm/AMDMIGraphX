@@ -789,7 +789,10 @@ struct mlir_program
     {
         auto returns = m.get_returns();
         std::unordered_map<instruction_ref, shape> ret_shapes;
-        std::transform(returns.begin(), returns.end(), output_shapes.begin(), std::inserter(ret_shapes, ret_shapes.begin()),
+        std::transform(returns.begin(),
+                       returns.end(),
+                       output_shapes.begin(),
+                       std::inserter(ret_shapes, ret_shapes.begin()),
                        [](instruction_ref ins, const shape& s) {
                            return std::make_pair(get_terminal_return(ins), s);
                        });
@@ -819,7 +822,7 @@ struct mlir_program
         auto mbody = mlirModuleGetBody(mmodule.get());
         std::unordered_map<instruction_ref, MlirValue> ins_map;
         auto output_shapes = get_output_shapes(m, input_shapes);
-        auto fbody = insert(mbody, m, output_shapes, ins_map);
+        auto fbody         = insert(mbody, m, output_shapes, ins_map);
 
         auto get_shape_for_mlir = make_get_shape_for_mlir(m, output_shapes);
 

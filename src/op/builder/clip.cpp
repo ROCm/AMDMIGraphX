@@ -1,6 +1,6 @@
 /* The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -47,13 +47,36 @@ struct clip : op_builder<clip>
         bool max_used = args.size() == 3 and not args[2]->is_undefined();
         bool min_used = args.size() >= 2 and not args[1]->is_undefined();
 
-        if(min_used and max_used)
-            return {insert_common_op(m, ins, make_op("clip"), args)};
-        if(max_used)
-            return {insert_common_op(m, ins, "min", args[0], args[2])};
-        if(min_used)
-            return {insert_common_op(m, ins, "max", args[0], args[1])};
-        return {m.insert_instruction(ins, make_op("identity"), args[0])};
+        auto op_res = [&]() {
+            if(min_used and max_used)
+            {
+                return insert_common_op(m, ins, make_op("clip"), args);
+            }
+            else if(max_used)
+            {
+                return insert_common_op(m, ins, "min", args[0], args[2]);
+            }
+            else if(min_used)
+            {
+                return insert_common_op(m, ins, "max", args[0], args[1]);
+            }
+            else
+            {
+                return m.insert_instruction(ins, make_op("identity"), args[0]);
+            }
+        }();
+
+        auto op_type    = op_res->get_shape().type();
+        auto input_type = args[0]->get_shape().type();
+        if(op_type != input_type)
+        {
+            return {m.insert_instruction(
+                ins, make_op("convert", {{"target_type", input_type}}), op_res)};
+        }
+        else
+        {
+            return {op_res};
+        }
     }
 };
 

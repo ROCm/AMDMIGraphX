@@ -773,19 +773,61 @@ struct mlir_program
         return r.sub_shapes();
     }
 
+    static bool is_skipped(instruction_ref ins)
+    {
+        return contains({"contiguous", "unpack_fp4"}, ins->name());
+    }
+
+    static instruction_ref get_terminal_return(instruction_ref ins)
+    {
+        if(is_skipped(ins))
+            return get_terminal_return(ins->inputs().at(0));
+        return ins;
+    }
+
+    static auto make_get_shape_for_mlir(const module& m, const std::vector<shape>& output_shapes)
+    {
+        auto returns = m.get_returns();
+        std::unordered_map<instruction_ref, shape> ret_shapes;
+        std::transform(returns.begin(), returns.end(), output_shapes.begin(), std::inserter(ret_shapes, ret_shapes.begin()),
+                       [](instruction_ref ins, const shape& s) {
+                           return std::make_pair(get_terminal_return(ins), s);
+                       });
+        return [=](instruction_ref ins) {
+            shape ret = contains(ret_shapes, ins) ? ret_shapes.at(ins) : ins->get_shape();
+            if(ins->name() == "@return")
+            {
+                assert(ins->inputs().size() == 1);
+                ret = output_shapes.front();
+            }
+            else if(input_is_unpack_fp4(ins))
+            {
+                ret = ret.with_type(shape::fp4x2_type);
+            }
+            else if(ins->get_shape().type() == shape::fp4x2_type)
+            {
+                ret = make_fp4_unpacked_shape(ret);
+            }
+            return ret;
+        };
+    }
+
     void parse(const module& m, const std::vector<shape>& input_shapes = {})
     {
         validate(m);
         sym_name   = get_symbol_name(m);
         auto mbody = mlirModuleGetBody(mmodule.get());
         std::unordered_map<instruction_ref, MlirValue> ins_map;
-        auto fbody = insert(mbody, m, get_output_shapes(m, input_shapes), ins_map);
+        auto output_shapes = get_output_shapes(m, input_shapes);
+        auto fbody = insert(mbody, m, output_shapes, ins_map);
+
+        auto get_shape_for_mlir = make_get_shape_for_mlir(m, output_shapes);
 
         for(auto ins : iterator_for(m))
         {
             if(ins->name() == "@param")
                 continue;
-            if(contains({"contiguous", "unpack_fp4"}, ins->name()))
+            if(is_skipped(ins))
             {
                 ins_map[ins] = ins_map[ins->inputs().at(0)];
                 continue;

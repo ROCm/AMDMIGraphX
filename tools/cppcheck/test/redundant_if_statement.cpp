@@ -30,6 +30,8 @@ bool test_redundant_if_return_boolean_2()
 
 bool test_same_return_values(int x)
 {
+    // TODO: migraphx-RedundantIfStatement false positive - same value in both branches
+    // cppcheck-suppress migraphx-RedundantIfStatement
     if(x > 0)
     {
         return true;

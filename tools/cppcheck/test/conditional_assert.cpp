@@ -21,6 +21,7 @@ void test_redundant_if_before_assert_different_condition(int x)
 
 void test_different_conditions(int x)
 {
+    // cppcheck-suppress migraphx-ConditionalAssert
     if(x > 0)
     {
         assert(x < 10);

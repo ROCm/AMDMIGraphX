@@ -11,7 +11,7 @@ void test_double_negative()
 void test_double_positive()
 {
     int x = 5;
-    // TODO: migraphx-MultipleUnaryOperator not triggered
+    // TODO: migraphx-MultipleUnaryOperator false negative - double positive not detected
     int z = +(+x);
     (void)z; // Use variable to avoid warning
 }

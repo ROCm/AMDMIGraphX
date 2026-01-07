@@ -1,9 +1,11 @@
 // Test for defineUpperCase and definePrefix rules from rules.xml
 
 // cppcheck-suppress defineUpperCase
+// cppcheck-suppress definePrefix
 #define myMacro 42
 
 // cppcheck-suppress defineUpperCase
+// cppcheck-suppress definePrefix
 #define TestMacro 100
 
 // cppcheck-suppress definePrefix
@@ -60,6 +62,7 @@ void test_correct_macros()
 void test_standard_library_macros()
 {
 #ifndef NULL
+// cppcheck-suppress definePrefix
 #define NULL nullptr
 #endif
 }

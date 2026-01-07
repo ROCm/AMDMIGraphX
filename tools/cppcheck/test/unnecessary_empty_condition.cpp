@@ -13,18 +13,20 @@ void test_positive_cases()
         {
             // Process item
             int x = item * 2;
+            (void)x;
         }
     }
 
     // Should trigger: another case with different variable name
     std::vector<std::string> items = {"a", "b", "c"};
     // cppcheck-suppress migraphx-UnnecessaryEmptyCondition
-    if(!items.empty())
+    if(not items.empty())
     {
         for(const auto& item : items)
         {
             // Process item
             std::string processed = item + "_processed";
+            (void)processed;
         }
     }
 }
@@ -35,11 +37,12 @@ void test_negative_cases()
 
     // Should not trigger: different containers
     std::vector<int> other_container = {6, 7, 8};
-    if(!container.empty())
+    if(not container.empty())
     {
         for(auto item : other_container)
         {
             int x = item * 2;
+            (void)x;
         }
     }
 
@@ -47,14 +50,16 @@ void test_negative_cases()
     for(auto item : container)
     {
         int x = item * 2;
+        (void)x;
     }
 
     // Should not trigger: traditional for loop
-    if(!container.empty())
+    if(not container.empty())
     {
         for(size_t i = 0; i < container.size(); i++)
         {
             int x = container[i] * 2;
+            (void)x;
         }
     }
 
@@ -64,6 +69,7 @@ void test_negative_cases()
         for(auto item : container)
         {
             int x = item * 2;
+            (void)x;
         }
     }
 }

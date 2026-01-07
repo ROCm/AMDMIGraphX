@@ -96,7 +96,7 @@ void test_function_with_and_operator_function2(int x, int y)
 
 void test_function_with_and_operator_function3(int x, int y)
 {
-    // TODO UseNamedLogicOperator
+    // TODO: UseNamedLogicOperator false negative
     g(f() && x > y);
 }
 
@@ -120,7 +120,7 @@ bool test_return_with_and_operator_function1(int x, int y)
 
 bool test_return_with_and_operator_function2(int x, int y)
 {
-    // TODO UseNamedLogicOperator
+    // TODO: UseNamedLogicOperator false negative
     return f() && x > y;
 }
 
@@ -149,11 +149,13 @@ void test_multiple_named_logical_operators_should_not_trigget(bool a, bool b, bo
 
 void test_rvalue_ref_should_not_trigger(int&& x);
 
-// TODO: UseNamedLogicOperator should not be triggered
-template <class T>
+// TODO: UseNamedLogicOperator false positive - rvalue reference in template
 // cppcheck-suppress UseNamedLogicOperator
+template <class T>
 static T&& test_rvalue_static_template_return_ref_should_not_trigger();
 
+// TODO: UseNamedLogicOperator false positive - rvalue reference in template
+// cppcheck-suppress UseNamedLogicOperator
 template <class T>
 T&& test_rvalue_template_return_ref_should_not_trigger();
 

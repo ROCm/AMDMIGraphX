@@ -1,21 +1,23 @@
 // Test for NestedBlocks check
+// Note: The NestedBlocks checker only detects blocks directly inside
+// control statements (if/for/while/switch), not pure nested blocks in function bodies.
 
 void test_unnecessary_nested_blocks_1()
 {
     int x = 5;
-    // TODO: migraphx-NestedBlocks not triggered
+    // TODO: migraphx-NestedBlocks false negative - pure nested blocks not detected
     {
         {
             x = 10;
         }
     }
     (void)x; // Use variable to avoid warning
-    }
+}
 
 void test_unnecessary_nested_blocks_2()
 {
     int y = 10;
-    // TODO: migraphx-NestedBlocks not triggered
+    // TODO: migraphx-NestedBlocks false negative - pure nested blocks not detected
     {
         {
             {
@@ -24,7 +26,7 @@ void test_unnecessary_nested_blocks_2()
         }
     }
     (void)y; // Use variable to avoid warning
-    }
+}
 
 void test_necessary_scope_blocks()
 {

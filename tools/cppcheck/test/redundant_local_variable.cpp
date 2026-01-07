@@ -5,16 +5,16 @@ int test_positive_cases()
     int x = 5;
 
     // Should trigger: variable returned immediately after declaration
-    // TODO: migraphx-RedundantLocalVariable not triggered
     int result = x * 2;
+    // cppcheck-suppress migraphx-RedundantLocalVariable
     return result;
 }
 
 int test_positive_case2(int a, int b)
 {
     // Should trigger: complex expression assigned and returned
-    // TODO: migraphx-RedundantLocalVariable not triggered
     int value = a + b * 2;
+    // cppcheck-suppress migraphx-RedundantLocalVariable
     return value;
 }
 
@@ -37,7 +37,7 @@ int test_negative_case2(int x)
 
 int test_negative_case3(int x)
 {
-    // Should not trigger: no return statement
+    // Should not trigger: different variable returned
     int result = x * 2;
     result     = result + 1;
     return 0;

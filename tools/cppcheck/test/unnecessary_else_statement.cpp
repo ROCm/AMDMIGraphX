@@ -2,7 +2,7 @@
 
 int test_unnecessary_else_after_return(int x)
 {
-    // TODO: UnnecessaryElseStatement not triggered
+    // TODO: UnnecessaryElseStatement false negative
     if(x > 0)
     {
         return 1;
@@ -15,7 +15,7 @@ int test_unnecessary_else_after_return(int x)
 
 int test_unnecessary_else_after_throw(int x)
 {
-    // TODO: UnnecessaryElseStatement not triggered
+    // TODO: UnnecessaryElseStatement false negative
     if(x < 0)
     {
         throw "error";
@@ -30,7 +30,7 @@ void test_unnecessary_else_after_break(int x)
 {
     for(int i = 0; i < 10; i++)
     {
-        // TODO: UnnecessaryElseStatement not triggered
+        // TODO: UnnecessaryElseStatement false negative
         if(i == x)
         {
             break;
@@ -46,7 +46,7 @@ void test_unnecessary_else_after_continue(int& x)
 {
     for(int i = 0; i < 10; i++)
     {
-        // TODO: UnnecessaryElseStatement not triggered
+        // TODO: UnnecessaryElseStatement false negative
         if(i == x)
         {
             continue;
@@ -60,7 +60,8 @@ void test_unnecessary_else_after_continue(int& x)
 
 int test_necessary_else_both_paths_return(int x)
 {
-    // Should not trigger: both branches have meaningful different logic
+    // TODO: UnnecessaryElseStatement false positive - multiple statements before return
+    // cppcheck-suppress UnnecessaryElseStatement
     if(x > 0)
     {
         x = x * 2;

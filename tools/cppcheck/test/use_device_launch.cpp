@@ -39,6 +39,8 @@ void kernel() {}
 void another_kernel() {}
 int hipMalloc(void**, size_t) { return 0; }
 int hipMemcpy(void*, const void*, size_t, hipMemcpyKind) { return 0; }
+// TODO: migraphx-UseDeviceLaunch false positive - function definition triggers the check
+// cppcheck-suppress migraphx-UseDeviceLaunch
 int hipLaunchKernelGGL(void*, int, int, int, int, ...) { return 0; }
 void myLaunchKernel(int) {}
 int printf(const char*, ...) { return 0; }

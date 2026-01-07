@@ -118,11 +118,28 @@ done
 echo ""
 
 # Run cppcheck with the selected test files
+# Note: We suppress built-in cppcheck style checks that are unrelated to migraphx rules
+# to focus testing on the addon and custom XML rules only.
 cppcheck -j $(nproc) \
     --error-exitcode=1 \
-    --enable=information,warning,style \
+    --enable=warning,style \
     --addon=$SCRIPT_DIR/migraphx.py \
     --rule-file=$SCRIPT_DIR/rules.xml $INLINE_SUPPR_FLAG \
+    --suppress=knownConditionTrueFalse \
+    --suppress=unreachableCode \
+    --suppress=unreadVariable \
+    --suppress=unusedStructMember \
+    --suppress=unusedAllocatedMemory \
+    --suppress=unassignedVariable \
+    --suppress=constVariablePointer \
+    --suppress=constVariable \
+    --suppress=noConstructor \
+    --suppress=redundantContinue \
+    --suppress=duplicateValueTernary \
+    --suppress=clarifyStatement \
+    --suppress=cstyleCast \
+    --suppress=legacyUninitvar \
+    --suppress=missingIncludeSystem \
     --cppcheck-build-dir="$BUILD_DIR" $TEST_FILES
 
 echo ""

@@ -23,6 +23,8 @@ void test_if_with_statement(int x)
 
 void test_if_with_else(int x)
 {
+    // Empty if body still triggers even with else clause
+    // cppcheck-suppress migraphx-EmptyIfStatement
     if(x > 0) {}
     else
     {

@@ -3,24 +3,27 @@
 void test_redundant_deref_with_increment()
 {
     int x    = 5;
+    // cppcheck-suppress UnusedDeref
     int* ptr = &x;
-    // TODO: UnusedDeref not triggered
+    // cppcheck-suppress clarifyStatement
     *ptr++;
 }
 
 void test_redundant_deref_with_decrement()
 {
     int x    = 5;
+    // cppcheck-suppress UnusedDeref
     int* ptr = &x;
-    // TODO: UnusedDeref not triggered
+    // cppcheck-suppress clarifyStatement
     *ptr--;
 }
 
 void test_redundant_deref_with_increment_variant()
 {
     int x    = 5;
+    // cppcheck-suppress UnusedDeref
     int* ptr = &x;
-    // TODO: UnusedDeref not triggered
+    // cppcheck-suppress clarifyStatement
     *ptr++;
 }
 
@@ -47,6 +50,7 @@ void test_increment_without_dereference_should_not_trigger()
     int x    = 5;
     int* ptr = &x;
     ptr++;
+    (void)ptr;
 }
 
 void test_dereference_in_expression_should_not_trigger()

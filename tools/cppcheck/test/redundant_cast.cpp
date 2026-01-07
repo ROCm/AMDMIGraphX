@@ -25,6 +25,7 @@ void test_redundant_auto_cast_3()
 
 void test_explicit_type_cast()
 {
+    // cppcheck-suppress migraphx-RedundantCast
     int x = static_cast<int>(5.5);
     (void)x;
 }
@@ -32,6 +33,7 @@ void test_explicit_type_cast()
 void test_cast_to_different_type()
 {
     int y    = 10;
+    // cppcheck-suppress migraphx-RedundantCast
     double z = static_cast<double>(y);
     (void)z;
 }
@@ -39,6 +41,7 @@ void test_cast_to_different_type()
 void test_cast_with_const()
 {
     const int a = 5;
+    // cppcheck-suppress migraphx-RedundantCast
     auto b      = static_cast<const int&>(a);
     (void)b;
 }

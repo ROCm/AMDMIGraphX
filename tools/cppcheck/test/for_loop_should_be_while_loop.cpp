@@ -49,5 +49,6 @@ void test_for_with_increment_no_init()
 
 void test_empty_for_loop()
 {
+    // cppcheck-suppress migraphx-EmptyForStatement
     for(; false;) {}
 }

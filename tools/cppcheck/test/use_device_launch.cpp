@@ -1,5 +1,22 @@
 // Test for UseDeviceLaunch check
 
+#include <cstdio>
+#include <cstdlib>
+
+// Mock functions and types for compilation
+typedef int dim3;
+typedef int hipMemcpyKind;
+const hipMemcpyKind hipMemcpyDeviceToHost = 0;
+
+void kernel() {}
+void another_kernel() {}
+int hipMalloc(void**, size_t) { return 0; }
+int hipMemcpy(void*, const void*, size_t, hipMemcpyKind) { return 0; }
+// TODO: migraphx-UseDeviceLaunch false positive - function definition triggers the check
+// cppcheck-suppress migraphx-UseDeviceLaunch
+int hipLaunchKernelGGL(void*, int, int, int, int, ...) { return 0; }
+void myLaunchKernel(int) {}
+
 void test_positive_cases()
 {
     // Should trigger: hipLaunchKernelGGL usage
@@ -30,17 +47,3 @@ void test_negative_cases()
     myLaunchKernel(args);
 }
 
-// Mock functions and types for compilation
-typedef int dim3;
-typedef int hipMemcpyKind;
-const hipMemcpyKind hipMemcpyDeviceToHost = 0;
-
-void kernel() {}
-void another_kernel() {}
-int hipMalloc(void**, size_t) { return 0; }
-int hipMemcpy(void*, const void*, size_t, hipMemcpyKind) { return 0; }
-// TODO: migraphx-UseDeviceLaunch false positive - function definition triggers the check
-// cppcheck-suppress migraphx-UseDeviceLaunch
-int hipLaunchKernelGGL(void*, int, int, int, int, ...) { return 0; }
-void myLaunchKernel(int) {}
-int printf(const char*, ...) { return 0; }

@@ -39,8 +39,7 @@ void test_inverted_logic_ternary_1(int x, int y)
 void test_inverted_logic_ternary_2(bool flag)
 {
     // TODO: InvertedLogic false negative - ternary with ! not detected
-    // cppcheck-suppress UseNamedLogicOperator
-    int result2 = (!flag) ? 0 : 1;
+    int result2 = (not flag) ? 0 : 1;
     (void)result2; // Use variable to avoid warning
 }
 

@@ -169,9 +169,9 @@ auto test_lambda_rvalue_parameter_should_not_trigger()
 void test_bitwise_operators_should_not_trigger(unsigned x, unsigned y)
 {
     // Should not trigger: bitwise operators are different from logical operators
-    (void)(x & y);  // bitwise AND
-    (void)(x | y);  // bitwise OR
-    (void)(~x);     // bitwise NOT
+    (void)(x & y); // bitwise AND
+    (void)(x | y); // bitwise OR
+    (void)(~x);    // bitwise NOT
 }
 
 void test_simple_conditions_should_not_trigger(bool a)

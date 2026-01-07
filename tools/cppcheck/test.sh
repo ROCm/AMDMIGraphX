@@ -136,16 +136,14 @@ for file in $TEST_FILES; do
 done
 echo ""
 
-# Run syntax check on test files
+# Run syntax check on test files in parallel
 if [ "$SYNTAX_CHECK" -eq 1 ]; then
-    echo -e "${BOLD}${BLUE}Checking C++ syntax with ${CXX_COMPILER}...${NC}"
-    SYNTAX_FAILED=0
-    for file in $TEST_FILES; do
-        if ! $CXX_COMPILER -std=c++17 -fsyntax-only "$file" 2>&1; then
-            SYNTAX_FAILED=1
-        fi
-    done
-    if [ "$SYNTAX_FAILED" -eq 1 ]; then
+    echo -e "${BOLD}${BLUE}Checking C++ syntax with ${CXX_COMPILER} (parallel)...${NC}"
+    SYNTAX_LOG="$BUILD_DIR/syntax_errors.log"
+    : > "$SYNTAX_LOG"  # Clear/create log file
+    printf '%s\n' $TEST_FILES | xargs -P $(nproc) -I {} sh -c \
+        "$CXX_COMPILER -std=c++17 -fsyntax-only {} 2>&1 || echo 'SYNTAX_ERROR' >> \"$SYNTAX_LOG\""
+    if [ -s "$SYNTAX_LOG" ]; then
         echo -e "${RED}Error:${NC} Syntax check failed"
         exit 1
     fi

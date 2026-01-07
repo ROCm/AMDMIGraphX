@@ -121,6 +121,7 @@ echo ""
 # Note: We suppress built-in cppcheck style checks that are unrelated to migraphx rules
 # to focus testing on the addon and custom XML rules only.
 cppcheck -j $(nproc) \
+    -D CPPCHECK=1 \
     --error-exitcode=1 \
     --enable=information,warning,style \
     --addon=$SCRIPT_DIR/migraphx.py \

@@ -1,5 +1,14 @@
 // Test for LambdaAttribute check
 
+#ifndef CPPCHECK
+// cppcheck-suppress defineUpperCase
+// cppcheck-suppress definePrefix
+#define __device__
+// cppcheck-suppress defineUpperCase
+// cppcheck-suppress definePrefix
+#define __host__
+#endif
+
 void test_device_attribute_before_params()
 {
     int x = 5;

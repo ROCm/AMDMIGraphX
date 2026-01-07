@@ -59,8 +59,9 @@ struct concat_optimizer
         auto alloc = instruction::get_output_alias(ins, true);
         return not is_allocation(alloc);
     }
-    
-    instruction_ref insert_copy(const operation& op, instruction_ref input, instruction_ref super) const
+
+    instruction_ref
+    insert_copy(const operation& op, instruction_ref input, instruction_ref super) const
     {
         auto slice = m->insert_instruction(std::next(super), op, super);
         // If its packed then replace the allocation with the slice instead
@@ -89,7 +90,6 @@ struct concat_optimizer
             std::prev(ins->inputs().end()),
             std::back_inserter(allocations),
             [&](instruction_ref x) { return instruction::get_output_alias(x, true); });
-
 
         // Need to sort the allocations, so that we know where to
         // insert the "super"-allocation

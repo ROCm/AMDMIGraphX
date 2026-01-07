@@ -31,14 +31,14 @@ void test_inverted_logic_with_negation(bool flag)
 
 void test_inverted_logic_ternary_1(int x, int y)
 {
-    // TODO: InvertedLogic false negative - ternary with != not detected
+    // cppcheck-suppress InvertedLogic
     int result1 = (x != y) ? 0 : 1;
     (void)result1; // Use variable to avoid warning
 }
 
 void test_inverted_logic_ternary_2(bool flag)
 {
-    // TODO: InvertedLogic false negative - ternary with ! not detected
+    // cppcheck-suppress InvertedLogic
     int result2 = (not flag) ? 0 : 1;
     (void)result2; // Use variable to avoid warning
 }

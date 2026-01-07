@@ -1,38 +1,89 @@
 // Test for MatcherNestedParentheses check
+// This check finds deeply nested match:: patterns in matcher() functions.
+// Deep nesting affects readability; consider extracting intermediate matchers.
 
-class Matcher
+// Mock types to simulate MiGraphX matcher infrastructure
+namespace match {
+    struct matcher_t {};
+    template<class... Args> matcher_t name(Args...) { return {}; }
+    template<class... Args> matcher_t args(Args...) { return {}; }
+    template<class... Args> matcher_t arg(int, Args...) { return {}; }
+    template<class... Args> matcher_t either_arg(int, int) { return {}; }
+    matcher_t any() { return {}; }
+    matcher_t is_constant() { return {}; }
+    matcher_t used_once() { return {}; }
+    template<class... Args> matcher_t any_of(Args...) { return {}; }
+    template<class... Args> matcher_t none_of(Args...) { return {}; }
+    struct matcher_result {};
+}
+
+// Helper that returns a matcher (like conv_const_weights() in simplify_algebra.cpp)
+auto lit_broadcast() { return match::any_of(match::is_constant(), match::name("broadcast")); }
+
+struct test_deep_nesting
 {
-    public:
-    void test_positive_cases()
+    // Should trigger: 4 levels - name(either_arg(name(args(is_constant()))))
+    auto matcher() const
     {
-        // Should trigger: too many nested parentheses in matcher
-        // TODO: migraphx-MatcherNestedParentheses not triggered
-        matcher() const { return something((((())))); }
+        // cppcheck-suppress migraphx-MatcherNestedParentheses
+        return match::name("mul")(match::either_arg(0, 1)(match::name("add")(match::args(match::is_constant()))));
+    }
+};
 
-        // Should trigger: another case with deeply nested parentheses
-        // TODO: migraphx-MatcherNestedParentheses not triggered
-        matcher() const { return other_func((((some_call())))); }
+struct test_five_levels
+{
+    // Should trigger: 5 levels - name(either_arg(name(args(name(used_once())))))
+    auto matcher() const
+    {
+        // cppcheck-suppress migraphx-MatcherNestedParentheses
+        return match::name("mul")(match::either_arg(0, 1)(match::name("add")(match::args(match::name("conv")(match::used_once())))));
+    }
+};
+
+struct test_bind_exception
+{
+    // Should not trigger: bind(((expr)))) pattern is an exception
+    // The bind exception requires bind to be immediately before nested parens
+    auto matcher() const
+    {
+        return bind((((match::name("mul")))));
     }
 
-    void test_negative_cases()
+    match::matcher_t bind(match::matcher_t m) { return m; }
+};
+
+struct test_shallow_nesting
+{
+    // Should not trigger: only 2 levels - name(args())
+    auto matcher() const
     {
-        // Should not trigger: bind function (exception)
-        matcher() const { return bind(((()))); }
-
-        // Should not trigger: fewer nested parentheses
-        matcher() const { return simple_call(()); }
-
-        // Should not trigger: regular function
-        void regular_function() const { return something((((())))); }
-
-        // Should not trigger: not in matcher function
-        void other_function() const { return func((((())))); }
+        return match::name("add")(match::args(match::any(), match::is_constant()));
     }
+};
 
-    private:
-    int something(int) { return 0; }
-    int other_func(int) { return 0; }
-    int bind(int) { return 0; }
-    int simple_call(int) { return 0; }
-    int func(int) { return 0; }
+struct test_three_levels
+{
+    // Should not trigger: only 3 consecutive closing parens - name(args(name()))
+    auto matcher() const
+    {
+        return match::name("dot")(match::args(match::name("slice")));
+    }
+};
+
+struct test_not_matcher_function
+{
+    // Should not trigger: not a matcher() function
+    auto find_pattern() const
+    {
+        return match::name("mul")(match::either_arg(0, 1)(match::name("add")(match::args(match::is_constant()))));
+    }
+};
+
+struct test_non_const_matcher
+{
+    // Should not trigger: matcher must be const
+    auto matcher()
+    {
+        return match::name("mul")(match::either_arg(0, 1)(match::name("add")(match::args(match::is_constant()))));
+    }
 };

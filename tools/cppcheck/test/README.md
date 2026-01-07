@@ -75,9 +75,7 @@ The test run shows:
 
 ## Notes
 
-- Some `Unmatched suppression` warnings are expected and indicate areas where test cases may need refinement
-- Compilation errors in test files are expected as they test edge cases and problematic patterns
-- The test suite validates both positive detection (catching bad patterns) and negative detection (not flagging good patterns)
+- The test suite validates both positive detection and negative detection
 
 ## Test Coverage
 

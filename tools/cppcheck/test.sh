@@ -122,24 +122,19 @@ echo ""
 # to focus testing on the addon and custom XML rules only.
 cppcheck -j $(nproc) \
     --error-exitcode=1 \
-    --enable=warning,style \
+    --enable=information,warning,style \
     --addon=$SCRIPT_DIR/migraphx.py \
     --rule-file=$SCRIPT_DIR/rules.xml $INLINE_SUPPR_FLAG \
+    --suppress=constVariable \
+    --suppress=constVariablePointer \
     --suppress=knownConditionTrueFalse \
+    --suppress=missingIncludeSystem \
+    --suppress=noConstructor \
+    --suppress=unassignedVariable \
     --suppress=unreachableCode \
     --suppress=unreadVariable \
-    --suppress=unusedStructMember \
     --suppress=unusedAllocatedMemory \
-    --suppress=unassignedVariable \
-    --suppress=constVariablePointer \
-    --suppress=constVariable \
-    --suppress=noConstructor \
-    --suppress=redundantContinue \
-    --suppress=duplicateValueTernary \
-    --suppress=clarifyStatement \
-    --suppress=cstyleCast \
-    --suppress=legacyUninitvar \
-    --suppress=missingIncludeSystem \
+    --suppress=unusedStructMember \
     --cppcheck-build-dir="$BUILD_DIR" $TEST_FILES
 
 echo ""

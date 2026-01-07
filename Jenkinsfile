@@ -42,7 +42,8 @@ def rocmnodename(name) {
     return node_name
 }
 
-def setuprocmtest() {
+def setupdocker(Map conf) {
+    def options = conf.get("docker_options", "")
     def ccache = "/workspaces/.cache/ccache"
     
     env.CCACHE_COMPRESSLEVEL = 7
@@ -50,12 +51,11 @@ def setuprocmtest() {
     env.HSA_ENABLE_SDMA = 0
     
     sh 'printenv'
-    checkout scm
     
     def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3').trim()
     def render_id = sh(returnStdout: true, script: 'getent group render | cut -d: -f3').trim()
     def docker_opts = "--device=/dev/kfd --device=/dev/dri --cap-add SYS_PTRACE -v=${env.WORKSPACE}/../:/workspaces:rw,z"
-    docker_opts = docker_opts + " --group-add=${video_id} --group-add=${render_id}"
+    docker_opts = docker_opts + " --group-add=${video_id} --group-add=${render_id}" + options
     echo "Docker flags: ${docker_opts}"
     
     withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
@@ -66,86 +66,83 @@ def setuprocmtest() {
     return docker_opts
 }
 
-def buildrocmtest(Map conf, String docker_opts) {
-    def flags = conf.get("flags", "")
-    def compiler = conf.get("compiler", "/opt/rocm/llvm/bin/clang++")
-    def gpu_debug = conf.get("gpu_debug", "0")
-    
-    withDockerContainer(image: "${DOCKER_IMAGE}:${env.IMAGE_TAG}", args: docker_opts) {
-        timeout(time: 4, unit: 'HOURS') {
-            def cmd = """
-                ulimit -c unlimited
-                echo "leak:dnnl::impl::malloc" > suppressions.txt
-                echo "leak:libtbb.so" >> suppressions.txt
-                cat suppressions.txt
-                export LSAN_OPTIONS="suppressions=\$(pwd)/suppressions.txt"
-                export ASAN_OPTIONS="detect_container_overflow=0"
-                export MIGRAPHX_GPU_DEBUG=${gpu_debug}
-                export CXX=${compiler}
-                export CXXFLAGS='-Werror'
-                rocminfo
-                env
-                rm -rf build
-                mkdir build
-                cd build
-                cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_DEV=On -DCMAKE_EXECUTE_PROCESS_COMMAND_ECHO=STDOUT -DMIGRAPHX_DISABLE_VIRTUAL_ENV=ON ${flags} ..
-                git diff
-                git diff-index --quiet HEAD || (echo "Git repo is not clean after running cmake." && exit 1)
-                make -j\$(nproc) generate VERBOSE=1
-                git diff
-                git diff-index --quiet HEAD || (echo "Generated files are different. Please run make generate and commit the changes." && exit 1)
-                make -j\$(nproc) all package check VERBOSE=1
-                md5sum ./*.deb
-            """
-            echo cmd
-            sh cmd
-            // Only archive from master or develop
-            if (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "master") {
-                archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
+def cmake_build = { bconf ->
+    def compiler = bconf.get("compiler", "/opt/rocm/llvm/bin/clang++")
+    def flags = bconf.get("flags", "")
+    def gpu_debug = bconf.get("gpu_debug", "0")
+    def cmd = """
+        ulimit -c unlimited
+        echo "leak:dnnl::impl::malloc" > suppressions.txt
+        echo "leak:libtbb.so" >> suppressions.txt
+        cat suppressions.txt
+        export LSAN_OPTIONS="suppressions=\$(pwd)/suppressions.txt"
+        export ASAN_OPTIONS="detect_container_overflow=0"
+        export MIGRAPHX_GPU_DEBUG=${gpu_debug}
+        export CXX=${compiler}
+        export CXXFLAGS='-Werror'
+        rocminfo
+        env
+        rm -rf build
+        mkdir build
+        cd build
+        cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_DEV=On -DCMAKE_EXECUTE_PROCESS_COMMAND_ECHO=STDOUT -DMIGRAPHX_DISABLE_VIRTUAL_ENV=ON ${flags} ..
+        git diff
+        git diff-index --quiet HEAD || (echo "Git repo is not clean after running cmake." && exit 1)
+        make -j\$(nproc) generate VERBOSE=1
+        git diff
+        git diff-index --quiet HEAD || (echo "Generated files are different. Please run make generate and commit the changes." && exit 1)
+        make -j\$(nproc) all package check VERBOSE=1
+        md5sum ./*.deb
+    """
+    echo cmd
+    sh cmd
+    // Only archive from master or develop
+    if (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "master") {
+        archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
+    }
+}
+
+def rocmtest = { Map conf = [:], Closure body ->
+    def variant = conf.get("variant", env.STAGE_NAME)
+    def setup = conf.get("setup", {})
+
+    def docker_args = conf.get("docker_args", "")
+    def ccache = "/workspaces/.cache/ccache"
+    env.CCACHE_COMPRESSLEVEL = 7
+    env.CCACHE_DIR = ccache
+    env.HSA_ENABLE_SDMA = 0
+    gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX') {
+        def docker_opts
+        stage("setup ${variant}") {
+            sh 'printenv'
+            checkout scm
+            setup()
+
+            def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3').trim()
+            def render_id = sh(returnStdout: true, script: 'getent group render | cut -d: -f3').trim()
+            docker_opts = "--device=/dev/kfd --device=/dev/dri --cap-add SYS_PTRACE -v=${env.WORKSPACE}/../:/workspaces:rw,z"
+            docker_opts = docker_opts + " --group-add=${video_id} --group-add=${render_id} "
+            echo "Docker flags: ${docker_opts}"
+
+            withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
+                sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
+                sh "docker pull ${DOCKER_IMAGE}:${env.IMAGE_TAG}"
+            }
+        }
+
+        stage("build ${variant}") {
+            withDockerContainer(image: "${DOCKER_IMAGE}:${env.IMAGE_TAG}", args: docker_opts + docker_args) {
+                timeout(time: 4, unit: 'HOURS') {
+                    body()
+                }
             }
         }
     }
 }
 
-def setuponnxtest() {
-    def ccache = "/workspaces/.cache/ccache"
-    
-    env.CCACHE_COMPRESSLEVEL = 7
-    env.CCACHE_DIR = ccache
-    env.HSA_ENABLE_SDMA = 0
-    
-    sh 'printenv'
-    checkout scm
+def setuppackage = {
     sh 'rm -rf ./build/*.deb'
     unstash 'migraphx-package'
-    
-    def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3').trim()
-    def render_id = sh(returnStdout: true, script: 'getent group render | cut -d: -f3').trim()
-    def docker_opts = "--device=/dev/kfd --device=/dev/dri --cap-add SYS_PTRACE -v=${env.WORKSPACE}/../:/workspaces:rw,z"
-    docker_opts = docker_opts + " --group-add=${video_id} --group-add=${render_id} -u root"
-    echo "Docker flags: ${docker_opts}"
-    
-    withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
-        sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
-        sh "docker pull ${DOCKER_IMAGE}:${env.IMAGE_TAG}"
-    }
-    
-    return docker_opts
-}
-
-def buildonnxtest(String docker_opts) {
-    withDockerContainer(image: "${DOCKER_IMAGE}:${env.IMAGE_TAG}", args: docker_opts) {
-        timeout(time: 4, unit: 'HOURS') {
-            sh '''
-                apt install half
-                #ls -lR
-                md5sum ./build/*.deb
-                dpkg -i ./build/*.deb
-                env
-                cd /onnxruntime && ./build_and_test_onnxrt.sh
-            '''
-        }
-    }
 }
 
 pipeline {
@@ -216,19 +213,8 @@ pipeline {
                     }
                     steps {
                         script {
-                            gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - All Targets Release", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
-                                def docker_opts
-                                stage('All Targets Release - Setup') {
-                                    docker_opts = setuprocmtest()
-                                }
-                                stage('All Targets Release - Build') {
-                                    buildrocmtest(
-                                        [flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_ENABLE_GPU=On -DMIGRAPHX_ENABLE_CPU=On -DMIGRAPHX_ENABLE_FPGA=On -DGPU_TARGETS='${getgputargets()}'",
-                                         compiler: '/opt/rocm/llvm/bin/clang++',
-                                         gpu_debug: '0'],
-                                        docker_opts
-                                    )
-                                }
+                            rocmtest([:]) {
+                                cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_ENABLE_GPU=On -DMIGRAPHX_ENABLE_CPU=On -DMIGRAPHX_ENABLE_FPGA=On -DGPU_TARGETS='${getgputargets()}'")
                             }
                         }
                     }
@@ -240,21 +226,10 @@ pipeline {
                     }
                     steps {
                         script {
-                            gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Clang ASAN", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
-                                def docker_opts
-                                stage('Clang ASAN - Setup') {
-                                    docker_opts = setuprocmtest()
-                                }
-                                stage('Clang ASAN - Build') {
-                                    def sanitizers = "undefined,address"
-                                    def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
-                                    buildrocmtest(
-                                        [flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'",
-                                         compiler: '/usr/bin/clang++-17',
-                                         gpu_debug: '0'],
-                                        docker_opts
-                                    )
-                                }
+                            rocmtest([:]) {
+                                def sanitizers = "undefined,address"
+                                def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
+                                cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'", compiler: '/usr/bin/clang++-17')
                             }
                         }
                     }
@@ -266,21 +241,10 @@ pipeline {
                     }
                     steps {
                         script {
-                            gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Clang libstdc++ Debug", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
-                                def docker_opts
-                                stage('Clang libstdc++ Debug - Setup') {
-                                    docker_opts = setuprocmtest()
-                                }
-                                stage('Clang libstdc++ Debug - Build') {
-                                    def sanitizers = "undefined"
-                                    def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers} -D_GLIBCXX_DEBUG"
-                                    buildrocmtest(
-                                        [flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'",
-                                         compiler: '/usr/bin/clang++-17',
-                                         gpu_debug: '0'],
-                                        docker_opts
-                                    )
-                                }
+                            rocmtest([:]) {
+                                def sanitizers = "undefined"
+                                def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers} -D_GLIBCXX_DEBUG"
+                                cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'", compiler: '/usr/bin/clang++-17')
                             }
                         }
                     }
@@ -292,20 +256,9 @@ pipeline {
                     }
                     steps {
                         script {
-                            gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - HIP Clang Release", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
-                                def docker_opts
-                                stage('HIP Clang Release - Setup') {
-                                    docker_opts = setuprocmtest()
-                                }
-                                stage('HIP Clang Release - Build') {
-                                    buildrocmtest(
-                                        [flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getgputargets()}'",
-                                         compiler: '/opt/rocm/llvm/bin/clang++',
-                                         gpu_debug: '0'],
-                                        docker_opts
-                                    )
-                                    stash includes: 'build/*.deb', name: 'migraphx-package'
-                                }
+                            rocmtest([:]) {
+                                cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getgputargets()}'")
+                                stash includes: 'build/*.deb', name: 'migraphx-package'
                             }
                         }
                     }
@@ -317,19 +270,8 @@ pipeline {
                     }
                     steps {
                         script {
-                            gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - HIP Clang Release Navi32", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
-                                def docker_opts
-                                stage('HIP Clang Release Navi32 - Setup') {
-                                    docker_opts = setuprocmtest()
-                                }
-                                stage('HIP Clang Release Navi32 - Build') {
-                                    buildrocmtest(
-                                        [flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getnavi3xtargets()}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On",
-                                         compiler: '/opt/rocm/llvm/bin/clang++',
-                                         gpu_debug: '0'],
-                                        docker_opts
-                                    )
-                                }
+                            rocmtest([:]) {
+                                cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getnavi3xtargets()}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On")
                             }
                         }
                     }
@@ -341,19 +283,8 @@ pipeline {
                     }
                     steps {
                         script {
-                            gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - HIP Clang Release Navi4x", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
-                                def docker_opts
-                                stage('HIP Clang Release Navi4x - Setup') {
-                                    docker_opts = setuprocmtest()
-                                }
-                                stage('HIP Clang Release Navi4x - Build') {
-                                    buildrocmtest(
-                                        [flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getnavi4xtargets()}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On",
-                                         compiler: '/opt/rocm/llvm/bin/clang++',
-                                         gpu_debug: '0'],
-                                        docker_opts
-                                    )
-                                }
+                            rocmtest([:]) {
+                                cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getnavi4xtargets()}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On")
                             }
                         }
                     }
@@ -364,26 +295,15 @@ pipeline {
                         label rocmnodename('mi200+')
                     }
                     environment {
+                        // Disable MLIR since it doesnt work with all ub sanitizers
                         MIGRAPHX_DISABLE_MLIR = '1'
                     }
                     steps {
                         script {
-                            gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - HIP RTC Debug", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
-                                def docker_opts
-                                stage('HIP RTC Debug - Setup') {
-                                    docker_opts = setuprocmtest()
-                                }
-                                stage('HIP RTC Debug - Build') {
-                                    // Disable MLIR since it doesnt work with all ub sanitizers
-                                    def sanitizers = "undefined"
-                                    def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
-                                    buildrocmtest(
-                                        [flags: "-DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang -DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DMIGRAPHX_USE_HIPRTC=On -DGPU_TARGETS='${getgputargets()}'",
-                                         compiler: '/opt/rocm/llvm/bin/clang++',
-                                         gpu_debug: '1'],
-                                        docker_opts
-                                    )
-                                }
+                            rocmtest([:]) {
+                                def sanitizers = "undefined"
+                                def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
+                                cmake_build(flags: "-DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang -DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DMIGRAPHX_USE_HIPRTC=On -DGPU_TARGETS='${getgputargets()}'", gpu_debug: '1')
                             }
                         }
                     }
@@ -394,6 +314,8 @@ pipeline {
                         label rocmnodename('mi100+')
                     }
                     environment {
+                        // Since the purpose of this run is to verify all things MLIR supports,
+                        // enabling all possible types of offloads
                         MIGRAPHX_ENABLE_EXTRA_MLIR = '1'
                         MIGRAPHX_MLIR_USE_SPECIFIC_OPS = 'fused,attention,convolution,dot,convolution_backwards'
                         MIGRAPHX_ENABLE_MLIR_INPUT_FUSION = '1'
@@ -405,24 +327,11 @@ pipeline {
                     }
                     steps {
                         script {
-                            gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - MLIR Debug", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
-                                def docker_opts
-                                stage('MLIR Debug - Setup') {
-                                    docker_opts = setuprocmtest()
-                                }
-                                stage('MLIR Debug - Build') {
-                                    def sanitizers = "undefined"
-                                    // Note: the -fno-sanitize= is copied from upstream LLVM_UBSAN_FLAGS.
-                                    def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
-                                    // Since the purpose of this run is to verify all things MLIR supports,
-                                    // enabling all possible types of offloads
-                                    buildrocmtest(
-                                        [flags: "-DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang -DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_MLIR=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DGPU_TARGETS='${getgputargets()}'",
-                                         compiler: '/opt/rocm/llvm/bin/clang++',
-                                         gpu_debug: '0'],
-                                        docker_opts
-                                    )
-                                }
+                            rocmtest([:]) {
+                                // Note: the -fno-sanitize= is copied from upstream LLVM_UBSAN_FLAGS.
+                                def sanitizers = "undefined"
+                                def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
+                                cmake_build(flags: "-DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang -DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_MLIR=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DGPU_TARGETS='${getgputargets()}'")
                             }
                         }
                     }
@@ -438,14 +347,15 @@ pipeline {
                     }
                     steps {
                         script {
-                            gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - ONNX Runtime Tests", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Running stage', failureDescription: 'Failed stage', successDescription: 'Stage succeeded') {
-                                def docker_opts
-                                stage('ONNX Runtime Tests - Setup') {
-                                    docker_opts = setuponnxtest()
-                                }
-                                stage('ONNX Runtime Tests - Build') {
-                                    buildonnxtest(docker_opts)
-                                }
+                            rocmtest(setup: setuppackage, docker_args: '-u root') {
+                                sh '''
+                                    apt install half
+                                    #ls -lR
+                                    md5sum ./build/*.deb
+                                    dpkg -i ./build/*.deb
+                                    env
+                                    cd /onnxruntime && ./build_and_test_onnxrt.sh
+                                '''
                             }
                         }
                     }

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -742,9 +742,9 @@ struct driver
             catch(const skip_test& s)
             {
                 skipped.push_back({name, s.reason});
-                out() << color::fg_yellow << "[ SKIPPED  ] " << color::reset << color::bold 
-                      << name << color::reset;
-                if(!s.reason.empty())
+                out() << color::fg_yellow << "[ SKIPPED  ] " << color::reset << color::bold << name
+                      << color::reset;
+                if(not s.reason.empty())
                     out() << ": " << color::fg_yellow << s.reason << color::reset;
                 out() << std::endl;
                 return;
@@ -853,12 +853,12 @@ struct driver
               << color::reset << std::endl;
         if(not skipped.empty())
         {
-            out() << color::fg_yellow << "[ SKIPPED  ] " << skipped.size()
-                  << " tests skipped" << color::reset << std::endl;
+            out() << color::fg_yellow << "[ SKIPPED  ] " << skipped.size() << " tests skipped"
+                  << color::reset << std::endl;
             for(auto&& skip_info : skipped)
             {
                 out() << color::fg_yellow << "[ SKIPPED  ] " << skip_info.first << color::reset;
-                if(!skip_info.second.empty())
+                if(not skip_info.second.empty())
                     out() << ": " << color::fg_yellow << skip_info.second << color::reset;
                 out() << std::endl;
             }
@@ -936,16 +936,14 @@ inline void run(int argc, const char* argv[])
     static void __VA_ARGS__()
 
 // NOLINTNEXTLINE
-#define SKIP(...) test::skip(__VA_ARGS__)
-
-// NOLINTNEXTLINE
-#define TEST_CASE_SKIP(name, reason)                              \
-    static void name##_body();                                    \
-    static void name() {                                          \
-        (void)&name##_body;                                       \
-        test::skip(reason);                                       \
-    }                                                             \
-    TEST_CASE_REGISTER(name)                                      \
+#define TEST_CASE_SKIP(name, reason)                           \
+    static void name##_body();                                 \
+    static void name()                                         \
+    {                                                          \
+        (void)&name##_body; /* to avoid unused func warning */ \
+        test::skip(reason);                                    \
+    }                                                          \
+    TEST_CASE_REGISTER(name)                                   \
     static void name##_body()
 
 #ifdef __clang__

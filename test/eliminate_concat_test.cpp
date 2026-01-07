@@ -33,7 +33,6 @@
 #include <migraphx/optional.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/register_op.hpp>
-#include <migraphx/make_op.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 
@@ -171,7 +170,7 @@ struct concat_test_optimization
     test_allocation_model allocation() const { return test_allocation_model{}; }
 };
 
-static void run_pass(migraphx::module& m, concat_test_optimization opt = {})
+static void run_pass(migraphx::module& m, const concat_test_optimization& opt = {})
 {
     migraphx::run_passes(m, {migraphx::eliminate_concat{opt}, migraphx::dead_code_elimination{}});
 }

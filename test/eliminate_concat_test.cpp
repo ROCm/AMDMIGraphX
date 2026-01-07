@@ -23,6 +23,7 @@
  */
 #include <migraphx/eliminate_concat.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/normalize_attributes.hpp>
 #include <migraphx/op/concat.hpp>
@@ -35,10 +36,6 @@
 #include <migraphx/make_op.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
-
-#include <migraphx/instruction.hpp>
-#include <migraphx/iterator_for.hpp>
-#include <migraphx/json.hpp>
 
 struct test_concat : migraphx::auto_register_op<test_concat>
 {
@@ -174,99 +171,9 @@ struct concat_test_optimization
     test_allocation_model allocation() const { return test_allocation_model{}; }
 };
 
-static void print_make_op(const migraphx::operation& op)
-{
-    auto v = op.to_value();
-    if(op.name() == "test::allocate")
-    {
-        auto s = migraphx::from_value<migraphx::shape>(v.at("shape"));
-        std::cout << "make_allocate(" << migraphx::to_string_range(s.lens()) << ")";
-        // auto shape_string = "migraphx::shape{migraphx::shape::" + s.type_string() + ", {" +
-        // migraphx::to_string_range(s.lens()) + "}"; if(not s.standard())
-        //     shape_string += "{" + migraphx::to_string_range(s.strides()) + "}";
-        // shape_string += "}";
-        // fields.push_back("{\"shape\", " + shape_string + "}");
-    }
-    else if(op.name() == "simple_op")
-    {
-        std::cout << "simple_op{}";
-    }
-    else
-    {
-        std::vector<std::string> fields;
-        std::cout << "migraphx::make_op(\"" << op.name() << "\"";
-        if(not v.get_object().empty())
-        {
-            for(auto&& x : v)
-            {
-                fields.push_back("{\"" + x.get_key() + "\", " +
-                                 migraphx::to_string(x.without_key()) + "}");
-            }
-        }
-        if(not fields.empty())
-        {
-            std::cout << ", {" << migraphx::to_string_range(fields) + "}";
-        }
-        std::cout << ")";
-    }
-}
-
-static void print_module(migraphx::module& m, const std::string& module_name)
-{
-    std::cout << "migraphx::module " << module_name << ";\n";
-    std::cout << "{\n";
-    const std::unordered_map<std::string, std::string> op_var_name = {
-        {"test::allocate", "a"},
-        {"simple_op", "s"},
-        {"test::concat", "c"},
-        {"test::copy", "cp"},
-        {"load", "l"},
-        {"test::identity", "id"},
-        {"identity", "id"},
-        {"slice", "slice"},
-        {"multibroadcast", "broadcast"},
-    };
-    std::unordered_map<migraphx::instruction_ref, std::string> var_names;
-    std::unordered_map<std::string, int> var_counter;
-    auto last = std::prev(m.end());
-    for(auto ins : iterator_for(m))
-    {
-        // m.debug_print(ins);
-        std::vector<std::string> inputs;
-        std::transform(ins->inputs().begin(),
-                       ins->inputs().end(),
-                       std::back_inserter(inputs),
-                       [&](migraphx::instruction_ref i) { return var_names.at(i); });
-        if(ins->name() == "@return")
-        {
-            std::cout << "    " << module_name << ".add_return({"
-                      << migraphx::to_string_range(inputs) << "});\n";
-        }
-        else
-        {
-            std::string var_name =
-                op_var_name.at(ins->name()) + std::to_string(++var_counter[ins->name()]);
-            std::cout << "    auto " << var_name << " = " << module_name << ".add_instruction(";
-            print_make_op(ins->get_operator());
-            for(const auto& in : inputs)
-            {
-                std::cout << ", " << in;
-            }
-            std::cout << ");\n";
-            var_names[ins] = var_name;
-            if(ins == last)
-                std::cout << "    " << module_name << ".add_return({" << var_name << "});\n";
-        }
-    }
-    std::cout << "}\n";
-}
-
 static void run_pass(migraphx::module& m, concat_test_optimization opt = {})
 {
-    print_module(m, "m1");
     migraphx::run_passes(m, {migraphx::eliminate_concat{opt}, migraphx::dead_code_elimination{}});
-    std::cout << "run_pass(m1);\n";
-    print_module(m, "m2");
 }
 
 struct simple_op

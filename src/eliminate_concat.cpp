@@ -39,7 +39,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
 
-
 struct concat_optimizer
 {
     module* m = nullptr;
@@ -91,10 +90,6 @@ struct concat_optimizer
             std::back_inserter(allocations),
             [&](instruction_ref x) { return instruction::get_output_alias(x, true); });
 
-        // if(std::any_of(allocations.begin(), allocations.end(), [&](auto x) {
-        //        return x->name() != am.name();
-        //    }))
-        //     return;
 
         // Need to sort the allocations, so that we know where to
         // insert the "super"-allocation
@@ -149,26 +144,6 @@ void eliminate_concat::apply(module& m) const
         if(ncopies > 1)
             continue;
         co.replace_concat(ins, axis);
-        // // If any inputs are builtin or context free then abort
-        // // If any inputs are used more than once, then abort since there could
-        // // be errors due to aliasing
-        // if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [](auto arg) {
-        //        return arg->name().front() == '@' or
-        //               (arg->get_operator().is_context_free() and
-        //                not contains({"concat", "identity"}, arg->name())) or
-        //               arg->outputs().size() > 1;
-        //    }))
-        //     continue;
-        // // We can only do this optimization when concat axis is either the leftmost
-        // // axis OR the sizes to the left of this axis are all equal to 1
-        // // Since we've already checked that the non-axis dimensions are identical
-        // // we only need to check the first input
-        // std::size_t axis_index = tune_axis(lens.size(), concat_op->axis, concat_op->name());
-        // if(axis_index == 0 or
-        //    std::all_of(lens.begin(), lens.begin() + axis_index, [](auto x) { return x == 1; }))
-        // {
-        //     co.replace_concat(ins, axis_index);
-        // }
     }
 }
 } // namespace MIGRAPHX_INLINE_NS

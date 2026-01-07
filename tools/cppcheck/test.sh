@@ -170,7 +170,6 @@ cppcheck -j $(nproc) \
     --suppress=unassignedVariable \
     --suppress=unreachableCode \
     --suppress=unreadVariable \
-    --suppress=unmatchedSuppression \
     --suppress=unusedAllocatedMemory \
     --suppress=unusedStructMember \
     --cppcheck-build-dir="$BUILD_DIR" $TEST_FILES

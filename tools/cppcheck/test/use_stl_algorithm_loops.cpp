@@ -85,8 +85,3 @@ void test_complex_pattern_should_not_trigger()
         arr[i] = arr[i - 1] + other_arr[i];
     }
 }
-
-// Mock functions for compilation
-int rand() { return 0; }
-int abs(int x) { return x > 0 ? x : -x; }
-int max(int a, int b) { return a > b ? a : b; }

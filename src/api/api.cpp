@@ -38,6 +38,7 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/convert_to_json.hpp>
+#include <migraphx/source_location.hpp>
 #include <array>
 #include <algorithm>
 #include <cstdarg>
@@ -54,7 +55,8 @@ extern "C" MIGRAPHX_C_EXPORT void migraphx_test_private_disable_exception_catch(
 #endif
 
 template <class F>
-migraphx_status try_(F f, bool output = true) // NOLINT
+migraphx_status
+try_(F f, bool output = true, source_location llc = source_location::current()) // NOLINT
 {
 #ifdef MIGRAPHX_BUILD_TESTING
     if(disable_exception_catch)
@@ -71,7 +73,7 @@ migraphx_status try_(F f, bool output = true) // NOLINT
         catch(const migraphx::exception& ex)
         {
             if(output)
-                std::cerr << "MIGraphX Error: " << ex.what() << std::endl;
+                std::cerr << llc.function_name() << ": Error: " << ex.what() << std::endl;
             if(ex.error > 0)
                 return migraphx_status(ex.error);
             else
@@ -80,7 +82,7 @@ migraphx_status try_(F f, bool output = true) // NOLINT
         catch(const std::exception& ex)
         {
             if(output)
-                std::cerr << "MIGraphX Error: " << ex.what() << std::endl;
+                std::cerr << llc.function_name() << ": Error: " << ex.what() << std::endl;
             return migraphx_status_unknown_error;
         }
         catch(...)
@@ -285,6 +287,13 @@ static void add_calibration_data(quantize_fp8_options& options, parameter_map& d
 static void quantize_fp8_wrap(program& prog, const target& t, quantize_fp8_options& options)
 {
     migraphx::quantize_fp8(prog, t, options.calibration);
+}
+
+static size_t get_onnx_operators_size() { return migraphx::get_onnx_operators().size(); }
+
+static char* get_onnx_operator_name_at_index(std::size_t index)
+{
+    return const_cast<char*>(get_onnx_operators().at(index).c_str()); // NOLINT
 }
 
 #ifdef __clang__
@@ -2411,6 +2420,19 @@ extern "C" migraphx_status migraphx_quantize_fp8(migraphx_program_t prog,
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
         migraphx::quantize_fp8_wrap((prog->object), (target->object), (options->object));
     });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_get_onnx_operator_name_at_index(char** out, size_t index)
+{
+    auto api_error_result =
+        migraphx::try_([&] { *out = migraphx::get_onnx_operator_name_at_index((index)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_get_onnx_operators_size(size_t* out)
+{
+    auto api_error_result = migraphx::try_([&] { *out = migraphx::get_onnx_operators_size(); });
     return api_error_result;
 }
 

@@ -46,4 +46,3 @@ void test_negative_cases()
     // Should not trigger: custom functions with similar names
     myLaunchKernel(args);
 }
-

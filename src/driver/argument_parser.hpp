@@ -400,7 +400,7 @@ struct argument_parser
             auto required_usages = get_argument_usages(get_required_arguments());
             if(required_usages.empty() and input_argument)
                 required_usages.push_back(input_argument->metavar);
-            required_usages.insert(required_usages.begin(), "<options>");
+            required_usages.push_back("<options>");
             print_usage(required_usages);
             std::cout << std::endl;
             if(self.find_argument([](const auto& arg) { return arg.nargs == 0; }))

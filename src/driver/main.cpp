@@ -102,8 +102,10 @@ struct logger_options
     std::string log_level;
     std::vector<std::string> log_files;
 
-    void parse(migraphx::driver::argument_parser& ap)
+    void parse(migraphx::driver::argument_parser& ap, bool hidden)
     {
+        if(hidden)
+            return;
         ap(log_level,
            {"--log-level"},
            ap.help("Set log level (none/0, error/1, warn/2, info/3, debug/4, trace/5)"),
@@ -161,60 +163,22 @@ struct logger_options
     }
 };
 
-bool parse_and_apply_logger_options(std::vector<std::string>& args)
-{
-    // Extract only logger option flags from args for parsing
-    std::vector<std::string> logger_args;
-    auto it = args.begin();
-    while(it != args.end())
-    {
-        if(*it == "--log-level")
-        {
-            logger_args.push_back(*it);
-            it = args.erase(it);
-            // Grab the single value if present
-            if(it != args.end() and not it->empty() and (*it)[0] != '-')
-            {
-                logger_args.push_back(*it);
-                it = args.erase(it);
-            }
-        }
-        else if(*it == "--log-file")
-        {
-            logger_args.push_back(*it);
-            it = args.erase(it);
-            // Grab all values until the next flag (for unlimited log files)
-            while(it != args.end() and not it->empty() and (*it)[0] != '-')
-            {
-                logger_args.push_back(*it);
-                it = args.erase(it);
-            }
-        }
-        else
-        {
-            ++it;
-        }
-    }
-
-    if(not logger_args.empty())
-    {
-        logger_options opts;
-        migraphx::driver::argument_parser ap;
-        opts.parse(ap);
-
-        if(ap.parse(logger_args))
-            return false;
-
-        opts.apply();
-    }
-
-    return true;
-}
 } // namespace
 
 namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
+
+// Allow access to logger opts
+static logger_options& get_logger_options()
+{
+    static logger_options opts;
+    return opts;
+}
+
+// Used by command.hpp to access logger options so that it can be the last one listed under help
+void register_logger_options(argument_parser& ap, bool hidden) { get_logger_options().parse(ap, hidden); }
+void apply_logger_options() { get_logger_options().apply(); }
 
 inline static std::string get_version()
 {
@@ -1124,9 +1088,7 @@ int main(int argc, const char* argv[], const char* envp[])
     // Save original args for display purposes before they get modified
     const std::vector<std::string> original_args = args;
 
-    // Parse and apply logger options (--log-level, --log-file)
-    if(not parse_and_apply_logger_options(args))
-        return 1;
+    migraphx::driver::argument_parser ap;
 
     // no argument, print the help infomration by default
     if(args.empty())
@@ -1158,8 +1120,7 @@ int main(int argc, const char* argv[], const char* envp[])
         auto start_time = std::chrono::system_clock::now();
         std::cout << "[" << get_formatted_timestamp(start_time) << "]" << std::endl;
 
-        m.at(cmd)(argv[0],
-                  {args.begin() + 1, args.end()}); // run driver command found in commands map
+        m.at(cmd)(ap, {args.begin() + 1, args.end()}); // run driver command found in commands map
 
         // Dump all the MIGraphX (consumed) Environment Variables:
         const auto mgx_env_map = migraphx::get_all_envs();
@@ -1182,7 +1143,7 @@ int main(int argc, const char* argv[], const char* envp[])
     }
     else
     {
-        run_command<main_command>(argv[0], args);
+        run_command<main_command>(ap, args);
     }
 
     return 0;

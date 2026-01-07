@@ -54,6 +54,7 @@ add_library(migraphx
     autocast_fp8.cpp
     auto_contiguous.cpp
     base64.cpp
+    color.cpp
     common.cpp
     common_dims.cpp
     compile_src.cpp

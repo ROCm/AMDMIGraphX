@@ -21,40 +21,39 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_COLOR_HPP
-#define MIGRAPHX_GUARD_RTGLIB_COLOR_HPP
+#include <migraphx/color.hpp>
+#include <sstream>
 
-#include <iostream>
-#include <string>
-#include <migraphx/config.hpp>
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-enum class color
+std::ostream& operator<<(std::ostream& os, const color& c)
 {
-    reset      = 0,
-    bold       = 1,
-    underlined = 4,
-    fg_red     = 31,
-    fg_green   = 32,
-    fg_yellow  = 33,
-    fg_blue    = 34,
-    fg_cyan    = 36,
-    fg_white   = 37,
-    fg_default = 39,
-    bg_red     = 41,
-    bg_green   = 42,
-    bg_yellow  = 43,
-    bg_blue    = 44,
-    bg_default = 49
-};
+#ifndef _WIN32
+    int fd = -1;
+    if(&os == &std::cout)
+        fd = STDOUT_FILENO;
+    else if(&os == &std::cerr)
+        fd = STDERR_FILENO;
+    if(fd != -1 && isatty(fd) != 0)
+        return os << "\033[" << static_cast<std::size_t>(c) << "m";
+#else
+    (void)c;
+#endif
+    return os;
+}
 
-MIGRAPHX_EXPORT std::ostream& operator<<(std::ostream& os, const color& c);
-
-MIGRAPHX_EXPORT std::string colorize(color c, const std::string& s);
+std::string colorize(color c, const std::string& s)
+{
+    std::stringstream ss;
+    ss << c << s << color::reset;
+    return ss.str();
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-#endif

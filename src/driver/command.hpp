@@ -41,9 +41,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 inline auto& get_commands()
 {
     // NOLINTNEXTLINE
-    static std::unordered_map<
-        std::string,
-        std::function<void(const std::string& exe_name, std::vector<std::string> args)>>
+    static std::unordered_map<std::string,
+                              std::function<void(argument_parser&, std::vector<std::string>)>>
         m;
     return m;
 }
@@ -67,19 +66,22 @@ const std::string& command_name()
     return name;
 }
 
+// Forward declarations for logger options defined in driver main
+void register_logger_options(argument_parser& ap, bool hidden);
+void apply_logger_options();
+
 template <class T>
-void run_command(const std::string& exe_name,
-                 const std::vector<std::string>& args,
-                 bool add_help = false)
+void run_command(argument_parser& ap, const std::vector<std::string>& args, bool add_help = false)
 {
     T x;
-    argument_parser ap;
-    ap.set_exe_name(exe_name + " " + command_name<T>());
+    ap.set_exe_name(ap.get_exe_name() + " " + command_name<T>());
     if(add_help)
         ap(nullptr, {"-h", "--help"}, ap.help("Show help"), ap.show_help());
     x.parse(ap);
+    register_logger_options(ap, not add_help); // hidden when no subcommand
     if(ap.parse(args))
         return;
+    apply_logger_options();
     x.run();
 }
 
@@ -87,8 +89,8 @@ template <class T>
 int auto_register_command()
 {
     auto& m              = get_commands();
-    m[command_name<T>()] = [](const std::string& exe_name, const std::vector<std::string>& args) {
-        run_command<T>(exe_name, args, true);
+    m[command_name<T>()] = [](argument_parser& ap, const std::vector<std::string>& args) {
+        run_command<T>(ap, args, true);
     };
     return 0;
 }

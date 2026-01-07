@@ -6,27 +6,22 @@ void test_unnecessary_nested_blocks_1()
 {
     int x = 5;
     // TODO: migraphx-NestedBlocks false negative - pure nested blocks not detected
-    {
-        {
-            x = 10;
-        }
-    }
-    (void)x; // Use variable to avoid warning
-    }
+    {{x = 10;
+}
+}
+(void)x; // Use variable to avoid warning
+}
 
 void test_unnecessary_nested_blocks_2()
 {
     int y = 10;
     // TODO: migraphx-NestedBlocks false negative - pure nested blocks not detected
-    {
-        {
-            {
-                y = 20;
-            }
-        }
-    }
-    (void)y; // Use variable to avoid warning
-    }
+    {{{y = 20;
+}
+}
+}
+(void)y; // Use variable to avoid warning
+}
 
 void test_necessary_scope_blocks()
 {

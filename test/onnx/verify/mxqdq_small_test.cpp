@@ -26,9 +26,9 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-TEST_CASE(mxfixneuron_small_test)
+TEST_CASE(mxqdq_small_test)
 {
-    migraphx::program p = read_onnx("mxfixneuron_small_test.onnx");
+    migraphx::program p = read_onnx("mxqdq_small_test.onnx");
     p.compile(migraphx::make_target("ref"));
     std::vector<std::size_t> input_lens{4, 4};
     auto input_type = migraphx::shape::float_type;

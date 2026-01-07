@@ -56,4 +56,3 @@ std::string colorize(color c, const std::string& s)
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-

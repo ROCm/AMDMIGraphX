@@ -131,11 +131,12 @@ static auto& max_enabled_level()
 
 static void update_enabled_level(const std::vector<std::optional<sink_entry>>& sinks)
 {
-    auto it = std::max_element(sinks.begin(), sinks.end(), by(std::less<>{}, [](const auto& entry) -> severity {
-        if(entry.has_value())
-            return entry->level;
-        return severity::none;
-    }));
+    auto it = std::max_element(
+        sinks.begin(), sinks.end(), by(std::less<>{}, [](const auto& entry) -> severity {
+            if(entry.has_value())
+                return entry->level;
+            return severity::none;
+        }));
     severity max_level = it == sinks.end() ? severity::none : (*it)->level;
     max_enabled_level().store(max_level);
 }
@@ -162,7 +163,8 @@ size_t add_sink(sink s, severity level)
     size_t id = 0;
     access_sinks([&](std::vector<std::optional<sink_entry>>& sinks) {
         // Find an empty slot or add a new one
-        auto it = std::find_if(sinks.begin(), sinks.end(), [](const auto& e) { return not e.has_value(); });
+        auto it = std::find_if(
+            sinks.begin(), sinks.end(), [](const auto& e) { return not e.has_value(); });
         id = it - sinks.begin();
         if(it == sinks.end())
         {

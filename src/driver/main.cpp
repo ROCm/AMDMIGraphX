@@ -177,7 +177,10 @@ static logger_options& get_logger_options()
 }
 
 // Used by command.hpp to access logger options so that it can be the last one listed under help
-void register_logger_options(argument_parser& ap, bool hidden) { get_logger_options().parse(ap, hidden); }
+void register_logger_options(argument_parser& ap, bool hidden)
+{
+    get_logger_options().parse(ap, hidden);
+}
 void apply_logger_options() { get_logger_options().apply(); }
 
 inline static std::string get_version()

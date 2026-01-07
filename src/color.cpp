@@ -39,7 +39,7 @@ std::ostream& operator<<(std::ostream& os, const color& c)
         fd = STDOUT_FILENO;
     else if(&os == &std::cerr)
         fd = STDERR_FILENO;
-    if(fd != -1 && isatty(fd) != 0)
+    if(fd != -1 and isatty(fd) != 0)
         return os << "\033[" << static_cast<std::size_t>(c) << "m";
 #else
     (void)c;

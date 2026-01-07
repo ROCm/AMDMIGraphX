@@ -141,7 +141,7 @@ static void update_enabled_level(const std::vector<std::optional<sink_entry>>& s
 }
 
 // Thread-safe access to sinks (stderr sink is automatically initialized at index 0)
-static void access_sinks(std::function<void(std::vector<std::optional<sink_entry>>&)> f)
+static void access_sinks(const std::function<void(std::vector<std::optional<sink_entry>>&)>& f)
 {
     static std::mutex m;
     static auto sinks = []() {

@@ -2,14 +2,11 @@
 // Note: This test file defines mock functions to avoid actual memory operations.
 // The mock functions are defined before use to satisfy cppcheck's analysis.
 
+#include <cstdio>
+#include <cstdlib>
+
 // Forward declarations and mocks for HIP functions
 // TODO: migraphx-UseManagePointer false positive - forward declarations trigger the check
-typedef struct FILE FILE;
-// cppcheck-suppress migraphx-UseManagePointer
-int fclose(FILE*);
-// cppcheck-suppress migraphx-UseManagePointer
-void free(void*);
-void* malloc(unsigned long);
 // cppcheck-suppress migraphx-UseManagePointer
 int hipFree(void*);
 // cppcheck-suppress migraphx-UseManagePointer
@@ -58,20 +55,3 @@ void test_negative_cases()
     // Should not trigger: allocation functions (not deallocation)
     hipMalloc(nullptr, 100);
 }
-
-// Mock function implementations
-// TODO: migraphx-UseManagePointer false positive - function definitions trigger the check
-// cppcheck-suppress migraphx-UseManagePointer
-int fclose(FILE*) { return 0; }
-// cppcheck-suppress migraphx-UseManagePointer
-void free(void*) {}
-void* malloc(unsigned long) { return nullptr; }
-// cppcheck-suppress migraphx-UseManagePointer
-int hipFree(void*) { return 0; }
-// cppcheck-suppress migraphx-UseManagePointer
-int hipHostFree(void*) { return 0; }
-// cppcheck-suppress migraphx-UseManagePointer
-int hipStreamDestroy(void*) { return 0; }
-// cppcheck-suppress migraphx-UseManagePointer
-int hipEventDestroy(void*) { return 0; }
-int hipMalloc(void**, unsigned long) { return 0; }

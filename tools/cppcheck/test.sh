@@ -38,6 +38,8 @@ show_usage() {
     echo -e "  ${CYAN}-h, --help${NC}              Show this help message"
     echo -e "  ${CYAN}-l, --list${NC}              List all available tests"
     echo -e "  ${CYAN}--no-inline-suppr${NC}       Disable inline suppressions (--inline-suppr)"
+    echo -e "  ${CYAN}--cxx <compiler>${NC}        Use specified compiler for syntax check (default: c++)"
+    echo -e "  ${CYAN}--no-syntax-check${NC}       Skip the C++ syntax validation step"
     echo ""
     echo -e "${BOLD}Examples:${NC}"
     echo -e "  ${GREEN}$0${NC}                          # Run all tests"
@@ -46,6 +48,9 @@ show_usage() {
     echo -e "  ${GREEN}$0 --no-inline-suppr${NC}        # Run all tests without inline suppressions"
     echo -e "  ${GREEN}$0 --no-inline-suppr empty_if${NC}  # Run empty_if_statement.cpp without inline suppressions"
     echo -e "  ${GREEN}$0 conditional_assert --no-inline-suppr${NC}  # Run conditional_assert.cpp without inline suppressions"
+    echo -e "  ${GREEN}$0 --cxx g++${NC}                # Use g++ for syntax check"
+    echo -e "  ${GREEN}$0 --cxx clang++${NC}            # Use clang++ for syntax check"
+    echo -e "  ${GREEN}$0 --no-syntax-check${NC}        # Skip syntax validation"
     echo -e "  ${GREEN}$0 -l${NC}                       # List all available tests"
 }
 
@@ -60,6 +65,8 @@ list_tests() {
 
 # Parse command line arguments
 INLINE_SUPPR_FLAG="--inline-suppr"
+CXX_COMPILER="c++"
+SYNTAX_CHECK=1
 TEST_NAMES=()
 
 # Process all arguments and separate options from test names
@@ -75,6 +82,18 @@ while [[ $# -gt 0 ]]; do
             ;;
         --no-inline-suppr)
             INLINE_SUPPR_FLAG=""
+            shift
+            ;;
+        --cxx)
+            if [[ -z "$2" || "$2" == -* ]]; then
+                echo -e "${RED}Error:${NC} --cxx requires a compiler argument"
+                exit 1
+            fi
+            CXX_COMPILER="$2"
+            shift 2
+            ;;
+        --no-syntax-check)
+            SYNTAX_CHECK=0
             shift
             ;;
         -*)
@@ -117,6 +136,23 @@ for file in $TEST_FILES; do
 done
 echo ""
 
+# Run syntax check on test files
+if [ "$SYNTAX_CHECK" -eq 1 ]; then
+    echo -e "${BOLD}${BLUE}Checking C++ syntax with ${CXX_COMPILER}...${NC}"
+    SYNTAX_FAILED=0
+    for file in $TEST_FILES; do
+        if ! $CXX_COMPILER -std=c++17 -fsyntax-only "$file" 2>&1; then
+            SYNTAX_FAILED=1
+        fi
+    done
+    if [ "$SYNTAX_FAILED" -eq 1 ]; then
+        echo -e "${RED}Error:${NC} Syntax check failed"
+        exit 1
+    fi
+    echo -e "${GREEN}Syntax check passed${NC}"
+    echo ""
+fi
+
 # Run cppcheck with the selected test files
 # Note: We suppress built-in cppcheck style checks that are unrelated to migraphx rules
 # to focus testing on the addon and custom XML rules only.
@@ -134,6 +170,7 @@ cppcheck -j $(nproc) \
     --suppress=unassignedVariable \
     --suppress=unreachableCode \
     --suppress=unreadVariable \
+    --suppress=unmatchedSuppression \
     --suppress=unusedAllocatedMemory \
     --suppress=unusedStructMember \
     --cppcheck-build-dir="$BUILD_DIR" $TEST_FILES

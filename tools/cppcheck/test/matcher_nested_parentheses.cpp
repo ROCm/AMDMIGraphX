@@ -6,6 +6,12 @@
 namespace match {
 struct matcher_t
 {
+    // Allow chaining like match::name("x")(match::args(...))
+    template <class... Args>
+    matcher_t operator()(Args...) const
+    {
+        return {};
+    }
 };
 template <class... Args>
 matcher_t name(Args...)
@@ -76,7 +82,7 @@ struct test_bind_exception
     // The bind exception requires bind to be immediately before nested parens
     auto matcher() const { return bind((((match::name("mul"))))); }
 
-    match::matcher_t bind(match::matcher_t m) { return m; }
+    match::matcher_t bind(match::matcher_t m) const { return m; }
 };
 
 struct test_shallow_nesting

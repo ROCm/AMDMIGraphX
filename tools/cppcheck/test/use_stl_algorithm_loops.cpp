@@ -1,3 +1,7 @@
+#include <algorithm>
+#include <cmath>
+#include <cstdlib>
+
 // Test for useStlAlgorithm rules from rules.xml (for loop patterns)
 
 void test_for_loop_std_fill_pattern()
@@ -38,7 +42,7 @@ void test_for_loop_std_transform_binary_pattern()
     // cppcheck-suppress useStlAlgorithm
     for(int i = 0; i < 10; i++)
     {
-        arr[i] = max(other_arr[i], arr[i]);
+        arr[i] = std::max(other_arr[i], arr[i]);
     }
 }
 

@@ -1,3 +1,5 @@
+#include <string>
+
 // Test for UseSmartPointer check
 
 void test_positive_cases()

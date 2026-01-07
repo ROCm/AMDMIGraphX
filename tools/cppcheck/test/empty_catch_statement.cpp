@@ -1,4 +1,5 @@
 // Test for EmptyCatchStatement check
+#include <iostream>
 #include <stdexcept>
 
 void test_empty_catch()

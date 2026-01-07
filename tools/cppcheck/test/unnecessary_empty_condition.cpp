@@ -1,4 +1,6 @@
 // Test for UnnecessaryEmptyCondition check
+#include <cstddef>
+#include <string>
 #include <vector>
 
 void test_positive_cases()

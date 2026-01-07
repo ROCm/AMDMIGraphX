@@ -1,5 +1,6 @@
 // Test for UseDeviceLaunch check
 
+#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 
@@ -14,7 +15,7 @@ int hipMalloc(void**, size_t) { return 0; }
 int hipMemcpy(void*, const void*, size_t, hipMemcpyKind) { return 0; }
 // TODO: migraphx-UseDeviceLaunch false positive - function definition triggers the check
 // cppcheck-suppress migraphx-UseDeviceLaunch
-int hipLaunchKernelGGL(void*, int, int, int, int, ...) { return 0; }
+int hipLaunchKernelGGL(int, int, int, int, int, ...) { return 0; }
 void myLaunchKernel(int) {}
 
 void test_positive_cases()
@@ -22,13 +23,14 @@ void test_positive_cases()
     // Should trigger: hipLaunchKernelGGL usage
     int gridSize  = 1;
     int blockSize = 256;
+    int args      = 0;
 
     // cppcheck-suppress migraphx-UseDeviceLaunch
-    hipLaunchKernelGGL(kernel, gridSize, blockSize, 0, 0, args);
+    hipLaunchKernelGGL(0, gridSize, blockSize, 0, 0, args);
 
     // Should trigger: another hipLaunchKernelGGL call
     // cppcheck-suppress migraphx-UseDeviceLaunch
-    hipLaunchKernelGGL(another_kernel, dim3(1), dim3(256), 0, nullptr);
+    hipLaunchKernelGGL(1, dim3(1), dim3(256), 0, 0);
 }
 
 void test_negative_cases()
@@ -44,5 +46,6 @@ void test_negative_cases()
     printf("Hello world\n");
 
     // Should not trigger: custom functions with similar names
+    int args = 0;
     myLaunchKernel(args);
 }

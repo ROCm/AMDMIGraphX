@@ -53,8 +53,8 @@ struct test_deep_nesting
     // Should trigger: 4 levels - name(either_arg(name(args(is_constant()))))
     auto matcher() const
     {
-        // cppcheck-suppress migraphx-MatcherNestedParentheses
         return match::name("mul")(
+            // cppcheck-suppress migraphx-MatcherNestedParentheses
             match::either_arg(0, 1)(match::name("add")(match::args(match::is_constant()))));
     }
 };
@@ -64,8 +64,8 @@ struct test_five_levels
     // Should trigger: 5 levels - name(either_arg(name(args(name(used_once())))))
     auto matcher() const
     {
-        // cppcheck-suppress migraphx-MatcherNestedParentheses
         return match::name("mul")(match::either_arg(0, 1)(
+            // cppcheck-suppress migraphx-MatcherNestedParentheses
             match::name("add")(match::args(match::name("conv")(match::used_once())))));
     }
 };

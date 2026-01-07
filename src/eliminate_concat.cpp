@@ -90,7 +90,6 @@ struct concat_optimizer
             std::back_inserter(allocations),
             [&](instruction_ref x) { return instruction::get_output_alias(x, true); });
 
-
         // Need to sort the allocations, so that we know where to
         // insert the "super"-allocation
         auto sorted_allocations = allocations;

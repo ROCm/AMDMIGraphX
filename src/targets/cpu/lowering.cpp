@@ -181,7 +181,7 @@ struct cpu_pad
     // Calculate reflected index using triangle wave formula
     static std::size_t reflect_index(int64_t idx, std::size_t size)
     {
-        if(size == 1)
+        if(size <= 1)
             return 0;
 
         auto period = size - 1;
@@ -197,6 +197,7 @@ struct cpu_pad
     // Map output index to input index for reflect/edge padding
     std::size_t map_index(int64_t idx, std::size_t dim_size) const
     {
+        assert(dim_size > 0 and dim_size <= std::numeric_limits<std::int64_t>::max());
         if(idx >= 0 and idx < static_cast<int64_t>(dim_size))
             return static_cast<std::size_t>(idx);
         if(op.mode == op::pad::reflect_pad)

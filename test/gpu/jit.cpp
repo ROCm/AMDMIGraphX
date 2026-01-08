@@ -375,7 +375,8 @@ TEST_CASE(compile_math)
         "max(x, x)",
         "min(x, x)",
         "pow(x, 0)",
-        "pow(x, x)",
+        // TODO: https://github.com/llvm/llvm-project/pull/171212  ETA ROCm 7.2.1
+        // "pow(x, x)",
         "remainder(x,x)",
         "round(x)",
         "rsqrt(x)",

@@ -828,6 +828,19 @@ std::ostream& operator<<(std::ostream& os, const shape& x)
     return os;
 }
 
+bool shape::same_lens(const shape& x, const shape& y)
+{
+    if(x.dynamic() and y.dynamic())
+    {
+        return x.dyn_dims() == y.dyn_dims();
+    }
+    else if(x.dynamic() or y.dynamic())
+    {
+        MIGRAPHX_THROW("SHAPE: same_lens() called on mixed dynamic and static shapes");
+    }
+    return x.lens() == y.lens();
+}
+
 shape::type_t shape::parse_type(const std::string& s)
 {
     static const std::unordered_map<std::string, shape::type_t> m = {

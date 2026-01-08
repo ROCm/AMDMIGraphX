@@ -46,7 +46,7 @@ static literal get_scalar(instruction_ref ins)
     if(contains({"contiguous", "broadcast", "multibroadcast"}, ins->name()))
         return get_scalar(ins->inputs().front());
     const auto& s = ins->get_shape();
-    if(s.elements() != 1 and not(s.scalar()))
+    if(s.dynamic() or (s.elements() != 1 and not(s.scalar())))
         return {};
     if(not ins->can_eval())
         return {};
@@ -340,16 +340,20 @@ struct pointwise_reshape : rewrite_reshapes_base
     static std::string name() { return "pointwise"; }
 };
 
-struct pointwise_broadcast_pointwise
+struct pointwise_broadcast_pointwise : match::supports_dynamic_shapes
 {
     auto matcher() const
     {
+        auto pointwise = match::name("pointwise")(match::used_once()).bind("x");
         auto broadcast_pointwise =
-            match::name("multibroadcast")(
-                match::used_once(),
-                match::args(match::name("pointwise")(match::used_once()).bind("x")))
+            match::name("multibroadcast")(match::used_once(), match::args(pointwise))
                 .bind("broadcast");
-        return match::name("pointwise")(match::any_of[match::inputs()](broadcast_pointwise));
+        auto dyn_broadcast_pointwise = match::name("multibroadcast")(match::used_once(),
+                                                                     match::nargs(2),
+                                                                     match::arg(1)(pointwise))
+                                           .bind("broadcast");
+        return match::name("pointwise")(match::any_of[match::inputs()](
+            match::any_of(broadcast_pointwise, dyn_broadcast_pointwise)));
     }
 
     void apply(module& m, const match::matcher_result& r) const

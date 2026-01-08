@@ -67,6 +67,35 @@ TEST_CASE(single)
     EXPECT(p1 == p2);
 }
 
+TEST_CASE(single_dyn)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 4}, {3, 3}, {}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto z    = mm->add_parameter("z", s);
+        auto add1 = mm->add_instruction(migraphx::make_op("add"), x, y);
+        auto pass = mm->add_instruction(pass_op{}, add1);
+        auto add2 = mm->add_instruction(migraphx::make_op("add"), pass, z);
+        mm->add_return({add2});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto z    = mm->add_parameter("z", s);
+        auto add1 = add_pointwise(p2, "main:pointwise0", {x, y}, single_pointwise("add"));
+        auto pass = mm->add_instruction(pass_op{}, add1);
+        auto add2 = add_pointwise(p2, "main:pointwise1", {pass, z}, single_pointwise("add"));
+        mm->add_return({add2});
+    }
+    EXPECT(p1 == p2);
+}
+
 TEST_CASE(double_add)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};

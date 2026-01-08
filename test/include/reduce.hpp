@@ -61,9 +61,16 @@ migraphx::module_ref add_reduce_module(migraphx::program& p,
     rm->set_bypass();
     std::vector<migraphx::instruction_ref> params;
     std::transform(inputs.begin(), inputs.end(), std::back_inserter(params), [&](auto input) {
-        return rm->add_parameter(
-            "x" + std::to_string(params.size()),
-            migraphx::shape{input->get_shape().type(), input->get_shape().lens()});
+        migraphx::shape s;
+        if(input->get_shape().dynamic())
+        {
+            s = input->get_shape();
+        }
+        else
+        {
+            s = migraphx::shape{input->get_shape().type(), input->get_shape().lens()};
+        }
+        return rm->add_parameter("x" + std::to_string(params.size()), s);
     });
     auto r = f(rm, params, axes);
     auto_add_return(rm, r);

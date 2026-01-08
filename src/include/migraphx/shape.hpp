@@ -359,6 +359,8 @@ struct MIGRAPHX_EXPORT shape
     MIGRAPHX_EXPORT friend bool operator!=(const shape& x, const shape& y);
     MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const shape& x);
 
+    static bool same_lens(const shape& x, const shape& y);
+
     template <class T>
     struct as
     {

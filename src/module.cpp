@@ -60,7 +60,7 @@ struct module_impl
     std::string name;
     uint32_t nparams = 0;
     bool bypass      = false; // used for skipping compiler passes
-    std::string tag; // optional tag for categorizing/identifying modules
+    std::string tag;          // optional tag for categorizing/identifying modules
     bit_signal<64> changed{};
 
     bool contains(instruction_ref ins) const

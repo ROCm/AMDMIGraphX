@@ -831,7 +831,8 @@ struct find_mlir_fused_geg_ops
         return true;
     }
 
-    // Check if instruction is a gpu::mlir_op with a tag indicating standalone or gemm_pointwise fusion
+    // Check if instruction is a gpu::mlir_op with a tag indicating standalone or gemm_pointwise
+    // fusion
     static bool is_mlir_fusible_gemm_op(instruction_ref ins)
     {
         if(ins->name() != "gpu::mlir_op")
@@ -841,8 +842,7 @@ struct find_mlir_fused_geg_ops
             return false;
 
         auto tag = ins->module_inputs().front()->get_tag();
-        return tag == "standalone_dot" or
-               tag == "standalone_convolution" or
+        return tag == "standalone_dot" or tag == "standalone_convolution" or
                tag == "gemm_pointwise";
     }
 
@@ -911,15 +911,17 @@ struct find_mlir_fused_geg_ops
 
     /*
      * Matches:
-     * gpu::mlir_op(standalone_dot/standalone_convolution/gemm_pointwise) <binds to "first_gemm_based_op"> ->
-     * gpu::mlir_op(standalone_dot/standalone_convolution/gemm_pointwise) <matcher result, binds to "second_gemm_op">
+     * gpu::mlir_op(standalone_dot/standalone_convolution/gemm_pointwise) <binds to
+     * "first_gemm_based_op"> -> gpu::mlir_op(standalone_dot/standalone_convolution/gemm_pointwise)
+     * <matcher result, binds to "second_gemm_op">
      */
     auto matcher() const
     {
         auto mlir_gemm_op = match::make_basic_pred_matcher(&is_mlir_fusible_gemm_op);
 
         auto first_mlir_op = mlir_gemm_op.bind("first_gemm_based_op");
-        // this is specifically disallowing multi out from the first submodule, which rocMLIR does not support
+        // this is specifically disallowing multi out from the first submodule, which rocMLIR does
+        // not support
         return mlir_gemm_op(match::arg(0)(first_mlir_op)).bind("second_gemm_op");
     }
 
@@ -930,14 +932,15 @@ struct find_mlir_fused_geg_ops
 
         // extract the actual gemm instructions from the submodules
         auto* first_submod = first_gemm_ins->module_inputs().front();
-        auto first_gemm = std::find_if(first_submod->begin(), first_submod->end(), [](const auto& i) {
-            return contains({"dot", "convolution"}, i.name());
-        });
+        auto first_gemm =
+            std::find_if(first_submod->begin(), first_submod->end(), [](const auto& i) {
+                return contains({"dot", "convolution"}, i.name());
+            });
 
         auto* second_submod = second_gemm_ins->module_inputs().front();
-        auto second_gemm = std::find_if(second_submod->begin(), second_submod->end(), [](const auto& i) {
-            return contains({"dot"}, i.name());
-        });
+        auto second_gemm    = std::find_if(second_submod->begin(),
+                                        second_submod->end(),
+                                        [](const auto& i) { return contains({"dot"}, i.name()); });
 
         // check if both gemms exist and are supported on this architecture
         if(first_gemm == first_submod->end() or second_gemm == second_submod->end())
@@ -959,13 +962,13 @@ struct find_mlir_fused_geg_ops
 
         std::unordered_map<instruction_ref, instruction_ref> map_ins;
         std::string module_name = first_submod->name() + "_" + second_submod->name() + "_geg";
-        module_ref mm = mpm.create_module(module_name);
+        module_ref mm           = mpm.create_module(module_name);
         mm->set_bypass();
         fuse_input_ops(mm, first_gemm_ins->inputs(), &map_ins);
 
         // check if the first submodule's output is used multiple times
-        // the first submodule always has exactly one output, since we do not match on get_tuple_elem
-        // however, the result of the pointwise operation may have multiple outputs
+        // the first submodule always has exactly one output, since we do not match on
+        // get_tuple_elem however, the result of the pointwise operation may have multiple outputs
         if(first_gemm_ins->outputs().size() > 1)
             return;
 
@@ -981,7 +984,8 @@ struct find_mlir_fused_geg_ops
         // fuse the second submodule into the new module
         fuse_input_ops(mm, second_gemm_ins->inputs(), &map_ins);
         auto second_rins = mm->fuse(*second_submod, second_gemm_ins->inputs(), &map_ins);
-        // second_rins contains the outputs of the second submodule (may be multiple if gemm_pointwise with multi-outs)
+        // second_rins contains the outputs of the second submodule (may be multiple if
+        // gemm_pointwise with multi-outs)
         map_ins[second_gemm_ins] = second_rins.front();
 
         // if second submodule has multi-outs, second_rins already contains [pointwise, gemm]
@@ -998,7 +1002,8 @@ struct find_mlir_fused_geg_ops
         if(second_gemm_has_multi_outs)
         {
             // the second submodule returns multiple values: [pointwise_result, gemm_result]
-            // find any get_tuple_elem instructions that extract from second_gemm_ins and update them
+            // find any get_tuple_elem instructions that extract from second_gemm_ins and update
+            // them
             for(auto out : second_gemm_ins->outputs())
             {
                 if(out->name() == "get_tuple_elem")
@@ -1007,12 +1012,14 @@ struct find_mlir_fused_geg_ops
                     mpm.get_module().replace_instruction(out, out->get_operator(), fused_ins);
                 }
             }
-
+            
             // replace the pointwise result (the main output) with tuple elem 0
             if(second_rins.size() == 2)
             {
                 mpm.get_module().replace_instruction(
-                    second_gemm_ins, migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused_ins);
+                    second_gemm_ins,
+                    migraphx::make_op("get_tuple_elem", {{"index", 0}}),
+                    fused_ins);
             }
         }
         else
@@ -1593,8 +1600,6 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
                                                 .dot_mode  = geg_dot_mode,
                                                 .gfx_name  = device_name});
     mpm.run_pass(dead_code_elimination{});
-
-
 
     if(enabled(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION{}))
     {

@@ -44,8 +44,8 @@ struct test_dot_dot_add_multi_out : verify_program<test_dot_dot_add_multi_out<DT
         auto dot2 = mm->add_instruction(migraphx::make_op("dot"), dot1, c);
         auto add  = mm->add_instruction(migraphx::make_op("add"), dot2, d);
         // dot2 has another user (creating multi-out scenario)
-        auto transpose = mm->add_instruction(
-            migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dot2);
+        auto transpose =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dot2);
         mm->add_return({add, transpose});
         return p;
     }
@@ -54,4 +54,3 @@ struct test_dot_dot_add_multi_out : verify_program<test_dot_dot_add_multi_out<DT
 template struct test_dot_dot_add_multi_out<migraphx::shape::half_type>;
 template struct test_dot_dot_add_multi_out<migraphx::shape::bf16_type>;
 template struct test_dot_dot_add_multi_out<migraphx::shape::float_type>;
-

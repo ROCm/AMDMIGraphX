@@ -52,4 +52,3 @@ struct test_dot_add_dot_add : verify_program<test_dot_add_dot_add<DType>>
 template struct test_dot_add_dot_add<migraphx::shape::half_type>;
 template struct test_dot_add_dot_add<migraphx::shape::bf16_type>;
 template struct test_dot_add_dot_add<migraphx::shape::float_type>;
-

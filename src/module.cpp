@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -60,6 +60,7 @@ struct module_impl
     std::string name;
     uint32_t nparams = 0;
     bool bypass      = false; // used for skipping compiler passes
+    std::string tag; // optional tag for categorizing/identifying modules
     bit_signal<64> changed{};
 
     bool contains(instruction_ref ins) const
@@ -153,6 +154,9 @@ void module::set_name(const std::string& name) { impl->name = name; }
 
 bool module::bypass() const { return impl->bypass; }
 void module::set_bypass(bool b) { impl->bypass = b; }
+
+std::string module::get_tag() const { return impl->tag; }
+void module::set_tag(const std::string& t) { impl->tag = t; }
 
 void module::assign(const module& m)
 {

@@ -448,6 +448,7 @@ TEST_CASE(dot_multi_use_trans_add_pooling_sub)
 }
 
 TEST_CASE(dot_dot_pointwise)
+// this test does not run GEG fusion since it is so small
 {
     migraphx::shape s1{migraphx::shape::float_type, {1, 4, 5}};
     migraphx::shape s2{migraphx::shape::float_type, {1, 5, 5}};
@@ -486,6 +487,7 @@ TEST_CASE(dot_dot_pointwise)
 }
 
 TEST_CASE(dot_dot_pointwise_pointwise)
+// this test does not run GEG fusion since it is so small
 {
     migraphx::shape s1{migraphx::shape::float_type, {1, 4, 5}};
     migraphx::shape s2{migraphx::shape::float_type, {1, 5, 5}};
@@ -1807,7 +1809,7 @@ TEST_CASE(dot_add_dot)
         auto x     = mm->add_parameter("x", s3);
         auto y     = mm->add_parameter("y", s4);
         auto fused = add_mlir(
-            p2, "mlir_main:pointwise0_geg", {a, b, x, y}, [=](auto* pm, const auto& inputs) {
+            p2, "mlir_main:pointwise0_mlir_dot1_geg", {a, b, x, y}, [=](auto* pm, const auto& inputs) {
                 auto dot1 = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
                 auto add  = pm->add_instruction(migraphx::make_op("add"), dot1, inputs[2]);
                 auto dot2 = pm->add_instruction(migraphx::make_op("dot"), add, inputs[3]);
@@ -1950,7 +1952,7 @@ TEST_CASE(dot_mul_dot)
         auto x     = mm->add_parameter("x", s3);
         auto y     = mm->add_parameter("y", s4);
         auto fused = add_mlir(
-            p2, "mlir_main:pointwise0_geg", {a, b, x, y}, [=](auto* pm, const auto& inputs) {
+            p2, "mlir_main:pointwise0_mlir_dot1_geg", {a, b, x, y}, [=](auto* pm, const auto& inputs) {
                 auto dot1 = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
                 auto mul  = pm->add_instruction(migraphx::make_op("mul"), dot1, inputs[2]);
                 auto dot2 = pm->add_instruction(migraphx::make_op("dot"), mul, inputs[3]);
@@ -2090,7 +2092,7 @@ TEST_CASE(dot_multi_user_add)
     EXPECT(p1.sort() == p2.sort());
 }
 
-TEST_CASE(dot_add_multi_user_dot)
+TEST_CASE_SKIP(dot_add_multi_user_dot, "GEG multi-output intermediates not supported")
 // GEG fusion has two outputs, E has external user
 // not currently supported in rocMLIR
 {
@@ -2117,7 +2119,7 @@ TEST_CASE(dot_add_multi_user_dot)
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dot2);
         mm->add_return({add, transpose});
     }
-    run_pass(p1, {.enable_geg_multi_out_intermediates = true});
+    run_pass(p1);
     migraphx::program p2;
     {
         auto* mm   = p2.get_main_module();
@@ -2146,7 +2148,7 @@ TEST_CASE(dot_add_multi_user_dot)
     EXPECT(p1.sort() == p2.sort());
 }
 
-TEST_CASE(dot_add_multi_user_dot_with_transpose)
+TEST_CASE_SKIP(dot_add_multi_user_dot_with_transpose, "GEG multi-output intermediates not supported")
 // GEG fusion has two outputs, E has external user
 // not currently supported in rocMLIR
 {
@@ -2170,7 +2172,7 @@ TEST_CASE(dot_add_multi_user_dot_with_transpose)
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dot2);
         mm->add_return({add, transpose});
     }
-    run_pass(p1, {.enable_geg_multi_out_intermediates = true});
+    run_pass(p1);
     migraphx::program p2;
     {
         auto* mm   = p2.get_main_module();
@@ -2201,7 +2203,7 @@ TEST_CASE(dot_add_multi_user_dot_with_transpose)
     EXPECT(p1.sort() == p2.sort());
 }
 
-TEST_CASE(dot_add_multi_user_dot_two_externals)
+TEST_CASE_SKIP(dot_add_multi_user_dot_two_externals, "GEG multi-output intermediates not supported")
 // GEG fusion has two outputs, E has external user
 // not currently supported in rocMLIR
 {
@@ -2225,7 +2227,7 @@ TEST_CASE(dot_add_multi_user_dot_two_externals)
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dot2);
         mm->add_return({add, external_t1, external_t2});
     }
-    run_pass(p1, {.enable_geg_multi_out_intermediates = true});
+    run_pass(p1);
     migraphx::program p2;
     {
         auto* mm   = p2.get_main_module();
@@ -2256,7 +2258,7 @@ TEST_CASE(dot_add_multi_user_dot_two_externals)
     EXPECT(p1.sort() == p2.sort());
 }
 
-TEST_CASE(dot_add_multi_user_dot_input_used_before)
+TEST_CASE_SKIP(dot_add_multi_user_dot_input_used_before, "GEG multi-output intermediates not supported")
 // GEG fusion has two outputs, E has external user.
 // Base case for testing inputs being defined within the span
 // of will-be-fused ops
@@ -2284,7 +2286,7 @@ TEST_CASE(dot_add_multi_user_dot_input_used_before)
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dot2);
         mm->add_return({add, transpose});
     }
-    run_pass(p1, {.enable_geg_multi_out_intermediates = true});
+    run_pass(p1);
     migraphx::program p2;
     {
         auto* mm   = p2.get_main_module();
@@ -2317,7 +2319,7 @@ TEST_CASE(dot_add_multi_user_dot_input_used_before)
     EXPECT(p1.sort() == p2.sort());
 }
 
-TEST_CASE(dot_add_multi_user_dot_input_used_after)
+TEST_CASE_SKIP(dot_add_multi_user_dot_input_used_after, "GEG multi-output intermediates not supported")
 // GEG fusion has two outputs, E has external user
 // Testing inputs being defined within the span of will-be-fused ops
 // This also shows the relu being fused, since it is a unary op.
@@ -2343,7 +2345,7 @@ TEST_CASE(dot_add_multi_user_dot_input_used_after)
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dot2);
         mm->add_return({add, transpose});
     }
-    run_pass(p1, {.enable_geg_multi_out_intermediates = true});
+    run_pass(p1);
     migraphx::program p2;
     {
         auto* mm   = p2.get_main_module();
@@ -2376,7 +2378,7 @@ TEST_CASE(dot_add_multi_user_dot_input_used_after)
     EXPECT(p1.sort() == p2.sort());
 }
 
-TEST_CASE(dot_add_multi_user_dot_input_used_before_in_chain)
+TEST_CASE_SKIP(dot_add_multi_user_dot_input_used_before_in_chain, "GEG multi-output intermediates not supported")
 // GEG fusion has two outputs, E has external user
 // Base case for inputs being defined within the span of will-be-fused ops, including
 // longer chain of logic, for both cases of input fusion. When enabled,
@@ -2406,7 +2408,7 @@ TEST_CASE(dot_add_multi_user_dot_input_used_before_in_chain)
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dot2);
         mm->add_return({add, transpose});
     }
-    run_pass(p1, {.enable_geg_multi_out_intermediates = true});
+    run_pass(p1);
     migraphx::program p2;
     {
         auto* mm           = p2.get_main_module();
@@ -2473,7 +2475,7 @@ TEST_CASE(dot_add_multi_user_dot_input_used_before_in_chain)
         EXPECT(p1.sort() == p2.sort());
 }
 
-TEST_CASE(dot_add_multi_user_dot_input_used_after_in_chain)
+TEST_CASE_SKIP(dot_add_multi_user_dot_input_used_after_in_chain, "GEG multi-output intermediates not supported")
 // GEG fusion has two outputs, E has external user
 // Testing inputs being defined within the span of will-be-fused ops, including
 // longer chain of logic
@@ -2501,7 +2503,7 @@ TEST_CASE(dot_add_multi_user_dot_input_used_after_in_chain)
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dot2);
         mm->add_return({add, transpose});
     }
-    run_pass(p1, {.enable_geg_multi_out_intermediates = true});
+    run_pass(p1);
     migraphx::program p2;
     {
         auto* mm           = p2.get_main_module();
@@ -2568,7 +2570,7 @@ TEST_CASE(dot_add_multi_user_dot_input_used_after_in_chain)
         EXPECT(p1.sort() == p2.sort());
 }
 
-TEST_CASE(dot_pw_multi_user_dot)
+TEST_CASE_SKIP(dot_pw_multi_user_dot, "GEG multi-output intermediates not supported")
 // GEG fusion has two outputs, E has external user, E is multiple elemwise ops
 // not currently supported in rocMLIR
 {
@@ -2601,7 +2603,7 @@ TEST_CASE(dot_pw_multi_user_dot)
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dot2);
         mm->add_return({elemwise, transpose});
     }
-    run_pass(p1, {.enable_geg_multi_out_intermediates = true});
+    run_pass(p1);
     migraphx::program p2;
     {
         auto* mm   = p2.get_main_module();
@@ -2632,7 +2634,7 @@ TEST_CASE(dot_pw_multi_user_dot)
     EXPECT(p1.sort() == p2.sort());
 }
 
-TEST_CASE(dot_multi_user_add_dot)
+TEST_CASE_SKIP(dot_multi_user_add_dot, "GEG multi-output intermediates not supported")
 // GEG fusion has two outputs (first G has external user)
 // not currently supported in rocMLIR
 {
@@ -2654,7 +2656,7 @@ TEST_CASE(dot_multi_user_add_dot)
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dot1);
         mm->add_return({dot2, transpose});
     }
-    run_pass(p1, {.enable_geg_multi_out_intermediates = true});
+    run_pass(p1);
     migraphx::program p2;
     {
         auto* mm   = p2.get_main_module();
@@ -2683,7 +2685,7 @@ TEST_CASE(dot_multi_user_add_dot)
     EXPECT(p1.sort() == p2.sort());
 }
 
-TEST_CASE_SKIP(dot_add_dot_both_multi_user, "Not supported in rocMLIR")
+TEST_CASE_SKIP(dot_add_dot_both_multi_user, "GEG multi-output intermediates not supported")
 // GEG fusion has three outputs (first G has external user, E has external user)
 // not currently supported in rocMLIR
 {
@@ -2705,7 +2707,7 @@ TEST_CASE_SKIP(dot_add_dot_both_multi_user, "Not supported in rocMLIR")
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dot1);
         mm->add_return({add, dot2, transpose});
     }
-    run_pass(p1, {.enable_geg_multi_out_intermediates = true});
+    run_pass(p1);
     migraphx::program p2;
     {
         auto* mm   = p2.get_main_module();
@@ -2736,7 +2738,166 @@ TEST_CASE_SKIP(dot_add_dot_both_multi_user, "Not supported in rocMLIR")
     EXPECT(p1.sort() == p2.sort());
 }
 
-TEST_CASE_SKIP(dot_add_relu_dot_add_relu, "TODO")
+TEST_CASE(dot_add_relu_dot)
+{
+    migraphx::shape s1{migraphx::shape::half_type, {1024, 3}};
+    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
+    migraphx::shape s3{migraphx::shape::half_type, {1024, 4}};
+    migraphx::shape s4{migraphx::shape::half_type, {4, 2}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto a    = mm->add_parameter("a", s1);
+        auto b    = mm->add_parameter("b", s2);
+        auto x    = mm->add_parameter("x", s3);
+        auto y    = mm->add_parameter("y", s4);
+        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto pw1 = add_pointwise(p1, "main:pointwise0", {dot1, x}, [=](auto* pm, const auto& inputs) {
+            auto add = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+            return pm->add_instruction(migraphx::make_op("relu"), add);
+        });
+        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), pw1, y);
+        mm->add_return({dot2});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto a     = mm->add_parameter("a", s1);
+        auto b     = mm->add_parameter("b", s2);
+        auto x     = mm->add_parameter("x", s3);
+        auto y     = mm->add_parameter("y", s4);
+        auto fused = add_mlir(
+            p2, "mlir_main:pointwise0_mlir_dot1_geg", {a, b, x, y}, [=](auto* pm, const auto& inputs) {
+                auto dot1 = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto add  = pm->add_instruction(migraphx::make_op("add"), dot1, inputs[2]);
+                auto relu = pm->add_instruction(migraphx::make_op("relu"), add);
+                auto dot2 = pm->add_instruction(migraphx::make_op("dot"), relu, inputs[3]);
+                return std::make_tuple(dot2->get_operator(), dot2);
+            });
+        mm->add_return({fused});
+    }
+    if(migraphx::enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
+        return;
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(dot_dot_add)
+{
+    migraphx::shape s1{migraphx::shape::half_type, {1024, 3}};
+    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
+    migraphx::shape s3{migraphx::shape::half_type, {4, 2}};
+    migraphx::shape s4{migraphx::shape::half_type, {1024, 2}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto a    = mm->add_parameter("a", s1);
+        auto b    = mm->add_parameter("b", s2);
+        auto y    = mm->add_parameter("y", s3);
+        auto z    = mm->add_parameter("z", s4);
+        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), dot1, y);
+        auto pw2 = add_pointwise(p1, "main:pointwise0", {dot2, z}, single_pointwise("add"));
+        mm->add_return({pw2});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto a     = mm->add_parameter("a", s1);
+        auto b     = mm->add_parameter("b", s2);
+        auto y     = mm->add_parameter("y", s3);
+        auto z     = mm->add_parameter("z", s4);
+        auto fused = add_mlir(
+            p2, "mlir_dot0_mlir_main:pointwise0_geg", {a, b, y, z}, [=](auto* pm, const auto& inputs) {
+                auto dot1 = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto dot2 = pm->add_instruction(migraphx::make_op("dot"), dot1, inputs[2]);
+                auto add  = pm->add_instruction(migraphx::make_op("add"), dot2, inputs[3]);
+                return std::make_tuple(add->get_operator(), add);
+            });
+        mm->add_return({fused});
+    }
+    if(migraphx::enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
+        return;
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(dot_dot)
+{
+    migraphx::shape s1{migraphx::shape::half_type, {1024, 3}};
+    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
+    migraphx::shape s3{migraphx::shape::half_type, {4, 2}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto a    = mm->add_parameter("a", s1);
+        auto b    = mm->add_parameter("b", s2);
+        auto y    = mm->add_parameter("y", s3);
+        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), dot1, y);
+        mm->add_return({dot2});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto a     = mm->add_parameter("a", s1);
+        auto b     = mm->add_parameter("b", s2);
+        auto y     = mm->add_parameter("y", s3);
+        auto fused = add_mlir(
+            p2, "mlir_dot0_mlir_dot1_geg", {a, b, y}, [=](auto* pm, const auto& inputs) {
+                auto dot1 = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto dot2 = pm->add_instruction(migraphx::make_op("dot"), dot1, inputs[2]);
+                return std::make_tuple(dot2->get_operator(), dot2);
+            });
+        mm->add_return({fused});
+    }
+    if(migraphx::enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
+        return;
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(dot_dot_pointwise_geg)
+{
+    migraphx::shape s1{migraphx::shape::half_type, {1024, 3}};
+    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
+    migraphx::shape s3{migraphx::shape::half_type, {4, 4}};
+    migraphx::shape s4{migraphx::shape::half_type, {1024, 4}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto a    = mm->add_parameter("a", s1); // {1024,3}
+        auto b    = mm->add_parameter("b", s2); // {3,4}
+        auto c    = mm->add_parameter("c", s3); // {4,4}
+        auto d    = mm->add_parameter("d", s4); // {1024,4}
+        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b); // {1024,3} x {3,4} = {1024,4}
+        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), dot1, c); // {1024,4} x {4,4} = {1024,4}
+        auto add  = add_pointwise(p1, "main:pointwise0", {dot2, d}, single_pointwise("add"));
+        mm->add_return({add}); // {1024,4}
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto a   = mm->add_parameter("a", s1);
+        auto b   = mm->add_parameter("b", s2);
+        auto c   = mm->add_parameter("c", s3);
+        auto d   = mm->add_parameter("d", s4);
+        auto fused = add_mlir(
+            p2, "mlir_dot0_mlir_main:pointwise0_geg", {a, b, c, d}, [=](auto* pm, const auto& inputs) {
+                auto dot1 = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto dot2 = pm->add_instruction(migraphx::make_op("dot"), dot1, inputs[2]);
+                auto add  = pm->add_instruction(migraphx::make_op("add"), dot2, inputs[3]);
+                return std::make_tuple(add->get_operator(), add);
+            });
+        mm->add_return({fused});
+    }
+    if(migraphx::enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
+        return;
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(dot_add_relu_dot_add_relu)
 // criteoterabyte use case
 {
     migraphx::shape s1{migraphx::shape::half_type, {1024, 3}};
@@ -2754,13 +2915,16 @@ TEST_CASE_SKIP(dot_add_relu_dot_add_relu, "TODO")
         auto z    = mm->add_parameter("z", s5);
         auto dot1 = mm->add_instruction(
             migraphx::make_op("dot"), a, b); // {1024,4}, m + 1000 > avg (n, k, gemmO)
-        auto add =
-            add_pointwise(p1, "main:pointwise0", {dot1, x}, single_pointwise("add")); // {1024,4}
-        auto relu1 = add_pointwise(p1, "main:pointwise1", {add}, single_pointwise("relu"));
-        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), relu1, y);            // {1024,2}
-        auto add2 = add_pointwise(p1, "main:pointwise2", {dot2, z}, single_pointwise("add"));
-        auto relu2 = add_pointwise(p1, "main:pointwise3", {add2}, single_pointwise("relu"));
-        mm->add_return({relu2});
+        auto pw1 = add_pointwise(p1, "main:pointwise0", {dot1, x}, [=](auto* pm, const auto& inputs) {
+            auto add = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+            return pm->add_instruction(migraphx::make_op("relu"), add);
+        }); // {1024,4}
+        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), pw1, y);            // {1024,2}
+        auto pw2 = add_pointwise(p1, "main:pointwise1", {dot2, z}, [=](auto* pm, const auto& inputs) {
+            auto add = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+            return pm->add_instruction(migraphx::make_op("relu"), add);
+        }); // {1024,2}
+        mm->add_return({pw2});
     }
     run_pass(p1);
     migraphx::program p2;
@@ -2770,14 +2934,68 @@ TEST_CASE_SKIP(dot_add_relu_dot_add_relu, "TODO")
         auto b     = mm->add_parameter("b", s2);
         auto x     = mm->add_parameter("x", s3);
         auto y     = mm->add_parameter("y", s4);
+        auto z     = mm->add_parameter("z", s5);
         auto fused = add_mlir(
-            p2, "mlir_main:pointwise0_geg", {a, b, x, y}, [=](auto* pm, const auto& inputs) {
+            p2, "mlir_main:pointwise0_mlir_main:pointwise1_geg", {a, b, x, y, z}, [=](auto* pm, const auto& inputs) {
                 auto dot1 = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
-                auto add  = pm->add_instruction(migraphx::make_op("add"), dot1, inputs[2]);
-                auto dot2 = pm->add_instruction(migraphx::make_op("dot"), add, inputs[3]);
-                return std::make_tuple(dot2->get_operator(), dot2);
+                auto add1  = pm->add_instruction(migraphx::make_op("add"), dot1, inputs[2]);
+                auto relu1 = pm->add_instruction(migraphx::make_op("relu"), add1);
+                auto dot2 = pm->add_instruction(migraphx::make_op("dot"), relu1, inputs[3]);
+                auto add2 = pm->add_instruction(migraphx::make_op("add"), dot2, inputs[4]);
+                auto relu2 = pm->add_instruction(migraphx::make_op("relu"), add2);
+                return std::make_tuple(relu2->get_operator(), relu2);
             });
         mm->add_return({fused});
+    }
+    if(migraphx::enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
+        return;
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(dot_dot_add_with_gemm_multi_out)
+// Second submodule (dot+add) has multi-out where the inner dot is also returned
+// This scenario *is* supported in rocMLIR
+{
+    migraphx::shape s1{migraphx::shape::half_type, {1024, 3}};
+    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
+    migraphx::shape s3{migraphx::shape::half_type, {4, 2}};
+    migraphx::shape s4{migraphx::shape::half_type, {1024, 2}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto a    = mm->add_parameter("a", s1);
+        auto b    = mm->add_parameter("b", s2);
+        auto y    = mm->add_parameter("y", s3);
+        auto z    = mm->add_parameter("z", s4);
+        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b); // {1024,4}
+        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), dot1, y); // {1024,2}
+        auto add  = add_pointwise(p1, "main:pointwise0", {dot2, z}, single_pointwise("add")); // {1024,2}
+        // dot2 has another user (creating multi-out scenario)
+        auto transpose = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dot2); // {2,1024}
+        mm->add_return({add, transpose});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto a     = mm->add_parameter("a", s1);
+        auto b     = mm->add_parameter("b", s2);
+        auto y     = mm->add_parameter("y", s3);
+        auto z     = mm->add_parameter("z", s4);
+        auto fused = add_mlir(
+            p2, "mlir_dot0_mlir_main:pointwise0_geg", {a, b, y, z}, [=](auto* pm, const auto& inputs) {
+                auto dot1 = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto dot2 = pm->add_instruction(migraphx::make_op("dot"), dot1, inputs[2]);
+                auto add  = pm->add_instruction(migraphx::make_op("add"), dot2, inputs[3]);
+                return std::make_tuple(add->get_operator(), 
+                                      std::vector<migraphx::instruction_ref>{add, dot2});
+            });
+        auto get_add = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
+        auto get_dot2 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
+        auto transpose = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {1, 0}}}), get_dot2);
+        mm->add_return({get_add, transpose});
     }
     if(migraphx::enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
         return;

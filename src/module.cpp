@@ -156,7 +156,7 @@ bool module::bypass() const { return impl->bypass; }
 void module::set_bypass(bool b) { impl->bypass = b; }
 
 std::string module::get_tag() const { return impl->tag; }
-void module::set_tag(const std::string& t) { impl->tag = t; }
+void module::set_tag(const std::string& tag) { impl->tag = tag; }
 
 void module::assign(const module& m)
 {

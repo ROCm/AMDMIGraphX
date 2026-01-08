@@ -1012,7 +1012,7 @@ struct find_mlir_fused_geg_ops
                     mpm.get_module().replace_instruction(out, out->get_operator(), fused_ins);
                 }
             }
-            
+
             // replace the pointwise result (the main output) with tuple elem 0
             if(second_rins.size() == 2)
             {

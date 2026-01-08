@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -49,7 +49,7 @@ breathe==4.35.0
     # via rocm-docs-core
 certifi==2024.7.4
     # via requests
-cffi==1.16.0
+cffi==2.0.0
     # via
     #   cryptography
     #   pynacl
@@ -157,6 +157,7 @@ nest-asyncio==1.6.0
 packaging==24.1
     # via
     #   ipykernel
+    #   pydata-sphinx-theme
     #   sphinx
 parso==0.8.4
     # via jedi
@@ -174,7 +175,7 @@ pure-eval==0.2.3
     # via stack-data
 pycparser==2.22
     # via cffi
-pydata-sphinx-theme==0.16.1
+pydata-sphinx-theme==0.15.4
     # via
     #   rocm-docs-core
     #   sphinx-book-theme
@@ -188,7 +189,7 @@ pygments==2.18.0
     #   sphinx
 pyjwt[crypto]==2.8.0
     # via pygithub
-pynacl==1.5.0
+pynacl==1.6.2
     # via pygithub
 python-dateutil==2.9.0.post0
     # via jupyter-client
@@ -211,7 +212,7 @@ requests==2.32.4
     # via
     #   pygithub
     #   sphinx
-rocm-docs-core==1.30.1
+rocm-docs-core==1.31.1
     # via -r requirements.in
 rpds-py==0.22.3
     # via
@@ -238,7 +239,7 @@ sphinx==7.4.7
     #   sphinx-design
     #   sphinx-external-toc
     #   sphinx-notfound-page
-sphinx-book-theme==1.1.3
+sphinx-book-theme==1.1.4
     # via rocm-docs-core
 sphinx-collapse==0.1.3
     # via -r requirements.in

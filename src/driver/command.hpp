@@ -31,7 +31,6 @@
 #include <migraphx/stringutils.hpp>
 
 #include <unordered_map>
-#include <utility>
 #include <vector>
 
 namespace migraphx {
@@ -66,10 +65,6 @@ const std::string& command_name()
     return name;
 }
 
-// Forward declarations for logger options defined in driver main
-void register_logger_options(argument_parser& ap, bool hidden);
-void apply_logger_options();
-
 template <class T>
 void run_command(argument_parser& ap, const std::vector<std::string>& args, bool add_help = false)
 {
@@ -78,10 +73,8 @@ void run_command(argument_parser& ap, const std::vector<std::string>& args, bool
     if(add_help)
         ap(nullptr, {"-h", "--help"}, ap.help("Show help"), ap.show_help());
     x.parse(ap);
-    register_logger_options(ap, not add_help); // hidden when no subcommand
     if(ap.parse(args))
         return;
-    apply_logger_options();
     x.run();
 }
 

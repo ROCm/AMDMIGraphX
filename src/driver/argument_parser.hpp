@@ -699,6 +699,12 @@ struct argument_parser
         return result;
     }
 
+    template <class F>
+    void post_action(F f)
+    {
+        actions.push_back(f);
+    }
+
     private:
     std::list<argument> arguments;
     std::string exe_name = "";

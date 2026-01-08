@@ -102,10 +102,8 @@ struct logger_options
     std::string log_level;
     std::vector<std::string> log_files;
 
-    void parse(migraphx::driver::argument_parser& ap, bool hidden)
+    void parse(migraphx::driver::argument_parser& ap)
     {
-        if(hidden)
-            return;
         ap(log_level,
            {"--log-level"},
            ap.help("Set log level (none/0, error/1, warn/2, info/3, debug/4, trace/5)"),
@@ -126,6 +124,7 @@ struct logger_options
            ap.help("Log to file(s) (--log-file file1.log file2.log ...)"),
            ap.append(),
            ap.nargs(2));
+        ap.post_action([this](auto&&) { this->apply(); });
     }
 
     void apply() const
@@ -169,19 +168,11 @@ namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
-// Allow access to logger opts
-static logger_options& get_logger_options()
+static void register_logger_options(argument_parser& ap)
 {
     static logger_options opts;
-    return opts;
+    opts.parse(ap);
 }
-
-// Used by command.hpp to access logger options so that it can be the last one listed under help
-void register_logger_options(argument_parser& ap, bool hidden)
-{
-    get_logger_options().parse(ap, hidden);
-}
-void apply_logger_options() { get_logger_options().apply(); }
 
 inline static std::string get_version()
 {
@@ -1123,6 +1114,7 @@ int main(int argc, const char* argv[], const char* envp[])
         auto start_time = std::chrono::system_clock::now();
         std::cout << "[" << get_formatted_timestamp(start_time) << "]" << std::endl;
 
+        register_logger_options(ap);
         m.at(cmd)(ap, {args.begin() + 1, args.end()}); // run driver command found in commands map
 
         // Dump all the MIGraphX (consumed) Environment Variables:

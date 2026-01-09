@@ -2729,7 +2729,7 @@ TEST_CASE_SKIP(dot_add_dot_both_multi_user, "Not supported in rocMLIR")
 
 TEST_CASE(dyn_dot)
 {
-    migraphx::shape s1{migraphx::shape::float_type, {1, 6}, {4, 6}, {}};
+    migraphx::shape s1{migraphx::shape::float_type, {{1, 4}, {6, 6}}};
     migraphx::shape s2{migraphx::shape::float_type, {6, 3}};
     migraphx::program p1;
     {

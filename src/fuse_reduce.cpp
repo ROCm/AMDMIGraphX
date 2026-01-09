@@ -75,7 +75,7 @@ struct fused_reduce
 
         if(sm->get_output_shapes().front().dynamic())
             return sm->get_output_shapes().front();
-        
+
         return shape::from_permutation(sm->get_output_shapes().front().type(),
                                        sm->get_output_shapes().front().lens(),
                                        find_permutation(inputs));

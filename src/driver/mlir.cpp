@@ -13,6 +13,17 @@ namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
+static bool is_range_literal(const literal& l)
+{
+    bool is_range = false;
+    l.visit([&](auto l) {
+        is_range = std::adjacent_find(l.begin(), l.begin() + l.get_shape().elements(), [](auto cur, auto next) {
+                       return not float_equal(next - cur, 1.0);
+                   }) == l.begin() + l.get_shape().elements();
+    });
+    return is_range;
+}
+
 void offload_to_mlir(program& p)
 {
     auto* mm    = p.get_main_module();
@@ -23,7 +34,7 @@ void offload_to_mlir(program& p)
         if(ins->name() == "@param")
             return true;
         if(ins->name() == "@literal")
-            return ins->get_shape().elements() != 1;
+            return ins->get_shape().elements() != 1 and not is_range_literal(ins->get_literal());
         return false;
     });
 

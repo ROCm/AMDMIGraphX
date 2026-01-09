@@ -152,13 +152,13 @@ TEST_CASE(int64_to_int32_mul_mod)
             migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), x);
         auto int32y = mm2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), y);
-        auto int32z = mm2.add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), z);
         auto mul      = mm2.add_instruction(migraphx::make_op("mul"), int32x, int32y);
         auto mul_back = mm2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::int64_type}}), mul);
         auto mul_to_int32 = mm2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), mul_back);
+        auto int32z = mm2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), z);
         auto mod_result = mm2.add_instruction(migraphx::make_op("mod"), mul_to_int32, int32z);
         mm2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::int64_type}}),

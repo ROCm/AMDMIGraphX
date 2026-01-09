@@ -81,7 +81,6 @@ class ConcurrentInferenceTest:
             'migraphx_bf16_enable': 0,
             'migraphx_fp8_enable': 0,
             'migraphx_int8_enable': 0,
-            'migraphx_use_native_calibration_table': 0,
             'migraphx_exhaustive_tune': 0,
             'migraphx_max_dynamic_batch': self.max_dynamic_batch,
         }

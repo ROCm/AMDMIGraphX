@@ -168,12 +168,6 @@ namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
-static void register_logger_options(argument_parser& ap)
-{
-    static logger_options opts;
-    opts.parse(ap);
-}
-
 inline static std::string get_version()
 {
     return "MIGraphX Version: " + std::to_string(MIGRAPHX_VERSION_MAJOR) + "." +
@@ -1114,7 +1108,8 @@ int main(int argc, const char* argv[], const char* envp[])
         auto start_time = std::chrono::system_clock::now();
         std::cout << "[" << get_formatted_timestamp(start_time) << "]" << std::endl;
 
-        register_logger_options(ap);
+        logger_options log_opts;
+        log_opts.parse(ap);
         m.at(cmd)(ap, {args.begin() + 1, args.end()}); // run driver command found in commands map
 
         // Dump all the MIGraphX (consumed) Environment Variables:

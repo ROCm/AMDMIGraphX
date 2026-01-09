@@ -17,9 +17,10 @@ static bool is_range_literal(const literal& l)
 {
     bool is_range = false;
     l.visit([&](auto l) {
-        is_range = std::adjacent_find(l.begin(), l.begin() + l.get_shape().elements(), [](auto cur, auto next) {
-                       return not float_equal(next - cur, 1.0);
-                   }) == l.begin() + l.get_shape().elements();
+        is_range = std::adjacent_find(
+                       l.begin(), l.begin() + l.get_shape().elements(), [](auto cur, auto next) {
+                           return not float_equal(next - cur, 1.0);
+                       }) == l.begin() + l.get_shape().elements();
     });
     return is_range;
 }

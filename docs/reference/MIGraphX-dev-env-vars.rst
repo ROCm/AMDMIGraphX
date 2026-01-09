@@ -432,6 +432,14 @@ Debug settings for passes.
 
       | Default: Multi-output pointwise fusion is enabled.
 
+  * - | ``MIGRAPHX_DISABLE_ELIMINATE_INT64``
+      | When set, int64 types are preserved instead of being converted to int32.
+
+    - | ``1``: int64 types are preserved natively.
+      | ``0``: Returns to default behavior.
+
+      | Default: int64 is converted to int32.
+
   * - | ``MIGRAPHX_TRACE_PASSES``
       | Turns on printing of the compile passes and the program after the passes.
 

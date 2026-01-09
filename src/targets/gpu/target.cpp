@@ -90,6 +90,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_FULL_DYNAMIC)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_ELIMINATE_INT64)
 
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
@@ -107,6 +108,13 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_types.erase(shape::type_t::int8_type);
     unsupported_types.erase(shape::type_t::uint8_type);
     unsupported_types.erase(shape::type_t::int32_type);
+    // int64_type handling: If MIGRAPHX_DISABLE_ELIMINATE_INT64=1, support int64 natively.
+    // Otherwise, it will be converted to int32_type via a separate pass below
+    // to preserve integer semantics for operations like mod, gather, slice.
+    if(enabled(MIGRAPHX_DISABLE_ELIMINATE_INT64{}))
+    {
+        unsupported_types.erase(shape::type_t::int64_type);
+    }
     unsupported_types.erase(shape::type_t::tuple_type);
 
     // No BF-16 Support on Navi21
@@ -197,6 +205,10 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         // workaround for rocBLAS unsupported error when using uint8 in quant_dot, quant_convolution & pooling
         eliminate_data_type{{migraphx::shape::uint8_type}, shape::float_type, {"quant_convolution", "quant_dot", "pooling"}},
+        // Convert int64 to int32 to preserve integer semantics (mod, gather, slice need exact integers)
+        // This must run before the general float elimination to avoid int64 -> float conversion
+        // Set MIGRAPHX_DISABLE_ELIMINATE_INT64=1 to keep native int64 support
+        enable_pass(disabled(MIGRAPHX_DISABLE_ELIMINATE_INT64{}), eliminate_data_type{{shape::type_t::int64_type}, shape::type_t::int32_type}),
         eliminate_data_type{unsupported_types, shape::type_t::float_type},
         simplify_reshapes{},
         eliminate_identity{},

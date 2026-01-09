@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -111,6 +111,16 @@ void eliminate_data_type::apply(module& m) const
                                                            "select_module"};
     if(unsupported_types.empty())
         return;
+
+    // Warn when converting int64 to int32 as this may cause overflow for large indices
+    if(contains(unsupported_types, shape::type_t::int64_type) and
+       target_type == shape::type_t::int32_type)
+    {
+        std::cerr << "Warning: Converting int64 to int32. Values exceeding int32 range "
+                     "(>2147483647) may overflow and cause incorrect indexing. "
+                     "Set MIGRAPHX_DISABLE_ELIMINATE_INT64=1 to preserve int64 precision."
+                  << std::endl;
+    }
 
     for(auto ins : iterator_for(m))
     {

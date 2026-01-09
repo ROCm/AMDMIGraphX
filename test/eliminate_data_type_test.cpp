@@ -115,15 +115,16 @@ TEST_CASE(int64_to_int32_mod)
 
     migraphx::module mm2;
     {
-        auto x     = mm2.add_parameter("x", s);
-        auto y     = mm2.add_parameter("y", s);
+        auto x      = mm2.add_parameter("x", s);
+        auto y      = mm2.add_parameter("y", s);
         auto int32x = mm2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), x);
         auto int32y = mm2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), y);
         auto mod_result = mm2.add_instruction(migraphx::make_op("mod"), int32x, int32y);
         mm2.add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::int64_type}}), mod_result);
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int64_type}}),
+            mod_result);
     }
     EXPECT(mm1 == mm2);
 }
@@ -134,9 +135,9 @@ TEST_CASE(int64_to_int32_mul_mod)
     migraphx::shape s{migraphx::shape::int64_type, {1, 96}};
     migraphx::module mm1;
     {
-        auto x = mm1.add_parameter("x", s);
-        auto y = mm1.add_parameter("y", s);
-        auto z = mm1.add_parameter("z", s);
+        auto x   = mm1.add_parameter("x", s);
+        auto y   = mm1.add_parameter("y", s);
+        auto z   = mm1.add_parameter("z", s);
         auto mul = mm1.add_instruction(migraphx::make_op("mul"), x, y);
         mm1.add_instruction(migraphx::make_op("mod"), mul, z);
     }
@@ -153,14 +154,15 @@ TEST_CASE(int64_to_int32_mul_mod)
             migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), y);
         auto int32z = mm2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), z);
-        auto mul = mm2.add_instruction(migraphx::make_op("mul"), int32x, int32y);
+        auto mul      = mm2.add_instruction(migraphx::make_op("mul"), int32x, int32y);
         auto mul_back = mm2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::int64_type}}), mul);
         auto mul_to_int32 = mm2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), mul_back);
         auto mod_result = mm2.add_instruction(migraphx::make_op("mod"), mul_to_int32, int32z);
         mm2.add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::int64_type}}), mod_result);
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int64_type}}),
+            mod_result);
     }
     EXPECT(mm1 == mm2);
 }

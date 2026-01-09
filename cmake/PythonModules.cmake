@@ -128,12 +128,14 @@ if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
     foreach(_found_python ${_found_pythons})
         string(STRIP "${_found_python}" _found_python)
         # Ignore virtual environments
-        if(NOT _found_python MATCHES "^\\*[ \t]*")
-            string(REGEX REPLACE "^-V:([0-9]*\\.[0-9]*t?)[ \\t]*\\*?[ \\t]*" "\\1;" _tuple ${_found_python})
-            list(GET _tuple 0 _version)
+        if(NOT _found_python MATCHES "^\\(venv\\)")
+            string(REGEX MATCH "^-([0-9]+\\.[0-9]+)-[0-9]+[ \\t]+(.*)$" _match "${_found_python}")
+            set(_version "${CMAKE_MATCH_1}")
+            set(_python_executable "${CMAKE_MATCH_2}")
+
             # Ignore if the Python version is disabled
             if(NOT _version IN_LIST PYTHON_DISABLE_VERSIONS)
-                list(GET _tuple 1 _python_executable)
+                # list(GET _tuple 1 _python_executable)
                 find_python(${_version} "${_python_executable}")
                 message(STATUS "Python ${_version} found.")
                 list(APPEND _PYTHON_VERSIONS ${_version})

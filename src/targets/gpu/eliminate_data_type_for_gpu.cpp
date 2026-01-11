@@ -6,7 +6,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-
 static void insert_miopen_pooling(std::set<std::string>& u)
 {
 #if MIGRAPHX_USE_MIOPEN
@@ -34,8 +33,7 @@ static eliminate_data_type for_device_functions()
     unsupported_types.erase(shape::type_t::bf16_type);
     unsupported_types.erase(shape::type_t::tuple_type);
 
-    std::set<std::string> device_functions =
-    {
+    std::set<std::string> device_functions = {
         "logsoftmax",
         "nonzero",
         "prefix_scan_sum",
@@ -66,7 +64,8 @@ static eliminate_data_type for_fp8fnuz()
     {
         insert_gemm_conv(unsupported_ops);
     }
-    return eliminate_data_type{{shape::fp8e4m3fnuz_type, shape::fp8e5m2fnuz_type}, shape::float_type, unsupported_ops};
+    return eliminate_data_type{
+        {shape::fp8e4m3fnuz_type, shape::fp8e5m2fnuz_type}, shape::float_type, unsupported_ops};
 }
 
 static eliminate_data_type for_fp8ocp()
@@ -87,7 +86,8 @@ static eliminate_data_type for_fp8ocp()
     {
         insert_gemm_conv(unsupported_ops);
     }
-    return eliminate_data_type{{shape::fp8e4m3fn_type, shape::fp8e5m2_type}, shape::float_type, unsupported_ops};
+    return eliminate_data_type{
+        {shape::fp8e4m3fn_type, shape::fp8e5m2_type}, shape::float_type, unsupported_ops};
 }
 
 static eliminate_data_type for_gemm_conv()
@@ -95,12 +95,16 @@ static eliminate_data_type for_gemm_conv()
     std::set<std::string> unsupported_ops = {};
     insert_gemm_conv(unsupported_ops);
 
-    return eliminate_data_type{{shape::bool_type,
-shape::uint16_type,
-shape::int16_type,
-shape::int64_type,
-shape::uint64_type,
-shape::double_type,}, shape::float_type, unsupported_ops};
+    return eliminate_data_type{{
+                                   shape::bool_type,
+                                   shape::uint16_type,
+                                   shape::int16_type,
+                                   shape::int64_type,
+                                   shape::uint64_type,
+                                   shape::double_type,
+                               },
+                               shape::float_type,
+                               unsupported_ops};
 }
 
 void eliminate_data_type_for_gpu::apply(module_pass_manager& mpm) const
@@ -114,14 +118,16 @@ void eliminate_data_type_for_gpu::apply(module_pass_manager& mpm) const
     if(not unsupported_types.empty())
         mpm.run_pass(eliminate_data_type{unsupported_types, shape::type_t::float_type});
 
-    // workaround for rocBLAS unsupported error when using uint8 in quant_dot, quant_convolution & pooling
-    mpm.run_pass(eliminate_data_type{{shape::uint8_type}, shape::float_type, {"quant_convolution", "quant_dot", "pooling"}});
+    // workaround for rocBLAS unsupported error when using uint8 in quant_dot, quant_convolution &
+    // pooling
+    mpm.run_pass(eliminate_data_type{
+        {shape::uint8_type}, shape::float_type, {"quant_convolution", "quant_dot", "pooling"}});
 
     mpm.run_pass(for_device_functions());
-    
+
     mpm.run_pass(for_fp8fnuz());
     mpm.run_pass(for_fp8ocp());
-    
+
     mpm.run_pass(for_gemm_conv());
 }
 

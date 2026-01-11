@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -375,7 +375,8 @@ TEST_CASE(compile_math)
         "max(x, x)",
         "min(x, x)",
         "pow(x, 0)",
-        "pow(x, x)",
+        // TODO: https://github.com/llvm/llvm-project/pull/171212  ETA ROCm 7.2.1
+        // "pow(x, x)",
         "remainder(x,x)",
         "round(x)",
         "rsqrt(x)",

@@ -37,11 +37,11 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 static instruction_ref capture_arg(std::unordered_set<instruction_ref>& s, instruction_ref ins)
 {
-    auto alias = instruction::get_output_alias(ins, true);
-    if(alias != ins)
+    auto aliases = instruction::get_output_alias(ins, true);
+    if(not(aliases.size() == 1 and aliases.front() == ins))
     {
         s.insert(ins);
-        return capture_arg(s, alias);
+        return capture_arg(s, aliases.front());
     }
     if(contains({"reshape", "contiguous"}, ins->name()))
     {

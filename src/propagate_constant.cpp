@@ -45,9 +45,10 @@ static bool skip_propagate(instruction_ref ins)
     auto&& s = ins->get_shape();
     if(s.broadcasted() and s.element_space() < s.elements())
         return true;
-    auto alias = instruction::get_output_alias(ins, true);
-    if(alias != ins)
-        return skip_propagate(alias);
+    auto aliases = instruction::get_output_alias(ins, true);
+    if(not(aliases.size() == 1 and aliases.front() == ins))
+        return std::any_of(
+            aliases.begin(), aliases.end(), [](instruction_ref alias) { return skip_propagate(alias); });
     if(ins->is_undefined())
         return true;
     return false;

@@ -119,8 +119,10 @@ struct splitter
             if(rins == rm->begin())
                 return;
             // We want to know what instructions are live after the split instruction
-            auto ins = instruction::get_output_alias(std::prev(rins));
-            if(not contains(splits, ins))
+            auto aliases = instruction::get_output_alias(std::prev(rins));
+            if(not std::any_of(aliases.begin(), aliases.end(), [&](instruction_ref ins) {
+                   return contains(splits, ins);
+               }))
                 return;
             std::copy_if(live_set.begin(),
                          live_set.end(),

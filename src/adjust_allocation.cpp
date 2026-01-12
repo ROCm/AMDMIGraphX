@@ -43,24 +43,28 @@ void adjust_allocation::apply(module& m) const
         if(ins->get_operator().is_context_free())
             continue;
 
-        auto alias_ins = instruction::get_output_alias(ins, true);
-        if(alias_ins->name() != model.name() and alias_ins->name() != "@param")
-            continue;
-        // shape allocated is different from actual shape
-        // of the instruction, reallocate and replace the previous one
-        if(alias_ins->get_shape() == ins->get_shape())
-            continue;
-        auto alloc_ins = m.insert_instruction(ins, model.allocate(ins->get_shape()));
-        m.replace_instruction(alias_ins, alloc_ins);
-        // If the memory is an output parameter then copy the memory to the parameter
-        if(alias_ins->name() == "@param")
+        auto aliases = instruction::get_output_alias(ins, true);
+        for(auto alias_ins : aliases)
         {
-            auto copy = m.insert_instruction(std::next(ins), make_op(model.copy()), ins, alias_ins);
-            auto tail = range(std::next(copy), m.end());
-            for(auto i : iterator_for(tail))
+            if(alias_ins->name() != model.name() and alias_ins->name() != "@param")
+                continue;
+            // shape allocated is different from actual shape
+            // of the instruction, reallocate and replace the previous one
+            if(alias_ins->get_shape() == ins->get_shape())
+                continue;
+            auto alloc_ins = m.insert_instruction(ins, model.allocate(ins->get_shape()));
+            m.replace_instruction(alias_ins, alloc_ins);
+            // If the memory is an output parameter then copy the memory to the parameter
+            if(alias_ins->name() == "@param")
             {
-                if(contains(i->inputs(), ins))
-                    instruction::replace_argument(i, ins, copy);
+                auto copy =
+                    m.insert_instruction(std::next(ins), make_op(model.copy()), ins, alias_ins);
+                auto tail = range(std::next(copy), m.end());
+                for(auto i : iterator_for(tail))
+                {
+                    if(contains(i->inputs(), ins))
+                        instruction::replace_argument(i, ins, copy);
+                }
             }
         }
     }

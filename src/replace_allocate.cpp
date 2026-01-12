@@ -41,11 +41,14 @@ std::unordered_map<instruction_ref, std::string> create_output_names(const modul
     std::unordered_map<instruction_ref, std::string> mod_output_names;
     auto returns = mod.get_returns();
 
-    std::vector<instruction_ref> outputs_alias(returns.size());
+    std::vector<instruction_ref> outputs_alias;
+    outputs_alias.reserve(returns.size());
 
-    std::transform(returns.begin(), returns.end(), outputs_alias.begin(), [](const auto& i) {
-        return instruction::get_output_alias(i);
-    });
+    for(const auto& i : returns)
+    {
+        auto aliases = instruction::get_output_alias(i);
+        outputs_alias.push_back(aliases.front());
+    }
 
     std::size_t index = 0;
     if(outputs_alias.size() == 1 and mod.name().empty())
@@ -78,8 +81,10 @@ void insert_copy(module& m, const allocation_model& model)
     {
         if(ins->get_shape().any_of_dynamic())
             continue;
-        auto alias = instruction::get_output_alias(ins);
-        if(alias->get_shape() == ins->get_shape())
+        auto aliases = instruction::get_output_alias(ins);
+        if(std::any_of(aliases.begin(), aliases.end(), [&](instruction_ref alias) {
+               return alias->get_shape() == ins->get_shape();
+           }))
             continue;
         auto insert_ins = std::next(ins);
         auto alloc      = m.insert_instruction(

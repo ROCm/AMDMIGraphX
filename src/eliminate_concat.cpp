@@ -70,11 +70,13 @@ void eliminate_concat::apply(module& m) const
             // Where are the allocations for the tensors to be concatenated?
             std::vector<instruction_ref> allocations;
 
-            std::transform(
-                ins->inputs().begin(),
-                std::prev(ins->inputs().end()),
-                std::back_inserter(allocations),
-                [&](instruction_ref x) { return instruction::get_output_alias(x, true); });
+            std::transform(ins->inputs().begin(),
+                           std::prev(ins->inputs().end()),
+                           std::back_inserter(allocations),
+                           [&](instruction_ref x) {
+                               auto aliases = instruction::get_output_alias(x, true);
+                               return aliases.front();
+                           });
 
             if(std::any_of(allocations.begin(), allocations.end(), [&](auto x) {
                    return x->name() != concat_opt.allocate();

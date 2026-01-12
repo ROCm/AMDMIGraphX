@@ -140,7 +140,7 @@ struct MIGRAPHX_EXPORT instruction
 
     void finalize(context& ctx);
 
-    static instruction_ref get_output_alias(instruction_ref ins, bool shallow = false);
+    static std::vector<instruction_ref> get_output_alias(instruction_ref ins, bool shallow = false);
 
     void set_normalized(bool value = true);
     bool is_normalized() const;

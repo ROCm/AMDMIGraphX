@@ -21,7 +21,7 @@ from tqdm import tqdm
 class ConcurrentInferenceTest:
     """Test harness for concurrent MIGraphX inference"""
 
-    def __init__(self, model_path, cache_dir, max_dynamic_batch=0, verbose=False, optimization_level=0, warmup=3, show_io=False, thread_details=False):
+    def __init__(self, model_path, cache_dir, max_dynamic_batch=0, verbose=False, optimization_level=0, warmup=3, show_io=False, thread_details=False, fp16_enable=False, bf16_enable=False, fp16_data=False, bf16_data=False):
         self.model_path = model_path
         self.cache_dir = cache_dir
         self.max_dynamic_batch = max_dynamic_batch
@@ -30,6 +30,10 @@ class ConcurrentInferenceTest:
         self.warmup = warmup
         self.show_io = show_io
         self.thread_details = thread_details
+        self.fp16_enable = fp16_enable
+        self.bf16_enable = bf16_enable
+        self.fp16_data = fp16_data
+        self.bf16_data = bf16_data
         self.sessions = {}
         self.results = defaultdict(list)
         self.lock = threading.Lock()
@@ -77,13 +81,20 @@ class ConcurrentInferenceTest:
         # Configure MIGraphX execution provider
         migraphx_provider_options = {
             'device_id': 0,
-            'migraphx_fp16_enable': 0,
-            'migraphx_bf16_enable': 0,
+            'migraphx_fp16_enable': 1 if self.fp16_enable else 0,
+            'migraphx_bf16_enable': 1 if self.bf16_enable else 0,
             'migraphx_fp8_enable': 0,
             'migraphx_int8_enable': 0,
             'migraphx_exhaustive_tune': 0,
-            'migraphx_max_dynamic_batch': self.max_dynamic_batch,
+            #'migraphx_max_dynamic_batch': self.max_dynamic_batch,
         }
+
+        if self.show_io:
+            print(f"[Thread-{thread_id}] MIGraphX Provider Options:")
+            print(f"[Thread-{thread_id}]   FP16 Enable: {'ON' if self.fp16_enable else 'OFF'}")
+            print(f"[Thread-{thread_id}]   BF16 Enable: {'ON' if self.bf16_enable else 'OFF'}")
+            print(f"[Thread-{thread_id}]   FP16 Data: {'ON' if self.fp16_data else 'OFF'}")
+            print(f"[Thread-{thread_id}]   BF16 Data: {'ON' if self.bf16_data else 'OFF'}")
 
         # Create session with MIGraphX EP
         providers = [
@@ -137,6 +148,31 @@ class ConcurrentInferenceTest:
             # Generate random data based on input type
             if inp.type == 'tensor(float)' or inp.type == 'tensor(float32)':
                 data = np.random.randn(*shape).astype(np.float32)
+                # Convert to fp16 or bf16 if requested
+                if self.fp16_data:
+                    data = data.astype(np.float16)
+                elif self.bf16_data:
+                    # bfloat16 support - convert via float32
+                    # Note: numpy doesn't have native bfloat16, but ONNX Runtime can handle it
+                    # We'll use float32 and let the EP handle conversion
+                    # If ML dtypes is available, we could use ml_dtypes.bfloat16
+                    try:
+                        import ml_dtypes
+                        data = data.astype(ml_dtypes.bfloat16)
+                    except ImportError:
+                        print(f"  WARNING: ml_dtypes not available for bfloat16, using float32")
+                        data = data.astype(np.float32)
+            elif inp.type == 'tensor(float16)':
+                # Model expects float16 inputs - generate float16 data directly
+                data = np.random.randn(*shape).astype(np.float16)
+            elif inp.type == 'tensor(bfloat16)':
+                # Model expects bfloat16 inputs - generate bfloat16 data
+                try:
+                    import ml_dtypes
+                    data = np.random.randn(*shape).astype(np.float32).astype(ml_dtypes.bfloat16)
+                except ImportError:
+                    print(f"  WARNING: ml_dtypes not available for bfloat16, using float16")
+                    data = np.random.randn(*shape).astype(np.float16)
             elif inp.type == 'tensor(double)' or inp.type == 'tensor(float64)':
                 data = np.random.randn(*shape).astype(np.float64)
             elif inp.type == 'tensor(int64)':
@@ -455,6 +491,14 @@ def main():
                        help='ONNX Runtime graph optimization level: 0=DISABLE_ALL (default), 1=ENABLE_BASIC, 2=ENABLE_EXTENDED, 99=ENABLE_ALL')
     parser.add_argument('--random-batches', action='store_true', default=False,
                        help='Use random batch sizes per iteration (default: cycle through --batches)')
+    parser.add_argument('--fp16-enable', action='store_true', default=False,
+                       help='Enable FP16 precision in MIGraphX execution provider (default: OFF)')
+    parser.add_argument('--bf16-enable', action='store_true', default=False,
+                       help='Enable BF16 precision in MIGraphX execution provider (default: OFF)')
+    parser.add_argument('--fp16-data', action='store_true', default=False,
+                       help='Use FP16 input data instead of FP32 (default: OFF)')
+    parser.add_argument('--bf16-data', action='store_true', default=False,
+                       help='Use BF16 input data instead of FP32 (default: OFF)')
 
     args = parser.parse_args()
     
@@ -473,6 +517,10 @@ def main():
     print(f"Verbose logging: {'ON' if args.verbose else 'OFF'}")
     opt_level_names = {0: "DISABLE_ALL", 1: "ENABLE_BASIC", 2: "ENABLE_EXTENDED", 99: "ENABLE_ALL"}
     print(f"Graph optimization: {opt_level_names.get(args.optimization_level, 'DISABLE_ALL')}")
+    print(f"FP16 enable: {'ON' if args.fp16_enable else 'OFF'}")
+    print(f"BF16 enable: {'ON' if args.bf16_enable else 'OFF'}")
+    print(f"FP16 data: {'ON' if args.fp16_data else 'OFF'}")
+    print(f"BF16 data: {'ON' if args.bf16_data else 'OFF'}")
     print("="*80)
 
     # Check if model exists
@@ -484,7 +532,8 @@ def main():
     # Create test harness
     test = ConcurrentInferenceTest(args.model, args.cache, args.max_dynamic_batch, 
                                    args.verbose, args.optimization_level, args.warmup, args.show_io,
-                                   args.thread_details)
+                                   args.thread_details, args.fp16_enable, args.bf16_enable,
+                                   args.fp16_data, args.bf16_data)
 
     # Define test scenarios based on args.threads
     test_scenarios = []

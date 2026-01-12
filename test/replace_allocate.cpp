@@ -302,4 +302,211 @@ TEST_CASE(multi_alias_shape_check)
     EXPECT(m1.sort() == m2.sort());
 }
 
+// Test multi-alias with allocation replaced by output parameter
+// When first alias is an allocation, it gets replaced with output parameter
+TEST_CASE(multi_alias_alloc_out_param)
+{
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        // Create allocation that is first in multi_alias - this will be used for output naming
+        auto alloc =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p1 = m1.add_instruction(pass_op{}, alloc);
+        // Put allocation-based alias first so it gets used for output naming
+        auto ma = m1.add_instruction(multi_alias_op{}, p1, x);
+        m1.add_return({ma});
+    }
+    run_pass(m1, allocation_with_out_model{});
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", s);
+        // Only the allocation becomes an output parameter (named "output" since single alloc)
+        auto output = m2.add_parameter("output", s);
+        auto p1     = m2.add_instruction(pass_op{}, output);
+        auto ma     = m2.add_instruction(multi_alias_op{}, p1, x);
+        m2.add_return({ma});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Test multi-alias where both inputs are allocations - both become output parameters
+TEST_CASE(multi_alias_two_allocs_out_param)
+{
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    migraphx::module m1;
+    {
+        // First allocation will be replaced with output parameter
+        auto alloc1 =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p1 = m1.add_instruction(pass_op{}, alloc1);
+        // Second allocation will also be replaced with output parameter
+        auto alloc2 =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p2 = m1.add_instruction(pass_op{}, alloc2);
+        auto ma = m1.add_instruction(multi_alias_op{}, p1, p2);
+        m1.add_return({ma});
+    }
+    run_pass(m1, allocation_with_out_model{});
+
+    migraphx::module m2;
+    {
+        // Both aliases become output parameters
+        auto output0 = m2.add_parameter("output_0", s);
+        auto p1      = m2.add_instruction(pass_op{}, output0);
+        auto output1 = m2.add_parameter("output_1", s);
+        auto p2      = m2.add_instruction(pass_op{}, output1);
+        auto ma      = m2.add_instruction(multi_alias_op{}, p1, p2);
+        m2.add_return({ma});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Test multi-alias with matching shapes - no copy needed when any alias matches
+TEST_CASE(multi_alias_no_copy_when_any_matches)
+{
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    migraphx::shape s2{migraphx::shape::float_type, {10}};
+    migraphx::module m1;
+    {
+        // x has shape {5}, y has shape {10}
+        // multi_alias output has shape {5} (from first input)
+        // Since x's shape matches output shape, no copy is needed
+        auto x  = m1.add_parameter("x", s);
+        auto y  = m1.add_parameter("y", s2);
+        auto ma = m1.add_instruction(multi_alias_op{}, x, y);
+        m1.add_return({ma});
+    }
+
+    // Module should be unchanged - no copy inserted because first alias shape matches
+    migraphx::module m2 = m1;
+    run_pass(m1, allocation_no_out_model{});
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Test multiple return values where each has a multi-alias with allocation as first alias
+// Both allocations should be replaced with separate output parameters
+TEST_CASE(multi_alias_multiple_outputs_out_params)
+{
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        auto y = m1.add_parameter("y", s);
+        // First allocation -> pass -> multi_alias with x
+        auto alloc1 =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p1  = m1.add_instruction(pass_op{}, alloc1);
+        auto ma1 = m1.add_instruction(multi_alias_op{}, p1, x);
+        // Second allocation -> pass -> multi_alias with y
+        auto alloc2 =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p2  = m1.add_instruction(pass_op{}, alloc2);
+        auto ma2 = m1.add_instruction(multi_alias_op{}, p2, y);
+        // Return both multi_alias results - each should get its own output parameter
+        m1.add_return({ma1, ma2});
+    }
+    run_pass(m1, allocation_with_out_model{});
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", s);
+        auto y = m2.add_parameter("y", s);
+        // First output parameter replaces first allocation (named :#output_0)
+        auto output0 = m2.add_parameter(":#output_0", s);
+        auto p1      = m2.add_instruction(pass_op{}, output0);
+        auto ma1     = m2.add_instruction(multi_alias_op{}, p1, x);
+        // Second output parameter replaces second allocation (named :#output_1)
+        auto output1 = m2.add_parameter(":#output_1", s);
+        auto p2      = m2.add_instruction(pass_op{}, output1);
+        auto ma2     = m2.add_instruction(multi_alias_op{}, p2, y);
+        m2.add_return({ma1, ma2});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Test multi-alias with 3 allocations - all become output parameters
+TEST_CASE(multi_alias_three_allocs)
+{
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    migraphx::module m1;
+    {
+        // Three allocations wrapped in pass_op
+        auto alloc1 =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p1 = m1.add_instruction(pass_op{}, alloc1);
+        auto alloc2 =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p2 = m1.add_instruction(pass_op{}, alloc2);
+        auto alloc3 =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p3 = m1.add_instruction(pass_op{}, alloc3);
+        // multi_alias aliases all three allocations
+        auto ma = m1.add_instruction(multi_alias_op{}, p1, p2, p3);
+        m1.add_return({ma});
+    }
+    run_pass(m1, allocation_with_out_model{});
+
+    migraphx::module m2;
+    {
+        // All three aliases become output parameters
+        auto output0 = m2.add_parameter("output_0", s);
+        auto p1      = m2.add_instruction(pass_op{}, output0);
+        auto output1 = m2.add_parameter("output_1", s);
+        auto p2      = m2.add_instruction(pass_op{}, output1);
+        auto output2 = m2.add_parameter("output_2", s);
+        auto p3      = m2.add_instruction(pass_op{}, output2);
+        auto ma      = m2.add_instruction(multi_alias_op{}, p1, p2, p3);
+        m2.add_return({ma});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Test where multiple multi_alias ops each contribute an allocation to multiple returns
+// Each allocation becomes a separate output parameter
+TEST_CASE(multi_alias_chain_multiple_out_params)
+{
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        // Three allocations
+        auto alloc1 =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p1 = m1.add_instruction(pass_op{}, alloc1);
+        auto alloc2 =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p2 = m1.add_instruction(pass_op{}, alloc2);
+        auto alloc3 =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p3 = m1.add_instruction(pass_op{}, alloc3);
+        // Each multi_alias puts an allocation first
+        auto ma1 = m1.add_instruction(multi_alias_op{}, p1, x);
+        auto ma2 = m1.add_instruction(multi_alias_op{}, p2, x);
+        auto ma3 = m1.add_instruction(multi_alias_op{}, p3, x);
+        // Return all three - each should get its own output parameter
+        m1.add_return({ma1, ma2, ma3});
+    }
+    run_pass(m1, allocation_with_out_model{});
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", s);
+        // Three output parameters - one for each return
+        auto output0 = m2.add_parameter(":#output_0", s);
+        auto p1      = m2.add_instruction(pass_op{}, output0);
+        auto output1 = m2.add_parameter(":#output_1", s);
+        auto p2      = m2.add_instruction(pass_op{}, output1);
+        auto output2 = m2.add_parameter(":#output_2", s);
+        auto p3      = m2.add_instruction(pass_op{}, output2);
+        auto ma1     = m2.add_instruction(multi_alias_op{}, p1, x);
+        auto ma2     = m2.add_instruction(multi_alias_op{}, p2, x);
+        auto ma3     = m2.add_instruction(multi_alias_op{}, p3, x);
+        m2.add_return({ma1, ma2, ma3});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

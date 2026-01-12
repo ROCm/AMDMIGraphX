@@ -41,31 +41,45 @@ std::unordered_map<instruction_ref, std::string> create_output_names(const modul
     std::unordered_map<instruction_ref, std::string> mod_output_names;
     auto returns = mod.get_returns();
 
-    std::vector<instruction_ref> outputs_alias;
-    outputs_alias.reserve(returns.size());
-
+    // Collect all allocation aliases from each return value
+    std::vector<instruction_ref> alloc_aliases;
     for(const auto& i : returns)
     {
         auto aliases = instruction::get_output_alias(i);
-        outputs_alias.push_back(aliases.front());
+        for(auto ins : aliases)
+        {
+            if(ins->name() == "allocate")
+                alloc_aliases.push_back(ins);
+        }
     }
 
     std::size_t index = 0;
-    if(outputs_alias.size() == 1 and mod.name().empty())
+    if(returns.size() == 1 and mod.name().empty())
     {
-        mod_output_names[outputs_alias.front()] = "output";
+        // Single return with empty module name: all aliases get "output" or "output_N"
+        if(alloc_aliases.size() == 1)
+        {
+            mod_output_names[alloc_aliases.front()] = "output";
+        }
+        else
+        {
+            for(auto ins : alloc_aliases)
+            {
+                mod_output_names[ins] = "output_" + std::to_string(index++);
+            }
+        }
     }
     // Preserve main module output buffer naming across migraphx versions
     else if(mod.name() == "main")
     {
-        for(auto ins : outputs_alias)
+        for(auto ins : alloc_aliases)
         {
             mod_output_names[ins] = mod.name() + ":#output_" + std::to_string(index++);
         }
     }
     else
     {
-        for(auto ins : outputs_alias)
+        for(auto ins : alloc_aliases)
         {
             mod_output_names[ins] = param_name(index++, mod.name() + ":#output_");
         }

@@ -47,8 +47,9 @@ static bool skip_propagate(instruction_ref ins)
         return true;
     auto aliases = instruction::get_output_alias(ins, true);
     if(not(aliases.size() == 1 and aliases.front() == ins))
-        return std::any_of(
-            aliases.begin(), aliases.end(), [](instruction_ref alias) { return skip_propagate(alias); });
+        return std::any_of(aliases.begin(), aliases.end(), [](instruction_ref alias) {
+            return skip_propagate(alias);
+        });
     if(ins->is_undefined())
         return true;
     return false;

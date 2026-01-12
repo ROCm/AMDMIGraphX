@@ -60,7 +60,7 @@ struct fill
         return args[1];
     }
 
-    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 1; }
+    std::vector<std::size_t> output_alias(const std::vector<shape>&) const { return {1}; }
 };
 
 } // namespace op

@@ -52,7 +52,7 @@ struct test_copy : migraphx::auto_register_op<test_copy>
         return inputs.back();
     }
 
-    std::ptrdiff_t output_alias(const std::vector<migraphx::shape>&) const { return 1; }
+    std::vector<std::size_t> output_alias(const std::vector<migraphx::shape>&) const { return {1}; }
 };
 
 struct allocate_no_out : migraphx::auto_register_op<allocate_no_out>

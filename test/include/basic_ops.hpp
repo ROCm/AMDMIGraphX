@@ -131,7 +131,10 @@ struct pass_op
             return {};
         return inputs.front();
     }
-    int output_alias(const std::vector<migraphx::shape>& s) const { return s.empty() ? -1 : 0; }
+    std::vector<std::size_t> output_alias(const std::vector<migraphx::shape>& s) const
+    {
+        return s.empty() ? std::vector<std::size_t>{} : std::vector<std::size_t>{0};
+    }
 };
 
 struct non_const_pass_op
@@ -151,7 +154,10 @@ struct non_const_pass_op
             return {};
         return inputs.front();
     }
-    int output_alias(const std::vector<migraphx::shape>& s) const { return s.empty() ? -1 : 0; }
+    std::vector<std::size_t> output_alias(const std::vector<migraphx::shape>& s) const
+    {
+        return s.empty() ? std::vector<std::size_t>{} : std::vector<std::size_t>{0};
+    }
 };
 
 struct mod_pass_op
@@ -176,7 +182,7 @@ struct mod_pass_op
         return {};
     }
 
-    int output_alias(const std::vector<migraphx::shape>&) const { return 0; }
+    std::vector<std::size_t> output_alias(const std::vector<migraphx::shape>&) const { return {0}; }
 };
 
 struct unary_pass_op
@@ -196,7 +202,7 @@ struct unary_pass_op
             MIGRAPHX_THROW("Wrong inputs");
         return inputs.front();
     }
-    int output_alias(const std::vector<migraphx::shape>&) const { return 0; }
+    std::vector<std::size_t> output_alias(const std::vector<migraphx::shape>&) const { return {0}; }
 };
 
 struct pass_standard_op
@@ -221,7 +227,7 @@ struct pass_standard_op
             return {};
         return inputs.front();
     }
-    int output_alias(const std::vector<migraphx::shape>&) const { return 0; }
+    std::vector<std::size_t> output_alias(const std::vector<migraphx::shape>&) const { return {0}; }
 };
 
 struct nop

@@ -107,7 +107,7 @@ struct random_uniform
         return result;
     }
 
-    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 1; }
+    std::vector<std::size_t> output_alias(const std::vector<shape>&) const { return {1}; }
 };
 
 } // namespace op

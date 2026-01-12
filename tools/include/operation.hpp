@@ -79,9 +79,9 @@ struct operation
      * the same the `output` shape.
      */
     argument compute(context& ctx, const shape& output, const std::vector<argument>& input) const;
-    /// An optional method to return which argument the output will alias. If
-    /// there is no aliased output then -1 can be returned.
-    std::ptrdiff_t output_alias(const std::vector<shape>& input) const;
+    /// An optional method to return which arguments the output will alias. If
+    /// there is no aliased output then an empty vector can be returned.
+    std::vector<std::size_t> output_alias(const std::vector<shape>& input) const;
     /// An optional stream operator to print the operation. When this is not
     /// implemented, it will just print the operation's name.
     friend std::ostream& operator<<(std::ostream& os, const operation& op);
@@ -410,9 +410,9 @@ auto need_normalization_op(const T& x)
 }
 
 template <class T>
-std::ptrdiff_t output_alias_op(const T&, const std::vector<shape>&)
+std::vector<std::size_t> output_alias_op(const T&, const std::vector<shape>&)
 {
-    return -1;
+    return {};
 }
 
 template <class T>
@@ -518,7 +518,7 @@ lifetime get_lifetime_op(const T&)
      virtual(
          'get_lifetime', returns = 'lifetime', const = True, default = 'detail::get_lifetime_op'),
      virtual('output_alias',
-             returns = 'std::ptrdiff_t',
+             returns = 'std::vector<std::size_t>',
              input   = 'const std::vector<shape>&',
              const   = True,
              default = 'detail::output_alias_op'),

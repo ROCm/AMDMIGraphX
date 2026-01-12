@@ -87,7 +87,7 @@ struct compilable_op
         return inputs.front();
     }
 
-    int output_alias(const std::vector<migraphx::shape>&) const { return 0; }
+    std::vector<std::size_t> output_alias(const std::vector<migraphx::shape>&) const { return {0}; }
 
     migraphx::value
     compile(migraphx::context&, const migraphx::shape&, const std::vector<migraphx::shape>&)

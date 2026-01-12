@@ -72,9 +72,9 @@ struct device_base : oper<Derived>
             return {s0.type(), s0.lens()};
     }
 
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
     {
-        return shapes.size() - 1;
+        return {shapes.size() - 1};
     }
 };
 

@@ -58,7 +58,7 @@ struct load
         return argument{s, args[0].data() + offset};
     }
     lifetime get_lifetime() const { return lifetime::borrow; }
-    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
+    std::vector<std::size_t> output_alias(const std::vector<shape>&) const { return {0}; }
 
     friend std::ostream& operator<<(std::ostream& os, const load& op)
     {

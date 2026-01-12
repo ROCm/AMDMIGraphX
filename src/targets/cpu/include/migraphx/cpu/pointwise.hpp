@@ -360,9 +360,9 @@ struct cpu_unary : reduce_dims_base, auto_register_op<cpu_unary<Op>>
         return result.reshape(output_shape);
     }
 
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
     {
-        return shapes.size() - 1;
+        return {shapes.size() - 1};
     }
 };
 
@@ -401,9 +401,9 @@ struct cpu_binary : reduce_dims_base, auto_register_op<cpu_binary<Op>>
         return result.reshape(output_shape);
     }
 
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
     {
-        return shapes.size() - 1;
+        return {shapes.size() - 1};
     }
 };
 

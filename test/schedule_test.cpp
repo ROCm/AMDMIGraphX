@@ -50,7 +50,7 @@ struct unary_op
             return {};
         return inputs.front();
     }
-    int output_alias(const std::vector<migraphx::shape>&) const { return 0; }
+    std::vector<std::size_t> output_alias(const std::vector<migraphx::shape>&) const { return {0}; }
 };
 
 struct nary_op

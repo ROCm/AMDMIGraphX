@@ -72,9 +72,9 @@ struct code_object_op
     {
         return output_arg < 0 ? n + output_arg : output_arg;
     }
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
     {
-        return get_output_arg(shapes.size());
+        return {static_cast<std::size_t>(get_output_arg(shapes.size()))};
     }
 
     friend std::ostream& operator<<(std::ostream& os, const code_object_op& op)

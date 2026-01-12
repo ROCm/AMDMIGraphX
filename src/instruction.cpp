@@ -472,9 +472,10 @@ void instruction::debug_print() const
 
 instruction_ref instruction::get_output_alias(instruction_ref ins, bool shallow)
 {
-    auto i = ins->get_operator().output_alias(to_shapes(ins->inputs()));
-    if(i < 0)
+    auto aliases = ins->get_operator().output_alias(to_shapes(ins->inputs()));
+    if(aliases.empty())
         return ins;
+    auto i = aliases.front();
     if(shallow)
         return ins->inputs().at(i);
     return get_output_alias(ins->inputs().at(i));

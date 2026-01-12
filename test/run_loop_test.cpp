@@ -57,7 +57,7 @@ struct copy_op
         return args[1];
     }
 
-    int output_alias(const std::vector<migraphx::shape>&) const { return 0; }
+    std::vector<std::size_t> output_alias(const std::vector<migraphx::shape>&) const { return {0}; }
 };
 
 struct test_loop_op

@@ -123,7 +123,7 @@ struct simple_op
     {
         return args.at(0);
     }
-    int output_alias(const std::vector<migraphx::shape>&) const { return 0; }
+    std::vector<std::size_t> output_alias(const std::vector<migraphx::shape>&) const { return {0}; }
 };
 
 template <class... Ts>

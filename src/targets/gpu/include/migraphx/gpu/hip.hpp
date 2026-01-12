@@ -113,7 +113,7 @@ struct hip_fill
         gpu_fill(ctx, args.front(), value);
         return args.front();
     }
-    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
+    std::vector<std::size_t> output_alias(const std::vector<shape>&) const { return {0}; }
 };
 
 struct hip_sync_stream
@@ -135,11 +135,11 @@ struct hip_sync_stream
         return args.front();
     }
 
-    std::ptrdiff_t output_alias(const std::vector<shape>& args) const
+    std::vector<std::size_t> output_alias(const std::vector<shape>& args) const
     {
         if(args.empty())
-            return -1;
-        return 0;
+            return {};
+        return {0};
     }
 };
 
@@ -165,11 +165,11 @@ struct hip_copy_to_gpu
         // Associate the input since it was registered with hip
         return {result.get_shape(), [input, result]() mutable { return result.data(); }};
     }
-    std::ptrdiff_t output_alias(const std::vector<shape>& args) const
+    std::vector<std::size_t> output_alias(const std::vector<shape>& args) const
     {
         if(args.size() == 1)
-            return -1;
-        return 1;
+            return {};
+        return {1};
     }
 };
 
@@ -198,11 +198,11 @@ struct hip_copy_from_gpu
         copy_from_gpu(ctx, input, args[1]);
         return args[1];
     }
-    std::ptrdiff_t output_alias(const std::vector<shape>& args) const
+    std::vector<std::size_t> output_alias(const std::vector<shape>& args) const
     {
         if(args.size() == 1)
-            return -1;
-        return 1;
+            return {};
+        return {1};
     }
 };
 
@@ -224,7 +224,7 @@ struct hip_copy
         gpu_copy(ctx, args[0], result);
         return args[1];
     }
-    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 1; }
+    std::vector<std::size_t> output_alias(const std::vector<shape>&) const { return {1}; }
 };
 
 MIGRAPHX_GPU_EXPORT void

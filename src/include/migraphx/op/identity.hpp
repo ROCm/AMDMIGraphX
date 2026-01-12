@@ -39,7 +39,7 @@ struct identity
 
     value attributes() const { return {{"pointwise", true}, {"point_op", "${0}"}}; }
 
-    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
+    std::vector<std::size_t> output_alias(const std::vector<shape>&) const { return {0}; }
 };
 
 } // namespace op

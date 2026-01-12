@@ -53,9 +53,9 @@ struct hip_loop
             const std::vector<module_ref>& mods,
             const std::function<std::vector<argument>(
                 module_ref&, const std::unordered_map<std::string, argument>&)>& run) const;
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
     {
-        return shapes.size() - 1;
+        return {shapes.size() - 1};
     }
 };
 

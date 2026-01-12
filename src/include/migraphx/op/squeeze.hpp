@@ -141,7 +141,7 @@ struct squeeze
     {
         return args[0].reshape(dyn_out.computed_shape);
     }
-    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
+    std::vector<std::size_t> output_alias(const std::vector<shape>&) const { return {0}; }
 };
 
 } // namespace op

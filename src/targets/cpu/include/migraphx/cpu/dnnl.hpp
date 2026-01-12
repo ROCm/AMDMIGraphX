@@ -296,9 +296,9 @@ struct dnnl_op : auto_register_op<Derived>
         return execute(ctx, args);
     }
 
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
     {
-        return shapes.size() - 1;
+        return {shapes.size() - 1};
     }
     value compile(context&, const shape& output_shape, std::vector<shape> inputs)
     {

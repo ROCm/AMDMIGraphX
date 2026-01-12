@@ -114,7 +114,7 @@ std::string get_graph_color(const instruction_ref& ins)
     const auto& attr = op.attributes();
 
     bool context_free = is_context_free(op);
-    bool alias        = op.output_alias(to_shapes(ins->inputs())) >= 0;
+    bool alias        = not op.output_alias(to_shapes(ins->inputs())).empty();
 
     if(ins->can_eval())
     {

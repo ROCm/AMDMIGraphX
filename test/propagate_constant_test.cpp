@@ -574,8 +574,8 @@ TEST_CASE(skip_propagate_multi_alias)
         auto broadcasted = m1.add_literal(
             migraphx::literal{{migraphx::shape::float_type, {2, 1}, {1, 0}}, {1.0f, 2.0f}});
         // Create a normal literal
-        auto normal = m1.add_literal(
-            migraphx::literal{{migraphx::shape::float_type, {2}}, {3.0f, 4.0f}});
+        auto normal =
+            m1.add_literal(migraphx::literal{{migraphx::shape::float_type, {2}}, {3.0f, 4.0f}});
         // multi_alias_op aliases both inputs
         auto ma = m1.add_instruction(multi_alias_op{}, broadcasted, normal);
         // Add an operation that uses ma

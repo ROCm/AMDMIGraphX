@@ -64,10 +64,10 @@ TEST_CASE(no_alias)
 TEST_CASE(multiple_aliases)
 {
     migraphx::program p;
-    auto* mm = p.get_main_module();
-    auto x   = mm->add_literal(1);
-    auto y   = mm->add_literal(2);
-    auto ma  = mm->add_instruction(multi_alias_op{}, x, y);
+    auto* mm     = p.get_main_module();
+    auto x       = mm->add_literal(1);
+    auto y       = mm->add_literal(2);
+    auto ma      = mm->add_instruction(multi_alias_op{}, x, y);
     auto aliases = migraphx::instruction::get_output_alias(ma);
     // multi_alias_op aliases both inputs, so we should get both literals back
     EXPECT(aliases.size() == 2);
@@ -124,12 +124,12 @@ TEST_CASE(alias_vector_size)
     auto aliases_self = migraphx::instruction::get_output_alias(l);
     EXPECT(aliases_self.size() == 1);
     // Single alias - returns vector with one element
-    auto p1 = mm->add_instruction(pass_op{}, l);
+    auto p1             = mm->add_instruction(pass_op{}, l);
     auto aliases_single = migraphx::instruction::get_output_alias(p1);
     EXPECT(aliases_single.size() == 1);
     // Multiple aliases - returns vector with multiple elements
-    auto x = mm->add_literal(2);
-    auto ma = mm->add_instruction(multi_alias_op{}, l, x);
+    auto x             = mm->add_literal(2);
+    auto ma            = mm->add_instruction(multi_alias_op{}, l, x);
     auto aliases_multi = migraphx::instruction::get_output_alias(ma);
     EXPECT(aliases_multi.size() == 2);
 }

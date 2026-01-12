@@ -286,8 +286,8 @@ TEST_CASE(multi_alias_shape_check)
     migraphx::shape s{migraphx::shape::float_type, {5}};
     migraphx::module m1;
     {
-        auto x  = m1.add_parameter("x", s);
-        auto y  = m1.add_parameter("y", s);
+        auto x = m1.add_parameter("x", s);
+        auto y = m1.add_parameter("y", s);
         // multi_alias_op aliases both x and y (both have same shape)
         auto ma = m1.add_instruction(multi_alias_op{}, x, y);
         m1.add_return({ma});

@@ -58,8 +58,7 @@ void adjust_allocation::apply(module& m) const
         // If the memory is an output parameter then copy the memory to the parameter
         if(alias_ins->name() == "@param")
         {
-            auto copy =
-                m.insert_instruction(std::next(ins), make_op(model.copy()), ins, alias_ins);
+            auto copy = m.insert_instruction(std::next(ins), make_op(model.copy()), ins, alias_ins);
             auto tail = range(std::next(copy), m.end());
             for(auto i : iterator_for(tail))
             {

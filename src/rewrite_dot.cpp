@@ -27,9 +27,12 @@
 #include <migraphx/matcher.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/permutation.hpp>
+#include <migraphx/env.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TRANSB);
 
 namespace {
 
@@ -107,9 +110,53 @@ struct find_1x1_convolution
     }
 };
 
+// Transform B matrix to column-major layout for transB optimization.
+// Uses layout operator to rearrange memory order without changing logical tensor order.
+// The layout operator will be constant-folded by propagate_constant.
+struct find_dot_transb
+{
+    auto matcher() const
+    {
+        return match::name("dot", "quant_dot")(match::arg(1)(match::is_constant().bind("b")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+        auto b   = r.instructions["b"];
+        
+        auto b_shape = b->get_shape();
+        auto ndim    = b_shape.ndim();
+        if(ndim < 2)
+            return;
+
+        // Build permutation for column-major layout on last two dimensions
+        // For (..., k, n) tensor: permutation swaps last two dims in memory order
+        // e.g., for 3D: [0, 2, 1] means batch first, then n, then k in memory
+        std::vector<int64_t> perm(ndim);
+        std::iota(perm.begin(), perm.end(), 0);
+        std::swap(perm[ndim - 2], perm[ndim - 1]);
+
+        // Layout operator changes memory order without changing logical tensor order
+        auto col_major_b = m.insert_instruction(
+            ins, make_op("layout", {{"permutation", perm}}), b);
+
+        // Replace B input in the dot operation
+        auto a = ins->inputs().front();
+        m.replace_instruction(ins, ins->get_operator(), a, col_major_b);
+    }
+};
+
 } // namespace
 
-void rewrite_dot::apply(module& m) const { match::find_matches(m, find_1x1_convolution{}); }
+void rewrite_dot::apply(module& m) const
+{
+    match::find_matches(m, find_1x1_convolution{});
+    if(enabled(MIGRAPHX_MLIR_TRANSB{}))
+    {
+        match::find_matches(m, find_dot_transb{});
+    }
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

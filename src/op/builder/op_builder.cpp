@@ -32,7 +32,7 @@ namespace op {
 namespace builder {
 
 // NOLINTNEXTLINE(modernize-return-braced-init-list)
-value get_default_options() { return value("", {}, false); }
+value get_default_options() { return value::object{}; }
 
 static std::unordered_map<std::string, op_builder_if>& builder_map()
 {

@@ -51,7 +51,7 @@ struct parse_generic_op : op_parser<parse_generic_op>
                           const std::vector<instruction_ref>& args) const
     {
         const auto& op = make_op(opd.op_name);
-        return op::builder::add(opd.op_name, *info.mm, args, op.to_value()).at(0);
+        return op::builder::add(opd.op_name, *info.mm, args).at(0);
     }
 };
 

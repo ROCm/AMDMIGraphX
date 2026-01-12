@@ -53,7 +53,7 @@ struct parse_binary_op : op_parser<parse_binary_op>
         if(args.size() != 2)
             MIGRAPHX_THROW("binary operators should have 2 operands");
 
-        value options("", {}, false);
+        value options = value::object{};
         if(contains(info.attributes, "broadcast") and contains(info.attributes, "axis"))
         {
             uint64_t broadcasted =

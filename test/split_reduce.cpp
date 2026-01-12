@@ -302,11 +302,11 @@ TEST_CASE(parallel_reduce_multi_alias)
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 327680}};
     migraphx::program p1;
     {
-        auto* mm = p1.get_main_module();
-        auto x   = mm->add_parameter("x", s);
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
         auto rsum = add_reduce(
             p1, "fuse_reduce0", {x}, {2}, [&](auto* rm, const auto& inputs, const auto& axes) {
-                auto xx = add_pointwise(p1, rm, "main:pointwise0", {inputs[0]}, squared());
+                auto xx    = add_pointwise(p1, rm, "main:pointwise0", {inputs[0]}, squared());
                 auto rsum1 = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
                                                  inputs[0]);
                 auto rsum2 =
@@ -325,23 +325,24 @@ TEST_CASE(parallel_reduce_multi_alias)
         // The pointwise (squared) is extracted to main module
         auto xx = add_pointwise(p2, mm, "main:pointwise0", {x}, squared());
         // Split module takes both xx and x as inputs
-        auto rsum = add_reduce(
-            p2,
-            "fuse_reduce0_split",
-            {xx, x},
-            {2},
-            "assign_add",
-            [&](auto* rm,
-                const auto& inputs,
-                const auto& axes) -> std::vector<migraphx::instruction_ref> {
-                // inputs[0] is xx (squared), inputs[1] is x
-                // The pass returns (rsum1, rsum2) order based on the original fused module order
-                auto rsum1 = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
-                                                 inputs[1]);
-                auto rsum2 = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
-                                                 inputs[0]);
-                return {rsum1, rsum2};
-            });
+        auto rsum =
+            add_reduce(p2,
+                       "fuse_reduce0_split",
+                       {xx, x},
+                       {2},
+                       "assign_add",
+                       [&](auto* rm,
+                           const auto& inputs,
+                           const auto& axes) -> std::vector<migraphx::instruction_ref> {
+                           // inputs[0] is xx (squared), inputs[1] is x
+                           // The pass returns (rsum1, rsum2) order based on the original fused
+                           // module order
+                           auto rsum1 = rm->add_instruction(
+                               migraphx::make_op("reduce_sum", {{"axes", axes}}), inputs[1]);
+                           auto rsum2 = rm->add_instruction(
+                               migraphx::make_op("reduce_sum", {{"axes", axes}}), inputs[0]);
+                           return {rsum1, rsum2};
+                       });
         auto rsum1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), rsum);
         auto rsum2 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), rsum);
         // multi_alias_op is moved to main module after split
@@ -368,7 +369,7 @@ TEST_CASE(split_with_multi_alias_alive)
                 auto rsum1 =
                     rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), sqrt);
                 // multi_alias aliases sqrt and rsum1 - sqrt should be identified as alive
-                auto ma = rm->add_instruction(multi_alias_op{}, sqrt, rsum1);
+                auto ma    = rm->add_instruction(multi_alias_op{}, sqrt, rsum1);
                 auto rsumb = rm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), ma);
                 return add_pointwise(
@@ -379,20 +380,20 @@ TEST_CASE(split_with_multi_alias_alive)
     run_pass(p1);
     migraphx::program p2;
     {
-        auto* mm  = p2.get_main_module();
-        auto x    = mm->add_parameter("x", s);
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s);
         // sqrt is computed first, then passed to split module
         auto sqrt = add_pointwise(p2, mm, "main:pointwise0", {x}, single_pointwise("sqrt"));
-        auto rsums = add_reduce(
-            p2,
-            "fuse_reduce0_split",
-            {sqrt},
-            {2},
-            "assign_add",
-            [&](auto* rm, const auto& inputs, const auto& axes) {
-                return rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
-                                           inputs[0]);
-            });
+        auto rsums =
+            add_reduce(p2,
+                       "fuse_reduce0_split",
+                       {sqrt},
+                       {2},
+                       "assign_add",
+                       [&](auto* rm, const auto& inputs, const auto& axes) {
+                           return rm->add_instruction(
+                               migraphx::make_op("reduce_sum", {{"axes", axes}}), inputs[0]);
+                       });
         // After split: multi_alias(sqrt, rsums) - shape is {2,3,327680} from sqrt
         // multibroadcast is eliminated since multi_alias already has the right shape
         auto ma = mm->add_instruction(multi_alias_op{}, sqrt, rsums);

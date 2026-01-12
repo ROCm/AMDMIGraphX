@@ -46,11 +46,9 @@ std::unordered_map<instruction_ref, std::string> create_output_names(const modul
     for(const auto& i : returns)
     {
         auto aliases = instruction::get_output_alias(i);
-        for(auto ins : aliases)
-        {
-            if(ins->name() == "allocate")
-                alloc_aliases.push_back(ins);
-        }
+        std::copy_if(aliases.begin(), aliases.end(), std::back_inserter(alloc_aliases), [&](instruction_ref ins) {
+            return ins->name() == "allocate";
+        });
     }
 
     std::size_t index = 0;

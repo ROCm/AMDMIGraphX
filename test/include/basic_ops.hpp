@@ -268,9 +268,8 @@ struct multi_alias_op
     }
     std::vector<std::size_t> output_alias(const std::vector<migraphx::shape>& s) const
     {
-        std::vector<std::size_t> result;
-        for(std::size_t i = 0; i < s.size(); ++i)
-            result.push_back(i);
+        std::vector<std::size_t> result(s.size());
+        std::iota(result.begin(), result.end(), 0);
         return result;
     }
 };

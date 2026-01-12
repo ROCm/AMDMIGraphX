@@ -75,6 +75,7 @@ void eliminate_concat::apply(module& m) const
                            std::back_inserter(allocations),
                            [&](instruction_ref x) {
                                auto aliases = instruction::get_output_alias(x, true);
+                               // cppcheck-suppress returnDanglingLifetime
                                return aliases.front();
                            });
 

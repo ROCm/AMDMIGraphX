@@ -312,8 +312,7 @@ TEST_CASE(parallel_reduce_multi_alias)
                 auto rsum2 =
                     rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), xx);
                 // multi_alias_op aliases both reduce outputs
-                auto ma = rm->add_instruction(multi_alias_op{}, rsum1, rsum2);
-                return ma;
+                return rm->add_instruction(multi_alias_op{}, rsum1, rsum2);
             });
         mm->add_return({rsum});
     }

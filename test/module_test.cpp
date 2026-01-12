@@ -490,7 +490,6 @@ TEST_CASE(module_without_bypass)
 TEST_CASE(module_set_get_tag)
 {
     migraphx::program p;
-    auto* mm  = p.get_main_module();
     auto* sub = p.create_module("sub");
     EXPECT(sub->get_tag().empty());
     sub->set_tag("test_tag");
@@ -500,9 +499,27 @@ TEST_CASE(module_set_get_tag)
 TEST_CASE(module_tag_default_empty)
 {
     migraphx::program p;
-    auto* mm  = p.get_main_module();
     auto* sub = p.create_module("sub");
     EXPECT(sub->get_tag().empty());
+}
+
+TEST_CASE(module_tag_on_main_module)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    EXPECT(mm->get_tag().empty());
+    mm->set_tag("main_tag");
+    EXPECT(mm->get_tag() == "main_tag");
+}
+
+TEST_CASE(module_tag_update)
+{
+    migraphx::program p;
+    auto* sub = p.create_module("sub");
+    sub->set_tag("first_tag");
+    EXPECT(sub->get_tag() == "first_tag");
+    sub->set_tag("second_tag");
+    EXPECT(sub->get_tag() == "second_tag");
 }
 
 TEST_CASE(multiple_module_dependency)

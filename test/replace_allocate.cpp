@@ -279,4 +279,27 @@ TEST_CASE(allocate_copy_with_no_out)
     EXPECT(m1.sort() == m2.sort());
 }
 
+// Test that replace_allocate handles multi-alias operations correctly
+// when checking for shape matches (insert_copy code path)
+TEST_CASE(multi_alias_shape_check)
+{
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", s);
+        auto y  = m1.add_parameter("y", s);
+        // multi_alias_op aliases both x and y (both have same shape)
+        auto ma = m1.add_instruction(multi_alias_op{}, x, y);
+        m1.add_return({ma});
+    }
+
+    // After pass, since the multi_alias aliases inputs with matching shapes,
+    // no copy should be inserted
+    migraphx::module m2 = m1;
+    run_pass(m1, allocation_no_out_model{});
+
+    // The module should remain unchanged since aliases have matching shapes
+    EXPECT(m1.sort() == m2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

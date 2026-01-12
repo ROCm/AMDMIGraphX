@@ -256,6 +256,25 @@ struct tuple_op
     }
 };
 
+// Operation that aliases multiple inputs (all inputs)
+struct multi_alias_op
+{
+    std::string name() const { return "multi_alias"; }
+    migraphx::shape compute_shape(std::vector<migraphx::shape> inputs) const
+    {
+        if(inputs.empty())
+            MIGRAPHX_THROW("Need at least 1 input");
+        return inputs.front();
+    }
+    std::vector<std::size_t> output_alias(const std::vector<migraphx::shape>& s) const
+    {
+        std::vector<std::size_t> result;
+        for(std::size_t i = 0; i < s.size(); ++i)
+            result.push_back(i);
+        return result;
+    }
+};
+
 inline migraphx::literal get_2x2(int base = 0)
 {
     return migraphx::literal{{migraphx::shape::float_type, {2, 2}},

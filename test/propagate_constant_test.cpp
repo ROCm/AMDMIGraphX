@@ -562,4 +562,34 @@ TEST_CASE(pack_unpack_fp4)
     EXPECT(m1 == m2);
 }
 
+// Test that propagate_constant correctly handles multi-alias operations
+// when one of the aliases should be skipped (e.g., broadcasted)
+TEST_CASE(skip_propagate_multi_alias)
+{
+    // When an instruction has multiple aliases and one should be skipped,
+    // propagation should be skipped for the entire instruction
+    migraphx::module m1;
+    {
+        // Create a broadcasted literal (should skip propagation)
+        auto broadcasted = m1.add_literal(
+            migraphx::literal{{migraphx::shape::float_type, {2, 1}, {1, 0}}, {1.0f, 2.0f}});
+        // Create a normal literal
+        auto normal = m1.add_literal(
+            migraphx::literal{{migraphx::shape::float_type, {2}}, {3.0f, 4.0f}});
+        // multi_alias_op aliases both inputs
+        auto ma = m1.add_instruction(multi_alias_op{}, broadcasted, normal);
+        // Add an operation that uses ma
+        auto neg = m1.add_instruction(migraphx::make_op("neg"), ma);
+        m1.add_return({neg});
+    }
+
+    migraphx::module m2 = m1;
+    run_pass(m1);
+
+    // Since one alias (broadcasted) should skip propagation,
+    // the multi_alias instruction should not be propagated
+    // The modules should be equivalent (no propagation happened)
+    EXPECT(m1 == m2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

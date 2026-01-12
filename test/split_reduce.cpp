@@ -26,6 +26,7 @@
 #include <migraphx/fuse_reduce.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/program.hpp>
 #include <basic_ops.hpp>
@@ -290,6 +291,114 @@ TEST_CASE(double_split_live)
                 return pm->add_instruction(migraphx::make_op("mul"), add, sqrt);
             });
         mm->add_return({sqrt_add_mul});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+// Test multi-alias in parallel reduce scenario - both reduce outputs are aliased by multi_alias_op
+// The pass should split both reduces and extract the multi_alias to the main module
+TEST_CASE(parallel_reduce_multi_alias)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3, 327680}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto rsum = add_reduce(
+            p1, "fuse_reduce0", {x}, {2}, [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto xx = add_pointwise(p1, rm, "main:pointwise0", {inputs[0]}, squared());
+                auto rsum1 = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
+                                                 inputs[0]);
+                auto rsum2 =
+                    rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), xx);
+                // multi_alias_op aliases both reduce outputs
+                auto ma = rm->add_instruction(multi_alias_op{}, rsum1, rsum2);
+                return ma;
+            });
+        mm->add_return({rsum});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        // The pointwise (squared) is extracted to main module
+        auto xx = add_pointwise(p2, mm, "main:pointwise0", {x}, squared());
+        // Split module takes both xx and x as inputs
+        auto rsum = add_reduce(
+            p2,
+            "fuse_reduce0_split",
+            {xx, x},
+            {2},
+            "assign_add",
+            [&](auto* rm,
+                const auto& inputs,
+                const auto& axes) -> std::vector<migraphx::instruction_ref> {
+                // inputs[0] is xx (squared), inputs[1] is x
+                // The pass returns (rsum1, rsum2) order based on the original fused module order
+                auto rsum1 = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
+                                                 inputs[1]);
+                auto rsum2 = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
+                                                 inputs[0]);
+                return {rsum1, rsum2};
+            });
+        auto rsum1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), rsum);
+        auto rsum2 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), rsum);
+        // multi_alias_op is moved to main module after split
+        auto ma = mm->add_instruction(multi_alias_op{}, rsum1, rsum2);
+        mm->add_return({ma});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+// Test that find_alive correctly identifies live instructions through multi-alias chain
+// sqrt is computed before reduce, used after reduce through multi_alias - should be split out
+TEST_CASE(split_with_multi_alias_alive)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3, 327680}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto rsum = add_reduce(
+            p1, "fuse_reduce0", {x}, {2}, [&](auto* rm, const auto& inputs, const auto& axes) {
+                // Create a computation before the reduce
+                auto sqrt =
+                    add_pointwise(p1, rm, "main:pointwise0", {inputs[0]}, single_pointwise("sqrt"));
+                auto rsum1 =
+                    rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), sqrt);
+                // multi_alias aliases sqrt and rsum1 - sqrt should be identified as alive
+                auto ma = rm->add_instruction(multi_alias_op{}, sqrt, rsum1);
+                auto rsumb = rm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), ma);
+                return add_pointwise(
+                    p1, rm, "main:pointwise1", {rsumb, sqrt}, single_pointwise("mul"));
+            });
+        mm->add_return({rsum});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        // sqrt is computed first, then passed to split module
+        auto sqrt = add_pointwise(p2, mm, "main:pointwise0", {x}, single_pointwise("sqrt"));
+        auto rsums = add_reduce(
+            p2,
+            "fuse_reduce0_split",
+            {sqrt},
+            {2},
+            "assign_add",
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                return rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
+                                           inputs[0]);
+            });
+        // After split: multi_alias(sqrt, rsums) - shape is {2,3,327680} from sqrt
+        // multibroadcast is eliminated since multi_alias already has the right shape
+        auto ma = mm->add_instruction(multi_alias_op{}, sqrt, rsums);
+        // multiply multi_alias result with sqrt
+        auto result = add_pointwise(p2, mm, "main:pointwise1", {ma, sqrt}, single_pointwise("mul"));
+        mm->add_return({result});
     }
     EXPECT(p1.sort() == p2.sort());
 }

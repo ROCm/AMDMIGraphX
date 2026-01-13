@@ -32,15 +32,14 @@ TEST_CASE(liveness_single_alias)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto x   = mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {2}}, {1.0f, 2.0f}});
-    auto p1  = mm->add_instruction(pass_op{}, x);
-    auto p2  = mm->add_instruction(pass_op{}, p1);
+    auto x   = mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {2}}, {1.0f, 2.0f}});
+    auto p1 = mm->add_instruction(pass_op{}, x);
+    auto p2 = mm->add_instruction(pass_op{}, p1);
     mm->add_return({p2});
 
     std::vector<migraphx::instruction_ref> consumed;
-    migraphx::liveness(*mm, [&](auto ins, const auto&) {
-        consumed.push_back(ins);
-    });
+    migraphx::liveness(*mm, [&](auto ins, const auto&) { consumed.push_back(ins); });
 
     // With single alias ops, pass_ops alias to x, so liveness tracks x
     // The callback is called when x is "consumed" (last usage)
@@ -51,17 +50,17 @@ TEST_CASE(liveness_multi_alias)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto x   = mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {2}}, {1.0f, 2.0f}});
-    auto y   = mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {2}}, {3.0f, 4.0f}});
+    auto x   = mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {2}}, {1.0f, 2.0f}});
+    auto y = mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {2}}, {3.0f, 4.0f}});
     // multi_alias_op aliases both x and y
-    auto ma  = mm->add_instruction(multi_alias_op{}, x, y);
-    auto p1  = mm->add_instruction(pass_op{}, ma);
+    auto ma = mm->add_instruction(multi_alias_op{}, x, y);
+    auto p1 = mm->add_instruction(pass_op{}, ma);
     mm->add_return({p1});
 
     std::vector<migraphx::instruction_ref> consumed;
-    migraphx::liveness(*mm, [&](auto ins, const auto&) {
-        consumed.push_back(ins);
-    });
+    migraphx::liveness(*mm, [&](auto ins, const auto&) { consumed.push_back(ins); });
 
     // Both x and y should be tracked and consumed
     // because multi_alias_op aliases both inputs
@@ -73,9 +72,12 @@ TEST_CASE(liveness_multi_alias_cascade)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto x   = mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {2}}, {1.0f, 2.0f}});
-    auto y   = mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {2}}, {3.0f, 4.0f}});
-    auto z   = mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {2}}, {5.0f, 6.0f}});
+    auto x   = mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {2}}, {1.0f, 2.0f}});
+    auto y = mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {2}}, {3.0f, 4.0f}});
+    auto z = mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {2}}, {5.0f, 6.0f}});
     // First multi_alias aliases x and y
     auto ma1 = mm->add_instruction(multi_alias_op{}, x, y);
     // Second multi_alias aliases ma1 (which aliases x,y) and z
@@ -83,9 +85,7 @@ TEST_CASE(liveness_multi_alias_cascade)
     mm->add_return({ma2});
 
     std::vector<migraphx::instruction_ref> consumed;
-    migraphx::liveness(*mm, [&](auto ins, const auto&) {
-        consumed.push_back(ins);
-    });
+    migraphx::liveness(*mm, [&](auto ins, const auto&) { consumed.push_back(ins); });
 
     // All three literals should be tracked and consumed
     // ma2 transitively aliases x, y, z
@@ -100,10 +100,12 @@ TEST_CASE(liveness_multi_alias_both_tracked)
     // ALL aliased instructions are properly tracked in liveness analysis.
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto x   = mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {2}}, {1.0f, 2.0f}});
-    auto y   = mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {2}}, {3.0f, 4.0f}});
+    auto x   = mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {2}}, {1.0f, 2.0f}});
+    auto y = mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {2}}, {3.0f, 4.0f}});
     // multi_alias_op returns output_alias {0, 1} - it aliases both inputs
-    auto ma  = mm->add_instruction(multi_alias_op{}, x, y);
+    auto ma = mm->add_instruction(multi_alias_op{}, x, y);
     mm->add_return({ma});
 
     // Count how many times each literal appears in any live_set across all callbacks
@@ -121,13 +123,10 @@ TEST_CASE(liveness_multi_alias_both_tracked)
     // Note: they might have count 0 if they're only processed when the live_set is already emptied
     // The key test is that BOTH get consumed (callback called for both)
     std::vector<migraphx::instruction_ref> consumed;
-    migraphx::liveness(*mm, [&](auto ins, const auto&) {
-        consumed.push_back(ins);
-    });
+    migraphx::liveness(*mm, [&](auto ins, const auto&) { consumed.push_back(ins); });
 
     EXPECT(migraphx::contains(consumed, x));
     EXPECT(migraphx::contains(consumed, y));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }
-

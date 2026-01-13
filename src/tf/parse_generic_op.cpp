@@ -50,7 +50,6 @@ struct parse_generic_op : op_parser<parse_generic_op>
                           const tf_parser::node_info& info,
                           const std::vector<instruction_ref>& args) const
     {
-        const auto& op = make_op(opd.op_name);
         return op::builder::add(opd.op_name, *info.mm, args).at(0);
     }
 };

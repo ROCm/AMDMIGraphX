@@ -158,4 +158,3 @@ std::size_t get_hsa_chiplet_count(std::size_t /*device_id*/)
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-

@@ -45,8 +45,11 @@ static program parse_onnx_from(const onnx_options& options, Ts&&... xs)
     parser.map_input_dims     = options.map_input_dims;
     parser.dim_params         = options.dim_params;
     parser.map_dyn_input_dims = options.map_dyn_input_dims;
-    auto dim_val              = options.default_dim_value;
-    if(dim_val != 0)
+    parser.default_dim_value  = options.default_dim_value;
+    parser.is_params_cmd      = options.is_params_cmd;
+    parser.is_cli_cmd         = options.is_cli_cmd;
+
+    if(parser.default_dim_value)
     {
         if(options.default_dyn_dim_value != shape::dynamic_dimension{1, 1})
         {
@@ -55,7 +58,7 @@ static program parse_onnx_from(const onnx_options& options, Ts&&... xs)
         }
         else
         {
-            parser.default_dyn_dim_value = {dim_val, dim_val};
+            parser.default_dyn_dim_value = {parser.default_dim_value, parser.default_dim_value};
         }
     }
     else

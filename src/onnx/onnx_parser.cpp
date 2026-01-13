@@ -379,7 +379,7 @@ parse_inputs(const onnx_parser& parser,
             }
             else
             {
-                s = parser.parse_type(input.type());
+                s = parser.parse_type(name, input.type());
             }
             mod_insts[name] = mod->add_parameter(name, s);
         }
@@ -792,38 +792,44 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
     MIGRAPHX_THROW("PARSE_TENSOR: Invalid tensor type");
 }
 
-shape onnx_parser::parse_type(const onnx::TypeProto& t) const
+shape onnx_parser::parse_type(const std::string& name, const onnx::TypeProto& t) const
 {
     shape::type_t shape_type = get_type(t.tensor_type().elem_type());
 
     std::vector<shape::dynamic_dimension> dynamic_dims;
     auto&& tensor_dims = t.tensor_type().shape().dim();
-    std::transform(tensor_dims.begin(),
-                   tensor_dims.end(),
-                   std::back_inserter(dynamic_dims),
-                   [&](auto&& d) -> shape::dynamic_dimension {
-                       if(d.has_dim_param())
-                       {
-                           const auto& dim_param = d.dim_param();
-                           if(contains(dim_params, dim_param))
-                           {
-                               return dim_params.at(dim_param);
-                           }
-                       }
-                       if(d.has_dim_value())
-                       {
-                           if(static_cast<int>(d.dim_value()) <= 0)
-                           {
-                               return default_dyn_dim_value;
-                           }
-                           std::size_t tmp = d.dim_value();
-                           return {tmp, tmp};
-                       }
-                       else
-                       {
-                           return default_dyn_dim_value;
-                       }
-                   });
+    for(size_t idx = 0; idx != tensor_dims.size(); idx++)
+    {
+        const auto& d = tensor_dims[idx];
+        if(d.has_dim_param())
+        {
+            const auto& dim_param = d.dim_param();
+            if(contains(dim_params, dim_param))
+            {
+                dynamic_dims.push_back(dim_params.at(dim_param));
+                continue;
+            }
+        }
+        if(d.has_dim_value())
+        {
+            int val = d.dim_value();
+            if(val <= 0)
+                dynamic_dims.push_back(default_dyn_dim_value);
+            else
+                dynamic_dims.push_back({static_cast<size_t>(val), static_cast<size_t>(val)});
+        }
+        else
+        {
+            // Note: Batch is effectively set via onnx_options::default_dim_value, via API or CLI.
+            // Batch should be default filled only for index 0 (else throw error when set via CLI)
+            // If the Driver Param option is used, we don't want to throw an error.
+            if(idx != 0 and default_dim_value != 0 and is_cli_cmd and not is_params_cmd)
+                MIGRAPHX_THROW("Batch inserted at non-zero index: " + std::to_string(idx) +
+                               +", instead set \'input-dim\' option for node \'" + name +
+                               "\'. Use --help for details.");
+            dynamic_dims.push_back(default_dyn_dim_value);
+        }
+    }
 
     if(dynamic_dims.empty())
     {

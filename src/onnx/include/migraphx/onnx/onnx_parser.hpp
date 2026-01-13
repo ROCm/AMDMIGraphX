@@ -98,6 +98,9 @@ struct onnx_parser
     std::unordered_map<std::string, instruction_ref> instructions;
     program prog                                   = program();
     shape::dynamic_dimension default_dyn_dim_value = {1, 1};
+    size_t default_dim_value                       = 0;
+    bool is_params_cmd                             = false;
+    bool is_cli_cmd                                = false;
     std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
     std::unordered_map<std::string, shape::dynamic_dimension> dim_params;
     std::unordered_map<std::string, std::vector<shape::dynamic_dimension>> map_dyn_input_dims;
@@ -122,7 +125,7 @@ struct onnx_parser
     parse_graph(module* mod, const onnx::GraphProto& graph, bool inlining = false);
     literal parse_value(const onnx::AttributeProto& attr) const;
     literal parse_tensor(const onnx::TensorProto& t) const;
-    shape parse_type(const onnx::TypeProto& t) const;
+    shape parse_type(const std::string& name, const onnx::TypeProto& t) const;
     shape parse_type(const onnx::TypeProto& t, const std::vector<std::size_t>& input_dims) const;
     std::string to_string(const onnx::AttributeProto& attr) const;
 };

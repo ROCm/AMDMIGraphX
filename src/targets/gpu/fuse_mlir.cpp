@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -48,6 +48,7 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_EXTRA_MLIR);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_ENABLED);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_GEG_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MLIR);
 /**
@@ -140,6 +141,23 @@ bool mlir_attention_enabled(context* ctx)
     return specific_op<requested>("attention");
 #else
     return false;
+#endif
+}
+
+bool mlir_flash_decoding_enabled()
+{
+#ifdef MIGRAPHX_MLIR
+    if(not mlir_enabled())
+        return false;
+
+    // Check if explicitly enabled via environment variable
+    if(enabled(MIGRAPHX_FLASH_DECODING_ENABLED{}))
+        return true;
+
+    return false;
+#else
+    // Without MLIR, only enable if explicitly requested via env var
+    return enabled(MIGRAPHX_FLASH_DECODING_ENABLED{});
 #endif
 }
 
@@ -463,22 +481,23 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
     }
     const std::initializer_list<std::string> any_type_ops = {"@literal", "@param", "@return"};
     const std::initializer_list<std::string> no_bool_ops  = {
-        "convolution",
-        "quant_convolution",
-        "dot",
-        "quant_dot",
+        "abs",
         "add",
         "clip",
+        "convolution",
+        "dequantizelinear",
+        "div",
+        "dot",
+        "leaky_relu",
+        "mul",
+        "neg",
+        "pow",
+        "quant_convolution",
+        "quant_dot",
+        "quantizelinear",
         "relu",
         "sub",
-        "mul",
-        "div",
-        "pow",
         "where",
-        "quantizelinear",
-        "dequantizelinear",
-        "abs",
-        "neg",
     };
     const std::initializer_list<std::string> fp_only_ops = {
         "ceil",
@@ -551,6 +570,8 @@ bool is_pointwise_op_supported_by_mlir_for_input(const instruction& i)
 {
     return is_pointwise_op_supported_by_mlir(i);
 }
+
+bool is_reduce(const instruction& ins) { return contains(ins.name(), "reduce"); }
 
 MIGRAPHX_PRED_MATCHER(mlir_split_reduce, instruction_ref ins)
 {

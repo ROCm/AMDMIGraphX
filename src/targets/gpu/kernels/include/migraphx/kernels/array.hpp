@@ -179,6 +179,18 @@ struct array
         return reduce([](auto x, auto y) { return x * y; }, 1);
     }
 
+    constexpr T all() const
+    {
+        return reduce([](auto x, auto y) { return x and y; }, true);
+    }
+
+    constexpr T any() const
+    {
+        return reduce([](auto x, auto y) { return x or y; }, false);
+    }
+
+    constexpr T none() const { return not any(); }
+
     constexpr T single(index_int width = 100) const
     {
         T result = 0;
@@ -196,6 +208,15 @@ struct array
     {
         array<decltype(f(d[0])), N> result;
         transform(this->begin(), this->end(), result.begin(), f);
+        return result;
+    }
+
+    template <class U>
+    constexpr auto to() const
+    {
+        array<U, N> result;
+        for(index_int i = 0; i < N; i++)
+            result[i] = static_cast<U>(d[i]);
         return result;
     }
 
@@ -315,12 +336,6 @@ struct array
     }
 };
 
-template <class F>
-constexpr auto array_apply(F f)
-{
-    return [=](auto&& x) { return x.apply(f); };
-}
-
 template <class T, class... Ts>
 constexpr array<T, sizeof...(Ts) + 1> make_array(T x, Ts... xs)
 {
@@ -345,6 +360,71 @@ template <class T, class N, class F>
 constexpr auto generate_array(N n, F f)
 {
     return sequence_c<n>([=](auto... is) { return array<T, n>{f(is)...}; });
+}
+
+template <class F>
+constexpr auto array_apply(F f)
+{
+    return [=](auto&& x) { return x.apply(f); };
+}
+
+template <class T, index_int N>
+constexpr auto array_size(const array<T, N>&)
+{
+    return index_constant<N>{};
+}
+
+template <class T, T... Xs>
+constexpr auto array_size(const integral_const_array<T, Xs...>&)
+{
+    return index_constant<sizeof...(Xs)>{};
+}
+
+template <class T>
+constexpr auto array_size(const T&, ...) // NOLINT
+{
+    return index_constant<0>{};
+}
+
+template <class T>
+constexpr auto array_size()
+{
+    return decltype(array_size(declval<T>())){};
+}
+
+template <class T, class I>
+constexpr auto array_at(T x, I i)
+{
+    if constexpr(array_size<T>() == 0)
+        return x;
+    else
+    {
+        MIGRAPHX_ASSERT(i < array_size<T>());
+        return x[i];
+    }
+}
+
+template <class... Ts>
+constexpr auto array_transform(Ts... xs)
+{
+    return [=](auto f) {
+        constexpr auto common_size = fold([](auto x, auto y) {
+            if constexpr(x > y)
+                return x;
+            else
+                return y;
+        })(array_size<Ts>()...);
+        if constexpr(common_size == 0)
+            return f(xs...);
+        else
+        {
+            using type = decltype(f(array_at(xs, 0)...));
+            array<type, common_size> result;
+            for(int i = 0; i < common_size; i++)
+                result[i] = f(array_at(xs, i)...);
+            return result;
+        }
+    };
 }
 
 template <class T, T... Xs, class F>
@@ -381,6 +461,9 @@ constexpr auto return_array_c(F f)
 
 template <index_int... Ns>
 using index_ints = integral_const_array<index_int, Ns...>;
+
+template <index_int... Ns>
+using diff_ints = integral_const_array<diff_int, Ns...>;
 
 } // namespace migraphx
 

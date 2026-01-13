@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -937,6 +937,49 @@ TEST_CASE(reduce_contiguous_reshape_pointwise)
         mm->add_return({addr});
     }
     EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(reduce_squeeze_unsqueeze_pointwise1)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1, 1, 1, 1, 1, 1, 32, 10, 16, 1, 90, 160}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", s1);
+        auto y   = mm->add_parameter("y", s1);
+        auto rsum =
+            mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {7, 8, 9, 10, 11}}}), x);
+        auto squeeze = mm->add_instruction(
+            migraphx::make_op("squeeze", {{"axes", {1, 2, 3, 4, 5, 7, 8, 9, 10}}}), rsum);
+        auto unsqueeze = mm->add_instruction(
+            migraphx::make_op("unsqueeze", {{"axes", {1, 2, 3, 4, 5, 7, 8, 10, 11}}}), squeeze);
+        auto rsumb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), unsqueeze);
+        auto add = add_pointwise(p1, "main:pointwise0", {rsumb, y}, single_pointwise("add"));
+        mm->add_return({add});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s1);
+        auto y   = mm->add_parameter("y", s1);
+        auto add = add_reduce(
+            p2,
+            "main:reduce_sum0_reshape:main:pointwise0",
+            {x, y},
+            {7, 8, 9, 10, 11},
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto rsum  = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
+                                                inputs[0]);
+                auto rsumb = rm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsum);
+                return add_pointwise(
+                    p2, rm, "main:pointwise0", {rsumb, inputs[1]}, single_pointwise("add"));
+            });
+        mm->add_return({add});
+    }
+    EXPECT(p1 == p2);
 }
 
 TEST_CASE(reduce_reshape_reduce)

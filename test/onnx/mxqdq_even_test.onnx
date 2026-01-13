@@ -1,11 +1,11 @@
-	mxfixneuron_even_test:Ì
-p
-inputoutput"MXFixNeuron*
+mxqdq_even_test:Ï
+y
+inputoutput"MXQuantizeDequantize*
 axis *
 
 block_size  *
 element_dtype"fp4_e2m1 *
-rounding_mode mxfixneuron_even_testZ
+rounding_mode mxqdq_even_testZ
 input
 
 
@@ -17,4 +17,4 @@ block_size  *
 
 @
 
-B
+B

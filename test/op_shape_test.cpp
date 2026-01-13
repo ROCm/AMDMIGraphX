@@ -2708,6 +2708,30 @@ TEST_CASE(pointwise_strict_type)
     EXPECT(test::throws([&] { mm->add_instruction(migraphx::make_op("pointwise"), {x}, {&pm}); }));
 }
 
+TEST_CASE(pointwise_broadcast_input)
+{
+    auto s1 = migraphx::shape::from_permutation(migraphx::shape::float_type, {2, 3}, {1, 0});
+    migraphx::shape s2{migraphx::shape::float_type, {2, 3}, {1, 0}};
+    migraphx::shape s3{migraphx::shape::float_type, {2, 3}, {0, 1}};
+    migraphx::shape is{migraphx::shape::float_type, {1}, {0}};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::module pm;
+    {
+        auto x   = pm.add_parameter("x", is);
+        auto y   = pm.add_parameter("y", is);
+        auto z   = pm.add_parameter("z", is);
+        auto mul = pm.add_instruction(migraphx::make_op("mul"), y, z);
+        auto add = pm.add_instruction(migraphx::make_op("add"), mul, x);
+        pm.add_return({add});
+    }
+    auto x  = mm->add_parameter("x", s1);
+    auto y  = mm->add_parameter("y", s2);
+    auto z  = mm->add_parameter("z", s3);
+    auto pw = mm->add_instruction(migraphx::make_op("pointwise"), {x, y, z}, {&pm});
+    EXPECT(pw->get_shape() == x->get_shape());
+}
+
 TEST_CASE(pooling_shape0)
 {
     migraphx::shape input{migraphx::shape::float_type, {4, 3, 3, 3}};

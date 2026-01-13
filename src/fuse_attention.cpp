@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,7 +28,9 @@
 #include <migraphx/matcher.hpp>
 #include <migraphx/match/softmax.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/generic_float.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/split_factor.hpp>
 #include <queue>
 #include <optional>
 
@@ -37,9 +39,81 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
 
+// env vars for flash decoding configuration
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_NUM_SPLITS);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_MIN_CHUNK_SIZE);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_MAX_SPLITS);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_THRESHOLD);
 
-std::size_t get_num_splits() { return value_of(MIGRAPHX_FLASH_DECODING_NUM_SPLITS{}, 0); }
+// Helper function to get config value with priority: struct member (if not default) > env var >
+// default
+template <typename EnvVar>
+std::size_t get_config_value(std::size_t struct_value, std::size_t default_value, EnvVar env_var)
+{
+    // if struct member is not the default value, use it
+    if(struct_value != default_value)
+    {
+        return struct_value;
+    }
+
+    // otherwise return env var value, or default if not set
+    return value_of(env_var, default_value);
+}
+
+// Get num_splits with priority: struct member > env var > 0 (not set)
+std::size_t get_num_splits(std::size_t member_num_splits)
+{
+    // if struct member is set (non-zero), use it
+    if(member_num_splits > 0)
+    {
+        return member_num_splits;
+    }
+
+    // otherwise return env var value, or 0 if not set
+    return value_of(MIGRAPHX_FLASH_DECODING_NUM_SPLITS{}, 0);
+}
+
+// calculate optimal flash decoding splits
+inline std::size_t calculate_flash_decoding_splits(std::size_t sequence_length,
+                                                   std::size_t min_chunk_size,
+                                                   std::size_t max_splits)
+{
+    std::size_t r = sequence_length;
+    return split_dim(r, min_chunk_size, max_splits);
+}
+
+// calculate the actual number of groups for flash decoding
+// returns 0 if no splitting should be performed
+inline std::size_t calculate_groups(std::size_t groups,
+                                    std::size_t sequence_length,
+                                    std::size_t threshold,
+                                    std::size_t min_chunk_size,
+                                    std::size_t max_splits)
+{
+    // if groups is explicitly set and valid, use it
+    if(groups > 1)
+        return groups;
+
+    // if groups is 0, auto-calculate based on sequence length
+    if(groups == 0)
+    {
+        // skip if sequence is too short
+        if(sequence_length < threshold)
+            return 0;
+
+        std::size_t actual_groups =
+            calculate_flash_decoding_splits(sequence_length, min_chunk_size, max_splits);
+
+        // return 0 if auto-calculation determines no splitting needed
+        if(actual_groups <= 1)
+            return 0;
+
+        return actual_groups;
+    }
+
+    // groups == 1 or invalid, no splitting
+    return 0;
+}
 
 // TODO: Write this in matcher.hpp as a general matcher for iterating through inputs
 inline auto pointwise_inputs()
@@ -216,8 +290,11 @@ struct find_attention
 
 struct find_flash_decoding
 {
-    // number of groups. User-provided for now
-    std::size_t groups;
+    // configuration from fuse_attention pass config
+    std::size_t configured_splits;
+    std::size_t configured_threshold;
+    std::size_t configured_max_splits;
+    std::size_t configured_min_chunk_size;
 
     auto matcher() const
     {
@@ -267,7 +344,8 @@ struct find_flash_decoding
         std::vector<size_t> v_shape;           // final V shape: [B, G, N/G, D]
     };
 
-    transformed_shapes_result get_transformed_shapes(const std::vector<shape>& input_shapes) const
+    transformed_shapes_result get_transformed_shapes(const std::vector<shape>& input_shapes,
+                                                     std::size_t num_groups) const
     {
         assert(input_shapes.size() == 3 and "Expected Q, K, V shapes");
 
@@ -279,11 +357,11 @@ struct find_flash_decoding
         // 4D: Q_lens = [B, H, M, k]
         size_t ndim = q_lens.size();
         size_t n    = k_lens[ndim - 1];
-        size_t g    = groups;
+        size_t g    = num_groups;
 
-        // TODO: handle uneven splits; this is caught in `apply` for now
-        assert(n % g == 0 and
-               "Key-value sequence length must be divisible by number of splits/groups");
+        // Note: sequence length may have been padded to be divisible by num_groups
+        assert(n % g == 0 and "Key-value sequence length must be divisible by number of "
+                              "splits/groups (after padding)");
         size_t n_split = n / g;
 
         transformed_shapes_result result;
@@ -449,15 +527,31 @@ struct find_flash_decoding
         assert(k_param->name() == "@param" and "K should be a parameter");
         assert(v_param->name() == "@param" and "V should be a parameter");
 
-        // check if N dimension is evenly divisible by num_splits
-        if(k_param->get_shape().lens().back() % groups != 0)
+        // Get sequence length from K shape
+        auto k_shape                = k_param->get_shape();
+        std::size_t sequence_length = k_shape.lens().back();
+
+        // read configuration with priority: struct member (if not default) > env var > default
+        std::size_t groups = get_num_splits(configured_splits);
+        std::size_t threshold =
+            get_config_value(configured_threshold, 32, MIGRAPHX_FLASH_DECODING_THRESHOLD{});
+        std::size_t min_chunk_size = get_config_value(
+            configured_min_chunk_size, 32, MIGRAPHX_FLASH_DECODING_MIN_CHUNK_SIZE{});
+        std::size_t max_splits =
+            get_config_value(configured_max_splits, 16, MIGRAPHX_FLASH_DECODING_MAX_SPLITS{});
+
+        std::size_t actual_groups =
+            calculate_groups(groups, sequence_length, threshold, min_chunk_size, max_splits);
+        if(actual_groups == 0)
             return;
 
-        // get Q, V, K shapes from gemms
-        auto qkv_shapes = get_qkv_shapes(q_param, k_param, v_param);
-
-        // check shapes are ok and get flash decoding transformed shapes (Q', V', K')
-        auto transform_info = get_transformed_shapes(qkv_shapes);
+        // calculate padding if sequence length not evenly divisible
+        std::size_t padding_needed = 0;
+        if(sequence_length % actual_groups != 0)
+        {
+            // round up to nearest multiple of actual_groups
+            padding_needed = ceil_mul_of(sequence_length, actual_groups) - sequence_length;
+        }
 
         // create mapping from submodule params to main module inputs
         auto group_inputs      = attn_group_ins->inputs();
@@ -467,6 +561,39 @@ struct find_flash_decoding
         auto q = map_param_to_main.at(q_param);
         auto k = map_param_to_main.at(k_param);
         auto v = map_param_to_main.at(v_param);
+
+        // save original references before padding (needed for group_inputs replacement later)
+        auto q_orig = q;
+        auto k_orig = k;
+        auto v_orig = v;
+
+        // pad Q, K and V if necessary
+        if(padding_needed > 0)
+        {
+            // Q shape: [B, M, k] or [B, H, M, k] for 4D. Padding on M (sequence length dim)
+            auto q_ndim = q->get_shape().ndim();
+            std::vector<std::size_t> q_pads(2 * q_ndim, 0);
+            q_pads[q_ndim + q_ndim - 2] = padding_needed; // pad right on M dim (second to last)
+            q = mm.insert_instruction(attn_group_ins, make_op("pad", {{"pads", q_pads}}), q);
+
+            // K shape: [B, k, N] or [B, H, k, N] for 4D. Padding on N
+            auto k_ndim = k->get_shape().ndim();
+            std::vector<std::size_t> k_pads(2 * k_ndim, 0);
+            k_pads[k_ndim + k_ndim - 1] = padding_needed; // pad right on last dim
+            k = mm.insert_instruction(attn_group_ins, make_op("pad", {{"pads", k_pads}}), k);
+
+            // V shape: [B, N, D] or [B, H, N, D] for 4D
+            auto v_ndim = v->get_shape().ndim();
+            std::vector<std::size_t> v_pads(2 * v_ndim, 0);
+            v_pads[v_ndim + v_ndim - 2] = padding_needed; // pad right on N dim
+            v = mm.insert_instruction(attn_group_ins, make_op("pad", {{"pads", v_pads}}), v);
+        }
+
+        // get Q, K, V shapes (using potentially padded K and V)
+        auto qkv_shapes = get_qkv_shapes(q, k, v);
+
+        // check shapes are ok and get flash decoding transformed shapes (Q', V', K')
+        auto transform_info = get_transformed_shapes(qkv_shapes, actual_groups);
 
         // insert reshape operations before group, for Q, K, V
         auto q_ndim    = q->get_shape().lens().size();
@@ -493,18 +620,19 @@ struct find_flash_decoding
             attn_group_ins, make_op("reshape", {{"dims", transform_info.v_shape}}), v);
 
         // create new input list by replacing Q, K, V with reshaped versions
+        // use original references (before padding) for comparison
         std::vector<instruction_ref> new_group_inputs = group_inputs;
         for(size_t i = 0; i < group_inputs.size(); ++i)
         {
-            if(group_inputs[i] == q)
+            if(group_inputs[i] == q_orig)
             {
                 new_group_inputs[i] = q_reshaped;
             }
-            else if(group_inputs[i] == k)
+            else if(group_inputs[i] == k_orig)
             {
                 new_group_inputs[i] = k_reshaped;
             }
-            else if(group_inputs[i] == v)
+            else if(group_inputs[i] == v_orig)
             {
                 new_group_inputs[i] = v_reshaped;
             }
@@ -604,8 +732,26 @@ struct find_flash_decoding
         auto final_squeezed_o = mm.insert_instruction(
             attn_group_ins, make_op("squeeze", {{"axes", {g_axis}}}), final_output_o);
 
+        // if padding was applied, slice to remove it
+        instruction_ref final_result = final_squeezed_o;
+        if(padding_needed > 0)
+        {
+            // need to slice the sequence dimension to remove padding
+            // final_squeezed_o has shape like [B, M_padded, D], need to slice M back to original
+            auto output_shape            = final_squeezed_o->get_shape();
+            const auto& output_lens      = output_shape.lens();
+            std::size_t seq_dim_idx      = output_lens.size() - 2; // sequence dim is second to last
+            std::size_t original_seq_len = output_lens[seq_dim_idx] - padding_needed;
+
+            final_result = mm.insert_instruction(
+                attn_group_ins,
+                make_op("slice",
+                        {{"axes", {seq_dim_idx}}, {"starts", {0}}, {"ends", {original_seq_len}}}),
+                final_squeezed_o);
+        }
+
         // replace the original group instruction with the final result
-        mm.replace_instruction(attn_group_ins, final_squeezed_o);
+        mm.replace_instruction(attn_group_ins, final_result);
     }
 };
 
@@ -797,20 +943,16 @@ void fuse_attention::apply(module_pass_manager& mpm) const
         mpm.run_pass(dead_code_elimination{});
     }
 
-    std::size_t num_splits = 0;
-    if(flash_decoding_num_splits.has_value())
+    // enable flash decoding if splits configured or flash decoding is enabled
+    std::size_t configured_splits = get_num_splits(flash_decoding_num_splits);
+    if(configured_splits > 0 or flash_decoding_enabled)
     {
-        // Use the value from the constructor (for testing)
-        num_splits = *flash_decoding_num_splits;
-    }
-    else
-    {
-        // Default behavior: read from the env var (for non-test use)
-        num_splits = get_num_splits();
-    }
-    if(num_splits > 1)
-    {
-        match::find_matches(mpm, find_flash_decoding{.groups = num_splits});
+        match::find_matches(
+            mpm,
+            find_flash_decoding{.configured_splits         = flash_decoding_num_splits,
+                                .configured_threshold      = flash_decoding_threshold,
+                                .configured_max_splits     = flash_decoding_max_splits,
+                                .configured_min_chunk_size = flash_decoding_min_chunk_size});
         mpm.run_pass(dead_code_elimination{});
     }
 }

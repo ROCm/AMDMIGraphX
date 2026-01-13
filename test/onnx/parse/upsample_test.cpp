@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -33,6 +33,7 @@ TEST_CASE(upsample_test)
 
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
     auto ix = mm->add_parameter("X", sx);
+    mm->add_instruction(migraphx::make_op("undefined"));
 
     migraphx::shape si{migraphx::shape::int32_type, {1, 1, 4, 6}};
     std::vector<int> ind = {0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 3, 3};

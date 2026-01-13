@@ -1,0 +1,16 @@
+mxqdq_small_test:À
+y
+inputoutput"MXQuantizeDequantize*
+axis *
+
+block_size  *
+element_dtype"fp4_e2m1 *
+rounding_mode mxqdq_small_testZ
+input
+
+
+b
+output
+
+
+B

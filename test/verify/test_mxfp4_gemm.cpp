@@ -40,7 +40,7 @@ migraphx::instruction_ref add_dyn_scale_calc(migraphx::module_ref m,
     using migraphx::make_op;
     using migraphx::module_ref;
 
-    // Code similar to that in parse_mxfixneuron
+    // Code similar to that in parse_mxqdq
     // make reduction axes for calculating block scales
     // tmp_lens != input_lens if runt block is padded
     instruction_ref tmp_in = input;

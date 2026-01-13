@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -161,6 +161,9 @@ struct rewrite_reshapes
             auto desc =
                 shape_transform_descriptor::create(x_ins->get_shape().lens(), ops).rebase(dims2);
             if(desc.empty())
+                return;
+
+            if(desc.elements() != elements(dims2))
                 return;
 
             auto cdims         = desc.common_dims();

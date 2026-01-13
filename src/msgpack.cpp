@@ -34,7 +34,7 @@ constexpr std::size_t msgpack_size_limit = std::numeric_limits<uint32_t>::max() 
 template <class Range>
 static std::size_t msgpack_chunk_size(const Range& r)
 {
-    return 1 + (r.size() - 1) / msgpack_size_limit;
+    return 1 + (std::max<size_t>(1, r.size()) - 1) / msgpack_size_limit;
 }
 
 template <class Iterator, class F>
@@ -81,6 +81,7 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
                 break;
             }
             case msgpack::type::FLOAT32:
+            /* Intentional Fall Through This is due to value encoding floats as double. */
             case msgpack::type::FLOAT64: {
                 v = o.as<double>();
                 break;

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -225,7 +225,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         simplify_reshapes{.enable_op_shape_transform_op=true},
         dead_code_elimination{},
-        enable_pass(mlir_enabled(), fuse_attention{mlir_attention_enabled(&ctx)}),
+        enable_pass(mlir_enabled(), fuse_attention{.attn_enabled = mlir_attention_enabled(&ctx),
+                                                   .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
         dead_code_elimination{},
         optimize_module{},
         enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_pointwise_reduce{}),

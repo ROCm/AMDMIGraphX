@@ -5,8 +5,8 @@
 <!-- Explain the changes along with any relevant GitHub links. -->
 
 ## Changelog Category
-<!-- Also add the appropriate "Changelog:<...>" PR label. -->
 
+Add a `CHANGELOG.md` entry for any option other than `Not Applicable`
 - - [ ] Added: New functionality.
 - - [ ] Changed: Changes to existing functionality.
 - - [ ] Removed: Functionality or support that has been removed. (Compared to a previous release)

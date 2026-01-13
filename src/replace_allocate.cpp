@@ -45,9 +45,10 @@ std::unordered_map<instruction_ref, std::string> create_output_names(const modul
     // Collect all allocation aliases from each return value
     std::vector<instruction_ref> alloc_aliases;
     // Use a join but perhaps a tuple output parameter might be better?
-    std::transform(returns.begin(), returns.end(), join_back_inserter(alloc_aliases), [](const auto& i) {
-        return instruction::get_output_alias(i);
-    });
+    std::transform(returns.begin(),
+                   returns.end(),
+                   join_back_inserter(alloc_aliases),
+                   [](const auto& i) { return instruction::get_output_alias(i); });
 
     std::size_t index = 0;
     if(mod.name().empty())

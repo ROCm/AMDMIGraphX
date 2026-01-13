@@ -294,7 +294,7 @@ TEST_CASE(allocate_out_multi_return_partial_alloc)
 
     migraphx::module m2;
     {
-        auto x = m2.add_parameter("x", s);
+        auto x      = m2.add_parameter("x", s);
         auto output = m2.add_parameter("output_1", s);
         auto p1     = m2.add_instruction(pass_op{}, output);
         m2.add_return({x, p1});

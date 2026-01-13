@@ -25,6 +25,7 @@
 #include <unordered_map>
 #include <migraphx/op/builder/op_builder.hpp>
 #include <migraphx/op/builder/insert.hpp>
+#include <migraphx/register_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -49,9 +50,11 @@ void register_builder(const std::string& name, op_builder_if opb_if)
 
 value get_op_builder_value(const std::string& name)
 {
-    if(not has_op_builder(name))
-        MIGRAPHX_THROW("GET_OP_BUILDER_VALUE: OpBuilder not found: " + name);
-    return builder_map().at(name).to_val_func();
+    if(has_op_builder(name))
+        return builder_map().at(name).to_val_func();
+    else if(has_op(name))
+        return make_op(name).to_value();
+    MIGRAPHX_THROW("GET_OP_BUILDER_VALUE: OpBuilder not found: " + name);
 }
 
 static std::vector<instruction_ref> default_op_builder(module& m,

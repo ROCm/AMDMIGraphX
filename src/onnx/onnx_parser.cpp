@@ -24,7 +24,6 @@
 #include <migraphx/onnx/onnx_parser.hpp>
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/fallthrough.hpp>
-#include <migraphx/register_op.hpp>
 #include <migraphx/op/builder/op_builder.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/stringutils.hpp>
@@ -206,20 +205,18 @@ onnx_parser::onnx_parser()
         ops.emplace(name, get_op_parser(name));
 }
 
-value onnx_parser::load_to_value(const std::string& name, const node_info& info) const
+value onnx_parser::load_to_value(const std::string& name,
+                                 const node_info& info,
+                                 bool use_operation /*= true*/) const
 {
     value v{};
-    if(has_op(name))
+    if(use_operation)
     {
         v = make_op(name).to_value();
     }
-    else if(op::builder::has_op_builder(name))
-    {
-        v = op::builder::get_op_builder_value(name);
-    }
     else
     {
-        MIGRAPHX_THROW("LOAD_TO_VALUE: Operator|OpBuilder not found: " + name);
+        v = op::builder::get_op_builder_value(name);
     }
 
     for(auto&& x : v)

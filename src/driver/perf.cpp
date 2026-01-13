@@ -126,13 +126,12 @@ bool is_offload_copy_set(const program& p)
         {
             auto return_args = i.inputs();
             return std::all_of(return_args.begin(), return_args.end(), [&](const auto& j) {
-
                 auto aliases = instruction::get_output_alias(j, true);
                 return std::all_of(aliases.begin(), aliases.end(), [&](instruction_ref alias_ins) {
                     if(alias_ins->name() == "hip::copy_from_gpu")
                         return true;
                     if(alias_ins->name() == "@param")
-                         return not contains(param_ins, alias_ins);
+                        return not contains(param_ins, alias_ins);
                     return false;
                 });
             });

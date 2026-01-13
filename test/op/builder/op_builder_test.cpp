@@ -22,20 +22,14 @@
  * THE SOFTWARE.
  */
 
-#include <onnx_test.hpp>
+#include <op_builder_test_utils.hpp>
 
-TEST_CASE(tile_test)
+TEST_CASE(op_builder_module_args_not_empty_no_name_param_op_builder_test)
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {2}}, {1, 2}});
-    auto input  = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2}});
-    auto unsq   = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 2}}}), input);
-    auto mbcast = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 2, 2}}}), unsq);
-    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4}}}), mbcast);
+    migraphx::module mm_dummy;
+    std::vector<migraphx::module_ref> module_args{&mm_dummy};
 
-    auto prog = optimize_onnx("tile_test.onnx");
-
-    EXPECT(p == prog);
+    EXPECT(test::throws<migraphx::exception>(
+        [&] { migraphx::op::builder::add("clip", mm_dummy, {}, module_args); },
+        "Module args should be empty"));
 }

@@ -28,14 +28,20 @@ TEST_CASE(clip_dyn_min_only_test)
 {
     migraphx::program p;
     auto* mm                                            = p.get_main_module();
-    auto min_val                                        = mm->add_literal(0.0f);
+
+    auto min_val = mm->add_literal(0.0f);
     std::vector<migraphx::shape::dynamic_dimension> dds = {{2, 8, {3}}};
     auto l0 = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, dds});
-    auto bl0 = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_dyn_dims", to_value(dds)}}), l0, min_val);
-    min_val = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_dyn_dims", to_value(dds)}}), min_val, bl0);
-    auto ret = mm->add_instruction(migraphx::make_op("max"), bl0, min_val);
+    auto max_val = mm->add_literal(migraphx::literal{
+        migraphx::shape{migraphx::shape::float_type, {1}, {0}}, {std::numeric_limits<float>::max()}});
+
+    auto min_val_mb = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_dyn_dims", to_value(dds)}}), l0, min_val, max_val);
+    auto max_val_mb = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_dyn_dims", to_value(dds)}}), min_val, min_val_mb);
+    max_val = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_dyn_dims", to_value(dds)}}), max_val, min_val_mb);
+    auto ret = mm->add_instruction(migraphx::make_op("clip"), min_val_mb, max_val_mb, max_val);
     mm->add_return({ret});
 
     migraphx::onnx_options options;

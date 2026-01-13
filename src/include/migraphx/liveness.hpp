@@ -54,13 +54,11 @@ void liveness(const module& m, F f)
             for(auto input : inputs)
             {
                 auto aliases = instruction::get_output_alias(input);
-                for(auto i : aliases)
-                {
-                    // Skip if variable comes from parent
-                    if(not m.has_instruction(i))
-                        continue;
-                    live_set.insert(i);
-                }
+                // Skip if variable comes from parent
+                std::copy_if(aliases.begin(),
+                             aliases.end(),
+                             std::inserter(live_set, live_set.end()),
+                             [&](auto i) { return m.has_instruction(i); });
             }
         };
         add_live_variables(ins->inputs());

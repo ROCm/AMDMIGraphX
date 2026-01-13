@@ -122,6 +122,13 @@ instruction_ref onnx_parser::node_info::make_contiguous(instruction_ref ins) con
     return ins;
 }
 
+std::string onnx_parser::node_info::get_debug_symbol() const
+{
+    if(onnx_node_name.empty() and onnx_op_type.empty())
+        return {};
+    return "onnx::" + onnx_op_type + "::" + onnx_node_name;
+}
+
 instruction_ref onnx_parser::node_info::add_bias(const std::vector<instruction_ref>& args,
                                                  instruction_ref curr_ins,
                                                  uint64_t axis) const
@@ -132,16 +139,15 @@ instruction_ref onnx_parser::node_info::add_bias(const std::vector<instruction_r
         // if curr_ins has a dynamic output shape use 2 input broadcast
         if(curr_ins->get_shape().dynamic())
         {
-            bias_bcast =
-                mod->add_instruction(make_op("broadcast", {{"axis", axis}}), args[2], curr_ins);
+            bias_bcast = add_instruction(make_op("broadcast", {{"axis", axis}}), args[2], curr_ins);
         }
         else
         {
-            bias_bcast = mod->add_instruction(
+            bias_bcast = add_instruction(
                 make_op("broadcast", {{"axis", axis}, {"out_lens", curr_ins->get_shape().lens()}}),
                 args[2]);
         }
-        return mod->add_instruction(make_op("add"), curr_ins, bias_bcast);
+        return add_instruction(make_op("add"), curr_ins, bias_bcast);
     }
     return curr_ins;
 }
@@ -175,21 +181,39 @@ instruction_ref onnx_parser::node_info::add_broadcastable_binary_op(const std::s
 instruction_ref onnx_parser::node_info::add_common_op(const std::string& op_name,
                                                       std::vector<instruction_ref> inputs) const
 {
-    return migraphx::add_common_op(*mod, make_op(op_name), std::move(inputs));
+    auto ins          = migraphx::add_common_op(*mod, make_op(op_name), std::move(inputs));
+    auto debug_symbol = get_debug_symbol();
+    if(not debug_symbol.empty())
+    {
+        ins->add_debug_symbol(debug_symbol);
+    }
+    return ins;
 }
 
 instruction_ref
 onnx_parser::node_info::add_instruction(const operation& op,
                                         const std::vector<instruction_ref>& args) const
 {
-    return mod->add_instruction(op, args);
+    auto ins          = mod->add_instruction(op, args);
+    auto debug_symbol = get_debug_symbol();
+    if(not debug_symbol.empty())
+    {
+        ins->add_debug_symbol(debug_symbol);
+    }
+    return ins;
 }
 
 instruction_ref onnx_parser::node_info::add_instruction(const operation& op,
                                                         const std::vector<instruction_ref>& args,
                                                         const std::vector<module_ref>& mods) const
 {
-    return mod->add_instruction(op, args, mods);
+    auto ins          = mod->add_instruction(op, args, mods);
+    auto debug_symbol = get_debug_symbol();
+    if(not debug_symbol.empty())
+    {
+        ins->add_debug_symbol(debug_symbol);
+    }
+    return ins;
 }
 
 instruction_ref onnx_parser::node_info::add_literal(literal l) const
@@ -585,7 +609,9 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
         {
             std::string node_name = node.op_type() + "_" + std::to_string(mod->size());
             result                = ops[node.op_type()](
-                *this, {get_attributes(node), output_num, node_name, mod}, args);
+                *this,
+                {get_attributes(node), output_num, node_name, mod, node.name(), node.op_type()},
+                args);
         }
 
         output_num = std::min<std::size_t>(output_num, result.size());

@@ -53,6 +53,11 @@ struct onnx_parser
         std::size_t num_outputs = 1;
         std::string name        = "";
         module* mod             = nullptr;
+        std::string onnx_node_name{};
+        std::string onnx_op_type{};
+
+        std::string get_debug_symbol() const;
+
         instruction_ref make_contiguous(instruction_ref ins) const;
         instruction_ref add_bias(const std::vector<instruction_ref>& args,
                                  instruction_ref curr_ins,

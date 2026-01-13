@@ -279,6 +279,29 @@ TEST_CASE(allocate_copy_with_no_out)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(allocate_out_multi_return_partial_alloc)
+{
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        auto alloc =
+            m1.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto p1 = m1.add_instruction(pass_op{}, alloc);
+        m1.add_return({x, p1});
+    }
+    run_pass(m1, allocation_with_out_model{});
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", s);
+        auto output = m2.add_parameter("output_1", s);
+        auto p1     = m2.add_instruction(pass_op{}, output);
+        m2.add_return({x, p1});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 // Test that replace_allocate handles multi-alias operations correctly
 // when checking for shape matches (insert_copy code path)
 TEST_CASE(multi_alias_shape_check)
@@ -324,7 +347,7 @@ TEST_CASE(multi_alias_alloc_out_param)
     {
         auto x = m2.add_parameter("x", s);
         // Only the allocation becomes an output parameter (named "output" since single alloc)
-        auto output = m2.add_parameter("output", s);
+        auto output = m2.add_parameter("output_0", s);
         auto p1     = m2.add_instruction(pass_op{}, output);
         auto ma     = m2.add_instruction(multi_alias_op{}, p1, x);
         m2.add_return({ma});
@@ -414,12 +437,12 @@ TEST_CASE(multi_alias_multiple_outputs_out_params)
     {
         auto x = m2.add_parameter("x", s);
         auto y = m2.add_parameter("y", s);
-        // First output parameter replaces first allocation (named :#output_0)
-        auto output0 = m2.add_parameter(":#output_0", s);
+        // First output parameter replaces first allocation (named output_0)
+        auto output0 = m2.add_parameter("output_0", s);
         auto p1      = m2.add_instruction(pass_op{}, output0);
         auto ma1     = m2.add_instruction(multi_alias_op{}, p1, x);
-        // Second output parameter replaces second allocation (named :#output_1)
-        auto output1 = m2.add_parameter(":#output_1", s);
+        // Second output parameter replaces second allocation (named output_1)
+        auto output1 = m2.add_parameter("output_2", s);
         auto p2      = m2.add_instruction(pass_op{}, output1);
         auto ma2     = m2.add_instruction(multi_alias_op{}, p2, y);
         m2.add_return({ma1, ma2});
@@ -495,11 +518,11 @@ TEST_CASE(multi_alias_chain_multiple_out_params)
     {
         auto x = m2.add_parameter("x", s);
         // Three output parameters - one for each return
-        auto output0 = m2.add_parameter(":#output_0", s);
+        auto output0 = m2.add_parameter("output_0", s);
         auto p1      = m2.add_instruction(pass_op{}, output0);
-        auto output1 = m2.add_parameter(":#output_1", s);
+        auto output1 = m2.add_parameter("output_2", s);
         auto p2      = m2.add_instruction(pass_op{}, output1);
-        auto output2 = m2.add_parameter(":#output_2", s);
+        auto output2 = m2.add_parameter("output_4", s);
         auto p3      = m2.add_instruction(pass_op{}, output2);
         auto ma1     = m2.add_instruction(multi_alias_op{}, p1, x);
         auto ma2     = m2.add_instruction(multi_alias_op{}, p2, x);

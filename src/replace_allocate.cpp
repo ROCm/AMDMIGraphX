@@ -29,6 +29,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/param_utils.hpp>
+#include <migraphx/output_iterator.hpp>
 #include <migraphx/op/allocate.hpp>
 #include <map>
 
@@ -43,17 +44,13 @@ std::unordered_map<instruction_ref, std::string> create_output_names(const modul
 
     // Collect all allocation aliases from each return value
     std::vector<instruction_ref> alloc_aliases;
-    for(const auto& i : returns)
-    {
-        auto aliases = instruction::get_output_alias(i);
-        std::copy_if(aliases.begin(),
-                     aliases.end(),
-                     std::back_inserter(alloc_aliases),
-                     [&](instruction_ref ins) { return ins->name() == "allocate"; });
-    }
+    // Use a join but perhaps a tuple output parameter might be better?
+    std::transform(returns.begin(), returns.end(), join_back_inserter(alloc_aliases), [](const auto& i) {
+        return instruction::get_output_alias(i);
+    });
 
     std::size_t index = 0;
-    if(returns.size() == 1 and mod.name().empty())
+    if(mod.name().empty())
     {
         // Single return with empty module name: all aliases get "output" or "output_N"
         if(alloc_aliases.size() == 1)
@@ -69,13 +66,6 @@ std::unordered_map<instruction_ref, std::string> create_output_names(const modul
         }
     }
     // Preserve main module output buffer naming across migraphx versions
-    else if(mod.name() == "main")
-    {
-        for(auto ins : alloc_aliases)
-        {
-            mod_output_names[ins] = mod.name() + ":#output_" + std::to_string(index++);
-        }
-    }
     else
     {
         for(auto ins : alloc_aliases)
@@ -83,6 +73,7 @@ std::unordered_map<instruction_ref, std::string> create_output_names(const modul
             mod_output_names[ins] = param_name(index++, mod.name() + ":#output_");
         }
     }
+
     return mod_output_names;
 }
 

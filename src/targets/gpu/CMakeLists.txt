@@ -24,7 +24,6 @@
 
 find_package(hip REQUIRED)
 
-# Find HSA runtime for chiplet count query (Linux only)
 if(NOT WIN32)
     find_package(hsa-runtime64 REQUIRED CONFIG)
     message(STATUS "MIGraphX is using HSA runtime for chiplet query")

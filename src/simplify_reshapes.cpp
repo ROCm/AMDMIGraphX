@@ -917,136 +917,11 @@ struct find_nested_concat
 
 namespace {
 
-/// Convert vector of sizes to vector of int64
-inline std::vector<int64_t> to_int64_vec(const std::vector<std::size_t>& lens)
-{
-    std::vector<int64_t> result;
-    result.reserve(lens.size());
-    std::transform(lens.begin(), lens.end(), std::back_inserter(result), [](auto len) {
-        return static_cast<int64_t>(len);
-    });
-    return result;
-}
-
 /// Compute product of elements
 inline std::size_t product_of(const std::vector<std::size_t>& lens)
 {
     return std::accumulate(
         lens.begin(), lens.end(), std::size_t{1}, [](auto acc, auto v) { return acc * v; });
-}
-
-/// Factorize a positive integer into prime factors
-inline std::vector<std::size_t> factorize_number(std::size_t value)
-{
-    std::vector<std::size_t> factors;
-    auto n = value;
-    for(std::size_t p = 2; p * p <= n; ++p)
-    {
-        while(n % p == 0)
-        {
-            factors.push_back(p);
-            n /= p;
-        }
-    }
-    if(n > 1)
-        factors.push_back(n);
-    return factors;
-}
-
-/// Check if permutation is identity
-inline bool is_identity_perm(const std::vector<int64_t>& perm)
-{
-    return std::all_of(perm.begin(), perm.end(), [i = std::size_t{0}](auto p) mutable {
-        return static_cast<std::size_t>(p) == i++;
-    });
-}
-
-/// Build permutation that moves axis to front
-inline std::vector<int64_t> move_axis_to_front_perm(std::size_t axis, std::size_t ndims)
-{
-    std::vector<int64_t> perm;
-    perm.reserve(ndims);
-    perm.push_back(static_cast<int64_t>(axis));
-    for(std::size_t i = 0; i < ndims; ++i)
-    {
-        if(i != axis)
-            perm.push_back(static_cast<int64_t>(i));
-    }
-    return perm;
-}
-
-/// Build permutation to restore axis position
-inline std::vector<int64_t>
-restore_axis_position_perm(std::size_t pre_count, std::size_t block_count, std::size_t post_count)
-{
-    std::vector<int64_t> perm;
-    perm.reserve(pre_count + block_count + post_count);
-
-    for(std::size_t i = 0; i < pre_count; ++i)
-        perm.push_back(static_cast<int64_t>(block_count + i));
-    for(std::size_t i = 0; i < block_count; ++i)
-        perm.push_back(static_cast<int64_t>(i));
-    for(std::size_t i = 0; i < post_count; ++i)
-        perm.push_back(static_cast<int64_t>(block_count + pre_count + i));
-
-    return perm;
-}
-
-/// Generate all factorizations using DFS
-inline std::vector<std::vector<std::size_t>> enumerate_all_factorizations(std::size_t value,
-                                                                          std::size_t max_results)
-{
-    std::vector<std::vector<std::size_t>> results;
-    if(value <= 1)
-    {
-        results.push_back({value});
-        return results;
-    }
-
-    std::vector<std::size_t> current;
-    const auto dfs = [&](auto&& self, std::size_t remaining, std::size_t min_factor) -> void {
-        for(std::size_t f = min_factor; f * f <= remaining; ++f)
-        {
-            if(remaining % f != 0 or results.size() >= max_results)
-                continue;
-            current.push_back(f);
-            self(self, remaining / f, f);
-            current.pop_back();
-            if(results.size() >= max_results)
-                return;
-        }
-        if(not current.empty() and results.size() < max_results)
-        {
-            current.push_back(remaining);
-            results.push_back(current);
-            current.pop_back();
-        }
-    };
-
-    dfs(dfs, value, 2);
-    if(results.size() < max_results)
-        results.push_back({value});
-    return results;
-}
-
-/// Build and add unique factorization candidates
-inline void add_unique_factorization(std::vector<std::vector<std::size_t>>& candidates,
-                                     std::vector<std::size_t> factors,
-                                     std::size_t expected_product,
-                                     std::size_t max_size)
-{
-    if(factors.empty() or product_of(factors) != expected_product)
-        return;
-
-    factors.erase(std::remove(factors.begin(), factors.end(), std::size_t{1}), factors.end());
-    if(factors.empty())
-        return;
-
-    if(factors.size() > 8 or candidates.size() >= max_size)
-        return;
-
-    if(std::find(candidates.begin(), candidates.end(), factors) == candidates.end())
-        candidates.push_back(std::move(factors));
 }
 
 // ============================================================================
@@ -1198,12 +1073,6 @@ struct gather_context
     const std::vector<std::size_t>& idims() const { return indices_arg_.get_shape().lens(); }
 
     const std::vector<std::size_t>& data_dims() const { return data_ins()->get_shape().lens(); }
-
-    // Mutable version for direct assignment (needed for ctx_1d case)
-    void set_factor_candidates(std::shared_ptr<std::vector<std::vector<std::size_t>>> candidates)
-    {
-        factor_candidates_ = std::move(candidates);
-    }
 
     std::vector<std::int64_t> build_flat_gather_indices() const
     {
@@ -2093,7 +1962,7 @@ void simplify_reshapes::apply(module& m) const
                             find_concat_multibroadcasts{},
                             find_nested_slice{},
                             find_nested_concat{},
-                            // find_slice_shape_transforms{},
+                            find_slice_shape_transforms{},
                             find_transpose_slice{},
                             find_slice_transpose{},
                             find_unary_shape_transforms{},

@@ -1962,7 +1962,7 @@ void simplify_reshapes::apply(module& m) const
                             find_concat_multibroadcasts{},
                             find_nested_slice{},
                             find_nested_concat{},
-                            find_slice_shape_transforms{},
+                            // find_slice_shape_transforms{},
                             find_transpose_slice{},
                             find_slice_transpose{},
                             find_unary_shape_transforms{},

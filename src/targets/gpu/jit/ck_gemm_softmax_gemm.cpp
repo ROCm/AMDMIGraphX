@@ -96,7 +96,7 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
         auto batch_count = get_batch_count(c_shape);
         auto m           = c_shape.lens()[rank - 2];
         m                = can_fold_batch(inputs) ? m * batch_count : m;
-        auto n           = c_shape.lens().back();
+        auto n           = b1_shape.lens()[rank - 2];
         auto k           = a_shape.lens().back();
         auto o           = c_shape.lens().back();
 

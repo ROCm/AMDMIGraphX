@@ -61,6 +61,84 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
+
+template <class Dims>
+instruction_ref insert_auto_reshape(module&m, instruction_ref ins, const Dims& dims, instruction_ref input)
+{
+    assert(std::all_of(dims.begin(), dims.end(), [](auto i) { return i > 0; }));
+    if(std::equal(dims.begin(), dims.end(), input->get_shape().lens().begin(), input->get_shape().lens().end()))
+    {
+        return input;
+    }
+
+    auto curr_lens = input->get_shape().lens();
+    // Check if we can use squeeze (removing dimensions of size 1)
+    if(curr_lens.size() > dims.size())
+    {
+        // Potential squeeze - check if we're just removing 1s
+        std::vector<int64_t> axes_to_squeeze;
+        std::size_t target_idx = 0;
+        for(std::size_t curr_idx = 0; curr_idx < curr_lens.size(); ++curr_idx)
+        {
+            if(curr_lens[curr_idx] == 1)
+            {
+                axes_to_squeeze.push_back(curr_idx);
+            }
+            else
+            {
+                if(target_idx >= dims.size() || curr_lens[curr_idx] != dims[target_idx])
+                {
+                    axes_to_squeeze.clear();
+                    break;
+                }
+                ++target_idx;
+            }
+        }
+        if(not axes_to_squeeze.empty() && target_idx == dims.size())
+        {
+            return m.insert_instruction(
+                ins, make_op("squeeze", {{"axes", axes_to_squeeze}}), input);
+        }
+    }
+    // Check if we can use unsqueeze (adding dimensions of size 1)
+    else if(curr_lens.size() < dims.size())
+    {
+        // Potential unsqueeze - check if we're just adding 1s
+        std::vector<int64_t> axes_to_unsqueeze;
+        std::size_t curr_idx = 0;
+        for(std::size_t target_idx = 0; target_idx < dims.size(); ++target_idx)
+        {
+            if(dims[target_idx] == 1)
+            {
+                axes_to_unsqueeze.push_back(target_idx);
+            }
+            else
+            {
+                if(curr_idx >= curr_lens.size() || dims[target_idx] != curr_lens[curr_idx])
+                {
+                    axes_to_unsqueeze.clear();
+                    break;
+                }
+                ++curr_idx;
+            }
+        }
+        if(not axes_to_unsqueeze.empty() && curr_idx == curr_lens.size())
+        {
+            return m.insert_instruction(
+                ins, make_op("unsqueeze", {{"axes", axes_to_unsqueeze}}), input);
+        }
+    }
+
+    return m.insert_instruction(ins, make_op("reshape", {{"dims", dims}}), input);
+}
+
+template <class T>
+instruction_ref insert_auto_reshape(module&m, instruction_ref ins, const std::initializer_list<T>& dims, instruction_ref input)
+{
+    return insert_auto_reshape(m, ins, std::vector<T>(dims), input);
+}
+
+
 const auto& reshaper_names()
 {
     // clang-format off
@@ -1084,7 +1162,7 @@ struct gather_context
         std::vector<std::int64_t> flat(out_n);
         std::iota(flat.begin(), flat.end(), 0);
 
-        auto indices = indices_values();
+        auto indices = indices_arg().to_vector<int64_t>();
 
         transform(flat, flat.begin(), [&](std::size_t out_lin) -> std::int64_t {
             // 1) output linear -> output multi-index
@@ -1290,7 +1368,82 @@ struct arithmetic_segment
             start = builder.m.insert_instruction(builder.insert_before, op, start);
         return start;
     }
+
+    template <class Indices>
+    static std::optional<instruction_ref> transform_indices(const Indices& indices, module& m,
+                                                            instruction_ref start)
+    {
+        auto isegments      = from_ints(indices.begin(), indices.end());
+        std::int64_t offset = isegments.front().base;
+        auto s              = make_strided_view(shift(std::move(isegments), -offset));
+        auto ops = generate_shape_transforms_for(s, {start->get_shape().elements()}, offset);
+        if(not ops.has_value())
+            return std::nullopt;
+        auto insert_ins = std::next(start);
+        for(auto op : *ops)
+            start = m.insert_instruction(insert_ins, op, start);
+        return start;
+    }
 };
+
+std::vector<std::int64_t> build_flat_gather_indices(instruction_ref gather_ins, const argument& indices_arg, std::size_t axis_index)
+{
+    auto data_ins = gather_ins->inputs()[0];
+    auto output_dims = gather_ins->get_shape().lens();
+    const auto r_in  = data_ins->get_shape().lens().size();
+    const auto r_idx = indices_arg.get_shape().lens().size();
+    assert(axis_index < r_in);
+
+    shape output_s{shape::float_type, output_dims}; // element type doesn't matter here
+    const auto out_n = output_s.elements();
+    std::vector<std::int64_t> flat(out_n);
+    std::iota(flat.begin(), flat.end(), 0);
+
+    auto indices = indices_arg.to_vector<int64_t>();
+
+
+    transform(flat, flat.begin(), [&](std::size_t out_lin) -> std::int64_t {
+        // 1) output linear -> output multi-index
+        auto out_multi = output_s.multi(out_lin);
+
+        // 2) isolate the "indices" coordinates from the output coords (inserted at `axis`)
+        std::vector<std::size_t> idx_multi(r_idx);
+        std::copy(out_multi.begin() + axis_index,
+                  out_multi.begin() + axis_index + r_idx,
+                  idx_multi.begin());
+
+        // 3) look up the actual index value (may be negative)
+        const std::int64_t idx_lin  = indices_arg.get_shape().index(idx_multi);
+        const std::int64_t axis_len = data_ins->get_shape().lens().at(axis_index);
+        auto idx_val                = indices.at(idx_lin);
+
+        // Normalize negative indices into [0, axis_len)
+        if(idx_val < 0)
+            idx_val += axis_len;
+
+        assert(idx_val >= 0 and idx_val < axis_len);
+
+        // 4) construct corresponding INPUT multi-index
+        std::vector<std::size_t> in_multi(r_in);
+
+        // copy dims before axis
+        std::copy(out_multi.begin(), out_multi.begin() + axis_index, in_multi.begin());
+
+        // axis coordinate from indices
+        in_multi.at(axis_index) = idx_val;
+
+        // copy dims after axis; they are shifted by r_idx in output
+        std::copy(out_multi.begin() + axis_index + r_idx,
+                  out_multi.end(),
+                  in_multi.begin() + axis_index + 1);
+
+        // 5) map input multi-index -> flat offset in contiguous buffer
+        const auto in_lin = data_ins->get_shape().index(in_multi);
+        return in_lin;
+    });
+
+    return flat;
+}
 
 /// Try segment-based optimization (assumes 1D indices in context)
 /// Returns the optimized instruction if successful, nullopt otherwise
@@ -1298,7 +1451,7 @@ inline std::optional<instruction_ref>
 try_segment_based_optimization_1d(const gather_context& ctx, gather_instruction_builder& builder)
 {
     if(auto r =
-           arithmetic_segment::transform_indices(ctx.indices_values(), builder, ctx.data_ins()))
+           arithmetic_segment::transform_indices(ctx.indices_values(), builder.m, ctx.data_ins()))
     {
         return builder.reshape(*r, ctx.output_dims());
     }
@@ -1345,14 +1498,14 @@ struct find_gather
     auto matcher() const
     {
         return match::name("gather")(
-            match::args(match::any(), match::is_constant().bind("indices")));
+            match::args(match::any().bind("data"), match::is_constant().bind("indices")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins          = r.result;
         auto indices_ins  = r.instructions["indices"];
-        auto data_ins     = ins->inputs().front();
+        auto data_ins     = r.instructions["data"];
         auto gather_op    = any_cast<op::gather>(ins->get_operator());
         const auto& dlens = data_ins->get_shape().lens();
         if(dlens.empty())
@@ -1413,14 +1566,28 @@ struct find_gather
         assert(indices_arg.get_shape().lens() == indices_shape.lens());
         assert(indices_arg.get_shape().elements() == indices_values.size());
 
-        // Create gather context - pass argument directly
-        gather_context ctx(data_ins, axis_index, std::move(indices_arg));
+        std::optional<instruction_ref> new_ins = std::nullopt;
 
-        // Initialize instruction builder
-        gather_instruction_builder builder(m, ins);
+        if(data_ins->get_shape().ndim() == 1 and indices_ins->get_shape().ndim() == 1)
+        {
+            new_ins = arithmetic_segment::transform_indices(
+                indices_values, m, data_ins);
+        }
+        else
+        {
+            auto data_1d = insert_auto_reshape(m, 
+                ins, {data_ins->get_shape().elements()}, data_ins);
+            auto new_indices = build_flat_gather_indices(ins, indices_arg, axis_index);
+            new_ins = arithmetic_segment::transform_indices(
+                new_indices, m, data_1d);
+        }
 
-        // Try segment-based optimization
-        try_segment_based_optimization(m, ins, ctx, builder);
+        if(not new_ins.has_value())
+            return;
+
+        auto reshaped = insert_auto_reshape(m, ins, ins->get_shape().lens(), *new_ins);
+
+        m.replace_instruction(ins, reshaped);
     }
 };
 

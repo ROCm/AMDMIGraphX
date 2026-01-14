@@ -63,10 +63,14 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace {
 
 template <class Dims>
-instruction_ref insert_auto_reshape(module&m, instruction_ref ins, const Dims& dims, instruction_ref input)
+instruction_ref
+insert_auto_reshape(module& m, instruction_ref ins, const Dims& dims, instruction_ref input)
 {
     assert(std::all_of(dims.begin(), dims.end(), [](auto i) { return i > 0; }));
-    if(std::equal(dims.begin(), dims.end(), input->get_shape().lens().begin(), input->get_shape().lens().end()))
+    if(std::equal(dims.begin(),
+                  dims.end(),
+                  input->get_shape().lens().begin(),
+                  input->get_shape().lens().end()))
     {
         return input;
     }
@@ -133,11 +137,13 @@ instruction_ref insert_auto_reshape(module&m, instruction_ref ins, const Dims& d
 }
 
 template <class T>
-instruction_ref insert_auto_reshape(module&m, instruction_ref ins, const std::initializer_list<T>& dims, instruction_ref input)
+instruction_ref insert_auto_reshape(module& m,
+                                    instruction_ref ins,
+                                    const std::initializer_list<T>& dims,
+                                    instruction_ref input)
 {
     return insert_auto_reshape(m, ins, std::vector<T>(dims), input);
 }
-
 
 const auto& reshaper_names()
 {
@@ -1370,8 +1376,8 @@ struct arithmetic_segment
     }
 
     template <class Indices>
-    static std::optional<instruction_ref> transform_indices(const Indices& indices, module& m,
-                                                            instruction_ref start)
+    static std::optional<instruction_ref>
+    transform_indices(const Indices& indices, module& m, instruction_ref start)
     {
         auto isegments      = from_ints(indices.begin(), indices.end());
         std::int64_t offset = isegments.front().base;
@@ -1386,9 +1392,11 @@ struct arithmetic_segment
     }
 };
 
-std::vector<std::int64_t> build_flat_gather_indices(instruction_ref gather_ins, const argument& indices_arg, std::size_t axis_index)
+std::vector<std::int64_t> build_flat_gather_indices(instruction_ref gather_ins,
+                                                    const argument& indices_arg,
+                                                    std::size_t axis_index)
 {
-    auto data_ins = gather_ins->inputs()[0];
+    auto data_ins    = gather_ins->inputs()[0];
     auto output_dims = gather_ins->get_shape().lens();
     const auto r_in  = data_ins->get_shape().lens().size();
     const auto r_idx = indices_arg.get_shape().lens().size();
@@ -1400,7 +1408,6 @@ std::vector<std::int64_t> build_flat_gather_indices(instruction_ref gather_ins, 
     std::iota(flat.begin(), flat.end(), 0);
 
     auto indices = indices_arg.to_vector<int64_t>();
-
 
     transform(flat, flat.begin(), [&](std::size_t out_lin) -> std::int64_t {
         // 1) output linear -> output multi-index
@@ -1570,16 +1577,14 @@ struct find_gather
 
         if(data_ins->get_shape().ndim() == 1 and indices_ins->get_shape().ndim() == 1)
         {
-            new_ins = arithmetic_segment::transform_indices(
-                indices_values, m, data_ins);
+            new_ins = arithmetic_segment::transform_indices(indices_values, m, data_ins);
         }
         else
         {
-            auto data_1d = insert_auto_reshape(m, 
-                ins, {data_ins->get_shape().elements()}, data_ins);
+            auto data_1d =
+                insert_auto_reshape(m, ins, {data_ins->get_shape().elements()}, data_ins);
             auto new_indices = build_flat_gather_indices(ins, indices_arg, axis_index);
-            new_ins = arithmetic_segment::transform_indices(
-                new_indices, m, data_1d);
+            new_ins          = arithmetic_segment::transform_indices(new_indices, m, data_1d);
         }
 
         if(not new_ins.has_value())

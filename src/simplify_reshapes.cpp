@@ -1047,7 +1047,6 @@ struct gather_context
     instruction_ref data_ins_;
     std::size_t axis_index_;
     argument indices_arg_;
-    mutable std::shared_ptr<std::vector<std::vector<std::size_t>>> factor_candidates_;
 
     public:
     gather_context(instruction_ref data_input, std::size_t axis_idx, argument indices)

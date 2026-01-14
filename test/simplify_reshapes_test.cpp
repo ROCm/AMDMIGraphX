@@ -2439,9 +2439,9 @@ TEST_CASE(gather_axis1_same_stride_diff_base)
     migraphx::module m1;
     {
         migraphx::shape si{migraphx::shape::int32_type, {2, 2}};
-        std::vector<int32_t> indices ={1, 1, 0, 2};
-        auto x  = m1.add_parameter("x", {migraphx::shape::float_type, {3, 3}});
-        auto tx = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), x);
+        std::vector<int32_t> indices = {1, 1, 0, 2};
+        auto x                       = m1.add_parameter("x", {migraphx::shape::float_type, {3, 3}});
+        auto tx  = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), x);
         auto ind = m1.add_literal(migraphx::literal{si, indices});
         auto tind =
             m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), ind);

@@ -1954,7 +1954,7 @@ void simplify_reshapes::apply(module& m) const
         match::find_matches(m, find_gather{});
     m.repeat_while_changes(depth, [&] {
         match::find_matches(m,
-                            find_where_op{},
+                            // find_where_op{},
                             // find_resize{},
                             find_nop_reshapes{},
                             find_flatten{},

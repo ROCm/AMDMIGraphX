@@ -365,16 +365,14 @@ bool compare_literals(instruction_ref ins1, instruction_ref ins2)
     auto x = ins1->eval();
     if(x.empty())
         return false;
-    auto literal1 = ins1->get_literal();
     if(ins2->name() == "broadcast" or ins2->name() == "multibroadcast")
         ins2 = ins2->inputs().front();
     auto y = ins2->eval();
     if(y.empty())
         return false;
-    auto literal2 = ins2->get_literal();
 
     bool diff_shapes_equal_vals = false;
-    visit_all(ins1->get_literal(), ins2->get_literal())([&](const auto l1, const auto l2) {
+    visit_all(x, y)([&](const auto l1, const auto l2) {
         diff_shapes_equal_vals =
             std::all_of(l1.begin() + 1,
                         l1.end(),
@@ -595,6 +593,33 @@ void remove_zero_point(module& m)
     }
 }
 
+void remove_zero_scales(module& m)
+{
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() != "dequantizelinear")
+            continue;
+        if(ins->inputs().size() < 2)
+            continue;
+        auto scale = ins->inputs().at(1);
+        if(not scale->can_eval())
+            continue;
+        auto a         = scale->eval();
+        bool all_zeros = false;
+        a.visit([&](auto t) {
+            all_zeros = std::all_of(t.begin(), t.end(), [](auto x) { return float_equal(x, 0); });
+        });
+        if(not all_zeros)
+            continue;
+
+        // Replace entire dequantizelinear with zero literal
+        auto zero_lit       = m.add_literal(literal{shape{ins->get_shape().type()}, {0}});
+        auto zero_broadcast = m.insert_instruction(
+            ins, make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}}), zero_lit);
+        m.replace_instruction(ins, zero_broadcast);
+    }
+}
+
 void add_int4_pack_unpack_pair(module& m)
 {
     for(auto ins : iterator_for(m))
@@ -618,19 +643,30 @@ void add_int4_pack_unpack_pair(module& m)
 
 void simplify_qdq::apply(module& m) const
 {
-    // first step: add pack/unpack pair between qdq for int4 weights
-    add_int4_pack_unpack_pair(m);
-    match::find_matches(m, match_find_quantizable_ops{});
-    migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
-    match::find_matches(m, match_find_mx_quantizable_ops{});
-    migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
-    match::find_matches(m, remove_qdq_pairs{});
-    migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
-    match::find_matches(m, match_qlinear_reused{});
-    migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
-    match::find_matches(m, match_concat_qlinear{});
-    migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
-    remove_zero_point(m);
+    remove_zero_scales(m);
+    if(remove_qdq_only)
+    {
+        match::find_matches(m, remove_qdq_pairs{});
+    }
+    else
+    {
+        // first step: add pack/unpack pair between qdq for int4 weights
+        add_int4_pack_unpack_pair(m);
+        match::find_matches(m, match_find_quantizable_ops{});
+        migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+        if(use_mx_quant)
+        {
+            match::find_matches(m, match_find_mx_quantizable_ops{});
+            migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+        }
+        match::find_matches(m, remove_qdq_pairs{});
+        migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+        match::find_matches(m, match_qlinear_reused{});
+        migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+        match::find_matches(m, match_concat_qlinear{});
+        migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+        remove_zero_point(m);
+    }
 }
 
 } // namespace MIGRAPHX_INLINE_NS

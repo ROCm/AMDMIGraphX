@@ -1633,10 +1633,11 @@ struct find_add_convs
 
 MIGRAPHX_PRED_MATCHER(horiz_conv_dot, instruction_ref ins)
 {
+    // checking size to prevent matching block quantized quant_dot for now
     auto pred = [&](auto name) {
         return [=](auto i) {
             return i->name() == name and i->inputs().front() == ins and
-                   i->inputs().at(1)->can_eval();
+                   i->inputs().at(1)->can_eval() and i->inputs().size() == 2;
         };
     };
     auto dots  = std::count_if(ins->outputs().begin(), ins->outputs().end(), pred("dot"));

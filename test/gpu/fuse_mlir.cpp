@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,6 +24,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
+#include <migraphx/gpu/context.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/op/common.hpp>
@@ -52,10 +53,12 @@ struct non_mlir_op
     }
 };
 
-static void run_pass(migraphx::program& p)
+static void run_pass(migraphx::program& p, migraphx::gpu::fuse_mlir fm = {})
 {
-    migraphx::run_passes(
-        p, {migraphx::gpu::fuse_mlir{.enable_extra = true}, migraphx::dead_code_elimination{}});
+    static migraphx::gpu::context ctx;
+    fm.ctx          = &ctx;
+    fm.enable_extra = true;
+    migraphx::run_passes(p, {fm, migraphx::dead_code_elimination{}});
 }
 
 template <class F>
@@ -1776,10 +1779,10 @@ TEST_CASE(unpack_fp4_dot_odd)
 
 TEST_CASE(dot_add_dot)
 {
-    migraphx::shape s1{migraphx::shape::float_type, {2, 3}};
-    migraphx::shape s2{migraphx::shape::float_type, {3, 4}};
-    migraphx::shape s3{migraphx::shape::float_type, {2, 4}};
-    migraphx::shape s4{migraphx::shape::float_type, {4, 2}};
+    migraphx::shape s1{migraphx::shape::half_type, {2, 3}};
+    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
+    migraphx::shape s3{migraphx::shape::half_type, {2, 4}};
+    migraphx::shape s4{migraphx::shape::half_type, {4, 2}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -1815,9 +1818,108 @@ TEST_CASE(dot_add_dot)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(dot_add_dot_abc_f32)
+// MLIR currently only supports (A*B)*C GEG patterns
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape s2{migraphx::shape::float_type, {3, 4}};
+    migraphx::shape s3{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape s4{migraphx::shape::float_type, {4, 2}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto a    = mm->add_parameter("a", s1);
+        auto b    = mm->add_parameter("b", s2);
+        auto x    = mm->add_parameter("x", s3);
+        auto y    = mm->add_parameter("y", s4);
+        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b); // {2,4}
+        auto add =
+            add_pointwise(p1, "main:pointwise0", {dot1, x}, single_pointwise("add")); // {2, 4}
+        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, y); // {2, 4}*{4, 2} = {2, 2}
+        mm->add_return({dot2});
+    }
+    run_pass(p1);
+    // ensure "geg" is present. Earlier tests ensure the fusion is correct. This is just to ensure
+    // it happens.
+    std::stringstream ss;
+    ss << p1;
+    std::string program_str = ss.str();
+
+    // regardless if the matmul is correctly oriented, f32 geg should not happen on navi
+    auto device_name = migraphx::gpu::get_device_name();
+    bool is_navi =
+        migraphx::starts_with(device_name, "gfx11") or migraphx::starts_with(device_name, "gfx12");
+    // fusion should not happen if the device is navi or the fusion flag is disabled
+    if(is_navi or not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}))
+        EXPECT(program_str.find("geg") == std::string::npos);
+    else
+        EXPECT(program_str.find("geg") != std::string::npos);
+}
+
+TEST_CASE(dot_add_dot_abc_fp16)
+// MLIR currently only supports (A*B)*C GEG patterns
+{
+    migraphx::shape s1{migraphx::shape::half_type, {2, 3}};
+    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
+    migraphx::shape s3{migraphx::shape::half_type, {2, 4}};
+    migraphx::shape s4{migraphx::shape::half_type, {4, 2}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto a    = mm->add_parameter("a", s1);
+        auto b    = mm->add_parameter("b", s2);
+        auto x    = mm->add_parameter("x", s3);
+        auto y    = mm->add_parameter("y", s4);
+        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b); // {2,4}
+        auto add =
+            add_pointwise(p1, "main:pointwise0", {dot1, x}, single_pointwise("add")); // {2, 4}
+        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, y); // {2, 4}*{4, 2} = {2, 2}
+        mm->add_return({dot2});
+    }
+    run_pass(p1);
+    std::stringstream ss;
+    ss << p1;
+    std::string program_str = ss.str();
+
+    // ensure "geg" is present if the fusion flag is enabled; type is fp16 so it should
+    // run regardless of if navi
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}))
+        EXPECT(program_str.find("geg") == std::string::npos);
+    else
+        EXPECT(program_str.find("geg") != std::string::npos);
+}
+
+TEST_CASE(dot_add_dot_cab)
+// MLIR currently does not support C*(A*B) GEG patterns
+{
+    migraphx::shape s1{migraphx::shape::half_type, {2, 3}};
+    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
+    migraphx::shape s3{migraphx::shape::half_type, {2, 4}};
+    migraphx::shape s4{migraphx::shape::half_type, {4, 2}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto a    = mm->add_parameter("a", s1);
+        auto b    = mm->add_parameter("b", s2);
+        auto x    = mm->add_parameter("x", s3);
+        auto y    = mm->add_parameter("y", s4);
+        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b); // {2,4}
+        auto add =
+            add_pointwise(p1, "main:pointwise0", {dot1, x}, single_pointwise("add")); // {2, 4}
+        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), y, add); // {4, 2}*{2, 4} = {4, 4}
+        mm->add_return({dot2});
+    }
+    run_pass(p1);
+    // ensure "geg" is not in the fused program
+    std::stringstream ss;
+    ss << p1;
+    std::string program_str = ss.str();
+    EXPECT(program_str.find("geg") == std::string::npos);
+}
+
 TEST_CASE(dot_add_dot_square)
 {
-    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::shape s{migraphx::shape::half_type, {1, 3, 3}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -1854,9 +1956,9 @@ TEST_CASE(dot_add_dot_square)
 
 TEST_CASE(dot_mul_dot)
 {
-    migraphx::shape s1{migraphx::shape::float_type, {3, 3}};
-    migraphx::shape s2{migraphx::shape::float_type, {3, 4}};
-    migraphx::shape s3{migraphx::shape::float_type, {4, 5}};
+    migraphx::shape s1{migraphx::shape::half_type, {3, 3}};
+    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
+    migraphx::shape s3{migraphx::shape::half_type, {4, 5}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -1931,10 +2033,10 @@ TEST_CASE(conv_add)
 
 TEST_CASE(conv_add_dot)
 {
-    migraphx::shape is{migraphx::shape::float_type, {2, 4, 8, 8}};
-    migraphx::shape ys{migraphx::shape::float_type, {2, 8, 8, 8}};
-    migraphx::shape ws{migraphx::shape::float_type, {8, 4, 1, 1}};
-    migraphx::shape zs{migraphx::shape::float_type, {2, 8, 8, 4}};
+    migraphx::shape is{migraphx::shape::half_type, {2, 4, 8, 8}};
+    migraphx::shape ys{migraphx::shape::half_type, {2, 8, 8, 8}};
+    migraphx::shape ws{migraphx::shape::half_type, {8, 4, 1, 1}};
+    migraphx::shape zs{migraphx::shape::half_type, {2, 8, 8, 4}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -2019,10 +2121,11 @@ TEST_CASE(dot_multi_user_add)
 
 TEST_CASE(dot_add_multi_user_dot)
 // GEG fusion has two outputs, E has external user
+// not currently supported in rocMLIR
 {
-    migraphx::shape s1{migraphx::shape::float_type, {3, 3}};
-    migraphx::shape s2{migraphx::shape::float_type, {3, 5}};
-    migraphx::shape s3{migraphx::shape::float_type, {5, 2}};
+    migraphx::shape s1{migraphx::shape::half_type, {3, 3}};
+    migraphx::shape s2{migraphx::shape::half_type, {3, 5}};
+    migraphx::shape s3{migraphx::shape::half_type, {5, 2}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -2037,7 +2140,7 @@ TEST_CASE(dot_add_multi_user_dot)
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dot2);
         mm->add_return({add, transpose});
     }
-    run_pass(p1);
+    run_pass(p1, {.enable_geg_multi_out_intermediates = true});
     migraphx::program p2;
     {
         auto* mm   = p2.get_main_module();
@@ -2068,8 +2171,9 @@ TEST_CASE(dot_add_multi_user_dot)
 
 TEST_CASE(dot_add_multi_user_dot_with_transpose)
 // GEG fusion has two outputs, E has external user
+// not currently supported in rocMLIR
 {
-    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::shape s{migraphx::shape::half_type, {1, 3, 3}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -2086,7 +2190,7 @@ TEST_CASE(dot_add_multi_user_dot_with_transpose)
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot2);
         mm->add_return({add, transpose});
     }
-    run_pass(p1);
+    run_pass(p1, {.enable_geg_multi_out_intermediates = true});
     migraphx::program p2;
     {
         auto* mm   = p2.get_main_module();
@@ -2119,8 +2223,9 @@ TEST_CASE(dot_add_multi_user_dot_with_transpose)
 
 TEST_CASE(dot_add_multi_user_dot_two_externals)
 // GEG fusion has two outputs, E has external user
+// not currently supported in rocMLIR
 {
-    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::shape s{migraphx::shape::half_type, {1, 3, 3}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -2137,7 +2242,7 @@ TEST_CASE(dot_add_multi_user_dot_two_externals)
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot2);
         mm->add_return({add, external_t1, external_t2});
     }
-    run_pass(p1);
+    run_pass(p1, {.enable_geg_multi_out_intermediates = true});
     migraphx::program p2;
     {
         auto* mm   = p2.get_main_module();
@@ -2173,8 +2278,9 @@ TEST_CASE(dot_add_multi_user_dot_input_used_before)
 // Base case for testing inputs being defined within the span
 // of will-be-fused ops
 // This also shows the relu being fused, since it is a unary op
+// currently not supported in rocMLIR
 {
-    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::shape s{migraphx::shape::half_type, {1, 3, 3}};
     migraphx::program p1;
     {
         auto* mm = p1.get_main_module();
@@ -2192,7 +2298,7 @@ TEST_CASE(dot_add_multi_user_dot_input_used_before)
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot2);
         mm->add_return({add, transpose});
     }
-    run_pass(p1);
+    run_pass(p1, {.enable_geg_multi_out_intermediates = true});
     migraphx::program p2;
     {
         auto* mm   = p2.get_main_module();
@@ -2230,8 +2336,9 @@ TEST_CASE(dot_add_multi_user_dot_input_used_after)
 // Testing inputs being defined within the span of will-be-fused ops
 // This also shows the relu being fused, since it is a unary op.
 // Result should be, and is, equivalent to the previous test
+// currently not supported in rocMLIR
 {
-    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::shape s{migraphx::shape::half_type, {1, 3, 3}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -2247,7 +2354,7 @@ TEST_CASE(dot_add_multi_user_dot_input_used_after)
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot2);
         mm->add_return({add, transpose});
     }
-    run_pass(p1);
+    run_pass(p1, {.enable_geg_multi_out_intermediates = true});
     migraphx::program p2;
     {
         auto* mm   = p2.get_main_module();
@@ -2285,8 +2392,9 @@ TEST_CASE(dot_add_multi_user_dot_input_used_before_in_chain)
 // Base case for inputs being defined within the span of will-be-fused ops, including
 // longer chain of logic, for both cases of input fusion. When enabled,
 // the mul gets fused into the GEG fusion.
+// not currently supported in rocMLIR
 {
-    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::shape s{migraphx::shape::half_type, {1, 3, 3}};
     migraphx::program p1;
     {
         auto* mm = p1.get_main_module();
@@ -2306,7 +2414,7 @@ TEST_CASE(dot_add_multi_user_dot_input_used_before_in_chain)
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot2);
         mm->add_return({add, transpose});
     }
-    run_pass(p1);
+    run_pass(p1, {.enable_geg_multi_out_intermediates = true});
     migraphx::program p2;
     {
         auto* mm           = p2.get_main_module();
@@ -2377,8 +2485,9 @@ TEST_CASE(dot_add_multi_user_dot_input_used_after_in_chain)
 // GEG fusion has two outputs, E has external user
 // Testing inputs being defined within the span of will-be-fused ops, including
 // longer chain of logic
+// not currently supported in rocMLIR
 {
-    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::shape s{migraphx::shape::half_type, {1, 3, 3}};
     migraphx::program p1;
     {
         auto* mm = p1.get_main_module();
@@ -2397,7 +2506,7 @@ TEST_CASE(dot_add_multi_user_dot_input_used_after_in_chain)
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot2);
         mm->add_return({add, transpose});
     }
-    run_pass(p1);
+    run_pass(p1, {.enable_geg_multi_out_intermediates = true});
     migraphx::program p2;
     {
         auto* mm           = p2.get_main_module();
@@ -2466,8 +2575,9 @@ TEST_CASE(dot_add_multi_user_dot_input_used_after_in_chain)
 
 TEST_CASE(dot_pw_multi_user_dot)
 // GEG fusion has two outputs, E has external user, E is multiple elemwise ops
+// not currently supported in rocMLIR
 {
-    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::shape s{migraphx::shape::half_type, {1, 3, 3}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -2488,7 +2598,7 @@ TEST_CASE(dot_pw_multi_user_dot)
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot2);
         mm->add_return({elemwise, transpose});
     }
-    run_pass(p1);
+    run_pass(p1, {.enable_geg_multi_out_intermediates = true});
     migraphx::program p2;
     {
         auto* mm   = p2.get_main_module();
@@ -2521,8 +2631,9 @@ TEST_CASE(dot_pw_multi_user_dot)
 
 TEST_CASE(dot_multi_user_add_dot)
 // GEG fusion has two outputs (first G has external user)
+// not currently supported in rocMLIR
 {
-    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::shape s{migraphx::shape::half_type, {1, 3, 3}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -2537,7 +2648,7 @@ TEST_CASE(dot_multi_user_add_dot)
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot1);
         mm->add_return({dot2, transpose});
     }
-    run_pass(p1);
+    run_pass(p1, {.enable_geg_multi_out_intermediates = true});
     migraphx::program p2;
     {
         auto* mm   = p2.get_main_module();
@@ -2566,10 +2677,11 @@ TEST_CASE(dot_multi_user_add_dot)
     EXPECT(p1.sort() == p2.sort());
 }
 
-TEST_CASE(dot_add_dot_both_multi_user)
+TEST_CASE_SKIP(dot_add_dot_both_multi_user, "Not supported in rocMLIR")
 // GEG fusion has three outputs (first G has external user, E has external user)
+// not currently supported in rocMLIR
 {
-    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::shape s{migraphx::shape::half_type, {1, 3, 3}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -2584,7 +2696,7 @@ TEST_CASE(dot_add_dot_both_multi_user)
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot1);
         mm->add_return({add, dot2, transpose});
     }
-    run_pass(p1);
+    run_pass(p1, {.enable_geg_multi_out_intermediates = true});
     migraphx::program p2;
     {
         auto* mm   = p2.get_main_module();

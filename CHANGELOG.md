@@ -3,6 +3,127 @@
 Full documentation for MIGraphX is available at
 [https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/](https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/).
 
+## MIGraphX 2.15 for ROCm 7.2.0
+
+### Added
+
+* Added MXFP4 support for Quark and Brevitas quantized models.
+* Added dynamic shape support for DepthToSpace Op.
+* Added `bias` and `key_mask_padding` inputs for the `MultiHeadAttention` operator.
+* Added GEMM+GEMM fusions.
+* Added the `dim_params` input parameter to the `parse_onnx` python call.
+* Created an API to query supported ONNX Operators `get_onnx_operators()`.
+* Added right pad masking mode for Multihead Attention.
+* Added support for Flash Decoding.
+* Added Torch-MIGraphX installation instructions.
+* Added Operator Builders with supporting documentation.
+* Added index range check to the Gather operator.
+
+
+### Changed
+
+* Updated the Resize operator to support linear mode for Dynamic shapes.
+* Switch to `--input-dim` instead of `--batch`  to set any dynamic dimensions when using `migraphx-driver`.
+* Different stride sizes are now supported in ONNX `if` branches.
+* ONNX version change to 1.18.0 to support PyTorch 2.9.
+* Refactor GroupQueryAttention.
+* Enable PipelineRepoRef parameter in CI.
+* Hide LLVM symbols that come from ROCmlir and provide option for stripping in release mode.
+* Model compilation failures now produce an mxr file for debugging the failure.
+* Bump SQlite3 to 3.50.4.
+
+
+### Resolved issues
+
+* Quiet nrvo and noreturn warnings (#4429).
+* Fixed `pointwise: Wrong number of arguments` error when quantizing certain models to `int8` (#4398).
+* TopK exception bugfix (#4329).
+* Updated SD3 example for change in optimum-onnx[onnxruntime] (#4344).
+* Fixed an issue with Torch-MIGraphX where the model compilation would fail (#4388)
+* Fixed an issue where a reduction was broadcast with different dimensions than the input (#4408).
+* Resolved a path name issue stopping some files being created on Windows for debugging (#4420).
+* Fix "reduce_sum: axes: value out of range" error in simplify_reshapes (#4443).
+* Updated README `rbuild` installation instructions to use python venv to avoid warning (#4405).
+* Ensured directories exist when generating files for debugging (#4383).
+* Resolved a compilation hang issue (#4428).
+
+
+### Optimized
+
+* Converted the `LRN` operator to an optimized `pooling` operator.
+* Streamlined the `find_matches` function.
+* Reduce the number of splits used for `split_reduce`.
+* Improve layout propagation in poinwise fusion when using broadcasted inputs.
+
+
+### Removed
+
+
+
+## MIGraphX 2.14 for ROCm 7.1.0
+
+### Added
+
+* Added Python 3.13 support.
+* Added PyTorch wheels to the Dockerfile.
+* Added Python API for returning serialized bytes.
+* Added `fixed_pad` operator for padding dynamic shapes to the maximum static shape.
+* Added matcher to upcast base `Softmax` operations.
+* Added support for the `convolution_backwards` operator through rocMLIR.
+* Added `LSE` output to attention fusion.
+* Added flags to `EnableControlFlowGuard` due to BinSkim errors.
+* Added new environment variable documentation and reorganized structure.
+* Added `stash_type` attribute for `LayerNorm` and expanded test coverage.
+* Added operator builders (phase 2).
+* Added `MIGRAPHX_GPU_HIP_FLAGS` to allow extra HIP compile flags.
+
+### Changed
+
+* Updated C API to include `current()` caller information in error reporting.
+* Updated documentation dependencies:
+  * **rocm-docs-core** bumped from 1.21.1 → 1.25.0 across releases.
+  * **Doxygen** updated to 1.14.0.
+  * **urllib3** updated from 2.2.2 → 2.5.0.
+* Updated `src/CMakeLists.txt` to support `msgpack` 6.x (`msgpack-cxx`).
+* Updated model zoo test generator to fix test issues and add summary logging.
+* Updated `rocMLIR` and `ONNXRuntime` mainline references across commits.
+* Updated module sorting algorithm for improved reliability.
+* Restricted FP8 quantization to `dot` and `convolution` operators.
+* Moved ONNX Runtime launcher script into MIGraphX and updated build scripts.
+* Simplified ONNX `Resize` operator parser for correctness and maintainability.
+* Updated `any_ptr` assertion to avoid failure on default HIP stream.
+* Print kernel and module information on compile failure.
+
+### Resolved issues
+
+* Fixed error in `MIGRAPHX_GPU_COMPILE_PARALLEL` documentation (#4337).
+* Fixed rocMLIR `rewrite_reduce` issue (#4218).
+* Fixed bug with `invert_permutation` on GPU (#4194).
+* Fixed compile error when `MIOPEN` is disabled (missing `std` includes) (#4281).
+* Fixed ONNX `Resize` parsing when input and output shapes are identical (#4133, #4161).
+* Fixed issue with MHA in attention refactor (#4152).
+* Fixed synchronization issue from upstream ONNX Runtime (#4189).
+* Fixed spelling error in “Contiguous” (#4287).
+* Fixed tidy complaint about duplicate header (#4245).
+* Fixed `reshape`, `transpose`, and `broadcast` rewrites between pointwise and reduce operators (#3978).
+* Fixed extraneous include file in HIPRTC-based compilation (#4130).
+* Fixed CI Perl dependency issue for SLES builds (#4254).
+* Fixed compiler warnings for ROCm 7.0 of ``error: unknown warning option '-Wnrvo'``(#4192).
+
+### Optimized
+
+* Reduced nested visits in reference operators to improve compile time.
+* Avoided dynamic memory allocation during kernel launches.
+* Removed redundant NOP instructions for GFX11/12 platforms.
+* Improved `Graphviz` output (node color and layout updates).
+* Optimized interdependency checking during compilation.
+* Skip hipBLASLt solutions requiring workspace size larger than 128 MB for efficient memory utilization.
+
+### Removed
+
+* Removed Perl dependency from SLES builds.
+* Removed redundant includes and unused internal dependencies.
+
 
 ## MIGraphX 2.13 for ROCm 7.0.0
 
@@ -251,7 +372,7 @@ Full documentation for MIGraphX is available at
 * Use the quantized output when an operator is used again
 
 
-### Fixes
+### Resolved issues
 
 * Super Resolution model verification failed with FP16
 * Suppressed confusing messages when compiling the model
@@ -326,7 +447,7 @@ Full documentation for MIGraphX is available at
 * Added support for uneven Split operations
 * Improved unit testing to run in python virtual environments
 
-### Fixes
+### Resolved issues
 
 * Fixed outstanding issues in autogenerated documentation
 * Update model zoo paths for examples
@@ -386,7 +507,7 @@ Full documentation for MIGraphX is available at
 * Improved debugging for matchers
 * Improved general debug messages
 
-### Fixes
+### Resolved issues
 
 * Fixed scatter operator for nonstandard shapes with some models from ONNX Model Zoo
 * Provided a compile option to improve the accuracy of some models by disabling Fast-Math
@@ -434,7 +555,7 @@ Full documentation for MIGraphX is available at
 * Handled broadcasts across dot and concat
 * Added verify namespace for better symbol resolution
 
-### Fixes
+### Resolved issues
 
 * Resolved accuracy issues with FP16 resnet50
 * Updated cpp generator to handle inf from float
@@ -477,7 +598,7 @@ Full documentation for MIGraphX is available at
 * Added a general optimize pass that runs several passes, such as `simplify_reshapes`, algebra, and DCE
   in a loop
 
-### Fixes
+### Resolved issues
 
 * Improved parsing for TensorFlow Protobuf files
 * Resolved various accuracy issues with some ONNX models

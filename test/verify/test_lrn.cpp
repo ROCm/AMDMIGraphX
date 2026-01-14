@@ -44,7 +44,11 @@ struct test_lrn : verify_program<test_lrn<ChannelSize, LrnSize>>
     }
 };
 
-template struct test_lrn<32, 6>;
-template struct test_lrn<32, 5>;
-template struct test_lrn<31, 8>;
+template struct test_lrn<31, 3>;
+template struct test_lrn<31, 4>;
 template struct test_lrn<31, 5>;
+template struct test_lrn<31, 8>;
+template struct test_lrn<32, 3>;
+template struct test_lrn<32, 4>;
+template struct test_lrn<32, 5>;
+template struct test_lrn<32, 6>;

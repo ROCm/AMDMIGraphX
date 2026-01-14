@@ -2914,8 +2914,8 @@ TEST_CASE_SKIP(gather_constant_scalar_index, "Scalar indices are not supported y
         auto data = m1.add_parameter("data", s);
         migraphx::shape si{migraphx::shape::int32_type};
         auto indices = m1.add_literal(migraphx::literal{si, {2}});
-        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data,
-        indices); m1.add_return({gather});
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+        m1.add_return({gather});
     }
     run_pass(m1);
 

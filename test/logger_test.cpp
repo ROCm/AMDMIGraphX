@@ -25,6 +25,7 @@
 #include <migraphx/logger.hpp>
 #include "test.hpp"
 #include <atomic>
+#include <chrono>
 #include <cstdio>
 #include <fstream>
 #include <map>
@@ -542,15 +543,16 @@ TEST_CASE(logger_concurrent_add_remove_sink)
 
     // Sink manager thread adds and removes sinks
     std::thread sink_manager([&]() {
-        for(int i = 0; i < 50; ++i)
+        using namespace std::chrono_literals;
+        for(int i = 0; i < 25; ++i)
         {
             auto id = migraphx::log::add_sink(
                 [&](migraphx::log::severity, std::string_view, migraphx::source_location) {
                     dynamic_sink_count.fetch_add(1);
                 },
                 migraphx::log::severity::info);
-            // Brief pause to let some logging happen
-            std::this_thread::yield();
+            // Brief pause to let some logging happen (yield is insufficient on fast CI)
+            std::this_thread::sleep_for(1ms);
             migraphx::log::remove_sink(id);
         }
     });
@@ -624,12 +626,13 @@ TEST_CASE(logger_concurrent_set_severity)
     // - error: blocks both info and debug
     // - info: allows info, blocks debug
     std::thread changer([&]() {
-        for(int i = 0; i < 100; ++i)
+        using namespace std::chrono_literals;
+        for(int i = 0; i < 25; ++i)
         {
             migraphx::log::set_severity(migraphx::log::severity::trace, sink_id);
-            std::this_thread::yield();
+            std::this_thread::sleep_for(1ms);
             migraphx::log::set_severity(migraphx::log::severity::error, sink_id);
-            std::this_thread::yield();
+            std::this_thread::sleep_for(1ms);
             migraphx::log::set_severity(migraphx::log::severity::info, sink_id);
         }
     });

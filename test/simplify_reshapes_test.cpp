@@ -2906,31 +2906,31 @@ TEST_CASE(gather_axis1_factorized_grid_multi_const)
     EXPECT(m1.sort() == m2.sort());
 }
 
-// TEST_CASE(gather_constant_scalar_index)
-// {
-//     migraphx::module m1;
-//     {
-//         auto s    = migraphx::shape{migraphx::shape::float_type, {3, 4}};
-//         auto data = m1.add_parameter("data", s);
-//         migraphx::shape si{migraphx::shape::int32_type};
-//         auto indices = m1.add_literal(migraphx::literal{si, {2}});
-//         auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data,
-//         indices); m1.add_return({gather});
-//     }
-//     run_pass(m1);
+TEST_CASE_SKIP(gather_constant_scalar_index, "Scalar indices are not supported yet")
+{
+    migraphx::module m1;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {3, 4}};
+        auto data = m1.add_parameter("data", s);
+        migraphx::shape si{migraphx::shape::int32_type};
+        auto indices = m1.add_literal(migraphx::literal{si, {2}});
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data,
+        indices); m1.add_return({gather});
+    }
+    run_pass(m1);
 
-//     migraphx::module m2;
-//     {
-//         auto s     = migraphx::shape{migraphx::shape::float_type, {3, 4}};
-//         auto data  = m2.add_parameter("data", s);
-//         auto slice = m2.add_instruction(
-//             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), data);
-//         auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), slice);
-//         m2.add_return({squeeze});
-//     }
+    migraphx::module m2;
+    {
+        auto s     = migraphx::shape{migraphx::shape::float_type, {3, 4}};
+        auto data  = m2.add_parameter("data", s);
+        auto slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), data);
+        auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), slice);
+        m2.add_return({squeeze});
+    }
 
-//     EXPECT(m1.sort() == m2.sort());
-// }
+    EXPECT(m1.sort() == m2.sort());
+}
 
 TEST_CASE(gather_constant_negative_index)
 {

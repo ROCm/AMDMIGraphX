@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -90,12 +90,22 @@ struct precision
 static bool is_pointwise_or_reduce(instruction_ref ins)
 {
     return contains(ins->name(), "reduce") or
-           ins->get_operator().attributes().get("pointwise", false);
+        ins->get_operator().attributes().get("pointwise", false);
 }
 // Check if its not a scalar constant
 static bool is_non_scalar_const(instruction_ref ins)
 {
     return not(ins->get_shape().scalar() and ins->can_eval());
+}
+
+// Check if two types are in the same category (both integral or both floating-point)
+static bool same_type_category(shape::type_t a, shape::type_t b)
+{
+    bool result = false;
+    shape::visit(a, [&](auto x) {
+        shape::visit(b, [&](auto y) { result = (x.is_integral() == y.is_integral()); });
+    });
+    return result;
 }
 // Get the next input instruction otherwise return a nullopt
 static std::optional<instruction_ref> get_next_input(instruction_ref ins)
@@ -106,9 +116,9 @@ static std::optional<instruction_ref> get_next_input(instruction_ref ins)
     {
         std::unordered_set<instruction_ref> non_scalars;
         std::copy_if(ins->inputs().begin(),
-                     ins->inputs().end(),
-                     std::inserter(non_scalars, non_scalars.end()),
-                     &is_non_scalar_const);
+                    ins->inputs().end(),
+                    std::inserter(non_scalars, non_scalars.end()),
+                    &is_non_scalar_const);
         if(non_scalars.size() == 1)
             return *non_scalars.begin();
     }
@@ -118,7 +128,8 @@ static std::optional<instruction_ref> get_next_input(instruction_ref ins)
 // Find all adjacent instructions that could be upgraded with higher precision
 // by traversing the inputs from a convert
 
-static std::unordered_set<instruction_ref> find_adjacent_inputs(instruction_ref start)
+static std::unordered_set<instruction_ref> find_adjacent_inputs(instruction_ref start,
+                                                                shape::type_t target_type)
 {
     std::unordered_set<instruction_ref> result;
     // Promote inputs
@@ -126,6 +137,9 @@ static std::unordered_set<instruction_ref> find_adjacent_inputs(instruction_ref 
         if(not is_pointwise_or_reduce(ins))
             return;
         if(contains(result, ins))
+            return;
+        // Stop if crossing type category boundary (e.g., int to float)
+        if(not same_type_category(ins->get_shape().type(), target_type))
             return;
         auto next = get_next_input(ins);
         if(not next.has_value())
@@ -138,7 +152,8 @@ static std::unordered_set<instruction_ref> find_adjacent_inputs(instruction_ref 
 
 // Find all adjacent instructions that could be upgraded with higher precision
 // by traversing the outputs from a convert
-static std::unordered_set<instruction_ref> find_adjacent_outputs(instruction_ref start)
+static std::unordered_set<instruction_ref> find_adjacent_outputs(instruction_ref start,
+                                                                shape::type_t target_type)
 {
     std::unordered_set<instruction_ref> result;
     // Promote outputs
@@ -148,6 +163,9 @@ static std::unordered_set<instruction_ref> find_adjacent_outputs(instruction_ref
             if(not is_pointwise_or_reduce(output))
                 continue;
             if(contains(result, output))
+                continue;
+            // Stop if crossing type category boundary (e.g., int to float)
+            if(not same_type_category(output->get_shape().type(), target_type))
                 continue;
             auto next = get_next_input(output);
             if(not next.has_value())
@@ -196,11 +214,11 @@ static std::unordered_map<instruction_ref, shape::type_t> find_instruction_to_up
             continue;
         if(input < output)
         {
-            insert_instructions_to_upgrade(result, find_adjacent_inputs(ins), output.type);
+            insert_instructions_to_upgrade(result, find_adjacent_inputs(ins, output.type), output.type);
         }
         else if(input > output)
         {
-            insert_instructions_to_upgrade(result, find_adjacent_outputs(ins), input.type);
+            insert_instructions_to_upgrade(result, find_adjacent_outputs(ins, input.type), input.type);
         }
     }
     return result;
@@ -218,12 +236,12 @@ void propagate_precision::apply(module_pass_manager& mpm) const
         mpm.get_module().replace_instruction(ins, convert1);
         std::vector<instruction_ref> inputs;
         std::transform(ins->inputs().begin(),
-                       ins->inputs().end(),
-                       std::back_inserter(inputs),
-                       [&](auto input) {
-                           return mpm.get_module().insert_instruction(
-                               ins, make_op("convert", {{"target_type", t}}), input);
-                       });
+                    ins->inputs().end(),
+                    std::back_inserter(inputs),
+                    [&](auto input) {
+                        return mpm.get_module().insert_instruction(
+                            ins, make_op("convert", {{"target_type", t}}), input);
+                    });
         mpm.get_module().replace_instruction(ins, ins->get_operator(), inputs);
     }
     mpm.run_pass(eliminate_convert{});

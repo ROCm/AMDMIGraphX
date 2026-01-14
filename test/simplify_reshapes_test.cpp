@@ -2433,6 +2433,28 @@ TEST_CASE(gather_axis0_half_split_concat)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(gather_axis1_same_stride_diff_base)
+{
+    // This pattern is not optimized - gather remains
+    migraphx::module m1;
+    {
+        migraphx::shape si{migraphx::shape::int32_type, {2, 2}};
+        std::vector<int32_t> indices ={1, 1, 0, 2};
+        auto x  = m1.add_parameter("x", {migraphx::shape::float_type, {3, 3}});
+        auto tx = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), x);
+        auto ind = m1.add_literal(migraphx::literal{si, indices});
+        auto tind =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), ind);
+        auto g = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), tx, tind);
+        m1.add_return({g});
+    }
+    auto m2 = m1;
+    // Verify there is no hang
+    run_pass(m1);
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
 // TEST_CASE(gather_stride_slice)
 // {
 //     migraphx::module m;

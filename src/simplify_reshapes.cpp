@@ -1250,6 +1250,10 @@ struct arithmetic_segment
             auto seg = segments.front();
             if(seg.stride < 0)
                 return {};
+            if(std::any_of(segments.begin(), segments.end(), [](const arithmetic_segment& seg) {
+                return seg.base < 0;
+            }))
+                return {};
             if(not std::all_of(
                    segments.begin(), segments.end(), [&](const arithmetic_segment& seg) {
                        return seg.stride == segments.front().stride and

@@ -354,7 +354,7 @@ struct find_gqa_flash_decoding
             if(max_seq_length % num_groups != 0) {
                 std::cout << "Max sequence length " << max_seq_length 
                           << " not divisible by " << num_groups << " groups" << std::endl;
-                // TODO: Add padding support
+                // TODO: add autosplitting (padding won't be needed)
                 seq_length_per_group = 0;
             } else {
                 seq_length_per_group = max_seq_length / num_groups;
@@ -427,10 +427,6 @@ struct find_gqa_flash_decoding
         // factory method to extract Q, K, V parameters from gemm operations
         static std::optional<qkv_params> from_gemms(instruction_ref gemm1, instruction_ref gemm2)
         {
-            /*
-            - gemm1: Q@K
-            - gemm2: P@V
-            */
             auto trace_back_to_param = [](instruction_ref ins) -> std::optional<instruction_ref> {
                 instruction_ref current = ins;
                 while(current->name() != "@param") {
@@ -832,17 +828,16 @@ struct find_gqa_flash_decoding
         // map submodule params to main module inputs
         auto group_inputs      = attn_group_ins->inputs();
         auto map_param_to_main = map_submod_params_to_inputs(submod, group_inputs);
-        
+
         // get actual Q, K, V instructions from main module
         auto q = map_param_to_main.at(q_param);  // maps to the QKV tensor
         auto k = map_param_to_main.at(k_param);  // maps to K concat_past_present output 
         auto v = map_param_to_main.at(v_param);  // maps to V concat_past_present output
-        
+
         // GQA flash decoding:
         // - Q (QKV tensor): add new group dim and broadcast
         // - K: split sequence dimension into groups
         // - V: split sequence dimension into groups
-        
         auto q_type = q->get_shape().type();
         auto k_type = k->get_shape().type(); 
         auto v_type = v->get_shape().type();
@@ -1691,14 +1686,14 @@ void fuse_attention::apply(module_pass_manager& mpm) const
         // flash decoding for regular attention, single & multi-headed
         match::find_matches(
             mpm,
-            find_flash_decoding{.configured_splits         = flash_decoding_num_splits,
+            find_flash_decoding{.configured_splits         = configured_splits,
                                 .configured_threshold      = flash_decoding_threshold,
                                 .configured_max_splits     = flash_decoding_max_splits,
                                 .configured_min_chunk_size = flash_decoding_min_chunk_size});
 
         // flash decoding for GQA attention
         match::find_matches(
-            mpm, find_gqa_flash_decoding{.groups = num_splits});
+            mpm, find_gqa_flash_decoding{.groups = configured_splits});
         mpm.run_pass(dead_code_elimination{});
     }
 }

@@ -37,7 +37,7 @@ struct module_pass_manager;
 
 struct MIGRAPHX_EXPORT fuse_attention
 {
-    bool attn_enabled = false;
+    bool attn_enabled                         = false;
     bool flash_decoding_enabled               = false;
     std::size_t flash_decoding_num_splits     = 0;
     std::size_t flash_decoding_threshold      = 32;

@@ -27,14 +27,16 @@
 #include <test.hpp>
 #include <basic_ops.hpp>
 
+using instruction_refs = std::vector<migraphx::instruction_ref>;
+
 TEST_CASE(simple_alias)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto l   = mm->add_literal(1);
     auto p1  = mm->add_instruction(pass_op{}, l);
-    EXPECT(migraphx::instruction::get_output_alias(l) == std::vector{l});
-    EXPECT(migraphx::instruction::get_output_alias(p1) == std::vector{l});
+    EXPECT(migraphx::instruction::get_output_alias(l) == instruction_refs{l});
+    EXPECT(migraphx::instruction::get_output_alias(p1) == instruction_refs{l});
 }
 
 TEST_CASE(cascade_alias)
@@ -45,10 +47,10 @@ TEST_CASE(cascade_alias)
     auto p1  = mm->add_instruction(pass_op{}, l);
     auto p2  = mm->add_instruction(pass_op{}, p1);
     auto p3  = mm->add_instruction(pass_op{}, p2);
-    EXPECT(migraphx::instruction::get_output_alias(l) == std::vector{l});
-    EXPECT(migraphx::instruction::get_output_alias(p1) == std::vector{l});
-    EXPECT(migraphx::instruction::get_output_alias(p2) == std::vector{l});
-    EXPECT(migraphx::instruction::get_output_alias(p3) == std::vector{l});
+    EXPECT(migraphx::instruction::get_output_alias(l) == instruction_refs{l});
+    EXPECT(migraphx::instruction::get_output_alias(p1) == instruction_refs{l});
+    EXPECT(migraphx::instruction::get_output_alias(p2) == instruction_refs{l});
+    EXPECT(migraphx::instruction::get_output_alias(p3) == instruction_refs{l});
 }
 
 TEST_CASE(no_alias)
@@ -58,7 +60,7 @@ TEST_CASE(no_alias)
     auto x   = mm->add_literal(1);
     auto y   = mm->add_literal(2);
     auto sum = mm->add_instruction(sum_op{}, x, y);
-    EXPECT(migraphx::instruction::get_output_alias(sum) == std::vector{sum});
+    EXPECT(migraphx::instruction::get_output_alias(sum) == instruction_refs{sum});
 }
 
 TEST_CASE(multiple_aliases)

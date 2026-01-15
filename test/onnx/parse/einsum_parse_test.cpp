@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,7 +24,17 @@
 
 #include <onnx_test.hpp>
 
-// Validate a successful parse of einsum layer (eq: transform operation)
-// Exception was thrown in one of the stable-diffusion-3 onnx models due
-// to an empty squeeze operation by defaul removing an axis of size 1
-TEST_CASE(einsum_permute_sd3_parse_test) { auto prog = read_onnx("einsum_permute_sd3_test.onnx"); }
+TEST_CASE(einsum_permute_sd3_parse_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 64, 64, 2, 2, 16}});
+    auto t1  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {5, 1, 0, 3, 4, 2}}}), x);
+    auto u   = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {}}, {"steps", {}}}), t1);
+    auto t2  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 0, 1, 3, 5, 4}}}), u);
+    mm->add_return({t2});
+
+    auto prog = read_onnx("einsum_permute_sd3_test.onnx");
+
+    EXPECT(p == prog);
+}

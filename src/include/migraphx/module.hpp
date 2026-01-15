@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -323,6 +323,12 @@ struct MIGRAPHX_EXPORT module
     void annotate(std::ostream& os, std::function<void(instruction_ref)> a) const;
 
     std::vector<module_ref> get_sub_modules(bool shallow = false) const;
+
+    /* Creates a new module with the same instructions but with different input parameter shapes.
+     Returns the new module by value without modifying the original.
+    */
+    module with_static_shapes(const std::vector<shape>& input_shapes);
+
     /* sorts the module in topological order aka reverse-post order (RPO) DFS order
        it takes last instruction or @return as the root and walks back the graph and moves inputs
        of the each instruction such that it appears before the instruction itself.

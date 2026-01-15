@@ -37,6 +37,7 @@
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/time_op.hpp>
+#include <migraphx/gpu/precompile_ops.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -45,42 +46,8 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_COMPILE_PARALLEL);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_BENCHMARKING);
 
-struct precompile_op
-{
-    operation op                      = op::identity{};
-    std::size_t additional_args       = 1;
-    bool ignore_modules               = false;
-    std::optional<shape> output_shape = nullopt;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.op, "op"),
-                    f(self.additional_args, "additional_args"),
-                    f(self.ignore_modules, "ignore_modules"),
-                    f(self.output_shape, "output_shape"));
-    }
-
-    std::string name() const { return "gpu::precompile_op"; }
-
-    shape compute_shape(std::vector<shape> inputs, const std::vector<module_ref>& mods) const
-    {
-        // Pop off additional args
-        inputs.resize(inputs.size() - additional_args);
-        if(output_shape.has_value())
-            return output_shape.value();
-        if(ignore_modules)
-            return op.compute_shape(inputs);
-        return op.compute_shape(inputs, mods);
-    }
-
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
-    {
-        return shapes.size() - 1;
-    }
-};
-
 MIGRAPHX_REGISTER_OP(precompile_op);
+MIGRAPHX_REGISTER_OP(dynamic_code_object_op);
 
 struct compiled_result
 {

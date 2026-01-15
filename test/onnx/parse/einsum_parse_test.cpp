@@ -28,10 +28,13 @@ TEST_CASE(einsum_permute_sd3_parse_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 64, 64, 2, 2, 16}});
-    auto t1  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {5, 1, 0, 3, 4, 2}}}), x);
-    auto u   = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {}}, {"steps", {}}}), t1);
-    auto t2  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 0, 1, 3, 5, 4}}}), u);
+    auto x =
+        mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 64, 64, 2, 2, 16}});
+    auto t1 = mm->add_instruction(
+        migraphx::make_op("transpose", {{"permutation", {5, 1, 0, 3, 4, 2}}}), x);
+    auto u = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {}}, {"steps", {}}}), t1);
+    auto t2 = mm->add_instruction(
+        migraphx::make_op("transpose", {{"permutation", {2, 0, 1, 3, 5, 4}}}), u);
     mm->add_return({t2});
 
     auto prog = read_onnx("einsum_permute_sd3_test.onnx");

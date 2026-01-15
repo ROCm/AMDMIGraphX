@@ -52,7 +52,7 @@ std::string hsa_error_string(hsa_status_t status)
 /// Calls hsa_init() in constructor and hsa_shut_down() in destructor.
 struct hsa_guard
 {
-    bool initialized       = false;
+    bool initialized         = false;
     hsa_status_t init_status = HSA_STATUS_SUCCESS;
 
     hsa_guard()

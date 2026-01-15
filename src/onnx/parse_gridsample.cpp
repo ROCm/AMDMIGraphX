@@ -89,7 +89,8 @@ struct grid_sampler
         m_width_l = info.add_literal(migraphx::literal{migraphx::shape{m_grid_type}, {m_in_width}});
         m_height_max_l =
             info.add_literal(migraphx::literal{migraphx::shape{m_grid_type}, {m_in_height - 1}});
-        m_height_l = info.add_literal(migraphx::literal{migraphx::shape{m_grid_type}, {m_in_height}});
+        m_height_l =
+            info.add_literal(migraphx::literal{migraphx::shape{m_grid_type}, {m_in_height}});
 
         auto x_coords = info.add_instruction(
             make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {1}}}), m_grid);
@@ -311,12 +312,12 @@ struct linear_sampler : grid_sampler
             nc_values_data.push_back(c);
         });
         size_t num_indices  = m_batch * m_out_height * m_out_width * m_channel;
-        auto xy_indices_t   = info.add_literal(migraphx::literal{
-            migraphx::shape{m_grid_type, {num_indices, 3}}, xy_indices_data});
-        auto weight_index_t = info.add_literal(migraphx::literal{
-            migraphx::shape{m_grid_type, {num_indices, 3}}, weight_indices_data});
-        auto nc             = info.add_literal(migraphx::literal{
-            migraphx::shape{m_grid_type, {num_indices, 2}}, nc_values_data});
+        auto xy_indices_t   = info.add_literal(
+            migraphx::literal{migraphx::shape{m_grid_type, {num_indices, 3}}, xy_indices_data});
+        auto weight_index_t = info.add_literal(
+            migraphx::literal{migraphx::shape{m_grid_type, {num_indices, 3}}, weight_indices_data});
+        auto nc = info.add_literal(
+            migraphx::literal{migraphx::shape{m_grid_type, {num_indices, 2}}, nc_values_data});
 
         auto y0_samples = info.add_instruction(make_op("gathernd"), m_floor_y, xy_indices_t);
         auto x0_samples = info.add_instruction(make_op("gathernd"), m_floor_x, xy_indices_t);

@@ -75,7 +75,8 @@ const auto& reshaper_names()
     return names;
 }
 
-instruction_ref insert_ops(module& m, instruction_ref ins, std::vector<operation>& ops, instruction_ref input)
+instruction_ref
+insert_ops(module& m, instruction_ref ins, std::vector<operation>& ops, instruction_ref input)
 {
     for(const auto& op : ops)
     {
@@ -83,7 +84,6 @@ instruction_ref insert_ops(module& m, instruction_ref ins, std::vector<operation
     }
     return input;
 }
-
 
 struct find_nested_shape_transforms
 {
@@ -432,7 +432,8 @@ struct find_slice_shape_transforms
     {
         auto reshapes = match::name(shape_transform_ops());
         auto slice_op = match::name("slice")(match::arg(0)(match::used_once()));
-        return reshapes(reshapes(match::none_of[match::outputs()](reshapes())), match::arg(0)(match::skip(reshapes())(slice_op.bind("slice"))));
+        return reshapes(reshapes(match::none_of[match::outputs()](reshapes())),
+                        match::arg(0)(match::skip(reshapes())(slice_op.bind("slice"))));
     }
 
     void apply(module& m, const match::matcher_result& mr) const
@@ -472,7 +473,7 @@ struct find_slice_shape_transforms
         if(axes.size() != new_axes.size())
         {
             auto opt_ops = desc.generate();
-            auto y = insert_ops(m, ins, opt_ops, slice);
+            auto y       = insert_ops(m, ins, opt_ops, slice);
             m.replace_instruction(ins, y);
             return;
         }
@@ -484,7 +485,7 @@ struct find_slice_shape_transforms
         new_desc.simplify();
 
         auto opt_ops = new_desc.generate();
-        auto y = insert_ops(m, ins, opt_ops, x);
+        auto y       = insert_ops(m, ins, opt_ops, x);
         y = m.insert_instruction(ins, make_op("slice", slice_op), y);
         m.replace_instruction(ins, y);
 

@@ -477,12 +477,17 @@ TEST_CASE(logger_concurrent_is_enabled)
     }
 
     // Writer thread changes severity levels
+    // Small sleeps ensure readers have a chance to observe each state
     std::thread writer([&]() {
-        for(int i = 0; i < 100; ++i)
+        using namespace std::chrono_literals;
+        for(int i = 0; i < 25; ++i)
         {
             migraphx::log::set_severity(migraphx::log::severity::trace);
+            std::this_thread::sleep_for(1ms);
             migraphx::log::set_severity(migraphx::log::severity::error);
+            std::this_thread::sleep_for(1ms);
             migraphx::log::set_severity(migraphx::log::severity::info);
+            std::this_thread::sleep_for(1ms);
         }
     });
 
@@ -493,8 +498,8 @@ TEST_CASE(logger_concurrent_is_enabled)
         reader.join();
 
     // Verify substantial work was done by all threads
-    // Each thread should have performed many checks during the 100 severity change iterations
-    EXPECT(check_count.load() >= num_reader_threads * 100);
+    // Each thread should have performed many checks during the severity change iterations
+    EXPECT(check_count.load() >= num_reader_threads * 25);
 
     // Some checks should have returned true (when severity was info or trace)
     // and some false (when severity was error), so enabled_count should be

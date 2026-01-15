@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/gpu/hsa_chiplet.hpp>
+#include <migraphx/errors.hpp>
 #include <vector>
 #include <mutex>
 
@@ -38,16 +39,26 @@ namespace gpu {
 
 namespace {
 
+/// Convert HSA status code to a human-readable string
+std::string hsa_error_string(hsa_status_t status)
+{
+    const char* msg = nullptr;
+    if(hsa_status_string(status, &msg) == HSA_STATUS_SUCCESS and msg != nullptr)
+        return msg;
+    return "Unknown HSA error (code " + std::to_string(static_cast<int>(status)) + ")";
+}
+
 /// RAII wrapper for HSA runtime initialization.
 /// Calls hsa_init() in constructor and hsa_shut_down() in destructor.
 struct hsa_guard
 {
-    bool initialized = false;
+    bool initialized       = false;
+    hsa_status_t init_status = HSA_STATUS_SUCCESS;
 
     hsa_guard()
     {
-        hsa_status_t status = hsa_init();
-        initialized         = (status == HSA_STATUS_SUCCESS);
+        init_status = hsa_init();
+        initialized = (init_status == HSA_STATUS_SUCCESS);
     }
 
     ~hsa_guard()
@@ -60,6 +71,8 @@ struct hsa_guard
     hsa_guard& operator=(const hsa_guard&) = delete;
 
     explicit operator bool() const { return initialized; }
+
+    hsa_status_t status() const { return init_status; }
 };
 
 /// Query chiplet counts for all GPU devices and cache the results.
@@ -71,8 +84,8 @@ std::vector<std::size_t> query_all_chiplet_counts()
     hsa_guard guard;
     if(not guard)
     {
-        // HSA init failed, return empty vector
-        return chiplet_counts;
+        MIGRAPHX_THROW("HSA runtime initialization failed: " + hsa_error_string(guard.status()) +
+                       ". GPU is not accessible.");
     }
 
     // Structure to collect chiplet counts for all GPUs
@@ -99,7 +112,8 @@ std::vector<std::size_t> query_all_chiplet_counts()
             uint32_t num_chiplets = 1;
             err                   = hsa_agent_get_info(
                 agent, static_cast<hsa_agent_info_t>(HSA_AMD_AGENT_INFO_NUM_XCC), &num_chiplets);
-            // If the query fails (e.g., older ROCm or unsupported GPU), use default of 1
+            // If the query fails (e.g., older ROCm or unsupported GPU), use default of 1.
+            // This is expected on older ROCm versions, so no warning needed.
             if(err != HSA_STATUS_SUCCESS)
                 num_chiplets = 1;
 
@@ -112,8 +126,8 @@ std::vector<std::size_t> query_all_chiplet_counts()
     hsa_status_t status = hsa_iterate_agents(agent_callback, &data);
     if(status != HSA_STATUS_SUCCESS and status != HSA_STATUS_INFO_BREAK)
     {
-        // Iteration failed, return whatever we collected (may be empty)
-        return chiplet_counts;
+        MIGRAPHX_THROW("HSA agent enumeration failed: " + hsa_error_string(status) +
+                       ". Unable to query GPU devices.");
     }
 
     return chiplet_counts;
@@ -139,7 +153,8 @@ std::size_t get_hsa_chiplet_count(std::size_t device_id)
     if(device_id < counts.size())
         return counts[device_id];
 
-    // Device not found in HSA enumeration, return default of 1
+    // Device not found - HSA enumerated fewer GPUs than expected.
+    // This shouldn't happen in normal operation, but return default 1.
     return 1;
 }
 

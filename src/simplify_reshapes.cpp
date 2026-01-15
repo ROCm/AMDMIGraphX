@@ -75,6 +75,16 @@ const auto& reshaper_names()
     return names;
 }
 
+instruction_ref insert_ops(module& m, instruction_ref ins, std::vector<operation>& ops, instruction_ref input)
+{
+    for(const auto& op : ops)
+    {
+        input = m.insert_instruction(ins, op, input);
+    }
+    return input;
+}
+
+
 struct find_nested_shape_transforms
 {
     static const auto& shape_transform_ops()
@@ -128,9 +138,7 @@ struct find_nested_shape_transforms
             auto opt_ops = optimize_shape_transforms(x->get_shape().lens(), ops);
             if(ops == opt_ops)
                 return;
-            auto y = x;
-            for(const auto& op : opt_ops)
-                y = m.insert_instruction(ins, op, y);
+            auto y = insert_ops(m, ins, opt_ops, x);
             m.replace_instruction(ins, y);
         }
     }
@@ -424,7 +432,7 @@ struct find_slice_shape_transforms
     {
         auto reshapes = match::name(shape_transform_ops());
         auto slice_op = match::name("slice")(match::arg(0)(match::used_once()));
-        return reshapes(match::arg(0)(match::skip(reshapes())(slice_op.bind("slice"))));
+        return reshapes(reshapes(match::none_of[match::outputs()](reshapes())), match::arg(0)(match::skip(reshapes())(slice_op.bind("slice"))));
     }
 
     void apply(module& m, const match::matcher_result& mr) const
@@ -460,8 +468,14 @@ struct find_slice_shape_transforms
                            return result;
                        });
 
+        // Optimizes shape transforms if the slice cant be optimized
         if(axes.size() != new_axes.size())
+        {
+            auto opt_ops = desc.generate();
+            auto y = insert_ops(m, ins, opt_ops, slice);
+            m.replace_instruction(ins, y);
             return;
+        }
         slice_op["axes"] = new_axes;
 
         auto new_desc = desc.rebase(slice->inputs().front()->get_shape().lens());
@@ -470,9 +484,7 @@ struct find_slice_shape_transforms
         new_desc.simplify();
 
         auto opt_ops = new_desc.generate();
-        auto y       = x;
-        for(const auto& op : opt_ops)
-            y = m.insert_instruction(ins, op, y);
+        auto y = insert_ops(m, ins, opt_ops, x);
         y = m.insert_instruction(ins, make_op("slice", slice_op), y);
         m.replace_instruction(ins, y);
 
@@ -1958,6 +1970,7 @@ void simplify_reshapes::apply(module& m) const
                             find_nop_reshapes{},
                             find_flatten{},
                             find_reshape_cont{},
+                            find_slice_shape_transforms{},
                             find_nested_shape_transforms{},
                             find_concat_slice{},
                             find_concat_transpose{},
@@ -1965,7 +1978,6 @@ void simplify_reshapes::apply(module& m) const
                             find_concat_multibroadcasts{},
                             find_nested_slice{},
                             find_nested_concat{},
-                            find_slice_shape_transforms{},
                             find_transpose_slice{},
                             find_slice_transpose{},
                             find_unary_shape_transforms{},

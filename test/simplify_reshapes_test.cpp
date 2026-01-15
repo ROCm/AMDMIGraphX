@@ -2110,11 +2110,13 @@ TEST_CASE(gather_constant_same_indices)
         auto s    = migraphx::shape{migraphx::shape::float_type, {3, 4, 5}};
         auto data = m2.add_parameter("data", s);
         auto unsq = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), data);
+        auto rsp1 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 1, 20}}}), unsq);
         auto mb   = m2.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {3, 3, 4, 5}}}), unsq);
+            migraphx::make_op("multibroadcast", {{"out_lens", {3, 3, 20}}}), rsp1);
         auto slc = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), mb);
-        auto sq = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), slc);
+        auto rsp2 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 3, 4, 5}}}), slc);
+        auto sq   = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), rsp2);
         m2.add_return({sq});
     }
 
@@ -2499,11 +2501,12 @@ TEST_CASE(gather_flatten_stride_offset)
 
     migraphx::module m2;
     {
-        auto x   = m2.add_parameter("X", {migraphx::shape::float_type, {16}});
-        auto rsp = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 4}}}), x);
-        auto slc = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {1}}, {"ends", {2}}}), rsp);
-        auto sq = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), slc);
+        auto x    = m2.add_parameter("X", {migraphx::shape::float_type, {16}});
+        auto rsp  = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 4}}}), x);
+        auto slc  = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), rsp);
+        auto unsq = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), slc);
+        auto sq   = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), unsq);
         m2.add_return({sq});
     }
 

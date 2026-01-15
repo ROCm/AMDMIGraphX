@@ -26,10 +26,10 @@
 #include "test.hpp"
 #include <atomic>
 #include <chrono>
-#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <fstream>
 #include <map>
-#include <mutex>
 #include <thread>
 #include <vector>
 
@@ -37,21 +37,37 @@
 // Messages must follow the format "Thread %u message %d".
 // Verifies that messages from each thread arrive in strictly increasing order.
 // If verify_complete is true, also verifies that each thread sent exactly msgs_per_thread messages.
-void verify_per_thread_ordering(const std::vector<std::string>& messages,
-                                unsigned int num_threads,
-                                int msgs_per_thread  = -1,
-                                bool verify_complete = false)
+static void verify_per_thread_ordering(const std::vector<std::string>& messages,
+                                       unsigned int num_threads,
+                                       int msgs_per_thread  = -1,
+                                       bool verify_complete = false)
 {
     std::vector<int> last_index(num_threads, -1);
     std::vector<int> msg_count(num_threads, 0);
 
     for(const auto& msg : messages)
     {
-        unsigned int thread_id = 0;
-        int msg_index          = 0;
-        int parsed = std::sscanf(msg.c_str(), "Thread %u message %d", &thread_id, &msg_index);
+        // Parse "Thread X message Y" format using strtoul/strtol
+        const char* ptr = msg.c_str();
 
-        EXPECT(parsed == 2);
+        // Check "Thread " prefix
+        EXPECT(std::strncmp(ptr, "Thread ", 7) == 0);
+        ptr += 7;
+
+        // Parse thread_id
+        char* end               = nullptr;
+        unsigned long thread_id = std::strtoul(ptr, &end, 10);
+        EXPECT(end != ptr);
+        ptr = end;
+
+        // Check " message " separator
+        EXPECT(std::strncmp(ptr, " message ", 9) == 0);
+        ptr += 9;
+
+        // Parse msg_index
+        long msg_index = std::strtol(ptr, &end, 10);
+        EXPECT(end != ptr);
+
         EXPECT(thread_id < num_threads);
         if(msgs_per_thread > 0)
         {

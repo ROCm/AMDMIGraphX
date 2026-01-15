@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,12 +32,10 @@ TEST_CASE(gather_dyn_test)
         "data", migraphx::shape{migraphx::shape::float_type, {{1, 4}, {4, 4}, {5, 5}, {6, 6}}});
     auto l1 = mm->add_parameter(
         "indices", migraphx::shape{migraphx::shape::int32_type, {{1, 4}, {3, 3}, {4, 4}, {5, 5}}});
-    auto cont_l0 = mm->add_instruction(migraphx::make_op("contiguous"), l0);
-    auto cont_l1 = mm->add_instruction(migraphx::make_op("contiguous"), l1);
 
     int axis       = 1;
     auto gather_op = migraphx::make_op("gather", {{"axis", axis}});
-    auto ret       = mm->add_instruction(gather_op, cont_l0, cont_l1);
+    auto ret       = mm->add_instruction(gather_op, l0, l1);
     mm->add_return({ret});
 
     migraphx::onnx_options options;

@@ -28,6 +28,7 @@
 #include <migraphx/ranges.hpp>
 #include "test.hpp"
 
+#include <array>
 #include <limits>
 
 static float fp8e4m3fn_to_fp32_value(uint8_t input)
@@ -208,7 +209,7 @@ TEST_CASE(test_infinity_2)
     float finf = -1.0 * std::numeric_limits<float>::infinity();
     // no inf in fp8e4m3fn, it gets clipped to lowest
     migraphx::fp8::fp8e4m3fn fp8_lowest(finf);
-    EXPECT(bool{fp8_lowest == std::numeric_limits<migraphx::fp8::fp8e4m3fn>::lowest()});
+    EXPECT(fp8_lowest == std::numeric_limits<migraphx::fp8::fp8e4m3fn>::lowest());
 }
 
 TEST_CASE(test_numeric_max_1)
@@ -273,12 +274,12 @@ TEST_CASE(test_binary_ops)
 
     auto e = migraphx::fp8::fp8e4m3fn(10.0);
     auto f = migraphx::fp8::fp8e4m3fn(-10.0);
-    EXPECT(bool{e > f});
-    EXPECT(bool{f < e});
-    EXPECT(bool{f <= e});
-    EXPECT(bool{e >= f});
-    EXPECT(bool{e <= e});
-    EXPECT(bool{f >= f});
+    EXPECT(e > f);
+    EXPECT(f < e);
+    EXPECT(f <= e);
+    EXPECT(e >= f);
+    EXPECT(e <= e);
+    EXPECT(f >= f);
     EXPECT(not migraphx::float_equal(f, e));
 }
 

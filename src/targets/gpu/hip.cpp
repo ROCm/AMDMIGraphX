@@ -61,16 +61,6 @@ static bool is_device_ptr(const void* ptr)
     return attr.type == hipMemoryTypeDevice;
 }
 
-static std::size_t get_available_gpu_memory()
-{
-    size_t free;
-    size_t total;
-    auto status = hipMemGetInfo(&free, &total);
-    if(status != hipSuccess)
-        MIGRAPHX_THROW("Failed getting available memory: " + hip_error(status));
-    return free;
-}
-
 static void* get_device_ptr(void* hptr)
 {
     void* result = nullptr;
@@ -108,8 +98,6 @@ static host_ptr_cache& get_host_ptr_cache()
 
 static std::shared_ptr<void> allocate_gpu(std::size_t sz, bool host = false)
 {
-    if(sz > get_available_gpu_memory())
-        MIGRAPHX_THROW("Memory not available to allocate buffer: " + std::to_string(sz));
     void* alloc_ptr = nullptr;
     auto status     = host ? hipHostMalloc(&alloc_ptr, sz) : hipMalloc(&alloc_ptr, sz);
     if(status != hipSuccess)
@@ -160,11 +148,11 @@ static std::vector<T> read_from_gpu(const void* x, std::size_t sz)
     return result;
 }
 
-static std::shared_ptr<void> write_to_gpu(const void* x, std::size_t sz, bool host = false)
+std::shared_ptr<void> write_to_gpu(const void* x, std::size_t sz, bool host)
 {
     gpu_sync();
     auto result = allocate_gpu(sz, host);
-    assert(is_device_ptr(result.get()));
+    assert(host or is_device_ptr(result.get()));
     assert(not is_device_ptr(x));
     auto status = hipMemcpy(result.get(), x, sz, hipMemcpyHostToDevice);
     if(status != hipSuccess)
@@ -189,39 +177,41 @@ argument register_on_gpu(const argument& arg)
 argument to_gpu(const argument& arg, bool host)
 {
     argument result;
-    arg.visit(
-        [&](auto x) {
-            auto p = write_to_gpu(arg.data(), arg.get_shape().bytes(), host);
-            result = {x.get_shape(), p};
-        },
-        [&](const auto& xs) {
-            std::vector<argument> args;
-            std::transform(xs.begin(), xs.end(), std::back_inserter(args), [&](const auto& x) {
-                return to_gpu(x, host);
-            });
-            result = argument{args};
-        });
+    shape arg_shape = arg.get_shape();
+    if(arg_shape.type() == shape::tuple_type)
+    {
+        std::vector<argument> sub_obj = arg.get_sub_objects();
+        std::vector<argument> res_args;
+        migraphx::transform(
+            sub_obj, std::back_inserter(res_args), [&](const auto& x) { return to_gpu(x, host); });
+        result = argument{res_args};
+    }
+    else
+    {
+        auto p = write_to_gpu(arg.data(), arg.get_shape().bytes(), host);
+        result = {arg.get_shape(), p};
+    }
     return result;
 }
 
 argument from_gpu(const argument& arg)
 {
     argument result;
-    arg.visit(
-        [&](auto x) {
-            using type = typename decltype(x)::value_type;
-            auto v     = read_from_gpu<type>(arg.data(), x.get_shape().bytes() / sizeof(type));
-            // cppcheck-suppress returnDanglingLifetime
-            result = {x.get_shape(), [v]() mutable { return v.data(); }};
-        },
-        [&](const auto& xs) {
-            std::vector<argument> args;
-            std::transform(xs.begin(), xs.end(), std::back_inserter(args), [&](const auto& x) {
-                return from_gpu(x);
-            });
-            result = argument{args};
-        });
-
+    shape arg_shape = arg.get_shape();
+    if(arg_shape.type() == shape::tuple_type)
+    {
+        std::vector<argument> sub_obj = arg.get_sub_objects();
+        std::vector<argument> res_args;
+        migraphx::transform(
+            sub_obj, std::back_inserter(res_args), [&](const auto& x) { return from_gpu(x); });
+        result = argument{res_args};
+    }
+    else
+    {
+        auto v = read_from_gpu<migraphx::byte>(arg.data(), arg.get_shape().bytes());
+        // cppcheck-suppress returnDanglingLifetime
+        result = {arg.get_shape(), [v]() mutable { return v.data(); }};
+    }
     return result;
 }
 

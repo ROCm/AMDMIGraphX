@@ -3,7 +3,7 @@ FROM registry.suse.com/suse/sle15:15.6
 RUN sh -c 'echo -e "\
 [rocm]\n\
 name=rocm\n\
-baseurl=https://repo.radeon.com/rocm/zyp/6.4/main\n\
+baseurl=https://repo.radeon.com/rocm/zyp/7.1.1/main\n\
 enabled=1\n\
 gpgcheck=0\n\
 gpgkey=https://repo.radeon.com/rocm/rocm.gpg.key\n\
@@ -16,7 +16,6 @@ RUN zypper addrepo https://download.opensuse.org/repositories/devel:/languages:/
 
 RUN zypper -n --gpg-auto-import-keys refresh
 
-RUN zypper install -y -t pattern devel_basis enhanced_base
 RUN zypper --gpg-auto-import-keys install -y \
     doxygen \
     gcc-c++ \

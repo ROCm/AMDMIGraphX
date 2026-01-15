@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -75,6 +75,8 @@ struct broadcast_with_dims
         auto out_shape = make_bcast_shape(s0, out_lens);
         return args[0].reshape(out_shape);
     }
+
+    value attributes() const { return {{"fillcolor", "#9ACD32" /* yellowgreen*/}}; }
 };
 
 } // namespace op

@@ -852,6 +852,18 @@ struct argument : MIGRAPHX_CONST_HANDLE_BASE(argument)
         return res;
     }
 
+    /// Save an argument to a file
+    static void save_argument(const argument& a, const std::string& filename)
+    {
+        call(&migraphx_argument_save, a.get_handle_ptr(), filename.c_str());
+    }
+
+    /// Load an argument from a file
+    static argument load_argument(const std::string& filename)
+    {
+        return {make<migraphx_argument>(&migraphx_argument_load, filename.c_str()), own{}};
+    }
+
     /// Generate an argument using random data
     static argument generate(shape ps, size_t pseed = 0)
     {
@@ -1589,6 +1601,23 @@ quantize_fp8(const program& prog, const target& ptarget, const quantize_fp8_opti
          prog.get_handle_ptr(),
          ptarget.get_handle_ptr(),
          options.get_handle_ptr());
+}
+
+inline std::vector<std::string> get_onnx_operators()
+{
+    size_t size = 0;
+    call(&migraphx_get_onnx_operators_size, &size);
+    std::vector<std::string> result(size, "");
+
+    size_t index = 0;
+    for(auto& name : result)
+    {
+        char* name_op;
+        call(&migraphx_get_onnx_operator_name_at_index, &name_op, index);
+        name = name_op;
+        index++;
+    }
+    return result;
 }
 
 struct experimental_custom_op_base

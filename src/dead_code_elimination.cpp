@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -49,7 +49,7 @@ void dead_code_elimination::apply(module& m) const
         if(i == last)
             break;
         // Skip instruction with empty shape as output unless its [dynamic, builtin, undefined,
-        // identity, allocate or tuple_type]
+        // identity, allocate, or tuple_type]
         if((not i->get_shape().dynamic() and
             (i->get_shape().elements() == 0 and
              i->get_shape().type() != migraphx::shape::tuple_type)) and

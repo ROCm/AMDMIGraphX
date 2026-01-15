@@ -34,8 +34,8 @@ TEST_CASE(group_norm_contrib_3d_test)
                                           {2, 3},
                                           1e-5f,
                                           migraphx::shape::float_type,
-                                          "gamma",
-                                          "beta");
+                                          {"gamma", migraphx::shape::float_type},
+                                          {"beta", migraphx::shape::float_type});
     auto prog           = optimize_onnx("group_norm_contrib_3d_test.onnx");
     EXPECT(p == prog);
 }

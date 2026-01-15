@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -39,6 +39,15 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
+/**
+ * 2 input version:
+ * Standard quantized convolution operation
+ * inputs = {A_mat, W_mat}
+ *
+ * 4 input version:
+ * Quantized convolution with two sets of scales for A and W matricies.
+ * inputs = {A_mat, W_mat, scale_A, scale_W}
+ */
 struct quant_convolution
 {
     std::vector<std::size_t> padding  = {0, 0};
@@ -76,34 +85,40 @@ struct quant_convolution
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(2).same_type().same_ndims().min_ndims(3);
+        check_shapes{inputs, *this}.has(2, 4);
+        check_shapes{{inputs.at(0), inputs.at(1)}, *this}.same_type().same_ndims().min_ndims(3);
+        if(inputs.size() == 4)
+        {
+            check_shapes{{inputs.at(2), inputs.at(3)}, *this}.same_type();
+        }
         check_attribute_size();
 
         const shape& input   = inputs.at(0);
         const shape& weights = inputs.at(1);
         auto t               = input.type();
-        size_t kdims         = input.lens().size() - 2;
-        if(kdims != this->kdims())
+        size_t loc_kdims     = input.lens().size() - 2;
+        if(loc_kdims != this->kdims())
         {
-            MIGRAPHX_THROW("quant_convolution: input k-dims does not match attribute size");
+            MIGRAPHX_THROW("QUANT_CONVOLUTION: input k-dims does not match attribute size");
         }
 
-        // all input type must be int8_type or fp8 types
-        // output should be float_type
+        // limit input types to int8, fp8 types, float, or fp4x2
         std::set<migraphx::shape::type_t> supported_types = fp8_types{}.get();
         supported_types.insert(shape::int8_type);
+        supported_types.insert(shape::float_type);
+        supported_types.insert(shape::fp4x2_type);
         if(not contains(supported_types, t))
         {
-            MIGRAPHX_THROW("QUANT_CONVOLUTION: only accept input and weights of type int8 or fp8");
+            MIGRAPHX_THROW("QUANT_CONVOLUTION: only supports int8_t, uint8_t, fp4x2, and fp8");
         }
 
         std::vector<size_t> output_lens{input.lens()[0], weights.lens()[0]};
         auto padding_size = padding.size();
-        for(size_t i = 0; i < kdims; i++)
+        for(size_t i = 0; i < loc_kdims; i++)
         {
             auto padding_factor = 2 * padding[i];
-            if(padding_size == 2 * kdims)
-                padding_factor = padding[i] + padding[i + kdims];
+            if(padding_size == 2 * loc_kdims)
+                padding_factor = padding[i] + padding[i + loc_kdims];
             output_lens.push_back(std::size_t(std::max<std::ptrdiff_t>(
                 1,
                 (input.lens()[i + 2] - (1 + dilation[i] * (weights.lens()[i + 2] - 1)) +
@@ -114,7 +129,7 @@ struct quant_convolution
         if(t == shape::int8_type)
         {
             return inputs[0].with_lens(shape::int32_type, output_lens);
-        } // else fp8 conv
+        }
         return inputs[0].with_lens(shape::float_type, output_lens);
     }
 
@@ -126,9 +141,14 @@ struct quant_convolution
 
     argument compute(shape output_shape, std::vector<argument> args) const
     {
+        // TODO: implement ref version of 4 input quant_convolution
+        if(args.size() != 2)
+        {
+            MIGRAPHX_THROW("QUANT_CONVOLUTION: ref 4 input quantized convolution not implemented");
+        }
         argument result{output_shape};
         result.visit([&](auto output) {
-            visit_all(args[0], args[1])([&](auto input, auto weights) {
+            get_all<double>(args[0], args[1])([&](auto input, auto weights) {
                 migraphx::convolution(output, input, weights, padding, stride, dilation, group);
             });
         });

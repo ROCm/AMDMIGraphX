@@ -28,6 +28,7 @@
 #include <migraphx/ranges.hpp>
 #include "test.hpp"
 
+#include <array>
 #include <limits>
 
 static float fp8e5m2fnuz_to_fp32_value(uint8_t input)
@@ -460,12 +461,12 @@ TEST_CASE(test_binary_ops)
 
     auto e = migraphx::fp8::fp8e5m2fnuz(10.0);
     auto f = migraphx::fp8::fp8e5m2fnuz(-10.0);
-    EXPECT(bool{e > f});
-    EXPECT(bool{f < e});
-    EXPECT(bool{f <= e});
-    EXPECT(bool{e >= f});
-    EXPECT(bool{e <= e});
-    EXPECT(bool{f >= f});
+    EXPECT(e > f);
+    EXPECT(f < e);
+    EXPECT(f <= e);
+    EXPECT(e >= f);
+    EXPECT(e <= e);
+    EXPECT(f >= f);
     EXPECT(not migraphx::float_equal(f, e));
 }
 

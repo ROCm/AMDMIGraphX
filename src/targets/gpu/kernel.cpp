@@ -79,6 +79,8 @@ kernel::kernel(const char* image, const std::string& name) : impl(std::make_shar
         MIGRAPHX_THROW("Failed to get function: " + name + ": " + hip_error(status));
 }
 
+bool kernel::empty() const { return impl == nullptr; }
+
 static void launch_kernel(hipFunction_t fun,
                           hipStream_t stream,
                           std::size_t global,
@@ -129,13 +131,13 @@ static void launch_kernel(hipFunction_t fun,
 void kernel::launch(hipStream_t stream,
                     std::size_t global,
                     std::size_t local,
-                    std::vector<void*> args,
+                    pointers args,
                     hipEvent_t start,
                     hipEvent_t stop) const
 {
     assert(impl != nullptr);
     void* kernargs   = reinterpret_cast<void*>(args.data());
-    std::size_t size = args.size() * sizeof(void*);
+    std::size_t size = args.bytes();
 
     launch_kernel(impl->fun, stream, global, local, kernargs, size, start, stop);
 }

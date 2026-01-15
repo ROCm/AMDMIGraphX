@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -44,7 +44,7 @@ TEST_CASE(add_literals)
     auto outputs = p.eval(pp);
     auto output  = outputs[0];
     std::vector<float> expected(9, 0);
-    CHECK(bool(output == migraphx::argument(param_shape, expected.data())));
+    CHECK(output == migraphx::argument(param_shape, expected.data()));
 }
 
 TEST_CASE(if_then_else_op)
@@ -86,11 +86,11 @@ TEST_CASE(if_then_else_op)
 
     // then branch
     auto then_res = run_prog(true);
-    CHECK(bool{then_res == x_arg});
+    CHECK(then_res == x_arg);
 
     // else branch
     auto else_res = run_prog(false);
-    CHECK(bool{else_res == y_arg});
+    CHECK(else_res == y_arg);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

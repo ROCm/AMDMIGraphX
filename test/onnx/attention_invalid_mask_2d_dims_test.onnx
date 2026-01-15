@@ -1,0 +1,31 @@
+	#attention_invalid_mask_2d_dims_test:û
+Q
+input
+weights
+bias
+
+mask_indexy"	Attention*
+	num_heads :com.microsoft#attention_invalid_mask_2d_dims_testZ
+input
+
+
+
+Z
+weights
+
+
+Z
+bias
+
+
+Z
+
+mask_index
+
+
+	b
+y
+
+
+
+B

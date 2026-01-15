@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,6 +32,7 @@
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/fp8_ocp_to_fnuz.hpp>
+#include <migraphx/fuse_attention.hpp>
 #include <migraphx/fuse_concat.hpp>
 #include <migraphx/fuse_pointwise_reduce.hpp>
 #include <migraphx/inline_module.hpp>
@@ -83,10 +84,12 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_REWRITE_DOT)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_REWRITE_LRN)
 #ifndef _WIN32
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_FULL_DYNAMIC)
 
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
@@ -177,7 +180,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     // clang-format off
     return
     {
-        split_single_dyn_dim{},
+        enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), split_single_dyn_dim{}),
         dead_code_elimination{},
         simplify_dyn_ops{},
         dead_code_elimination{},
@@ -187,7 +190,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         enable_pass(not gpu::gfx_has_fp8ocp_intrinsics() and gpu::gfx_has_fp8fnuz_intrinsics(), fp8_ocp_to_fnuz{}),
         enable_pass(not gpu::gfx_has_fp8ocp_intrinsics() and gpu::gfx_has_fp8fnuz_intrinsics(), dead_code_elimination{}),
-        simplify_qdq{},
+        simplify_qdq{.use_mx_quant=gpu::gfx_has_mx_intrinsics()},
         enable_pass(not mlir_enabled(), rewrite_quantization{}),
         dead_code_elimination{},
         rewrite_rnn{},
@@ -202,7 +205,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         insert_pad{{"convolution"}},
         dead_code_elimination{},
         inline_module{},
-        rewrite_pooling{},
+        enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), rewrite_pooling{.rewrite_lrn = (not MIGRAPHX_USE_MIOPEN or enabled(MIGRAPHX_REWRITE_LRN{}))}),
         dead_code_elimination{},
         rewrite_gelu{options.fast_math},
         optimize_module{},
@@ -220,14 +223,19 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         propagate_precision{},
         dead_code_elimination{},
+        simplify_reshapes{.enable_op_shape_transform_op=true},
+        dead_code_elimination{},
+        enable_pass(mlir_enabled(), fuse_attention{.attn_enabled = mlir_attention_enabled(&ctx),
+                                                   .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
+        dead_code_elimination{},
         optimize_module{},
-        fuse_pointwise_reduce{},
+        enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_pointwise_reduce{}),
         dead_code_elimination{},
 #ifndef _WIN32
         enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),
 #endif
         dead_code_elimination{},
-        enable_pass(mlir_enabled(), fuse_mlir{&ctx}),
+        enable_pass(mlir_enabled() and disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_mlir{&ctx}),
         dead_code_elimination{},
         fuse_concat{},
         dead_code_elimination{},

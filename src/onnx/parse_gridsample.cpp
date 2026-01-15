@@ -67,7 +67,11 @@ struct grid_sampler
                  bool align,
                  std::string&& padding,
                  const onnx_parser::node_info& info)
-        : m_padding(std::move(padding)), m_align_corners(align), m_input(input), m_grid(grid)
+        : m_padding(std::move(padding)),
+          m_align_corners(align),
+          m_input(input),
+          m_grid(grid),
+          m_grid_type(grid->get_shape().type())
     {
         auto i_lens  = input->get_shape().lens();
         m_batch      = i_lens.at(0);
@@ -77,7 +81,6 @@ struct grid_sampler
         auto g_lens  = grid->get_shape().lens();
         m_out_height = g_lens.at(1);
         m_out_width  = g_lens.at(2);
-        m_grid_type  = m_grid->get_shape().type();
         m_nc_shape   = migraphx::shape{m_grid_type, {1, 2}};
         m_zero_l     = info.add_literal(migraphx::literal{migraphx::shape{m_grid_type}, {0.0f}});
         m_one_l      = info.add_literal(migraphx::literal{migraphx::shape{m_grid_type}, {1.0f}});

@@ -2501,9 +2501,9 @@ TEST_CASE(gather_flatten_stride_offset)
 
     migraphx::module m2;
     {
-        auto x    = m2.add_parameter("X", {migraphx::shape::float_type, {16}});
-        auto rsp  = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 4}}}), x);
-        auto slc  = m2.add_instruction(
+        auto x   = m2.add_parameter("X", {migraphx::shape::float_type, {16}});
+        auto rsp = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 4}}}), x);
+        auto slc = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), rsp);
         auto unsq = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), slc);
         auto sq   = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), unsq);

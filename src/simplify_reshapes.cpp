@@ -50,7 +50,6 @@
 
 #include <array>
 #include <map>
-#include <cassert>
 #include <numeric>
 #include <set>
 #include <limits>
@@ -90,7 +89,7 @@ insert_auto_reshape(module& m, instruction_ref ins, const Dims& dims, instructio
             }
             else
             {
-                if(target_idx >= dims.size() || curr_lens[curr_idx] != dims[target_idx])
+                if(target_idx >= dims.size() or curr_lens[curr_idx] != dims[target_idx])
                 {
                     axes_to_squeeze.clear();
                     break;
@@ -98,7 +97,7 @@ insert_auto_reshape(module& m, instruction_ref ins, const Dims& dims, instructio
                 ++target_idx;
             }
         }
-        if(not axes_to_squeeze.empty() && target_idx == dims.size())
+        if(not axes_to_squeeze.empty() and target_idx == dims.size())
         {
             return m.insert_instruction(
                 ins, make_op("squeeze", {{"axes", axes_to_squeeze}}), input);
@@ -118,7 +117,7 @@ insert_auto_reshape(module& m, instruction_ref ins, const Dims& dims, instructio
             }
             else
             {
-                if(curr_idx >= curr_lens.size() || dims[target_idx] != curr_lens[curr_idx])
+                if(curr_idx >= curr_lens.size() or dims[target_idx] != curr_lens[curr_idx])
                 {
                     axes_to_unsqueeze.clear();
                     break;
@@ -126,7 +125,7 @@ insert_auto_reshape(module& m, instruction_ref ins, const Dims& dims, instructio
                 ++curr_idx;
             }
         }
-        if(not axes_to_unsqueeze.empty() && curr_idx == curr_lens.size())
+        if(not axes_to_unsqueeze.empty() and curr_idx == curr_lens.size())
         {
             return m.insert_instruction(
                 ins, make_op("unsqueeze", {{"axes", axes_to_unsqueeze}}), input);
@@ -1162,7 +1161,7 @@ struct find_gather
             if(not ops.has_value())
                 return std::nullopt;
             auto insert_ins = std::next(start);
-            for(auto op : *ops)
+            for(const auto& op : *ops)
                 start = m.insert_instruction(insert_ins, op, start);
             return start;
         }

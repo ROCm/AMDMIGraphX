@@ -1160,7 +1160,7 @@ struct find_gather
             auto ops = generate_shape_transforms_for(s, {start->get_shape().elements()}, offset);
             if(not ops.has_value())
                 return std::nullopt;
-            return insert_ops(m, std::next(start), ops, start);
+            return insert_ops(m, std::next(start), *ops, start);
         }
     };
 

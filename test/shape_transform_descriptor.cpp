@@ -1319,7 +1319,7 @@ TEST_CASE(generate_shape_transforms_for)
 
 TEST_CASE(generate_shape_transforms_for_overlap)
 {
-    // TODO: Overlaping strides not supported yet
+    // TODO: Overlaping strides not supported yet, need to support something like torch.unfold.
 
     // Case 1: {2, 3} with strides {1, 1} - overlapping rows
     // Row 0 accesses [0, 1, 2], Row 1 accesses [1, 2, 3]

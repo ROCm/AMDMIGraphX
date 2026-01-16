@@ -718,7 +718,8 @@ std::vector<shape> module::compute_shapes(const std::vector<shape>& inputs,
                                ins->get_shape().type_string() + " but passed " +
                                ins_shapes[ins].type_string());
             }
-            if(not ins->get_shape().dynamic() and options.strict_lens and ins->get_shape().lens() != ins_shapes[ins].lens())
+            if(not ins->get_shape().dynamic() and options.strict_lens and
+               ins->get_shape().lens() != ins_shapes[ins].lens())
             {
                 MIGRAPHX_THROW(options.name + ": Mismatched lens: expected {" +
                                to_string_range(ins->get_shape().lens()) + "} but passed {" +
@@ -1470,11 +1471,12 @@ std::vector<module_ref> module::get_sub_modules(bool shallow) const
 module module::with_static_shapes(const std::vector<shape>& input_shapes)
 {
     // This routine creates a new module with the same instructions but with different input shapes.
-    // The sequence of instructions (operators and interconnectivity) is copied, but all input parameter shapes are replaced with new "input_shapes".
+    // The sequence of instructions (operators and interconnectivity) is copied, but all input
+    // parameter shapes are replaced with new "input_shapes".
 
     // ensure input_shapes is the same length as the parameters.
     auto param_names = this->get_parameter_names();
-    assert(param_names.size() == input_shapes.size() && "Mismatch between input_shapes and parameter count");
+    assert(param_names.size() == input_shapes.size());
 
     // Make a mapping from the parameter names to the new shapes.
     std::unordered_map<std::string, shape> shape_map;
@@ -1504,13 +1506,17 @@ module module::with_static_shapes(const std::vector<shape>& input_shapes)
 
         // Gather new input refs for this instruction
         std::vector<instruction_ref> new_args;
-        for(auto arg : ins->inputs())
-            new_args.push_back(ins_map.at(arg));
+        std::transform(ins->inputs().begin(),
+                       ins->inputs().end(),
+                       std::back_inserter(new_args),
+                       [&](auto arg) { return ins_map.at(arg); });
 
         // Gather new module argument refs if present
         std::vector<module_ref> new_mod_args;
-        for(auto modarg : ins->module_inputs())
-            new_mod_args.push_back(modarg); // Modules are *not* recreated, just reused
+        std::transform(ins->module_inputs().begin(),
+                       ins->module_inputs().end(),
+                       std::back_inserter(new_mod_args),
+                       [&](auto modarg) { return modarg; });
 
         instruction_ref new_ins;
         if(ins->name() == "@literal")

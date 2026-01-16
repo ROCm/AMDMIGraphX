@@ -1321,63 +1321,6 @@ struct find_gather
     }
 };
 
-struct find_where_op
-{
-    auto matcher() const
-    {
-        return match::name("gather")(
-            match::args(match::name("reshape")(match::arg(0)(match::name("concat").bind("data"))),
-                        match::is_constant().bind("ind")));
-    }
-
-    void apply(module& m, const match::matcher_result& r) const
-    {
-        auto ins     = r.result;
-        auto concat  = r.instructions["data"];
-        auto ins_ind = r.instructions["ind"];
-        std::vector<bool> vec_ind;
-        auto arg_ind = ins_ind->eval();
-        arg_ind.visit([&](auto v) { vec_ind.assign(v.begin(), v.end()); });
-        // ind has to be the same value
-        auto val = vec_ind.front();
-        if(not std::all_of(vec_ind.begin(), vec_ind.end(), [&](auto v) { return (v == val); }))
-        {
-            return;
-        }
-
-        // concat axis must be 0
-        auto op = any_cast<op::concat>(concat->get_operator());
-        if(op.axis != 0)
-        {
-            return;
-        }
-
-        // check concat inputs, it has to be 2 and have the same shape
-        const auto& inputs = concat->inputs();
-        if(inputs.size() != 2)
-        {
-            return;
-        }
-        if(inputs.at(0)->get_shape() != inputs.at(1)->get_shape())
-        {
-            return;
-        }
-        if(inputs.at(0)->get_shape().lens() != ins_ind->get_shape().lens())
-        {
-            return;
-        }
-
-        if(val)
-        {
-            m.replace_instruction(ins, inputs.at(0));
-        }
-        else
-        {
-            m.replace_instruction(ins, inputs.at(1));
-        }
-    }
-};
-
 struct find_reshape_cont
 {
     auto matcher() const
@@ -1850,8 +1793,6 @@ void simplify_reshapes::apply(module& m) const
         match::find_matches(m, find_gather{});
     m.repeat_while_changes(depth, [&] {
         match::find_matches(m,
-                            // find_where_op{},
-                            // find_resize{},
                             find_nop_reshapes{},
                             find_flatten{},
                             find_reshape_cont{},

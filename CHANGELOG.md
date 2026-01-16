@@ -3,6 +3,12 @@
 Full documentation for MIGraphX is available at
 [https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/](https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/).
 
+## Develop Branch
+
+### Changed
+
+* Refactored instruction output alias to return a vector of aliases (#4540).
+
 ## MIGraphX 2.15 for ROCm 7.2.0
 
 ### Added

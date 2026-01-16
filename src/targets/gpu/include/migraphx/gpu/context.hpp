@@ -41,6 +41,7 @@
 #include <migraphx/gpu/problem_cache.hpp>
 #include <unordered_map>
 #include <memory>
+#include <mutex>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -48,6 +49,14 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NULL_STREAM)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_NSTREAMS)
+
+// Mutex to protect device set + event creation from race conditions
+// when multiple contexts are created concurrently on different GPUs
+inline std::mutex& get_device_event_mutex()
+{
+    static std::mutex device_event_mutex;
+    return device_event_mutex;
+}
 
 using hip_event_ptr = MIGRAPHX_MANAGE_PTR(hipEvent_t, hipEventDestroy);
 
@@ -246,12 +255,15 @@ struct context
         }
     };
     context(std::size_t device_id = 0, std::size_t n = value_of(MIGRAPHX_NSTREAMS{}, 1))
-        : current_device(std::make_shared<hip_device>(device_id, n)),
-          begin_event(create_event()),
-          finish_event(create_event()),
+        : device_id_(device_id),
+          current_device(std::make_shared<hip_device>(device_id, n)),
+          begin_event(create_event(device_id)),
+          finish_event(create_event(device_id)),
           pc(std::make_shared<auto_save_problem_cache>())
     {
     }
+
+    std::size_t get_device_id() const { return device_id_; }
 
     hip_device& get_current_device()
     {
@@ -283,7 +295,7 @@ struct context
     void create_events(std::size_t num_of_events)
     {
         for(std::size_t i = events.size(); i < num_of_events + 1; ++i)
-            events.emplace_back(create_event());
+            events.emplace_back(create_event(device_id_));
     }
 
     hipEvent_t get_event(std::size_t i) const { return events.at(i).get(); }
@@ -291,6 +303,21 @@ struct context
     std::vector<argument> literals{};
     void finish() const { get_stream().wait(); }
 
+    // Thread-safe event creation with explicit device_id
+    // Uses mutex to prevent race conditions when multiple contexts
+    // are created concurrently on different GPUs
+    static hip_event_ptr create_event(std::size_t device_id)
+    {
+        std::lock_guard<std::mutex> lock(get_device_event_mutex());
+        set_device(device_id);
+        hipEvent_t event;
+        auto status = hipEventCreateWithFlags(&event, hipEventDisableTiming);
+        if(status != hipSuccess)
+            MIGRAPHX_THROW("Failed to create event: " + hip_error(status));
+        return hip_event_ptr{event};
+    }
+
+    // Backward-compatible version (uses current device, not thread-safe for multi-GPU)
     static hip_event_ptr create_event()
     {
         hipEvent_t event;
@@ -300,6 +327,19 @@ struct context
         return hip_event_ptr{event};
     }
 
+    // Thread-safe event creation for timing with explicit device_id
+    static hip_event_ptr create_event_for_timing(std::size_t device_id)
+    {
+        std::lock_guard<std::mutex> lock(get_device_event_mutex());
+        set_device(device_id);
+        hipEvent_t event;
+        auto status = hipEventCreate(&event);
+        if(status != hipSuccess)
+            MIGRAPHX_THROW("Failed to create event: " + hip_error(status));
+        return hip_event_ptr{event};
+    }
+
+    // Backward-compatible version (uses current device, not thread-safe for multi-GPU)
     static hip_event_ptr create_event_for_timing()
     {
         hipEvent_t event;
@@ -378,6 +418,8 @@ struct context
     }
 
     private:
+    // Device ID this context is bound to
+    std::size_t device_id_ = 0;
     // TODO: Make this a vector to support multiple devices
     std::shared_ptr<hip_device> current_device;
     std::vector<shared<hip_event_ptr>> events;

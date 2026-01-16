@@ -98,22 +98,28 @@ void propagate_constant::apply(module& m) const
 
     // Compute literals in parallel
     std::vector<instruction_ref> const_instrs_vec{const_instrs.begin(), const_instrs.end()};
-    //std::vector<argument> literals(const_instrs_vec.size());
-    /*std::size_t grainsize = 1;
+
+#ifndef _WIN32
+    std::vector<argument> literals(const_instrs_vec.size());
+    std::size_t grainsize = 1;
 #if !MIGRAPHX_HAS_EXECUTORS
     std::size_t n = std::max<std::size_t>(2048 / std::thread::hardware_concurrency(), 1);
     grainsize     = const_instrs_vec.size() / n;
 #endif
     simple_par_for(const_instrs_vec.size(), grainsize, [&](const auto i) {
         literals[i] = as_packed(const_instrs_vec[i]->eval());
-    });*/
+    });
+#endif
 
     // Replace instructions in m
     for(size_t i = 0; i < const_instrs_vec.size(); i++)
     {
+#ifdef _WIN32
         auto literal = as_packed(const_instrs_vec[i]->eval());
-
         if(not literal.empty())
+#else
+        if(not literals[i].empty())
+#endif
         {
             if(enabled(MIGRAPHX_TRACE_PROPAGATE_CONSTANT{}))
             {
@@ -128,9 +134,15 @@ void propagate_constant::apply(module& m) const
                 })(const_instrs_vec[i]);
                 m.debug_print(inss);
             }
+#ifdef _WIN32
             assert(literal.get_shape().lens() == const_instrs_vec[i]->get_shape().lens());
             assert(literal.get_shape().bytes() <= const_instrs_vec[i]->get_shape().bytes());
             auto l = m.add_literal(literal.get_shape(), literal.data());
+#else
+            assert(literals[i].get_shape().lens() == const_instrs_vec[i]->get_shape().lens());
+            assert(literals[i].get_shape().bytes() <= const_instrs_vec[i]->get_shape().bytes());
+            auto l = m.add_literal(literals[i].get_shape(), literals[i].data());
+#endif
             m.replace_instruction(const_instrs_vec[i], l);
         }
     }

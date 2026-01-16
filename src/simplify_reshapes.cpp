@@ -1008,180 +1008,179 @@ struct find_nested_concat
     }
 };
 
-// ============================================================================
-// Gather Optimization - Utility Functions
-// ============================================================================
-
-namespace {
-
-/// Compute product of elements
-inline std::size_t product_of(const std::vector<std::size_t>& lens)
+struct find_gather
 {
-    return std::accumulate(
-        lens.begin(), lens.end(), std::size_t{1}, [](auto acc, auto v) { return acc * v; });
-}
-
-// ============================================================================
-// Gather Optimization - Helper Classes
-// ============================================================================
-
-/// Helper class to build instruction sequences with common patterns
-class gather_instruction_builder
-{
-    public:
-    module& m;
-    instruction_ref insert_before;
-
-    gather_instruction_builder(module& mod, instruction_ref ins) : m(mod), insert_before(ins) {}
-
-    template <class Dims>
-    instruction_ref reshape(instruction_ref input, const Dims& dims)
+    struct arithmetic_segment
     {
-        assert(std::all_of(dims.begin(), dims.end(), [](auto i) { return i > 0; }));
-        auto curr_lens = input->get_shape().lens();
-        // Check if we can use squeeze (removing dimensions of size 1)
-        if(curr_lens.size() > dims.size())
+        int64_t base      = 0;
+        int64_t stride    = 0;
+        std::size_t count = 0;
+
+        template <class Iterator>
+        static std::vector<arithmetic_segment> from_ints(Iterator begin, Iterator end)
         {
-            // Potential squeeze - check if we're just removing 1s
-            std::vector<int64_t> axes_to_squeeze;
-            std::size_t target_idx = 0;
-            for(std::size_t curr_idx = 0; curr_idx < curr_lens.size(); ++curr_idx)
-            {
-                if(curr_lens[curr_idx] == 1)
-                {
-                    axes_to_squeeze.push_back(curr_idx);
-                }
-                else
-                {
-                    if(target_idx >= dims.size() || curr_lens[curr_idx] != dims[target_idx])
-                    {
-                        axes_to_squeeze.clear();
-                        break;
-                    }
-                    ++target_idx;
-                }
-            }
-            if(not axes_to_squeeze.empty() && target_idx == dims.size())
-            {
-                return m.insert_instruction(
-                    insert_before, make_op("squeeze", {{"axes", axes_to_squeeze}}), input);
-            }
-        }
-        // Check if we can use unsqueeze (adding dimensions of size 1)
-        else if(curr_lens.size() < dims.size())
-        {
-            // Potential unsqueeze - check if we're just adding 1s
-            std::vector<int64_t> axes_to_unsqueeze;
-            std::size_t curr_idx = 0;
-            for(std::size_t target_idx = 0; target_idx < dims.size(); ++target_idx)
-            {
-                if(dims[target_idx] == 1)
-                {
-                    axes_to_unsqueeze.push_back(target_idx);
-                }
-                else
-                {
-                    if(curr_idx >= curr_lens.size() || dims[target_idx] != curr_lens[curr_idx])
-                    {
-                        axes_to_unsqueeze.clear();
-                        break;
-                    }
-                    ++curr_idx;
-                }
-            }
-            if(not axes_to_unsqueeze.empty() && curr_idx == curr_lens.size())
-            {
-                return unsqueeze(input, axes_to_unsqueeze);
-            }
+            std::vector<arithmetic_segment> result(std::distance(begin, end));
+            par_transform(
+                begin, end, result.begin(), [](auto x) { return arithmetic_segment{x, 1, 1}; });
+            return result;
         }
 
-        return m.insert_instruction(insert_before, make_op("reshape", {{"dims", dims}}), input);
-    }
-
-    instruction_ref unsqueeze(instruction_ref input,
-                              const std::vector<int64_t>& axes,
-                              const std::vector<int64_t>& steps = {})
-    {
-        return m.insert_instruction(
-            insert_before, make_op("unsqueeze", {{"axes", axes}, {"steps", steps}}), input);
-    }
-
-    instruction_ref match_shape(instruction_ref input, const std::vector<std::size_t>& target_lens)
-    {
-        const auto& curr_lens = input->get_shape().lens();
-        if(curr_lens == target_lens)
-            return input;
-
-        const auto curr_elements   = input->get_shape().elements();
-        const auto target_elements = product_of(target_lens);
-        assert(curr_elements > 0);
-        assert(target_elements > 0);
-
-        if(curr_elements == target_elements)
+        template <class Iterator, class OutputIterator>
+        static Iterator find_largest(Iterator start, Iterator last, OutputIterator out)
         {
-            // Elements match - fallback to reshape
-            return reshape(input, target_lens);
+            for(auto it = start; it != last;)
+            {
+                auto [seg, next_it] = find(it, last);
+                it                  = next_it;
+                *out                = seg;
+                out++;
+            }
+            return last;
         }
 
-        // // Only use multibroadcast if we're actually broadcasting (target has more elements)
-        // if(target_elements > curr_elements)
-        //     return multibroadcast(input, target_lens);
+        template <class Iterator, class OutputIterator>
+        static Iterator find_n(Iterator start, Iterator last, std::size_t n, OutputIterator out)
+        {
+            for(auto it = start; it != last;)
+            {
+                auto [seg, next_it] = find(it, it + n);
+                if(next_it != it + n)
+                    return next_it;
+                it   = next_it;
+                *out = seg;
+                out++;
+            }
+            return last;
+        }
 
-        // Element count mismatch - this shouldn't happen
-        MIGRAPHX_THROW("match_shape: Cannot match shape with " + std::to_string(curr_elements) +
-                       " elements to shape with " + std::to_string(target_elements) + " elements");
-    }
-};
+        static std::vector<arithmetic_segment>
+        make_segments(const std::vector<arithmetic_segment>& segments, bool uniform = true)
+        {
+            std::vector<arithmetic_segment> result;
+            auto [first_seg, first_it] = find(segments.begin(), segments.end());
+            result.push_back(first_seg);
+            // Try to find segments that are the same size
+            auto it = find_n(first_it, segments.end(), first_seg.count, std::back_inserter(result));
+            if(it != segments.end())
+            {
+                if(uniform)
+                    return {};
+                result.resize(1);
+                find_largest(first_it, segments.end(), std::back_inserter(result));
+            }
+            return result;
+        }
 
-// ============================================================================
-// Gather Optimization - Context and Pattern Classes
-// ============================================================================
+        static std::vector<arithmetic_segment> shift(std::vector<arithmetic_segment> segments,
+                                                     std::int64_t shift)
+        {
+            par_transform(
+                segments.begin(), segments.end(), segments.begin(), [&](arithmetic_segment x) {
+                    x.base += shift;
+                    return x;
+                });
+            return segments;
+        }
 
-/// Encapsulates all analyzed gather properties
-struct gather_context
-{
-    private:
-    instruction_ref data_ins_;
-    std::size_t axis_index_;
-    argument indices_arg_;
+        /// Detect arithmetic segment pattern
+        template <class Iterator>
+        static std::pair<arithmetic_segment, Iterator> find(Iterator begin, Iterator end)
+        {
+            std::size_t length = std::distance(begin, end);
+            if(length == 0)
+                return std::make_pair(arithmetic_segment{}, begin);
+            if(length == 1)
+                return std::make_pair(*begin, std::next(begin));
+            auto start = *begin;
+            // auto base   = *begin;
+            auto stride = std::next(begin)->base - start.base;
+            if(stride < 0)
+                return std::make_pair(*begin, std::next(begin));
+            auto diff = std::adjacent_find(begin, end, [&](arithmetic_segment x, arithmetic_segment y) {
+                return y.base - x.base != stride;
+            });
+            if(diff != end)
+                diff++;
+            return std::make_pair(
+                arithmetic_segment{start.base, stride, std::size_t(std::distance(begin, diff))}, diff);
+        }
 
-    public:
-    gather_context(instruction_ref data_input, std::size_t axis_idx, argument indices)
-        : data_ins_(data_input), axis_index_(axis_idx), indices_arg_(std::move(indices))
+        static shape make_strided_view(std::vector<arithmetic_segment> segments)
+        {
+            std::vector<std::size_t> lens;
+            std::vector<std::size_t> strides;
+
+            do
+            {
+                segments = make_segments(segments);
+                // std::cout << "nsegments: " << segments.size() << std::endl;
+                // for(auto segment : segments)
+                //     std::cout << "    {" << segment.base << ", " << segment.stride << ", "
+                //               << segment.count << "}\n";
+                if(segments.empty())
+                    return {};
+                auto seg = segments.front();
+                if(seg.stride < 0)
+                    return {};
+                if(std::any_of(segments.begin(), segments.end(), [](const arithmetic_segment& seg) {
+                       return seg.base < 0;
+                   }))
+                    return {};
+                if(not std::all_of(
+                       segments.begin(), segments.end(), [&](const arithmetic_segment& seg) {
+                           return seg.stride == segments.front().stride and
+                                  seg.count == segments.front().count;
+                       }))
+                    return {};
+                lens.push_back(seg.count);
+                strides.push_back(seg.stride);
+            } while(segments.size() > 1);
+
+            std::reverse(lens.begin(), lens.end());
+            std::reverse(strides.begin(), strides.end());
+
+            if(std::none_of(strides.begin(), strides.end(), [](auto stride) { return stride == 1; }))
+            {
+                lens.push_back(1);
+                strides.push_back(1);
+            }
+
+            return {shape::float_type, lens, strides};
+        }
+
+        template <class Indices>
+        static std::optional<instruction_ref>
+        transform_indices(const Indices& indices, module& m, instruction_ref start)
+        {
+            auto isegments      = from_ints(indices.begin(), indices.end());
+            std::int64_t offset = isegments.front().base;
+            auto s              = make_strided_view(shift(std::move(isegments), -offset));
+            auto ops = generate_shape_transforms_for(s, {start->get_shape().elements()}, offset);
+            if(not ops.has_value())
+                return std::nullopt;
+            auto insert_ins = std::next(start);
+            for(auto op : *ops)
+                start = m.insert_instruction(insert_ins, op, start);
+            return start;
+        }
+    };
+
+    static std::vector<std::int64_t> build_flat_gather_indices(instruction_ref gather_ins,
+                                                        const argument& indices_arg,
+                                                        std::size_t axis_index)
     {
-    }
+        auto data_ins    = gather_ins->inputs()[0];
+        auto output_dims = gather_ins->get_shape().lens();
+        const auto r_in  = data_ins->get_shape().lens().size();
+        const auto r_idx = indices_arg.get_shape().lens().size();
+        assert(axis_index < r_in);
 
-    instruction_ref data_ins() const { return data_ins_; }
-    std::size_t axis_index() const { return axis_index_; }
-    const argument& indices_arg() const { return indices_arg_; }
-
-    std::vector<int64_t> indices_values() const { return indices_arg().to_vector<int64_t>(); }
-
-    std::vector<std::size_t> output_dims() const
-    {
-        auto lens = data_ins()->get_shape().lens();
-        lens.erase(lens.begin() + axis_index());
-        auto ind_lens = indices_arg().get_shape().lens();
-        lens.insert(lens.begin() + axis_index(), ind_lens.begin(), ind_lens.end());
-        return lens;
-    }
-
-    const std::vector<std::size_t>& idims() const { return indices_arg_.get_shape().lens(); }
-
-    const std::vector<std::size_t>& data_dims() const { return data_ins()->get_shape().lens(); }
-
-    std::vector<std::int64_t> build_flat_gather_indices() const
-    {
-        const auto r_in  = data_ins()->get_shape().lens().size();
-        const auto r_idx = indices_arg().get_shape().lens().size();
-        assert(axis_index() < r_in);
-
-        shape output_s{shape::float_type, output_dims()}; // element type doesn't matter here
+        shape output_s{shape::float_type, output_dims}; // element type doesn't matter here
         const auto out_n = output_s.elements();
         std::vector<std::int64_t> flat(out_n);
         std::iota(flat.begin(), flat.end(), 0);
 
-        auto indices = indices_arg().to_vector<int64_t>();
+        auto indices = indices_arg.to_vector<int64_t>();
 
         transform(flat, flat.begin(), [&](std::size_t out_lin) -> std::int64_t {
             // 1) output linear -> output multi-index
@@ -1189,13 +1188,13 @@ struct gather_context
 
             // 2) isolate the "indices" coordinates from the output coords (inserted at `axis`)
             std::vector<std::size_t> idx_multi(r_idx);
-            std::copy(out_multi.begin() + axis_index(),
-                      out_multi.begin() + axis_index() + r_idx,
+            std::copy(out_multi.begin() + axis_index,
+                      out_multi.begin() + axis_index + r_idx,
                       idx_multi.begin());
 
             // 3) look up the actual index value (may be negative)
-            const std::int64_t idx_lin  = indices_arg().get_shape().index(idx_multi);
-            const std::int64_t axis_len = data_ins()->get_shape().lens().at(axis_index());
+            const std::int64_t idx_lin  = indices_arg.get_shape().index(idx_multi);
+            const std::int64_t axis_len = data_ins->get_shape().lens().at(axis_index);
             auto idx_val                = indices.at(idx_lin);
 
             // Normalize negative indices into [0, axis_len)
@@ -1208,313 +1207,23 @@ struct gather_context
             std::vector<std::size_t> in_multi(r_in);
 
             // copy dims before axis
-            std::copy(out_multi.begin(), out_multi.begin() + axis_index(), in_multi.begin());
+            std::copy(out_multi.begin(), out_multi.begin() + axis_index, in_multi.begin());
 
             // axis coordinate from indices
-            in_multi.at(axis_index()) = idx_val;
+            in_multi.at(axis_index) = idx_val;
 
             // copy dims after axis; they are shifted by r_idx in output
-            std::copy(out_multi.begin() + axis_index() + r_idx,
+            std::copy(out_multi.begin() + axis_index + r_idx,
                       out_multi.end(),
-                      in_multi.begin() + axis_index() + 1);
+                      in_multi.begin() + axis_index + 1);
 
             // 5) map input multi-index -> flat offset in contiguous buffer
-            const auto in_lin = data_ins()->get_shape().index(in_multi);
+            const auto in_lin = data_ins->get_shape().index(in_multi);
             return in_lin;
         });
 
         return flat;
     }
-};
-
-} // namespace
-
-namespace {
-
-// ============================================================================
-// Segment-Based Gather Optimization
-// ============================================================================
-struct arithmetic_segment
-{
-    int64_t base      = 0;
-    int64_t stride    = 0;
-    std::size_t count = 0;
-
-    template <class Iterator>
-    static std::vector<arithmetic_segment> from_ints(Iterator begin, Iterator end)
-    {
-        std::vector<arithmetic_segment> result(std::distance(begin, end));
-        par_transform(
-            begin, end, result.begin(), [](auto x) { return arithmetic_segment{x, 1, 1}; });
-        return result;
-    }
-
-    template <class Iterator, class OutputIterator>
-    static Iterator find_largest(Iterator start, Iterator last, OutputIterator out)
-    {
-        for(auto it = start; it != last;)
-        {
-            auto [seg, next_it] = find(it, last);
-            it                  = next_it;
-            *out                = seg;
-            out++;
-        }
-        return last;
-    }
-
-    template <class Iterator, class OutputIterator>
-    static Iterator find_n(Iterator start, Iterator last, std::size_t n, OutputIterator out)
-    {
-        for(auto it = start; it != last;)
-        {
-            auto [seg, next_it] = find(it, it + n);
-            if(next_it != it + n)
-                return next_it;
-            it   = next_it;
-            *out = seg;
-            out++;
-        }
-        return last;
-    }
-
-    static std::vector<arithmetic_segment>
-    make_segments(const std::vector<arithmetic_segment>& segments, bool uniform = true)
-    {
-        std::vector<arithmetic_segment> result;
-        auto [first_seg, first_it] = find(segments.begin(), segments.end());
-        result.push_back(first_seg);
-        // Try to find segments that are the same size
-        auto it = find_n(first_it, segments.end(), first_seg.count, std::back_inserter(result));
-        if(it != segments.end())
-        {
-            if(uniform)
-                return {};
-            result.resize(1);
-            find_largest(first_it, segments.end(), std::back_inserter(result));
-        }
-        return result;
-    }
-
-    static std::vector<arithmetic_segment> shift(std::vector<arithmetic_segment> segments,
-                                                 std::int64_t shift)
-    {
-        par_transform(
-            segments.begin(), segments.end(), segments.begin(), [&](arithmetic_segment x) {
-                x.base += shift;
-                return x;
-            });
-        return segments;
-    }
-
-    /// Detect arithmetic segment pattern
-    template <class Iterator>
-    static std::pair<arithmetic_segment, Iterator> find(Iterator begin, Iterator end)
-    {
-        std::size_t length = std::distance(begin, end);
-        if(length == 0)
-            return std::make_pair(arithmetic_segment{}, begin);
-        if(length == 1)
-            return std::make_pair(*begin, std::next(begin));
-        auto start = *begin;
-        // auto base   = *begin;
-        auto stride = std::next(begin)->base - start.base;
-        if(stride < 0)
-            return std::make_pair(*begin, std::next(begin));
-        auto diff = std::adjacent_find(begin, end, [&](arithmetic_segment x, arithmetic_segment y) {
-            return y.base - x.base != stride;
-        });
-        if(diff != end)
-            diff++;
-        return std::make_pair(
-            arithmetic_segment{start.base, stride, std::size_t(std::distance(begin, diff))}, diff);
-    }
-
-    static shape make_strided_view(std::vector<arithmetic_segment> segments)
-    {
-        std::vector<std::size_t> lens;
-        std::vector<std::size_t> strides;
-
-        do
-        {
-            segments = make_segments(segments);
-            // std::cout << "nsegments: " << segments.size() << std::endl;
-            // for(auto segment : segments)
-            //     std::cout << "    {" << segment.base << ", " << segment.stride << ", "
-            //               << segment.count << "}\n";
-            if(segments.empty())
-                return {};
-            auto seg = segments.front();
-            if(seg.stride < 0)
-                return {};
-            if(std::any_of(segments.begin(), segments.end(), [](const arithmetic_segment& seg) {
-                   return seg.base < 0;
-               }))
-                return {};
-            if(not std::all_of(
-                   segments.begin(), segments.end(), [&](const arithmetic_segment& seg) {
-                       return seg.stride == segments.front().stride and
-                              seg.count == segments.front().count;
-                   }))
-                return {};
-            lens.push_back(seg.count);
-            strides.push_back(seg.stride);
-        } while(segments.size() > 1);
-
-        std::reverse(lens.begin(), lens.end());
-        std::reverse(strides.begin(), strides.end());
-
-        if(std::none_of(strides.begin(), strides.end(), [](auto stride) { return stride == 1; }))
-        {
-            lens.push_back(1);
-            strides.push_back(1);
-        }
-
-        return {shape::float_type, lens, strides};
-    }
-
-    template <class Indices>
-    static std::optional<instruction_ref> transform_indices(const Indices& indices,
-                                                            gather_instruction_builder& builder,
-                                                            instruction_ref start)
-    {
-        auto isegments      = from_ints(indices.begin(), indices.end());
-        std::int64_t offset = isegments.front().base;
-        auto s              = make_strided_view(shift(std::move(isegments), -offset));
-        auto ops = generate_shape_transforms_for(s, {start->get_shape().elements()}, offset);
-        if(not ops.has_value())
-            return std::nullopt;
-        for(auto op : *ops)
-            start = builder.m.insert_instruction(builder.insert_before, op, start);
-        return start;
-    }
-
-    template <class Indices>
-    static std::optional<instruction_ref>
-    transform_indices(const Indices& indices, module& m, instruction_ref start)
-    {
-        auto isegments      = from_ints(indices.begin(), indices.end());
-        std::int64_t offset = isegments.front().base;
-        auto s              = make_strided_view(shift(std::move(isegments), -offset));
-        auto ops = generate_shape_transforms_for(s, {start->get_shape().elements()}, offset);
-        if(not ops.has_value())
-            return std::nullopt;
-        auto insert_ins = std::next(start);
-        for(auto op : *ops)
-            start = m.insert_instruction(insert_ins, op, start);
-        return start;
-    }
-};
-
-std::vector<std::int64_t> build_flat_gather_indices(instruction_ref gather_ins,
-                                                    const argument& indices_arg,
-                                                    std::size_t axis_index)
-{
-    auto data_ins    = gather_ins->inputs()[0];
-    auto output_dims = gather_ins->get_shape().lens();
-    const auto r_in  = data_ins->get_shape().lens().size();
-    const auto r_idx = indices_arg.get_shape().lens().size();
-    assert(axis_index < r_in);
-
-    shape output_s{shape::float_type, output_dims}; // element type doesn't matter here
-    const auto out_n = output_s.elements();
-    std::vector<std::int64_t> flat(out_n);
-    std::iota(flat.begin(), flat.end(), 0);
-
-    auto indices = indices_arg.to_vector<int64_t>();
-
-    transform(flat, flat.begin(), [&](std::size_t out_lin) -> std::int64_t {
-        // 1) output linear -> output multi-index
-        auto out_multi = output_s.multi(out_lin);
-
-        // 2) isolate the "indices" coordinates from the output coords (inserted at `axis`)
-        std::vector<std::size_t> idx_multi(r_idx);
-        std::copy(out_multi.begin() + axis_index,
-                  out_multi.begin() + axis_index + r_idx,
-                  idx_multi.begin());
-
-        // 3) look up the actual index value (may be negative)
-        const std::int64_t idx_lin  = indices_arg.get_shape().index(idx_multi);
-        const std::int64_t axis_len = data_ins->get_shape().lens().at(axis_index);
-        auto idx_val                = indices.at(idx_lin);
-
-        // Normalize negative indices into [0, axis_len)
-        if(idx_val < 0)
-            idx_val += axis_len;
-
-        assert(idx_val >= 0 and idx_val < axis_len);
-
-        // 4) construct corresponding INPUT multi-index
-        std::vector<std::size_t> in_multi(r_in);
-
-        // copy dims before axis
-        std::copy(out_multi.begin(), out_multi.begin() + axis_index, in_multi.begin());
-
-        // axis coordinate from indices
-        in_multi.at(axis_index) = idx_val;
-
-        // copy dims after axis; they are shifted by r_idx in output
-        std::copy(out_multi.begin() + axis_index + r_idx,
-                  out_multi.end(),
-                  in_multi.begin() + axis_index + 1);
-
-        // 5) map input multi-index -> flat offset in contiguous buffer
-        const auto in_lin = data_ins->get_shape().index(in_multi);
-        return in_lin;
-    });
-
-    return flat;
-}
-
-/// Try segment-based optimization (assumes 1D indices in context)
-/// Returns the optimized instruction if successful, nullopt otherwise
-inline std::optional<instruction_ref>
-try_segment_based_optimization_1d(const gather_context& ctx, gather_instruction_builder& builder)
-{
-    if(auto r =
-           arithmetic_segment::transform_indices(ctx.indices_values(), builder.m, ctx.data_ins()))
-    {
-        return builder.reshape(*r, ctx.output_dims());
-    }
-    return std::nullopt;
-}
-
-/// Try segment-based optimization with multi-dimensional normalization
-inline bool try_segment_based_optimization(module& m,
-                                           instruction_ref ins,
-                                           const gather_context& ctx,
-                                           gather_instruction_builder& builder)
-{
-    // For 1D or scalar indices, use direct optimization
-    if(ctx.idims().size() == 1 and ctx.data_dims().size() == 1)
-    {
-        auto result = try_segment_based_optimization_1d(ctx, builder);
-        if(not result.has_value())
-            return false;
-
-        m.replace_instruction(ins, *result);
-        return true;
-    }
-
-    auto data_1d = builder.match_shape(ctx.data_ins(), {ctx.data_ins()->get_shape().elements()});
-
-    auto new_indices = ctx.build_flat_gather_indices();
-
-    gather_context ctx_1d(
-        data_1d, 0, argument{shape{shape::int64_type, {new_indices.size()}}, new_indices.data()});
-
-    auto result = try_segment_based_optimization_1d(ctx_1d, builder);
-    if(not result.has_value())
-        return false;
-
-    auto reshaped = builder.match_shape(*result, ctx.output_dims());
-    m.replace_instruction(ins, reshaped);
-    return true;
-}
-
-} // namespace
-
-struct find_gather
-{
     auto matcher() const
     {
         return match::name("gather")(

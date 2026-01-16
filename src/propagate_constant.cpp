@@ -27,7 +27,6 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/simple_par_for.hpp>
-#include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/env.hpp>
 #include <thread>
 #include <unordered_set>
@@ -72,7 +71,7 @@ static argument as_packed(const argument& c)
 
 void propagate_constant::apply(module& m) const
 {
-    std::vector<instruction_ref> const_instrs;
+    std::unordered_set<instruction_ref> const_instrs;
     auto last = std::prev(m.end());
 
     // Find instructions that can be evaluated to a literal
@@ -84,7 +83,7 @@ void propagate_constant::apply(module& m) const
 
         if(i == last and is_const)
         {
-            const_instrs.push_back(i);
+            const_instrs.insert(i);
         }
         else
         {
@@ -98,7 +97,7 @@ void propagate_constant::apply(module& m) const
     }
 
     // Compute literals in parallel
-    //std::vector<instruction_ref> const_instrs_vec{const_instrs.begin(), const_instrs.end()};
+    std::vector<instruction_ref> const_instrs_vec{const_instrs.begin(), const_instrs.end()};
     //std::vector<argument> literals(const_instrs_vec.size());
     /*std::size_t grainsize = 1;
 #if !MIGRAPHX_HAS_EXECUTORS
@@ -110,9 +109,9 @@ void propagate_constant::apply(module& m) const
     });*/
 
     // Replace instructions in m
-    for(size_t i = 0; i < const_instrs.size(); i++)
+    for(size_t i = 0; i < const_instrs_vec.size(); i++)
     {
-        auto literal = as_packed(const_instrs[i]->eval());
+        auto literal = as_packed(const_instrs_vec[i]->eval());
 
         if(not literal.empty())
         {
@@ -126,13 +125,13 @@ void propagate_constant::apply(module& m) const
                     for(auto input : ins->inputs())
                         self(input);
                     inss.push_back(ins);
-                })(const_instrs[i]);
+                })(const_instrs_vec[i]);
                 m.debug_print(inss);
             }
-            assert(literal.get_shape().lens() == const_instrs[i]->get_shape().lens());
-            assert(literal.get_shape().bytes() <= const_instrs[i]->get_shape().bytes());
+            assert(literal.get_shape().lens() == const_instrs_vec[i]->get_shape().lens());
+            assert(literal.get_shape().bytes() <= const_instrs_vec[i]->get_shape().bytes());
             auto l = m.add_literal(literal.get_shape(), literal.data());
-            m.replace_instruction(const_instrs[i], l);
+            m.replace_instruction(const_instrs_vec[i], l);
         }
     }
 }

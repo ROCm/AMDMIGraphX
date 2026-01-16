@@ -1096,13 +1096,15 @@ struct find_gather
             auto stride = std::next(begin)->base - start.base;
             if(stride < 0)
                 return std::make_pair(*begin, std::next(begin));
-            auto diff = std::adjacent_find(begin, end, [&](arithmetic_segment x, arithmetic_segment y) {
-                return y.base - x.base != stride;
-            });
+            auto diff =
+                std::adjacent_find(begin, end, [&](arithmetic_segment x, arithmetic_segment y) {
+                    return y.base - x.base != stride;
+                });
             if(diff != end)
                 diff++;
             return std::make_pair(
-                arithmetic_segment{start.base, stride, std::size_t(std::distance(begin, diff))}, diff);
+                arithmetic_segment{start.base, stride, std::size_t(std::distance(begin, diff))},
+                diff);
         }
 
         static shape make_strided_view(std::vector<arithmetic_segment> segments)
@@ -1139,7 +1141,8 @@ struct find_gather
             std::reverse(lens.begin(), lens.end());
             std::reverse(strides.begin(), strides.end());
 
-            if(std::none_of(strides.begin(), strides.end(), [](auto stride) { return stride == 1; }))
+            if(std::none_of(
+                   strides.begin(), strides.end(), [](auto stride) { return stride == 1; }))
             {
                 lens.push_back(1);
                 strides.push_back(1);
@@ -1166,8 +1169,8 @@ struct find_gather
     };
 
     static std::vector<std::int64_t> build_flat_gather_indices(instruction_ref gather_ins,
-                                                        const argument& indices_arg,
-                                                        std::size_t axis_index)
+                                                               const argument& indices_arg,
+                                                               std::size_t axis_index)
     {
         auto data_ins    = gather_ins->inputs()[0];
         auto output_dims = gather_ins->get_shape().lens();

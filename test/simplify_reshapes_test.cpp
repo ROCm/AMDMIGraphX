@@ -1652,16 +1652,16 @@ TEST_CASE(optimize_resize_ndims_unequal)
         auto inx = m2.add_parameter("X", sx);
         auto iny = m2.add_parameter("Y", sy);
 
-        auto rsp1 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), inx);
-        auto rsp2 =
-            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 1, 2, 1}}}), rsp1);
+        auto rsp_y =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 3}}}), iny);
+        auto trans_x = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {2, 0, 3, 1}}}), inx);
         auto mb = m2.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 3}}}), rsp2);
-        auto rsp3 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {24}}}), mb);
-        auto rsp4 =
-            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 4, 3, 2}}}), rsp3);
-        auto r = m2.add_instruction(migraphx::make_op("sub"), iny, rsp4);
-        m2.add_return({r});
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 3}}}), trans_x);
+        auto sub = m2.add_instruction(migraphx::make_op("sub"), rsp_y, mb);
+        auto rsp_out =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 4, 3, 2}}}), sub);
+        m2.add_return({rsp_out});
     }
 
     EXPECT(m1.sort() == m2.sort());

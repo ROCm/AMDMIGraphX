@@ -34,6 +34,12 @@ namespace gpu {
 
 struct MIGRAPHX_GPU_EXPORT target
 {
+    // Device ID captured at construction time for multi-GPU thread safety
+    int device_id_ = -1;
+
+    // Default constructor captures the current device ID
+    target();
+
     std::string name() const;
     std::vector<pass> get_passes(migraphx::context& gctx, const compile_options& options) const;
     migraphx::context get_context() const;

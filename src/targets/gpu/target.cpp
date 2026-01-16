@@ -279,9 +279,11 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     // clang-format on
 }
 
+target::target() : device_id_(gpu::get_device_id()) {}
+
 std::string target::name() const { return "gpu"; }
 
-migraphx::context target::get_context() const { return context(gpu::get_device_id()); }
+migraphx::context target::get_context() const { return context(device_id_); }
 
 argument target::copy_to(const argument& arg) const { return gpu::to_gpu(arg); }
 

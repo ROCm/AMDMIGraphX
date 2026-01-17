@@ -2390,7 +2390,10 @@ TEST_CASE(gather_sequential_stride_rtr_window_1d)
 
 TEST_CASE(gather_axis0_half_split_concat)
 {
-    // This pattern is not optimized - gather remains
+    // This pattern is optimized using concat of slices
+    // Indices [2, 3, 0, 1] selects rows 2,3 then 0,1 (swap halves)
+    // Flat indices on [12] input: [6, 7, 8, 9, 10, 11, 0, 1, 2, 3, 4, 5]
+    // Split into 2 groups of 6, each forms a strided view, then concatenated
     migraphx::module m1;
     {
         auto x = m1.add_parameter("x", {migraphx::shape::float_type, {4, 3}});
@@ -2400,7 +2403,6 @@ TEST_CASE(gather_axis0_half_split_concat)
         auto g = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), x, li);
         m1.add_return({g});
     }
-    auto m2 = m1;
     run_pass(m1);
 
     // Verify output shape is correct: {4, 3}
@@ -2409,7 +2411,152 @@ TEST_CASE(gather_axis0_half_split_concat)
     EXPECT(result != m1.end());
     EXPECT(result->inputs().front()->get_shape().lens() == std::vector<std::size_t>{4, 3});
 
-    EXPECT(m1.sort() == m2.sort());
+    // Verify gather was optimized away
+    EXPECT(
+        std::none_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "gather"; }));
+
+    // Verify key operations: slice (extract segments), concat (combine), reshape (shape output)
+    EXPECT(std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "slice"; }));
+    EXPECT(std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "concat"; }));
+}
+
+TEST_CASE(gather_multi_segment_concat)
+{
+    // Test case where gather indices can be split into multiple groups
+    // Each group forms a simple strided pattern
+    // Input: [12] elements
+    // Output: [6] elements from indices [6, 7, 8, 0, 1, 2]
+    // Split into 2 groups of 3: [6,7,8] and [0,1,2], concatenated
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("X", {migraphx::shape::float_type, {12}});
+        migraphx::shape si{migraphx::shape::int32_type, {6}};
+        std::vector<int32_t> indices = {6, 7, 8, 0, 1, 2};
+        auto li     = m1.add_literal(migraphx::literal{si, indices});
+        auto gather = m1.add_instruction(migraphx::make_op("gather"), x, li);
+        m1.add_return({gather});
+    }
+    run_pass(m1);
+
+    // Verify output shape is correct: {6}
+    auto result =
+        std::find_if(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "@return"; });
+    EXPECT(result != m1.end());
+    EXPECT(result->inputs().front()->get_shape().lens() == std::vector<std::size_t>{6});
+
+    // Verify gather was optimized away
+    EXPECT(
+        std::none_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "gather"; }));
+
+    // Verify key operations: slice (extract segments), concat (combine)
+    EXPECT(std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "slice"; }));
+    EXPECT(std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "concat"; }));
+}
+
+TEST_CASE(gather_multi_segment_concat_2d)
+{
+    // Test case where 2D gather indices can be split into groups
+    // Input: [4, 3] elements = 12 total
+    // Output: [4, 3] from reordering rows
+    // Indices [2, 3, 0, 1] reorders rows: rows 2,3 then rows 0,1
+    // Flat indices: [6,7,8,9,10,11,0,1,2,3,4,5], split and concatenated
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("X", {migraphx::shape::float_type, {4, 3}});
+        migraphx::shape si{migraphx::shape::int32_type, {4}};
+        std::vector<int32_t> indices = {2, 3, 0, 1};
+        auto li = m1.add_literal(migraphx::literal(si, indices));
+        auto g  = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), x, li);
+        m1.add_return({g});
+    }
+    run_pass(m1);
+
+    // Verify output shape is correct: {4, 3}
+    auto result =
+        std::find_if(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "@return"; });
+    EXPECT(result != m1.end());
+    EXPECT(result->inputs().front()->get_shape().lens() == std::vector<std::size_t>{4, 3});
+
+    // Verify gather was optimized away
+    EXPECT(
+        std::none_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "gather"; }));
+
+    // Verify key operations: slice (extract segments), concat (combine)
+    EXPECT(std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "slice"; }));
+    EXPECT(std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "concat"; }));
+}
+
+TEST_CASE(gather_uniform_broadcast_pattern)
+{
+    // This test represents a gather pattern with uniform broadcast (stride=0)
+    // Input shape: [1, 2, 3, 3] (18 elements)
+    // Gather indices shape: [2, 6, 6] (72 elements)
+    // Forms strided view: lens=[6, 2, 3, 2], strides=[3, 0, 1, 0]
+    // Pattern: each element duplicated (stride=0), rows duplicated (stride=0)
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("X", {migraphx::shape::float_type, {1, 2, 3, 3}});
+        auto flatten = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {18}}}), x);
+
+        migraphx::shape indices_shape{migraphx::shape::int32_type, {2, 6, 6}};
+        // clang-format off
+        // Uniform broadcast pattern: each value repeated twice, rows repeated twice
+        std::vector<int32_t> indices = {
+            0, 0, 1, 1, 2, 2, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 6, 6, 7, 7, 8, 8,
+            9, 9, 10, 10, 11, 11, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13, 14, 14, 12, 12, 13, 13, 14, 14, 15, 15, 16, 16, 17, 17, 15, 15, 16, 16, 17, 17
+        };
+        // clang-format on
+
+        auto li     = m1.add_literal(migraphx::literal{indices_shape, indices});
+        auto gather = m1.add_instruction(migraphx::make_op("gather"), flatten, li);
+        m1.add_return({gather});
+    }
+    run_pass(m1);
+
+    // Verify output shape is correct: {2, 6, 6}
+    auto result =
+        std::find_if(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "@return"; });
+    EXPECT(result != m1.end());
+    EXPECT(result->inputs().front()->get_shape().lens() ==
+           std::vector<std::size_t>{2, 6, 6});
+
+    // Verify gather was optimized away (replaced with shape transforms using broadcast)
+    EXPECT(
+        std::none_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "gather"; }));
+}
+
+TEST_CASE(gather_interleaved_pattern)
+{
+    // Test for non-uniform repetition pattern [0, 1, 1, 2, 2, 2]
+    // This is split into 3 groups of 2: [0,1], [1,2], [2,2]
+    // Each group forms a valid strided view, then concatenated
+    // The optimization uses generate_shape_transforms_for which produces
+    // reshape/slice/squeeze sequences
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("X", {migraphx::shape::float_type, {6}});
+
+        migraphx::shape si{migraphx::shape::int32_type, {6}};
+        std::vector<int32_t> indices = {0, 1, 1, 2, 2, 2};
+        auto li     = m1.add_literal(migraphx::literal{si, indices});
+        auto gather = m1.add_instruction(migraphx::make_op("gather"), x, li);
+        m1.add_return({gather});
+    }
+    run_pass(m1);
+
+    // Verify output shape is correct: {6}
+    auto result =
+        std::find_if(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "@return"; });
+    EXPECT(result != m1.end());
+    EXPECT(result->inputs().front()->get_shape().lens() == std::vector<std::size_t>{6});
+
+    // Verify gather was optimized away
+    EXPECT(
+        std::none_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "gather"; }));
+
+    // Verify key operations: slice (extract elements), concat (combine groups)
+    EXPECT(std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "slice"; }));
+    EXPECT(std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "concat"; }));
 }
 
 TEST_CASE(gather_axis1_same_stride_diff_base)
@@ -2432,6 +2579,76 @@ TEST_CASE(gather_axis1_same_stride_diff_base)
     run_pass(m1);
 
     EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_bilinear_interpolation)
+{
+    // Full bilinear interpolation pattern from resize operation
+    // Input: [1, 2, 3, 3] flattened to [18], indices shape [4, 2, 6, 6]
+    // This pattern is decomposed into 48 groups of 6 elements each:
+    // - Blocks 0,1: broadcast pattern [a, a, b, b, c, c] handled by multibroadcast
+    // - Blocks 2,3: shifted+clamped pattern [a, a+1, a+1, a+2, a+2, a+2] handled by overlapping slices
+    //
+    // The expected module is complex (48 groups), so we verify key properties:
+    // 1. Output shape is {4, 2, 6, 6}
+    // 2. Gather is removed
+    // 3. Module contains: slice (for extracting elements), concat (for combining groups),
+    //    multibroadcast (for broadcast patterns), reshape (for shaping)
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("X", {migraphx::shape::float_type, {1, 2, 3, 3}});
+        auto reshape = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {18}}}), x);
+
+        migraphx::shape indices_shape{migraphx::shape::int32_type, {4, 2, 6, 6}};
+        // clang-format off
+        std::vector<int32_t> indices = {
+            // Block 0: uniform broadcast pattern (each element repeated twice, rows repeated)
+            0, 0, 1, 1, 2, 2, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 3, 3, 4, 4, 5, 5,
+            6, 6, 7, 7, 8, 8, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 9, 9, 10, 10, 11, 11,
+            12, 12, 13, 13, 14, 14, 12, 12, 13, 13, 14, 14, 15, 15, 16, 16, 17, 17, 15, 15, 16, 16, 17, 17,
+            // Block 1: similar but with different row repetition
+            0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8,
+            6, 6, 7, 7, 8, 8, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13, 14, 14,
+            12, 12, 13, 13, 14, 14, 15, 15, 16, 16, 17, 17, 15, 15, 16, 16, 17, 17, 15, 15, 16, 16, 17, 17,
+            // Block 2: non-uniform repetition [0, 1, 1, 2, 2, 2] pattern
+            0, 1, 1, 2, 2, 2, 0, 1, 1, 2, 2, 2, 3, 4, 4, 5, 5, 5, 3, 4, 4, 5, 5, 5,
+            6, 7, 7, 8, 8, 8, 6, 7, 7, 8, 8, 8, 9, 10, 10, 11, 11, 11, 9, 10, 10, 11, 11, 11,
+            12, 13, 13, 14, 14, 14, 12, 13, 13, 14, 14, 14, 15, 16, 16, 17, 17, 17, 15, 16, 16, 17, 17, 17,
+            // Block 3: similar non-uniform pattern
+            0, 1, 1, 2, 2, 2, 3, 4, 4, 5, 5, 5, 3, 4, 4, 5, 5, 5, 6, 7, 7, 8, 8, 8,
+            6, 7, 7, 8, 8, 8, 6, 7, 7, 8, 8, 8, 9, 10, 10, 11, 11, 11, 12, 13, 13, 14, 14, 14,
+            12, 13, 13, 14, 14, 14, 15, 16, 16, 17, 17, 17, 15, 16, 16, 17, 17, 17, 15, 16, 16, 17, 17, 17
+        };
+        // clang-format on
+
+        auto li     = m1.add_literal(migraphx::literal{indices_shape, indices});
+        auto gather = m1.add_instruction(migraphx::make_op("gather"), reshape, li);
+        m1.add_return({gather});
+    }
+    run_pass(m1);
+
+    // Verify output shape is correct: {4, 2, 6, 6}
+    auto result =
+        std::find_if(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "@return"; });
+    EXPECT(result != m1.end());
+    EXPECT(result->inputs().front()->get_shape().lens() ==
+           std::vector<std::size_t>{4, 2, 6, 6});
+
+    // Verify gather was optimized away
+    EXPECT(
+        std::none_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "gather"; }));
+
+    // Verify expected operations are present:
+    // - slice: for extracting elements from input
+    EXPECT(std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "slice"; }));
+    // - concat: for combining the 48 groups into final output
+    EXPECT(std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "concat"; }));
+    // - multibroadcast: for broadcast patterns in blocks 0,1
+    EXPECT(std::any_of(m1.begin(), m1.end(), [](const auto& ins) {
+        return ins.name() == "multibroadcast";
+    }));
+    // - reshape: for reshaping to final output shape
+    EXPECT(std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "reshape"; }));
 }
 
 TEST_CASE(gather_flatten_stride_slice)

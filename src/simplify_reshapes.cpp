@@ -1162,6 +1162,366 @@ struct find_gather
                 return std::nullopt;
             return insert_ops(m, std::next(start), *ops, start);
         }
+
+        // Check if a range of indices forms a valid strided view
+        template <class Iterator>
+        static bool is_valid_strided_range(Iterator begin,
+                                           Iterator end,
+                                           std::size_t input_elements,
+                                           std::vector<operation>& ops_out)
+        {
+            if(begin == end)
+                return false;
+            std::vector<std::int64_t> group_indices(begin, end);
+            auto isegments      = from_ints(group_indices.begin(), group_indices.end());
+            std::int64_t offset = isegments.front().base;
+            auto s              = make_strided_view(shift(std::move(isegments), -offset));
+            auto ops            = generate_shape_transforms_for(s, {input_elements}, offset);
+            if(not ops.has_value())
+                return false;
+            ops_out = std::move(*ops);
+            return true;
+        }
+
+        // Try to transform indices using interleaved slices from padded input
+        // This handles two patterns:
+        // 1. Shifted+clamped: [0, 1, 1, 2, 2, 2] where column k = min(column0 + k, max_val)
+        // 2. Broadcast: [0, 0, 1, 1, 2, 2] where all columns are the same (column k = column0)
+        // Transformation: slice (with optional padding), interleave via reshape+concat
+        template <class Indices>
+        static std::optional<instruction_ref>
+        transform_indices_with_padded_interleave(const Indices& indices,
+                                                 module& m,
+                                                 instruction_ref start,
+                                                 instruction_ref insert_pt)
+        {
+            auto total_size     = indices.size();
+            auto input_elements = start->get_shape().elements();
+
+            // Need at least 4 elements
+            if(total_size < 4)
+                return std::nullopt;
+
+            // Try different interleave factors (2, 3, ...)
+            for(std::size_t interleave = 2; interleave <= std::min<std::size_t>(6, total_size / 2);
+                ++interleave)
+            {
+                if(total_size % interleave != 0)
+                    continue;
+
+                std::size_t num_rows = total_size / interleave;
+                if(num_rows < 2)
+                    continue;
+
+                // Extract columns (interleaved elements)
+                std::vector<std::vector<std::int64_t>> columns(interleave);
+                for(std::size_t col = 0; col < interleave; ++col)
+                {
+                    for(std::size_t row = 0; row < num_rows; ++row)
+                    {
+                        columns[col].push_back(indices[row * interleave + col]);
+                    }
+                }
+
+                // Check if column 0 is a contiguous sequence with stride 1
+                auto& col0            = columns[0];
+                std::int64_t base     = col0[0];
+                std::int64_t stride_0 = (col0.size() > 1) ? (col0[1] - col0[0]) : 1;
+
+                bool col0_valid = (stride_0 == 1);
+                for(std::size_t i = 1; i < col0.size() && col0_valid; ++i)
+                {
+                    if(col0[i] != col0[i - 1] + stride_0)
+                    {
+                        col0_valid = false;
+                    }
+                }
+
+                if(not col0_valid)
+                    continue;
+
+                // Check if subsequent columns match one of two patterns:
+                // Pattern A (broadcast): all columns equal column 0
+                // Pattern B (shifted+clamped): column k = min(column0 + k, max_val)
+                std::int64_t max_val        = col0.back();
+                bool is_broadcast_pattern   = true;
+                bool is_shifted_pattern     = true;
+                std::int64_t padding_needed = 0;
+
+                for(std::size_t col = 1; col < interleave; ++col)
+                {
+                    for(std::size_t row = 0; row < num_rows; ++row)
+                    {
+                        // Check broadcast pattern
+                        if(columns[col][row] != col0[row])
+                        {
+                            is_broadcast_pattern = false;
+                        }
+
+                        // Check shifted+clamped pattern
+                        std::int64_t shifted = col0[row] + static_cast<std::int64_t>(col);
+                        std::int64_t expected = std::min(shifted, max_val);
+                        if(columns[col][row] != expected)
+                        {
+                            is_shifted_pattern = false;
+                        }
+                        else if(shifted > max_val)
+                        {
+                            padding_needed = std::max(padding_needed, shifted - max_val);
+                        }
+                    }
+                    if(not is_broadcast_pattern and not is_shifted_pattern)
+                        break;
+                }
+
+                if(not is_broadcast_pattern and not is_shifted_pattern)
+                    continue;
+
+                // Pattern matches! Generate the transformation
+                std::int64_t slice_start = base;
+                std::int64_t slice_end   = base + static_cast<std::int64_t>(num_rows);
+
+                if(slice_start < 0 or slice_end > static_cast<std::int64_t>(input_elements))
+                    continue;
+
+                if(is_broadcast_pattern)
+                {
+                    // All columns are the same - use broadcast
+                    auto slice0 = m.insert_instruction(
+                        insert_pt,
+                        make_op("slice",
+                                {{"axes", {0}},
+                                 {"starts", {slice_start}},
+                                 {"ends", {slice_end}}}),
+                        start);
+                    // Reshape to [num_rows, 1] and broadcast to [num_rows, interleave]
+                    auto reshaped = m.insert_instruction(
+                        insert_pt, make_op("reshape", {{"dims", {num_rows, 1}}}), slice0);
+                    auto broadcasted = m.insert_instruction(
+                        insert_pt,
+                        make_op("multibroadcast", {{"out_lens", {num_rows, interleave}}}),
+                        reshaped);
+                    // Flatten back to 1D
+                    auto result = m.insert_instruction(
+                        insert_pt, make_op("reshape", {{"dims", {total_size}}}), broadcasted);
+                    return result;
+                }
+
+                // Shifted+clamped pattern - we can always pad if needed
+
+                std::vector<instruction_ref> col_results;
+
+                // Column 0: simple slice
+                auto slice0 = m.insert_instruction(
+                    insert_pt,
+                    make_op("slice",
+                            {{"axes", {0}},
+                             {"starts", {slice_start}},
+                             {"ends", {slice_end}}}),
+                    start);
+                slice0 = m.insert_instruction(
+                    insert_pt, make_op("reshape", {{"dims", {num_rows, 1}}}), slice0);
+                col_results.push_back(slice0);
+
+                // Check if we need padding for subsequent columns
+                bool need_padding = (slice_end + static_cast<std::int64_t>(interleave) - 1 >
+                                     static_cast<std::int64_t>(input_elements));
+
+                instruction_ref padded_input = start;
+                if(need_padding)
+                {
+                    // Pad by repeating the last element
+                    auto last_elem = m.insert_instruction(
+                        insert_pt,
+                        make_op("slice",
+                                {{"axes", {0}},
+                                 {"starts", {static_cast<std::int64_t>(input_elements) - 1}},
+                                 {"ends", {static_cast<std::int64_t>(input_elements)}}}),
+                        start);
+                    auto pad_size = static_cast<std::int64_t>(interleave) - 1;
+                    auto padding  = m.insert_instruction(
+                        insert_pt,
+                        make_op("multibroadcast", {{"out_lens", {pad_size}}}),
+                        last_elem);
+                    padded_input = m.insert_instruction(
+                        insert_pt, make_op("concat", {{"axis", 0}}), start, padding);
+                }
+
+                // Generate slices for columns 1 to interleave-1
+                for(std::size_t col = 1; col < interleave; ++col)
+                {
+                    auto col_start = slice_start + static_cast<std::int64_t>(col);
+                    auto col_end   = col_start + static_cast<std::int64_t>(num_rows);
+                    auto slice_col = m.insert_instruction(
+                        insert_pt,
+                        make_op("slice",
+                                {{"axes", {0}}, {"starts", {col_start}}, {"ends", {col_end}}}),
+                        padded_input);
+                    slice_col = m.insert_instruction(
+                        insert_pt, make_op("reshape", {{"dims", {num_rows, 1}}}), slice_col);
+                    col_results.push_back(slice_col);
+                }
+
+                // Concat on axis 1 to interleave
+                auto concat = m.insert_instruction(
+                    insert_pt, make_op("concat", {{"axis", 1}}), col_results);
+
+                // Flatten back to 1D
+                auto result = m.insert_instruction(
+                    insert_pt, make_op("reshape", {{"dims", {total_size}}}), concat);
+
+                return result;
+            }
+
+            return std::nullopt;
+        }
+
+        // Try to transform indices by splitting into groups and concatenating
+        // Each group can have its own strided view transformation
+        // allow_small_groups: if true, allow group_size >= 2; if false, require group_size >= 3
+        template <class Indices>
+        static std::optional<instruction_ref>
+        transform_indices_with_concat(const Indices& indices,
+                                      module& m,
+                                      instruction_ref start,
+                                      instruction_ref insert_pt,
+                                      bool allow_small_groups = true)
+        {
+            auto total_size = indices.size();
+            // Need at least 4 elements to consider concat optimization
+            if(total_size < 4)
+                return std::nullopt;
+
+            auto input_elements = start->get_shape().elements();
+
+            // First try uniform splits (2, 3, 4, ...) that divide evenly
+            // Be conservative: only use small groups when explicitly allowed for simple 1D cases
+            // Allow more splits for larger patterns to handle bilinear interpolation (48 groups of 6)
+            std::size_t min_group_size = allow_small_groups ? 2 : 6;
+            std::size_t max_splits = std::min<std::size_t>(total_size / min_group_size, 64);
+            for(std::size_t num_splits = 2; num_splits <= max_splits; ++num_splits)
+            {
+                if(total_size % num_splits != 0)
+                    continue;
+
+                std::size_t group_size = total_size / num_splits;
+                if(group_size < min_group_size)
+                    continue;
+
+                std::vector<instruction_ref> concat_inputs;
+                bool all_valid = true;
+
+                for(std::size_t g = 0; g < num_splits && all_valid; ++g)
+                {
+                    auto group_begin = indices.begin() + (g * group_size);
+                    auto group_end   = group_begin + group_size;
+
+                    std::vector<operation> ops;
+                    instruction_ref seg_ins;
+
+                    if(is_valid_strided_range(group_begin, group_end, input_elements, ops))
+                    {
+                        seg_ins = insert_ops(m, insert_pt, ops, start);
+                    }
+                    else
+                    {
+                        // Try interleaved approach for this group
+                        std::vector<std::int64_t> group_indices(group_begin, group_end);
+                        auto interleaved_result = transform_indices_with_padded_interleave(
+                            group_indices, m, start, insert_pt);
+                        if(not interleaved_result.has_value())
+                        {
+                            all_valid = false;
+                            break;
+                        }
+                        seg_ins = *interleaved_result;
+                    }
+
+                    // Ensure result is 1D with correct size for concat
+                    if(seg_ins->get_shape().elements() != group_size)
+                    {
+                        all_valid = false;
+                        break;
+                    }
+                    if(seg_ins->get_shape().ndim() != 1)
+                    {
+                        seg_ins = m.insert_instruction(
+                            insert_pt,
+                            make_op("reshape", {{"dims", {group_size}}}),
+                            seg_ins);
+                    }
+                    concat_inputs.push_back(seg_ins);
+                }
+
+                if(all_valid and concat_inputs.size() == num_splits)
+                {
+                    if(concat_inputs.size() == 1)
+                        return concat_inputs[0];
+
+                    return m.insert_instruction(
+                        insert_pt, make_op("concat", {{"axis", 0}}), concat_inputs);
+                }
+            }
+
+            // Try the padded interleave approach on the entire indices
+            // This handles patterns like [0, 1, 1, 2, 2, 2] that can't be split
+            // into uniform strided groups but can be decomposed via interleaving
+            auto interleaved = transform_indices_with_padded_interleave(indices, m, start, insert_pt);
+            if(interleaved.has_value())
+                return interleaved;
+
+            // Try greedy approach: find largest valid chunks from left to right
+            std::vector<std::pair<std::size_t, std::size_t>> chunk_ranges;
+            std::size_t pos = 0;
+
+            while(pos < total_size)
+            {
+                // Binary search for largest valid chunk starting at pos
+                std::size_t min_size  = 3;
+                std::size_t max_size  = total_size - pos;
+                std::size_t best_size = 0;
+
+                for(std::size_t size = max_size; size >= min_size; --size)
+                {
+                    std::vector<operation> ops;
+                    if(is_valid_strided_range(
+                           indices.begin() + pos, indices.begin() + pos + size, input_elements, ops))
+                    {
+                        best_size = size;
+                        break;
+                    }
+                }
+
+                if(best_size == 0)
+                    return std::nullopt;
+
+                chunk_ranges.push_back({pos, pos + best_size});
+                pos += best_size;
+            }
+
+            // Limit number of chunks to avoid creating too many concat inputs
+            if(chunk_ranges.size() > 8 or chunk_ranges.size() < 2)
+                return std::nullopt;
+
+            // Generate instructions for each chunk
+            std::vector<instruction_ref> concat_inputs;
+            for(const auto& [chunk_start, chunk_end] : chunk_ranges)
+            {
+                std::vector<operation> ops;
+                if(not is_valid_strided_range(indices.begin() + chunk_start,
+                                              indices.begin() + chunk_end,
+                                              input_elements,
+                                              ops))
+                {
+                    return std::nullopt;
+                }
+                auto seg_ins = insert_ops(m, insert_pt, ops, start);
+                concat_inputs.push_back(seg_ins);
+            }
+
+            return m.insert_instruction(
+                insert_pt, make_op("concat", {{"axis", 0}}), concat_inputs);
+        }
     };
 
     static std::vector<std::int64_t> build_flat_gather_indices(instruction_ref gather_ins,
@@ -1299,6 +1659,12 @@ struct find_gather
         if(data_ins->get_shape().ndim() == 1 and indices_ins->get_shape().ndim() == 1)
         {
             new_ins = arithmetic_segment::transform_indices(indices_values, m, data_ins);
+            // Fallback to concat-based approach (allow small groups for true 1D data)
+            if(not new_ins.has_value())
+            {
+                new_ins = arithmetic_segment::transform_indices_with_concat(
+                    indices_values, m, data_ins, ins, true);
+            }
         }
         else
         {
@@ -1306,6 +1672,12 @@ struct find_gather
                 insert_auto_reshape(m, ins, {data_ins->get_shape().elements()}, data_ins);
             auto new_indices = build_flat_gather_indices(ins, indices_arg, axis_index);
             new_ins          = arithmetic_segment::transform_indices(new_indices, m, data_1d);
+            // Fallback to concat-based approach (be conservative for flattened multi-D data)
+            if(not new_ins.has_value())
+            {
+                new_ins = arithmetic_segment::transform_indices_with_concat(
+                    new_indices, m, data_1d, ins, false);
+            }
         }
 
         if(not new_ins.has_value())

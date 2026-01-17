@@ -1783,28 +1783,71 @@ TEST_CASE(optimize_where_true)
 
 // Gather with non-uniform indices [1, 1, 0, 1, 0, 1] is rewritten to
 // slice/reshape/broadcast/concat operations (aliasing ops are better than gather kernel)
+// Pattern splits into: [1,1] (broadcast) and [0,1,0,1] (repeated contiguous via broadcast)
 TEST_CASE(where_different_cond_values)
 {
-    migraphx::module m;
+    migraphx::module m1;
     {
         migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 2}};
-        auto inx = m.add_parameter("X", s);
-        auto iny = m.add_parameter("Y", s);
+        auto inx = m1.add_parameter("X", s);
+        auto iny = m1.add_parameter("Y", s);
 
         migraphx::shape si{migraphx::shape::bool_type, {1, 1, 3, 2}};
         std::vector<char> idata = {1, 1, 0, 1, 0, 1};
-        auto li                 = m.add_literal(migraphx::literal(si, idata));
-        auto data   = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), inx, iny);
-        auto data_1 = m.add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), data);
-        auto r      = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data_1, li);
-        m.add_return({r});
+        auto li                 = m1.add_literal(migraphx::literal(si, idata));
+        auto data   = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), inx, iny);
+        auto data_1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), data);
+        auto r      = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data_1, li);
+        m1.add_return({r});
     }
-    run_pass(m);
+    run_pass(m1);
 
-    // Verify gather was removed (rewritten to aliasing operations)
-    auto has_gather =
-        std::any_of(m.begin(), m.end(), [](const auto& ins) { return ins.name() == "gather"; });
-    EXPECT(not has_gather);
+    migraphx::module m2;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 2}};
+        auto inx  = m2.add_parameter("X", s);
+        auto iny  = m2.add_parameter("Y", s);
+        auto data = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), inx, iny);
+
+        // View 1: indices [1,1] - broadcast element at index 1 twice
+        // Shape {2} stride {0} offset 1, from 12 elements
+        auto v1_unsq = m2.add_instruction(
+            migraphx::make_op("unsqueeze", {{"axes", {4, 5}}}), data);
+        auto v1_reshape =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {12, 1, 1}}}), v1_unsq);
+        auto v1_bc = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {12, 2, 1}}}), v1_reshape);
+        auto v1_slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), v1_bc);
+        // v1_slice is {1, 2, 1}, squeeze axes 0 and 2 to get {2}
+        auto v1_squeeze = m2.add_instruction(
+            migraphx::make_op("squeeze", {{"axes", {0, 2}}}), v1_slice);
+
+        // View 2+3: indices [0,1,0,1] - repeated [0,1] pattern via broadcast
+        // Shape {2,2} strides {0,1} offset 0, producing 4 elements
+        auto v2_unsq =
+            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3}}}), data);
+        auto v2_reshape =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {6, 1, 2}}}), v2_unsq);
+        auto v2_bc = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {6, 2, 2}}}), v2_reshape);
+        auto v2_slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), v2_bc);
+        // v2_slice is {1, 2, 2} with 4 elements, reshape to {4}
+        auto v2_flat =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), v2_slice);
+
+        // Concat: [1,1] (2 elem) + [0,1,0,1] (4 elem) = 6 elements
+        auto concat = m2.add_instruction(
+            migraphx::make_op("concat", {{"axis", 0}}), v1_squeeze, v2_flat);
+
+        // Final reshape to output shape {1, 1, 3, 2}
+        auto result =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 3, 2}}}), concat);
+        m2.add_return({result});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
 }
 
 TEST_CASE(where_axis_nonzero)
@@ -2670,16 +2713,16 @@ TEST_CASE(gather_flatten_concat_views)
     EXPECT(m1.sort() == m2.sort());
 }
 
-// Test with broadcasted pattern - larger chunks with duplication
+// Test with broadcasted pattern - indices with duplication
 // Indices [0, 0, 1, 1, 2, 2, 3, 3, 9, 9, 10, 10, 11, 11, 12, 12] from 18 elements
-// Split into two chunks of 8 elements each
+// Pattern forms a single strided view that can be expressed as reshape/broadcast/slice
 TEST_CASE(gather_flatten_concat_broadcast)
 {
     migraphx::module m1;
     {
         auto x = m1.add_parameter("X", {migraphx::shape::float_type, {18}});
         migraphx::shape si{migraphx::shape::int32_type, {16}};
-        // Two blocks: [0,0,1,1,2,2,3,3] and [9,9,10,10,11,11,12,12]
+        // Pattern: elements 0-3 and 9-12, each duplicated twice
         std::vector<int32_t> indices = {0, 0, 1, 1, 2, 2, 3, 3, 9, 9, 10, 10, 11, 11, 12, 12};
         auto li                      = m1.add_literal(migraphx::literal{si, indices});
         auto g                       = m1.add_instruction(migraphx::make_op("gather"), x, li);
@@ -2687,13 +2730,20 @@ TEST_CASE(gather_flatten_concat_broadcast)
     }
     run_pass(m1);
 
-    // Check that gather was rewritten (should not contain gather instruction)
-    auto has_gather =
-        std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "gather"; });
+    // Expected: reshape[2,9] -> broadcast[2,9,2] -> slice[0:4 on axis 1] -> reshape[16]
+    migraphx::module m2;
+    {
+        auto x   = m2.add_parameter("X", {migraphx::shape::float_type, {18}});
+        auto r1  = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 9}}}), x);
+        auto bc  = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {2, 9, 2}}}), r1);
+        auto slc = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}), bc);
+        auto r2 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {16}}}), slc);
+        m2.add_return({r2});
+    }
 
-    // The pattern should be optimized since each chunk has 8 elements (average >= 8)
-    // Each chunk is shape {4, 2} with strides {1, 0} - a broadcast pattern
-    EXPECT(not has_gather);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 // Test recursive splitting with different chunk sizes

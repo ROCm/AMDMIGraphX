@@ -1811,8 +1811,7 @@ TEST_CASE(where_different_cond_values)
 
         // View 1: indices [1,1] - broadcast element at index 1 twice
         // Shape {2} stride {0} offset 1, from 12 elements
-        auto v1_unsq = m2.add_instruction(
-            migraphx::make_op("unsqueeze", {{"axes", {4, 5}}}), data);
+        auto v1_unsq = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {4, 5}}}), data);
         auto v1_reshape =
             m2.add_instruction(migraphx::make_op("reshape", {{"dims", {12, 1, 1}}}), v1_unsq);
         auto v1_bc = m2.add_instruction(
@@ -1820,13 +1819,12 @@ TEST_CASE(where_different_cond_values)
         auto v1_slice = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), v1_bc);
         // v1_slice is {1, 2, 1}, squeeze axes 0 and 2 to get {2}
-        auto v1_squeeze = m2.add_instruction(
-            migraphx::make_op("squeeze", {{"axes", {0, 2}}}), v1_slice);
+        auto v1_squeeze =
+            m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0, 2}}}), v1_slice);
 
         // View 2+3: indices [0,1,0,1] - repeated [0,1] pattern via broadcast
         // Shape {2,2} strides {0,1} offset 0, producing 4 elements
-        auto v2_unsq =
-            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3}}}), data);
+        auto v2_unsq = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3}}}), data);
         auto v2_reshape =
             m2.add_instruction(migraphx::make_op("reshape", {{"dims", {6, 1, 2}}}), v2_unsq);
         auto v2_bc = m2.add_instruction(
@@ -1834,12 +1832,11 @@ TEST_CASE(where_different_cond_values)
         auto v2_slice = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), v2_bc);
         // v2_slice is {1, 2, 2} with 4 elements, reshape to {4}
-        auto v2_flat =
-            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), v2_slice);
+        auto v2_flat = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), v2_slice);
 
         // Concat: [1,1] (2 elem) + [0,1,0,1] (4 elem) = 6 elements
-        auto concat = m2.add_instruction(
-            migraphx::make_op("concat", {{"axis", 0}}), v1_squeeze, v2_flat);
+        auto concat =
+            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), v1_squeeze, v2_flat);
 
         // Final reshape to output shape {1, 1, 3, 2}
         auto result =
@@ -2733,9 +2730,9 @@ TEST_CASE(gather_flatten_concat_broadcast)
     // Expected: reshape[2,9] -> broadcast[2,9,2] -> slice[0:4 on axis 1] -> reshape[16]
     migraphx::module m2;
     {
-        auto x   = m2.add_parameter("X", {migraphx::shape::float_type, {18}});
-        auto r1  = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 9}}}), x);
-        auto bc  = m2.add_instruction(
+        auto x  = m2.add_parameter("X", {migraphx::shape::float_type, {18}});
+        auto r1 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 9}}}), x);
+        auto bc = m2.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {2, 9, 2}}}), r1);
         auto slc = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}), bc);

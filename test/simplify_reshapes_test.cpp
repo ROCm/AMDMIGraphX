@@ -2407,18 +2407,15 @@ TEST_CASE(gather_axis0_half_split_concat)
 
     migraphx::module m2;
     {
-        auto x = m2.add_parameter("x", {migraphx::shape::float_type, {4, 3}});
-        auto flat =
-            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), x);
+        auto x    = m2.add_parameter("x", {migraphx::shape::float_type, {4, 3}});
+        auto flat = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), x);
         // Swap halves: [6:12] then [0:6]
         auto slc0 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {6}}, {"ends", {12}}}), flat);
         auto slc1 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {6}}}), flat);
-        auto concat =
-            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), slc0, slc1);
-        auto result =
-            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 3}}}), concat);
+        auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), slc0, slc1);
+        auto result = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 3}}}), concat);
         m2.add_return({result});
     }
 
@@ -2666,8 +2663,7 @@ TEST_CASE(gather_flatten_concat_views)
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), x);
         auto slc1 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {5}}, {"ends", {9}}}), x);
-        auto concat =
-            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), slc0, slc1);
+        auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), slc0, slc1);
         m2.add_return({concat});
     }
 
@@ -2723,8 +2719,7 @@ TEST_CASE(gather_flatten_concat_different_sizes)
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), x);
         auto slc1 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {5}}, {"ends", {8}}}), x);
-        auto concat =
-            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), slc0, slc1);
+        auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), slc0, slc1);
         m2.add_return({concat});
     }
 

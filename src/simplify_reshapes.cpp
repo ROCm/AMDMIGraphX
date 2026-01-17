@@ -1200,7 +1200,8 @@ struct find_gather
             // Split segments at the break point
             std::vector<arithmetic_segment> first_part(segments.begin(),
                                                        segments.begin() + split_point);
-            std::vector<arithmetic_segment> rest_part(segments.begin() + split_point, segments.end());
+            std::vector<arithmetic_segment> rest_part(segments.begin() + split_point,
+                                                      segments.end());
 
             // Recursively process each part
             auto first_views = make_strided_views_recursive(first_part, depth + 1, max_views);
@@ -1230,16 +1231,16 @@ struct find_gather
         // Returns a vector of (shape, offset) pairs for each view
         static std::vector<std::pair<shape, std::int64_t>>
         make_strided_views(const std::vector<arithmetic_segment>& segments,
-                          std::size_t input_elements)
+                           std::size_t input_elements)
         {
             // Allow more views for larger inputs, but cap at reasonable limit
-            std::size_t max_views = std::min<std::size_t>(16, std::max<std::size_t>(4, input_elements / 16));
+            std::size_t max_views =
+                std::min<std::size_t>(16, std::max<std::size_t>(4, input_elements / 16));
             auto views = make_strided_views_recursive(segments, 0, max_views);
 
             // Need at least 2 views for concat to make sense
             if(views.size() < 2)
                 return {};
-
 
             return views;
         }
@@ -1250,10 +1251,10 @@ struct find_gather
         {
             auto isegments      = from_ints(indices.begin(), indices.end());
             std::int64_t offset = isegments.front().base;
-            auto shifted        = shift(isegments, -offset);
-            auto s              = make_strided_view(shifted);
+            auto shifted               = shift(isegments, -offset);
+            auto s                     = make_strided_view(shifted);
             std::size_t input_elements = start->get_shape().elements();
-            auto ops = generate_shape_transforms_for(s, {input_elements}, offset);
+            auto ops                   = generate_shape_transforms_for(s, {input_elements}, offset);
             if(ops.has_value())
                 return insert_ops(m, std::next(start), *ops, start);
 
@@ -1278,15 +1279,17 @@ struct find_gather
                 std::size_t view_elements = vs.elements();
                 instruction_ref view_ins;
 
-                // For simple 1D contiguous views, use direct slice (simpler than generate_shape_transforms_for)
+                // For simple 1D contiguous views, use direct slice (simpler than
+                // generate_shape_transforms_for)
                 if(vs.standard() and vs.lens().size() == 1 and vs.strides().front() == 1)
                 {
                     view_ins = m.insert_instruction(
                         std::next(start),
-                        make_op("slice",
-                                {{"axes", {0}},
-                                 {"starts", {view_offset}},
-                                 {"ends", {view_offset + static_cast<std::int64_t>(view_elements)}}}),
+                        make_op(
+                            "slice",
+                            {{"axes", {0}},
+                             {"starts", {view_offset}},
+                             {"ends", {view_offset + static_cast<std::int64_t>(view_elements)}}}),
                         start);
                 }
                 else
@@ -1297,10 +1300,11 @@ struct find_gather
                         return std::nullopt;
 
                     view_ins = insert_ops(m, std::next(start), *ops, start);
-                    
+
                     // Reshape to 1D for concat
-                    view_ins = m.insert_instruction(
-                        std::next(start), make_op("reshape", {{"dims", {view_elements}}}), view_ins);
+                    view_ins = m.insert_instruction(std::next(start),
+                                                    make_op("reshape", {{"dims", {view_elements}}}),
+                                                    view_ins);
                 }
                 concat_inputs.push_back(view_ins);
             }

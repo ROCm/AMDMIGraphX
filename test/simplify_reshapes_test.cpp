@@ -1781,10 +1781,12 @@ TEST_CASE(optimize_where_true)
     EXPECT(m1.sort() == expected1.sort());
 }
 
+// Gather with non-uniform indices [1, 1, 0, 1, 0, 1] is rewritten to
+// slice/reshape/broadcast/concat operations (aliasing ops are better than gather kernel)
 TEST_CASE(where_different_cond_values)
 {
-    auto create_where_module = [] {
-        migraphx::module m;
+    migraphx::module m;
+    {
         migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 2}};
         auto inx = m.add_parameter("X", s);
         auto iny = m.add_parameter("Y", s);
@@ -1796,12 +1798,13 @@ TEST_CASE(where_different_cond_values)
         auto data_1 = m.add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), data);
         auto r      = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data_1, li);
         m.add_return({r});
-        return m;
-    };
-
-    auto m = create_where_module();
+    }
     run_pass(m);
-    EXPECT(m == create_where_module());
+
+    // Verify gather was removed (rewritten to aliasing operations)
+    auto has_gather =
+        std::any_of(m.begin(), m.end(), [](const auto& ins) { return ins.name() == "gather"; });
+    EXPECT(not has_gather);
 }
 
 TEST_CASE(where_axis_nonzero)
@@ -2388,9 +2391,9 @@ TEST_CASE(gather_sequential_stride_rtr_window_1d)
     EXPECT(m1.sort() == m2.sort());
 }
 
+// Gather with indices that swap halves - optimized to slice + concat
 TEST_CASE(gather_axis0_half_split_concat)
 {
-    // This pattern is not optimized - gather remains
     migraphx::module m1;
     {
         auto x = m1.add_parameter("x", {migraphx::shape::float_type, {4, 3}});
@@ -2400,14 +2403,24 @@ TEST_CASE(gather_axis0_half_split_concat)
         auto g = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), x, li);
         m1.add_return({g});
     }
-    auto m2 = m1;
     run_pass(m1);
 
-    // Verify output shape is correct: {4, 3}
-    auto result =
-        std::find_if(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "@return"; });
-    EXPECT(result != m1.end());
-    EXPECT(result->inputs().front()->get_shape().lens() == std::vector<std::size_t>{4, 3});
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::float_type, {4, 3}});
+        auto flat =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), x);
+        // Swap halves: [6:12] then [0:6]
+        auto slc0 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {6}}, {"ends", {12}}}), flat);
+        auto slc1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {6}}}), flat);
+        auto concat =
+            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), slc0, slc1);
+        auto result =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 3}}}), concat);
+        m2.add_return({result});
+    }
 
     EXPECT(m1.sort() == m2.sort());
 }
@@ -2623,6 +2636,96 @@ TEST_CASE(gather_flatten_channel_parity_permutation)
             migraphx::make_op("transpose", {{"permutation", {3, 1, 0, 2}}}), rsp);
         auto rsp2 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {48}}}), tr);
         m2.add_return({rsp2});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Test case where gather indices require multiple strided views concatenated
+// Indices [0, 1, 5, 6, 7, 8] from 10 elements cannot form single strided view
+// but can be split at pattern break into 2 chunks: [0,1] and [5,6,7,8]
+TEST_CASE(gather_flatten_concat_views)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("X", {migraphx::shape::float_type, {10}});
+        migraphx::shape si{migraphx::shape::int32_type, {6}};
+        std::vector<int32_t> indices = {0, 1, 5, 6, 7, 8};
+        auto li                      = m1.add_literal(migraphx::literal{si, indices});
+        auto g                       = m1.add_instruction(migraphx::make_op("gather"), x, li);
+        m1.add_return({g});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("X", {migraphx::shape::float_type, {10}});
+        // Two views concatenated along axis 0 (more efficient than 3 slices)
+        // [0, 1] and [5, 6, 7, 8] are each contiguous regions
+        auto slc0 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), x);
+        auto slc1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {5}}, {"ends", {9}}}), x);
+        auto concat =
+            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), slc0, slc1);
+        m2.add_return({concat});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Test with broadcasted pattern - larger chunks with duplication
+// Indices [0, 0, 1, 1, 2, 2, 3, 3, 9, 9, 10, 10, 11, 11, 12, 12] from 18 elements
+// Split into two chunks of 8 elements each
+TEST_CASE(gather_flatten_concat_broadcast)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("X", {migraphx::shape::float_type, {18}});
+        migraphx::shape si{migraphx::shape::int32_type, {16}};
+        // Two blocks: [0,0,1,1,2,2,3,3] and [9,9,10,10,11,11,12,12]
+        std::vector<int32_t> indices = {0, 0, 1, 1, 2, 2, 3, 3, 9, 9, 10, 10, 11, 11, 12, 12};
+        auto li                      = m1.add_literal(migraphx::literal{si, indices});
+        auto g                       = m1.add_instruction(migraphx::make_op("gather"), x, li);
+        m1.add_return({g});
+    }
+    run_pass(m1);
+
+    // Check that gather was rewritten (should not contain gather instruction)
+    auto has_gather =
+        std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "gather"; });
+
+    // The pattern should be optimized since each chunk has 8 elements (average >= 8)
+    // Each chunk is shape {4, 2} with strides {1, 0} - a broadcast pattern
+    EXPECT(not has_gather);
+}
+
+// Test recursive splitting with different chunk sizes
+// Indices [0, 1, 5, 6, 7] split into [0,1] (2 elements) and [5,6,7] (3 elements)
+TEST_CASE(gather_flatten_concat_different_sizes)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("X", {migraphx::shape::float_type, {10}});
+        migraphx::shape si{migraphx::shape::int32_type, {5}};
+        std::vector<int32_t> indices = {0, 1, 5, 6, 7};
+        auto li                      = m1.add_literal(migraphx::literal{si, indices});
+        auto g                       = m1.add_instruction(migraphx::make_op("gather"), x, li);
+        m1.add_return({g});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("X", {migraphx::shape::float_type, {10}});
+        // Two slices of different sizes
+        auto slc0 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), x);
+        auto slc1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {5}}, {"ends", {8}}}), x);
+        auto concat =
+            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), slc0, slc1);
+        m2.add_return({concat});
     }
 
     EXPECT(m1.sort() == m2.sort());

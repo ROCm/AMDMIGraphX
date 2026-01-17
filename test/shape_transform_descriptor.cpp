@@ -1354,6 +1354,35 @@ TEST_CASE(generate_shape_transforms_for_overlap)
     //        });
 }
 
+// TODO: Multi-dimensional strided views with overlapping access patterns
+// cannot be generated as standard ops. These cases come from gather rewriting
+// where indices create patterns like sliding windows (torch.unfold).
+// See also generate_shape_transforms_for_overlap test above for related cases.
+TEST_CASE(generate_shape_transforms_for_concat_chunks)
+{
+    // Case: 2D strided view with overlap in the first dimension
+    // Shape {2, 3} with strides {2, 1} from 6 elements
+    // Row 0: [0, 1, 2], Row 1: [2, 3, 4] - element 2 is accessed twice
+    // This creates an overlapping access pattern that can't be expressed
+    // as transpose/reshape/broadcast without duplicating data
+    EXPECT(generate_for({2, 3}, {2, 1}, {6}) == std::nullopt);
+
+    // Case: 3D strided view with overlap
+    // Shape {2, 2, 2} with strides {2, 2, 1} from 8 elements
+    // Indices: [0, 1, 2, 3, 2, 3, 4, 5] - elements 2 and 3 accessed twice
+    EXPECT(generate_for({2, 2, 2}, {2, 2, 1}, {8}) == std::nullopt);
+
+    // Case: Non-overlapping strided view CAN be generated
+    // Shape {3, 2} with strides {1, 3} from 8 elements
+    // Indices: [0, 3, 1, 4, 2, 5] - no overlap, valid reshape+transpose
+    EXPECT(generate_for({3, 2}, {1, 3}, {8}) ==
+           ops{
+               make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {6}}}),
+               make_op("reshape", {{"dims", {2, 3}}}),
+               make_op("transpose", {{"permutation", {1, 0}}}),
+           });
+}
+
 TEST_CASE(generate_shape_transforms_for_offset)
 {
     EXPECT(generate_for({3, 1}, {4, 1}, {30}, 1) ==

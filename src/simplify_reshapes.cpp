@@ -1042,6 +1042,10 @@ struct find_gather
         {
             for(auto it = start; it != last;)
             {
+                // Check if we have at least n elements remaining
+                auto remaining = static_cast<std::size_t>(std::distance(it, last));
+                if(remaining < n)
+                    return it; // Not enough elements for another segment
                 auto [seg, next_it] = find(it, it + n);
                 if(next_it != it + n)
                     return next_it;
@@ -1150,17 +1154,163 @@ struct find_gather
             return {shape::float_type, lens, strides};
         }
 
+        // Find where segment pattern breaks and return the split point
+        // Returns 0 if no valid split found, otherwise returns index where to split
+        static std::size_t find_segment_split(const std::vector<arithmetic_segment>& segments)
+        {
+            if(segments.size() < 2)
+                return 0;
+
+            auto [first_seg, first_it] = find(segments.begin(), segments.end());
+            if(first_seg.count == segments.size())
+                return 0; // All segments form one pattern, no split needed
+
+            // The split point is where the first segment pattern ends
+            return first_seg.count;
+        }
+
+        // Recursively create strided views by splitting at pattern breaks
+        // Returns a vector of (shape, offset) pairs for each view
+        static std::vector<std::pair<shape, std::int64_t>>
+        make_strided_views_recursive(const std::vector<arithmetic_segment>& segments,
+                                     std::size_t depth,
+                                     std::size_t max_views)
+        {
+            // Limit recursion depth to avoid pathological cases
+            if(depth > 8 or segments.empty())
+                return {};
+
+            // First try to create a single strided view for all segments
+            std::int64_t offset = segments.front().base;
+            auto shifted        = shift(std::vector<arithmetic_segment>(segments), -offset);
+            auto s              = make_strided_view(shifted);
+
+            if(not s.lens().empty() and s.elements() > 0)
+            {
+                // Success - return this as a single view
+                // Accept both standard and non-standard shapes
+                return {{s, offset}};
+            }
+
+            // Find where the pattern breaks
+            std::size_t split_point = find_segment_split(segments);
+            if(split_point == 0 or split_point >= segments.size())
+                return {};
+
+            // Split segments at the break point
+            std::vector<arithmetic_segment> first_part(segments.begin(),
+                                                       segments.begin() + split_point);
+            std::vector<arithmetic_segment> rest_part(segments.begin() + split_point, segments.end());
+
+            // Recursively process each part
+            auto first_views = make_strided_views_recursive(first_part, depth + 1, max_views);
+            if(first_views.empty())
+                return {};
+
+            // Check if we've exceeded max views
+            if(first_views.size() >= max_views)
+                return {};
+
+            auto rest_views =
+                make_strided_views_recursive(rest_part, depth + 1, max_views - first_views.size());
+            if(rest_views.empty())
+                return {};
+
+            // Combine results
+            first_views.insert(first_views.end(), rest_views.begin(), rest_views.end());
+
+            // Limit total number of views
+            if(first_views.size() > max_views)
+                return {};
+
+            return first_views;
+        }
+
+        // Attempt to create multiple strided views that can be concatenated
+        // Returns a vector of (shape, offset) pairs for each view
+        static std::vector<std::pair<shape, std::int64_t>>
+        make_strided_views(const std::vector<arithmetic_segment>& segments,
+                          std::size_t input_elements)
+        {
+            // Allow more views for larger inputs, but cap at reasonable limit
+            std::size_t max_views = std::min<std::size_t>(16, std::max<std::size_t>(4, input_elements / 16));
+            auto views = make_strided_views_recursive(segments, 0, max_views);
+
+            // Need at least 2 views for concat to make sense
+            if(views.size() < 2)
+                return {};
+
+
+            return views;
+        }
+
         template <class Indices>
         static std::optional<instruction_ref>
         transform_indices(const Indices& indices, module& m, instruction_ref start)
         {
             auto isegments      = from_ints(indices.begin(), indices.end());
             std::int64_t offset = isegments.front().base;
-            auto s              = make_strided_view(shift(std::move(isegments), -offset));
-            auto ops = generate_shape_transforms_for(s, {start->get_shape().elements()}, offset);
-            if(not ops.has_value())
+            auto shifted        = shift(isegments, -offset);
+            auto s              = make_strided_view(shifted);
+            std::size_t input_elements = start->get_shape().elements();
+            auto ops = generate_shape_transforms_for(s, {input_elements}, offset);
+            if(ops.has_value())
+                return insert_ops(m, std::next(start), *ops, start);
+
+            // Try to create multiple strided views that can be concatenated
+            auto views = make_strided_views(isegments, input_elements);
+            if(views.empty())
                 return std::nullopt;
-            return insert_ops(m, std::next(start), *ops, start);
+
+            return transform_indices_with_concat(views, m, start, input_elements);
+        }
+
+        static std::optional<instruction_ref>
+        transform_indices_with_concat(const std::vector<std::pair<shape, std::int64_t>>& views,
+                                      module& m,
+                                      instruction_ref start,
+                                      std::size_t input_elements)
+        {
+            std::vector<instruction_ref> concat_inputs;
+
+            for(const auto& [vs, view_offset] : views)
+            {
+                std::size_t view_elements = vs.elements();
+                instruction_ref view_ins;
+
+                // For simple 1D contiguous views, use direct slice (simpler than generate_shape_transforms_for)
+                if(vs.standard() and vs.lens().size() == 1 and vs.strides().front() == 1)
+                {
+                    view_ins = m.insert_instruction(
+                        std::next(start),
+                        make_op("slice",
+                                {{"axes", {0}},
+                                 {"starts", {view_offset}},
+                                 {"ends", {view_offset + static_cast<std::int64_t>(view_elements)}}}),
+                        start);
+                }
+                else
+                {
+                    // Use generate_shape_transforms_for for complex strided views
+                    auto ops = generate_shape_transforms_for(vs, {input_elements}, view_offset);
+                    if(not ops.has_value())
+                        return std::nullopt;
+
+                    view_ins = insert_ops(m, std::next(start), *ops, start);
+                    
+                    // Reshape to 1D for concat
+                    view_ins = m.insert_instruction(
+                        std::next(start), make_op("reshape", {{"dims", {view_elements}}}), view_ins);
+                }
+                concat_inputs.push_back(view_ins);
+            }
+
+            if(concat_inputs.size() < 2)
+                return std::nullopt;
+
+            // Concatenate along axis 0
+            return m.insert_instruction(
+                std::next(start), make_op("concat", {{"axis", 0}}), concat_inputs);
         }
     };
 

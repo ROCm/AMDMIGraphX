@@ -2416,8 +2416,10 @@ TEST_CASE(gather_axis0_half_split_concat)
         std::none_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "gather"; }));
 
     // Verify key operations: slice (extract segments), concat (combine), reshape (shape output)
-    EXPECT(std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "slice"; }));
-    EXPECT(std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "concat"; }));
+    EXPECT(
+        std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "slice"; }));
+    EXPECT(
+        std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "concat"; }));
 }
 
 TEST_CASE(gather_multi_segment_concat)
@@ -2432,8 +2434,8 @@ TEST_CASE(gather_multi_segment_concat)
         auto x = m1.add_parameter("X", {migraphx::shape::float_type, {12}});
         migraphx::shape si{migraphx::shape::int32_type, {6}};
         std::vector<int32_t> indices = {6, 7, 8, 0, 1, 2};
-        auto li     = m1.add_literal(migraphx::literal{si, indices});
-        auto gather = m1.add_instruction(migraphx::make_op("gather"), x, li);
+        auto li                      = m1.add_literal(migraphx::literal{si, indices});
+        auto gather                  = m1.add_instruction(migraphx::make_op("gather"), x, li);
         m1.add_return({gather});
     }
     run_pass(m1);
@@ -2449,8 +2451,10 @@ TEST_CASE(gather_multi_segment_concat)
         std::none_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "gather"; }));
 
     // Verify key operations: slice (extract segments), concat (combine)
-    EXPECT(std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "slice"; }));
-    EXPECT(std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "concat"; }));
+    EXPECT(
+        std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "slice"; }));
+    EXPECT(
+        std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "concat"; }));
 }
 
 TEST_CASE(gather_multi_segment_concat_2d)
@@ -2465,8 +2469,8 @@ TEST_CASE(gather_multi_segment_concat_2d)
         auto x = m1.add_parameter("X", {migraphx::shape::float_type, {4, 3}});
         migraphx::shape si{migraphx::shape::int32_type, {4}};
         std::vector<int32_t> indices = {2, 3, 0, 1};
-        auto li = m1.add_literal(migraphx::literal(si, indices));
-        auto g  = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), x, li);
+        auto li                      = m1.add_literal(migraphx::literal(si, indices));
+        auto g = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), x, li);
         m1.add_return({g});
     }
     run_pass(m1);
@@ -2482,8 +2486,10 @@ TEST_CASE(gather_multi_segment_concat_2d)
         std::none_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "gather"; }));
 
     // Verify key operations: slice (extract segments), concat (combine)
-    EXPECT(std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "slice"; }));
-    EXPECT(std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "concat"; }));
+    EXPECT(
+        std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "slice"; }));
+    EXPECT(
+        std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "concat"; }));
 }
 
 TEST_CASE(gather_uniform_broadcast_pattern)
@@ -2495,7 +2501,7 @@ TEST_CASE(gather_uniform_broadcast_pattern)
     // Pattern: each element duplicated (stride=0), rows duplicated (stride=0)
     migraphx::module m1;
     {
-        auto x = m1.add_parameter("X", {migraphx::shape::float_type, {1, 2, 3, 3}});
+        auto x       = m1.add_parameter("X", {migraphx::shape::float_type, {1, 2, 3, 3}});
         auto flatten = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {18}}}), x);
 
         migraphx::shape indices_shape{migraphx::shape::int32_type, {2, 6, 6}};
@@ -2517,8 +2523,7 @@ TEST_CASE(gather_uniform_broadcast_pattern)
     auto result =
         std::find_if(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "@return"; });
     EXPECT(result != m1.end());
-    EXPECT(result->inputs().front()->get_shape().lens() ==
-           std::vector<std::size_t>{2, 6, 6});
+    EXPECT(result->inputs().front()->get_shape().lens() == std::vector<std::size_t>{2, 6, 6});
 
     // Verify gather was optimized away (replaced with shape transforms using broadcast)
     EXPECT(
@@ -2538,8 +2543,8 @@ TEST_CASE(gather_interleaved_pattern)
 
         migraphx::shape si{migraphx::shape::int32_type, {6}};
         std::vector<int32_t> indices = {0, 1, 1, 2, 2, 2};
-        auto li     = m1.add_literal(migraphx::literal{si, indices});
-        auto gather = m1.add_instruction(migraphx::make_op("gather"), x, li);
+        auto li                      = m1.add_literal(migraphx::literal{si, indices});
+        auto gather                  = m1.add_instruction(migraphx::make_op("gather"), x, li);
         m1.add_return({gather});
     }
     run_pass(m1);
@@ -2555,8 +2560,10 @@ TEST_CASE(gather_interleaved_pattern)
         std::none_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "gather"; }));
 
     // Verify key operations: slice (extract elements), concat (combine groups)
-    EXPECT(std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "slice"; }));
-    EXPECT(std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "concat"; }));
+    EXPECT(
+        std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "slice"; }));
+    EXPECT(
+        std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "concat"; }));
 }
 
 TEST_CASE(gather_axis1_same_stride_diff_base)
@@ -2587,7 +2594,8 @@ TEST_CASE(gather_bilinear_interpolation)
     // Input: [1, 2, 3, 3] flattened to [18], indices shape [4, 2, 6, 6]
     // This pattern is decomposed into 48 groups of 6 elements each:
     // - Blocks 0,1: broadcast pattern [a, a, b, b, c, c] handled by multibroadcast
-    // - Blocks 2,3: shifted+clamped pattern [a, a+1, a+1, a+2, a+2, a+2] handled by overlapping slices
+    // - Blocks 2,3: shifted+clamped pattern [a, a+1, a+1, a+2, a+2, a+2] handled by overlapping
+    // slices
     //
     // The expected module is complex (48 groups), so we verify key properties:
     // 1. Output shape is {4, 2, 6, 6}
@@ -2596,7 +2604,7 @@ TEST_CASE(gather_bilinear_interpolation)
     //    multibroadcast (for broadcast patterns), reshape (for shaping)
     migraphx::module m1;
     {
-        auto x = m1.add_parameter("X", {migraphx::shape::float_type, {1, 2, 3, 3}});
+        auto x       = m1.add_parameter("X", {migraphx::shape::float_type, {1, 2, 3, 3}});
         auto reshape = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {18}}}), x);
 
         migraphx::shape indices_shape{migraphx::shape::int32_type, {4, 2, 6, 6}};
@@ -2631,8 +2639,7 @@ TEST_CASE(gather_bilinear_interpolation)
     auto result =
         std::find_if(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "@return"; });
     EXPECT(result != m1.end());
-    EXPECT(result->inputs().front()->get_shape().lens() ==
-           std::vector<std::size_t>{4, 2, 6, 6});
+    EXPECT(result->inputs().front()->get_shape().lens() == std::vector<std::size_t>{4, 2, 6, 6});
 
     // Verify gather was optimized away
     EXPECT(
@@ -2640,15 +2647,17 @@ TEST_CASE(gather_bilinear_interpolation)
 
     // Verify expected operations are present:
     // - slice: for extracting elements from input
-    EXPECT(std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "slice"; }));
+    EXPECT(
+        std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "slice"; }));
     // - concat: for combining the 48 groups into final output
-    EXPECT(std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "concat"; }));
+    EXPECT(
+        std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "concat"; }));
     // - multibroadcast: for broadcast patterns in blocks 0,1
-    EXPECT(std::any_of(m1.begin(), m1.end(), [](const auto& ins) {
-        return ins.name() == "multibroadcast";
-    }));
+    EXPECT(std::any_of(
+        m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "multibroadcast"; }));
     // - reshape: for reshaping to final output shape
-    EXPECT(std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "reshape"; }));
+    EXPECT(
+        std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "reshape"; }));
 }
 
 TEST_CASE(gather_flatten_stride_slice)

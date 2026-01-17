@@ -1189,11 +1189,8 @@ struct find_gather
         // 2. Broadcast: [0, 0, 1, 1, 2, 2] where all columns are the same (column k = column0)
         // Transformation: slice (with optional padding), interleave via reshape+concat
         template <class Indices>
-        static std::optional<instruction_ref>
-        transform_indices_with_padded_interleave(const Indices& indices,
-                                                 module& m,
-                                                 instruction_ref start,
-                                                 instruction_ref insert_pt)
+        static std::optional<instruction_ref> transform_indices_with_padded_interleave(
+            const Indices& indices, module& m, instruction_ref start, instruction_ref insert_pt)
         {
             auto total_size     = indices.size();
             auto input_elements = start->get_shape().elements();
@@ -1259,7 +1256,7 @@ struct find_gather
                         }
 
                         // Check shifted+clamped pattern
-                        std::int64_t shifted = col0[row] + static_cast<std::int64_t>(col);
+                        std::int64_t shifted  = col0[row] + static_cast<std::int64_t>(col);
                         std::int64_t expected = std::min(shifted, max_val);
                         if(columns[col][row] != expected)
                         {
@@ -1290,9 +1287,7 @@ struct find_gather
                     auto slice0 = m.insert_instruction(
                         insert_pt,
                         make_op("slice",
-                                {{"axes", {0}},
-                                 {"starts", {slice_start}},
-                                 {"ends", {slice_end}}}),
+                                {{"axes", {0}}, {"starts", {slice_start}}, {"ends", {slice_end}}}),
                         start);
                     // Reshape to [num_rows, 1] and broadcast to [num_rows, interleave]
                     auto reshaped = m.insert_instruction(
@@ -1315,9 +1310,7 @@ struct find_gather
                 auto slice0 = m.insert_instruction(
                     insert_pt,
                     make_op("slice",
-                            {{"axes", {0}},
-                             {"starts", {slice_start}},
-                             {"ends", {slice_end}}}),
+                            {{"axes", {0}}, {"starts", {slice_start}}, {"ends", {slice_end}}}),
                     start);
                 slice0 = m.insert_instruction(
                     insert_pt, make_op("reshape", {{"dims", {num_rows, 1}}}), slice0);
@@ -1339,10 +1332,10 @@ struct find_gather
                                  {"ends", {static_cast<std::int64_t>(input_elements)}}}),
                         start);
                     auto pad_size = static_cast<std::int64_t>(interleave) - 1;
-                    auto padding  = m.insert_instruction(
-                        insert_pt,
-                        make_op("multibroadcast", {{"out_lens", {pad_size}}}),
-                        last_elem);
+                    auto padding =
+                        m.insert_instruction(insert_pt,
+                                             make_op("multibroadcast", {{"out_lens", {pad_size}}}),
+                                             last_elem);
                     padded_input = m.insert_instruction(
                         insert_pt, make_op("concat", {{"axis", 0}}), start, padding);
                 }
@@ -1363,8 +1356,8 @@ struct find_gather
                 }
 
                 // Concat on axis 1 to interleave
-                auto concat = m.insert_instruction(
-                    insert_pt, make_op("concat", {{"axis", 1}}), col_results);
+                auto concat =
+                    m.insert_instruction(insert_pt, make_op("concat", {{"axis", 1}}), col_results);
 
                 // Flatten back to 1D
                 auto result = m.insert_instruction(
@@ -1396,9 +1389,10 @@ struct find_gather
 
             // First try uniform splits (2, 3, 4, ...) that divide evenly
             // Be conservative: only use small groups when explicitly allowed for simple 1D cases
-            // Allow more splits for larger patterns to handle bilinear interpolation (48 groups of 6)
+            // Allow more splits for larger patterns to handle bilinear interpolation (48 groups of
+            // 6)
             std::size_t min_group_size = allow_small_groups ? 2 : 6;
-            std::size_t max_splits = std::min<std::size_t>(total_size / min_group_size, 64);
+            std::size_t max_splits     = std::min<std::size_t>(total_size / min_group_size, 64);
             for(std::size_t num_splits = 2; num_splits <= max_splits; ++num_splits)
             {
                 if(total_size % num_splits != 0)
@@ -1446,9 +1440,7 @@ struct find_gather
                     if(seg_ins->get_shape().ndim() != 1)
                     {
                         seg_ins = m.insert_instruction(
-                            insert_pt,
-                            make_op("reshape", {{"dims", {group_size}}}),
-                            seg_ins);
+                            insert_pt, make_op("reshape", {{"dims", {group_size}}}), seg_ins);
                     }
                     concat_inputs.push_back(seg_ins);
                 }
@@ -1466,7 +1458,8 @@ struct find_gather
             // Try the padded interleave approach on the entire indices
             // This handles patterns like [0, 1, 1, 2, 2, 2] that can't be split
             // into uniform strided groups but can be decomposed via interleaving
-            auto interleaved = transform_indices_with_padded_interleave(indices, m, start, insert_pt);
+            auto interleaved =
+                transform_indices_with_padded_interleave(indices, m, start, insert_pt);
             if(interleaved.has_value())
                 return interleaved;
 
@@ -1484,8 +1477,10 @@ struct find_gather
                 for(std::size_t size = max_size; size >= min_size; --size)
                 {
                     std::vector<operation> ops;
-                    if(is_valid_strided_range(
-                           indices.begin() + pos, indices.begin() + pos + size, input_elements, ops))
+                    if(is_valid_strided_range(indices.begin() + pos,
+                                              indices.begin() + pos + size,
+                                              input_elements,
+                                              ops))
                     {
                         best_size = size;
                         break;
@@ -1519,8 +1514,7 @@ struct find_gather
                 concat_inputs.push_back(seg_ins);
             }
 
-            return m.insert_instruction(
-                insert_pt, make_op("concat", {{"axis", 0}}), concat_inputs);
+            return m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), concat_inputs);
         }
     };
 

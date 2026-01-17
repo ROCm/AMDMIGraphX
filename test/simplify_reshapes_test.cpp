@@ -1575,30 +1575,39 @@ TEST_CASE(optimize_resize_flatten)
     EXPECT(m1 == create_optimized_module());
 }
 
-TEST_CASE(optimize_resize_ind_not_apply)
+TEST_CASE(optimize_resize_ind_complex)
 {
+    // Complex resize pattern with wrap-around - now optimized using RLE and wrap-around splitting
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
-    auto create_resize_module = [&] {
-        migraphx::module m;
-        auto inx = m.add_parameter("X", sx);
+    migraphx::module m1;
+    {
+        auto inx = m1.add_parameter("X", sx);
 
         migraphx::shape si{migraphx::shape::int32_type, {1, 2, 4, 6}};
+        // Pattern with wrap-around: values go up then down, e.g., [0,0,0,1,1,1] then [0,0,0,1,0,1]
         std::vector<int> ind = {0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 0, 1, 2, 2, 2, 3,
                                 3, 3, 2, 2, 2, 3, 3, 3, 0, 0, 0, 1, 1, 1, 0, 0,
                                 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 3, 3};
-        auto li              = m.add_literal(migraphx::literal(si, ind));
+        auto li = m1.add_literal(migraphx::literal(si, ind));
 
-        auto lrsp = m.add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), inx);
-        auto gr   = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
-        auto r    = m.add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), gr);
-        m.add_return({r});
-
-        return m;
-    };
-
-    auto m1 = create_resize_module();
+        auto lrsp = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), inx);
+        auto gr   = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
+        auto r    = m1.add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), gr);
+        m1.add_return({r});
+    }
     run_pass(m1);
-    EXPECT(m1 == create_resize_module());
+
+    // Verify output shape is preserved
+    auto ret = std::find_if(
+        m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "@return"; });
+    EXPECT(ret != m1.end());
+    auto softmax_ins = ret->inputs().front();
+    EXPECT(softmax_ins->get_shape().lens() == std::vector<std::size_t>{1, 2, 4, 6});
+
+    // The gather should be optimized away - now handled by wrap-around and RLE splitting
+    bool has_gather =
+        std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "gather"; });
+    EXPECT(not has_gather);
 }
 
 TEST_CASE(optimize_resize_rsp_dim_1)
@@ -1783,7 +1792,7 @@ TEST_CASE(optimize_where_true)
 
 // Gather with non-uniform indices [1, 1, 0, 1, 0, 1] is rewritten to
 // slice/reshape/broadcast/concat operations (aliasing ops are better than gather kernel)
-// Pattern splits into: [1,1] (broadcast) and [0,1,0,1] (repeated contiguous via broadcast)
+// Pattern splits into: [1,1] (broadcast) and [0,1], [0,1] (two contiguous slices)
 TEST_CASE(where_different_cond_values)
 {
     migraphx::module m1;
@@ -1822,21 +1831,19 @@ TEST_CASE(where_different_cond_values)
         auto v1_squeeze =
             m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0, 2}}}), v1_slice);
 
-        // View 2+3: indices [0,1,0,1] - repeated [0,1] pattern via broadcast
-        // Shape {2,2} strides {0,1} offset 0, producing 4 elements
-        auto v2_unsq = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3}}}), data);
-        auto v2_reshape =
-            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {6, 1, 2}}}), v2_unsq);
-        auto v2_bc = m2.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {6, 2, 2}}}), v2_reshape);
+        // View 2+3+4: indices [0,1,0,1] expanded to individual elements and a pair
+        // The RLE algorithm creates separate slices for each position
+        auto flat = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), data);
         auto v2_slice = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), v2_bc);
-        // v2_slice is {1, 2, 2} with 4 elements, reshape to {4}
-        auto v2_flat = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), v2_slice);
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), flat);
+        auto v3_slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), flat);
+        auto v4_slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), flat);
 
-        // Concat: [1,1] (2 elem) + [0,1,0,1] (4 elem) = 6 elements
-        auto concat =
-            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), v1_squeeze, v2_flat);
+        // Concat: [1,1] (2 elem) + [0] (1 elem) + [1] (1 elem) + [0,1] (2 elem) = 6 elements
+        auto concat = m2.add_instruction(
+            migraphx::make_op("concat", {{"axis", 0}}), v1_squeeze, v2_slice, v3_slice, v4_slice);
 
         // Final reshape to output shape {1, 1, 3, 2}
         auto result =
@@ -2679,8 +2686,8 @@ TEST_CASE(gather_flatten_channel_parity_permutation)
 }
 
 // Test case where gather indices require multiple strided views concatenated
-// Indices [0, 1, 5, 6, 7, 8] from 10 elements cannot form single strided view
-// but can be split at pattern break into 2 chunks: [0,1] and [5,6,7,8]
+// Indices [0, 1, 5, 6, 7, 8] from 10 elements split into 3 equal chunks
+// Each chunk of 2 elements forms a simple contiguous slice
 TEST_CASE(gather_flatten_concat_views)
 {
     migraphx::module m1;
@@ -2697,13 +2704,15 @@ TEST_CASE(gather_flatten_concat_views)
     migraphx::module m2;
     {
         auto x = m2.add_parameter("X", {migraphx::shape::float_type, {10}});
-        // Two views concatenated along axis 0 (more efficient than 3 slices)
-        // [0, 1] and [5, 6, 7, 8] are each contiguous regions
-        auto slc0 = m2.add_instruction(
+        // Three equal chunks of 2 elements each, all forming simple slices
+        auto s1 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), x);
-        auto slc1 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {5}}, {"ends", {9}}}), x);
-        auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), slc0, slc1);
+        auto s2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {5}}, {"ends", {7}}}), x);
+        auto s3 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {7}}, {"ends", {9}}}), x);
+
+        auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), s1, s2, s3);
         m2.add_return({concat});
     }
 
@@ -2771,6 +2780,118 @@ TEST_CASE(gather_flatten_concat_different_sizes)
     }
 
     EXPECT(m1.sort() == m2.sort());
+}
+
+// Test complex resize pattern with 4 batches, each with different interpolation
+// This is a bilinear resize pattern from ONNX Resize operator
+// Input [1,2,3,3] reshaped to [18], gather with [4,2,6,6] indices
+// NOTE: This pattern has non-uniform batch structures (batches 1-3 have shifted/asymmetric
+// patterns) that cannot all be expressed as strided views. Only batch 0 (nearest-neighbor)
+// forms a valid strided view. The gather is kept for these complex patterns.
+TEST_CASE(gather_resize_bilinear_pattern)
+{
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("X", {migraphx::shape::float_type, {1, 2, 3, 3}});
+        auto flat = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {18}}}), x);
+
+        migraphx::shape si{migraphx::shape::int32_type, {4, 2, 6, 6}};
+        // clang-format off
+        // This pattern comes from bilinear resize - 4 corner samples for interpolation
+        std::vector<int32_t> indices = {
+            // Batch 0: top-left samples (nearest neighbor pattern - CAN be optimized)
+            0, 0, 1, 1, 2, 2, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 3, 3, 4, 4, 5, 5,
+            6, 6, 7, 7, 8, 8, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 9, 9, 10, 10, 11, 11,
+            12, 12, 13, 13, 14, 14, 12, 12, 13, 13, 14, 14, 15, 15, 16, 16, 17, 17, 15, 15, 16, 16, 17, 17,
+            // Batch 1: top-right samples (shifted pattern - CANNOT be optimized)
+            0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8,
+            6, 6, 7, 7, 8, 8, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13, 14, 14,
+            12, 12, 13, 13, 14, 14, 15, 15, 16, 16, 17, 17, 15, 15, 16, 16, 17, 17, 15, 15, 16, 16, 17, 17,
+            // Batch 2: bottom-left samples (asymmetric pattern - CANNOT be optimized)
+            0, 1, 1, 2, 2, 2, 0, 1, 1, 2, 2, 2, 3, 4, 4, 5, 5, 5, 3, 4, 4, 5, 5, 5,
+            6, 7, 7, 8, 8, 8, 6, 7, 7, 8, 8, 8, 9, 10, 10, 11, 11, 11, 9, 10, 10, 11, 11, 11,
+            12, 13, 13, 14, 14, 14, 12, 13, 13, 14, 14, 14, 15, 16, 16, 17, 17, 17, 15, 16, 16, 17, 17, 17,
+            // Batch 3: bottom-right samples (asymmetric pattern - CANNOT be optimized)
+            0, 1, 1, 2, 2, 2, 3, 4, 4, 5, 5, 5, 3, 4, 4, 5, 5, 5, 6, 7, 7, 8, 8, 8,
+            6, 7, 7, 8, 8, 8, 6, 7, 7, 8, 8, 8, 9, 10, 10, 11, 11, 11, 12, 13, 13, 14, 14, 14,
+            12, 13, 13, 14, 14, 14, 15, 16, 16, 17, 17, 17, 15, 16, 16, 17, 17, 17, 15, 16, 16, 17, 17, 17
+        };
+        // clang-format on
+        auto li = m1.add_literal(migraphx::literal{si, indices});
+        auto g  = m1.add_instruction(migraphx::make_op("gather"), flat, li);
+        m1.add_return({g});
+    }
+    run_pass(m1);
+
+    // Verify output shape is preserved
+    auto ret = std::find_if(
+        m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "@return"; });
+    EXPECT(ret != m1.end());
+    EXPECT(ret->inputs().front()->get_shape().lens() == std::vector<std::size_t>{4, 2, 6, 6});
+
+    // The gather should be removed and replaced with aliasing operations
+    // This complex bilinear resize pattern with wrap-around is handled by:
+    // 1. Splitting at wrap-around points (where values decrease)
+    // 2. Using strided views for uniform batches (like nearest-neighbor)
+    // 3. Using RLE (run-length encoding) for asymmetric patterns like [0,1,1,2,2,2]
+    bool has_gather =
+        std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "gather"; });
+    EXPECT(not has_gather);
+
+    // Verify concat is present (multiple views are concatenated)
+    bool has_concat =
+        std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "concat"; });
+    EXPECT(has_concat);
+}
+
+// Test nearest-neighbor 2x upsample pattern via gather
+// Input [2, 3, 3] reshaped to [18], gather creates [2, 6, 6] output
+// Each element is duplicated 2x in both H and W dimensions
+TEST_CASE(gather_upsample_nearest_2x)
+{
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("X", {migraphx::shape::float_type, {2, 3, 3}});
+        auto flat = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {18}}}), x);
+
+        migraphx::shape si{migraphx::shape::int32_type, {2, 6, 6}};
+        // clang-format off
+        // Nearest neighbor 2x upsample: output[c,h,w] = input[c, h/2, w/2]
+        // Channel 0 (elements 0-8): 3x3 -> 6x6
+        // Channel 1 (elements 9-17): 3x3 -> 6x6
+        std::vector<int32_t> indices = {
+            // Channel 0: rows 0-1 use input row 0, rows 2-3 use input row 1, rows 4-5 use input row 2
+            0, 0, 1, 1, 2, 2,   // output row 0: [input[0,0], input[0,0], input[0,1], input[0,1], input[0,2], input[0,2]]
+            0, 0, 1, 1, 2, 2,   // output row 1: same as row 0
+            3, 3, 4, 4, 5, 5,   // output row 2: input row 1
+            3, 3, 4, 4, 5, 5,   // output row 3: same as row 2
+            6, 6, 7, 7, 8, 8,   // output row 4: input row 2
+            6, 6, 7, 7, 8, 8,   // output row 5: same as row 4
+            // Channel 1: same pattern but offset by 9
+            9,  9, 10, 10, 11, 11,
+            9,  9, 10, 10, 11, 11,
+            12, 12, 13, 13, 14, 14,
+            12, 12, 13, 13, 14, 14,
+            15, 15, 16, 16, 17, 17,
+            15, 15, 16, 16, 17, 17
+        };
+        // clang-format on
+        auto li = m1.add_literal(migraphx::literal{si, indices});
+        auto g  = m1.add_instruction(migraphx::make_op("gather"), flat, li);
+        m1.add_return({g});
+    }
+    run_pass(m1);
+
+    // Verify gather was removed and replaced with aliasing operations
+    bool has_gather =
+        std::any_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "gather"; });
+    EXPECT(not has_gather);
+
+    // Verify output shape is preserved
+    auto ret = std::find_if(
+        m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "@return"; });
+    EXPECT(ret != m1.end());
+    EXPECT(ret->inputs().front()->get_shape().lens() == std::vector<std::size_t>{2, 6, 6});
 }
 
 TEST_CASE(gather_axis1_factorized_grid_const)

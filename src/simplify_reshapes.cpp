@@ -1118,10 +1118,6 @@ struct find_gather
             do
             {
                 segments = make_segments(segments);
-                // std::cout << "nsegments: " << segments.size() << std::endl;
-                // for(auto segment : segments)
-                //     std::cout << "    {" << segment.base << ", " << segment.stride << ", "
-                //               << segment.count << "}\n";
                 if(segments.empty())
                     return {};
                 auto seg = segments.front();
@@ -1154,6 +1150,149 @@ struct find_gather
             return {shape::float_type, lens, strides};
         }
 
+        // Detect run-length encoded patterns like [0, 1, 1, 2, 2, 2]
+        // Returns groups of (base_value, count) if the base values form an arithmetic sequence
+        // This allows decomposition into concat of broadcast views
+        static std::vector<std::pair<std::int64_t, std::size_t>>
+        detect_rle_pattern(const std::vector<arithmetic_segment>& segments)
+        {
+            if(segments.empty())
+                return {};
+
+            // First, expand segments to get actual values
+            std::vector<std::int64_t> values;
+            for(const auto& seg : segments)
+            {
+                for(std::size_t i = 0; i < seg.count; ++i)
+                {
+                    values.push_back(seg.base + seg.stride * static_cast<std::int64_t>(i));
+                }
+            }
+
+            if(values.size() < 2)
+                return {};
+
+            // Find runs of repeated values
+            std::vector<std::pair<std::int64_t, std::size_t>> runs;
+            std::int64_t current_value = values.front();
+            std::size_t current_count  = 1;
+
+            for(std::size_t i = 1; i < values.size(); ++i)
+            {
+                if(values[i] == current_value)
+                {
+                    current_count++;
+                }
+                else
+                {
+                    runs.push_back({current_value, current_count});
+                    current_value = values[i];
+                    current_count = 1;
+                }
+            }
+            runs.push_back({current_value, current_count});
+
+            // Check if base values form an arithmetic sequence
+            if(runs.size() < 2)
+                return runs;
+
+            std::int64_t base_stride = runs[1].first - runs[0].first;
+            if(base_stride <= 0)
+                return {}; // Not a valid pattern (need positive stride)
+
+            for(std::size_t i = 2; i < runs.size(); ++i)
+            {
+                if(runs[i].first - runs[i - 1].first != base_stride)
+                    return {}; // Base values don't form arithmetic sequence
+            }
+
+            return runs;
+        }
+
+        // Create views from RLE pattern by slicing and broadcasting each run
+        // Returns vector of (shape, offset) pairs suitable for concat
+        static std::vector<std::pair<shape, std::int64_t>>
+        make_rle_views(const std::vector<std::pair<std::int64_t, std::size_t>>& runs)
+        {
+            std::vector<std::pair<shape, std::int64_t>> views;
+
+            for(const auto& [base, count] : runs)
+            {
+                // Each run is a broadcast: shape {count} with stride 0
+                shape s{shape::float_type, {count}, {0}};
+                views.push_back({s, base});
+            }
+
+            return views;
+        }
+
+        // Expand segments to actual values
+        static std::vector<std::int64_t>
+        expand_segments_to_values(const std::vector<arithmetic_segment>& segments)
+        {
+            std::vector<std::int64_t> values;
+            for(const auto& seg : segments)
+            {
+                for(std::size_t i = 0; i < seg.count; ++i)
+                {
+                    values.push_back(seg.base + seg.stride * static_cast<std::int64_t>(i));
+                }
+            }
+            return values;
+        }
+
+        // Split segments at wrap-around points (where value decreases)
+        // This handles patterns like [0,0,1,1,2,2,5,5,3,3,4,4,5,5,...] by splitting at 5->3
+        // Returns chunks that are each monotonically non-decreasing
+        static std::vector<std::vector<arithmetic_segment>>
+        split_at_wraparound(const std::vector<arithmetic_segment>& segments)
+        {
+            auto values = expand_segments_to_values(segments);
+            if(values.size() < 2)
+                return {};
+
+            // Find wrap-around points (where value decreases)
+            std::vector<std::size_t> split_points;
+            for(std::size_t i = 1; i < values.size(); ++i)
+            {
+                if(values[i] < values[i - 1])
+                {
+                    split_points.push_back(i);
+                }
+            }
+
+            if(split_points.empty())
+                return {}; // No wrap-around found, caller should try other methods
+
+            // Create chunks at split points
+            std::vector<std::vector<arithmetic_segment>> chunks;
+            std::size_t start = 0;
+
+            for(std::size_t split : split_points)
+            {
+                // Convert value range [start, split) back to segments
+                std::vector<arithmetic_segment> chunk;
+                for(std::size_t i = start; i < split; ++i)
+                {
+                    chunk.push_back({values[i], 1, 1});
+                }
+                if(not chunk.empty())
+                    chunks.push_back(chunk);
+                start = split;
+            }
+
+            // Add final chunk
+            std::vector<arithmetic_segment> chunk;
+            for(std::size_t i = start; i < values.size(); ++i)
+            {
+                chunk.push_back({values[i], 1, 1});
+            }
+            if(not chunk.empty())
+                chunks.push_back(chunk);
+
+            return chunks;
+        }
+
         // Find where segment pattern breaks and return the split point
         // Returns 0 if no valid split found, otherwise returns index where to split
         static std::size_t find_segment_split(const std::vector<arithmetic_segment>& segments)
@@ -1161,12 +1300,212 @@ struct find_gather
             if(segments.size() < 2)
                 return 0;
 
+            // First, try to find a larger repeating pattern by grouping segments
+            // This helps with patterns like [0,0,1,1,2,2,0,0,1,1,2,2,...] where
+            // pairs form a higher-level pattern
+            auto grouped = make_segments(segments, false);
+            if(not grouped.empty() and grouped.size() < segments.size())
+            {
+                // Find pattern break in grouped segments
+                auto [group_seg, group_it] = find(grouped.begin(), grouped.end());
+                if(group_seg.count > 1 and group_seg.count < grouped.size())
+                {
+                    // Calculate the raw segment index from grouped segment count
+                    // Each grouped segment came from segments.front().count raw segments
+                    std::size_t elements_per_group = grouped.front().count;
+                    return group_seg.count * elements_per_group;
+                }
+            }
+
+            // Fallback: find pattern break in raw segments
             auto [first_seg, first_it] = find(segments.begin(), segments.end());
             if(first_seg.count == segments.size())
                 return 0; // All segments form one pattern, no split needed
 
             // The split point is where the first segment pattern ends
             return first_seg.count;
+        }
+
+        // Check if a chunk forms a valid pattern (strided view, RLE, or wrap-around)
+        static bool is_valid_chunk(const std::vector<arithmetic_segment>& chunk)
+        {
+            if(chunk.empty())
+                return false;
+
+            // Try strided view first
+            std::int64_t offset = chunk.front().base;
+            auto shifted        = shift(std::vector<arithmetic_segment>(chunk), -offset);
+            auto s              = make_strided_view(shifted);
+            if(not s.lens().empty() and s.elements() > 0)
+                return true;
+
+            // Try RLE pattern (for patterns like [0, 1, 1, 2, 2, 2])
+            auto rle_runs = detect_rle_pattern(chunk);
+            if(not rle_runs.empty())
+                return true;
+
+            // Check if wrap-around splitting would help (non-monotonic sequences)
+            auto wraparound_chunks = split_at_wraparound(chunk);
+            if(not wraparound_chunks.empty())
+            {
+                // Verify all sub-chunks are valid
+                return std::all_of(wraparound_chunks.begin(),
+                                   wraparound_chunks.end(),
+                                   [](const std::vector<arithmetic_segment>& sub) {
+                                       return is_valid_chunk(sub);
+                                   });
+            }
+
+            return false;
+        }
+
+        // Try to split segments into n equal-sized chunks
+        // Returns the chunks if all of them form valid patterns (strided view or RLE)
+        static std::vector<std::vector<arithmetic_segment>>
+        try_equal_split(const std::vector<arithmetic_segment>& segments, std::size_t n_chunks)
+        {
+            if(n_chunks < 2 or segments.size() % n_chunks != 0)
+                return {};
+
+            std::size_t chunk_size = segments.size() / n_chunks;
+            std::vector<std::vector<arithmetic_segment>> chunks;
+
+            for(std::size_t i = 0; i < n_chunks; ++i)
+            {
+                std::vector<arithmetic_segment> chunk(segments.begin() + i * chunk_size,
+                                                      segments.begin() + (i + 1) * chunk_size);
+
+                if(not is_valid_chunk(chunk))
+                    return {}; // This chunk doesn't form a valid pattern
+
+                chunks.push_back(chunk);
+            }
+
+            return chunks;
+        }
+
+        // Split segments into multiple chunks at pattern breaks iteratively
+        // Returns a vector of segment chunks that can each become a strided view
+        static std::vector<std::vector<arithmetic_segment>>
+        split_all_segments(const std::vector<arithmetic_segment>& segments, std::size_t max_chunks)
+        {
+            // First, try equal-sized splits for common divisors (batch boundaries)
+            // This helps with multi-batch patterns where each batch has a different structure
+            std::vector<std::size_t> divisors_to_try = {2, 3, 4, 6, 8};
+            for(auto n : divisors_to_try)
+            {
+                if(n > max_chunks)
+                    continue;
+                auto equal_chunks = try_equal_split(segments, n);
+                if(not equal_chunks.empty())
+                    return equal_chunks;
+            }
+
+            // Fall back to pattern-based splitting
+            std::vector<std::vector<arithmetic_segment>> chunks;
+            std::vector<arithmetic_segment> remaining = segments;
+
+            while(not remaining.empty() and chunks.size() < max_chunks)
+            {
+                // First try if remaining can form a single strided view
+                std::int64_t offset = remaining.front().base;
+                auto shifted        = shift(std::vector<arithmetic_segment>(remaining), -offset);
+                auto s              = make_strided_view(shifted);
+
+                if(not s.lens().empty() and s.elements() > 0)
+                {
+                    // Success - remaining forms a single view
+                    chunks.push_back(remaining);
+                    break;
+                }
+
+                // Find where the pattern breaks
+                std::size_t split_point = find_segment_split(remaining);
+                if(split_point == 0 or split_point >= remaining.size())
+                    return {}; // Can't split further
+
+                // Extract chunk and continue with rest
+                std::vector<arithmetic_segment> chunk(remaining.begin(),
+                                                      remaining.begin() + split_point);
+                chunks.push_back(chunk);
+                remaining = std::vector<arithmetic_segment>(remaining.begin() + split_point,
+                                                           remaining.end());
+            }
+
+            // Check if we consumed all segments
+            if(not remaining.empty() and chunks.size() >= max_chunks)
+                return {}; // Too many chunks needed
+
+            return chunks;
+        }
+
+        // Create strided views from segment chunks
+        // Returns a vector of (shape, offset) pairs for each view
+        static std::vector<std::pair<shape, std::int64_t>>
+        make_strided_views_from_chunks(const std::vector<std::vector<arithmetic_segment>>& chunks,
+                                       std::size_t depth,
+                                       std::size_t max_views)
+        {
+            if(depth > 16)
+                return {};
+
+            std::vector<std::pair<shape, std::int64_t>> views;
+
+            for(const auto& chunk : chunks)
+            {
+                if(views.size() >= max_views)
+                    return {};
+
+                std::int64_t offset = chunk.front().base;
+                auto shifted        = shift(std::vector<arithmetic_segment>(chunk), -offset);
+                auto s              = make_strided_view(shifted);
+
+                if(not s.lens().empty() and s.elements() > 0)
+                {
+                    views.push_back({s, offset});
+                }
+                else
+                {
+                    // Try RLE pattern (for patterns like [0, 1, 1, 2, 2, 2])
+                    auto rle_runs = detect_rle_pattern(chunk);
+                    if(not rle_runs.empty() and rle_runs.size() <= max_views - views.size())
+                    {
+                        auto rle_views = make_rle_views(rle_runs);
+                        views.insert(views.end(), rle_views.begin(), rle_views.end());
+                    }
+                    else
+                    {
+                        // Try splitting at wrap-around points (where value decreases)
+                        // This handles bilinear resize patterns with non-monotonic sequences
+                        auto wraparound_chunks = split_at_wraparound(chunk);
+                        if(not wraparound_chunks.empty() and
+                           wraparound_chunks.size() <= max_views - views.size())
+                        {
+                            auto sub_views = make_strided_views_from_chunks(
+                                wraparound_chunks, depth + 1, max_views - views.size());
+                            if(not sub_views.empty())
+                            {
+                                views.insert(views.end(), sub_views.begin(), sub_views.end());
+                                continue;
+                            }
+                        }
+
+                        // Fall back to pattern-based splitting
+                        auto sub_chunks = split_all_segments(chunk, max_views - views.size());
+                        if(sub_chunks.empty())
+                            return {};
+
+                        auto sub_views = make_strided_views_from_chunks(
+                            sub_chunks, depth + 1, max_views - views.size());
+                        if(sub_views.empty())
+                            return {};
+
+                        views.insert(views.end(), sub_views.begin(), sub_views.end());
+                    }
+                }
+            }
+
+            return views;
         }
 
         // Recursively create strided views by splitting at pattern breaks
@@ -1176,10 +1515,6 @@ struct find_gather
                                      std::size_t depth,
                                      std::size_t max_views)
         {
-            // Limit recursion depth to avoid pathological cases
-            if(depth > 8 or segments.empty())
-                return {};
-
             // First try to create a single strided view for all segments
             std::int64_t offset = segments.front().base;
             auto shifted        = shift(std::vector<arithmetic_segment>(segments), -offset);
@@ -1188,43 +1523,16 @@ struct find_gather
             if(not s.lens().empty() and s.elements() > 0)
             {
                 // Success - return this as a single view
-                // Accept both standard and non-standard shapes
                 return {{s, offset}};
             }
 
-            // Find where the pattern breaks
-            std::size_t split_point = find_segment_split(segments);
-            if(split_point == 0 or split_point >= segments.size())
+            // Split all segments into chunks iteratively (not recursively)
+            auto chunks = split_all_segments(segments, max_views);
+            if(chunks.empty() or chunks.size() < 2)
                 return {};
 
-            // Split segments at the break point
-            std::vector<arithmetic_segment> first_part(segments.begin(),
-                                                       segments.begin() + split_point);
-            std::vector<arithmetic_segment> rest_part(segments.begin() + split_point,
-                                                      segments.end());
-
-            // Recursively process each part
-            auto first_views = make_strided_views_recursive(first_part, depth + 1, max_views);
-            if(first_views.empty())
-                return {};
-
-            // Check if we've exceeded max views
-            if(first_views.size() >= max_views)
-                return {};
-
-            auto rest_views =
-                make_strided_views_recursive(rest_part, depth + 1, max_views - first_views.size());
-            if(rest_views.empty())
-                return {};
-
-            // Combine results
-            first_views.insert(first_views.end(), rest_views.begin(), rest_views.end());
-
-            // Limit total number of views
-            if(first_views.size() > max_views)
-                return {};
-
-            return first_views;
+            // Convert chunks to views
+            return make_strided_views_from_chunks(chunks, 0, max_views);
         }
 
         // Attempt to create multiple strided views that can be concatenated
@@ -1233,9 +1541,21 @@ struct find_gather
         make_strided_views(const std::vector<arithmetic_segment>& segments,
                            std::size_t input_elements)
         {
-            // Allow more views for larger inputs, but cap at reasonable limit
+            if(segments.empty())
+                return {};
+
+            // Calculate total output elements from segments
+            std::size_t output_elements = 0;
+            for(const auto& seg : segments)
+                output_elements += seg.count;
+
+            // Allow more views for larger outputs, but cap at reasonable limit
+            // Use the larger of input or output elements to determine the limit
+            // Complex patterns like bilinear resize may need many views (one per RLE run)
+            std::size_t max_element_count = std::max(input_elements, output_elements);
             std::size_t max_views =
-                std::min<std::size_t>(16, std::max<std::size_t>(4, input_elements / 16));
+                std::min<std::size_t>(256, std::max<std::size_t>(4, max_element_count / 2));
+
             auto views = make_strided_views_recursive(segments, 0, max_views);
 
             // Need at least 2 views for concat to make sense

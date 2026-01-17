@@ -29,12 +29,15 @@
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/env.hpp>
 #include <vector>
 #include <map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_USE_RESIZE_OP);
 
 /*
  * Algorithm of calc_neighbor_points():
@@ -437,7 +440,8 @@ struct parse_resize : op_parser<parse_resize>
                                                    resize_args& resize,
                                                    instruction_ref args_0)
     {
-        if(args_0->get_shape().dynamic() or not resize.is_constant_scale_input())
+        if(enabled(MIGRAPHX_USE_RESIZE_OP{}) or args_0->get_shape().dynamic() or
+           not resize.is_constant_scale_input())
         {
             // Resize's compute_shape() will read scales_sizes_arg as "scales" or "sizes"
             // depending on its data type
@@ -470,7 +474,7 @@ struct parse_resize : op_parser<parse_resize>
         auto out_lens  = resize.out_lens;
         auto vec_scale = resize.vec_scale;
 
-        if(args_0->get_shape().dynamic())
+        if(enabled(MIGRAPHX_USE_RESIZE_OP{}) or args_0->get_shape().dynamic())
         {
             // Resize's compute_shape() will read scales_sizes_arg as "scales" or "sizes"
             // depending on its data type

@@ -26,6 +26,7 @@
 #define MIGRAPHX_GUARD_OPERATORS_RESIZE_HPP
 
 #include <array>
+#include <algorithm>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
@@ -320,6 +321,16 @@ struct resize
                             static_cast<std::size_t>(input.dyn_dims()[i].max * scales[i]);
                     }
                 }
+            }
+            const bool all_fixed = std::all_of(dyn_dims.begin(),
+                                               dyn_dims.end(),
+                                               [](const auto& d) { return d.min == d.max; });
+            if(all_fixed)
+            {
+                std::vector<std::size_t> lens;
+                for(const auto& d : dyn_dims)
+                    lens.push_back(d.min);
+                return shape{input.type(), lens};
             }
             return {input.type(), dyn_dims};
         }

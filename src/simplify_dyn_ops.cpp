@@ -705,7 +705,7 @@ void simplify_dyn_ops::apply(module& m) const
 {
     match::find_matches(m,
                         find_broadcast_with_dims_static{},
-                        find_resize_static{},
+                        // find_resize_static{},
                         find_static_dimensions_of{},
                         find_const_alloc_reshapes{},
                         find_static_2in_broadcasts{},

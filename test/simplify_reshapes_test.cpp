@@ -1588,7 +1588,7 @@ TEST_CASE(optimize_resize_ind_complex)
         std::vector<int> ind = {0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 0, 1, 2, 2, 2, 3,
                                 3, 3, 2, 2, 2, 3, 3, 3, 0, 0, 0, 1, 1, 1, 0, 0,
                                 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 3, 3};
-        auto li = m1.add_literal(migraphx::literal(si, ind));
+        auto li              = m1.add_literal(migraphx::literal(si, ind));
 
         auto lrsp = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), inx);
         auto gr   = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
@@ -1598,8 +1598,8 @@ TEST_CASE(optimize_resize_ind_complex)
     run_pass(m1);
 
     // Verify output shape is preserved
-    auto ret = std::find_if(
-        m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "@return"; });
+    auto ret =
+        std::find_if(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "@return"; });
     EXPECT(ret != m1.end());
     auto softmax_ins = ret->inputs().front();
     EXPECT(softmax_ins->get_shape().lens() == std::vector<std::size_t>{1, 2, 4, 6});
@@ -1833,7 +1833,7 @@ TEST_CASE(where_different_cond_values)
 
         // View 2+3+4: indices [0,1,0,1] expanded to individual elements and a pair
         // The RLE algorithm creates separate slices for each position
-        auto flat = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), data);
+        auto flat     = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), data);
         auto v2_slice = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), flat);
         auto v3_slice = m2.add_instruction(
@@ -2824,8 +2824,8 @@ TEST_CASE(gather_resize_bilinear_pattern)
     run_pass(m1);
 
     // Verify output shape is preserved
-    auto ret = std::find_if(
-        m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "@return"; });
+    auto ret =
+        std::find_if(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "@return"; });
     EXPECT(ret != m1.end());
     EXPECT(ret->inputs().front()->get_shape().lens() == std::vector<std::size_t>{4, 2, 6, 6});
 
@@ -2888,8 +2888,8 @@ TEST_CASE(gather_upsample_nearest_2x)
     EXPECT(not has_gather);
 
     // Verify output shape is preserved
-    auto ret = std::find_if(
-        m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "@return"; });
+    auto ret =
+        std::find_if(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "@return"; });
     EXPECT(ret != m1.end());
     EXPECT(ret->inputs().front()->get_shape().lens() == std::vector<std::size_t>{2, 6, 6});
 }

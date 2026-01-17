@@ -1349,11 +1349,10 @@ struct find_gather
             if(not wraparound_chunks.empty())
             {
                 // Verify all sub-chunks are valid
-                return std::all_of(wraparound_chunks.begin(),
-                                   wraparound_chunks.end(),
-                                   [](const std::vector<arithmetic_segment>& sub) {
-                                       return is_valid_chunk(sub);
-                                   });
+                return std::all_of(
+                    wraparound_chunks.begin(),
+                    wraparound_chunks.end(),
+                    [](const std::vector<arithmetic_segment>& sub) { return is_valid_chunk(sub); });
             }
 
             return false;
@@ -1429,7 +1428,7 @@ struct find_gather
                                                       remaining.begin() + split_point);
                 chunks.push_back(chunk);
                 remaining = std::vector<arithmetic_segment>(remaining.begin() + split_point,
-                                                           remaining.end());
+                                                            remaining.end());
             }
 
             // Check if we consumed all segments

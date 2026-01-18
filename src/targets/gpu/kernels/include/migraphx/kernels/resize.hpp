@@ -38,9 +38,9 @@ namespace migraphx {
 struct coord_transform_half_pixel
 {
     template <class T>
-    MIGRAPHX_DEVICE_CONSTEXPR double operator()(index_int, index_int, index_int idx, T scale) const
+    MIGRAPHX_DEVICE_CONSTEXPR float operator()(index_int, index_int, index_int idx, T scale) const
     {
-        return (static_cast<double>(idx) + 0.5) / static_cast<double>(scale) - 0.5;
+        return (static_cast<float>(idx) + 0.5) / static_cast<float>(scale) - 0.5;
     }
 };
 
@@ -90,7 +90,7 @@ struct nearest_floor
     MIGRAPHX_DEVICE_CONSTEXPR index_int operator()(index_int d_in, float val) const
     {
         val = max(0.0f, min(static_cast<float>(d_in - 1), val));
-        return static_cast<index_int>(floor(val));
+        return static_cast<index_int>(migraphx::floor(val));
     }
 };
 
@@ -99,7 +99,7 @@ struct nearest_ceil
     MIGRAPHX_DEVICE_CONSTEXPR index_int operator()(index_int d_in, float val) const
     {
         val = max(0.0f, min(static_cast<float>(d_in - 1), val));
-        return static_cast<index_int>(ceil(val));
+        return static_cast<index_int>(migraphx::ceil(val));
     }
 };
 
@@ -108,7 +108,7 @@ struct nearest_round_prefer_floor
     MIGRAPHX_DEVICE_CONSTEXPR index_int operator()(index_int d_in, float val) const
     {
         val = max(0.0f, min(static_cast<float>(d_in - 1), val));
-        return static_cast<index_int>(ceil(val - 0.5));
+        return static_cast<index_int>(migraphx::ceil(val - 0.5));
     }
 };
 
@@ -117,14 +117,16 @@ struct nearest_round_prefer_ceil
     MIGRAPHX_DEVICE_CONSTEXPR index_int operator()(index_int d_in, float val) const
     {
         val = max(0.0f, min(static_cast<float>(d_in - 1), val));
-        return static_cast<index_int>(round(val));
+        return static_cast<index_int>(migraphx::round(val));
     }
 };
 
 // Compute input indices for nearest neighbor mode
 template <class CoordOp, class NearestOp, class InShape, class OutShape, class Scales>
-MIGRAPHX_DEVICE_CONSTEXPR auto
-compute_nearest_idx(InShape in_shape, OutShape out_shape, index_int out_idx, const Scales& scales)
+MIGRAPHX_DEVICE_CONSTEXPR auto compute_nearest_idx(InShape in_shape,
+                                                   OutShape out_shape,
+                                                   index_int out_idx,
+                                                   const Scales& scales)
 {
     auto out_multi      = out_shape.multi(out_idx);
     constexpr auto ndim = InShape{}.lens.size();
@@ -149,8 +151,8 @@ struct interp_params
 };
 
 template <class CoordOp, class T>
-MIGRAPHX_DEVICE_CONSTEXPR interp_params<T>
-compute_interp_params_1d(index_int in_len, index_int out_len, index_int out_idx, T scale)
+MIGRAPHX_DEVICE_CONSTEXPR interp_params<T> compute_interp_params_1d(
+    index_int in_len, index_int out_len, index_int out_idx, T scale)
 {
     // Handle degenerate dimension (length 1) to avoid NaNs
     if(in_len <= 1)
@@ -181,7 +183,8 @@ __device__ void resize_nearest(Input input, Output output, Scales scales)
     auto out_shape     = output.get_shape();
 
     idx.global_stride(out_shape.elements(), [&](auto out_idx) {
-        auto in_idx = compute_nearest_idx<CoordOp, NearestOp>(in_shape, out_shape, out_idx, scales);
+        auto in_idx = compute_nearest_idx<CoordOp, NearestOp>(
+            in_shape, out_shape, out_idx, scales);
         output[out_idx] = input[in_idx];
     });
 }
@@ -202,8 +205,10 @@ __device__ void resize_linear(Input input, Output output, Scales scales)
         array<interp_params<float>, ndim> params{};
         for(index_int d = 0; d < ndim; ++d)
         {
-            params[d] = compute_interp_params_1d<CoordOp>(
-                in_shape.lens[d], out_shape.lens[d], out_multi[d], scales[d]);
+            params[d] = compute_interp_params_1d<CoordOp>(in_shape.lens[d],
+                                                         out_shape.lens[d],
+                                                         out_multi[d],
+                                                         scales[d]);
         }
 
         // Accumulate over 2^ndim corners
@@ -217,11 +222,11 @@ __device__ void resize_linear(Input input, Output output, Scales scales)
             for(index_int d = 0; d < ndim; ++d)
             {
                 const bool use_high = ((mask >> d) & 1U) != 0U;
-                w *= use_high ? params[d].weight : (1.0 - params[d].weight);
+                w *= use_high ? params[d].weight : (1.0f - params[d].weight);
                 in_multi[d] = use_high ? params[d].i1 : params[d].i0;
             }
 
-            if(w == 0.0)
+            if(w == 0.0f)
                 continue;
 
             acc += w * migraphx::convert<float>(input[in_multi]);

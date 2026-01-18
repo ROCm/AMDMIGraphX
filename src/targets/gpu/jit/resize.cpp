@@ -144,7 +144,7 @@ struct resize_compiler : compiler<resize_compiler>
         }
 
         hip_compile_options options;
-        options.set_launch_params(v, compute_global_for(ctx, inputs.back().elements()), 128);
+        options.set_launch_params(v, compute_global_for(ctx, inputs.back().elements()));
         options.output      = inputs.back();
         options.inputs      = inputs;
 

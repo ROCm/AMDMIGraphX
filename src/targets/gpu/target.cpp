@@ -51,6 +51,7 @@
 #include <migraphx/rewrite_low_precision.hpp>
 #include <migraphx/rewrite_pooling.hpp>
 #include <migraphx/rewrite_reduce.hpp>
+#include <migraphx/rewrite_resize.hpp>
 #include <migraphx/rewrite_quantization.hpp>
 #include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/rewrite_topk.hpp>
@@ -183,6 +184,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), split_single_dyn_dim{}),
         dead_code_elimination{},
         simplify_dyn_ops{},
+        dead_code_elimination{},
+        enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), rewrite_resize{}),
         dead_code_elimination{},
         normalize_ops{},
         dead_code_elimination{},

@@ -26,7 +26,14 @@
 
 TEST_CASE(resize_linear_non_const_test)
 {
-    // runtime (non-constant) input is only supported in "nearest" mode
+    // Non-constant scales input now supported - emits resize op
     migraphx::onnx_options options;
-    EXPECT(test::throws([&] { read_onnx("resize_linear_non_const_test.onnx", options); }));
+    options.map_dyn_input_dims["X"] = {{1, 4}, {1, 1}, {2, 2}, {4, 4}};
+    auto prog = read_onnx("resize_linear_non_const_test.onnx", options);
+
+    // Verify it has a resize instruction
+    auto* mm = prog.get_main_module();
+    EXPECT(std::any_of(mm->begin(), mm->end(), [](const auto& ins) {
+        return ins.name() == "resize";
+    }));
 }

@@ -35,18 +35,17 @@ TEST_CASE(resize_roi_skip_test)
 
     migraphx::shape sscale{migraphx::shape::float_type, {4}};
     std::vector<float> scaled = {1, 1, 2, 2};
-    mm->add_literal(migraphx::literal(sscale, scaled));
+    auto scales = mm->add_literal(migraphx::literal(sscale, scaled));
 
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 4}};
     auto inx = mm->add_parameter("X", sx);
 
-    migraphx::shape si{migraphx::shape::int32_type, {1, 1, 4, 8}};
-    std::vector<int> ind = {0, 0, 1, 1, 1, 1, 2, 2, 3, 3, 3, 3, 2, 2, 3, 3,
-                            3, 3, 2, 2, 3, 3, 3, 3, 2, 2, 3, 3, 3, 4, 4, 4};
-    auto li              = mm->add_literal(migraphx::literal(si, ind));
-
-    auto lrsp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), inx);
-    auto r    = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
+    auto r = mm->add_instruction(
+        migraphx::make_op("resize",
+                          {{"nearest_mode", "round_prefer_floor"},
+                           {"coordinate_transformation_mode", "half_pixel"}}),
+        inx,
+        scales);
     mm->add_return({r});
 
     auto prog = read_onnx("resize_roi_skip_test.onnx");

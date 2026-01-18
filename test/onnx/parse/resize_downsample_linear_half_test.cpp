@@ -24,73 +24,26 @@
 
 #include <onnx_test.hpp>
 
-/* IR for the test case below:
-module: "main"
-@0 = @literal{0.333008, 0.333008} -> half_type, {1, 1, 1, 2}, {2, 2, 2, 1}
-@1 = @literal{0.5, 0.5, 0.5, 0.5} -> half_type, {2, 1, 1, 2}, {2, 2, 2, 1}
-@2 = @literal{0, 2, 4, 6, 1, 3, 5, 7} -> int32_type, {4, 1, 1, 2}, {2, 2, 2, 1}
-X = @param:X -> half_type, {1, 1, 2, 4}, {8, 8, 4, 1}
-@4 = @literal{1, 1, 0.600098, 0.5} -> half_type, {4}, {1}
-@5 = undefined -> float_type, {}, {}
-@6 = reshape[dims={8}](X) -> half_type, {8}, {1}
-@7 = gather[axis=0](@6,@2) -> half_type, {4, 1, 1, 2}, {2, 2, 2, 1}
-@8 = slice[axes={0},starts={0},ends={2}](@7) -> half_type, {2, 1, 1, 2}, {2, 2, 2, 1}
-@9 = slice[axes={0},starts={2},ends={4}](@7) -> half_type, {2, 1, 1, 2}, {2, 2, 2, 1}
-@10 = sub(@9,@8) -> half_type, {2, 1, 1, 2}, {2, 2, 2, 1}
-@11 = mul(@10,@1) -> half_type, {2, 1, 1, 2}, {2, 2, 2, 1}
-@12 = add(@11,@8) -> half_type, {2, 1, 1, 2}, {2, 2, 2, 1}
-@13 = slice[axes={0},starts={0},ends={1}](@12) -> half_type, {1, 1, 1, 2}, {2, 2, 2, 1}
-@14 = slice[axes={0},starts={1},ends={2}](@12) -> half_type, {1, 1, 1, 2}, {2, 2, 2, 1}
-@15 = sub(@14,@13) -> half_type, {1, 1, 1, 2}, {2, 2, 2, 1}
-@16 = mul(@15,@0) -> half_type, {1, 1, 1, 2}, {2, 2, 2, 1}
-@17 = add(@16,@13) -> half_type, {1, 1, 1, 2}, {2, 2, 2, 1}
-@18 = @return(@17)
-*/
-
 TEST_CASE(resize_downsample_linear_half_test)
 {
-    using migraphx::half;
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape ss{migraphx::shape::float_type, {4}};
     std::vector<float> ds = {1.0f, 1.0f, 0.6f, 0.5f};
-    mm->add_literal(migraphx::literal(ss, ds));
+    auto scales = mm->add_literal(migraphx::literal(ss, ds));
 
     migraphx::shape sx{migraphx::shape::half_type, {1, 1, 2, 4}};
     auto x = mm->add_parameter("X", sx);
 
-    migraphx::shape s_ind{migraphx::shape::int32_type, {4, 1, 1, 2}};
-    std::vector<int> d_ind = {0, 2, 4, 6, 1, 3, 5, 7};
-    auto l_ind             = mm->add_literal(migraphx::literal(s_ind, d_ind));
-
-    migraphx::shape s2{migraphx::shape::half_type, {2, 1, 1, 2}};
-    std::vector<float> d2(4, 0.5f);
-    auto l2 = mm->add_literal(migraphx::literal(s2, d2));
-
-    migraphx::shape s1{migraphx::shape::half_type, {1, 1, 1, 2}};
-    std::vector<float> d1(2, 0.5 / 0.6 - 0.5);
-    auto l1 = mm->add_literal(migraphx::literal(s1, d1));
-
     mm->add_instruction(migraphx::make_op("undefined"));
 
-    auto rsp   = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), x);
-    auto data  = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), rsp, l_ind);
-    auto slc20 = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), data);
-    auto slc21 = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {4}}}), data);
-    auto diff2 = mm->add_instruction(migraphx::make_op("sub"), slc21, slc20);
-    auto mul2  = mm->add_instruction(migraphx::make_op("mul"), diff2, l2);
-    auto add2  = mm->add_instruction(migraphx::make_op("add"), mul2, slc20);
-
-    auto slc10 = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), add2);
-    auto slc11 = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), add2);
-    auto diff1 = mm->add_instruction(migraphx::make_op("sub"), slc11, slc10);
-    auto mul1  = mm->add_instruction(migraphx::make_op("mul"), diff1, l1);
-    auto add1  = mm->add_instruction(migraphx::make_op("add"), mul1, slc10);
-    mm->add_return({add1});
+    auto r = mm->add_instruction(
+        migraphx::make_op("resize",
+                          {{"mode", "linear"},
+                           {"coordinate_transformation_mode", "half_pixel"}}),
+        x,
+        scales);
+    mm->add_return({r});
 
     auto prog = read_onnx("resize_downsample_linear_half_test.onnx");
     EXPECT(p == prog);

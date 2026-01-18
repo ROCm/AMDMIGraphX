@@ -32,12 +32,17 @@ TEST_CASE(upsample_ver7_test)
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
     auto ix = mm->add_parameter("X", sx);
 
-    migraphx::shape si{migraphx::shape::int32_type, {1, 1, 4, 6}};
-    std::vector<int> ind = {0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 3, 3};
+    // Upsample ver7 has scales as attribute, not input
+    // Create a literal for scales to match the parser output
+    migraphx::shape ss{migraphx::shape::float_type, {4}};
+    auto scales = mm->add_literal(migraphx::literal(ss, {1.0f, 1.0f, 2.0f, 3.0f}));
 
-    auto li  = mm->add_literal(migraphx::literal(si, ind));
-    auto rsp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), ix);
-    auto r   = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), rsp, li);
+    auto r = mm->add_instruction(
+        migraphx::make_op("resize",
+                          {{"nearest_mode", "round_prefer_floor"},
+                           {"coordinate_transformation_mode", "half_pixel"}}),
+        ix,
+        scales);
     mm->add_return({r});
 
     auto prog = read_onnx("upsample_ver7_test.onnx");

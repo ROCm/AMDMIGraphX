@@ -29,16 +29,22 @@ TEST_CASE(resize_with_same_inout_shapes_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    std::vector<float> ds = {1, 3, 5};
+    std::vector<int64_t> ds = {1, 3, 5};
     migraphx::shape ss{migraphx::shape::int64_type, {3}};
-    mm->add_literal(migraphx::literal{ss, ds});
+    auto sizes = mm->add_literal(migraphx::literal{ss, ds});
 
     migraphx::shape sx{migraphx::shape::float_type, {1, 3, 5}};
     auto inx = mm->add_parameter("X", sx);
 
     mm->add_instruction(migraphx::make_op("undefined"));
 
-    mm->add_return({inx});
+    auto r = mm->add_instruction(
+        migraphx::make_op("resize",
+                          {{"mode", "linear"},
+                           {"coordinate_transformation_mode", "half_pixel"}}),
+        inx,
+        sizes);
+    mm->add_return({r});
 
     auto prog = read_onnx("resize_with_same_inout_shapes_test.onnx");
 

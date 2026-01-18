@@ -50,8 +50,7 @@ struct coord_transform_pytorch_half_pixel
     MIGRAPHX_DEVICE_CONSTEXPR float
     operator()(index_int, index_int l_out, index_int idx, T scale) const
     {
-        return l_out > 1 ? (static_cast<float>(idx) + 0.5) / static_cast<float>(scale) - 0.5
-                         : 0.0;
+        return l_out > 1 ? (static_cast<float>(idx) + 0.5) / static_cast<float>(scale) - 0.5 : 0.0;
     }
 };
 
@@ -233,7 +232,7 @@ __device__ void resize_linear(Input input, Output output, Settings settings)
         }
 
         // Accumulate over 2^ndim corners
-        float acc              = 0.0;
+        float acc               = 0.0;
         const index_int corners = (ndim == 0) ? 1 : (1 << ndim);
         array<index_int, ndim> in_multi{};
 

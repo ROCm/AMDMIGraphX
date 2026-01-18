@@ -114,16 +114,16 @@ struct resize_compiler : compiler<resize_compiler>
         options.kernel_name = "resize_kernel";
 
         // Get mode (nearest or linear)
-        std::string mode = v.get("mode", "nearest");
+        std::string mode        = v.get("mode", "nearest");
         std::string resize_func = (mode == "linear") ? "resize_linear" : "resize_nearest";
 
         // Get coordinate transformation mode
-        std::string coord_mode = v.get("coordinate_transformation_mode", "half_pixel");
+        std::string coord_mode      = v.get("coordinate_transformation_mode", "half_pixel");
         std::string coord_transform = get_coord_transform(coord_mode);
 
         // Get nearest mode (only used for nearest interpolation)
         std::string nearest_mode = v.get("nearest_mode", "floor");
-        std::string nearest_op = get_nearest_op(nearest_mode);
+        std::string nearest_op   = get_nearest_op(nearest_mode);
 
         // Get scales - need to compute from shapes if not provided
         std::vector<float> scales;
@@ -217,11 +217,11 @@ struct resize_compiler : compiler<resize_compiler>
 
         // Return compiler_replace that skips the scales input when calling the kernel
         return {cop, [](module& m, instruction_ref ins, const operation& op) {
-            // Get inputs: X, scales/sizes, output
-            auto args = ins->inputs();
-            // Only pass X and output to the kernel, skip scales/sizes (args[1])
-            return m.replace_instruction(ins, op, args[0], args[2]);
-        }};
+                    // Get inputs: X, scales/sizes, output
+                    auto args = ins->inputs();
+                    // Only pass X and output to the kernel, skip scales/sizes (args[1])
+                    return m.replace_instruction(ins, op, args[0], args[2]);
+                }};
     }
 };
 

@@ -126,7 +126,8 @@ static instruction_ref rewrite_nearest_resize(module& m,
 
     // reshape input to one-dimension
     std::vector<int64_t> rsp_lens = {static_cast<int64_t>(in_s.elements())};
-    auto rsp = m.insert_instruction(ins, make_op("reshape", {{"dims", rsp_lens}}), ins->inputs()[0]);
+    auto rsp =
+        m.insert_instruction(ins, make_op("reshape", {{"dims", rsp_lens}}), ins->inputs()[0]);
 
     // ins_ind should be a multi dimensional index that will restore original rank
     shape ind_s{shape::int32_type, out_lens};
@@ -153,7 +154,8 @@ static instruction_ref rewrite_linear_resize(module& m,
 
     // reshape input to one-dimension
     std::vector<int64_t> rsp_lens = {static_cast<int64_t>(in_s.elements())};
-    auto rsp = m.insert_instruction(ins, make_op("reshape", {{"dims", rsp_lens}}), ins->inputs()[0]);
+    auto rsp =
+        m.insert_instruction(ins, make_op("reshape", {{"dims", rsp_lens}}), ins->inputs()[0]);
 
     auto nearest_floor = op::resize::get_nearest_op("floor");
     auto nearest_ceil  = op::resize::get_nearest_op("ceil");
@@ -212,13 +214,10 @@ static instruction_ref rewrite_linear_resize(module& m,
         // slice the data
         int64_t slc_stride = dim_lens[0];
         auto low           = m.insert_instruction(
-            ins,
-            make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {slc_stride}}}),
-            data);
+            ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {slc_stride}}}), data);
         auto hi = m.insert_instruction(
             ins,
-            make_op("slice",
-                    {{"axes", {0}}, {"starts", {slc_stride}}, {"ends", {2 * slc_stride}}}),
+            make_op("slice", {{"axes", {0}}, {"starts", {slc_stride}}, {"ends", {2 * slc_stride}}}),
             data);
         auto diff = m.insert_instruction(ins, make_op("sub"), hi, low);
         auto ddf  = m.insert_instruction(ins, make_op("mul"), diff, ins_delta);
@@ -268,13 +267,12 @@ void rewrite_resize::apply(module& m) const
             // Use scales attribute
             vec_scale = resize_op.scales;
             // Compute output sizes from scales
-            std::transform(in_lens.begin(),
-                           in_lens.end(),
-                           vec_scale.begin(),
-                           out_lens.begin(),
-                           [](size_t in_len, float scale) {
-                               return static_cast<size_t>(in_len * scale);
-                           });
+            std::transform(
+                in_lens.begin(),
+                in_lens.end(),
+                vec_scale.begin(),
+                out_lens.begin(),
+                [](size_t in_len, float scale) { return static_cast<size_t>(in_len * scale); });
         }
         else
         {

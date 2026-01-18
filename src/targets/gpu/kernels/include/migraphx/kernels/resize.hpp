@@ -56,10 +56,9 @@ struct coord_transform_align_corners
     template <class T>
     MIGRAPHX_DEVICE_CONSTEXPR T operator()(index_int l_in, index_int l_out, index_int idx, T) const
     {
-        return (l_out == 1)
-                   ? T{0.0}
-                   : (T{1.0} * static_cast<T>(idx) * static_cast<T>(l_in - 1) /
-                      static_cast<T>(l_out - 1));
+        return (l_out == 1) ? T{0.0}
+                            : (T{1.0} * static_cast<T>(idx) * static_cast<T>(l_in - 1) /
+                               static_cast<T>(l_out - 1));
     }
 };
 
@@ -147,8 +146,8 @@ MIGRAPHX_DEVICE_CONSTEXPR auto compute_nearest_idx(Shape in_shape,
 
     for(index_int i = 0; i < in_shape.lens.size(); ++i)
     {
-        auto coord   = coord_op(in_shape.lens[i], out_shape.lens[i], out_multi[i], scales[i]);
-        in_multi[i]  = nearest_op(in_shape.lens[i], coord);
+        auto coord  = coord_op(in_shape.lens[i], out_shape.lens[i], out_multi[i], scales[i]);
+        in_multi[i] = nearest_op(in_shape.lens[i], coord);
     }
 
     return in_shape.index(in_multi);
@@ -164,11 +163,8 @@ struct interp_params
 };
 
 template <class T, class CoordOp>
-MIGRAPHX_DEVICE_CONSTEXPR interp_params<T> compute_interp_params_1d(index_int in_len,
-                                                                    index_int out_len,
-                                                                    index_int out_idx,
-                                                                    T scale,
-                                                                    const CoordOp& coord_op)
+MIGRAPHX_DEVICE_CONSTEXPR interp_params<T> compute_interp_params_1d(
+    index_int in_len, index_int out_len, index_int out_idx, T scale, const CoordOp& coord_op)
 {
     // Handle degenerate dimension (length 1) to avoid NaNs
     if(in_len <= 1)
@@ -194,17 +190,14 @@ MIGRAPHX_DEVICE_CONSTEXPR interp_params<T> compute_interp_params_1d(index_int in
 template <class Input, class Output, class Settings>
 __device__ void resize_nearest(Input input, Output output, Settings settings)
 {
-    auto idx        = make_index();
-    auto in_shape   = input.get_shape();
-    auto out_shape  = output.get_shape();
+    auto idx           = make_index();
+    auto in_shape      = input.get_shape();
+    auto out_shape     = output.get_shape();
     const auto& scales = settings.scales;
 
     idx.global_stride(out_shape.elements(), [&](auto out_idx) {
-        auto in_idx     = compute_nearest_idx(in_shape, out_shape,
-                                              out_idx,
-                                              settings.nearest_op,
-                                              settings.coord_transform,
-                                              scales);
+        auto in_idx = compute_nearest_idx(
+            in_shape, out_shape, out_idx, settings.nearest_op, settings.coord_transform, scales);
         output[out_idx] = input.data()[in_idx];
     });
 }
@@ -213,11 +206,11 @@ __device__ void resize_nearest(Input input, Output output, Settings settings)
 template <class Input, class Output, class Settings>
 __device__ void resize_linear(Input input, Output output, Settings settings)
 {
-    auto idx        = make_index();
-    auto in_shape   = input.get_shape();
-    auto out_shape  = output.get_shape();
+    auto idx            = make_index();
+    auto in_shape       = input.get_shape();
+    auto out_shape      = output.get_shape();
     constexpr auto ndim = decltype(in_shape.lens.size()){};
-    const auto& scales = settings.scales;
+    const auto& scales  = settings.scales;
 
     using value_type = typename Input::type;
 
@@ -228,13 +221,16 @@ __device__ void resize_linear(Input input, Output output, Settings settings)
         array<interp_params<double>, ndim> params{};
         for(index_int d = 0; d < ndim; ++d)
         {
-            params[d] = compute_interp_params_1d<double>(
-                in_shape.lens[d], out_shape.lens[d], out_multi[d], scales[d], settings.coord_transform);
+            params[d] = compute_interp_params_1d<double>(in_shape.lens[d],
+                                                         out_shape.lens[d],
+                                                         out_multi[d],
+                                                         scales[d],
+                                                         settings.coord_transform);
         }
 
         // Accumulate over 2^ndim corners
-        double acc                = 0.0;
-        const index_int corners   = (ndim == 0) ? 1 : (1 << ndim);
+        double acc              = 0.0;
+        const index_int corners = (ndim == 0) ? 1 : (1 << ndim);
         array<index_int, ndim> in_multi{};
 
         for(index_int mask = 0; mask < corners; ++mask)

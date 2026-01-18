@@ -47,16 +47,19 @@ struct coord_transform_half_pixel
 struct coord_transform_pytorch_half_pixel
 {
     template <class T>
-    MIGRAPHX_DEVICE_CONSTEXPR double operator()(index_int, index_int l_out, index_int idx, T scale) const
+    MIGRAPHX_DEVICE_CONSTEXPR double
+    operator()(index_int, index_int l_out, index_int idx, T scale) const
     {
-        return l_out > 1 ? (static_cast<double>(idx) + 0.5) / static_cast<double>(scale) - 0.5 : 0.0;
+        return l_out > 1 ? (static_cast<double>(idx) + 0.5) / static_cast<double>(scale) - 0.5
+                         : 0.0;
     }
 };
 
 struct coord_transform_align_corners
 {
     template <class T>
-    MIGRAPHX_DEVICE_CONSTEXPR double operator()(index_int l_in, index_int l_out, index_int idx, T) const
+    MIGRAPHX_DEVICE_CONSTEXPR double
+    operator()(index_int l_in, index_int l_out, index_int idx, T) const
     {
         return (l_out == 1) ? 0.0
                             : (1.0 * static_cast<double>(idx) * static_cast<double>(l_in - 1) /

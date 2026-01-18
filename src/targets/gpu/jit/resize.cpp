@@ -169,7 +169,7 @@ struct resize_compiler : compiler<resize_compiler>
     }
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
-    {        
+    {
         auto v      = op.to_value();
         auto inputs = ins->inputs();
 

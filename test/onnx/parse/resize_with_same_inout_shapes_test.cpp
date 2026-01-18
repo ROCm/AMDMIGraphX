@@ -39,12 +39,12 @@ TEST_CASE(resize_with_same_inout_shapes_test)
     mm->add_instruction(migraphx::make_op("undefined"));
 
     // scales computed from sizes: {1/1, 3/3, 5/5} = {1, 1, 1}
-    auto r = mm->add_instruction(
-        migraphx::make_op("resize",
-                          {{"scales", {1.0f, 1.0f, 1.0f}},
-                           {"mode", "linear"},
-                           {"coordinate_transformation_mode", "half_pixel"}}),
-        inx);
+    auto r =
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"scales", {1.0f, 1.0f, 1.0f}},
+                                               {"mode", "linear"},
+                                               {"coordinate_transformation_mode", "half_pixel"}}),
+                            inx);
     mm->add_return({r});
 
     auto prog = read_onnx("resize_with_same_inout_shapes_test.onnx");

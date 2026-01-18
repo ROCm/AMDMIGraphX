@@ -41,12 +41,12 @@ TEST_CASE(resize_nonstd_input_test)
 
     mm->add_instruction(migraphx::make_op("undefined"));
 
-    auto r = mm->add_instruction(
-        migraphx::make_op("resize",
-                          {{"scales", {1.0f, 1.0f, 0.6f, 0.6f}},
-                           {"nearest_mode", "ceil"},
-                           {"coordinate_transformation_mode", "asymmetric"}}),
-        tx);
+    auto r =
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"scales", {1.0f, 1.0f, 0.6f, 0.6f}},
+                                               {"nearest_mode", "ceil"},
+                                               {"coordinate_transformation_mode", "asymmetric"}}),
+                            tx);
     mm->add_return({r});
 
     auto prog = read_onnx("resize_nonstd_input_test.onnx");

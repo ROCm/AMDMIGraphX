@@ -28,12 +28,11 @@ TEST_CASE(resize_roi_skip_test)
 {
     // Parse the ONNX and check it produces 1-input resize with scales attribute
     auto prog = read_onnx("resize_roi_skip_test.onnx");
-    auto* mm = prog.get_main_module();
+    auto* mm  = prog.get_main_module();
 
     // Check that we have a resize instruction with scales attribute
-    auto resize_it = std::find_if(mm->begin(), mm->end(), [](const auto& ins) {
-        return ins.name() == "resize";
-    });
+    auto resize_it = std::find_if(
+        mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "resize"; });
     EXPECT(resize_it != mm->end());
 
     // Check that resize has 1 input (not 2)

@@ -39,12 +39,12 @@ TEST_CASE(resize_downsample_c_test)
 
     mm->add_instruction(migraphx::make_op("undefined"));
 
-    auto r = mm->add_instruction(
-        migraphx::make_op("resize",
-                          {{"scales", {1.0f, 1.0f, 0.6f, 0.6f}},
-                           {"nearest_mode", "ceil"},
-                           {"coordinate_transformation_mode", "asymmetric"}}),
-        inx);
+    auto r =
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"scales", {1.0f, 1.0f, 0.6f, 0.6f}},
+                                               {"nearest_mode", "ceil"},
+                                               {"coordinate_transformation_mode", "asymmetric"}}),
+                            inx);
     mm->add_return({r});
 
     auto prog = read_onnx("resize_downsample_c_test.onnx");

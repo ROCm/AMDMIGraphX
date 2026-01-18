@@ -38,12 +38,12 @@ TEST_CASE(upsample_test)
 
     mm->add_instruction(migraphx::make_op("undefined"));
 
-    auto r = mm->add_instruction(
-        migraphx::make_op("resize",
-                          {{"scales", {1.0f, 1.0f, 2.0f, 3.0f}},
-                           {"nearest_mode", "round_prefer_floor"},
-                           {"coordinate_transformation_mode", "half_pixel"}}),
-        ix);
+    auto r =
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"scales", {1.0f, 1.0f, 2.0f, 3.0f}},
+                                               {"nearest_mode", "round_prefer_floor"},
+                                               {"coordinate_transformation_mode", "half_pixel"}}),
+                            ix);
     mm->add_return({r});
 
     auto prog = read_onnx("upsample_test.onnx");

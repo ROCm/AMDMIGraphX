@@ -169,7 +169,7 @@ struct resize_compiler : compiler<resize_compiler>
     }
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
-    {
+    {        
         auto v      = op.to_value();
         auto inputs = ins->inputs();
 
@@ -183,99 +183,50 @@ struct resize_compiler : compiler<resize_compiler>
         std::vector<float> scales;
         std::vector<size_t> out_lens;
 
-        // Handle 1-input mode: scales/sizes are attributes
-        if(inputs.size() == 2)
+        if(inputs.size() != 2)
+            MIGRAPHX_THROW("GPU resize: Incorrect arguments");
+
+        // 1-input resize: inputs are [X, output_buffer]
+        // Get scales from attributes
+        if(v.contains("scales") and not v.at("scales").empty())
         {
-            // 1-input resize: inputs are [X, output_buffer]
-            // Get scales from attributes
-            if(v.contains("scales") and not v.at("scales").empty())
+            scales = v.at("scales").to_vector<float>();
+            out_lens.resize(in_lens.size());
+            for(size_t i = 0; i < in_lens.size(); ++i)
             {
-                scales = v.at("scales").to_vector<float>();
-                out_lens.resize(in_lens.size());
-                for(size_t i = 0; i < in_lens.size(); ++i)
-                {
-                    out_lens[i] = static_cast<size_t>(in_lens[i] * scales[i]);
-                }
+                out_lens[i] = static_cast<size_t>(in_lens[i] * scales[i]);
             }
-            else if(v.contains("sizes") and not v.at("sizes").empty())
-            {
-                out_lens = v.at("sizes").to_vector<size_t>();
-                scales.resize(in_lens.size());
-                for(size_t i = 0; i < in_lens.size(); ++i)
-                {
-                    scales[i] = static_cast<float>(out_lens[i]) / static_cast<float>(in_lens[i]);
-                }
-            }
-            else
-            {
-                // No scales or sizes - compute from shapes
-                out_lens = inputs.back()->get_shape().lens();
-                scales.resize(in_lens.size());
-                for(size_t i = 0; i < in_lens.size(); ++i)
-                {
-                    scales[i] = static_cast<float>(out_lens[i]) / static_cast<float>(in_lens[i]);
-                }
-            }
-            v["scales"] = scales;
-
-            std::vector<shape> shapes;
-            shapes.push_back(in_shape);
-            shapes.push_back(inputs.back()->get_shape());
-
-            auto cop = compile_op(ctx, shapes, v);
-            return {cop, [](module& m, instruction_ref ins, const operation& op) {
-                        auto args = ins->inputs();
-                        return m.replace_instruction(ins, op, args[0], args[1]);
-                    }};
         }
-        // Handle 2-input mode: scales/sizes are a separate input
-        else if(inputs.size() == 3)
+        else if(v.contains("sizes") and not v.at("sizes").empty())
         {
-            // 2-input resize: inputs are [X, scales/sizes, output_buffer]
-            auto scales_sizes_arg = inputs[1]->eval();
-            if(scales_sizes_arg.empty())
+            out_lens = v.at("sizes").to_vector<size_t>();
+            scales.resize(in_lens.size());
+            for(size_t i = 0; i < in_lens.size(); ++i)
             {
-                // Can't evaluate at compile time - return empty optional to skip this compiler
-                return {};
+                scales[i] = static_cast<float>(out_lens[i]) / static_cast<float>(in_lens[i]);
             }
-
-            auto scales_type = inputs[1]->get_shape().type();
-
-            if(scales_type == shape::int64_type)
-            {
-                // Input is output sizes - compute scales
-                std::vector<int64_t> sizes;
-                scales_sizes_arg.visit([&](const auto& s) { sizes.assign(s.begin(), s.end()); });
-                out_lens.assign(sizes.begin(), sizes.end());
-                scales.resize(in_lens.size());
-                for(size_t i = 0; i < in_lens.size(); ++i)
-                {
-                    scales[i] = static_cast<float>(out_lens[i]) / static_cast<float>(in_lens[i]);
-                }
-            }
-            else
-            {
-                // Input is scales
-                scales_sizes_arg.visit([&](const auto& s) { scales.assign(s.begin(), s.end()); });
-                out_lens.resize(in_lens.size());
-                for(size_t i = 0; i < in_lens.size(); ++i)
-                {
-                    out_lens[i] = static_cast<size_t>(in_lens[i] * scales[i]);
-                }
-            }
-            v["scales"] = scales;
-
-            std::vector<shape> shapes;
-            shapes.push_back(in_shape);
-            shapes.push_back(shape{in_shape.type(), out_lens});
-
-            auto cop = compile_op(ctx, shapes, v);
-            return {cop, [](module& m, instruction_ref ins, const operation& op) {
-                        auto args = ins->inputs();
-                        // Skip scales/sizes input (args[1])
-                        return m.replace_instruction(ins, op, args[0], args[2]);
-                    }};
         }
+        else
+        {
+            // No scales or sizes - compute from shapes
+            out_lens = inputs.back()->get_shape().lens();
+            scales.resize(in_lens.size());
+            for(size_t i = 0; i < in_lens.size(); ++i)
+            {
+                scales[i] = static_cast<float>(out_lens[i]) / static_cast<float>(in_lens[i]);
+            }
+        }
+        v["scales"] = scales;
+
+        std::vector<shape> shapes;
+        shapes.push_back(in_shape);
+        shapes.push_back(inputs.back()->get_shape());
+
+        auto cop = compile_op(ctx, shapes, v);
+        return {cop, [](module& m, instruction_ref ins, const operation& op) {
+                    auto args = ins->inputs();
+                    return m.replace_instruction(ins, op, args[0], args[1]);
+                }};
 
         return {};
     }

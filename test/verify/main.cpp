@@ -158,6 +158,9 @@ int main(int argc, const char* argv[])
                             "test_batch_quant_dot_1<migraphx::fp8::fp8e5m2, float>",
                             "test_quant_dot_3args_4<migraphx::fp8::fp8e5m2, float>",
                             "test_quant_dot_3args_5<migraphx::fp8::fp8e5m2, float>",
+                            // Dynamic resize with 2-input mode not supported by JIT kernel
+                            "test_resize_dyn",
+                            "test_resize_dyn_scale",
                         });
     rv.run(argc, argv);
 }

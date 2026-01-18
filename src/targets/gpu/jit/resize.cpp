@@ -25,6 +25,7 @@
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
+#include <sstream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -41,7 +42,8 @@ namespace migraphx {
 
 extern "C" {
 
-MIGRAPHX_GLOBAL void resize_kernel(void* in_data, void* output)
+// Version 3: Double precision coord transforms
+MIGRAPHX_GLOBAL void ${kernel_name}(void* in_data, void* output)
 {
     make_tensors()(in_data, output)([](auto input, auto out) {
         auto settings = make_resize_settings(
@@ -99,7 +101,10 @@ struct resize_compiler : compiler<resize_compiler>
         {
             if(i > 0)
                 result += ", ";
-            result += std::to_string(scales[i]) + "f";
+            // Use hexfloat format to preserve exact float representation
+            std::ostringstream oss;
+            oss << std::hexfloat << scales[i] << "f";
+            result += oss.str();
         }
         result += ")";
         return result;
@@ -111,7 +116,17 @@ struct resize_compiler : compiler<resize_compiler>
         options.set_launch_params(v, compute_global_for(ctx, inputs.back().elements()), 128);
         options.output      = inputs.back();
         options.inputs      = inputs;
-        options.kernel_name = "resize_kernel";
+
+        // Include input and output shapes in kernel name plus version to prevent incorrect caching
+        // when the same operation is used with different configurations
+        // v3: Using double precision for coordinate transforms
+        std::string kernel_name = "resize_v3";
+        for(const auto& dim : inputs.front().lens())
+            kernel_name += "_" + std::to_string(dim);
+        kernel_name += "_to";
+        for(const auto& dim : inputs.back().lens())
+            kernel_name += "_" + std::to_string(dim);
+        options.kernel_name = kernel_name;
 
         // Get mode (nearest or linear)
         std::string mode        = v.get("mode", "nearest");
@@ -144,7 +159,8 @@ struct resize_compiler : compiler<resize_compiler>
         }
 
         auto src = interpolate_string(resize_kernel,
-                                      {{"coord_transform", coord_transform},
+                                      {{"kernel_name", options.kernel_name},
+                                       {"coord_transform", coord_transform},
                                        {"nearest_op", nearest_op},
                                        {"scales", scales_to_string(scales)},
                                        {"resize_func", resize_func}});
@@ -159,14 +175,63 @@ struct resize_compiler : compiler<resize_compiler>
 
         const auto& in_shape = inputs[0]->get_shape();
 
-        // We need to compute the actual output shape from the scales/sizes input
-        std::vector<float> scales;
-        std::vector<size_t> out_lens;
+        // For dynamic shapes, use the actual lens (which come from the dynamic shape's min_lens
+        // or max_lens depending on how the program was set up). The kernel handles shapes at
+        // runtime via make_tensors().
         const auto& in_lens = in_shape.lens();
 
-        // If we have a second input (scales/sizes), try to evaluate it to compute scales
-        if(inputs.size() > 1)
+        std::vector<float> scales;
+        std::vector<size_t> out_lens;
+
+        // Handle 1-input mode: scales/sizes are attributes
+        if(inputs.size() == 2)
         {
+            // 1-input resize: inputs are [X, output_buffer]
+            // Get scales from attributes
+            if(v.contains("scales") and not v.at("scales").empty())
+            {
+                scales = v.at("scales").to_vector<float>();
+                out_lens.resize(in_lens.size());
+                for(size_t i = 0; i < in_lens.size(); ++i)
+                {
+                    out_lens[i] = static_cast<size_t>(in_lens[i] * scales[i]);
+                }
+            }
+            else if(v.contains("sizes") and not v.at("sizes").empty())
+            {
+                out_lens = v.at("sizes").to_vector<size_t>();
+                scales.resize(in_lens.size());
+                for(size_t i = 0; i < in_lens.size(); ++i)
+                {
+                    scales[i] = static_cast<float>(out_lens[i]) / static_cast<float>(in_lens[i]);
+                }
+            }
+            else
+            {
+                // No scales or sizes - compute from shapes
+                out_lens = inputs.back()->get_shape().lens();
+                scales.resize(in_lens.size());
+                for(size_t i = 0; i < in_lens.size(); ++i)
+                {
+                    scales[i] = static_cast<float>(out_lens[i]) / static_cast<float>(in_lens[i]);
+                }
+            }
+            v["scales"] = scales;
+
+            std::vector<shape> shapes;
+            shapes.push_back(in_shape);
+            shapes.push_back(inputs.back()->get_shape());
+
+            auto cop = compile_op(ctx, shapes, v);
+            return {cop, [](module& m, instruction_ref ins, const operation& op) {
+                        auto args = ins->inputs();
+                        return m.replace_instruction(ins, op, args[0], args[1]);
+                    }};
+        }
+        // Handle 2-input mode: scales/sizes are a separate input
+        else if(inputs.size() == 3)
+        {
+            // 2-input resize: inputs are [X, scales/sizes, output_buffer]
             auto scales_sizes_arg = inputs[1]->eval();
             if(scales_sizes_arg.empty())
             {
@@ -199,29 +264,20 @@ struct resize_compiler : compiler<resize_compiler>
                 }
             }
             v["scales"] = scales;
+
+            std::vector<shape> shapes;
+            shapes.push_back(in_shape);
+            shapes.push_back(shape{in_shape.type(), out_lens});
+
+            auto cop = compile_op(ctx, shapes, v);
+            return {cop, [](module& m, instruction_ref ins, const operation& op) {
+                        auto args = ins->inputs();
+                        // Skip scales/sizes input (args[1])
+                        return m.replace_instruction(ins, op, args[0], args[2]);
+                    }};
         }
-        else
-        {
-            // Should not happen - resize always has 2 inputs after parsing
-            return {};
-        }
 
-        // The instruction has 3 inputs: X, scales/sizes, output_buffer
-        // But our kernel only takes X and output_buffer (scales are baked in)
-        // Create shapes excluding the scales input
-        std::vector<shape> shapes;
-        shapes.push_back(in_shape);                         // Input data
-        shapes.push_back(shape{in_shape.type(), out_lens}); // Output buffer
-
-        auto cop = compile_op(ctx, shapes, v);
-
-        // Return compiler_replace that skips the scales input when calling the kernel
-        return {cop, [](module& m, instruction_ref ins, const operation& op) {
-                    // Get inputs: X, scales/sizes, output
-                    auto args = ins->inputs();
-                    // Only pass X and output to the kernel, skip scales/sizes (args[1])
-                    return m.replace_instruction(ins, op, args[0], args[2]);
-                }};
+        return {};
     }
 };
 

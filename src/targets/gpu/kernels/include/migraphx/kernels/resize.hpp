@@ -29,54 +29,56 @@
 #include <migraphx/kernels/ops.hpp>
 #include <migraphx/kernels/math.hpp>
 #include <migraphx/kernels/array.hpp>
+#include <migraphx/kernels/tensor_view.hpp>
 
 namespace migraphx {
 
 // Coordinate transformation mode functors
+// Use double precision to match ref implementation and avoid float precision issues
 struct coord_transform_half_pixel
 {
     template <class T>
-    MIGRAPHX_DEVICE_CONSTEXPR T operator()(index_int, index_int, index_int idx, T scale) const
+    MIGRAPHX_DEVICE_CONSTEXPR double operator()(index_int, index_int, index_int idx, T scale) const
     {
-        return (static_cast<T>(idx) + T{0.5}) / scale - T{0.5};
+        return (static_cast<double>(idx) + 0.5) / static_cast<double>(scale) - 0.5;
     }
 };
 
 struct coord_transform_pytorch_half_pixel
 {
     template <class T>
-    MIGRAPHX_DEVICE_CONSTEXPR T operator()(index_int, index_int l_out, index_int idx, T scale) const
+    MIGRAPHX_DEVICE_CONSTEXPR double operator()(index_int, index_int l_out, index_int idx, T scale) const
     {
-        return l_out > 1 ? (static_cast<T>(idx) + T{0.5}) / scale - T{0.5} : T{0.0};
+        return l_out > 1 ? (static_cast<double>(idx) + 0.5) / static_cast<double>(scale) - 0.5 : 0.0;
     }
 };
 
 struct coord_transform_align_corners
 {
     template <class T>
-    MIGRAPHX_DEVICE_CONSTEXPR T operator()(index_int l_in, index_int l_out, index_int idx, T) const
+    MIGRAPHX_DEVICE_CONSTEXPR double operator()(index_int l_in, index_int l_out, index_int idx, T) const
     {
-        return (l_out == 1) ? T{0.0}
-                            : (T{1.0} * static_cast<T>(idx) * static_cast<T>(l_in - 1) /
-                               static_cast<T>(l_out - 1));
+        return (l_out == 1) ? 0.0
+                            : (1.0 * static_cast<double>(idx) * static_cast<double>(l_in - 1) /
+                               static_cast<double>(l_out - 1));
     }
 };
 
 struct coord_transform_asymmetric
 {
     template <class T>
-    MIGRAPHX_DEVICE_CONSTEXPR T operator()(index_int, index_int, index_int idx, T scale) const
+    MIGRAPHX_DEVICE_CONSTEXPR double operator()(index_int, index_int, index_int idx, T scale) const
     {
-        return static_cast<T>(idx) / scale;
+        return static_cast<double>(idx) / static_cast<double>(scale);
     }
 };
 
 struct coord_transform_tf_half_pixel_for_nn
 {
     template <class T>
-    MIGRAPHX_DEVICE_CONSTEXPR T operator()(index_int, index_int, index_int idx, T scale) const
+    MIGRAPHX_DEVICE_CONSTEXPR double operator()(index_int, index_int, index_int idx, T scale) const
     {
-        return (static_cast<T>(idx) + T{0.5}) / scale;
+        return (static_cast<double>(idx) + 0.5) / static_cast<double>(scale);
     }
 };
 
@@ -133,18 +135,19 @@ MIGRAPHX_DEVICE_CONSTEXPR resize_settings<Ts...> make_resize_settings(Ts... xs)
 }
 
 // Compute input indices for nearest neighbor mode
-template <class Shape, class NearestOp, class CoordOp, class Scales>
-MIGRAPHX_DEVICE_CONSTEXPR auto compute_nearest_idx(Shape in_shape,
-                                                   Shape out_shape,
+template <class InShape, class OutShape, class NearestOp, class CoordOp, class Scales>
+MIGRAPHX_DEVICE_CONSTEXPR auto compute_nearest_idx(InShape in_shape,
+                                                   OutShape out_shape,
                                                    index_int out_idx,
                                                    const NearestOp& nearest_op,
                                                    const CoordOp& coord_op,
                                                    const Scales& scales)
 {
-    auto out_multi = out_shape.multi(out_idx);
-    array<index_int, decltype(in_shape.lens)::size()> in_multi{};
+    auto out_multi      = out_shape.multi(out_idx);
+    constexpr auto ndim = InShape{}.lens.size();
+    array<index_int, ndim> in_multi{};
 
-    for(index_int i = 0; i < in_shape.lens.size(); ++i)
+    for(index_int i = 0; i < ndim; ++i)
     {
         auto coord  = coord_op(in_shape.lens[i], out_shape.lens[i], out_multi[i], scales[i]);
         in_multi[i] = nearest_op(in_shape.lens[i], coord);
@@ -198,7 +201,7 @@ __device__ void resize_nearest(Input input, Output output, Settings settings)
     idx.global_stride(out_shape.elements(), [&](auto out_idx) {
         auto in_idx = compute_nearest_idx(
             in_shape, out_shape, out_idx, settings.nearest_op, settings.coord_transform, scales);
-        output[out_idx] = input.data()[in_idx];
+        output[out_idx] = input[in_idx];
     });
 }
 
@@ -209,7 +212,7 @@ __device__ void resize_linear(Input input, Output output, Settings settings)
     auto idx            = make_index();
     auto in_shape       = input.get_shape();
     auto out_shape      = output.get_shape();
-    constexpr auto ndim = decltype(in_shape.lens.size()){};
+    constexpr auto ndim = get_shape_c<Input>{}.lens.size();
     const auto& scales  = settings.scales;
 
     using value_type = typename Input::type;
@@ -246,8 +249,7 @@ __device__ void resize_linear(Input input, Output output, Settings settings)
             if(w == 0.0)
                 continue;
 
-            auto in_idx = in_shape.index(in_multi);
-            acc += w * static_cast<double>(input.data()[in_idx]);
+            acc += w * static_cast<double>(input[in_multi]);
         }
 
         output[out_idx] = static_cast<value_type>(acc);

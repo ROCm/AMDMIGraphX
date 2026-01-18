@@ -31,19 +31,20 @@ TEST_CASE(resize_outsize_test)
 
     std::vector<int64_t> out_len = {1, 1, 4, 6};
     migraphx::shape so{migraphx::shape::int64_type, {4}};
-    auto sizes = mm->add_literal(migraphx::literal(so, out_len));
+    mm->add_literal(migraphx::literal(so, out_len));
 
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
     auto inx = mm->add_parameter("X", sx);
 
     mm->add_instruction(migraphx::make_op("undefined"));
 
+    // scales computed from sizes: {1/1, 1/1, 4/2, 6/2} = {1, 1, 2, 3}
     auto r = mm->add_instruction(
         migraphx::make_op("resize",
-                          {{"nearest_mode", "round_prefer_floor"},
+                          {{"scales", {1.0f, 1.0f, 2.0f, 3.0f}},
+                           {"nearest_mode", "round_prefer_floor"},
                            {"coordinate_transformation_mode", "tf_half_pixel_for_nn"}}),
-        inx,
-        sizes);
+        inx);
     mm->add_return({r});
 
     auto prog = read_onnx("resize_outsize_test.onnx");

@@ -29,9 +29,9 @@ TEST_CASE(resize_upsample_pc_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    std::vector<float> ds = {1.0f, 1.0f, 2.0f, 1.5f};
     migraphx::shape ss{migraphx::shape::float_type, {4}};
-    auto scales = mm->add_literal(migraphx::literal{ss, ds});
+    std::vector<float> ds = {1.0f, 1.0f, 2.0f, 1.5f};
+    mm->add_literal(migraphx::literal{ss, ds});
 
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 4}};
     auto inx = mm->add_parameter("X", sx);
@@ -40,10 +40,10 @@ TEST_CASE(resize_upsample_pc_test)
 
     auto r = mm->add_instruction(
         migraphx::make_op("resize",
-                          {{"nearest_mode", "round_prefer_ceil"},
+                          {{"scales", {1.0f, 1.0f, 2.0f, 1.5f}},
+                           {"nearest_mode", "round_prefer_ceil"},
                            {"coordinate_transformation_mode", "pytorch_half_pixel"}}),
-        inx,
-        scales);
+        inx);
     mm->add_return({r});
 
     auto prog = read_onnx("resize_upsample_pc_test.onnx");

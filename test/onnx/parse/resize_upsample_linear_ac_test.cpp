@@ -28,9 +28,10 @@ TEST_CASE(resize_upsample_linear_ac_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
+
     migraphx::shape ss{migraphx::shape::float_type, {4}};
     std::vector<float> ds = {1, 1, 2, 2};
-    auto scales           = mm->add_literal(migraphx::literal(ss, ds));
+    mm->add_literal(migraphx::literal(ss, ds));
 
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
     auto x = mm->add_parameter("X", sx);
@@ -38,12 +39,14 @@ TEST_CASE(resize_upsample_linear_ac_test)
     mm->add_instruction(migraphx::make_op("undefined"));
 
     auto r = mm->add_instruction(
-        migraphx::make_op(
-            "resize", {{"mode", "linear"}, {"coordinate_transformation_mode", "align_corners"}}),
-        x,
-        scales);
+        migraphx::make_op("resize",
+                          {{"scales", {1.0f, 1.0f, 2.0f, 2.0f}},
+                           {"mode", "linear"},
+                           {"coordinate_transformation_mode", "align_corners"}}),
+        x);
     mm->add_return({r});
 
     auto prog = read_onnx("resize_upsample_linear_ac_test.onnx");
+
     EXPECT(p == prog);
 }

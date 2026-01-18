@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,9 +28,10 @@ TEST_CASE(resize_downsample_linear_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
+
+    std::vector<float> ds = {1.0f, 1.0f, 0.6f, 0.5f};
     migraphx::shape ss{migraphx::shape::float_type, {4}};
-    std::vector<float> ds = {1, 1, 0.6, 0.5};
-    auto scales           = mm->add_literal(migraphx::literal(ss, ds));
+    mm->add_literal(migraphx::literal{ss, ds});
 
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 4}};
     auto x = mm->add_parameter("X", sx);
@@ -39,11 +40,13 @@ TEST_CASE(resize_downsample_linear_test)
 
     auto r = mm->add_instruction(
         migraphx::make_op("resize",
-                          {{"mode", "linear"}, {"coordinate_transformation_mode", "half_pixel"}}),
-        x,
-        scales);
+                          {{"scales", {1.0f, 1.0f, 0.6f, 0.5f}},
+                           {"mode", "linear"},
+                           {"coordinate_transformation_mode", "half_pixel"}}),
+        x);
     mm->add_return({r});
 
     auto prog = read_onnx("resize_downsample_linear_test.onnx");
+
     EXPECT(p == prog);
 }

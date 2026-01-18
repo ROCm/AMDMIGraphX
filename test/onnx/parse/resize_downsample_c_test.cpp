@@ -29,9 +29,10 @@ TEST_CASE(resize_downsample_c_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
 
+    // These are from the ONNX file but not used by the 1-input resize
     std::vector<float> ds = {1.0f, 1.0f, 0.6f, 0.6f};
     migraphx::shape ss{migraphx::shape::float_type, {4}};
-    auto scales = mm->add_literal(migraphx::literal{ss, ds});
+    mm->add_literal(migraphx::literal{ss, ds});
 
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 4}};
     auto inx = mm->add_parameter("X", sx);
@@ -39,10 +40,11 @@ TEST_CASE(resize_downsample_c_test)
     mm->add_instruction(migraphx::make_op("undefined"));
 
     auto r = mm->add_instruction(
-        migraphx::make_op(
-            "resize", {{"nearest_mode", "ceil"}, {"coordinate_transformation_mode", "asymmetric"}}),
-        inx,
-        scales);
+        migraphx::make_op("resize",
+                          {{"scales", {1.0f, 1.0f, 0.6f, 0.6f}},
+                           {"nearest_mode", "ceil"},
+                           {"coordinate_transformation_mode", "asymmetric"}}),
+        inx);
     mm->add_return({r});
 
     auto prog = read_onnx("resize_downsample_c_test.onnx");

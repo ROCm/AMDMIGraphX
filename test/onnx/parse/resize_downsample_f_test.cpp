@@ -27,10 +27,11 @@
 TEST_CASE(resize_downsample_f_test)
 {
     migraphx::program p;
-    auto* mm              = p.get_main_module();
+    auto* mm = p.get_main_module();
+
     std::vector<float> ds = {1.0f, 1.0f, 0.6f, 0.6f};
     migraphx::shape ss{migraphx::shape::float_type, {4}};
-    auto scales = mm->add_literal(migraphx::literal{ss, ds});
+    mm->add_literal(migraphx::literal{ss, ds});
 
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 4}};
     auto inx = mm->add_parameter("X", sx);
@@ -38,11 +39,11 @@ TEST_CASE(resize_downsample_f_test)
     mm->add_instruction(migraphx::make_op("undefined"));
 
     auto r = mm->add_instruction(
-        migraphx::make_op(
-            "resize",
-            {{"nearest_mode", "floor"}, {"coordinate_transformation_mode", "align_corners"}}),
-        inx,
-        scales);
+        migraphx::make_op("resize",
+                          {{"scales", {1.0f, 1.0f, 0.6f, 0.6f}},
+                           {"nearest_mode", "floor"},
+                           {"coordinate_transformation_mode", "align_corners"}}),
+        inx);
     mm->add_return({r});
 
     auto prog = read_onnx("resize_downsample_f_test.onnx");

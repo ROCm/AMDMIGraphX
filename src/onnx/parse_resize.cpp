@@ -330,7 +330,17 @@ struct parse_resize : op_parser<parse_resize>
                                                    resize_args& resize,
                                                    instruction_ref args_0)
     {
-        // Always emit resize op - rewrite_resize pass will convert to gather if beneficial
+        // If scales are constant and input is static, emit 1-input resize with attributes
+        if(resize.is_constant_scale_input() and not args_0->get_shape().dynamic())
+        {
+            return info.add_instruction(
+                make_op("resize",
+                        {{"scales", resize.vec_scale},
+                         {"nearest_mode", resize.get_nearest_mode()},
+                         {"coordinate_transformation_mode", resize.get_coord_trans_mode()}}),
+                args_0);
+        }
+        // Otherwise emit 2-input resize for dynamic case
         return info.add_instruction(
             make_op("resize",
                     {{"nearest_mode", resize.get_nearest_mode()},
@@ -344,7 +354,17 @@ struct parse_resize : op_parser<parse_resize>
                                               resize_args& resize,
                                               instruction_ref& args_0)
     {
-        // Always emit resize op - rewrite_resize pass will convert to gather if beneficial
+        // If scales are constant and input is static, emit 1-input resize with attributes
+        if(resize.is_constant_scale_input() and not args_0->get_shape().dynamic())
+        {
+            return info.add_instruction(
+                make_op("resize",
+                        {{"scales", resize.vec_scale},
+                         {"mode", resize.get_mode()},
+                         {"coordinate_transformation_mode", resize.get_coord_trans_mode()}}),
+                args_0);
+        }
+        // Otherwise emit 2-input resize for dynamic case
         return info.add_instruction(
             make_op("resize",
                     {{"mode", resize.get_mode()},

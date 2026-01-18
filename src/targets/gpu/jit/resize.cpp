@@ -112,6 +112,37 @@ struct resize_compiler : compiler<resize_compiler>
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
+        if(inputs.size() != 2)
+            MIGRAPHX_THROW("GPU resize: Incorrect arguments");
+
+        const auto& in_lens = inputs.front().lens();
+
+        // Compute scales from value or from shapes
+        std::vector<float> scales;
+        if(v.contains("scales") and not v.at("scales").empty())
+        {
+            scales = v.at("scales").to_vector<float>();
+        }
+        else if(v.contains("sizes") and not v.at("sizes").empty())
+        {
+            auto out_lens = v.at("sizes").to_vector<size_t>();
+            scales.resize(in_lens.size());
+            for(size_t i = 0; i < in_lens.size(); ++i)
+            {
+                scales[i] = static_cast<float>(out_lens[i]) / static_cast<float>(in_lens[i]);
+            }
+        }
+        else
+        {
+            // No scales or sizes - compute from shapes
+            const auto& out_lens = inputs.back().lens();
+            scales.resize(in_lens.size());
+            for(size_t i = 0; i < in_lens.size(); ++i)
+            {
+                scales[i] = static_cast<float>(out_lens[i]) / static_cast<float>(in_lens[i]);
+            }
+        }
+
         hip_compile_options options;
         options.set_launch_params(v, compute_global_for(ctx, inputs.back().elements()), 128);
         options.output      = inputs.back();
@@ -140,24 +171,6 @@ struct resize_compiler : compiler<resize_compiler>
         std::string nearest_mode = v.get("nearest_mode", "floor");
         std::string nearest_op   = get_nearest_op(nearest_mode);
 
-        // Get scales - need to compute from shapes if not provided
-        std::vector<float> scales;
-        if(v.contains("scales") and not v.at("scales").empty())
-        {
-            scales = v.at("scales").to_vector<float>();
-        }
-        else
-        {
-            // Compute scales from input/output shapes
-            const auto& in_lens  = inputs.front().lens();
-            const auto& out_lens = inputs.back().lens();
-            scales.resize(in_lens.size());
-            for(size_t i = 0; i < in_lens.size(); ++i)
-            {
-                scales[i] = static_cast<float>(out_lens[i]) / static_cast<float>(in_lens[i]);
-            }
-        }
-
         auto src = interpolate_string(resize_kernel,
                                       {{"kernel_name", options.kernel_name},
                                        {"coord_transform", coord_transform},
@@ -170,65 +183,7 @@ struct resize_compiler : compiler<resize_compiler>
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
-        auto v      = op.to_value();
-        auto inputs = ins->inputs();
-
-        const auto& in_shape = inputs[0]->get_shape();
-
-        // For dynamic shapes, use the actual lens (which come from the dynamic shape's min_lens
-        // or max_lens depending on how the program was set up). The kernel handles shapes at
-        // runtime via make_tensors().
-        const auto& in_lens = in_shape.lens();
-
-        std::vector<float> scales;
-        std::vector<size_t> out_lens;
-
-        if(inputs.size() != 2)
-            MIGRAPHX_THROW("GPU resize: Incorrect arguments");
-
-        // 1-input resize: inputs are [X, output_buffer]
-        // Get scales from attributes
-        if(v.contains("scales") and not v.at("scales").empty())
-        {
-            scales = v.at("scales").to_vector<float>();
-            out_lens.resize(in_lens.size());
-            for(size_t i = 0; i < in_lens.size(); ++i)
-            {
-                out_lens[i] = static_cast<size_t>(in_lens[i] * scales[i]);
-            }
-        }
-        else if(v.contains("sizes") and not v.at("sizes").empty())
-        {
-            out_lens = v.at("sizes").to_vector<size_t>();
-            scales.resize(in_lens.size());
-            for(size_t i = 0; i < in_lens.size(); ++i)
-            {
-                scales[i] = static_cast<float>(out_lens[i]) / static_cast<float>(in_lens[i]);
-            }
-        }
-        else
-        {
-            // No scales or sizes - compute from shapes
-            out_lens = inputs.back()->get_shape().lens();
-            scales.resize(in_lens.size());
-            for(size_t i = 0; i < in_lens.size(); ++i)
-            {
-                scales[i] = static_cast<float>(out_lens[i]) / static_cast<float>(in_lens[i]);
-            }
-        }
-        v["scales"] = scales;
-
-        std::vector<shape> shapes;
-        shapes.push_back(in_shape);
-        shapes.push_back(inputs.back()->get_shape());
-
-        auto cop = compile_op(ctx, shapes, v);
-        return {cop, [](module& m, instruction_ref ins, const operation& op) {
-                    auto args = ins->inputs();
-                    return m.replace_instruction(ins, op, args[0], args[1]);
-                }};
-
-        return {};
+        return compile_op(ctx, to_shapes(ins->inputs()), op.to_value());
     }
 };
 

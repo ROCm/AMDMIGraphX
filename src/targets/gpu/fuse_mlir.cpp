@@ -481,22 +481,23 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
     }
     const std::initializer_list<std::string> any_type_ops = {"@literal", "@param", "@return"};
     const std::initializer_list<std::string> no_bool_ops  = {
-        "convolution",
-        "quant_convolution",
-        "dot",
-        "quant_dot",
+        "abs",
         "add",
         "clip",
+        "convolution",
+        "dequantizelinear",
+        "div",
+        "dot",
+        "leaky_relu",
+        "mul",
+        "neg",
+        "pow",
+        "quant_convolution",
+        "quant_dot",
+        "quantizelinear",
         "relu",
         "sub",
-        "mul",
-        "div",
-        "pow",
         "where",
-        "quantizelinear",
-        "dequantizelinear",
-        "abs",
-        "neg",
     };
     const std::initializer_list<std::string> fp_only_ops = {
         "ceil",
@@ -569,6 +570,8 @@ bool is_pointwise_op_supported_by_mlir_for_input(const instruction& i)
 {
     return is_pointwise_op_supported_by_mlir(i);
 }
+
+bool is_reduce(const instruction& ins) { return contains(ins.name(), "reduce"); }
 
 MIGRAPHX_PRED_MATCHER(mlir_split_reduce, instruction_ref ins)
 {

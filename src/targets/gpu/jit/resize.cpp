@@ -46,11 +46,7 @@ extern "C" {
 MIGRAPHX_GLOBAL void ${kernel_name}(void* in_data, void* output)
 {
     make_tensors()(in_data, output)([](auto input, auto out) {
-        auto settings = make_resize_settings(
-            ${coord_transform}{},
-            ${nearest_op}{},
-            ${scales});
-        ${resize_func}(input, out, settings);
+        ${resize_func}<${coord_transform}, ${nearest_op}>(input, out, ${scales});
     });
 }
 

@@ -121,28 +121,11 @@ struct nearest_round_prefer_ceil
     }
 };
 
-// Settings for resize operation
-template <class T1, class T2, class T3>
-struct resize_settings
-{
-    T1 coord_transform{};
-    T2 nearest_op{};
-    T3 scales{};
-};
-
-template <class... Ts>
-MIGRAPHX_DEVICE_CONSTEXPR resize_settings<Ts...> make_resize_settings(Ts... xs)
-{
-    return {xs...};
-}
-
 // Compute input indices for nearest neighbor mode
-template <class InShape, class OutShape, class NearestOp, class CoordOp, class Scales>
+template <class CoordOp, class NearestOp, class InShape, class OutShape, class Scales>
 MIGRAPHX_DEVICE_CONSTEXPR auto compute_nearest_idx(InShape in_shape,
                                                    OutShape out_shape,
                                                    index_int out_idx,
-                                                   const NearestOp& nearest_op,
-                                                   const CoordOp& coord_op,
                                                    const Scales& scales)
 {
     auto out_multi      = out_shape.multi(out_idx);
@@ -151,8 +134,8 @@ MIGRAPHX_DEVICE_CONSTEXPR auto compute_nearest_idx(InShape in_shape,
 
     for(index_int i = 0; i < ndim; ++i)
     {
-        auto coord  = coord_op(in_shape.lens[i], out_shape.lens[i], out_multi[i], scales[i]);
-        in_multi[i] = nearest_op(in_shape.lens[i], coord);
+        auto coord  = CoordOp{}(in_shape.lens[i], out_shape.lens[i], out_multi[i], scales[i]);
+        in_multi[i] = NearestOp{}(in_shape.lens[i], coord);
     }
 
     return in_shape.index(in_multi);
@@ -167,9 +150,9 @@ struct interp_params
     T weight;     // interpolation weight (0.0 to 1.0)
 };
 
-template <class T, class CoordOp>
+template <class CoordOp, class T>
 MIGRAPHX_DEVICE_CONSTEXPR interp_params<T> compute_interp_params_1d(
-    index_int in_len, index_int out_len, index_int out_idx, T scale, const CoordOp& coord_op)
+    index_int in_len, index_int out_len, index_int out_idx, T scale)
 {
     // Handle degenerate dimension (length 1) to avoid NaNs
     if(in_len <= 1)
@@ -178,7 +161,7 @@ MIGRAPHX_DEVICE_CONSTEXPR interp_params<T> compute_interp_params_1d(
     }
 
     // Compute the original floating-point coordinate
-    T coord = coord_op(in_len, out_len, out_idx, scale);
+    T coord = CoordOp{}(in_len, out_len, out_idx, scale);
 
     // Clamp to valid input range [0, in_len-1]
     T max_c = in_len > 0 ? static_cast<T>(in_len - 1) : T{0.0};
@@ -192,43 +175,40 @@ MIGRAPHX_DEVICE_CONSTEXPR interp_params<T> compute_interp_params_1d(
 }
 
 // Resize nearest kernel
-template <class Input, class Output, class Settings>
-__device__ void resize_nearest(Input input, Output output, Settings settings)
+template <class CoordOp, class NearestOp, class Input, class Output, class Scales>
+__device__ void resize_nearest(Input input, Output output, Scales scales)
 {
     auto idx           = make_index();
     auto in_shape      = input.get_shape();
     auto out_shape     = output.get_shape();
-    const auto& scales = settings.scales;
 
     idx.global_stride(out_shape.elements(), [&](auto out_idx) {
-        auto in_idx = compute_nearest_idx(
-            in_shape, out_shape, out_idx, settings.nearest_op, settings.coord_transform, scales);
+        auto in_idx = compute_nearest_idx<CoordOp, NearestOp>(
+            in_shape, out_shape, out_idx, scales);
         output[out_idx] = input[in_idx];
     });
 }
 
 // Resize linear kernel
-template <class Input, class Output, class Settings>
-__device__ void resize_linear(Input input, Output output, Settings settings)
+template <class CoordOp, class NearestOp, class Input, class Output, class Scales>
+__device__ void resize_linear(Input input, Output output, Scales scales)
 {
     auto idx            = make_index();
     auto in_shape       = input.get_shape();
     auto out_shape      = output.get_shape();
     constexpr auto ndim = get_shape_c<Input>{}.lens.size();
-    const auto& scales  = settings.scales;
 
     idx.global_stride(out_shape.elements(), [&](auto out_idx) {
         auto out_multi = out_shape.multi(out_idx);
 
         // Precompute interpolation parameters for each dimension
-        array<interp_params<double>, ndim> params{};
+        array<interp_params<float>, ndim> params{};
         for(index_int d = 0; d < ndim; ++d)
         {
-            params[d] = compute_interp_params_1d<double>(in_shape.lens[d],
+            params[d] = compute_interp_params_1d<CoordOp>(in_shape.lens[d],
                                                          out_shape.lens[d],
                                                          out_multi[d],
-                                                         scales[d],
-                                                         settings.coord_transform);
+                                                         scales[d]);
         }
 
         // Accumulate over 2^ndim corners

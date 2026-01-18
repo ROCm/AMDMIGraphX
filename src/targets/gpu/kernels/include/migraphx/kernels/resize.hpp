@@ -123,10 +123,8 @@ struct nearest_round_prefer_ceil
 
 // Compute input indices for nearest neighbor mode
 template <class CoordOp, class NearestOp, class InShape, class OutShape, class Scales>
-MIGRAPHX_DEVICE_CONSTEXPR auto compute_nearest_idx(InShape in_shape,
-                                                   OutShape out_shape,
-                                                   index_int out_idx,
-                                                   const Scales& scales)
+MIGRAPHX_DEVICE_CONSTEXPR auto
+compute_nearest_idx(InShape in_shape, OutShape out_shape, index_int out_idx, const Scales& scales)
 {
     auto out_multi      = out_shape.multi(out_idx);
     constexpr auto ndim = InShape{}.lens.size();
@@ -151,8 +149,8 @@ struct interp_params
 };
 
 template <class CoordOp, class T>
-MIGRAPHX_DEVICE_CONSTEXPR interp_params<T> compute_interp_params_1d(
-    index_int in_len, index_int out_len, index_int out_idx, T scale)
+MIGRAPHX_DEVICE_CONSTEXPR interp_params<T>
+compute_interp_params_1d(index_int in_len, index_int out_len, index_int out_idx, T scale)
 {
     // Handle degenerate dimension (length 1) to avoid NaNs
     if(in_len <= 1)
@@ -183,8 +181,7 @@ __device__ void resize_nearest(Input input, Output output, Scales scales)
     auto out_shape     = output.get_shape();
 
     idx.global_stride(out_shape.elements(), [&](auto out_idx) {
-        auto in_idx = compute_nearest_idx<CoordOp, NearestOp>(
-            in_shape, out_shape, out_idx, scales);
+        auto in_idx = compute_nearest_idx<CoordOp, NearestOp>(in_shape, out_shape, out_idx, scales);
         output[out_idx] = input[in_idx];
     });
 }
@@ -205,10 +202,8 @@ __device__ void resize_linear(Input input, Output output, Scales scales)
         array<interp_params<float>, ndim> params{};
         for(index_int d = 0; d < ndim; ++d)
         {
-            params[d] = compute_interp_params_1d<CoordOp>(in_shape.lens[d],
-                                                         out_shape.lens[d],
-                                                         out_multi[d],
-                                                         scales[d]);
+            params[d] = compute_interp_params_1d<CoordOp>(
+                in_shape.lens[d], out_shape.lens[d], out_multi[d], scales[d]);
         }
 
         // Accumulate over 2^ndim corners

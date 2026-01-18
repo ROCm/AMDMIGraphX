@@ -47,10 +47,10 @@ struct coord_transform_half_pixel
 struct coord_transform_pytorch_half_pixel
 {
     template <class T>
-    MIGRAPHX_DEVICE_CONSTEXPR double
+    MIGRAPHX_DEVICE_CONSTEXPR float
     operator()(index_int, index_int l_out, index_int idx, T scale) const
     {
-        return l_out > 1 ? (static_cast<double>(idx) + 0.5) / static_cast<double>(scale) - 0.5
+        return l_out > 1 ? (static_cast<float>(idx) + 0.5) / static_cast<float>(scale) - 0.5
                          : 0.0;
     }
 };
@@ -58,66 +58,66 @@ struct coord_transform_pytorch_half_pixel
 struct coord_transform_align_corners
 {
     template <class T>
-    MIGRAPHX_DEVICE_CONSTEXPR double
+    MIGRAPHX_DEVICE_CONSTEXPR float
     operator()(index_int l_in, index_int l_out, index_int idx, T) const
     {
         return (l_out == 1) ? 0.0
-                            : (1.0 * static_cast<double>(idx) * static_cast<double>(l_in - 1) /
-                               static_cast<double>(l_out - 1));
+                            : (1.0 * static_cast<float>(idx) * static_cast<float>(l_in - 1) /
+                               static_cast<float>(l_out - 1));
     }
 };
 
 struct coord_transform_asymmetric
 {
     template <class T>
-    MIGRAPHX_DEVICE_CONSTEXPR double operator()(index_int, index_int, index_int idx, T scale) const
+    MIGRAPHX_DEVICE_CONSTEXPR float operator()(index_int, index_int, index_int idx, T scale) const
     {
-        return static_cast<double>(idx) / static_cast<double>(scale);
+        return static_cast<float>(idx) / static_cast<float>(scale);
     }
 };
 
 struct coord_transform_tf_half_pixel_for_nn
 {
     template <class T>
-    MIGRAPHX_DEVICE_CONSTEXPR double operator()(index_int, index_int, index_int idx, T scale) const
+    MIGRAPHX_DEVICE_CONSTEXPR float operator()(index_int, index_int, index_int idx, T scale) const
     {
-        return (static_cast<double>(idx) + 0.5) / static_cast<double>(scale);
+        return (static_cast<float>(idx) + 0.5) / static_cast<float>(scale);
     }
 };
 
 // Nearest mode functors
 struct nearest_floor
 {
-    MIGRAPHX_DEVICE_CONSTEXPR index_int operator()(index_int d_in, double val) const
+    MIGRAPHX_DEVICE_CONSTEXPR index_int operator()(index_int d_in, float val) const
     {
-        val = max(0.0, min(static_cast<double>(d_in - 1), val));
+        val = max(0.0f, min(static_cast<float>(d_in - 1), val));
         return static_cast<index_int>(floor(val));
     }
 };
 
 struct nearest_ceil
 {
-    MIGRAPHX_DEVICE_CONSTEXPR index_int operator()(index_int d_in, double val) const
+    MIGRAPHX_DEVICE_CONSTEXPR index_int operator()(index_int d_in, float val) const
     {
-        val = max(0.0, min(static_cast<double>(d_in - 1), val));
+        val = max(0.0f, min(static_cast<float>(d_in - 1), val));
         return static_cast<index_int>(ceil(val));
     }
 };
 
 struct nearest_round_prefer_floor
 {
-    MIGRAPHX_DEVICE_CONSTEXPR index_int operator()(index_int d_in, double val) const
+    MIGRAPHX_DEVICE_CONSTEXPR index_int operator()(index_int d_in, float val) const
     {
-        val = max(0.0, min(static_cast<double>(d_in - 1), val));
+        val = max(0.0f, min(static_cast<float>(d_in - 1), val));
         return static_cast<index_int>(ceil(val - 0.5));
     }
 };
 
 struct nearest_round_prefer_ceil
 {
-    MIGRAPHX_DEVICE_CONSTEXPR index_int operator()(index_int d_in, double val) const
+    MIGRAPHX_DEVICE_CONSTEXPR index_int operator()(index_int d_in, float val) const
     {
-        val = max(0.0, min(static_cast<double>(d_in - 1), val));
+        val = max(0.0f, min(static_cast<float>(d_in - 1), val));
         return static_cast<index_int>(round(val));
     }
 };
@@ -218,8 +218,6 @@ __device__ void resize_linear(Input input, Output output, Settings settings)
     constexpr auto ndim = get_shape_c<Input>{}.lens.size();
     const auto& scales  = settings.scales;
 
-    using value_type = typename Input::type;
-
     idx.global_stride(out_shape.elements(), [&](auto out_idx) {
         auto out_multi = out_shape.multi(out_idx);
 
@@ -235,13 +233,13 @@ __device__ void resize_linear(Input input, Output output, Settings settings)
         }
 
         // Accumulate over 2^ndim corners
-        double acc              = 0.0;
+        float acc              = 0.0;
         const index_int corners = (ndim == 0) ? 1 : (1 << ndim);
         array<index_int, ndim> in_multi{};
 
         for(index_int mask = 0; mask < corners; ++mask)
         {
-            double w = 1.0;
+            float w = 1.0;
             for(index_int d = 0; d < ndim; ++d)
             {
                 const bool use_high = ((mask >> d) & 1U) != 0U;
@@ -252,10 +250,10 @@ __device__ void resize_linear(Input input, Output output, Settings settings)
             if(w == 0.0)
                 continue;
 
-            acc += w * static_cast<double>(input[in_multi]);
+            acc += w * migraphx::convert<float>(input[in_multi]);
         }
 
-        output[out_idx] = static_cast<value_type>(acc);
+        output[out_idx] = implicit_conversion(acc);
     });
 }
 

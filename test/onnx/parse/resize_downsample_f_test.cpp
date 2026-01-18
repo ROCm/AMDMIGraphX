@@ -38,9 +38,9 @@ TEST_CASE(resize_downsample_f_test)
     mm->add_instruction(migraphx::make_op("undefined"));
 
     auto r = mm->add_instruction(
-        migraphx::make_op("resize",
-                          {{"nearest_mode", "floor"},
-                           {"coordinate_transformation_mode", "align_corners"}}),
+        migraphx::make_op(
+            "resize",
+            {{"nearest_mode", "floor"}, {"coordinate_transformation_mode", "align_corners"}}),
         inx,
         scales);
     mm->add_return({r});

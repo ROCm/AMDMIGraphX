@@ -37,12 +37,12 @@ TEST_CASE(upsample_ver7_test)
     migraphx::shape ss{migraphx::shape::float_type, {4}};
     auto scales = mm->add_literal(migraphx::literal(ss, {1.0f, 1.0f, 2.0f, 3.0f}));
 
-    auto r = mm->add_instruction(
-        migraphx::make_op("resize",
-                          {{"nearest_mode", "round_prefer_floor"},
-                           {"coordinate_transformation_mode", "half_pixel"}}),
-        ix,
-        scales);
+    auto r =
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"nearest_mode", "round_prefer_floor"},
+                                               {"coordinate_transformation_mode", "half_pixel"}}),
+                            ix,
+                            scales);
     mm->add_return({r});
 
     auto prog = read_onnx("upsample_ver7_test.onnx");

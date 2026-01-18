@@ -96,23 +96,23 @@ struct find_resize_static : match::supports_dynamic_shapes
             {
                 // Input is output sizes
                 std::vector<size_t> sizes_vec(input.begin(), input.end());
-                new_resize = make_op("resize",
-                                     {{"sizes", sizes_vec},
-                                      {"nearest_mode", resize_op.nearest_mode},
-                                      {"mode", resize_op.mode},
-                                      {"coordinate_transformation_mode",
-                                       resize_op.coordinate_transformation_mode}});
+                new_resize = make_op(
+                    "resize",
+                    {{"sizes", sizes_vec},
+                     {"nearest_mode", resize_op.nearest_mode},
+                     {"mode", resize_op.mode},
+                     {"coordinate_transformation_mode", resize_op.coordinate_transformation_mode}});
             }
             else
             {
                 // Input is scales
                 std::vector<float> scales_vec(input.begin(), input.end());
-                new_resize = make_op("resize",
-                                     {{"scales", scales_vec},
-                                      {"nearest_mode", resize_op.nearest_mode},
-                                      {"mode", resize_op.mode},
-                                      {"coordinate_transformation_mode",
-                                       resize_op.coordinate_transformation_mode}});
+                new_resize = make_op(
+                    "resize",
+                    {{"scales", scales_vec},
+                     {"nearest_mode", resize_op.nearest_mode},
+                     {"mode", resize_op.mode},
+                     {"coordinate_transformation_mode", resize_op.coordinate_transformation_mode}});
             }
         });
         m.replace_instruction(ins, new_resize, inputs.at(0));

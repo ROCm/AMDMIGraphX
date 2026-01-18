@@ -39,9 +39,8 @@ TEST_CASE(resize_downsample_c_test)
     mm->add_instruction(migraphx::make_op("undefined"));
 
     auto r = mm->add_instruction(
-        migraphx::make_op("resize",
-                          {{"nearest_mode", "ceil"},
-                           {"coordinate_transformation_mode", "asymmetric"}}),
+        migraphx::make_op(
+            "resize", {{"nearest_mode", "ceil"}, {"coordinate_transformation_mode", "asymmetric"}}),
         inx,
         scales);
     mm->add_return({r});

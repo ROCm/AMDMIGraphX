@@ -30,7 +30,7 @@ TEST_CASE(upsample_linear_test)
     auto* mm = p.get_main_module();
     migraphx::shape ss{migraphx::shape::float_type, {4}};
     std::vector<float> ds = {1, 1, 2, 2};
-    auto scales = mm->add_literal(migraphx::literal(ss, ds));
+    auto scales           = mm->add_literal(migraphx::literal(ss, ds));
 
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
     auto x = mm->add_parameter("X", sx);
@@ -39,8 +39,7 @@ TEST_CASE(upsample_linear_test)
 
     auto r = mm->add_instruction(
         migraphx::make_op("resize",
-                          {{"mode", "linear"},
-                           {"coordinate_transformation_mode", "half_pixel"}}),
+                          {{"mode", "linear"}, {"coordinate_transformation_mode", "half_pixel"}}),
         x,
         scales);
     mm->add_return({r});

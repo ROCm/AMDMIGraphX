@@ -40,8 +40,7 @@ TEST_CASE(resize_with_same_inout_shapes_test)
 
     auto r = mm->add_instruction(
         migraphx::make_op("resize",
-                          {{"mode", "linear"},
-                           {"coordinate_transformation_mode", "half_pixel"}}),
+                          {{"mode", "linear"}, {"coordinate_transformation_mode", "half_pixel"}}),
         inx,
         sizes);
     mm->add_return({r});

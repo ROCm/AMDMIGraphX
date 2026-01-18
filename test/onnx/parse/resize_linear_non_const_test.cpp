@@ -29,11 +29,10 @@ TEST_CASE(resize_linear_non_const_test)
     // Non-constant scales input now supported - emits resize op
     migraphx::onnx_options options;
     options.map_dyn_input_dims["X"] = {{1, 4}, {1, 1}, {2, 2}, {4, 4}};
-    auto prog = read_onnx("resize_linear_non_const_test.onnx", options);
+    auto prog                       = read_onnx("resize_linear_non_const_test.onnx", options);
 
     // Verify it has a resize instruction
     auto* mm = prog.get_main_module();
-    EXPECT(std::any_of(mm->begin(), mm->end(), [](const auto& ins) {
-        return ins.name() == "resize";
-    }));
+    EXPECT(std::any_of(
+        mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "resize"; }));
 }

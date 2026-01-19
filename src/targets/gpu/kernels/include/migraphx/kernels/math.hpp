@@ -315,6 +315,12 @@ constexpr auto convert(U v)
 }
 
 template <class T, class U>
+constexpr auto deref(U v)
+{
+    return vec_transform(v)([](auto x) -> T { return *reinterpret_cast<T*>(x); });
+}
+
+template <class T, class U>
 constexpr auto ceil_div(T x, U y)
 {
     return (x + y - _c<1>) / y;

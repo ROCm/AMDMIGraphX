@@ -37,50 +37,45 @@ namespace migraphx {
 // Use double precision to match ref implementation and avoid float precision issues
 struct coord_transform_half_pixel
 {
-    template <class T>
-    MIGRAPHX_DEVICE_CONSTEXPR float operator()(index_int, index_int, index_int idx, T scale) const
+    MIGRAPHX_DEVICE_CONSTEXPR float operator()(index_int, index_int, float idx, float scale) const
     {
-        return (static_cast<float>(idx) + 0.5) / static_cast<float>(scale) - 0.5;
+        return (idx + 0.5f) / scale - 0.5f;
     }
 };
 
 struct coord_transform_pytorch_half_pixel
 {
-    template <class T>
     MIGRAPHX_DEVICE_CONSTEXPR float
-    operator()(index_int, index_int l_out, index_int idx, T scale) const
+    operator()(index_int, index_int l_out, float idx, float scale) const
     {
-        return l_out > 1 ? (static_cast<float>(idx) + 0.5) / static_cast<float>(scale) - 0.5 : 0.0;
+        return l_out > 1 ? (idx + 0.5f) / scale - 0.5f : 0.0f;
     }
 };
 
 struct coord_transform_align_corners
 {
-    template <class T>
     MIGRAPHX_DEVICE_CONSTEXPR float
-    operator()(index_int l_in, index_int l_out, index_int idx, T) const
+    operator()(index_int l_in, index_int l_out, float idx, float) const
     {
-        return (l_out == 1) ? 0.0
-                            : (1.0 * static_cast<float>(idx) * static_cast<float>(l_in - 1) /
-                               static_cast<float>(l_out - 1));
+        return (l_out == 1) ? 0.0f
+                            : (1.0f * idx * (l_in - 1.0f) /
+                               (l_out - 1.0f));
     }
 };
 
 struct coord_transform_asymmetric
 {
-    template <class T>
-    MIGRAPHX_DEVICE_CONSTEXPR float operator()(index_int, index_int, index_int idx, T scale) const
+    MIGRAPHX_DEVICE_CONSTEXPR float operator()(index_int, index_int, float idx, float scale) const
     {
-        return static_cast<float>(idx) / static_cast<float>(scale);
+        return idx / scale;
     }
 };
 
 struct coord_transform_tf_half_pixel_for_nn
 {
-    template <class T>
-    MIGRAPHX_DEVICE_CONSTEXPR float operator()(index_int, index_int, index_int idx, T scale) const
+    MIGRAPHX_DEVICE_CONSTEXPR float operator()(index_int, index_int, float idx, float scale) const
     {
-        return (static_cast<float>(idx) + 0.5) / static_cast<float>(scale);
+        return (idx + 0.5f) / scale;
     }
 };
 
@@ -140,34 +135,33 @@ compute_nearest_idx(InShape in_shape, OutShape out_shape, index_int out_idx, con
 }
 
 // Compute interpolation parameters for linear mode
-template <class T>
 struct interp_params
 {
     index_int i0; // lower index
     index_int i1; // upper index
-    T weight;     // interpolation weight (0.0 to 1.0)
+    float weight;     // interpolation weight (0.0 to 1.0)
 };
 
-template <class CoordOp, class T>
-MIGRAPHX_DEVICE_CONSTEXPR interp_params<T>
-compute_interp_params_1d(index_int in_len, index_int out_len, index_int out_idx, T scale)
+template <class CoordOp>
+MIGRAPHX_DEVICE_CONSTEXPR interp_params
+compute_interp_params_1d(index_int in_len, index_int out_len, index_int out_idx, float scale)
 {
     // Handle degenerate dimension (length 1) to avoid NaNs
     if(in_len <= 1)
     {
-        return {0, 0, T{0.0}};
+        return {0, 0, 0.0f};
     }
 
     // Compute the original floating-point coordinate
-    T coord = CoordOp{}(in_len, out_len, out_idx, scale);
+    float coord = CoordOp{}(in_len, out_len, out_idx, scale);
 
     // Clamp to valid input range [0, in_len-1]
-    T max_c = in_len > 0 ? static_cast<T>(in_len - 1) : T{0.0};
-    coord   = max(T{0.0}, min(max_c, coord));
+    float max_c = in_len > 0 ? float(in_len - 1) : 0.0f;
+    coord   = max(0.0f, min(max_c, coord));
 
     index_int base = static_cast<index_int>(floor(coord));
     index_int next = min(base + 1, in_len > 0 ? in_len - 1 : 0);
-    T frac         = coord - static_cast<T>(base);
+    float frac         = coord - float(base);
 
     return {base, next, frac};
 }
@@ -199,7 +193,7 @@ __device__ void resize_linear(Input input, Output output, Scales scales)
         auto out_multi = out_shape.multi(out_idx);
 
         // Precompute interpolation parameters for each dimension
-        array<interp_params<float>, ndim> params{};
+        array<interp_params, ndim> params{};
         for(index_int d = 0; d < ndim; ++d)
         {
             params[d] = compute_interp_params_1d<CoordOp>(

@@ -196,9 +196,8 @@ __device__ void resize_linear(Input input, Output output, Scales scales)
                 in_shape.lens[d], out_shape.lens[d], out_multi[d], scales[d]);
         }
 
-        index_int active_count = count_if(scales.begin(), scales.end(), [](auto scale) {
-            return scale != 1.0f;
-        });
+        index_int active_count =
+            count_if(scales.begin(), scales.end(), [](auto scale) { return scale != 1.0f; });
 
         // Initialize in_multi with non-interpolated dimensions (where i0 == i1)
         array<index_int, ndim> in_multi{};
@@ -213,7 +212,7 @@ __device__ void resize_linear(Input input, Output output, Scales scales)
 
         for(index_int subset = 0; subset < corners; ++subset)
         {
-            float w            = 1.0f;
+            float w              = 1.0f;
             index_int active_bit = 0;
 
             for(index_int d = 0; d < ndim; ++d)

@@ -104,13 +104,12 @@ constexpr OutputIt copy_if(InputIt first, InputIt last, OutputIt d_first, UnaryP
     return d_first;
 }
 
-template<class Iterator, class Predicate>
-constexpr diff_int
-    count_if(Iterator first, Iterator last, Predicate p)
+template <class Iterator, class Predicate>
+constexpr diff_int count_if(Iterator first, Iterator last, Predicate p)
 {
     diff_int ret = 0;
-    for (; first != last; ++first)
-        if (p(*first))
+    for(; first != last; ++first)
+        if(p(*first))
             ++ret;
     return ret;
 }

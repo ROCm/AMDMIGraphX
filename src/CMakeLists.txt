@@ -198,6 +198,7 @@ register_migraphx_ops(
     cosh
     cos
     dequantizelinear
+    deref
     dimensions_of
     div
     dot

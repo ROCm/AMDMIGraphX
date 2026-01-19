@@ -82,8 +82,7 @@ struct nearest_floor
 {
     MIGRAPHX_DEVICE_CONSTEXPR index_int operator()(index_int d_in, float val) const
     {
-        val = max(0.0f, min(static_cast<float>(d_in - 1), val));
-        return static_cast<index_int>(migraphx::floor(val));
+        return migraphx::floor(max(0.0f, min(static_cast<float>(d_in - 1), val)));
     }
 };
 
@@ -91,8 +90,7 @@ struct nearest_ceil
 {
     MIGRAPHX_DEVICE_CONSTEXPR index_int operator()(index_int d_in, float val) const
     {
-        val = max(0.0f, min(static_cast<float>(d_in - 1), val));
-        return static_cast<index_int>(migraphx::ceil(val));
+        return migraphx::ceil(max(0.0f, min(static_cast<float>(d_in - 1), val)));
     }
 };
 
@@ -100,8 +98,7 @@ struct nearest_round_prefer_floor
 {
     MIGRAPHX_DEVICE_CONSTEXPR index_int operator()(index_int d_in, float val) const
     {
-        val = max(0.0f, min(static_cast<float>(d_in - 1), val));
-        return static_cast<index_int>(migraphx::ceil(val - 0.5));
+        return migraphx::ceil(max(0.0f, min(static_cast<float>(d_in - 1), val)) - 0.5f);
     }
 };
 
@@ -109,8 +106,7 @@ struct nearest_round_prefer_ceil
 {
     MIGRAPHX_DEVICE_CONSTEXPR index_int operator()(index_int d_in, float val) const
     {
-        val = max(0.0f, min(static_cast<float>(d_in - 1), val));
-        return static_cast<index_int>(migraphx::round(val));
+        return migraphx::round(max(0.0f, min(static_cast<float>(d_in - 1), val)));
     }
 };
 

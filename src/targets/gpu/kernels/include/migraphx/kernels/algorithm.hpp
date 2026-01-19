@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_AMDMIGRAPHX_KERNELS_ALGORITHM_HPP
 
 #include <migraphx/kernels/debug.hpp>
+#include <migraphx/kernels/types.hpp>
 
 namespace migraphx {
 
@@ -101,6 +102,17 @@ constexpr OutputIt copy_if(InputIt first, InputIt last, OutputIt d_first, UnaryP
         }
     }
     return d_first;
+}
+
+template<class Iterator, class Predicate>
+constexpr diff_int
+    count_if(Iterator first, Iterator last, Predicate p)
+{
+    diff_int ret = 0;
+    for (; first != last; ++first)
+        if (p(*first))
+            ++ret;
+    return ret;
 }
 
 template <class Iterator, class OutputIterator, class UnaryOp>

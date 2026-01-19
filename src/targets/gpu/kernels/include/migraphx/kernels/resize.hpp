@@ -175,6 +175,8 @@ __device__ void resize_nearest(Input input, Output output, Scales scales)
 }
 
 // Resize linear kernel
+// Optimized to only iterate over 2^k corners where k is the number of dimensions
+// that actually need interpolation (i.e., where i0 != i1)
 template <class CoordOp, class NearestOp, class Input, class Output, class Scales>
 __device__ void resize_linear(Input input, Output output, Scales scales)
 {
@@ -194,23 +196,36 @@ __device__ void resize_linear(Input input, Output output, Scales scales)
                 in_shape.lens[d], out_shape.lens[d], out_multi[d], scales[d]);
         }
 
-        // Accumulate over 2^ndim corners
-        float acc               = 0.0;
-        const index_int corners = (ndim == 0) ? 1 : (1 << ndim);
-        array<index_int, ndim> in_multi{};
+        index_int active_count = count_if(scales.begin(), scales.end(), [](auto scale) {
+            return scale != 1.0f;
+        });
 
-        for(index_int mask = 0; mask < corners; ++mask)
+        // Initialize in_multi with non-interpolated dimensions (where i0 == i1)
+        array<index_int, ndim> in_multi{};
+        for(index_int d = 0; d < ndim; ++d)
         {
-            float w = 1.0;
+            in_multi[d] = params[d].i0;
+        }
+
+        // Accumulate over 2^active_count corners instead of 2^ndim
+        float acc               = 0.0f;
+        const index_int corners = (1 << active_count);
+
+        for(index_int subset = 0; subset < corners; ++subset)
+        {
+            float w            = 1.0f;
+            index_int active_bit = 0;
+
             for(index_int d = 0; d < ndim; ++d)
             {
-                const bool use_high = ((mask >> d) & 1U) != 0U;
+                if(scales[d] == 1.0f)
+                    continue;
+                // This dimension needs interpolation
+                const bool use_high = ((subset >> active_bit) & 1U) != 0U;
                 w *= use_high ? params[d].weight : (1.0f - params[d].weight);
                 in_multi[d] = use_high ? params[d].i1 : params[d].i0;
+                ++active_bit;
             }
-
-            if(w == 0.0f)
-                continue;
 
             acc += w * migraphx::convert<float>(input[in_multi]);
         }

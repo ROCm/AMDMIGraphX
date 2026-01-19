@@ -57,9 +57,7 @@ struct coord_transform_align_corners
     MIGRAPHX_DEVICE_CONSTEXPR float
     operator()(index_int l_in, index_int l_out, float idx, float) const
     {
-        return (l_out == 1) ? 0.0f
-                            : (1.0f * idx * (l_in - 1.0f) /
-                               (l_out - 1.0f));
+        return (l_out == 1) ? 0.0f : (1.0f * idx * (l_in - 1.0f) / (l_out - 1.0f));
     }
 };
 
@@ -139,7 +137,7 @@ struct interp_params
 {
     index_int i0; // lower index
     index_int i1; // upper index
-    float weight;     // interpolation weight (0.0 to 1.0)
+    float weight; // interpolation weight (0.0 to 1.0)
 };
 
 template <class CoordOp>
@@ -157,11 +155,11 @@ compute_interp_params_1d(index_int in_len, index_int out_len, index_int out_idx,
 
     // Clamp to valid input range [0, in_len-1]
     float max_c = in_len > 0 ? float(in_len - 1) : 0.0f;
-    coord   = max(0.0f, min(max_c, coord));
+    coord       = max(0.0f, min(max_c, coord));
 
     index_int base = static_cast<index_int>(floor(coord));
     index_int next = min(base + 1, in_len > 0 ? in_len - 1 : 0);
-    float frac         = coord - float(base);
+    float frac     = coord - float(base);
 
     return {base, next, frac};
 }

@@ -26,7 +26,6 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/op/unary.hpp>
-#include <migraphx/par.hpp>
 #include <cmath>
 
 namespace migraphx {
@@ -55,18 +54,18 @@ struct deref : unary<deref>
         return "${function:deref}<" + shape::cpp_type(target_type) + ">(${0})";
     }
 
-    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
+    auto apply() const
     {
-        argument result{dyn_out.computed_shape};
-        result.visit([&](auto output) {
-            using otype = typename decltype(output)::value_type;
-            args[0].visit([&](auto input) {
-                par_transform(input.begin(), input.end(), output.begin(), [](auto x) {
-                    return *reinterpret_cast<otype*>(static_cast<std::size_t>(x));
-                });
+        auto type = target_type;
+        return [type](auto x) {
+            auto ptr = static_cast<std::size_t>(x);
+            double result{};
+            shape::visit(type, [&](auto as) {
+                using T = typename decltype(as)::type;
+                result  = static_cast<double>(*reinterpret_cast<const T*>(ptr));
             });
-        });
-        return result;
+            return result;
+        };
     }
 };
 

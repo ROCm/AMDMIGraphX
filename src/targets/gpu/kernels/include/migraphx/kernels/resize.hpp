@@ -30,6 +30,7 @@
 #include <migraphx/kernels/math.hpp>
 #include <migraphx/kernels/array.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
+#include <migraphx/kernels/bit.hpp>
 
 namespace migraphx {
 
@@ -220,7 +221,7 @@ __device__ void resize_linear(Input input, Output output, Scales scales)
                 if(scales[d] == 1.0f)
                     continue;
                 // This dimension needs interpolation
-                const bool use_high = ((subset >> active_bit) & 1U) != 0U;
+                const bool use_high = get_bit(subset, active_bit);
                 w *= use_high ? params[d].weight : (1.0f - params[d].weight);
                 in_multi[d] = use_high ? params[d].i1 : params[d].i0;
                 ++active_bit;

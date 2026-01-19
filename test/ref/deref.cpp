@@ -37,10 +37,7 @@ TEST_CASE(deref_half_test)
 
     // Create source data to be dereferenced
     std::vector<migraphx::half> source_data = {
-        migraphx::half{1.0f},
-        migraphx::half{2.5f},
-        migraphx::half{-3.0f},
-        migraphx::half{4.5f}};
+        migraphx::half{1.0f}, migraphx::half{2.5f}, migraphx::half{-3.0f}, migraphx::half{4.5f}};
 
     // Create pointer values (addresses of the source data elements)
     std::vector<std::size_t> ptr_data(4);
@@ -51,8 +48,8 @@ TEST_CASE(deref_half_test)
 
     migraphx::shape ptr_shape{migraphx::shape::uint64_type, {2, 2}};
     auto ptr_lit = mm->add_literal(migraphx::literal{ptr_shape, ptr_data});
-    mm->add_instruction(
-        migraphx::make_op("deref", {{"target_type", migraphx::shape::half_type}}), ptr_lit);
+    mm->add_instruction(migraphx::make_op("deref", {{"target_type", migraphx::shape::half_type}}),
+                        ptr_lit);
 
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
@@ -80,8 +77,8 @@ TEST_CASE(deref_float_test)
 
     migraphx::shape ptr_shape{migraphx::shape::uint64_type, {2, 3}};
     auto ptr_lit = mm->add_literal(migraphx::literal{ptr_shape, ptr_data});
-    mm->add_instruction(
-        migraphx::make_op("deref", {{"target_type", migraphx::shape::float_type}}), ptr_lit);
+    mm->add_instruction(migraphx::make_op("deref", {{"target_type", migraphx::shape::float_type}}),
+                        ptr_lit);
 
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
@@ -109,8 +106,8 @@ TEST_CASE(deref_int32_test)
 
     migraphx::shape ptr_shape{migraphx::shape::uint64_type, {5}};
     auto ptr_lit = mm->add_literal(migraphx::literal{ptr_shape, ptr_data});
-    mm->add_instruction(
-        migraphx::make_op("deref", {{"target_type", migraphx::shape::int32_type}}), ptr_lit);
+    mm->add_instruction(migraphx::make_op("deref", {{"target_type", migraphx::shape::int32_type}}),
+                        ptr_lit);
 
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
@@ -138,8 +135,8 @@ TEST_CASE(deref_double_test)
 
     migraphx::shape ptr_shape{migraphx::shape::uint64_type, {4}};
     auto ptr_lit = mm->add_literal(migraphx::literal{ptr_shape, ptr_data});
-    mm->add_instruction(
-        migraphx::make_op("deref", {{"target_type", migraphx::shape::double_type}}), ptr_lit);
+    mm->add_instruction(migraphx::make_op("deref", {{"target_type", migraphx::shape::double_type}}),
+                        ptr_lit);
 
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
@@ -167,8 +164,8 @@ TEST_CASE(deref_noncontiguous_pointers_test)
 
     migraphx::shape ptr_shape{migraphx::shape::uint64_type, {2, 2}};
     auto ptr_lit = mm->add_literal(migraphx::literal{ptr_shape, ptr_data});
-    mm->add_instruction(
-        migraphx::make_op("deref", {{"target_type", migraphx::shape::float_type}}), ptr_lit);
+    mm->add_instruction(migraphx::make_op("deref", {{"target_type", migraphx::shape::float_type}}),
+                        ptr_lit);
 
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
@@ -197,8 +194,8 @@ TEST_CASE(deref_uint8_test)
 
     migraphx::shape ptr_shape{migraphx::shape::uint64_type, {5}};
     auto ptr_lit = mm->add_literal(migraphx::literal{ptr_shape, ptr_data});
-    mm->add_instruction(
-        migraphx::make_op("deref", {{"target_type", migraphx::shape::uint8_type}}), ptr_lit);
+    mm->add_instruction(migraphx::make_op("deref", {{"target_type", migraphx::shape::uint8_type}}),
+                        ptr_lit);
 
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
@@ -228,8 +225,8 @@ TEST_CASE(deref_int64_test)
 
     migraphx::shape ptr_shape{migraphx::shape::uint64_type, {5}};
     auto ptr_lit = mm->add_literal(migraphx::literal{ptr_shape, ptr_data});
-    mm->add_instruction(
-        migraphx::make_op("deref", {{"target_type", migraphx::shape::int64_type}}), ptr_lit);
+    mm->add_instruction(migraphx::make_op("deref", {{"target_type", migraphx::shape::int64_type}}),
+                        ptr_lit);
 
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();

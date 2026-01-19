@@ -329,10 +329,10 @@ constexpr auto addressof(T& x)
     }
     else
     {
-        constexpr auto N              = vec_size<T>();
-        safe_vec<uint64_t, N> result  = {0};
-        auto base                     = reinterpret_cast<uint64_t>(&x);
-        constexpr auto element_size   = sizeof(vec_type<T>);
+        constexpr auto N             = vec_size<T>();
+        safe_vec<uint64_t, N> result = {0};
+        auto base                    = reinterpret_cast<uint64_t>(&x);
+        constexpr auto element_size  = sizeof(vec_type<T>);
         for(int i = 0; i < N; i++)
             result[i] = base + i * element_size;
         return result;

@@ -66,10 +66,8 @@ TEST_CASE(addressof_half_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    std::vector<migraphx::half> data = {migraphx::half{1.0f},
-                                        migraphx::half{2.5f},
-                                        migraphx::half{-3.0f},
-                                        migraphx::half{4.5f}};
+    std::vector<migraphx::half> data = {
+        migraphx::half{1.0f}, migraphx::half{2.5f}, migraphx::half{-3.0f}, migraphx::half{4.5f}};
     migraphx::shape s{migraphx::shape::half_type, {4}};
     auto lit = mm->add_literal(migraphx::literal{s, data});
     mm->add_instruction(migraphx::make_op("addressof"), lit);
@@ -125,8 +123,8 @@ TEST_CASE(addressof_deref_roundtrip_float_test)
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
     auto lit   = mm->add_literal(migraphx::literal{s, data});
     auto addrs = mm->add_instruction(migraphx::make_op("addressof"), lit);
-    mm->add_instruction(
-        migraphx::make_op("deref", {{"target_type", migraphx::shape::float_type}}), addrs);
+    mm->add_instruction(migraphx::make_op("deref", {{"target_type", migraphx::shape::float_type}}),
+                        addrs);
 
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
@@ -145,15 +143,13 @@ TEST_CASE(addressof_deref_roundtrip_half_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    std::vector<migraphx::half> data = {migraphx::half{1.0f},
-                                        migraphx::half{2.5f},
-                                        migraphx::half{-3.0f},
-                                        migraphx::half{4.5f}};
+    std::vector<migraphx::half> data = {
+        migraphx::half{1.0f}, migraphx::half{2.5f}, migraphx::half{-3.0f}, migraphx::half{4.5f}};
     migraphx::shape s{migraphx::shape::half_type, {2, 2}};
     auto lit   = mm->add_literal(migraphx::literal{s, data});
     auto addrs = mm->add_instruction(migraphx::make_op("addressof"), lit);
-    mm->add_instruction(
-        migraphx::make_op("deref", {{"target_type", migraphx::shape::half_type}}), addrs);
+    mm->add_instruction(migraphx::make_op("deref", {{"target_type", migraphx::shape::half_type}}),
+                        addrs);
 
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
@@ -175,8 +171,8 @@ TEST_CASE(addressof_deref_roundtrip_double_test)
     migraphx::shape s{migraphx::shape::double_type, {4}};
     auto lit   = mm->add_literal(migraphx::literal{s, data});
     auto addrs = mm->add_instruction(migraphx::make_op("addressof"), lit);
-    mm->add_instruction(
-        migraphx::make_op("deref", {{"target_type", migraphx::shape::double_type}}), addrs);
+    mm->add_instruction(migraphx::make_op("deref", {{"target_type", migraphx::shape::double_type}}),
+                        addrs);
 
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
@@ -198,8 +194,8 @@ TEST_CASE(addressof_deref_roundtrip_int32_test)
     migraphx::shape s{migraphx::shape::int32_type, {5}};
     auto lit   = mm->add_literal(migraphx::literal{s, data});
     auto addrs = mm->add_instruction(migraphx::make_op("addressof"), lit);
-    mm->add_instruction(
-        migraphx::make_op("deref", {{"target_type", migraphx::shape::int32_type}}), addrs);
+    mm->add_instruction(migraphx::make_op("deref", {{"target_type", migraphx::shape::int32_type}}),
+                        addrs);
 
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
@@ -250,8 +246,8 @@ TEST_CASE(addressof_deref_with_parameter_test)
     migraphx::shape s{migraphx::shape::float_type, {4}};
     auto param = mm->add_parameter("x", s);
     auto addrs = mm->add_instruction(migraphx::make_op("addressof"), param);
-    mm->add_instruction(
-        migraphx::make_op("deref", {{"target_type", migraphx::shape::float_type}}), addrs);
+    mm->add_instruction(migraphx::make_op("deref", {{"target_type", migraphx::shape::float_type}}),
+                        addrs);
 
     p.compile(migraphx::make_target("ref"));
 

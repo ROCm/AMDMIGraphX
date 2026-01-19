@@ -113,6 +113,8 @@ struct find_1x1_convolution
 // Transform B matrix to column-major layout for transB optimization.
 // Uses layout operator to rearrange memory order without changing logical tensor order.
 // The layout operator will be constant-folded by propagate_constant.
+// Only applied for specific dimension configurations known to perform better.
+// Currently only enabled for 896x896, 896x9728, 896x1152, 896x151936.
 struct find_dot_transb
 {
     auto matcher() const
@@ -130,6 +132,18 @@ struct find_dot_transb
         if(ndim < 2)
             return;
 
+        // Only apply for specific dimension configurations
+        // B shape is (..., k, n) where k is second-to-last, n is last
+        auto lens = b_shape.lens();
+        auto k = lens[ndim - 2];
+        auto n = lens[ndim - 1];
+        
+        // Only apply when k=896 and n is one of the specified sizes.
+        if(k != 896)
+            return;
+        if(n != 896 and n != 9728 and n != 1152 and n != 151936)
+            return;
+
         // Build permutation for column-major layout on last two dimensions
         // For (..., k, n) tensor: permutation swaps last two dims in memory order
         // e.g., for 3D: [0, 2, 1] means batch first, then n, then k in memory
@@ -137,7 +151,6 @@ struct find_dot_transb
         std::iota(perm.begin(), perm.end(), 0);
         std::swap(perm[ndim - 2], perm[ndim - 1]);
 
-        // Layout operator changes memory order without changing logical tensor order
         auto col_major_b = m.insert_instruction(
             ins, make_op("layout", {{"permutation", perm}}), b);
 

@@ -69,20 +69,6 @@ struct deref : unary<deref>
     {
         return [](std::size_t x) { return auto_cast_ptr{x}; };
     }
-
-    // auto apply() const
-    // {
-    //     auto type = target_type;
-    //     return [type](auto x) {
-    //         auto ptr = static_cast<std::size_t>(x);
-    //         double result{};
-    //         shape::visit(type, [&](auto as) {
-    //             using T = typename decltype(as)::type;
-    //             result  = static_cast<double>(*reinterpret_cast<const T*>(ptr));
-    //         });
-    //         return result;
-    //     };
-    // }
 };
 
 } // namespace op

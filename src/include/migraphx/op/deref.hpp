@@ -67,9 +67,7 @@ struct deref : unary<deref>
 
     auto apply() const
     {
-        return [](std::size_t x) {
-            return auto_cast_ptr{x};
-        };
+        return [](std::size_t x) { return auto_cast_ptr{x}; };
     }
 
     // auto apply() const

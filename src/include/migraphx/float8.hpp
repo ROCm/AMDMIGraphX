@@ -195,7 +195,7 @@ struct float8
     constexpr float8& operator=(const float8& rhs)     = default;
     constexpr float8& operator=(float8&& rhs) noexcept = default;
 
-    template<class U, MIGRAPHX_REQUIRES(std::is_convertible<U, float>{})>
+    template <class U, MIGRAPHX_REQUIRES(std::is_convertible<U, float>{})>
     constexpr float8& operator=(U rhs)
     {
         return *this = float8(rhs);

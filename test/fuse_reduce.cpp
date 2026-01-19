@@ -65,7 +65,7 @@ TEST_CASE(single)
 
 TEST_CASE(single_dyn)
 {
-    migraphx::shape s{migraphx::shape::float_type, {1, 4}, {3, 8}, {}};
+    migraphx::shape s{migraphx::shape::float_type, {{1, 3}, {4, 8}}};
     migraphx::program p1;
     {
         auto* mm   = p1.get_main_module();

@@ -69,7 +69,7 @@ TEST_CASE(single)
 
 TEST_CASE(single_dyn)
 {
-    migraphx::shape s{migraphx::shape::float_type, {1, 4}, {3, 3}, {}};
+    migraphx::shape s{migraphx::shape::float_type, {{1, 3}, {4, 8}}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -972,14 +972,14 @@ TEST_CASE(add_reshape_add_nonstandard)
     migraphx::shape s3{migraphx::shape::float_type, {3, 10, 4, 2, 2}};
     migraphx::program p1;
     {
-        auto* mm     = p1.get_main_module();
-        auto x       = mm->add_parameter("x", s1);
-        auto y       = mm->add_parameter("y", s1);
-        auto z       = mm->add_parameter("z", s2);
-        auto add1    = mm->add_instruction(migraphx::make_op("add"), x, y);
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s1);
+        auto y    = mm->add_parameter("y", s1);
+        auto z    = mm->add_parameter("z", s2);
+        auto add1 = mm->add_instruction(migraphx::make_op("add"), x, y);
         auto reshape =
             mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), add1);
-        auto add2    = mm->add_instruction(migraphx::make_op("add"), reshape, z);
+        auto add2 = mm->add_instruction(migraphx::make_op("add"), reshape, z);
         mm->add_return({add2});
     }
     run_pass(p1);

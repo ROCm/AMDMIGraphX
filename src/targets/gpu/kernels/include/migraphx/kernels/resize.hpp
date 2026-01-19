@@ -125,7 +125,7 @@ compute_nearest_idx(InShape in_shape, OutShape out_shape, index_int out_idx, con
         in_multi[i] = NearestOp{}(in_shape.lens[i], coord);
     }
 
-    return in_shape.index(in_multi);
+    return in_multi;
 }
 
 // Compute interpolation parameters for linear mode

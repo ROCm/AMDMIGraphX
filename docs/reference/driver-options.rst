@@ -52,6 +52,20 @@ Compiles and runs input graph then prints performance report.
 
 Sets number of iterations to run for perf report (Default: 100)
 
+time
+----
+
+.. program:: migraphx-driver time
+
+Compiles and runs input graph and reports total time.
+
+.. include:: ../driver/read.rst
+.. include:: ../driver/compile.rst
+
+.. option::  --iterations, -n [unsigned int]
+
+Sets number of iterations to run (Default: 100)
+
 verify
 ------
 
@@ -81,6 +95,14 @@ Verifies each instruction
 .. option::  -r, --reduce
 
 Reduces program and verifies
+
+.. option::  -b, --bisect
+
+Bisects program and verifies
+
+.. option::  -c, --compiled-model [std::string]
+
+Compiled model to use
 
 .. option:: --ref-use-double
 

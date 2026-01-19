@@ -42,8 +42,7 @@ namespace migraphx {
 
 extern "C" {
 
-// Version 3: Double precision coord transforms
-MIGRAPHX_GLOBAL void ${kernel_name}(void* in_data, void* output)
+MIGRAPHX_GLOBAL void resize(void* in_data, void* output)
 {
     make_tensors()(in_data, output)([](auto input, auto out) {
         ${resize_func}<${coord_transform}, ${nearest_op}>(input, out, ${scales});
@@ -59,36 +58,6 @@ MIGRAPHX_GLOBAL void ${kernel_name}(void* in_data, void* output)
 struct resize_compiler : compiler<resize_compiler>
 {
     std::vector<std::string> names() const { return {"resize"}; }
-
-    static std::string get_coord_transform(const std::string& coord_mode)
-    {
-        if(coord_mode == "half_pixel")
-            return "coord_transform_half_pixel";
-        if(coord_mode == "pytorch_half_pixel")
-            return "coord_transform_pytorch_half_pixel";
-        if(coord_mode == "align_corners")
-            return "coord_transform_align_corners";
-        if(coord_mode == "asymmetric")
-            return "coord_transform_asymmetric";
-        if(coord_mode == "tf_half_pixel_for_nn")
-            return "coord_transform_tf_half_pixel_for_nn";
-        // Default to half_pixel
-        return "coord_transform_half_pixel";
-    }
-
-    static std::string get_nearest_op(const std::string& nearest_mode)
-    {
-        if(nearest_mode == "floor")
-            return "nearest_floor";
-        if(nearest_mode == "ceil")
-            return "nearest_ceil";
-        if(nearest_mode == "round_prefer_floor")
-            return "nearest_round_prefer_floor";
-        if(nearest_mode == "round_prefer_ceil")
-            return "nearest_round_prefer_ceil";
-        // Default to floor
-        return "nearest_floor";
-    }
 
     static std::string scales_to_string(const std::vector<float>& scales)
     {
@@ -113,63 +82,30 @@ struct resize_compiler : compiler<resize_compiler>
 
         const auto& in_lens = inputs.front().lens();
 
-        // Compute scales from value or from shapes
+        // Compute scales from shapes
         std::vector<float> scales;
-        if(v.contains("scales") and not v.at("scales").empty())
-        {
-            scales = v.at("scales").to_vector<float>();
-        }
-        else if(v.contains("sizes") and not v.at("sizes").empty())
-        {
-            auto out_lens = v.at("sizes").to_vector<size_t>();
-            scales.resize(in_lens.size());
-            for(size_t i = 0; i < in_lens.size(); ++i)
-            {
-                scales[i] = static_cast<float>(out_lens[i]) / static_cast<float>(in_lens[i]);
-            }
-        }
-        else
-        {
-            // No scales or sizes - compute from shapes
-            const auto& out_lens = inputs.back().lens();
-            scales.resize(in_lens.size());
-            for(size_t i = 0; i < in_lens.size(); ++i)
-            {
-                scales[i] = static_cast<float>(out_lens[i]) / static_cast<float>(in_lens[i]);
-            }
-        }
+        const auto& out_lens = inputs.back().lens();
+        scales.resize(in_lens.size());
+        std::transform(in_lens.begin(), in_lens.end(), out_lens.begin(), scales.begin(),
+                       [](float in, float out) { return out / in; });
 
         hip_compile_options options;
         options.set_launch_params(v, compute_global_for(ctx, inputs.back().elements(), 1024));
         options.output      = inputs.back();
         options.inputs      = inputs;
-
-        // Include input and output shapes in kernel name plus version to prevent incorrect caching
-        // when the same operation is used with different configurations
-        // v3: Using double precision for coordinate transforms
-        std::string kernel_name = "resize_v3";
-        for(const auto& dim : inputs.front().lens())
-            kernel_name += "_" + std::to_string(dim);
-        kernel_name += "_to";
-        for(const auto& dim : inputs.back().lens())
-            kernel_name += "_" + std::to_string(dim);
-        options.kernel_name = kernel_name;
+        options.kernel_name = "resize";
 
         // Get mode (nearest or linear)
-        std::string mode        = v.get("mode", "nearest");
-        std::string resize_func = (mode == "linear") ? "resize_linear" : "resize_nearest";
+        std::string resize_func        = "resize_" + v.get("mode", "nearest");
 
         // Get coordinate transformation mode
-        std::string coord_mode      = v.get("coordinate_transformation_mode", "half_pixel");
-        std::string coord_transform = get_coord_transform(coord_mode);
+        std::string coord_transform      = "coord_transform_" + v.get("coordinate_transformation_mode", "half_pixel");
 
         // Get nearest mode (only used for nearest interpolation)
-        std::string nearest_mode = v.get("nearest_mode", "floor");
-        std::string nearest_op   = get_nearest_op(nearest_mode);
+        std::string nearest_op = "nearest_" + v.get("nearest_mode", "floor");
 
         auto src = interpolate_string(resize_kernel,
-                                      {{"kernel_name", options.kernel_name},
-                                       {"coord_transform", coord_transform},
+                                      {{"coord_transform", coord_transform},
                                        {"nearest_op", nearest_op},
                                        {"scales", scales_to_string(scales)},
                                        {"resize_func", resize_func}});

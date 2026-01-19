@@ -348,23 +348,30 @@ struct pointwise_broadcast_pointwise : match::supports_dynamic_shapes
         auto broadcast_pointwise =
             match::name("multibroadcast")(match::used_once(), match::args(pointwise))
                 .bind("broadcast");
-        auto dyn_broadcast_pointwise = match::name("multibroadcast")(match::used_once(),
-                                                                     match::nargs(2),
-                                                                     match::arg(1)(pointwise))
-                                           .bind("broadcast");
+        auto dyn_broadcast_pointwise =
+            match::name("multibroadcast")(match::used_once(),
+                                          match::nargs(2),
+                                          match::arg(0)(pointwise),
+                                          match::arg(1)(match::any().bind("ref_ins")))
+                .bind("broadcast");
         return match::name("pointwise")(match::any_of[match::inputs()](
             match::any_of(broadcast_pointwise, dyn_broadcast_pointwise)));
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto broadcast_ins = r.instructions["broadcast"];
-        auto x_ins         = r.instructions["x"];
+        auto broadcast_ins    = r.instructions["broadcast"];
+        auto x_ins            = r.instructions["x"];
+        bool is_dyn_broadcast = contains(r.instructions, "ref_ins");
 
         auto broadcast = broadcast_ins->get_operator();
 
         auto x_inputs = x_ins->inputs();
         std::transform(x_inputs.begin(), x_inputs.end(), x_inputs.begin(), [&](auto input) {
+            if(is_dyn_broadcast)
+            {
+                return m.insert_instruction(broadcast_ins, broadcast, {input, r.instructions["ref_ins"]});
+            }
             return m.insert_instruction(broadcast_ins, broadcast, input);
         });
 

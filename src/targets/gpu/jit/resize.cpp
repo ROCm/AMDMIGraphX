@@ -86,7 +86,10 @@ struct resize_compiler : compiler<resize_compiler>
         std::vector<float> scales;
         const auto& out_lens = inputs.back().lens();
         scales.resize(in_lens.size());
-        std::transform(in_lens.begin(), in_lens.end(), out_lens.begin(), scales.begin(),
+        std::transform(in_lens.begin(),
+                       in_lens.end(),
+                       out_lens.begin(),
+                       scales.begin(),
                        [](float in, float out) { return out / in; });
 
         hip_compile_options options;
@@ -96,10 +99,11 @@ struct resize_compiler : compiler<resize_compiler>
         options.kernel_name = "resize";
 
         // Get mode (nearest or linear)
-        std::string resize_func        = "resize_" + v.get("mode", "nearest");
+        std::string resize_func = "resize_" + v.get("mode", "nearest");
 
         // Get coordinate transformation mode
-        std::string coord_transform      = "coord_transform_" + v.get("coordinate_transformation_mode", "half_pixel");
+        std::string coord_transform =
+            "coord_transform_" + v.get("coordinate_transformation_mode", "half_pixel");
 
         // Get nearest mode (only used for nearest interpolation)
         std::string nearest_op = "nearest_" + v.get("nearest_mode", "floor");

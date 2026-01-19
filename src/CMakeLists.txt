@@ -173,6 +173,7 @@ register_migraphx_ops(
     acosh
     acos
     add
+    addressof
     allocate
     argmax
     argmin

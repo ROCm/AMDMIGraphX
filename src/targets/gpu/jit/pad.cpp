@@ -47,7 +47,7 @@ namespace migraphx {
 extern "C" {
 MIGRAPHX_GLOBAL void pad_kernel(void* input_p, void* output_p) 
 {
-    auto offsets = index_ints<${offsets}>{};
+    auto offsets = diff_ints<${offsets}>{};
     auto idx     = make_index();
     make_tensors()(input_p, output_p)([&](auto input, auto output) {
         pad(idx, offsets, input, output, ${pad_val}, ${pad_mode});

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,10 +31,8 @@ TEST_CASE(flatten_nonstd_test)
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 5, 4}});
     auto l1 =
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), l0);
-    auto l2 = mm->add_instruction(migraphx::make_op("contiguous"), l1);
-    mm->add_instruction(migraphx::make_op("flatten", {{"axis", 2}}), l2);
-    auto l3 = mm->add_instruction(migraphx::make_op("contiguous"), l1);
-    mm->add_instruction(migraphx::make_op("flatten", {{"axis", 1}}), l3);
+    mm->add_instruction(migraphx::make_op("flatten", {{"axis", 2}}), l1);
+    mm->add_instruction(migraphx::make_op("flatten", {{"axis", 1}}), l1);
     auto prog = optimize_onnx("flatten_nonstd_test.onnx");
 
     EXPECT(p == prog);

@@ -213,7 +213,7 @@ void transform(Range&& r, Iterator it, F f)
 template <class Range1, class Range2, class Iterator, class F>
 void transform(Range1&& r1, Range2&& r2, Iterator it, F f)
 {
-    std::transform(r1.begin(), r1.end(), r2.begin(), it, f);
+    std::transform(r1.begin(), r1.end(), r2.begin(), it, std::move(f));
 }
 
 template <class Range>

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,8 +23,8 @@
  */
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/op/builder/insert.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/make_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -48,10 +48,12 @@ struct parse_binary_op : op_parser<parse_binary_op>
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& parser,
                           onnx_parser::node_info info,
-                          std::vector<instruction_ref> args) const
+                          const std::vector<instruction_ref>& args) const
     {
         if(args.size() != 2)
             MIGRAPHX_THROW("binary operators should have 2 operands");
+
+        value options = value::object{};
         if(contains(info.attributes, "broadcast") and contains(info.attributes, "axis"))
         {
             uint64_t broadcasted =
@@ -64,19 +66,13 @@ struct parse_binary_op : op_parser<parse_binary_op>
                     MIGRAPHX_THROW(
                         "Binary op broadcast attribute not supported for dynamic input shapes");
                 }
+
                 uint64_t axis = parser.parse_value(info.attributes.at("axis")).at<uint64_t>();
-                auto l        = info.add_instruction(
-                    make_op("broadcast",
-                            {{"axis", axis}, {"out_lens", args[0]->get_shape().lens()}}),
-                    args[1]);
-                return info.add_instruction(make_op(opd.op_name), args[0], l);
+                options.insert({"broadcasted_axis", axis});
             }
-            return info.add_instruction(make_op(opd.op_name), args);
         }
-        else
-        {
-            return info.add_broadcastable_binary_op(opd.op_name, args[0], args[1]);
-        }
+
+        return op::builder::add(opd.op_name, *info.mod, args, options).at(0);
     }
 };
 

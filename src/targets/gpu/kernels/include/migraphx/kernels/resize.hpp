@@ -151,7 +151,7 @@ compute_interp_params_1d(index_int in_len, index_int out_len, index_int out_idx,
 
     // Clamp to valid input range [0, in_len-1]
     float max_c = in_len > 0 ? float(in_len - 1) : 0.0f;
-    float clamped_coord       = max(0.0f, min(max_c, coord));
+    float clamped_coord = max(0.0f, min(max_c, coord));
 
     index_int base = migraphx::floor(clamped_coord);
     index_int next = min(base + 1, in_len > 0 ? in_len - 1 : 0);

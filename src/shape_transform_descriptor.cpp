@@ -745,6 +745,7 @@ struct rebase_ambiguity_resolver
 shape_transform_descriptor shape_transform_descriptor::rebase(const std::vector<std::size_t>& dims,
                                                               bool broadcast) const
 {
+	auto result   = *this;
     for(auto& [axis, subs] : group_axes(result.dimensions))
     {
         assert(axis < dims.size());

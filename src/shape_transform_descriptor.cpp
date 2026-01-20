@@ -763,7 +763,9 @@ shape_transform_descriptor shape_transform_descriptor::rebase(const std::vector<
         {
             for(auto* sub : subs)
             {
-                if(not sub->has_hidden_axis())
+                if(not broadcast)
+                    sub->expose();
+                if(not broadcast or not sub->has_hidden_axis())
                     sub->len = 1;
             }
         }

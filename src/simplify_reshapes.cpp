@@ -240,7 +240,7 @@ struct find_op_shape_transform_op
             auto broadcasted_axes = desc.find_broadcasted_axes();
             return equal(op_axes, broadcasted_axes);
         }
-        return desc.elements() == ins->get_shape().elements();
+        return not desc.has_broadcast();
     }
 
     static std::vector<operation> generate(const shape_transform_descriptor& desc,
@@ -270,16 +270,11 @@ struct find_op_shape_transform_op
         auto desc = desc1.rebase(xinputlens, true);
         if(not desc.empty())
             return desc;
-        // We are broadcasting to a different size that doesnt match the input
-        if(desc1.elements() != xinput->get_shape().elements() and
-           desc1.elements() != x_ins->get_shape().elements())
-        {
-            // If we cant rebase the desc correctly then bail
-            auto desc2 = desc1.rebase(xinputlens);
-            if(desc2.elements() != xinput->get_shape().elements())
-                return {};
+	    if(not is_reduce(x_ins) or any_of(ops, [](const operation& op) {
+		    return contains({"broadcast", "multibroadcast"}, op.name());
+		  }))
             return desc1;
-        }
+
         // Find a broadcast to append to improve the reduction analysis
         auto output_path = get_output_path(input_ins);
         auto it = std::find_if(output_path.begin(), output_path.end(), [&](instruction_ref ins) {

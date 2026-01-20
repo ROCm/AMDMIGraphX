@@ -745,9 +745,7 @@ struct rebase_ambiguity_resolver
 shape_transform_descriptor shape_transform_descriptor::rebase(const std::vector<std::size_t>& dims,
                                                               bool broadcast) const
 {
-    auto result   = *this;
-    auto axes_map = rebase_ambiguity_resolver{result, dims}.resolve();
-    for(auto& [axis, subs] : axes_map)
+    for(auto& [axis, subs] : group_axes(result.dimensions))
     {
         assert(axis < dims.size());
         auto dim       = dims[axis];
@@ -789,8 +787,10 @@ shape_transform_descriptor shape_transform_descriptor::rebase(const std::vector<
         else
             return {};
     }
-    for(auto& dim : result.dimensions)
-        remove_empty_sub_dims(dim.subdimensions);
+
+	//  TODO: Only simplify if the subs was changed
+	result.simplify();
+	
     if(broadcast and not is_broadcast_only(dimensions, result.dimensions))
         return {};
 
@@ -995,8 +995,6 @@ static void remove_1_sub_dims(std::vector<dimension::sub>& subdimensions)
                                        subdimensions.end(),
                                        [&](const dimension::sub& d) { return d.len == 1; }),
                         subdimensions.end());
-    if(subdimensions.empty())
-        subdimensions.push_back({1, {}});
 }
 
 void dimension::simplify()

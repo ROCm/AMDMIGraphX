@@ -35,7 +35,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 namespace builder {
 
-value get_default_options();
+MIGRAPHX_EXPORT value get_default_options();
 
 MIGRAPHX_EXPORT std::vector<instruction_ref> insert(const std::string& name,
                                                     module& m,

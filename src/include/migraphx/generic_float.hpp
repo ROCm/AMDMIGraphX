@@ -114,7 +114,8 @@ struct __attribute__((packed, may_alias)) generic_float
     template <class U, MIGRAPHX_REQUIRES(std::is_convertible<U, float>{})>
     constexpr generic_float& operator=(U f) noexcept
     {
-        return *this = generic_float(f);
+        *this = generic_float(f);
+        return *this;
     }
 
     constexpr generic_float operator-() const noexcept

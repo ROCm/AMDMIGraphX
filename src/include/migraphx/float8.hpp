@@ -198,7 +198,8 @@ struct float8
     template <class U, MIGRAPHX_REQUIRES(std::is_convertible<U, float>{})>
     constexpr float8& operator=(U rhs)
     {
-        return *this = float8(rhs);
+        *this = float8(rhs);
+        return *this;
     }
 
     constexpr bool operator==(const float8& rhs) const

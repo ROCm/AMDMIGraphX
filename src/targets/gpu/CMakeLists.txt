@@ -176,6 +176,7 @@ add_library(migraphx_gpu
     nonzero.cpp
     pack_args.cpp
     prefuse_ops.cpp
+    prepare_mlir.cpp
     prepare_reduce.cpp
     perfdb.cpp
     pooling.cpp

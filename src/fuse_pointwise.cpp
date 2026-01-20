@@ -370,7 +370,8 @@ struct pointwise_broadcast_pointwise : match::supports_dynamic_shapes
         std::transform(x_inputs.begin(), x_inputs.end(), x_inputs.begin(), [&](auto input) {
             if(is_dyn_broadcast)
             {
-                return m.insert_instruction(broadcast_ins, broadcast, {input, r.instructions["ref_ins"]});
+                return m.insert_instruction(
+                    broadcast_ins, broadcast, {input, r.instructions["ref_ins"]});
             }
             return m.insert_instruction(broadcast_ins, broadcast, input);
         });

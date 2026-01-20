@@ -26,7 +26,6 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/op/unary.hpp>
-#include <cmath>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -4997,6 +4997,25 @@ def gridsample_512x512_test():
 def gridsample_half_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [1, 1, 4, 4])
     grid = helper.make_tensor_value_info('grid', TensorProto.FLOAT,
+                                         [1, 6, 6, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [1, 1, 6, 6])
+
+    node = onnx.helper.make_node(
+        "GridSample",
+        inputs=["x", "grid"],
+        outputs=["y"],
+        mode="linear",
+        padding_mode="zeros",
+        align_corners=0,
+    )
+
+    return ([node], [x, grid], [y])
+
+
+@onnx_test()
+def gridsample_half_grid_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [1, 1, 4, 4])
+    grid = helper.make_tensor_value_info('grid', TensorProto.FLOAT16,
                                          [1, 6, 6, 2])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [1, 1, 6, 6])
 
@@ -10981,6 +11000,54 @@ def pad_reflect_test():
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2, 5])
 
     sizes = np.array([0, 2, 0, 1])
+    pad_tensor = helper.make_tensor(name='pad_size',
+                                    data_type=TensorProto.INT32,
+                                    dims=sizes.shape,
+                                    vals=sizes.astype(int))
+    arg_pad = onnx.helper.make_node('Constant',
+                                    inputs=[],
+                                    outputs=['arg_pad'],
+                                    value=pad_tensor)
+
+    node = onnx.helper.make_node('Pad',
+                                 mode='reflect',
+                                 inputs=['0', 'arg_pad'],
+                                 outputs=['1'])
+
+    return ([arg_pad, node], [x], [y])
+
+
+@onnx_test()
+def pad_reflect_2l2r_test():
+    h = 4
+    w = 4
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [h, w])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [h, w+2+2])
+
+    sizes = np.array([0, 2, 0, 2])
+    pad_tensor = helper.make_tensor(name='pad_size',
+                                    data_type=TensorProto.INT32,
+                                    dims=sizes.shape,
+                                    vals=sizes.astype(int))
+    arg_pad = onnx.helper.make_node('Constant',
+                                    inputs=[],
+                                    outputs=['arg_pad'],
+                                    value=pad_tensor)
+
+    node = onnx.helper.make_node('Pad',
+                                 mode='reflect',
+                                 inputs=['0', 'arg_pad'],
+                                 outputs=['1'])
+
+    return ([arg_pad, node], [x], [y])
+
+
+@onnx_test()
+def pad_reflect_3l2r_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 2])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2, 7])
+
+    sizes = np.array([0, 3, 0, 2])
     pad_tensor = helper.make_tensor(name='pad_size',
                                     data_type=TensorProto.INT32,
                                     dims=sizes.shape,

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -62,7 +62,6 @@ struct test_attention_flash_decoding_4d : verify_program<test_attention_flash_de
 // These tests are not run by default currently; the env vars below need to be set:
 // MIGRAPHX_FLASH_DECODING_NUM_SPLITS=2 # or another split factor
 // MIGRAPHX_MLIR_USE_SPECIFIC_OPS=attention
-// TODO: fix needed in rocMLIR
-// template struct test_attention_flash_decoding_4d<migraphx::shape::half_type>;
-// template struct test_attention_flash_decoding_4d<migraphx::shape::bf16_type>;
-// template struct test_attention_flash_decoding_4d<migraphx::shape::float_type>;
+template struct test_attention_flash_decoding_4d<migraphx::shape::half_type>;
+template struct test_attention_flash_decoding_4d<migraphx::shape::bf16_type>;
+template struct test_attention_flash_decoding_4d<migraphx::shape::float_type>;

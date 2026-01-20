@@ -389,7 +389,7 @@ TEST_CASE(dequantizelinear_verify_blocked_op_builder_test)
     std::vector<int8_t> x = {-128, -64, 0,   64,   127, 0,  64,  -64, -128, 32,  -32,  16,
                              -16,  -32, -64, -128, 0,   64, 127, 0,   64,   -64, -128, 32};
     std::vector<float> s  = {
-         1.0f, 0.1f, 10.0f, 2.0f, 0.1f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 10.0f, 0.1f};
+        1.0f, 0.1f, 10.0f, 2.0f, 0.1f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 10.0f, 0.1f};
     std::vector<int8_t> zp = {1, 10, 0, 10, 0, 1, 0, 0, 0, 0, 1, 0};
 
     std::vector<float> expected_result = {-129,  -65, -1, 5.4, 1270, 0,    108,   -148,

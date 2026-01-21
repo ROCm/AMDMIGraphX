@@ -30,11 +30,11 @@
 #include <migraphx/verify.hpp>
 
 namespace {
-template <typename x_t = int8_t, typename s_t = float>
+template <typename XT = int8_t, typename ST = float>
 struct test_ctx
 {
-    using x_typ = x_t;
-    using s_typ = s_t;
+    using x_typ = XT;
+    using s_typ = ST;
 
     test_ctx(const std::vector<size_t>& x_lens,
              const std::vector<size_t>& s_lens,
@@ -95,33 +95,33 @@ struct test_ctx
     migraphx::instruction_ref zp;
 };
 
-template <typename x_t = int8_t, typename s_t = float>
-test_ctx<x_t, s_t> per_tensor_ctx(const std::vector<size_t>& x_lens)
+template <typename XT = int8_t, typename ST = float>
+test_ctx<XT, ST> per_tensor_ctx(const std::vector<size_t>& x_lens)
 {
-    return test_ctx<x_t, s_t>{x_lens, {1}};
+    return test_ctx<XT, ST>{x_lens, {1}};
 }
 
-template <typename x_t = int8_t, typename s_t = float>
-test_ctx<x_t, s_t> per_axis_ctx(const std::vector<size_t>& x_lens, size_t s_dim, int axis)
+template <typename XT = int8_t, typename ST = float>
+test_ctx<XT, ST> per_axis_ctx(const std::vector<size_t>& x_lens, size_t s_dim, int axis)
 {
-    test_ctx<x_t, s_t> ctx{x_lens, {s_dim}};
+    test_ctx<XT, ST> ctx{x_lens, {s_dim}};
     ctx.axis = axis;
     return ctx;
 }
 
-template <typename x_t = int8_t, typename s_t = float>
-test_ctx<x_t, s_t> per_axis_ctx_valid(const std::vector<size_t>& x_lens, int axis)
+template <typename XT = int8_t, typename ST = float>
+test_ctx<XT, ST> per_axis_ctx_valid(const std::vector<size_t>& x_lens, int axis)
 {
-    return per_axis_ctx<x_t, s_t>(x_lens, x_lens[axis], axis);
+    return per_axis_ctx<XT, ST>(x_lens, x_lens[axis], axis);
 }
 
-template <typename x_t = int8_t, typename s_t = float>
-test_ctx<x_t, s_t> blocked_ctx(const std::vector<size_t>& x_lens,
-                               const std::vector<size_t>& s_lens,
-                               int axis,
-                               int block_size)
+template <typename XT = int8_t, typename ST = float>
+test_ctx<XT, ST> blocked_ctx(const std::vector<size_t>& x_lens,
+                             const std::vector<size_t>& s_lens,
+                             int axis,
+                             int block_size)
 {
-    test_ctx<x_t, s_t> ctx{x_lens, s_lens};
+    test_ctx<XT, ST> ctx{x_lens, s_lens};
     ctx.axis       = axis;
     ctx.block_size = block_size;
     return ctx;

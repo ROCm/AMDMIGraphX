@@ -176,23 +176,23 @@ TEST_CASE(quantizelinear_with_fp4x2_odd_fast_axis_op_builder_test)
 }
 
 namespace {
-template <typename x_typ = float, typename s_typ = float, typename zp_typ = int8_t>
-auto run_with_data(std::vector<size_t> x_lens,
-                   std::vector<size_t> s_lens,
+template <typename XTyp = float, typename STyp = float, typename ZpTyp = int8_t>
+auto run_with_data(const std::vector<size_t>& x_lens,
+                   const std::vector<size_t>& s_lens,
 
-                   std::vector<x_typ> x_data,
-                   std::vector<s_typ> s_data,
-                   std::vector<zp_typ> zp_data,
+                   std::vector<XTyp> x_data,
+                   std::vector<STyp> s_data,
+                   std::vector<ZpTyp> zp_data,
 
                    std::optional<migraphx::shape::type_t> out_typ = std::nullopt,
                    int axis                                       = 1,
-                   int block_size                                 = 0) -> std::vector<zp_typ>
+                   int block_size                                 = 0) -> std::vector<ZpTyp>
 {
     migraphx::module m;
 
-    const migraphx::shape x_shape{migraphx::shape::get_type<x_typ>::value, x_lens};
-    const migraphx::shape s_shape{migraphx::shape::get_type<s_typ>::value, s_lens};
-    const migraphx::shape zp_shape{migraphx::shape::get_type<zp_typ>::value, s_lens};
+    const migraphx::shape x_shape{migraphx::shape::get_type<XTyp>::value, std::move(x_lens)};
+    const migraphx::shape s_shape{migraphx::shape::get_type<STyp>::value, s_lens};
+    const migraphx::shape zp_shape{migraphx::shape::get_type<ZpTyp>::value, s_lens};
 
     m.add_parameter("x", x_shape);
     m.add_parameter("s", s_shape);
@@ -220,7 +220,7 @@ auto run_with_data(std::vector<size_t> x_lens,
     params["zp"] = migraphx::argument(zp_shape, zp_data.data());
 
     auto result = p.eval(params).back();
-    std::vector<zp_typ> result_data(result.get_shape().elements());
+    std::vector<ZpTyp> result_data(result.get_shape().elements());
     result.visit(
         [&](auto output) { std::copy(output.begin(), output.end(), result_data.begin()); });
 

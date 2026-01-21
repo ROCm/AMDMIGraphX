@@ -69,15 +69,13 @@ struct unpack_fp4_compiler : compiler<unpack_fp4_compiler>
         options.set_launch_params(v, compute_global_for(ctx, inputs.front().elements()));
 
         const auto& in_shape = inputs.front();
-        int fast_axis = std::min_element(in_shape.strides().cbegin(), in_shape.strides().cend()) -
-                        in_shape.strides().cbegin();
 
         auto src =
             interpolate_string(unpack_fp4_kernel,
                                {{"kernel", options.kernel_name},
                                 {"params", enum_params(options.inputs.size(), "void * private_p")},
                                 {"args", enum_params(options.inputs.size(), "private_p")},
-                                {"axis", std::to_string(fast_axis)}});
+                                {"axis", std::to_string(v.at("axis").to<int>())}});
         return compile_hip_code_object(ctx, src, options);
     }
 

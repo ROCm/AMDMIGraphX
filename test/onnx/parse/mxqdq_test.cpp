@@ -56,8 +56,8 @@ TEST_CASE(mxqdq_even_test)
         input,
         block_scales_ins);
     auto quantized_shape = q_ins->get_shape();
-    auto pack_ins        = mm->add_instruction(migraphx::make_op("pack_fp4"), q_ins);
-    auto unpack_ins      = mm->add_instruction(migraphx::make_op("unpack_fp4"), pack_ins);
+    auto pack_ins        = mm->add_instruction(migraphx::make_op("pack_fp4", {{"axis", 3}}), q_ins);
+    auto unpack_ins      = mm->add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), pack_ins);
     mm->add_instruction(migraphx::make_op("dequantizelinear"), unpack_ins, block_scales_ins);
 
     auto prog = optimize_onnx("mxqdq_even_test.onnx");
@@ -103,8 +103,8 @@ TEST_CASE(mxqdq_odd_test)
     auto quantized_shape = q_ins->get_shape();
     auto pad_ins =
         mm->add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 0, 0, 0, 1}}}), q_ins);
-    auto pack_ins   = mm->add_instruction(migraphx::make_op("pack_fp4"), pad_ins);
-    auto unpack_ins = mm->add_instruction(migraphx::make_op("unpack_fp4"), pack_ins);
+    auto pack_ins   = mm->add_instruction(migraphx::make_op("pack_fp4", {{"axis", 2}}), pad_ins);
+    auto unpack_ins = mm->add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 2}}), pack_ins);
     auto slice_ins  = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {5}}}), unpack_ins);
     mm->add_instruction(migraphx::make_op("dequantizelinear"), slice_ins, block_scales_ins);

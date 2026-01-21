@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -48,6 +48,7 @@ struct grid_sampler
     size_t m_in_width{1};
     size_t m_out_height{1};
     size_t m_out_width{1};
+    migraphx::shape::type_t m_grid_type;
     migraphx::shape m_nc_shape;
 
     instruction_ref m_one_l;
@@ -66,7 +67,11 @@ struct grid_sampler
                  bool align,
                  std::string&& padding,
                  const onnx_parser::node_info& info)
-        : m_padding(std::move(padding)), m_align_corners(align), m_input(input), m_grid(grid)
+        : m_padding(std::move(padding)),
+          m_align_corners(align),
+          m_input(input),
+          m_grid(grid),
+          m_grid_type(grid->get_shape().type())
     {
         auto i_lens  = input->get_shape().lens();
         m_batch      = i_lens.at(0);
@@ -76,19 +81,19 @@ struct grid_sampler
         auto g_lens  = grid->get_shape().lens();
         m_out_height = g_lens.at(1);
         m_out_width  = g_lens.at(2);
-        auto type    = m_grid->get_shape().type();
-        m_nc_shape   = migraphx::shape{type, {1, 2}};
-        m_zero_l     = info.add_literal(migraphx::literal{migraphx::shape{type}, {0.0f}});
-        m_one_l      = info.add_literal(migraphx::literal{migraphx::shape{type}, {1.0f}});
+        m_nc_shape   = migraphx::shape{m_grid_type, {1, 2}};
+        m_zero_l     = info.add_literal(migraphx::literal{migraphx::shape{m_grid_type}, {0.0f}});
+        m_one_l      = info.add_literal(migraphx::literal{migraphx::shape{m_grid_type}, {1.0f}});
         m_two_l =
             info.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type}, {2}});
-        m_minus_half_l = info.add_literal(migraphx::literal{migraphx::shape{type}, {-0.5f}});
+        m_minus_half_l = info.add_literal(migraphx::literal{migraphx::shape{m_grid_type}, {-0.5f}});
         m_width_max_l =
-            info.add_literal(migraphx::literal{migraphx::shape{type}, {m_in_width - 1}});
-        m_width_l = info.add_literal(migraphx::literal{migraphx::shape{type}, {m_in_width}});
+            info.add_literal(migraphx::literal{migraphx::shape{m_grid_type}, {m_in_width - 1}});
+        m_width_l = info.add_literal(migraphx::literal{migraphx::shape{m_grid_type}, {m_in_width}});
         m_height_max_l =
-            info.add_literal(migraphx::literal{migraphx::shape{type}, {m_in_height - 1}});
-        m_height_l = info.add_literal(migraphx::literal{migraphx::shape{type}, {m_in_height}});
+            info.add_literal(migraphx::literal{migraphx::shape{m_grid_type}, {m_in_height - 1}});
+        m_height_l =
+            info.add_literal(migraphx::literal{migraphx::shape{m_grid_type}, {m_in_height}});
 
         auto x_coords = info.add_instruction(
             make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {1}}}), m_grid);
@@ -310,12 +315,12 @@ struct linear_sampler : grid_sampler
             nc_values_data.push_back(c);
         });
         size_t num_indices  = m_batch * m_out_height * m_out_width * m_channel;
-        auto xy_indices_t   = info.add_literal(migraphx::literal{
-            migraphx::shape{migraphx::shape::float_type, {num_indices, 3}}, xy_indices_data});
-        auto weight_index_t = info.add_literal(migraphx::literal{
-            migraphx::shape{migraphx::shape::float_type, {num_indices, 3}}, weight_indices_data});
-        auto nc             = info.add_literal(migraphx::literal{
-            migraphx::shape{migraphx::shape::float_type, {num_indices, 2}}, nc_values_data});
+        auto xy_indices_t   = info.add_literal(
+            migraphx::literal{migraphx::shape{m_grid_type, {num_indices, 3}}, xy_indices_data});
+        auto weight_index_t = info.add_literal(
+            migraphx::literal{migraphx::shape{m_grid_type, {num_indices, 3}}, weight_indices_data});
+        auto nc = info.add_literal(
+            migraphx::literal{migraphx::shape{m_grid_type, {num_indices, 2}}, nc_values_data});
 
         auto y0_samples = info.add_instruction(make_op("gathernd"), m_floor_y, xy_indices_t);
         auto x0_samples = info.add_instruction(make_op("gathernd"), m_floor_x, xy_indices_t);
@@ -416,13 +421,12 @@ struct bicubic_sampler : grid_sampler
                     const onnx_parser::node_info& info)
         : grid_sampler(input, grid, align, std::move(padding), info)
     {
-        auto type    = m_grid->get_shape().type();
-        m_a_l        = info.add_literal(migraphx::literal{migraphx::shape{type}, {-0.75}});
-        m_aplus2_l   = info.add_literal(migraphx::literal{migraphx::shape{type}, {1.25}});
-        m_aplus3_l   = info.add_literal(migraphx::literal{migraphx::shape{type}, {2.25}});
-        m_4a_l       = info.add_literal(migraphx::literal{migraphx::shape{type}, {-3.0}});
-        m_5a_l       = info.add_literal(migraphx::literal{migraphx::shape{type}, {-3.75}});
-        m_8a_l       = info.add_literal(migraphx::literal{migraphx::shape{type}, {-6.0}});
+        m_a_l        = info.add_literal(migraphx::literal{migraphx::shape{m_grid_type}, {-0.75}});
+        m_aplus2_l   = info.add_literal(migraphx::literal{migraphx::shape{m_grid_type}, {1.25}});
+        m_aplus3_l   = info.add_literal(migraphx::literal{migraphx::shape{m_grid_type}, {2.25}});
+        m_4a_l       = info.add_literal(migraphx::literal{migraphx::shape{m_grid_type}, {-3.0}});
+        m_5a_l       = info.add_literal(migraphx::literal{migraphx::shape{m_grid_type}, {-3.75}});
+        m_8a_l       = info.add_literal(migraphx::literal{migraphx::shape{m_grid_type}, {-6.0}});
         auto floor_x = info.add_common_op("floor", m_unnorm_x);
         auto floor_y = info.add_common_op("floor", m_unnorm_y);
         auto fract_x = info.add_common_op("sub", m_unnorm_x, floor_x);

@@ -28,7 +28,6 @@
 #include <migraphx/eliminate_allocation.hpp>
 #include <migraphx/eliminate_concat.hpp>
 #include <migraphx/eliminate_contiguous.hpp>
-#include <migraphx/eliminate_data_type.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/fp8_ocp_to_fnuz.hpp>
@@ -67,6 +66,7 @@
 #include <migraphx/gpu/concat_gpu_opt.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device_name.hpp>
+#include <migraphx/gpu/eliminate_data_type_for_gpu.hpp>
 #include <migraphx/gpu/fuse_ck.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
@@ -96,86 +96,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     auto& ctx = any_cast<context>(gctx);
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
     ctx.load_problem_cache();
-    std::set<shape::type_t> unsupported_types(shape::types().begin(), shape::types().end());
-    unsupported_types.erase(shape::type_t::float_type);
-    unsupported_types.erase(shape::type_t::fp8e4m3fnuz_type);
-    unsupported_types.erase(shape::type_t::fp8e5m2fnuz_type);
-    unsupported_types.erase(shape::type_t::fp8e4m3fn_type);
-    unsupported_types.erase(shape::type_t::fp8e5m2_type);
-    unsupported_types.erase(shape::type_t::half_type);
-    unsupported_types.erase(shape::type_t::bool_type);
-    unsupported_types.erase(shape::type_t::int8_type);
-    unsupported_types.erase(shape::type_t::uint8_type);
-    unsupported_types.erase(shape::type_t::int32_type);
-    unsupported_types.erase(shape::type_t::tuple_type);
-
-    // No BF-16 Support on Navi21
-    if(gpu::gfx_has_bf16_intrinsics())
-    {
-        unsupported_types.erase(shape::type_t::bf16_type);
-    }
-
-    // whiltelist supported Ops for the FP8 types
-    std::set<std::string> unsupported_fp8fnuz_ops = {};
-
-    // disable dot & quant_dot if no hipblaslt
-    if(not hipblaslt_supported())
-    {
-        unsupported_fp8fnuz_ops.insert("dot");
-        unsupported_fp8fnuz_ops.insert("quant_dot");
-    }
-
-#if MIGRAPHX_USE_MIOPEN // MIOpen doesn't have support for fp8 pooling yet.
-    unsupported_fp8fnuz_ops.insert("pooling");
-#endif
-    if(not gpu::gfx_has_fp8fnuz_intrinsics())
-    {
-        unsupported_fp8fnuz_ops.insert("dot");
-        unsupported_fp8fnuz_ops.insert("quant_dot");
-        unsupported_fp8fnuz_ops.insert("convolution");
-        unsupported_fp8fnuz_ops.insert("quant_convolution");
-    }
-    // add all device kernels
-    unsupported_fp8fnuz_ops.insert("logsoftmax");
-    unsupported_fp8fnuz_ops.insert("nonzero");
-    unsupported_fp8fnuz_ops.insert("prefix_scan_sum");
-    unsupported_fp8fnuz_ops.insert("scatter_none");
-    unsupported_fp8fnuz_ops.insert("topk");
-    unsupported_fp8fnuz_ops.insert("rnn_var_sl_shift_output");
-    unsupported_fp8fnuz_ops.insert("multinomial");
-    unsupported_fp8fnuz_ops.insert("argmax");
-    unsupported_fp8fnuz_ops.insert("argmin");
-
-    std::set<std::string> unsupported_fp8ocp_ops = {};
-
-    // disable dot & quant_dot if no hipblaslt
-    if(not hipblaslt_supported())
-    {
-        unsupported_fp8ocp_ops.insert("dot");
-        unsupported_fp8ocp_ops.insert("quant_dot");
-    }
-
-#if MIGRAPHX_USE_MIOPEN
-    // MIOpen doesn't have support for fp8 pooling yet.
-    unsupported_fp8ocp_ops.insert("pooling");
-#endif
-    if(not gpu::gfx_has_fp8ocp_intrinsics())
-    {
-        unsupported_fp8ocp_ops.insert("convolution");
-        unsupported_fp8ocp_ops.insert("quant_convolution");
-        unsupported_fp8ocp_ops.insert("dot");
-        unsupported_fp8ocp_ops.insert("quant_dot");
-    }
-    // add all device kernels
-    unsupported_fp8ocp_ops.insert("logsoftmax");
-    unsupported_fp8ocp_ops.insert("nonzero");
-    unsupported_fp8ocp_ops.insert("prefix_scan_sum");
-    unsupported_fp8ocp_ops.insert("scatter_none");
-    unsupported_fp8ocp_ops.insert("topk");
-    unsupported_fp8ocp_ops.insert("rnn_var_sl_shift_output");
-    unsupported_fp8ocp_ops.insert("multinomial");
-    unsupported_fp8ocp_ops.insert("argmax");
-    unsupported_fp8ocp_ops.insert("argmin");
 
     // clang-format off
     return
@@ -195,9 +115,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         rewrite_rnn{},
         dead_code_elimination{},
-        // workaround for rocBLAS unsupported error when using uint8 in quant_dot, quant_convolution & pooling
-        eliminate_data_type{{migraphx::shape::uint8_type}, shape::float_type, {"quant_convolution", "quant_dot", "pooling"}},
-        eliminate_data_type{unsupported_types, shape::type_t::float_type},
+        eliminate_data_type_for_gpu{},
         simplify_reshapes{},
         eliminate_identity{},
         eliminate_pad{},
@@ -213,8 +131,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         prefuse_ops{},
         dead_code_elimination{},
-        eliminate_data_type{{migraphx::shape::fp8e4m3fnuz_type, migraphx::shape::fp8e5m2fnuz_type}, shape::float_type, unsupported_fp8fnuz_ops},
-        eliminate_data_type{{migraphx::shape::fp8e4m3fn_type, migraphx::shape::fp8e5m2_type}, shape::float_type, unsupported_fp8ocp_ops},
         dead_code_elimination{},
         rewrite_reduce{},
         rewrite_topk{},

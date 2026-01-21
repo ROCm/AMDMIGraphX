@@ -30,6 +30,8 @@
 #include <migraphx/par_for.hpp>
 #include <migraphx/fp4_casts.hpp>
 
+#include <sstream>
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {

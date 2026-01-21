@@ -2775,7 +2775,6 @@ TEST_CASE_SKIP(dot_add_dot_both_multi_user, "Not supported in rocMLIR")
     EXPECT(p1.sort() == p2.sort());
 }
 
-
 int main(int argc, const char* argv[])
 {
     if(migraphx::gpu::mlir_enabled())

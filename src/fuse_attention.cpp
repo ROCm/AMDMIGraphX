@@ -362,26 +362,14 @@ struct find_gqa_flash_decoding
         }
     };
 
-    // Helper function: adjust transpose permutation when inserting a group dimension
-    // insert_pos_from_end: position where group dimension is inserted in ORIGINAL tensor
-    //                      (negative values count from end, e.g., -2 means second-to-last)
-    // original_perm: the original permutation vector
-    // Returns: adjusted permutation vector
-    std::vector<int64_t> adjust_transpose_perm(const std::vector<int64_t>& original_perm, 
-                                                 int insert_pos_from_end) const
-    {
-        // Convert negative position to actual position in the ORIGINAL tensor
-        // For a 4D tensor, insert_pos_from_end=-2 means position 2 (0-indexed)
-        size_t original_rank = original_perm.size();
-        int actual_insert_pos = insert_pos_from_end;
-        if(insert_pos_from_end < 0) {
-            actual_insert_pos = static_cast<int>(original_rank) + insert_pos_from_end;
-        }
-        
-        // Adjust permutation values: any dimension >= insert_pos shifts up by 1
+    // Adjust permutation when inserting a group dimension
+    std::vector<int64_t> adjust_permutation(const std::vector<int64_t>& original_perm, 
+                                                 int group_dim_pos) const
+    {        
+        // any dimension >= insert_pos shifts up by 1
         std::vector<int64_t> new_perm;
         for(auto idx : original_perm) {
-            if(idx >= actual_insert_pos) {
+            if(idx >= group_dim_pos) {
                 new_perm.push_back(idx + 1);
             } else {
                 new_perm.push_back(idx);
@@ -390,15 +378,11 @@ struct find_gqa_flash_decoding
         
         // Insert the group dimension at its natural position in the output
         // The group dimension itself appears at position actual_insert_pos
-        new_perm.insert(new_perm.begin() + actual_insert_pos, actual_insert_pos);
-        
+        new_perm.insert(new_perm.begin() + group_dim_pos, group_dim_pos);
         return new_perm;
     }
     
-    // Helper function: adjust axes when a group dimension is inserted
-    // axes: original axes vector
-    // group_dim_pos: position where group dimension is inserted (in ORIGINAL tensor coordinates)
-    // Returns: adjusted axes
+    // Adjust axes when a group dimension is inserted
     std::vector<int64_t> adjust_axes(const std::vector<int64_t>& axes, int group_dim_pos) const
     {
         std::vector<int64_t> adjusted;
@@ -463,21 +447,18 @@ struct find_gqa_flash_decoding
         std::cout << "Rebuilding GQA attention with inserter..." << std::endl;
         std::cout << "Second gemm (will stop after): " << gemm2->name() << std::endl;
         
-        // Calculate the group dimension position in the original tensor (4D)
-        // Group is inserted at position -2, which is index 2 in a 4D tensor
         int group_dim_pos = 2;
         
-        // Define the BNGSM shape for broadcasts (needed in the inserter)
+        // Define BNGSM and BNSM shapes
         std::vector<std::size_t> bngsm{dims.batch_size, dims.num_heads, num_groups, dims.sequence_length, dims.seq_length_per_group};
         std::vector<std::size_t> bnsm{dims.batch_size, dims.num_heads, dims.sequence_length, dims.max_seq_length};
         
-        // Track reduce operations for LSE calculation
+        // need to track reduce operations for LSE calculation that's added to the submodule
         instruction_ref reduce_max_ref;
         instruction_ref reduce_sum_ref;
         bool found_reduce_max = false;
         bool found_reduce_sum = false;
         
-        // Will get the second dot result after copying
         instruction_ref second_dot_result;
         
         // Create the inserter function that transforms operations
@@ -534,7 +515,7 @@ struct find_gqa_flash_decoding
             // Transpose: adjust permutation
             if(op_name == "transpose") {
                 auto perm = op.to_value()["permutation"].to_vector<int64_t>();
-                auto new_perm = adjust_transpose_perm(perm, -2);
+                auto new_perm = adjust_permutation(perm, group_dim_pos);
                 
                 std::cout << "    Adjusted perm: [";
                 for(size_t i = 0; i < perm.size(); ++i) 
@@ -567,7 +548,7 @@ struct find_gqa_flash_decoding
                 std::cout << std::endl;
                 auto result = m.insert_instruction(ins, new_op, inputs, mod_args);
                 
-                // Track these for LSE calculation
+                // needed for LSE calculation that's added to the submodule
                 if(op_name == "reduce_max") {
                     reduce_max_ref = result;
                     found_reduce_max = true;
@@ -581,20 +562,50 @@ struct find_gqa_flash_decoding
                 return result;
             }
             
-            // Broadcast: if output is 2D {batch, max_seq_length}, add reshape to 3D
+            // TODO condense
+            // Broadcast: adjust axis and out_lens for group dimension
             if(op_name == "broadcast") {
-                auto result = m.insert_instruction(ins, op, inputs, mod_args);
-                auto result_lens = result->get_shape().lens();
+                auto op_val = op.to_value();
+                auto out_lens = op_val["out_lens"].to_vector<std::size_t>();
+                auto axis = op_val["axis"].to<uint64_t>();
                 
-                // Check if result is {batch, max_seq_length}
-                if(result_lens.size() == 2 && 
-                   result_lens[0] == dims.batch_size && 
-                   result_lens[1] == dims.max_seq_length) {
-                    std::cout << "    Creating: broadcast (unchanged)";
+                // if scalar output, or 1D output of len 1, can add group dim to out_lens directly
+                if(out_lens.size() == 0 || (out_lens.size() == 1 && out_lens[0] == 1)) {
+                    std::cout << "------------Broadcasting directly:\n\n\n";
+                    out_lens.insert(out_lens.begin(), num_groups);
+                    out_lens.push_back(dims.seq_length_per_group);
+                    // axis needs to be adjusted if it's inserting in the new dimensions
+                    uint64_t new_axis = (axis == 0) ? 0 : axis + 1;
+                    auto new_op = make_op("broadcast", {{"axis", new_axis}, {"out_lens", out_lens}});
+                    std::cout << "    Creating: broadcast";
+                    print_op_attrs(new_op);
+                    std::cout << std::endl;
+                    auto result = m.insert_instruction(ins, new_op, inputs, mod_args);
+                    print_output(result);
+                    return result;
+                } else if (inputs[0]->get_shape().lens().size() > out_lens.size()) {
+                    // if the input rank does not match the length of out_lens,
+                    // then that means the input has already been adjusted to have the
+                    // group dim and seq_len_per_group, so we can edit the out_lens directly
+                    std::vector<std::size_t> new_lens = {out_lens[0], out_lens[1], num_groups, out_lens[2], dims.seq_length_per_group};
+                    // Adjust axis: if axis >= 2, shift by 1 to account for group dim insertion
+                    uint64_t new_axis = (axis >= 2) ? axis + 1 : axis;
+                    auto new_op = make_op("broadcast", {{"axis", new_axis}, {"out_lens", new_lens}});
+                    std::cout << "    Creating: broadcast";
+                    print_op_attrs(new_op);
+                    std::cout << std::endl;
+                    auto result = m.insert_instruction(ins, new_op, inputs, mod_args);
+                    print_output(result);
+                    return result;
+                } else if(out_lens.size() == 2) {
+                    // keep the broadcast as is
+                    // follow up with a reshape to split the sequence dimension into groups
+                    std::cout << "    broadcast unchanged - will add reshape" << std::endl;
+                    auto result = m.insert_instruction(ins, op, inputs, mod_args);
+                    std::cout << "    Creating: broadcast (unchanged)";   
                     print_op_attrs(op);
                     std::cout << std::endl;
                     print_output(result);
-                    
                     // Add reshape to split sequence dimension into groups
                     std::vector<std::size_t> reshape_dims = {dims.batch_size, num_groups, dims.seq_length_per_group};
                     std::cout << "\n>>> Auto-inserting reshape after 2D broadcast" << std::endl;
@@ -609,30 +620,83 @@ struct find_gqa_flash_decoding
                     std::cout << std::endl;
                     print_output(reshape_result);
                     return reshape_result;
+                } else if(out_lens.size() == 4) {
+                    // keep the broadcast as is
+                    // follow up with a reshape to split the sequence dimension into groups
+                    std::cout << "    broadcast unchanged - will add reshape" << std::endl;
+                    auto result = m.insert_instruction(ins, op, inputs, mod_args);
+                    std::cout << "    Creating: broadcast (unchanged)";   
+                    print_op_attrs(op);
+                    std::cout << std::endl;
+                    print_output(result);
+                    // Add reshape to split sequence dimension into groups
+                    auto result_lens = result->get_shape().lens();
+                    std::vector<std::size_t> reshape_dims = result_lens;
+                    reshape_dims.insert(reshape_dims.end() - 2, num_groups);
+                    reshape_dims.back() = dims.seq_length_per_group;
+                    std::cout << "\n>>> Auto-inserting reshape after 4D broadcast" << std::endl;
+                    std::cout << "    Reshape dims: ";
+                    print_shape(reshape_dims);
+                    std::cout << std::endl;
+                    
+                    auto reshape_result = m.insert_instruction(ins, make_op("reshape", {{"dims", reshape_dims}}), result);
+                    std::cout << "    Creating: reshape";
+                    auto reshape_op = make_op("reshape", {{"dims", reshape_dims}});
+                    print_op_attrs(reshape_op);
+                    std::cout << std::endl;
+                    print_output(reshape_result);
+                    return reshape_result;
                 }
                 
+                // Default: pass through unchanged
                 std::cout << "    Creating: broadcast (unchanged)";
                 print_op_attrs(op);
                 std::cout << std::endl;
+                auto result = m.insert_instruction(ins, op, inputs, mod_args);
                 print_output(result);
                 return result;
             }
             
+            // TODO
             // Multibroadcast: adjust output shape if it matches BNSM pattern
             if(op_name == "multibroadcast") {
                 auto out_lens = op.to_value()["out_lens"].to_vector<std::size_t>();
-                
-                // Check if output is 2D {batch, max_seq_length} - needs reshape
-                if(out_lens.size() == 2 && 
-                   out_lens[0] == dims.batch_size && 
-                   out_lens[1] == dims.max_seq_length) {
-                    std::cout << "    2D multibroadcast - will add reshape" << std::endl;
+
+                // if scalar, or 1D of len 1, can add group dim to out_lens directly
+                if(out_lens.size() == 0 || (out_lens.size() == 1 && out_lens[0] == 1)) {
+                    std::cout << "------------Broadcasting directly:\n\n\n";
+                    out_lens.insert(out_lens.begin(), num_groups);
+                    out_lens.push_back(dims.seq_length_per_group);
+                    auto new_op = make_op("multibroadcast", {{"out_lens", out_lens}});
+                    std::cout << "    Creating: multibroadcast";
+                    print_op_attrs(new_op);
+                    std::cout << std::endl;
+                    auto result = m.insert_instruction(ins, new_op, inputs, mod_args);
+                    print_output(result);
+                    return result;
+                } else if (inputs[0]->get_shape().lens().size() > out_lens.size()) {
+                    // if the input rank does not match the length of out_lens,
+                    // then that means the input has already been adjusted to have the
+                    // group dim and seq_len_per_group, so we can edit the out_lens directly
+                    // TODO: remove magic nums, here and elsewhere
+                    // new out_lens has groups at -3 and changes -1 from max_len to seq_len_per_group
+                    std::vector<std::size_t> new_lens = {out_lens[0], out_lens[1], num_groups, out_lens[2], dims.seq_length_per_group};
+                    auto new_op = make_op("multibroadcast", {{"out_lens", new_lens}});
+                    std::cout << "    Creating: multibroadcast";
+                    print_op_attrs(new_op);
+                    std::cout << std::endl;
+                    auto result = m.insert_instruction(ins, new_op, inputs, mod_args);
+                    print_output(result);
+                    return result;
+                } else if(out_lens.size() == 2) {
+                    // keep the multibroadcast as is
+                    // follow up with a reshape to split the sequence dimension into groups
+                    std::cout << "    multibroadcast unchanged - will add reshape" << std::endl;
                     auto result = m.insert_instruction(ins, op, inputs, mod_args);
-                    std::cout << "    Creating: multibroadcast (unchanged)";
+                    std::cout << "    Creating: multibroadcast (unchanged)";   
                     print_op_attrs(op);
                     std::cout << std::endl;
                     print_output(result);
-                    
                     // Add reshape to split sequence dimension into groups
                     std::vector<std::size_t> reshape_dims = {dims.batch_size, num_groups, dims.seq_length_per_group};
                     std::cout << "\n>>> Auto-inserting reshape after 2D multibroadcast" << std::endl;
@@ -647,48 +711,37 @@ struct find_gqa_flash_decoding
                     std::cout << std::endl;
                     print_output(reshape_result);
                     return reshape_result;
-                }
-                
-                // Check if this is a 4D multibroadcast with max_seq_length at last dimension
-                // Insert group dimension at position -2 and split last dimension
-                if(out_lens.size() == 4 && out_lens[3] == dims.max_seq_length) {
-                    std::cout << "    4D multibroadcast with max_seq_length - inserting group dim" << std::endl;
-                    
-                    // Build new shape: insert group at -2, change last dim to seq_per_group
-                    std::vector<std::size_t> new_lens = {out_lens[0], out_lens[1], num_groups, out_lens[2], dims.seq_length_per_group};
-                    
-                    std::cout << "    Adjusted: ";
-                    print_shape(out_lens);
-                    std::cout << " -> ";
-                    print_shape(new_lens);
+                } else if(out_lens.size() == 4) {
+                    // keep the multibroadcast as is
+                    // follow up with a reshape to split the sequence dimension into groups
+                    std::cout << "    multibroadcast unchanged - will add reshape" << std::endl;
+                    auto result = m.insert_instruction(ins, op, inputs, mod_args);
+                    std::cout << "    Creating: multibroadcast (unchanged)";   
+                    print_op_attrs(op);
                     std::cout << std::endl;
-                    
-                    auto new_op = make_op("multibroadcast", {{"out_lens", new_lens}});
-                    std::cout << "    Creating: multibroadcast";
-                    print_op_attrs(new_op);
-                    std::cout << std::endl;
-                    auto result = m.insert_instruction(ins, new_op, inputs, mod_args);
                     print_output(result);
-                    return result;
-                }
+                    // Add reshape to split sequence dimension into groups
+                    std::vector<std::size_t> reshape_dims = {out_lens[0], out_lens[1], num_groups, out_lens[2], dims.seq_length_per_group};
+                    std::cout << "\n>>> Auto-inserting reshape after 4D multibroadcast" << std::endl;
+                    std::cout << "    Reshape dims: ";
+                    print_shape(reshape_dims);
+                    std::cout << std::endl;
+                    
+                    auto reshape_result = m.insert_instruction(ins, make_op("reshape", {{"dims", reshape_dims}}), result);
+                    std::cout << "    Creating: reshape";
+                    auto reshape_op = make_op("reshape", {{"dims", reshape_dims}});
+                    print_op_attrs(reshape_op);
+                    std::cout << std::endl;
+                    print_output(reshape_result);
+                    return reshape_result;
+                } 
+                // TODO else
             }
             
-            // Unsqueeze: adjust axes (need to account for group dimension)
+            // Unsqueeze: adjust axes
             if(op_name == "unsqueeze") {
                 auto axes = op.to_value()["axes"].to_vector<int64_t>();
-                // For unsqueeze, we need to adjust axes that are >= group_dim_pos
-                // But unsqueeze operates on the tensor BEFORE the dimensions are added
-                // So we need different logic
-                std::vector<int64_t> new_axes;
-                for(auto axis : axes) {
-                    // If inserting group at position 2 in a 3D tensor (after greater/convert)
-                    // and we want to unsqueeze at {1, 2}, it becomes {1, 3} (skip the group position)
-                    if(axis >= group_dim_pos) {
-                        new_axes.push_back(axis + 1);
-                    } else {
-                        new_axes.push_back(axis);
-                    }
-                }
+                auto new_axes = adjust_axes(axes, group_dim_pos);
                 
                 std::cout << "    Adjusted axes: [";
                 for(size_t i = 0; i < axes.size(); ++i)
@@ -708,7 +761,6 @@ struct find_gqa_flash_decoding
             }
             
             // Reshape: need to adjust dims if they span the group dimension
-            // This is tricky - for now, check if it's the mask reshape
             // TODO
             if(op_name == "reshape") {
                 auto dims_vec = op.to_value()["dims"].to_vector<std::size_t>();
@@ -742,36 +794,24 @@ struct find_gqa_flash_decoding
             return result;
         };
         
-        // Find the instruction after gemm2 to use as the 'last' parameter
+        // gemm2 should be the last ins transformed programmatically
         instruction_ref stop_point = std::next(gemm2);
-        
-        std::cout << "Copying instructions from source module up to (not including) instruction after gemm2..." << std::endl;
-        
-        // Use add_instructions with range [begin, stop_point) to copy up to and including gemm2
         std::unordered_map<instruction_ref, instruction_ref> map_old_to_new = param_map;
         target_mod.add_instructions(source_mod.begin(), stop_point, &map_old_to_new, inserter);
         
-        // Get the transformed gemm2
-        if(!contains(map_old_to_new, gemm2)) {
-            std::cout << "ERROR: gemm2 not found in map!" << std::endl;
-            return;
-        }
+        if(!contains(map_old_to_new, gemm2)) return;
         second_dot_result = map_old_to_new.at(gemm2);
-        
-        std::cout << "\n=== Instructions copied and transformed ===" << std::endl;
-        
-        std::cout << "Second dot shape: " << second_dot_result->get_shape() << std::endl;
-        
         std::cout << "\n=== Adding final transpose and reshape for flash decoding ===" << std::endl;
         
-        // Add correct flash decoding transpose: {B, N, G, S, D} -> {B, G, S, N, D}
+        // final transpose and reshape need to be handled specially
+        // transpose: {B, N, G, S, D} -> {B, G, S, N, D}
         std::cout << "Adding transpose with permutation {0, 2, 3, 1, 4}" << std::endl;
         auto transpose_out = target_mod.add_instruction(
             make_op("transpose", {{"permutation", {0, 2, 3, 1, 4}}}),
             second_dot_result);
         std::cout << "Transpose output shape: " << transpose_out->get_shape() << std::endl;
         
-        // Add correct flash decoding reshape: {B, G, S, N, D} -> {B, G, S, N*D}
+        // reshape: {B, G, S, N, D} -> {B, G, S, N*D}
         std::vector<std::size_t> final_shape = {dims.batch_size, num_groups, dims.sequence_length, dims.num_heads * dims.head_dim};
         std::cout << "Adding reshape with dims {";
         for(size_t i = 0; i < final_shape.size(); ++i) {
@@ -789,12 +829,11 @@ struct find_gqa_flash_decoding
         if(found_reduce_max && found_reduce_sum) {
             auto log_sum = target_mod.add_instruction(make_op("log"), reduce_sum_ref);
             auto lse = target_mod.add_instruction(make_op("add"), reduce_max_ref, log_sum);
-        std::cout << "LSE shape: " << lse->get_shape() << std::endl;
-        
-        target_mod.add_return({reshape_out, lse});
+            std::cout << "LSE shape: " << lse->get_shape() << std::endl;
+            
+            target_mod.add_return({reshape_out, lse});
         } else {
-            std::cout << "WARNING: Could not find reduce_max or reduce_sum for LSE calculation" << std::endl;
-            target_mod.add_return({reshape_out});
+            return;
         }
         
         // print the complete submodule

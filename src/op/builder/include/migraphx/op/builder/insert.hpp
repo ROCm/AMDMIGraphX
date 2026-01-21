@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -35,29 +35,31 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 namespace builder {
 
+MIGRAPHX_EXPORT value get_default_options();
+
 MIGRAPHX_EXPORT std::vector<instruction_ref> insert(const std::string& name,
                                                     module& m,
                                                     instruction_ref ins,
                                                     const std::vector<instruction_ref>& args,
-                                                    const value& options = value("", {}, false));
+                                                    const value& options = get_default_options());
 
 MIGRAPHX_EXPORT std::vector<instruction_ref> insert(const std::string& name,
                                                     module& m,
                                                     instruction_ref ins,
                                                     const std::vector<instruction_ref>& args,
                                                     const std::vector<module_ref>& module_args,
-                                                    const value& options = value("", {}, false));
+                                                    const value& options = get_default_options());
 
 MIGRAPHX_EXPORT std::vector<instruction_ref> add(const std::string& name,
                                                  module& m,
                                                  const std::vector<instruction_ref>& args,
-                                                 const value& options = value("", {}, false));
+                                                 const value& options = get_default_options());
 
 MIGRAPHX_EXPORT std::vector<instruction_ref> add(const std::string& name,
                                                  module& m,
                                                  const std::vector<instruction_ref>& args,
                                                  const std::vector<module_ref>& module_args,
-                                                 const value& options = value("", {}, false));
+                                                 const value& options = get_default_options());
 template <class... Ins>
 instruction_ref
 insert_common_op(module& m, instruction_ref ins, const std::string& op_name, Ins... args)

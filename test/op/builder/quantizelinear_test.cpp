@@ -190,7 +190,7 @@ auto run_with_data(const std::vector<size_t>& x_lens,
 {
     migraphx::module m;
 
-    const migraphx::shape x_shape{migraphx::shape::get_type<XTyp>::value, std::move(x_lens)};
+    const migraphx::shape x_shape{migraphx::shape::get_type<XTyp>::value, x_lens};
     const migraphx::shape s_shape{migraphx::shape::get_type<STyp>::value, s_lens};
     const migraphx::shape zp_shape{migraphx::shape::get_type<ZpTyp>::value, s_lens};
 

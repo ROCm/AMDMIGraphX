@@ -81,6 +81,11 @@ struct precision
     {
         return (xp > yp) or (xp == yp);
     }
+    // Check if two precisions are in the same category (both integral or both floating-point)
+    friend bool same_category(const precision& xp, const precision& yp)
+    {
+        return shape::is_integral(xp.type) == shape::is_integral(yp.type);
+    }
 };
 #ifdef __clang__
 #pragma clang diagnostic pop
@@ -98,15 +103,6 @@ static bool is_non_scalar_const(instruction_ref ins)
     return not(ins->get_shape().scalar() and ins->can_eval());
 }
 
-// Check if two types are in the same category (both integral or both floating-point)
-static bool same_type_category(shape::type_t a, shape::type_t b)
-{
-    bool result = false;
-    shape::visit(a, [&](auto x) {
-        shape::visit(b, [&](auto y) { result = (x.is_integral() == y.is_integral()); });
-    });
-    return result;
-}
 // Get the next input instruction otherwise return a nullopt
 static std::optional<instruction_ref> get_next_input(instruction_ref ins)
 {
@@ -129,7 +125,7 @@ static std::optional<instruction_ref> get_next_input(instruction_ref ins)
 // by traversing the inputs from a convert
 
 static std::unordered_set<instruction_ref> find_adjacent_inputs(instruction_ref start,
-                                                                shape::type_t target_type)
+                                                                precision target)
 {
     std::unordered_set<instruction_ref> result;
     // Promote inputs
@@ -139,7 +135,7 @@ static std::unordered_set<instruction_ref> find_adjacent_inputs(instruction_ref 
         if(contains(result, ins))
             return;
         // Stop if crossing type category boundary (e.g., int to float)
-        if(not same_type_category(ins->get_shape().type(), target_type))
+        if(not same_category(precision{ins->get_shape().type()}, target))
             return;
         auto next = get_next_input(ins);
         if(not next.has_value())
@@ -153,7 +149,7 @@ static std::unordered_set<instruction_ref> find_adjacent_inputs(instruction_ref 
 // Find all adjacent instructions that could be upgraded with higher precision
 // by traversing the outputs from a convert
 static std::unordered_set<instruction_ref> find_adjacent_outputs(instruction_ref start,
-                                                                shape::type_t target_type)
+                                                                precision target)
 {
     std::unordered_set<instruction_ref> result;
     // Promote outputs
@@ -165,7 +161,7 @@ static std::unordered_set<instruction_ref> find_adjacent_outputs(instruction_ref
             if(contains(result, output))
                 continue;
             // Stop if crossing type category boundary (e.g., int to float)
-            if(not same_type_category(output->get_shape().type(), target_type))
+            if(not same_category(precision{output->get_shape().type()}, target))
                 continue;
             auto next = get_next_input(output);
             if(not next.has_value())
@@ -214,11 +210,11 @@ static std::unordered_map<instruction_ref, shape::type_t> find_instruction_to_up
             continue;
         if(input < output)
         {
-            insert_instructions_to_upgrade(result, find_adjacent_inputs(ins, output.type), output.type);
+            insert_instructions_to_upgrade(result, find_adjacent_inputs(ins, output), output.type);
         }
         else if(input > output)
         {
-            insert_instructions_to_upgrade(result, find_adjacent_outputs(ins, input.type), input.type);
+            insert_instructions_to_upgrade(result, find_adjacent_outputs(ins, input), input.type);
         }
     }
     return result;

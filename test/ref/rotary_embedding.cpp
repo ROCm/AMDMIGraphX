@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,6 +31,7 @@
 
 #include <test.hpp>
 
+// NOLINTBEGIN(readability-function-size)
 TEST_CASE(rotary_embedding_test)
 {
     migraphx::program p;
@@ -500,3 +501,4 @@ TEST_CASE(rotary_embedding_interleaved_test)
 
     EXPECT(migraphx::verify::verify_rms_range(qkv_rotary_vals, qkv_rotary_gold));
 }
+// NOLINTEND(readability-function-size)

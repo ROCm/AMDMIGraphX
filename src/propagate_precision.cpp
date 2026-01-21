@@ -95,7 +95,7 @@ struct precision
 static bool is_pointwise_or_reduce(instruction_ref ins)
 {
     return contains(ins->name(), "reduce") or
-        ins->get_operator().attributes().get("pointwise", false);
+           ins->get_operator().attributes().get("pointwise", false);
 }
 // Check if its not a scalar constant
 static bool is_non_scalar_const(instruction_ref ins)
@@ -112,9 +112,9 @@ static std::optional<instruction_ref> get_next_input(instruction_ref ins)
     {
         std::unordered_set<instruction_ref> non_scalars;
         std::copy_if(ins->inputs().begin(),
-                    ins->inputs().end(),
-                    std::inserter(non_scalars, non_scalars.end()),
-                    &is_non_scalar_const);
+                     ins->inputs().end(),
+                     std::inserter(non_scalars, non_scalars.end()),
+                     &is_non_scalar_const);
         if(non_scalars.size() == 1)
             return *non_scalars.begin();
     }
@@ -149,7 +149,7 @@ static std::unordered_set<instruction_ref> find_adjacent_inputs(instruction_ref 
 // Find all adjacent instructions that could be upgraded with higher precision
 // by traversing the outputs from a convert
 static std::unordered_set<instruction_ref> find_adjacent_outputs(instruction_ref start,
-                                                                precision target)
+                                                                 precision target)
 {
     std::unordered_set<instruction_ref> result;
     // Promote outputs
@@ -232,12 +232,12 @@ void propagate_precision::apply(module_pass_manager& mpm) const
         mpm.get_module().replace_instruction(ins, convert1);
         std::vector<instruction_ref> inputs;
         std::transform(ins->inputs().begin(),
-                    ins->inputs().end(),
-                    std::back_inserter(inputs),
-                    [&](auto input) {
-                        return mpm.get_module().insert_instruction(
-                            ins, make_op("convert", {{"target_type", t}}), input);
-                    });
+                       ins->inputs().end(),
+                       std::back_inserter(inputs),
+                       [&](auto input) {
+                           return mpm.get_module().insert_instruction(
+                               ins, make_op("convert", {{"target_type", t}}), input);
+                       });
         mpm.get_module().replace_instruction(ins, ins->get_operator(), inputs);
     }
     mpm.run_pass(eliminate_convert{});

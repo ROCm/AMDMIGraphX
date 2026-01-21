@@ -410,7 +410,7 @@ struct quant_dot_scaled : matmul_base<quant_dot_scaled>
 
         if(scale_shape.scalar())
         {
-            scale_arg   = m.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), scale_arg);
+            scale_arg = m.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), scale_arg);
         }
 
         scale_arg = m.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), scale_arg);

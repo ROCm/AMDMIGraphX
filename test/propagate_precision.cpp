@@ -212,10 +212,10 @@ TEST_CASE(propagate_type_category_boundary)
     migraphx::shape s1{migraphx::shape::int32_type, {1, 4}};
     migraphx::module m1;
     {
-        auto x         = m1.add_parameter("x", s1);
-        auto two       = m1.add_literal(migraphx::literal{{migraphx::shape::int32_type}, {2}});
-        auto int_div   = migraphx::add_common_op(m1, migraphx::make_op("div"), {x, two});
-        auto convert1  = m1.add_instruction(
+        auto x        = m1.add_parameter("x", s1);
+        auto two      = m1.add_literal(migraphx::literal{{migraphx::shape::int32_type}, {2}});
+        auto int_div  = migraphx::add_common_op(m1, migraphx::make_op("div"), {x, two});
+        auto convert1 = m1.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), int_div);
         auto one       = m1.add_literal(migraphx::literal{{migraphx::shape::float_type}, {1.0f}});
         auto float_add = migraphx::add_common_op(m1, migraphx::make_op("add"), {convert1, one});
@@ -227,10 +227,10 @@ TEST_CASE(propagate_type_category_boundary)
     run_pass(m1);
     migraphx::module m2;
     {
-        auto x         = m2.add_parameter("x", s1);
-        auto two       = m2.add_literal(migraphx::literal{{migraphx::shape::int32_type}, {2}});
-        auto int_div   = migraphx::add_common_op(m2, migraphx::make_op("div"), {x, two});
-        auto convert1  = m2.add_instruction(
+        auto x        = m2.add_parameter("x", s1);
+        auto two      = m2.add_literal(migraphx::literal{{migraphx::shape::int32_type}, {2}});
+        auto int_div  = migraphx::add_common_op(m2, migraphx::make_op("div"), {x, two});
+        auto convert1 = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::double_type}}), int_div);
         auto one       = m2.add_literal(migraphx::literal{{migraphx::shape::float_type}, {1.0f}});
         auto float_add = migraphx::add_common_op(m2, migraphx::make_op("add"), {convert1, one});

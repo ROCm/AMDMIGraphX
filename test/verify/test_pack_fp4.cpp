@@ -42,4 +42,5 @@ struct test_pack_fp4 : verify_program<test_pack_fp4<T, Axis>>
 };
 
 template struct test_pack_fp4<migraphx::shape::float_type>;
+template struct test_pack_fp4<migraphx::shape::float_type, 0>;
 template struct test_pack_fp4<migraphx::shape::float_type, 1>;

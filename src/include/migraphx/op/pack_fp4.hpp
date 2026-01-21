@@ -64,7 +64,9 @@ struct pack_fp4
         auto new_lens = in_shape.lens();
         if(new_lens.at(axis) % 2 != 0)
         {
-            MIGRAPHX_THROW("PACK_FP4: Can not pack axis that has odd lengths");
+            std::stringstream msg;
+            msg << "PACK_FP4: Can not pack along axis of odd length (" << new_lens.at(axis) << ")";
+            MIGRAPHX_THROW(msg.str());
         }
         new_lens[axis] /= 2;
         return in_shape.with_lens(migraphx::shape::fp4x2_type, new_lens);

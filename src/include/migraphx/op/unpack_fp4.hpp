@@ -68,8 +68,6 @@ struct unpack_fp4
             MIGRAPHX_THROW("UNPACK_FP4: Only fp4x2_type is supported for unpacking");
         }
         auto new_lens = in_shape.lens();
-        int axis = std::min_element(in_shape.strides().cbegin(), in_shape.strides().cend()) -
-                        in_shape.strides().cbegin();
         new_lens[axis] *= 2;
         return in_shape.with_lens(migraphx::shape::fp8e4m3fn_type, new_lens);
     }

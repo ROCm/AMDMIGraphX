@@ -68,8 +68,6 @@ struct pack_fp4_compiler : compiler<pack_fp4_compiler>
         options.kernel_name    = "pack_fp4_kernel";
         options.set_launch_params(v, compute_global_for(ctx, inputs.back().elements()));
 
-        const auto& in_shape = inputs.front();
-
         auto src =
             interpolate_string(pack_fp4_kernel,
                                {{"kernel", options.kernel_name},

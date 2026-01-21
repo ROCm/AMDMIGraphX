@@ -1786,12 +1786,12 @@ TEST_CASE(unpack_fp4_nonstandard)
         shape shape_a = shape::from_permutation(shape::fp4x2_type, {1, 3, 8, 8}, {1, 0, 3, 2});
         auto param_a = m->add_parameter("a", shape_a);
         auto param_b = m->add_parameter("b", {shape::fp4x2_type, {1, 3, 8, 8}});
-        auto packed_a = m->add_instruction(migraphx::make_op("pack_fp4", {{"axis", 0}}), param_a);
-        auto packed_b = m->add_instruction(migraphx::make_op("pack_fp4", {{"axis", 0}}), param_b);
+        auto packed_a = m->add_instruction(migraphx::make_op("pack_fp4", {{"axis", 3}}), param_a);
+        auto packed_b = m->add_instruction(migraphx::make_op("pack_fp4", {{"axis", 3}}), param_b);
         auto scale_a  = m->add_parameter("scale_a", {shape::float_type, {1, 3, 8, 8}});
         auto scale_b  = m->add_parameter("scale_b", {shape::float_type, {1, 3, 8, 8}});
-        auto unpack_a = m->add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 0}}), packed_a);
-        auto unpack_b = m->add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 0}}), packed_b);
+        auto unpack_a = m->add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_a);
+        auto unpack_b = m->add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_b);
         auto dot      = m->add_instruction(
             migraphx::make_op("quant_dot"), unpack_a, unpack_b, scale_a, scale_b);
         m->add_return({dot});
@@ -1804,8 +1804,8 @@ TEST_CASE(unpack_fp4_nonstandard)
         shape shape_a = shape::from_permutation(shape::fp4x2_type, {1, 3, 8, 8}, {1, 0, 3, 2});
         auto param_a = m->add_parameter("a", shape_a);
         auto param_b = m->add_parameter("b", {shape::fp4x2_type, {1, 3, 8, 8}});
-        auto packed_a = m->add_instruction(migraphx::make_op("pack_fp4", {{"axis", 0}}), param_a);
-        auto packed_b = m->add_instruction(migraphx::make_op("pack_fp4", {{"axis", 0}}), param_b);
+        auto packed_a = m->add_instruction(migraphx::make_op("pack_fp4", {{"axis", 3}}), param_a);
+        auto packed_b = m->add_instruction(migraphx::make_op("pack_fp4", {{"axis", 3}}), param_b);
         auto scale_a  = m->add_parameter("scale_a", {migraphx::shape::float_type, {1, 3, 8, 8}});
         auto scale_b  = m->add_parameter("scale_b", {migraphx::shape::float_type, {1, 3, 8, 8}});
         auto fused    = add_mlir(
@@ -1814,8 +1814,8 @@ TEST_CASE(unpack_fp4_nonstandard)
             {packed_a, packed_b, scale_a, scale_b},
             {"x1", "x2", "x3", "x4"},
             [=](auto* pm, const auto& inputs) {
-                auto unpack_a = pm->add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 0}}), inputs[0]);
-                auto unpack_b = pm->add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 0}}), inputs[1]);
+                auto unpack_a = pm->add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), inputs[0]);
+                auto unpack_b = pm->add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), inputs[1]);
                 auto dot      = pm->add_instruction(
                     migraphx::make_op("quant_dot"), unpack_a, unpack_b, inputs[2], inputs[3]);
                 return std::make_tuple(dot->get_operator(), dot);

@@ -43,4 +43,5 @@ struct test_unpack_fp4 : verify_program<test_unpack_fp4<Axis>>
 };
 
 template struct test_unpack_fp4<>;
+template struct test_unpack_fp4<0>;
 template struct test_unpack_fp4<1>;

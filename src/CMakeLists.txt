@@ -123,6 +123,7 @@ add_library(migraphx
     split_reduce.cpp
     sqlite.cpp
     rewrite_gelu.cpp
+    rewrite_kv_cache.cpp
     rewrite_low_precision.cpp
     rewrite_pooling.cpp
     rewrite_quantization.cpp

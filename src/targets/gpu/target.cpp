@@ -58,6 +58,7 @@
 #include <migraphx/simplify_dyn_ops.hpp>
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/simplify_reshapes.hpp>
+#include <migraphx/last_token_lm_head.hpp>
 #include <migraphx/split_reduce.hpp>
 #include <migraphx/split_single_dyn_dim.hpp>
 #include <migraphx/gpu/allocation_model.hpp>
@@ -90,6 +91,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_FULL_DYNAMIC)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_LAST_TOKEN_ONLY)
 
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
@@ -209,6 +211,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         rewrite_gelu{options.fast_math},
         optimize_module{},
+        enable_pass(enabled(MIGRAPHX_ENABLE_LAST_TOKEN_ONLY{}), last_token_lm_head{}),
+        dead_code_elimination{},
         layout_convolution{.channels_last = enabled(MIGRAPHX_ENABLE_NHWC{})},
         dead_code_elimination{},
         prefuse_ops{},

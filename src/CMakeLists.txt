@@ -135,6 +135,7 @@ add_library(migraphx
     simplify_algebra.cpp
     simplify_dyn_ops.cpp
     simplify_reshapes.cpp
+    last_token_lm_head.cpp
     split_single_dyn_dim.cpp
     target.cpp
     tmp_dir.cpp

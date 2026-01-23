@@ -47,18 +47,23 @@ migraphx::program make_resize_program(const migraphx::value& v, const migraphx::
     return p;
 }
 
-auto check_resize(const migraphx::value& v, const migraphx::shape& input_shape)
+auto check_resize(const migraphx::value& v,
+                  const migraphx::shape& input_shape,
+                  bool check_gather = true)
 {
     auto p1 = make_resize_program(v, input_shape);
 
     auto* mm = p1.get_main_module();
     run_pass(*mm);
 
-    // After rewrite, should have gather instead of resize
+    // After rewrite, should not have resize
     CHECK(std::none_of(
         mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "resize"; }));
-    CHECK(std::any_of(
-        mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "gather"; }));
+    if(check_gather)
+    {
+        CHECK(std::any_of(
+            mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "gather"; }));
+    }
 
     auto p2 = make_resize_program(v, input_shape);
 
@@ -102,52 +107,35 @@ TEST_CASE(rewrite_resize_linear_downsample)
 // Test that 2-input mode is not rewritten (handled by simplify_dyn_ops first)
 TEST_CASE(rewrite_resize_2input_no_rewrite)
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
+    migraphx::module m1;
 
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 5, 9}};
-    auto x = mm->add_parameter("X", sx);
+    auto x = m1.add_parameter("X", sx);
 
     std::vector<float> scales_data = {1.0f, 1.0f, 0.6f, 0.6f};
     migraphx::shape ss{migraphx::shape::float_type, {4}};
-    auto scales = mm->add_literal(migraphx::literal{ss, scales_data});
+    auto scales = m1.add_literal(migraphx::literal{ss, scales_data});
 
-    mm->add_instruction(migraphx::make_op("resize",
-                                          {{"nearest_mode", "floor"},
-                                           {"coordinate_transformation_mode", "asymmetric"}}),
-                        x,
-                        scales);
+    m1.add_instruction(migraphx::make_op("resize",
+                                         {{"nearest_mode", "floor"},
+                                          {"coordinate_transformation_mode", "asymmetric"}}),
+                       x,
+                       scales);
 
-    run_pass(*mm);
+    auto m2 = m1;
+    run_pass(m1);
 
-    // Should still have resize since rewrite_resize only handles 1-input mode
-    EXPECT(std::any_of(
-        mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "resize"; }));
+    EXPECT(m1 == m2);
 }
 
 // Test linear mode with same input/output shapes is optimized away
 TEST_CASE(rewrite_resize_linear_same_shape)
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-
-    migraphx::shape sx{migraphx::shape::float_type, {1, 3, 5}};
-    auto x = mm->add_parameter("X", sx);
-
-    auto r =
-        mm->add_instruction(migraphx::make_op("resize",
-                                              {{"sizes", {1, 3, 5}},
-                                               {"mode", "linear"},
-                                               {"coordinate_transformation_mode", "half_pixel"}}),
-                            x);
-    mm->add_return({r});
-
-    run_pass(*mm);
-
-    // After rewrite, should not have resize or gather - just pass through
-    EXPECT(std::none_of(mm->begin(), mm->end(), [](const auto& ins) {
-        return ins.name() == "resize" or ins.name() == "gather";
-    }));
+    EXPECT(check_resize({{"sizes", {1, 3, 5}},
+                         {"mode", "linear"},
+                         {"coordinate_transformation_mode", "half_pixel"}},
+                        {migraphx::shape::float_type, {1, 3, 5}},
+                        false));
 }
 
 // Test numerical correctness for nearest mode upsample

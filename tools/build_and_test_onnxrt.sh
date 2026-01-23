@@ -26,11 +26,93 @@ set -e
 
 ulimit -c unlimited
 
-# Copy these over in local runs but silence them in CI
-cp tools/pai_test_launcher.sh /onnxruntime/tools/ci_build/github/pai/pai_test_launcher.sh 2>/dev/null || :
-[ -f tools/pai_provider_test_launcher.sh ] && cp tools/pai_provider_test_launcher.sh /onnxruntime/tools/ci_build/github/pai/pai_provider_test_launcher.sh
+# Parse command line arguments
+ONNXRT_BRANCH=""
+USE_ROCM_FORK=false
 
-cd /onnxruntime
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -b|--branch)
+            ONNXRT_BRANCH="$2"
+            shift 2
+            ;;
+        --rocm)
+            USE_ROCM_FORK=true
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Usage: $0 [-b|--branch <branch_name>] [--rocm]"
+            exit 1
+            ;;
+    esac
+done
+
+# Save the original directory for file copies later
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Clone onnxruntime if it doesn't exist
+if [ ! -d "/onnxruntime" ]; then
+    echo "/onnxruntime not found, cloning repository..."
+    
+    if [ "$USE_ROCM_FORK" = true ]; then
+        ONNXRUNTIME_REPO="https://github.com/ROCm/onnxruntime.git"
+    else
+        ONNXRUNTIME_REPO="https://github.com/Microsoft/onnxruntime"
+    fi
+    
+    # Use specified branch or default to main
+    CLONE_BRANCH="${ONNXRT_BRANCH:-main}"
+    
+    git clone --single-branch --branch "$CLONE_BRANCH" --recursive "$ONNXRUNTIME_REPO" /onnxruntime
+    
+    cd /onnxruntime
+    
+    # If no branch was specified and .onnxrt-commit exists, checkout that commit
+    if [ -z "$ONNXRT_BRANCH" ] && [ -f "/.onnxrt-commit" ]; then
+        echo "Checking out commit from /.onnxrt-commit"
+        git checkout "$(cat /.onnxrt-commit)"
+    fi
+    
+    # Run install_common_deps.sh if it exists
+    if [ -f "/onnxruntime/dockerfiles/scripts/install_common_deps.sh" ]; then
+        echo "Running install_common_deps.sh..."
+        /bin/sh /onnxruntime/dockerfiles/scripts/install_common_deps.sh
+    fi
+    
+    # Copy test launchers after clone
+    cp "$SCRIPT_DIR/pai_test_launcher.sh" /onnxruntime/tools/ci_build/github/pai/pai_test_launcher.sh 2>/dev/null || :
+    [ -f "$SCRIPT_DIR/pai_provider_test_launcher.sh" ] && cp "$SCRIPT_DIR/pai_provider_test_launcher.sh" /onnxruntime/tools/ci_build/github/pai/pai_provider_test_launcher.sh
+else
+    # /onnxruntime exists - use existing logic
+    
+    # Copy test launchers before checkout if not switching branches (original behavior)
+    if [ -z "$ONNXRT_BRANCH" ]; then
+        cp "$SCRIPT_DIR/pai_test_launcher.sh" /onnxruntime/tools/ci_build/github/pai/pai_test_launcher.sh 2>/dev/null || :
+        [ -f "$SCRIPT_DIR/pai_provider_test_launcher.sh" ] && cp "$SCRIPT_DIR/pai_provider_test_launcher.sh" /onnxruntime/tools/ci_build/github/pai/pai_provider_test_launcher.sh
+    fi
+
+    cd /onnxruntime
+
+    # Checkout specific branch if provided
+    if [ -n "$ONNXRT_BRANCH" ]; then
+        if [ "$USE_ROCM_FORK" = true ]; then
+            echo "Adding ROCm remote and checking out branch: $ONNXRT_BRANCH"
+            git remote add rocm https://github.com/ROCm/onnxruntime.git 2>/dev/null || true
+            git fetch rocm
+            git checkout "$ONNXRT_BRANCH" || git checkout -b "$ONNXRT_BRANCH" "rocm/$ONNXRT_BRANCH"
+            git pull rocm "$ONNXRT_BRANCH" || true
+        else
+            echo "Checking out ONNX Runtime branch: $ONNXRT_BRANCH"
+            git fetch origin
+            git checkout "$ONNXRT_BRANCH" || git checkout -b "$ONNXRT_BRANCH" "origin/$ONNXRT_BRANCH"
+            git pull origin "$ONNXRT_BRANCH" || true
+        fi
+        # Copy test launchers after checkout to avoid conflicts
+        cp "$SCRIPT_DIR/pai_test_launcher.sh" /onnxruntime/tools/ci_build/github/pai/pai_test_launcher.sh 2>/dev/null || :
+        [ -f "$SCRIPT_DIR/pai_provider_test_launcher.sh" ] && cp "$SCRIPT_DIR/pai_provider_test_launcher.sh" /onnxruntime/tools/ci_build/github/pai/pai_provider_test_launcher.sh
+    fi
+fi
 pip3 install -r requirements-dev.txt
 # Add newer cmake to the path
 export PATH="/opt/cmake/bin:$PATH"

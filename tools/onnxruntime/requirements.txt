@@ -1,0 +1,22 @@
+# Requirements for MIGraphX Concurrent Inference Test Scripts
+# test_concurrent_migraphx_simple.py
+# test_concurrent_migraphx.py
+
+# Core dependencies
+numpy>=1.21.0
+tqdm>=4.62.0
+
+# ONNX Runtime with MIGraphX support
+# Note: Use onnxruntime-rocm for AMD GPUs with ROCm
+# For CPU-only testing, use: onnxruntime>=1.12.0
+# onnxruntime>=1.12.0
+
+# For AMD GPUs with ROCm/MIGraphX support, install the ROCm-enabled version:
+# Install via: pip install onnxruntime-rocm
+# Or build from source with MIGraphX EP enabled
+
+# Optional: For advanced features
+# psutil>=5.8.0  # For system monitoring
+# matplotlib>=3.4.0  # For plotting results
+# pandas>=1.3.0  # For data analysis
+

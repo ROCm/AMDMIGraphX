@@ -174,6 +174,56 @@ TEST_CASE(copy_if_all_match)
     EXPECT(src == dst);
 }
 
+TEST_CASE(count_if_basic)
+{
+    migraphx::array<int, 6> arr = {1, 2, 3, 4, 5, 6};
+    auto count = migraphx::count_if(arr.begin(), arr.end(), [](int x) { return x % 2 == 0; });
+    EXPECT(count == 3);
+}
+TEST_CASE(count_if_empty_range)
+{
+    empty_range arr = {};
+    auto count = migraphx::count_if(arr.begin(), arr.end(), [](int x) { return x > 0; });
+    EXPECT(count == 0);
+}
+TEST_CASE(count_if_none_match)
+{
+    migraphx::array<int, 4> arr = {1, 3, 5, 7};
+    auto count = migraphx::count_if(arr.begin(), arr.end(), [](int x) { return x % 2 == 0; });
+    EXPECT(count == 0);
+}
+TEST_CASE(count_if_all_match)
+{
+    migraphx::array<int, 4> arr = {2, 4, 6, 8};
+    auto count = migraphx::count_if(arr.begin(), arr.end(), [](int x) { return x % 2 == 0; });
+    EXPECT(count == 4);
+}
+TEST_CASE(count_if_single_element_match)
+{
+    migraphx::array<int, 1> arr = {4};
+    auto count = migraphx::count_if(arr.begin(), arr.end(), [](int x) { return x % 2 == 0; });
+    EXPECT(count == 1);
+}
+TEST_CASE(count_if_single_element_no_match)
+{
+    migraphx::array<int, 1> arr = {3};
+    auto count = migraphx::count_if(arr.begin(), arr.end(), [](int x) { return x % 2 == 0; });
+    EXPECT(count == 0);
+}
+TEST_CASE(count_if_greater_than)
+{
+    migraphx::array<int, 5> arr = {1, 5, 10, 15, 20};
+    auto count = migraphx::count_if(arr.begin(), arr.end(), [](int x) { return x > 7; });
+    EXPECT(count == 3);
+}
+TEST_CASE(count_if_partial_range)
+{
+    migraphx::array<int, 8> arr = {1, 2, 3, 4, 5, 6, 7, 8};
+    auto count =
+        migraphx::count_if(arr.begin() + 2, arr.begin() + 6, [](int x) { return x % 2 == 0; });
+    EXPECT(count == 2);
+}
+
 TEST_CASE(is_sorted_until_sorted)
 {
     migraphx::array<int, 4> arr = {1, 2, 3, 4};

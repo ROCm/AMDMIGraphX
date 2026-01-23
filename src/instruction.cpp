@@ -331,7 +331,8 @@ void instruction::replace_mod_argument(module_ref old, module_ref new_mod)
 
 bool instruction::is_undefined() const
 {
-    if(op.name() == "undefined" or (op.name() == "@literal" and this->get_literal().get_shape().elements() == 0))
+    if(op.name() == "undefined" or
+       (op.name() == "@literal" and this->get_literal().get_shape().elements() == 0))
     {
         return true;
     }

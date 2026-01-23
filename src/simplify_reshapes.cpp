@@ -244,7 +244,7 @@ struct find_op_shape_transform_op
     }
 
     static std::vector<operation> generate(const shape_transform_descriptor& desc,
-                                           const shape& input_shape)
+                                           const shape& input_shape, bool no_broadcast)
     {
         if(input_shape.scalar() and input_shape.elements() == 1 and input_shape.ndim() == 1)
         {
@@ -252,7 +252,7 @@ struct find_op_shape_transform_op
         }
         else
         {
-            return desc.generate(input_shape.lens());
+            return desc.generate(input_shape.lens(), no_broadcast);
         }
     }
 
@@ -330,6 +330,7 @@ struct find_op_shape_transform_op
         if(not is_valid(x_ins, desc))
             return;
 
+
         // If we already in the common dimension space then skip if there are other outputs to avoid
         // infinite loop
         if(ins->get_shape().ndim() == desc.common_rank() and
@@ -340,9 +341,9 @@ struct find_op_shape_transform_op
             return;
         }
 
-        auto reshape_input = [&](const auto& ins_to_insert, const auto& gdesc) {
+        auto reshape_input = [&](const auto& ins_to_insert, const auto& gdesc, bool no_broadcast = false) {
             return [&](auto input) {
-                auto gops = generate(gdesc, input->get_shape());
+                auto gops = generate(gdesc, input->get_shape(), no_broadcast);
                 return std::accumulate(
                     gops.begin(), gops.end(), input, [&](auto start, const auto& op) {
                         return m.insert_instruction(ins_to_insert, op, start);
@@ -366,7 +367,7 @@ struct find_op_shape_transform_op
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
             if(input == input_ins)
                 return new_input_ins;
-            return reshape_input(ins, desc.to_common_from_dst())(input);
+            return reshape_input(ins, desc.to_common_from_dst(), true)(input);
         });
         // Replace old x_ins just in case it is used more than once
         assert(x_ins->get_shape().lens() == new_x_ins->get_shape().lens());

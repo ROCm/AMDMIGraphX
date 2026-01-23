@@ -151,7 +151,7 @@ compute_interp_params_1d(index_int in_len, index_int out_len, index_int out_idx,
     float coord = CoordOp{}(in_len, out_len, out_idx, scale);
 
     // Clamp to valid input range [0, in_len-1]
-    float max_c = in_len > 0 ? float(in_len - 1) : 0.0f;
+    float max_c         = in_len > 0 ? float(in_len - 1) : 0.0f;
     float clamped_coord = max(0.0f, min(max_c, coord));
 
     index_int base = migraphx::floor(clamped_coord);
@@ -165,9 +165,9 @@ compute_interp_params_1d(index_int in_len, index_int out_len, index_int out_idx,
 template <class CoordOp, class NearestOp, class Input, class Output, class Scales>
 __device__ void resize_nearest(Input input, Output output, Scales scales)
 {
-    auto idx           = make_index();
-    auto in_shape      = input.get_shape();
-    auto out_shape     = output.get_shape();
+    auto idx       = make_index();
+    auto in_shape  = input.get_shape();
+    auto out_shape = output.get_shape();
 
     idx.global_stride(out_shape.elements(), [&](auto out_idx) {
         auto in_idx = compute_nearest_idx<CoordOp, NearestOp>(in_shape, out_shape, out_idx, scales);

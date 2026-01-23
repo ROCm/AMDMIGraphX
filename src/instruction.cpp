@@ -331,7 +331,7 @@ void instruction::replace_mod_argument(module_ref old, module_ref new_mod)
 
 bool instruction::is_undefined() const
 {
-    if(op.name() == "undefined" or (op.name() == "@literal" and this->get_literal().empty()))
+    if(op.name() == "undefined" or (op.name() == "@literal" and this->get_literal().get_shape().elements() == 0))
     {
         return true;
     }
@@ -342,7 +342,7 @@ bool instruction::is_undefined() const
     else
     {
         return std::all_of(this->inputs().begin(), this->inputs().end(), [](auto arg) {
-            return arg->is_undefined();
+            return instruction::get_output_alias(arg)->is_undefined();
         });
     }
 }

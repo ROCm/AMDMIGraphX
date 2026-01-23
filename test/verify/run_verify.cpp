@@ -205,9 +205,10 @@ void run_verify::verify(const program_info& pi) const
         {
             if(x.second.dynamic())
             {
-                // create static shape using maximum dimensions
-                migraphx::shape static_shape{x.second.type(), x.second.max_lens()};
-                m[x.first] = migraphx::generate_argument(static_shape, get_hash(x.first));
+                auto static_shape = contains(pi.test_dims, x.first)
+                                        ? pi.test_dims.at(x.first)
+                                        : migraphx::shape{x.second.type(), x.second.max_lens()};
+                m[x.first]        = migraphx::generate_argument(static_shape, get_hash(x.first));
             }
             else
             {

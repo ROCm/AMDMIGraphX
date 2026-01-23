@@ -209,7 +209,7 @@ __device__ void resize_linear(Input input, Output output, Scales scales)
 
         // Accumulate over 2^active_count corners instead of 2^ndim
         float acc               = 0.0f;
-        const index_int corners = (1 << active_count);
+        const index_int corners = (1u << active_count);
 
         for(index_int subset = 0; subset < corners; ++subset)
         {

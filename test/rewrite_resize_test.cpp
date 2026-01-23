@@ -38,7 +38,7 @@ static void run_pass(migraphx::module& m)
     migraphx::run_passes(m, {migraphx::rewrite_resize{}, migraphx::dead_code_elimination{}});
 }
 
-migraphx::program make_resize_program(const migraphx::value& v, const migraphx::shape& input_shape)
+static migraphx::program make_resize_program(const migraphx::value& v, const migraphx::shape& input_shape)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -47,7 +47,7 @@ migraphx::program make_resize_program(const migraphx::value& v, const migraphx::
     return p;
 }
 
-auto check_resize(const migraphx::value& v,
+static auto check_resize(const migraphx::value& v,
                   const migraphx::shape& input_shape,
                   bool check_gather = true)
 {

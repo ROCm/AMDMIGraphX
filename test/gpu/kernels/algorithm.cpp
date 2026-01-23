@@ -183,7 +183,7 @@ TEST_CASE(count_if_basic)
 TEST_CASE(count_if_empty_range)
 {
     empty_range arr = {};
-    auto count = migraphx::count_if(arr.begin(), arr.end(), [](int x) { return x > 0; });
+    auto count      = migraphx::count_if(arr.begin(), arr.end(), [](int x) { return x > 0; });
     EXPECT(count == 0);
 }
 TEST_CASE(count_if_none_match)

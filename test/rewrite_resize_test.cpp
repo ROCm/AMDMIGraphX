@@ -35,15 +35,14 @@
 
 static void run_pass(migraphx::module& m)
 {
-    migraphx::run_passes(m, {migraphx::rewrite_resize{},
-                         migraphx::dead_code_elimination{}});
+    migraphx::run_passes(m, {migraphx::rewrite_resize{}, migraphx::dead_code_elimination{}});
 }
 
 migraphx::program make_resize_program(const migraphx::value& v, const migraphx::shape& input_shape)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto x = mm->add_parameter("x", input_shape);
+    auto x   = mm->add_parameter("x", input_shape);
     mm->add_instruction(migraphx::make_op("resize", v), x);
     return p;
 }
@@ -63,27 +62,23 @@ auto check_resize(const migraphx::value& v, const migraphx::shape& input_shape)
 
     auto p2 = make_resize_program(v, input_shape);
 
-    auto input = migraphx::iota_argument(input_shape);
+    auto input   = migraphx::iota_argument(input_shape);
     auto output1 = p1.eval({{"x", input}}).back();
     auto output2 = p2.eval({{"x", input}}).back();
 
     std::stringstream ss;
     ss << output1 << " == " << output2;
 
-    return test::make_predicate(ss.str(), [=] {
-        return output1 == output2;
-    });
+    return test::make_predicate(ss.str(), [=] { return output1 == output2; });
 }
-
 
 // Test nearest mode downsample with floor rounding (1-input mode with scales attribute)
 TEST_CASE(rewrite_resize_nearest_downsample_floor)
 {
-    EXPECT(check_resize(
-        {{"scales", {1.0f, 1.0f, 0.6f, 0.6f}},
-         {"nearest_mode", "floor"},
-         {"coordinate_transformation_mode", "asymmetric"}},
-        {migraphx::shape::float_type, {1, 1, 2, 4}}));
+    EXPECT(check_resize({{"scales", {1.0f, 1.0f, 0.6f, 0.6f}},
+                         {"nearest_mode", "floor"},
+                         {"coordinate_transformation_mode", "asymmetric"}},
+                        {migraphx::shape::float_type, {1, 1, 2, 4}}));
 }
 
 // Test nearest mode upsample with round_prefer_floor rounding

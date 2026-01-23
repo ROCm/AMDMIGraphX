@@ -23,45 +23,67 @@
  */
 #include <migraphx/rewrite_resize.hpp>
 #include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/program.hpp>
-#include <migraphx/register_target.hpp>
-#include <migraphx/instruction.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/ranges.hpp>
-#include <test.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/pass_manager.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
+#include <test.hpp>
 
-static void opt_resize(migraphx::module& m)
+static void run_pass(migraphx::module& m)
 {
-    migraphx::rewrite_resize rr;
-    migraphx::dead_code_elimination dce;
-    rr.apply(m);
-    dce.apply(m);
+    migraphx::run_passes(m, {migraphx::rewrite_resize{},
+                         migraphx::dead_code_elimination{}});
 }
+
+migraphx::program make_resize_program(const migraphx::value& v, const migraphx::shape& input_shape)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x = mm->add_parameter("x", input_shape);
+    mm->add_instruction(migraphx::make_op("resize", v), x);
+    return p;
+}
+
+auto check_resize(const migraphx::value& v, const migraphx::shape& input_shape)
+{
+    auto p1 = make_resize_program(v, input_shape);
+
+    auto* mm = p1.get_main_module();
+    run_pass(*mm);
+
+    // After rewrite, should have gather instead of resize
+    CHECK(std::none_of(
+        mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "resize"; }));
+    CHECK(std::any_of(
+        mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "gather"; }));
+
+    auto p2 = make_resize_program(v, input_shape);
+
+    auto input = migraphx::iota_argument(input_shape);
+    auto output1 = p1.eval({{"x", input}}).back();
+    auto output2 = p2.eval({{"x", input}}).back();
+
+    std::stringstream ss;
+    ss << output1 << " == " << output2;
+
+    return test::make_predicate(ss.str(), [=] {
+        return output1 == output2;
+    });
+}
+
 
 // Test nearest mode downsample with floor rounding (1-input mode with scales attribute)
 TEST_CASE(rewrite_resize_nearest_downsample_floor)
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-
-    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 4}};
-    auto x = mm->add_parameter("X", sx);
-
-    mm->add_instruction(migraphx::make_op("resize",
-                                          {{"scales", {1.0f, 1.0f, 0.6f, 0.6f}},
-                                           {"nearest_mode", "floor"},
-                                           {"coordinate_transformation_mode", "asymmetric"}}),
-                        x);
-
-    opt_resize(*mm);
-
-    // After rewrite, should have gather instead of resize
-    EXPECT(std::none_of(
-        mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "resize"; }));
-    EXPECT(std::any_of(
-        mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "gather"; }));
+    EXPECT(check_resize(
+        {{"scales", {1.0f, 1.0f, 0.6f, 0.6f}},
+         {"nearest_mode", "floor"},
+         {"coordinate_transformation_mode", "asymmetric"}},
+        {migraphx::shape::float_type, {1, 1, 2, 4}}));
 }
 
 // Test nearest mode upsample with round_prefer_floor rounding
@@ -79,7 +101,7 @@ TEST_CASE(rewrite_resize_nearest_upsample_pf)
                                            {"coordinate_transformation_mode", "half_pixel"}}),
                         x);
 
-    opt_resize(*mm);
+    run_pass(*mm);
 
     // After rewrite, should have gather instead of resize
     EXPECT(std::none_of(
@@ -103,7 +125,7 @@ TEST_CASE(rewrite_resize_linear_downsample)
                                            {"coordinate_transformation_mode", "half_pixel"}}),
                         x);
 
-    opt_resize(*mm);
+    run_pass(*mm);
 
     // After rewrite, should have gather instead of resize
     EXPECT(std::none_of(
@@ -131,7 +153,7 @@ TEST_CASE(rewrite_resize_2input_no_rewrite)
                         x,
                         scales);
 
-    opt_resize(*mm);
+    run_pass(*mm);
 
     // Should still have resize since rewrite_resize only handles 1-input mode
     EXPECT(std::any_of(
@@ -155,7 +177,7 @@ TEST_CASE(rewrite_resize_linear_same_shape)
                             x);
     mm->add_return({r});
 
-    opt_resize(*mm);
+    run_pass(*mm);
 
     // After rewrite, should not have resize or gather - just pass through
     EXPECT(std::none_of(mm->begin(), mm->end(), [](const auto& ins) {
@@ -182,7 +204,7 @@ TEST_CASE(rewrite_resize_nearest_correctness)
     migraphx::program p2 = p1;
 
     // Apply rewrite to p1
-    opt_resize(*p1.get_main_module());
+    run_pass(*p1.get_main_module());
 
     // Compile both with ref target
     p1.compile(migraphx::make_target("ref"));
@@ -224,7 +246,7 @@ TEST_CASE(rewrite_resize_linear_correctness)
     migraphx::program p2 = p1;
 
     // Apply rewrite to p1
-    opt_resize(*p1.get_main_module());
+    run_pass(*p1.get_main_module());
 
     // Compile both with ref target
     p1.compile(migraphx::make_target("ref"));
@@ -262,7 +284,7 @@ TEST_CASE(rewrite_resize_sizes_attribute)
                                            {"coordinate_transformation_mode", "half_pixel"}}),
                         x);
 
-    opt_resize(*mm);
+    run_pass(*mm);
 
     // After rewrite, should have gather instead of resize
     EXPECT(std::none_of(

@@ -26,6 +26,30 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+argument iota_argument(shape s, int64_t start)
+{
+    argument result;
+    if(s.type() == shape::tuple_type)
+    {
+        std::vector<argument> sub_args;
+        const auto& sub_ss = s.sub_shapes();
+        std::transform(sub_ss.begin(), sub_ss.end(), std::back_inserter(sub_args), [&](auto ss) {
+            return iota_argument(ss, start);
+        });
+
+        result = argument(sub_args);
+    }
+    else
+    {
+        s.visit_type([&](auto as) {
+            using type = typename decltype(as)::type;
+            auto v     = iota_tensor_data<type>(s, start);
+            result     = {s, v};
+        });
+    }
+    return result;
+}
+
 argument fill_argument(shape s, double value)
 {
     argument result;

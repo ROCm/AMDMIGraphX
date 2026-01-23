@@ -138,6 +138,15 @@ auto fill_tensor_data(const migraphx::shape& s, double value = 0)
     return result;
 }
 
+template <class T>
+auto iota_tensor_data(const migraphx::shape& s, int64_t start = 0)
+{
+    auto result = make_shared_array<T>(s.element_space());
+    std::iota(result.get(), result.get() + s.element_space(), start);
+    return result;
+}
+MIGRAPHX_EXPORT argument iota_argument(shape s, int64_t start = 0);
+
 MIGRAPHX_EXPORT argument fill_argument(shape s, double value = 0);
 
 MIGRAPHX_EXPORT argument generate_argument(shape s,

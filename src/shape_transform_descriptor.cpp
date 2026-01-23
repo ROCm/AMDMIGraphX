@@ -791,6 +791,7 @@ shape_transform_descriptor shape_transform_descriptor::rebase(const std::vector<
     }
     for(auto& dim : result.dimensions)
         remove_empty_sub_dims(dim.subdimensions);
+	result.simplify();
     if(broadcast and not is_broadcast_only(dimensions, result.dimensions))
         return {};
 

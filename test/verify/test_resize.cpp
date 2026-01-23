@@ -29,7 +29,8 @@
 
 // Nearest mode downsample with floor rounding (1-input mode with scales as attribute)
 template <migraphx::shape::type_t DType>
-struct test_resize_nearest_downsample_floor : verify_program<test_resize_nearest_downsample_floor<DType>>
+struct test_resize_nearest_downsample_floor
+    : verify_program<test_resize_nearest_downsample_floor<DType>>
 {
     migraphx::program create_program() const
     {
@@ -39,12 +40,11 @@ struct test_resize_nearest_downsample_floor : verify_program<test_resize_nearest
         migraphx::shape sx{DType, {1, 1, 4, 8}};
         auto x = mm->add_parameter("X", sx);
 
-        mm->add_instruction(
-            migraphx::make_op("resize",
-                              {{"scales", {1.0f, 1.0f, 0.5f, 0.5f}},
-                               {"nearest_mode", "floor"},
-                               {"coordinate_transformation_mode", "asymmetric"}}),
-            x);
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"scales", {1.0f, 1.0f, 0.5f, 0.5f}},
+                                               {"nearest_mode", "floor"},
+                                               {"coordinate_transformation_mode", "asymmetric"}}),
+                            x);
         return p;
     }
 };
@@ -64,12 +64,11 @@ struct test_resize_nearest_upsample_pf : verify_program<test_resize_nearest_upsa
         migraphx::shape sx{DType, {1, 1, 2, 2}};
         auto x = mm->add_parameter("X", sx);
 
-        mm->add_instruction(
-            migraphx::make_op("resize",
-                              {{"scales", {1.0f, 1.0f, 2.0f, 3.0f}},
-                               {"nearest_mode", "round_prefer_floor"},
-                               {"coordinate_transformation_mode", "half_pixel"}}),
-            x);
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"scales", {1.0f, 1.0f, 2.0f, 3.0f}},
+                                               {"nearest_mode", "round_prefer_floor"},
+                                               {"coordinate_transformation_mode", "half_pixel"}}),
+                            x);
         return p;
     }
 };
@@ -89,12 +88,11 @@ struct test_resize_nearest_ceil : verify_program<test_resize_nearest_ceil<DType>
         migraphx::shape sx{DType, {1, 1, 2, 4}};
         auto x = mm->add_parameter("X", sx);
 
-        mm->add_instruction(
-            migraphx::make_op("resize",
-                              {{"scales", {1.0f, 1.0f, 0.6f, 0.6f}},
-                               {"nearest_mode", "ceil"},
-                               {"coordinate_transformation_mode", "asymmetric"}}),
-            x);
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"scales", {1.0f, 1.0f, 0.6f, 0.6f}},
+                                               {"nearest_mode", "ceil"},
+                                               {"coordinate_transformation_mode", "asymmetric"}}),
+                            x);
         return p;
     }
 };
@@ -104,7 +102,8 @@ template struct test_resize_nearest_ceil<migraphx::shape::half_type>;
 
 // Nearest mode with round_prefer_ceil rounding
 template <migraphx::shape::type_t DType>
-struct test_resize_nearest_round_prefer_ceil : verify_program<test_resize_nearest_round_prefer_ceil<DType>>
+struct test_resize_nearest_round_prefer_ceil
+    : verify_program<test_resize_nearest_round_prefer_ceil<DType>>
 {
     migraphx::program create_program() const
     {
@@ -114,12 +113,11 @@ struct test_resize_nearest_round_prefer_ceil : verify_program<test_resize_neares
         migraphx::shape sx{DType, {1, 1, 2, 4}};
         auto x = mm->add_parameter("X", sx);
 
-        mm->add_instruction(
-            migraphx::make_op("resize",
-                              {{"scales", {1.0f, 1.0f, 2.0f, 1.5f}},
-                               {"nearest_mode", "round_prefer_ceil"},
-                               {"coordinate_transformation_mode", "half_pixel"}}),
-            x);
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"scales", {1.0f, 1.0f, 2.0f, 1.5f}},
+                                               {"nearest_mode", "round_prefer_ceil"},
+                                               {"coordinate_transformation_mode", "half_pixel"}}),
+                            x);
         return p;
     }
 };
@@ -139,12 +137,11 @@ struct test_resize_linear_downsample : verify_program<test_resize_linear_downsam
         migraphx::shape sx{DType, {1, 1, 4, 8}};
         auto x = mm->add_parameter("X", sx);
 
-        mm->add_instruction(
-            migraphx::make_op("resize",
-                              {{"scales", {1.0f, 1.0f, 0.5f, 0.5f}},
-                               {"mode", "linear"},
-                               {"coordinate_transformation_mode", "half_pixel"}}),
-            x);
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"scales", {1.0f, 1.0f, 0.5f, 0.5f}},
+                                               {"mode", "linear"},
+                                               {"coordinate_transformation_mode", "half_pixel"}}),
+                            x);
         return p;
     }
 };
@@ -164,12 +161,11 @@ struct test_resize_linear_upsample : verify_program<test_resize_linear_upsample<
         migraphx::shape sx{DType, {1, 1, 2, 2}};
         auto x = mm->add_parameter("X", sx);
 
-        mm->add_instruction(
-            migraphx::make_op("resize",
-                              {{"scales", {1.0f, 1.0f, 2.0f, 2.0f}},
-                               {"mode", "linear"},
-                               {"coordinate_transformation_mode", "half_pixel"}}),
-            x);
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"scales", {1.0f, 1.0f, 2.0f, 2.0f}},
+                                               {"mode", "linear"},
+                                               {"coordinate_transformation_mode", "half_pixel"}}),
+                            x);
         return p;
     }
 };
@@ -214,12 +210,11 @@ struct test_resize_linear_asymmetric : verify_program<test_resize_linear_asymmet
         migraphx::shape sx{DType, {1, 1, 2, 4}};
         auto x = mm->add_parameter("X", sx);
 
-        mm->add_instruction(
-            migraphx::make_op("resize",
-                              {{"scales", {1.0f, 1.0f, 2.0f, 2.0f}},
-                               {"mode", "linear"},
-                               {"coordinate_transformation_mode", "asymmetric"}}),
-            x);
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"scales", {1.0f, 1.0f, 2.0f, 2.0f}},
+                                               {"mode", "linear"},
+                                               {"coordinate_transformation_mode", "asymmetric"}}),
+                            x);
         return p;
     }
 };
@@ -239,12 +234,11 @@ struct test_resize_nearest_sizes : verify_program<test_resize_nearest_sizes<DTyp
         migraphx::shape sx{DType, {1, 1, 2, 2}};
         auto x = mm->add_parameter("X", sx);
 
-        mm->add_instruction(
-            migraphx::make_op("resize",
-                              {{"sizes", {1, 1, 4, 6}},
-                               {"nearest_mode", "round_prefer_floor"},
-                               {"coordinate_transformation_mode", "half_pixel"}}),
-            x);
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"sizes", {1, 1, 4, 6}},
+                                               {"nearest_mode", "round_prefer_floor"},
+                                               {"coordinate_transformation_mode", "half_pixel"}}),
+                            x);
         return p;
     }
 };
@@ -264,12 +258,11 @@ struct test_resize_3d_nearest : verify_program<test_resize_3d_nearest<DType>>
         migraphx::shape sx{DType, {1, 1, 2, 2, 2}};
         auto x = mm->add_parameter("X", sx);
 
-        mm->add_instruction(
-            migraphx::make_op("resize",
-                              {{"scales", {1.0f, 1.0f, 2.0f, 2.0f, 2.0f}},
-                               {"nearest_mode", "floor"},
-                               {"coordinate_transformation_mode", "asymmetric"}}),
-            x);
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"scales", {1.0f, 1.0f, 2.0f, 2.0f, 2.0f}},
+                                               {"nearest_mode", "floor"},
+                                               {"coordinate_transformation_mode", "asymmetric"}}),
+                            x);
         return p;
     }
 };
@@ -289,12 +282,11 @@ struct test_resize_3d_linear : verify_program<test_resize_3d_linear<DType>>
         migraphx::shape sx{DType, {1, 1, 2, 2, 2}};
         auto x = mm->add_parameter("X", sx);
 
-        mm->add_instruction(
-            migraphx::make_op("resize",
-                              {{"scales", {1.0f, 1.0f, 2.0f, 2.0f, 2.0f}},
-                               {"mode", "linear"},
-                               {"coordinate_transformation_mode", "half_pixel"}}),
-            x);
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"scales", {1.0f, 1.0f, 2.0f, 2.0f, 2.0f}},
+                                               {"mode", "linear"},
+                                               {"coordinate_transformation_mode", "half_pixel"}}),
+                            x);
         return p;
     }
 };
@@ -314,12 +306,11 @@ struct test_resize_nonint_asymmetric : verify_program<test_resize_nonint_asymmet
         migraphx::shape sx{DType, {1, 1, 3, 3}};
         auto x = mm->add_parameter("X", sx);
 
-        mm->add_instruction(
-            migraphx::make_op("resize",
-                              {{"sizes", {1, 1, 5, 8}},
-                               {"nearest_mode", "floor"},
-                               {"coordinate_transformation_mode", "asymmetric"}}),
-            x);
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"sizes", {1, 1, 5, 8}},
+                                               {"nearest_mode", "floor"},
+                                               {"coordinate_transformation_mode", "asymmetric"}}),
+                            x);
         return p;
     }
 };

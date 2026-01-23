@@ -49,22 +49,19 @@ TEST_CASE(rewrite_resize_nearest_downsample_floor)
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 4}};
     auto x = mm->add_parameter("X", sx);
 
-    mm->add_instruction(
-        migraphx::make_op("resize",
-                          {{"scales", {1.0f, 1.0f, 0.6f, 0.6f}},
-                           {"nearest_mode", "floor"},
-                           {"coordinate_transformation_mode", "asymmetric"}}),
-        x);
+    mm->add_instruction(migraphx::make_op("resize",
+                                          {{"scales", {1.0f, 1.0f, 0.6f, 0.6f}},
+                                           {"nearest_mode", "floor"},
+                                           {"coordinate_transformation_mode", "asymmetric"}}),
+                        x);
 
     opt_resize(*mm);
 
     // After rewrite, should have gather instead of resize
-    EXPECT(std::none_of(mm->begin(), mm->end(), [](const auto& ins) {
-        return ins.name() == "resize";
-    }));
-    EXPECT(std::any_of(mm->begin(), mm->end(), [](const auto& ins) {
-        return ins.name() == "gather";
-    }));
+    EXPECT(std::none_of(
+        mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "resize"; }));
+    EXPECT(std::any_of(
+        mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "gather"; }));
 }
 
 // Test nearest mode upsample with round_prefer_floor rounding
@@ -76,22 +73,19 @@ TEST_CASE(rewrite_resize_nearest_upsample_pf)
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
     auto x = mm->add_parameter("X", sx);
 
-    mm->add_instruction(
-        migraphx::make_op("resize",
-                          {{"scales", {1.0f, 1.0f, 2.0f, 3.0f}},
-                           {"nearest_mode", "round_prefer_floor"},
-                           {"coordinate_transformation_mode", "half_pixel"}}),
-        x);
+    mm->add_instruction(migraphx::make_op("resize",
+                                          {{"scales", {1.0f, 1.0f, 2.0f, 3.0f}},
+                                           {"nearest_mode", "round_prefer_floor"},
+                                           {"coordinate_transformation_mode", "half_pixel"}}),
+                        x);
 
     opt_resize(*mm);
 
     // After rewrite, should have gather instead of resize
-    EXPECT(std::none_of(mm->begin(), mm->end(), [](const auto& ins) {
-        return ins.name() == "resize";
-    }));
-    EXPECT(std::any_of(mm->begin(), mm->end(), [](const auto& ins) {
-        return ins.name() == "gather";
-    }));
+    EXPECT(std::none_of(
+        mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "resize"; }));
+    EXPECT(std::any_of(
+        mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "gather"; }));
 }
 
 // Test linear mode downsample
@@ -103,22 +97,19 @@ TEST_CASE(rewrite_resize_linear_downsample)
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 4}};
     auto x = mm->add_parameter("X", sx);
 
-    mm->add_instruction(
-        migraphx::make_op("resize",
-                          {{"scales", {1.0f, 1.0f, 0.6f, 0.5f}},
-                           {"mode", "linear"},
-                           {"coordinate_transformation_mode", "half_pixel"}}),
-        x);
+    mm->add_instruction(migraphx::make_op("resize",
+                                          {{"scales", {1.0f, 1.0f, 0.6f, 0.5f}},
+                                           {"mode", "linear"},
+                                           {"coordinate_transformation_mode", "half_pixel"}}),
+                        x);
 
     opt_resize(*mm);
 
     // After rewrite, should have gather instead of resize
-    EXPECT(std::none_of(mm->begin(), mm->end(), [](const auto& ins) {
-        return ins.name() == "resize";
-    }));
-    EXPECT(std::any_of(mm->begin(), mm->end(), [](const auto& ins) {
-        return ins.name() == "gather";
-    }));
+    EXPECT(std::none_of(
+        mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "resize"; }));
+    EXPECT(std::any_of(
+        mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "gather"; }));
 }
 
 // Test that 2-input mode is not rewritten (handled by simplify_dyn_ops first)
@@ -134,19 +125,17 @@ TEST_CASE(rewrite_resize_2input_no_rewrite)
     migraphx::shape ss{migraphx::shape::float_type, {4}};
     auto scales = mm->add_literal(migraphx::literal{ss, scales_data});
 
-    mm->add_instruction(
-        migraphx::make_op("resize",
-                          {{"nearest_mode", "floor"},
-                           {"coordinate_transformation_mode", "asymmetric"}}),
-        x,
-        scales);
+    mm->add_instruction(migraphx::make_op("resize",
+                                          {{"nearest_mode", "floor"},
+                                           {"coordinate_transformation_mode", "asymmetric"}}),
+                        x,
+                        scales);
 
     opt_resize(*mm);
 
     // Should still have resize since rewrite_resize only handles 1-input mode
-    EXPECT(std::any_of(mm->begin(), mm->end(), [](const auto& ins) {
-        return ins.name() == "resize";
-    }));
+    EXPECT(std::any_of(
+        mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "resize"; }));
 }
 
 // Test linear mode with same input/output shapes is optimized away
@@ -158,12 +147,12 @@ TEST_CASE(rewrite_resize_linear_same_shape)
     migraphx::shape sx{migraphx::shape::float_type, {1, 3, 5}};
     auto x = mm->add_parameter("X", sx);
 
-    auto r = mm->add_instruction(
-        migraphx::make_op("resize",
-                          {{"sizes", {1, 3, 5}},
-                           {"mode", "linear"},
-                           {"coordinate_transformation_mode", "half_pixel"}}),
-        x);
+    auto r =
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"sizes", {1, 3, 5}},
+                                               {"mode", "linear"},
+                                               {"coordinate_transformation_mode", "half_pixel"}}),
+                            x);
     mm->add_return({r});
 
     opt_resize(*mm);
@@ -183,12 +172,11 @@ TEST_CASE(rewrite_resize_nearest_correctness)
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 4}};
     auto x1 = mm1->add_parameter("X", sx);
 
-    mm1->add_instruction(
-        migraphx::make_op("resize",
-                          {{"scales", {1.0f, 1.0f, 0.6f, 0.6f}},
-                           {"nearest_mode", "floor"},
-                           {"coordinate_transformation_mode", "asymmetric"}}),
-        x1);
+    mm1->add_instruction(migraphx::make_op("resize",
+                                           {{"scales", {1.0f, 1.0f, 0.6f, 0.6f}},
+                                            {"nearest_mode", "floor"},
+                                            {"coordinate_transformation_mode", "asymmetric"}}),
+                         x1);
 
     // Copy for comparison
     migraphx::program p2 = p1;
@@ -226,12 +214,11 @@ TEST_CASE(rewrite_resize_linear_correctness)
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 4}};
     auto x1 = mm1->add_parameter("X", sx);
 
-    mm1->add_instruction(
-        migraphx::make_op("resize",
-                          {{"scales", {1.0f, 1.0f, 0.6f, 0.5f}},
-                           {"mode", "linear"},
-                           {"coordinate_transformation_mode", "half_pixel"}}),
-        x1);
+    mm1->add_instruction(migraphx::make_op("resize",
+                                           {{"scales", {1.0f, 1.0f, 0.6f, 0.5f}},
+                                            {"mode", "linear"},
+                                            {"coordinate_transformation_mode", "half_pixel"}}),
+                         x1);
 
     // Copy for comparison
     migraphx::program p2 = p1;
@@ -269,22 +256,19 @@ TEST_CASE(rewrite_resize_sizes_attribute)
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
     auto x = mm->add_parameter("X", sx);
 
-    mm->add_instruction(
-        migraphx::make_op("resize",
-                          {{"sizes", {1, 1, 4, 6}},
-                           {"nearest_mode", "round_prefer_floor"},
-                           {"coordinate_transformation_mode", "half_pixel"}}),
-        x);
+    mm->add_instruction(migraphx::make_op("resize",
+                                          {{"sizes", {1, 1, 4, 6}},
+                                           {"nearest_mode", "round_prefer_floor"},
+                                           {"coordinate_transformation_mode", "half_pixel"}}),
+                        x);
 
     opt_resize(*mm);
 
     // After rewrite, should have gather instead of resize
-    EXPECT(std::none_of(mm->begin(), mm->end(), [](const auto& ins) {
-        return ins.name() == "resize";
-    }));
-    EXPECT(std::any_of(mm->begin(), mm->end(), [](const auto& ins) {
-        return ins.name() == "gather";
-    }));
+    EXPECT(std::none_of(
+        mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "resize"; }));
+    EXPECT(std::any_of(
+        mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "gather"; }));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

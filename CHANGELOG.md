@@ -55,7 +55,7 @@ Full documentation for MIGraphX is available at
 
 ### Resolved issues
 
-* Fixed an issue in `propagate_precision` pass where precision could be incorrectly propagated across type category boundaries (e.g., from integral to floating-point types).
+* Fixed an issue in `propagate_precision` pass where precision for div operations could be incorrectly propagated across type category boundaries (e.g., from integral to floating-point types).
 * Quiet nrvo and noreturn warnings (#4429).
 * Fixed `pointwise: Wrong number of arguments` error when quantizing certain models to `int8` (#4398).
 * TopK exception bugfix (#4329).

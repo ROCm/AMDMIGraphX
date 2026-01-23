@@ -13,7 +13,7 @@ Full documentation for MIGraphX is available at
 
 ### Resolved issues
 
-* Fixed an issue in `propagate_precision` pass where precision could be incorrectly propagated across type boundaries (e.g., from integral to floating-point) (#4561).
+* Fixed an issue in `propagate_precision` pass where precision for div operations could be incorrectly propagated across type boundaries (e.g., from integral to floating-point) (#4561).
 
 
 ### Optimized

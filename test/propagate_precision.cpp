@@ -206,7 +206,7 @@ TEST_CASE(propagate_reduce_float_to_double)
     EXPECT(m1.sort() == m2.sort());
 }
 
-// Verify that propagation stops at type category boundaries (int to float)
+// Verify that propagation stops at type category boundaries (int div -> float)
 TEST_CASE(propagate_type_category_boundary)
 {
     migraphx::shape s1{migraphx::shape::int32_type, {1, 4}};

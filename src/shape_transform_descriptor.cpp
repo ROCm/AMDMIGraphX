@@ -1610,7 +1610,8 @@ static std::vector<int64_t> find_permutation(const std::vector<dimension::sub>& 
 // are generated from the subdimensions and steps 4-5 are generated with the
 // dimensions.
 std::vector<operation>
-shape_transform_descriptor::generate(const std::vector<std::size_t>& input_dims, bool no_broadcast) const
+shape_transform_descriptor::generate(const std::vector<std::size_t>& input_dims,
+                                     bool no_broadcast) const
 {
     operation_list result;
     std::vector<dimension> new_dims =

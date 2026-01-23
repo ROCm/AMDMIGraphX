@@ -243,8 +243,8 @@ struct find_op_shape_transform_op
         return desc.elements() == ins->get_shape().elements();
     }
 
-    static std::vector<operation> generate(const shape_transform_descriptor& desc,
-                                           const shape& input_shape, bool no_broadcast)
+    static std::vector<operation>
+    generate(const shape_transform_descriptor& desc, const shape& input_shape, bool no_broadcast)
     {
         if(input_shape.scalar() and input_shape.elements() == 1 and input_shape.ndim() == 1)
         {
@@ -330,7 +330,6 @@ struct find_op_shape_transform_op
         if(not is_valid(x_ins, desc))
             return;
 
-
         // If we already in the common dimension space then skip if there are other outputs to avoid
         // infinite loop
         if(ins->get_shape().ndim() == desc.common_rank() and
@@ -341,7 +340,9 @@ struct find_op_shape_transform_op
             return;
         }
 
-        auto reshape_input = [&](const auto& ins_to_insert, const auto& gdesc, bool no_broadcast = false) {
+        auto reshape_input = [&](const auto& ins_to_insert,
+                                 const auto& gdesc,
+                                 bool no_broadcast = false) {
             return [&](auto input) {
                 auto gops = generate(gdesc, input->get_shape(), no_broadcast);
                 return std::accumulate(

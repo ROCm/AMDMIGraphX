@@ -89,7 +89,8 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
                          optional<std::size_t> axis = nullopt);
     void simplify();
     std::size_t elements() const;
-    std::vector<operation> generate(const std::vector<std::size_t>& input_dims = {}, bool no_broadcast = false) const;
+    std::vector<operation> generate(const std::vector<std::size_t>& input_dims = {},
+                                    bool no_broadcast                          = false) const;
 
     std::set<std::size_t> find_broadcasted_axes() const;
     bool has_broadcast() const;

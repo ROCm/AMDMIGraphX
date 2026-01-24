@@ -2308,6 +2308,9 @@ struct find_concat_mul_reduce
                 break; // Restart iteration
             }
         }
+        
+        // Sort the module to fix instruction ordering after replacements
+        m.sort();
     }
 };
 
@@ -2817,6 +2820,9 @@ struct find_batched_gather
                 offset += idx_size;
             }
         }
+        
+        // Sort the module to fix instruction ordering after replacements
+        m.sort();
     }
 };
 
@@ -3054,6 +3060,9 @@ struct find_cross_embedding_gather
                 slice_offset += idx_size;
             }
         }
+        
+        // Sort the module to fix instruction ordering after replacements
+        m.sort();
     }
 };
 
@@ -3413,6 +3422,20 @@ struct find_multi_embedding_slice_gather
                 }
                 else
                 {
+                    // DEBUG: Check if any input is defined after concat_ins
+                    auto concat_pos = std::distance(m.begin(), concat_ins);
+                    for(size_t idx = 0; idx < new_concat_inputs.size(); idx++)
+                    {
+                        auto inp = new_concat_inputs[idx];
+                        auto inp_pos = std::distance(m.begin(), inp);
+                        if(inp_pos > concat_pos)
+                        {
+                            std::cout << "[find_multi_embedding_slice_gather] WARNING: input " 
+                                      << idx << " (" << inp->name() << ") is defined AFTER concat_ins"
+                                      << " (pos " << inp_pos << " > " << concat_pos << ")" << std::endl;
+                        }
+                    }
+                    
                     // Create new concat with remaining inputs
                     auto new_concat = m.insert_instruction(
                         concat_ins,
@@ -3428,6 +3451,9 @@ struct find_multi_embedding_slice_gather
                 break; // Restart iteration since we modified the module
             }
         }
+        
+        // Sort the module to fix instruction ordering after replacements
+        m.sort();
     }
 };
 
@@ -3435,12 +3461,15 @@ void simplify_algebra::apply(module& m) const
 {
     // Run replicated concat optimization early (converts Tile patterns to multibroadcast)
     find_replicated_concat{}.apply(m);
+    m.sort();
 
     // Run grouped concat to broadcast optimization (reduces concat inputs)
     find_grouped_concat_to_broadcast{}.apply(m);
+    m.sort();
     
     // Run concat + mul + reduce_sum optimization (eliminates concat+reduce patterns)
     find_concat_mul_reduce{}.apply(m);
+    m.sort();
 
     // Note: find_slice_concat_to_gather disabled - adds transpose/gather overhead
     // that roughly equals the concat savings, providing no net benefit.
@@ -3448,12 +3477,15 @@ void simplify_algebra::apply(module& m) const
 
     // Run multi-embedding slice-gather-concat optimization (highest impact)
     find_multi_embedding_slice_gather{}.apply(m);
+    m.sort();
 
     // Run cross-embedding gather optimization (larger fusion opportunity)
     find_cross_embedding_gather{}.apply(m);
+    m.sort();
 
     // Run batched gather optimization
     find_batched_gather{}.apply(m);
+    m.sort();
 
     // Run simplifications multiple times
     m.repeat_while_changes(8, [&] {

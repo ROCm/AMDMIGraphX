@@ -87,7 +87,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_REWRITE_DOT)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_FUSE_DOTS)
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_FUSE_HORIZONTAL)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FUSE_LEVELS)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_REWRITE_LRN)
 #ifndef _WIN32
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
@@ -218,6 +218,10 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         layout_convolution{.channels_last = enabled(MIGRAPHX_ENABLE_NHWC{})},
         dead_code_elimination{},
+        // fuse_horizontal must run BEFORE prefuse_ops and rewrite_reduce
+        // so that match::layernorm() can find the decomposed LayerNorm patterns
+        enable_pass(enabled(MIGRAPHX_FUSE_LEVELS{}), fuse_horizontal{}),
+        dead_code_elimination{},
         prefuse_ops{},
         dead_code_elimination{},
         eliminate_data_type{{migraphx::shape::fp8e4m3fnuz_type, migraphx::shape::fp8e5m2fnuz_type}, shape::float_type, unsupported_fp8fnuz_ops},
@@ -233,8 +237,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         simplify_reshapes{.enable_op_shape_transform_op=true},
         dead_code_elimination{},
         enable_pass(mlir_enabled(), fuse_attention{mlir_attention_enabled(&ctx)}),
-        dead_code_elimination{},
-        enable_pass(enabled(MIGRAPHX_ENABLE_FUSE_HORIZONTAL{}), fuse_horizontal{}),
         dead_code_elimination{},
         optimize_module{},
         enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_pointwise_reduce{}),

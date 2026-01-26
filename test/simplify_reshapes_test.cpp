@@ -2612,10 +2612,11 @@ TEST_CASE(reduce_squeeze_pointwise5)
         auto x          = m2.add_parameter("x", s1);
         auto y          = m2.add_parameter("y", s2);
         auto reduce_sum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
-        auto unsqueeze  = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 1}}}), y);
-        auto add        = m2.add_instruction(migraphx::make_op("add"), reduce_sum, unsqueeze);
-        auto relu       = m2.add_instruction(migraphx::make_op("relu"), add);
-        auto squeeze    = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), relu);
+        auto unsqueeze =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 1}}}), y);
+        auto add     = m2.add_instruction(migraphx::make_op("add"), reduce_sum, unsqueeze);
+        auto relu    = m2.add_instruction(migraphx::make_op("relu"), add);
+        auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), relu);
         m2.add_return({squeeze});
     }
     EXPECT(m1.sort() == m2.sort());

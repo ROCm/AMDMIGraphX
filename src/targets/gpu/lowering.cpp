@@ -381,7 +381,7 @@ struct miopen_apply
             auto&& op                         = ins->get_operator();
             refs.push_back(output);
             return mod->replace_instruction(ins, make_op("gpu::pooling", op.to_value()), refs);
-#else 
+#else
             auto preop = insert_precompile_op(ins);
             return insert_dynamic_code_object_op(preop);
 #endif

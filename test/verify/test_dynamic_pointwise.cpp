@@ -28,8 +28,8 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
 
-template <std::size_t... test_dims>
-struct test_dynamic_pointwise : verify_program<test_dynamic_pointwise<test_dims...>>
+template <std::size_t... TestDims>
+struct test_dynamic_pointwise : verify_program<test_dynamic_pointwise<TestDims...>>
 {
     migraphx::program create_program() const
     {
@@ -46,8 +46,8 @@ struct test_dynamic_pointwise : verify_program<test_dynamic_pointwise<test_dims.
 
     std::unordered_map<std::string, migraphx::shape> get_test_dims() const
     {
-        return {{"x", migraphx::shape{migraphx::shape::float_type, {test_dims...}}},
-                {"y", migraphx::shape{migraphx::shape::float_type, {test_dims...}}}};
+        return {{"x", migraphx::shape{migraphx::shape::float_type, {TestDims...}}},
+                {"y", migraphx::shape{migraphx::shape::float_type, {TestDims...}}}};
     }
 };
 

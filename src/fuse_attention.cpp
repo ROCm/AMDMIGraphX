@@ -997,34 +997,45 @@ struct find_gqa_flash_decoding
             attn_group_ins, make_op("get_tuple_elem", {{"index", 1}}), new_group_ins);
 
         // LSE-weighted combination
+        // each head has its own LSE values and needs its own weights
+        // O' shape: [B, G, S, N*D] - heads concatenated
+        // LSE shape: [B, N, G, S, 1] - per-head
         std::cout << "\n=== Kernel 2: LSE-weighted combination ===" << std::endl;
-        std::cout << "Input LSE shape: " << lse->get_shape() << std::endl;  // [B, N, G, S, 1] = [2, 2, 2, 1, 1]
-        std::cout << "Input O' shape: " << partial_output_o_prime->get_shape() << std::endl;  // [B, G, S, N*D] = [2, 2, 1, 4]
+        std::cout << "Input LSE shape: " << lse->get_shape() << std::endl;
+        std::cout << "Input O' shape: " << partial_output_o_prime->get_shape() << std::endl;
         
-        // align LSE with O' for proper weighting
-        // LSE is [B, N, G, S, 1], match group dimension of O' [B, G, S, N*D]
+        auto output_type = partial_output_o_prime->get_shape().type();
         
-        // [B, N, G, S, 1] -> [B, G, N, S, 1]
-        auto lse_transposed = mm.insert_instruction(
-            attn_group_ins, make_op("transpose", {{"permutation", {0, 2, 1, 3, 4}}}), lse);
+        // reshape O' to separate heads: [B, G, S, N*D] -> [B, G, S, N, D]
+        std::vector<std::size_t> o_prime_per_head_shape = {
+            dims.batch_size, groups, dims.sequence_length, dims.num_heads, dims.head_dim};
+        auto o_prime_reshaped = mm.insert_instruction(
+            attn_group_ins,
+            make_op("reshape", {{"dims", o_prime_per_head_shape}}),
+            partial_output_o_prime);
         
-        // average across heads since all heads in a group share the same weight
-        // [B, G, N, S, 1] -> [B, G, 1, S, 1]
-        auto lse_avg = mm.insert_instruction(
-            attn_group_ins, make_op("reduce_mean", {{"axes", {2}}}), lse_transposed);
+        // in groups with all masked positions, softmax produces NaN (from -inf - (-inf))
+        auto o_prime_is_nan = mm.insert_instruction(
+            attn_group_ins, make_op("isnan"), o_prime_reshaped);
+        auto zero_lit = mm.add_literal(literal{shape{output_type, {1}}, {0}});
+        auto zero_bcast = mm.insert_instruction(
+            attn_group_ins,
+            make_op("multibroadcast", {{"out_lens", o_prime_reshaped->get_shape().lens()}}),
+            zero_lit);
+        auto o_prime_cleaned = mm.insert_instruction(
+            attn_group_ins, make_op("where"), o_prime_is_nan, zero_bcast, o_prime_reshaped);
         
-        // [B, G, 1, S, 1] -> [B, G, S]
+        // [B, N, G, S, 1] -> [B, N, G, S]
         auto lse_squeezed = mm.insert_instruction(
-            attn_group_ins, make_op("squeeze", {{"axes", {2, 4}}}), lse_avg);
+            attn_group_ins, make_op("squeeze", {{"axes", {4}}}), lse);
         
-        // softmax across groups for LSE weights
-        // find max across groups for numerical stability
-        // [B, G, S] -> [B, 1, S]
+        // compute weights per-head
+        // [B, N, G, S] -> [B, N, 1, S]
         auto lse_max = mm.insert_instruction(
-            attn_group_ins, make_op("reduce_max", {{"axes", {1}}}), lse_squeezed);
+            attn_group_ins, make_op("reduce_max", {{"axes", {2}}}), lse_squeezed);
         
         // broadcast max back to original shape
-        // [B, 1, S] -> [B, G, S]
+        // [B, N, 1, S] -> [B, N, G, S]
         auto lse_max_bcast = mm.insert_instruction(
             attn_group_ins,
             make_op("multibroadcast", {{"out_lens", lse_squeezed->get_shape().lens()}}),
@@ -1035,49 +1046,59 @@ struct find_gqa_flash_decoding
         auto lse_exp = mm.insert_instruction(attn_group_ins, make_op("exp"), lse_sub);
         
         // sum exp across groups
-        // [B, G, S] -> [B, 1, S]
+        // [B, N, G, S] -> [B, N, 1, S]
         auto lse_sum = mm.insert_instruction(
-            attn_group_ins, make_op("reduce_sum", {{"axes", {1}}}), lse_exp);
+            attn_group_ins, make_op("reduce_sum", {{"axes", {2}}}), lse_exp);
         
-        // [B, 1, S] -> [B, G, S]
+        // [B, N, 1, S] -> [B, N, G, S]
         auto lse_sum_bcast = mm.insert_instruction(
             attn_group_ins,
             make_op("multibroadcast", {{"out_lens", lse_exp->get_shape().lens()}}),
             lse_sum);
         
-        // [B, G, S] -> [B, G, S]
+        // weights per-head
         auto weights = mm.insert_instruction(attn_group_ins, make_op("div"), lse_exp, lse_sum_bcast);
         
-        // weights is [B, G, S], O' is [B, G, S, N*D]
-        // [B, G, S] -> [B, G, S, 1]
+        // transpose weights to align with O'
+        // [B, N, G, S] -> [B, G, S, N]
+        auto weights_transposed = mm.insert_instruction(
+            attn_group_ins, make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), weights);
+        
+        // [B, G, S, N] -> [B, G, S, N, 1]
         auto weights_unsqueezed = mm.insert_instruction(
-            attn_group_ins, make_op("unsqueeze", {{"axes", {3}}}), weights);
+            attn_group_ins, make_op("unsqueeze", {{"axes", {4}}}), weights_transposed);
         
         // broadcast to match O' shape
-        // [B, G, S, 1] -> [B, G, S, N*D]
+        // [B, G, S, N, 1] -> [B, G, S, N, D]
         auto weights_bcast = mm.insert_instruction(
             attn_group_ins,
-            make_op("multibroadcast", {{"out_lens", partial_output_o_prime->get_shape().lens()}}),
+            make_op("multibroadcast", {{"out_lens", o_prime_cleaned->get_shape().lens()}}),
             weights_unsqueezed);
         
-        // convert weights to match O' type
-        auto output_type = partial_output_o_prime->get_shape().type();
         auto weights_converted = mm.insert_instruction(
             attn_group_ins, make_op("convert", {{"target_type", output_type}}), weights_bcast);
         
-        // multiply O' by weights
+        // multiply O' by per-head weights
+        // [B, G, S, N, D] -> [B, G, S, N, D]
         auto weighted_output = mm.insert_instruction(
-            attn_group_ins, make_op("mul"), partial_output_o_prime, weights_converted);
+            attn_group_ins, make_op("mul"), o_prime_cleaned, weights_converted);
         
-        // sum across groups to get final output
-        // [B, G, S, N*D] -> [B, 1, S, N*D]
-        auto final_output = mm.insert_instruction(
+        // sum across groups
+        // [B, G, S, N, D] -> [B, 1, S, N, D]
+        auto summed_output = mm.insert_instruction(
             attn_group_ins, make_op("reduce_sum", {{"axes", {1}}}), weighted_output);
         
         // squeeze the reduced group dimension
-        // [B, 1, S, N*D] -> [B, S, N*D]
+        // [B, 1, S, N, D] -> [B, S, N, D]
+        auto squeezed_output = mm.insert_instruction(
+            attn_group_ins, make_op("squeeze", {{"axes", {1}}}), summed_output);
+        
+        // reshape back to concatenated heads
+        // [B, S, N, D] -> [B, S, N*D]
+        std::vector<std::size_t> final_shape = {
+            dims.batch_size, dims.sequence_length, dims.num_heads * dims.head_dim};
         auto final_squeezed = mm.insert_instruction(
-            attn_group_ins, make_op("squeeze", {{"axes", {1}}}), final_output);
+            attn_group_ins, make_op("reshape", {{"dims", final_shape}}), squeezed_output);
         
         mm.replace_instruction(attn_group_ins, final_squeezed);
     }

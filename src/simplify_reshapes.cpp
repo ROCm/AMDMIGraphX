@@ -248,7 +248,10 @@ struct find_op_shape_transform_op
     {
         if(input_shape.scalar() and input_shape.elements() == 1 and input_shape.ndim() == 1)
         {
-            return {make_op("multibroadcast", {{"out_lens", desc.lens()}})};
+            auto out_lens = desc.lens();
+            if(no_broadcast)
+                std::fill(out_lens.begin(), out_lens.end(), 1);
+            return {make_op("multibroadcast", {{"out_lens", out_lens}})};
         }
         else
         {

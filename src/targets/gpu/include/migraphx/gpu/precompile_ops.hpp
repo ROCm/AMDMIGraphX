@@ -90,7 +90,7 @@ struct dynamic_code_object_op
 
     std::string name() const { return "gpu::dynamic_code_object_op"; }
 
-    shape compute_shape(std::vector<shape> inputs, const std::vector<module_ref>& mods) const
+    shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>& mods) const
     {
         return pre_op.compute_shape(inputs, mods);
     }
@@ -103,8 +103,8 @@ struct dynamic_code_object_op
                      const shape&,
                      const std::vector<argument>& args,
                      const std::vector<module_ref>& module_args,
-                     std::function<std::vector<argument>(
-                         module_ref&, const std::unordered_map<std::string, argument>&)> run) const
+                     const std::function<std::vector<argument>(
+                         module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
     {
         auto static_args = std::vector<argument>{args.begin(), args.end()};
         auto output_arg  = static_args.back();

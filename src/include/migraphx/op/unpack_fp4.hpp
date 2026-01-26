@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -42,7 +42,22 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 struct unpack_fp4
 {
+    int64_t axis = -1;
+
     std::string name() const { return "unpack_fp4"; }
+
+    value attributes() const
+    {
+        value normalize   = value::object{};
+        normalize["axis"] = value::array{normalize_attribute::include_min};
+        return {{"normalize_axes", normalize}};
+    }
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.axis, "axis"));
+    }
 
     migraphx::shape normalize_compute_shape(std::vector<migraphx::shape> inputs) const
     {
@@ -53,9 +68,7 @@ struct unpack_fp4
             MIGRAPHX_THROW("UNPACK_FP4: Only fp4x2_type is supported for unpacking");
         }
         auto new_lens = in_shape.lens();
-        int fast_axis = std::min_element(in_shape.strides().cbegin(), in_shape.strides().cend()) -
-                        in_shape.strides().cbegin();
-        new_lens[fast_axis] *= 2;
+        new_lens[axis] *= 2;
         return in_shape.with_lens(migraphx::shape::fp8e4m3fn_type, new_lens);
     }
 
@@ -63,8 +76,6 @@ struct unpack_fp4
     {
         const auto& input = args.front();
         auto in_shape     = input.get_shape();
-        int fast_axis = std::min_element(in_shape.strides().cbegin(), in_shape.strides().cend()) -
-                        in_shape.strides().cbegin();
 
         migraphx::shape fp8_shape = shape{migraphx::shape::fp8e4m3fn_type, output_shape.lens()};
         argument fp8_arg{fp8_shape};
@@ -72,13 +83,13 @@ struct unpack_fp4
         fp8_arg.visit([&](auto out) {
             par_for(in_shape.elements(), [&](auto i) {
                 auto data_idx = in_shape.multi(i);
-                data_idx[fast_axis] *= 2;
+                data_idx[axis] *= 2;
                 // unpacking 2 unsigned parts
                 // unpacking 4 least significant bits first
                 uint8_t fp4_val = inp[i];
                 out[data_idx]   = fp4_to_fp8(fp4_val);
 
-                data_idx[fast_axis] += 1;
+                data_idx[axis] += 1;
                 fp4_val       = fp4_val >> 4u;
                 out[data_idx] = fp4_to_fp8(fp4_val);
             });

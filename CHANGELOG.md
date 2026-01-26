@@ -3,6 +3,25 @@
 Full documentation for MIGraphX is available at
 [https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/](https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/).
 
+## Develop
+
+### Added
+
+
+### Changed
+
+
+### Resolved issues
+
+* Fixed a bug with operators `pack_fp4`, `unpack_fp4`, and the `fuse_mlir` pass handling non-standard input shapes (#4560).
+
+
+### Optimized
+
+
+### Removed
+
+
 ## MIGraphX 2.15 for ROCm 7.2.0
 
 ### Added

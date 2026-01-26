@@ -3,6 +3,20 @@
 Full documentation for MIGraphX is available at
 [https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/](https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/).
 
+## Develop Branch
+
+### Added
+
+* Added a dedicated logger for MIGraphX.
+
+### Changed
+
+### Resolved issues
+
+### Optimized
+
+### Removed
+
 ## MIGraphX 2.15 for ROCm 7.2.0
 
 ### Added

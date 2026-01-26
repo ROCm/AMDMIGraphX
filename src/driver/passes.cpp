@@ -62,7 +62,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct pass_with_context : pass
 {
     pass_with_context(const pass& p, std::shared_ptr<context> pctx = nullptr) : pass(p), ctx(pctx)
-    {}
+    {
+    }
     std::shared_ptr<context> ctx = nullptr;
 };
 
@@ -113,14 +114,13 @@ std::optional<pass> get_pass(const std::string& name)
     auto fields = split_string(name, '@');
     if(fields.size() != 2)
         return std::nullopt;
-    auto base_name = fields[0];
+    auto base_name   = fields[0];
     auto target_name = fields[1];
-    auto t = make_target(target_name);
-    auto ctx = std::make_shared<context>(t.get_context());
-    auto passes = t.get_passes(*ctx, {});
-    auto it = std::find_if(passes.begin(), passes.end(), [&](const pass& p) {
-        return p.name() == base_name;
-    });
+    auto t           = make_target(target_name);
+    auto ctx         = std::make_shared<context>(t.get_context());
+    auto passes      = t.get_passes(*ctx, {});
+    auto it          = std::find_if(
+        passes.begin(), passes.end(), [&](const pass& p) { return p.name() == base_name; });
     if(it == passes.end())
         return std::nullopt;
     return pass_with_context(*it, ctx);

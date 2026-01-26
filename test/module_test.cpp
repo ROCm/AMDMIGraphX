@@ -807,19 +807,20 @@ TEST_CASE(with_static_shapes)
 {
     auto create_module = [](const std::vector<migraphx::shape>& input_shapes) {
         migraphx::module m;
-        auto x = m.add_parameter("x", input_shapes[0]);
-        auto y = m.add_parameter("y", input_shapes[1]);
+        auto x   = m.add_parameter("x", input_shapes[0]);
+        auto y   = m.add_parameter("y", input_shapes[1]);
         auto add = m.add_instruction(migraphx::make_op("add"), x, y);
-        auto reduce_mean = m.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {1}}}), add);
+        auto reduce_mean =
+            m.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {1}}}), add);
         m.add_return({reduce_mean});
         return m;
     };
-    auto dyn_shape = migraphx::shape{migraphx::shape::float_type, {{1,4}, {4,8}}};
-    auto dyn_mod = create_module({dyn_shape, dyn_shape});
+    auto dyn_shape = migraphx::shape{migraphx::shape::float_type, {{1, 4}, {4, 8}}};
+    auto dyn_mod   = create_module({dyn_shape, dyn_shape});
 
     auto static_shape = migraphx::shape{migraphx::shape::float_type, {2, 5}};
-    auto static_mod = create_module({static_shape, static_shape});
-    
+    auto static_mod   = create_module({static_shape, static_shape});
+
     EXPECT(dyn_mod.with_static_shapes({static_shape, static_shape}).sort() == static_mod.sort());
 }
 

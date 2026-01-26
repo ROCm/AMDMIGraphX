@@ -1208,4 +1208,31 @@ TEST_CASE(shape_is_compatible_diff_lens_tuple)
     EXPECT(not migraphx::shape::is_compatible(actual, expected));
 }
 
+TEST_CASE(shape_same_lens_static)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1, 2, 8}};
+    migraphx::shape s2{migraphx::shape::half_type, {1, 2, 8}};
+    migraphx::shape s3{migraphx::shape::float_type, {2, 2, 8}};
+    EXPECT(migraphx::shape::same_lens(s1, s2));
+    EXPECT(not migraphx::shape::same_lens(s1, s3));
+}
+
+TEST_CASE(shape_same_lens_dynamic)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {{1, 1}, {3, 4}, {1, 2}, {8, 16}}};
+    migraphx::shape s2{migraphx::shape::half_type, {{1, 1}, {3, 4}, {1, 2}, {8, 16}}};
+    migraphx::shape s3{migraphx::shape::float_type, {{1, 3}, {3, 4}, {1, 2}, {8, 16}}};
+    EXPECT(migraphx::shape::same_lens(s1, s2));
+    EXPECT(not migraphx::shape::same_lens(s1, s3));
+}
+
+TEST_CASE(shape_same_lens_static_dynamic)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1, 2, 8}};
+    migraphx::shape s2{migraphx::shape::half_type, {{1, 1}, {2, 2}, {8, 8}}};
+    migraphx::shape s3{migraphx::shape::float_type, {{1, 1}, {2, 4}, {8, 8}}};
+    EXPECT(migraphx::shape::same_lens(s1, s2));
+    EXPECT(not migraphx::shape::same_lens(s1, s3));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

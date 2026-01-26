@@ -830,15 +830,7 @@ std::ostream& operator<<(std::ostream& os, const shape& x)
 
 bool shape::same_lens(const shape& x, const shape& y)
 {
-    if(x.dynamic() and y.dynamic())
-    {
-        return x.dyn_dims() == y.dyn_dims();
-    }
-    else if(x.dynamic() or y.dynamic())
-    {
-        MIGRAPHX_THROW("SHAPE: same_lens() called on mixed dynamic and static shapes");
-    }
-    return x.lens() == y.lens();
+    return x.to_dynamic().dyn_dims() == y.to_dynamic().dyn_dims();
 }
 
 shape::type_t shape::parse_type(const std::string& s)

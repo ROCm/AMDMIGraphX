@@ -1,7 +1,7 @@
 # ####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -108,23 +108,26 @@ target_include_directories(migraphx_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CUR
 target_compile_options(migraphx_device PRIVATE -Wno-ignored-attributes)
 migraphx_generate_export_header(migraphx_device DIRECTORY migraphx/gpu/device)
 
-add_library(kernel_file_check EXCLUDE_FROM_ALL)
+add_library(compile_migraphx_gpu_kernels INTERFACE)
+target_compile_definitions(compile_migraphx_gpu_kernels INTERFACE -DMIGRAPHX_NLOCAL=256)
+target_compile_definitions(compile_migraphx_gpu_kernels INTERFACE -DMIGRAPHX_WAVEFRONTSIZE=64)
+target_include_directories(compile_migraphx_gpu_kernels INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/>)
+target_link_libraries(compile_migraphx_gpu_kernels INTERFACE compile_for_gpu)
+if(MIGRAPHX_USE_COMPOSABLEKERNEL)
+    target_link_libraries(compile_migraphx_gpu_kernels INTERFACE composable_kernel::jit_library)
+endif()
+
+add_library(migraphx_gpu_kernel_file_check EXCLUDE_FROM_ALL)
 
 foreach(KERNEL_FILE ${KERNEL_FILES})
     get_filename_component(KERNEL_BASE_FILE ${KERNEL_FILE} NAME_WE)
     file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/kernels/include/migraphx/kernels/${KERNEL_BASE_FILE}.cpp "#include <migraphx/kernels/${KERNEL_BASE_FILE}.hpp>\n")
-    target_sources(kernel_file_check PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/kernels/include/migraphx/kernels/${KERNEL_BASE_FILE}.cpp)
+    target_sources(migraphx_gpu_kernel_file_check PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/kernels/include/migraphx/kernels/${KERNEL_BASE_FILE}.cpp)
 endforeach()
 
-target_compile_definitions(kernel_file_check PRIVATE -DMIGRAPHX_NLOCAL=256)
-target_compile_definitions(kernel_file_check PRIVATE -DMIGRAPHX_WAVEFRONTSIZE=64)
-target_include_directories(kernel_file_check PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/>)
-target_link_libraries(kernel_file_check compile_for_gpu)
-if(MIGRAPHX_USE_COMPOSABLEKERNEL)
-    target_link_libraries(kernel_file_check composable_kernel::jit_library)
-endif()
+target_link_libraries(migraphx_gpu_kernel_file_check compile_migraphx_gpu_kernels)
 
-rocm_clang_tidy_check(kernel_file_check)
+rocm_clang_tidy_check(migraphx_gpu_kernel_file_check)
 
 file(GLOB JIT_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/jit/*.cpp)
 
@@ -153,6 +156,7 @@ add_library(migraphx_gpu
     compile_pointwise.cpp
     compiler.cpp
     device_name.cpp
+    eliminate_data_type_for_gpu.cpp
     fixed_pad.cpp
     fuse_ck.cpp
     fuse_mlir.cpp
@@ -172,6 +176,7 @@ add_library(migraphx_gpu
     nonzero.cpp
     pack_args.cpp
     prefuse_ops.cpp
+    prepare_mlir.cpp
     prepare_reduce.cpp
     perfdb.cpp
     pooling.cpp

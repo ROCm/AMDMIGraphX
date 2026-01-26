@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -2677,7 +2677,7 @@ TEST_CASE(dot_multi_user_add_dot)
     EXPECT(p1.sort() == p2.sort());
 }
 
-TEST_CASE(dot_add_dot_both_multi_user)
+TEST_CASE_SKIP(dot_add_dot_both_multi_user, "Not supported in rocMLIR")
 // GEG fusion has three outputs (first G has external user, E has external user)
 // not currently supported in rocMLIR
 {

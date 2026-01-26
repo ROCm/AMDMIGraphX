@@ -21,18 +21,15 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <cmath>
+#include <migraphx/bf16.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/ranges.hpp>
-#include <migraphx/bf16.hpp>
 #include "test.hpp"
 
+#include <array>
+#include <cmath>
 #include <limits>
 #include <map>
-#include <iomanip>
-#include <bitset>
-#include <set>
-#include <random>
 
 template <class T, class U>
 static bool bit_equal(const T& x, const U& y)

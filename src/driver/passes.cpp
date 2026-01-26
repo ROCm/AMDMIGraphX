@@ -129,7 +129,6 @@ std::optional<pass> get_pass(const std::string& name)
 std::vector<pass> get_passes(const std::vector<std::string>& names)
 {
     std::vector<pass> result;
-    // static const std::unordered_map<std::string, pass> lookup = create_passes_lookup();
     std::transform(
         names.begin(), names.end(), std::back_inserter(result), [](const std::string& name) {
             auto p = get_pass(name);

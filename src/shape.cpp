@@ -130,7 +130,7 @@ struct shape_impl
     {
         if(not m_dyn_dims.empty())
         {
-            auto maxes = max_lens();
+            auto maxes          = max_lens();
             std::size_t max_val = std::numeric_limits<std::size_t>::max();
 
             return std::accumulate(
@@ -308,6 +308,22 @@ bool shape::is_compatible(const shape& actual, const shape& expected)
             return true;
         return actual.strides()[i] == expected.strides()[i];
     });
+}
+
+bool shape::is_compatible_lens(const shape& actual, const shape& expected)
+{
+    if(actual.dynamic())
+        return expected.dynamic() and actual.dyn_dims() == expected.dyn_dims();
+    if(expected.dynamic())
+    {
+        if(actual.ndim() != expected.ndim())
+            return false;
+        return std::equal(actual.lens().begin(),
+                          actual.lens().end(),
+                          expected.dyn_dims().begin(),
+                          [&](auto a, auto e) { return a >= e.min and a <= e.max; });
+    }
+    return actual.lens() == expected.lens();
 }
 
 bool shape::is_unsigned(shape::type_t t)

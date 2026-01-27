@@ -717,13 +717,11 @@ std::vector<shape> module::compute_shapes(const std::vector<shape>& inputs,
                                ins->get_shape().type_string() + " but passed " +
                                ins_shapes[ins].type_string());
             }
-            if(options.strict_lens and not shape::is_compatible(ins_shapes[ins], ins->get_shape()))
+            if(options.strict_lens and not shape::is_compatible_lens(ins_shapes[ins], ins->get_shape()))
             {
-                MIGRAPHX_THROW(options.name + ": Mismatched lens, strides: expected {" +
-                               to_string_range(ins->get_shape().lens()) + "}, {" +
-                               to_string_range(ins->get_shape().strides()) + "} but passed {" +
-                               to_string_range(ins_shapes[ins].lens()) + "}, {" +
-                               to_string_range(ins_shapes[ins].strides()) + "}");
+                MIGRAPHX_THROW(options.name + ": Mismatched dims: expected "+
+                               to_string(ins->get_shape()) + " but passed " +
+                               to_string(ins_shapes[ins]));
             }
         }
         else if(ins->name() == "@literal")

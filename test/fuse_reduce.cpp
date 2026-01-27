@@ -63,6 +63,31 @@ TEST_CASE(single)
     EXPECT(p1 == p2);
 }
 
+TEST_CASE(single_dyn)
+{
+    migraphx::shape s{migraphx::shape::float_type, {{1, 3}, {4, 8}}};
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", s);
+        auto y     = mm->add_parameter("y", s);
+        auto rsum1 = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        auto rsum2 = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), y);
+        mm->add_return({rsum1, rsum2});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto x     = mm->add_parameter("x", s);
+        auto y     = mm->add_parameter("y", s);
+        auto rsum1 = add_reduce(p2, "main:reduce_sum0", {x}, {1}, single_reduce("reduce_sum"));
+        auto rsum2 = add_reduce(p2, "main:reduce_sum1", {y}, {1}, single_reduce("reduce_sum"));
+        mm->add_return({rsum1, rsum2});
+    }
+    EXPECT(p1 == p2);
+}
+
 TEST_CASE(pointwise_reduce)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};

@@ -60,6 +60,7 @@ struct parse_split_to_sequence : op_parser<parse_split_to_sequence>
 
         auto input = args[0];
         auto input_shape = input->get_shape();
+        axis          = tune_axis(axis, input_shape.lens().size());
         auto dim_size = input_shape.lens()[axis];
         std::vector<int64_t> split_lengths;
 

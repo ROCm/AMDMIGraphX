@@ -71,23 +71,23 @@ struct resize_compiler : compiler<resize_compiler>
         if(inputs.size() != 2)
             MIGRAPHX_THROW("GPU resize: Incorrect arguments");
 
-        const auto& in_lens = inputs.front().lens();
+        hip_compile_options options;
+        options.set_launch_params(v, compute_global_for(ctx, inputs.back().elements(), 1024));
+        options.output      = inputs.back();
+        options.inputs      = inputs;
+        options.kernel_name = "resize";
+        options.virtual_inputs = normalize_permutation(inputs);
 
         // Compute scales from shapes
+        const auto& in_lens = options.virtual_inputs.front().lens();
+        const auto& out_lens = options.virtual_inputs.back().lens();
         std::vector<float> scales;
-        const auto& out_lens = inputs.back().lens();
         scales.resize(in_lens.size());
         std::transform(in_lens.begin(),
                        in_lens.end(),
                        out_lens.begin(),
                        scales.begin(),
                        [](float in, float out) { return out / in; });
-
-        hip_compile_options options;
-        options.set_launch_params(v, compute_global_for(ctx, inputs.back().elements(), 1024));
-        options.output      = inputs.back();
-        options.inputs      = inputs;
-        options.kernel_name = "resize";
 
         // Get mode (nearest or linear)
         std::string resize_func = "resize_" + v.get("mode", "nearest");

@@ -33,7 +33,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 /// Query the number of chiplets (XCCs) for a given HIP device ID.
-/// Returns 1 if HSA is not available or if the query fails.
+/// Returns 1 if HSA is not available (Windows)
+/// or 0 if the query fails.
 MIGRAPHX_GPU_EXPORT std::size_t get_hsa_chiplet_count(std::size_t device_id);
 
 } // namespace gpu

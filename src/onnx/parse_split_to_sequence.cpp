@@ -27,6 +27,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/tune_axis.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

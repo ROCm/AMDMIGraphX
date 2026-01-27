@@ -73,13 +73,13 @@ struct resize_compiler : compiler<resize_compiler>
 
         hip_compile_options options;
         options.set_launch_params(v, compute_global_for(ctx, inputs.back().elements(), 1024));
-        options.output      = inputs.back();
-        options.inputs      = inputs;
-        options.kernel_name = "resize";
+        options.output         = inputs.back();
+        options.inputs         = inputs;
+        options.kernel_name    = "resize";
         options.virtual_inputs = normalize_permutation(inputs);
 
         // Compute scales from shapes
-        const auto& in_lens = options.virtual_inputs.front().lens();
+        const auto& in_lens  = options.virtual_inputs.front().lens();
         const auto& out_lens = options.virtual_inputs.back().lens();
         std::vector<float> scales;
         scales.resize(in_lens.size());

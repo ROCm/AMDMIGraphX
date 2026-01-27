@@ -161,6 +161,7 @@ add_library(migraphx_gpu
     compile_pointwise.cpp
     compiler.cpp
     device_name.cpp
+    eliminate_data_type_for_gpu.cpp
     fixed_pad.cpp
     fuse_ck.cpp
     fuse_mlir.cpp

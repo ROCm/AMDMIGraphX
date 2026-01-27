@@ -44,8 +44,7 @@ struct parse_concat_from_sequence : op_parser<parse_concat_from_sequence>
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-        auto sequence_inst = args[0];
-        auto inputs = sequence_inst->inputs();
+        std::vector<instruction_ref> inputs = std::move(args);
 
         int64_t axis = 0;
         if(contains(info.attributes, "axis"))

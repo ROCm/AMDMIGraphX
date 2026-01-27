@@ -7,6 +7,8 @@ Full documentation for MIGraphX is available at
 
 ### Added
 
+* Added a dedicated logger for MIGraphX.
+
 
 ### Changed
 
@@ -20,7 +22,6 @@ Full documentation for MIGraphX is available at
 
 
 ### Removed
-
 
 
 ## MIGraphX 2.15 for ROCm 7.2.0

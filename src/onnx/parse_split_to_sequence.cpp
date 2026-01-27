@@ -78,7 +78,7 @@ struct parse_split_to_sequence : op_parser<parse_split_to_sequence>
             // Case A1: 'split' is a list (1D Tensor)
             if(split_literal.get_shape().elements() > 1)
             {
-                split_literal.visit([&](auto s) { split_lengths.assign(s.begin(), s.end()); });
+                split_lengths = split_literal.to_vector<int64_t>();
             }
             // Case A2: 'split' is a scalar (equal splits)
             else 

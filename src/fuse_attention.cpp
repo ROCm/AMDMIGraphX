@@ -1299,7 +1299,7 @@ struct find_flash_decoding
         auto attn_group_ins = r.instructions["group"];
         auto* submod        = attn_group_ins->module_inputs().front();
 
-        // TODO: for this pass of flash decoding, if LSE attn, do not do flash decoding
+        // if LSE attn, do not do flash decoding
         auto return_ins = std::prev(submod->end());
         assert(return_ins->name() == "@return" and
                "Last instruction must be a @return instruction");
@@ -1309,7 +1309,7 @@ struct find_flash_decoding
         // get gemm1 and gemm2
         auto [gemm1, gemm2] = get_attention_gemms(submod);
 
-        // TODO: for this first pass of flash decoding, assuming no input fusion / not supporting
+        // no input fusion
         auto q_param = gemm1->inputs()[0];
         auto k_param = gemm1->inputs()[1];
         auto v_param = gemm2->inputs()[1];
@@ -1472,55 +1472,72 @@ struct find_flash_decoding
         auto lse = mm.insert_instruction(
             attn_group_ins, make_op("get_tuple_elem", {{"index", 1}}), new_group_ins);
 
-        // kernel 2
-        // the partial outputs O'[g] are already weighted by their group's softmax,
-        // LSE[g] contains log(sum(exp(S[g]))) for each group
-        // To combine: weight by exp(LSE[g]) / sum_g(exp(LSE[g']))
+        // kernel 2: combine using exp-normalize trick
+        // O = sum(O' * exp(LSE - max)) / sum(exp(LSE - max))
+        std::cout << "=== Kernel 2 shapes ===" << std::endl;
+        std::cout << "partial_output_o_prime: " << partial_output_o_prime->get_shape() << std::endl;
+        std::cout << "lse: " << lse->get_shape() << std::endl;
+        std::cout << "g_axis: " << g_axis << std::endl;
 
-        // compute global max for numerical stability
-        auto lse_max =
-            mm.insert_instruction(attn_group_ins, make_op("reduce_max", {{"axes", {g_axis}}}), lse);
+        // find max LSE across groups for numerical stability
+        auto lse_max = mm.insert_instruction(
+            attn_group_ins, make_op("reduce_max", {{"axes", {g_axis}}}), lse);
+        std::cout << "lse_max (reduce_max): " << lse_max->get_shape() << std::endl;
+
         auto lse_max_bcast = mm.insert_instruction(
             attn_group_ins,
             make_op("multibroadcast", {{"out_lens", lse->get_shape().lens()}}),
             lse_max);
+        std::cout << "lse_max_bcast (multibroadcast): " << lse_max_bcast->get_shape() << std::endl;
 
-        // exp(LSE - max_LSE)
-        auto lse_sub = mm.insert_instruction(attn_group_ins, make_op("sub"), lse, lse_max_bcast);
-        auto lse_exp = mm.insert_instruction(attn_group_ins, make_op("exp"), lse_sub);
+        // compute unnormalized weights
+        // exp(LSE - max)
+        auto lse_sub = mm.insert_instruction(
+            attn_group_ins, make_op("sub"), lse, lse_max_bcast);
+        std::cout << "lse_sub (sub): " << lse_sub->get_shape() << std::endl;
 
-        // sum across groups
-        auto lse_sum = mm.insert_instruction(
-            attn_group_ins, make_op("reduce_sum", {{"axes", {g_axis}}}), lse_exp);
-        auto lse_sum_bcast = mm.insert_instruction(
-            attn_group_ins,
-            make_op("multibroadcast", {{"out_lens", lse_exp->get_shape().lens()}}),
-            lse_sum);
+        auto lse_exp = mm.insert_instruction(
+            attn_group_ins, make_op("exp"), lse_sub);
+        std::cout << "lse_exp (exp): " << lse_exp->get_shape() << std::endl;
 
-        // scale factor: exp(LSE[g] - max_LSE) / sum(exp(LSE - max_LSE))
-        auto scale = mm.insert_instruction(attn_group_ins, make_op("div"), lse_exp, lse_sum_bcast);
-
-        auto scale_bcast = mm.insert_instruction(
+        // broadcast weights to match O' shape
+        // [B, G, M] -> [B, G, M, D]
+        auto lse_exp_bcast = mm.insert_instruction(
             attn_group_ins,
             make_op("multibroadcast", {{"out_lens", partial_output_o_prime->get_shape().lens()}}),
-            scale);
+            lse_exp);
+        std::cout << "lse_exp_bcast (multibroadcast): " << lse_exp_bcast->get_shape() << std::endl;
 
-        // convert scale to match the type of partial_output_o_prime
-        auto output_type     = partial_output_o_prime->get_shape().type();
-        auto scale_converted = mm.insert_instruction(
-            attn_group_ins, make_op("convert", {{"target_type", output_type}}), scale_bcast);
+        // convert weights to output type
+        auto output_type = partial_output_o_prime->get_shape().type();
+        auto weights = mm.insert_instruction(
+            attn_group_ins, make_op("convert", {{"target_type", output_type}}), lse_exp_bcast);
+        std::cout << "weights (convert): " << weights->get_shape() << std::endl;
 
-        // R = mul(O', broadcasted_scale)
-        auto scaled_r = mm.insert_instruction(
-            attn_group_ins, make_op("mul"), partial_output_o_prime, scale_converted);
+        // compute weighted sum: numerator = sum(O' * weights)
+        auto weighted_o = mm.insert_instruction(
+            attn_group_ins, make_op("mul"), partial_output_o_prime, weights);
+        std::cout << "weighted_o (mul): " << weighted_o->get_shape() << std::endl;
 
-        // O = sum(R, axis=G_axis)
+        auto numerator = mm.insert_instruction(
+            attn_group_ins, make_op("reduce_sum", {{"axes", {g_axis}}}), weighted_o);
+        std::cout << "numerator (reduce_sum): " << numerator->get_shape() << std::endl;
+
+        // compute sum of weights: denominator = sum(weights)
+        auto denominator = mm.insert_instruction(
+            attn_group_ins, make_op("reduce_sum", {{"axes", {g_axis}}}), weights);
+        std::cout << "denominator (reduce_sum): " << denominator->get_shape() << std::endl;
+
+        // final division: O = numerator / denominator
         auto final_output_o = mm.insert_instruction(
-            attn_group_ins, make_op("reduce_sum", {{"axes", {g_axis}}}), scaled_r);
+            attn_group_ins, make_op("div"), numerator, denominator);
+        std::cout << "final_output_o (div): " << final_output_o->get_shape() << std::endl;
 
         // squeeze G to match the original output shape
         auto final_squeezed_o = mm.insert_instruction(
             attn_group_ins, make_op("squeeze", {{"axes", {g_axis}}}), final_output_o);
+        std::cout << "final_squeezed_o (squeeze): " << final_squeezed_o->get_shape() << std::endl;
+        std::cout << "=== End Kernel 2 ===" << std::endl;
 
         // if padding was applied, slice to remove it
         instruction_ref final_result = final_squeezed_o;
@@ -1720,16 +1737,10 @@ void fuse_attention::apply(module_pass_manager& mpm) const
 {
     std::size_t counter = 0;
 
-    std::cout << "original module before fusion: " << std::endl;
-    mpm.get_module().debug_print();
-
     // Fuse kv-cache attention by default
     match::find_matches(mpm, find_kv_cache_attention{.counter = &counter});
     mpm.get_module().sort();
     mpm.run_pass(dead_code_elimination{});
-
-    std::cout << "module after kv-cache attention fusion: " << std::endl;
-    mpm.get_module().debug_print();
 
     // Only fuse plain attention when requested
     if(attn_enabled)
@@ -1743,6 +1754,8 @@ void fuse_attention::apply(module_pass_manager& mpm) const
     std::size_t configured_splits = get_num_splits(flash_decoding_num_splits);
     if(configured_splits > 0 or flash_decoding_enabled)
     {
+        std::cout << "module before flash decoding: " << std::endl;
+        mpm.get_module().debug_print();
         // flash decoding for regular attention, single & multi-headed
         match::find_matches(
             mpm,
@@ -1755,6 +1768,8 @@ void fuse_attention::apply(module_pass_manager& mpm) const
         match::find_matches(
             mpm, find_gqa_flash_decoding{.groups = configured_splits});
         mpm.run_pass(dead_code_elimination{});
+        std::cout << "module after flash decoding: " << std::endl;
+        mpm.get_module().debug_print();
     }
 }
 

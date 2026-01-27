@@ -75,14 +75,21 @@ std::vector<int64_t> find_permutation(const std::vector<shape>& shapes)
 }
 
 /// Normalize shapes by reordering them by their permutation
-std::vector<shape> normalize_permutation(const std::vector<shape>& shapes)
+std::vector<shape> normalize_permutation(std::vector<shape> shapes)
 {
-    auto result = shapes;
-    auto perm   = find_permutation(shapes);
-    std::transform(result.begin(), result.end(), result.begin(), [&](auto s) {
+    normalize_permutation_inplace(shapes);
+    return shapes;
+}
+
+std::vector<int64_t> normalize_permutation_inplace(std::vector<shape>& shapes)
+{
+    auto perm = find_permutation(shapes);
+    std::transform(shapes.begin(), shapes.end(), shapes.begin(), [&](auto s) {
         return reorder_shape(s, perm);
     });
-    return result;
+    return perm;
+}
+
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -89,7 +89,6 @@ std::vector<int64_t> normalize_permutation_inplace(std::vector<shape>& shapes)
     });
     return perm;
 }
-
 }
 
 } // namespace MIGRAPHX_INLINE_NS

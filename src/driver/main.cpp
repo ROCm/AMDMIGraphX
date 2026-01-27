@@ -121,7 +121,7 @@ struct loader
     bool skip_unknown_operators = false;
     bool brief                  = false;
     bool verbose                = false;
-    bool strip_context = false;
+    bool strip_context          = false;
     std::string output_type;
     std::string output;
     std::string default_dyn_dim;

@@ -54,6 +54,7 @@ add_library(migraphx
     autocast_fp8.cpp
     auto_contiguous.cpp
     base64.cpp
+    color.cpp
     common.cpp
     common_dims.cpp
     compile_src.cpp
@@ -89,6 +90,7 @@ add_library(migraphx
     layout_convolution.cpp
     lexing.cpp
     load_save.cpp
+    logger.cpp
     make_op.cpp
     memory_coloring.cpp
     module.cpp

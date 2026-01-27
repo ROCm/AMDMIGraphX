@@ -25,6 +25,7 @@
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
+#include <migraphx/transform_view.hpp>
 #include <sstream>
 
 namespace migraphx {
@@ -61,18 +62,7 @@ struct resize_compiler : compiler<resize_compiler>
 
     static std::string scales_to_string(const std::vector<float>& scales)
     {
-        std::string result = "make_array<float>(";
-        for(size_t i = 0; i < scales.size(); ++i)
-        {
-            if(i > 0)
-                result += ", ";
-            // Use hexfloat format to preserve exact float representation
-            std::ostringstream oss;
-            oss << std::hexfloat << scales[i] << "f";
-            result += oss.str();
-        }
-        result += ")";
-        return result;
+        return "make_array<float>(" + to_string_range(views::transform(scales, MIGRAPHX_LIFT(to_hex_float))) + ")";
     }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const

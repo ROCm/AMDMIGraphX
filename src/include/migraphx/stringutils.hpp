@@ -224,6 +224,15 @@ inline auto to_string(const T& x)
     return ss.str();
 }
 
+template <class T>
+inline auto to_hex_float(const T& x)
+    -> decltype((std::declval<std::stringstream>() << x), std::string{})
+{
+    std::stringstream ss;
+    ss << std::hexfloat << x;
+    return ss.str();
+}
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

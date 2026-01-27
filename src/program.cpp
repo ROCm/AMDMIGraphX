@@ -174,7 +174,11 @@ context& program::get_context() const
     return impl->contexts.front();
 }
 
-void program::clear_context() { return impl->contexts.clear(); }
+void program::clear_context() 
+{ 
+    impl->contexts.clear(); 
+    impl->targets.clear();
+}
 
 instruction_ref program::validate() const
 {

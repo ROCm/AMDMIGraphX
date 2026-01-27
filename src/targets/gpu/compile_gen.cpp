@@ -451,6 +451,18 @@ static void preload_params(module& m)
     }
 }
 
+static std::vector<std::size_t> get_rlens(const module& m)
+{
+    auto reduce = std::find_if(m.begin(), m.end(), [&](const auto& ins) {
+        return contains(ins.name(), "reduce");
+    });
+    if(reduce == m.end())
+        MIGRAPHX_THROW("Missing reduce operator");
+    if(reduce->get_shape().type() == shape::tuple_type)
+        return reduce->get_shape().sub_shapes().front().lens();
+    return reduce->get_shape().lens();
+}
+
 std::string generate_reduce(module m, const std::string& name)
 {
     preload_params(m);
@@ -459,11 +471,7 @@ std::string generate_reduce(module m, const std::string& name)
     cpp_generator g;
     g.always_return_tuple();
     auto param_shapes = m.get_parameter_shapes();
-    auto max_shape =
-        std::max_element(param_shapes.begin(),
-                         param_shapes.end(),
-                         by(std::less<>{}, [](const auto& p) { return p.second.elements(); }));
-    auto ilens    = max_shape->second.lens();
+    auto rlens = get_rlens(m);
     std::size_t i = 0;
     auto f        = g.generate_module(m, [&](instruction_ref ins, const auto& names) {
         if(contains(ins->name(), "reduce"))
@@ -480,7 +488,7 @@ std::string generate_reduce(module m, const std::string& name)
                          ins->inputs().end(),
                          std::back_inserter(tensors),
                          [&](auto input) {
-                             return input->get_shape().lens() == ilens and
+                             return input->get_shape().lens() != rlens and
                                     not input->get_shape().broadcasted();
                          });
             auto inner_names = names;

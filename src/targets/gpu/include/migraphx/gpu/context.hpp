@@ -62,9 +62,6 @@ struct hip_device
         if(status != hipSuccess)
             MIGRAPHX_THROW("Failed to get device properties: " + hip_error(status));
 
-        // Query chiplet count once at construction (immutable device property)
-        chiplet_count = get_hsa_chiplet_count(device_id);
-
         // Set the device prior to Events that get created within a Context.
         set_device(device_id);
 
@@ -214,7 +211,7 @@ struct hip_device
 
     std::size_t get_cu_count() const { return device_props.multiProcessorCount; }
 
-    std::size_t get_chiplet_count() const { return chiplet_count; }
+    std::size_t get_chiplet_count() const { return get_hsa_chiplet_count(device_id); }
 
     std::size_t get_max_workitems_per_cu() const
     {
@@ -228,7 +225,6 @@ struct hip_device
     private:
     std::size_t device_id      = 0;
     std::size_t current_stream = 0;
-    std::size_t chiplet_count  = 1;
     std::vector<stream> streams;
     hipDeviceProp_t device_props;
 

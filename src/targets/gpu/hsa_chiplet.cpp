@@ -24,7 +24,7 @@
 #include <migraphx/gpu/hsa_chiplet.hpp>
 #include <migraphx/errors.hpp>
 #include <vector>
-#include <mutex>
+#include <type_traits>
 
 #ifndef _WIN32
 #include <hsa/hsa.h>
@@ -84,20 +84,9 @@ std::vector<std::size_t> query_all_chiplet_counts()
                        ". GPU is not accessible.");
     }
 
-    // Structure to collect chiplet counts for all GPUs
-    struct agent_data
-    {
-        std::vector<std::size_t>* counts;
-    };
-
-    agent_data data{&chiplet_counts};
-
-    // Callback function for hsa_iterate_agents.
     // HSA agents are enumerated in the same order as HIP device IDs for GPU agents.
     // Reference: ROCm documentation on device enumeration consistency between HIP and HSA.
-    auto agent_callback = [](hsa_agent_t agent, void* user_data) -> hsa_status_t {
-        auto* agent_data_ptr = static_cast<agent_data*>(user_data);
-
+    auto agent_callback = [&](hsa_agent_t agent) -> hsa_status_t {
         hsa_device_type_t device_type;
         hsa_status_t err = hsa_agent_get_info(agent, HSA_AGENT_INFO_DEVICE, &device_type);
         if(err != HSA_STATUS_SUCCESS)
@@ -113,13 +102,19 @@ std::vector<std::size_t> query_all_chiplet_counts()
             if(err != HSA_STATUS_SUCCESS)
                 num_chiplets = 1;
 
-            agent_data_ptr->counts->push_back(static_cast<std::size_t>(num_chiplets));
+            chiplet_counts.push_back(static_cast<std::size_t>(num_chiplets));
         }
 
         return HSA_STATUS_SUCCESS;
     };
 
-    hsa_status_t status = hsa_iterate_agents(agent_callback, &data);
+    // Use a non-capturing lambda as the C callback, forwarding to the capturing lambda.
+    hsa_status_t status = hsa_iterate_agents(
+        [](hsa_agent_t agent, void* user_data) -> hsa_status_t {
+            auto* callback = static_cast<std::add_pointer_t<decltype(agent_callback)>>(user_data);
+            return (*callback)(agent);
+        },
+        &agent_callback);
     if(status != HSA_STATUS_SUCCESS and status != HSA_STATUS_INFO_BREAK)
     {
         MIGRAPHX_THROW("HSA agent enumeration failed: " + hsa_error_string(status) +
@@ -132,11 +127,7 @@ std::vector<std::size_t> query_all_chiplet_counts()
 /// Get cached chiplet counts. Thread-safe, queries HSA only once.
 const std::vector<std::size_t>& get_cached_chiplet_counts()
 {
-    static std::once_flag flag;
-    static std::vector<std::size_t> counts;
-
-    std::call_once(flag, []() { counts = query_all_chiplet_counts(); });
-
+    static const std::vector<std::size_t> counts = query_all_chiplet_counts();
     return counts;
 }
 
@@ -150,8 +141,7 @@ std::size_t get_hsa_chiplet_count(std::size_t device_id)
         return counts[device_id];
 
     // Device not found - HSA enumerated fewer GPUs than expected.
-    // This shouldn't happen in normal operation, but return default 1.
-    return 1;
+    return 0;
 }
 
 #else // _WIN32

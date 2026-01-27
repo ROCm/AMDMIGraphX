@@ -453,9 +453,8 @@ static void preload_params(module& m)
 
 static std::vector<std::size_t> get_rlens(const module& m)
 {
-    auto reduce = std::find_if(m.begin(), m.end(), [&](const auto& ins) {
-        return contains(ins.name(), "reduce");
-    });
+    auto reduce = std::find_if(
+        m.begin(), m.end(), [&](const auto& ins) { return contains(ins.name(), "reduce"); });
     if(reduce == m.end())
         MIGRAPHX_THROW("Missing reduce operator");
     if(reduce->get_shape().type() == shape::tuple_type)
@@ -471,7 +470,7 @@ std::string generate_reduce(module m, const std::string& name)
     cpp_generator g;
     g.always_return_tuple();
     auto param_shapes = m.get_parameter_shapes();
-    auto rlens = get_rlens(m);
+    auto rlens        = get_rlens(m);
     std::size_t i = 0;
     auto f        = g.generate_module(m, [&](instruction_ref ins, const auto& names) {
         if(contains(ins->name(), "reduce"))

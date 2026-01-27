@@ -29,8 +29,8 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/shape.hpp>
 
-
-struct test_convert_reduce_convert_broadcast_add : verify_program<test_convert_reduce_convert_broadcast_add>
+struct test_convert_reduce_convert_broadcast_add
+    : verify_program<test_convert_reduce_convert_broadcast_add>
 {
     migraphx::program create_program() const
     {
@@ -38,13 +38,15 @@ struct test_convert_reduce_convert_broadcast_add : verify_program<test_convert_r
         auto* mm = p.get_main_module();
         migraphx::shape s1{migraphx::shape::half_type, {1, 3}};
         migraphx::shape s2{migraphx::shape::half_type, {1, 17}};
-        auto x = mm->add_parameter("x", s1);
-        auto y = mm->add_parameter("y", s2);
-        auto convert1 = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
-        auto rsum =
-            mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), convert1);
-        auto convert2 = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), rsum);
-        auto convert2b = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), convert2);
+        auto x        = mm->add_parameter("x", s1);
+        auto y        = mm->add_parameter("y", s2);
+        auto convert1 = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), convert1);
+        auto convert2 = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), rsum);
+        auto convert2b = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), convert2);
         auto add = mm->add_instruction(migraphx::make_op("add"), convert2b, y);
         mm->add_return({add});
         return p;
@@ -52,5 +54,3 @@ struct test_convert_reduce_convert_broadcast_add : verify_program<test_convert_r
 
     std::string section() const { return "reduce"; }
 };
-
-

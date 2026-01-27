@@ -820,8 +820,10 @@ TEST_CASE(with_static_shapes)
 
     auto static_shape = migraphx::shape{migraphx::shape::float_type, {2, 5}};
     auto static_mod   = create_module({static_shape, static_shape});
+    std::unordered_map<std::string, migraphx::shape> static_arg_shapes{{"x", static_shape},
+                                                                       {"y", static_shape}};
 
-    EXPECT(dyn_mod.with_static_shapes({static_shape, static_shape}).sort() == static_mod.sort());
+    EXPECT(dyn_mod.with_static_shapes(static_arg_shapes).sort() == static_mod.sort());
 }
 
 TEST_CASE(linear_graph_sort)

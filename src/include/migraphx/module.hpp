@@ -327,7 +327,7 @@ struct MIGRAPHX_EXPORT module
     /* Creates a new module with the same instructions but with different input parameter shapes.
      Returns the new module by value without modifying the original.
     */
-    module with_static_shapes(const std::vector<shape>& input_shapes);
+    module with_static_shapes(const std::unordered_map<std::string, shape>& input_shapes);
 
     /* sorts the module in topological order aka reverse-post order (RPO) DFS order
        it takes last instruction or @return as the root and walks back the graph and moves inputs

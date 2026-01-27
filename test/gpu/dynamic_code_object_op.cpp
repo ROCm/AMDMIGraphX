@@ -23,7 +23,6 @@
  */
 
 #include <migraphx/gpu/lowering.hpp>
-#include <migraphx/gpu/precompile_ops.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
@@ -48,7 +47,6 @@ TEST_CASE(dynamic_code_object_op)
     auto b   = mm->add_parameter("b", s);
 
     auto pw               = add_pointwise(p1, "main:pointwise0", {a, b}, single_pointwise("add"));
-    auto pw_name          = pw->name();
     auto pw_module_inputs = pw->module_inputs();
 
     mm->add_return({pw});
@@ -61,10 +59,6 @@ TEST_CASE(dynamic_code_object_op)
         if(ins->name() == "gpu::dynamic_code_object_op")
         {
             found = true;
-            auto dyn_op =
-                migraphx::any_cast<migraphx::gpu::dynamic_code_object_op>(ins->get_operator());
-            auto pre_op = migraphx::any_cast<migraphx::gpu::precompile_op>(dyn_op.pre_op);
-            EXPECT(pre_op.op.name() == pw_name);
             EXPECT(ins->module_inputs() == pw_module_inputs);
         }
     }

@@ -15,12 +15,23 @@
 #include <string>
 #include <iostream>
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FUSE_DOTS)
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 // Check if an op can be batched
 static bool is_batchable_op(const std::string& name)
 {
+    // Check if we should only fuse dots
+    static bool fuse_dots_only = (enabled(MIGRAPHX_FUSE_DOTS{}));
+    
+    if(fuse_dots_only)
+    {
+        // Only batch dot operations
+        return name == "dot";
+    }
+    
     static const std::unordered_set<std::string> batchable_ops = {
         // Pointwise ops
         "add", "sub", "mul", "div", "pow", "sqrt", "rsqrt",
@@ -95,6 +106,12 @@ void fuse_horizontal::apply(module_pass_manager& mpm) const
     auto& m = mpm.get_module();
     
     std::cout << "[fuse_horizontal] Starting horizontal fusion pass" << std::endl;
+    
+    // Log mode
+    if(enabled(MIGRAPHX_FUSE_DOTS{}))
+    {
+        std::cout << "[fuse_horizontal] MIGRAPHX_FUSE_DOTS mode: only batching dot operations" << std::endl;
+    }
     
     // Print IR BEFORE reordering
     std::cout << "\n=== IR BEFORE LEVEL-ORDER ===" << std::endl;
@@ -217,6 +234,65 @@ void fuse_horizontal::apply(module_pass_manager& mpm) const
             continue;
         }
         
+        // For dot operations, validate M, N, K dimensions
+        std::string op_name = ops[0]->name();
+        if(op_name == "dot")
+        {
+            // dot: A[..., M, K] x B[..., K, N] -> C[..., M, N]
+            // All dots must have same M, N, K for batching to work
+            auto ref_a_shape = ops[0]->inputs()[0]->get_shape().lens();
+            auto ref_b_shape = ops[0]->inputs()[1]->get_shape().lens();
+            
+            if(ref_a_shape.size() < 2 || ref_b_shape.size() < 2)
+            {
+                std::cout << "[fuse_horizontal]   Skipping dot - input dims < 2" << std::endl;
+                continue;
+            }
+            
+            size_t ref_M = ref_a_shape[ref_a_shape.size() - 2];
+            size_t ref_K = ref_a_shape[ref_a_shape.size() - 1];
+            size_t ref_K2 = ref_b_shape[ref_b_shape.size() - 2];
+            size_t ref_N = ref_b_shape[ref_b_shape.size() - 1];
+            
+            if(ref_K != ref_K2)
+            {
+                std::cout << "[fuse_horizontal]   Skipping dot - K dimension mismatch in reference" << std::endl;
+                continue;
+            }
+            
+            bool dot_compatible = true;
+            for(size_t i = 1; i < ops.size() && dot_compatible; i++)
+            {
+                auto a_shape = ops[i]->inputs()[0]->get_shape().lens();
+                auto b_shape = ops[i]->inputs()[1]->get_shape().lens();
+                
+                if(a_shape.size() < 2 || b_shape.size() < 2)
+                {
+                    dot_compatible = false;
+                    continue;
+                }
+                
+                size_t M = a_shape[a_shape.size() - 2];
+                size_t K = a_shape[a_shape.size() - 1];
+                size_t K2 = b_shape[b_shape.size() - 2];
+                size_t N = b_shape[b_shape.size() - 1];
+                
+                // Check M, N, K all match
+                if(M != ref_M || N != ref_N || K != ref_K || K2 != ref_K)
+                {
+                    dot_compatible = false;
+                }
+            }
+            
+            if(!dot_compatible)
+            {
+                std::cout << "[fuse_horizontal]   Skipping dot - M/N/K dimensions don't match across ops" << std::endl;
+                continue;
+            }
+            
+            std::cout << "[fuse_horizontal]   Dot M=" << ref_M << " N=" << ref_N << " K=" << ref_K << std::endl;
+        }
+        
         // Now batch this group
         std::cout << "[fuse_horizontal]   Batching " << ops.size() << " ops" << std::endl;
         
@@ -240,7 +316,6 @@ void fuse_horizontal::apply(module_pass_manager& mpm) const
         
         // Create the batched op
         instruction_ref batched_op;
-        std::string op_name = ops[0]->name();
         
         // For reduce ops, we need to shift the axis by 1 because we added a batch dimension
         auto adjusted_op = ops[0]->get_operator();

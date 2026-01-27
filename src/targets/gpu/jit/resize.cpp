@@ -62,7 +62,8 @@ struct resize_compiler : compiler<resize_compiler>
 
     static std::string scales_to_string(const std::vector<float>& scales)
     {
-        return "make_array<float>(" + to_string_range(views::transform(scales, MIGRAPHX_LIFT(to_hex_float))) + ")";
+        return "make_array<float>(" +
+               to_string_range(views::transform(scales, MIGRAPHX_LIFT(to_hex_float))) + ")";
     }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const

@@ -29,7 +29,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-static void insert_miopen_pooling(std::set<std::string>& u)
+static void insert_miopen_pooling([[maybe_unused]] std::set<std::string>& u)
 {
 #if MIGRAPHX_USE_MIOPEN
     u.insert("pooling");

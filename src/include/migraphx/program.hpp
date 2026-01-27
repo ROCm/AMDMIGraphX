@@ -95,6 +95,8 @@ struct MIGRAPHX_EXPORT program
 
     context& get_context() const;
 
+    void clear_context();
+
     instruction_ref validate() const;
 
     target_assignments get_target_assignments(const std::vector<target>& targets,

@@ -121,6 +121,7 @@ struct loader
     bool skip_unknown_operators = false;
     bool brief                  = false;
     bool verbose                = false;
+    bool strip_context = false;
     std::string output_type;
     std::string output;
     std::string default_dyn_dim;
@@ -185,6 +186,10 @@ struct loader
         ap(optimize, {"--optimize", "-O"}, ap.help("Optimize when reading"), ap.set_value(true));
         ap(mlir, {"--mlir"}, ap.help("Offload everything to mlir"), ap.set_value(true));
         ap(passes, {"--apply-pass", "-p"}, ap.help("Passes to apply to model"), ap.append());
+        ap(strip_context,
+           {"--strip-context"},
+           ap.help("Strip context from program"),
+           ap.set_value(true));
         ap(output_type,
            {"--graphviz", "-g"},
            ap.help("Print out a graphviz representation."),
@@ -399,6 +404,8 @@ struct loader
         {
             trim_module(*p.get_main_module(), trim, trim_size);
         }
+        if(strip_context)
+            p.clear_context();
         // Remove unused variable when exporting to cpp
         if(output_type == "cpp")
             migraphx::run_passes(*p.get_main_module(), {migraphx::dead_code_elimination{}});

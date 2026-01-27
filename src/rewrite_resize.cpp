@@ -38,7 +38,7 @@ inline namespace MIGRAPHX_INLINE_NS {
  * Input: vvv_ind, a collection of neighbors per resized dimension as:
  *               layer-1: (# resized dimensions, vector)
  *               layer-2: (A vector of 2 of: hi/low)
- *               layer-3: Neighor index of every pixel in that output dimension (vector)
+ *               layer-3: Neighbor index of every pixel in that output dimension (vector)
  *        in_s,  the original input tensor shape (vector)
  *        out_s, the output tensor shape (vector)
  *    resized_m, lens indices that have to resized (map)

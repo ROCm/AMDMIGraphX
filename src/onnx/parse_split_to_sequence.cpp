@@ -83,8 +83,7 @@ struct parse_split_to_sequence : op_parser<parse_split_to_sequence>
             // Case A2: 'split' is a scalar (equal splits)
             else 
             {
-                int64_t split_val = 0;
-                split_literal.visit([&](auto s) { split_val = s.front(); });
+                int64_t split_val = split_literal.at<int64_t>(0);
                 
                 // Logic from ONNX spec for scalar split
                 int64_t num_chunks = dim_size / split_val;

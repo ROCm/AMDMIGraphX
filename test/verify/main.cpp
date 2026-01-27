@@ -142,7 +142,10 @@ int main(int argc, const char* argv[])
          "test_bit_cast<migraphx::shape::uint8_type, migraphx::shape::int8_type>",
          "test_bit_cast<migraphx::shape::int8_type, migraphx::shape::uint8_type>",
          "test_bit_cast<migraphx::shape::fp8e4m3fn_type, migraphx::shape::fp8e4m3fnuz_type>",
-         "test_bit_cast<migraphx::shape::fp8e4m3fnuz_type, migraphx::shape::fp8e4m3fn_type>"});
+         "test_bit_cast<migraphx::shape::fp8e4m3fnuz_type, migraphx::shape::fp8e4m3fn_type>"
+         "test_dynamic_pointwise<4, 16, 24>",
+         "test_dynamic_pointwise<2, 8, 4>",
+         "test_dynamic_pointwise<3, 10, 13>"});
     rv.disable_test_for("gpu",
                         {
                             // These passes on MI300 but fails on others, same issue as CPU.

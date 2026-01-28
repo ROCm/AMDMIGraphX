@@ -108,6 +108,7 @@ static std::vector<std::string> get_compiler_warnings()
         "-Wno-unused-command-line-argument",
         "-Wno-weak-vtables",
         "-Wno-c99-extensions",
+        "-Wno-deprecated-this-capture",
     };
 
     if(hip_has_flags({"-Werror", "-Wunsafe-buffer-usage"}))

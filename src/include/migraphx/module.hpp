@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -80,6 +80,9 @@ struct MIGRAPHX_EXPORT module
 
     bool bypass() const;
     void set_bypass(bool b = true);
+
+    std::string get_tag() const;
+    void set_tag(const std::string& tag);
 
     template <class... Ts, MIGRAPHX_REQUIRES(std::is_same<Ts, instruction_ref>{}...)>
     instruction_ref add_instruction(operation op, Ts... args)

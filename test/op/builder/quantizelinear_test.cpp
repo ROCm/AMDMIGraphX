@@ -30,7 +30,7 @@
 #include <migraphx/verify.hpp>
 
 // here only the per-tensor case is tested. The per-axis and blocked cases are tested in
-// quantizelinear_test.cpp
+// dequantizelinear_test.cpp
 
 TEST_CASE(quantizelinear_no_fp4x2_no_conversion_no_output_type_op_builder_test)
 {

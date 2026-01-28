@@ -71,8 +71,7 @@ static onnx_parser::attribute_map get_attributes(const onnx::NodeProto& node)
     return result;
 }
 
-static literal
-create_literal(shape::type_t shape_type, const std::vector<size_t>& dims)
+static literal create_literal(shape::type_t shape_type, const std::vector<size_t>& dims)
 {
     // empty input
     auto elem_num =
@@ -751,9 +750,8 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
             nbytes = std::stoull(t.external_data().at(2).value());
         }
         std::vector<char> raw_buffer;
-        if(not external_data_path.empty() and fs::exists(
-                fs::path{external_data_path} / data_file))
-        
+        if(not external_data_path.empty() and fs::exists(fs::path{external_data_path} / data_file))
+
         {
             raw_buffer = read_buffer(fs::path{external_data_path} / data_file, offset, nbytes);
         }

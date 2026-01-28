@@ -350,37 +350,65 @@ auto is_mlir_dot(mlir_mode mode)
     });
 }
 
+bool should_prefer_miopen_winograd(instruction_ref ins)
+{
+    auto inputs = ins->inputs();
+    if(inputs.size() < 2)
+        return false;
+    auto w      = inputs.at(1)->get_shape();
+    auto w_lens = w.lens();
+    if(w_lens.size() != 4)
+        return false;
+    // Check for 3x3 filter
+    if(w_lens[2] != 3 or w_lens[3] != 3)
+        return false;
+    // Check for stride=1
+    value v = ins->get_operator().to_value();
+    if(not v.contains("stride"))
+        return false;
+    auto stride = v.at("stride").to_vector<std::size_t>();
+    if(stride.size() < 2)
+        return false;
+    return (stride[0] == 1 and stride[1] == 1);
+}
+
+bool check_mlir_conv(instruction_ref ins, mlir_mode mode)
+{
+    if(mode == mlir_mode::none)
+        return false;
+
+    if(ins->name() != "convolution" and ins->name() != "quant_convolution")
+        return false;
+
+    // Exclude 3x3 stride=1 convolutions from MLIR to choose MIOpen Winograd
+    // which is significantly faster
+    if(should_prefer_miopen_winograd(ins))
+        return false;
+
+    auto input = ins->inputs().front()->get_shape();
+    value v    = ins->get_operator().to_value();
+    auto group = v.at("group").to<int>();
+    // Avoid MLIR assertion: Index < Length && "Invalid index!"
+    if(ins->get_shape().lens().size() != 4 and group > 1)
+        return false;
+    std::set<shape::type_t> supported_types = fp8_types{}.get();
+    supported_types.insert(shape::int8_type);
+    if(contains(supported_types, input.type()))
+        return true;
+    if(mode == mlir_mode::all)
+        return true;
+
+    // No winograd for group convolution, actually MIOpen support group > 1, need check
+    if(group > 1)
+        return true;
+
+    return true;
+}
+
 auto is_mlir_conv(mlir_mode mode)
 {
-    return match::make_basic_pred_matcher([=](instruction_ref ins) {
-        if(mode == mlir_mode::none)
-            return false;
-        if(ins->name() != "convolution" and ins->name() != "quant_convolution")
-            return false;
-        if(ins->get_shape().dynamic())
-            return true;
-        auto input = ins->inputs().front()->get_shape();
-        value v    = ins->get_operator().to_value();
-        auto group = v.at("group").to<int>();
-        // Avoid MLIR assertion: Index < Length && "Invalid index!"
-        if(ins->get_shape().lens().size() != 4 and group > 1)
-            return false;
-        std::set<shape::type_t> supported_types = fp8_types{}.get();
-        supported_types.insert(shape::int8_type);
-        if(contains(supported_types, input.type()))
-            return true;
-        if(mode == mlir_mode::all)
-            return true;
-        // No winograd for group convolution
-        if(group > 1)
-            return true;
-        auto w = ins->inputs().at(1)->get_shape();
-        if(w.lens().size() != 4)
-            return true;
-        if(w.lens()[2] != w.lens()[3])
-            return true;
-        return (w.lens()[3] % 3) != 0;
-    });
+    return match::make_basic_pred_matcher(
+        [=](instruction_ref ins) { return check_mlir_conv(ins, mode); });
 }
 
 auto is_mlir_conv_backwards(mlir_mode mode)
@@ -1496,6 +1524,24 @@ struct find_channel_slice_convolution
 
 #endif // MIGRAPHX_MLIR
 
+mlir_mode compute_mlir_mode(std::string_view option, mlir_mode m1, mlir_mode m2, bool is_navi)
+{
+    if(specific_op<rejected>(option))
+        return mlir_mode::none;
+    if(specific_op<requested>(option))
+        return mlir_mode::all;
+    if(is_navi)
+    {
+        // For convolutions on Navi, use mlir_mode::fast to allow 3x3 kernels
+        // to go to MIOpen Winograd instead of MLIR
+        if(contains(option, "convolution"))
+            return mlir_mode::fast;
+        return mlir_mode::all;
+    }
+    return std::max(m1, m2);
+}
+
+
 void fuse_mlir::apply(module_pass_manager& mpm) const
 {
 #ifdef MIGRAPHX_MLIR
@@ -1504,13 +1550,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     const bool is_navi = starts_with(device_name, "gfx11") or starts_with(device_name, "gfx12");
 
     auto get_mode = [&](std::string_view option, mlir_mode m1, mlir_mode m2 = mlir_mode::fast) {
-        if(specific_op<rejected>(option))
-            return mlir_mode::none;
-        if(specific_op<requested>(option))
-            return mlir_mode::all;
-        if(is_navi)
-            return mlir_mode::all;
-        return std::max(m1, m2);
+        return compute_mlir_mode(option, m1, m2, is_navi);
     };
 
     match::find_matches(mpm, find_channel_slice_convolution{});

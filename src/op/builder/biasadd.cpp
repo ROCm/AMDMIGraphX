@@ -21,26 +21,34 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/onnx/op_parser.hpp>
+
+#include <migraphx/common.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/op/builder/op_builder.hpp>
 #include <migraphx/op/builder/insert.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace onnx {
+namespace op {
+namespace builder {
 
-struct parse_biasadd : op_parser<parse_biasadd>
+struct biasadd : op_builder<biasadd>
 {
-    std::vector<op_desc> operators() const { return {{"BiasAdd"}}; }
-
-    instruction_ref parse(const op_desc& /*opd*/,
-                          const onnx_parser& /*parser*/,
-                          const onnx_parser::node_info& info,
-                          const std::vector<instruction_ref>& args) const
+    template <class Self, class F>
+    static auto reflect(Self&, F)
     {
-        return op::builder::add("biasadd", *info.mod, args).at(0);
+        return pack();
+    }
+
+    std::vector<instruction_ref>
+    insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
+    {
+        auto x_plus_bias = insert_common_op(m, ins, "add", args[0], args[1]);
+        return {insert_common_op(m, ins, "add", x_plus_bias, args[2])};
     }
 };
 
-} // namespace onnx
+} // namespace builder
+} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

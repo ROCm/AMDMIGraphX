@@ -2585,6 +2585,73 @@ TEST_CASE(find_splits_for_pointwise2)
     EXPECT(p1 == p2);
 }
 
+TEST_CASE(find_splits_for_multi_arg_ops)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {3, 2, 4}};
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto input = mm->add_parameter("input", s);
+        auto x     = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
+        auto y = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), input);
+
+        // Create constants for the multi-argument operations
+        auto c1 = mm->add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::float_type, {3, 1, 4}}, {1.0f}});
+        auto c2 = mm->add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::float_type, {3, 1, 4}}, {2.0f}});
+        auto c3 = mm->add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::float_type, {3, 1, 4}}, {3.0f}});
+        auto c4 = mm->add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::float_type, {3, 1, 4}}, {4.0f}});
+
+        // Create multi-argument pointwise operations
+        auto multi_op_x =
+            add_pointwise(p1, "main:pointwise0", {x, c1, c2}, [=](auto* pm, const auto& inputs) {
+                auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+                return pm->add_instruction(migraphx::make_op("mul"), add1, inputs[2]);
+            });
+        auto multi_op_y =
+            add_pointwise(p1, "main:pointwise1", {y, c3, c4}, [=](auto* pm, const auto& inputs) {
+                auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+                return pm->add_instruction(migraphx::make_op("mul"), add1, inputs[2]);
+            });
+        mm->add_return({multi_op_x, multi_op_y});
+    }
+
+    // Store the original instruction count before transformation
+    auto original_pointwise_count =
+        std::count_if(p1.get_main_module()->begin(),
+                      p1.get_main_module()->end(),
+                      [](const auto& ins) { return ins.name() == "pointwise"; });
+
+    migraphx::run_passes(p1, {migraphx::simplify_algebra{}, migraphx::dead_code_elimination{}});
+
+    // After transformation, there should be only one pointwise operation
+    auto final_pointwise_count =
+        std::count_if(p1.get_main_module()->begin(),
+                      p1.get_main_module()->end(),
+                      [](const auto& ins) { return ins.name() == "pointwise"; });
+
+    // Check that the transformation reduced the number of pointwise operations
+    EXPECT(original_pointwise_count == 2);
+    EXPECT(final_pointwise_count == 1);
+
+    // Check that we have concat operations (indicating fusion happened)
+    auto concat_count = std::count_if(p1.get_main_module()->begin(),
+                                      p1.get_main_module()->end(),
+                                      [](const auto& ins) { return ins.name() == "concat"; });
+    EXPECT(concat_count == 2); // Should have 2 concat operations for the 2 constant arguments
+
+    // Check that we still have the slice operations after the fused pointwise
+    auto slice_count = std::count_if(p1.get_main_module()->begin(),
+                                     p1.get_main_module()->end(),
+                                     [](const auto& ins) { return ins.name() == "slice"; });
+    EXPECT(slice_count == 2); // Should have 2 slice operations for the results
+}
+
 TEST_CASE(simplify_slice_different_axis)
 {
     auto s = migraphx::shape{migraphx::shape::int32_type, {3, 2, 4, 2}};

@@ -8,7 +8,7 @@ Full documentation for MIGraphX is available at
 ### Added
 
 * Added a dedicated logger for MIGraphX.
-
+* Use HSA API to query number of chiplets for specific architectures where this is applicable (ex. gfx90a)
 
 ### Changed
 

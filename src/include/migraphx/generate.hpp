@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -137,6 +137,15 @@ auto fill_tensor_data(const migraphx::shape& s, double value = 0)
     std::generate(result.get(), result.get() + s.element_space(), [=] { return value; });
     return result;
 }
+
+template <class T>
+auto iota_tensor_data(const migraphx::shape& s, int64_t start = 0)
+{
+    auto result = make_shared_array<T>(s.element_space());
+    std::iota(result.get(), result.get() + s.element_space(), start);
+    return result;
+}
+MIGRAPHX_EXPORT argument iota_argument(shape s, int64_t start = 0);
 
 MIGRAPHX_EXPORT argument fill_argument(shape s, double value = 0);
 

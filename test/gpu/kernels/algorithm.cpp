@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2025-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -172,6 +172,56 @@ TEST_CASE(copy_if_all_match)
         migraphx::copy_if(src.begin(), src.end(), dst.begin(), [](int x) { return x % 2 == 0; });
     EXPECT(end_it == dst.end());
     EXPECT(src == dst);
+}
+
+TEST_CASE(count_if_basic)
+{
+    migraphx::array<int, 6> arr = {1, 2, 3, 4, 5, 6};
+    auto count = migraphx::count_if(arr.begin(), arr.end(), [](int x) { return x % 2 == 0; });
+    EXPECT(count == 3);
+}
+TEST_CASE(count_if_empty_range)
+{
+    empty_range arr = {};
+    auto count      = migraphx::count_if(arr.begin(), arr.end(), [](int x) { return x > 0; });
+    EXPECT(count == 0);
+}
+TEST_CASE(count_if_none_match)
+{
+    migraphx::array<int, 4> arr = {1, 3, 5, 7};
+    auto count = migraphx::count_if(arr.begin(), arr.end(), [](int x) { return x % 2 == 0; });
+    EXPECT(count == 0);
+}
+TEST_CASE(count_if_all_match)
+{
+    migraphx::array<int, 4> arr = {2, 4, 6, 8};
+    auto count = migraphx::count_if(arr.begin(), arr.end(), [](int x) { return x % 2 == 0; });
+    EXPECT(count == 4);
+}
+TEST_CASE(count_if_single_element_match)
+{
+    migraphx::array<int, 1> arr = {4};
+    auto count = migraphx::count_if(arr.begin(), arr.end(), [](int x) { return x % 2 == 0; });
+    EXPECT(count == 1);
+}
+TEST_CASE(count_if_single_element_no_match)
+{
+    migraphx::array<int, 1> arr = {3};
+    auto count = migraphx::count_if(arr.begin(), arr.end(), [](int x) { return x % 2 == 0; });
+    EXPECT(count == 0);
+}
+TEST_CASE(count_if_greater_than)
+{
+    migraphx::array<int, 5> arr = {1, 5, 10, 15, 20};
+    auto count = migraphx::count_if(arr.begin(), arr.end(), [](int x) { return x > 7; });
+    EXPECT(count == 3);
+}
+TEST_CASE(count_if_partial_range)
+{
+    migraphx::array<int, 8> arr = {1, 2, 3, 4, 5, 6, 7, 8};
+    auto count =
+        migraphx::count_if(arr.begin() + 2, arr.begin() + 6, [](int x) { return x % 2 == 0; });
+    EXPECT(count == 2);
 }
 
 TEST_CASE(is_sorted_until_sorted)

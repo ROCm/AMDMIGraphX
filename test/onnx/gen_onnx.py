@@ -28,6 +28,7 @@ import numpy as np
 import onnx
 from onnx import helper
 from onnx import TensorProto
+from onnx import numpy_helper
 from onnx.numpy_helper import from_array
 
 
@@ -18150,3 +18151,33 @@ def scan_arg_shapes_mismatch_test():
     )
     return ([node], [init_state, scan_ins1,
                      scan_ins2], [final_state, scan_outs])
+
+@onnx_test()
+def qlinearmatmul_2D_perchannel_test():
+    a = helper.make_tensor_value_info('A', TensorProto.UINT8, [1, 2048])
+    sc_a = helper.make_tensor('A_scale', TensorProto.FLOAT, [], [0.06])
+    zero_pt_a = helper.make_tensor('A_zero_point', TensorProto.UINT8, [], [30])
+
+    np.random.seed(42)
+    b_data = np.random.randint(0, 96, size=[2048, 1000], dtype=np.uint8)
+    b = from_array(b_data, 'B')
+    sc_b_data = (np.random.rand(1000) * 0.001).astype(np.float32)
+    sc_b = from_array(sc_b_data, 'B_scale')
+    zero_pt_b_data = np.random.randint(0, 96, size=[1000], dtype=np.uint8)
+    zero_pt_b = from_array(zero_pt_b_data, 'B_zero_point')
+
+    sc_c = helper.make_tensor('C_scale', TensorProto.FLOAT, [], [0.18])
+    zero_pt_c = helper.make_tensor('C_zero_point', TensorProto.UINT8, [], [65])
+
+    c = helper.make_tensor_value_info('C', TensorProto.UINT8, [1, 1000])
+
+    node = onnx.helper.make_node(
+        'QLinearMatMul',
+        inputs=[
+            'A', 'A_scale', 'A_zero_point', 'B', 'B_scale', 'B_zero_point',
+            'C_scale', 'C_zero_point'
+        ],
+        outputs=['C'],
+    )
+    return ([node], [a], [c],
+            [sc_a, zero_pt_a, b, sc_b, zero_pt_b, sc_c, zero_pt_c])

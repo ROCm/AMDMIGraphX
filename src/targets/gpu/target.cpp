@@ -47,6 +47,7 @@
 #include <migraphx/replace_allocate.hpp>
 #include <migraphx/rewrite_dot.hpp>
 #include <migraphx/rewrite_gelu.hpp>
+#include <migraphx/rewrite_kv_cache.hpp>
 #include <migraphx/rewrite_low_precision.hpp>
 #include <migraphx/rewrite_pooling.hpp>
 #include <migraphx/rewrite_reduce.hpp>
@@ -140,6 +141,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         propagate_precision{},
         dead_code_elimination{},
         simplify_reshapes{.enable_op_shape_transform_op=true},
+        dead_code_elimination{},
+        rewrite_kv_cache{},
         dead_code_elimination{},
         enable_pass(mlir_enabled(), fuse_attention{.attn_enabled = mlir_attention_enabled(&ctx),
                                                    .flash_decoding_enabled = mlir_flash_decoding_enabled()}),

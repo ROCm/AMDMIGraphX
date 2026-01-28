@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -43,6 +43,7 @@
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/rewrite_dot.hpp>
 #include <migraphx/rewrite_gelu.hpp>
+#include <migraphx/rewrite_kv_cache.hpp>
 #include <migraphx/rewrite_pooling.hpp>
 #include <migraphx/rewrite_quantization.hpp>
 #include <migraphx/rewrite_rnn.hpp>
@@ -82,6 +83,7 @@ static std::unordered_map<std::string, pass> create_passes_lookup()
         propagate_constant{},
         rewrite_dot{},
         rewrite_gelu{},
+        rewrite_kv_cache{},
         rewrite_pooling{},
         rewrite_quantization{},
         rewrite_rnn{},

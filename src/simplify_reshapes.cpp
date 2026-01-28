@@ -30,6 +30,7 @@
 #include <migraphx/op/transpose.hpp>
 #include <migraphx/op/concat.hpp>
 #include <migraphx/op/slice.hpp>
+#include <migraphx/op/gather.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/matcher.hpp>
@@ -952,6 +953,81 @@ struct find_where_op
     }
 };
 
+// Convert gather with a scalar constant index to slice + squeeze.
+// This is more efficient as slice can be implemented as pointer arithmetic
+// (zero-copy) and squeeze is just a shape transformation.
+//
+// Example:
+//   gather[axis=2](data{1, 32, 19}, @literal{0}) -> {1, 32}
+// Becomes:
+//   squeeze[axes={2}](slice[axes={2}, starts={0}, ends={1}](data)) -> {1, 32}
+//
+struct find_gather_to_slice
+{
+    // Predicate to check if instruction is a scalar constant
+    static auto scalar_constant()
+    {
+        return match::make_basic_pred_matcher([](instruction_ref ins) {
+            return ins->can_eval() and ins->get_shape().scalar();
+        });
+    }
+
+    auto matcher() const
+    {
+        return match::name("gather")(
+            match::args(match::any().bind("data"), scalar_constant().bind("ind")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins     = r.result;
+        auto data    = r.instructions["data"];
+        auto ins_ind = r.instructions["ind"];
+
+        // Evaluate the constant index
+        auto arg_ind = ins_ind->eval();
+        if(arg_ind.empty())
+        {
+            return;
+        }
+
+        int64_t idx = 0;
+        arg_ind.visit([&](auto v) { idx = v.front(); });
+
+        auto gop  = any_cast<op::gather>(ins->get_operator());
+        auto axis = gop.axis;
+
+        const auto& data_shape = data->get_shape();
+        auto data_lens         = data_shape.lens();
+
+        // Handle negative index
+        auto axis_dim = static_cast<int64_t>(data_lens[axis]);
+        if(idx < 0)
+        {
+            idx += axis_dim;
+        }
+
+        // Check bounds
+        if(idx < 0 or idx >= axis_dim)
+        {
+            return;
+        }
+
+        // Create slice: slice[axes={axis}, starts={idx}, ends={idx+1}]
+        auto slice_ins = m.insert_instruction(
+            ins,
+            make_op("slice",
+                    {{"axes", std::vector<int64_t>{axis}},
+                     {"starts", std::vector<int64_t>{idx}},
+                     {"ends", std::vector<int64_t>{idx + 1}}}),
+            data);
+
+        // Create squeeze to remove the sliced dimension
+        m.replace_instruction(
+            ins, make_op("squeeze", {{"axes", std::vector<int64_t>{axis}}}), slice_ins);
+    }
+};
+
 struct find_reshape_cont
 {
     auto matcher() const
@@ -1423,6 +1499,7 @@ void simplify_reshapes::apply(module& m) const
     m.repeat_while_changes(depth, [&] {
         match::find_matches(m,
                             find_where_op{},
+                            find_gather_to_slice{},
                             find_resize{},
                             find_nop_reshapes{},
                             find_flatten{},

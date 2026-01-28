@@ -183,6 +183,16 @@ TEST_CASE(step_broadcast_transpose)
     EXPECT(eshapes == rshapes);
 }
 
+TEST_CASE(different_fast_axis)
+{
+    std::vector<migraphx::shape> ishapes = {make_shape({64, 160, 160, 16}, {409600, 2560, 16, 1}),
+                                            make_shape({64, 160, 160, 48}, {1228800, 7680, 48, 1})};
+    std::vector<migraphx::shape> eshapes = {make_shape({1638400, 16}, {16, 1}), make_shape({1638400, 48}, {48, 1})};
+    auto rshapes                         = migraphx::reduce_dims(ishapes);
+    EXPECT(verify_shapes(ishapes, rshapes));
+    EXPECT(eshapes == rshapes);
+}
+
 TEST_CASE(empty)
 {
     auto rshapes = migraphx::reduce_dims({});

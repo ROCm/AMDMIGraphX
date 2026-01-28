@@ -36,6 +36,7 @@
 #include <migraphx/filesystem.hpp>
 #include <migraphx/op/unknown.hpp>
 #include <migraphx/float8.hpp>
+#include <migraphx/generate.hpp>
 #include <migraphx/env.hpp>
 #include <onnx.pb.h>
 
@@ -68,6 +69,23 @@ static onnx_parser::attribute_map get_attributes(const onnx::NodeProto& node)
         result[attr.name()] = attr;
     }
     return result;
+}
+
+static literal
+create_literal(shape::type_t shape_type, const std::vector<size_t>& dims)
+{
+    // empty input
+    auto elem_num =
+        std::accumulate(dims.begin(), dims.end(), std::size_t(1), std::multiplies<std::size_t>());
+    if(elem_num == 0)
+    {
+        return literal{shape_type};
+    }
+
+    // in case of scalar constants in onnx file, use dims=1 to fill initializer data
+    if(dims.empty())
+        return generate_literal({shape_type});
+    return generate_literal({shape_type, dims});
 }
 
 static literal
@@ -733,16 +751,19 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
             nbytes = std::stoull(t.external_data().at(2).value());
         }
         std::vector<char> raw_buffer;
-        if(not external_data_path.empty())
+        if(not external_data_path.empty() and fs::exists(
+                fs::path{external_data_path} / data_file))
+        
         {
             raw_buffer = read_buffer(fs::path{external_data_path} / data_file, offset, nbytes);
         }
-        else
+        else if(fs::exists(path / data_file))
         {
             raw_buffer = read_buffer(path / data_file, offset, nbytes);
         }
-        std::string s(raw_buffer.begin(), raw_buffer.end());
-        return create_literal(type, dims, s.data());
+        if(raw_buffer.empty())
+            return create_literal(type, dims);
+        return create_literal(type, dims, raw_buffer.data());
     }
 
     if(t.has_raw_data())

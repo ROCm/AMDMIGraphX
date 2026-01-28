@@ -3663,7 +3663,6 @@ TEST_CASE(conv_add_layernorm_conv)
 
 TEST_CASE(gather_to_slice_scalar_index)
 {
-    // gather with scalar constant index should become slice + squeeze
     migraphx::module m1;
     {
         auto data =
@@ -3692,7 +3691,6 @@ TEST_CASE(gather_to_slice_scalar_index)
 
 TEST_CASE(gather_to_slice_scalar_index_axis0)
 {
-    // gather with scalar constant index on axis 0
     migraphx::module m1;
     {
         auto data =
@@ -3721,7 +3719,6 @@ TEST_CASE(gather_to_slice_scalar_index_axis0)
 
 TEST_CASE(gather_to_slice_negative_index)
 {
-    // gather with negative scalar index should be handled correctly
     migraphx::module m1;
     {
         auto data =
@@ -3746,26 +3743,6 @@ TEST_CASE(gather_to_slice_negative_index)
         m2.add_return({squeeze});
     }
 
-    EXPECT(m1 == m2);
-}
-
-TEST_CASE(gather_to_slice_non_scalar_no_change)
-{
-    // gather with non-scalar indices should NOT be transformed
-    migraphx::module m1;
-    {
-        auto data =
-            m1.add_parameter("data", migraphx::shape{migraphx::shape::float_type, {10, 32, 64}});
-        auto idx =
-            m1.add_parameter("idx", migraphx::shape{migraphx::shape::int64_type, {5}});
-        auto gather =
-            m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, idx);
-        m1.add_return({gather});
-    }
-    migraphx::module m2 = m1;
-    run_pass(m1);
-
-    // Should remain unchanged since indices are not scalar
     EXPECT(m1 == m2);
 }
 

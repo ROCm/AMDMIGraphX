@@ -964,18 +964,11 @@ struct find_where_op
 //
 struct find_gather_to_slice
 {
-    // Predicate to check if instruction is a scalar constant
-    static auto scalar_constant()
-    {
-        return match::make_basic_pred_matcher([](instruction_ref ins) {
-            return ins->can_eval() and ins->get_shape().scalar();
-        });
-    }
-
     auto matcher() const
     {
         return match::name("gather")(
-            match::args(match::any().bind("data"), scalar_constant().bind("ind")));
+            match::args(match::any().bind("data"),
+                        match::is_constant(match::scalar_shape()).bind("ind")));
     }
 
     void apply(module& m, const match::matcher_result& r) const

@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -56,6 +56,8 @@ find_package(ROCmCMakeBuildTools REQUIRED)
 find_package(Threads REQUIRED)
 
 option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON)
+option(MIGRAPHX_ENABLE_TENSORFLOW "Enable TensorFlow integration" ON)
+option(MIGRAPHX_ENABLE_ONNX "Enable ONNX model import" ON)
 
 if(WIN32)
 option(MIGRAPHX_USE_MIOPEN "Enable MIGraphX to use MIOpen" OFF)
@@ -353,7 +355,6 @@ if(BUILD_TESTING)
     rocm_enable_test_package(migraphx)
     add_subdirectory(test)
 endif()
-add_subdirectory(tools)
 
 set(DEST_DIR ${CMAKE_BINARY_DIR})
 file(GLOB backend_files ${CMAKE_SOURCE_DIR}/src/py/backend/*.py)

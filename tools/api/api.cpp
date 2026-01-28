@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,8 +27,6 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/program.hpp>
-#include <migraphx/onnx.hpp>
-#include <migraphx/tf.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/generate.hpp>
@@ -42,6 +40,13 @@
 #include <array>
 #include <algorithm>
 #include <cstdarg>
+
+#ifdef MIGRAPHX_ENABLE_ONNX
+#include <migraphx/onnx.hpp>
+#endif
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
+#include <migraphx/tf.hpp>
+#endif
 
 namespace migraphx {
 
@@ -153,6 +158,8 @@ static void set_exhaustive_tune_flag(compile_options& options, bool value)
 
 static void set_file_format(file_options& options, const char* format) { options.format = format; }
 
+#ifdef MIGRAPHX_ENABLE_ONNX
+
 static void set_default_dim_value(onnx_options& options, size_t value)
 {
     options.default_dim_value = value;
@@ -178,9 +185,17 @@ static void set_limit_loop_iterations(onnx_options& options, int64_t value)
     options.limit_max_iterations = value;
 }
 
+#endif
+
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
+
 static void set_nhwc(tf_options& options, bool is_nhwc) { options.is_nhwc = is_nhwc; }
 
 static void set_default_dim_value(tf_options& options, size_t value) { options.batch_size = value; }
+
+#endif
+
+#ifdef MIGRAPHX_ENABLE_ONNX
 
 static void
 set_input_parameter_shape(onnx_options& options, const char* name, std::vector<std::size_t> dims)
@@ -195,6 +210,10 @@ static void set_dyn_input_parameter_shape(onnx_options& options,
     options.map_dyn_input_dims[std::string(name)] = std::move(dyn_dims);
 }
 
+#endif
+
+#ifdef MIGRAPHX_ENABLE_TENSORFLOW
+
 static void
 set_input_parameter_shape(tf_options& options, const char* name, std::vector<std::size_t> dims)
 {
@@ -205,6 +224,8 @@ static void set_output_names(tf_options& options, std::vector<const char*> names
 {
     options.output_node_names = std::vector<std::string>(names.begin(), names.end());
 }
+
+#endif
 
 static std::vector<argument>
 run_async(program& p, const parameter_map& params, void* s, std::string_view name)

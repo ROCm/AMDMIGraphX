@@ -762,7 +762,8 @@ struct find_mlir_fused_ops
         // Set tag if there are no reshape ops between gemm and pointwise
         if(x_ins == gemm_based_op)
         {
-            mm->set_tag("gemm_pointwise");
+            bool is_conv = contains({"convolution", "quant_convolution"}, gemm_based_op->name());
+            mm->set_tag(is_conv ? "conv_pointwise" : "dot_pointwise");
         }
         std::reverse(inss_to_insert.begin(), inss_to_insert.end());
         mm->add_instructions(inss_to_insert, &map_ins);
@@ -815,14 +816,22 @@ struct find_mlir_fused_ops
  */
 struct find_mlir_fused_geg_ops
 {
-    mlir_mode conv_mode = mlir_mode::none;
-    mlir_mode dot_mode  = mlir_mode::none;
+    bool ceg_mode = false;
     std::string gfx_name;
 
-    // check if individual GEMM meets architecture requirements
-    bool is_gemm_supported(instruction_ref ins) const
+    // check if individual GEMM meets architecture and mode requirements
+    // ins: the dot/convolution instruction inside the submodule
+    // is_second_gemm: true if this is the second gemm in the chain
+    bool is_gemm_supported(instruction_ref ins, bool is_second_gemm = false) const
     {
-        // on navis, wmma doesn't support fp32, so skip fp32 GEMMs
+        // convolution is only allowed in first position, and only when ceg_mode is enabled
+        if(contains({"convolution", "quant_convolution"}, ins->name()))
+        {
+            if(is_second_gemm or not ceg_mode)
+                return false;
+        }
+
+        // on navi, wmma doesn't support fp32, so skip fp32 GEMMs
         // one gemm being f32 is sufficient to turn off this fusion
         if(starts_with(gfx_name, "gfx11") or starts_with(gfx_name, "gfx12"))
         {
@@ -834,7 +843,7 @@ struct find_mlir_fused_geg_ops
         return true;
     }
 
-    // Check if instruction is a gpu::mlir_op with a tag indicating standalone or gemm_pointwise
+    // Check if instruction is a gpu::mlir_op with a tag indicating standalone or dot/conv_pointwise
     // fusion
     static bool is_mlir_fusible_gemm_op(instruction_ref ins)
     {
@@ -846,7 +855,7 @@ struct find_mlir_fused_geg_ops
 
         auto tag = ins->module_inputs().front()->get_tag();
         return tag == "standalone_dot" or tag == "standalone_convolution" or
-               tag == "gemm_pointwise";
+               tag == "dot_pointwise" or tag == "conv_pointwise";
     }
 
     // check heuristic based on the 4 GEMM inputs to determine if fusion should proceed
@@ -914,8 +923,8 @@ struct find_mlir_fused_geg_ops
 
     /*
      * Matches:
-     * gpu::mlir_op(standalone_dot/standalone_convolution/gemm_pointwise) <binds to
-     * "first_gemm_based_op"> -> gpu::mlir_op(standalone_dot/standalone_convolution/gemm_pointwise)
+     * gpu::mlir_op(standalone_dot/standalone_convolution/dot_pointwise/conv_pointwise) <binds to
+     * "first_gemm_based_op"> -> gpu::mlir_op(standalone_dot/standalone_convolution/dot_pointwise/conv_pointwise)
      * <matcher result, binds to "second_gemm_op">
      */
     auto matcher() const
@@ -948,7 +957,8 @@ struct find_mlir_fused_geg_ops
         // check if both gemms exist and are supported on this architecture
         if(first_gemm == first_submod->end() or second_gemm == second_submod->end())
             return;
-        if(not is_gemm_supported(first_gemm) or not is_gemm_supported(second_gemm))
+        if(not is_gemm_supported(first_gemm) or
+           not is_gemm_supported(second_gemm, true))
             return;
 
         // TODO
@@ -988,7 +998,7 @@ struct find_mlir_fused_geg_ops
         fuse_input_ops(mm, second_gemm_ins->inputs(), &map_ins);
         auto second_rins = mm->fuse(*second_submod, second_gemm_ins->inputs(), &map_ins);
         // second_rins contains the outputs of the second submodule (may be multiple if
-        // gemm_pointwise with multi-outs)
+        // dot_pointwise/conv_pointwise with multi-outs)
         map_ins[second_gemm_ins] = second_rins.front();
 
         // if second submodule has multi-outs, second_rins already contains [pointwise, gemm]
@@ -1593,16 +1603,13 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     mpm.run_pass(dead_code_elimination{});
 
     // GEG fusion runs after standalone gemm and gemm->pointwise fusions, since it combines them
-    mlir_mode geg_dot_mode =
-        enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}) ? mlir_mode::none : mlir_mode::fast;
-    mlir_mode geg_conv_mode =
-        enabled(MIGRAPHX_ENABLE_MLIR_CEG_FUSION{}) ? mlir_mode::fast : mlir_mode::none;
-
-    match::find_matches(mpm,
-                        find_mlir_fused_geg_ops{.conv_mode = geg_conv_mode,
-                                                .dot_mode  = geg_dot_mode,
-                                                .gfx_name  = device_name});
-    mpm.run_pass(dead_code_elimination{});
+    if (not enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{})) {
+        bool ceg_fusion_enabled = enabled(MIGRAPHX_ENABLE_MLIR_CEG_FUSION{});
+        match::find_matches(mpm,
+            find_mlir_fused_geg_ops{.ceg_mode = ceg_fusion_enabled,
+                                    .gfx_name  = device_name});
+        mpm.run_pass(dead_code_elimination{});
+    }
 
     if(enabled(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION{}))
     {

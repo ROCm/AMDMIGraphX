@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,10 +31,12 @@
 #include <type_traits>
 #include <utility>
 
+#include <migraphx/allocation_model.hpp>
+#include <migraphx/config.hpp>
 #include <migraphx/operation.hpp>
 #include <migraphx/op/concat.hpp>
 #include <migraphx/optional.hpp>
-#include <migraphx/config.hpp>
+#include <migraphx/instruction_ref.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -48,6 +50,8 @@ struct concat_optimization
     std::string allocate() const;
     /// Return the target-independent concat operator
     optional<op::concat> get_concat(const operation& op) const;
+    allocation_model allocation() const;
+    bool supports_non_packed_output(instruction_ref ins) const
 };
 
 #else
@@ -57,7 +61,9 @@ struct concat_optimization
         'concat_optimization',
         virtual('allocate', returns = 'std::string', const = True),
         virtual(
-            'get_concat', returns = 'optional<op::concat>', op = 'const operation&', const = True))
+            'get_concat', returns = 'optional<op::concat>', op = 'const operation&', const = True),
+        virtual('supports_non_packed_output', ins = 'instruction_ref', returns = 'bool', const = True),
+        virtual('allocation', returns = 'allocation_model', const = True))
 %>
 
 #endif

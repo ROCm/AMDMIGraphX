@@ -21,32 +21,33 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/allocation_model.hpp>
+
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/module.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-
-std::string gpu_allocation_model::name() const { 
-    if(use_hip_allocate)
-        return "hip::allocate"; 
-    return "allocate";
-}
-operation gpu_allocation_model::allocate(const shape& s) const
+struct test_dot_concat : verify_program<test_dot_concat>
 {
-    return make_op(name(), {{"shape", to_value(s)}});
-}
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto a1 = mm->add_parameter("a1", migraphx::shape{migraphx::shape::half_type, {4, 24, 16}});
+        auto b1 = mm->add_parameter("b1", migraphx::shape{migraphx::shape::half_type, {4, 16, 24}});
+        auto a2 = mm->add_parameter("a2", migraphx::shape{migraphx::shape::half_type, {4, 24, 16}});
+        auto b2 = mm->add_parameter("b2", migraphx::shape{migraphx::shape::half_type, {4, 16, 24}});
 
-operation gpu_allocation_model::preallocate(const shape& s, const std::string& id) const
-{
-    return make_op("hip::hip_allocate_memory", {{"shape", to_value(s)}, {"id", id}});
-}
+        auto dot1  = mm->add_instruction(migraphx::make_op("dot"), a1, b1);
+        auto relu1 = mm->add_instruction(migraphx::make_op("relu"), dot1);
 
-std::string gpu_allocation_model::copy() const { return "hip::copy"; }
+        auto dot2  = mm->add_instruction(migraphx::make_op("dot"), a2, b2);
+        auto sqrt1 = mm->add_instruction(migraphx::make_op("sigmoid"), dot2);
 
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+        auto concat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), relu1, sqrt1);
+
+        mm->add_return({concat});
+        return p;
+    }
+    std::string section() const { return "gemm"; }
+};

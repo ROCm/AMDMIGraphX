@@ -321,7 +321,7 @@ bool shape::is_compatible_lens(const shape& actual, const shape& expected)
         return std::equal(actual.lens().begin(),
                           actual.lens().end(),
                           expected.dyn_dims().begin(),
-                          [&](auto a, auto e) { return a >= e.min and a <= e.max; });
+                          [&](auto a, const auto& e) { return a >= e.min and a <= e.max; });
     }
     return actual.lens() == expected.lens();
 }

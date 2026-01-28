@@ -52,7 +52,7 @@ struct parse_clip : op_parser<parse_clip>
 
     static std::optional<instruction_ref>
     check_type_and_shape(size_t index, shape::type_t type,
-                         const std::vector<instruction_ref>& args)
+                        const std::vector<instruction_ref>& args)
     {
 
         if (args.size() > index)
@@ -74,19 +74,19 @@ struct parse_clip : op_parser<parse_clip>
     }
 
     static void handle_limits(onnx_parser::node_info info,
-                              clip_args& clip_parser)
+                            clip_args& clip_parser)
     {
         // Set default if types/inputs aren't set
         // min
         if(not clip_parser.min.has_value())
         {  
-           clip_parser.min = info.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}, {0}}, {std::numeric_limits<float>::lowest()}});
+        clip_parser.min = info.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}, {0}}, {std::numeric_limits<float>::lowest()}});
         }
 
         // max
         if(not clip_parser.max.has_value())
         {
-           clip_parser.max = info.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}, {0}}, {std::numeric_limits<float>::max()}});
+        clip_parser.max = info.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}, {0}}, {std::numeric_limits<float>::max()}});
         }
     }
 
@@ -104,7 +104,7 @@ struct parse_clip : op_parser<parse_clip>
 
         handle_limits(info, clip_parser);
 
-        return op::builder::add("clip", *info.mod, clip_parser.get_args(), {}).at(0);
+        return op::builder::add("clip", *info.mod, clip_parser.get_args()).at(0);
     }
 
     // Parser for Opset V6 version
@@ -125,13 +125,13 @@ struct parse_clip : op_parser<parse_clip>
         args.push_back(info.add_literal(min_val));
         args.push_back(info.add_literal(max_val));
 
-        return op::builder::add("clip", *info.mod, args, {}).at(0);
+        return op::builder::add("clip", *info.mod, args).at(0);
     }
 
     instruction_ref parse(const op_desc& /*opd*/,
-                          const onnx_parser& parser,
-                          onnx_parser::node_info info,
-                          std::vector<instruction_ref> args) const
+                        const onnx_parser& parser,
+                        onnx_parser::node_info info,
+                        std::vector<instruction_ref> args) const
     {
         if(parser.opset_version < 11)
         {

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -59,7 +59,7 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 
 struct pointwise_compiler : compiler<pointwise_compiler>
 {
-    std::vector<std::string> names() const { return {"pointwise", "contiguous", "layout"}; }
+    std::vector<std::string> names() const { return {"pointwise", "contiguous", "layout", "hip::copy"}; }
 
     static std::size_t oversubscribe_if(bool b)
     {
@@ -102,12 +102,12 @@ struct pointwise_compiler : compiler<pointwise_compiler>
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
-        if(contains({"layout", "contiguous"}, op.name()))
+        if(contains({"layout", "contiguous", "hip::copy"}, op.name()))
         {
             return compile_op(ctx,
                               to_shapes(ins->inputs()),
                               {{"lambda", "[](auto x) { return make_tuple(x); }"},
-                               {"kernel", op.name() + "_kernel"}});
+                               {"kernel", to_c_id(op.name()) + "_kernel"}});
         }
         else
         {

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,6 +31,7 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/gpu/mlir.hpp>
+#include <migraphx/gpu/prepare_mlir.hpp>
 #include <mlir-c/Dialect/RockEnums.h>
 #include <numeric>
 #include <ostream>
@@ -613,8 +614,10 @@ struct mlir_program
         return result;
     }
 
-    MlirBlock
-    insert(MlirBlock body, const module& m, std::unordered_map<instruction_ref, MlirValue>& ins_map)
+    MlirBlock insert(MlirBlock body,
+                     const module& m,
+                     const std::vector<shape>& outputs,
+                     std::unordered_map<instruction_ref, MlirValue>& ins_map)
     {
         auto names = m.get_parameter_names();
         std::sort(names.begin(), names.end());
@@ -624,7 +627,6 @@ struct mlir_program
             names.end(),
             std::back_inserter(input_shapes),
             [&](const std::string& name) { return get_shape_for_mlir(m.get_parameter(name)); });
-        std::vector<shape> outputs = m.get_output_shapes();
 
         std::vector<MlirLocation> arg_locs(input_shapes.size(), location);
         auto body_inputs   = make_mlir_shapeds(input_shapes);
@@ -761,19 +763,75 @@ struct mlir_program
             MIGRAPHX_THROW("Missing @return as last instruction.");
     }
 
-    void parse(const module& m)
+    static std::vector<shape> get_output_shapes(const module& m,
+                                                const std::vector<shape>& input_shapes = {})
+    {
+        if(input_shapes.empty())
+            return m.get_output_shapes();
+        auto r = input_shapes.back();
+        if(r.type() != shape::tuple_type)
+            return {r};
+        return r.sub_shapes();
+    }
+
+    static bool is_skipped(instruction_ref ins)
+    {
+        return contains({"contiguous", "unpack_fp4"}, ins->name());
+    }
+
+    static instruction_ref get_terminal_return(instruction_ref ins)
+    {
+        if(is_skipped(ins))
+            return get_terminal_return(ins->inputs().at(0));
+        return ins;
+    }
+
+    static auto make_get_shape_for_mlir(const module& m, const std::vector<shape>& output_shapes)
+    {
+        auto returns = m.get_returns();
+        std::unordered_map<instruction_ref, shape> ret_shapes;
+        std::transform(returns.begin(),
+                       returns.end(),
+                       output_shapes.begin(),
+                       std::inserter(ret_shapes, ret_shapes.begin()),
+                       [](instruction_ref ins, const shape& s) {
+                           return std::make_pair(get_terminal_return(ins), s);
+                       });
+        return [=](instruction_ref ins) {
+            shape ret = contains(ret_shapes, ins) ? ret_shapes.at(ins) : ins->get_shape();
+            if(ins->name() == "@return")
+            {
+                assert(ins->inputs().size() == 1);
+                ret = output_shapes.front();
+            }
+            else if(input_is_unpack_fp4(ins))
+            {
+                ret = ret.with_type(shape::fp4x2_type);
+            }
+            else if(ins->get_shape().type() == shape::fp4x2_type)
+            {
+                ret = make_fp4_unpacked_shape(ret);
+            }
+            return ret;
+        };
+    }
+
+    void parse(const module& m, const std::vector<shape>& input_shapes = {})
     {
         validate(m);
         sym_name   = get_symbol_name(m);
         auto mbody = mlirModuleGetBody(mmodule.get());
         std::unordered_map<instruction_ref, MlirValue> ins_map;
-        auto fbody = insert(mbody, m, ins_map);
+        auto output_shapes = get_output_shapes(m, input_shapes);
+        auto fbody         = insert(mbody, m, output_shapes, ins_map);
+
+        auto get_shape_for_mlir = make_get_shape_for_mlir(m, output_shapes);
 
         for(auto ins : iterator_for(m))
         {
             if(ins->name() == "@param")
                 continue;
-            if(contains({"contiguous", "unpack_fp4"}, ins->name()))
+            if(is_skipped(ins))
             {
                 ins_map[ins] = ins_map[ins->inputs().at(0)];
                 continue;
@@ -1070,58 +1128,12 @@ struct mlir_program
     std::string sym_name;
 };
 
-bool is_reduce(const instruction& ins) { return contains(ins.name(), "reduce"); }
-
-static void rewrite_reduce(module& m)
-{
-    for(auto i : iterator_for(m))
-    {
-        if(is_reduce(*i))
-        {
-            auto reduce_op      = i->get_operator().to_value();
-            auto reduce_op_name = i->get_operator().name();
-            auto reduce_axes    = reduce_op["axes"].to_vector<size_t>();
-            auto reduce_lens    = i->get_shape().lens();
-            auto in_shape       = i->inputs().front()->get_shape();
-            const auto& in_lens = in_shape.lens();
-            assert(in_shape.standard());
-            assert(reduce_lens.size() == in_lens.size());
-            assert(std::adjacent_find(
-                       reduce_axes.begin(), reduce_axes.end(), [](auto axis_1, auto axis_2) {
-                           return axis_2 - axis_1 > 1;
-                       }) == reduce_axes.end());
-
-            std::vector<int64_t> new_rsp_dims;
-            std::vector<int64_t> new_reduce_axes;
-            for(const auto axis : range(in_shape.ndim()))
-            {
-                if(reduce_lens[axis] == in_lens[axis])
-                {
-                    new_rsp_dims.push_back(in_lens[axis]);
-                }
-                else if(new_reduce_axes.empty())
-                {
-                    assert(reduce_lens[axis] == 1);
-                    new_rsp_dims.push_back(-1);
-                    new_reduce_axes.push_back(axis);
-                }
-            }
-            auto rsp_ins = m.insert_instruction(
-                i, migraphx::make_op("reshape", {{"dims", new_rsp_dims}}), i->inputs().front());
-            auto collapsed_reduce = m.insert_instruction(
-                i, migraphx::make_op(reduce_op_name, {{"axes", new_reduce_axes}}), rsp_ins);
-            auto rsp_back = m.insert_instruction(
-                i, migraphx::make_op("reshape", {{"dims", reduce_lens}}), collapsed_reduce);
-            m.replace_instruction(i, rsp_back);
-        }
-    }
-    migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
-}
+static void prepare(module& m) { run_passes(m, {prepare_mlir{}}); }
 
 bool is_module_fusible(const module& m, const context& migraphx_ctx, const value& solution)
 {
     auto mm = m;
-    rewrite_reduce(mm);
+    prepare(mm);
     mlir_program mp;
     mp.set_gpu_properties(migraphx_ctx);
     mp.parse(mm);
@@ -1129,7 +1141,7 @@ bool is_module_fusible(const module& m, const context& migraphx_ctx, const value
     return mlirIsModuleFusible(mp.mmodule.get(), make_mlir_string_ref(*solution.if_string()));
 }
 
-static void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
+void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
 {
     auto names = m.get_parameter_names();
     std::sort(names.begin(), names.end());
@@ -1171,9 +1183,9 @@ std::string dump_mlir(module m, const std::vector<shape>& inputs)
     {
         adjust_param_shapes(m, inputs);
     }
-    rewrite_reduce(m);
+    prepare(m);
     mlir_program mp;
-    mp.parse(*mr);
+    mp.parse(*mr, inputs);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     return mlir_print(&mlirOperationPrint, mod_op);
 }
@@ -1232,14 +1244,14 @@ void dump_mlir_to_file(module m, const std::vector<shape>& inputs, const fs::pat
     {
         adjust_param_shapes(m, inputs);
     }
-    rewrite_reduce(m);
+    prepare(m);
 
     auto name = compute_dump_name(m, ".mlir");
     auto f    = location / name;
     std::cout << "Dumping MLIR file to: " << f << std::endl;
 
     mlir_program mp;
-    mp.parse(m);
+    mp.parse(m, inputs);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
 
     std::string mlir_str = mlir_print(&mlirOperationPrint, mod_op);
@@ -1255,7 +1267,7 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
                               const value& solution)
 {
     adjust_param_shapes(m, in_shapes);
-    rewrite_reduce(m);
+    prepare(m);
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
 
     static std::mutex mutex;
@@ -1268,7 +1280,7 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     mlir_program mp;
 
     mp.set_gpu_properties(migraphx_ctx);
-    mp.parse(m);
+    mp.parse(m, in_shapes);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     if(trace)
     {
@@ -1276,18 +1288,10 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
 
-    auto co = mp.compile(solution);
-
+    auto co            = mp.compile(solution);
     co.expected_inputs = in_shapes;
-    auto out_shapes    = m.get_output_shapes();
-    if(out_shapes.size() == 1)
-    {
-        co.output = m.get_output_shapes().front();
-    }
-    else
-    {
-        co.output = shape{out_shapes};
-    }
+    co.output          = in_shapes.back();
+
     mlir_code_object mco;
     mco.cop                 = co;
     size_t num_prefill_args = mlirGetNumPrefillArgs(mp.mmodule.get());
@@ -1336,10 +1340,10 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
                                      bool exhaustive)
 {
     adjust_param_shapes(m, inputs);
-    rewrite_reduce(m);
+    prepare(m);
     mlir_program mp;
     mp.set_gpu_properties(migraphx_ctx);
-    mp.parse(m);
+    mp.parse(m, inputs);
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
     if(trace)
     {

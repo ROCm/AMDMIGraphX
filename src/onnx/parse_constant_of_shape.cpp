@@ -80,6 +80,10 @@ struct parse_constant_of_shape : op_parser<parse_constant_of_shape>
                     input.visit([&](auto ia) { dims.assign(ia.begin(), ia.end()); });
                     s = migraphx::shape{type, dims};
                 }
+                if(s.elements() == 0)
+                {
+                    return info.add_instruction(make_op("undefined"));
+                }
                 literal l_out{};
                 l_val.visit([&](auto val) {
                     using val_type = std::remove_cv_t<typename decltype(val)::value_type>;

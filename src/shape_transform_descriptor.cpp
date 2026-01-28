@@ -1611,47 +1611,55 @@ static std::vector<int64_t> find_permutation(const std::vector<dimension::sub>& 
 // are generated from the subdimensions and steps 4-5 are generated with the
 // dimensions.
 std::vector<operation>
-shape_transform_descriptor::generate(const std::vector<std::size_t>& input_dims) const
+shape_transform_descriptor::generate(const std::vector<std::size_t>& input_dims,
+                                     bool no_broadcast) const
 {
     operation_list result;
     std::vector<dimension> new_dims =
         input_dims.empty() ? dimensions : this->rebase(input_dims).dimensions;
     assert(input_dims.empty() or not new_dims.empty());
-    // Need broadcast
-    if(std::any_of(new_dims.begin(), new_dims.end(), &is_broadcast_dim))
+    if(no_broadcast)
     {
-        std::vector<std::size_t> out_lens;
-        std::transform(new_dims.begin(),
-                       new_dims.end(),
-                       std::back_inserter(out_lens),
-                       [](const dimension& d) { return d.len(); });
-        auto startb     = std::find_if_not(new_dims.begin(), new_dims.end(), &has_no_axes);
-        auto trailb     = std::find_if_not(startb, new_dims.end(), &has_axes);
-        auto axis       = std::distance(new_dims.begin(), startb);
-        auto extra_dims = axis + std::distance(trailb, new_dims.end());
-        // Use broadcast instead of multibroadcast
-        if(std::all_of(trailb, new_dims.end(), &has_no_axes) and extra_dims > 0 and
-           axis < new_dims.size())
-        {
-            result.push_back(make_op("broadcast", {{"axis", axis}, {"out_lens", out_lens}}));
-            new_dims.erase(trailb, new_dims.end());
-            new_dims.erase(new_dims.begin(), new_dims.begin() + axis);
-        }
-        else
-        {
-            result.push_back(make_op("multibroadcast", {{"out_lens", out_lens}}));
-        }
+        for_each_subdimension(new_dims, &flatten_broadcasted_dim);
     }
-    // If all the dimensions have no axes then there isnt anthing else to do
-    // so just clear the new_dims
-    if(std::all_of(new_dims.begin(), new_dims.end(), &has_no_axes))
-        new_dims.clear();
-    // Flatten broadcasted dimensions
-    for(auto& d : new_dims)
+    else
     {
-        if(d.subdimensions.size() != 1)
-            continue;
-        flatten_broadcasted_dim(d.subdimensions.front());
+        // Need broadcast
+        if(std::any_of(new_dims.begin(), new_dims.end(), &is_broadcast_dim))
+        {
+            std::vector<std::size_t> out_lens;
+            std::transform(new_dims.begin(),
+                           new_dims.end(),
+                           std::back_inserter(out_lens),
+                           [](const dimension& d) { return d.len(); });
+            auto startb     = std::find_if_not(new_dims.begin(), new_dims.end(), &has_no_axes);
+            auto trailb     = std::find_if_not(startb, new_dims.end(), &has_axes);
+            auto axis       = std::distance(new_dims.begin(), startb);
+            auto extra_dims = axis + std::distance(trailb, new_dims.end());
+            // Use broadcast instead of multibroadcast
+            if(std::all_of(trailb, new_dims.end(), &has_no_axes) and extra_dims > 0 and
+               axis < new_dims.size())
+            {
+                result.push_back(make_op("broadcast", {{"axis", axis}, {"out_lens", out_lens}}));
+                new_dims.erase(trailb, new_dims.end());
+                new_dims.erase(new_dims.begin(), new_dims.begin() + axis);
+            }
+            else
+            {
+                result.push_back(make_op("multibroadcast", {{"out_lens", out_lens}}));
+            }
+        }
+        // If all the dimensions have no axes then there isnt anthing else to do
+        // so just clear the new_dims
+        if(std::all_of(new_dims.begin(), new_dims.end(), &has_no_axes))
+            new_dims.clear();
+        // Flatten broadcasted dimensions
+        for(auto& d : new_dims)
+        {
+            if(d.subdimensions.size() != 1)
+                continue;
+            flatten_broadcasted_dim(d.subdimensions.front());
+        }
     }
     // Need squeeze reshape
     if(std::any_of(new_dims.begin(), new_dims.end(), [](const dimension& d) {

@@ -31,6 +31,9 @@
 #include <migraphx/make_op.hpp>
 #include <vector>
 #include <map>
+#include <algorithm>
+#include <cmath>
+#include <tuple>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -157,6 +160,7 @@ struct parse_resize : op_parser<parse_resize>
         std::string get_nearest_mode() const { return r_attr.nearest_mode; }
         std::string get_coord_trans_mode() const { return r_attr.coord_t_mode; }
         std::string get_mode() const { return r_attr.mode; }
+        float get_cubic_coeff() const {return r_attr.cubic_coeff_a; }
 
         void set_scales_sizes_arg(instruction_ref ref) { scales_sizes_arg = ref; }
 
@@ -278,11 +282,11 @@ struct parse_resize : op_parser<parse_resize>
         void set_mode(const onnx_parser::attribute_map& attr)
         {
             if(contains(attr, "mode"))
-            { // TODO: Add support for cubic mode
+            { 
                 auto mode = attr.at("mode").s();
-                if(mode != "nearest" and mode != "linear")
+                if(mode != "nearest" and mode != "linear" and mode != "cubic")
                 {
-                    MIGRAPHX_THROW("PARSE_RESIZE: only nearest and linear modes are supported!");
+                    MIGRAPHX_THROW("PARSE_RESIZE: only cubic, linear, and nearest modes are supported!");
                 }
                 r_attr.mode = mode;
             }
@@ -390,7 +394,33 @@ struct parse_resize : op_parser<parse_resize>
         {
             return arg->get_shape().lens().at(0) == in_lens.size();
         }
+
+        size_t get_input_rank() const
+        {
+            return in_lens.size();
+        }
+
+        size_t get_scale_or_size_rank() const
+        {
+            return vec_scale.size();
+        }
+
+        // Get Dimension of the data - relevant to how we'll scale and dimensions
+        // if dims are 2 or 3 they're treated as input with channel and batch set to 1
+
+        // 2D - (batch, channel, height, width) or (height, width)
+        bool is_2d_image() const
+        {
+            return (get_input_rank() == 2 or get_input_rank() == 4);
+        }
+
+        // 3D - (batch, channel, height, width, depth) or (height, width, depth)
+        bool is_3d_image() const
+        {
+            return (get_input_rank() == 3 or get_input_rank() == 5);
+        }
     };
+
 
     // Helper to add a "reshape" and "gather" instruction.  These can implement
     // Nearest mode resizing if all sizes are known at compile time.
@@ -568,6 +598,273 @@ struct parse_resize : op_parser<parse_resize>
         return data;
     }
 
+
+    // Generate cubic sample value based on the following piecewise function for cubic interpolation
+    static float get_cubic_key_value(const float& s, const float& a)
+    {
+        auto abs_s = std::abs(s);
+
+        if (abs_s < 1.0)
+            return  (a + 2.0f) * std::pow(abs_s, 3) - (a + 3.0f) * std::pow(abs_s, 2) + 1.0;
+
+        if (abs_s < 2.0)
+            return a * std::pow(abs_s, 3) - 5.0f * a * std::pow(abs_s, 2) + 8.0f * a * abs_s - 4.0f * a;
+
+        return 0.0f;
+    }
+
+    // Generate the coefficient vector used for the desired scaling for a given dimension
+    static std::vector<float> build_cubic_matrix(const size_t& input_size,
+                                                 const size_t& output_size,
+                                                 const float& scale, 
+                                                 const float& cubic_coefficient, 
+                                                 const float& tolerance, 
+                                                 const std::string& mode)
+    {
+        std::vector<float> matrix(input_size * output_size, 0.0f);
+
+        // Used to get the indexing mode use to generate interpolation "center"
+        // center changes based on mode but always takes input, output, index and scale 
+        // to calculate based on the pixel coorednate transform mode
+        auto idx_op = op::resize::get_original_idx_op(mode);
+
+        for (size_t o_idx = 0; o_idx < output_size; ++o_idx)
+        {
+            auto input_coord = idx_op(input_size, output_size, o_idx, scale);
+
+            auto base = static_cast<size_t>(std::floor(input_coord));
+
+            for(size_t i = 0; i < 4; ++i)
+            {
+                auto pos = base + i;
+                auto t = input_coord - pos;
+                auto weight =  get_cubic_key_value(t, cubic_coefficient);
+
+                // clamp position to valid input range with proper boundary handling
+                auto clamped_pos = std::max(0UL, std::min(pos, input_size -1));
+
+                // Skip near zero weights
+                if (std::abs(weight) > tolerance)
+                {
+                    // Matrix is stored in row-major order: matrix[row * cols+col]
+                    // want matrix[ input_pos, output_pos] = weight
+                    auto matrix_idx = clamped_pos * output_size + o_idx;
+                    matrix[matrix_idx] += weight;
+
+                }
+            }
+        }
+
+        return matrix;
+    }
+
+    static std::vector<float> gen_identity_matrix(const size_t& num_rows, const size_t& num_cols)
+    {
+        std::vector<float> identity_mat(num_rows * num_cols, 0.0f);
+        for(std::ptrdiff_t i = 0; i < num_rows; ++i)
+        {
+            if(i < num_cols and i >= 0)
+                identity_mat[(num_cols + 1) * i ] = char{1};
+        }
+        return identity_mat;
+    }
+
+
+    // Optimized kronecker product of  A ⊗ B with sparsity exploitation
+    // Take in two matrices A and B and return the flattened result of 
+    // as (A rows * B rows) x (A cols * B cols)
+    //  Optimizations:
+    // - Skip computation for near-zero elements in A
+    // - Pre-compute non-zero indices in B for efficiency
+    // - Use vectorized operations where possible
+    static std::vector<float> kronecker_product_optimized(const std::vector<float>& a_mat, const size_t& a_rows, const size_t& a_cols,
+                                                          const std::vector<float>& b_mat, const size_t& b_rows, const size_t& b_cols,
+                                                          const float& tolerance)
+    {
+        auto result_rows = a_rows * b_rows;
+        auto result_cols = a_cols * b_cols;
+        std::vector<float> result(result_rows * result_cols, 0.0f);
+
+        std::vector<std::tuple<size_t, size_t, float>> b_nonzero{};
+
+        // Find nonzero b values
+        for (size_t bi = 0; bi < b_rows; ++bi)
+        {
+            for (size_t bj = 0; bj < b_cols; ++bj)
+            {
+                auto b_val = b_mat.at(bi * b_cols + bj);
+                if (std::abs(b_val) > tolerance)
+                    b_nonzero.push_back({bi, bj, b_val});
+            }
+        }
+
+        // Find nonzero A values and compute kronecker product
+        for (size_t ai = 0; ai < a_rows; ++ai)
+        {
+            for (size_t aj = 0; aj < a_cols; ++aj)
+            {
+                auto a_val = a_mat.at(ai * a_cols + aj);
+                if (std::abs(a_val) > tolerance)
+                {
+                    auto block_start_row = ai * b_rows;
+                    auto block_start_col = aj * b_cols;
+
+                    for(const auto& b_tuple: b_nonzero)
+                    {
+                        auto bi    = std::get<0>(b_tuple);
+                        auto bj    = std::get<1>(b_tuple);
+                        auto b_val = std::get<2>(b_tuple);
+                        auto result_row = block_start_row + bi;
+                        auto result_col = block_start_col + bj;
+
+                        result.at(result_row * result_cols + result_col) = a_val * b_val;
+                    }
+                }
+            }
+        }
+
+        return result;
+    }
+
+    // Builds the interpolation matrix for spatial dimensions only using kronecker product
+    // For image tensor [N, C, H, W], this builds a matrix for H and W dimensions only
+    // The result is a matrix of shape [H_in*W_in, H_out*W_out] that can be applied to each N*C slice
+    static instruction_ref build_n_cubic_interpolation_matrix(const onnx_parser::node_info& info,
+                                                              const resize_args& resize)
+    {
+        auto in_lens   = resize.in_lens;
+        auto out_lens  = resize.out_lens;
+        auto vec_scale = resize.vec_scale;
+
+        float tolerance        = 1e-8;
+        auto  pixel_mode       = resize.get_coord_trans_mode();
+        auto cubic_coefficient = resize.get_cubic_coeff();
+
+        // Store data as {rows, cols, data} for each spatial dimension
+        std::vector<std::tuple<size_t, size_t, std::vector<float>>> matrix_list;
+
+        // Skip first 2 dimensions (batch and channel), only process spatial dimensions
+        // For a 4D tensor [N, C, H, W], we process H and W (indices 2 and 3)
+        size_t spatial_start = std::min(static_cast<size_t>(2), in_lens.size());
+        
+        for (size_t dim_index = spatial_start; dim_index < vec_scale.size(); ++dim_index)
+        {
+            auto scale = vec_scale.at(dim_index);
+            auto in_size = in_lens.at(dim_index);
+            auto out_size = out_lens.at(dim_index);
+            
+            // Perform identity if scale is 1.0 (no resize needed for this dimension)
+            if (std::abs(scale - 1.0f) < tolerance)
+            {
+                matrix_list.push_back({in_size, in_size, gen_identity_matrix(in_size, in_size)});
+            }
+            else
+            {
+                auto matrix_data = build_cubic_matrix(in_size,
+                                                      out_size,
+                                                      scale,
+                                                      cubic_coefficient, 
+                                                      tolerance, 
+                                                      pixel_mode);
+                // Matrix dimensions are (in_size rows, out_size cols) for proper dot product
+                matrix_list.push_back({in_size, out_size, matrix_data});
+            }
+        }
+
+        // Handle case where there are no spatial dimensions to process
+        if (matrix_list.empty())
+        {
+            // Return identity matrix of size 1x1
+            return info.add_literal(migraphx::literal(
+                migraphx::shape{migraphx::shape::float_type, {1, 1}}, 
+                std::vector<float>{1.0f}));
+        }
+
+        // Combine matrices using kronecker product
+        auto result_rows = std::get<0>(matrix_list.at(0));
+        auto result_cols = std::get<1>(matrix_list.at(0));
+        auto result_mat  = std::get<2>(matrix_list.at(0));
+
+        float zero_tolerance = 1e-12; // determines our baseline for "zero" or near zero
+
+        for(size_t index = 1; index < matrix_list.size(); ++index)
+        {
+            auto rows   = std::get<0>(matrix_list.at(index));
+            auto cols   = std::get<1>(matrix_list.at(index));
+            auto matrix = std::get<2>(matrix_list.at(index));
+
+            result_mat  = kronecker_product_optimized(result_mat, result_rows, result_cols,
+                                                       matrix, rows, cols, zero_tolerance);
+            result_rows *= rows;
+            result_cols *= cols;
+        }
+        
+        // Generate a final literal based on the optimized output to return
+        return info.add_literal(migraphx::literal(
+            migraphx::shape{migraphx::shape::float_type, {result_rows, result_cols}}, 
+            result_mat));
+    }
+
+    static instruction_ref
+    reshape_input_for_dot(const onnx_parser::node_info& info, resize_args& resize)
+    {
+        auto in_lens  = resize.in_s.lens();
+        
+        // For image tensor [N, C, H, W], we need to flatten spatial dimensions
+        // and combine batch/channel for proper matrix multiplication
+        // Result shape: [N*C, H*W] to multiply with interpolation matrix [H*W, H_out*W_out]
+        
+        size_t batch_channel = 1;
+        size_t spatial = 1;
+        
+        // First two dimensions are batch and channel (or equivalent)
+        for (size_t i = 0; i < 2 && i < in_lens.size(); ++i)
+        {
+            batch_channel *= in_lens.at(i);
+        }
+        
+        // Remaining dimensions are spatial
+        for (size_t i = 2; i < in_lens.size(); ++i)
+        {
+            spatial *= in_lens.at(i);
+        }
+
+        // reshape input for dot product: [N*C, H*W]
+        std::vector<int64_t> rsp_lens{static_cast<int64_t>(batch_channel), 
+                                      static_cast<int64_t>(spatial)};
+        return info.add_instruction(make_op("reshape", {{"dims", rsp_lens}}), resize.x);
+    }
+
+    // Cubic interpolation using matrix multiplication approach:
+    // 1. Reshape input [N, C, H, W] to [N*C, H*W] (flatten spatial dims, combine batch/channel)
+    // 2. Build interpolation matrix [H_in*W_in, H_out*W_out] using kronecker product of per-dim cubic matrices
+    // 3. Matrix multiply: [N*C, H*W] @ [H*W, H_out*W_out] = [N*C, H_out*W_out]
+    // 4. Reshape result to [N, C, H_out, W_out]
+    static instruction_ref handle_cubic_mode(const op_desc& opd,
+                                             const onnx_parser::node_info& info,
+                                             resize_args& resize)
+    {
+        auto out_lens  = resize.out_lens;
+
+        // out_lens and other variables can't be populated if non-constant (runtime) size inputs
+        if(not resize.is_constant_scale_input())
+            MIGRAPHX_THROW("PARSE_" + opd.onnx_name +
+                           ": cubic mode not supported for non-constant inputs");
+
+        // Build interpolation matrix for spatial dimensions only
+        auto interpolation_mat = build_n_cubic_interpolation_matrix(info, resize);
+
+        // Reshape input to [N*C, H*W] for matrix multiplication
+        auto rsp = reshape_input_for_dot(info, resize);
+
+        // Apply interpolation: [N*C, H*W] @ [H*W, H_out*W_out] = [N*C, H_out*W_out]
+        auto interpolated_output = info.add_instruction(make_op("dot"), rsp, interpolation_mat);
+
+        // Reshape to final output shape [N, C, H_out, W_out]
+        std::vector<int64_t> out_dims(out_lens.begin(), out_lens.end());
+        return info.add_instruction(make_op("reshape", {{"dims", out_dims}}), interpolated_output);
+    }
+
     static void set_resize_attributes(const onnx_parser::node_info& info,
                                       const std::vector<instruction_ref>& args,
                                       resize_args& resize)
@@ -642,10 +939,13 @@ struct parse_resize : op_parser<parse_resize>
         {
             return handle_nearest_neighbor(info, resize, args[0]);
         }
-        // linear mode
-        else
+        else if(resize.get_mode() == "linear")
         {
             return handle_linear_mode(opd, info, resize, args[0]);
+        }
+        else
+        {
+            return handle_cubic_mode(opd, info, resize);
         }
     }
 };

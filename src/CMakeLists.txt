@@ -87,6 +87,7 @@ add_library(migraphx
     insert_pad.cpp
     instruction.cpp
     json.cpp
+    trt_json.cpp
     layout_convolution.cpp
     lexing.cpp
     load_save.cpp

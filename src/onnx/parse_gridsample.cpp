@@ -421,6 +421,7 @@ struct bicubic_sampler : grid_sampler
                     const onnx_parser::node_info& info)
         : grid_sampler(input, grid, align, std::move(padding), info)
     {
+        // cppcheck-suppress useInitializationList
         m_a_l        = info.add_literal(migraphx::literal{migraphx::shape{m_grid_type}, {-0.75}});
         m_aplus2_l   = info.add_literal(migraphx::literal{migraphx::shape{m_grid_type}, {1.25}});
         m_aplus3_l   = info.add_literal(migraphx::literal{migraphx::shape{m_grid_type}, {2.25}});

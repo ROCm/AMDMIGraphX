@@ -733,6 +733,7 @@ struct rebase_ambiguity_resolver
         }
     }
 
+    private:
     shape_transform_descriptor* desc;
     const std::vector<std::size_t>* dims;
     std::multimap<std::size_t, std::size_t> shortage_axes;
@@ -743,7 +744,8 @@ struct rebase_ambiguity_resolver
 };
 
 shape_transform_descriptor shape_transform_descriptor::rebase(const std::vector<std::size_t>& dims,
-                                                              bool broadcast) const
+                                                              bool broadcast,
+                                                              bool has_multibroadcast) const
 {
     auto result   = *this;
     auto axes_map = rebase_ambiguity_resolver{result, dims}.resolve();
@@ -790,8 +792,14 @@ shape_transform_descriptor shape_transform_descriptor::rebase(const std::vector<
             return {};
     }
     for(auto& dim : result.dimensions)
+    {
         remove_empty_sub_dims(dim.subdimensions);
-	result.simplify();
+    }
+
+    if(not has_multibroadcast)
+    {
+        result.simplify();
+    }
     if(broadcast and not is_broadcast_only(dimensions, result.dimensions))
         return {};
 
@@ -1611,11 +1619,12 @@ static std::vector<int64_t> find_permutation(const std::vector<dimension::sub>& 
 // are generated from the subdimensions and steps 4-5 are generated with the
 // dimensions.
 std::vector<operation>
-shape_transform_descriptor::generate(const std::vector<std::size_t>& input_dims) const
+shape_transform_descriptor::generate(const std::vector<std::size_t>& input_dims,
+                                     const bool has_multibroadcast) const
 {
     operation_list result;
     std::vector<dimension> new_dims =
-        input_dims.empty() ? dimensions : this->rebase(input_dims).dimensions;
+        input_dims.empty() ? dimensions : this->rebase(input_dims, false, has_multibroadcast).dimensions;
     assert(input_dims.empty() or not new_dims.empty());
     // Need broadcast
     if(std::any_of(new_dims.begin(), new_dims.end(), &is_broadcast_dim))

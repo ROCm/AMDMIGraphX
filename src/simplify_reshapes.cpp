@@ -256,6 +256,19 @@ struct find_op_shape_transform_op
         }
     }
 
+    static std::vector<operation> generate(const shape_transform_descriptor& desc,
+                                        const shape& input_shape, const bool has_multibroadcast)
+    {
+        if(input_shape.scalar() and input_shape.elements() == 1 and input_shape.ndim() == 1)
+        {
+            return {make_op("multibroadcast", {{"out_lens", desc.lens()}})};
+        }
+        else
+        {
+            return desc.generate(input_shape.lens(), has_multibroadcast);
+        }
+    }
+
     static shape_transform_descriptor
     make_descriptor(instruction_ref x_ins, std::vector<operation> ops, instruction_ref input_ins)
     {
@@ -340,13 +353,29 @@ struct find_op_shape_transform_op
             return;
         }
 
+        const auto has_multibroadcast =
+            std::any_of(ops.begin(), ops.end(), [](const operation& op) {
+                return op.name() == "multibroadcast";
+            });
+
         auto reshape_input = [&](const auto& ins_to_insert, const auto& gdesc) {
             return [&](auto input) {
-                auto gops = generate(gdesc, input->get_shape());
-                return std::accumulate(
-                    gops.begin(), gops.end(), input, [&](auto start, const auto& op) {
-                        return m.insert_instruction(ins_to_insert, op, start);
-                    });
+                if(has_multibroadcast)
+                {
+                    auto gops = generate(gdesc, input->get_shape(), has_multibroadcast);
+                    return std::accumulate(
+                        gops.begin(), gops.end(), input, [&](auto start, const auto& op) {
+                            return m.insert_instruction(ins_to_insert, op, start);
+                        });
+                }
+                else
+                {
+                    auto gops = generate(gdesc, input->get_shape());
+                    return std::accumulate(
+                        gops.begin(), gops.end(), input, [&](auto start, const auto& op) {
+                            return m.insert_instruction(ins_to_insert, op, start);
+                        });
+                }
             };
         };
         auto x_inputs = x_ins->inputs();

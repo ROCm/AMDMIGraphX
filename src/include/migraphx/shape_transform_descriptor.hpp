@@ -79,7 +79,8 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
                                              const std::vector<operation>& ops);
 
     shape_transform_descriptor rebase(const std::vector<std::size_t>& dims,
-                                      bool broadcast = false) const;
+                                      bool broadcast = false,
+                                      bool has_multibroadcast = false) const;
 
     bool apply(const std::vector<operation>& ops);
     bool apply_reshape(const std::vector<std::size_t>& rdims);
@@ -89,7 +90,8 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
                          optional<std::size_t> axis = nullopt);
     void simplify();
     std::size_t elements() const;
-    std::vector<operation> generate(const std::vector<std::size_t>& input_dims = {}) const;
+    std::vector<operation> generate(const std::vector<std::size_t>& input_dims = {},
+                                     const bool has_multibroadcast = false) const;
 
     std::set<std::size_t> find_broadcasted_axes() const;
     bool has_broadcast() const;

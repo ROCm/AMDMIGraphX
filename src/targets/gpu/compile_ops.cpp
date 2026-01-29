@@ -131,7 +131,7 @@ struct dynamic_code_object_op
         if(cache_mod and *cache_input_shapes == to_shapes(args))
         {
             static_args[static_args.size() - 1] = output_arg.reshape(*cache_static_output_shape);
-            auto mod                            = cache_mod.get();
+            auto* mod                           = cache_mod.get();
             auto param_map                      = build_param_map(static_args, mod);
             auto results                        = run(mod, param_map);
             if(results.size() > 1)

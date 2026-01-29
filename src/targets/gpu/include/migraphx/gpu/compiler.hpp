@@ -31,7 +31,9 @@
 #include <migraphx/module.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/optional.hpp>
+#include <migraphx/output_iterator.hpp>
 #include <migraphx/rank.hpp>
+#include <migraphx/stringutils.hpp>
 #include <migraphx/gpu/tuning_config.hpp>
 #include <functional>
 #include <utility>
@@ -73,7 +75,7 @@ struct compiler_replace
     }
 
     std::vector<operation> code_objects = {};
-    std::function<void(const compiler_replace& cr, module& m, instruction_ref ins)> replace_fn =
+    std::function<instruction_ref(const compiler_replace& cr, module& m, instruction_ref ins)> replace_fn =
         nullptr;
     std::function<void(std::ostream& os, instruction_ref ins)> trace_fn = nullptr;
     std::unordered_map<std::string, double> fill_map                    = {};
@@ -82,7 +84,7 @@ struct compiler_replace
     static auto make_replace(F f)
     {
         return [f = std::move(f)](const compiler_replace& cr, module& m, instruction_ref ins) {
-            f(m, ins, cr.code_objects.front());
+            return f(m, ins, cr.code_objects.front());
         };
     }
 
@@ -90,21 +92,45 @@ struct compiler_replace
     static auto make_replace_all(F f)
     {
         return [f = std::move(f)](const compiler_replace& cr, module& m, instruction_ref ins) {
-            f(m, ins, cr.code_objects);
+            return f(m, ins, cr.code_objects);
         };
     }
 
     void replace(module& m, instruction_ref ins) const
     {
+        shape expected = ins->get_shape();
+        std::vector<module_ref> modules = ins->module_inputs();
+        std::transform(ins->module_inputs().begin(),
+                       ins->module_inputs().end(),
+                       join_back_inserter(modules),
+                       [](module_ref smod) { return smod->get_sub_modules(); });
+
+        auto op = ins->get_operator();
+        instruction_ref result;
         if(replace_fn)
-            replace_fn(*this, m, ins);
+            result = replace_fn(*this, m, ins);
         else
         {
             if(code_objects.size() != 1)
             {
                 MIGRAPHX_THROW("Provide custom replace function to insert multiple code objects\n");
             }
-            m.replace_instruction(ins, code_objects.front(), ins->inputs());
+            result = m.replace_instruction(ins, code_objects.front(), ins->inputs());
+        }
+        if(not shape::is_compatible(result->get_shape(), expected))
+        {
+            std::stringstream ss;
+            ss << op << "(" << to_string_range(to_shapes(ins->inputs())) << ")\n";
+            for(module_ref smod:modules) {
+                ss << *smod << std::endl;
+                smod->print_py(ss);
+                ss << std::endl;
+            }
+            trace(ss, ins);
+            MIGRAPHX_THROW("Incompatible shape after compiler replace: expected " +
+                           to_string(expected) + " but got " +
+                           to_string(result->get_shape()) + "\n" + ss.str());
+        
         }
     }
 

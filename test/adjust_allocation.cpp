@@ -119,7 +119,8 @@ struct simple_op
 static void run_pass(migraphx::module& m)
 {
     migraphx::run_passes(
-        m, {migraphx::adjust_allocation{test_allocation_model{}}, migraphx::dead_code_elimination{}});
+        m,
+        {migraphx::adjust_allocation{test_allocation_model{}}, migraphx::dead_code_elimination{}});
 }
 
 // Test that adjust_allocation reallocates when the output shape differs from the allocated shape
@@ -129,8 +130,7 @@ TEST_CASE(realloc_shape_mismatch)
     {
         auto x = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
         // Allocate a buffer with shape {3, 2} but the operator returns shape {2, 3}
-        auto alloc =
-            m1.add_instruction(test_allocate{{migraphx::shape::float_type, {3, 2}}});
+        auto alloc = m1.add_instruction(test_allocate{{migraphx::shape::float_type, {3, 2}}});
         m1.add_instruction(simple_op{{migraphx::shape::float_type, {2, 3}}}, x, alloc);
     }
     run_pass(m1);
@@ -139,8 +139,7 @@ TEST_CASE(realloc_shape_mismatch)
     {
         auto x = m2.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
         // After adjust_allocation, the allocate should have the correct shape {2, 3}
-        auto alloc =
-            m2.add_instruction(test_allocate{{migraphx::shape::float_type, {2, 3}}});
+        auto alloc = m2.add_instruction(test_allocate{{migraphx::shape::float_type, {2, 3}}});
         m2.add_instruction(simple_op{{migraphx::shape::float_type, {2, 3}}}, x, alloc);
     }
 
@@ -154,8 +153,7 @@ TEST_CASE(no_realloc_shape_match)
     {
         auto x = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
         // Allocate a buffer with the same shape as the operator output
-        auto alloc =
-            m1.add_instruction(test_allocate{{migraphx::shape::float_type, {2, 3}}});
+        auto alloc = m1.add_instruction(test_allocate{{migraphx::shape::float_type, {2, 3}}});
         m1.add_instruction(simple_op{{migraphx::shape::float_type, {2, 3}}}, x, alloc);
     }
     migraphx::module m2 = m1;
@@ -168,7 +166,7 @@ TEST_CASE(skip_output_param_shape_match)
 {
     migraphx::module m1;
     {
-        auto x   = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
         // Output parameter with same shape as what the operator produces
         auto out = m1.add_parameter("output", {migraphx::shape::float_type, {2, 3}});
         auto r   = m1.add_instruction(simple_op{{migraphx::shape::float_type, {2, 3}}}, x, out);
@@ -211,8 +209,7 @@ TEST_CASE(realloc_nonstandard_strides)
     {
         auto x = m2.add_parameter("x", {migraphx::shape::float_type, {3, 2}});
         // After adjust_allocation, should have standard strides
-        auto alloc =
-            m2.add_instruction(test_allocate{{migraphx::shape::float_type, {3, 2}}});
+        auto alloc = m2.add_instruction(test_allocate{{migraphx::shape::float_type, {3, 2}}});
         m2.add_instruction(simple_op{{migraphx::shape::float_type, {3, 2}}}, x, alloc);
     }
 
@@ -226,17 +223,15 @@ TEST_CASE(realloc_different_dtype)
     {
         auto x = m1.add_parameter("x", {migraphx::shape::half_type, {4, 4}});
         // Allocate with wrong dimensions for half type
-        auto alloc =
-            m1.add_instruction(test_allocate{{migraphx::shape::half_type, {2, 8}}});
+        auto alloc = m1.add_instruction(test_allocate{{migraphx::shape::half_type, {2, 8}}});
         m1.add_instruction(simple_op{{migraphx::shape::half_type, {4, 4}}}, x, alloc);
     }
     run_pass(m1);
 
     migraphx::module m2;
     {
-        auto x = m2.add_parameter("x", {migraphx::shape::half_type, {4, 4}});
-        auto alloc =
-            m2.add_instruction(test_allocate{{migraphx::shape::half_type, {4, 4}}});
+        auto x     = m2.add_parameter("x", {migraphx::shape::half_type, {4, 4}});
+        auto alloc = m2.add_instruction(test_allocate{{migraphx::shape::half_type, {4, 4}}});
         m2.add_instruction(simple_op{{migraphx::shape::half_type, {4, 4}}}, x, alloc);
     }
 
@@ -252,13 +247,11 @@ TEST_CASE(realloc_mixed_instructions)
         auto y = m1.add_parameter("y", {migraphx::shape::float_type, {3, 2}});
 
         // First op: needs reallocation (allocated {3, 2} but returns {2, 3})
-        auto alloc1 =
-            m1.add_instruction(test_allocate{{migraphx::shape::float_type, {3, 2}}});
+        auto alloc1 = m1.add_instruction(test_allocate{{migraphx::shape::float_type, {3, 2}}});
         auto r1 = m1.add_instruction(simple_op{{migraphx::shape::float_type, {2, 3}}}, x, alloc1);
 
         // Second op: no reallocation needed (shapes match)
-        auto alloc2 =
-            m1.add_instruction(test_allocate{{migraphx::shape::float_type, {3, 2}}});
+        auto alloc2 = m1.add_instruction(test_allocate{{migraphx::shape::float_type, {3, 2}}});
         auto r2 = m1.add_instruction(simple_op{{migraphx::shape::float_type, {3, 2}}}, y, alloc2);
 
         auto sum = m1.add_instruction(migraphx::make_op("add"), r1, r1);
@@ -272,13 +265,11 @@ TEST_CASE(realloc_mixed_instructions)
         auto y = m2.add_parameter("y", {migraphx::shape::float_type, {3, 2}});
 
         // First op: reallocated to correct shape
-        auto alloc1 =
-            m2.add_instruction(test_allocate{{migraphx::shape::float_type, {2, 3}}});
+        auto alloc1 = m2.add_instruction(test_allocate{{migraphx::shape::float_type, {2, 3}}});
         auto r1 = m2.add_instruction(simple_op{{migraphx::shape::float_type, {2, 3}}}, x, alloc1);
 
         // Second op: unchanged
-        auto alloc2 =
-            m2.add_instruction(test_allocate{{migraphx::shape::float_type, {3, 2}}});
+        auto alloc2 = m2.add_instruction(test_allocate{{migraphx::shape::float_type, {3, 2}}});
         auto r2 = m2.add_instruction(simple_op{{migraphx::shape::float_type, {3, 2}}}, y, alloc2);
 
         auto sum = m2.add_instruction(migraphx::make_op("add"), r1, r1);
@@ -293,7 +284,8 @@ TEST_CASE(skip_no_inputs)
 {
     migraphx::module m1;
     {
-        auto lit = m1.add_literal(migraphx::literal{{migraphx::shape::float_type, {2, 2}}, {1, 2, 3, 4}});
+        auto lit =
+            m1.add_literal(migraphx::literal{{migraphx::shape::float_type, {2, 2}}, {1, 2, 3, 4}});
         m1.add_return({lit});
     }
     migraphx::module m2 = m1;
@@ -308,17 +300,15 @@ TEST_CASE(realloc_3d_tensor)
     {
         auto x = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3, 4}});
         // Allocate wrong 3D shape
-        auto alloc =
-            m1.add_instruction(test_allocate{{migraphx::shape::float_type, {4, 3, 2}}});
+        auto alloc = m1.add_instruction(test_allocate{{migraphx::shape::float_type, {4, 3, 2}}});
         m1.add_instruction(simple_op{{migraphx::shape::float_type, {2, 3, 4}}}, x, alloc);
     }
     run_pass(m1);
 
     migraphx::module m2;
     {
-        auto x = m2.add_parameter("x", {migraphx::shape::float_type, {2, 3, 4}});
-        auto alloc =
-            m2.add_instruction(test_allocate{{migraphx::shape::float_type, {2, 3, 4}}});
+        auto x     = m2.add_parameter("x", {migraphx::shape::float_type, {2, 3, 4}});
+        auto alloc = m2.add_instruction(test_allocate{{migraphx::shape::float_type, {2, 3, 4}}});
         m2.add_instruction(simple_op{{migraphx::shape::float_type, {2, 3, 4}}}, x, alloc);
     }
 

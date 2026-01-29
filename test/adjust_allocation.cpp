@@ -461,4 +461,87 @@ TEST_CASE(insert_copy_result_not_used_later)
     EXPECT(m1 == m2);
 }
 
+// Test that view operations as output buffer are not modified (shallow alias only traces one level)
+// The pass uses shallow=true, so it only looks at the immediate output alias, not through view ops
+TEST_CASE(skip_aliased_through_transpose)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {3, 2}});
+        // Allocate {2, 3} and transpose to {3, 2} - pass won't modify since alias is transpose, not allocate
+        auto alloc = m1.add_instruction(test_allocate{{migraphx::shape::float_type, {2, 3}}});
+        auto t = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), alloc);
+        m1.add_instruction(simple_op{{migraphx::shape::float_type, {3, 2}}}, x, t);
+    }
+    // With shallow=true aliasing, the pass sees transpose as the alias, not the allocate
+    // Since transpose is not an allocate or parameter, the pass skips this instruction
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+// Test that squeeze as output buffer is skipped (shallow alias)
+TEST_CASE(skip_aliased_through_squeeze)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+        auto alloc = m1.add_instruction(test_allocate{{migraphx::shape::float_type, {1, 2, 3}}});
+        auto sq = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), alloc);
+        m1.add_instruction(simple_op{{migraphx::shape::float_type, {2, 3}}}, x, sq);
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+// Test that unsqueeze as output buffer is skipped (shallow alias)
+TEST_CASE(skip_aliased_through_unsqueeze)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 2, 3}});
+        auto alloc = m1.add_instruction(test_allocate{{migraphx::shape::float_type, {2, 3}}});
+        auto usq = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), alloc);
+        m1.add_instruction(simple_op{{migraphx::shape::float_type, {1, 2, 3}}}, x, usq);
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+// Test that slice as output buffer is skipped (shallow alias)
+TEST_CASE(skip_aliased_through_slice)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+        auto alloc = m1.add_instruction(test_allocate{{migraphx::shape::float_type, {4, 6}}});
+        auto sl    = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {0, 0}}, {"ends", {2, 3}}}),
+            alloc);
+        m1.add_instruction(simple_op{{migraphx::shape::float_type, {2, 3}}}, x, sl);
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+// Test that transposed parameter as output buffer is skipped (shallow alias)
+TEST_CASE(skip_aliased_param_through_transpose)
+{
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", {migraphx::shape::float_type, {3, 2}});
+        auto out = m1.add_parameter("output", {migraphx::shape::float_type, {2, 3}});
+        auto t   = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), out);
+        auto r   = m1.add_instruction(simple_op{{migraphx::shape::float_type, {3, 2}}}, x, t);
+        m1.add_return({r});
+    }
+    // Shallow alias sees transpose, not the parameter, so pass skips this
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -75,8 +75,8 @@ struct compiler_replace
     }
 
     std::vector<operation> code_objects = {};
-    std::function<instruction_ref(const compiler_replace& cr, module& m, instruction_ref ins)> replace_fn =
-        nullptr;
+    std::function<instruction_ref(const compiler_replace& cr, module& m, instruction_ref ins)>
+        replace_fn                                                      = nullptr;
     std::function<void(std::ostream& os, instruction_ref ins)> trace_fn = nullptr;
     std::unordered_map<std::string, double> fill_map                    = {};
 
@@ -98,7 +98,7 @@ struct compiler_replace
 
     void replace(module& m, instruction_ref ins) const
     {
-        shape expected = ins->get_shape();
+        shape expected                  = ins->get_shape();
         std::vector<module_ref> modules = ins->module_inputs();
         std::transform(ins->module_inputs().begin(),
                        ins->module_inputs().end(),
@@ -121,16 +121,16 @@ struct compiler_replace
         {
             std::stringstream ss;
             ss << op << "(" << to_string_range(to_shapes(ins->inputs())) << ")\n";
-            for(module_ref smod:modules) {
+            for(module_ref smod : modules)
+            {
                 ss << *smod << std::endl;
                 smod->print_py(ss);
                 ss << std::endl;
             }
             trace(ss, ins);
             MIGRAPHX_THROW("Incompatible shape after compiler replace: expected " +
-                           to_string(expected) + " but got " +
-                           to_string(result->get_shape()) + "\n" + ss.str());
-        
+                           to_string(expected) + " but got " + to_string(result->get_shape()) +
+                           "\n" + ss.str());
         }
     }
 

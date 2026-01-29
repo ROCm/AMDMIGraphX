@@ -36,7 +36,8 @@ static instruction_ref get_allocation(instruction_ref ins)
     auto alias_ins = instruction::get_output_alias(ins, true);
     if(alias_ins == ins)
         return ins;
-    if(alias_ins->inputs().size() == 1 and alias_ins->get_shape() == alias_ins->inputs().front()->get_shape())
+    if(alias_ins->inputs().size() == 1 and
+       alias_ins->get_shape() == alias_ins->inputs().front()->get_shape())
         return get_allocation(alias_ins);
     return alias_ins;
 }

@@ -131,6 +131,10 @@ std::vector<shape> reduce_dims(const std::vector<shape>& shapes)
 {
     if(shapes.empty())
         return {};
+    if(std::any_of(shapes.begin(), shapes.end(), [](const auto& s) { return s.dynamic(); }))
+    {
+        return shapes;
+    }
     auto result = shapes;
     auto base   = base_lens(shapes);
     for(auto&& s : shapes)

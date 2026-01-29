@@ -77,7 +77,7 @@ struct register_op_action
 template <class T>
 using auto_register_op = auto_register<register_op_action, T>;
 
-#define MIGRAPHX_REGISTER_OP(...) MIGRAPHX_AUTO_REGISTER(register_op_action, __VA_ARGS__)
+#define MIGRAPHX_REGISTER_OP(...) MIGRAPHX_AUTO_REGISTER(migraphx::register_op_action, __VA_ARGS__)
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

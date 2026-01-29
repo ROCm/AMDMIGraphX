@@ -26,6 +26,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/register_op.hpp>
 #include <migraphx/module.hpp>
 #include <test.hpp>
 
@@ -44,6 +45,7 @@ struct test_allocate
 
     migraphx::shape compute_shape(const std::vector<migraphx::shape>&) const { return s; }
 };
+MIGRAPHX_REGISTER_OP(test_allocate);
 
 // Test copy operation
 struct test_copy
@@ -64,6 +66,7 @@ struct test_copy
 
     int output_alias(const std::vector<migraphx::shape>&) const { return 1; }
 };
+MIGRAPHX_REGISTER_OP(test_copy);
 
 // Test allocation model
 struct test_allocation_model

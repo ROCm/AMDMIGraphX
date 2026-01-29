@@ -31,6 +31,16 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+static instruction_ref get_allocation(instruction_ref ins)
+{
+    auto alias_ins = instruction::get_output_alias(ins, true);
+    if(alias_ins == ins)
+        return ins;
+    if(alias_ins->inputs().size() == 1 and alias_ins->get_shape() == alias_ins->inputs().front()->get_shape())
+        return get_allocation(alias_ins);
+    return alias_ins;
+}
+
 void adjust_allocation::apply(module& m) const
 {
     for(auto ins : iterator_for(m))
@@ -43,9 +53,13 @@ void adjust_allocation::apply(module& m) const
         if(ins->get_operator().is_context_free())
             continue;
 
-        auto alias_ins = instruction::get_output_alias(ins, true);
+        auto alias_ins = get_allocation(ins);
         if(alias_ins->name() != model.name() and alias_ins->name() != "@param")
+        {
+            if(alias_ins != ins and alias_ins->get_shape() != ins->get_shape())
+                std::cerr << "WARNING: output buffer doesnt match output\n";
             continue;
+        }
         // shape allocated is different from actual shape
         // of the instruction, reallocate and replace the previous one
         if(alias_ins->get_shape() == ins->get_shape())

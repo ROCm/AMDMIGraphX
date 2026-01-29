@@ -468,9 +468,11 @@ TEST_CASE(skip_aliased_through_transpose)
     migraphx::module m1;
     {
         auto x = m1.add_parameter("x", {migraphx::shape::float_type, {3, 2}});
-        // Allocate {2, 3} and transpose to {3, 2} - pass won't modify since alias is transpose, not allocate
+        // Allocate {2, 3} and transpose to {3, 2} - pass won't modify since alias is transpose, not
+        // allocate
         auto alloc = m1.add_instruction(test_allocate{{migraphx::shape::float_type, {2, 3}}});
-        auto t = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), alloc);
+        auto t =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), alloc);
         m1.add_instruction(simple_op{{migraphx::shape::float_type, {3, 2}}}, x, t);
     }
     // With shallow=true aliasing, the pass sees transpose as the alias, not the allocate
@@ -485,9 +487,9 @@ TEST_CASE(skip_aliased_through_squeeze)
 {
     migraphx::module m1;
     {
-        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+        auto x     = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
         auto alloc = m1.add_instruction(test_allocate{{migraphx::shape::float_type, {1, 2, 3}}});
-        auto sq = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), alloc);
+        auto sq    = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), alloc);
         m1.add_instruction(simple_op{{migraphx::shape::float_type, {2, 3}}}, x, sq);
     }
     migraphx::module m2 = m1;
@@ -500,9 +502,9 @@ TEST_CASE(skip_aliased_through_unsqueeze)
 {
     migraphx::module m1;
     {
-        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 2, 3}});
+        auto x     = m1.add_parameter("x", {migraphx::shape::float_type, {1, 2, 3}});
         auto alloc = m1.add_instruction(test_allocate{{migraphx::shape::float_type, {2, 3}}});
-        auto usq = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), alloc);
+        auto usq   = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), alloc);
         m1.add_instruction(simple_op{{migraphx::shape::float_type, {1, 2, 3}}}, x, usq);
     }
     migraphx::module m2 = m1;
@@ -515,7 +517,7 @@ TEST_CASE(skip_aliased_through_slice)
 {
     migraphx::module m1;
     {
-        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+        auto x     = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
         auto alloc = m1.add_instruction(test_allocate{{migraphx::shape::float_type, {4, 6}}});
         auto sl    = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {0, 0}}, {"ends", {2, 3}}}),
@@ -534,8 +536,8 @@ TEST_CASE(skip_aliased_param_through_transpose)
     {
         auto x   = m1.add_parameter("x", {migraphx::shape::float_type, {3, 2}});
         auto out = m1.add_parameter("output", {migraphx::shape::float_type, {2, 3}});
-        auto t   = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), out);
-        auto r   = m1.add_instruction(simple_op{{migraphx::shape::float_type, {3, 2}}}, x, t);
+        auto t = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), out);
+        auto r = m1.add_instruction(simple_op{{migraphx::shape::float_type, {3, 2}}}, x, t);
         m1.add_return({r});
     }
     // Shallow alias sees transpose, not the parameter, so pass skips this

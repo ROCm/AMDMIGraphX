@@ -966,9 +966,8 @@ struct find_gather_to_slice
 {
     auto matcher() const
     {
-        return match::name("gather")(
-            match::args(match::any().bind("data"),
-                        match::is_constant(match::scalar_shape()).bind("ind")));
+        return match::name("gather")(match::args(
+            match::any().bind("data"), match::is_constant(match::scalar_shape()).bind("ind")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -999,15 +998,11 @@ struct find_gather_to_slice
         // Create slice: slice[axes={axis}, starts={idx}, ends={idx+1}]
         auto slice_ins = m.insert_instruction(
             ins,
-            make_op("slice",
-                    {{"axes", {axis}},
-                     {"starts", {idx}},
-                     {"ends", {idx + 1}}}),
+            make_op("slice", {{"axes", {axis}}, {"starts", {idx}}, {"ends", {idx + 1}}}),
             data);
 
         // Create squeeze to remove the sliced dimension
-        m.replace_instruction(
-            ins, make_op("squeeze", {{"axes", {axis}}}), slice_ins);
+        m.replace_instruction(ins, make_op("squeeze", {{"axes", {axis}}}), slice_ins);
     }
 };
 

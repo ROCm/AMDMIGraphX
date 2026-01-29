@@ -3669,8 +3669,7 @@ TEST_CASE(gather_to_slice_scalar_index)
             m1.add_parameter("data", migraphx::shape{migraphx::shape::float_type, {1, 32, 19}});
         auto idx = m1.add_literal(
             migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}, {0}}, {0}});
-        auto gather =
-            m1.add_instruction(migraphx::make_op("gather", {{"axis", 2}}), data, idx);
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 2}}), data, idx);
         m1.add_return({gather});
     }
     run_pass(m1);
@@ -3681,8 +3680,7 @@ TEST_CASE(gather_to_slice_scalar_index)
             m2.add_parameter("data", migraphx::shape{migraphx::shape::float_type, {1, 32, 19}});
         auto slice = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {1}}}), data);
-        auto squeeze =
-            m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), slice);
+        auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), slice);
         m2.add_return({squeeze});
     }
 
@@ -3697,8 +3695,7 @@ TEST_CASE(gather_to_slice_scalar_index_axis0)
             m1.add_parameter("data", migraphx::shape{migraphx::shape::float_type, {10, 32, 64}});
         auto idx = m1.add_literal(
             migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}, {0}}, {5}});
-        auto gather =
-            m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, idx);
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, idx);
         m1.add_return({gather});
     }
     run_pass(m1);
@@ -3709,8 +3706,7 @@ TEST_CASE(gather_to_slice_scalar_index_axis0)
             m2.add_parameter("data", migraphx::shape{migraphx::shape::float_type, {10, 32, 64}});
         auto slice = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {5}}, {"ends", {6}}}), data);
-        auto squeeze =
-            m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), slice);
+        auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), slice);
         m2.add_return({squeeze});
     }
 
@@ -3726,8 +3722,7 @@ TEST_CASE(gather_to_slice_negative_index)
         // -1 means last element (index 18)
         auto idx = m1.add_literal(
             migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}, {0}}, {-1}});
-        auto gather =
-            m1.add_instruction(migraphx::make_op("gather", {{"axis", 2}}), data, idx);
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 2}}), data, idx);
         m1.add_return({gather});
     }
     run_pass(m1);
@@ -3738,8 +3733,7 @@ TEST_CASE(gather_to_slice_negative_index)
             m2.add_parameter("data", migraphx::shape{migraphx::shape::float_type, {1, 32, 19}});
         auto slice = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {18}}, {"ends", {19}}}), data);
-        auto squeeze =
-            m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), slice);
+        auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), slice);
         m2.add_return({squeeze});
     }
 

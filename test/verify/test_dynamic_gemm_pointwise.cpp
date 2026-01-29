@@ -56,6 +56,6 @@ struct test_dynamic_gemm_pointwise : verify_program<test_dynamic_gemm_pointwise<
     }
 };
 
-template struct test_dynamic_gemm_pointwise<4, 4>; 
-template struct test_dynamic_gemm_pointwise<3, 24>;  
-template struct test_dynamic_gemm_pointwise<2, 16>; 
+template struct test_dynamic_gemm_pointwise<4, 4>;
+template struct test_dynamic_gemm_pointwise<3, 24>;
+template struct test_dynamic_gemm_pointwise<2, 16>;

@@ -164,7 +164,7 @@ TEST_CASE(no_realloc_shape_match)
     EXPECT(m1 == m2);
 }
 
-// Test that adjust_allocation skips when output alias is a @param with matching shape
+// Test that adjust_allocation skips when output alias is a parameter with matching shape
 TEST_CASE(skip_output_param_shape_match)
 {
     migraphx::module m1;
@@ -313,6 +313,149 @@ TEST_CASE(realloc_3d_tensor)
         auto x     = m2.add_parameter("x", {migraphx::shape::float_type, {2, 3, 4}});
         auto alloc = m2.add_instruction(test_allocate{{migraphx::shape::float_type, {2, 3, 4}}});
         m2.add_instruction(simple_op{{migraphx::shape::float_type, {2, 3, 4}}}, x, alloc);
+    }
+
+    EXPECT(m1 == m2);
+}
+
+// Test that adjust_allocation inserts a copy when output alias is a parameter with different shape
+TEST_CASE(insert_copy_output_param)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+        // Output parameter with different shape than what the operator produces
+        auto out = m1.add_parameter("output", {migraphx::shape::float_type, {3, 2}});
+        auto r   = m1.add_instruction(simple_op{{migraphx::shape::float_type, {2, 3}}}, x, out);
+        m1.add_return({r});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x   = m2.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+        auto out = m2.add_parameter("output", {migraphx::shape::float_type, {3, 2}});
+        // New allocation with correct shape replaces the parameter
+        auto alloc = m2.add_instruction(test_allocate{{migraphx::shape::float_type, {2, 3}}});
+        auto r     = m2.add_instruction(simple_op{{migraphx::shape::float_type, {2, 3}}}, x, alloc);
+        // Copy from result to output parameter
+        auto c = m2.add_instruction(migraphx::make_op("test::copy"), r, out);
+        m2.add_return({c});
+    }
+
+    EXPECT(m1 == m2);
+}
+
+// Test that copy insertion updates multiple users of the result
+TEST_CASE(insert_copy_multiple_users)
+{
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+        auto out = m1.add_parameter("output", {migraphx::shape::float_type, {3, 2}});
+        auto r   = m1.add_instruction(simple_op{{migraphx::shape::float_type, {2, 3}}}, x, out);
+        // Multiple uses of the result after the instruction
+        auto sum = m1.add_instruction(migraphx::make_op("add"), r, r);
+        m1.add_return({sum});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x     = m2.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+        auto out   = m2.add_parameter("output", {migraphx::shape::float_type, {3, 2}});
+        auto alloc = m2.add_instruction(test_allocate{{migraphx::shape::float_type, {2, 3}}});
+        auto r     = m2.add_instruction(simple_op{{migraphx::shape::float_type, {2, 3}}}, x, alloc);
+        // Copy from result to output parameter
+        auto c = m2.add_instruction(migraphx::make_op("test::copy"), r, out);
+        // Users after the copy should use the copy result
+        auto sum = m2.add_instruction(migraphx::make_op("add"), c, c);
+        m2.add_return({sum});
+    }
+
+    EXPECT(m1 == m2);
+}
+
+// Test copy insertion with chain of operations using the result
+TEST_CASE(insert_copy_chain_of_ops)
+{
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+        auto out = m1.add_parameter("output", {migraphx::shape::float_type, {3, 2}});
+        auto r   = m1.add_instruction(simple_op{{migraphx::shape::float_type, {2, 3}}}, x, out);
+        // Chain of operations using r
+        auto neg  = m1.add_instruction(migraphx::make_op("neg"), r);
+        auto relu = m1.add_instruction(migraphx::make_op("relu"), neg);
+        m1.add_return({relu});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x     = m2.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+        auto out   = m2.add_parameter("output", {migraphx::shape::float_type, {3, 2}});
+        auto alloc = m2.add_instruction(test_allocate{{migraphx::shape::float_type, {2, 3}}});
+        auto r     = m2.add_instruction(simple_op{{migraphx::shape::float_type, {2, 3}}}, x, alloc);
+        auto c     = m2.add_instruction(migraphx::make_op("test::copy"), r, out);
+        // Chain uses the copy result
+        auto neg  = m2.add_instruction(migraphx::make_op("neg"), c);
+        auto relu = m2.add_instruction(migraphx::make_op("relu"), neg);
+        m2.add_return({relu});
+    }
+
+    EXPECT(m1 == m2);
+}
+
+// Test copy insertion with non-standard strides in output param
+TEST_CASE(insert_copy_nonstandard_strides)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {3, 2}});
+        // Output parameter with transposed strides
+        auto out = m1.add_parameter("output", {migraphx::shape::float_type, {3, 2}, {1, 3}});
+        auto r   = m1.add_instruction(simple_op{{migraphx::shape::float_type, {3, 2}}}, x, out);
+        m1.add_return({r});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x   = m2.add_parameter("x", {migraphx::shape::float_type, {3, 2}});
+        auto out = m2.add_parameter("output", {migraphx::shape::float_type, {3, 2}, {1, 3}});
+        // Allocate with standard strides
+        auto alloc = m2.add_instruction(test_allocate{{migraphx::shape::float_type, {3, 2}}});
+        auto r     = m2.add_instruction(simple_op{{migraphx::shape::float_type, {3, 2}}}, x, alloc);
+        auto c     = m2.add_instruction(migraphx::make_op("test::copy"), r, out);
+        m2.add_return({c});
+    }
+
+    EXPECT(m1 == m2);
+}
+
+// Test that copy is not inserted when result is not used after the instruction
+TEST_CASE(insert_copy_result_not_used_later)
+{
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+        auto y   = m1.add_parameter("y", {migraphx::shape::float_type, {2, 3}});
+        auto out = m1.add_parameter("output", {migraphx::shape::float_type, {3, 2}});
+        // r is not used after itself - DCE will remove this and the copy
+        m1.add_instruction(simple_op{{migraphx::shape::float_type, {2, 3}}}, x, out);
+        // y is used in return, not r
+        m1.add_return({y});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        m2.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+        auto y = m2.add_parameter("y", {migraphx::shape::float_type, {2, 3}});
+        m2.add_parameter("output", {migraphx::shape::float_type, {3, 2}});
+        // After DCE, the simple_op, allocate and copy are all removed
+        m2.add_return({y});
     }
 
     EXPECT(m1 == m2);

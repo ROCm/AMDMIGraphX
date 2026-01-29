@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -801,6 +801,29 @@ TEST_CASE(add_params)
     EXPECT(m1.get_parameter("x0") == map_ins[mul]);
     // map_ins should contain a mapping: add (in mm) -> x1 (in m1)
     EXPECT(m1.get_parameter("x1") == map_ins[add]);
+}
+
+TEST_CASE(with_static_shapes)
+{
+    auto create_module = [](const std::vector<migraphx::shape>& input_shapes) {
+        migraphx::module m;
+        auto x   = m.add_parameter("x", input_shapes[0]);
+        auto y   = m.add_parameter("y", input_shapes[1]);
+        auto add = m.add_instruction(migraphx::make_op("add"), x, y);
+        auto reduce_mean =
+            m.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {1}}}), add);
+        m.add_return({reduce_mean});
+        return m;
+    };
+    auto dyn_shape = migraphx::shape{migraphx::shape::float_type, {{1, 4}, {4, 8}}};
+    auto dyn_mod   = create_module({dyn_shape, dyn_shape});
+
+    auto static_shape = migraphx::shape{migraphx::shape::float_type, {2, 5}};
+    auto static_mod   = create_module({static_shape, static_shape});
+    std::unordered_map<std::string, migraphx::shape> static_arg_shapes{{"x", static_shape},
+                                                                       {"y", static_shape}};
+
+    EXPECT(dyn_mod.with_static_shapes(static_arg_shapes).sort() == static_mod.sort());
 }
 
 TEST_CASE(linear_graph_sort)

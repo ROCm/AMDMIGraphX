@@ -106,7 +106,7 @@ struct dynamic_code_object_op
         return shapes.size() - 1;
     }
     std::unordered_map<std::string, argument> build_param_map(const std::vector<argument>& args,
-                                                              module_ref mod) const
+                                                              const_module_ref mod) const
     {
         auto pnames = mod->get_parameter_names();
         assert(pnames.size() == args.size());

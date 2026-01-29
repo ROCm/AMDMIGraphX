@@ -30,7 +30,6 @@
 #include <migraphx/op/transpose.hpp>
 #include <migraphx/op/concat.hpp>
 #include <migraphx/op/slice.hpp>
-#include <migraphx/op/gather.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/matcher.hpp>
@@ -960,7 +959,8 @@ struct find_where_op
 // Example:
 //   gather[axis=2](data{1, 32, 19}, @literal{0}) -> {1, 32}
 // Becomes:
-//   squeeze[axes={2}](slice[axes={2}, starts={0}, ends={1}](data)) -> {1, 32}
+//   slice[axes={2}, starts={0}, ends={1}](data) -> {1, 32, 1}
+//   squeeze[axes={2}](slice_output) -> {1, 32}
 //
 struct find_gather_to_slice
 {
@@ -979,45 +979,35 @@ struct find_gather_to_slice
 
         // Evaluate the constant index
         auto arg_ind = ins_ind->eval();
-        if(arg_ind.empty())
-        {
-            return;
-        }
+        assert(not arg_ind.empty());
 
         int64_t idx = 0;
         arg_ind.visit([&](auto v) { idx = v.front(); });
 
-        auto gop  = any_cast<op::gather>(ins->get_operator());
-        auto axis = gop.axis;
+        auto axis = ins->get_operator().to_value()["axis"].to<int64_t>();
 
         const auto& data_shape = data->get_shape();
         auto data_lens         = data_shape.lens();
 
         // Handle negative index
-        auto axis_dim = static_cast<int64_t>(data_lens[axis]);
+        int64_t axis_dim = data_lens[axis];
         if(idx < 0)
         {
             idx += axis_dim;
-        }
-
-        // Check bounds
-        if(idx < 0 or idx >= axis_dim)
-        {
-            return;
         }
 
         // Create slice: slice[axes={axis}, starts={idx}, ends={idx+1}]
         auto slice_ins = m.insert_instruction(
             ins,
             make_op("slice",
-                    {{"axes", std::vector<int64_t>{axis}},
-                     {"starts", std::vector<int64_t>{idx}},
-                     {"ends", std::vector<int64_t>{idx + 1}}}),
+                    {{"axes", {axis}},
+                     {"starts", {idx}},
+                     {"ends", {idx + 1}}}),
             data);
 
         // Create squeeze to remove the sliced dimension
         m.replace_instruction(
-            ins, make_op("squeeze", {{"axes", std::vector<int64_t>{axis}}}), slice_ins);
+            ins, make_op("squeeze", {{"axes", {axis}}}), slice_ins);
     }
 };
 

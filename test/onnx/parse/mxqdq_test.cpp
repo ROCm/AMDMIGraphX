@@ -57,7 +57,7 @@ TEST_CASE(mxqdq_even_test)
         block_scales_ins);
     auto quantized_shape = q_ins->get_shape();
     auto pack_ins        = mm->add_instruction(migraphx::make_op("pack_fp4", {{"axis", 3}}), q_ins);
-    auto unpack_ins      = mm->add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), pack_ins);
+    auto unpack_ins = mm->add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), pack_ins);
     mm->add_instruction(migraphx::make_op("dequantizelinear"), unpack_ins, block_scales_ins);
 
     auto prog = optimize_onnx("mxqdq_even_test.onnx");

@@ -63,7 +63,7 @@ struct pack_fp4
     {
         check_shapes{inputs, *this}.same_dims().has(1);
         const auto& in_shape = inputs.front();
-        auto new_lens = in_shape.lens();
+        auto new_lens        = in_shape.lens();
         if(new_lens.at(axis) % 2 != 0)
         {
             std::stringstream msg;
@@ -77,7 +77,7 @@ struct pack_fp4
     argument compute(const shape& output_shape, const std::vector<argument>& args) const
     {
         const auto& input = args.front();
-        auto in_shape = input.get_shape();
+        auto in_shape     = input.get_shape();
         argument result{output_shape};
         auto out = result.get<uint8_t>();
         input.visit([&](auto inp) {

@@ -28,20 +28,26 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/common.hpp>
 
-
 struct test_transpose_reduce_sum_large_sub : verify_program<test_transpose_reduce_sum_large_sub>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::half_type, {1, 24, 40, 2560, 16}});
-        auto transpose = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {4, 3, 0, 1, 2}}}), x);
-        auto squeeze = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), transpose);
-        auto convert = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), squeeze);
-        auto reshape = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {0, 32, -1}}}), convert);
-        auto reduce_sum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), reshape);
-        auto multibroadcast = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {16, 32, 76800}}}), reduce_sum);
+        auto x   = mm->add_parameter(
+            "x", migraphx::shape{migraphx::shape::half_type, {1, 24, 40, 2560, 16}});
+        auto transpose = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {4, 3, 0, 1, 2}}}), x);
+        auto squeeze =
+            mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), transpose);
+        auto convert = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), squeeze);
+        auto reshape =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {0, 32, -1}}}), convert);
+        auto reduce_sum =
+            mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), reshape);
+        auto multibroadcast = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {16, 32, 76800}}}), reduce_sum);
         auto sub = mm->add_instruction(migraphx::make_op("sub"), reshape, multibroadcast);
         mm->add_return({sub});
         return p;

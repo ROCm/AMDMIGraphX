@@ -159,7 +159,7 @@ TEST_CASE(realloc_shape_mismatch)
         m2.add_instruction(simple_op{{migraphx::shape::float_type, {2, 3}}}, x, alloc);
     }
 
-    EXPECT(m1 == m2);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 // Test that adjust_allocation does nothing when shapes already match
@@ -174,7 +174,7 @@ TEST_CASE(no_realloc_shape_match)
     }
     migraphx::module m2 = m1;
     run_pass(m1);
-    EXPECT(m1 == m2);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 // Test that adjust_allocation skips when output alias is a parameter with matching shape
@@ -190,7 +190,7 @@ TEST_CASE(skip_output_param_shape_match)
     }
     migraphx::module m2 = m1;
     run_pass(m1);
-    EXPECT(m1 == m2);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 // Test that context-free operations are skipped
@@ -205,7 +205,7 @@ TEST_CASE(skip_context_free_op)
     }
     migraphx::module m2 = m1;
     run_pass(m1);
-    EXPECT(m1 == m2);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 // Test with non-standard strides in allocation
@@ -229,7 +229,7 @@ TEST_CASE(realloc_nonstandard_strides)
         m2.add_instruction(simple_op{{migraphx::shape::float_type, {3, 2}}}, x, alloc);
     }
 
-    EXPECT(m1 == m2);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 // Test with different data types
@@ -251,7 +251,7 @@ TEST_CASE(realloc_different_dtype)
         m2.add_instruction(simple_op{{migraphx::shape::half_type, {4, 4}}}, x, alloc);
     }
 
-    EXPECT(m1 == m2);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 // Test with multiple instructions, only some need reallocation
@@ -292,7 +292,7 @@ TEST_CASE(realloc_mixed_instructions)
         m2.add_return({sum, r2});
     }
 
-    EXPECT(m1 == m2);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 // Test that instructions with no inputs are skipped
@@ -306,7 +306,7 @@ TEST_CASE(skip_no_inputs)
     }
     migraphx::module m2 = m1;
     run_pass(m1);
-    EXPECT(m1 == m2);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 // Test 3D tensor reallocation
@@ -328,7 +328,7 @@ TEST_CASE(realloc_3d_tensor)
         m2.add_instruction(simple_op{{migraphx::shape::float_type, {2, 3, 4}}}, x, alloc);
     }
 
-    EXPECT(m1 == m2);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 // Test that adjust_allocation inserts a copy when output alias is a parameter with different shape
@@ -356,7 +356,7 @@ TEST_CASE(insert_copy_output_param)
         m2.add_return({c});
     }
 
-    EXPECT(m1 == m2);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 // Test that copy insertion updates multiple users of the result
@@ -386,7 +386,7 @@ TEST_CASE(insert_copy_multiple_users)
         m2.add_return({sum});
     }
 
-    EXPECT(m1 == m2);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 // Test copy insertion with chain of operations using the result
@@ -417,7 +417,7 @@ TEST_CASE(insert_copy_chain_of_ops)
         m2.add_return({relu});
     }
 
-    EXPECT(m1 == m2);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 // Test copy insertion with non-standard strides in output param
@@ -444,7 +444,7 @@ TEST_CASE(insert_copy_nonstandard_strides)
         m2.add_return({c});
     }
 
-    EXPECT(m1 == m2);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 // Test that copy is not inserted when result is not used after the instruction
@@ -471,7 +471,7 @@ TEST_CASE(insert_copy_result_not_used_later)
         m2.add_return({y});
     }
 
-    EXPECT(m1 == m2);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 // Test that view operations as output buffer are not modified (shallow alias only traces one level)
@@ -492,7 +492,7 @@ TEST_CASE(skip_aliased_through_transpose)
     // Since transpose is not an allocate or parameter, the pass skips this instruction
     migraphx::module m2 = m1;
     run_pass(m1);
-    EXPECT(m1 == m2);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 // Test that squeeze as output buffer is skipped (shallow alias)
@@ -507,7 +507,7 @@ TEST_CASE(skip_aliased_through_squeeze)
     }
     migraphx::module m2 = m1;
     run_pass(m1);
-    EXPECT(m1 == m2);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 // Test that unsqueeze as output buffer is skipped (shallow alias)
@@ -522,7 +522,7 @@ TEST_CASE(skip_aliased_through_unsqueeze)
     }
     migraphx::module m2 = m1;
     run_pass(m1);
-    EXPECT(m1 == m2);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 // Test that slice as output buffer is skipped (shallow alias)
@@ -539,7 +539,7 @@ TEST_CASE(skip_aliased_through_slice)
     }
     migraphx::module m2 = m1;
     run_pass(m1);
-    EXPECT(m1 == m2);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 // Test that transposed parameter as output buffer is skipped (shallow alias)
@@ -556,29 +556,30 @@ TEST_CASE(skip_aliased_param_through_transpose)
     // Shallow alias sees transpose, not the parameter, so pass skips this
     migraphx::module m2 = m1;
     run_pass(m1);
-    EXPECT(m1 == m2);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 TEST_CASE(fill_allocation)
 {
     migraphx::module m1;
     {
-        auto x     = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
         auto alloc = m1.add_instruction(test_allocate{{migraphx::shape::float_type, {3, 2}}});
-        auto fill  = m1.add_instruction(migraphx::make_op("test::fill"), alloc);
+        auto fill = m1.add_instruction(migraphx::make_op("test::fill"), alloc);
         m1.add_instruction(simple_op{{migraphx::shape::float_type, {2, 3}}}, x, fill);
     }
     run_pass(m1);
 
     migraphx::module m2;
     {
-        auto x     = m2.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+        auto x = m2.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
         auto alloc = m2.add_instruction(test_allocate{{migraphx::shape::float_type, {2, 3}}});
-        auto fill  = m2.add_instruction(migraphx::make_op("test::fill"), alloc);
+        auto fill = m2.add_instruction(migraphx::make_op("test::fill"), alloc);
         m2.add_instruction(simple_op{{migraphx::shape::float_type, {2, 3}}}, x, fill);
     }
 
-    EXPECT(m1 == m2);
+    EXPECT(m1.sort() == m2.sort());
 }
+
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

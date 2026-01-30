@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -348,16 +348,19 @@ struct find_op_shape_transform_op
         return desc.elements() == ins->get_shape().elements();
     }
 
-    static std::vector<operation> generate(const shape_transform_descriptor& desc,
-                                           const shape& input_shape)
+    static std::vector<operation>
+    generate(const shape_transform_descriptor& desc, const shape& input_shape, bool no_broadcast)
     {
         if(input_shape.scalar() and input_shape.elements() == 1 and input_shape.ndim() == 1)
         {
-            return {make_op("multibroadcast", {{"out_lens", desc.lens()}})};
+            auto out_lens = desc.lens();
+            if(no_broadcast)
+                std::fill(out_lens.begin(), out_lens.end(), 1);
+            return {make_op("multibroadcast", {{"out_lens", out_lens}})};
         }
         else
         {
-            return desc.generate(input_shape.lens());
+            return desc.generate(input_shape.lens(), no_broadcast);
         }
     }
 
@@ -445,9 +448,11 @@ struct find_op_shape_transform_op
             return;
         }
 
-        auto reshape_input = [&](const auto& ins_to_insert, const auto& gdesc) {
-            return [&](auto input) {
-                auto gops = generate(gdesc, input->get_shape());
+        auto reshape_input = [&](const auto& ins_to_insert,
+                                 const auto& gdesc,
+                                 bool no_broadcast = false) {
+            return [&, no_broadcast](auto input) {
+                auto gops = generate(gdesc, input->get_shape(), no_broadcast);
                 return std::accumulate(
                     gops.begin(), gops.end(), input, [&](auto start, const auto& op) {
                         return m.insert_instruction(ins_to_insert, op, start);
@@ -471,7 +476,7 @@ struct find_op_shape_transform_op
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
             if(input == input_ins)
                 return new_input_ins;
-            return reshape_input(ins, desc.to_common_from_dst())(input);
+            return reshape_input(ins, desc.to_common_from_dst(), true)(input);
         });
         // Replace old x_ins just in case it is used more than once
         assert(x_ins->get_shape().lens() == new_x_ins->get_shape().lens());

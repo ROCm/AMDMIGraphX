@@ -185,7 +185,8 @@ struct compile_plan
                 submodules << to_string(*sm) << "\n";
             }
         }
-        return config->detailed_problem_info + "\n\nModule:\n" + current_module.str() +
+        return (config ? config->detailed_problem_info : "Problem: no config provided") +
+               "\n\nModule:\n" + current_module.str() +
                (not submodules.str().empty() ? "\n" + submodules.str() : "") + "Input Shapes:\n" +
                print_input_shapes();
     }

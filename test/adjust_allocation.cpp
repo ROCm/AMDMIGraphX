@@ -68,6 +68,19 @@ struct test_copy
 };
 MIGRAPHX_REGISTER_OP(test_copy);
 
+struct test_fill
+{
+    std::string name() const { return "test::fill"; }
+
+    migraphx::shape compute_shape(std::vector<migraphx::shape> inputs) const
+    {
+        return inputs.front();
+    }
+
+    std::ptrdiff_t output_alias(const std::vector<migraphx::shape>&) const { return 0; }
+};
+MIGRAPHX_REGISTER_OP(test_fill);
+
 // Test allocation model
 struct test_allocation_model
 {
@@ -545,5 +558,28 @@ TEST_CASE(skip_aliased_param_through_transpose)
     run_pass(m1);
     EXPECT(m1 == m2);
 }
+
+TEST_CASE(fill_allocation)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+        auto alloc = m1.add_instruction(test_allocate{{migraphx::shape::float_type, {3, 2}}});
+        auto fill = m1.add_instruction(migraphx::make_op("test::fill"), alloc);
+        m1.add_instruction(simple_op{{migraphx::shape::float_type, {2, 3}}}, x, fill);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+        auto alloc = m2.add_instruction(test_allocate{{migraphx::shape::float_type, {2, 3}}});
+        auto fill = m2.add_instruction(migraphx::make_op("test::fill"), alloc);
+        m2.add_instruction(simple_op{{migraphx::shape::float_type, {2, 3}}}, x, fill);
+    }
+
+    EXPECT(m1 == m2);
+}
+
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

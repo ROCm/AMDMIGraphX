@@ -36,6 +36,8 @@ static instruction_ref get_allocation(instruction_ref ins)
     auto alias_ins = instruction::get_output_alias(ins, true);
     if(alias_ins == ins)
         return ins;
+    if(alias_ins->outputs().size() > 1)
+        return ins;
     if(alias_ins->inputs().size() == 1 and
        alias_ins->get_shape() == alias_ins->inputs().front()->get_shape())
         return get_allocation(alias_ins);
@@ -58,14 +60,14 @@ void adjust_allocation::apply(module& m) const
         if(alias_ins->name() != model.name() and alias_ins->name() != "@param")
         {
             if(alias_ins != ins and alias_ins->get_shape() != ins->get_shape())
-                std::cerr << "WARNING: output buffer doesnt match output\n";
+                std::cerr << "WARNING: output buffer doesnt match output for " << ins->get_operator() << std::endl;
             continue;
         }
         // shape allocated is different from actual shape
         // of the instruction, reallocate and replace the previous one
         if(alias_ins->get_shape() == ins->get_shape())
             continue;
-        auto alloc_ins = m.insert_instruction(ins, model.allocate(ins->get_shape()));
+        auto alloc_ins = m.insert_instruction(alias_ins, model.allocate(ins->get_shape()));
         m.replace_instruction(alias_ins, alloc_ins);
         // If the memory is an output parameter then copy the memory to the parameter
         if(alias_ins->name() == "@param")

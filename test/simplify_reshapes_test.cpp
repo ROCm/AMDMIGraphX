@@ -4600,8 +4600,8 @@ TEST_CASE(slice_squeeze_unsqueeze)
     {
         auto x         = m2.add_parameter("x", s);
         auto unsqueeze = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), x);
-        auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), unsqueeze);
-        auto slice   = m2.add_instruction(
+        auto squeeze   = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), unsqueeze);
+        auto slice     = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), squeeze);
         m2.add_return({slice});
     };

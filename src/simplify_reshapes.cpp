@@ -568,7 +568,7 @@ struct find_slice_shape_transforms
 
         auto opt_ops = new_desc.generate();
         auto y       = insert_ops(m, ins, opt_ops, x);
-        y = m.insert_instruction(ins, make_op("slice", slice_op), y);
+        y            = m.insert_instruction(ins, make_op("slice", slice_op), y);
         m.replace_instruction(ins, y);
     }
 };

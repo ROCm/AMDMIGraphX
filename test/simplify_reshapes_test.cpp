@@ -2013,13 +2013,14 @@ TEST_CASE(gather_constant_single_index)
 
     migraphx::module m2;
     {
-        auto s          = migraphx::shape{migraphx::shape::float_type, {3, 4, 5}};
-        auto data       = m2.add_parameter("data", s);
-        auto reshaped   = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 20}}}), data);
-        auto sliced     = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {10}}, {"ends", {15}}}), reshaped);
-        auto unsqueezed = m2.add_instruction(
-            migraphx::make_op("unsqueeze", {{"axes", {1}}}), sliced);
+        auto s        = migraphx::shape{migraphx::shape::float_type, {3, 4, 5}};
+        auto data     = m2.add_parameter("data", s);
+        auto reshaped = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 20}}}), data);
+        auto sliced   = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {10}}, {"ends", {15}}}),
+            reshaped);
+        auto unsqueezed =
+            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), sliced);
         m2.add_return({unsqueezed});
     }
 

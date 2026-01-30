@@ -2011,24 +2011,19 @@ TEST_CASE(gather_constant_single_index)
     }
     run_pass(m1);
 
-    // Verify gather was optimized away
-    EXPECT(
-        std::none_of(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "gather"; }));
+    migraphx::module m2;
+    {
+        auto s          = migraphx::shape{migraphx::shape::float_type, {3, 4, 5}};
+        auto data       = m2.add_parameter("data", s);
+        auto reshaped   = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 20}}}), data);
+        auto sliced     = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {10}}, {"ends", {15}}}), reshaped);
+        auto unsqueezed = m2.add_instruction(
+            migraphx::make_op("unsqueeze", {{"axes", {1}}}), sliced);
+        m2.add_return({unsqueezed});
+    }
 
-    // Verify output shape is correct: {3, 1, 5}
-    auto result =
-        std::find_if(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "@return"; });
-    EXPECT(result != m1.end());
-    EXPECT(result->inputs().front()->get_shape().lens() == std::vector<std::size_t>{3, 1, 5});
-
-    // Verify only view operations are used (transpose, slice, reshape, squeeze, unsqueeze,
-    // broadcast)
-    EXPECT(std::all_of(m1.begin(), m1.end(), [](const auto& ins) {
-        return ins.name() == "@param" or ins.name() == "@literal" or ins.name() == "@return" or
-               ins.name() == "transpose" or ins.name() == "slice" or ins.name() == "reshape" or
-               ins.name() == "squeeze" or ins.name() == "unsqueeze" or
-               ins.name() == "multibroadcast" or ins.name() == "broadcast";
-    }));
+    EXPECT(m1 == m2);
 }
 
 TEST_CASE(gather_multi_axis_stride)

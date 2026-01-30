@@ -501,16 +501,6 @@ struct find_slice_shape_transforms
         return names;
     }
 
-    // auto matcher() const
-    // {
-    //     auto reshapes = match::name(shape_transform_ops());
-    //     auto match_op = match::any_of(match::reduce(), match::pointwise());
-    //     auto x_op =
-    //         match_op(match::none_of(fusable_split()));
-    //     auto reshapes_x_op = reshapes(match::arg(0)(match::skip(reshapes())(x_op.bind("x"))));
-    //     return match_op(match::any_of[match::inputs()](reshapes_x_op.bind("input")));
-    // }
-
     auto matcher() const
     {
         auto reshapes = match::name(shape_transform_ops());
@@ -525,6 +515,9 @@ struct find_slice_shape_transforms
         auto slice    = mr.instructions["slice"];
         auto slice_op = slice->get_operator().to_value();
         auto axes     = slice_op.at("axes").to_vector<std::size_t>();
+
+        if(ins->get_shape().scalar())
+            return;
 
         std::vector<operation> ops;
         auto x = ins;
@@ -571,28 +564,6 @@ struct find_slice_shape_transforms
         auto y       = insert_ops(m, ins, opt_ops, x);
         y = m.insert_instruction(ins, make_op("slice", slice_op), y);
         m.replace_instruction(ins, y);
-
-        // auto opt_ops = optimize_shape_transforms(x->get_shape().lens(), ops);
-        // if(ops == opt_ops)
-        //     return;
-        // auto y = x;
-        // for(const auto& op : opt_ops)
-        //     y = m.insert_instruction(ins, op, y);
-        // m.replace_instruction(ins, y);
-        // if(x->get_shape().scalar())
-        // {
-        //     m.replace_instruction(
-        //         ins, make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}}), x);
-        // }
-        // else if(x->get_shape().elements() == 1 and ins->get_shape().elements() == 1)
-        // {
-        //     // TODO: Use squeeze or unsqueeze
-        //     m.replace_instruction(ins, make_op("reshape", {{"dims", ins->get_shape().lens()}}),
-        //     x);
-        // }
-        // else
-        // {
-        // }
     }
 };
 
@@ -1264,8 +1235,8 @@ struct find_gather
             return;
 
         // Scalar indices should be rewritten to a normal gather
-        assert(not indices_shape.scalar() or indices_shape.ndim() != 1 or
-               indices_shape.elements() != 1);
+        assert(not indices_shape.scalar() or indices_shape.ndim() != 1 or indices_shape.elements() != 1);
+
 
         // Normalize negative indices using transform
         std::transform(indices_values.begin(),
@@ -1321,22 +1292,25 @@ struct find_gather_scalar
 {
     auto matcher() const
     {
-        auto scalar_indices =
-            match::all_of(match::scalar_shape(), match::ndim(1), match::nelements(1));
+        auto scalar_indices = match::all_of(match::scalar_shape(), match::ndim(1), match::nelements(1));
         return match::name("gather")(
             match::args(match::any().bind("data"), scalar_indices.bind("indices")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins         = r.result;
-        auto indices_ins = r.instructions["indices"];
-        auto data_ins    = r.instructions["data"];
+        auto ins          = r.result;
+        auto indices_ins  = r.instructions["indices"];
+        auto data_ins     = r.instructions["data"];
 
-        auto new_indices =
-            m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {0}}}), indices_ins);
-        auto new_gather = m.insert_instruction(ins, ins->get_operator(), data_ins, new_indices);
-        auto reshaped   = insert_auto_reshape(m, ins, ins->get_shape().lens(), new_gather);
+        auto new_indices = m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {0}}}), indices_ins);
+        auto new_gather  = m.insert_instruction(ins, ins->get_operator(), data_ins, new_indices);
+        auto reshaped = insert_auto_reshape(m, ins, ins->get_shape().lens(), new_gather);
+        if(ins->get_shape().scalar() and ins->get_shape().ndim() == 1)
+        {
+            reshaped = m.insert_instruction(
+                ins, make_op("squeeze", {{"axes", {0}}}), reshaped);
+        }
         m.replace_instruction(ins, reshaped);
     }
 };

@@ -896,7 +896,7 @@ struct find_gqa_flash_decoding
         // [B, concat_heads, seq, head_dim] -> [B, concat_heads, 1, seq, head_dim] -> [B, concat_heads, G, seq, head_dim]
         auto q_unsqueezed = mm.insert_instruction(
             attn_group_ins, 
-            make_op("unsqueeze", {{"axes", {-2}}}),
+            make_op("unsqueeze", {{"axes", {2}}}),
             q);
         
         auto q_reshaped = mm.insert_instruction(

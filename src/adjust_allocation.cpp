@@ -60,8 +60,7 @@ void adjust_allocation::apply(module& m) const
         if(alias_ins->name() != model.name() and alias_ins->name() != "@param")
         {
             if(alias_ins != ins and alias_ins->get_shape() != ins->get_shape())
-                std::cerr << "WARNING: output buffer doesnt match output for "
-                          << ins->get_operator() << std::endl;
+                std::cerr << "WARNING: output buffer doesnt match output for " << ins->get_operator() << std::endl;
             continue;
         }
         // shape allocated is different from actual shape

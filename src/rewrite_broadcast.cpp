@@ -172,15 +172,8 @@ struct find_broadcast_convert
 
 void rewrite_broadcast::apply(module& m) const
 {
-    std::cout << "=== rewrite_broadcast::apply ===" << std::endl;
-    std::cout << "module before rewrite_broadcast:\n";
-    m.debug_print();
-
     match::find_matches(m, find_broadcast_convert{}, find_broadcast_reduce{});
     dead_code_elimination{}.apply(m);
-
-    std::cout << "module after rewrite_broadcast:\n";
-    m.debug_print();
 }
 
 } // namespace MIGRAPHX_INLINE_NS

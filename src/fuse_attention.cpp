@@ -332,6 +332,7 @@ struct find_gqa_flash_decoding
         std::size_t max_seq_length;
         std::size_t head_dim;
         std::size_t seq_length_per_group; // sequence length per group after splitting max sequence length
+        bool is_3d_query;                 // true if query param is 3D [B, S, hidden]
         
         // constructor from parameters
         attention_dims(instruction_ref q_param, instruction_ref k_param, std::size_t num_groups)
@@ -339,13 +340,27 @@ struct find_gqa_flash_decoding
             auto q_shape = q_param->get_shape();
             auto k_shape = k_param->get_shape();
 
-            batch_size = q_shape.lens()[0];
-            concat_heads = q_shape.lens()[1];
-            sequence_length = q_shape.lens()[2];
-            head_dim = q_shape.lens()[3];
-
+            // K is always 4D: [B, kv_heads, max_seq, head_dim]
             kv_heads = k_shape.lens()[1];
             max_seq_length = k_shape.lens()[2];
+            head_dim = k_shape.lens()[3];
+
+            batch_size = q_shape.lens()[0];
+            is_3d_query = (q_shape.lens().size() == 3);
+
+            if(is_3d_query)
+            {
+                // 3D query: [B, S, hidden_size] where hidden_size = head_dim * concat_heads
+                sequence_length = q_shape.lens()[1];
+                std::size_t hidden_size = q_shape.lens()[2];
+                concat_heads = hidden_size / head_dim;
+            }
+            else
+            {
+                // 4D query: [B, concat_heads, S, head_dim]
+                concat_heads = q_shape.lens()[1];
+                sequence_length = q_shape.lens()[2];
+            }
 
             // calculate Q heads from concat_heads = num_heads + 2 * kv_heads
             num_heads = concat_heads - 2 * kv_heads;
@@ -447,7 +462,9 @@ struct find_gqa_flash_decoding
         std::cout << "Rebuilding GQA attention with inserter..." << std::endl;
         std::cout << "Second gemm (will stop after): " << gemm2->name() << std::endl;
         
-        int group_dim_pos = 2;
+        // For 3D query: group dim is at position 1 (after batch)
+        // For 4D query: group dim is at position 2 (after batch and heads)
+        int group_dim_pos = dims.is_3d_query ? 1 : 2;
         
         // Define BNGSM and BNSM shapes
         std::vector<std::size_t> bngsm{dims.batch_size, dims.num_heads, num_groups, dims.sequence_length, dims.seq_length_per_group};
@@ -515,15 +532,25 @@ struct find_gqa_flash_decoding
             // Transpose: adjust permutation
             if(op_name == "transpose") {
                 auto perm = op.to_value()["permutation"].to_vector<int64_t>();
-                auto new_perm = adjust_permutation(perm, group_dim_pos);
+                std::vector<int64_t> new_perm;
                 
-                std::cout << "    Adjusted perm: [";
-                for(size_t i = 0; i < perm.size(); ++i) 
-                    std::cout << perm[i] << (i < perm.size()-1 ? "," : "");
-                std::cout << "] -> [";
-                for(size_t i = 0; i < new_perm.size(); ++i)
-                    std::cout << new_perm[i] << (i < new_perm.size()-1 ? "," : "");
-                std::cout << "]" << std::endl;
+                // Special case for 3D query: the QKV transpose {0, 2, 1, 3} needs special handling
+                // Input with group dim: [B, G, S, concat_heads, head_dim]
+                // Output needed: [B, concat_heads, G, S, head_dim]
+                // So permutation is {0, 3, 1, 2, 4}
+                if(dims.is_3d_query && perm == std::vector<int64_t>{0, 2, 1, 3}) {
+                    new_perm = {0, 3, 1, 2, 4};
+                    std::cout << "    Special 3D QKV transpose: [0,2,1,3] -> [0,3,1,2,4]" << std::endl;
+                } else {
+                    new_perm = adjust_permutation(perm, group_dim_pos);
+                    std::cout << "    Adjusted perm: [";
+                    for(size_t i = 0; i < perm.size(); ++i) 
+                        std::cout << perm[i] << (i < perm.size()-1 ? "," : "");
+                    std::cout << "] -> [";
+                    for(size_t i = 0; i < new_perm.size(); ++i)
+                        std::cout << new_perm[i] << (i < new_perm.size()-1 ? "," : "");
+                    std::cout << "]" << std::endl;
+                }
                 
                 auto new_op = make_op("transpose", {{"permutation", new_perm}});
                 std::cout << "    Creating: transpose";
@@ -761,15 +788,62 @@ struct find_gqa_flash_decoding
             }
             
             // Reshape: need to adjust dims if they span the group dimension
-            // TODO
             if(op_name == "reshape") {
                 auto dims_vec = op.to_value()["dims"].to_vector<std::size_t>();
+                auto input_shape = inputs[0]->get_shape().lens();
                 
                 // Check if this is a mask reshape that needs to split the sequence dimension
                 // e.g., {batch, max_seq_length} -> {batch, num_groups, seq_per_group}
                 if(dims_vec.size() == 2 && dims_vec[1] == dims.max_seq_length) {
                     std::vector<std::size_t> new_dims = {dims.batch_size, num_groups, dims.seq_length_per_group};
-                    std::cout << "    Adjusted dims: ";
+                    std::cout << "    Mask reshape: ";
+                    print_shape(dims_vec);
+                    std::cout << " -> ";
+                    print_shape(new_dims);
+                    std::cout << std::endl;
+                    
+                    auto new_op = make_op("reshape", {{"dims", new_dims}});
+                    std::cout << "    Creating: reshape";
+                    print_op_attrs(new_op);
+                    std::cout << std::endl;
+                    auto result = m.insert_instruction(ins, new_op, inputs, mod_args);
+                    print_output(result);
+                    return result;
+                }
+                
+                // Special case for 3D query: reshape [B, S, hidden] -> [B, S, concat_heads, head_dim]
+                // With group dim: [B, G, S, hidden] -> [B, G, S, concat_heads, head_dim]
+                if(dims.is_3d_query && dims_vec.size() == 4 && 
+                   dims_vec[0] == dims.batch_size && 
+                   dims_vec[1] == dims.sequence_length &&
+                   dims_vec[2] == dims.concat_heads && 
+                   dims_vec[3] == dims.head_dim) {
+                    std::vector<std::size_t> new_dims = {dims.batch_size, num_groups, dims.sequence_length, dims.concat_heads, dims.head_dim};
+                    std::cout << "    3D query reshape: ";
+                    print_shape(dims_vec);
+                    std::cout << " -> ";
+                    print_shape(new_dims);
+                    std::cout << std::endl;
+                    
+                    auto new_op = make_op("reshape", {{"dims", new_dims}});
+                    std::cout << "    Creating: reshape";
+                    print_op_attrs(new_op);
+                    std::cout << std::endl;
+                    auto result = m.insert_instruction(ins, new_op, inputs, mod_args);
+                    print_output(result);
+                    return result;
+                }
+                
+                // Generic case: if input already has the group dimension, preserve it in output
+                if(input_shape.size() > dims_vec.size()) {
+                    // Input has group dim, output dims need adjustment
+                    std::vector<std::size_t> new_dims;
+                    new_dims.push_back(dims_vec[0]);  // batch
+                    new_dims.push_back(input_shape[group_dim_pos]);  // group dim
+                    for(size_t i = 1; i < dims_vec.size(); ++i) {
+                        new_dims.push_back(dims_vec[i]);
+                    }
+                    std::cout << "    Generic reshape with group: ";
                     print_shape(dims_vec);
                     std::cout << " -> ";
                     print_shape(new_dims);
@@ -888,33 +962,93 @@ struct find_gqa_flash_decoding
         std::vector<std::size_t> k_transformed_shape;
         std::vector<std::size_t> v_transformed_shape;
 
-        q_transformed_shape = {dims.batch_size, dims.concat_heads, groups, dims.sequence_length, dims.head_dim};
         k_transformed_shape = {dims.batch_size, dims.kv_heads, groups, dims.seq_length_per_group, dims.head_dim};
         v_transformed_shape = {dims.batch_size, dims.kv_heads, groups, dims.seq_length_per_group, dims.head_dim};
 
         // insert reshape operations before the attention group
-        // [B, concat_heads, seq, head_dim] -> [B, concat_heads, 1, seq, head_dim] -> [B, concat_heads, G, seq, head_dim]
-        auto q_unsqueezed = mm.insert_instruction(
-            attn_group_ins, 
-            make_op("unsqueeze", {{"axes", {2}}}),
-            q);
+        std::cout << "\n=== KV Cache Flash Decoding: Creating input transformations ===" << std::endl;
         
-        auto q_reshaped = mm.insert_instruction(
-            attn_group_ins,
-            make_op("multibroadcast", {{"out_lens", q_transformed_shape}}),
-            q_unsqueezed);
+        // Handle Q transformation based on 3D vs 4D format
+        instruction_ref q_reshaped;
+        if(dims.is_3d_query)
+        {
+            // 3D query: [B, S, hidden] -> [B, 1, S, hidden] -> [B, G, S, hidden]
+            std::size_t hidden_size = dims.head_dim * dims.concat_heads;
+            q_transformed_shape = {dims.batch_size, groups, dims.sequence_length, hidden_size};
+            
+            std::cout << "\n>>> Creating: unsqueeze (axes={1}) for 3D query" << std::endl;
+            std::cout << "    Input shape: " << q->get_shape() << std::endl;
+            auto q_unsqueezed = mm.insert_instruction(
+                attn_group_ins, make_op("unsqueeze", {{"axes", {1}}}), q);
+            std::cout << "    Output shape: " << q_unsqueezed->get_shape() << std::endl;
+            
+            std::cout << "\n>>> Creating: multibroadcast (out_lens={";
+            for(size_t i = 0; i < q_transformed_shape.size(); ++i) {
+                std::cout << q_transformed_shape[i];
+                if(i < q_transformed_shape.size() - 1) std::cout << ",";
+            }
+            std::cout << "})" << std::endl;
+            std::cout << "    Input shape: " << q_unsqueezed->get_shape() << std::endl;
+            q_reshaped = mm.insert_instruction(
+                attn_group_ins,
+                make_op("multibroadcast", {{"out_lens", q_transformed_shape}}),
+                q_unsqueezed);
+            std::cout << "    Output shape: " << q_reshaped->get_shape() << std::endl;
+        }
+        else
+        {
+            // 4D query: [B, concat_heads, S, head_dim] -> [B, concat_heads, 1, S, head_dim] -> [B, concat_heads, G, S, head_dim]
+            q_transformed_shape = {dims.batch_size, dims.concat_heads, groups, dims.sequence_length, dims.head_dim};
+            
+            std::cout << "\n>>> Creating: unsqueeze (axes={2}) for 4D query" << std::endl;
+            std::cout << "    Input shape: " << q->get_shape() << std::endl;
+            auto q_unsqueezed = mm.insert_instruction(
+                attn_group_ins, 
+                make_op("unsqueeze", {{"axes", {2}}}),
+                q);
+            std::cout << "    Output shape: " << q_unsqueezed->get_shape() << std::endl;
+            
+            std::cout << "\n>>> Creating: multibroadcast (out_lens={";
+            for(size_t i = 0; i < q_transformed_shape.size(); ++i) {
+                std::cout << q_transformed_shape[i];
+                if(i < q_transformed_shape.size() - 1) std::cout << ",";
+            }
+            std::cout << "})" << std::endl;
+            std::cout << "    Input shape: " << q_unsqueezed->get_shape() << std::endl;
+            q_reshaped = mm.insert_instruction(
+                attn_group_ins,
+                make_op("multibroadcast", {{"out_lens", q_transformed_shape}}),
+                q_unsqueezed);
+            std::cout << "    Output shape: " << q_reshaped->get_shape() << std::endl;
+        }
         
         // [B, kv_heads, N, D] -> [B, kv_heads, G, N/G, D]
+        std::cout << "\n>>> Creating: reshape (dims={";
+        for(size_t i = 0; i < k_transformed_shape.size(); ++i) {
+            std::cout << k_transformed_shape[i];
+            if(i < k_transformed_shape.size() - 1) std::cout << ",";
+        }
+        std::cout << "})" << std::endl;
+        std::cout << "    Input shape: " << k->get_shape() << std::endl;
         auto k_reshaped = mm.insert_instruction(
             attn_group_ins,
             make_op("reshape", {{"dims", k_transformed_shape}}),
             k);
+        std::cout << "    Output shape: " << k_reshaped->get_shape() << std::endl;
         
         // [B, kv_heads, N, D] -> [B, kv_heads, G, N/G, D]
+        std::cout << "\n>>> Creating: reshape (dims={";
+        for(size_t i = 0; i < v_transformed_shape.size(); ++i) {
+            std::cout << v_transformed_shape[i];
+            if(i < v_transformed_shape.size() - 1) std::cout << ",";
+        }
+        std::cout << "})" << std::endl;
+        std::cout << "    Input shape: " << v->get_shape() << std::endl;
         auto v_reshaped = mm.insert_instruction(
             attn_group_ins,
             make_op("reshape", {{"dims", v_transformed_shape}}),
             v);
+        std::cout << "    Output shape: " << v_reshaped->get_shape() << std::endl;
         
         // No need to reshape additional inputs
         // We'll adjust broadcast patterns inside for masking
@@ -991,16 +1125,24 @@ struct find_gqa_flash_decoding
         std::cout << "Group output shape: " << new_group_ins->get_shape() << std::endl;
         
         // unpack O' and LSE
+        std::cout << "\n=== Kernel 2: Unpacking group outputs ===" << std::endl;
+        std::cout << "\n>>> Creating: get_tuple_elem (index=0)" << std::endl;
+        std::cout << "    Input shape: " << new_group_ins->get_shape() << std::endl;
         auto partial_output_o_prime = mm.insert_instruction(
             attn_group_ins, make_op("get_tuple_elem", {{"index", 0}}), new_group_ins);
+        std::cout << "    Output shape: " << partial_output_o_prime->get_shape() << std::endl;
+        
+        std::cout << "\n>>> Creating: get_tuple_elem (index=1)" << std::endl;
+        std::cout << "    Input shape: " << new_group_ins->get_shape() << std::endl;
         auto lse = mm.insert_instruction(
             attn_group_ins, make_op("get_tuple_elem", {{"index", 1}}), new_group_ins);
+        std::cout << "    Output shape: " << lse->get_shape() << std::endl;
 
-        // LSE-weighted combination
-        // each head has its own LSE values and needs its own weights
+        // Kernel 2: combine using exp-normalize trick
+        // O = sum(O' * exp(LSE - max)) / sum(exp(LSE - max))
         // O' shape: [B, G, S, N*D] - heads concatenated
         // LSE shape: [B, N, G, S, 1] - per-head
-        std::cout << "\n=== Kernel 2: LSE-weighted combination ===" << std::endl;
+        std::cout << "\n=== Kernel 2: exp-normalize combination ===" << std::endl;
         std::cout << "Input LSE shape: " << lse->get_shape() << std::endl;
         std::cout << "Input O' shape: " << partial_output_o_prime->get_shape() << std::endl;
         
@@ -1009,96 +1151,165 @@ struct find_gqa_flash_decoding
         // reshape O' to separate heads: [B, G, S, N*D] -> [B, G, S, N, D]
         std::vector<std::size_t> o_prime_per_head_shape = {
             dims.batch_size, groups, dims.sequence_length, dims.num_heads, dims.head_dim};
+        std::cout << "\n>>> Creating: reshape (dims={";
+        for(size_t i = 0; i < o_prime_per_head_shape.size(); ++i) {
+            std::cout << o_prime_per_head_shape[i];
+            if(i < o_prime_per_head_shape.size() - 1) std::cout << ",";
+        }
+        std::cout << "})" << std::endl;
+        std::cout << "    Input shape: " << partial_output_o_prime->get_shape() << std::endl;
         auto o_prime_reshaped = mm.insert_instruction(
             attn_group_ins,
             make_op("reshape", {{"dims", o_prime_per_head_shape}}),
             partial_output_o_prime);
+        std::cout << "    Output shape: " << o_prime_reshaped->get_shape() << std::endl;
         
         // in groups with all masked positions, softmax produces NaN (from -inf - (-inf))
+        // replace NaN with 0 so they don't contribute to the weighted sum
+        std::cout << "\n>>> Creating: isnan" << std::endl;
+        std::cout << "    Input shape: " << o_prime_reshaped->get_shape() << std::endl;
         auto o_prime_is_nan = mm.insert_instruction(
             attn_group_ins, make_op("isnan"), o_prime_reshaped);
+        std::cout << "    Output shape: " << o_prime_is_nan->get_shape() << std::endl;
+        
         auto zero_lit = mm.add_literal(literal{shape{output_type, {1}}, {0}});
+        std::cout << "\n>>> Creating: multibroadcast (out_lens=" << o_prime_reshaped->get_shape() << ")" << std::endl;
+        std::cout << "    Input shape: " << zero_lit->get_shape() << std::endl;
         auto zero_bcast = mm.insert_instruction(
             attn_group_ins,
             make_op("multibroadcast", {{"out_lens", o_prime_reshaped->get_shape().lens()}}),
             zero_lit);
+        std::cout << "    Output shape: " << zero_bcast->get_shape() << std::endl;
+        
+        std::cout << "\n>>> Creating: where" << std::endl;
+        std::cout << "    Input shapes: " << o_prime_is_nan->get_shape() << ", " << zero_bcast->get_shape() << ", " << o_prime_reshaped->get_shape() << std::endl;
         auto o_prime_cleaned = mm.insert_instruction(
             attn_group_ins, make_op("where"), o_prime_is_nan, zero_bcast, o_prime_reshaped);
+        std::cout << "    Output shape: " << o_prime_cleaned->get_shape() << std::endl;
         
         // [B, N, G, S, 1] -> [B, N, G, S]
+        std::cout << "\n>>> Creating: squeeze (axes={4})" << std::endl;
+        std::cout << "    Input shape: " << lse->get_shape() << std::endl;
         auto lse_squeezed = mm.insert_instruction(
             attn_group_ins, make_op("squeeze", {{"axes", {4}}}), lse);
+        std::cout << "    Output shape: " << lse_squeezed->get_shape() << std::endl;
         
-        // compute weights per-head
+        // find max LSE across groups for numerical stability
         // [B, N, G, S] -> [B, N, 1, S]
+        std::cout << "\n>>> Creating: reduce_max (axes={2})" << std::endl;
+        std::cout << "    Input shape: " << lse_squeezed->get_shape() << std::endl;
         auto lse_max = mm.insert_instruction(
             attn_group_ins, make_op("reduce_max", {{"axes", {2}}}), lse_squeezed);
+        std::cout << "    Output shape: " << lse_max->get_shape() << std::endl;
         
         // broadcast max back to original shape
         // [B, N, 1, S] -> [B, N, G, S]
+        std::cout << "\n>>> Creating: multibroadcast (out_lens=" << lse_squeezed->get_shape() << ")" << std::endl;
+        std::cout << "    Input shape: " << lse_max->get_shape() << std::endl;
         auto lse_max_bcast = mm.insert_instruction(
             attn_group_ins,
             make_op("multibroadcast", {{"out_lens", lse_squeezed->get_shape().lens()}}),
             lse_max);
+        std::cout << "    Output shape: " << lse_max_bcast->get_shape() << std::endl;
         
-        // exp(LSE - max_LSE)
+        // compute unnormalized weights: exp(LSE - max)
+        std::cout << "\n>>> Creating: sub" << std::endl;
+        std::cout << "    Input shapes: " << lse_squeezed->get_shape() << ", " << lse_max_bcast->get_shape() << std::endl;
         auto lse_sub = mm.insert_instruction(attn_group_ins, make_op("sub"), lse_squeezed, lse_max_bcast);
+        std::cout << "    Output shape: " << lse_sub->get_shape() << std::endl;
+        
+        std::cout << "\n>>> Creating: exp" << std::endl;
+        std::cout << "    Input shape: " << lse_sub->get_shape() << std::endl;
         auto lse_exp = mm.insert_instruction(attn_group_ins, make_op("exp"), lse_sub);
-        
-        // sum exp across groups
-        // [B, N, G, S] -> [B, N, 1, S]
-        auto lse_sum = mm.insert_instruction(
-            attn_group_ins, make_op("reduce_sum", {{"axes", {2}}}), lse_exp);
-        
-        // [B, N, 1, S] -> [B, N, G, S]
-        auto lse_sum_bcast = mm.insert_instruction(
-            attn_group_ins,
-            make_op("multibroadcast", {{"out_lens", lse_exp->get_shape().lens()}}),
-            lse_sum);
-        
-        // weights per-head
-        auto weights = mm.insert_instruction(attn_group_ins, make_op("div"), lse_exp, lse_sum_bcast);
+        std::cout << "    Output shape: " << lse_exp->get_shape() << std::endl;
         
         // transpose weights to align with O'
         // [B, N, G, S] -> [B, G, S, N]
-        auto weights_transposed = mm.insert_instruction(
-            attn_group_ins, make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), weights);
+        std::cout << "\n>>> Creating: transpose (permutation={0,2,3,1})" << std::endl;
+        std::cout << "    Input shape: " << lse_exp->get_shape() << std::endl;
+        auto lse_exp_transposed = mm.insert_instruction(
+            attn_group_ins, make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), lse_exp);
+        std::cout << "    Output shape: " << lse_exp_transposed->get_shape() << std::endl;
         
         // [B, G, S, N] -> [B, G, S, N, 1]
-        auto weights_unsqueezed = mm.insert_instruction(
-            attn_group_ins, make_op("unsqueeze", {{"axes", {4}}}), weights_transposed);
+        std::cout << "\n>>> Creating: unsqueeze (axes={4})" << std::endl;
+        std::cout << "    Input shape: " << lse_exp_transposed->get_shape() << std::endl;
+        auto lse_exp_unsqueezed = mm.insert_instruction(
+            attn_group_ins, make_op("unsqueeze", {{"axes", {4}}}), lse_exp_transposed);
+        std::cout << "    Output shape: " << lse_exp_unsqueezed->get_shape() << std::endl;
         
-        // broadcast to match O' shape
+        // broadcast weights to match O' shape
         // [B, G, S, N, 1] -> [B, G, S, N, D]
-        auto weights_bcast = mm.insert_instruction(
+        std::cout << "\n>>> Creating: multibroadcast (out_lens=" << o_prime_cleaned->get_shape() << ")" << std::endl;
+        std::cout << "    Input shape: " << lse_exp_unsqueezed->get_shape() << std::endl;
+        auto lse_exp_bcast = mm.insert_instruction(
             attn_group_ins,
             make_op("multibroadcast", {{"out_lens", o_prime_cleaned->get_shape().lens()}}),
-            weights_unsqueezed);
+            lse_exp_unsqueezed);
+        std::cout << "    Output shape: " << lse_exp_bcast->get_shape() << std::endl;
         
-        auto weights_converted = mm.insert_instruction(
-            attn_group_ins, make_op("convert", {{"target_type", output_type}}), weights_bcast);
+        // convert weights to output type
+        std::cout << "\n>>> Creating: convert (target_type=" << output_type << ")" << std::endl;
+        std::cout << "    Input shape: " << lse_exp_bcast->get_shape() << std::endl;
+        auto weights = mm.insert_instruction(
+            attn_group_ins, make_op("convert", {{"target_type", output_type}}), lse_exp_bcast);
+        std::cout << "    Output shape: " << weights->get_shape() << std::endl;
         
-        // multiply O' by per-head weights
-        // [B, G, S, N, D] -> [B, G, S, N, D]
-        auto weighted_output = mm.insert_instruction(
-            attn_group_ins, make_op("mul"), o_prime_cleaned, weights_converted);
-        
+        // compute weighted sum: numerator = sum(O' * weights) across groups
+        // [B, G, S, N, D] * [B, G, S, N, D] -> [B, G, S, N, D]
+        std::cout << "\n>>> Creating: mul" << std::endl;
+        std::cout << "    Input shapes: " << o_prime_cleaned->get_shape() << ", " << weights->get_shape() << std::endl;
+        auto weighted_o = mm.insert_instruction(
+            attn_group_ins, make_op("mul"), o_prime_cleaned, weights);
+        std::cout << "    Output shape: " << weighted_o->get_shape() << std::endl;
+
         // sum across groups
         // [B, G, S, N, D] -> [B, 1, S, N, D]
-        auto summed_output = mm.insert_instruction(
-            attn_group_ins, make_op("reduce_sum", {{"axes", {1}}}), weighted_output);
+        std::cout << "\n>>> Creating: reduce_sum (axes={1})" << std::endl;
+        std::cout << "    Input shape: " << weighted_o->get_shape() << std::endl;
+        auto numerator = mm.insert_instruction(
+            attn_group_ins, make_op("reduce_sum", {{"axes", {1}}}), weighted_o);
+        std::cout << "    Output shape: " << numerator->get_shape() << std::endl;
+
+        // compute sum of weights: denominator = sum(weights) across groups
+        // [B, G, S, N, D] -> [B, 1, S, N, D]
+        std::cout << "\n>>> Creating: reduce_sum (axes={1})" << std::endl;
+        std::cout << "    Input shape: " << weights->get_shape() << std::endl;
+        auto denominator = mm.insert_instruction(
+            attn_group_ins, make_op("reduce_sum", {{"axes", {1}}}), weights);
+        std::cout << "    Output shape: " << denominator->get_shape() << std::endl;
         
+        // final division: O = numerator / denominator
+        std::cout << "\n>>> Creating: div" << std::endl;
+        std::cout << "    Input shapes: " << numerator->get_shape() << ", " << denominator->get_shape() << std::endl;
+        auto final_output_o = mm.insert_instruction(
+            attn_group_ins, make_op("div"), numerator, denominator);
+        std::cout << "    Output shape: " << final_output_o->get_shape() << std::endl;
+
         // squeeze the reduced group dimension
         // [B, 1, S, N, D] -> [B, S, N, D]
+        std::cout << "\n>>> Creating: squeeze (axes={1})" << std::endl;
+        std::cout << "    Input shape: " << final_output_o->get_shape() << std::endl;
         auto squeezed_output = mm.insert_instruction(
-            attn_group_ins, make_op("squeeze", {{"axes", {1}}}), summed_output);
+            attn_group_ins, make_op("squeeze", {{"axes", {1}}}), final_output_o);
+        std::cout << "    Output shape: " << squeezed_output->get_shape() << std::endl;
         
         // reshape back to concatenated heads
         // [B, S, N, D] -> [B, S, N*D]
         std::vector<std::size_t> final_shape = {
             dims.batch_size, dims.sequence_length, dims.num_heads * dims.head_dim};
+        std::cout << "\n>>> Creating: reshape (dims={";
+        for(size_t i = 0; i < final_shape.size(); ++i) {
+            std::cout << final_shape[i];
+            if(i < final_shape.size() - 1) std::cout << ",";
+        }
+        std::cout << "})" << std::endl;
+        std::cout << "    Input shape: " << squeezed_output->get_shape() << std::endl;
         auto final_squeezed = mm.insert_instruction(
             attn_group_ins, make_op("reshape", {{"dims", final_shape}}), squeezed_output);
+        std::cout << "    Output shape: " << final_squeezed->get_shape() << std::endl;
+        
+        std::cout << "\n=== KV Cache Flash Decoding: Kernel 2 complete ===" << std::endl;
         
         mm.replace_instruction(attn_group_ins, final_squeezed);
     }

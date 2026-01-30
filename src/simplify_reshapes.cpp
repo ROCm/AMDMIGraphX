@@ -504,7 +504,7 @@ struct find_slice_shape_transforms
     auto matcher() const
     {
         auto reshapes = match::name(shape_transform_ops());
-        auto slice_op = match::name("slice")(match::arg(0)(match::used_once()));
+        auto slice_op = match::name("slice")(match::arg(0)(match::used_once()), match::none_of(match::is_constant()));
         return reshapes(reshapes(match::none_of[match::outputs()](reshapes())),
                         match::arg(0)(match::skip(reshapes())(slice_op.bind("slice"))));
     }
@@ -1196,7 +1196,7 @@ struct find_gather
     }
     auto matcher() const
     {
-        return match::name("gather")(
+        return match::name("gather")(match::none_of(match::is_constant()),
             match::args(match::any().bind("data"), match::is_constant().bind("indices")));
     }
 
@@ -1294,7 +1294,7 @@ struct find_gather_scalar
     {
         auto scalar_indices =
             match::all_of(match::scalar_shape(), match::ndim(1), match::nelements(1));
-        return match::name("gather")(
+        return match::name("gather")(match::none_of(match::is_constant()),
             match::args(match::any().bind("data"), scalar_indices.bind("indices")));
     }
 

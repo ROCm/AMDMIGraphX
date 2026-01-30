@@ -835,6 +835,12 @@ inline auto ndim(std::size_t n)
         [=](instruction_ref ins) { return ins->get_shape().ndim() == n; });
 }
 
+inline auto nelements(std::size_t n)
+{
+    return make_basic_pred_matcher(
+        [=](instruction_ref ins) { return ins->get_shape().elements() == n; });
+}
+
 MIGRAPHX_PRED_MATCHER(not_tuple, instruction_ref ins)
 {
     return ins->get_shape().type() != shape::tuple_type;

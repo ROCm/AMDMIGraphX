@@ -71,12 +71,13 @@ struct gather
         {
             data = data.to_dynamic();
         }
+        const bool scalar_indices = indices.ndim() == 1 and indices.scalar() and indices.elements() == 1;
         if(data.dynamic())
         {
             auto dims = data.dyn_dims();
             dims.erase(dims.begin() + axis);
 
-            if(not indices.scalar())
+            if(not scalar_indices)
             {
                 auto index_dims = indices.to_dynamic().dyn_dims();
                 dims.insert(dims.begin() + axis, index_dims.begin(), index_dims.end());
@@ -89,7 +90,7 @@ struct gather
             auto lens = data.lens();
             lens.erase(lens.begin() + axis);
 
-            if(not indices.scalar())
+            if(not scalar_indices)
             {
                 auto ind_lens = indices.lens();
                 lens.insert(lens.begin() + axis, ind_lens.begin(), ind_lens.end());

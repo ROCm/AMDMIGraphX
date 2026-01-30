@@ -2694,7 +2694,7 @@ TEST_CASE(gather_axis1_factorized_grid_multi_const)
     EXPECT(m1.sort() == m2.sort());
 }
 
-TEST_CASE_SKIP(gather_constant_scalar_index, "Scalar indices are not supported yet")
+TEST_CASE(gather_constant_scalar_index)
 {
     migraphx::module m1;
     {
@@ -2714,6 +2714,34 @@ TEST_CASE_SKIP(gather_constant_scalar_index, "Scalar indices are not supported y
         auto slice = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), data);
         auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), slice);
+        m2.add_return({squeeze});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_constant_scalar_index_axis2)
+{
+    migraphx::module m1;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {8, 32, 19}};
+        auto data = m1.add_parameter("data", s);
+        migraphx::shape si{migraphx::shape::int32_type};
+        auto indices = m1.add_literal(migraphx::literal{si, {0}});
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 2}}), data, indices);
+        m1.add_return({gather});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto s     = migraphx::shape{migraphx::shape::float_type, {8, 32, 19}};
+        auto data  = m2.add_parameter("data", s);
+        auto reshape1 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {256, 19}}}), data);
+        auto slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), reshape1);
+        auto reshape2 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {8, 32, 1}}}), slice);
+        auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), reshape2);
         m2.add_return({squeeze});
     }
 

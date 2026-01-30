@@ -563,23 +563,22 @@ TEST_CASE(fill_allocation)
 {
     migraphx::module m1;
     {
-        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+        auto x     = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
         auto alloc = m1.add_instruction(test_allocate{{migraphx::shape::float_type, {3, 2}}});
-        auto fill = m1.add_instruction(migraphx::make_op("test::fill"), alloc);
+        auto fill  = m1.add_instruction(migraphx::make_op("test::fill"), alloc);
         m1.add_instruction(simple_op{{migraphx::shape::float_type, {2, 3}}}, x, fill);
     }
     run_pass(m1);
 
     migraphx::module m2;
     {
-        auto x = m2.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+        auto x     = m2.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
         auto alloc = m2.add_instruction(test_allocate{{migraphx::shape::float_type, {2, 3}}});
-        auto fill = m2.add_instruction(migraphx::make_op("test::fill"), alloc);
+        auto fill  = m2.add_instruction(migraphx::make_op("test::fill"), alloc);
         m2.add_instruction(simple_op{{migraphx::shape::float_type, {2, 3}}}, x, fill);
     }
 
     EXPECT(m1.sort() == m2.sort());
 }
-
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

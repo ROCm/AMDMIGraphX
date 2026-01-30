@@ -71,7 +71,8 @@ struct gather
         {
             data = data.to_dynamic();
         }
-        const bool scalar_indices = indices.ndim() == 1 and indices.scalar() and indices.elements() == 1;
+        const bool scalar_indices =
+            indices.ndim() == 1 and indices.scalar() and indices.elements() == 1;
         if(data.dynamic())
         {
             auto dims = data.dyn_dims();

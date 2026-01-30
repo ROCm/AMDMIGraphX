@@ -31,7 +31,7 @@ target_link_libraries(test_verify migraphx migraphx_all_targets)
 target_include_directories(test_verify PUBLIC ../include)
 rocm_clang_tidy_check(test_verify)
 
-foreach(SECTION general reduce rnn conv gemm)
+foreach(SECTION general reduce rnn conv gemm attention)
     rocm_add_test(NAME test_verify_${SECTION} COMMAND test_verify ${SECTION})
     set_tests_properties(test_verify_${SECTION} PROPERTIES 
         COST 100 
@@ -42,3 +42,15 @@ foreach(SECTION general reduce rnn conv gemm)
         )
     endif()
 endforeach()
+
+# Run attention tests again with flash decoding enabled
+rocm_add_test(NAME test_verify_attention_flash COMMAND test_verify attention)
+set_tests_properties(test_verify_attention_flash PROPERTIES 
+    COST 100 
+    ENVIRONMENT "MIGRAPHX_FLASH_DECODING_NUM_SPLITS=2"
+)
+if(MIGRAPHX_ENABLE_GPU)
+    set_tests_properties(test_verify_attention_flash PROPERTIES 
+        RESOURCE_LOCK gpu
+    )
+endif()

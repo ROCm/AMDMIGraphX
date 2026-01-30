@@ -31,6 +31,7 @@ template <migraphx::shape::type_t DType>
 struct test_attention_flash_decoding_3d_output_fusion
     : verify_program<test_attention_flash_decoding_3d_output_fusion<DType>>
 {
+    std::string section() const { return "attention"; }
     migraphx::program create_program() const
     {
         // 3D Shape: [batch, sequence_length, head_dim]

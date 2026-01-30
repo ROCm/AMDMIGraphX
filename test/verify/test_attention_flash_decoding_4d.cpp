@@ -30,6 +30,7 @@
 template <migraphx::shape::type_t DType>
 struct test_attention_flash_decoding_4d : verify_program<test_attention_flash_decoding_4d<DType>>
 {
+    std::string section() const { return "attention"; }
     migraphx::program create_program() const
     {
         migraphx::program p;

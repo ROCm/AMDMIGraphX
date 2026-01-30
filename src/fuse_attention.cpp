@@ -2004,6 +2004,7 @@ void fuse_attention::apply(module_pass_manager& mpm) const
     {
         std::cout << "module before flash decoding: " << std::endl;
         mpm.get_module().debug_print();
+        
         // flash decoding for regular attention, single & multi-headed
         match::find_matches(
             mpm,

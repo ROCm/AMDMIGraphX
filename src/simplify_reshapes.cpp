@@ -1235,8 +1235,8 @@ struct find_gather
             return;
 
         // Scalar indices should be rewritten to a normal gather
-        assert(not indices_shape.scalar() or indices_shape.ndim() != 1 or indices_shape.elements() != 1);
-
+        assert(not indices_shape.scalar() or indices_shape.ndim() != 1 or
+               indices_shape.elements() != 1);
 
         // Normalize negative indices using transform
         std::transform(indices_values.begin(),
@@ -1292,24 +1292,25 @@ struct find_gather_scalar
 {
     auto matcher() const
     {
-        auto scalar_indices = match::all_of(match::scalar_shape(), match::ndim(1), match::nelements(1));
+        auto scalar_indices =
+            match::all_of(match::scalar_shape(), match::ndim(1), match::nelements(1));
         return match::name("gather")(
             match::args(match::any().bind("data"), scalar_indices.bind("indices")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins          = r.result;
-        auto indices_ins  = r.instructions["indices"];
-        auto data_ins     = r.instructions["data"];
+        auto ins         = r.result;
+        auto indices_ins = r.instructions["indices"];
+        auto data_ins    = r.instructions["data"];
 
-        auto new_indices = m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {0}}}), indices_ins);
-        auto new_gather  = m.insert_instruction(ins, ins->get_operator(), data_ins, new_indices);
-        auto reshaped = insert_auto_reshape(m, ins, ins->get_shape().lens(), new_gather);
+        auto new_indices =
+            m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {0}}}), indices_ins);
+        auto new_gather = m.insert_instruction(ins, ins->get_operator(), data_ins, new_indices);
+        auto reshaped   = insert_auto_reshape(m, ins, ins->get_shape().lens(), new_gather);
         if(ins->get_shape().scalar() and ins->get_shape().ndim() == 1)
         {
-            reshaped = m.insert_instruction(
-                ins, make_op("squeeze", {{"axes", {0}}}), reshaped);
+            reshaped = m.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), reshaped);
         }
         m.replace_instruction(ins, reshaped);
     }

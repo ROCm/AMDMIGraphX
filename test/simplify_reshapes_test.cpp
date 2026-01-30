@@ -2735,12 +2735,14 @@ TEST_CASE(gather_constant_scalar_index_axis2)
 
     migraphx::module m2;
     {
-        auto s     = migraphx::shape{migraphx::shape::float_type, {8, 32, 19}};
-        auto data  = m2.add_parameter("data", s);
-        auto reshape1 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {256, 19}}}), data);
+        auto s    = migraphx::shape{migraphx::shape::float_type, {8, 32, 19}};
+        auto data = m2.add_parameter("data", s);
+        auto reshape1 =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {256, 19}}}), data);
         auto slice = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), reshape1);
-        auto reshape2 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {8, 32, 1}}}), slice);
+        auto reshape2 =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {8, 32, 1}}}), slice);
         auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), reshape2);
         m2.add_return({squeeze});
     }
@@ -2763,10 +2765,10 @@ TEST_CASE(gather_constant_scalar_index_single_dim)
 
     migraphx::module m2;
     {
-        auto s     = migraphx::shape{migraphx::shape::float_type, {4}};
-        auto data  = m2.add_parameter("data", s);
+        auto s         = migraphx::shape{migraphx::shape::float_type, {4}};
+        auto data      = m2.add_parameter("data", s);
         auto unsqueeze = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), data);
-        auto slice = m2.add_instruction(
+        auto slice     = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), unsqueeze);
         auto reshape = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1}}}), slice);
         auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), reshape);

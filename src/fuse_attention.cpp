@@ -34,6 +34,7 @@
 #include <migraphx/split_factor.hpp>
 #include <queue>
 #include <optional>
+#include <limits>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -1134,8 +1135,31 @@ struct find_gqa_flash_decoding
         
         std::cout << "\n>>> Creating: get_tuple_elem (index=1)" << std::endl;
         std::cout << "    Input shape: " << new_group_ins->get_shape() << std::endl;
-        auto lse = mm.insert_instruction(
+        auto lse_raw = mm.insert_instruction(
             attn_group_ins, make_op("get_tuple_elem", {{"index", 1}}), new_group_ins);
+        std::cout << "    Output shape: " << lse_raw->get_shape() << std::endl;
+        
+        // Handle NaN in LSE: when a group is fully masked, softmax produces NaN
+        // Replace NaN with -inf so those groups don't affect reduce_max
+        auto lse_type = lse_raw->get_shape().type();
+        std::cout << "\n>>> Creating: isnan (for LSE)" << std::endl;
+        std::cout << "    Input shape: " << lse_raw->get_shape() << std::endl;
+        auto lse_is_nan = mm.insert_instruction(
+            attn_group_ins, make_op("isnan"), lse_raw);
+        std::cout << "    Output shape: " << lse_is_nan->get_shape() << std::endl;
+        
+        auto neg_inf_lit = mm.add_literal(literal{shape{lse_type, {1}}, 
+            {-std::numeric_limits<float>::infinity()}});
+        std::cout << "\n>>> Creating: multibroadcast (out_lens=" << lse_raw->get_shape() << ") for -inf" << std::endl;
+        auto neg_inf_bcast = mm.insert_instruction(
+            attn_group_ins,
+            make_op("multibroadcast", {{"out_lens", lse_raw->get_shape().lens()}}),
+            neg_inf_lit);
+        std::cout << "    Output shape: " << neg_inf_bcast->get_shape() << std::endl;
+        
+        std::cout << "\n>>> Creating: where (replace NaN with -inf in LSE)" << std::endl;
+        auto lse = mm.insert_instruction(
+            attn_group_ins, make_op("where"), lse_is_nan, neg_inf_bcast, lse_raw);
         std::cout << "    Output shape: " << lse->get_shape() << std::endl;
 
         // Kernel 2: combine using exp-normalize trick
@@ -1282,9 +1306,22 @@ struct find_gqa_flash_decoding
         // final division: O = numerator / denominator
         std::cout << "\n>>> Creating: div" << std::endl;
         std::cout << "    Input shapes: " << numerator->get_shape() << ", " << denominator->get_shape() << std::endl;
-        auto final_output_o = mm.insert_instruction(
+        auto final_output_raw = mm.insert_instruction(
             attn_group_ins, make_op("div"), numerator, denominator);
-        std::cout << "    Output shape: " << final_output_o->get_shape() << std::endl;
+        std::cout << "    Output shape: " << final_output_raw->get_shape() << std::endl;
+        
+        // Handle NaN from 0/0 (when all groups were invalid for a position)
+        std::cout << "\n>>> Creating: isnan (for final output)" << std::endl;
+        auto output_is_nan = mm.insert_instruction(
+            attn_group_ins, make_op("isnan"), final_output_raw);
+        auto zero_output_lit = mm.add_literal(literal{shape{output_type, {1}}, {0}});
+        auto zero_output_bcast = mm.insert_instruction(
+            attn_group_ins,
+            make_op("multibroadcast", {{"out_lens", final_output_raw->get_shape().lens()}}),
+            zero_output_lit);
+        auto final_output_o = mm.insert_instruction(
+            attn_group_ins, make_op("where"), output_is_nan, zero_output_bcast, final_output_raw);
+        std::cout << "    Output shape (cleaned): " << final_output_o->get_shape() << std::endl;
 
         // squeeze the reduced group dimension
         // [B, 1, S, N, D] -> [B, S, N, D]

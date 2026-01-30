@@ -2116,8 +2116,129 @@ struct find_split_transpose
     }
 };
 
+// Transform concat with grouped repeated inputs into concat of multibroadcasts
+// Pattern: concat(A, A, A, B, B, B, B, C, ..., axis=0) where A,B,C have dim=1 on concat axis
+// Transform: concat(multibroadcast(A, {3,...}), multibroadcast(B, {4,...}), C, ..., axis=0)
+// This reduces the number of concat inputs by grouping repeated consecutive inputs
+struct find_grouped_concat_to_broadcast
+{
+    // Minimum consecutive repeats to convert to broadcast
+    static constexpr std::size_t min_repeats = 2;
+
+    void apply(module& m) const
+    {
+        for(auto ins : iterator_for(m))
+        {
+            if(ins->name() != "concat")
+                continue;
+
+            auto inputs = ins->inputs();
+            if(inputs.size() < 4) // Need enough inputs to make grouping worthwhile
+                continue;
+
+            auto concat_op = any_cast<op::concat>(ins->get_operator());
+            auto concat_axis = concat_op.axis;
+
+            // Normalize axis
+            auto output_shape = ins->get_shape();
+            if(output_shape.dynamic())
+                continue;
+
+            auto ndim = output_shape.ndim();
+            if(concat_axis < 0)
+                concat_axis += static_cast<int64_t>(ndim);
+
+            auto concat_axis_idx = static_cast<std::size_t>(concat_axis);
+
+            // Group consecutive identical inputs
+            std::vector<std::pair<instruction_ref, std::size_t>> groups; // (input, count)
+            instruction_ref current = inputs[0];
+            std::size_t count = 1;
+
+            for(std::size_t i = 1; i < inputs.size(); i++)
+            {
+                if(inputs[i] == current)
+                {
+                    count++;
+                }
+                else
+                {
+                    groups.push_back({current, count});
+                    current = inputs[i];
+                    count = 1;
+                }
+            }
+            groups.push_back({current, count});
+
+            // Check if grouping would reduce inputs significantly
+            // Only proceed if we have groups with repeats >= min_repeats
+            std::size_t total_grouped = 0;
+            for(auto& [inp, cnt] : groups)
+            {
+                if(cnt >= min_repeats)
+                {
+                    // Check if input has dimension 1 on concat axis (required for broadcast)
+                    auto inp_shape = inp->get_shape();
+                    if(inp_shape.dynamic() || inp_shape.lens().size() <= concat_axis_idx)
+                        continue;
+                    if(inp_shape.lens()[concat_axis_idx] == 1)
+                        total_grouped += cnt - 1; // Savings = repeats - 1
+                }
+            }
+
+            // Only transform if we save at least 4 inputs
+            if(total_grouped < 4)
+                continue;
+
+            // Build new inputs with broadcasts for repeated groups
+            std::vector<instruction_ref> new_inputs;
+            for(auto& [inp, cnt] : groups)
+            {
+                auto inp_shape = inp->get_shape();
+                bool can_broadcast = !inp_shape.dynamic() && 
+                                     inp_shape.lens().size() > concat_axis_idx &&
+                                     inp_shape.lens()[concat_axis_idx] == 1;
+
+                if(cnt >= min_repeats && can_broadcast)
+                {
+                    // Replace repeated inputs with a single multibroadcast
+                    auto new_lens = inp_shape.lens();
+                    new_lens[concat_axis_idx] = cnt;
+                    auto broadcast_op = make_op("multibroadcast", {{"out_lens", new_lens}});
+                    auto broadcast_ins = m.insert_instruction(ins, broadcast_op, inp);
+                    new_inputs.push_back(broadcast_ins);
+                }
+                else
+                {
+                    // Keep original inputs
+                    for(std::size_t j = 0; j < cnt; j++)
+                    {
+                        new_inputs.push_back(inp);
+                    }
+                }
+            }
+
+            // Replace concat with new inputs
+            if(new_inputs.size() < inputs.size())
+            {
+                if(new_inputs.size() == 1)
+                {
+                    m.replace_instruction(ins, new_inputs.front());
+                }
+                else
+                {
+                    m.replace_instruction(ins, ins->get_operator(), new_inputs);
+                }
+            }
+        }
+    }
+};
+
 void simplify_algebra::apply(module& m) const
 {
+    // Run grouped concat to broadcast optimization (reduces concat inputs)
+    find_grouped_concat_to_broadcast{}.apply(m);
+
     // Run simplifications multiple times
     m.repeat_while_changes(8, [&] {
         match::find_matches(m,

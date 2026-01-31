@@ -35,7 +35,7 @@ struct test_transpose_reduce_sum_large_sub : verify_program<test_transpose_reduc
         migraphx::program p;
         auto* mm = p.get_main_module();
         auto x   = mm->add_parameter(
-            "x", migraphx::shape{migraphx::shape::half_type, {1, 24, 40, 2560, 16}});
+            "x", migraphx::shape{migraphx::shape::half_type, {1, 24, 40, 2560, 2}});
         auto transpose = mm->add_instruction(
             migraphx::make_op("transpose", {{"permutation", {4, 3, 0, 1, 2}}}), x);
         auto squeeze =
@@ -47,7 +47,7 @@ struct test_transpose_reduce_sum_large_sub : verify_program<test_transpose_reduc
         auto reduce_sum =
             mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), reshape);
         auto multibroadcast = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {16, 32, 76800}}}), reduce_sum);
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 32, 76800}}}), reduce_sum);
         auto sub = mm->add_instruction(migraphx::make_op("sub"), reshape, multibroadcast);
         mm->add_return({sub});
         return p;

@@ -53,4 +53,4 @@ struct test_dynamic_pointwise : verify_program<test_dynamic_pointwise<TestDims..
 
 template struct test_dynamic_pointwise<4, 16, 24>; // maxes
 template struct test_dynamic_pointwise<2, 8, 4>;   // mins
-template struct test_dynamic_pointwise<3, 10, 13>; // inbetween
+template struct test_dynamic_pointwise<3, 10, 13>; // in between

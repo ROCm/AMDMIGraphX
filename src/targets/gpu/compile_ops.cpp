@@ -147,6 +147,8 @@ struct dynamic_code_object_op
 
         // Rewrite submodule without dynamic shapes to be used as the IR for compilation
         module static_submod;
+        auto op_name          = any_cast<precompile_op>(pre_op).op.name();
+        auto runtime_mod_name = "runtime_mod:" + op_name;
         if(not module_args.empty())
         {
             auto pnames = module_args.front()->get_parameter_names();
@@ -160,11 +162,11 @@ struct dynamic_code_object_op
                            });
             static_submod = module_args.front()->with_static_shapes(mod_arg_shapes);
             static_submod.set_bypass(true);
+            runtime_mod_name = "runtime_mod:" + module_args.front()->name();
         }
 
         // Create runtime module which will be compiled and cached
-        auto name        = "runtime_mod:" + module_args.front()->name();
-        auto runtime_mod = module(name);
+        auto runtime_mod = module(runtime_mod_name);
         std::vector<instruction_ref> args_ins;
         std::vector<size_t> idx(static_args.size());
         std::iota(std::begin(idx), std::end(idx), 0);
@@ -173,8 +175,8 @@ struct dynamic_code_object_op
                        idx.begin(),
                        std::back_inserter(args_ins),
                        [&](const auto& arg, const auto& i) {
-                           return runtime_mod.add_parameter(name + ":x" + std::to_string(i),
-                                                            arg.get_shape());
+                           return runtime_mod.add_parameter(
+                               runtime_mod_name + ":x" + std::to_string(i), arg.get_shape());
                        });
         instruction_ref ins;
         if(not module_args.empty())

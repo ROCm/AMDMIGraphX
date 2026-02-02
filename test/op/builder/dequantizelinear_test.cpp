@@ -31,12 +31,12 @@
 
 namespace {
 template <typename XT = int8_t, typename ST = float>
-struct test_ctx
+struct test_context
 {
     using x_typ = XT;
     using s_typ = ST;
 
-    test_ctx(const std::vector<size_t>& x_lens,
+    test_context(const std::vector<size_t>& x_lens,
              const std::vector<size_t>& s_lens,
              migraphx::shape::type_t x_type = migraphx::shape::get_type<x_typ>::value,
              migraphx::shape::type_t s_type = migraphx::shape::get_type<s_typ>::value)
@@ -96,32 +96,32 @@ struct test_ctx
 };
 
 template <typename XT = int8_t, typename ST = float>
-test_ctx<XT, ST> per_tensor_ctx(const std::vector<size_t>& x_lens)
+test_context<XT, ST> per_tensor_ctx(const std::vector<size_t>& x_lens)
 {
-    return test_ctx<XT, ST>{x_lens, {1}};
+    return test_context<XT, ST>{x_lens, {1}};
 }
 
 template <typename XT = int8_t, typename ST = float>
-test_ctx<XT, ST> per_axis_ctx(const std::vector<size_t>& x_lens, size_t s_dim, int axis)
+test_context<XT, ST> per_axis_ctx(const std::vector<size_t>& x_lens, size_t s_dim, int axis)
 {
-    test_ctx<XT, ST> ctx{x_lens, {s_dim}};
+    test_context<XT, ST> ctx{x_lens, {s_dim}};
     ctx.axis = axis;
     return ctx;
 }
 
 template <typename XT = int8_t, typename ST = float>
-test_ctx<XT, ST> per_axis_ctx_valid(const std::vector<size_t>& x_lens, int axis)
+test_context<XT, ST> per_axis_ctx_valid(const std::vector<size_t>& x_lens, int axis)
 {
     return per_axis_ctx<XT, ST>(x_lens, x_lens[axis], axis);
 }
 
 template <typename XT = int8_t, typename ST = float>
-test_ctx<XT, ST> blocked_ctx(const std::vector<size_t>& x_lens,
+test_context<XT, ST> blocked_ctx(const std::vector<size_t>& x_lens,
                              const std::vector<size_t>& s_lens,
                              int axis,
                              int block_size)
 {
-    test_ctx<XT, ST> ctx{x_lens, s_lens};
+    test_context<XT, ST> ctx{x_lens, s_lens};
     ctx.axis       = axis;
     ctx.block_size = block_size;
     return ctx;

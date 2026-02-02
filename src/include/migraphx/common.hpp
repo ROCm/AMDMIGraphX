@@ -123,6 +123,16 @@ MIGRAPHX_EXPORT std::vector<instruction_ref> insert_common_args(module& m,
                                                                 std::vector<instruction_ref> inputs,
                                                                 common_options options = {});
 
+
+/**
+ * Broadcast and convert arguments in the `inputs` list to the given `to_shape`.
+ */
+MIGRAPHX_EXPORT std::vector<instruction_ref> broadcast_convert_to_shape(module&m,
+                                                        instruction_ref ins,
+                                                        std::vector<instruction_ref> inputs,
+                                                        shape to_shape,
+                                                        common_options options = {});
+
 MIGRAPHX_EXPORT
 std::vector<instruction_ref>
 add_common_args(module& m, std::vector<instruction_ref> inputs, common_options options = {});

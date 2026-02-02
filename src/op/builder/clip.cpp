@@ -41,12 +41,22 @@ struct clip : op_builder<clip>
         bool max_used = args.size() == 3 and not args[2]->is_undefined();
         bool min_used = args.size() >= 2 and not args[1]->is_undefined();
 
+        shape input_shape = args.at(0)->get_shape();
         if(min_used and max_used)
-            return {insert_common_op(m, ins, make_op("clip"), args)};
+        {
+            auto bc_args = broadcast_convert_to_shape(m, ins, args, input_shape);
+            return {m.insert_instruction(ins, make_op("clip"), bc_args)};
+        }
         if(max_used)
-            return {insert_common_op(m, ins, "min", args[0], args[2])};
+        {
+            auto bc_args = broadcast_convert_to_shape(m, ins, {args[0], args[2]}, input_shape);
+            return {m.insert_instruction(ins, make_op("min"), bc_args)};
+        }
         if(min_used)
-            return {insert_common_op(m, ins, "max", args[0], args[1])};
+        {
+            auto bc_args = broadcast_convert_to_shape(m, ins, {args[0], args[1]}, input_shape);
+            return {m.insert_instruction(ins, make_op("max"), bc_args)};
+        }
         return {m.insert_instruction(ins, make_op("identity"), args[0])};
     }
 };

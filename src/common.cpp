@@ -195,20 +195,30 @@ std::vector<instruction_ref> insert_common_args(module& m,
     else
     {
         auto common = common_shape(to_shapes(inputs));
-        std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
-            if(options.common_lens and input->get_shape().lens() != common.lens())
-            {
-                input = m.insert_instruction(
-                    ins, make_op("multibroadcast", {{"out_lens", common.lens()}}), input);
-            }
-            if(options.common_type and input->get_shape().type() != common.type())
-            {
-                input = m.insert_instruction(
-                    ins, make_op("convert", {{"target_type", common.type()}}), input);
-            }
-            return input;
-        });
+        inputs = broadcast_convert_to_shape(m, ins, inputs, common, options);
     }
+    return inputs;
+}
+
+std::vector<instruction_ref> broadcast_convert_to_shape(module&m,
+                                                        instruction_ref ins,
+                                                        std::vector<instruction_ref> inputs,
+                                                        shape to_shape,
+                                                        common_options options)
+{
+    std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
+        if(options.common_lens and input->get_shape().lens() != to_shape.lens())
+        {
+            input = m.insert_instruction(
+                ins, make_op("multibroadcast", {{"out_lens", to_shape.lens()}}), input);
+        }
+        if(options.common_type and input->get_shape().type() != to_shape.type())
+        {
+            input = m.insert_instruction(
+                ins, make_op("convert", {{"target_type", to_shape.type()}}), input);
+        }
+        return input;
+    });
     return inputs;
 }
 

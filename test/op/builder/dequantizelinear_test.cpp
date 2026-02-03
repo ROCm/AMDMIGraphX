@@ -96,13 +96,13 @@ struct test_context
 };
 
 template <typename XT = int8_t, typename ST = float>
-test_context<XT, ST> per_tensor_ctx(const std::vector<size_t>& x_lens)
+test_context<XT, ST> per_tensor_context(const std::vector<size_t>& x_lens)
 {
     return test_context<XT, ST>{x_lens, {1}};
 }
 
 template <typename XT = int8_t, typename ST = float>
-test_context<XT, ST> per_axis_ctx(const std::vector<size_t>& x_lens, size_t s_dim, int axis)
+test_context<XT, ST> per_axis_context(const std::vector<size_t>& x_lens, size_t s_dim, int axis)
 {
     test_context<XT, ST> ctx{x_lens, {s_dim}};
     ctx.axis = axis;
@@ -110,13 +110,13 @@ test_context<XT, ST> per_axis_ctx(const std::vector<size_t>& x_lens, size_t s_di
 }
 
 template <typename XT = int8_t, typename ST = float>
-test_context<XT, ST> per_axis_ctx_valid(const std::vector<size_t>& x_lens, int axis)
+test_context<XT, ST> per_axis_context_valid(const std::vector<size_t>& x_lens, int axis)
 {
-    return per_axis_ctx<XT, ST>(x_lens, x_lens[axis], axis);
+    return per_axis_context<XT, ST>(x_lens, x_lens[axis], axis);
 }
 
 template <typename XT = int8_t, typename ST = float>
-test_context<XT, ST> blocked_ctx(const std::vector<size_t>& x_lens,
+test_context<XT, ST> blocked_context(const std::vector<size_t>& x_lens,
                              const std::vector<size_t>& s_lens,
                              int axis,
                              int block_size)
@@ -131,7 +131,7 @@ test_context<XT, ST> blocked_ctx(const std::vector<size_t>& x_lens,
 // per-tensor
 TEST_CASE(dequantizelinear_per_tensor_op_builder_test)
 {
-    auto ctx            = per_tensor_ctx({4, 3});
+    auto ctx            = per_tensor_context({4, 3});
     migraphx::module& m = ctx.m;
 
     auto new_s = m.add_instruction(
@@ -146,7 +146,7 @@ TEST_CASE(dequantizelinear_per_tensor_op_builder_test)
 // per-axis
 TEST_CASE(dequantizelinear_per_axis_op_builder_test)
 {
-    auto ctx            = per_axis_ctx_valid({4, 3}, 1);
+    auto ctx            = per_axis_context_valid({4, 3}, 1);
     migraphx::module& m = ctx.m;
 
     auto new_s = m.add_instruction(
@@ -163,7 +163,7 @@ TEST_CASE(dequantizelinear_per_axis_op_builder_test)
 
 TEST_CASE(dequantizelinear_per_axis_invalid_shapes_op_builder_test)
 {
-    auto ctx = per_axis_ctx({4, 3}, 5, 1);
+    auto ctx = per_axis_context({4, 3}, 5, 1);
     EXPECT(test::throws<migraphx::exception>(
         [&] { ctx.make_op_bldr(); },
         "dequantizelinear: For per axis granularity the length of y_scale (actual: 5) must be "
@@ -172,7 +172,7 @@ TEST_CASE(dequantizelinear_per_axis_invalid_shapes_op_builder_test)
 
 TEST_CASE(dequantizelinear_per_axis_invalid_axis_op_builder_test)
 {
-    auto ctx = per_axis_ctx({4, 3}, 3, 8);
+    auto ctx = per_axis_context({4, 3}, 3, 8);
     EXPECT(test::throws<migraphx::exception>([&] { ctx.make_op_bldr(); },
                                              "DEQUANTIZELINEAR: axis is out of range."));
 }
@@ -180,7 +180,7 @@ TEST_CASE(dequantizelinear_per_axis_invalid_axis_op_builder_test)
 // blocked
 TEST_CASE(dequantizelinear_blocked_op_builder_test)
 {
-    auto ctx            = blocked_ctx({4, 6}, {4, 3}, 1, 2);
+    auto ctx            = blocked_context({4, 6}, {4, 3}, 1, 2);
     migraphx::module& m = ctx.m;
 
     auto i1 = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), ctx.s);
@@ -198,14 +198,14 @@ TEST_CASE(dequantizelinear_blocked_op_builder_test)
 
 TEST_CASE(dequantizelinear_blocked_invalid_axis_op_builder_test)
 {
-    auto ctx = blocked_ctx({4, 3}, {4, 3}, 8, 2);
+    auto ctx = blocked_context({4, 3}, {4, 3}, 8, 2);
     EXPECT(test::throws<migraphx::exception>([&] { ctx.make_op_bldr(); },
                                              "DEQUANTIZELINEAR: axis is out of range."));
 }
 
 TEST_CASE(dequantizelinear_blocked_invalid_rank_op_builder_test)
 {
-    auto ctx = blocked_ctx({3, 4, 6}, {4, 3}, 1, 2);
+    auto ctx = blocked_context({3, 4, 6}, {4, 3}, 1, 2);
     EXPECT(test::throws<migraphx::exception>([&] { ctx.make_op_bldr(); },
                                              "dequantizelinear: x(rank: 3) and y_scale(rank: 2) "
                                              "must be of same rank for block granularity"));
@@ -213,7 +213,7 @@ TEST_CASE(dequantizelinear_blocked_invalid_rank_op_builder_test)
 
 TEST_CASE(dequantizelinear_blocked_invalid_shape_op_builder_test)
 {
-    auto ctx = blocked_ctx({4, 6}, {5, 3}, 1, 2);
+    auto ctx = blocked_context({4, 6}, {5, 3}, 1, 2);
     EXPECT(
         test::throws<migraphx::exception>([&] { ctx.make_op_bldr(); },
                                           "dequantizelinear: x(shape: 4, 6) and y_scale(shape: 5, "
@@ -222,7 +222,7 @@ TEST_CASE(dequantizelinear_blocked_invalid_shape_op_builder_test)
 
 TEST_CASE(dequantizelinear_blocked_invalid_blocksize_op_builder_test)
 {
-    auto ctx = blocked_ctx({4, 6}, {4, 3}, 1, 3);
+    auto ctx = blocked_context({4, 6}, {4, 3}, 1, 3);
     EXPECT(test::throws<migraphx::exception>(
         [&] { ctx.make_op_bldr(); },
         "dequantizelinear: Block size(actual: 3) must be within range [2, 2]"));
@@ -230,7 +230,7 @@ TEST_CASE(dequantizelinear_blocked_invalid_blocksize_op_builder_test)
 
 TEST_CASE(dequantizelinear_blocked_blocksize_zero_op_builder_test)
 {
-    auto ctx            = blocked_ctx({4, 6}, {4, 3}, 1, 0);
+    auto ctx            = blocked_context({4, 6}, {4, 3}, 1, 0);
     migraphx::module& m = ctx.m;
 
     auto i1 = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), ctx.s);
@@ -248,7 +248,7 @@ TEST_CASE(dequantizelinear_blocked_blocksize_zero_op_builder_test)
 
 TEST_CASE(dequantizelinear_blocked_blocksize_one_op_builder_test)
 {
-    auto ctx            = blocked_ctx({4, 3}, {4, 3}, 1, 1);
+    auto ctx            = blocked_context({4, 3}, {4, 3}, 1, 1);
     migraphx::module& m = ctx.m;
 
     m.add_instruction(migraphx::make_op("dequantizelinear"), ctx.x, ctx.s, ctx.zp);
@@ -285,7 +285,7 @@ TEST_CASE(dequantizelinear_verify_per_tensor_op_builder_test)
     }
     */
 
-    auto ctx = per_tensor_ctx({4, 3});
+    auto ctx = per_tensor_context({4, 3});
 
     std::vector<int8_t> x  = {-128, -64, 0, 64, 127, 0, 64, -64, -128, 32, -32, 16};
     std::vector<float> s   = {0.1f};
@@ -327,7 +327,7 @@ TEST_CASE(dequantizelinear_verify_per_axis_op_builder_test)
     }
     */
 
-    auto ctx = per_axis_ctx_valid({4, 3}, 1);
+    auto ctx = per_axis_context_valid({4, 3}, 1);
 
     std::vector<int8_t> x  = {-128, -64, 0, 64, 127, 0, 64, -64, -128, 32, -32, 16};
     std::vector<float> s   = {0.1f, 1.0f, 10.0f};
@@ -384,7 +384,7 @@ TEST_CASE(dequantizelinear_verify_blocked_op_builder_test)
     }
     */
 
-    auto ctx = blocked_ctx(/*x_lens*/ {4, 6}, /*s_lens*/ {4, 3}, /*axis*/ 1, /*block_size*/ 2);
+    auto ctx = blocked_context(/*x_lens*/ {4, 6}, /*s_lens*/ {4, 3}, /*axis*/ 1, /*block_size*/ 2);
 
     std::vector<int8_t> x = {-128, -64, 0,   64,   127, 0,  64,  -64, -128, 32,  -32,  16,
                              -16,  -32, -64, -128, 0,   64, 127, 0,   64,   -64, -128, 32};

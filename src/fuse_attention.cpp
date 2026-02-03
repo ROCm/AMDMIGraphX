@@ -349,19 +349,10 @@ struct find_gqa_flash_decoding
             batch_size = q_shape.lens()[0];
             is_3d_query = (q_shape.lens().size() == 3);
 
-            if(is_3d_query)
-            {
-                // 3D query: [B, S, hidden_size] where hidden_size = head_dim * concat_heads
-                sequence_length = q_shape.lens()[1];
-                std::size_t hidden_size = q_shape.lens()[2];
-                concat_heads = hidden_size / head_dim;
-            }
-            else
-            {
-                // 4D query: [B, concat_heads, S, head_dim]
-                concat_heads = q_shape.lens()[1];
-                sequence_length = q_shape.lens()[2];
-            }
+            // 3D query: [B, S, hidden_size] where hidden_size = head_dim * concat_heads
+            // 4D query: [B, concat_heads, S, head_dim]
+            sequence_length = is_3d_query ? q_shape.lens()[1] : q_shape.lens()[2];
+            concat_heads = is_3d_query ? q_shape.lens()[2] / head_dim : q_shape.lens()[1];
 
             // calculate Q heads from concat_heads = num_heads + 2 * kv_heads
             num_heads = concat_heads - 2 * kv_heads;
@@ -370,7 +361,7 @@ struct find_gqa_flash_decoding
             if(max_seq_length % num_groups != 0) {
                 std::cout << "Max sequence length " << max_seq_length 
                           << " not divisible by " << num_groups << " groups" << std::endl;
-                // TODO: add autosplitting (padding won't be needed)
+                // TODO: add autosplitting (padding won't be needed) (already tracked)
                 seq_length_per_group = 0;
             } else {
                 seq_length_per_group = max_seq_length / num_groups;

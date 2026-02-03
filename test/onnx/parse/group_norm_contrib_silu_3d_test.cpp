@@ -34,8 +34,8 @@ TEST_CASE(group_norm_contrib_silu_3d_test)
                                           {2, 3},
                                           1e-5f,
                                           migraphx::shape::float_type,
-                                          "gamma",
-                                          "beta");
+                                          {"gamma", migraphx::shape::float_type},
+                                          {"beta", migraphx::shape::float_type});
 
     // Add sigmoid at the end of the program to represent the added SILU block
     auto* mm     = p.get_main_module();

@@ -230,7 +230,12 @@ struct index
     static constexpr void for_stride(index_int start, N n, Stride stride, F f)
     {
         MIGRAPHX_ASSERT(start < stride);
-        if constexpr(not is_integral<N>{} and not is_integral<Stride>{})
+
+        if constexpr(not is_integral<N>{} and n < 1)
+        {
+            return;
+        }
+        else if constexpr(not is_integral<N>{} and not is_integral<Stride>{})
         {
             if constexpr(max_stride_iterations(n, stride) == 1)
             {

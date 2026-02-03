@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,6 +31,7 @@
 #include <numeric>
 #include <memory>
 #include <set>
+#include <limits>
 
 #include <migraphx/functional.hpp>
 #include <migraphx/errors.hpp>
@@ -73,7 +74,8 @@ struct MIGRAPHX_EXPORT shape
 #define MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES(x, t) x,
     enum type_t
     {
-        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES) tuple_type
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES) tuple_type,
+        fp4x2_type // packed fp4 contained in uint8
     };
 #undef MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES
 
@@ -162,6 +164,7 @@ struct MIGRAPHX_EXPORT shape
     static bool is_compatible(const shape& actual, const shape& expected);
 
     static bool is_unsigned(type_t t);
+    static bool is_computable(type_t t);
 
     shape();
     shape(type_t t);
@@ -334,6 +337,9 @@ struct MIGRAPHX_EXPORT shape
     /// Return true if this shape or any of the sub_shapes are dynamic
     bool any_of_dynamic() const;
 
+    /// If type is computable (can do math ops like add or divide) and has a visitor function
+    bool computable() const;
+
     shape normalize_standard() const;
 
     shape as_standard() const;
@@ -353,6 +359,8 @@ struct MIGRAPHX_EXPORT shape
     MIGRAPHX_EXPORT friend bool operator!=(const shape& x, const shape& y);
     MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const shape& x);
 
+    static bool same_lens(const shape& x, const shape& y);
+
     template <class T>
     struct as
     {
@@ -363,6 +371,8 @@ struct MIGRAPHX_EXPORT shape
         type min() const { return std::numeric_limits<type>::lowest(); }
 
         type nan() const { return std::numeric_limits<type>::quiet_NaN(); }
+
+        type epsilon() const { return std::numeric_limits<type>::epsilon(); }
 
         template <class U>
         type operator()(U u) const
@@ -414,6 +424,9 @@ struct MIGRAPHX_EXPORT shape
             tv();
             return;
         }
+        case fp4x2_type: {
+            MIGRAPHX_THROW("fp4x2_type cannot be visited.");
+        }
 #define MIGRAPHX_SHAPE_GENERATE_VISITOR_CASE(x, t) \
     case x: v(as<t>()); return;
             MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_VISITOR_CASE)
@@ -439,6 +452,7 @@ struct MIGRAPHX_EXPORT shape
     {
 #define MIGRAPHX_SHAPE_GENERATE_VISITOR_ALL(x, t) v(as<t>());
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_VISITOR_ALL)
+        v(as<uint8_t>());
 #undef MIGRAPHX_SHAPE_GENERATE_VISITOR_ALL
     }
 

@@ -41,6 +41,26 @@ apply_channels_last_perm(const onnx_parser::node_info& info, instruction_ref ins
         make_op("transpose", {{"permutation", invert ? invert_permutation(perm) : perm}}), ins);
 }
 
+static instruction_ref convert_tensor_type(const onnx_parser::node_info& info,
+                                           instruction_ref tensor,
+                                           shape::type_t target_type)
+{
+    return tensor->get_shape().type() != target_type
+               ? info.add_instruction(migraphx::make_op("convert", {{"target_type", target_type}}),
+                                      tensor)
+               : tensor;
+}
+
+static void
+validate_tensor_shape(const instruction_ref& tensor, size_t channels, const std::string& name)
+{
+    if(tensor->get_shape().ndim() != 1 or tensor->get_shape().lens().at(0) != channels)
+    {
+        MIGRAPHX_THROW("PARSE_GROUPNORM: " + name +
+                       " tensor shape should be equal to the number of channels");
+    }
+}
+
 struct parse_groupnorm : op_parser<parse_groupnorm>
 {
     std::vector<op_desc> operators() const
@@ -113,9 +133,6 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
             x = apply_channels_last_perm(info, x, true);
         }
 
-        auto scale = args.at(1); // gamma in the GroupNorm contrib case
-        auto bias  = args.at(2); // beta in the GroupNorm contrib case
-
         auto x_shape = x->get_shape();
         auto x_dtype = x_shape.type();
         auto x_dims  = x_shape.lens();
@@ -131,22 +148,19 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
             MIGRAPHX_THROW(
                 "PARSE_GROUPNORM: num_groups should be a divisor of the number of channels");
         }
-        auto group_size = c / num_groups;
-        if(scale->get_shape().ndim() != 1 or scale->get_shape().lens().at(0) != c)
-        {
-            MIGRAPHX_THROW(
-                "PARSE_GROUPNORM: scale tensor shape should be equal to the number of channels");
-        }
-        if(bias->get_shape().ndim() != 1 or bias->get_shape().lens().at(0) != c)
-        {
-            MIGRAPHX_THROW(
-                "PARSE_GROUPNORM: bias tensor shape should be equal to the number of channels");
-        }
+
+        // Pre-process scale and bias
+        auto scale = convert_tensor_type(
+            info, args.at(1), x_shape.type()); // gamma in the GroupNorm contrib case
+        auto bias = convert_tensor_type(
+            info, args.at(2), x_shape.type()); // beta in the GroupNorm contrib case
+        validate_tensor_shape(scale, c, "scale");
+        validate_tensor_shape(bias, c, "bias");
 
         // Original shape: N x C x D1 x ... x Dn
         // New shape: N x num_groups x C // num_groups x D1 x ... x Dn
 
-        std::vector<size_t> dims = {x_dims.at(0), num_groups, group_size};
+        std::vector<size_t> dims = {x_dims.at(0), num_groups, c / num_groups};
         std::copy(x_dims.begin() + 2, x_dims.end(), std::back_inserter(dims));
         auto x_reshaped = info.add_instruction(make_op("reshape", {{"dims", dims}}), x);
 

@@ -35,7 +35,7 @@ template <class F>
 void par_for(std::size_t n, F f)
 {
     using iterator = basic_iota_iterator<id, std::size_t>;
-    par_for_each(iterator{0, {}}, iterator{n, {}}, f);
+    par_for_each(iterator{0}, iterator{n}, f);
 }
 
 template <class F>

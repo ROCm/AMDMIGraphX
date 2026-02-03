@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,7 +24,6 @@
 
 #include <atomic>
 #include <algorithm>
-#include <array>
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
@@ -45,6 +44,17 @@
 #define MIGRAPHX_GUARD_TEST_TEST_HPP
 
 namespace test {
+
+template <int N>
+struct rank : rank<N - 1>
+{
+};
+
+template <>
+struct rank<0>
+{
+};
+
 // clang-format off
 // NOLINTNEXTLINE
 #define TEST_FOREACH_BINARY_OPERATORS(m) \
@@ -111,45 +121,79 @@ struct function
     }
 };
 
-template <class Stream, class Iterator>
-Stream& stream_range(Stream& s, Iterator start, Iterator last);
+template <class Stream, class T>
+void print_stream(Stream& s, const T& x);
+
+template <class Stream, class T>
+Stream& print_stream_impl(rank<0>, Stream& s, const T&)
+{
+    // TODO: Print typename
+    s << '?';
+    return s;
+}
+
+template <class Stream, class Range>
+auto print_stream_impl(rank<1>, Stream& s, const Range& v)
+    -> decltype(v.end(), print_stream(s, *v.begin()), void())
+{
+    auto start = v.begin();
+    auto last  = v.end();
+    s << "{ ";
+    if(start != last)
+    {
+        print_stream(s, *start);
+        std::for_each(std::next(start), last, [&](auto&& x) {
+            s << ", ";
+            print_stream(s, x);
+        });
+    }
+    s << "}";
+}
+
+template <class Stream, class T>
+auto print_stream_impl(rank<2>, Stream& s, const T& x)
+    -> decltype(s << x) // NOLINT(bugprone-multi-level-implicit-pointer-conversion)
+{
+    if constexpr(std::is_pointer<T>{})
+    {
+        return s << static_cast<const void*>(x);
+    }
+    else if constexpr(std::is_same<T, bool>{})
+    {
+        if(x)
+            s << "true";
+        else
+            s << "false";
+        return s;
+    }
+    else
+    {
+        return s << x;
+    }
+}
+
+template <class Stream, class T, class U>
+Stream& print_stream_impl(rank<3>, Stream& s, const std::pair<T, U>& p)
+{
+    s << "{";
+    print_stream(s, p.first);
+    s << ", ";
+    print_stream(s, p.second);
+    s << "}";
+    return s;
+}
 
 template <class Stream>
-inline Stream& operator<<(Stream& s, std::nullptr_t)
+Stream& print_stream_impl(rank<4>, Stream& s, std::nullptr_t)
 {
     s << "nullptr";
     return s;
 }
 
-template <class Stream, class T, class U>
-inline Stream& operator<<(Stream& s, const std::pair<T, U>& p)
+template <class Stream, class T>
+void print_stream(Stream& s, const T& x)
 {
-    s << "{";
-    s << p.first << ", " << p.second;
-    s << "}";
-    return s;
-}
-
-template <class Stream,
-          class Range,
-          class = typename std::enable_if<not std::is_convertible<Range, std::string>{}>::type>
-inline auto operator<<(Stream& s, const Range& v) -> decltype(stream_range(s, v.begin(), v.end()))
-{
-    s << "{ ";
-    stream_range(s, v.begin(), v.end());
-    s << "}";
-    return s;
-}
-
-template <class Stream, class Iterator>
-inline Stream& stream_range(Stream& s, Iterator start, Iterator last)
-{
-    if(start != last)
-    {
-        s << *start;
-        std::for_each(std::next(start), last, [&](auto&& x) { s << ", " << x; });
-    }
-    return s;
+    print_stream_impl(rank<5>{}, s, x);
 }
 
 template <class T>
@@ -168,11 +212,11 @@ template <class T, class Operator>
 lhs_expression<T, Operator> make_lhs_expression(T&& lhs, Operator);
 
 // NOLINTNEXTLINE
-#define TEST_EXPR_BINARY_OPERATOR(op, name)                       \
-    template <class V>                                            \
-    auto operator op(const V& rhs2) const                         \
-    {                                                             \
-        return make_expression(*this, rhs2, name{}); /* NOLINT */ \
+#define TEST_EXPR_BINARY_OPERATOR(op, name)                                        \
+    template <class V>                                                             \
+    auto operator op(V&& rhs2) const                                               \
+    {                                                                              \
+        return make_expression(*this, std::forward<V>(rhs2), name{}); /* NOLINT */ \
     }
 
 // NOLINTNEXTLINE
@@ -187,7 +231,9 @@ struct expression
 
     friend std::ostream& operator<<(std::ostream& s, const expression& self)
     {
-        s << self.lhs << " " << Operator::as_string() << " " << self.rhs;
+        print_stream(s, self.lhs);
+        s << " " << Operator::as_string() << " ";
+        print_stream(s, self.rhs);
         return s;
     }
 
@@ -201,9 +247,9 @@ struct expression
 
 // TODO: Remove rvalue references
 template <class T, class U, class Operator>
-expression<T, U, Operator> make_expression(T&& rhs, U&& lhs, Operator)
+expression<T, U, Operator> make_expression(T&& lhs, U&& rhs, Operator)
 {
-    return {std::forward<T>(rhs), std::forward<U>(lhs)};
+    return {std::forward<T>(lhs), std::forward<U>(rhs)};
 }
 
 // TODO: Remove rvalue reference
@@ -230,15 +276,7 @@ struct lhs_expression
         std::string op = Operator::as_string();
         if(not op.empty())
             s << Operator::as_string() << " ";
-        if constexpr(std::is_pointer_v<decltype(self.lhs)>)
-        {
-            s << static_cast<void*>(self.lhs);
-        }
-        else
-        {
-            // NOLINTNEXTLINE
-            s << self.lhs;
-        }
+        print_stream(s, self.lhs);
         return s;
     }
 
@@ -289,26 +327,11 @@ auto make_predicate(const std::string& msg, F f)
     return make_lhs_expression(predicate<F>{msg, std::move(f)}, function{});
 }
 
-inline std::string as_string(bool x)
-{
-    if(x)
-        return "true";
-    return "false";
-}
-
 template <class T>
 std::string as_string(const T& x)
 {
     std::stringstream ss;
-    ss << x;
-    return ss.str();
-}
-
-template <class Iterator>
-std::string as_string(Iterator start, Iterator last)
-{
-    std::stringstream ss;
-    stream_range(ss, start, last);
+    print_stream(ss, x);
     return ss.str();
 }
 
@@ -317,8 +340,7 @@ auto make_function(const std::string& name, F f)
 {
     return [=](auto&&... xs) {
         std::vector<std::string> args = {as_string(xs)...};
-        return make_predicate(name + "(" + as_string(args.begin(), args.end()) + ")",
-                              [=] { return f(xs...); });
+        return make_predicate(name + "(" + as_string(args) + ")", [=] { return f(xs...); });
     };
 }
 
@@ -372,12 +394,14 @@ inline std::atomic<int>& failures()
     return f;
 }
 
+inline void report_failure(int n = 1) { failures() += n; }
+
 template <class T, class F>
 void failed(const T& x, const char* msg, const char* func, const char* file, int line, F f)
 {
     if(not bool(x.value()))
     {
-        failures()++;
+        report_failure();
         std::cout << func << std::endl;
         std::cout << file << ":" << line << ":" << std::endl;
         std::cout << color::bold << color::fg_red << "    FAILED: " << color::reset << msg << " "
@@ -520,6 +544,13 @@ struct failure_error
 };
 
 [[noreturn]] inline void fail() { throw failure_error{}; }
+
+struct skip_test
+{
+    std::string reason;
+};
+
+[[noreturn]] inline void skip(const std::string& reason = "") { throw skip_test{reason}; }
 
 struct driver
 {
@@ -708,6 +739,16 @@ struct driver
                 failures() = 0;
                 f();
             }
+            catch(const skip_test& s)
+            {
+                skipped.push_back({name, s.reason});
+                out() << color::fg_yellow << "[ SKIPPED  ] " << color::reset << color::bold << name
+                      << color::reset;
+                if(not s.reason.empty())
+                    out() << ": " << color::fg_yellow << s.reason << color::reset;
+                out() << std::endl;
+                return;
+            }
             // cppcheck-suppress migraphx-EmptyCatchStatement
             catch(const failure_error&)
             {
@@ -740,6 +781,22 @@ struct driver
         out() << std::endl;
     }
 
+    template <class Range>
+    void run_test_cases(Range&& cases, const string_map& args)
+    {
+        if(on_selected_cases and args.count("--continue") == 0)
+        {
+            std::vector<std::string> selected_cases;
+            std::transform(cases.begin(),
+                           cases.end(),
+                           std::back_inserter(selected_cases),
+                           [](const auto& p) { return p.first; });
+            on_selected_cases(selected_cases);
+        }
+        for(auto&& p : cases)
+            run_test_case(p.first, p.second, args);
+    }
+
     void run(int argc, const char* argv[])
     {
         auto args = parse(argc, argv);
@@ -761,8 +818,7 @@ struct driver
         auto cases = args[""];
         if(cases.empty())
         {
-            for(auto&& tc : get_test_cases())
-                run_test_case(tc.first, tc.second, args);
+            run_test_cases(get_test_cases(), args);
         }
         else
         {
@@ -790,12 +846,23 @@ struct driver
                           << color::reset << std::endl;
                     failed.push_back(iname);
                 }
-                for(auto&& p : found_cases)
-                    run_test_case(p.first, p.second, args);
+                run_test_cases(found_cases, args);
             }
         }
         out() << color::fg_green << "[==========] " << color::fg_yellow << ran << " tests ran"
               << color::reset << std::endl;
+        if(not skipped.empty())
+        {
+            out() << color::fg_yellow << "[ SKIPPED  ] " << skipped.size() << " tests skipped"
+                  << color::reset << std::endl;
+            for(auto&& skip_info : skipped)
+            {
+                out() << color::fg_yellow << "[ SKIPPED  ] " << skip_info.first << color::reset;
+                if(not skip_info.second.empty())
+                    out() << ": " << color::fg_yellow << skip_info.second << color::reset;
+                out() << std::endl;
+            }
+        }
         if(not failed.empty())
         {
             out() << color::fg_red << "[  FAILED  ] " << color::fg_yellow << failed.size()
@@ -807,10 +874,12 @@ struct driver
         }
     }
 
+    std::function<void(const std::vector<std::string>&)> on_selected_cases = nullptr;
     std::function<std::vector<std::string>(const std::string&)> get_case_names =
         [](const std::string& name) -> std::vector<std::string> { return {name}; };
     std::vector<argument> arguments = {};
     std::vector<std::string> failed = {};
+    std::vector<std::pair<std::string, std::string>> skipped = {};
     std::size_t ran                 = 0;
     bool quiet                      = false;
 };
@@ -865,6 +934,17 @@ inline void run(int argc, const char* argv[])
     static void __VA_ARGS__();      \
     TEST_CASE_REGISTER(__VA_ARGS__) \
     static void __VA_ARGS__()
+
+// NOLINTNEXTLINE
+#define TEST_CASE_SKIP(name, reason)                           \
+    static void name##_body();                                 \
+    static void name()                                         \
+    {                                                          \
+        (void)&name##_body; /* to avoid unused func warning */ \
+        test::skip(reason);                                    \
+    }                                                          \
+    TEST_CASE_REGISTER(name)                                   \
+    static void name##_body()
 
 #ifdef __clang__
 #pragma clang diagnostic push

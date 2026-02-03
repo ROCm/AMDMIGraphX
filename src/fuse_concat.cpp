@@ -66,7 +66,7 @@ struct fused_concat
         module_ref post_mod          = mods.back();
         // post_mod has one input argument that is result of concat and will get generated from
         // pre-mods internally. Therefore deduct 1 from post_mod params while asserting.
-        assert(input_iter + post_mod->get_parameter_names().size() - 1 == inputs.end());
+        assert(input_iter + (post_mod->get_parameter_names().size() - 1) == inputs.end());
         auto type                    = std::prev(post_mod->end())->get_shape().type();
         const auto& first_shape_lens = concat_inputs.front().lens();
         auto mismatch_it =

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,6 +31,7 @@
 #include <algorithm>
 #include <functional>
 #include <unordered_map>
+#include <unordered_set>
 #include <iostream>
 
 namespace migraphx {
@@ -242,8 +243,11 @@ std::string shape::to_sizes_string(const std::vector<shape>& shapes)
 const std::vector<shape::type_t>& shape::types()
 {
     static const std::vector<shape::type_t> result = {
+    // clang-format off
 #define MIGRAPHX_GENERATE_TYPE_VECTOR(x, t) x,
-        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_GENERATE_TYPE_VECTOR) tuple_type};
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_GENERATE_TYPE_VECTOR)
+        tuple_type};
+    // clang-format on
     return result;
 }
 
@@ -252,6 +256,7 @@ std::string shape::name(shape::type_t t)
     switch(t)
     {
     case tuple_type: return "tuple_type";
+    case fp4x2_type: return "fp4x2_type";
 #define MIGRAPHX_SHAPE_GENERATE_TYPE_NAME_CASE(x, t) \
     case x: return #x;
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_TYPE_NAME_CASE)
@@ -265,6 +270,7 @@ std::string shape::cpp_type(shape::type_t t)
     switch(t)
     {
     case tuple_type: MIGRAPHX_THROW("No C++ type for tuple");
+    case fp4x2_type: return "uint8_t";
 #define MIGRAPHX_SHAPE_GENERATE_CPP_TYPE_CASE(x, t) \
     case x: return #t;
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_CPP_TYPE_CASE)
@@ -310,6 +316,8 @@ bool shape::is_unsigned(shape::type_t t)
     visit(t, [&](auto as) { result = as.is_unsigned(); });
     return result;
 }
+
+bool shape::is_computable(shape::type_t t) { return t != shape::fp4x2_type; }
 
 shape::shape() : impl(shape_impl::default_shape()) {}
 
@@ -394,7 +402,14 @@ std::size_t shape::bytes() const
     if(this->sub_shapes().empty())
     {
         std::size_t n = 0;
-        this->visit_type([&](auto as) { n = as.size(); });
+        if(type() == fp4x2_type)
+        {
+            n = sizeof(uint8_t);
+        }
+        else
+        {
+            this->visit_type([&](auto as) { n = as.size(); });
+        }
         return n * this->element_space();
     }
     else
@@ -410,7 +425,16 @@ std::size_t shape::type_size() const
 {
     std::size_t n = 0;
     if(this->sub_shapes().empty())
-        this->visit_type([&](auto as) { n = as.size(); });
+    {
+        if(this->computable())
+        {
+            this->visit_type([&](auto as) { n = as.size(); });
+        }
+        else
+        {
+            n = sizeof(uint8_t);
+        }
+    }
     return n;
 }
 
@@ -642,6 +666,8 @@ bool shape::any_of_dynamic() const
     });
 }
 
+bool shape::computable() const { return is_computable(this->type()); }
+
 const std::vector<shape::dynamic_dimension>& shape::dyn_dims() const
 {
     if(not this->dynamic())
@@ -802,13 +828,21 @@ std::ostream& operator<<(std::ostream& os, const shape& x)
     return os;
 }
 
+bool shape::same_lens(const shape& x, const shape& y)
+{
+    return x.to_dynamic().dyn_dims() == y.to_dynamic().dyn_dims();
+}
+
 shape::type_t shape::parse_type(const std::string& s)
 {
     static const std::unordered_map<std::string, shape::type_t> m = {
+    // clang-format off
 #define MIGRAPHX_SHAPE_GENERATE_TYPE_STRING_MAP(x, t) {#x, x}, {#t, x},
-        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_TYPE_STRING_MAP){"tuple_type",
-                                                                            tuple_type},
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_TYPE_STRING_MAP)
+        {"fp4x2_type", fp4x2_type},
+        {"tuple_type", tuple_type},
         {"tuple", tuple_type}};
+    // clang-format on
     return m.at(s);
 }
 

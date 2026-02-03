@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,7 @@
 #include <migraphx/optional.hpp>
 #include <cstdint>
 #include <iosfwd>
+#include <set>
 #include <vector>
 
 namespace migraphx {
@@ -77,7 +78,8 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
     static shape_transform_descriptor create(const std::vector<std::size_t>& dims,
                                              const std::vector<operation>& ops);
 
-    shape_transform_descriptor rebase(const std::vector<std::size_t>& dims) const;
+    shape_transform_descriptor rebase(const std::vector<std::size_t>& dims,
+                                      bool broadcast = false) const;
 
     bool apply(const std::vector<operation>& ops);
     bool apply_reshape(const std::vector<std::size_t>& rdims);
@@ -87,18 +89,21 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
                          optional<std::size_t> axis = nullopt);
     void simplify();
     std::size_t elements() const;
-    std::vector<operation> generate() const;
+    std::vector<operation> generate(const std::vector<std::size_t>& input_dims = {},
+                                    bool no_broadcast                          = false) const;
 
+    std::set<std::size_t> find_broadcasted_axes() const;
     bool has_broadcast() const;
     void flatten_broadcast();
 
     std::vector<std::size_t> common_dims(const std::vector<std::size_t>& input_dims = {}) const;
-    std::vector<operation>
-    generate_common_from_src(const std::vector<std::size_t>& input_dims = {}) const;
-    std::vector<operation>
-    generate_common_from_dst(const std::vector<std::size_t>& input_dims = {}) const;
-    std::vector<operation>
-    generate_dst_from_common(const std::vector<std::size_t>& input_dims = {}) const;
+    std::size_t common_rank() const;
+
+    shape_transform_descriptor to_common_from_src() const;
+    shape_transform_descriptor to_common_from_dst() const;
+    shape_transform_descriptor to_dst_from_common() const;
+    shape_transform_descriptor to_src_from_common() const;
+
     std::vector<std::vector<std::size_t>> common_axes_map_from_src() const;
     std::vector<std::vector<std::size_t>> common_axes_map_from_dst() const;
 

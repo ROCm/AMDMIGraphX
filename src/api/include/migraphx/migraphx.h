@@ -71,6 +71,7 @@ typedef enum
 typedef enum
 {
     migraphx_shape_tuple_type,
+    migraphx_shape_fp4x2_type,
     MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES)
 } migraphx_shape_datatype_t;
 #undef MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES
@@ -307,6 +308,12 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_argument_buffer(char** out,
 MIGRAPHX_C_EXPORT migraphx_status migraphx_argument_equal(bool* out,
                                                           const_migraphx_argument_t argument,
                                                           const_migraphx_argument_t x);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_argument_save(const_migraphx_argument_t a,
+                                                         const char* filename);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_argument_load(migraphx_argument_t* out,
+                                                         const char* filename);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_argument_generate(migraphx_argument_t* out,
                                                              const_migraphx_shape_t s,
@@ -651,6 +658,11 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_quantize_fp8_options_add_calibration_
 MIGRAPHX_C_EXPORT migraphx_status migraphx_quantize_fp8(migraphx_program_t prog,
                                                         migraphx_target_t target,
                                                         migraphx_quantize_fp8_options_t options);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_get_onnx_operator_name_at_index(char** out,
+                                                                           size_t index);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_get_onnx_operators_size(size_t* out);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_context_finish(const_migraphx_context_t context);
 

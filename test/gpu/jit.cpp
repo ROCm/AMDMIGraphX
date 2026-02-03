@@ -39,7 +39,9 @@
 
 // NOLINTNEXTLINE
 const std::string write_2s = R"__migraphx__(
+#ifndef __HIPCC_RTC__
 #include <hip/hip_runtime.h>
+#endif
 
 extern "C" {
 __global__ void write(char* data) 
@@ -56,7 +58,9 @@ int main() {}
 
 // NOLINTNEXTLINE
 const std::string add_2s_binary = R"__migraphx__(
+#ifndef __HIPCC_RTC__
 #include <hip/hip_runtime.h>
+#endif
 
 extern "C" {
 __global__ void add_2(char* x, char* y) 
@@ -228,16 +232,20 @@ TEST_CASE(compile_target)
 TEST_CASE(compile_errors)
 {
     EXPECT(test::throws([&] {
-        migraphx::gpu::compile_hip_src(
-            {make_src_file("main.cpp", incorrect_program)}, {}, migraphx::gpu::get_device_name());
+        migraphx::gpu::compile_hip_src({make_src_file("main.cpp", incorrect_program)},
+                                       {},
+                                       migraphx::gpu::get_device_name(),
+                                       true);
     }));
 }
 
 TEST_CASE(compile_warnings)
 {
     auto compile = [](const std::vector<std::string>& params) {
-        return migraphx::gpu::compile_hip_src(
-            {make_src_file("main.cpp", unused_param)}, params, migraphx::gpu::get_device_name());
+        return migraphx::gpu::compile_hip_src({make_src_file("main.cpp", unused_param)},
+                                              params,
+                                              migraphx::gpu::get_device_name(),
+                                              true);
     };
 
     EXPECT(not compile({}).empty());

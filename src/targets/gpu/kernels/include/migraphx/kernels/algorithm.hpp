@@ -62,6 +62,13 @@ struct greater
     }
 };
 
+template <class Iterator, class T>
+constexpr void fill(Iterator first, Iterator last, const T& value)
+{
+    for(; first != last; ++first)
+        *first = value;
+}
+
 template <class InputIt, class T, class BinaryOperation>
 constexpr T accumulate(InputIt first, InputIt last, T init, BinaryOperation op)
 {
@@ -94,6 +101,16 @@ constexpr OutputIt copy_if(InputIt first, InputIt last, OutputIt d_first, UnaryP
         }
     }
     return d_first;
+}
+
+template <class Iterator, class OutputIterator, class UnaryOp>
+constexpr OutputIterator
+transform(Iterator first1, Iterator last1, OutputIterator out, UnaryOp unary_op)
+{
+    for(; first1 != last1; ++out, ++first1)
+        *out = unary_op(*first1);
+
+    return out;
 }
 
 template <class Iterator, class Compare>
@@ -281,6 +298,7 @@ constexpr Iterator upper_bound(Iterator first, Iterator last, const T& value, Co
 
     while(count > 0)
     {
+        // NOLINTNEXTLINE(readability-qualified-auto)
         auto it   = first;
         auto step = count / 2;
         it += step;

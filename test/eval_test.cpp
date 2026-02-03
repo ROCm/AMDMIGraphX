@@ -247,9 +247,9 @@ TEST_CASE(get_param1)
     auto x = mm->add_parameter("x", s);
     auto y = mm->add_parameter("y", s);
     mm->add_instruction(migraphx::make_op("add"), x, y);
-    EXPECT(bool{p.get_parameter("x") == x});
-    EXPECT(bool{p.get_parameter("y") == y});
-    EXPECT(bool{p.get_parameter("nonexistent") == mm->end()});
+    EXPECT(p.get_parameter("x") == x);
+    EXPECT(p.get_parameter("y") == y);
+    EXPECT(p.get_parameter("nonexistent") == mm->end());
 }
 
 TEST_CASE(get_param2)
@@ -259,7 +259,7 @@ TEST_CASE(get_param2)
     auto one = mm->add_literal(1);
     auto two = mm->add_literal(2);
     mm->add_instruction(migraphx::make_op("add"), one, two);
-    EXPECT(bool{p.get_parameter("nonexistent") == mm->end()});
+    EXPECT(p.get_parameter("nonexistent") == mm->end());
 }
 
 TEST_CASE(get_param_shapes)
@@ -284,7 +284,7 @@ TEST_CASE(replace_test)
     auto two = mm->add_literal(2);
     auto sum = mm->add_instruction(migraphx::make_op("add"), one, two);
     mm->replace_instruction(sum, migraphx::make_op("sub"), two, one);
-    EXPECT(bool{p.validate() == mm->end()});
+    EXPECT(p.validate() == mm->end());
 
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{1});
@@ -300,7 +300,7 @@ TEST_CASE(replace_ins_test)
     auto sum   = mm->add_instruction(migraphx::make_op("add"), one, two);
     auto minus = mm->add_instruction(migraphx::make_op("sub"), two, one);
     mm->replace_instruction(sum, minus);
-    EXPECT(bool{p.validate() == mm->end()});
+    EXPECT(p.validate() == mm->end());
 
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{1});
@@ -317,7 +317,7 @@ TEST_CASE(replace_ins_test2)
     auto minus = mm->add_instruction(migraphx::make_op("sub"), two, one);
     mm->add_instruction(pass_op{}, minus);
     mm->replace_instruction(two, sum);
-    EXPECT(bool{p.validate() == mm->end()});
+    EXPECT(p.validate() == mm->end());
 
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{2});
@@ -332,7 +332,7 @@ TEST_CASE(replace_op_test)
     auto two = mm->add_literal(2);
     auto sum = mm->add_instruction(migraphx::make_op("add"), two, one);
     sum->replace(migraphx::make_op("sub"));
-    EXPECT(bool{p.validate() == mm->end()});
+    EXPECT(p.validate() == mm->end());
 
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{1});
@@ -360,7 +360,7 @@ TEST_CASE(insert_replace_test)
 
     auto sum0 = mm->insert_instruction(sum1, migraphx::make_op("add"), two, two);
     mm->replace_instruction(sum1, migraphx::make_op("sub"), sum0, two);
-    EXPECT(bool{p.validate() == mm->end()});
+    EXPECT(p.validate() == mm->end());
 
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{4});
@@ -376,7 +376,7 @@ TEST_CASE(remove_test1)
     auto sum     = mm->add_instruction(migraphx::make_op("add"), one, two);
     auto removed = mm->add_instruction(migraphx::make_op("sub"), sum, one);
     mm->remove_instruction(removed);
-    EXPECT(bool{p.validate() == mm->end()});
+    EXPECT(p.validate() == mm->end());
 
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
@@ -392,7 +392,7 @@ TEST_CASE(remove_test2)
     auto removed = mm->add_instruction(migraphx::make_op("sub"), two, one);
     mm->add_instruction(migraphx::make_op("add"), one, two);
     mm->remove_instruction(removed);
-    EXPECT(bool{p.validate() == mm->end()});
+    EXPECT(p.validate() == mm->end());
 
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});

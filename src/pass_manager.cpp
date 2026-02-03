@@ -30,10 +30,14 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/time.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/filesystem.hpp>
+#include <migraphx/load_save.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
 #include <utility>
+#include <string>
+#include <string_view>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -138,18 +142,59 @@ struct module_pm : module_pass_manager
         trace("Pass: ", p.name());
         assert(mod);
         assert(mod->validate() == mod->end());
-        if(enabled(MIGRAPHX_TIME_PASSES{}))
-        {
-            using milliseconds = std::chrono::duration<double, std::milli>;
-            auto ms            = time<milliseconds>([&] { p.apply(*this); });
-            std::cout << p.name() << ": " << ms << "ms\n";
-        }
-        else
-        {
-            p.apply(*this);
-        }
+        try_and_dump_on_error(p, [&] {
+            if(enabled(MIGRAPHX_TIME_PASSES{}))
+            {
+                using milliseconds = std::chrono::duration<double, std::milli>;
+                auto ms            = time<milliseconds>([&] { p.apply(*this); });
+                std::cout << p.name() << ": " << ms << "ms\n";
+            }
+            else
+            {
+                p.apply(*this);
+            }
+        });
         trace(*mod);
         validate_pass(*mod, p, *t);
+    }
+
+    static void sanitize(std::string& s)
+    {
+        static constexpr std::string_view invalid = "<>:\"/\\|?*";
+
+        std::replace_if(
+            s.begin(), s.end(), [](char c) { return invalid.find(c) != std::string::npos; }, '_');
+    }
+
+    template <class F>
+    void try_and_dump_on_error(const pass& p, F f) const
+    {
+        if(not prog)
+        {
+            f();
+            return;
+        }
+
+        try
+        {
+            f();
+        }
+        catch(const std::exception& e)
+        {
+            std::cerr << "Error " << p.name() << ": " << e.what() << std::endl;
+            auto clk = std::chrono::steady_clock::now().time_since_epoch().count();
+            fs::path dirname = fs::temp_directory_path() / "migraphx";
+            fs::create_directories(dirname);
+            std::string base = p.name() + std::to_string(clk) + ".mxr";
+#if defined(_WIN32)
+            // On Windows, some pass names may contain invalid characters for filenames
+            sanitize(base);
+#endif
+            fs::path fname = dirname / base;
+            std::cerr << "Dump: " << fname << std::endl;
+            save(*prog, fname.string());
+            throw;
+        }
     }
 };
 

@@ -60,9 +60,9 @@ static module create_pointwise_module(module_ref in_mod)
                                    const operation& op,
                                    const std::vector<instruction_ref>& inputs,
                                    const std::vector<module_ref>& mod_args) -> instruction_ref {
-                                    auto out_alias = op.output_alias(to_shapes(inputs));
-                                    if(out_alias >= 0)
-                                        return inputs.at(out_alias);
+                                    auto out_aliases = op.output_alias(to_shapes(inputs));
+                                    if(out_aliases.size() == 1)
+                                        return inputs.at(out_aliases[0]);
                                     else
                                         return m.insert_instruction(ins, op, inputs, mod_args);
                                 });
@@ -78,8 +78,7 @@ compile_pointwise_module(context& ctx, const std::vector<shape>& inputs, module_
     if(any_of(mod->get_parameters(), [&](instruction_ref param) {
            if(param->outputs().size() != 1)
                return false;
-           return instruction::get_output_alias(param->outputs().front(), /* shallow */ true) ==
-                  param;
+           return equal(instruction::get_output_alias(param->outputs().front(), /* shallow */ true), {param});
        }))
     {
         auto mod2 = *mod;
@@ -97,7 +96,7 @@ compile_pointwise_module(context& ctx, const std::vector<shape>& inputs, module_
                                output_path.begin(),
                                output_path.end(),
                                [&](instruction_ref, instruction_ref output) {
-                                   return instruction::get_output_alias(output) != param;
+                                   return not equal(instruction::get_output_alias(output), {param});
                                });
                            return (*it)->get_shape();
                        });
@@ -127,7 +126,8 @@ static instruction_ref find_final_split(instruction_ref split_ins)
                                          [&](instruction_ref i) { return i != input; });
                 if(aux->can_eval())
                     return false;
-                return instruction::get_output_alias(aux)->name() != "@param";
+                auto aliases = instruction::get_output_alias(aux);
+                return aliases.size() == 1 and aliases[0]->name() != "@param";
             }
             return true;
         });

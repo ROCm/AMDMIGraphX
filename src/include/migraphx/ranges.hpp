@@ -234,6 +234,18 @@ bool equal(R1&& r1, R2&& r2, Predicate... pred)
     return std::equal(r1.begin(), r1.end(), r2.begin(), r2.end(), pred...);
 }
 
+template <class T, class R2, class... Predicate>
+bool equal(const std::initializer_list<T>& r1, R2&& r2, Predicate... pred)
+{
+    return std::equal(r1.begin(), r1.end(), r2.begin(), r2.end(), pred...);
+}
+
+template <class R1, class T, class... Predicate>
+bool equal(R1&& r1, const std::initializer_list<T>& r2, Predicate... pred)
+{
+    return std::equal(r1.begin(), r1.end(), r2.begin(), r2.end(), pred...);
+}
+
 template <class Range>
 auto distance(Range&& r)
 {

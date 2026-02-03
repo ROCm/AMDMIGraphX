@@ -1065,7 +1065,6 @@ struct find_gather
             if(length == 1)
                 return std::make_pair(*begin, std::next(begin));
             auto start = *begin;
-            // auto base   = *begin;
             auto stride = std::next(begin)->base - start.base;
             if(stride < 0)
                 return std::make_pair(*begin, std::next(begin));

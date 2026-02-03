@@ -58,10 +58,6 @@ struct parse_clip : op_parser<parse_clip>
             if(contains(info.attributes, "max"))
                 max_val = parser.parse_value(info.attributes.at("max")).at<float>();
 
-            // Per ONNX spec: if min > max, set min = max
-            if(min_val > max_val)
-                min_val = max_val;
-
             min_arg =
                 info.add_literal(migraphx::literal{migraphx::shape{input_shape.type()}, {min_val}});
             max_arg =

@@ -1,7 +1,7 @@
 # ####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -23,6 +23,11 @@
 # ####################################################################################
 
 find_package(hip REQUIRED)
+
+if(NOT WIN32)
+    find_package(hsa-runtime64 REQUIRED CONFIG)
+    message(STATUS "MIGraphX is using HSA runtime for chiplet query")
+endif()
 if(NOT GPU_TARGETS)
     set(fatal_msg "HIP package is broken and has no GPU_TARGETS. Please pass GPU_TARGETS to cmake.")
     if(NOT WIN32)
@@ -156,6 +161,7 @@ add_library(migraphx_gpu
     compile_pointwise.cpp
     compiler.cpp
     device_name.cpp
+    eliminate_data_type_for_gpu.cpp
     fixed_pad.cpp
     fuse_ck.cpp
     fuse_mlir.cpp
@@ -164,6 +170,7 @@ add_library(migraphx_gpu
     hip.cpp
     hipblaslt.cpp
     hip_gemm_impl.cpp
+    hsa_chiplet.cpp
     kernel.cpp
     lowering.cpp
     logsoftmax.cpp
@@ -175,6 +182,7 @@ add_library(migraphx_gpu
     nonzero.cpp
     pack_args.cpp
     prefuse_ops.cpp
+    prepare_mlir.cpp
     prepare_reduce.cpp
     perfdb.cpp
     pooling.cpp
@@ -396,6 +404,11 @@ else()
     target_link_libraries(migraphx_gpu PRIVATE migraphx_device)
 endif()
 target_link_libraries(migraphx_gpu PRIVATE migraphx_kernels)
+
+# Link HSA runtime for chiplet query (Linux only)
+if(NOT WIN32)
+    target_link_libraries(migraphx_gpu PRIVATE hsa-runtime64::hsa-runtime64)
+endif()
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)
     target_link_libraries(migraphx_gpu PRIVATE composable_kernel::jit_library)
     target_compile_definitions(migraphx_gpu PRIVATE MIGRAPHX_USE_COMPOSABLEKERNEL=1)

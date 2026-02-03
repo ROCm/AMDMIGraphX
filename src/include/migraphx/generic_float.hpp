@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -40,6 +40,13 @@ inline namespace MIGRAPHX_INLINE_NS {
 constexpr std::size_t integer_divide_ceil(std::size_t x, std::size_t y)
 {
     return (x + y - std::size_t{1}) / y;
+}
+
+// compute the smallest multiple of y that is greater than or equal to x
+// this is equivalent to y * ceil(x / y)
+constexpr std::size_t ceil_mul_of(std::size_t x, std::size_t y)
+{
+    return y * integer_divide_ceil(x, y);
 }
 
 template <unsigned int Bytes>

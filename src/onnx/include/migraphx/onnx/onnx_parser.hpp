@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -110,6 +110,8 @@ struct onnx_parser
     std::unordered_map<std::string, op_func> ops;
 
     onnx_parser();
+    value
+    load_to_value(const std::string& name, const node_info& info, bool use_operation = true) const;
     operation load(const std::string& name, const node_info& info) const;
 
     void parse_undefined(module* mod, const std::string& name);

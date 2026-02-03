@@ -474,7 +474,8 @@ struct MIGRAPHX_EXPORT shape
 
     void debug_print() const;
 
-        private : shape(std::shared_ptr<shape_impl> pimpl);
+    private:
+    shape(std::shared_ptr<shape_impl> pimpl);
     std::shared_ptr<const shape_impl> impl;
 };
 

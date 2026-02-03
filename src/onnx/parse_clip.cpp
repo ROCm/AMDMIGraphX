@@ -57,7 +57,6 @@ struct parse_clip : op_parser<parse_clip>
         // Check if older opset (attributes for min/max)
         if(contains(info.attributes, "min") or contains(info.attributes, "max"))
         {
-            // Opset 1-6: min/max are attributes
             if(contains(info.attributes, "min"))
             {
                 float min_val = parser.parse_value(info.attributes.at("min")).at<float>();

@@ -139,8 +139,8 @@ TEST_CASE(quantizelinear_with_fp4x2_even_fast_axis_op_builder_test)
         x,
         new_s,
         new_zp);
-    auto pack_ins = m.add_instruction(migraphx::make_op("pack_fp4"), q_ins);
-    m.add_instruction(migraphx::make_op("unpack_fp4"), pack_ins);
+    auto pack_ins = m.add_instruction(migraphx::make_op("pack_fp4", {{"axis", 1}}), q_ins);
+    m.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 1}}), pack_ins);
 
     EXPECT(m == make_op_module("quantizelinear",
                                {{"output_type", migraphx::shape::fp4x2_type}},
@@ -165,8 +165,8 @@ TEST_CASE(quantizelinear_with_fp4x2_odd_fast_axis_op_builder_test)
         new_s,
         new_zp);
     q_ins           = m.add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 0, 1}}}), q_ins);
-    auto pack_ins   = m.add_instruction(migraphx::make_op("pack_fp4"), q_ins);
-    auto unpack_ins = m.add_instruction(migraphx::make_op("unpack_fp4"), pack_ins);
+    auto pack_ins   = m.add_instruction(migraphx::make_op("pack_fp4", {{"axis", 1}}), q_ins);
+    auto unpack_ins = m.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 1}}), pack_ins);
     m.add_instruction(migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {3}}}),
                       unpack_ins);
 

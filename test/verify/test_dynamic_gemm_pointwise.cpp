@@ -27,12 +27,20 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/env.hpp>
+#include <test.hpp>
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MLIR)
 
 template <std::size_t B, std::size_t K>
 struct test_dynamic_gemm_pointwise : verify_program<test_dynamic_gemm_pointwise<B, K>>
 {
     migraphx::program create_program() const
     {
+        // Skip test when MLIR is disabled
+        if(migraphx::enabled(MIGRAPHX_DISABLE_MLIR{}))
+            test::skip("MIGRAPHX_DISABLE_MLIR is set");
+
         migraphx::shape s_x{migraphx::shape::float_type, {{2, 4}, {3, 3}, {4, 24}}};
         migraphx::shape s_w{migraphx::shape::float_type, {{2, 4}, {4, 24}, {5, 5}}};
         migraphx::program p;

@@ -52,4 +52,6 @@ struct test_transpose_reduce_sum_large_sub : verify_program<test_transpose_reduc
         mm->add_return({sub});
         return p;
     }
+
+    std::string section() const { return "reduce"; }
 };

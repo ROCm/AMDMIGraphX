@@ -135,7 +135,7 @@ static void remove_contiguous(const std::string& op_name, module& m, F f)
         auto args     = ins->inputs();
         auto mod_args = ins->module_inputs();
 
-        for(auto arg : ins->inputs())
+        for(auto arg : args)
         {
             if(arg->name() != op_name)
                 continue;

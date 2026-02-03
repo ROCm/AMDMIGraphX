@@ -34,14 +34,12 @@ struct parse_clip : op_parser<parse_clip>
 {
     std::vector<op_desc> operators() const { return {{"Clip"}}; }
 
-    instruction_ref make_type_limit(const shape& input_shape, 
-        onnx_parser::node_info& info, 
-        bool use_min) const
+    instruction_ref
+    make_type_limit(const shape& input_shape, onnx_parser::node_info& info, bool use_min) const
     {
         instruction_ref result;
-        input_shape.visit_type([&](auto as) {
-            result = info.add_literal(literal{use_min ? as.min() : as.max()});
-        });
+        input_shape.visit_type(
+            [&](auto as) { result = info.add_literal(literal{use_min ? as.min() : as.max()}); });
         return result;
     }
 
@@ -63,7 +61,7 @@ struct parse_clip : op_parser<parse_clip>
             if(contains(info.attributes, "min"))
             {
                 float min_val = parser.parse_value(info.attributes.at("min")).at<float>();
-                min_arg = info.add_literal(
+                min_arg       = info.add_literal(
                     migraphx::literal{migraphx::shape{input_shape.type()}, {min_val}});
             }
             else
@@ -74,7 +72,7 @@ struct parse_clip : op_parser<parse_clip>
             if(contains(info.attributes, "max"))
             {
                 float max_val = parser.parse_value(info.attributes.at("max")).at<float>();
-                max_arg = info.add_literal(
+                max_arg       = info.add_literal(
                     migraphx::literal{migraphx::shape{input_shape.type()}, {max_val}});
             }
             else

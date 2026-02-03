@@ -2561,7 +2561,6 @@ TEST_CASE(gather_flatten_permutation)
         expected.add_instruction(migraphx::make_op("reshape", {{"dims", {16}}}), transpose);
     expected.add_return({reshape_out});
 
-
     EXPECT(m == expected);
 }
 

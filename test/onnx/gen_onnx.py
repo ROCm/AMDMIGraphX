@@ -1265,6 +1265,21 @@ def clip_test():
 
     return ([node], [x], [y])
 
+
+@onnx_test(opset_version=6)
+def clip_fp16_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT16, [3])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT16, [3])
+
+    node = onnx.helper.make_node('Clip',
+                                 inputs=['0'],
+                                 outputs=['1'],
+                                 max=6.0,
+                                 min=0.0)
+
+    return ([node], [x], [y])
+
+
 @onnx_test()
 def clip_test_args_type_mismatch():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3, 3])

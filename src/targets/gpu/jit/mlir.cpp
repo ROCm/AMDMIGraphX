@@ -78,7 +78,8 @@ compile_pointwise_module(context& ctx, const std::vector<shape>& inputs, module_
     if(any_of(mod->get_parameters(), [&](instruction_ref param) {
            if(param->outputs().size() != 1)
                return false;
-           return equal(instruction::get_output_alias(param->outputs().front(), /* shallow */ true), {param});
+           return equal(instruction::get_output_alias(param->outputs().front(), /* shallow */ true),
+                        {param});
        }))
     {
         auto mod2 = *mod;

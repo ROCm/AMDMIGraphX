@@ -161,9 +161,10 @@ const auto& reshaper_names()
 instruction_ref
 insert_ops(module& m, instruction_ref ins, const std::vector<operation>& ops, instruction_ref input)
 {
-    return std::accumulate(ops.begin(), ops.end(), input, [&](instruction_ref x, const operation& op){
-        return m.insert_instruction(ins, op, x);
-    });
+    return std::accumulate(
+        ops.begin(), ops.end(), input, [&](instruction_ref x, const operation& op) {
+            return m.insert_instruction(ins, op, x);
+        });
 }
 
 struct find_nested_shape_transforms

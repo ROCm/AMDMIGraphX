@@ -29,7 +29,7 @@ TEST_CASE(clip_fp16_test)
     migraphx::program p;
     auto* mm     = p.get_main_module();
     auto l0      = mm->add_parameter("0", migraphx::shape{migraphx::shape::half_type, {3}});
-    migraphx::shape half_shape = migraphx::shape{migraphx::shape::half_type, {1}};
+    migraphx::shape half_shape = migraphx::shape{migraphx::shape::half_type, {1}, {0}};
     auto min_val = mm->add_literal({half_shape, {0.0f}});
     auto max_val = mm->add_literal({half_shape, {6.0f}});
     min_val =
@@ -37,7 +37,7 @@ TEST_CASE(clip_fp16_test)
     max_val =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3}}}), max_val);
     mm->add_instruction(migraphx::make_op("clip"), l0, min_val, max_val);
-    auto prog = optimize_onnx("clip_test.onnx");
+    auto prog = optimize_onnx("clip_fp16_test.onnx");
 
     EXPECT(p == prog);
 }

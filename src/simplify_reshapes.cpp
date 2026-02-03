@@ -1090,10 +1090,6 @@ struct find_gather
             do
             {
                 segments = make_segments(segments);
-                // std::cout << "nsegments: " << segments.size() << std::endl;
-                // for(auto segment : segments)
-                //     std::cout << "    {" << segment.base << ", " << segment.stride << ", "
-                //               << segment.count << "}\n";
                 if(segments.empty())
                     return {};
                 auto seg = segments.front();

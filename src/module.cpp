@@ -717,7 +717,8 @@ std::vector<shape> module::compute_shapes(const std::vector<shape>& inputs,
                                ins->get_shape().type_string() + " but passed " +
                                ins_shapes[ins].type_string());
             }
-            if(options.strict_lens and ins->get_shape().lens() != ins_shapes[ins].lens())
+            if(not ins->get_shape().dynamic() and options.strict_lens and
+               ins->get_shape().lens() != ins_shapes[ins].lens())
             {
                 MIGRAPHX_THROW(options.name + ": Mismatched lens: expected {" +
                                to_string_range(ins->get_shape().lens()) + "} but passed {" +

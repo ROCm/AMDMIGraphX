@@ -72,7 +72,7 @@ struct parse_clip : op_parser<parse_clip>
             // args[1] = min (optional, may be empty)
             // args[2] = max (optional, may be empty)
 
-            if(args.size() > 1 and not args[1]->eval().empty())
+            if(args.size() > 1 and not args[1]->get_shape().lens().empty())
             {
                 min_arg = args[1];
             }
@@ -83,7 +83,7 @@ struct parse_clip : op_parser<parse_clip>
                 });
             }
 
-            if(args.size() > 2 and not args[2]->eval().empty())
+            if(args.size() > 2 and not args[2]->get_shape().lens().empty())
             {
                 max_arg = args[2];
             }

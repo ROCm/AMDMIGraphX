@@ -100,10 +100,18 @@ transform_quantize_dequantize_linear_inputs(Builder& bldr,
 
         // Given x shape (D0, ..., Di, ..., Dn), y_scale shape (S0, ... Si, ...Sn) and
         // axis=i, the accepted range is [ceil(Di/Si), ceil(Di/(Si-1))-1]
-        float di           = x_lens[axis];
-        float si           = y_scale_lens[axis];
-        int block_size_min = std::ceil(di / si);
-        int block_size_max = std::ceil(di / (si - 1)) - 1;
+        const float di = x_lens[axis];
+        const float si = y_scale_lens[axis];
+
+        if(si <= 1.0f)
+        {
+            MIGRAPHX_THROW(op_name + ": y_scale(shape: " + to_string_range(y_scale_lens) +
+                           ") must have size > 1 along provided axis(" + to_string(axis) +
+                           ") for block granularity");
+        }
+
+        const int block_size_min = std::ceil(di / si);
+        const int block_size_max = std::ceil(di / (si - 1)) - 1;
         // default block_size if not given is calculated (to support quark generated models):
         if(block_size == 0)
             block_size = block_size_min;

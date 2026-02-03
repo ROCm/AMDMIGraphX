@@ -37,9 +37,9 @@ struct test_context
     using s_typ = ST;
 
     test_context(const std::vector<size_t>& x_lens,
-             const std::vector<size_t>& s_lens,
-             migraphx::shape::type_t x_type = migraphx::shape::get_type<x_typ>::value,
-             migraphx::shape::type_t s_type = migraphx::shape::get_type<s_typ>::value)
+                 const std::vector<size_t>& s_lens,
+                 migraphx::shape::type_t x_type = migraphx::shape::get_type<x_typ>::value,
+                 migraphx::shape::type_t s_type = migraphx::shape::get_type<s_typ>::value)
         : x_shape{x_type, x_lens},
           s_shape{s_type, s_lens},
           zp_shape{x_type, s_lens},
@@ -117,9 +117,9 @@ test_context<XT, ST> per_axis_context_valid(const std::vector<size_t>& x_lens, i
 
 template <typename XT = int8_t, typename ST = float>
 test_context<XT, ST> blocked_context(const std::vector<size_t>& x_lens,
-                             const std::vector<size_t>& s_lens,
-                             int axis,
-                             int block_size)
+                                     const std::vector<size_t>& s_lens,
+                                     int axis,
+                                     int block_size)
 {
     test_context<XT, ST> ctx{x_lens, s_lens};
     ctx.axis       = axis;
@@ -254,6 +254,15 @@ TEST_CASE(dequantizelinear_blocked_blocksize_one_op_builder_test)
     m.add_instruction(migraphx::make_op("dequantizelinear"), ctx.x, ctx.s, ctx.zp);
 
     ctx.expect();
+}
+
+TEST_CASE(dequantizelinear_blocked_zero_division_builder_test)
+{
+    auto ctx = blocked_context({4, 7}, {4, 0}, 1, 2);
+    EXPECT(
+        test::throws<migraphx::exception>([&] { ctx.make_op_bldr(); },
+                                          "dequantizelinear: y_scale(shape: 4, 0) must have size > "
+                                          "1 along provided axis(1) for block granularity"));
 }
 
 // verify tests

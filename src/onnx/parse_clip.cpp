@@ -34,6 +34,10 @@ struct parse_clip : op_parser<parse_clip>
 {
     std::vector<op_desc> operators() const { return {{"Clip"}}; }
 
+    /**
+    * Makes a literal with the minimum or maximum of the input_shape's type.
+    * `use_min=true` sets it to the minimum of the type, maximum otherwise. 
+    */
     instruction_ref
     make_type_limit(const shape& input_shape, onnx_parser::node_info& info, bool use_min) const
     {

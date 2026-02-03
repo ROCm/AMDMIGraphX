@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -2677,7 +2677,7 @@ TEST_CASE(dot_multi_user_add_dot)
     EXPECT(p1.sort() == p2.sort());
 }
 
-TEST_CASE(dot_add_dot_both_multi_user)
+TEST_CASE_SKIP(dot_add_dot_both_multi_user, "Not supported in rocMLIR")
 // GEG fusion has three outputs (first G has external user, E has external user)
 // not currently supported in rocMLIR
 {
@@ -2724,6 +2724,66 @@ TEST_CASE(dot_add_dot_both_multi_user)
     }
     if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}))
         return;
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(dyn_dot)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {{1, 4}, {6, 6}}};
+    migraphx::shape s2{migraphx::shape::float_type, {6, 3}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto a   = mm->add_parameter("a", s1);
+        auto b   = mm->add_parameter("b", s2);
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        mm->add_return({dot});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm    = p2.get_main_module();
+        auto a      = mm->add_parameter("a", s1);
+        auto b      = mm->add_parameter("b", s2);
+        auto a_cont = mm->add_instruction(migraphx::make_op("contiguous"), a);
+
+        auto fused =
+            add_mlir(p2, "mlir_dot0", {a_cont, b}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
+                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                return std::make_tuple(dot->get_operator(), dot);
+            });
+        mm->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(dyn_conv)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {{1, 4}, {56, 56}, {8, 64}, {8, 64}}};
+    migraphx::shape s2{migraphx::shape::float_type, {14, 56, 3, 3}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s1);
+        auto w    = mm->add_parameter("w", s2);
+        auto conv = mm->add_instruction(migraphx::make_op("convolution"), x, w);
+        mm->add_return({conv});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm    = p2.get_main_module();
+        auto x      = mm->add_parameter("x", s1);
+        auto w      = mm->add_parameter("w", s2);
+        auto x_cont = mm->add_instruction(migraphx::make_op("contiguous"), x);
+        auto conv   = add_mlir(
+            p2, "mlir_convolution0", {x_cont, w}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
+                auto c =
+                    pm->add_instruction(migraphx::make_op("convolution"), inputs[0], inputs[1]);
+                return std::make_tuple(c->get_operator(), c);
+            });
+        mm->add_return({conv});
+    }
     EXPECT(p1.sort() == p2.sort());
 }
 

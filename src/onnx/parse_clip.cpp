@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,98 +34,13 @@ struct parse_clip : op_parser<parse_clip>
 {
     std::vector<op_desc> operators() const { return {{"Clip"}}; }
 
-    struct clip_args
+    instruction_ref
+    make_type_limit(const shape& input_shape, onnx_parser::node_info& info, bool use_min) const
     {
-        // All operators have this
-        instruction_ref input;
-
-        std::optional<instruction_ref> min;
-        std::optional<instruction_ref> max;
-
-        std::vector<instruction_ref> get_args()
-        {
-            return {input, min.value(), max.value()};
-        }
-    };
-
-
-
-    static std::optional<instruction_ref>
-    check_type_and_shape(size_t index, shape::type_t type,
-                         const std::vector<instruction_ref>& args)
-    {
-
-        if (args.size() > index)
-        {
-            std::optional<instruction_ref> ref = args.at(index);
-            auto ref_shape                     = ref.value()->get_shape();
-
-            if(not ref_shape.lens().empty())
-            {
-                auto ref_type     = ref_shape.type();
-
-                if (ref_type != type)
-                MIGRAPHX_THROW("Invalid input type for clip min/max must match input type");
-
-                return ref;
-            }
-        }
-        return std::nullopt;
-    }
-
-    static void handle_limits(onnx_parser::node_info info,
-                              clip_args& clip_parser)
-    {
-        // Set default if types/inputs aren't set
-        // min
-        if(not clip_parser.min.has_value())
-        {  
-           clip_parser.min = info.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}, {0}}, {std::numeric_limits<float>::lowest()}});
-        }
-
-        // max
-        if(not clip_parser.max.has_value())
-        {
-           clip_parser.max = info.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}, {0}}, {std::numeric_limits<float>::max()}});
-        }
-    }
-
-    // Parser for Opset 11, 12, 13 
-    static instruction_ref clip_v_11_12_13(onnx_parser::node_info info,
-                                const std::vector<instruction_ref>& args)
-    {   
-        clip_args clip_parser;
-
-        clip_parser.input = args.at(0);
-        auto input_type = clip_parser.input->get_shape().type();
-
-        clip_parser.min = check_type_and_shape(1, input_type, args);
-        clip_parser.max = check_type_and_shape(2, input_type, args);
-
-        handle_limits(info, clip_parser);
-
-        return op::builder::add("clip", *info.mod, clip_parser.get_args(), {}).at(0);
-    }
-
-    // Parser for Opset V6 version
-    static instruction_ref clip_v6(const onnx_parser& parser,
-                        onnx_parser::node_info info,
-                        std::vector<instruction_ref>& args)
-    {
-        // Always set defaults for when input isn't set
-        float min_val = std::numeric_limits<float>::lowest();
-        float max_val = std::numeric_limits<float>::max();
-
-        if (contains(info.attributes, "min"))
-            min_val = parser.parse_value(info.attributes.at("min")).at<float>();
-
-        if(contains(info.attributes, "max"))
-            max_val = parser.parse_value(info.attributes.at("max")).at<float>();
-
-        args.push_back(info.add_literal(min_val));
-        args.push_back(info.add_literal(max_val));
-
-        return op::builder::add("clip", *info.mod, args, {}).at(0);
+        instruction_ref result;
+        input_shape.visit_type(
+            [&](auto as) { result = info.add_literal(literal{use_min ? as.min() : as.max()}); });
+        return result;
     }
 
     instruction_ref parse(const op_desc& /*opd*/,
@@ -133,15 +48,64 @@ struct parse_clip : op_parser<parse_clip>
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-        if(parser.opset_version < 11)
+        auto input       = args.at(0);
+        auto input_shape = input->get_shape();
+
+        instruction_ref min_arg;
+        instruction_ref max_arg;
+
+        // Check if older opset (attributes for min/max)
+        if(contains(info.attributes, "min") or contains(info.attributes, "max"))
         {
-            
-            return clip_v6(parser, info, args);
+            if(contains(info.attributes, "min"))
+            {
+                float min_val = parser.parse_value(info.attributes.at("min")).at<float>();
+                min_arg       = info.add_literal(
+                    migraphx::literal{migraphx::shape{input_shape.type()}, {min_val}});
+            }
+            else
+            {
+                min_arg = make_type_limit(input_shape, info, true);
+            }
+
+            if(contains(info.attributes, "max"))
+            {
+                float max_val = parser.parse_value(info.attributes.at("max")).at<float>();
+                max_arg       = info.add_literal(
+                    migraphx::literal{migraphx::shape{input_shape.type()}, {max_val}});
+            }
+            else
+            {
+                max_arg = make_type_limit(input_shape, info, false);
+            }
         }
         else
         {
-            return clip_v_11_12_13(info, args);
+            // Opset 11+: min/max are optional inputs
+            // args[0] = input
+            // args[1] = min (optional, may be empty)
+            // args[2] = max (optional, may be empty)
+
+            if(args.size() > 1 and not args[1]->get_shape().lens().empty())
+            {
+                min_arg = args[1];
+            }
+            else
+            {
+                min_arg = make_type_limit(input_shape, info, true);
+            }
+
+            if(args.size() > 2 and not args[2]->get_shape().lens().empty())
+            {
+                max_arg = args[2];
+            }
+            else
+            {
+                max_arg = make_type_limit(input_shape, info, false);
+            }
         }
+
+        return op::builder::add("clip", *info.mod, {input, min_arg, max_arg}).at(0);
     }
 };
 

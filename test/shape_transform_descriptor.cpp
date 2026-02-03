@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -948,6 +948,15 @@ TEST_CASE(rebase_unsqueeze_broadcast)
                                       make_op("reshape", {{"dims", {1, 3, 256, 2, 256, 2}}}),
                                   });
     }
+
+    {
+        auto desc = base_desc.rebase({1, 16, 512, 512});
+        EXPECT(get_final_lens(desc) == final_lens{1, 16, 256, 2, 256, 2});
+        EXPECT(get_all_lens(desc) == all_lens{{1}, {16}, {256}, {2}, {256}, {2}});
+        EXPECT(desc.generate() == ops{
+                                      make_op("reshape", {{"dims", {1, 16, 256, 2, 256, 2}}}),
+                                  });
+    }
 }
 
 TEST_CASE(rebase_unsqueeze_broadcast_transpose)
@@ -1220,6 +1229,24 @@ TEST_CASE(rebase_adjust_axes_many_moved_groups)
                    make_op("reshape", {{"dims", {1, 1, 1, 1, 1, 1, 1, 2, 32}}}),
                    make_op("multibroadcast", {{"out_lens", {2, 4, 2, 2, 2, 3, 2, 2, 32}}}),
                });
+    }
+}
+
+TEST_CASE(rebase_adjust_squeeze_unsqueeze_broadcast)
+{
+    auto base_desc = make_simple_descriptor(
+        {1, 1, 1, 1, 1, 1, 32, 1, 1, 1, 1, 1},
+        make_op("squeeze", {{"axes", {1, 2, 3, 4, 5, 7, 8, 9, 10}}}),
+        make_op("unsqueeze", {{"axes", {1, 2, 3, 4, 5, 7, 8, 10, 11}}}),
+        make_op("multibroadcast", {{"out_lens", {1, 1, 1, 1, 1, 1, 32, 10, 16, 1, 90, 160}}}));
+
+    {
+        auto desc = base_desc.rebase({1, 1, 1, 1, 1, 1, 32, 10, 16, 1, 90, 160});
+        EXPECT(not desc.empty());
+        EXPECT(get_final_lens(desc) == final_lens{1, 1, 1, 1, 1, 1, 32, 10, 16, 1, 90, 160});
+        EXPECT(get_all_lens(desc) ==
+               all_lens{{1}, {1}, {1}, {1}, {1}, {1}, {32}, {10}, {16}, {1}, {90}, {160}});
+        EXPECT(desc.generate() == ops{});
     }
 }
 

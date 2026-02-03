@@ -1564,7 +1564,7 @@ TEST_CASE(optimize_resize_flatten)
             m.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 1, 2, 1}}}), inx);
         auto mbx = m.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 2, 3}}}), rspx);
-        std::vector<int64_t> orig_dims = {1, 2, 4, 6};
+
         auto rmb = m.add_instruction(migraphx::make_op("reshape", {{"dims", {48}}}), mbx);
         auto r   = m.add_instruction(migraphx::make_op("softmax", {{"axis", 0}}), rmb);
         m.add_return({r});
@@ -2561,7 +2561,6 @@ TEST_CASE(gather_flatten_permutation)
         expected.add_instruction(migraphx::make_op("reshape", {{"dims", {16}}}), transpose);
     expected.add_return({reshape_out});
 
-    expected.debug_print();
 
     EXPECT(m == expected);
 }

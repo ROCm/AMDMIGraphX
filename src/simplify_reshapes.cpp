@@ -537,8 +537,6 @@ struct find_slice_shape_transforms
         std::reverse(ops.begin(), ops.end());
         auto desc = shape_transform_descriptor::create(slice->get_shape().lens(), ops);
 
-        // std::cout << "desc: " << desc << std::endl;
-
         std::vector<std::size_t> new_axes;
         std::transform(axes.begin(),
                        axes.end(),

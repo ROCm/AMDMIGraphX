@@ -29,18 +29,16 @@ TEST_CASE(clip_test_args_type_mismatch)
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    auto input = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3, 3}});
-    auto min_val =
-        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1, 3}},
-                                          {1.5f, 2.5f, 3.5f}});
-    auto max_val =
-        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {3, 1}},
-                                          {2, 3, 4}});
+    auto input   = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3, 3}});
+    auto min_val = mm->add_literal(migraphx::literal{
+        migraphx::shape{migraphx::shape::float_type, {1, 3}}, {1.5f, 2.5f, 3.5f}});
+    auto max_val = mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {3, 1}}, {2, 3, 4}});
 
-    auto min_bc = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {3, 3}}}), min_val);
-    auto max_bc = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {3, 3}}}), max_val);
+    auto min_bc =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 3}}}), min_val);
+    auto max_bc =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 3}}}), max_val);
     auto max_converted = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), max_bc);
 

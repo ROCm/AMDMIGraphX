@@ -62,8 +62,10 @@ struct parse_clip : op_parser<parse_clip>
             if(min_val > max_val)
                 min_val = max_val;
 
-            min_arg = info.add_literal(migraphx::literal{migraphx::shape{input_shape.type()}, {min_val}});
-            max_arg = info.add_literal(migraphx::literal{migraphx::shape{input_shape.type()}, {max_val}});
+            min_arg =
+                info.add_literal(migraphx::literal{migraphx::shape{input_shape.type()}, {min_val}});
+            max_arg =
+                info.add_literal(migraphx::literal{migraphx::shape{input_shape.type()}, {max_val}});
         }
         else
         {
@@ -78,9 +80,8 @@ struct parse_clip : op_parser<parse_clip>
             }
             else
             {
-                input_shape.visit_type([&](auto as) {
-                    min_arg = info.add_literal(literal{as.min()});
-                });
+                input_shape.visit_type(
+                    [&](auto as) { min_arg = info.add_literal(literal{as.min()}); });
             }
 
             if(args.size() > 2 and not args[2]->get_shape().lens().empty())
@@ -89,9 +90,8 @@ struct parse_clip : op_parser<parse_clip>
             }
             else
             {
-                input_shape.visit_type([&](auto as) {
-                    max_arg = info.add_literal(literal{as.max()});
-                });
+                input_shape.visit_type(
+                    [&](auto as) { max_arg = info.add_literal(literal{as.max()}); });
             }
         }
 

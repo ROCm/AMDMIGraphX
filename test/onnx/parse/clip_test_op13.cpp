@@ -41,4 +41,3 @@ TEST_CASE(clip_test_op13)
 
     EXPECT(p == prog);
 }
-

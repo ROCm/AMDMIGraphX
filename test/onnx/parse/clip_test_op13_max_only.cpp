@@ -27,9 +27,10 @@
 TEST_CASE(clip_test_op13_max_only)
 {
     migraphx::program p;
-    auto* mm     = p.get_main_module();
-    auto min_val = mm->add_literal(migraphx::literal{
-        migraphx::shape{migraphx::shape::float_type, {1}, {0}}, {std::numeric_limits<float>::lowest()}});
+    auto* mm = p.get_main_module();
+    auto min_val =
+        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}, {0}},
+                                          {std::numeric_limits<float>::lowest()}});
     auto max_val = mm->add_literal(0.0f);
     auto l0      = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3}});
     mm->add_instruction(migraphx::make_op("undefined"));
@@ -42,4 +43,3 @@ TEST_CASE(clip_test_op13_max_only)
 
     EXPECT(p.sort() == prog.sort());
 }
-

@@ -653,7 +653,7 @@ std::size_t shape::element_space() const { return impl->element_space(); }
 
 std::string shape::type_string() const { return name(this->type()); }
 
-bool shape::dynamic() const { return not impl->m_dyn_dims.empty(); }
+bool shape::dynamic() const { return impl->m_strides.empty() and impl->m_shapes.empty(); }
 
 bool shape::any_of_dynamic() const
 {

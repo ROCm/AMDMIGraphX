@@ -390,9 +390,9 @@ std::size_t shape::ndim() const
 {
     if(this->dynamic())
     {
-        return dyn_dims().size();
+        return impl->m_dyn_dims.size();
     }
-    return lens().size();
+    return impl->m_lens.size();
 }
 
 std::size_t shape::elements() const { return impl->elements(); }
@@ -653,7 +653,7 @@ std::size_t shape::element_space() const { return impl->element_space(); }
 
 std::string shape::type_string() const { return name(this->type()); }
 
-bool shape::dynamic() const { return impl->m_strides.empty() and impl->m_shapes.empty(); }
+bool shape::dynamic() const { return not impl->m_dyn_dims.empty(); }
 
 bool shape::any_of_dynamic() const
 {
@@ -670,7 +670,7 @@ bool shape::computable() const { return is_computable(this->type()); }
 
 const std::vector<shape::dynamic_dimension>& shape::dyn_dims() const
 {
-    if(not this->dynamic())
+    if(ndim() > 0 and not this->dynamic())
     {
         MIGRAPHX_THROW("SHAPE: dyn_dims() called on a static shape");
     }

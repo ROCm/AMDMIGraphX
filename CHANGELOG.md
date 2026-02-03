@@ -12,11 +12,12 @@ Full documentation for MIGraphX is available at
 
 ### Changed
 
+* Updated the ONNX clip operator to support opset 13.
 
 ### Resolved issues
 
 * Fixed an issue in `propagate_precision` pass where precision for div operations could be incorrectly propagated across type boundaries (e.g., from integral to floating-point) (#4561).
-
+* Fixed an issue with clip operator when using fp16 input type on opset 6. 
 
 ### Optimized
 

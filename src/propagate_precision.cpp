@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -81,6 +81,11 @@ struct precision
     {
         return (xp > yp) or (xp == yp);
     }
+    // Check if two precisions are in the same category (both integral or both floating-point)
+    friend bool same_category(const precision& xp, const precision& yp)
+    {
+        return shape::is_integral(xp.type) == shape::is_integral(yp.type);
+    }
 };
 #ifdef __clang__
 #pragma clang diagnostic pop
@@ -97,6 +102,7 @@ static bool is_non_scalar_const(instruction_ref ins)
 {
     return not(ins->get_shape().scalar() and ins->can_eval());
 }
+
 // Get the next input instruction otherwise return a nullopt
 static std::optional<instruction_ref> get_next_input(instruction_ref ins)
 {
@@ -118,7 +124,8 @@ static std::optional<instruction_ref> get_next_input(instruction_ref ins)
 // Find all adjacent instructions that could be upgraded with higher precision
 // by traversing the inputs from a convert
 
-static std::unordered_set<instruction_ref> find_adjacent_inputs(instruction_ref start)
+static std::unordered_set<instruction_ref> find_adjacent_inputs(instruction_ref start,
+                                                                precision target)
 {
     std::unordered_set<instruction_ref> result;
     // Promote inputs
@@ -126,6 +133,9 @@ static std::unordered_set<instruction_ref> find_adjacent_inputs(instruction_ref 
         if(not is_pointwise_or_reduce(ins))
             return;
         if(contains(result, ins))
+            return;
+        // Stop at div when crossing type category boundary (e.g., int to float)
+        if(not same_category(precision{ins->get_shape().type()}, target) and ins->name() == "div")
             return;
         auto next = get_next_input(ins);
         if(not next.has_value())
@@ -138,7 +148,8 @@ static std::unordered_set<instruction_ref> find_adjacent_inputs(instruction_ref 
 
 // Find all adjacent instructions that could be upgraded with higher precision
 // by traversing the outputs from a convert
-static std::unordered_set<instruction_ref> find_adjacent_outputs(instruction_ref start)
+static std::unordered_set<instruction_ref> find_adjacent_outputs(instruction_ref start,
+                                                                 precision target)
 {
     std::unordered_set<instruction_ref> result;
     // Promote outputs
@@ -148,6 +159,10 @@ static std::unordered_set<instruction_ref> find_adjacent_outputs(instruction_ref
             if(not is_pointwise_or_reduce(output))
                 continue;
             if(contains(result, output))
+                continue;
+            // Stop at div when crossing type category boundary (e.g., int to float)
+            if(not same_category(precision{output->get_shape().type()}, target) and
+               output->name() == "div")
                 continue;
             auto next = get_next_input(output);
             if(not next.has_value())
@@ -196,11 +211,11 @@ static std::unordered_map<instruction_ref, shape::type_t> find_instruction_to_up
             continue;
         if(input < output)
         {
-            insert_instructions_to_upgrade(result, find_adjacent_inputs(ins), output.type);
+            insert_instructions_to_upgrade(result, find_adjacent_inputs(ins, output), output.type);
         }
         else if(input > output)
         {
-            insert_instructions_to_upgrade(result, find_adjacent_outputs(ins), input.type);
+            insert_instructions_to_upgrade(result, find_adjacent_outputs(ins, input), input.type);
         }
     }
     return result;

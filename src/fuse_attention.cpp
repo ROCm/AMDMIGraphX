@@ -1214,17 +1214,14 @@ struct find_flash_decoding
             attn_group_ins,
             make_op("multibroadcast", {{"out_lens", lse->get_shape().lens()}}),
             lse_max);
-        std::cout << "lse_max_bcast (multibroadcast): " << lse_max_bcast->get_shape() << std::endl;
 
         // compute unnormalized weights
         // exp(LSE - max)
         auto lse_sub = mm.insert_instruction(
             attn_group_ins, make_op("sub"), lse, lse_max_bcast);
-        std::cout << "lse_sub (sub): " << lse_sub->get_shape() << std::endl;
 
         auto lse_exp = mm.insert_instruction(
             attn_group_ins, make_op("exp"), lse_sub);
-        std::cout << "lse_exp (exp): " << lse_exp->get_shape() << std::endl;
 
         // broadcast weights to match O' shape
         // [B, G, M] -> [B, G, M, D]
@@ -1232,38 +1229,30 @@ struct find_flash_decoding
             attn_group_ins,
             make_op("multibroadcast", {{"out_lens", partial_output_o_prime->get_shape().lens()}}),
             lse_exp);
-        std::cout << "lse_exp_bcast (multibroadcast): " << lse_exp_bcast->get_shape() << std::endl;
 
         // convert weights to output type
         auto output_type = partial_output_o_prime->get_shape().type();
         auto weights = mm.insert_instruction(
             attn_group_ins, make_op("convert", {{"target_type", output_type}}), lse_exp_bcast);
-        std::cout << "weights (convert): " << weights->get_shape() << std::endl;
 
         // compute weighted sum: numerator = sum(O' * weights)
         auto weighted_o = mm.insert_instruction(
             attn_group_ins, make_op("mul"), partial_output_o_prime, weights);
-        std::cout << "weighted_o (mul): " << weighted_o->get_shape() << std::endl;
 
         auto numerator = mm.insert_instruction(
             attn_group_ins, make_op("reduce_sum", {{"axes", {g_axis}}}), weighted_o);
-        std::cout << "numerator (reduce_sum): " << numerator->get_shape() << std::endl;
 
         // compute sum of weights: denominator = sum(weights)
         auto denominator = mm.insert_instruction(
             attn_group_ins, make_op("reduce_sum", {{"axes", {g_axis}}}), weights);
-        std::cout << "denominator (reduce_sum): " << denominator->get_shape() << std::endl;
 
         // final division: O = numerator / denominator
         auto final_output_o = mm.insert_instruction(
             attn_group_ins, make_op("div"), numerator, denominator);
-        std::cout << "final_output_o (div): " << final_output_o->get_shape() << std::endl;
 
         // squeeze G to match the original output shape
         auto final_squeezed_o = mm.insert_instruction(
             attn_group_ins, make_op("squeeze", {{"axes", {g_axis}}}), final_output_o);
-        std::cout << "final_squeezed_o (squeeze): " << final_squeezed_o->get_shape() << std::endl;
-        std::cout << "=== End Kernel 2 ===" << std::endl;
 
         // if padding was applied, slice to remove it
         instruction_ref final_result = final_squeezed_o;

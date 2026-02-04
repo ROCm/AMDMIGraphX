@@ -1157,29 +1157,6 @@ struct find_gqa_flash_decoding
             partial_output_o_prime);
         std::cout << "    Output shape: " << o_prime_reshaped->get_shape() << std::endl;
         
-        // in groups with all masked positions, softmax produces NaN (from -inf - (-inf))
-        // replace NaN with 0 so they don't contribute to the weighted sum
-        std::cout << "\n>>> Creating: isnan" << std::endl;
-        std::cout << "    Input shape: " << o_prime_reshaped->get_shape() << std::endl;
-        auto o_prime_is_nan = mm.insert_instruction(
-            attn_group_ins, make_op("isnan"), o_prime_reshaped);
-        std::cout << "    Output shape: " << o_prime_is_nan->get_shape() << std::endl;
-        
-        auto zero_lit = mm.add_literal(literal{shape{output_type, {1}}, {0}});
-        std::cout << "\n>>> Creating: multibroadcast (out_lens=" << o_prime_reshaped->get_shape() << ")" << std::endl;
-        std::cout << "    Input shape: " << zero_lit->get_shape() << std::endl;
-        auto zero_bcast = mm.insert_instruction(
-            attn_group_ins,
-            make_op("multibroadcast", {{"out_lens", o_prime_reshaped->get_shape().lens()}}),
-            zero_lit);
-        std::cout << "    Output shape: " << zero_bcast->get_shape() << std::endl;
-        
-        std::cout << "\n>>> Creating: where" << std::endl;
-        std::cout << "    Input shapes: " << o_prime_is_nan->get_shape() << ", " << zero_bcast->get_shape() << ", " << o_prime_reshaped->get_shape() << std::endl;
-        auto o_prime_cleaned = mm.insert_instruction(
-            attn_group_ins, make_op("where"), o_prime_is_nan, zero_bcast, o_prime_reshaped);
-        std::cout << "    Output shape: " << o_prime_cleaned->get_shape() << std::endl;
-        
         // [B, N, G, S, 1] -> [B, N, G, S]
         std::cout << "\n>>> Creating: squeeze (axes={4})" << std::endl;
         std::cout << "    Input shape: " << lse->get_shape() << std::endl;
@@ -1233,11 +1210,11 @@ struct find_gqa_flash_decoding
         
         // broadcast weights to match O' shape
         // [B, G, S, N, 1] -> [B, G, S, N, D]
-        std::cout << "\n>>> Creating: multibroadcast (out_lens=" << o_prime_cleaned->get_shape() << ")" << std::endl;
+        std::cout << "\n>>> Creating: multibroadcast (out_lens=" << o_prime_reshaped->get_shape() << ")" << std::endl;
         std::cout << "    Input shape: " << lse_exp_unsqueezed->get_shape() << std::endl;
         auto lse_exp_bcast = mm.insert_instruction(
             attn_group_ins,
-            make_op("multibroadcast", {{"out_lens", o_prime_cleaned->get_shape().lens()}}),
+            make_op("multibroadcast", {{"out_lens", o_prime_reshaped->get_shape().lens()}}),
             lse_exp_unsqueezed);
         std::cout << "    Output shape: " << lse_exp_bcast->get_shape() << std::endl;
         
@@ -1251,9 +1228,9 @@ struct find_gqa_flash_decoding
         // compute weighted sum: numerator = sum(O' * weights) across groups
         // [B, G, S, N, D] * [B, G, S, N, D] -> [B, G, S, N, D]
         std::cout << "\n>>> Creating: mul" << std::endl;
-        std::cout << "    Input shapes: " << o_prime_cleaned->get_shape() << ", " << weights->get_shape() << std::endl;
+        std::cout << "    Input shapes: " << o_prime_reshaped->get_shape() << ", " << weights->get_shape() << std::endl;
         auto weighted_o = mm.insert_instruction(
-            attn_group_ins, make_op("mul"), o_prime_cleaned, weights);
+            attn_group_ins, make_op("mul"), o_prime_reshaped, weights);
         std::cout << "    Output shape: " << weighted_o->get_shape() << std::endl;
 
         // sum across groups

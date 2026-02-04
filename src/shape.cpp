@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -130,7 +130,7 @@ struct shape_impl
     {
         if(not m_dyn_dims.empty())
         {
-            auto maxes = max_lens();
+            auto maxes          = max_lens();
             std::size_t max_val = std::numeric_limits<std::size_t>::max();
 
             return std::accumulate(
@@ -308,6 +308,22 @@ bool shape::is_compatible(const shape& actual, const shape& expected)
             return true;
         return actual.strides()[i] == expected.strides()[i];
     });
+}
+
+bool shape::is_compatible_lens(const shape& actual, const shape& expected)
+{
+    if(actual.dynamic())
+        return expected.dynamic() and actual.dyn_dims() == expected.dyn_dims();
+    if(expected.dynamic())
+    {
+        if(actual.ndim() != expected.ndim())
+            return false;
+        return std::equal(actual.lens().begin(),
+                          actual.lens().end(),
+                          expected.dyn_dims().begin(),
+                          [&](auto a, const auto& e) { return a >= e.min and a <= e.max; });
+    }
+    return actual.lens() == expected.lens();
 }
 
 bool shape::is_unsigned(shape::type_t t)
@@ -826,6 +842,11 @@ std::ostream& operator<<(std::ostream& os, const shape& x)
         os << "[" << to_string_range(x.sub_shapes()) << "]";
     }
     return os;
+}
+
+bool shape::same_lens(const shape& x, const shape& y)
+{
+    return x.to_dynamic().dyn_dims() == y.to_dynamic().dyn_dims();
 }
 
 shape::type_t shape::parse_type(const std::string& s)

@@ -156,6 +156,8 @@ if(WIN32)
     target_compile_options(migraphx PUBLIC "SHELL:-Xclang -cfguard")
 endif()
 
+configure_file(config.h.in include/migraphx/config.h)
+
 configure_file(version.h.in include/migraphx/version.h)
 add_library(migraphx_version INTERFACE)
 rocm_install_targets(
@@ -377,12 +379,18 @@ target_link_libraries(migraphx PRIVATE msgpack-cxx)
 target_link_libraries(migraphx INTERFACE $<BUILD_INTERFACE:msgpack-cxx>)
 
 add_library(migraphx_all_targets INTERFACE)
+add_library(migraphx_all_frontends INTERFACE)
 
 add_subdirectory(api)
 add_subdirectory(driver)
+if(MIGRAPHX_ENABLE_ONNX)
 add_subdirectory(onnx)
+target_link_libraries(migraphx_all_frontends INTERFACE migraphx_onnx)
+endif()
+if(MIGRAPHX_ENABLE_TENSORFLOW)
 add_subdirectory(tf)
-
+target_link_libraries(migraphx_all_frontends INTERFACE migraphx_tf)
+endif()
 if(MIGRAPHX_ENABLE_PYTHON)
 add_subdirectory(py)
 endif()
@@ -428,6 +436,7 @@ if(BUILD_DEV)
 endif()
 
 target_compile_definitions(migraphx PUBLIC MIGRAPHX_CXX_COMPILER="${CMAKE_CXX_COMPILER}")
+add_dependencies(migraphx generate)
 
 rocm_export_targets(
   TARGETS migraphx::migraphx_c

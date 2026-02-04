@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -330,46 +330,61 @@ api.add_function('migraphx_save',
                             options='migraphx::file_options'),
                  fname='migraphx::save')
 
+if 'enable_onnx' in globals():
+    @auto_handle()
+    def onnx_options(h):
+        h.constructor('create')
+        h.method(
+            'set_input_parameter_shape',
+            api.params(name='const char*', dims='std::vector<size_t>'),
+            invoke='migraphx::set_input_parameter_shape($@)',
+        )
+        h.method(
+            'set_dyn_input_parameter_shape',
+            api.params(name='const char*',
+                       dims='std::vector<migraphx::shape::dynamic_dimension>'),
+            invoke='migraphx::set_dyn_input_parameter_shape($@)',
+        )
+        h.method(
+            'set_default_dim_value',
+            api.params(value='size_t'),
+            invoke='migraphx::set_default_dim_value($@)',
+        )
+        h.method(
+            'set_default_dyn_dim_value',
+            api.params(dd='const migraphx::shape::dynamic_dimension&'),
+            invoke='migraphx::set_default_dyn_dim_value($@)',
+        )
+        h.method(
+            'set_default_loop_iterations',
+            api.params(value='int64_t'),
+            invoke='migraphx::set_default_loop_iterations($@)',
+        )
+        h.method(
+            'set_limit_loop_iterations',
+            api.params(value='int64_t'),
+            invoke='migraphx::set_limit_loop_iterations($@)',
+        )
+        h.method(
+            'set_external_data_path',
+            api.params(external_data_path='const char*'),
+            invoke='migraphx::set_external_data_path($@)',
+        )
 
-@auto_handle()
-def onnx_options(h):
-    h.constructor('create')
-    h.method(
-        'set_input_parameter_shape',
-        api.params(name='const char*', dims='std::vector<size_t>'),
-        invoke='migraphx::set_input_parameter_shape($@)',
-    )
-    h.method(
-        'set_dyn_input_parameter_shape',
-        api.params(name='const char*',
-                   dims='std::vector<migraphx::shape::dynamic_dimension>'),
-        invoke='migraphx::set_dyn_input_parameter_shape($@)',
-    )
-    h.method(
-        'set_default_dim_value',
-        api.params(value='size_t'),
-        invoke='migraphx::set_default_dim_value($@)',
-    )
-    h.method(
-        'set_default_dyn_dim_value',
-        api.params(dd='const migraphx::shape::dynamic_dimension&'),
-        invoke='migraphx::set_default_dyn_dim_value($@)',
-    )
-    h.method(
-        'set_default_loop_iterations',
-        api.params(value='int64_t'),
-        invoke='migraphx::set_default_loop_iterations($@)',
-    )
-    h.method(
-        'set_limit_loop_iterations',
-        api.params(value='int64_t'),
-        invoke='migraphx::set_limit_loop_iterations($@)',
-    )
-    h.method(
-        'set_external_data_path',
-        api.params(external_data_path='const char*'),
-        invoke='migraphx::set_external_data_path($@)',
-    )
+
+    api.add_function('migraphx_parse_onnx',
+                     api.params(name='const char*',
+                                options='migraphx::onnx_options'),
+                     fname='migraphx::parse_onnx',
+                     returns='migraphx::program')
+
+
+    api.add_function('migraphx_parse_onnx_buffer',
+                     api.params(data='const void*',
+                                size='size_t',
+                                options='migraphx::onnx_options'),
+                     fname='migraphx::parse_onnx_buffer',
+                     returns='migraphx::program')
 
 
 @auto_handle()
@@ -394,57 +409,45 @@ def compile_options(h):
              invoke='migraphx::set_exhaustive_tune_flag($@)')
 
 
-api.add_function('migraphx_parse_onnx',
-                 api.params(name='const char*',
-                            options='migraphx::onnx_options'),
-                 fname='migraphx::parse_onnx',
-                 returns='migraphx::program')
-
-api.add_function('migraphx_parse_onnx_buffer',
-                 api.params(data='const void*',
-                            size='size_t',
-                            options='migraphx::onnx_options'),
-                 fname='migraphx::parse_onnx_buffer',
-                 returns='migraphx::program')
-
-
-@auto_handle()
-def tf_options(h):
-    h.constructor('create')
-    h.method(
-        'set_nhwc',
-        api.params(is_nhwc='bool'),
-        invoke='migraphx::set_nhwc($@)',
-    )
-    h.method(
-        'set_input_parameter_shape',
-        api.params(name='const char*', dims='std::vector<size_t>'),
-        invoke='migraphx::set_input_parameter_shape($@)',
-    )
-    h.method(
-        'set_default_dim_value',
-        api.params(value='size_t'),
-        invoke='migraphx::set_default_dim_value($@)',
-    )
-    h.method(
-        'set_output_names',
-        api.params(names='std::vector<const char*>'),
-        invoke='migraphx::set_output_names($@)',
-    )
+if 'enable_tensorflow' in globals():
+    @auto_handle()
+    def tf_options(h):
+        h.constructor('create')
+        h.method(
+            'set_nhwc',
+            api.params(is_nhwc='bool'),
+            invoke='migraphx::set_nhwc($@)',
+        )
+        h.method(
+            'set_input_parameter_shape',
+            api.params(name='const char*', dims='std::vector<size_t>'),
+            invoke='migraphx::set_input_parameter_shape($@)',
+        )
+        h.method(
+            'set_default_dim_value',
+            api.params(value='size_t'),
+            invoke='migraphx::set_default_dim_value($@)',
+        )
+        h.method(
+            'set_output_names',
+            api.params(names='std::vector<const char*>'),
+            invoke='migraphx::set_output_names($@)',
+        )
 
 
-api.add_function('migraphx_parse_tf',
-                 api.params(name='const char*',
-                            options='migraphx::tf_options'),
-                 fname='migraphx::parse_tf',
-                 returns='migraphx::program')
+    api.add_function('migraphx_parse_tf',
+                     api.params(name='const char*',
+                                options='migraphx::tf_options'),
+                     fname='migraphx::parse_tf',
+                     returns='migraphx::program')
 
-api.add_function('migraphx_parse_tf_buffer',
-                 api.params(data='const void*',
-                            size='size_t',
-                            options='migraphx::tf_options'),
-                 fname='migraphx::parse_tf_buffer',
-                 returns='migraphx::program')
+
+    api.add_function('migraphx_parse_tf_buffer',
+                     api.params(data='const void*',
+                                size='size_t',
+                                options='migraphx::tf_options'),
+                     fname='migraphx::parse_tf_buffer',
+                     returns='migraphx::program')
 
 
 @api.handle('migraphx_quantize_op_names', 'std::vector<std::string>')

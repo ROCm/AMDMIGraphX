@@ -1,7 +1,7 @@
 # ####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -25,7 +25,7 @@
 cmake_policy(SET CMP0057 NEW)
 
 find_package(Threads REQUIRED)
-rocm_test_link_libraries(Threads::Threads migraphx migraphx_onnx migraphx_tf)
+rocm_test_link_libraries(Threads::Threads migraphx migraphx_all_frontends)
 rocm_test_include_directories(include)
 
 set(MIGRAPHX_DISABLE_LARGE_BUFFER_TESTS Off CACHE BOOL "")
@@ -82,12 +82,16 @@ if(MIGRAPHX_ENABLE_FPGA)
 endif()
 
 # Onnx test
+if(MIGRAPHX_ENABLE_ONNX)
 set(TEST_ONNX_DIR ${CMAKE_CURRENT_SOURCE_DIR}/onnx)
 add_subdirectory(onnx)
+endif()
 
 # tf test
+if(MIGRAPHX_ENABLE_TENSORFLOW)
 set(TEST_TF_DIR ${CMAKE_CURRENT_SOURCE_DIR}/tf)
 add_subdirectory(tf)
+endif()
 
 add_subdirectory(api)
 add_subdirectory(verify)
@@ -111,7 +115,7 @@ if(MIGRAPHX_ENABLE_GPU AND MIGRAPHX_ENABLE_CPU AND MIGRAPHX_ENABLE_FPGA)
         set(TEST_NAME test_${BASE_NAME})
         add_executable(${TEST_NAME} ${MULTI_TARGET_TEST})
         rocm_clang_tidy_check(${TEST_NAME})
-        target_link_libraries(${TEST_NAME} migraphx migraphx_onnx migraphx_tf migraphx_all_targets register_targets)
+        target_link_libraries(${TEST_NAME} migraphx migraphx_all_frontends migraphx_all_targets register_targets)
         target_include_directories(${TEST_NAME} PUBLIC include)
         add_test(NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TEST_NAME}> WORKING_DIRECTORY ${TEST_MULTI_TARGET_DIR})
         rocm_mark_as_test(${TEST_NAME})
@@ -144,12 +148,18 @@ function(test_headers PREFIX)
               ${CMAKE_SOURCE_DIR}/src/targets/gpu/include/migraphx/gpu/ck.hpp)
     endif()
     list(REMOVE_ITEM HEADERS ${CMAKE_SOURCE_DIR}/src/include/migraphx/float8_impl.hpp)
+    if(NOT MIGRAPHX_ENABLE_TENSORFLOW)
+        list(REMOVE_ITEM HEADERS ${CMAKE_SOURCE_DIR}/src/include/migraphx/tf.hpp)
+    endif()
+    if(NOT MIGRAPHX_ENABLE_ONNX)
+        list(REMOVE_ITEM HEADERS ${CMAKE_SOURCE_DIR}/src/include/migraphx/onnx.hpp)
+    endif()
     foreach(HEADER ${HEADERS})
         file(RELATIVE_PATH HEADER_REL ${CMAKE_SOURCE_DIR} ${HEADER})
         string(MAKE_C_IDENTIFIER ${HEADER_REL} TEST_NAME)
         get_filename_component(BASE_NAME ${HEADER} NAME_WE)
         test_header(header_${TEST_NAME} ${PREFIX}/${BASE_NAME}.hpp)
-        target_link_libraries(header_${TEST_NAME} migraphx migraphx_onnx migraphx_tf migraphx_all_targets register_targets)
+        target_link_libraries(header_${TEST_NAME} migraphx migraphx_all_frontends migraphx_all_targets register_targets)
     endforeach()
 endfunction()
 

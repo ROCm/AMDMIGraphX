@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -31,6 +31,10 @@ set(PYTHON_VERSION_TO_DISABLE_ONNX 3.6)
 option(MIGRAPHX_DISABLE_VIRTUAL_ENV "Disable python virtual environments" OFF)
 option(MIGRAPHX_DISABLE_ONNX_TESTS "Disable Onnx backend tests" OFF)
 
+if(NOT MIGRAPHX_ENABLE_ONNX AND NOT MIGRAPHX_DISABLE_ONNX_TESTS)
+    message(NOTICE "ONNX frontend disabled, hence turning off building the tests")
+    set(MIGRAPHX_DISABLE_ONNX_TESTS ON CACHE BOOL "" FORCE)
+endif()
 
 function(add_py_venv_fixture FIXTURE_NAME VIRTUAL_ENV_DIR REQUIREMENTS_FILE)
     foreach(PYTHON_VERSION ${PYTHON_VERSIONS})

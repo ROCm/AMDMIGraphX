@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -49,7 +49,7 @@ rocm_clang_tidy_check(driver)
 file(STRINGS "${CMAKE_SOURCE_DIR}/test/onnx/.onnxrt-commit" String_output)
 target_compile_definitions(driver PUBLIC MIGRAPHX_ORT_SHA1="${String_output}")
 
-target_link_libraries(driver migraphx_all_targets migraphx_onnx migraphx_tf)
+target_link_libraries(driver migraphx_all_targets migraphx_all_frontends)
 
 if(MIGRAPHX_ENABLE_PYTHON)
     target_link_libraries(driver migraphx_py)

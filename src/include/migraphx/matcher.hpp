@@ -77,7 +77,7 @@ struct matcher_context
     template <class M, class I>
     auto lazy_match(M m, I ins)
     {
-        return [=] { return this->matched(m, ins); };
+        return [=, this] { return this->matched(m, ins); };
     }
 
     bool has_instruction(instruction_ref ins) const

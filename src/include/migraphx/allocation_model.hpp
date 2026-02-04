@@ -147,7 +147,8 @@ struct allocation_model
     }
 
     // Cast
-    template <typename PrivateDetailTypeErasedT>
+    template <typename PrivateDetailTypeErasedT,
+              typename = private_te_constraints<PrivateDetailTypeErasedT>>
     PrivateDetailTypeErasedT* any_cast()
     {
         return this->type_id() == typeid(PrivateDetailTypeErasedT)
@@ -158,7 +159,8 @@ struct allocation_model
                    : nullptr;
     }
 
-    template <typename PrivateDetailTypeErasedT>
+    template <typename PrivateDetailTypeErasedT,
+              typename = private_te_constraints<PrivateDetailTypeErasedT>>
     const typename std::remove_cv<PrivateDetailTypeErasedT>::type* any_cast() const
     {
         return this->type_id() == typeid(PrivateDetailTypeErasedT)
@@ -314,21 +316,45 @@ struct allocation_model
 };
 
 template <typename ValueType>
-inline const ValueType* any_cast(const allocation_model* x)
+inline auto any_cast_impl(char, const allocation_model* x) -> decltype(x->any_cast<ValueType>())
 {
     return x->any_cast<ValueType>();
+}
+
+template <typename ValueType>
+inline auto any_cast_impl(char, allocation_model* x) -> decltype(x->any_cast<ValueType>())
+{
+    return x->any_cast<ValueType>();
+}
+
+template <typename ValueType>
+inline auto any_cast_impl(float, const allocation_model*)
+{
+    return nullptr;
+}
+
+template <typename ValueType>
+inline auto any_cast_impl(float, allocation_model*)
+{
+    return nullptr;
+}
+
+template <typename ValueType>
+inline const ValueType* any_cast(const allocation_model* x)
+{
+    return any_cast_impl<ValueType>(char(0), x);
 }
 
 template <typename ValueType>
 inline ValueType* any_cast(allocation_model* x)
 {
-    return x->any_cast<ValueType>();
+    return any_cast_impl<ValueType>(char(0), x);
 }
 
 template <typename ValueType>
 inline ValueType& any_cast(allocation_model& x)
 {
-    auto* y = x.any_cast<typename std::remove_reference<ValueType>::type>();
+    auto* y = any_cast<typename std::remove_reference<ValueType>::type>(&x);
     if(y == nullptr)
         throw std::bad_cast();
     return *y;
@@ -337,7 +363,7 @@ inline ValueType& any_cast(allocation_model& x)
 template <typename ValueType>
 inline const ValueType& any_cast(const allocation_model& x)
 {
-    const auto* y = x.any_cast<typename std::remove_reference<ValueType>::type>();
+    const auto* y = any_cast<typename std::remove_reference<ValueType>::type>(&x);
     if(y == nullptr)
         throw std::bad_cast();
     return *y;

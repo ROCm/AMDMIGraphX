@@ -173,7 +173,7 @@ struct grid_sampler
         return std::accumulate(std::next(instructions.begin()),
                                instructions.end(),
                                instructions.front(),
-                               [&info](auto& ret, auto& ins) {
+                               [&info](const auto& ret, const auto& ins) {
                                    return info.add_instruction(
                                        make_op("concat", {{"axis", 0}}), ret, ins);
                                });
@@ -186,7 +186,7 @@ struct grid_sampler
         return std::accumulate(std::next(instructions.begin()),
                                instructions.end(),
                                instructions.front(),
-                               [&info, &dim](auto& ret, auto& ins) {
+                               [&info, &dim](const auto& ret, const auto& ins) {
                                    return info.add_instruction(
                                        make_op("concat", {{"axis", dim}}), ret, ins);
                                });
@@ -535,7 +535,7 @@ struct bicubic_sampler : grid_sampler
         auto weights_t = std::accumulate(std::next(corner_weights.begin()),
                                          corner_weights.end(),
                                          corner_weights.front(),
-                                         [&info](auto& acc, auto& ins) {
+                                         [&info](const auto& acc, const auto& ins) {
                                              return info.add_instruction(
                                                  make_op("concat", {{"axis", 1}}), acc, ins);
                                          });

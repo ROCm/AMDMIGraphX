@@ -142,9 +142,9 @@ endif()
 
 set(CMAKE_CXX_STANDARD_DEFAULT "")
 if(MSVC)
-    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/std:c++17>)
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/std:c++20>)
 else()
-    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-std=c++17>)
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-std=c++23>)
 endif()
 
 include(EnableCompilerWarnings)
@@ -233,9 +233,14 @@ rocm_enable_clang_tidy(
         -modernize-concat-nested-namespaces
         -modernize-pass-by-value
         -modernize-type-traits
+        -modernize-use-constraints
         -modernize-use-default-member-init
+        -modernize-use-designated-initializers
         -modernize-use-nodiscard
+        -modernize-use-std-numbers
+        -modernize-use-std-print
         -modernize-use-override
+        -modernize-use-ranges
         -modernize-use-trailing-return-type
         -modernize-use-transparent-functors
         -performance-avoid-endl
@@ -243,6 +248,7 @@ rocm_enable_clang_tidy(
         -performance-enum-size
         -readability-braces-around-statements
         -readability-avoid-nested-conditional-operator
+        -readability-container-contains
         -readability-convert-member-functions-to-static
         -readability-else-after-return
         -readability-function-cognitive-complexity

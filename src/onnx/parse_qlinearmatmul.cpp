@@ -162,8 +162,7 @@ struct parse_qlinearmatmul : op_parser<parse_qlinearmatmul>
         const auto& in_a         = args[0];
         const auto& in_scale_a   = args[1];
         const auto& in_zero_pt_a = args[2];
-        auto dquant_a =
-            bcast_qdq_instr_matmul("dequantizelinear", in_a, in_scale_a, in_zero_pt_a, info);
+        auto dquant_a = bcast_qdq_instr("dequantizelinear", in_a, in_scale_a, in_zero_pt_a, info);
 
         // B
         const auto& in_b         = args[3];

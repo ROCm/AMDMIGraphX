@@ -67,7 +67,7 @@ struct range : op_name<range>
             // number_of_elements = max( ceil( (limit - start) / delta ), 0 )
             double num_elements_d = std::ceil(static_cast<double>(limit_val - start_val) /
                                               static_cast<double>(delta_val));
-            size_t num_elements = num_elements_d > 0 ? static_cast<size_t>(num_elements_d) : 0;
+            size_t num_elements   = num_elements_d > 0 ? static_cast<size_t>(num_elements_d) : 0;
 
             result = argument{shape{args[0].get_shape().type(), {num_elements}}};
 

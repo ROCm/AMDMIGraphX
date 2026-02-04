@@ -497,7 +497,7 @@ struct miopen_apply
     void add_range_op()
     {
         apply_map.emplace("range", [=](instruction_ref ins) {
-            auto s      = ins->get_shape();
+            auto s = ins->get_shape();
             std::vector<instruction_ref> cpu_inputs;
             auto inputs = ins->inputs();
             std::transform(
@@ -507,8 +507,9 @@ struct miopen_apply
             cpu_inputs.front() =
                 mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs);
             auto cpu_out = mod->insert_instruction(ins, ins->get_operator(), cpu_inputs);
-            /* We use copy_to_gpu_alloc instead of copy_to_gpu because it allocates memory based on the runtime-determined
-            range size rather than pre-allocating the maximum possible size numeric_limits<std::size_t>::max() */
+            /* We use copy_to_gpu_alloc instead of copy_to_gpu because it allocates memory based on
+            the runtime-determined range size rather than pre-allocating the maximum possible size
+            numeric_limits<std::size_t>::max() */
             auto gpu_out = mod->insert_instruction(ins, make_op("hip::copy_to_gpu_alloc"), cpu_out);
             return mod->replace_instruction(ins, gpu_out);
         });

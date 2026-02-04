@@ -62,7 +62,6 @@ instruction_ref bcast_qdq_instr(const std::string& op_name,
     return info.add_instruction(migraphx::make_op(op_name), x_in, bcast_scale, bcast_zero_pt);
 }
 
-
 // Multibroadcast a scaler..
 instruction_ref bcast_scalar_instr(const migraphx::shape& shape_out,
                                    instruction_ref arg_in,

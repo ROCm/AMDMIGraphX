@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,16 +24,15 @@
 
 #include <onnx_test.hpp>
 
-TEST_CASE(undefined_test)
+TEST_CASE(const_of_shape_zero_dim_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
-    mm->add_instruction(migraphx::make_op("undefined"));
-    auto l2 = mm->add_instruction(migraphx::make_op("undefined"));
-    mm->add_return({l2});
+    migraphx::shape ss(migraphx::shape::int64_type, {3});
+    mm->add_literal(migraphx::literal(ss, {2, 0, 4}));
+    auto ret = mm->add_instruction(migraphx::make_op("undefined"));
+    mm->add_return({ret});
 
-    auto prog = read_onnx("undefined_test.onnx");
-
+    auto prog = read_onnx("const_of_shape_zero_dim_test.onnx");
     EXPECT(p == prog);
 }

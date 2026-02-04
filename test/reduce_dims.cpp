@@ -36,6 +36,11 @@ static migraphx::shape make_shape(std::vector<std::size_t> lens, std::vector<std
     return {migraphx::shape::float_type, std::move(lens), std::move(strides)};
 }
 
+static migraphx::shape make_shape(std::vector<migraphx::shape::dynamic_dimension> dyn_dims)
+{
+    return {migraphx::shape::float_type, std::move(dyn_dims)};
+}
+
 static bool verify_shape(const migraphx::shape& s1, const migraphx::shape& s2)
 {
     if(s1.elements() != s2.elements())
@@ -187,6 +192,14 @@ TEST_CASE(empty)
 {
     auto rshapes = migraphx::reduce_dims({});
     EXPECT(rshapes.empty());
+}
+
+TEST_CASE(dynamic_shape)
+{
+    std::vector<migraphx::shape> ishapes = {make_shape({{1, 4}, {2, 6}, {3, 12}}),
+                                            make_shape({{1, 4}, {2, 6}, {3, 12}})};
+    auto rshapes                         = migraphx::reduce_dims(ishapes);
+    EXPECT(ishapes == rshapes);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

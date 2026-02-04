@@ -53,11 +53,10 @@ TEST_CASE(qlinearconv_perchannel_weightbias_test)
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     // Golden computed from numpy reference
-    std::vector<uint8_t> gold_prefix = {
-        129, 134, 133, 133, 133, 133, 133, 133, 133, 133, 133, 133, 133, 133, 133, 139,
-        132, 127, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 127
-    };
+    std::vector<uint8_t> gold_prefix = {129, 134, 133, 133, 133, 133, 133, 133, 133, 133, 133,
+                                        133, 133, 133, 133, 139, 132, 127, 125, 125, 125, 125,
+                                        125, 125, 125, 125, 125, 125, 125, 125, 125, 127};
 
-     std::vector<uint8_t> result_prefix(result_vector.begin(), result_vector.begin() + 32);
+    std::vector<uint8_t> result_prefix(result_vector.begin(), result_vector.begin() + 32);
     EXPECT(migraphx::verify::verify_rms_range(result_prefix, gold_prefix));
 }

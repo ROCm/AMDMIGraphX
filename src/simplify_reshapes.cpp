@@ -1324,60 +1324,6 @@ struct find_gather_scalar
     }
 };
 
-// Convert gather with a scalar constant index to slice + squeeze.
-// This is more efficient as slice can be implemented as pointer arithmetic
-// (zero-copy) and squeeze is just a shape transformation.
-//
-// Example:
-//   gather[axis=2](data{1, 32, 19}, @literal{0}) -> {1, 32}
-// Becomes:
-//   slice[axes={2}, starts={0}, ends={1}](data) -> {1, 32, 1}
-//   squeeze[axes={2}](slice_output) -> {1, 32}
-//
-struct find_gather_to_slice
-{
-    auto matcher() const
-    {
-        return match::name("gather")(match::args(
-            match::any().bind("data"), match::is_constant(match::scalar_shape()).bind("ind")));
-    }
-
-    void apply(module& m, const match::matcher_result& r) const
-    {
-        auto ins     = r.result;
-        auto data    = r.instructions["data"];
-        auto ins_ind = r.instructions["ind"];
-
-        // Evaluate the constant index
-        auto arg_ind = ins_ind->eval();
-        assert(not arg_ind.empty());
-
-        int64_t idx = 0;
-        arg_ind.visit([&](auto v) { idx = v.front(); });
-
-        auto axis = ins->get_operator().to_value()["axis"].to<int64_t>();
-
-        const auto& data_shape = data->get_shape();
-        auto data_lens         = data_shape.lens();
-
-        // Handle negative index
-        int64_t axis_dim = data_lens[axis];
-        if(idx < 0)
-        {
-            idx += axis_dim;
-        }
-
-        // Create slice: slice[axes={axis}, starts={idx}, ends={idx+1}]
-        auto slice_ins = m.insert_instruction(
-            ins,
-            make_op("slice", {{"axes", {axis}}, {"starts", {idx}}, {"ends", {idx + 1}}}),
-            data);
-
-        // Create squeeze to remove the sliced dimension
-        m.replace_instruction(ins, make_op("squeeze", {{"axes", {axis}}}), slice_ins);
-    }
-};
-
 struct find_reshape_cont
 {
     auto matcher() const
@@ -1846,10 +1792,15 @@ struct find_flatten
 
 void simplify_reshapes::apply(module& m) const
 {
+    std::cout << "before gather rewrite" << std::endl;
+    m.debug_print();
     match::find_matches(m, find_gather_scalar{});
     dead_code_elimination{}.apply(m);
+    
     if(enable_gather_rewrite)
         match::find_matches(m, find_gather{});
+    std::cout << "after gather rewrite" << std::endl;
+    m.debug_print();
     m.repeat_while_changes(depth, [&] {
         match::find_matches(m,
                             find_nop_reshapes{},

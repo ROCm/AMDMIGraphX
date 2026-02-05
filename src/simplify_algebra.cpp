@@ -2152,33 +2152,79 @@ struct find_multi_embedding_slice_gather
         std::size_t concat_input_idx; // Position in concat inputs
     };
 
-    // Helper to check if an instruction is squeeze(slice(...))
-    static bool is_squeeze_slice(instruction_ref ins)
+    // Index extraction result
+    struct index_info
     {
-        if(ins->name() != "squeeze")
-            return false;
-        if(ins->inputs().empty())
-            return false;
-        return ins->inputs().front()->name() == "slice";
-    }
+        instruction_ref source;
+        int64_t axis;
+        int64_t index_val;
+    };
 
-    // Helper to extract slice info from squeeze(slice(...))
-    // Returns: (source, axis, start, end)
-    static std::tuple<instruction_ref, int64_t, int64_t, int64_t>
-    get_slice_info(instruction_ref squeeze_ins)
+    // Helper to check if an instruction is a valid index pattern and extract info
+    // Supports two patterns:
+    // 1. convert?(gather[axis=N](source, scalar_constant)) - before gather rewrite
+    // 2. slice[axes={N}](source) extracting single element - after gather rewrite
+    static std::optional<index_info> get_index_info(instruction_ref ins)
     {
-        auto slice_ins = squeeze_ins->inputs().front();
-        auto slice_op  = any_cast<op::slice>(slice_ins->get_operator());
-
-        auto source = slice_ins->inputs().front();
-        int64_t axis  = slice_op.axes.empty() ? 0 : slice_op.axes.front();
-        int64_t start = slice_op.starts.front();
-        int64_t end   = slice_op.ends.front();
-
-        return {source, axis, start, end};
+        // Unwrap optional convert
+        instruction_ref inner = ins;
+        if(ins->name() == "convert")
+        {
+            if(ins->inputs().empty())
+                return std::nullopt;
+            inner = ins->inputs().front();
+        }
+        
+        // Pattern 1: gather with scalar constant index
+        if(inner->name() == "gather")
+        {
+            if(inner->inputs().size() < 2)
+                return std::nullopt;
+            auto idx_const = inner->inputs().at(1);
+            if(not idx_const->can_eval())
+                return std::nullopt;
+            if(idx_const->get_shape().elements() != 1)
+                return std::nullopt;
+                
+            auto gop = any_cast<op::gather>(inner->get_operator());
+            auto source = inner->inputs().front();
+            
+            auto arg = idx_const->eval();
+            int64_t index_val = 0;
+            arg.visit([&](auto v) { index_val = v.front(); });
+            
+            return index_info{source, gop.axis, index_val};
+        }
+        
+        // Pattern 2: slice extracting single element
+        if(inner->name() == "slice")
+        {
+            auto slice_op = any_cast<op::slice>(inner->get_operator());
+            
+            // Must slice on a single axis
+            if(slice_op.axes.size() != 1)
+                return std::nullopt;
+            
+            int64_t axis = slice_op.axes.front();
+            int64_t start = slice_op.starts.front();
+            int64_t end = slice_op.ends.front();
+            
+            // Must extract exactly one element
+            if(end - start != 1)
+                return std::nullopt;
+            
+            auto source = inner->inputs().front();
+            return index_info{source, axis, start};
+        }
+        
+        return std::nullopt;
     }
 
     // Check if a gather matches our pattern and extract info
+    // Pattern: gather[axis=0](emb, index_pattern)
+    // where index_pattern is either:
+    //   - convert?(gather[axis=N](source, scalar_constant))
+    //   - slice[axes={N}](source)
     // Returns nullopt if not matching
     static std::optional<std::tuple<instruction_ref, int64_t, int64_t, instruction_ref, std::size_t, std::size_t>>
     check_gather_match(instruction_ref g, std::size_t target_emb_dim)
@@ -2206,29 +2252,28 @@ struct find_multi_embedding_slice_gather
         if(target_emb_dim != 0 && this_emb_dim != target_emb_dim)
             return std::nullopt;
 
-        // Check if index comes from squeeze(slice(...))
-        if(not is_squeeze_slice(idx))
+        // Check if index comes from a valid pattern
+        auto idx_info_opt = get_index_info(idx);
+        if(not idx_info_opt)
             return std::nullopt;
 
-        auto [source, axis, start, end] = get_slice_info(idx);
-
-        // Slice must extract exactly one element
-        if(end - start != 1)
-            return std::nullopt;
-
+        auto& info = *idx_info_opt;
         std::size_t emb_size = emb->get_shape().lens().front();
 
-        return std::make_tuple(source, axis, start, emb, emb_size, this_emb_dim);
+        return std::make_tuple(info.source, info.axis, info.index_val, emb, emb_size, this_emb_dim);
     }
 
     void apply(module& m) const
     {
+        std::cout << "\n=== find_multi_embedding_slice_gather: Starting scan ===" << std::endl;
+        
         // Track processed concats to avoid infinite loops
         std::set<const instruction*> processed_concats;
         
         bool changed = true;
         std::size_t max_iterations = 100; // Safety limit
         std::size_t iteration = 0;
+        std::size_t total_concats = 0;
         
         while(changed && iteration < max_iterations)
         {
@@ -2239,6 +2284,8 @@ struct find_multi_embedding_slice_gather
             {
                 if(concat_ins->name() != "concat")
                     continue;
+                
+                total_concats++;
                 
                 // Skip if we've already processed this concat
                 if(processed_concats.count(std::addressof(*concat_ins)) > 0)
@@ -2262,26 +2309,77 @@ struct find_multi_embedding_slice_gather
                          instruction_ref> source_map;
 
                 auto inputs = concat_ins->inputs();
+                std::size_t gather_count = 0;
+                std::size_t non_gather_count = 0;
+                std::size_t multi_use_gather = 0;
+                std::size_t non_matching_gather = 0;
+                
                 for(std::size_t i = 0; i < inputs.size(); i++)
                 {
                     auto input = inputs[i];
                     if(input->name() != "gather")
+                    {
+                        non_gather_count++;
                         continue;
+                    }
+                    
+                    gather_count++;
 
                     // Only consider single-use gathers
                     if(input->outputs().size() != 1)
+                    {
+                        multi_use_gather++;
                         continue;
+                    }
 
                     // Try to match with emb_dim=0 (any dimension initially)
                     auto match = check_gather_match(input, 0);
                     if(!match)
+                    {
+                        non_matching_gather++;
+                        // Debug: Why didn't it match? (only show details for first 3)
+                        if(non_matching_gather <= 3)
+                        {
+                            auto gop = any_cast<op::gather>(input->get_operator());
+                            auto emb = input->inputs().at(0);
+                            auto idx = input->inputs().at(1);
+                            std::cout << "  [DEBUG] Gather at input " << i << " didn't match pattern:" << std::endl;
+                            std::cout << "    gather axis: " << gop.axis << " (need 0)" << std::endl;
+                            std::cout << "    emb can_eval: " << emb->can_eval() << std::endl;
+                            std::cout << "    emb ndim: " << emb->get_shape().lens().size() << " (need 2)" << std::endl;
+                            std::cout << "    idx name: " << idx->name() << " (need convert, gather, or slice)" << std::endl;
+                            std::cout << "    gather ins: ";
+                            m.debug_print(input);
+                            std::cout << "    emb ins: ";
+                            m.debug_print(emb);
+                            std::cout << "    idx ins: ";
+                            m.debug_print(idx);
+                            if((idx->name() == "convert" || idx->name() == "gather" || idx->name() == "slice") && !idx->inputs().empty())
+                            {
+                                std::cout << "    idx->input: ";
+                                m.debug_print(idx->inputs().front());
+                            }
+                        }
                         continue;
+                    }
 
                     auto [source, axis, start, emb, emb_size, emb_dim] = *match;
 
                     auto key = std::make_tuple(std::addressof(*source), axis, emb_dim);
                     gather_groups[key].push_back({input, emb, emb_size, start, i});
                     source_map[key] = source;
+                }
+                
+                // Only log concats that have gathers
+                if(gather_count > 0)
+                {
+                    std::cout << "  Concat with " << inputs.size() << " inputs: "
+                              << gather_count << " gathers, "
+                              << non_gather_count << " non-gathers, "
+                              << multi_use_gather << " multi-use, "
+                              << non_matching_gather << " non-matching, "
+                              << (gather_count - multi_use_gather - non_matching_gather) << " matched pattern"
+                              << std::endl;
                 }
 
                 // Find the largest group with consecutive slices
@@ -2290,10 +2388,18 @@ struct find_multi_embedding_slice_gather
                 int64_t best_slice_axis = -1;
                 std::size_t best_emb_dim = 0;
 
+                if(gather_count > 0)
+                    std::cout << "  Found " << gather_groups.size() << " distinct gather groups" << std::endl;
+                
                 for(auto& [key, group] : gather_groups)
                 {
+                    std::cout << "    Group with " << group.size() << " gathers (need >= " << min_gathers << ")" << std::endl;
+                    
                     if(group.size() < min_gathers)
+                    {
+                        std::cout << "      SKIP: Not enough gathers" << std::endl;
                         continue;
+                    }
 
                     // Sort by slice index
                     std::sort(group.begin(), group.end(),
@@ -2306,6 +2412,7 @@ struct find_multi_embedding_slice_gather
                         if(group[i].slice_idx != static_cast<int64_t>(i))
                         {
                             consecutive = false;
+                            std::cout << "      SKIP: Non-consecutive at i=" << i << ", expected slice_idx=" << i << " got " << group[i].slice_idx << std::endl;
                             break;
                         }
                     }
@@ -2316,8 +2423,13 @@ struct find_multi_embedding_slice_gather
                     // Check concat axis is the last axis
                     auto sample_shape = group.front().gather_ins->get_shape();
                     if(static_cast<std::size_t>(concat_axis) != sample_shape.ndim() - 1)
+                    {
+                        std::cout << "      SKIP: concat_axis=" << concat_axis << " but ndim-1=" << (sample_shape.ndim() - 1) << std::endl;
                         continue;
+                    }
 
+                    std::cout << "      VALID GROUP!" << std::endl;
+                    
                     // This is a valid group
                     if(best_group == nullptr || group.size() > best_group->size())
                     {
@@ -2330,6 +2442,7 @@ struct find_multi_embedding_slice_gather
 
                 if(best_group == nullptr)
                 {
+                    std::cout << "  NO VALID GROUP FOUND for this concat" << std::endl;
                     // No match found, mark as processed to avoid rechecking
                     processed_concats.insert(std::addressof(*concat_ins));
                     continue;
@@ -2337,6 +2450,13 @@ struct find_multi_embedding_slice_gather
 
                 auto& group = *best_group;
                 std::size_t num_emb = group.size();
+
+                std::cout << "\n=== find_multi_embedding_slice_gather MATCH ===" << std::endl;
+                std::cout << "  Fusing " << num_emb << " gathers into batched gather" << std::endl;
+                std::cout << "  emb_dim=" << best_emb_dim << ", slice_axis=" << best_slice_axis << std::endl;
+                std::cout << "  concat instruction: " << std::endl;
+                m.debug_print(concat_ins);
+                std::cout << "===============================================\n" << std::endl;
 
                 // === OPTIMIZATION: Transform matching gathers to batched gather ===
 
@@ -2357,9 +2477,24 @@ struct find_multi_embedding_slice_gather
                 // 2. Adjust indices with offsets
                 const auto& source_shape = best_source->get_shape();
                 auto idx_type = source_shape.type();
+                std::size_t source_ndim = source_shape.ndim();
 
-                // Create offset literal of shape {1, 1, num_emb}
-                shape offset_shape{idx_type, {1, 1, num_emb}};
+                // Create offset literal with shape matching source dimensions
+                // For 2D source {N, seq}: offset is {num_emb, 1}
+                // For 3D source {batch, seq, N}: offset is {1, 1, num_emb}
+                std::vector<std::size_t> offset_dims;
+                if(source_ndim == 2)
+                {
+                    // Source is {N, seq}, slice on axis 0
+                    offset_dims = {num_emb, 1};
+                }
+                else
+                {
+                    // Source is {batch, seq, N}, slice on last axis
+                    offset_dims = std::vector<std::size_t>(source_ndim, 1);
+                    offset_dims[static_cast<std::size_t>(best_slice_axis)] = num_emb;
+                }
+                shape offset_shape{idx_type, offset_dims};
                 instruction_ref offset_lit;
 
                 if(idx_type == shape::int32_type)
@@ -2417,9 +2552,21 @@ struct find_multi_embedding_slice_gather
 
                 // 3. Reshape indices for flat gather
                 const auto& adj_idx_lens = adjusted_idx->get_shape().lens();
-                std::size_t batch = adj_idx_lens[0];
-                std::size_t seq = adj_idx_lens[1];
-                std::size_t total_idx = batch * seq * num_emb;
+                std::size_t total_idx = adjusted_idx->get_shape().elements();
+                std::size_t batch, seq;
+                
+                if(source_ndim == 2)
+                {
+                    // 2D source {num_emb, seq}: batch=1, seq from dim 1
+                    batch = 1;
+                    seq = adj_idx_lens[1];
+                }
+                else
+                {
+                    // 3D+ source: batch from dim 0, seq from dim 1
+                    batch = adj_idx_lens[0];
+                    seq = adj_idx_lens[1];
+                }
 
                 auto flat_idx = m.insert_instruction(
                     concat_ins,
@@ -2491,6 +2638,10 @@ struct find_multi_embedding_slice_gather
                 break; // Restart iteration since we modified the module
             }
         }
+        
+        std::cout << "=== find_multi_embedding_slice_gather: Scan complete ===" << std::endl;
+        std::cout << "  Total concats scanned: " << total_concats << std::endl;
+        std::cout << "  Iterations: " << iteration << std::endl;
     }
 };
 

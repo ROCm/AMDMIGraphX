@@ -780,19 +780,24 @@ instruction_ref module::validate() const
 
 static bool is_borrowed(instruction_ref ins)
 {
-    auto alias = instruction::get_output_alias(ins, true);
-    if(alias == ins)
+    auto aliases = instruction::get_output_alias(ins, true);
+    if(aliases.size() == 1 and aliases.front() == ins)
         return false;
-    lifetime l = alias->get_operator().get_lifetime();
-    if(l == lifetime::borrow)
-        return true;
-    return is_borrowed(alias);
+    return std::any_of(aliases.begin(), aliases.end(), [](instruction_ref alias) {
+        lifetime l = alias->get_operator().get_lifetime();
+        if(l == lifetime::borrow)
+            return true;
+        return is_borrowed(alias);
+    });
 }
 
 static bool is_global(instruction_ref ins)
 {
-    const auto& op = instruction::get_output_alias(ins)->get_operator();
-    return op.name() == "@param" or op.get_lifetime() == lifetime::global;
+    auto aliases = instruction::get_output_alias(ins);
+    return std::any_of(aliases.begin(), aliases.end(), [](instruction_ref alias) {
+        const auto& op = alias->get_operator();
+        return op.name() == "@param" or op.get_lifetime() == lifetime::global;
+    });
 }
 
 static bool is_dangling(instruction_ref ins) { return not is_global(ins) and is_borrowed(ins); }

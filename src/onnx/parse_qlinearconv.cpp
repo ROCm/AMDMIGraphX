@@ -240,7 +240,7 @@ struct parse_qlinearconv : op_parser<parse_qlinearconv>
                 info.add_instruction(migraphx::make_op("mul"), bcast_scale_x, in_scale_w);
 
             auto dquant_bias =
-                info.add_instruction(migraphx::make_op("dequantizelinear"), args[8], bias_scale);
+                info.add_instruction(migraphx::make_op("dequantizelinear"), in_b, bias_scale);
 
             conv_x_w = add_bias_to_conv(dquant_bias, conv_x_w, info);
         }

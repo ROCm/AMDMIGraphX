@@ -1891,7 +1891,7 @@ std::vector<std::size_t> shape_transform_descriptor::get_dst_axes_from_src(std::
         });
         if(it == d.subdimensions.end())
             continue;
-        // If it maps to a subdimesion then exit as there isnt a clear mapping
+        // If it maps to a subdimension then exit as there isn't a clear mapping
         if(d.len() != it->len)
             return {};
         result.push_back(i);

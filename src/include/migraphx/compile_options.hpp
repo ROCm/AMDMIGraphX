@@ -30,6 +30,23 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+struct mlir_ops_options
+{
+    bool attention = false;
+    bool convolution = false;
+    bool convolution_backwards = false;
+    bool dot = false;
+    bool fused = false;
+    bool fused_convolution = false;
+    bool fused_dot = false;    
+};
+
+struct disable_passes_options
+{
+    bool simplify_algebra = false;
+    bool propagate_constant = false;
+};
+
 struct compile_options
 {
     /**
@@ -40,6 +57,9 @@ struct compile_options
 
     bool fast_math       = true;
     bool exhaustive_tune = false;
+
+    mlir_ops_options mlir_ops{};
+    disable_passes_options disable_passes{};
 
     tracer trace{};
 };

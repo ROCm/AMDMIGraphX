@@ -699,16 +699,18 @@ struct mlir_program
 
     static bool input_is_unpack_fp4(instruction_ref ins)
     {
-        ins = instruction::get_output_alias(ins);
-        if(ins->name() == "reshape")
-        {
-            return input_is_unpack_fp4(ins->inputs().front());
-        }
-        if(ins->name() == "unpack_fp4")
-        {
-            return true;
-        }
-        return false;
+        auto aliases = instruction::get_output_alias(ins);
+        return std::any_of(aliases.begin(), aliases.end(), [](instruction_ref alias) {
+            if(alias->name() == "reshape")
+            {
+                return input_is_unpack_fp4(alias->inputs().front());
+            }
+            if(alias->name() == "unpack_fp4")
+            {
+                return true;
+            }
+            return false;
+        });
     }
 
     static shape make_fp4_unpacked_shape(shape s)

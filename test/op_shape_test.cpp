@@ -3665,6 +3665,13 @@ TEST_CASE(reshape_lazy_broadcast_squeeze_error)
     throws_shape(migraphx::make_op("reshape_lazy", {{"dims", new_shape}}), input);
 }
 
+TEST_CASE(reshape_lazy_nonpacked_transpose)
+{
+    migraphx::shape input{migraphx::shape::float_type, {1, 3, 512, 512}, {786432, 1, 1536, 3}};
+    migraphx::shape output{migraphx::shape::float_type, {1, 3, 256, 2, 256, 2}, {786432, 1, 3072, 1536, 6, 3}};
+    expect_shape(output, migraphx::make_op("reshape_lazy", {{"dims", output.lens()}}), input);
+}
+
 TEST_CASE(reshape_lazy_dyn_shape)
 {
     migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {1, 1}, {1, 1}}};

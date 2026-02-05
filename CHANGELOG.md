@@ -12,6 +12,7 @@ Full documentation for MIGraphX is available at
 
 ### Changed
 
+* Changed parsing of ONNX ops like ConstantOfShape to insert undefined if expected shape has 0 elements
 
 ### Resolved issues
 

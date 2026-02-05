@@ -2090,6 +2090,24 @@ static std::size_t adjust_strided_shape(shape& s, std::size_t n)
     return std::max<std::size_t>(1, extra);
 }
 
+
+
+template<class Range>
+static std::vector<std::size_t> select_mask(const std::vector<std::size_t>& slice_mask, const Range& r) 
+{
+    std::vector<std::size_t> result;
+    std::transform(slice_mask.begin(),
+                       slice_mask.end(),
+                       r.begin(),
+                       join_back_inserter(result),
+                       [](std::size_t mask, std::size_t n) -> std::vector<std::size_t> {
+                           if(mask == 0)
+                               return {};
+                           return {n};
+                       });
+    return result;
+}
+
 // Generate the shape transforms for strided view
 optional<std::vector<operation>>
 generate_shape_transforms_for(shape s, const std::vector<std::size_t>& idims, std::int64_t offset)
@@ -2205,39 +2223,12 @@ generate_shape_transforms_for(shape s, const std::vector<std::size_t>& idims, st
     auto opt_ops = desc.generate();
     result.insert(result.end(), opt_ops.begin(), opt_ops.end());
 
-    std::vector<std::size_t> axes;
-    std::transform(slice_mask.begin(),
-                   slice_mask.end(),
-                   range(slice_mask.size()).begin(),
-                   join_back_inserter(axes),
-                   [](std::size_t mask, std::size_t idx) -> std::vector<std::size_t> {
-                       if(mask > 0)
-                           return {idx};
-                       return {};
-                   });
+    std::vector<std::size_t> axes = select_mask(slice_mask, range(slice_mask.size()));
 
     if(not axes.empty())
     {
-        std::vector<std::size_t> starts;
-        std::transform(slice_mask.begin(),
-                       slice_mask.end(),
-                       start_mask.begin(),
-                       join_back_inserter(starts),
-                       [](std::size_t mask, std::size_t start) -> std::vector<std::size_t> {
-                           if(mask == 0)
-                               return {};
-                           return {start};
-                       });
-        std::vector<std::size_t> ends;
-        std::transform(slice_mask.begin(),
-                       slice_mask.end(),
-                       s.lens().begin(),
-                       join_back_inserter(ends),
-                       [](std::size_t mask, std::size_t len) -> std::vector<std::size_t> {
-                           if(mask == 0)
-                               return {};
-                           return {len};
-                       });
+        std::vector<std::size_t> starts = select_mask(slice_mask, start_mask);
+        std::vector<std::size_t> ends = select_mask(slice_mask, s.lens());
         std::transform(ends.begin(), ends.end(), starts.begin(), ends.begin(), std::plus<>{});
 
         result.push_back(make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}));

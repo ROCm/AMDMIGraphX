@@ -3,11 +3,7 @@
 Full documentation for MIGraphX is available at
 [https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/](https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/).
 
-<<<<<<< HEAD
 ## MIGraphX 2.15 for ROCm 7.2.1
-=======
-## Develop
->>>>>>> 6683ff767 (Prevent propagating precision across type boundaries (#4561))
 
 ### Added
 
@@ -29,9 +25,7 @@ Full documentation for MIGraphX is available at
 
 ### Optimized
 
-
 ### Removed
-
 
 ## MIGraphX 2.15 for ROCm 7.2.0
 

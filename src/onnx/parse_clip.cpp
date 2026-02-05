@@ -109,7 +109,7 @@ struct parse_clip : op_parser<parse_clip>
             }
         }
 
-        return op::builder::add("clip", *info.mod, {input, min_arg, max_arg}).at(0);
+        return op::builder::add("clip", *info.mod, {input, min_arg, max_arg}, {}).at(0);
     }
 };
 

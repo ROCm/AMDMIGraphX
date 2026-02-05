@@ -2090,21 +2090,20 @@ static std::size_t adjust_strided_shape(shape& s, std::size_t n)
     return std::max<std::size_t>(1, extra);
 }
 
-
-
-template<class Range>
-static std::vector<std::size_t> select_mask(const std::vector<std::size_t>& slice_mask, const Range& r) 
+template <class Range>
+static std::vector<std::size_t> select_mask(const std::vector<std::size_t>& slice_mask,
+                                            const Range& r)
 {
     std::vector<std::size_t> result;
     std::transform(slice_mask.begin(),
-                       slice_mask.end(),
-                       r.begin(),
-                       join_back_inserter(result),
-                       [](std::size_t mask, std::size_t n) -> std::vector<std::size_t> {
-                           if(mask == 0)
-                               return {};
-                           return {n};
-                       });
+                   slice_mask.end(),
+                   r.begin(),
+                   join_back_inserter(result),
+                   [](std::size_t mask, std::size_t n) -> std::vector<std::size_t> {
+                       if(mask == 0)
+                           return {};
+                       return {n};
+                   });
     return result;
 }
 
@@ -2228,7 +2227,7 @@ generate_shape_transforms_for(shape s, const std::vector<std::size_t>& idims, st
     if(not axes.empty())
     {
         std::vector<std::size_t> starts = select_mask(slice_mask, start_mask);
-        std::vector<std::size_t> ends = select_mask(slice_mask, s.lens());
+        std::vector<std::size_t> ends   = select_mask(slice_mask, s.lens());
         std::transform(ends.begin(), ends.end(), starts.begin(), ends.begin(), std::plus<>{});
 
         result.push_back(make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}));

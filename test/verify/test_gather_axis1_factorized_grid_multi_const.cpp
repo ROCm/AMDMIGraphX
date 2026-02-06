@@ -18,34 +18,30 @@
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_SIMPLIFY_RESHAPES_HPP
-#define MIGRAPHX_GUARD_RTGLIB_SIMPLIFY_RESHAPES_HPP
 
-#include <string>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/config.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/literal.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module;
-
-/**
- * Eliminate redundant reshapes.
- */
-struct MIGRAPHX_EXPORT simplify_reshapes
+struct test_gather_axis1_factorized_grid_multi_const
+    : verify_program<test_gather_axis1_factorized_grid_multi_const>
 {
-    size_t depth = 4;
-    bool enable_op_shape_transform_op = false;
-    bool enable_gather_rewrite        = false;
-    std::string name() const { return "simplify_reshapes"; }
-    void apply(module& m) const;
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+
+        auto data = mm->add_parameter("data", {migraphx::shape::float_type, {2, 27, 4}});
+        migraphx::shape si{migraphx::shape::int32_type, {3, 1}};
+        std::vector<int32_t> indices = {5, 14, 23};
+        auto li                      = mm->add_literal(migraphx::literal{si, indices});
+        auto g = mm->add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, li);
+        mm->add_return({g});
+
+        return p;
+    }
 };
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif

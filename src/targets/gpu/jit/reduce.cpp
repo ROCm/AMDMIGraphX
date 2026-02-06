@@ -176,7 +176,8 @@ static std::vector<shape> split_reduce(const std::vector<shape>& inputs,
     assert(faxis < reduce_shape.lens().size());
 
     std::size_t r = input_shape.lens()[faxis];
-    std::size_t n = split_dim(r, min_size, max_splits);
+    std::size_t r0 = reduce_shape.elements() / r;
+    std::size_t n = split_dim(r, std::min<std::size_t>(min_size / r0, 1), max_splits);
     assert(n != 1);
     std::transform(
         inputs.begin(), inputs.end(), std::back_inserter(result), [&](const shape& s) -> shape {
@@ -350,7 +351,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
             if(algo == "block")
             {
                 auto block_size = v.get("block_size", compute_block_size(ctx, relements, 256));
-                if(relements >= block_size * 256)
+                if(relements >= (block_size - 1) * 256)
                     algo = "block_large";
                 options.set_launch_params(
                     v, compute_global_for(ctx, nelements * block_size, 256), block_size);

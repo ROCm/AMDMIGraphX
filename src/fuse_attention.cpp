@@ -377,17 +377,11 @@ struct find_gqa_flash_decoding
     {
         // any dimension >= insert_pos shifts up by 1
         std::vector<int64_t> new_perm;
-        for(auto idx : original_perm)
-        {
-            if(idx >= group_dim_pos)
-            {
-                new_perm.push_back(idx + 1);
-            }
-            else
-            {
-                new_perm.push_back(idx);
-            }
-        }
+        new_perm.reserve(original_perm.size() + 1);
+        std::transform(original_perm.begin(),
+                       original_perm.end(),
+                       std::back_inserter(new_perm),
+                       [group_dim_pos](auto idx) { return idx >= group_dim_pos ? idx + 1 : idx; });
 
         // Insert the group dimension at its natural position in the output
         // The group dimension itself appears at position actual_insert_pos
@@ -399,18 +393,10 @@ struct find_gqa_flash_decoding
     std::vector<int64_t> adjust_axes(const std::vector<int64_t>& axes, int group_dim_pos) const
     {
         std::vector<int64_t> adjusted;
-        for(auto axis : axes)
-        {
-            // If axis >= group_dim_pos, shift it by 1
-            if(axis >= group_dim_pos)
-            {
-                adjusted.push_back(axis + 1);
-            }
-            else
-            {
-                adjusted.push_back(axis);
-            }
-        }
+        adjusted.reserve(axes.size());
+        std::transform(axes.begin(), axes.end(), std::back_inserter(adjusted), [group_dim_pos](auto axis) {
+            return axis >= group_dim_pos ? axis + 1 : axis;
+        });
         return adjusted;
     }
 
@@ -504,7 +490,7 @@ struct find_gqa_flash_decoding
                 // Input with group dim: [B, G, S, concat_heads, head_dim]
                 // Output needed: [B, concat_heads, G, S, head_dim]
                 // So permutation is {0, 3, 1, 2, 4}
-                if(dims.is_3d_query && perm == std::vector<int64_t>{0, 2, 1, 3})
+                if(dims.is_3d_query and perm == std::vector<int64_t>{0, 2, 1, 3})
                 {
                     new_perm = {0, 3, 1, 2, 4};
                 }
@@ -512,13 +498,12 @@ struct find_gqa_flash_decoding
                 {
                     new_perm = adjust_permutation(perm, group_dim_pos);
                 }
-                auto result = m.insert_instruction(
+                return m.insert_instruction(
                     ins, make_op("transpose", {{"permutation", new_perm}}), inputs, mod_args);
-                return result;
             }
 
             // Reduce operations: adjust axes
-            if(op_name == "reduce_max" || op_name == "reduce_sum")
+            if(op_name == "reduce_max" or op_name == "reduce_sum")
             {
                 auto axes     = op.to_value()["axes"].to_vector<int64_t>();
                 auto new_axes = adjust_axes(axes, group_dim_pos);
@@ -540,7 +525,7 @@ struct find_gqa_flash_decoding
             }
 
             // Broadcast/Multibroadcast: adjust output shape for group dimension
-            if(op_name == "broadcast" || op_name == "multibroadcast")
+            if(op_name == "broadcast" or op_name == "multibroadcast")
             {
                 auto op_val   = op.to_value();
                 auto out_lens = op_val["out_lens"].to_vector<std::size_t>();
@@ -577,7 +562,7 @@ struct find_gqa_flash_decoding
                 }
 
                 // 2D or 4D out_lens, must broadcast first, then reshape to add group dim
-                if(out_lens.size() == 2 || out_lens.size() == 4)
+                if(out_lens.size() == 2 or out_lens.size() == 4)
                 {
                     auto result = m.insert_instruction(ins, op, inputs, mod_args);
                     std::vector<std::size_t> reshape_dims = out_lens;
@@ -599,9 +584,8 @@ struct find_gqa_flash_decoding
             {
                 auto axes     = op.to_value()["axes"].to_vector<int64_t>();
                 auto new_axes = adjust_axes(axes, group_dim_pos);
-                auto result   = m.insert_instruction(
+                return m.insert_instruction(
                     ins, make_op("unsqueeze", {{"axes", new_axes}}), inputs, mod_args);
-                return result;
             }
 
             // Reshape: need to adjust dims if they span the group dimension
@@ -611,7 +595,7 @@ struct find_gqa_flash_decoding
                 auto input_shape = inputs[0]->get_shape().lens();
 
                 // mask reshape: [B, max_seq_length] -> [B, G, seq_length_per_group]
-                if(dims_vec.size() == 2 && dims_vec[1] == dims.max_seq_length)
+                if(dims_vec.size() == 2 and dims_vec[1] == dims.max_seq_length)
                 {
                     std::vector<std::size_t> new_dims = {
                         dims.batch_size, num_groups, dims.seq_length_per_group};
@@ -620,7 +604,7 @@ struct find_gqa_flash_decoding
                 }
 
                 // 3D query reshape: [B, S, heads, D] -> [B, G, S, heads, D]
-                if(dims.is_3d_query && dims_vec.size() == 4 &&
+                if(dims.is_3d_query and dims_vec.size() == 4 and
                    dims_vec ==
                        std::vector<std::size_t>{
                            dims.batch_size, dims.sequence_length, dims.concat_heads, dims.head_dim})
@@ -652,7 +636,7 @@ struct find_gqa_flash_decoding
         std::unordered_map<instruction_ref, instruction_ref> map_old_to_new = param_map;
         target_mod.add_instructions(source_mod.begin(), stop_point, &map_old_to_new, inserter);
 
-        if(!contains(map_old_to_new, gemm2))
+        if(not contains(map_old_to_new, gemm2))
             return;
         second_dot_result = map_old_to_new.at(gemm2);
 
@@ -669,7 +653,7 @@ struct find_gqa_flash_decoding
 
         // Calculate LSE from the tracked reduce operations
         // LSE = log(sum_exp) + max
-        if(found_reduce_max && found_reduce_sum)
+        if(found_reduce_max and found_reduce_sum)
         {
             auto log_sum = target_mod.add_instruction(make_op("log"), reduce_sum_ref);
             auto lse     = target_mod.add_instruction(make_op("add"), reduce_max_ref, log_sum);

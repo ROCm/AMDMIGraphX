@@ -77,20 +77,6 @@ bool axes_disjoint(const std::vector<std::size_t>& axes1, const std::vector<int6
 }
 
 /*
- * Compute output shape after reduction on the pre-broadcast tensor
- */
-std::vector<std::size_t> compute_reduced_shape(const std::vector<std::size_t>& lens,
-                                               const std::vector<int64_t>& axes)
-{
-    auto result = lens;
-    for(auto axis : axes)
-    {
-        result[axis] = 1;
-    }
-    return result;
-}
-
-/*
  * matches multibroadcast -> reduce
  * rewrites to reduce -> multibroadcast
  * so that the smaller tensor is reduced instead of the broadcasted tensor
@@ -121,9 +107,6 @@ struct find_broadcast_reduce
         // only optimize if axes are disjoint
         if(not axes_disjoint(broadcast_axes, reduce_axes))
             return;
-
-        // compute the shape after reducing the original input
-        auto reduced_lens = compute_reduced_shape(input_shape.lens(), reduce_axes);
 
         // insert reduce on the original small input
         auto new_reduce = m.insert_instruction(reduce_ins, reduce_ins->get_operator(), input);

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2025-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -20,32 +20,31 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_SIMPLIFY_RESHAPES_HPP
-#define MIGRAPHX_GUARD_RTGLIB_SIMPLIFY_RESHAPES_HPP
 
-#include <string>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/config.hpp>
+#include "verify_program.hpp"
+#include <migraphx/make_op.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/literal.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module;
-
-/**
- * Eliminate redundant reshapes.
- */
-struct MIGRAPHX_EXPORT simplify_reshapes
+struct test_gather_flatten_stride_offset : verify_program<test_gather_flatten_stride_offset>
 {
-    size_t depth = 4;
-    bool enable_op_shape_transform_op = false;
-    bool enable_gather_rewrite        = false;
-    std::string name() const { return "simplify_reshapes"; }
-    void apply(module& m) const;
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+
+        auto data    = mm->add_parameter("X", {migraphx::shape::float_type, {1, 16}});
+        auto flatten = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {16}}}), data);
+
+        migraphx::shape indices_shape{migraphx::shape::int32_type, {1, 4}};
+        std::vector<int32_t> indices = {1, 5, 9, 13};
+        auto indices_literal         = mm->add_literal(migraphx::literal{indices_shape, indices});
+
+        auto gather = mm->add_instruction(migraphx::make_op("gather"), flatten, indices_literal);
+        mm->add_return({gather});
+
+        return p;
+    }
 };
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif

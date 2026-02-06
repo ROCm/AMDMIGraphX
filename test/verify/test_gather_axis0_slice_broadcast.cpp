@@ -21,31 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_SIMPLIFY_RESHAPES_HPP
-#define MIGRAPHX_GUARD_RTGLIB_SIMPLIFY_RESHAPES_HPP
 
-#include <string>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/config.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/literal.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module;
-
-/**
- * Eliminate redundant reshapes.
- */
-struct MIGRAPHX_EXPORT simplify_reshapes
+struct test_gather_axis0_slice_broadcast : verify_program<test_gather_axis0_slice_broadcast>
 {
-    size_t depth = 4;
-    bool enable_op_shape_transform_op = false;
-    bool enable_gather_rewrite        = false;
-    std::string name() const { return "simplify_reshapes"; }
-    void apply(module& m) const;
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+
+        auto x       = mm->add_parameter("X", {migraphx::shape::float_type, {1, 4}});
+        auto reshape = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), x);
+
+        migraphx::shape indices_shape{migraphx::shape::int32_type, {2, 8}};
+        std::vector<int32_t> indices = {0, 0, 0, 1, 1, 2, 2, 3, 0, 1, 1, 2, 2, 3, 3, 3};
+        auto indices_literal         = mm->add_literal(migraphx::literal{indices_shape, indices});
+
+        auto gather = mm->add_instruction(migraphx::make_op("gather"), reshape, indices_literal);
+        mm->add_return({gather});
+
+        return p;
+    }
 };
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif

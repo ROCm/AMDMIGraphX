@@ -18,34 +18,33 @@
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_SIMPLIFY_RESHAPES_HPP
-#define MIGRAPHX_GUARD_RTGLIB_SIMPLIFY_RESHAPES_HPP
 
-#include <string>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/config.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/literal.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module;
-
-/**
- * Eliminate redundant reshapes.
- */
-struct MIGRAPHX_EXPORT simplify_reshapes
+struct test_gather_flatten_channel_patch : verify_program<test_gather_flatten_channel_patch>
 {
-    size_t depth = 4;
-    bool enable_op_shape_transform_op = false;
-    bool enable_gather_rewrite        = false;
-    std::string name() const { return "simplify_reshapes"; }
-    void apply(module& m) const;
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+
+        auto x            = mm->add_parameter("X", {migraphx::shape::float_type, {1, 3, 4, 4}});
+        auto reshape_flat = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {48}}}), x);
+
+        migraphx::shape indices_shape{migraphx::shape::int32_type, {4, 3, 1, 1}};
+        std::vector<int32_t> indices = {5, 21, 37, 9, 25, 41, 6, 22, 38, 10, 26, 42};
+        auto indices_literal         = mm->add_literal(migraphx::literal{indices_shape, indices});
+
+        auto gather =
+            mm->add_instruction(migraphx::make_op("gather"), reshape_flat, indices_literal);
+        mm->add_return({gather});
+
+        return p;
+    }
 };
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif

@@ -344,7 +344,7 @@ bool instruction::is_undefined() const
     {
         return std::all_of(this->inputs().begin(), this->inputs().end(), [](auto arg) {
             return all_of(instruction::get_output_alias(arg),
-                               [](auto alias) { return alias->is_undefined(); });
+                          [](auto alias) { return alias->is_undefined(); });
         });
     }
 }

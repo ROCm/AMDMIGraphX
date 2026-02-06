@@ -97,6 +97,15 @@ static std::vector<int64_t> run_shape_transforms(const std::vector<std::size_t>&
     return result.to_vector<int64_t>();
 }
 
+static std::vector<int64_t> run_strided_view(const migraphx::shape& s, std::int64_t offset)
+{
+    auto n = s.element_space();
+    std::vector<int64_t> data(n);
+    std::iota(data.begin(), data.end(), offset);
+    migraphx::literal l(migraphx::shape{migraphx::shape::int64_type, {n}}, data);
+    return l.get_argument().reshape(s).to_vector<int64_t>();
+}
+
 static std::vector<migraphx::operation>
 check_optimize_shape_transforms(const std::vector<std::size_t>& dims,
                                 const std::vector<migraphx::operation>& ops)
@@ -123,6 +132,21 @@ static shape_transform_descriptor make_simple_descriptor(const std::vector<std::
     auto desc = make_descriptor(dims, xs...);
     desc.simplify();
     return desc;
+}
+
+std::optional<std::vector<migraphx::operation>> static generate_for(
+    const std::vector<std::size_t>& dims,
+    const std::vector<std::size_t>& strides,
+    const std::vector<std::size_t>& idims,
+    std::int64_t offset = 0)
+{
+    migraphx::shape s{migraphx::shape::int64_type, dims, strides};
+    auto result = migraphx::generate_shape_transforms_for(s, idims, offset);
+    if(result)
+    {
+        CHECK(run_strided_view(s, offset) == run_shape_transforms(idims, result.value()));
+    }
+    return result;
 }
 
 TEST_CASE(dimension_len)

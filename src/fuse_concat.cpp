@@ -31,6 +31,7 @@
 #include <migraphx/matcher.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_op.hpp>
+#include <unordered_map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -156,6 +157,9 @@ struct find_concat_pointwise : concat_counter<0>
             return;
         }
         std::vector<module_ref> module_inputs;
+        // Track module name usage count to avoid duplicate function definitions
+        // when the same pointwise module feeds multiple concat inputs
+        std::unordered_map<std::string, int> module_name_count;
         std::transform(concat_ins->inputs().begin(),
                        concat_ins->inputs().end(),
                        std::back_inserter(module_inputs),
@@ -163,7 +167,13 @@ struct find_concat_pointwise : concat_counter<0>
                            if(is_fusable_pointwise(input))
                            {
                                auto* pm = input->module_inputs().front();
-                               return mpm.create_module("concat:" + pm->name(), *pm);
+                               std::string base_name = "concat:" + pm->name();
+                               // Add suffix if this module name was already used
+                               int count = module_name_count[base_name]++;
+                               std::string unique_name = count > 0 
+                                   ? base_name + "_" + std::to_string(count)
+                                   : base_name;
+                               return mpm.create_module(unique_name, *pm);
                            }
                            auto* pm = mpm.create_module("concat:noop" +
                                                         std::to_string(get_noop_counter()));
@@ -214,6 +224,9 @@ struct find_pointwise_concat_pointwise : concat_counter<1>
                      [&](auto input) { return input != concat_ins; });
 
         std::vector<module_ref> module_inputs;
+        // Track module name usage count to avoid duplicate function definitions
+        // when the same pointwise module feeds multiple concat inputs
+        std::unordered_map<std::string, int> module_name_count;
         std::transform(concat_ins->inputs().begin(),
                        concat_ins->inputs().end(),
                        std::back_inserter(module_inputs),
@@ -221,7 +234,13 @@ struct find_pointwise_concat_pointwise : concat_counter<1>
                            if(is_fusable_pointwise(input))
                            {
                                auto* pm = input->module_inputs().front();
-                               return mpm.create_module("concat:" + pm->name(), *pm);
+                               std::string base_name = "concat:" + pm->name();
+                               // Add suffix if this module name was already used
+                               int count = module_name_count[base_name]++;
+                               std::string unique_name = count > 0 
+                                   ? base_name + "_" + std::to_string(count)
+                                   : base_name;
+                               return mpm.create_module(unique_name, *pm);
                            }
                            auto* pm = mpm.create_module("concat:noop" +
                                                         std::to_string(get_noop_counter()));

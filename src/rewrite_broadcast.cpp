@@ -63,8 +63,7 @@ std::vector<std::size_t> get_broadcast_axes(const shape& input_shape, const shap
 /**
  * Check if two sets of axes are disjoint
  */
-bool axes_disjoint(const std::vector<std::size_t>& axes1,
-                   const std::vector<int64_t>& axes2)
+bool axes_disjoint(const std::vector<std::size_t>& axes1, const std::vector<int64_t>& axes2)
 {
     for(auto a1 : axes1)
     {
@@ -81,7 +80,7 @@ bool axes_disjoint(const std::vector<std::size_t>& axes1,
  * Compute output shape after reduction on the pre-broadcast tensor
  */
 std::vector<std::size_t> compute_reduced_shape(const std::vector<std::size_t>& lens,
-                                                const std::vector<int64_t>& axes)
+                                               const std::vector<int64_t>& axes)
 {
     auto result = lens;
     for(auto axis : axes)
@@ -95,14 +94,14 @@ std::vector<std::size_t> compute_reduced_shape(const std::vector<std::size_t>& l
  * matches multibroadcast -> reduce
  * rewrites to reduce -> multibroadcast
  * so that the smaller tensor is reduced instead of the broadcasted tensor
-*/
+ */
 struct find_broadcast_reduce
 {
     auto matcher() const
     {
         auto broadcast = match::name("multibroadcast")().bind("broadcast");
         return match::name("reduce_sum", "reduce_max", "reduce_min", "reduce_prod")(
-            match::any_of[match::inputs()](broadcast))
+                   match::any_of[match::inputs()](broadcast))
             .bind("reduce");
     }
 
@@ -116,10 +115,8 @@ struct find_broadcast_reduce
         auto input_shape = input->get_shape();
 
         // get broadcast and reduce axes
-        auto broadcast_axes =
-            get_broadcast_axes(input_shape, broadcast_ins->get_shape());
-        auto reduce_axes =
-            reduce_ins->get_operator().to_value()["axes"].to_vector<int64_t>();
+        auto broadcast_axes = get_broadcast_axes(input_shape, broadcast_ins->get_shape());
+        auto reduce_axes    = reduce_ins->get_operator().to_value()["axes"].to_vector<int64_t>();
 
         // only optimize if axes are disjoint
         if(not axes_disjoint(broadcast_axes, reduce_axes))
@@ -129,12 +126,11 @@ struct find_broadcast_reduce
         auto reduced_lens = compute_reduced_shape(input_shape.lens(), reduce_axes);
 
         // insert reduce on the original small input
-        auto new_reduce =
-            m.insert_instruction(reduce_ins, reduce_ins->get_operator(), input);
+        auto new_reduce = m.insert_instruction(reduce_ins, reduce_ins->get_operator(), input);
 
         // broadcast the reduced result to match expected output shape
-        auto new_broadcast = make_op("multibroadcast",
-                                     {{"out_lens", reduce_ins->get_shape().lens()}});
+        auto new_broadcast =
+            make_op("multibroadcast", {{"out_lens", reduce_ins->get_shape().lens()}});
 
         m.replace_instruction(reduce_ins, new_broadcast, new_reduce);
     }
@@ -144,13 +140,12 @@ struct find_broadcast_reduce
  * matches multibroadcast -> convert
  * rewrites to convert -> multibroadcast
  * so that the smaller tensor is converted instead of the broadcasted tensor
-*/
+ */
 struct find_broadcast_convert
 {
     auto matcher() const
     {
-        auto broadcast =
-            match::name("multibroadcast")(match::used_once()).bind("broadcast");
+        auto broadcast = match::name("multibroadcast")(match::used_once()).bind("broadcast");
         return match::name("convert")(match::arg(0)(broadcast)).bind("convert");
     }
 
@@ -159,11 +154,10 @@ struct find_broadcast_convert
         auto broadcast_ins = r.instructions["broadcast"];
         auto convert_ins   = r.instructions["convert"];
 
-        auto input = broadcast_ins->inputs().front();
-        auto new_convert =
-            m.insert_instruction(convert_ins, convert_ins->get_operator(), input);
-        auto new_broadcast = make_op("multibroadcast",
-                                     {{"out_lens", convert_ins->get_shape().lens()}});
+        auto input       = broadcast_ins->inputs().front();
+        auto new_convert = m.insert_instruction(convert_ins, convert_ins->get_operator(), input);
+        auto new_broadcast =
+            make_op("multibroadcast", {{"out_lens", convert_ins->get_shape().lens()}});
         m.replace_instruction(convert_ins, new_broadcast, new_convert);
     }
 };
@@ -178,4 +172,3 @@ void rewrite_broadcast::apply(module& m) const
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-

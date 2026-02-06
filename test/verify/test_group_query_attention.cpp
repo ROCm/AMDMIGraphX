@@ -330,7 +330,7 @@ struct test_group_query_attention_grouped : verify_program<test_group_query_atte
                                   /* do_rotary=            */ true,
                                   /* scale=                */ 1.0 / sqrt(128.0));
     }
-    //std::string section() const { return "attention"; }
+    // std::string section() const { return "attention"; }
 };
 
 struct test_group_query_attention_rotary_only
@@ -411,7 +411,7 @@ struct test_group_query_attention_prefill_local
                                   /* test_concat=          */ false,
                                   /* local_window_size=    */ 2);
     }
-    //std::string section() const { return "attention"; }
+    // std::string section() const { return "attention"; }
 };
 
 struct test_group_query_attention_decode_local
@@ -432,5 +432,5 @@ struct test_group_query_attention_decode_local
                                   /* test_concat=          */ false,
                                   /* local_window_size=    */ 2);
     }
-    //std::string section() const { return "attention"; }
+    // std::string section() const { return "attention"; }
 };

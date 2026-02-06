@@ -47,4 +47,3 @@ struct MIGRAPHX_EXPORT rewrite_broadcast
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 #endif
-

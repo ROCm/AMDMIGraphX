@@ -44,7 +44,7 @@ TEST_CASE(broadcast_convert_single_user)
     migraphx::module m1;
     {
         // Input: x -> multibroadcast -> convert
-        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 2, 64, 1}});
+        auto x     = m1.add_parameter("x", {migraphx::shape::float_type, {1, 2, 64, 1}});
         auto bcast = m1.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 64, 32}}}), x);
         auto conv = m1.add_instruction(
@@ -55,7 +55,7 @@ TEST_CASE(broadcast_convert_single_user)
     migraphx::module m2;
     {
         // Expected: x -> convert -> multibroadcast
-        auto x = m2.add_parameter("x", {migraphx::shape::float_type, {1, 2, 64, 1}});
+        auto x    = m2.add_parameter("x", {migraphx::shape::float_type, {1, 2, 64, 1}});
         auto conv = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), x);
         auto bcast = m2.add_instruction(
@@ -74,8 +74,8 @@ TEST_CASE(broadcast_convert_multi_user_no_change)
     {
         // Input: x -> multibroadcast -> [convert, add]
         // The multibroadcast has 2 users, so optimization should NOT fire
-        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 2, 64, 1}});
-        auto y = m1.add_parameter("y", {migraphx::shape::float_type, {1, 2, 64, 32}});
+        auto x     = m1.add_parameter("x", {migraphx::shape::float_type, {1, 2, 64, 1}});
+        auto y     = m1.add_parameter("y", {migraphx::shape::float_type, {1, 2, 64, 32}});
         auto bcast = m1.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 64, 32}}}), x);
         auto conv = m1.add_instruction(
@@ -96,21 +96,19 @@ TEST_CASE(broadcast_reduce_disjoint_axes)
     migraphx::module m1;
     {
         // Input: x -> multibroadcast (axis 3) -> reduce_sum (axis 1)
-        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 2, 64, 1}});
+        auto x     = m1.add_parameter("x", {migraphx::shape::float_type, {1, 2, 64, 1}});
         auto bcast = m1.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 64, 32}}}), x);
-        auto reduce = m1.add_instruction(
-            migraphx::make_op("reduce_sum", {{"axes", {1}}}), bcast);
+        auto reduce = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), bcast);
         m1.add_return({reduce});
     }
 
     migraphx::module m2;
     {
         // Expected: x -> reduce_sum (axis 1) -> multibroadcast
-        auto x = m2.add_parameter("x", {migraphx::shape::float_type, {1, 2, 64, 1}});
-        auto reduce = m2.add_instruction(
-            migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
-        auto bcast = m2.add_instruction(
+        auto x      = m2.add_parameter("x", {migraphx::shape::float_type, {1, 2, 64, 1}});
+        auto reduce = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        auto bcast  = m2.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 64, 32}}}), reduce);
         m2.add_return({bcast});
     }
@@ -126,11 +124,10 @@ TEST_CASE(broadcast_reduce_overlapping_axes_no_change)
     {
         // Input: x -> multibroadcast (axis 3) -> reduce_sum (axis 3)
         // Axes overlap, so optimization should NOT fire
-        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 2, 64, 1}});
+        auto x     = m1.add_parameter("x", {migraphx::shape::float_type, {1, 2, 64, 1}});
         auto bcast = m1.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 64, 32}}}), x);
-        auto reduce = m1.add_instruction(
-            migraphx::make_op("reduce_sum", {{"axes", {3}}}), bcast);
+        auto reduce = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), bcast);
         m1.add_return({reduce});
     }
 
@@ -146,25 +143,23 @@ TEST_CASE(broadcast_convert_reduce_chain)
     migraphx::module m1;
     {
         // Input: x -> multibroadcast -> convert -> reduce_sum
-        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 2, 64, 1}});
+        auto x     = m1.add_parameter("x", {migraphx::shape::float_type, {1, 2, 64, 1}});
         auto bcast = m1.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 64, 32}}}), x);
         auto conv = m1.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), bcast);
-        auto reduce = m1.add_instruction(
-            migraphx::make_op("reduce_sum", {{"axes", {1}}}), conv);
+        auto reduce = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), conv);
         m1.add_return({reduce});
     }
 
     migraphx::module m2;
     {
         // Expected: x -> convert -> reduce_sum -> multibroadcast
-        auto x = m2.add_parameter("x", {migraphx::shape::float_type, {1, 2, 64, 1}});
+        auto x    = m2.add_parameter("x", {migraphx::shape::float_type, {1, 2, 64, 1}});
         auto conv = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), x);
-        auto reduce = m2.add_instruction(
-            migraphx::make_op("reduce_sum", {{"axes", {1}}}), conv);
-        auto bcast = m2.add_instruction(
+        auto reduce = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), conv);
+        auto bcast  = m2.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 64, 32}}}), reduce);
         m2.add_return({bcast});
     }
@@ -174,4 +169,3 @@ TEST_CASE(broadcast_convert_reduce_chain)
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }
-

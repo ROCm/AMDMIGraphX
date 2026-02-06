@@ -321,20 +321,21 @@ struct find_attention
 struct find_gqa_flash_decoding
 {
     std::size_t groups;
-    
+
     // Struct to hold all attention dimensions
     struct attention_dims
     {
         std::size_t batch_size;
-        std::size_t num_heads;            // Q heads
-        std::size_t kv_heads;             // K and V heads
-        std::size_t concat_heads;         // total heads in QKV tensor
+        std::size_t num_heads;    // Q heads
+        std::size_t kv_heads;     // K and V heads
+        std::size_t concat_heads; // total heads in QKV tensor
         std::size_t sequence_length;
         std::size_t max_seq_length;
         std::size_t head_dim;
-        std::size_t seq_length_per_group; // sequence length per group after splitting max sequence length
-        bool is_3d_query;                 // true if query param is 3D [B, S, hidden]
-        
+        std::size_t
+            seq_length_per_group; // sequence length per group after splitting max sequence length
+        bool is_3d_query;         // true if query param is 3D [B, S, hidden]
+
         // constructor from parameters
         attention_dims(instruction_ref q_param, instruction_ref k_param, std::size_t num_groups)
         {
@@ -342,60 +343,71 @@ struct find_gqa_flash_decoding
             auto k_shape = k_param->get_shape();
 
             // K is always 4D: [B, kv_heads, max_seq, head_dim]
-            kv_heads = k_shape.lens()[1];
+            kv_heads       = k_shape.lens()[1];
             max_seq_length = k_shape.lens()[2];
-            head_dim = k_shape.lens()[3];
+            head_dim       = k_shape.lens()[3];
 
-            batch_size = q_shape.lens()[0];
+            batch_size  = q_shape.lens()[0];
             is_3d_query = (q_shape.lens().size() == 3);
 
             // 3D query: [B, S, hidden_size] where hidden_size = head_dim * concat_heads
             // 4D query: [B, concat_heads, S, head_dim]
             sequence_length = is_3d_query ? q_shape.lens()[1] : q_shape.lens()[2];
-            concat_heads = is_3d_query ? q_shape.lens()[2] / head_dim : q_shape.lens()[1];
+            concat_heads    = is_3d_query ? q_shape.lens()[2] / head_dim : q_shape.lens()[1];
 
             // calculate Q heads from concat_heads = num_heads + 2 * kv_heads
             num_heads = concat_heads - 2 * kv_heads;
 
             // calculate sequence length per group
-            if(max_seq_length % num_groups != 0) {
+            if(max_seq_length % num_groups != 0)
+            {
                 // TODO: add autosplitting (padding won't be needed) (already tracked)
                 seq_length_per_group = 0;
-            } else {
+            }
+            else
+            {
                 seq_length_per_group = max_seq_length / num_groups;
             }
         }
     };
 
     // Adjust permutation when inserting a group dimension
-    std::vector<int64_t> adjust_permutation(const std::vector<int64_t>& original_perm, 
-                                                 int group_dim_pos) const
-    {        
+    std::vector<int64_t> adjust_permutation(const std::vector<int64_t>& original_perm,
+                                            int group_dim_pos) const
+    {
         // any dimension >= insert_pos shifts up by 1
         std::vector<int64_t> new_perm;
-        for(auto idx : original_perm) {
-            if(idx >= group_dim_pos) {
+        for(auto idx : original_perm)
+        {
+            if(idx >= group_dim_pos)
+            {
                 new_perm.push_back(idx + 1);
-            } else {
+            }
+            else
+            {
                 new_perm.push_back(idx);
             }
         }
-        
+
         // Insert the group dimension at its natural position in the output
         // The group dimension itself appears at position actual_insert_pos
         new_perm.insert(new_perm.begin() + group_dim_pos, group_dim_pos);
         return new_perm;
     }
-    
+
     // Adjust axes when a group dimension is inserted
     std::vector<int64_t> adjust_axes(const std::vector<int64_t>& axes, int group_dim_pos) const
     {
         std::vector<int64_t> adjusted;
-        for(auto axis : axes) {
+        for(auto axis : axes)
+        {
             // If axis >= group_dim_pos, shift it by 1
-            if(axis >= group_dim_pos) {
+            if(axis >= group_dim_pos)
+            {
                 adjusted.push_back(axis + 1);
-            } else {
+            }
+            else
+            {
                 adjusted.push_back(axis);
             }
         }
@@ -408,18 +420,21 @@ struct find_gqa_flash_decoding
     }
 
     // Helper to extract Q, K, V parameters from the attention submodule's gemm inputs
-    struct qkv_params {
-        instruction_ref q_param;  // Parameter containing Q (full QKV tensor)
-        instruction_ref k_param;  // Parameter for K 
-        instruction_ref v_param;  // Parameter for V
+    struct qkv_params
+    {
+        instruction_ref q_param; // Parameter containing Q (full QKV tensor)
+        instruction_ref k_param; // Parameter for K
+        instruction_ref v_param; // Parameter for V
 
         // factory method to extract Q, K, V parameters from gemm operations
         static std::optional<qkv_params> from_gemms(instruction_ref gemm1, instruction_ref gemm2)
         {
             auto trace_back_to_param = [](instruction_ref ins) -> std::optional<instruction_ref> {
                 instruction_ref current = ins;
-                while(current->name() != "@param") {
-                    if(current->inputs().empty()) {
+                while(current->name() != "@param")
+                {
+                    if(current->inputs().empty())
+                    {
                         return std::nullopt;
                     }
                     current = current->inputs()[0];
@@ -436,85 +451,102 @@ struct find_gqa_flash_decoding
             auto k_param_opt = trace_back_to_param(k_input);
             auto v_param_opt = trace_back_to_param(v_input);
 
-            if(not q_param_opt or not k_param_opt or not v_param_opt) return std::nullopt;
+            if(not q_param_opt or not k_param_opt or not v_param_opt)
+                return std::nullopt;
             return qkv_params{*q_param_opt, *k_param_opt, *v_param_opt};
         }
     };
 
-    void rebuild_gqa_attention(module& target_mod, 
-                               const module& source_mod,
-                               const std::unordered_map<instruction_ref, instruction_ref>& param_map,
-                               instruction_ref gemm2,
-                               const attention_dims& dims,
-                               std::size_t num_groups) const
+    void
+    rebuild_gqa_attention(module& target_mod,
+                          const module& source_mod,
+                          const std::unordered_map<instruction_ref, instruction_ref>& param_map,
+                          instruction_ref gemm2,
+                          const attention_dims& dims,
+                          std::size_t num_groups) const
     {
         // For 3D query: group dim is at position 1 (after batch)
         // For 4D query: group dim is at position 2 (after batch and heads)
         int group_dim_pos = dims.is_3d_query ? 1 : 2;
-        
+
         // Define BNGSM and BNSM shapes
-        std::vector<std::size_t> bngsm{dims.batch_size, dims.num_heads, num_groups, dims.sequence_length, dims.seq_length_per_group};
-        std::vector<std::size_t> bnsm{dims.batch_size, dims.num_heads, dims.sequence_length, dims.max_seq_length};
-        
+        std::vector<std::size_t> bngsm{dims.batch_size,
+                                       dims.num_heads,
+                                       num_groups,
+                                       dims.sequence_length,
+                                       dims.seq_length_per_group};
+        std::vector<std::size_t> bnsm{
+            dims.batch_size, dims.num_heads, dims.sequence_length, dims.max_seq_length};
+
         // need to track reduce operations for LSE calculation that's added to the submodule
         instruction_ref reduce_max_ref;
         instruction_ref reduce_sum_ref;
         bool found_reduce_max = false;
         bool found_reduce_sum = false;
-        
+
         instruction_ref second_dot_result;
-        
+
         // Create the inserter function that transforms operations
         auto inserter = [&](module& m,
-                           instruction_ref ins,
-                           const operation& op,
-                           const std::vector<instruction_ref>& inputs,
-                           const std::vector<module_ref>& mod_args) -> instruction_ref {
-            
+                            instruction_ref ins,
+                            const operation& op,
+                            const std::vector<instruction_ref>& inputs,
+                            const std::vector<module_ref>& mod_args) -> instruction_ref {
             auto op_name = op.name();
-            
+
             // Transpose: adjust permutation
-            if(op_name == "transpose") {
+            if(op_name == "transpose")
+            {
                 auto perm = op.to_value()["permutation"].to_vector<int64_t>();
                 std::vector<int64_t> new_perm;
-                
+
                 // Special case for 3D query: the QKV transpose {0, 2, 1, 3} needs special handling
                 // Input with group dim: [B, G, S, concat_heads, head_dim]
                 // Output needed: [B, concat_heads, G, S, head_dim]
                 // So permutation is {0, 3, 1, 2, 4}
-                if(dims.is_3d_query && perm == std::vector<int64_t>{0, 2, 1, 3}) {
+                if(dims.is_3d_query && perm == std::vector<int64_t>{0, 2, 1, 3})
+                {
                     new_perm = {0, 3, 1, 2, 4};
-                } else {
+                }
+                else
+                {
                     new_perm = adjust_permutation(perm, group_dim_pos);
                 }
-                auto result = m.insert_instruction(ins, make_op("transpose", {{"permutation", new_perm}}), inputs, mod_args);
+                auto result = m.insert_instruction(
+                    ins, make_op("transpose", {{"permutation", new_perm}}), inputs, mod_args);
                 return result;
             }
-            
+
             // Reduce operations: adjust axes
-            if(op_name == "reduce_max" || op_name == "reduce_sum") {
-                auto axes = op.to_value()["axes"].to_vector<int64_t>();
+            if(op_name == "reduce_max" || op_name == "reduce_sum")
+            {
+                auto axes     = op.to_value()["axes"].to_vector<int64_t>();
                 auto new_axes = adjust_axes(axes, group_dim_pos);
-                auto result = m.insert_instruction(ins, make_op(op_name, {{"axes", new_axes}}), inputs, mod_args);
-                
+                auto result   = m.insert_instruction(
+                    ins, make_op(op_name, {{"axes", new_axes}}), inputs, mod_args);
+
                 // needed for LSE calculation that's added to the submodule
-                if(op_name == "reduce_max") {
-                    reduce_max_ref = result;
+                if(op_name == "reduce_max")
+                {
+                    reduce_max_ref   = result;
                     found_reduce_max = true;
-                } else if(op_name == "reduce_sum") {
-                    reduce_sum_ref = result;
+                }
+                else if(op_name == "reduce_sum")
+                {
+                    reduce_sum_ref   = result;
                     found_reduce_sum = true;
                 }
                 return result;
             }
 
             // Broadcast/Multibroadcast: adjust output shape for group dimension
-            if(op_name == "broadcast" || op_name == "multibroadcast") {
-                auto op_val = op.to_value();
+            if(op_name == "broadcast" || op_name == "multibroadcast")
+            {
+                auto op_val   = op.to_value();
                 auto out_lens = op_val["out_lens"].to_vector<std::size_t>();
                 bool has_axis = (op_name == "broadcast");
                 uint64_t axis = has_axis ? op_val["axis"].to<uint64_t>() : 0;
-                
+
                 auto make_broadcast_op = [&](std::vector<std::size_t> lens, uint64_t new_axis) {
                     if(has_axis)
                         return make_op("broadcast", {{"axis", new_axis}, {"out_lens", lens}});
@@ -522,99 +554,129 @@ struct find_gqa_flash_decoding
                 };
 
                 // scalar or 1D, can modify broadcast directly
-                if(out_lens.size() <= 1) {
+                if(out_lens.size() <= 1)
+                {
                     out_lens.insert(out_lens.begin(), num_groups);
                     out_lens.push_back(dims.seq_length_per_group);
                     uint64_t new_axis = (axis == 0) ? 0 : axis + 1;
-                    return m.insert_instruction(ins, make_broadcast_op(out_lens, new_axis), inputs, mod_args);
+                    return m.insert_instruction(
+                        ins, make_broadcast_op(out_lens, new_axis), inputs, mod_args);
                 }
-                
+
                 // input already has group dim, adjust out_lens to match
-                if(inputs[0]->get_shape().lens().size() > out_lens.size()) {
-                    std::vector<std::size_t> new_lens = {out_lens[0], out_lens[1], num_groups, out_lens[2], dims.seq_length_per_group};
-                    uint64_t new_axis = (axis >= 2) ? axis + 1 : axis;
-                    return m.insert_instruction(ins, make_broadcast_op(new_lens, new_axis), inputs, mod_args);
+                if(inputs[0]->get_shape().lens().size() > out_lens.size())
+                {
+                    std::vector<std::size_t> new_lens = {out_lens[0],
+                                                         out_lens[1],
+                                                         num_groups,
+                                                         out_lens[2],
+                                                         dims.seq_length_per_group};
+                    uint64_t new_axis                 = (axis >= 2) ? axis + 1 : axis;
+                    return m.insert_instruction(
+                        ins, make_broadcast_op(new_lens, new_axis), inputs, mod_args);
                 }
-                
+
                 // 2D or 4D out_lens, must broadcast first, then reshape to add group dim
-                if(out_lens.size() == 2 || out_lens.size() == 4) {
+                if(out_lens.size() == 2 || out_lens.size() == 4)
+                {
                     auto result = m.insert_instruction(ins, op, inputs, mod_args);
                     std::vector<std::size_t> reshape_dims = out_lens;
 
                     // insert group dim at position 1 for 2D, at end-2 for 4D
-                    auto insert_pos = (out_lens.size() == 2) ? reshape_dims.begin() + 1 : reshape_dims.end() - 2;
+                    auto insert_pos =
+                        (out_lens.size() == 2) ? reshape_dims.begin() + 1 : reshape_dims.end() - 2;
                     reshape_dims.insert(insert_pos, num_groups);
                     reshape_dims.back() = dims.seq_length_per_group;
-                    return m.insert_instruction(ins, make_op("reshape", {{"dims", reshape_dims}}), result);
+                    return m.insert_instruction(
+                        ins, make_op("reshape", {{"dims", reshape_dims}}), result);
                 }
-                
+
                 return m.insert_instruction(ins, op, inputs, mod_args);
             }
-            
+
             // Unsqueeze: adjust axes
-            if(op_name == "unsqueeze") {
-                auto axes = op.to_value()["axes"].to_vector<int64_t>();
+            if(op_name == "unsqueeze")
+            {
+                auto axes     = op.to_value()["axes"].to_vector<int64_t>();
                 auto new_axes = adjust_axes(axes, group_dim_pos);
-                auto result = m.insert_instruction(ins, make_op("unsqueeze", {{"axes", new_axes}}), inputs, mod_args);
+                auto result   = m.insert_instruction(
+                    ins, make_op("unsqueeze", {{"axes", new_axes}}), inputs, mod_args);
                 return result;
             }
-            
+
             // Reshape: need to adjust dims if they span the group dimension
-            if(op_name == "reshape") {
-                auto dims_vec = op.to_value()["dims"].to_vector<std::size_t>();
+            if(op_name == "reshape")
+            {
+                auto dims_vec    = op.to_value()["dims"].to_vector<std::size_t>();
                 auto input_shape = inputs[0]->get_shape().lens();
-                
+
                 // mask reshape: [B, max_seq_length] -> [B, G, seq_length_per_group]
-                if(dims_vec.size() == 2 && dims_vec[1] == dims.max_seq_length) {
-                    std::vector<std::size_t> new_dims = {dims.batch_size, num_groups, dims.seq_length_per_group};
-                    return m.insert_instruction(ins, make_op("reshape", {{"dims", new_dims}}), inputs, mod_args);
+                if(dims_vec.size() == 2 && dims_vec[1] == dims.max_seq_length)
+                {
+                    std::vector<std::size_t> new_dims = {
+                        dims.batch_size, num_groups, dims.seq_length_per_group};
+                    return m.insert_instruction(
+                        ins, make_op("reshape", {{"dims", new_dims}}), inputs, mod_args);
                 }
-                
+
                 // 3D query reshape: [B, S, heads, D] -> [B, G, S, heads, D]
-                if(dims.is_3d_query && dims_vec.size() == 4 && 
-                   dims_vec == std::vector<std::size_t>{dims.batch_size, dims.sequence_length, dims.concat_heads, dims.head_dim}) {
-                    std::vector<std::size_t> new_dims = {dims.batch_size, num_groups, dims.sequence_length, dims.concat_heads, dims.head_dim};
-                    return m.insert_instruction(ins, make_op("reshape", {{"dims", new_dims}}), inputs, mod_args);
+                if(dims.is_3d_query && dims_vec.size() == 4 &&
+                   dims_vec ==
+                       std::vector<std::size_t>{
+                           dims.batch_size, dims.sequence_length, dims.concat_heads, dims.head_dim})
+                {
+                    std::vector<std::size_t> new_dims = {dims.batch_size,
+                                                         num_groups,
+                                                         dims.sequence_length,
+                                                         dims.concat_heads,
+                                                         dims.head_dim};
+                    return m.insert_instruction(
+                        ins, make_op("reshape", {{"dims", new_dims}}), inputs, mod_args);
                 }
-                
+
                 // Generic case: if input already has the group dimension, preserve it in output
-                if(input_shape.size() > dims_vec.size()) {
+                if(input_shape.size() > dims_vec.size())
+                {
                     std::vector<std::size_t> new_dims = {dims_vec[0], input_shape[group_dim_pos]};
                     new_dims.insert(new_dims.end(), dims_vec.begin() + 1, dims_vec.end());
-                    return m.insert_instruction(ins, make_op("reshape", {{"dims", new_dims}}), inputs, mod_args);
+                    return m.insert_instruction(
+                        ins, make_op("reshape", {{"dims", new_dims}}), inputs, mod_args);
                 }
             }
-            
+
             return m.insert_instruction(ins, op, inputs, mod_args);
         };
-        
+
         // gemm2 should be the last ins transformed programmatically
-        instruction_ref stop_point = std::next(gemm2);
+        instruction_ref stop_point                                          = std::next(gemm2);
         std::unordered_map<instruction_ref, instruction_ref> map_old_to_new = param_map;
         target_mod.add_instructions(source_mod.begin(), stop_point, &map_old_to_new, inserter);
-        
-        if(!contains(map_old_to_new, gemm2)) return;
+
+        if(!contains(map_old_to_new, gemm2))
+            return;
         second_dot_result = map_old_to_new.at(gemm2);
-        
+
         // final transpose and reshape need to be handled specially
         // transpose: {B, N, G, S, D} -> {B, G, S, N, D}
         auto transpose_out = target_mod.add_instruction(
-            make_op("transpose", {{"permutation", {0, 2, 3, 1, 4}}}),
-            second_dot_result);
-        
+            make_op("transpose", {{"permutation", {0, 2, 3, 1, 4}}}), second_dot_result);
+
         // reshape: {B, G, S, N, D} -> {B, G, S, N*D}
-        std::vector<std::size_t> final_shape = {dims.batch_size, num_groups, dims.sequence_length, dims.num_heads * dims.head_dim};
-        auto reshape_out = target_mod.add_instruction(
-            make_op("reshape", {{"dims", final_shape}}),
-            transpose_out);
-        
+        std::vector<std::size_t> final_shape = {
+            dims.batch_size, num_groups, dims.sequence_length, dims.num_heads * dims.head_dim};
+        auto reshape_out =
+            target_mod.add_instruction(make_op("reshape", {{"dims", final_shape}}), transpose_out);
+
         // Calculate LSE from the tracked reduce operations
         // LSE = log(sum_exp) + max
-        if(found_reduce_max && found_reduce_sum) {
+        if(found_reduce_max && found_reduce_sum)
+        {
             auto log_sum = target_mod.add_instruction(make_op("log"), reduce_sum_ref);
-            auto lse = target_mod.add_instruction(make_op("add"), reduce_max_ref, log_sum);
+            auto lse     = target_mod.add_instruction(make_op("add"), reduce_max_ref, log_sum);
             target_mod.add_return({reshape_out, lse});
-        } else {
+        }
+        else
+        {
             return;
         }
     }
@@ -627,14 +689,16 @@ struct find_gqa_flash_decoding
 
         // extract Q, K, V parameters from gemm inputs
         auto [gemm1, gemm2] = get_attention_gemms(submod);
-        auto qkv_opt = qkv_params::from_gemms(gemm1, gemm2);
-        if(not qkv_opt) return;
+        auto qkv_opt        = qkv_params::from_gemms(gemm1, gemm2);
+        if(not qkv_opt)
+            return;
         auto [q_param, k_param, v_param] = *qkv_opt;
 
         // derive attention dims from Q, K, V parameters
         attention_dims dims(q_param, k_param, groups);
 
-        if(groups <= 1 or dims.seq_length_per_group == 0) {
+        if(groups <= 1 or dims.seq_length_per_group == 0)
+        {
             return;
         }
 
@@ -656,47 +720,60 @@ struct find_gqa_flash_decoding
         // 3D Q: [B, S, hidden] -> [B, G, S, hidden]
         // 4D Q: [B, heads, S, D] -> [B, heads, G, S, D]
         int q_group_axis = dims.is_3d_query ? 1 : 2;
-        std::vector<std::size_t> q_transformed_shape = dims.is_3d_query
-            ? std::vector<std::size_t>{dims.batch_size, groups, dims.sequence_length, dims.head_dim * dims.concat_heads}
-            : std::vector<std::size_t>{dims.batch_size, dims.concat_heads, groups, dims.sequence_length, dims.head_dim};
+        std::vector<std::size_t> q_transformed_shape =
+            dims.is_3d_query ? std::vector<std::size_t>{dims.batch_size,
+                                                        groups,
+                                                        dims.sequence_length,
+                                                        dims.head_dim * dims.concat_heads}
+                             : std::vector<std::size_t>{dims.batch_size,
+                                                        dims.concat_heads,
+                                                        groups,
+                                                        dims.sequence_length,
+                                                        dims.head_dim};
 
         auto q_unsqueezed = mm.insert_instruction(
             attn_group_ins, make_op("unsqueeze", {{"axes", {q_group_axis}}}), q);
-        auto q_reshaped = mm.insert_instruction(
-            attn_group_ins,
-            make_op("multibroadcast", {{"out_lens", q_transformed_shape}}),
-            q_unsqueezed);
-        
+        auto q_reshaped =
+            mm.insert_instruction(attn_group_ins,
+                                  make_op("multibroadcast", {{"out_lens", q_transformed_shape}}),
+                                  q_unsqueezed);
+
         // [B, kv_heads, N, D] -> [B, kv_heads, G, N/G, D] for K and V
         auto k_reshaped = mm.insert_instruction(
             attn_group_ins, make_op("reshape", {{"dims", kv_transformed_shape}}), k);
         auto v_reshaped = mm.insert_instruction(
             attn_group_ins, make_op("reshape", {{"dims", kv_transformed_shape}}), v);
-        
+
         // No need to reshape additional inputs
         // We'll adjust broadcast patterns inside for masking
 
         // create new input list, starting with replacing Q, K, V with reshaped versions
         std::vector<instruction_ref> new_group_inputs = group_inputs;
-        for(size_t i = 0; i < group_inputs.size(); ++i) {
-            if(group_inputs[i] == q) {
+        for(size_t i = 0; i < group_inputs.size(); ++i)
+        {
+            if(group_inputs[i] == q)
+            {
                 new_group_inputs[i] = q_reshaped;
-            } else if(group_inputs[i] == k) {
+            }
+            else if(group_inputs[i] == k)
+            {
                 new_group_inputs[i] = k_reshaped;
-            } else if(group_inputs[i] == v) {
+            }
+            else if(group_inputs[i] == v)
+            {
                 new_group_inputs[i] = v_reshaped;
             }
         }
 
         module m_flash_decode;
         m_flash_decode.set_bypass();
-        
+
         // get parameter names from original submodule
         auto get_param_name = [](instruction_ref param) -> std::string {
             assert(param->name() == "@param");
             return param->get_operator().to_value()["parameter"].to<std::string>();
         };
-        
+
         // Add Q, K, V parameters to new submodule with transformed shapes
         auto new_q_param = m_flash_decode.add_parameter(
             get_param_name(q_param), shape{q->get_shape().type(), q_transformed_shape});
@@ -704,44 +781,45 @@ struct find_gqa_flash_decoding
             get_param_name(k_param), shape{k->get_shape().type(), kv_transformed_shape});
         auto new_v_param = m_flash_decode.add_parameter(
             get_param_name(v_param), shape{v->get_shape().type(), kv_transformed_shape});
-        
+
         // Build mapping from old params to new params
         std::unordered_map<instruction_ref, instruction_ref> map_old_params_to_new = {
             {q_param, new_q_param}, {k_param, new_k_param}, {v_param, new_v_param}};
-        
+
         // add the rest of the parameters
-        for(auto param : iterator_for(*submod)) {
-            if(param->name() == "@param") {
-                if(not contains(map_old_params_to_new, param)) {
-                    auto param_name = get_param_name(param);
+        for(auto param : iterator_for(*submod))
+        {
+            if(param->name() == "@param")
+            {
+                if(not contains(map_old_params_to_new, param))
+                {
+                    auto param_name  = get_param_name(param);
                     auto param_shape = param->get_shape();
-                    auto new_param = m_flash_decode.add_parameter(param_name, param_shape);
+                    auto new_param   = m_flash_decode.add_parameter(param_name, param_shape);
                     map_old_params_to_new[param] = new_param;
                 }
             }
         }
-        
+
         // rebuild the attention operations in the flash decode submodule
-        rebuild_gqa_attention(m_flash_decode, *submod, map_old_params_to_new, 
-                             gemm2, dims, groups);
+        rebuild_gqa_attention(m_flash_decode, *submod, map_old_params_to_new, gemm2, dims, groups);
 
         // create the module in the module pass manager and insert the new group operation
-        auto orig_name = attn_group_ins->module_inputs().front()->name();
+        auto orig_name           = attn_group_ins->module_inputs().front()->name();
         std::string new_mod_name = orig_name + "_gqa_flash_decoding";
-        
+
         module_ref mpm_flash_mod = mpm.create_module(new_mod_name, std::move(m_flash_decode));
         mpm_flash_mod->set_bypass();
-        
-        auto new_group_ins = mm.insert_instruction(
-            attn_group_ins,
-            make_op("group", {{"tag", "attention"}}),
-            new_group_inputs,
-            {mpm_flash_mod});
-        
+
+        auto new_group_ins = mm.insert_instruction(attn_group_ins,
+                                                   make_op("group", {{"tag", "attention"}}),
+                                                   new_group_inputs,
+                                                   {mpm_flash_mod});
+
         // unpack O' and LSE
         auto partial_output_o_prime = mm.insert_instruction(
             attn_group_ins, make_op("get_tuple_elem", {{"index", 0}}), new_group_ins);
-        
+
         // both LSE and O' buffers are initialized in rocMLIR
         auto lse = mm.insert_instruction(
             attn_group_ins, make_op("get_tuple_elem", {{"index", 1}}), new_group_ins);
@@ -751,60 +829,61 @@ struct find_gqa_flash_decoding
         // O' shape: [B, G, S, N*D], heads concatenated
         // LSE shape: [B, N, G, S, 1], per-head
         auto output_type = partial_output_o_prime->get_shape().type();
-        
+
         // reshape O' to separate heads
         // [B, G, S, N*D] -> [B, G, S, N, D]
         std::vector<std::size_t> o_prime_per_head_shape = {
             dims.batch_size, groups, dims.sequence_length, dims.num_heads, dims.head_dim};
-        auto o_prime_reshaped = mm.insert_instruction(
-            attn_group_ins,
-            make_op("reshape", {{"dims", o_prime_per_head_shape}}),
-            partial_output_o_prime);
-        
+        auto o_prime_reshaped =
+            mm.insert_instruction(attn_group_ins,
+                                  make_op("reshape", {{"dims", o_prime_per_head_shape}}),
+                                  partial_output_o_prime);
+
         // [B, N, G, S, 1] -> [B, N, G, S]
-        auto lse_squeezed = mm.insert_instruction(
-            attn_group_ins, make_op("squeeze", {{"axes", {4}}}), lse);
-        
+        auto lse_squeezed =
+            mm.insert_instruction(attn_group_ins, make_op("squeeze", {{"axes", {4}}}), lse);
+
         // find max LSE across groups for numerical stability
         // [B, N, G, S] -> [B, N, 1, S]
         auto lse_max = mm.insert_instruction(
             attn_group_ins, make_op("reduce_max", {{"axes", {2}}}), lse_squeezed);
-        
+
         // broadcast max back to original shape
         // [B, N, 1, S] -> [B, N, G, S]
         auto lse_max_bcast = mm.insert_instruction(
             attn_group_ins,
             make_op("multibroadcast", {{"out_lens", lse_squeezed->get_shape().lens()}}),
             lse_max);
-        
+
         // compute unnormalized weights: exp(LSE - max)
-        auto lse_sub = mm.insert_instruction(attn_group_ins, make_op("sub"), lse_squeezed, lse_max_bcast);
+        auto lse_sub =
+            mm.insert_instruction(attn_group_ins, make_op("sub"), lse_squeezed, lse_max_bcast);
         auto lse_exp = mm.insert_instruction(attn_group_ins, make_op("exp"), lse_sub);
-        
+
         // transpose weights to align with O'
         // [B, N, G, S] -> [B, G, S, N]
         auto lse_exp_transposed = mm.insert_instruction(
             attn_group_ins, make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), lse_exp);
-        
+
         // [B, G, S, N] -> [B, G, S, N, 1]
         auto lse_exp_unsqueezed = mm.insert_instruction(
             attn_group_ins, make_op("unsqueeze", {{"axes", {4}}}), lse_exp_transposed);
-        
+
         // broadcast weights to match O' shape
         // [B, G, S, N, 1] -> [B, G, S, N, D]
         auto lse_exp_bcast = mm.insert_instruction(
             attn_group_ins,
             make_op("multibroadcast", {{"out_lens", o_prime_reshaped->get_shape().lens()}}),
             lse_exp_unsqueezed);
-        
+
         // convert weights to output type
         auto weights = mm.insert_instruction(
             attn_group_ins, make_op("convert", {{"target_type", output_type}}), lse_exp_bcast);
-        
+
         // compute weighted sum: numerator = sum(O' * weights) across groups
         // [B, G, S, N, D]
-        auto weighted_o = mm.insert_instruction(
-            attn_group_ins, make_op("mul"), o_prime_reshaped, weights);
+        auto weighted_o =
+            mm.insert_instruction(attn_group_ins, make_op("mul"), o_prime_reshaped, weights);
 
         // sum across groups
         // [B, G, S, N, D] -> [B, 1, S, N, D]
@@ -813,25 +892,25 @@ struct find_gqa_flash_decoding
 
         // compute sum of weights: denominator = sum(weights) across groups
         // [B, G, S, N, D] -> [B, 1, S, N, D]
-        auto denominator = mm.insert_instruction(
-            attn_group_ins, make_op("reduce_sum", {{"axes", {1}}}), weights);
-        
+        auto denominator =
+            mm.insert_instruction(attn_group_ins, make_op("reduce_sum", {{"axes", {1}}}), weights);
+
         // final division: O = numerator / denominator
-        auto final_output_raw = mm.insert_instruction(
-            attn_group_ins, make_op("div"), numerator, denominator);
+        auto final_output_raw =
+            mm.insert_instruction(attn_group_ins, make_op("div"), numerator, denominator);
 
         // squeeze the reduced group dimension
         // [B, 1, S, N, D] -> [B, S, N, D]
         auto squeezed_output = mm.insert_instruction(
             attn_group_ins, make_op("squeeze", {{"axes", {1}}}), final_output_raw);
-        
+
         // reshape back to concatenated heads
         // [B, S, N, D] -> [B, S, N*D]
         std::vector<std::size_t> final_shape = {
             dims.batch_size, dims.sequence_length, dims.num_heads * dims.head_dim};
         auto final_squeezed = mm.insert_instruction(
             attn_group_ins, make_op("reshape", {{"dims", final_shape}}), squeezed_output);
-        
+
         mm.replace_instruction(attn_group_ins, final_squeezed);
     }
 };
@@ -1207,8 +1286,8 @@ struct find_flash_decoding
         // kernel 2: combine using exp-normalize trick
         // O = sum(O' * exp(LSE - max)) / sum(exp(LSE - max))
         // find max LSE across groups for numerical stability
-        auto lse_max = mm.insert_instruction(
-            attn_group_ins, make_op("reduce_max", {{"axes", {g_axis}}}), lse);
+        auto lse_max =
+            mm.insert_instruction(attn_group_ins, make_op("reduce_max", {{"axes", {g_axis}}}), lse);
 
         auto lse_max_bcast = mm.insert_instruction(
             attn_group_ins,
@@ -1217,11 +1296,9 @@ struct find_flash_decoding
 
         // compute unnormalized weights
         // exp(LSE - max)
-        auto lse_sub = mm.insert_instruction(
-            attn_group_ins, make_op("sub"), lse, lse_max_bcast);
+        auto lse_sub = mm.insert_instruction(attn_group_ins, make_op("sub"), lse, lse_max_bcast);
 
-        auto lse_exp = mm.insert_instruction(
-            attn_group_ins, make_op("exp"), lse_sub);
+        auto lse_exp = mm.insert_instruction(attn_group_ins, make_op("exp"), lse_sub);
 
         // broadcast weights to match O' shape
         // [B, G, M] -> [B, G, M, D]
@@ -1232,23 +1309,23 @@ struct find_flash_decoding
 
         // convert weights to output type
         auto output_type = partial_output_o_prime->get_shape().type();
-        auto weights = mm.insert_instruction(
+        auto weights     = mm.insert_instruction(
             attn_group_ins, make_op("convert", {{"target_type", output_type}}), lse_exp_bcast);
 
         // compute weighted sum: numerator = sum(O' * weights)
-        auto weighted_o = mm.insert_instruction(
-            attn_group_ins, make_op("mul"), partial_output_o_prime, weights);
+        auto weighted_o =
+            mm.insert_instruction(attn_group_ins, make_op("mul"), partial_output_o_prime, weights);
 
         auto numerator = mm.insert_instruction(
             attn_group_ins, make_op("reduce_sum", {{"axes", {g_axis}}}), weighted_o);
 
         // compute sum of weights: denominator = sum(weights)
-        auto denominator = mm.insert_instruction(
-            attn_group_ins, make_op("reduce_sum", {{"axes", {g_axis}}}), weights);
+        auto denominator =
+            mm.insert_instruction(attn_group_ins, make_op("reduce_sum", {{"axes", {g_axis}}}), weights);
 
         // final division: O = numerator / denominator
-        auto final_output_o = mm.insert_instruction(
-            attn_group_ins, make_op("div"), numerator, denominator);
+        auto final_output_o =
+            mm.insert_instruction(attn_group_ins, make_op("div"), numerator, denominator);
 
         // squeeze G to match the original output shape
         auto final_squeezed_o = mm.insert_instruction(
@@ -1478,8 +1555,7 @@ void fuse_attention::apply(module_pass_manager& mpm) const
                                 .configured_min_chunk_size = flash_decoding_min_chunk_size});
 
         // flash decoding for GQA attention
-        match::find_matches(
-            mpm, find_gqa_flash_decoding{.groups = configured_splits});
+        match::find_matches(mpm, find_gqa_flash_decoding{.groups = configured_splits});
         mpm.run_pass(dead_code_elimination{});
     }
 }

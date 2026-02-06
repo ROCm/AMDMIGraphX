@@ -177,7 +177,7 @@ static std::vector<shape> split_reduce(const std::vector<shape>& inputs,
 
     std::size_t r = input_shape.lens()[faxis];
     std::size_t r0 = reduce_shape.elements() / r;
-    std::size_t n = split_dim(r, std::min<std::size_t>(min_size / r0, 1), max_splits);
+    std::size_t n  = split_dim(r, std::min<std::size_t>(min_size / r0, 1), max_splits);
     assert(n != 1);
     std::transform(
         inputs.begin(), inputs.end(), std::back_inserter(result), [&](const shape& s) -> shape {

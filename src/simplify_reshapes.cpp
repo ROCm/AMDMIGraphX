@@ -1065,17 +1065,17 @@ struct find_gather
             if(length == 1)
                 return std::make_pair(*begin, std::next(begin));
             auto start  = *begin;
-            auto stride = std::next(begin)->base - start.base;
-            if(stride < 0)
+            auto lstride = std::next(begin)->base - start.base;
+            if(lstride < 0)
                 return std::make_pair(*begin, std::next(begin));
             auto diff =
                 std::adjacent_find(begin, end, [&](arithmetic_segment x, arithmetic_segment y) {
-                    return y.base - x.base != stride;
+                    return y.base - x.base != lstride;
                 });
             if(diff != end)
                 diff++;
             return std::make_pair(
-                arithmetic_segment{start.base, stride, std::size_t(std::distance(begin, diff))},
+                arithmetic_segment{start.base, lstride, std::size_t(std::distance(begin, diff))},
                 diff);
         }
 
@@ -1110,7 +1110,7 @@ struct find_gather
             std::reverse(strides.begin(), strides.end());
 
             if(std::none_of(
-                   strides.begin(), strides.end(), [](auto stride) { return stride == 1; }))
+                   strides.begin(), strides.end(), [](auto pstride) { return pstride == 1; }))
             {
                 lens.push_back(1);
                 strides.push_back(1);

@@ -1792,15 +1792,11 @@ struct find_flatten
 
 void simplify_reshapes::apply(module& m) const
 {
-    std::cout << "before gather rewrite" << std::endl;
-    m.debug_print();
     match::find_matches(m, find_gather_scalar{});
     dead_code_elimination{}.apply(m);
     
     if(enable_gather_rewrite)
         match::find_matches(m, find_gather{});
-    std::cout << "after gather rewrite" << std::endl;
-    m.debug_print();
     m.repeat_while_changes(depth, [&] {
         match::find_matches(m,
                             find_nop_reshapes{},

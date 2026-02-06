@@ -2265,8 +2265,6 @@ struct find_multi_embedding_slice_gather
 
     void apply(module& m) const
     {
-        std::cout << "\n=== find_multi_embedding_slice_gather: Starting scan ===" << std::endl;
-        
         // Track processed concats to avoid infinite loops
         std::set<const instruction*> processed_concats;
         
@@ -2337,29 +2335,6 @@ struct find_multi_embedding_slice_gather
                     if(!match)
                     {
                         non_matching_gather++;
-                        // Debug: Why didn't it match? (only show details for first 3)
-                        if(non_matching_gather <= 3)
-                        {
-                            auto gop = any_cast<op::gather>(input->get_operator());
-                            auto emb = input->inputs().at(0);
-                            auto idx = input->inputs().at(1);
-                            std::cout << "  [DEBUG] Gather at input " << i << " didn't match pattern:" << std::endl;
-                            std::cout << "    gather axis: " << gop.axis << " (need 0)" << std::endl;
-                            std::cout << "    emb can_eval: " << emb->can_eval() << std::endl;
-                            std::cout << "    emb ndim: " << emb->get_shape().lens().size() << " (need 2)" << std::endl;
-                            std::cout << "    idx name: " << idx->name() << " (need convert, gather, or slice)" << std::endl;
-                            std::cout << "    gather ins: ";
-                            m.debug_print(input);
-                            std::cout << "    emb ins: ";
-                            m.debug_print(emb);
-                            std::cout << "    idx ins: ";
-                            m.debug_print(idx);
-                            if((idx->name() == "convert" || idx->name() == "gather" || idx->name() == "slice") && !idx->inputs().empty())
-                            {
-                                std::cout << "    idx->input: ";
-                                m.debug_print(idx->inputs().front());
-                            }
-                        }
                         continue;
                     }
 
@@ -2370,36 +2345,16 @@ struct find_multi_embedding_slice_gather
                     source_map[key] = source;
                 }
                 
-                // Only log concats that have gathers
-                if(gather_count > 0)
-                {
-                    std::cout << "  Concat with " << inputs.size() << " inputs: "
-                              << gather_count << " gathers, "
-                              << non_gather_count << " non-gathers, "
-                              << multi_use_gather << " multi-use, "
-                              << non_matching_gather << " non-matching, "
-                              << (gather_count - multi_use_gather - non_matching_gather) << " matched pattern"
-                              << std::endl;
-                }
-
                 // Find the largest group with consecutive slices
                 std::vector<gather_match_info>* best_group = nullptr;
                 instruction_ref best_source;
                 int64_t best_slice_axis = -1;
                 std::size_t best_emb_dim = 0;
 
-                if(gather_count > 0)
-                    std::cout << "  Found " << gather_groups.size() << " distinct gather groups" << std::endl;
-                
                 for(auto& [key, group] : gather_groups)
                 {
-                    std::cout << "    Group with " << group.size() << " gathers (need >= " << min_gathers << ")" << std::endl;
-                    
                     if(group.size() < min_gathers)
-                    {
-                        std::cout << "      SKIP: Not enough gathers" << std::endl;
                         continue;
-                    }
 
                     // Sort by slice index
                     std::sort(group.begin(), group.end(),
@@ -2412,7 +2367,6 @@ struct find_multi_embedding_slice_gather
                         if(group[i].slice_idx != static_cast<int64_t>(i))
                         {
                             consecutive = false;
-                            std::cout << "      SKIP: Non-consecutive at i=" << i << ", expected slice_idx=" << i << " got " << group[i].slice_idx << std::endl;
                             break;
                         }
                     }
@@ -2423,13 +2377,8 @@ struct find_multi_embedding_slice_gather
                     // Check concat axis is the last axis
                     auto sample_shape = group.front().gather_ins->get_shape();
                     if(static_cast<std::size_t>(concat_axis) != sample_shape.ndim() - 1)
-                    {
-                        std::cout << "      SKIP: concat_axis=" << concat_axis << " but ndim-1=" << (sample_shape.ndim() - 1) << std::endl;
                         continue;
-                    }
 
-                    std::cout << "      VALID GROUP!" << std::endl;
-                    
                     // This is a valid group
                     if(best_group == nullptr || group.size() > best_group->size())
                     {
@@ -2442,7 +2391,6 @@ struct find_multi_embedding_slice_gather
 
                 if(best_group == nullptr)
                 {
-                    std::cout << "  NO VALID GROUP FOUND for this concat" << std::endl;
                     // No match found, mark as processed to avoid rechecking
                     processed_concats.insert(std::addressof(*concat_ins));
                     continue;
@@ -2450,13 +2398,6 @@ struct find_multi_embedding_slice_gather
 
                 auto& group = *best_group;
                 std::size_t num_emb = group.size();
-
-                std::cout << "\n=== find_multi_embedding_slice_gather MATCH ===" << std::endl;
-                std::cout << "  Fusing " << num_emb << " gathers into batched gather" << std::endl;
-                std::cout << "  emb_dim=" << best_emb_dim << ", slice_axis=" << best_slice_axis << std::endl;
-                std::cout << "  concat instruction: " << std::endl;
-                m.debug_print(concat_ins);
-                std::cout << "===============================================\n" << std::endl;
 
                 // === OPTIMIZATION: Transform matching gathers to batched gather ===
 
@@ -2638,10 +2579,6 @@ struct find_multi_embedding_slice_gather
                 break; // Restart iteration since we modified the module
             }
         }
-        
-        std::cout << "=== find_multi_embedding_slice_gather: Scan complete ===" << std::endl;
-        std::cout << "  Total concats scanned: " << total_concats << std::endl;
-        std::cout << "  Iterations: " << iteration << std::endl;
     }
 };
 
@@ -2860,7 +2797,7 @@ struct find_cross_embedding_gather
 
 void simplify_algebra::apply(module& m) const
 {
-    find_multi_embedding_slice_gather{}.apply(m);
+    // find_multi_embedding_slice_gather{}.apply(m);
 
     find_cross_embedding_gather{}.apply(m);
 

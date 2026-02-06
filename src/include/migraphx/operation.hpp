@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -79,9 +79,9 @@ struct operation
      * the same the `output` shape.
      */
     argument compute(context& ctx, const shape& output, const std::vector<argument>& input) const;
-    /// An optional method to return which argument the output will alias. If
-    /// there is no aliased output then -1 can be returned.
-    std::ptrdiff_t output_alias(const std::vector<shape>& input) const;
+    /// An optional method to return which arguments the output will alias. If
+    /// there is no aliased output then an empty vector can be returned.
+    std::vector<std::size_t> output_alias(const std::vector<shape>& input) const;
     /// An optional stream operator to print the operation. When this is not
     /// implemented, it will just print the operation's name.
     friend std::ostream& operator<<(std::ostream& os, const operation& op);
@@ -410,9 +410,9 @@ auto need_normalization_op(const T& x)
 }
 
 template <class T>
-std::ptrdiff_t output_alias_op(const T&, const std::vector<shape>&)
+std::vector<std::size_t> output_alias_op(const T&, const std::vector<shape>&)
 {
-    return -1;
+    return {};
 }
 
 template <class T>
@@ -520,7 +520,7 @@ struct MIGRAPHX_EXPORT operation
     // (optional)
     lifetime get_lifetime() const;
     // (optional)
-    std::ptrdiff_t output_alias(const std::vector<shape>& input) const;
+    std::vector<std::size_t> output_alias(const std::vector<shape>& input) const;
     // (optional)
     value compile(context& ctx, const shape& output, const std::vector<shape>& input);
     // (optional)
@@ -626,9 +626,8 @@ struct operation
     }
 
     template <class T>
-    static std::ptrdiff_t private_detail_te_default_output_alias(float,
-                                                                 T&& private_detail_te_self,
-                                                                 const std::vector<shape>& input)
+    static std::vector<std::size_t> private_detail_te_default_output_alias(
+        float, T&& private_detail_te_self, const std::vector<shape>& input)
     {
         return detail::output_alias_op(private_detail_te_self, input);
     }
@@ -1033,7 +1032,7 @@ struct operation
         return (*this).private_detail_te_get_handle().get_lifetime();
     }
 
-    std::ptrdiff_t output_alias(const std::vector<shape>& input) const
+    std::vector<std::size_t> output_alias(const std::vector<shape>& input) const
     {
         assert((*this).private_detail_te_handle_mem_var);
         return (*this).private_detail_te_get_handle().output_alias(input);
@@ -1142,12 +1141,12 @@ struct operation
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual std::string name() const                                           = 0;
-        virtual bool is_context_free() const                                       = 0;
-        virtual bool need_normalization() const                                    = 0;
-        virtual bool has_finalize() const                                          = 0;
-        virtual lifetime get_lifetime() const                                      = 0;
-        virtual std::ptrdiff_t output_alias(const std::vector<shape>& input) const = 0;
+        virtual std::string name() const                                                     = 0;
+        virtual bool is_context_free() const                                                 = 0;
+        virtual bool need_normalization() const                                              = 0;
+        virtual bool has_finalize() const                                                    = 0;
+        virtual lifetime get_lifetime() const                                                = 0;
+        virtual std::vector<std::size_t> output_alias(const std::vector<shape>& input) const = 0;
         virtual value
         compile(context& ctx, const shape& output, const std::vector<shape>& input) = 0;
         virtual void
@@ -1232,7 +1231,7 @@ struct operation
             return private_detail_te_default_get_lifetime(char(0), private_detail_te_value);
         }
 
-        std::ptrdiff_t output_alias(const std::vector<shape>& input) const override
+        std::vector<std::size_t> output_alias(const std::vector<shape>& input) const override
         {
 
             return private_detail_te_default_output_alias(char(0), private_detail_te_value, input);

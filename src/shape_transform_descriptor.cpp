@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -330,7 +330,6 @@ struct rebase_ambiguity_resolver
     // Returns the axes mapping that can be used for rebase
     auto resolve()
     {
-
         std::vector<std::pair<dimension::sub, std::size_t>> subs_to_insert;
         {
             axes_map_t axes_map = group_axes(desc->dimensions);
@@ -339,6 +338,9 @@ struct rebase_ambiguity_resolver
 
             if(shortage_axes.empty())
                 return axes_map;
+
+            if(try_trivial_direct_mapping())
+                return regroup_axes();
 
             process_axis_groups(axes_map, subs_to_insert);
 
@@ -352,10 +354,7 @@ struct rebase_ambiguity_resolver
         sort_hidden_axes_groups();
         sort_moved_axes_groups();
 
-        axes_map_t regroup_axes = group_axes(desc->dimensions);
-        renumber_axes(regroup_axes);
-
-        return regroup_axes;
+        return regroup_axes();
     }
 
     private:
@@ -367,6 +366,13 @@ struct rebase_ambiguity_resolver
         if((x % y) != 0)
             return 0;
         return x / y;
+    }
+
+    axes_map_t regroup_axes()
+    {
+        axes_map_t result = group_axes(desc->dimensions);
+        renumber_axes(result);
+        return result;
     }
 
     // Identifies axes where the target dimension is larger than current subdimensions
@@ -383,6 +389,72 @@ struct rebase_ambiguity_resolver
             shortage_axes.emplace(shortage, axis);
         }
         initial_shortage_count = shortage_axes.size();
+    }
+
+    bool try_trivial_direct_mapping()
+    {
+        if(desc->lens() != *dims)
+            return false;
+        if(not std::all_of(
+               desc->dimensions.begin(), desc->dimensions.end(), [&](const dimension& d) {
+                   if(d.subdimensions.empty())
+                       return false;
+                   if(d.len() == 1)
+                       return true;
+                   if(std::any_of(d.subdimensions.begin(),
+                                  d.subdimensions.end(),
+                                  [&](const dimension::sub& s) {
+                                      if(s.origin_axis().empty())
+                                          return false;
+                                      if(s.origin_axis().size() != 1)
+                                          return true;
+                                      if(s.len == 1)
+                                          return false;
+                                      if(s.has_hidden_axis())
+                                          return false;
+                                      return ((*dims)[s.origin_axis().front()] != s.len);
+                                  }))
+                       return false;
+                   if(d.subdimensions.size() == 1)
+                       return true;
+                   auto n1dims = std::count_if(d.subdimensions.begin(),
+                                               d.subdimensions.end(),
+                                               [](const dimension::sub& s) { return s.len == 1; });
+                   return n1dims + 1 == d.subdimensions.size();
+               }))
+            return false;
+        std::vector<std::size_t> axes;
+        for_each_subdimension(desc->dimensions, [&](auto& s) {
+            if(s.origin_axis().empty())
+                return;
+            axes.push_back(s.origin_axis().front());
+        });
+        // TODO: Handle permutations
+        if(not std::is_sorted(axes.begin(), axes.end()))
+            return false;
+        for(std::size_t i : range(desc->dimensions.size()))
+        {
+            auto& dim = desc->dimensions[i];
+            if(dim.subdimensions.empty())
+                continue;
+            auto sub = std::find_if(dim.subdimensions.begin(),
+                                    dim.subdimensions.end(),
+                                    [&](const dimension::sub& s) { return s.len != 1; });
+            if(sub == dim.subdimensions.end())
+                sub = dim.subdimensions.begin();
+            sub->expose();
+            sub->axis = {i};
+
+            auto remove_axis = [](dimension::sub& s) {
+                s.axis.clear();
+                s.hidden_axis.clear();
+                s.len = 1;
+            };
+            std::for_each(dim.subdimensions.begin(), sub, remove_axis);
+            std::for_each(std::next(sub), dim.subdimensions.end(), remove_axis);
+        }
+        shortage_axes.clear();
+        return true;
     }
 
     // Processes each axis group to resolve ambiguous axis assignments
@@ -1538,47 +1610,55 @@ static std::vector<int64_t> find_permutation(const std::vector<dimension::sub>& 
 // are generated from the subdimensions and steps 4-5 are generated with the
 // dimensions.
 std::vector<operation>
-shape_transform_descriptor::generate(const std::vector<std::size_t>& input_dims) const
+shape_transform_descriptor::generate(const std::vector<std::size_t>& input_dims,
+                                     bool no_broadcast) const
 {
     operation_list result;
     std::vector<dimension> new_dims =
         input_dims.empty() ? dimensions : this->rebase(input_dims).dimensions;
     assert(input_dims.empty() or not new_dims.empty());
-    // Need broadcast
-    if(std::any_of(new_dims.begin(), new_dims.end(), &is_broadcast_dim))
+    if(no_broadcast)
     {
-        std::vector<std::size_t> out_lens;
-        std::transform(new_dims.begin(),
-                       new_dims.end(),
-                       std::back_inserter(out_lens),
-                       [](const dimension& d) { return d.len(); });
-        auto startb     = std::find_if_not(new_dims.begin(), new_dims.end(), &has_no_axes);
-        auto trailb     = std::find_if_not(startb, new_dims.end(), &has_axes);
-        auto axis       = std::distance(new_dims.begin(), startb);
-        auto extra_dims = axis + std::distance(trailb, new_dims.end());
-        // Use broadcast instead of multibroadcast
-        if(std::all_of(trailb, new_dims.end(), &has_no_axes) and extra_dims > 0 and
-           axis < new_dims.size())
-        {
-            result.push_back(make_op("broadcast", {{"axis", axis}, {"out_lens", out_lens}}));
-            new_dims.erase(trailb, new_dims.end());
-            new_dims.erase(new_dims.begin(), new_dims.begin() + axis);
-        }
-        else
-        {
-            result.push_back(make_op("multibroadcast", {{"out_lens", out_lens}}));
-        }
+        for_each_subdimension(new_dims, &flatten_broadcasted_dim);
     }
-    // If all the dimensions have no axes then there isnt anthing else to do
-    // so just clear the new_dims
-    if(std::all_of(new_dims.begin(), new_dims.end(), &has_no_axes))
-        new_dims.clear();
-    // Flatten broadcasted dimensions
-    for(auto& d : new_dims)
+    else
     {
-        if(d.subdimensions.size() != 1)
-            continue;
-        flatten_broadcasted_dim(d.subdimensions.front());
+        // Need broadcast
+        if(std::any_of(new_dims.begin(), new_dims.end(), &is_broadcast_dim))
+        {
+            std::vector<std::size_t> out_lens;
+            std::transform(new_dims.begin(),
+                           new_dims.end(),
+                           std::back_inserter(out_lens),
+                           [](const dimension& d) { return d.len(); });
+            auto startb     = std::find_if_not(new_dims.begin(), new_dims.end(), &has_no_axes);
+            auto trailb     = std::find_if_not(startb, new_dims.end(), &has_axes);
+            auto axis       = std::distance(new_dims.begin(), startb);
+            auto extra_dims = axis + std::distance(trailb, new_dims.end());
+            // Use broadcast instead of multibroadcast
+            if(std::all_of(trailb, new_dims.end(), &has_no_axes) and extra_dims > 0 and
+               axis < new_dims.size())
+            {
+                result.push_back(make_op("broadcast", {{"axis", axis}, {"out_lens", out_lens}}));
+                new_dims.erase(trailb, new_dims.end());
+                new_dims.erase(new_dims.begin(), new_dims.begin() + axis);
+            }
+            else
+            {
+                result.push_back(make_op("multibroadcast", {{"out_lens", out_lens}}));
+            }
+        }
+        // If all the dimensions have no axes then there isnt anthing else to do
+        // so just clear the new_dims
+        if(std::all_of(new_dims.begin(), new_dims.end(), &has_no_axes))
+            new_dims.clear();
+        // Flatten broadcasted dimensions
+        for(auto& d : new_dims)
+        {
+            if(d.subdimensions.size() != 1)
+                continue;
+            flatten_broadcasted_dim(d.subdimensions.front());
+        }
     }
     // Need squeeze reshape
     if(std::any_of(new_dims.begin(), new_dims.end(), [](const dimension& d) {

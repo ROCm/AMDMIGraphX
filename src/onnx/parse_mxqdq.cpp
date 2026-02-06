@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,7 +32,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-struct parse_mxfixneuron : op_parser<parse_mxfixneuron>
+struct parse_mxquantizedequantize : op_parser<parse_mxquantizedequantize>
 {
     std::vector<op_desc> operators() const { return {{"MXFixNeuron"}, {"MXQuantizeDequantize"}}; }
 
@@ -46,24 +46,24 @@ struct parse_mxfixneuron : op_parser<parse_mxfixneuron>
         const auto input_lens       = input->get_shape().lens();
         if(args.size() != 1)
         {
-            MIGRAPHX_THROW("MXFixNeuron: must have only 1 input");
+            MIGRAPHX_THROW("MXQuantizeDequantize: must have only 1 input");
         }
         int block_axis = info.attributes.at("axis").i();
-        block_axis     = tune_axis(input->get_shape().ndim(), block_axis, "MXFixNeuron");
+        block_axis     = tune_axis(input->get_shape().ndim(), block_axis, "MXQuantizeDequantize");
         int block_size = info.attributes.at("block_size").i();
         if(block_size != 32)
         {
-            MIGRAPHX_THROW("MXFixNeuron: only block_size of 32 is supported");
+            MIGRAPHX_THROW("MXQuantizeDequantize: only block_size of 32 is supported");
         }
         std::string element_dtype = info.attributes.at("element_dtype").s();
         if(element_dtype != "fp4_e2m1")
         {
-            MIGRAPHX_THROW("MXFixNeuron: only support MXFP4 type");
+            MIGRAPHX_THROW("MXQuantizeDequantize: only support MXFP4 type");
         }
         int rounding_mode = info.attributes.at("rounding_mode").i();
         if(rounding_mode != 2)
         {
-            MIGRAPHX_THROW("MXFixNeuron: only round ties to even is supported");
+            MIGRAPHX_THROW("MXQuantizeDequantize: only round ties to even is supported");
         }
 
         // make reduction axes for calculating block scales
@@ -131,11 +131,11 @@ struct parse_mxfixneuron : op_parser<parse_mxfixneuron>
             block_scales_ins); // output is float_type
 
         // packing axis set to fastest dimension
-        auto quantized_shape     = q_ins->get_shape();
-        const auto& qs_strides   = quantized_shape.strides();
+        auto quantized_shape   = q_ins->get_shape();
+        const auto& qs_strides = quantized_shape.strides();
         if(qs_strides.empty())
         {
-            MIGRAPHX_THROW("MXFixNeuron: quantized_shape has no strides");
+            MIGRAPHX_THROW("MXQuantizeDequantize: quantized_shape has no strides");
         }
         int fast_axis =
             std::min_element(qs_strides.cbegin(), qs_strides.cend()) - qs_strides.cbegin();
@@ -147,10 +147,12 @@ struct parse_mxfixneuron : op_parser<parse_mxfixneuron>
             padding.at(fast_axis * 2 + 1) = 1;
             q_ins = info.add_instruction(make_op("pad", {{"pads", padding}}), q_ins);
         }
-        auto pack_ins   = info.add_instruction(make_op("pack_fp4"),
-                                             q_ins); // output is fp4x2_type
-        auto unpack_ins = info.add_instruction(make_op("unpack_fp4"),
-                                               pack_ins); // output is fp8e4m3fn_type
+        // output is fp4x2_type
+        auto pack_ins = info.add_instruction(make_op("pack_fp4", {{"axis", fast_axis}}), q_ins);
+        // output is fp8e4m3fn_type
+        auto unpack_ins =
+            info.add_instruction(make_op("unpack_fp4", {{"axis", fast_axis}}), pack_ins);
+
         if(odd_fast_axis)
         {
             // slice off padded values

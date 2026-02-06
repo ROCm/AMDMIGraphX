@@ -13,14 +13,14 @@ Model performance tunable variables
 ************************************
 
 Model performance tunable variables change the compilation behavior of a model. These are the most commonly used variables.
- 
-.. list-table:: 
+
+.. list-table::
   :widths: 40 60
   :header-rows: 1
 
   * - Environment variable
     - Values
-  
+
   * - | ``MIGRAPHX_ENABLE_NHWC``
       | Forces the model to use the NHWC layout.
       
@@ -35,10 +35,10 @@ Model performance tunable variables change the compilation behavior of a model. 
     - | ``1``: The rocMLIR library won't be used.
       | ``0``: Returns to default behavior.
 
-      | Default: The rocMLIR library is used.   
+      | Default: The rocMLIR library is used.
 
   * - | ``MIGRAPHX_ENABLE_CK``
-      | When set, the Composable Kernel library is used. 
+      | When set, the Composable Kernel library is used.
       
     - | Use with ``MIGRAPHX_DISABLE_MLIR = 1``.
       
@@ -62,8 +62,8 @@ Model performance tunable variables change the compilation behavior of a model. 
       | ``0``: Returns to default behavior.
 
       | Default: Layernorm fusion is not used.
-  
-  * - | ``MIGRAPHX_DISABLE_MIOPEN_POOLING``   
+
+  * - | ``MIGRAPHX_DISABLE_MIOPEN_POOLING``
       | When set, MIGraphX pooling is used instead of MIOpen pooling.
       
     - | ``1``: Use MIGraphX pooling.
@@ -88,7 +88,7 @@ Model performance tunable variables change the compilation behavior of a model. 
       | Default: Upcasting to FP32 is turned on.
 
   * - | ``MIGRAPHX_MLIR_USE_SPECIFIC_OPS``
-      | Specifies the MLIR operations to use regardless of GPU architecture.  
+      | Specifies the MLIR operations to use regardless of GPU architecture.
       
     - | Takes a comma-separated list of operations. Operations can be any of the following:
       
@@ -120,6 +120,14 @@ Model performance tunable variables change the compilation behavior of a model. 
 
       | Default: No MLIR tuning is used.
 
+  * - | ``MIGRAPHX_ENABLE_GEMM_TUNING``
+      | When set, exhaustive tuning for GEMM operations is used to find the optimal configuration, even when ``--exhaustive-tune`` option isn't set.
+
+    - | ``1``: Exhaustive tuning for GEMM is used.
+      | ``0``: Returns to default behavior.
+
+      | Default: Exhaustive GEMM tuning isn't used.
+
   * - | ``MIGRAPHX_ENABLE_HIP_GEMM_TUNING``
       | When set, exhaustive tuning for hipBLASLt is used to find the optimal configuration.
 
@@ -131,7 +139,7 @@ Model performance tunable variables change the compilation behavior of a model. 
   * - | ``MIGRAPHX_ENABLE_MLIR_INPUT_FUSION``
       | Turns on input fusions in MLIR.
       
-    - | ``1``: Turns on input fusions.  
+    - | ``1``: Turns on input fusions.
       | ``0``: Returns to default behavior.
 
       | Default: Input fusions are turned off.
@@ -160,16 +168,53 @@ Model performance tunable variables change the compilation behavior of a model. 
 
       | Default: Split-k performance configurations are turned off.
 
-  * - | ``MIGRAPHX_FLASH_DECODING_NUM_SPLITS``
-      | Turns on flash decoding for attention fusion and sets the number of splits along the key-value sequence dimension.
-    
-    - | ``0``: Flash decoding is turned off (i.e., number of splits is 0).
-      | ``N`` (where N > 1): Enables flash decoding with N splits along the key-value sequence dimension. For example, ``2`` enables flash decoding with 2 splits, ``4`` with 4 splits, etc.
+  * - | ``MIGRAPHX_FLASH_DECODING_ENABLED``
+      | When set, flash decoding optimization for attention fusion is enabled, which splits the key-value sequence dimension for improved performance on long sequences.
+      
+    - | ``1``: Enables flash decoding optimization.
+      | ``0``: Disables flash decoding optimization.
 
-      | Default: flash decoding is turned off.
+      | Default: ``0`` (disabled).
+
+  * - | ``MIGRAPHX_FLASH_DECODING_NUM_SPLITS``
+      | Sets the number of splits along the key-value sequence dimension when flash decoding is enabled.
+    
+    - | ``0`` or negative: Automatically calculates optimal splits based on sequence length.
+      | ``N`` (where N > 0): Uses exactly N splits along the key-value sequence dimension.
+
+      | Default: ``0`` (automatic calculation).
+      
+      | Note: This variable implicitly sets ``MIGRAPHX_FLASH_DECODING_ENABLED=1``. If not set, and ``MIGRAPHX_FLASH_DECODING_ENABLED=1``, the number of splits will be automatically calculated.
+
+  * - | ``MIGRAPHX_FLASH_DECODING_MIN_CHUNK_SIZE``
+      | Sets the minimum chunk size for automatic split calculation in flash decoding.
+    
+    - | Takes a positive integer representing the minimum size of each chunk after splitting.
+      
+      | Default: ``32``.
+      
+      | Note: Only used when automatic split calculation is enabled.
+
+  * - | ``MIGRAPHX_FLASH_DECODING_MAX_SPLITS``
+      | Sets the maximum number of splits allowed during automatic split calculation.
+    
+    - | Takes a positive integer representing the maximum number of splits.
+      
+      | Default: ``16``.
+      
+      | Note: Only used when automatic split calculation is enabled.
+
+  * - | ``MIGRAPHX_FLASH_DECODING_THRESHOLD``
+      | Sets the minimum sequence length threshold for flash decoding to be applied.
+    
+    - | Takes a positive integer. Flash decoding is only applied when the sequence length is greater than or equal to this threshold.
+      
+      | Default: ``32``.
+      
+      | Note: Only used when automatic split calculation is enabled.
 
   * - | ``MIGRAPHX_DISABLE_FP16_INSTANCENORM_CONVERT``
-      | When set, FP16 is not converted to FP32 in the ``InstanceNormalization`` ONNX operator. 
+      | When set, FP16 is not converted to FP32 in the ``InstanceNormalization`` ONNX operator.
 
     - | ``1``: FP16 is not converted to F32.
       | ``0``: Returns to default behavior.
@@ -178,8 +223,8 @@ Model performance tunable variables change the compilation behavior of a model. 
 
   * - | ``MIGRAPHX_ENABLE_REWRITE_DOT``
       | When set, the ``rewrite_dot`` pass is run.
-            
-    - | ``1``: Runs the ``rewrite_dot`` pass
+
+    - | ``1``: Runs the ``rewrite_dot`` pass.
       | ``0``: Returns to default behavior.
 
       | Default: The ``rewrite_dot`` pass isn't run.
@@ -192,7 +237,7 @@ Model performance tunable variables change the compilation behavior of a model. 
       | Set to ``-1`` to disable split reduce.
 
   * - | ``MIGRAPHX_COPY_LITERALS``
-      | When set, literals won't be stored on the GPU but will only be copied over when needed.    
+      | When set, literals won't be stored on the GPU but will only be copied over when needed.
     
     - | ``1``: Literals are copied over to the GPU as needed.
       | ``0``: Returns to default behavior.
@@ -202,11 +247,11 @@ Model performance tunable variables change the compilation behavior of a model. 
   * - | ``MIGRAPHX_VERIFY_ENABLE_ALLCLOSE``
       | When set, the range tolerance is verified using ``allclose``.
 
-    - | ``1``: The range tolerance is verified using ``allclose``. 
+    - | ``1``: The range tolerance is verified using ``allclose``.
       | ``0``: Returns to the default behavior.
 
       | Default: Range tolerance isn't verified.
-                                             
+
   * - | ``MIGRAPHX_LOG_CK_GEMM``
       | Turns on printing of Composable Kernel GEMM traces.
 
@@ -229,6 +274,14 @@ Model performance tunable variables change the compilation behavior of a model. 
 
       | Default: No tuning is done for composable kernels.
 
+  * - | ``MIGRAPHX_ENABLE_CK_WORKAROUNDS``
+      | When set, enables workarounds for known issues in Composable Kernel library.
+
+    - | ``1``: Composable Kernel workarounds are enabled.
+      | ``0``: Returns to default behavior.
+
+      | Default: Composable Kernel workarounds are disabled.
+
   * - | ``MIGRAPHX_REWRITE_LRN``
       | Turns on LRN-to-pooling lowering in the rewrite_pooling pass.
       
@@ -236,13 +289,21 @@ Model performance tunable variables change the compilation behavior of a model. 
       | ``0``: Returns to default behavior.
 
       | Default: LRN-to-pooling lowering is turned off.
-               
+
+  * - | ``MIGRAPHX_ENABLE_FULL_DYNAMIC``
+      | Enables full dynamic shape support and disables certain passes that are incompatible with dynamic shapes.
+      
+    - | ``1``: Full dynamic shape support is enabled.
+      | ``0``: Returns to default behavior.
+
+      | Default: Full dynamic shape support is disabled.
+
 Matching
 **********
 
 Debug settings for matchers. Matchers are responsible for finding optimizations in the graph compilation stage.
 
-.. list-table:: 
+.. list-table::
   :widths: 40 60
   :header-rows: 1
 
@@ -261,7 +322,7 @@ Debug settings for matchers. Matchers are responsible for finding optimizations 
   * - | ``MIGRAPHX_TRACE_MATCHES_FOR``
       | Turns on the printing of traces for the specified matcher if a string is found in the matcher's ``file-name``, ``function-name``, or ``matcher-name``.
 
-    - Takes a string to match.  
+    - Takes a string to match.
     
   * - | ``MIGRAPHX_VALIDATE_MATCHES``
       | When set, ``module.validate()`` is used to validate the module after finding matches.
@@ -274,7 +335,7 @@ Debug settings for matchers. Matchers are responsible for finding optimizations 
   * - | ``MIGRAPHX_TIME_MATCHERS``
       | When set, prints the time spent on a matcher. This helps identify time-consuming patterns.
     
-    - | ``1`: Prints the time spent on the matcher.
+    - | ``1``: Prints the time spent on the matcher.
       | ``0``: Returns to default behavior.
 
       | Default: The time is not printed.
@@ -285,7 +346,7 @@ Pass controls
 
 Debug settings for passes.
 
-.. list-table:: 
+.. list-table::
   :widths: 30 70
   :header-rows: 1
 
@@ -364,6 +425,14 @@ Debug settings for passes.
 
       | Default: The ``fuse_reduce`` pass is run.
 
+  * - | ``MIGRAPHX_DISABLE_MULTI_OUTPUT_FUSION``
+      | When set, multi-output pointwise fusion is disabled.
+
+    - | ``1``: Multi-output pointwise fusion is disabled.
+      | ``0``: Returns to default behavior.
+
+      | Default: Multi-output pointwise fusion is enabled.
+
   * - | ``MIGRAPHX_TRACE_PASSES``
       | Turns on printing of the compile passes and the program after the passes.
 
@@ -381,24 +450,24 @@ Debug settings for passes.
       | Default: Compile passes aren't timed.
 
   * - | ``MIGRAPHX_DISABLE_PASSES``
-      | Specifies passes that are to be skipped.  
-      
-    - | Takes a comma-separated list of passes. 
+      | Specifies passes that are to be skipped.
+
+    - | Takes a comma-separated list of passes.
       | For example:
       | ``MIGRAPHX_DISABLE_PASSES=rewrite_pooling,rewrite_gelu``.
-  
+
 
 Compilation tracing
 ************************
 
-.. list-table:: 
+.. list-table::
   :widths: 30 70
   :header-rows: 1
 
   * - Environment variable
     - Values
 
-  * - | ``MIGRAPHX_TRACE_FINALIZE`` 
+  * - | ``MIGRAPHX_TRACE_FINALIZE``
       | Turns on printing of graph instructions during the ``module.finalize()`` step.
 
     - | ``1``: Graph instructions will be printed.
@@ -406,14 +475,14 @@ Compilation tracing
 
       | Default: Graph instructions won't be printed.
 
-  * - | ``MIGRAPHX_TRACE_COMPILE`` 
+  * - | ``MIGRAPHX_TRACE_COMPILE``
       | Turns on graph compilation tracing.
 
     - | ``1``: Turns on graph compilation tracing.
       | ``0``: Returns to default behavior.
 
       | Default: Graph compilation isn't traced.
-  
+
   * - | ``MIGRAPHX_TRACE_ONNX_PARSER``
       | Turns on node-by-node tracing for the ONNX parser. 
       
@@ -443,12 +512,12 @@ Compilation tracing
     - | ``1``: Only the quantization parameters in the main module are printed.
       | ``0``: Returns to default behavior.
 
-      | Default:
+      | Default: Quantization parameters aren't printed.
 
 MLIR
 **************************
 
-.. list-table:: 
+.. list-table::
   :widths: 30 70
   :header-rows: 1
 
@@ -482,21 +551,21 @@ MLIR
       | Sets the location to where the MXR files that the MLIR modules are written to are saved. 
       
     - | Takes the path to the directory where the files should be saved.
-      | For example: 
-      | ``MIGRAPHX_MLIR_DUMP_TO_MXR="/path/to/save_mxr_file/`` 
+      | For example:
+      | ``MIGRAPHX_MLIR_DUMP_TO_MXR="/path/to/save_mxr_file/"``
 
   * - | ``MIGRAPHX_MLIR_DUMP``
-      | Sets the the location where the MLIR files that the MLIR modules are written to are saved.
+      | Sets the location where the MLIR files that the MLIR modules are written to are saved.
 
     - | Takes the path to the directory where the files should be saved.
-      | For example: 
-      | ``MIGRAPHX_MLIR_DUMP="/path/to/save_mlir_file/``
+      | For example:
+      | ``MIGRAPHX_MLIR_DUMP="/path/to/save_mlir_file/"``
 
 
 Testing
 **************************
 
-.. list-table:: 
+.. list-table::
   :widths: 30 70
   :header-rows: 1
 
@@ -507,9 +576,10 @@ Testing
       | Sets the target to be traced, and turns on printing of the compile trace for verify tests on the given target. 
       | This flag cannot be used if ``MIGRAPHX_TRACE_COMPILE`` is used.
       
-    - | ``cpu``: Turns on traces for the CPU target. 
-      | ``GPU``: Turns on traces for the GPU target. 
-      |  Default: 
+    - | ``cpu``: Turns on traces for the CPU target.
+      | ``gpu``: Turns on traces for the GPU target.
+
+      | Default: No target is traced.
 
   * - | ``MIGRAPHX_TRACE_TEST``
       | When set, the reference and target programs are printed even if the verify tests pass.
@@ -534,11 +604,11 @@ Testing
       | ``0``: Returns to default behavior.
 
       | Default: The results and the reference aren't written out when they differ.
-  
+
 Advanced settings
 **************************
 
-.. list-table:: 
+.. list-table::
   :widths: 30 70
   :header-rows: 1
 
@@ -626,16 +696,8 @@ Advanced settings
 
       | Default: nary device functions aren't printed out.
 
-  * - | ``MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS``
-      | When set, the workarounds for known bugs in HIPRTC are used.
-
-    - | ``1``: HIPRTC workarounds are used.
-      | ``0``: Returns to default behavior.
-
-      | Default: HIPRTC workarounds aren't used.
-
   * - | ``MIGRAPHX_ENABLE_NULL_STREAM``
-      | Whem set, a null stream can be used for MIOpen and HIP stream handling.
+      | When set, a null stream can be used for MIOpen and HIP stream handling.
   
     - | ``1``: A null stream can be used for stream handling. 
       | ``0``: Returns to default behavior.

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -1206,6 +1206,59 @@ TEST_CASE(shape_is_compatible_diff_lens_tuple)
     migraphx::shape expected{migraphx::shape{migraphx::shape::float_type, {1, 1, 8}}};
     EXPECT(actual != expected);
     EXPECT(not migraphx::shape::is_compatible(actual, expected));
+}
+TEST_CASE(shape_is_compatible_lens_static)
+{
+    migraphx::shape actual1{migraphx::shape{migraphx::shape::float_type, {1, 2, 8}}};
+    migraphx::shape actual2{migraphx::shape{migraphx::shape::float_type, {1, 1, 8}}};
+    migraphx::shape expected{migraphx::shape{migraphx::shape::float_type, {1, 1, 8}}};
+    EXPECT(migraphx::shape::is_compatible_lens(actual2, expected));
+    EXPECT(not migraphx::shape::is_compatible_lens(actual1, expected));
+}
+TEST_CASE(shape_is_compatible_lens_dynamic_actual)
+{
+    migraphx::shape actual{migraphx::shape::float_type, {{1, 1}, {2, 4}, {2, 4}, {2, 4}}};
+    migraphx::shape expected1{migraphx::shape::float_type, {1, 2, 2, 4}};
+    migraphx::shape expected2{migraphx::shape::float_type, {{1, 1}, {2, 4}, {2, 4}, {2, 4}}};
+
+    EXPECT(not migraphx::shape::is_compatible_lens(actual, expected1));
+    EXPECT(migraphx::shape::is_compatible_lens(actual, expected2));
+}
+TEST_CASE(shape_is_compatible_lens_dynamic_expected)
+{
+    migraphx::shape actual1{migraphx::shape::float_type, {1, 2, 4, 32}};
+    migraphx::shape actual2{migraphx::shape::float_type, {1, 6, 4, 32}};
+    migraphx::shape expected{migraphx::shape::float_type, {{1, 1}, {2, 4}, {3, 9}, {16, 32}}};
+
+    EXPECT(migraphx::shape::is_compatible_lens(actual1, expected));
+    EXPECT(not migraphx::shape::is_compatible_lens(actual2, expected));
+}
+
+TEST_CASE(shape_same_lens_static)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1, 2, 8}};
+    migraphx::shape s2{migraphx::shape::half_type, {1, 2, 8}};
+    migraphx::shape s3{migraphx::shape::float_type, {2, 2, 8}};
+    EXPECT(migraphx::shape::same_lens(s1, s2));
+    EXPECT(not migraphx::shape::same_lens(s1, s3));
+}
+
+TEST_CASE(shape_same_lens_dynamic)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {{1, 1}, {3, 4}, {1, 2}, {8, 16}}};
+    migraphx::shape s2{migraphx::shape::half_type, {{1, 1}, {3, 4}, {1, 2}, {8, 16}}};
+    migraphx::shape s3{migraphx::shape::float_type, {{1, 3}, {3, 4}, {1, 2}, {8, 16}}};
+    EXPECT(migraphx::shape::same_lens(s1, s2));
+    EXPECT(not migraphx::shape::same_lens(s1, s3));
+}
+
+TEST_CASE(shape_same_lens_static_dynamic)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1, 2, 8}};
+    migraphx::shape s2{migraphx::shape::half_type, {{1, 1}, {2, 2}, {8, 8}}};
+    migraphx::shape s3{migraphx::shape::float_type, {{1, 1}, {2, 4}, {8, 8}}};
+    EXPECT(migraphx::shape::same_lens(s1, s2));
+    EXPECT(not migraphx::shape::same_lens(s1, s3));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

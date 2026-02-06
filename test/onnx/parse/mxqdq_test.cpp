@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,7 +24,7 @@
 
 #include <onnx_test.hpp>
 
-TEST_CASE(mxfixneuron_even_test)
+TEST_CASE(mxqdq_even_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -55,16 +55,16 @@ TEST_CASE(mxfixneuron_even_test)
         migraphx::make_op("quantizelinear", {{"out_type", migraphx::shape::float_type}}),
         input,
         block_scales_ins);
-    auto quantized_shape     = q_ins->get_shape();
-    auto pack_ins            = mm->add_instruction(migraphx::make_op("pack_fp4"), q_ins);
-    auto unpack_ins          = mm->add_instruction(migraphx::make_op("unpack_fp4"), pack_ins);
+    auto quantized_shape = q_ins->get_shape();
+    auto pack_ins        = mm->add_instruction(migraphx::make_op("pack_fp4", {{"axis", 3}}), q_ins);
+    auto unpack_ins = mm->add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), pack_ins);
     mm->add_instruction(migraphx::make_op("dequantizelinear"), unpack_ins, block_scales_ins);
 
-    auto prog = optimize_onnx("mxfixneuron_even_test.onnx");
+    auto prog = optimize_onnx("mxqdq_even_test.onnx");
     EXPECT(p == prog);
 }
 
-TEST_CASE(mxfixneuron_odd_test)
+TEST_CASE(mxqdq_odd_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -100,15 +100,15 @@ TEST_CASE(mxfixneuron_odd_test)
         migraphx::make_op("quantizelinear", {{"out_type", migraphx::shape::float_type}}),
         input,
         block_scales_ins);
-    auto quantized_shape     = q_ins->get_shape();
+    auto quantized_shape = q_ins->get_shape();
     auto pad_ins =
         mm->add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 0, 0, 0, 1}}}), q_ins);
-    auto pack_ins   = mm->add_instruction(migraphx::make_op("pack_fp4"), pad_ins);
-    auto unpack_ins = mm->add_instruction(migraphx::make_op("unpack_fp4"), pack_ins);
+    auto pack_ins   = mm->add_instruction(migraphx::make_op("pack_fp4", {{"axis", 2}}), pad_ins);
+    auto unpack_ins = mm->add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 2}}), pack_ins);
     auto slice_ins  = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {5}}}), unpack_ins);
     mm->add_instruction(migraphx::make_op("dequantizelinear"), slice_ins, block_scales_ins);
 
-    auto prog = optimize_onnx("mxfixneuron_odd_test.onnx");
+    auto prog = optimize_onnx("mxqdq_odd_test.onnx");
     EXPECT(p == prog);
 }

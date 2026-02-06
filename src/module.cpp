@@ -1326,7 +1326,7 @@ module::print_py(std::ostream& os,
             if(ins->name() == "@literal")
             {
                 os << mname << ".add_literal(";
-                if(ins->get_shape().elements() < 10)
+                if(ins->get_shape().elements() < 1024)
                 {
                     os << "migraphx.create_argument(";
                     print_py_shape(os, ins->get_shape());

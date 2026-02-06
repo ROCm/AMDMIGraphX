@@ -1064,7 +1064,7 @@ struct find_gather
                 return std::make_pair(arithmetic_segment{}, begin);
             if(length == 1)
                 return std::make_pair(*begin, std::next(begin));
-            auto start  = *begin;
+            auto start   = *begin;
             auto lstride = std::next(begin)->base - start.base;
             if(lstride < 0)
                 return std::make_pair(*begin, std::next(begin));

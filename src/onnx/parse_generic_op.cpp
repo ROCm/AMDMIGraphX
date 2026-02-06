@@ -92,17 +92,9 @@ struct parse_generic_op : op_parser<parse_generic_op>
                      std::back_inserter(new_args),
                      [&](const instruction_ref& arg) { return arg->get_shape().elements() > 0; });
 
-        if(new_args.size() != args.size())
-        {
-            std::cerr << "Warning: Generic op: input arguments have 0 elements for op: "
-                      << opd.op_name << std::endl;
-        }
-
         // If all args have 0 elements, return an undefined instruction
         if(new_args.empty())
         {
-            std::cerr << "Warning: Generic op: all input arguments have 0 elements for op: "
-                      << opd.op_name << std::endl;
             return info.add_instruction(make_op("undefined"));
         }
 

@@ -253,7 +253,7 @@ def MutableVariable(cfg, data):
     for token in cfg.tokenlist:
         if token.str != 'mutable':
             continue
-        if not match(token, "mutable %var%"):
+        if not match(token, "mutable %name%"):
             continue
         cppcheck.reportError(token, "style",
                              "Do not create mutable variables.")

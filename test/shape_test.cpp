@@ -1218,6 +1218,32 @@ TEST_CASE(shape_is_compatible_diff_lens_tuple)
     EXPECT(actual != expected);
     EXPECT(not migraphx::shape::is_compatible(actual, expected));
 }
+TEST_CASE(shape_is_compatible_lens_static)
+{
+    migraphx::shape actual1{migraphx::shape{migraphx::shape::float_type, {1, 2, 8}}};
+    migraphx::shape actual2{migraphx::shape{migraphx::shape::float_type, {1, 1, 8}}};
+    migraphx::shape expected{migraphx::shape{migraphx::shape::float_type, {1, 1, 8}}};
+    EXPECT(migraphx::shape::is_compatible_lens(actual2, expected));
+    EXPECT(not migraphx::shape::is_compatible_lens(actual1, expected));
+}
+TEST_CASE(shape_is_compatible_lens_dynamic_actual)
+{
+    migraphx::shape actual{migraphx::shape::float_type, {{1, 1}, {2, 4}, {2, 4}, {2, 4}}};
+    migraphx::shape expected1{migraphx::shape::float_type, {1, 2, 2, 4}};
+    migraphx::shape expected2{migraphx::shape::float_type, {{1, 1}, {2, 4}, {2, 4}, {2, 4}}};
+
+    EXPECT(not migraphx::shape::is_compatible_lens(actual, expected1));
+    EXPECT(migraphx::shape::is_compatible_lens(actual, expected2));
+}
+TEST_CASE(shape_is_compatible_lens_dynamic_expected)
+{
+    migraphx::shape actual1{migraphx::shape::float_type, {1, 2, 4, 32}};
+    migraphx::shape actual2{migraphx::shape::float_type, {1, 6, 4, 32}};
+    migraphx::shape expected{migraphx::shape::float_type, {{1, 1}, {2, 4}, {3, 9}, {16, 32}}};
+
+    EXPECT(migraphx::shape::is_compatible_lens(actual1, expected));
+    EXPECT(not migraphx::shape::is_compatible_lens(actual2, expected));
+}
 
 TEST_CASE(shape_same_lens_static)
 {

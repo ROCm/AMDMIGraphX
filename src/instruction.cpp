@@ -343,7 +343,9 @@ bool instruction::is_undefined() const
     else
     {
         return std::all_of(this->inputs().begin(), this->inputs().end(), [](auto arg) {
-            return std::any_of(instruction::get_output_alias(arg).begin(), instruction::get_output_alias(arg).end(), [](auto alias) { return alias->is_undefined(); });
+            return std::any_of(instruction::get_output_alias(arg).begin(),
+                               instruction::get_output_alias(arg).end(),
+                               [](auto alias) { return alias->is_undefined(); });
         });
     }
 }

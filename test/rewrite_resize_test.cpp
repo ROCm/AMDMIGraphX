@@ -184,7 +184,7 @@ TEST_CASE(rewrite_resize_sizes_attribute)
 TEST_CASE(rewrite_resize_large_dims)
 {
 
-    for(int ndim:{64, 65})
+    for(int ndim : {64, 65})
     {
         migraphx::module m1;
         {
@@ -192,23 +192,23 @@ TEST_CASE(rewrite_resize_large_dims)
             std::fill(lens.begin(), lens.begin() + (ndim / 4), 2);
             migraphx::shape sx{migraphx::shape::float_type, lens};
             auto x = m1.add_parameter("X", sx);
-    
+
             std::vector<float> scales(ndim, 1.2f);
             scales[0] = 2.0f;
-    
-            m1.add_instruction(migraphx::make_op("resize",
-                                                 {{"scales", scales},
-                                                  {"mode", "linear"},
-                                                  {"coordinate_transformation_mode", "asymmetric"}}),
-                               x);
+
+            m1.add_instruction(
+                migraphx::make_op("resize",
+                                  {{"scales", scales},
+                                   {"mode", "linear"},
+                                   {"coordinate_transformation_mode", "asymmetric"}}),
+                x);
         }
-    
+
         migraphx::module m2 = m1;
         run_pass(m1);
-    
+
         EXPECT(m1 == m2);
     }
-
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

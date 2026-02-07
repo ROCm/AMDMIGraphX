@@ -272,7 +272,8 @@ void rewrite_resize::apply(module& m) const
                            [](float in, float out) { return out / in; });
         }
 
-        if(std::all_of(scales.begin(), scales.end(), [](auto scale) { return float_equal(scale, 1.0f); }))
+        if(std::all_of(
+               scales.begin(), scales.end(), [](auto scale) { return float_equal(scale, 1.0f); }))
         {
             m.replace_instruction(ins, ins->inputs()[0]);
         }

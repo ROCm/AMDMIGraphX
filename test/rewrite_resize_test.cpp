@@ -188,7 +188,7 @@ TEST_CASE(rewrite_resize_65_dims)
     migraphx::module m1;
     {
         std::vector<std::size_t> lens(ndim, 1);
-        std::fill(lens.begin(), lens.begin() + (ndim/4), 2);
+        std::fill(lens.begin(), lens.begin() + (ndim / 4), 2);
         migraphx::shape sx{migraphx::shape::float_type, lens};
         auto x = m1.add_parameter("X", sx);
 
@@ -196,7 +196,8 @@ TEST_CASE(rewrite_resize_65_dims)
         scales[0] = 2.0f;
 
         m1.add_instruction(migraphx::make_op("resize",
-                                             {{"scales", scales}, {"mode", "linear"},
+                                             {{"scales", scales},
+                                              {"mode", "linear"},
                                               {"coordinate_transformation_mode", "asymmetric"}}),
                            x);
     }

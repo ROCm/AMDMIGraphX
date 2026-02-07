@@ -59,7 +59,7 @@ calc_neighbor_points(const std::vector<std::vector<std::vector<std::size_t>>>& v
 
     // This function computes for each element, all permutations of its neighbor indices into an
     // Perm block in one go. (Instead of computing each permutation in isolation per element)
-    size_t permutations = 1u << resized_m.size();
+    size_t permutations = std::size_t{1} << resized_m.size();
     std::vector<std::vector<std::size_t>> perm_blk(permutations, std::vector<size_t>(strides));
 
     // final outputted vector: permutations of neighbors.
@@ -101,7 +101,7 @@ static instruction_ref rewrite_nearest_resize(module& m,
                                               const shape& in_s,
                                               const std::vector<size_t>& in_lens,
                                               const std::vector<size_t>& out_lens,
-                                              const std::vector<float>& vec_scale,
+                                              const std::vector<float>& scales,
                                               const std::string& nearest_mode,
                                               const std::string& coord_trans_mode)
 {
@@ -117,7 +117,7 @@ static instruction_ref rewrite_nearest_resize(module& m,
         std::vector<size_t> in_idx(out_idx_v.size());
         for(std::size_t ii = 0; ii < in_lens.size(); ++ii)
         {
-            auto idx_val = idx_op(in_lens[ii], out_lens[ii], out_idx_v[ii], vec_scale[ii]);
+            auto idx_val = idx_op(in_lens[ii], out_lens[ii], out_idx_v[ii], scales[ii]);
             in_idx[ii]   = nearest_op(in_lens[ii], idx_val);
         }
 
@@ -141,15 +141,9 @@ static instruction_ref rewrite_linear_resize(module& m,
                                              const shape& in_s,
                                              const std::vector<size_t>& in_lens,
                                              const std::vector<size_t>& out_lens,
-                                             const std::vector<float>& vec_scale,
+                                             const std::vector<float>& scales,
                                              const std::string& coord_trans_mode)
 {
-    // If input and output shapes are the same, just return input
-    if(in_lens == out_lens)
-    {
-        return m.replace_instruction(ins, ins->inputs()[0]);
-    }
-
     shape out_s{in_s.type(), out_lens};
 
     // reshape input to one-dimension
@@ -185,7 +179,7 @@ static instruction_ref rewrite_linear_resize(module& m,
         for(size_t ii = 0; ii != resized_ct; ++ii)
         {
             auto idx     = resized_axes[ii];
-            auto idx_val = idx_op(in_lens[idx], out_lens[idx], out_idx_v[idx], vec_scale[idx]);
+            auto idx_val = idx_op(in_lens[idx], out_lens[idx], out_idx_v[idx], scales[idx]);
             vvv_ind[ii][0][out_idx] = nearest_floor(in_lens[idx], idx_val);
             vvv_ind[ii][1][out_idx] = nearest_ceil(in_lens[idx], idx_val);
             delta[ii][out_idx]      = idx_val - vvv_ind[ii][0][out_idx];
@@ -248,6 +242,9 @@ void rewrite_resize::apply(module& m) const
         if(ins->name() != "resize")
             continue;
 
+        if(ins->get_shape().ndim() >= 64)
+            continue;
+
         // Skip if input has dynamic shape
         if(ins->inputs().empty() or ins->inputs()[0]->get_shape().dynamic())
             continue;
@@ -275,7 +272,11 @@ void rewrite_resize::apply(module& m) const
                            [](float in, float out) { return out / in; });
         }
 
-        if(resize_op.mode == "nearest")
+        if(std::all_of(scales.begin(), scales.end(), [](auto scale) { return float_equal(scale, 1.0f); }))
+        {
+            m.replace_instruction(ins, ins->inputs()[0]);
+        }
+        else if(resize_op.mode == "nearest")
         {
             rewrite_nearest_resize(m,
                                    ins,

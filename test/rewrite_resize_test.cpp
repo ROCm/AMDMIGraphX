@@ -148,9 +148,25 @@ TEST_CASE(rewrite_resize_nearest_upsample)
 }
 
 // Test numerical correctness for linear mode upsample
-TEST_CASE(rewrite_resize_linear_upsample)
+TEST_CASE(rewrite_resize_linear_upsample1)
 {
     EXPECT(check_resize({{"scales", {1.0f, 1.0f, 2.0f, 2.0f}},
+                         {"mode", "linear"},
+                         {"coordinate_transformation_mode", "half_pixel"}},
+                        {migraphx::shape::float_type, {1, 1, 2, 4}}));
+}
+
+TEST_CASE(rewrite_resize_linear_upsample2)
+{
+    EXPECT(check_resize({{"scales", {1.0f, 1.0f, 2.5f, 2.0f}},
+                         {"mode", "linear"},
+                         {"coordinate_transformation_mode", "half_pixel"}},
+                        {migraphx::shape::float_type, {1, 1, 2, 4}}));
+}
+
+TEST_CASE(rewrite_resize_linear_upsample_same_size)
+{
+    EXPECT(check_resize({{"scales", {1.0f, 1.0f, 1.2f, 1.2f}},
                          {"mode", "linear"},
                          {"coordinate_transformation_mode", "half_pixel"}},
                         {migraphx::shape::float_type, {1, 1, 2, 4}}));
@@ -163,6 +179,32 @@ TEST_CASE(rewrite_resize_sizes_attribute)
                          {"nearest_mode", "round_prefer_floor"},
                          {"coordinate_transformation_mode", "half_pixel"}},
                         {migraphx::shape::float_type, {1, 1, 2, 2}}));
+}
+
+TEST_CASE(rewrite_resize_65_dims)
+{
+    const int ndim = 65;
+
+    migraphx::module m1;
+    {
+        std::vector<std::size_t> lens(ndim, 1);
+        std::fill(lens.begin(), lens.begin() + (ndim/4), 2);
+        migraphx::shape sx{migraphx::shape::float_type, lens};
+        auto x = m1.add_parameter("X", sx);
+
+        std::vector<float> scales(ndim, 1.2f);
+        scales[0] = 2.0f;
+
+        m1.add_instruction(migraphx::make_op("resize",
+                                             {{"scales", scales}, {"mode", "linear"},
+                                              {"coordinate_transformation_mode", "asymmetric"}}),
+                           x);
+    }
+
+    migraphx::module m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1 == m2);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

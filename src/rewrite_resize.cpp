@@ -226,11 +226,13 @@ static instruction_ref rewrite_linear_resize(module& m,
     return m.replace_instruction(ins, data);
 }
 
-static bool is_affine_resize(const op::resize& rop, const std::vector<std::size_t>& in_lens, const std::vector<std::size_t>& out_lens)
+static bool is_affine_resize(const op::resize& rop,
+                             const std::vector<std::size_t>& in_lens,
+                             const std::vector<std::size_t>& out_lens)
 {
     if(not migraphx::equal(in_lens, out_lens, [&](auto in_len, auto out_len) {
-        return (std::min(in_len, out_len) % std::max(in_len, out_len) == 0);
-    }))
+           return (std::min(in_len, out_len) % std::max(in_len, out_len) == 0);
+       }))
         return false;
     if(rop.mode == "nearest")
         return true;
@@ -257,7 +259,7 @@ void rewrite_resize::apply(module& m) const
         auto resize_op = any_cast<op::resize>(ins->get_operator());
         auto in_s      = ins->inputs()[0]->get_shape();
         auto in_lens   = in_s.lens();
-        auto out_lens = ins->get_shape().lens();
+        auto out_lens  = ins->get_shape().lens();
 
         if(affine_only and not is_affine_resize(resize_op, in_lens, out_lens))
             continue;
@@ -286,13 +288,8 @@ void rewrite_resize::apply(module& m) const
         }
         else if(resize_op.mode == "linear")
         {
-            rewrite_linear_resize(m,
-                                  ins,
-                                  in_s,
-                                  in_lens,
-                                  out_lens,
-                                  scales,
-                                  resize_op.coordinate_transformation_mode);
+            rewrite_linear_resize(
+                m, ins, in_s, in_lens, out_lens, scales, resize_op.coordinate_transformation_mode);
         }
         // Other modes (cubic, etc.) are not yet supported for rewriting
     }

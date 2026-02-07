@@ -250,10 +250,10 @@ TEST_CASE(rewrite_resize_nearest_upsample_pc)
 // Test linear mode with NHWC-style scaling pattern (from resize_nhwc_test)
 TEST_CASE(rewrite_resize_linear_nhwc)
 {
-    EXPECT(check_resize({{"scales", {1.0f, 2.0f, 2.0f, 1.0f}},
+    EXPECT(check_resize({{"scales", {1.0f, 1.0f, 2.0f, 2.0f}},
                          {"mode", "linear"},
                          {"coordinate_transformation_mode", "asymmetric"}},
-                        {migraphx::shape::float_type, {1, 2, 2, 3}}));
+                        migraphx::shape::from_permutation(migraphx::shape::float_type, {1, 3, 2, 2}, {0, 2, 3, 1})));
 }
 
 // Test linear mode upsample with large input (from resize_upsample_linear_large_test)

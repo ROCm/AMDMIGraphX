@@ -253,7 +253,8 @@ TEST_CASE(rewrite_resize_linear_nhwc)
     EXPECT(check_resize({{"scales", {1.0f, 1.0f, 2.0f, 2.0f}},
                          {"mode", "linear"},
                          {"coordinate_transformation_mode", "asymmetric"}},
-                        migraphx::shape::from_permutation(migraphx::shape::float_type, {1, 3, 2, 2}, {0, 2, 3, 1})));
+                        migraphx::shape::from_permutation(
+                            migraphx::shape::float_type, {1, 3, 2, 2}, {0, 2, 3, 1})));
 }
 
 // Test linear mode upsample with large input (from resize_upsample_linear_large_test)

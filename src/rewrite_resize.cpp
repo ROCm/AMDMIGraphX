@@ -163,18 +163,25 @@ static instruction_ref rewrite_linear_resize(module& m,
     auto nearest_floor = op::resize::get_nearest_op("floor");
     auto nearest_ceil  = op::resize::get_nearest_op("ceil");
 
+    std::size_t out_elements = out_s.elements();
+
     std::vector<size_t> resized_axes; // vector of dimensions to be resized
-    std::size_t out_elements = 1;     // total number of elements to be resized
-    size_t resized_ct        = 0;
+    auto axes = range(out_lens.size());
+    std::copy_if(axes.begin(),
+                 axes.end(),
+                 std::back_inserter(resized_axes),
+                 [&](std::ptrdiff_t axis) { return not float_equal(scales[axis], 1.0f); });
+
+    size_t resized_ct = resized_axes.size();
     std::map<size_t, size_t> resized_m; // modified indices --> vvv_ind index below
-    for(std::size_t axis = 0; axis != out_lens.size(); ++axis)
-    {
-        out_elements *= out_lens[axis];
-        if(float_equal(scales[axis], 1.0f))
-            continue;
-        resized_axes.push_back(axis);
-        resized_m[axis] = resized_ct++;
-    }
+    auto ra_indices = range(resized_ct);
+    std::transform(resized_axes.begin(),
+                   resized_axes.end(),
+                   ra_indices.begin(),
+                   std::inserter(resized_m, resized_m.end()),
+                   [&](std::size_t ra, std::size_t i) {
+                       return std::make_pair(ra, i);
+                   });
 
     // Neighbor indices. For an axis. Two sets of max/min per element:
     std::vector<std::vector<std::size_t>> vv_ind(2, std::vector<std::size_t>(out_elements));
@@ -184,11 +191,12 @@ static instruction_ref rewrite_linear_resize(module& m,
     std::vector<std::vector<float>> delta(resized_ct, std::vector<float>(out_elements));
 
     auto idx_op = op::resize::get_original_idx_op(coord_trans_mode);
-    shape_for_each(out_s, [&](const auto& out_idx_v, std::size_t out_idx) {
-        for(size_t ii = 0; ii != resized_ct; ++ii)
+    par_for(out_elements, [&](std::size_t out_idx) {
+        auto multi_out_idx = out_s.multi<64>(out_idx);
+        for(size_t ii:range(resized_axes.size()))
         {
             auto idx     = resized_axes[ii];
-            auto idx_val = idx_op(in_lens[idx], out_lens[idx], out_idx_v[idx], scales[idx]);
+            auto idx_val = idx_op(in_lens[idx], out_lens[idx], multi_out_idx[idx], scales[idx]);
             vvv_ind[ii][0][out_idx] = nearest_floor(in_lens[idx], idx_val);
             vvv_ind[ii][1][out_idx] = nearest_ceil(in_lens[idx], idx_val);
             delta[ii][out_idx]      = idx_val - vvv_ind[ii][0][out_idx];

@@ -199,7 +199,8 @@ TEST_CASE(rewrite_resize_nearest_downsample_floor_ac)
                         {migraphx::shape::float_type, {1, 1, 2, 4}}));
 }
 
-// Test nearest mode downsample with fractional scales on larger input (from resize_downsample_f_ref_test)
+// Test nearest mode downsample with fractional scales on larger input (from
+// resize_downsample_f_ref_test)
 TEST_CASE(rewrite_resize_nearest_downsample_frac)
 {
     EXPECT(check_resize({{"scales", {1.0f, 1.0f, 0.601f, 0.601f}},
@@ -208,7 +209,8 @@ TEST_CASE(rewrite_resize_nearest_downsample_frac)
                         {migraphx::shape::float_type, {2, 1, 5, 9}}));
 }
 
-// Test nearest mode downsample using sizes attribute on larger input (from resize_downsample_f_ref2_test)
+// Test nearest mode downsample using sizes attribute on larger input (from
+// resize_downsample_f_ref2_test)
 TEST_CASE(rewrite_resize_nearest_downsample_sizes)
 {
     EXPECT(check_resize({{"sizes", {2, 1, 3, 5}},
@@ -235,7 +237,8 @@ TEST_CASE(rewrite_resize_linear_upsample_ac)
                         {migraphx::shape::float_type, {1, 1, 2, 2}}));
 }
 
-// Test nearest mode upsample with round_prefer_ceil and pytorch_half_pixel (from resize_upsample_pc_test)
+// Test nearest mode upsample with round_prefer_ceil and pytorch_half_pixel (from
+// resize_upsample_pc_test)
 TEST_CASE(rewrite_resize_nearest_upsample_pc)
 {
     EXPECT(check_resize({{"scales", {1.0f, 1.0f, 2.0f, 1.5f}},

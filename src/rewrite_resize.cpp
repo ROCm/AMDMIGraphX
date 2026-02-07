@@ -132,13 +132,11 @@ static instruction_ref rewrite_nearest_resize(module& m,
             in_idx[ii]   = nearest_op(in_lens[ii], idx_val);
         }
 
-        ind[out_idx] = static_cast<int64_t>(in_s.index(in_idx));
+        ind[out_idx] = in_s.index(in_idx);
     });
 
-    // reshape input to one-dimension
-    std::vector<int64_t> rsp_lens = {static_cast<int64_t>(in_s.elements())};
     auto rsp =
-        m.insert_instruction(ins, make_op("reshape", {{"dims", rsp_lens}}), ins->inputs()[0]);
+        m.insert_instruction(ins, make_op("reshape", {{"dims", {in_s.elements()}}}), ins->inputs()[0]);
 
     // ins_ind should be a multi dimensional index that will restore original rank
     shape ind_s{shape::int32_type, out_lens};

@@ -179,9 +179,7 @@ static instruction_ref rewrite_linear_resize(module& m,
                    resized_axes.end(),
                    ra_indices.begin(),
                    std::inserter(resized_m, resized_m.end()),
-                   [&](std::size_t ra, std::size_t i) {
-                       return std::make_pair(ra, i);
-                   });
+                   [&](std::size_t ra, std::size_t i) { return std::make_pair(ra, i); });
 
     // Neighbor indices. For an axis. Two sets of max/min per element:
     std::vector<std::vector<std::size_t>> vv_ind(2, std::vector<std::size_t>(out_elements));
@@ -193,7 +191,7 @@ static instruction_ref rewrite_linear_resize(module& m,
     auto idx_op = op::resize::get_original_idx_op(coord_trans_mode);
     par_for(out_elements, [&](std::size_t out_idx) {
         auto multi_out_idx = out_s.multi<64>(out_idx);
-        for(size_t ii:range(resized_axes.size()))
+        for(size_t ii : range(resized_axes.size()))
         {
             auto idx     = resized_axes[ii];
             auto idx_val = idx_op(in_lens[idx], out_lens[idx], multi_out_idx[idx], scales[idx]);

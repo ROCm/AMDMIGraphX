@@ -181,6 +181,87 @@ TEST_CASE(rewrite_resize_sizes_attribute)
                         {migraphx::shape::float_type, {1, 1, 2, 2}}));
 }
 
+// Test nearest mode downsample with ceil rounding (from resize_downsample_c_test)
+TEST_CASE(rewrite_resize_nearest_downsample_ceil)
+{
+    EXPECT(check_resize({{"scales", {1.0f, 1.0f, 0.6f, 0.6f}},
+                         {"nearest_mode", "ceil"},
+                         {"coordinate_transformation_mode", "asymmetric"}},
+                        {migraphx::shape::float_type, {1, 1, 2, 4}}));
+}
+
+// Test nearest mode downsample with floor and align_corners (from resize_downsample_f_test)
+TEST_CASE(rewrite_resize_nearest_downsample_floor_ac)
+{
+    EXPECT(check_resize({{"scales", {1.0f, 1.0f, 0.6f, 0.6f}},
+                         {"nearest_mode", "floor"},
+                         {"coordinate_transformation_mode", "align_corners"}},
+                        {migraphx::shape::float_type, {1, 1, 2, 4}}));
+}
+
+// Test nearest mode downsample with fractional scales on larger input (from resize_downsample_f_ref_test)
+TEST_CASE(rewrite_resize_nearest_downsample_frac)
+{
+    EXPECT(check_resize({{"scales", {1.0f, 1.0f, 0.601f, 0.601f}},
+                         {"nearest_mode", "floor"},
+                         {"coordinate_transformation_mode", "asymmetric"}},
+                        {migraphx::shape::float_type, {2, 1, 5, 9}}));
+}
+
+// Test nearest mode downsample using sizes attribute on larger input (from resize_downsample_f_ref2_test)
+TEST_CASE(rewrite_resize_nearest_downsample_sizes)
+{
+    EXPECT(check_resize({{"sizes", {2, 1, 3, 5}},
+                         {"nearest_mode", "floor"},
+                         {"coordinate_transformation_mode", "asymmetric"}},
+                        {migraphx::shape::float_type, {2, 1, 5, 9}}));
+}
+
+// Test nearest mode upsample with tf_half_pixel_for_nn using sizes (from resize_outsize_test)
+TEST_CASE(rewrite_resize_nearest_upsample_tf_half_pixel)
+{
+    EXPECT(check_resize({{"sizes", {1, 1, 4, 6}},
+                         {"nearest_mode", "round_prefer_floor"},
+                         {"coordinate_transformation_mode", "tf_half_pixel_for_nn"}},
+                        {migraphx::shape::float_type, {1, 1, 2, 2}}));
+}
+
+// Test linear mode upsample with align_corners (from resize_upsample_linear_ac_test)
+TEST_CASE(rewrite_resize_linear_upsample_ac)
+{
+    EXPECT(check_resize({{"scales", {1.0f, 1.0f, 2.0f, 2.0f}},
+                         {"mode", "linear"},
+                         {"coordinate_transformation_mode", "align_corners"}},
+                        {migraphx::shape::float_type, {1, 1, 2, 2}}));
+}
+
+// Test nearest mode upsample with round_prefer_ceil and pytorch_half_pixel (from resize_upsample_pc_test)
+TEST_CASE(rewrite_resize_nearest_upsample_pc)
+{
+    EXPECT(check_resize({{"scales", {1.0f, 1.0f, 2.0f, 1.5f}},
+                         {"nearest_mode", "round_prefer_ceil"},
+                         {"coordinate_transformation_mode", "pytorch_half_pixel"}},
+                        {migraphx::shape::float_type, {1, 1, 2, 4}}));
+}
+
+// Test linear mode with NHWC-style scaling pattern (from resize_nhwc_test)
+TEST_CASE(rewrite_resize_linear_nhwc)
+{
+    EXPECT(check_resize({{"scales", {1.0f, 2.0f, 2.0f, 1.0f}},
+                         {"mode", "linear"},
+                         {"coordinate_transformation_mode", "asymmetric"}},
+                        {migraphx::shape::float_type, {1, 2, 2, 3}}));
+}
+
+// Test linear mode downsample with half precision input (from resize_downsample_linear_half_test)
+TEST_CASE(rewrite_resize_linear_downsample_half)
+{
+    EXPECT(check_resize({{"scales", {1.0f, 1.0f, 0.6f, 0.5f}},
+                         {"mode", "linear"},
+                         {"coordinate_transformation_mode", "half_pixel"}},
+                        {migraphx::shape::half_type, {1, 1, 2, 4}}));
+}
+
 TEST_CASE(rewrite_resize_large_dims)
 {
 

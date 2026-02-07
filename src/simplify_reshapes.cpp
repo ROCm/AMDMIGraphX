@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,15 +21,20 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <algorithm>
+#include <cassert>
 #include <iterator>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/argument.hpp>
+#include <migraphx/literal.hpp>
 #include <migraphx/op/as_shape.hpp>
 #include <migraphx/op/transpose.hpp>
 #include <migraphx/op/concat.hpp>
 #include <migraphx/op/slice.hpp>
+#include <migraphx/op/gather.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/matcher.hpp>
@@ -40,13 +45,105 @@
 #include <migraphx/tune_axis.hpp>
 #include <migraphx/shape_transform_descriptor.hpp>
 #include <migraphx/instruction_traversal.hpp>
+#include <migraphx/output_iterator.hpp>
+#include <migraphx/par.hpp>
 
+#include <array>
 #include <map>
+#include <numeric>
+#include <set>
+#include <limits>
+#include <variant>
+#include <memory>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
+
+template <class Dims>
+instruction_ref
+insert_auto_reshape(module& m, instruction_ref ins, const Dims& dims, instruction_ref input)
+{
+    assert(std::all_of(dims.begin(), dims.end(), [](auto i) { return i > 0; }));
+    if(std::equal(dims.begin(),
+                  dims.end(),
+                  input->get_shape().lens().begin(),
+                  input->get_shape().lens().end()))
+    {
+        return input;
+    }
+
+    auto curr_lens = input->get_shape().lens();
+    // Check if we can use squeeze (removing dimensions of size 1)
+    if(curr_lens.size() > dims.size())
+    {
+        // Potential squeeze - check if we're just removing 1s
+        std::vector<int64_t> axes_to_squeeze;
+        std::size_t target_idx = 0;
+        for(std::size_t curr_idx = 0; curr_idx < curr_lens.size(); ++curr_idx)
+        {
+            if(curr_lens[curr_idx] == 1)
+            {
+                axes_to_squeeze.push_back(curr_idx);
+            }
+            else
+            {
+                if(target_idx >= dims.size() or curr_lens[curr_idx] != dims[target_idx])
+                {
+                    axes_to_squeeze.clear();
+                    break;
+                }
+                ++target_idx;
+            }
+        }
+        if(not axes_to_squeeze.empty() and target_idx == dims.size())
+        {
+            return m.insert_instruction(
+                ins, make_op("squeeze", {{"axes", axes_to_squeeze}}), input);
+        }
+    }
+    // Check if we can use unsqueeze (adding dimensions of size 1)
+    else if(curr_lens.size() < dims.size())
+    {
+        // Potential unsqueeze - check if we're just adding 1s
+        std::vector<int64_t> axes_to_unsqueeze;
+        std::size_t curr_idx = 0;
+        for(std::size_t target_idx = 0; target_idx < dims.size(); ++target_idx)
+        {
+            if(dims[target_idx] == 1)
+            {
+                axes_to_unsqueeze.push_back(target_idx);
+            }
+            else
+            {
+                if(curr_idx >= curr_lens.size() or dims[target_idx] != curr_lens[curr_idx])
+                {
+                    axes_to_unsqueeze.clear();
+                    break;
+                }
+                ++curr_idx;
+            }
+        }
+        if(not axes_to_unsqueeze.empty() and curr_idx == curr_lens.size())
+        {
+            return m.insert_instruction(
+                ins, make_op("unsqueeze", {{"axes", axes_to_unsqueeze}}), input);
+        }
+    }
+
+    return m.insert_instruction(ins, make_op("reshape", {{"dims", dims}}), input);
+}
+
+template <class T>
+instruction_ref insert_auto_reshape(module& m,
+                                    instruction_ref ins,
+                                    const std::initializer_list<T>& dims,
+                                    instruction_ref input)
+{
+    return insert_auto_reshape(m, ins, std::vector<T>(dims), input);
+}
+
 const auto& reshaper_names()
 {
     // clang-format off
@@ -59,6 +156,15 @@ const auto& reshaper_names()
     };
     // clang-format on
     return names;
+}
+
+instruction_ref
+insert_ops(module& m, instruction_ref ins, const std::vector<operation>& ops, instruction_ref input)
+{
+    return std::accumulate(
+        ops.begin(), ops.end(), input, [&](instruction_ref x, const operation& op) {
+            return m.insert_instruction(ins, op, x);
+        });
 }
 
 struct find_nested_shape_transforms
@@ -114,9 +220,7 @@ struct find_nested_shape_transforms
             auto opt_ops = optimize_shape_transforms(x->get_shape().lens(), ops);
             if(ops == opt_ops)
                 return;
-            auto y = x;
-            for(const auto& op : opt_ops)
-                y = m.insert_instruction(ins, op, y);
+            auto y = insert_ops(m, ins, opt_ops, x);
             m.replace_instruction(ins, y);
         }
     }
@@ -243,16 +347,19 @@ struct find_op_shape_transform_op
         return desc.elements() == ins->get_shape().elements();
     }
 
-    static std::vector<operation> generate(const shape_transform_descriptor& desc,
-                                           const shape& input_shape)
+    static std::vector<operation>
+    generate(const shape_transform_descriptor& desc, const shape& input_shape, bool no_broadcast)
     {
         if(input_shape.scalar() and input_shape.elements() == 1 and input_shape.ndim() == 1)
         {
-            return {make_op("multibroadcast", {{"out_lens", desc.lens()}})};
+            auto out_lens = desc.lens();
+            if(no_broadcast)
+                std::fill(out_lens.begin(), out_lens.end(), 1);
+            return {make_op("multibroadcast", {{"out_lens", out_lens}})};
         }
         else
         {
-            return desc.generate(input_shape.lens());
+            return desc.generate(input_shape.lens(), no_broadcast);
         }
     }
 
@@ -340,9 +447,11 @@ struct find_op_shape_transform_op
             return;
         }
 
-        auto reshape_input = [&](const auto& ins_to_insert, const auto& gdesc) {
-            return [&](auto input) {
-                auto gops = generate(gdesc, input->get_shape());
+        auto reshape_input = [&](const auto& ins_to_insert,
+                                 const auto& gdesc,
+                                 bool no_broadcast = false) {
+            return [&, no_broadcast](auto input) {
+                auto gops = generate(gdesc, input->get_shape(), no_broadcast);
                 return std::accumulate(
                     gops.begin(), gops.end(), input, [&](auto start, const auto& op) {
                         return m.insert_instruction(ins_to_insert, op, start);
@@ -366,7 +475,7 @@ struct find_op_shape_transform_op
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
             if(input == input_ins)
                 return new_input_ins;
-            return reshape_input(ins, desc.to_common_from_dst())(input);
+            return reshape_input(ins, desc.to_common_from_dst(), true)(input);
         });
         // Replace old x_ins just in case it is used more than once
         assert(x_ins->get_shape().lens() == new_x_ins->get_shape().lens());
@@ -376,6 +485,88 @@ struct find_op_shape_transform_op
         auto rins = reshape_input(ins, desc.to_dst_from_common())(pw);
         assert(ins->get_shape().lens() == rins->get_shape().lens());
         m.replace_instruction(ins, rins);
+    }
+};
+
+struct find_slice_shape_transforms
+{
+    static const auto& shape_transform_ops()
+    {
+        static const std::unordered_set<std::string> names = {
+            "reshape",
+            "squeeze",
+            "unsqueeze",
+            "flatten",
+            "transpose",
+            "contiguous",
+            "multibroadcast",
+            "broadcast",
+        };
+        return names;
+    }
+
+    auto matcher() const
+    {
+        auto reshapes = match::name(shape_transform_ops());
+        auto slice_op = match::name("slice")(match::arg(0)(match::used_once()),
+                                             match::none_of(match::is_constant()));
+        return reshapes(reshapes(match::none_of[match::outputs()](reshapes())),
+                        match::arg(0)(match::skip(reshapes())(slice_op.bind("slice"))));
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins      = mr.result;
+        auto slice    = mr.instructions["slice"];
+        auto slice_op = slice->get_operator().to_value();
+        auto axes     = slice_op.at("axes").to_vector<std::size_t>();
+
+        if(ins->get_shape().scalar())
+            return;
+
+        std::vector<operation> ops;
+        auto x = ins;
+        while(contains(shape_transform_ops(), x->get_operator().name()))
+        {
+            ops.push_back(x->get_operator());
+            x = x->inputs().front();
+        }
+        if(x != slice)
+            return;
+        x = x->inputs().front();
+        std::reverse(ops.begin(), ops.end());
+        auto desc = shape_transform_descriptor::create(slice->get_shape().lens(), ops);
+
+        std::vector<std::size_t> new_axes;
+        std::transform(axes.begin(),
+                       axes.end(),
+                       join_back_inserter(new_axes),
+                       [&](auto axis) -> std::vector<std::size_t> {
+                           auto result = desc.get_dst_axes_from_src(axis);
+                           if(result.size() != 1)
+                               return {};
+                           return result;
+                       });
+
+        // Optimizes shape transforms if the slice cant be optimized
+        if(axes.size() != new_axes.size())
+        {
+            auto opt_ops = desc.generate();
+            auto y       = insert_ops(m, ins, opt_ops, slice);
+            m.replace_instruction(ins, y);
+            return;
+        }
+        slice_op["axes"] = new_axes;
+
+        auto new_desc = desc.rebase(slice->inputs().front()->get_shape().lens());
+        if(new_desc.empty())
+            return;
+        new_desc.simplify();
+
+        auto opt_ops = new_desc.generate();
+        auto y       = insert_ops(m, ins, opt_ops, x);
+        y            = m.insert_instruction(ins, make_op("slice", slice_op), y);
+        m.replace_instruction(ins, y);
     }
 };
 
@@ -790,165 +981,338 @@ struct find_nested_concat
     }
 };
 
-struct find_resize
+struct find_gather
 {
-    auto matcher() const
+    struct arithmetic_segment
     {
-        return match::name("gather")(
-            match::args(match::name("reshape").bind("data"), match::is_constant().bind("ind")));
-    }
+        int64_t base      = 0;
+        int64_t stride    = 0;
+        std::size_t count = 0;
 
-    void apply(module& m, const match::matcher_result& r) const
-    {
-        auto ins     = r.result;
-        auto ins_rsp = r.instructions["data"];
-        auto ins_ind = r.instructions["ind"];
-
-        // resize input shape
-        if(ins_rsp->get_shape().lens().size() != 1)
+        template <class Iterator>
+        static std::vector<arithmetic_segment> from_ints(Iterator begin, Iterator end)
         {
-            return;
+            std::vector<arithmetic_segment> result(std::distance(begin, end));
+            par_transform(
+                begin, end, result.begin(), [](auto x) { return arithmetic_segment{x, 1, 1}; });
+            return result;
         }
 
-        // resize output shape
-        const auto& in_shape  = ins_rsp->inputs().front()->get_shape();
-        const auto& out_shape = ins->get_shape();
-        // check if output shape is multiple of input shape
-        const auto& in_lens  = in_shape.lens();
-        const auto& out_lens = out_shape.lens();
-        if(in_lens.size() != out_lens.size())
+        template <class Iterator, class OutputIterator>
+        static Iterator find_largest(Iterator start, Iterator last, OutputIterator out)
         {
-            return;
-        }
-
-        // output shape must be multiple of input shape
-        std::vector<bool> is_multi(in_lens.size());
-        std::transform(
-            in_lens.begin(), in_lens.end(), out_lens.begin(), is_multi.begin(), [](auto x, auto y) {
-                return (y % x == 0);
-            });
-        if(not std::all_of(is_multi.begin(), is_multi.end(), [](auto b) { return b; }))
-        {
-            return;
-        }
-
-        // output must be multiple of inputs
-        std::vector<std::size_t> scales(in_lens.size());
-        std::transform(
-            in_lens.begin(), in_lens.end(), out_lens.begin(), scales.begin(), [](auto x, auto y) {
-                return y / x;
-            });
-
-        // if ind is not constant, cannot optimize
-        std::vector<int> vec_ind;
-        auto arg_ind = ins_ind->eval();
-        if(arg_ind.empty())
-        {
-            return;
-        }
-        arg_ind.visit([&](auto v) { vec_ind.assign(v.begin(), v.end()); });
-        if(not all_of(range(out_shape.elements()), [&](auto i) {
-               auto out_idx = out_shape.multi(i);
-               auto in_idx  = out_idx;
-               std::transform(out_idx.begin(),
-                              out_idx.end(),
-                              scales.begin(),
-                              in_idx.begin(),
-                              [&](auto io, auto scale) { return io - (io % scale); });
-               return vec_ind[i] == vec_ind[out_shape.index(in_idx)];
-           }))
-        {
-            return;
-        }
-
-        // wrap up shapes for multibroadcast
-        std::vector<std::pair<std::size_t, std::size_t>> dim_scales;
-        std::transform(in_lens.begin(),
-                       in_lens.end(),
-                       out_lens.begin(),
-                       std::back_inserter(dim_scales),
-                       [](auto x, auto y) { return std::make_pair(x, y / x); });
-
-        std::vector<int64_t> in_dims;
-        std::vector<int64_t> out_dims;
-        for(auto& isp : dim_scales)
-        {
-            in_dims.push_back(isp.first);
-            out_dims.push_back(isp.first * isp.second);
-            if(isp.first == 1 or isp.second == 1)
+            for(auto it = start; it != last;)
             {
-                continue;
+                auto [seg, next_it] = find(it, last);
+                it                  = next_it;
+                *out                = seg;
+                out++;
+            }
+            return last;
+        }
+
+        template <class Iterator, class OutputIterator>
+        static Iterator find_n(Iterator start, Iterator last, std::size_t n, OutputIterator out)
+        {
+            for(auto it = start; it != last;)
+            {
+                auto [seg, next_it] = find(it, it + n);
+                if(next_it != it + n)
+                    return next_it;
+                it   = next_it;
+                *out = seg;
+                out++;
+            }
+            return last;
+        }
+
+        static std::vector<arithmetic_segment>
+        make_segments(const std::vector<arithmetic_segment>& segments, bool uniform = true)
+        {
+            std::vector<arithmetic_segment> result;
+            auto [first_seg, first_it] = find(segments.begin(), segments.end());
+            result.push_back(first_seg);
+            // Try to find segments that are the same size
+            auto it = find_n(first_it, segments.end(), first_seg.count, std::back_inserter(result));
+            if(it != segments.end())
+            {
+                if(uniform)
+                    return {};
+                result.resize(1);
+                find_largest(first_it, segments.end(), std::back_inserter(result));
+            }
+            return result;
+        }
+
+        static std::vector<arithmetic_segment> shift(std::vector<arithmetic_segment> segments,
+                                                     std::int64_t shift)
+        {
+            par_transform(
+                segments.begin(), segments.end(), segments.begin(), [&](arithmetic_segment x) {
+                    x.base += shift;
+                    return x;
+                });
+            return segments;
+        }
+
+        /// Detect arithmetic segment pattern
+        template <class Iterator>
+        static std::pair<arithmetic_segment, Iterator> find(Iterator begin, Iterator end)
+        {
+            std::size_t length = std::distance(begin, end);
+            if(length == 0)
+                return std::make_pair(arithmetic_segment{}, begin);
+            if(length == 1)
+                return std::make_pair(*begin, std::next(begin));
+            auto start   = *begin;
+            auto lstride = std::next(begin)->base - start.base;
+            if(lstride < 0)
+                return std::make_pair(*begin, std::next(begin));
+            auto diff =
+                std::adjacent_find(begin, end, [&](arithmetic_segment x, arithmetic_segment y) {
+                    return y.base - x.base != lstride;
+                });
+            if(diff != end)
+                diff++;
+            return std::make_pair(
+                arithmetic_segment{start.base, lstride, std::size_t(std::distance(begin, diff))},
+                diff);
+        }
+
+        static shape make_strided_view(std::vector<arithmetic_segment> segments)
+        {
+            std::vector<std::size_t> lens;
+            std::vector<std::size_t> strides;
+
+            do
+            {
+                segments = make_segments(segments);
+                if(segments.empty())
+                    return {};
+                auto seg = segments.front();
+                if(seg.stride < 0)
+                    return {};
+                if(std::any_of(segments.begin(), segments.end(), [](const arithmetic_segment& seg) {
+                       return seg.base < 0;
+                   }))
+                    return {};
+                if(not std::all_of(
+                       segments.begin(), segments.end(), [&](const arithmetic_segment& seg) {
+                           return seg.stride == segments.front().stride and
+                                  seg.count == segments.front().count;
+                       }))
+                    return {};
+                lens.push_back(seg.count);
+                strides.push_back(seg.stride);
+            } while(segments.size() > 1);
+
+            std::reverse(lens.begin(), lens.end());
+            std::reverse(strides.begin(), strides.end());
+
+            if(std::none_of(
+                   strides.begin(), strides.end(), [](auto pstride) { return pstride == 1; }))
+            {
+                lens.push_back(1);
+                strides.push_back(1);
             }
 
-            out_dims.back() = isp.first;
-            in_dims.push_back(1);
-            out_dims.push_back(isp.second);
+            return {shape::float_type, lens, strides};
         }
 
-        auto in_rsp   = ins_rsp->inputs().front();
-        auto rsp_data = m.insert_instruction(
-            ins_rsp, migraphx::make_op("reshape", {{"dims", in_dims}}), in_rsp);
-        auto mb_rsp = m.insert_instruction(
-            ins_rsp, migraphx::make_op("multibroadcast", {{"out_lens", out_dims}}), rsp_data);
-        std::vector<int64_t> rsp_dims(out_lens.begin(), out_lens.end());
-        m.replace_instruction(ins, migraphx::make_op("reshape", {{"dims", rsp_dims}}), mb_rsp);
-    }
-};
+        template <class Indices>
+        static std::optional<instruction_ref>
+        transform_indices(const Indices& indices, module& m, instruction_ref start)
+        {
+            auto isegments      = from_ints(indices.begin(), indices.end());
+            std::int64_t offset = isegments.front().base;
+            auto s              = make_strided_view(shift(std::move(isegments), -offset));
+            auto ops = generate_shape_transforms_for(s, {start->get_shape().elements()}, offset);
+            if(not ops.has_value())
+                return std::nullopt;
+            return insert_ops(m, std::next(start), *ops, start);
+        }
+    };
 
-struct find_where_op
-{
+    static std::vector<std::int64_t> build_flat_gather_indices(instruction_ref gather_ins,
+                                                               const argument& indices_arg,
+                                                               std::size_t axis_index)
+    {
+        auto data_ins    = gather_ins->inputs()[0];
+        auto output_dims = gather_ins->get_shape().lens();
+        const auto r_in  = data_ins->get_shape().lens().size();
+        const auto r_idx = indices_arg.get_shape().lens().size();
+        assert(axis_index < r_in);
+
+        shape output_s{shape::float_type, output_dims}; // element type doesn't matter here
+        const auto out_n = output_s.elements();
+        std::vector<std::int64_t> flat(out_n);
+        std::iota(flat.begin(), flat.end(), 0);
+
+        auto indices = indices_arg.to_vector<int64_t>();
+
+        transform(flat, flat.begin(), [&](std::size_t out_lin) -> std::int64_t {
+            // 1) output linear -> output multi-index
+            auto out_multi = output_s.multi(out_lin);
+
+            // 2) isolate the "indices" coordinates from the output coords (inserted at `axis`)
+            std::vector<std::size_t> idx_multi(r_idx);
+            std::copy(out_multi.begin() + axis_index,
+                      out_multi.begin() + axis_index + r_idx,
+                      idx_multi.begin());
+
+            // 3) look up the actual index value (may be negative)
+            const std::int64_t idx_lin  = indices_arg.get_shape().index(idx_multi);
+            const std::int64_t axis_len = data_ins->get_shape().lens().at(axis_index);
+            auto idx_val                = indices.at(idx_lin);
+
+            // Normalize negative indices into [0, axis_len)
+            if(idx_val < 0)
+                idx_val += axis_len;
+
+            assert(idx_val >= 0 and idx_val < axis_len);
+
+            // 4) construct corresponding INPUT multi-index
+            std::vector<std::size_t> in_multi(r_in);
+
+            // copy dims before axis
+            std::copy(out_multi.begin(), out_multi.begin() + axis_index, in_multi.begin());
+
+            // axis coordinate from indices
+            in_multi.at(axis_index) = idx_val;
+
+            // copy dims after axis; they are shifted by r_idx in output
+            std::copy(out_multi.begin() + axis_index + r_idx,
+                      out_multi.end(),
+                      in_multi.begin() + axis_index + 1);
+
+            // 5) map input multi-index -> flat offset in contiguous buffer
+            const auto in_lin = data_ins->get_shape().index(in_multi);
+            return in_lin;
+        });
+
+        return flat;
+    }
     auto matcher() const
     {
         return match::name("gather")(
-            match::args(match::name("reshape")(match::arg(0)(match::name("concat").bind("data"))),
-                        match::is_constant().bind("ind")));
+            match::none_of(match::is_constant()),
+            match::args(match::any().bind("data"), match::is_constant().bind("indices")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins     = r.result;
-        auto concat  = r.instructions["data"];
-        auto ins_ind = r.instructions["ind"];
-        std::vector<bool> vec_ind;
-        auto arg_ind = ins_ind->eval();
-        arg_ind.visit([&](auto v) { vec_ind.assign(v.begin(), v.end()); });
-        // ind has to be the same value
-        auto val = vec_ind.front();
-        if(not std::all_of(vec_ind.begin(), vec_ind.end(), [&](auto v) { return (v == val); }))
-        {
+        auto ins          = r.result;
+        auto indices_ins  = r.instructions["indices"];
+        auto data_ins     = r.instructions["data"];
+        auto gather_op    = any_cast<op::gather>(ins->get_operator());
+        const auto& dlens = data_ins->get_shape().lens();
+        if(dlens.empty())
             return;
-        }
 
-        // concat axis must be 0
-        auto op = any_cast<op::concat>(concat->get_operator());
-        if(op.axis != 0)
-        {
+        const auto axis_index = static_cast<std::size_t>(
+            tune_axis(static_cast<int>(dlens.size()), gather_op.axis, gather_op.name()));
+        const auto axis_len = dlens.at(axis_index);
+        if(axis_len == 0)
             return;
-        }
 
-        // check concat inputs, it has to be 2 and have the same shape
-        const auto& inputs = concat->inputs();
-        if(inputs.size() != 2)
-        {
+        auto arg_ind = indices_ins->eval();
+        if(arg_ind.empty())
             return;
-        }
-        if(inputs.at(0)->get_shape() != inputs.at(1)->get_shape())
-        {
-            return;
-        }
-        if(inputs.at(0)->get_shape().lens() != ins_ind->get_shape().lens())
-        {
-            return;
-        }
 
-        if(val)
+        std::vector<std::int64_t> indices_values;
+        arg_ind.visit([&](auto v) {
+            indices_values.resize(v.size());
+            std::transform(v.begin(), v.end(), indices_values.begin(), [](auto x) {
+                return static_cast<std::int64_t>(x);
+            });
+        });
+        if(indices_values.empty())
+            return;
+
+        const auto& indices_shape = indices_ins->get_shape();
+        if(indices_shape.elements() != indices_values.size())
+            return;
+
+        // Scalar indices should be rewritten to a normal gather
+        assert(not indices_shape.scalar() or indices_shape.ndim() != 1 or
+               indices_shape.elements() != 1);
+
+        // Normalize negative indices using transform
+        std::transform(indices_values.begin(),
+                       indices_values.end(),
+                       indices_values.begin(),
+                       [axis_len](auto idx) {
+                           if(idx < 0)
+                               idx += static_cast<std::int64_t>(axis_len);
+                           return idx;
+                       });
+
+        // Validate all indices are in bounds
+        bool all_valid =
+            std::all_of(indices_values.begin(), indices_values.end(), [axis_len](auto idx) {
+                return idx >= 0 and idx < static_cast<std::int64_t>(axis_len);
+            });
+        if(not all_valid)
+            return;
+
+        // Create indices argument with normalized values
+        shape normalized_indices_shape{shape::int64_type, indices_shape.lens()};
+        literal indices_lit(normalized_indices_shape, indices_values.begin(), indices_values.end());
+        argument indices_arg = indices_lit.get_argument();
+
+        // Sanity check: ensure the argument shape matches
+        assert(indices_arg.get_shape().lens() == indices_shape.lens());
+        assert(indices_arg.get_shape().elements() == indices_values.size());
+
+        std::optional<instruction_ref> new_ins = std::nullopt;
+
+        if(data_ins->get_shape().ndim() == 1 and indices_ins->get_shape().ndim() == 1)
         {
-            m.replace_instruction(ins, inputs.at(0));
+            new_ins = arithmetic_segment::transform_indices(indices_values, m, data_ins);
         }
         else
         {
-            m.replace_instruction(ins, inputs.at(1));
+            auto data_1d =
+                insert_auto_reshape(m, ins, {data_ins->get_shape().elements()}, data_ins);
+            auto new_indices = build_flat_gather_indices(ins, indices_arg, axis_index);
+            new_ins          = arithmetic_segment::transform_indices(new_indices, m, data_1d);
         }
+
+        if(not new_ins.has_value())
+            return;
+
+        auto reshaped = insert_auto_reshape(m, ins, ins->get_shape().lens(), *new_ins);
+
+        m.replace_instruction(ins, reshaped);
+    }
+};
+
+struct find_gather_scalar
+{
+    auto matcher() const
+    {
+        auto scalar_indices =
+            match::all_of(match::scalar_shape(), match::ndim(1), match::nelements(1));
+        return match::name("gather")(
+            match::none_of(match::is_constant()),
+            match::args(match::any().bind("data"), scalar_indices.bind("indices")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins         = r.result;
+        auto indices_ins = r.instructions["indices"];
+        auto data_ins    = r.instructions["data"];
+
+        auto new_indices =
+            m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {0}}}), indices_ins);
+        auto new_gather = m.insert_instruction(ins, ins->get_operator(), data_ins, new_indices);
+        auto reshaped   = insert_auto_reshape(m, ins, ins->get_shape().lens(), new_gather);
+        if(ins->get_shape().scalar() and ins->get_shape().ndim() == 1)
+        {
+            reshaped = m.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), reshaped);
+        }
+        m.replace_instruction(ins, reshaped);
     }
 };
 
@@ -1420,13 +1784,16 @@ struct find_flatten
 
 void simplify_reshapes::apply(module& m) const
 {
+    match::find_matches(m, find_gather_scalar{});
+    dead_code_elimination{}.apply(m);
+    if(enable_gather_rewrite)
+        match::find_matches(m, find_gather{});
     m.repeat_while_changes(depth, [&] {
         match::find_matches(m,
-                            find_where_op{},
-                            find_resize{},
                             find_nop_reshapes{},
                             find_flatten{},
                             find_reshape_cont{},
+                            find_slice_shape_transforms{},
                             find_nested_shape_transforms{},
                             find_concat_slice{},
                             find_concat_transpose{},

@@ -81,13 +81,16 @@ struct resize_compiler : compiler<resize_compiler>
         // Compute scales from shapes
         const auto& in_lens  = options.virtual_inputs.front().lens();
         const auto& out_lens = options.virtual_inputs.back().lens();
-        std::vector<float> scales;
-        scales.resize(in_lens.size());
-        std::transform(in_lens.begin(),
-                       in_lens.end(),
-                       out_lens.begin(),
-                       scales.begin(),
-                       [](float in, float out) { return out / in; });
+        std::vector<float> scales = v.at("scales").to_vector<float>();
+        if(scales.empty())
+        {
+            scales.resize(in_lens.size());
+            std::transform(in_lens.begin(),
+                           in_lens.end(),
+                           out_lens.begin(),
+                           scales.begin(),
+                           [](float in, float out) { return out / in; });
+        }
 
         // Get mode (nearest or linear)
         std::string resize_func = "resize_" + v.get("mode", "nearest");

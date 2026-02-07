@@ -226,6 +226,19 @@ static instruction_ref rewrite_linear_resize(module& m,
     return m.replace_instruction(ins, data);
 }
 
+static bool is_affine_resize(const op::resize& rop, const std::vector<std::size_t>& in_lens, const std::vector<std::size_t>& out_lens)
+{
+    if(not migraphx::equal(in_lens, out_lens, [&](auto in_len, auto out_len) {
+        return (std::min(in_len, out_len) % std::max(in_len, out_len) == 0);
+    }))
+        return false;
+    if(rop.mode == "nearest")
+        return true;
+    if(rop.mode != "linear")
+        return false;
+    return migraphx::equal(in_lens, out_lens, std::greater<>{});
+}
+
 void rewrite_resize::apply(module& m) const
 {
     for(auto ins : iterator_for(m))
@@ -244,40 +257,20 @@ void rewrite_resize::apply(module& m) const
         auto resize_op = any_cast<op::resize>(ins->get_operator());
         auto in_s      = ins->inputs()[0]->get_shape();
         auto in_lens   = in_s.lens();
+        auto out_lens = ins->get_shape().lens();
 
-        std::vector<float> vec_scale(in_lens.size(), 1.0f);
-        std::vector<size_t> out_lens(in_lens.size());
-
-        // Get scales/sizes from operator attributes
-        if(not resize_op.sizes.empty())
-        {
-            // Use sizes attribute
-            out_lens = resize_op.sizes;
-            // Compute scales from sizes
-            std::transform(out_lens.begin(),
-                           out_lens.end(),
-                           in_lens.begin(),
-                           vec_scale.begin(),
-                           [](size_t out_len, size_t in_len) {
-                               return in_len == 0 ? 1.0f : static_cast<float>(out_len) / in_len;
-                           });
-        }
-        else if(not resize_op.scales.empty())
-        {
-            // Use scales attribute
-            vec_scale = resize_op.scales;
-            // Compute output sizes from scales
-            std::transform(
-                in_lens.begin(),
-                in_lens.end(),
-                vec_scale.begin(),
-                out_lens.begin(),
-                [](size_t in_len, float scale) { return static_cast<size_t>(in_len * scale); });
-        }
-        else
-        {
-            // No scales or sizes - skip
+        if(affine_only and not is_affine_resize(resize_op, in_lens, out_lens))
             continue;
+
+        std::vector<float> scales = resize_op.scales;
+        if(scales.empty())
+        {
+            scales.resize(in_lens.size());
+            std::transform(in_lens.begin(),
+                           in_lens.end(),
+                           out_lens.begin(),
+                           scales.begin(),
+                           [](float in, float out) { return out / in; });
         }
 
         if(resize_op.mode == "nearest")
@@ -287,7 +280,7 @@ void rewrite_resize::apply(module& m) const
                                    in_s,
                                    in_lens,
                                    out_lens,
-                                   vec_scale,
+                                   scales,
                                    resize_op.nearest_mode,
                                    resize_op.coordinate_transformation_mode);
         }
@@ -298,7 +291,7 @@ void rewrite_resize::apply(module& m) const
                                   in_s,
                                   in_lens,
                                   out_lens,
-                                  vec_scale,
+                                  scales,
                                   resize_op.coordinate_transformation_mode);
         }
         // Other modes (cubic, etc.) are not yet supported for rewriting

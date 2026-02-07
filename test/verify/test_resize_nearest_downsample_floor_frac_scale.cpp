@@ -21,29 +21,32 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_REWRITE_RESIZE_HPP
-#define MIGRAPHX_GUARD_RTGLIB_REWRITE_RESIZE_HPP
 
-#include <string>
-#include <migraphx/config.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module;
-
-/**
- * Rewrite resize operations to use gather-based implementation
- * for nearest and linear interpolation modes when shapes are static.
- */
-struct MIGRAPHX_EXPORT rewrite_resize
+// Nearest mode downsample with floor rounding (1-input mode with scales as attribute)
+template <migraphx::shape::type_t DType>
+struct test_resize_nearest_downsample_floor_frac_scale
+    : verify_program<test_resize_nearest_downsample_floor_frac_scale<DType>>
 {
-    bool affine_only = false;
-    std::string name() const { return "rewrite_resize"; }
-    void apply(module& m) const;
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+
+        migraphx::shape sx{DType, {1, 1, 2, 4}};
+        auto x = mm->add_parameter("X", sx);
+
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"scales", {1.0f, 1.0f, 0.6f, 0.6f}},
+                                               {"nearest_mode", "floor"},
+                                               {"coordinate_transformation_mode", "asymmetric"}}),
+                            x);
+        return p;
+    }
 };
 
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+template struct test_resize_nearest_downsample_floor_frac_scale<migraphx::shape::float_type>;

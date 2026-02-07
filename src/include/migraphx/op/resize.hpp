@@ -410,8 +410,12 @@ struct resize
             // Populate each element in output by selecting "nearest" item in input.
             visit_all(result, args[0])([&](auto output, auto data) {
                 par_for(output_shape.elements(), [&](auto out_idx) {
-                    auto in_idx = compute_nearest_indices(
-                        in_lens, out_lens, output_shape.multi(out_idx), vec_scale, nearest_op, idx_op);
+                    auto in_idx     = compute_nearest_indices(in_lens,
+                                                          out_lens,
+                                                          output_shape.multi(out_idx),
+                                                          vec_scale,
+                                                          nearest_op,
+                                                          idx_op);
                     output[out_idx] = data(in_idx.begin(), in_idx.end());
                 });
             });

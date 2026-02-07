@@ -231,14 +231,14 @@ static bool is_affine_resize(const op::resize& rop,
                              const std::vector<std::size_t>& out_lens)
 {
     if(not migraphx::equal(in_lens, out_lens, [&](auto in_len, auto out_len) {
-           return (std::min(in_len, out_len) % std::max(in_len, out_len) == 0);
+           return (std::max(in_len, out_len) % std::min(in_len, out_len)) == 0;
        }))
         return false;
     if(rop.mode == "nearest")
         return true;
     if(rop.mode != "linear")
         return false;
-    return migraphx::equal(in_lens, out_lens, std::greater<>{});
+    return migraphx::equal(in_lens, out_lens, std::greater_equal<>{});
 }
 
 void rewrite_resize::apply(module& m) const

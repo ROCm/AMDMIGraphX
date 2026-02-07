@@ -30,7 +30,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
 #include <migraphx/literal.hpp>
-#include <migraphx/shape_for_each.hpp>
+#include <migraphx/par_for.hpp>
 #include <migraphx/config.hpp>
 #include <cmath>
 #include <utility>
@@ -409,10 +409,9 @@ struct resize
             auto nearest_op = get_nearest_op(nearest_mode);
             // Populate each element in output by selecting "nearest" item in input.
             visit_all(result, args[0])([&](auto output, auto data) {
-                migraphx::shape out_comp_shape{data.get_shape().type(), out_lens};
-                shape_for_each(out_comp_shape, [&](const auto& out_idx_v, size_t out_idx) {
+                par_for(output_shape.elements(), [&](auto out_idx) {
                     auto in_idx = compute_nearest_indices(
-                        in_lens, out_lens, out_idx_v, vec_scale, nearest_op, idx_op);
+                        in_lens, out_lens, output_shape.multi(out_idx), vec_scale, nearest_op, idx_op);
                     output[out_idx] = data(in_idx.begin(), in_idx.end());
                 });
             });
@@ -421,10 +420,9 @@ struct resize
         {
             // N-D multilinear interpolation
             visit_all(result, args[0])([&](auto output, auto data) {
-                migraphx::shape out_comp_shape{data.get_shape().type(), out_lens};
-                shape_for_each(out_comp_shape, [&](const auto& out_idx_v, std::size_t out_idx) {
+                par_for(output_shape.elements(), [&](auto out_idx) {
                     double acc = compute_linear_interp_point(
-                        data, in_lens, out_lens, out_idx_v, vec_scale, idx_op);
+                        data, in_lens, out_lens, output_shape.multi(out_idx), vec_scale, idx_op);
 
                     using out_value_t = typename decltype(output)::value_type;
                     output[out_idx]   = static_cast<out_value_t>(acc);

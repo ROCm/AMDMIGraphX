@@ -256,6 +256,15 @@ TEST_CASE(rewrite_resize_linear_nhwc)
                         {migraphx::shape::float_type, {1, 2, 2, 3}}));
 }
 
+// Test linear mode upsample with large input (from resize_upsample_linear_large_test)
+TEST_CASE(rewrite_resize_linear_upsample_large)
+{
+    EXPECT(check_resize({{"scales", {1.0f, 1.0f, 2.0f, 2.0f}},
+                         {"mode", "linear"},
+                         {"coordinate_transformation_mode", "half_pixel"}},
+                        {migraphx::shape::float_type, {1, 1, 1024, 1024}}));
+}
+
 // Test linear mode downsample with half precision input (from resize_downsample_linear_half_test)
 TEST_CASE(rewrite_resize_linear_downsample_half)
 {

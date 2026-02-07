@@ -135,8 +135,8 @@ static instruction_ref rewrite_nearest_resize(module& m,
         ind[out_idx] = in_s.index(in_idx);
     });
 
-    auto rsp =
-        m.insert_instruction(ins, make_op("reshape", {{"dims", {in_s.elements()}}}), ins->inputs()[0]);
+    auto rsp = m.insert_instruction(
+        ins, make_op("reshape", {{"dims", {in_s.elements()}}}), ins->inputs()[0]);
 
     // ins_ind should be a multi dimensional index that will restore original rank
     shape ind_s{shape::int32_type, out_lens};

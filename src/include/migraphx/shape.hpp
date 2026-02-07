@@ -291,7 +291,7 @@ struct MIGRAPHX_EXPORT shape
     /// pointers
     void multi_copy(std::size_t idx, std::size_t* start, const std::size_t* end) const;
 
-    template<std::size_t N>
+    template <std::size_t N>
     std::array<std::size_t, N> multi(std::size_t idx) const
     {
         std::array<std::size_t, N> result{};

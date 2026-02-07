@@ -78,33 +78,32 @@ calc_neighbor_points(const std::vector<std::vector<std::vector<std::size_t>>>& v
     // Compute all permutations x elements in a single transform.
     // Output layout: [perm_idx * elements_ct + e_idx].
     auto indices = range(out_idx_vec.size());
-    std::transform(
-        indices.begin(),
-        indices.end(),
-        out_idx_vec.begin(),
-        [&](std::ptrdiff_t flat_idx) -> std::size_t {
-            auto multi_idx = flat_s.multi<2>(flat_idx);
-            auto perm_idx  = multi_idx[0];
-            auto e_idx     = multi_idx[1];
-            std::bitset<64> bits(perm_idx);
-            auto out_idx_v = out_s.multi<64>(e_idx);
-            // Build multi-dimensional neighbor index for this permutation
-            std::transform(
-                dim_indices.begin(),
-                dim_indices.end(),
-                neighbor_idx.begin(),
-                [&](std::ptrdiff_t dim) -> size_t {
-                    auto entry = resized_m.find(dim);
-                    if(entry != resized_m.end())
-                    {
-                        auto bit_pos = entry->second;
-                        return bits.test(bit_pos) ? vvv_ind[bit_pos][1][e_idx]
-                                                  : vvv_ind[bit_pos][0][e_idx];
-                    }
-                    return out_idx_v[dim];
-                });
-            return in_s.index(neighbor_idx);
-        });
+    std::transform(indices.begin(),
+                   indices.end(),
+                   out_idx_vec.begin(),
+                   [&](std::ptrdiff_t flat_idx) -> std::size_t {
+                       auto multi_idx = flat_s.multi<2>(flat_idx);
+                       auto perm_idx  = multi_idx[0];
+                       auto e_idx     = multi_idx[1];
+                       std::bitset<64> bits(perm_idx);
+                       auto out_idx_v = out_s.multi<64>(e_idx);
+                       // Build multi-dimensional neighbor index for this permutation
+                       std::transform(dim_indices.begin(),
+                                      dim_indices.end(),
+                                      neighbor_idx.begin(),
+                                      [&](std::ptrdiff_t dim) -> size_t {
+                                          auto entry = resized_m.find(dim);
+                                          if(entry != resized_m.end())
+                                          {
+                                              auto bit_pos = entry->second;
+                                              return bits.test(bit_pos)
+                                                         ? vvv_ind[bit_pos][1][e_idx]
+                                                         : vvv_ind[bit_pos][0][e_idx];
+                                          }
+                                          return out_idx_v[dim];
+                                      });
+                       return in_s.index(neighbor_idx);
+                   });
     return out_idx_vec;
 }
 

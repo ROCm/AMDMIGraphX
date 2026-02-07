@@ -55,7 +55,7 @@ calc_neighbor_points(const std::vector<std::vector<std::vector<std::size_t>>>& v
 {
     std::size_t ndims       = out_s.ndim();
     const auto& strides     = out_s.strides();
-    std::size_t elements_ct = vvv_ind[0][0].size();
+    std::size_t elements_ct = out_s.elements();
 
     // This function computes for each element, all permutations of its neighbor indices into an
     // Perm block in one go. (Instead of computing each permutation in isolation per element)
@@ -161,7 +161,7 @@ static instruction_ref rewrite_linear_resize(module& m,
     for(std::size_t axis = 0; axis != out_lens.size(); ++axis)
     {
         out_elements *= out_lens[axis];
-        if(in_lens[axis] == out_lens[axis])
+        if(float_equal(scales[axis], 1.0f))
             continue;
         resized_axes.push_back(axis);
         resized_m[axis] = resized_ct++;

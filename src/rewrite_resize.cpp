@@ -53,6 +53,7 @@ calc_neighbor_points(const std::vector<std::vector<std::vector<std::size_t>>>& v
                      const shape& out_s,
                      const std::map<size_t, size_t>& resized_m)
 {
+    assert(resized_m.size() < 64);
     std::size_t ndims       = out_s.ndim();
     const auto& strides     = out_s.strides();
     std::size_t elements_ct = out_s.elements();

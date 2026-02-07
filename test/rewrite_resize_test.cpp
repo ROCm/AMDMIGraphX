@@ -181,31 +181,34 @@ TEST_CASE(rewrite_resize_sizes_attribute)
                         {migraphx::shape::float_type, {1, 1, 2, 2}}));
 }
 
-TEST_CASE(rewrite_resize_65_dims)
+TEST_CASE(rewrite_resize_large_dims)
 {
-    const int ndim = 65;
 
-    migraphx::module m1;
+    for(int ndim:{64, 65})
     {
-        std::vector<std::size_t> lens(ndim, 1);
-        std::fill(lens.begin(), lens.begin() + (ndim / 4), 2);
-        migraphx::shape sx{migraphx::shape::float_type, lens};
-        auto x = m1.add_parameter("X", sx);
-
-        std::vector<float> scales(ndim, 1.2f);
-        scales[0] = 2.0f;
-
-        m1.add_instruction(migraphx::make_op("resize",
-                                             {{"scales", scales},
-                                              {"mode", "linear"},
-                                              {"coordinate_transformation_mode", "asymmetric"}}),
-                           x);
+        migraphx::module m1;
+        {
+            std::vector<std::size_t> lens(ndim, 1);
+            std::fill(lens.begin(), lens.begin() + (ndim / 4), 2);
+            migraphx::shape sx{migraphx::shape::float_type, lens};
+            auto x = m1.add_parameter("X", sx);
+    
+            std::vector<float> scales(ndim, 1.2f);
+            scales[0] = 2.0f;
+    
+            m1.add_instruction(migraphx::make_op("resize",
+                                                 {{"scales", scales},
+                                                  {"mode", "linear"},
+                                                  {"coordinate_transformation_mode", "asymmetric"}}),
+                               x);
+        }
+    
+        migraphx::module m2 = m1;
+        run_pass(m1);
+    
+        EXPECT(m1 == m2);
     }
 
-    migraphx::module m2 = m1;
-    run_pass(m1);
-
-    EXPECT(m1 == m2);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -25,9 +25,12 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/op/resize.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/shape_for_each.hpp>
+#include <migraphx/tensor_view.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/program.hpp>
+#include <bitset>
 #include <map>
 
 namespace migraphx {
@@ -47,7 +50,7 @@ inline namespace MIGRAPHX_INLINE_NS {
  * This api stitches all the neighbors (for every dimension) for a resized pixel,
  * to yield its neighbor index w.r.t to the input shape, in_s.
  */
-static std::vector<int>
+static std::vector<std::size_t>
 calc_neighbor_points(const std::vector<std::vector<std::vector<std::size_t>>>& vvv_ind,
                      const shape& in_s,
                      const shape& out_s,
@@ -55,44 +58,53 @@ calc_neighbor_points(const std::vector<std::vector<std::vector<std::size_t>>>& v
 {
     assert(resized_m.size() < 64);
     std::size_t ndims       = out_s.ndim();
-    const auto& strides     = out_s.strides();
     std::size_t elements_ct = out_s.elements();
 
-    // This function computes for each element, all permutations of its neighbor indices into an
-    // Perm block in one go. (Instead of computing each permutation in isolation per element)
+    // This function computes for each element, all permutations of its neighbor indices.
+    // Each permutation selects hi or lo for each resized dimension based on bit patterns.
     size_t permutations = std::size_t{1} << resized_m.size();
-    std::vector<std::vector<std::size_t>> perm_blk(permutations, std::vector<size_t>(strides));
+
+    // Dimension indices for use with std::transform
+    auto dim_indices = range(ndims);
 
     // final outputted vector: permutations of neighbors.
-    std::vector<int> out_idx_vec(permutations * elements_ct);
+    std::vector<std::size_t> out_idx_vec(permutations * elements_ct);
 
-    for(size_t e_idx = 0; e_idx < elements_ct; ++e_idx)
-    {
-        size_t t_idx = e_idx;
-        for(size_t l_idx = 0; l_idx != ndims; ++l_idx)
-        {
-            auto entry = resized_m.find(l_idx);
-            if(entry != resized_m.end())
-            {
-                size_t hi_cmp_bit = 1u << entry->second;
-                auto lo           = vvv_ind[entry->second][0][e_idx];
-                auto hi           = vvv_ind[entry->second][1][e_idx];
-                for(size_t i = 0; i < permutations; i++)
-                    perm_blk[i][l_idx] = ((i & hi_cmp_bit) != 0) ? hi : lo;
-            }
-            else
-            {
-                size_t idx = t_idx / strides[l_idx];
-                // no permutations in an unmodified lens index, so idx is copied over:
-                for(size_t i = 0; i < permutations; i++)
-                    perm_blk[i][l_idx] = idx;
-            }
-            t_idx %= strides[l_idx];
-        }
-        // write out the permuted indices, calculated off the perm_blk:
-        for(size_t i = 0; i < permutations; i++)
-            out_idx_vec[e_idx + elements_ct * i] = in_s.index(perm_blk[i]);
-    }
+    // 2D shape to decompose flat index into [perm_idx, e_idx]
+    shape flat_s{shape::uint64_type, {permutations, elements_ct}};
+
+    std::vector<size_t> neighbor_idx(ndims);
+
+    // Compute all permutations x elements in a single transform.
+    // Output layout: [perm_idx * elements_ct + e_idx].
+    auto indices = range(out_idx_vec.size());
+    std::transform(
+        indices.begin(),
+        indices.end(),
+        out_idx_vec.begin(),
+        [&](std::ptrdiff_t flat_idx) -> std::size_t {
+            auto multi_idx = flat_s.multi<2>(flat_idx);
+            auto perm_idx  = multi_idx[0];
+            auto e_idx     = multi_idx[1];
+            std::bitset<64> bits(perm_idx);
+            auto out_idx_v = out_s.multi<64>(e_idx);
+            // Build multi-dimensional neighbor index for this permutation
+            std::transform(
+                dim_indices.begin(),
+                dim_indices.end(),
+                neighbor_idx.begin(),
+                [&](std::ptrdiff_t dim) -> size_t {
+                    auto entry = resized_m.find(dim);
+                    if(entry != resized_m.end())
+                    {
+                        auto bit_pos = entry->second;
+                        return bits.test(bit_pos) ? vvv_ind[bit_pos][1][e_idx]
+                                                  : vvv_ind[bit_pos][0][e_idx];
+                    }
+                    return out_idx_v[dim];
+                });
+            return in_s.index(neighbor_idx);
+        });
     return out_idx_vec;
 }
 
@@ -108,7 +120,7 @@ static instruction_ref rewrite_nearest_resize(module& m,
 {
     shape out_s{in_s.type(), out_lens};
     std::size_t out_elements = out_s.elements();
-    std::vector<int> ind(out_elements);
+    std::vector<std::size_t> ind(out_elements);
 
     // map out_idx to in_idx
     auto nearest_op = op::resize::get_nearest_op(nearest_mode);

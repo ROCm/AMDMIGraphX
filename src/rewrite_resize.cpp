@@ -209,7 +209,7 @@ static instruction_ref rewrite_linear_resize(module& m,
     // indices matrix size grows 2x per resized-axis:
     dim_lens[0] *= (1u << resized_ct);
     shape ind_s{shape::int32_type, dim_lens};
-    auto ins_ind = m.add_literal(literal(ind_s, ind));
+    auto ins_ind    = m.add_literal(literal(ind_s, ind));
     auto gather_ins = m.insert_instruction(ins, make_op("gather", {{"axis", 0}}), rsp, ins_ind);
 
     // Lazy views for per-axis tile scales (1, 2, 4, ...)

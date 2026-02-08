@@ -79,8 +79,8 @@ struct resize_compiler : compiler<resize_compiler>
         options.virtual_inputs = normalize_permutation(inputs);
 
         // Compute scales from shapes
-        const auto& in_lens  = options.virtual_inputs.front().lens();
-        const auto& out_lens = options.virtual_inputs.back().lens();
+        const auto& in_lens       = options.virtual_inputs.front().lens();
+        const auto& out_lens      = options.virtual_inputs.back().lens();
         std::vector<float> scales = v.at("scales").to_vector<float>();
         if(scales.empty())
         {

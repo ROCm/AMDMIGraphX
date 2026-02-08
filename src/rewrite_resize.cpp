@@ -210,12 +210,12 @@ static instruction_ref rewrite_linear_resize(module& m,
     dim_lens[0] *= (1u << resized_ct);
     shape ind_s{shape::int32_type, dim_lens};
     auto ins_ind = m.add_literal(literal(ind_s, ind));
-    auto gather_ins    = m.insert_instruction(ins, make_op("gather", {{"axis", 0}}), rsp, ins_ind);
+    auto gather_ins = m.insert_instruction(ins, make_op("gather", {{"axis", 0}}), rsp, ins_ind);
 
     // Lazy views for per-axis tile scales (1, 2, 4, ...)
     auto scale_indices = range(resized_ct);
-    auto tile_scales   = views::transform(
-        scale_indices, [](std::size_t i) -> std::size_t { return 1ull << i; });
+    auto tile_scales =
+        views::transform(scale_indices, [](std::size_t i) -> std::size_t { return 1ull << i; });
 
     // Build delta literals from tile scales and per-axis deltas
     std::vector<instruction_ref> ins_deltas(resized_ct);
@@ -232,7 +232,7 @@ static instruction_ref rewrite_linear_resize(module& m,
                            rep_indices.end(),
                            delta_data.begin(),
                            [&](std::ptrdiff_t j) { return dim_delta[tile_s.multi<2>(j)[1]]; });
-                       
+
                        auto step_lens = out_lens;
                        step_lens[0] *= scale;
                        shape dim_s{in_s.type(), step_lens};
@@ -246,9 +246,9 @@ static instruction_ref rewrite_linear_resize(module& m,
         std::make_reverse_iterator(tile_scales.end()),
         gather_ins,
         [&](instruction_ref start, auto p) {
-            auto [ins_delta, scale]     = p;
-            auto slc_stride = out_lens[0] * scale;
-            auto low           = m.insert_instruction(
+            auto [ins_delta, scale] = p;
+            auto slc_stride         = out_lens[0] * scale;
+            auto low                = m.insert_instruction(
                 ins,
                 make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {slc_stride}}}),
                 start);

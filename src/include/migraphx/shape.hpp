@@ -297,7 +297,7 @@ struct MIGRAPHX_EXPORT shape
         std::array<std::size_t, N> result{};
         if(N < this->ndim())
             MIGRAPHX_THROW("SHAPE: multi() called with array size less than number of dimensions");
-        this->multi_copy(idx, result.begin(), result.begin() + this->ndim());
+        this->multi_copy(idx, result.data(), result.data() + this->ndim());
         return result;
     }
 

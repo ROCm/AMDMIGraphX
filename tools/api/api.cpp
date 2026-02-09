@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -398,19 +398,9 @@ struct custom_operation
         return op.compute(std::move(ctx), std::move(output_shape), std::move(inputs));
     }
 
-    std::ptrdiff_t output_alias(std::vector<shape> inputs) const
+    std::vector<std::size_t> output_alias(std::vector<shape> inputs) const
     {
-        auto alias_vec = op.output_alias(std::move(inputs));
-        // TODO: For now, only support one output alias
-        if(alias_vec.empty())
-        {
-            return -1;
-        }
-        if(alias_vec.size() > 1)
-        {
-            MIGRAPHX_THROW("Currently, CustomOps in MIGraphX only supports one output_alias");
-        }
-        return alias_vec.front();
+        return op.output_alias(std::move(inputs));
     }
 
     bool runs_on_offload_target() const { return op.runs_on_offload_target(); }

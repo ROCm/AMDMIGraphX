@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,14 +27,15 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_ck_gemm_softmax_gemm : verify_program<test_ck_gemm_softmax_gemm>
+template <migraphx::shape::type_t DType>
+struct test_ck_gemm_softmax_gemm_0 : verify_program<test_ck_gemm_softmax_gemm_0<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape m1_shape{migraphx::shape::half_type, {1, 12, 256, 256}};
-        migraphx::shape m2_shape{migraphx::shape::half_type, {1, 12, 256, 256}};
+        migraphx::shape m1_shape{DType, {1, 12, 256, 256}};
+        migraphx::shape m2_shape{DType, {1, 12, 256, 256}};
         auto m2_elements = m2_shape.elements();
         auto a           = mm->add_parameter("1", m1_shape);
         auto b           = mm->add_parameter("2", m1_shape);
@@ -53,5 +54,8 @@ struct test_ck_gemm_softmax_gemm : verify_program<test_ck_gemm_softmax_gemm>
 
         return p;
     }
+
     std::string section() const { return "gemm"; }
 };
+
+template struct test_ck_gemm_softmax_gemm_0<migraphx::shape::half_type>;

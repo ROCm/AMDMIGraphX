@@ -159,13 +159,12 @@ const auto& reshaper_names()
 }
 
 instruction_ref
-insert_ops(module& m, instruction_ref ins, std::vector<operation>& ops, instruction_ref input)
+insert_ops(module& m, instruction_ref ins, const std::vector<operation>& ops, instruction_ref input)
 {
-    for(const auto& op : ops)
-    {
-        input = m.insert_instruction(ins, op, input);
-    }
-    return input;
+    return std::accumulate(
+        ops.begin(), ops.end(), input, [&](instruction_ref x, const operation& op) {
+            return m.insert_instruction(ins, op, x);
+        });
 }
 
 struct find_nested_shape_transforms
@@ -537,8 +536,6 @@ struct find_slice_shape_transforms
         x = x->inputs().front();
         std::reverse(ops.begin(), ops.end());
         auto desc = shape_transform_descriptor::create(slice->get_shape().lens(), ops);
-
-        // std::cout << "desc: " << desc << std::endl;
 
         std::vector<std::size_t> new_axes;
         std::transform(axes.begin(),
@@ -1067,19 +1064,18 @@ struct find_gather
                 return std::make_pair(arithmetic_segment{}, begin);
             if(length == 1)
                 return std::make_pair(*begin, std::next(begin));
-            auto start = *begin;
-            // auto base   = *begin;
-            auto stride = std::next(begin)->base - start.base;
-            if(stride < 0)
+            auto start   = *begin;
+            auto lstride = std::next(begin)->base - start.base;
+            if(lstride < 0)
                 return std::make_pair(*begin, std::next(begin));
             auto diff =
                 std::adjacent_find(begin, end, [&](arithmetic_segment x, arithmetic_segment y) {
-                    return y.base - x.base != stride;
+                    return y.base - x.base != lstride;
                 });
             if(diff != end)
                 diff++;
             return std::make_pair(
-                arithmetic_segment{start.base, stride, std::size_t(std::distance(begin, diff))},
+                arithmetic_segment{start.base, lstride, std::size_t(std::distance(begin, diff))},
                 diff);
         }
 
@@ -1091,10 +1087,6 @@ struct find_gather
             do
             {
                 segments = make_segments(segments);
-                // std::cout << "nsegments: " << segments.size() << std::endl;
-                // for(auto segment : segments)
-                //     std::cout << "    {" << segment.base << ", " << segment.stride << ", "
-                //               << segment.count << "}\n";
                 if(segments.empty())
                     return {};
                 auto seg = segments.front();
@@ -1118,7 +1110,7 @@ struct find_gather
             std::reverse(strides.begin(), strides.end());
 
             if(std::none_of(
-                   strides.begin(), strides.end(), [](auto stride) { return stride == 1; }))
+                   strides.begin(), strides.end(), [](auto pstride) { return pstride == 1; }))
             {
                 lens.push_back(1);
                 strides.push_back(1);
@@ -1794,7 +1786,6 @@ void simplify_reshapes::apply(module& m) const
 {
     match::find_matches(m, find_gather_scalar{});
     dead_code_elimination{}.apply(m);
-    
     if(enable_gather_rewrite)
         match::find_matches(m, find_gather{});
     m.repeat_while_changes(depth, [&] {

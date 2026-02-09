@@ -134,11 +134,11 @@ static shape_transform_descriptor make_simple_descriptor(const std::vector<std::
     return desc;
 }
 
-std::optional<std::vector<migraphx::operation>>
-generate_for(const std::vector<std::size_t>& dims,
-             const std::vector<std::size_t>& strides,
-             const std::vector<std::size_t>& idims,
-             std::int64_t offset = 0)
+std::optional<std::vector<migraphx::operation>> static generate_for(
+    const std::vector<std::size_t>& dims,
+    const std::vector<std::size_t>& strides,
+    const std::vector<std::size_t>& idims,
+    std::int64_t offset = 0)
 {
     migraphx::shape s{migraphx::shape::int64_type, dims, strides};
     auto result = migraphx::generate_shape_transforms_for(s, idims, offset);

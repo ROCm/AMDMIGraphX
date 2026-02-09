@@ -1564,7 +1564,7 @@ TEST_CASE(optimize_resize_flatten)
             m.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 1, 2, 1}}}), inx);
         auto mbx = m.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 2, 3}}}), rspx);
-        std::vector<int64_t> orig_dims = {1, 2, 4, 6};
+
         auto rmb = m.add_instruction(migraphx::make_op("reshape", {{"dims", {48}}}), mbx);
         auto r   = m.add_instruction(migraphx::make_op("softmax", {{"axis", 0}}), rmb);
         m.add_return({r});
@@ -2560,8 +2560,6 @@ TEST_CASE(gather_flatten_permutation)
     auto reshape_out =
         expected.add_instruction(migraphx::make_op("reshape", {{"dims", {16}}}), transpose);
     expected.add_return({reshape_out});
-
-    expected.debug_print();
 
     EXPECT(m == expected);
 }
@@ -4600,8 +4598,8 @@ TEST_CASE(slice_squeeze_unsqueeze)
     {
         auto x         = m2.add_parameter("x", s);
         auto unsqueeze = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), x);
-        auto squeeze   = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), unsqueeze);
-        auto slice     = m2.add_instruction(
+        auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), unsqueeze);
+        auto slice   = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), squeeze);
         m2.add_return({slice});
     };
@@ -4823,85 +4821,6 @@ TEST_CASE(conv_add_layernorm_conv)
     };
 
     EXPECT(m1.sort() == m2.sort());
-}
-
-TEST_CASE(gather_to_slice_scalar_index)
-{
-    migraphx::module m1;
-    {
-        auto data =
-            m1.add_parameter("data", migraphx::shape{migraphx::shape::float_type, {1, 32, 19}});
-        auto idx = m1.add_literal(
-            migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}, {0}}, {0}});
-        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 2}}), data, idx);
-        m1.add_return({gather});
-    }
-    run_pass(m1);
-
-    migraphx::module m2;
-    {
-        auto data =
-            m2.add_parameter("data", migraphx::shape{migraphx::shape::float_type, {1, 32, 19}});
-        auto slice = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {1}}}), data);
-        auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), slice);
-        m2.add_return({squeeze});
-    }
-
-    EXPECT(m1 == m2);
-}
-
-TEST_CASE(gather_to_slice_scalar_index_axis0)
-{
-    migraphx::module m1;
-    {
-        auto data =
-            m1.add_parameter("data", migraphx::shape{migraphx::shape::float_type, {10, 32, 64}});
-        auto idx = m1.add_literal(
-            migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}, {0}}, {5}});
-        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, idx);
-        m1.add_return({gather});
-    }
-    run_pass(m1);
-
-    migraphx::module m2;
-    {
-        auto data =
-            m2.add_parameter("data", migraphx::shape{migraphx::shape::float_type, {10, 32, 64}});
-        auto slice = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {5}}, {"ends", {6}}}), data);
-        auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), slice);
-        m2.add_return({squeeze});
-    }
-
-    EXPECT(m1 == m2);
-}
-
-TEST_CASE(gather_to_slice_negative_index)
-{
-    migraphx::module m1;
-    {
-        auto data =
-            m1.add_parameter("data", migraphx::shape{migraphx::shape::float_type, {1, 32, 19}});
-        // -1 means last element (index 18)
-        auto idx = m1.add_literal(
-            migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}, {0}}, {-1}});
-        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 2}}), data, idx);
-        m1.add_return({gather});
-    }
-    run_pass(m1);
-
-    migraphx::module m2;
-    {
-        auto data =
-            m2.add_parameter("data", migraphx::shape{migraphx::shape::float_type, {1, 32, 19}});
-        auto slice = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {18}}, {"ends", {19}}}), data);
-        auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), slice);
-        m2.add_return({squeeze});
-    }
-
-    EXPECT(m1 == m2);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

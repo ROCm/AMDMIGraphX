@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,13 +24,22 @@
 
 #include <onnx_test.hpp>
 
-TEST_CASE(clip_test_op11_no_args)
+TEST_CASE(clip_test_op13_max_only)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3}});
-    mm->add_instruction(migraphx::make_op("identity"), l0);
-    auto prog = optimize_onnx("clip_test_op11_no_args.onnx");
+    auto min_val =
+        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}, {0}},
+                                          {std::numeric_limits<float>::lowest()}});
+    auto max_val = mm->add_literal(0.0f);
+    auto l0      = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3}});
+    mm->add_instruction(migraphx::make_op("undefined"));
+    min_val =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3}}}), min_val);
+    max_val =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3}}}), max_val);
+    mm->add_instruction(migraphx::make_op("clip"), l0, min_val, max_val);
+    auto prog = optimize_onnx("clip_test_op13_max_only.onnx");
 
-    EXPECT(p == prog);
+    EXPECT(p.sort() == prog.sort());
 }

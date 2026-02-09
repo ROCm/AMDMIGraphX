@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -72,12 +72,14 @@ static auto from_int4()
 {
     return match::make_predicate_matcher([](instruction_ref start) {
         return fix<bool>([&](auto self, instruction_ref ins) {
-            auto alias = instruction::get_output_alias(ins);
-            if(contains({"reshape", "dequantizelinear"}, alias->name()))
-                return self(alias->inputs().front());
-            if(alias->name() == "concat")
-                return all_of(alias->inputs(), self);
-            return alias->name() == "unpack_int4";
+            auto aliases = instruction::get_output_alias(ins);
+            return std::any_of(aliases.begin(), aliases.end(), [&](instruction_ref alias) {
+                if(contains({"reshape", "dequantizelinear"}, alias->name()))
+                    return self(alias->inputs().front());
+                if(alias->name() == "concat")
+                    return all_of(alias->inputs(), self);
+                return alias->name() == "unpack_int4";
+            });
         })(start);
     });
 }

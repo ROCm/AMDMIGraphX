@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -90,11 +90,11 @@ MIGRAPHX_PRED_MATCHER(is_ck_gemm, instruction_ref ins)
         return false;
     if(not ck_gemm::is_ck_supported_type(ins->get_shape().type()))
         return false;
-    auto a = ins->inputs().front()->get_shape();
-    auto b = ins->inputs().back()->get_shape();
-    auto m = a.lens()[a.lens().size() - 2];
-    auto n = b.lens().back();
-    auto k = a.lens().back();
+    auto a          = ins->inputs().front()->get_shape();
+    auto b          = ins->inputs().back()->get_shape();
+    auto m          = a.lens()[a.lens().size() - 2];
+    auto n          = b.lens().back();
+    auto k          = a.lens().back();
     auto batch_size = std::accumulate(
         a.lens().rbegin() + 2, a.lens().rend(), std::size_t{1}, std::multiplies<std::size_t>());
     // Integer gemms must be divisible by 4 in ck
@@ -118,7 +118,7 @@ MIGRAPHX_PRED_MATCHER(is_ck_gemm, instruction_ref ins)
         }
         return true;
     }
-    return k <= 2048;
+    return k <= 1024;
 }
 
 struct find_ck_gemm_pointwise
@@ -207,7 +207,8 @@ struct find_ck_gemm_softmax_gemm
 
 void fuse_ck::apply(module_pass_manager& mpm) const
 {
-    match::find_matches(mpm, find_ck_gemm_softmax_gemm{}, find_ck_gemm_pointwise{});
+    match::find_matches(mpm, find_ck_gemm_softmax_gemm{});
+    match::find_matches(mpm, find_ck_gemm_pointwise{});
     match::find_matches(mpm, find_ck_gemm{});
 }
 

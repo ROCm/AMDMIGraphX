@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -85,34 +85,34 @@ MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(adjacent_remove_if_non_equivalence, int)
 
 MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(min_element_if_basic, int)
 {
-    Container v        = {5, 3, 7, 1, 9, 2};
-    auto is_even       = [](int x) { return x % 2 == 0; };
-    auto it            = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
+    Container v  = {5, 3, 7, 1, 9, 2};
+    auto is_even = [](int x) { return x % 2 == 0; };
+    auto it      = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
     EXPECT(it != v.end());
     EXPECT(*it == 2);
 }
 
 MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(min_element_if_no_valid, int)
 {
-    Container v        = {5, 3, 7, 1, 9};
-    auto is_even       = [](int x) { return x % 2 == 0; };
-    auto it            = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
+    Container v  = {5, 3, 7, 1, 9};
+    auto is_even = [](int x) { return x % 2 == 0; };
+    auto it      = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
     EXPECT(it == v.end());
 }
 
 MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(min_element_if_all_valid, int)
 {
-    Container v        = {6, 2, 8, 4, 10};
-    auto is_even       = [](int x) { return x % 2 == 0; };
-    auto it            = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
+    Container v  = {6, 2, 8, 4, 10};
+    auto is_even = [](int x) { return x % 2 == 0; };
+    auto it      = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
     EXPECT(it != v.end());
     EXPECT(*it == 2);
 }
 
 MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(min_element_if_custom_compare, int)
 {
-    Container v        = {5, 3, 7, 1, 9, 2, 8};
-    auto is_even       = [](int x) { return x % 2 == 0; };
+    Container v  = {5, 3, 7, 1, 9, 2, 8};
+    auto is_even = [](int x) { return x % 2 == 0; };
     // Find the largest even number
     auto it = migraphx::min_element_if(v.begin(), v.end(), is_even, std::greater<>{});
     EXPECT(it != v.end());
@@ -129,9 +129,9 @@ MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(min_element_if_empty, int)
 
 MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(min_element_if_first_element, int)
 {
-    Container v        = {2, 5, 3, 7, 1, 9};
-    auto is_even       = [](int x) { return x % 2 == 0; };
-    auto it            = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
+    Container v  = {2, 5, 3, 7, 1, 9};
+    auto is_even = [](int x) { return x % 2 == 0; };
+    auto it      = migraphx::min_element_if(v.begin(), v.end(), is_even, std::less<>{});
     EXPECT(it != v.end());
     EXPECT(*it == 2);
     EXPECT(it == v.begin());

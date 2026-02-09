@@ -126,14 +126,8 @@ struct gather_horizontal_fusion
         if(ins->get_operator().to_value()["axis"].to<int>() != 0)
             return false;
 
-        if(ins->get_shape().dynamic())
-            return false;
-
         auto data = ins->inputs().at(0);
         auto idx  = ins->inputs().at(1);
-
-        if(data->get_shape().dynamic() or idx->get_shape().dynamic())
-            return false;
 
         // Embedding must be 2D: {num_rows, embedding_dim}
         if(data->get_shape().lens().size() != 2)

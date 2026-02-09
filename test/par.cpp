@@ -35,9 +35,8 @@ TEST_CASE(par_transform_unary_basic)
 {
     std::vector<int> input = {1, 2, 3, 4, 5};
     std::vector<int> output(input.size());
-    migraphx::par_transform(input.begin(), input.end(), output.begin(), [](int x) {
-        return x * 2;
-    });
+    migraphx::par_transform(
+        input.begin(), input.end(), output.begin(), [](int x) { return x * 2; });
     EXPECT(output == std::vector<int>{2, 4, 6, 8, 10});
 }
 

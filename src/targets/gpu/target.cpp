@@ -116,7 +116,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         rewrite_rnn{},
         dead_code_elimination{},
         eliminate_data_type_for_gpu{},
-        simplify_reshapes{},
+        simplify_reshapes{.enable_gather_rewrite = true},
         eliminate_identity{},
         eliminate_pad{},
         dead_code_elimination{},

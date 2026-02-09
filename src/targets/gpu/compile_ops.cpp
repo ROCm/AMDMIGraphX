@@ -107,9 +107,9 @@ struct dynamic_code_object_op
         return pre_op.compute_shape(inputs, mods);
     }
 
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
     {
-        return shapes.size() - 1;
+        return {shapes.size() - 1};
     }
     std::unordered_map<std::string, argument> build_param_map(const std::vector<argument>& args,
                                                               const_module_ref mod) const
@@ -234,6 +234,12 @@ struct runtime_compile_op
 {
     std::vector<instruction_ref> dyn_inss;
 
+    template <class Self, class F>
+    static auto reflect(Self&, F)
+    {
+        return pack();
+    }
+
     std::string name() const { return "gpu::runtime_compile_op"; }
 
     shape compute_shape(const std::vector<shape>&) const { return {}; }
@@ -273,7 +279,8 @@ struct runtime_compile_op
         }
     }
 
-    argument compute(const shape&,
+    argument compute(context&,
+                     const shape&,
                      const std::vector<argument>& args,
                      const std::vector<module_ref>& module_args) const
     {
@@ -286,7 +293,7 @@ struct runtime_compile_op
 
         // All dyn_inss should be in the main module
         assert(std::all_of(
-            dyn_inss.begin(), dyn_inss.end(), [&](const auto& ins) { contains(*mod, ins); }));
+            dyn_inss.begin(), dyn_inss.end(), [&](const auto& ins) { return mod->has_instruction(ins); }));
 
         // Map parameters to input args shapes. The args here should be the parameters
         // to the main module.

@@ -62,7 +62,7 @@ else()
 endif()
 
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)
-    find_package(composable_kernel 1.0.0 REQUIRED COMPONENTS jit_library)
+    find_package(composable_kernel_host 1.0.0 REQUIRED)
 endif()
 
 if(BUILD_DEV)
@@ -119,13 +119,18 @@ target_compile_definitions(compile_migraphx_gpu_kernels INTERFACE -DMIGRAPHX_WAV
 target_include_directories(compile_migraphx_gpu_kernels INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/>)
 target_link_libraries(compile_migraphx_gpu_kernels INTERFACE compile_for_gpu)
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)
-    target_link_libraries(compile_migraphx_gpu_kernels INTERFACE composable_kernel::jit_library)
+    target_link_libraries(compile_migraphx_gpu_kernels INTERFACE composable_kernel::ck_host)
 endif()
 
 add_library(migraphx_gpu_kernel_file_check EXCLUDE_FROM_ALL)
 
+set(CK_TIDY_SKIP_KERNEL_FILES "ck" "ck_gemm" "ck_gemm_softmax_gemm")
 foreach(KERNEL_FILE ${KERNEL_FILES})
     get_filename_component(KERNEL_BASE_FILE ${KERNEL_FILE} NAME_WE)
+    # Temporary workaround for tidy issue that arises from the fact that CK no longer exposes headers to the host code
+    if(${KERNEL_BASE_FILE} IN_LIST CK_TIDY_SKIP_KERNEL_FILES)
+        continue()
+    endif()
     file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/kernels/include/migraphx/kernels/${KERNEL_BASE_FILE}.cpp "#include <migraphx/kernels/${KERNEL_BASE_FILE}.hpp>\n")
     target_sources(migraphx_gpu_kernel_file_check PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/kernels/include/migraphx/kernels/${KERNEL_BASE_FILE}.cpp)
 endforeach()
@@ -410,7 +415,7 @@ if(NOT WIN32)
     target_link_libraries(migraphx_gpu PRIVATE hsa-runtime64::hsa-runtime64)
 endif()
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)
-    target_link_libraries(migraphx_gpu PRIVATE composable_kernel::jit_library)
+    target_link_libraries(migraphx_gpu PRIVATE composable_kernel::ck_host)
     target_compile_definitions(migraphx_gpu PRIVATE MIGRAPHX_USE_COMPOSABLEKERNEL=1)
 endif()
 
@@ -423,3 +428,4 @@ rocm_install_targets(
     INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
+

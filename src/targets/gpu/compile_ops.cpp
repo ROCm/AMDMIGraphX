@@ -224,6 +224,82 @@ struct dynamic_code_object_op
 };
 MIGRAPHX_REGISTER_OP(dynamic_code_object_op);
 
+struct runtime_compile_op
+{
+    std::vector<instruction_ref> dyn_inss;
+
+    std::string name() const { return "gpu::runtime_compile_op"; }
+
+    shape compute_shape(const std::vector<shape>&) const { return {}; }
+
+    void propagate_shapes(
+        module_ref mod,
+        std::unordered_map<std::string, shape> param_shapes,
+        std::unordered_map<instruction_ref, std::vector<shape>>& compile_input_shapes) const
+    {
+        std::unordered_map<instruction_ref, shape> ins_shapes;
+        for(auto ins : iterator_for(*mod))
+        {
+            if(ins->name() == "@param")
+            {
+                auto param_name = any_cast<builtin::param>(ins->get_operator()).parameter;
+                ins_shapes[ins] = param_shapes.at(param_name);
+            }
+            else if(ins->name() == "@literal")
+            {
+                ins_shapes[ins] = ins->get_shape();
+            }
+            else
+            {
+                std::vector<shape> input_shapes;
+                input_shapes.reserve(ins->inputs().size());
+                for(auto input_ins : ins->inputs())
+                {
+                    input_shapes.push_back(ins_shapes.at(input_ins));
+                }
+                if(contains(dyn_inss, ins))
+                {
+                    compile_input_shapes[ins] = input_shapes;
+                }
+                ins_shapes[ins] =
+                    ins->get_operator().compute_shape(input_shapes, ins->module_inputs());
+            }
+        }
+    }
+
+    argument compute(const shape&,
+                     const std::vector<argument>& args,
+                     const std::vector<module_ref>& module_args) const
+    {
+        // Map to store static inference shapes for all dynamic instructions
+        std::unordered_map<instruction_ref, std::vector<shape>> compile_input_shapes;
+
+        // Module arg to this instruction should be the main module
+        assert(not module_args.empty());
+        auto* mod = module_args.front();
+
+        // All dyn_inss should be in the main module
+        assert(std::all_of(
+            dyn_inss.begin(), dyn_inss.end(), [&](const auto& ins) { contains(*mod, ins); }));
+
+        // Map parameters to input args shapes. The args here should be the parameters
+        // to the main module.
+        auto params = mod->get_parameter_names();
+        std::unordered_map<std::string, shape> param_shapes;
+        for(std::size_t i = 0; i < params.size() and i < args.size(); ++i)
+        {
+            param_shapes[params[i]] = args[i].get_shape();
+        }
+
+        // Compute shapes for all instructions in topological order and
+        // capture input shapes for dynamic instructions.
+        propagate_shapes(mod, param_shapes, compile_input_shapes);
+
+        return {};
+    }
+};
+MIGRAPHX_REGISTER_OP(runtime_compile_op);
+
 struct compiled_result
 {
     compiler_replace replace;

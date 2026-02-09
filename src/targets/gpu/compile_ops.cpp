@@ -81,12 +81,18 @@ struct precompile_op
 };
 MIGRAPHX_REGISTER_OP(precompile_op);
 
+struct dynamic_op_cache
+{
+    module mod;
+    std::vector<shape> input_shapes;
+    shape output_shape;
+};
+
 struct dynamic_code_object_op
 {
     operation pre_op = precompile_op{};
-    mutable std::shared_ptr<module> cache_mod;
-    mutable std::shared_ptr<std::vector<shape>> cache_input_shapes;
-    mutable std::shared_ptr<shape> cache_static_output_shape;
+
+    std::shared_ptr<dynamic_op_cache> cache = std::make_shared<dynamic_op_cache>();
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -128,10 +134,10 @@ struct dynamic_code_object_op
         auto static_args = std::vector<argument>{args.begin(), args.end()};
         auto output_arg  = static_args.back();
 
-        if(cache_mod and *cache_input_shapes == to_shapes(args))
+        if(cache->mod.size() > 0 and cache->input_shapes == to_shapes(args))
         {
-            static_args[static_args.size() - 1] = output_arg.reshape(*cache_static_output_shape);
-            auto* mod                           = cache_mod.get();
+            static_args[static_args.size() - 1] = output_arg.reshape(cache->output_shape);
+            auto* mod                           = &cache->mod;
             auto param_map                      = build_param_map(static_args, mod);
             auto results                        = run(mod, param_map);
             if(results.size() > 1)
@@ -205,9 +211,9 @@ struct dynamic_code_object_op
 
         // Update cache
         // TODO: This will be updated to store compiled code objects for all encountered shapes
-        cache_mod                 = std::make_shared<module>(runtime_mod);
-        cache_input_shapes        = std::make_shared<std::vector<shape>>(to_shapes(args));
-        cache_static_output_shape = std::make_shared<shape>(static_args.back().get_shape());
+        cache->mod          = runtime_mod;
+        cache->input_shapes = to_shapes(args);
+        cache->output_shape = static_args.back().get_shape();
 
         // Build param_map based on ACTUAL parameters that exist
         module_ref runtime_mod_ref = &runtime_mod;

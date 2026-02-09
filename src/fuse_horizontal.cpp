@@ -36,26 +36,40 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 // ---------------------------------------------------------------------------
-// Generic horizontal fusion framework
+// Horizontal fusion framework
 //
-// Each Finder struct implements:
-//   bool is_candidate(instruction_ref) const  — does this instruction qualify?
-//   auto group_key(instruction_ref) const     — grouping key for batching compatible ops
-//   void fuse(module&, const std::vector<instruction_ref>&) const — fuse a sorted group
-//   static constexpr std::size_t min_batch_size
+// To add a new horizontal fusion, define a plain struct that implements:
 //
-// The framework does a single pass over the module, collects all candidates,
-// groups them by key, and calls fuse() on each qualifying group.
-// Groups are in module order (iterator_for traverses topologically).
-// An inter-dependency check removes any candidate that transitively depends
-// on another candidate in the same group, since horizontal fusion requires
-// truly independent operations.
+//   std::size_t min_group_size() const          — minimum group size for fusion
+//   bool is_candidate(instruction_ref) const    — does this instruction qualify?
+//   auto group_key(instruction_ref) const       — grouping key (comparable/orderable)
+//   std::vector<instruction_ref>
+//       fuse(module&, const std::vector<instruction_ref>&) const
+//       — fuse a group, return one replacement instruction per original op
+//
+// Then pass an instance to fuse_horizontal_ops().
+// The framework handles scanning, grouping by key, filtering inter-dependent
+// instructions, dispatching to fuse(), and replacing originals with results.
+// Groups are collected in module order (iterator_for traverses topologically).
 // ---------------------------------------------------------------------------
 
-template <class Finder>
-void find_and_fuse_horizontal(module& m, const Finder& finder)
+/// Remove instructions that transitively depend on an earlier instruction
+/// in the group, since horizontal fusion requires truly independent operations.
+static void filter_dependent(std::vector<instruction_ref>& group)
 {
-    using key_type = std::decay_t<decltype(finder.group_key(std::declval<instruction_ref>()))>;
+    for(auto it = std::next(group.begin()); it != group.end();)
+    {
+        bool dependent =
+            std::any_of(group.begin(), it, [&](auto j) { return reaches(j, *it); });
+        it = dependent ? group.erase(it) : std::next(it);
+    }
+}
+
+template <class Finder>
+static void apply_horizontal_finder(module& m, const Finder& finder)
+{
+    using key_type =
+        std::decay_t<decltype(finder.group_key(std::declval<instruction_ref>()))>;
 
     // Collect candidates and group by key (already in module order).
     std::map<key_type, std::vector<instruction_ref>> groups;
@@ -67,31 +81,28 @@ void find_and_fuse_horizontal(module& m, const Finder& finder)
 
     for(auto& [key, group] : groups)
     {
-        if(group.size() < Finder::min_batch_size)
+        if(group.size() < finder.min_group_size())
+            continue;
+        filter_dependent(group);
+        if(group.size() < finder.min_group_size())
             continue;
 
-        // Group is in module order.  Remove any candidate that transitively
-        // depends on an earlier candidate — horizontal fusion requires truly
-        // independent operations.
-        for(auto it = std::next(group.begin()); it != group.end();)
+        auto replacements = finder.fuse(m, group);
+        if(replacements.empty())
+            continue;
+
+        assert(replacements.size() == group.size());
+        for(std::size_t i = 0; i < group.size(); i++)
         {
-            bool dependent = false;
-            for(auto jt = group.begin(); jt != it; ++jt)
-            {
-                if(reaches(*jt, *it))
-                {
-                    dependent = true;
-                    break;
-                }
-            }
-            it = dependent ? group.erase(it) : std::next(it);
+            m.replace_instruction(group[i], replacements[i]);
         }
-
-        if(group.size() < Finder::min_batch_size)
-            continue;
-
-        finder.fuse(m, group);
     }
+}
+
+template <class... Finders>
+void fuse_horizontal_ops(module& m, Finders&&... finders)
+{
+    (apply_horizontal_finder(m, finders), ...);
 }
 
 // ---------------------------------------------------------------------------
@@ -105,7 +116,7 @@ void find_and_fuse_horizontal(module& m, const Finder& finder)
 
 struct gather_horizontal_fusion
 {
-    static constexpr std::size_t min_batch_size = 4;
+    std::size_t min_group_size() const { return 4; }
 
     bool is_candidate(instruction_ref ins) const
     {
@@ -141,7 +152,8 @@ struct gather_horizontal_fusion
         return ins->inputs().at(0)->get_shape().lens().back();
     }
 
-    void fuse(module& m, const std::vector<instruction_ref>& gathers) const
+    std::vector<instruction_ref> fuse(module& m,
+                                      const std::vector<instruction_ref>& gathers) const
     {
         // Validate compatible index shapes for concatenation along axis 0
         auto first_idx       = gathers.front()->inputs().at(1);
@@ -150,7 +162,7 @@ struct gather_horizontal_fusion
 
         // Skip scalar indices (empty lens)
         if(idx_lens.empty())
-            return;
+            return {};
 
         bool compatible = std::all_of(gathers.begin(), gathers.end(), [&](auto g) {
             auto idx        = g->inputs().at(1);
@@ -171,7 +183,7 @@ struct gather_horizontal_fusion
         });
 
         if(not compatible)
-            return;
+            return {};
 
         // Insert after the last gather in the group (already sorted by position)
         auto insert_pt = std::next(gathers.back());
@@ -233,26 +245,26 @@ struct gather_horizontal_fusion
         auto batched_gather = m.insert_instruction(
             insert_pt, make_op("gather", {{"axis", 0}}), concat_emb, concat_idx);
 
-        // Slice results back and replace each original gather
+        // Slice results back — one per original gather
+        std::vector<instruction_ref> results;
         std::size_t slice_offset = 0;
         for(std::size_t i = 0; i < gathers.size(); i++)
         {
-            auto g        = gathers[i];
             auto idx_size = idx_sizes[i];
             auto start    = static_cast<int64_t>(slice_offset);
             auto end      = static_cast<int64_t>(slice_offset + idx_size);
 
-            auto slice_ins = m.insert_instruction(
+            results.push_back(m.insert_instruction(
                 insert_pt,
                 make_op("slice",
                         {{"axes", std::vector<int64_t>{0}},
                          {"starts", std::vector<int64_t>{start}},
                          {"ends", std::vector<int64_t>{end}}}),
-                batched_gather);
+                batched_gather));
 
-            m.replace_instruction(g, slice_ins);
             slice_offset += idx_size;
         }
+        return results;
     }
 };
 
@@ -261,10 +273,11 @@ struct gather_horizontal_fusion
 //
 // struct pointwise_horizontal_fusion
 // {
-//     static constexpr std::size_t min_batch_size = 2;
+//     std::size_t min_group_size() const { return 2; }
 //     bool is_candidate(instruction_ref ins) const { ... }
 //     std::string group_key(instruction_ref ins) const { ... }
-//     void fuse(module& m, const std::vector<instruction_ref>& ops) const { ... }
+//     std::vector<instruction_ref>
+//         fuse(module& m, const std::vector<instruction_ref>& ops) const { ... }
 // };
 // ---------------------------------------------------------------------------
 
@@ -272,8 +285,7 @@ void fuse_horizontal::apply(module_pass_manager& mpm) const
 {
     auto& m = mpm.get_module();
 
-    find_and_fuse_horizontal(m, gather_horizontal_fusion{});
-    // find_and_fuse_horizontal(m, pointwise_horizontal_fusion{});
+    fuse_horizontal_ops(m, gather_horizontal_fusion{});
 
     dead_code_elimination{}.apply(m);
 }

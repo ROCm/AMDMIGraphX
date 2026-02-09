@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -70,11 +70,14 @@ void eliminate_concat::apply(module& m) const
             // Where are the allocations for the tensors to be concatenated?
             std::vector<instruction_ref> allocations;
 
-            std::transform(
-                ins->inputs().begin(),
-                std::prev(ins->inputs().end()),
-                std::back_inserter(allocations),
-                [&](instruction_ref x) { return instruction::get_output_alias(x, true); });
+            std::transform(ins->inputs().begin(),
+                           std::prev(ins->inputs().end()),
+                           std::back_inserter(allocations),
+                           [&](instruction_ref x) {
+                               auto aliases = instruction::get_output_alias(x, true);
+                               // cppcheck-suppress returnDanglingLifetime
+                               return aliases.front();
+                           });
 
             if(std::any_of(allocations.begin(), allocations.end(), [&](auto x) {
                    return x->name() != concat_opt.allocate();

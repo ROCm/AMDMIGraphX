@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -470,14 +470,25 @@ void instruction::debug_print() const
     std::cout << " -> " << this->get_shape() << std::endl;
 }
 
-instruction_ref instruction::get_output_alias(instruction_ref ins, bool shallow)
+std::vector<instruction_ref> instruction::get_output_alias(instruction_ref ins, bool shallow)
 {
-    auto i = ins->get_operator().output_alias(to_shapes(ins->inputs()));
-    if(i < 0)
-        return ins;
-    if(shallow)
-        return ins->inputs().at(i);
-    return get_output_alias(ins->inputs().at(i));
+    auto alias_indices = ins->get_operator().output_alias(to_shapes(ins->inputs()));
+    if(alias_indices.empty())
+        return {ins};
+    std::vector<instruction_ref> result;
+    for(auto i : alias_indices)
+    {
+        if(shallow)
+        {
+            result.push_back(ins->inputs().at(i));
+        }
+        else
+        {
+            auto nested = get_output_alias(ins->inputs().at(i));
+            result.insert(result.end(), nested.begin(), nested.end());
+        }
+    }
+    return result;
 }
 
 void instruction::set_normalized(bool value) { normalized = value; }

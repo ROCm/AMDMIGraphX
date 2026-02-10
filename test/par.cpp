@@ -35,9 +35,11 @@ TEST_CASE(par_transform_unary_basic)
 {
     std::vector<int> input = {1, 2, 3, 4, 5};
     std::vector<int> output(input.size());
-    migraphx::par_transform(
+    auto it = migraphx::par_transform(
         input.begin(), input.end(), output.begin(), [](int x) { return x * 2; });
     EXPECT(output == std::vector<int>{2, 4, 6, 8, 10});
+    EXPECT(it == output.end());
+    EXPECT(*(it - 1) == 10);
 }
 
 TEST_CASE(par_transform_unary_empty)
@@ -54,19 +56,23 @@ TEST_CASE(par_transform_unary_single)
 {
     std::vector<int> input = {42};
     std::vector<int> output(1);
-    migraphx::par_transform(
+    auto it = migraphx::par_transform(
         input.begin(), input.end(), output.begin(), [](int x) { return x + 1; });
     EXPECT(output == std::vector<int>{43});
+    EXPECT(it == output.end());
+    EXPECT(*(it - 1) == 43);
 }
 
 TEST_CASE(par_transform_unary_type_change)
 {
     std::vector<int> input = {1, 4, 9, 16};
     std::vector<double> output(input.size());
-    migraphx::par_transform(input.begin(), input.end(), output.begin(), [](int x) {
+    auto it = migraphx::par_transform(input.begin(), input.end(), output.begin(), [](int x) {
         return static_cast<double>(x) + 0.5;
     });
     EXPECT(output == std::vector<double>{1.5, 4.5, 9.5, 16.5});
+    EXPECT(it == output.end());
+    EXPECT(*(it - 1) == 16.5);
 }
 
 TEST_CASE(par_transform_unary_return_iterator)
@@ -76,6 +82,7 @@ TEST_CASE(par_transform_unary_return_iterator)
     auto it = migraphx::par_transform(
         input.begin(), input.end(), output.begin(), [](int x) { return x; });
     EXPECT(it == output.end());
+    EXPECT(*(it - 1) == 3);
 }
 
 // par_transform binary tests
@@ -85,9 +92,11 @@ TEST_CASE(par_transform_binary_basic)
     std::vector<int> a = {1, 2, 3, 4};
     std::vector<int> b = {10, 20, 30, 40};
     std::vector<int> output(a.size());
-    migraphx::par_transform(
+    auto it = migraphx::par_transform(
         a.begin(), a.end(), b.begin(), output.begin(), [](int x, int y) { return x + y; });
     EXPECT(output == std::vector<int>{11, 22, 33, 44});
+    EXPECT(it == output.end());
+    EXPECT(*(it - 1) == 44);
 }
 
 TEST_CASE(par_transform_binary_empty)
@@ -106,9 +115,11 @@ TEST_CASE(par_transform_binary_multiply)
     std::vector<int> a = {2, 3, 4};
     std::vector<int> b = {5, 6, 7};
     std::vector<int> output(a.size());
-    migraphx::par_transform(
+    auto it = migraphx::par_transform(
         a.begin(), a.end(), b.begin(), output.begin(), [](int x, int y) { return x * y; });
     EXPECT(output == std::vector<int>{10, 18, 28});
+    EXPECT(it == output.end());
+    EXPECT(*(it - 1) == 28);
 }
 
 TEST_CASE(par_transform_binary_return_iterator)
@@ -119,6 +130,7 @@ TEST_CASE(par_transform_binary_return_iterator)
     auto it = migraphx::par_transform(
         a.begin(), a.end(), b.begin(), output.begin(), [](int x, int y) { return x + y; });
     EXPECT(it == output.end());
+    EXPECT(*(it - 1) == 6);
 }
 
 // par_for_each tests
@@ -172,10 +184,12 @@ TEST_CASE(par_for_each_large)
 TEST_CASE(par_copy_if_basic)
 {
     std::vector<int> input = {1, 2, 3, 4, 5, 6, 7, 8};
-    std::vector<int> output;
-    migraphx::par_copy_if(
-        input.begin(), input.end(), std::back_inserter(output), [](int x) { return x % 2 == 0; });
-    std::sort(output.begin(), output.end());
+    std::vector<int> output(input.size());
+    auto it = migraphx::par_copy_if(
+        input.begin(), input.end(), output.begin(), [](int x) { return x % 2 == 0; });
+    EXPECT((it - output.begin()) == 4);
+    EXPECT(*(it - 1) == 8);
+    output.erase(it, output.end());
     EXPECT(output == std::vector<int>{2, 4, 6, 8});
 }
 
@@ -183,26 +197,31 @@ TEST_CASE(par_copy_if_empty)
 {
     std::vector<int> input;
     std::vector<int> output;
-    migraphx::par_copy_if(
-        input.begin(), input.end(), std::back_inserter(output), [](int) { return true; });
+    auto it = migraphx::par_copy_if(
+        input.begin(), input.end(), output.begin(), [](int) { return true; });
+    EXPECT(it == output.begin());
     EXPECT(output.empty());
 }
 
 TEST_CASE(par_copy_if_none_match)
 {
     std::vector<int> input = {1, 3, 5, 7};
-    std::vector<int> output;
-    migraphx::par_copy_if(
-        input.begin(), input.end(), std::back_inserter(output), [](int x) { return x % 2 == 0; });
+    std::vector<int> output(input.size());
+    auto it = migraphx::par_copy_if(
+        input.begin(), input.end(), output.begin(), [](int x) { return x % 2 == 0; });
+    EXPECT(it == output.begin());
+    output.erase(it, output.end());
     EXPECT(output.empty());
 }
 
 TEST_CASE(par_copy_if_all_match)
 {
     std::vector<int> input = {2, 4, 6};
-    std::vector<int> output;
-    migraphx::par_copy_if(
-        input.begin(), input.end(), std::back_inserter(output), [](int x) { return x % 2 == 0; });
+    std::vector<int> output(input.size());
+    auto it = migraphx::par_copy_if(
+        input.begin(), input.end(), output.begin(), [](int x) { return x % 2 == 0; });
+    EXPECT(it == output.end());
+    EXPECT(*(it - 1) == 6);
     EXPECT(output == std::vector<int>{2, 4, 6});
 }
 
@@ -212,6 +231,8 @@ TEST_CASE(par_copy_if_to_sized_output)
     std::vector<int> output(input.size());
     auto it = migraphx::par_copy_if(
         input.begin(), input.end(), output.begin(), [](int x) { return x % 10 == 0; });
+    EXPECT((it - output.begin()) == 3);
+    EXPECT(*(it - 1) == 50);
     output.erase(it, output.end());
     EXPECT(output == std::vector<int>{10, 30, 50});
 }

@@ -103,6 +103,10 @@ void eliminate_pad::apply(module& m) const
         auto input = ins->inputs().front();
         if(input->name() != "pad")
             continue;
+        auto pad_op = any_cast<op::pad>(input->get_operator());
+        // Only support constant padding in convolution
+        if(pad_op.mode != op::pad::pad_op_mode_t::constant_pad)
+            continue;
         if(op_name == "convolution" or op_name == "im2col")
             update_op(input, ins, m);
         else if(op_name == "pooling")

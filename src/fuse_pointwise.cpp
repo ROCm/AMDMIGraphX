@@ -257,7 +257,7 @@ find_output_pointwise(const module& m, instruction_ref ins, bool multi_out)
                          return false;
                      if(is_dead(output))
                          return false;
-                    return true;
+                     return true;
                  });
     if(outputs.size() < 2)
         return result;

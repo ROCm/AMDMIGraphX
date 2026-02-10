@@ -1234,8 +1234,7 @@ TEST_CASE(if_cross_module_multi_out_find_output)
             {x, y},
             [=](auto* pm, const auto& inputs) -> std::vector<migraphx::instruction_ref> {
                 auto sqrt_r = pm->add_instruction(migraphx::make_op("sqrt"), inputs[0]);
-                auto add_r =
-                    pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+                auto add_r  = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
                 return {sqrt_r, add_r};
             });
         auto sqrt_out =

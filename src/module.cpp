@@ -458,10 +458,9 @@ void module::move_output_instructions_after(instruction_ref src, instruction_ref
                 }
             }
         }
-        auto it = std::find_if(
-            mod_owner_map->begin(), mod_owner_map->end(), [&](const auto& p) {
-                return p.first->has_instruction(output);
-            });
+        auto it = std::find_if(mod_owner_map->begin(), mod_owner_map->end(), [&](const auto& p) {
+            return p.first->has_instruction(output);
+        });
         if(it != mod_owner_map->end())
             return it->second;
         return this->end();

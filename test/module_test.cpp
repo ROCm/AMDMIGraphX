@@ -1957,8 +1957,7 @@ TEST_CASE(move_output_instructions_after_cross_module_mixed)
         else_mod1->add_return({sub2});
 
         // if1 is between src and dst — should be moved
-        auto if1 =
-            mm->add_instruction(migraphx::make_op("if"), {cond1}, {then_mod1, else_mod1});
+        auto if1 = mm->add_instruction(migraphx::make_op("if"), {cond1}, {then_mod1, else_mod1});
         auto dst = mm->add_instruction(migraphx::make_op("sqrt"), x);
 
         auto* then_mod2 = p1.create_module("then_mod2");
@@ -1970,8 +1969,7 @@ TEST_CASE(move_output_instructions_after_cross_module_mixed)
         else_mod2->add_return({sub4});
 
         // if2 is after dst — should NOT be moved
-        auto if2 =
-            mm->add_instruction(migraphx::make_op("if"), {cond2}, {then_mod2, else_mod2});
+        auto if2 = mm->add_instruction(migraphx::make_op("if"), {cond2}, {then_mod2, else_mod2});
         mm->add_return({if1, if2, dst});
         mm->move_output_instructions_after(src, dst);
     }
@@ -2002,10 +2000,8 @@ TEST_CASE(move_output_instructions_after_cross_module_mixed)
 
         // Expected: if1 moved after dst, if2 stays after dst
         auto dst = mm->add_instruction(migraphx::make_op("sqrt"), x);
-        auto if1 =
-            mm->add_instruction(migraphx::make_op("if"), {cond1}, {then_mod1, else_mod1});
-        auto if2 =
-            mm->add_instruction(migraphx::make_op("if"), {cond2}, {then_mod2, else_mod2});
+        auto if1 = mm->add_instruction(migraphx::make_op("if"), {cond1}, {then_mod1, else_mod1});
+        auto if2 = mm->add_instruction(migraphx::make_op("if"), {cond2}, {then_mod2, else_mod2});
         mm->add_return({if1, if2, dst});
     }
 

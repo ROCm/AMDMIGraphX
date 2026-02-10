@@ -197,8 +197,8 @@ TEST_CASE(par_copy_if_empty)
 {
     std::vector<int> input;
     std::vector<int> output;
-    auto it = migraphx::par_copy_if(
-        input.begin(), input.end(), output.begin(), [](int) { return true; });
+    auto it =
+        migraphx::par_copy_if(input.begin(), input.end(), output.begin(), [](int) { return true; });
     EXPECT(it == output.begin());
     EXPECT(output.empty());
 }

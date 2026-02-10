@@ -22,29 +22,28 @@
  * THE SOFTWARE.
  */
 
-#include <onnx_test.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/literal.hpp>
 
-TEST_CASE(clip_test_args_type_mismatch)
+struct test_gather_axis0_slice_broadcast : verify_program<test_gather_axis0_slice_broadcast>
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
 
-    auto input   = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3, 3}});
-    auto min_val = mm->add_literal(migraphx::literal{
-        migraphx::shape{migraphx::shape::float_type, {1, 3}}, {1.5f, 2.5f, 3.5f}});
-    auto max_val = mm->add_literal(
-        migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {3, 1}}, {2, 3, 4}});
+        auto x       = mm->add_parameter("X", {migraphx::shape::float_type, {1, 4}});
+        auto reshape = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), x);
 
-    auto min_bc =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 3}}}), min_val);
-    auto max_bc =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 3}}}), max_val);
-    auto max_converted = mm->add_instruction(
-        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), max_bc);
+        migraphx::shape indices_shape{migraphx::shape::int32_type, {2, 8}};
+        std::vector<int32_t> indices = {0, 0, 0, 1, 1, 2, 2, 3, 0, 1, 1, 2, 2, 3, 3, 3};
+        auto indices_literal         = mm->add_literal(migraphx::literal{indices_shape, indices});
 
-    auto clip = mm->add_instruction(migraphx::make_op("clip"), input, min_bc, max_converted);
-    mm->add_return({clip});
+        auto gather = mm->add_instruction(migraphx::make_op("gather"), reshape, indices_literal);
+        mm->add_return({gather});
 
-    auto prog = read_onnx("clip_test_args_type_mismatch.onnx");
-    EXPECT(p.sort() == prog.sort());
-}
+        return p;
+    }
+};

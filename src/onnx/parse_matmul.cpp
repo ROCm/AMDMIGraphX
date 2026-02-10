@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,8 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/make_op.hpp>
+
+#include <migraphx/op/builder/insert.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -108,8 +110,7 @@ struct parse_matmul : op_parser<parse_matmul>
         return all_zeros;
     }
 
-    static instruction_ref set_scale_arg(const onnx_parser::node_info& info,
-                                         const std::vector<instruction_ref>& args,
+    static instruction_ref set_scale_arg(const std::vector<instruction_ref>& args,
                                          const instruction_ref& mat_input,
                                          const int index)
     {
@@ -134,14 +135,6 @@ struct parse_matmul : op_parser<parse_matmul>
         {
             MIGRAPHX_THROW("PARSE_QUANT_DOT_SCALED: Scales shape must be scalar or 1-D tensor");
         }
-
-        if(scale_shape.scalar())
-        {
-            scale_arg   = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), scale_arg);
-            scale_shape = scale_arg->get_shape();
-        }
-
-        scale_arg = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), scale_arg);
 
         return scale_arg;
     }
@@ -225,22 +218,6 @@ struct parse_matmul : op_parser<parse_matmul>
         }
     }
 
-    static void handle_scaled_transposes(const onnx_parser::node_info& info,
-                                         instruction_ref& scale,
-                                         instruction_ref& zp,
-                                         bool no_zp)
-    {
-        if(no_zp)
-        {
-            scale = info.add_instruction(make_op("transpose", {{"permutation", {0, 1}}}), scale);
-        }
-        else
-        {
-            scale = info.add_instruction(make_op("transpose", {{"permutation", {0, 1}}}), scale);
-            zp    = info.add_instruction(make_op("transpose", {{"permutation", {1, 0}}}), zp);
-        }
-    }
-
     static instruction_ref handle_dequantized(const onnx_parser::node_info& info,
                                               const instruction_ref& a0,
                                               const instruction_ref& scale_a0,
@@ -249,23 +226,20 @@ struct parse_matmul : op_parser<parse_matmul>
     {
         instruction_ref dequantized_op;
 
-        if(no_zp)
+        std::vector<instruction_ref> dq_args{a0, scale_a0};
+        if(!no_zp)
         {
-            auto bc_scale_a0 = info.add_instruction(
-                make_op("multibroadcast", {{"out_lens", a0->get_shape().lens()}}), scale_a0);
-            dequantized_op = info.add_instruction(make_op("dequantizelinear"), a0, bc_scale_a0);
+            dq_args.push_back(zp_a0);
         }
-        else
-        {
-            auto bc_scale_a0 = info.add_instruction(
-                make_op("multibroadcast", {{"out_lens", a0->get_shape().lens()}}), scale_a0);
 
-            auto bc_zp_a0 = info.add_instruction(
-                make_op("multibroadcast", {{"out_lens", a0->get_shape().lens()}}), zp_a0);
+        const auto& lens = a0->get_shape().lens();
+        const auto scale_len = scale_a0->get_shape().lens().at(0);
+        const auto rit = std::find(lens.rbegin(), lens.rend(), scale_len);
+        const int axis = (rit != lens.rend()) ? static_cast<int>(lens.rend() - rit - 1) : 1;
 
-            dequantized_op =
-                info.add_instruction(make_op("dequantizelinear"), a0, bc_scale_a0, bc_zp_a0);
-        }
+        dequantized_op =
+            op::builder::add("dequantizelinear", *info.mod, dq_args, {{"axis", axis}}).at(0);
+
         return dequantized_op;
     }
 
@@ -279,35 +253,8 @@ struct parse_matmul : op_parser<parse_matmul>
                                                 const instruction_ref& scaled_bias,
                                                 const bool has_scale_bias)
     {
-
-        instruction_ref unsq_zp_a0;
-        instruction_ref unsq_zp_a1;
-
-        bool a0_has_no_zp = (a0 == zp_a0);
-        bool a1_has_no_zp = (a1 == zp_a1);
-
-        if(not a0_has_no_zp)
-        {
-            unsq_zp_a0 = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), zp_a0);
-            if(zp_a0->get_shape().scalar())
-            {
-                unsq_zp_a0 =
-                    info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), unsq_zp_a0);
-            }
-        }
-
-        if(not a1_has_no_zp)
-        {
-            unsq_zp_a1 = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), zp_a1);
-            if(zp_a1->get_shape().scalar())
-            {
-                unsq_zp_a1 =
-                    info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), unsq_zp_a1);
-            }
-        }
-
-        auto dq_a0 = handle_dequantized(info, a0, scale_a0, unsq_zp_a0, a0_has_no_zp);
-        auto dq_a1 = handle_dequantized(info, a1, scale_a1, unsq_zp_a1, a1_has_no_zp);
+        auto dq_a0 = handle_dequantized(info, a0, scale_a0, zp_a0, (a0 == zp_a0));
+        auto dq_a1 = handle_dequantized(info, a1, scale_a1, zp_a1, (a1 == zp_a1));
         auto res   = info.add_instruction(make_op("dot"), dq_a0, dq_a1);
 
         // Handle case of the bias after scaling
@@ -391,8 +338,8 @@ struct parse_matmul : op_parser<parse_matmul>
         }
         else
         {
-            auto s0_lens        = a0->get_shape().lens();
-            auto s1_lens        = a1->get_shape().lens();
+            auto s0_lens = a0->get_shape().lens();
+            auto s1_lens = a1->get_shape().lens();
 
             if(is_dot and args.size() > 2)
             {
@@ -413,8 +360,8 @@ struct parse_matmul : op_parser<parse_matmul>
             {
                 a0_zp_index = 4;
                 a1_zp_index = 5;
-                scale_a0    = set_scale_arg(info, args, a0, 2);
-                scale_a1    = set_scale_arg(info, args, a1, 3);
+                scale_a0    = set_scale_arg(args, a0, 2);
+                scale_a1    = set_scale_arg(args, a1, 3);
                 if(scale_a0->get_shape().type() != scale_a1->get_shape().type())
                 {
                     MIGRAPHX_THROW(op_name + ": Scales must be the same type");

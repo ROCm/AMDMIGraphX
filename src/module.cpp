@@ -441,14 +441,15 @@ void module::move_output_instructions_after(instruction_ref src, instruction_ref
     // When an output is in a submodule (cross-module reference), resolve it to
     // the instruction in this module that owns the submodule containing the output.
     // The map is lazily built on the first cross-module output encountered.
-    std::optional<std::unordered_map<const module*, instruction_ref>> mod_owner_map;
+    std::optional<std::unordered_map<const_module_ref, instruction_ref>> mod_owner_map;
     auto resolve_output = [&](instruction_ref output) -> instruction_ref {
         if(this->has_instruction(output))
             return output;
         if(not mod_owner_map)
         {
             mod_owner_map.emplace();
-            for(auto ins = std::next(src); ins != dst; ++ins)
+            auto r = range(std::next(src), dst);
+            for(auto ins:iterator_for(r))
             {
                 for(auto* mod : ins->module_inputs())
                 {

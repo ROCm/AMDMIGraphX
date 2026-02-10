@@ -33,7 +33,7 @@
 
 static void run_pass(migraphx::module& m)
 {
-    migraphx::run_passes(m, {migraphx::fuse_horizontal{}});
+    migraphx::run_passes(m, {migraphx::fuse_horizontal{}, migraphx::dead_code_elimination{}});
 }
 
 // 4 gathers with same embedding dim → should fuse into 1 batched gather
@@ -294,6 +294,235 @@ TEST_CASE(gather_horiz_no_fusion_3d_embedding)
 
         auto c = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
                                     std::vector<migraphx::instruction_ref>{g1, g2, g3, g4});
+        m1.add_instruction(pass_op{}, c);
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+// First gather's output is used before the second gather — consumers are interleaved
+// The pass should still fuse and move_output_instructions_after handles reordering
+TEST_CASE(gather_horiz_fusion_interleaved_consumers)
+{
+    migraphx::module m1;
+    {
+        auto emb1 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 2}}, 0));
+        auto emb2 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 2}}, 1));
+        auto emb3 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 2}}, 2));
+        auto emb4 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {5, 2}}, 3));
+
+        auto idx1 = m1.add_parameter("idx1", {migraphx::shape::int32_type, {2}});
+        auto idx2 = m1.add_parameter("idx2", {migraphx::shape::int32_type, {2}});
+        auto idx3 = m1.add_parameter("idx3", {migraphx::shape::int32_type, {2}});
+        auto idx4 = m1.add_parameter("idx4", {migraphx::shape::int32_type, {2}});
+
+        auto g1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb1, idx1);
+
+        // g1's output is consumed here — between g1 and g2
+        auto relu1 = m1.add_instruction(migraphx::make_op("relu"), g1);
+
+        auto g2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb2, idx2);
+        auto g3 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb3, idx3);
+        auto g4 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb4, idx4);
+
+        auto c = m1.add_instruction(
+            migraphx::make_op("concat", {{"axis", 0}}),
+            std::vector<migraphx::instruction_ref>{relu1, g2, g3, g4});
+        m1.add_instruction(pass_op{}, c);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto emb1 =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 2}}, 0));
+        auto emb2 =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 2}}, 1));
+        auto emb3 =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 2}}, 2));
+        auto emb4 =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {5, 2}}, 3));
+
+        auto idx1 = m2.add_parameter("idx1", {migraphx::shape::int32_type, {2}});
+        auto idx2 = m2.add_parameter("idx2", {migraphx::shape::int32_type, {2}});
+        auto idx3 = m2.add_parameter("idx3", {migraphx::shape::int32_type, {2}});
+        auto idx4 = m2.add_parameter("idx4", {migraphx::shape::int32_type, {2}});
+
+        auto offset2 = m2.add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {std::size_t(3)}});
+        auto offset3 = m2.add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {std::size_t(7)}});
+        auto offset4 = m2.add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {std::size_t(9)}});
+
+        auto concat_emb = m2.add_instruction(
+            migraphx::make_op("concat", {{"axis", 0}}),
+            std::vector<migraphx::instruction_ref>{emb1, emb2, emb3, emb4});
+
+        auto bc2 = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2}}}), offset2);
+        auto adj_idx2 = m2.add_instruction(migraphx::make_op("add"), idx2, bc2);
+
+        auto bc3 = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2}}}), offset3);
+        auto adj_idx3 = m2.add_instruction(migraphx::make_op("add"), idx3, bc3);
+
+        auto bc4 = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2}}}), offset4);
+        auto adj_idx4 = m2.add_instruction(migraphx::make_op("add"), idx4, bc4);
+
+        auto concat_idx = m2.add_instruction(
+            migraphx::make_op("concat", {{"axis", 0}}),
+            std::vector<migraphx::instruction_ref>{idx1, adj_idx2, adj_idx3, adj_idx4});
+
+        auto bg =
+            m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), concat_emb, concat_idx);
+
+        auto s1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), bg);
+        auto s2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {4}}}), bg);
+        auto s3 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {6}}}), bg);
+        auto s4 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {6}}, {"ends", {8}}}), bg);
+
+        // relu was on g1, now on s1 — moved after slices
+        auto relu1 = m2.add_instruction(migraphx::make_op("relu"), s1);
+
+        auto c = m2.add_instruction(
+            migraphx::make_op("concat", {{"axis", 0}}),
+            std::vector<migraphx::instruction_ref>{relu1, s2, s3, s4});
+        m2.add_instruction(pass_op{}, c);
+    }
+    EXPECT(m1 == m2);
+}
+
+// Shared index: all 4 gathers use the same index parameter
+TEST_CASE(gather_horiz_fusion_shared_index)
+{
+    migraphx::module m1;
+    {
+        auto emb1 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 2}}, 0));
+        auto emb2 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 2}}, 1));
+        auto emb3 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 2}}, 2));
+        auto emb4 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {5, 2}}, 3));
+
+        auto idx = m1.add_parameter("idx", {migraphx::shape::int32_type, {2}});
+
+        auto g1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb1, idx);
+        auto g2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb2, idx);
+        auto g3 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb3, idx);
+        auto g4 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb4, idx);
+
+        auto c = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                                    std::vector<migraphx::instruction_ref>{g1, g2, g3, g4});
+        m1.add_instruction(pass_op{}, c);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto emb1 =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 2}}, 0));
+        auto emb2 =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 2}}, 1));
+        auto emb3 =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 2}}, 2));
+        auto emb4 =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {5, 2}}, 3));
+
+        auto idx = m2.add_parameter("idx", {migraphx::shape::int32_type, {2}});
+
+        auto offset2 = m2.add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {std::size_t(3)}});
+        auto offset3 = m2.add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {std::size_t(7)}});
+        auto offset4 = m2.add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {std::size_t(9)}});
+
+        auto concat_emb = m2.add_instruction(
+            migraphx::make_op("concat", {{"axis", 0}}),
+            std::vector<migraphx::instruction_ref>{emb1, emb2, emb3, emb4});
+
+        auto bc2 = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2}}}), offset2);
+        auto adj_idx2 = m2.add_instruction(migraphx::make_op("add"), idx, bc2);
+
+        auto bc3 = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2}}}), offset3);
+        auto adj_idx3 = m2.add_instruction(migraphx::make_op("add"), idx, bc3);
+
+        auto bc4 = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2}}}), offset4);
+        auto adj_idx4 = m2.add_instruction(migraphx::make_op("add"), idx, bc4);
+
+        auto concat_idx = m2.add_instruction(
+            migraphx::make_op("concat", {{"axis", 0}}),
+            std::vector<migraphx::instruction_ref>{idx, adj_idx2, adj_idx3, adj_idx4});
+
+        auto bg =
+            m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), concat_emb, concat_idx);
+
+        auto s1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), bg);
+        auto s2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {4}}}), bg);
+        auto s3 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {6}}}), bg);
+        auto s4 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {6}}, {"ends", {8}}}), bg);
+
+        auto c = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                                    std::vector<migraphx::instruction_ref>{s1, s2, s3, s4});
+        m2.add_instruction(pass_op{}, c);
+    }
+    EXPECT(m1 == m2);
+}
+
+// Dependent gathers: g2 depends on g1's output → only independent ones fuse
+// Since g1→g2 dependency exists, group_by won't group them together.
+// With only 3 remaining independent gathers, below min_group_size=4, no fusion.
+TEST_CASE(gather_horiz_no_fusion_dependent)
+{
+    migraphx::module m1;
+    {
+        auto emb1 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 2}}, 0));
+        auto emb2 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 2}}, 1));
+        auto emb3 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 2}}, 2));
+        auto emb4 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {5, 2}}, 3));
+
+        auto idx1 = m1.add_parameter("idx1", {migraphx::shape::int32_type, {2}});
+        auto idx3 = m1.add_parameter("idx3", {migraphx::shape::int32_type, {2}});
+        auto idx4 = m1.add_parameter("idx4", {migraphx::shape::int32_type, {2}});
+
+        auto g1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb1, idx1);
+
+        // g2 uses g1's output shape to derive its index (dependency)
+        auto reshape_g1 = m1.add_instruction(
+            migraphx::make_op("reshape", {{"dims", {2}}}), g1);
+        auto g2 = m1.add_instruction(
+            migraphx::make_op("gather", {{"axis", 0}}), emb2, reshape_g1);
+
+        auto g3 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb3, idx3);
+        auto g4 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb4, idx4);
+
+        auto c = m1.add_instruction(
+            migraphx::make_op("concat", {{"axis", 0}}),
+            std::vector<migraphx::instruction_ref>{g1, g2, g3, g4});
         m1.add_instruction(pass_op{}, c);
     }
     auto m2 = m1;

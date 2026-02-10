@@ -31,6 +31,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/float_equal.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -104,8 +105,8 @@ void eliminate_pad::apply(module& m) const
         if(input->name() != "pad")
             continue;
         auto pad_op = any_cast<op::pad>(input->get_operator());
-        // Only support folding constant padding into convolution/im2col/pooling
-        if(pad_op.mode != op::pad::pad_op_mode_t::constant_pad)
+        // Only support folding zero padding into convolution/im2col/pooling
+        if(pad_op.mode != op::pad::pad_op_mode_t::constant_pad or not float_equal(pad_op.value, 0.0f))
             continue;
         if(op_name == "convolution" or op_name == "im2col")
             update_op(input, ins, m);

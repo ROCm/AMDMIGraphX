@@ -129,6 +129,33 @@ TEST_CASE(eliminate_pad_im2col_asymmetric)
         m.begin(), m.end(), [](const migraphx::instruction& ins) { return ins.name() == "pad"; }));
 }
 
+TEST_CASE(eliminate_pad_nonzero_pad)
+{
+    migraphx::module m1;
+
+    size_t img_dim[2] = {2, 2};
+    size_t channels   = 1;
+    std::vector<int32_t> input(channels * img_dim[0] * img_dim[1]);
+    std::iota(input.begin(), input.end(), 0);
+    migraphx::shape s_img{migraphx::shape::int32_type, {1, channels, img_dim[0], img_dim[1]}};
+    auto l_img = m1.add_literal(migraphx::literal{s_img, input});
+    auto padded_img =
+        m1.add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 1, 1, 0, 0, 1, 1}}, {"mode", migraphx::op::pad::constant_pad}, {"value", 5.5f}}), l_img);
+
+
+    auto im2col = create_im2col(padded_img, channels, m1);
+    auto conv = create_conv(padded_img, channels, m1);
+    auto pooling = m1.add_instruction(
+        migraphx::make_op("pooling", {{"mode", migraphx::op::pooling_mode::max}}), padded_img);
+    m1.add_return({im2col, conv, pooling});
+    
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    migraphx::run_passes(m2, {migraphx::normalize_ops{}});
+
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(eliminate_pad_skip_reflect)
 {
     migraphx::module m1;
@@ -148,10 +175,6 @@ TEST_CASE(eliminate_pad_skip_reflect)
     auto pooling = m1.add_instruction(
         migraphx::make_op("pooling", {{"mode", migraphx::op::pooling_mode::max}}), padded_img);
     m1.add_return({im2col, conv, pooling});
-
-    auto s0 = im2col->get_shape();
-    auto s1 = conv->get_shape();
-    auto s2 = pooling->get_shape();
     
     migraphx::module m2 = m1;
     run_pass(m1);
@@ -180,10 +203,6 @@ TEST_CASE(eliminate_pad_skip_edge)
         migraphx::make_op("pooling", {{"mode", migraphx::op::pooling_mode::max}}), padded_img);
     m1.add_return({im2col, conv, pooling});
 
-    auto s0 = im2col->get_shape();
-    auto s1 = conv->get_shape();
-    auto s2 = pooling->get_shape();
-    
     migraphx::module m2 = m1;
     run_pass(m1);
     migraphx::run_passes(m2, {migraphx::normalize_ops{}});

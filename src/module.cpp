@@ -438,10 +438,40 @@ void module::move_output_instructions_after(instruction_ref src, instruction_ref
 {
     auto d = std::distance(src, dst);
     std::vector<std::pair<std::size_t, instruction_ref>> instructions;
+    // When an output is in a submodule (cross-module reference), resolve it to
+    // the instruction in this module that owns the submodule containing the output.
+    // The map is lazily built on the first cross-module output encountered.
+    std::optional<std::unordered_map<const module*, instruction_ref>> mod_owner_map;
+    auto resolve_output = [&](instruction_ref output) -> instruction_ref {
+        if(this->has_instruction(output))
+            return output;
+        if(not mod_owner_map)
+        {
+            mod_owner_map.emplace();
+            for(auto ins = std::next(src); ins != dst; ++ins)
+            {
+                for(auto* mod : ins->module_inputs())
+                {
+                    (*mod_owner_map)[mod] = ins;
+                    for(auto* smod : mod->get_sub_modules())
+                        (*mod_owner_map)[smod] = ins;
+                }
+            }
+        }
+        auto it = std::find_if(
+            mod_owner_map->begin(), mod_owner_map->end(), [&](const auto& p) {
+                return p.first->has_instruction(output);
+            });
+        if(it != mod_owner_map->end())
+            return it->second;
+        return this->end();
+    };
     fix([&](auto self, instruction_ref ins) {
         for(auto output : ins->outputs())
         {
-            assert(this->has_instruction(output));
+            output = resolve_output(output);
+            if(is_end(output, this->end()))
+                continue;
             if(any_of(instructions, [&](const auto& p) { return p.second == output; }))
                 continue;
             auto i = std::distance(src, output);

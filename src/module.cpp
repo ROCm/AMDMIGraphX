@@ -449,7 +449,7 @@ void module::move_output_instructions_after(instruction_ref src, instruction_ref
         {
             mod_owner_map.emplace();
             auto r = range(std::next(src), dst);
-            for(auto ins:iterator_for(r))
+            for(auto ins : iterator_for(r))
             {
                 for(auto* mod : ins->module_inputs())
                 {

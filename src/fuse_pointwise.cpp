@@ -257,11 +257,7 @@ find_output_pointwise(const module& m, instruction_ref ins, bool multi_out)
                          return false;
                      if(is_dead(output))
                          return false;
-                     // TODO: move_output_instructions_after doesnt handle outputs from different
-                     // modules so only fuse from the same module
-                     return std::all_of(output->outputs().begin(),
-                                        output->outputs().end(),
-                                        [&](auto out) { return m.has_instruction(out); });
+                    return true;
                  });
     if(outputs.size() < 2)
         return result;

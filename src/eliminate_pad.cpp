@@ -106,7 +106,8 @@ void eliminate_pad::apply(module& m) const
             continue;
         auto pad_op = any_cast<op::pad>(input->get_operator());
         // Only support folding zero padding into convolution/im2col/pooling
-        if(pad_op.mode != op::pad::pad_op_mode_t::constant_pad or not float_equal(pad_op.value, 0.0f))
+        if(pad_op.mode != op::pad::pad_op_mode_t::constant_pad or
+           not float_equal(pad_op.value, 0.0f))
             continue;
         if(op_name == "convolution" or op_name == "im2col")
             update_op(input, ins, m);

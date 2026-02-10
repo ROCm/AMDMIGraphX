@@ -195,9 +195,7 @@ TEST_CASE(pad_reflect_1d_test)
     migraphx::shape s{migraphx::shape::float_type, {4}};
     auto l0 = mm->add_literal(migraphx::literal{s, {1, 2, 3, 4}});
     mm->add_instruction(
-        migraphx::make_op("pad",
-                          {{"pads", {2, 3}}, {"mode", migraphx::op::pad::reflect_pad}}),
-        l0);
+        migraphx::make_op("pad", {{"pads", {2, 3}}, {"mode", migraphx::op::pad::reflect_pad}}), l0);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
     std::vector<float> results_vector;

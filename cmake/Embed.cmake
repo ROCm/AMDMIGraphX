@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -35,6 +35,8 @@ else()
     endif()
     set_property(CACHE EMBED_USE PROPERTY STRINGS "LD;CArrays")
 endif()
+
+option(EMBED_VERBOSE "Show verbose output when creating embed library" OFF)
 
 if(EMBED_USE STREQUAL "LD")
     find_program(EMBED_LD ld REQUIRED)
@@ -189,7 +191,9 @@ std::unordered_map<std::string_view, std::string_view> ${EMBED_NAME}()
 endfunction()
 
 function(embed_file FILE BASE_DIRECTORY)
-    message(STATUS "    ${FILE}")
+    if(EMBED_VERBOSE)
+        message(STATUS "    ${FILE}")
+    endif()
     file(RELATIVE_PATH REL_FILE "${BASE_DIRECTORY}" ${FILE})
     string(MAKE_C_IDENTIFIER "${REL_FILE}" OUTPUT_SYMBOL)
     get_filename_component(OUTPUT_FILE_DIR "${REL_FILE}" DIRECTORY)
@@ -233,13 +237,16 @@ function(add_embed_library EMBED_NAME)
 
     set(EMBED_DIR ${CMAKE_CURRENT_BINARY_DIR}/embed/${EMBED_NAME})
     file(MAKE_DIRECTORY ${EMBED_DIR})
-    message(STATUS "Embedding kernel files:")
+    list(LENGTH PARSE_UNPARSED_ARGUMENTS NFILES)
+    message(STATUS "Embedding ${NFILES} files into library '${EMBED_NAME}':")
     foreach(FILE ${PARSE_UNPARSED_ARGUMENTS})
         embed_file(${FILE} ${PARSE_RELATIVE})
         list(APPEND OUTPUT_FILES ${OUTPUT_FILE})
         list(APPEND SYMBOLS ${OUTPUT_SYMBOL})
     endforeach()
-    message(STATUS "Generating embedding library '${EMBED_NAME}'")
+    if(EMBED_VERBOSE)
+        message(STATUS "Generating embedding library '${EMBED_NAME}'")
+    endif()
     generate_embed_source(${EMBED_NAME} ${EMBED_DIR} "${PARSE_RELATIVE}" SYMBOLS ${SYMBOLS} FILES ${PARSE_UNPARSED_ARGUMENTS})
     set(INTERNAL_EMBED_LIB embed_lib_${EMBED_NAME})
     if(EMBED_USE STREQUAL "LD")

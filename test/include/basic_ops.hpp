@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -131,7 +131,10 @@ struct pass_op
             return {};
         return inputs.front();
     }
-    int output_alias(const std::vector<migraphx::shape>& s) const { return s.empty() ? -1 : 0; }
+    std::vector<std::size_t> output_alias(const std::vector<migraphx::shape>& s) const
+    {
+        return s.empty() ? std::vector<std::size_t>{} : std::vector<std::size_t>{0};
+    }
 };
 
 struct non_const_pass_op
@@ -151,7 +154,10 @@ struct non_const_pass_op
             return {};
         return inputs.front();
     }
-    int output_alias(const std::vector<migraphx::shape>& s) const { return s.empty() ? -1 : 0; }
+    std::vector<std::size_t> output_alias(const std::vector<migraphx::shape>& s) const
+    {
+        return s.empty() ? std::vector<std::size_t>{} : std::vector<std::size_t>{0};
+    }
 };
 
 struct mod_pass_op
@@ -176,7 +182,7 @@ struct mod_pass_op
         return {};
     }
 
-    int output_alias(const std::vector<migraphx::shape>&) const { return 0; }
+    std::vector<std::size_t> output_alias(const std::vector<migraphx::shape>&) const { return {0}; }
 };
 
 struct unary_pass_op
@@ -196,7 +202,7 @@ struct unary_pass_op
             MIGRAPHX_THROW("Wrong inputs");
         return inputs.front();
     }
-    int output_alias(const std::vector<migraphx::shape>&) const { return 0; }
+    std::vector<std::size_t> output_alias(const std::vector<migraphx::shape>&) const { return {0}; }
 };
 
 struct pass_standard_op
@@ -221,7 +227,7 @@ struct pass_standard_op
             return {};
         return inputs.front();
     }
-    int output_alias(const std::vector<migraphx::shape>&) const { return 0; }
+    std::vector<std::size_t> output_alias(const std::vector<migraphx::shape>&) const { return {0}; }
 };
 
 struct nop
@@ -247,6 +253,24 @@ struct tuple_op
                                const std::vector<migraphx::argument>& input_args) const
     {
         return input_args;
+    }
+};
+
+// Operation that aliases multiple inputs (all inputs)
+struct multi_alias_op
+{
+    std::string name() const { return "multi_alias"; }
+    migraphx::shape compute_shape(std::vector<migraphx::shape> inputs) const
+    {
+        if(inputs.empty())
+            MIGRAPHX_THROW("Need at least 1 input");
+        return inputs.front();
+    }
+    std::vector<std::size_t> output_alias(const std::vector<migraphx::shape>& s) const
+    {
+        std::vector<std::size_t> result(s.size());
+        std::iota(result.begin(), result.end(), 0);
+        return result;
     }
 };
 

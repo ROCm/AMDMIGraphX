@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -197,11 +197,14 @@ struct miopen_apply
 
     void insert_fill(instruction_ref ins, value v) const
     {
-        instruction_ref alloc = instruction::get_output_alias(ins, true);
-        if(alloc == ins)
+        auto aliases = instruction::get_output_alias(ins, true);
+        if(aliases.size() == 1 and aliases.front() == ins)
             return;
-        auto fill = mod->insert_instruction(ins, make_op("hip::fill", {{"value", v}}), alloc);
-        instruction::replace_argument(ins, alloc, fill);
+        for(instruction_ref alloc : aliases)
+        {
+            auto fill = mod->insert_instruction(ins, make_op("hip::fill", {{"value", v}}), alloc);
+            instruction::replace_argument(ins, alloc, fill);
+        }
     }
 
     instruction_ref insert_custom_op(instruction_ref ins, const value& attrs) const

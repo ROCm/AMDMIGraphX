@@ -149,14 +149,13 @@ TEST_CASE(dequantizelinear_per_axis_op_builder_test)
     auto ctx            = per_axis_context_valid({4, 3}, 1);
     migraphx::module& m = ctx.m;
 
-    auto new_s = m.add_instruction(
-        migraphx::make_op("broadcast", {{"axis", ctx.axis}, {"out_lens", ctx.x_shape.lens()}}),
-        ctx.s);
-    auto new_zp = m.add_instruction(
-        migraphx::make_op("broadcast", {{"axis", ctx.axis}, {"out_lens", ctx.x_shape.lens()}}),
-        ctx.zp);
-
-    m.add_instruction(migraphx::make_op("dequantizelinear"), ctx.x, new_s, new_zp);
+    auto unsq_scale = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), ctx.s);
+    auto mbc_scale  = m.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", ctx.x_shape.lens()}}), unsq_scale);
+    auto unsq_zp = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), ctx.zp);
+    auto mbc_zp  = m.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", ctx.x_shape.lens()}}), unsq_zp);
+    m.add_instruction(migraphx::make_op("dequantizelinear"), ctx.x, mbc_scale, mbc_zp);
 
     ctx.expect();
 }

@@ -70,9 +70,15 @@ transform_quantize_dequantize_linear_inputs(Builder& bldr,
                            to_string(axis) + "(actual: " + to_string(x_lens[axis]) + ")");
         }
 
+        std::vector<int64_t> unsqueeze_axes(x_rank);
+        std::iota(unsqueeze_axes.begin(), unsqueeze_axes.end(), 0);
+        unsqueeze_axes.erase(unsqueeze_axes.begin() + axis);
+
         std::transform(args.begin() + 1, args.end(), args.begin() + 1, [&](auto ins) {
-            return bldr.add_instruction(
-                make_op("broadcast", {{"axis", axis}, {"out_lens", x_lens}}), ins);
+            auto unsqueezed =
+                bldr.add_instruction(make_op("unsqueeze", {{"axes", unsqueeze_axes}}), ins);
+            return bldr.add_instruction(make_op("multibroadcast", {{"out_lens", x_lens}}),
+                                        unsqueezed);
         });
     }
     // Blocked granularity

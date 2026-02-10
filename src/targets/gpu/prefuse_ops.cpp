@@ -403,9 +403,110 @@ struct find_conv1x1
     }
 };
 
+// Depthwise convolution operation
+struct depthwise_conv
+{
+    std::vector<std::size_t> padding = {0, 0};
+    std::vector<std::size_t> strides = {1, 1};
+    bool has_bias = false;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.padding, "padding"), f(self.strides, "strides"), f(self.has_bias, "has_bias"));
+    }
+
+    std::string name() const { return "gpu::depthwise_conv"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        auto input_shape  = inputs[0];
+        auto weight_shape = inputs[1];
+
+        auto n  = input_shape.lens()[0];
+        auto c  = input_shape.lens()[1];
+        auto h  = input_shape.lens()[2];
+        auto w  = input_shape.lens()[3];
+        auto kh = weight_shape.lens()[2];
+        auto kw = weight_shape.lens()[3];
+
+        auto pad_h = padding.size() >= 1 ? padding[0] : 0;
+        auto pad_w = padding.size() >= 2 ? padding[1] : 0;
+        auto stride_h = strides.size() >= 1 ? strides[0] : 1;
+        auto stride_w = strides.size() >= 2 ? strides[1] : 1;
+
+        auto h_out = (h + 2 * pad_h - kh) / stride_h + 1;
+        auto w_out = (w + 2 * pad_w - kw) / stride_w + 1;
+
+        return shape{input_shape.type(), {n, c, h_out, w_out}};
+    }
+};
+MIGRAPHX_REGISTER_OP(depthwise_conv);
+
+auto is_depthwise_conv()
+{
+    return match::make_basic_pred_matcher([=](instruction_ref ins) {
+        if(ins->name() != "convolution")
+            return false;
+        auto conv_op = any_cast<op::convolution>(ins->get_operator());
+        auto weight_shape = ins->inputs()[1]->get_shape();
+        auto input_shape = ins->inputs()[0]->get_shape();
+
+        // groups == channels (depthwise)
+        auto c = input_shape.lens()[1];
+        if(conv_op.group != c)
+            return false;
+
+        // Weight shape is [C, 1, KH, KW]
+        if(weight_shape.lens()[1] != 1)
+            return false;
+
+        // Only support float for now
+        if(input_shape.type() != shape::float_type)
+            return false;
+
+        // stride 1 for now
+        if(conv_op.stride[0] != 1 || conv_op.stride[1] != 1)
+            return false;
+
+        // dilation 1
+        if(conv_op.dilation[0] != 1 || conv_op.dilation[1] != 1)
+            return false;
+
+        return true;
+    });
+}
+
+// Matcher for depthwise convolution
+struct find_depthwise_conv
+{
+    auto matcher() const { return match::name("convolution")(is_depthwise_conv()).bind("conv"); }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto& m       = mpm.get_module();
+        auto conv_ins = r.instructions["conv"];
+
+        auto conv_op = any_cast<op::convolution>(conv_ins->get_operator());
+
+        auto input  = conv_ins->inputs()[0];
+        auto weight = conv_ins->inputs()[1];
+
+        // Padding: MIGraphX uses [padH_begin, padW_begin, padH_end, padW_end]
+        // We assume symmetric padding
+        std::vector<std::size_t> padding = {conv_op.padding[0], conv_op.padding[1]};
+
+        m.replace_instruction(conv_ins, depthwise_conv{padding, conv_op.stride, false}, input, weight);
+    }
+};
+
 void prefuse_ops::apply(module_pass_manager& mpm) const
 {
-    // First match conv1x1+bias, then standalone conv1x1
+    // First match depthwise convolutions
+    match::find_matches(mpm, find_depthwise_conv{});
+    mpm.run_pass(dead_code_elimination{});
+
+    // Second match conv1x1+bias, then standalone conv1x1
     match::find_matches(mpm, find_conv1x1_bias{});
     mpm.run_pass(dead_code_elimination{});
 

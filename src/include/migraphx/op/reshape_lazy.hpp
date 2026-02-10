@@ -290,13 +290,7 @@ struct reshape_lazy
                 std::to_string(s->elements()) + " elements whereas the input has " +
                 std::to_string(inputs.front().elements()));
 
-        if(s->bytes() != inputs.front().bytes())
-        {
-            MIGRAPHX_THROW(
-                "reshape_lazy: Input and output bytes mismatch. Output has " +
-                std::to_string(s->bytes()) + " bytes whereas the input has " +
-                std::to_string(inputs.front().bytes()));
-        }
+        assert(s->bytes() == inputs.front().bytes());
         return *s;
     }
 

@@ -25,9 +25,7 @@
 #define MIGRAPHX_GUARD_OPERATORS_COMMON_HPP
 
 #include <ostream>
-#include <vector>
 #include <migraphx/config.hpp>
-#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

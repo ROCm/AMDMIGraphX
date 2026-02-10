@@ -24,16 +24,11 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_RNN_VARIABLE_SEQ_LENS_HPP
 #define MIGRAPHX_GUARD_OPERATORS_RNN_VARIABLE_SEQ_LENS_HPP
 
-#include <array>
+#include <migraphx/config.hpp>
 #include <migraphx/op/common.hpp>
 #include <migraphx/check_shapes.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/streamutils.hpp>
-#include <migraphx/literal.hpp>
 #include <migraphx/par_for.hpp>
-#include <migraphx/config.hpp>
-#include <cmath>
-#include <utility>
+#include <migraphx/argument.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -102,7 +97,7 @@ struct rnn_var_sl_shift_sequence
         int64_t max_len = output_shape.lens()[0];
         visit_all(result, args[0])([&](auto output, auto input) {
             using value_type = typename decltype(output)::value_type;
-            args[1].visit([&](auto seq_lens) {
+            get_all<int64_t>(args[1])([&](auto seq_lens) {
                 par_for(output_shape.elements(), [&](auto i) {
                     auto idx       = output_shape.multi(i);
                     auto b         = idx[1];

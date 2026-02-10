@@ -103,8 +103,8 @@ struct topk
         auto outer_lens  = in_val.get_shape().lens();
         outer_lens[axis] = 1;
         shape outer_shape{in_val.get_shape().type(), outer_lens};
+        auto out_ind = res_ind.get<int64_t>();
         visit_all(res_val, args.front())([&](auto output, auto input) {
-            res_ind.visit([&](auto out_ind) {
                 using type = typename decltype(input)::value_type;
                 std::vector<std::pair<type, int64_t>> data(relements);
                 par_for(outer_shape.elements(), [&](auto i) {
@@ -134,7 +134,6 @@ struct topk
                                    data.begin() + this->k,
                                    y_ind.begin(),
                                    [](const auto& p) { return p.second; });
-                });
             });
         });
         return {{res_val, res_ind}};

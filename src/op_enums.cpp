@@ -27,8 +27,8 @@
 //     to be able to write their values in human-readable format so users can
 //     save and edit model files.
 //
-#include <sstream>
 #include <migraphx/op/common.hpp>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 #####################################################################################
 
-file(GLOB KERNELS_TESTS CONFIGURE_DEPENDS *.cpp)
+file(GLOB_RECURSE KERNELS_TESTS LIST_DIRECTORIES false CONFIGURE_DEPENDS *.cpp)
 list(REMOVE_ITEM KERNELS_TESTS ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp)
 
 message("KERNELS_TESTS: ${KERNELS_TESTS}")

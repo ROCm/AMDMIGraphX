@@ -28,6 +28,7 @@
 #include <migraphx/gpu/kernel.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/par_for.hpp>
+#include <migraphx/stringutils.hpp>
 #include <kernel_tests.hpp>
 #include <test.hpp>
 
@@ -39,14 +40,14 @@
 
 std::vector<std::string> parse_cases(const std::string_view& content)
 {
-    std::regex case_re(R"(TEST_CASE\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\))");
+    std::regex case_re(R"((TEST_CASE_REGISTER|TEST_CASE)\s*\(\s*([A-Za-z_][A-Za-z0-9_<>:]*)\s*\))");
     std::match_results<std::string_view::const_iterator> m;
     std::vector<std::string> test_names;
 
     auto it = content.cbegin();
     while(std::regex_search(it, content.cend(), m, case_re))
     {
-        test_names.push_back(m[1].str());
+        test_names.push_back(m[2].str());
         it = m.suffix().first;
     }
     return test_names;
@@ -60,8 +61,15 @@ struct test_suite : std::enable_shared_from_this<test_suite>
     migraphx::gpu::hip_compile_options options = {};
     migraphx::gpu::kernel k;
 
+    static std::string parse_suite_name(const std::string_view& src)
+    {
+        auto result = std::string{src.substr(0, src.size() - 4)};
+        migraphx::replace_string_inplace(result, "/", ".");
+        return result;
+    }
+
     test_suite(const std::string_view& src_name, const std::string_view& src_content)
-        : name(src_name.substr(0, src_name.size() - 4)), content(src_content)
+        : name(parse_suite_name(src_name)), content(src_content)
     {
         auto cases = parse_cases(src_content);
         for(std::size_t i = 0; i < cases.size(); ++i)

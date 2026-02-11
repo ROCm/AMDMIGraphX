@@ -338,12 +338,12 @@ struct test_manager
         [[maybe_unused]] migraphx::test::test_manager& migraphx_private_test_manager)
 
 // NOLINTNEXTLINE
-#define TEST_CASE_TEMPLATE(...)                                   \
+#define TEST_CASE_TEMPLATE(...)                          \
     __device__ [[maybe_unused]] static void __VA_ARGS__( \
         [[maybe_unused]] migraphx::test::test_manager& migraphx_private_test_manager)
 
 // NOLINTNEXTLINE
-#define TEST_CASE_REGISTER(...) 
+#define TEST_CASE_REGISTER(...)
 
 } // namespace test
 } // namespace migraphx

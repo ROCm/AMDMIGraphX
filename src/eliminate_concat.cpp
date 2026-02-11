@@ -61,11 +61,8 @@ struct concat_optimizer
     {
         return ins->name() == "allocate" or ins->name() == am.name();
     }
-    
-    bool need_copy(instruction_ref ins) const
-    {
-        return not is_allocation(get_output_alias(ins));
-    }
+
+    bool need_copy(instruction_ref ins) const { return not is_allocation(get_output_alias(ins)); }
 
     instruction_ref
     insert_copy(const operation& op, instruction_ref input, instruction_ref super) const
@@ -91,11 +88,10 @@ struct concat_optimizer
         // Where are the allocations for the tensors to be concatenated?
         std::vector<instruction_ref> allocations;
 
-        std::transform(
-            ins->inputs().begin(),
-            std::prev(ins->inputs().end()),
-            std::back_inserter(allocations),
-            &get_output_alias);
+        std::transform(ins->inputs().begin(),
+                       std::prev(ins->inputs().end()),
+                       std::back_inserter(allocations),
+                       &get_output_alias);
 
         // Need to sort the allocations, so that we know where to
         // insert the "super"-allocation

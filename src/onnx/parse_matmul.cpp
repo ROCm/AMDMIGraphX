@@ -24,7 +24,6 @@
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/common.hpp>
 #include <migraphx/make_op.hpp>
 
 #include <migraphx/op/builder/insert.hpp>
@@ -40,40 +39,6 @@ struct parse_matmul : op_parser<parse_matmul>
         return {{"MatMul", "dot"},
                 {"MatMulInteger", "quant_dot"},
                 {"MatMulIntegerToFloat", "quant_dot_scaled"}};
-    }
-
-    static void broadcast_dimensions(const onnx_parser::node_info& info,
-                                     const std::vector<size_t>& s0_lens,
-                                     const std::vector<size_t>& s1_lens,
-                                     const instruction_ref& a0,
-                                     const instruction_ref& a1,
-                                     instruction_ref& ba0,
-                                     instruction_ref& ba1)
-    {
-        // try broadcasting if dimensions other than last two do not match
-        if(not std::equal(
-               s0_lens.rbegin() + 2, s0_lens.rend(), s1_lens.rbegin() + 2, s1_lens.rend()))
-        {
-            auto l0_it = s0_lens.begin() + s0_lens.size() - 2;
-            std::vector<std::size_t> l0_broadcasted_lens(s0_lens.begin(), l0_it);
-            auto l1_it = s1_lens.begin() + s1_lens.size() - 2;
-            std::vector<std::size_t> l1_broadcasted_lens(s1_lens.begin(), l1_it);
-            auto output_lens = compute_broadcasted_lens(l0_broadcasted_lens, l1_broadcasted_lens);
-            l0_broadcasted_lens = output_lens;
-            l0_broadcasted_lens.insert(l0_broadcasted_lens.end(), l0_it, s0_lens.end());
-            l1_broadcasted_lens = output_lens;
-            l1_broadcasted_lens.insert(l1_broadcasted_lens.end(), l1_it, s1_lens.end());
-            if(s0_lens != l0_broadcasted_lens)
-            {
-                ba0 = info.add_instruction(
-                    make_op("multibroadcast", {{"out_lens", l0_broadcasted_lens}}), a0);
-            }
-            if(s1_lens != l1_broadcasted_lens)
-            {
-                ba1 = info.add_instruction(
-                    make_op("multibroadcast", {{"out_lens", l1_broadcasted_lens}}), a1);
-            }
-        }
     }
 
     // Convert to half prior to a shift to ensure we preserve accuracy here then
@@ -338,8 +303,8 @@ struct parse_matmul : op_parser<parse_matmul>
         }
         else
         {
-            auto s0_lens = a0->get_shape().lens();
-            auto s1_lens = a1->get_shape().lens();
+            const auto s0_lens = a0->get_shape().lens();
+            const auto s1_lens = a1->get_shape().lens();
 
             if(is_dot and args.size() > 2)
             {
@@ -401,8 +366,6 @@ struct parse_matmul : op_parser<parse_matmul>
                 handle_uint8_input(info, has_ba1, offset_op, a1, ba1);
             }
 
-            broadcast_dimensions(info, s0_lens, s1_lens, a0, a1, ba0, ba1);
-
             // Apply the scale to dequantize input to then perform a simple dot
             // after the zero points are applied otherwise get a int32 output from the quantized
             // equivalent. Ensure these are broadcasted accordingly before we perform a dot
@@ -413,7 +376,7 @@ struct parse_matmul : op_parser<parse_matmul>
             }
             else
             {
-                dot_res = info.add_instruction(make_op(opd.op_name), ba0, ba1);
+                dot_res = op::builder::add(opd.op_name, *info.mod, {a0, a1, ba0, ba1}).at(0);
             }
         }
 

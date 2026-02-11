@@ -640,7 +640,8 @@ struct mlir_program
                             {"sym_name", sym_name},
                             {"kernel", std::string("mixr")},
                             {"arch", target_arch},
-                            {"num_cu", num_cu}});
+                            {"num_cu", num_cu},
+                            {"num_chiplets", num_chiplets}});
         if(enabled(MIGRAPHX_MLIR_ENABLE_SPLITK{}))
         {
             ops.add_attributes({{"enable_splitk_for_tuning", mlirUnitAttrGet(ctx.get())}});
@@ -701,16 +702,18 @@ struct mlir_program
 
     static bool input_is_unpack_fp4(instruction_ref ins)
     {
-        ins = instruction::get_output_alias(ins);
-        if(ins->name() == "reshape")
-        {
-            return input_is_unpack_fp4(ins->inputs().front());
-        }
-        if(ins->name() == "unpack_fp4")
-        {
-            return true;
-        }
-        return false;
+        auto aliases = instruction::get_output_alias(ins);
+        return std::any_of(aliases.begin(), aliases.end(), [](instruction_ref alias) {
+            if(alias->name() == "reshape")
+            {
+                return input_is_unpack_fp4(alias->inputs().front());
+            }
+            if(alias->name() == "unpack_fp4")
+            {
+                return true;
+            }
+            return false;
+        });
     }
 
     static shape make_fp4_unpacked_shape(shape s)
@@ -957,6 +960,7 @@ struct mlir_program
         const auto& device = migraphx_ctx.get_current_device();
         target_arch        = device.get_device_name();
         num_cu             = device.get_cu_count();
+        num_chiplets       = device.get_chiplet_count();
     }
 
     std::pair<std::size_t, std::size_t> get_launch_params() const
@@ -1125,6 +1129,7 @@ struct mlir_program
     std::deque<std::string> strings{};
     std::string target_arch = "";
     std::size_t num_cu      = 0;
+    std::size_t num_chiplets = 0;
     std::string sym_name;
 };
 

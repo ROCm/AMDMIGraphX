@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -37,6 +37,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/stringutils.hpp>
+#include <ck/host/utils.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -95,7 +96,7 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
         auto batch_count = get_batch_count(c_shape);
         auto m           = c_shape.lens()[rank - 2];
         m                = can_fold_batch(inputs) ? m * batch_count : m;
-        auto n           = c_shape.lens().back();
+        auto n           = b1_shape.lens()[rank - 2];
         auto k           = a_shape.lens().back();
         auto o           = c_shape.lens().back();
 
@@ -137,11 +138,15 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
         const auto include_header   = problem.GetIncludeHeader();
         const auto solutions        = problem.GetSolutions(ctx.get_current_device().get_gfx_name());
         const auto& solution        = solutions.at(tuning_value);
-        const auto template_str     = solution.template_str;
-        const auto blocks_per_batch = solution.grid_size;
-        const auto block_size       = solution.block_size;
+        const auto template_str     = solution.ToTemplateString();
+        const auto block_size       = solution.GetTemplateParameter<std::size_t>("BlockSize");
+        const auto m_per_block      = solution.GetTemplateParameter<std::size_t>("Gemm01MPerBlock");
+        const auto n1_per_block     = solution.GetTemplateParameter<std::size_t>("Gemm1NPerBlock");
+        const auto blocks_per_batch = ck::host::integer_divide_ceil(problem.M, m_per_block) *
+                                      ck::host::integer_divide_ceil(problem.O, n1_per_block);
 
         hip_compile_options options;
+        options.emplace_param("-DCK_CODE_GEN_RTC");
         options.additional_src_files = ck_headers();
         auto grid_size = can_fold_batch(inputs) ? blocks_per_batch : batch_count * blocks_per_batch;
         options.set_launch_params(v, grid_size * block_size, block_size);

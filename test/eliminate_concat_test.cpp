@@ -99,9 +99,9 @@ struct test_copy : migraphx::auto_register_op<test_copy>
         return result;
     }
 
-    std::ptrdiff_t output_alias(const std::vector<migraphx::shape>& shapes) const
+    std::vector<std::size_t> output_alias(const std::vector<migraphx::shape>& shapes) const
     {
-        return shapes.size() - 1;
+        return {shapes.size() - 1};
     }
 };
 
@@ -189,7 +189,7 @@ struct simple_op
     {
         return args.at(0);
     }
-    int output_alias(const std::vector<migraphx::shape>&) const { return 0; }
+    std::vector<std::size_t> output_alias(const std::vector<migraphx::shape>&) const { return {0}; }
 };
 
 template <std::size_t... Is, class... Ts>

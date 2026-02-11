@@ -9,13 +9,12 @@ inline namespace ROCM_INLINE_NS {
 template <class Iterator>
 struct reverse_iterator
 {
-    using iterator_type   = Iterator;
-    using difference_type = typename iterator_traits<Iterator>::difference_type;
-    using value_type      = typename iterator_traits<Iterator>::value_type;
-    using pointer         = typename iterator_traits<Iterator>::pointer;
-    using reference       = typename iterator_traits<Iterator>::reference;
-    using iterator_category =
-        typename iterator_traits<Iterator>::iterator_category;
+    using iterator_type     = Iterator;
+    using difference_type   = typename iterator_traits<Iterator>::difference_type;
+    using value_type        = typename iterator_traits<Iterator>::value_type;
+    using pointer           = typename iterator_traits<Iterator>::pointer;
+    using reference         = typename iterator_traits<Iterator>::reference;
+    using iterator_category = typename iterator_traits<Iterator>::iterator_category;
 
     iterator_type current;
 

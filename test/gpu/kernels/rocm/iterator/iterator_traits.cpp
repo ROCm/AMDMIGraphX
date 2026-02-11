@@ -65,8 +65,7 @@ TEST_CASE(const_pointer_reference_type)
 
 TEST_CASE(const_pointer_difference_type)
 {
-    EXPECT(
-        rocm::is_same<rocm::iterator_traits<const int*>::difference_type, rocm::ptrdiff_t>{});
+    EXPECT(rocm::is_same<rocm::iterator_traits<const int*>::difference_type, rocm::ptrdiff_t>{});
 }
 
 TEST_CASE(const_pointer_iterator_category)

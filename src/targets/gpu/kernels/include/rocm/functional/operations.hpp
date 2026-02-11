@@ -6,46 +6,41 @@
 namespace rocm {
 inline namespace ROCM_INLINE_NS {
 
-#define ROCM_FUNCTIONAL_BINARY_OP(name, op, result) \
-    template<class T= void> \
-    struct name \
-    { \
-        constexpr result operator()(const T& x, const T& y) const \
-        { \
-            return x op y; \
-        } \
-    }; \
-    template<> struct name<void> \
-    { \
-        using is_transparent = void; \
-        template<class T, class U> \
-        constexpr auto operator()(T&& x, U&& y) const \
-        noexcept(noexcept(static_cast<T&&>(x) op static_cast<U&&>(y))) \
-        -> decltype(static_cast<T&&>(x) op static_cast<U&&>(y)) \
-        { \
-            return static_cast<T&&>(x) op static_cast<U&&>(y); \
-        } \
+#define ROCM_FUNCTIONAL_BINARY_OP(name, op, result)                                  \
+    template <class T = void>                                                        \
+    struct name                                                                      \
+    {                                                                                \
+        constexpr result operator()(const T& x, const T& y) const { return x op y; } \
+    };                                                                               \
+    template <>                                                                      \
+    struct name<void>                                                                \
+    {                                                                                \
+        using is_transparent = void;                                                 \
+        template <class T, class U>                                                  \
+        constexpr auto operator()(T&& x, U&& y) const                                \
+            noexcept(noexcept(static_cast<T&&>(x) op static_cast<U&&>(y)))           \
+                -> decltype(static_cast<T&&>(x) op static_cast<U&&>(y))              \
+        {                                                                            \
+            return static_cast<T&&>(x) op static_cast<U&&>(y);                       \
+        }                                                                            \
     };
 
-#define ROCM_FUNCTIONAL_UNARY_OP(name, op, result) \
-    template<class T= void> \
-    struct name \
-    { \
-        constexpr result operator()(const T& x) const \
-        { \
-            return op x; \
-        } \
-    }; \
-    template<> struct name<void> \
-    { \
-        using is_transparent = void; \
-        template<class T> \
-        constexpr auto operator()(T&& x) const \
-        noexcept(noexcept(op static_cast<T&&>(x))) \
-        -> decltype(op static_cast<T&&>(x)) \
-        { \
-            return op static_cast<T&&>(x); \
-        } \
+#define ROCM_FUNCTIONAL_UNARY_OP(name, op, result)                                        \
+    template <class T = void>                                                             \
+    struct name                                                                           \
+    {                                                                                     \
+        constexpr result operator()(const T& x) const { return op x; }                    \
+    };                                                                                    \
+    template <>                                                                           \
+    struct name<void>                                                                     \
+    {                                                                                     \
+        using is_transparent = void;                                                      \
+        template <class T>                                                                \
+        constexpr auto operator()(T&& x) const noexcept(noexcept(op static_cast<T&&>(x))) \
+            -> decltype(op static_cast<T&&>(x))                                           \
+        {                                                                                 \
+            return op static_cast<T&&>(x);                                                \
+        }                                                                                 \
     };
 
 ROCM_FUNCTIONAL_BINARY_OP(plus, +, T)
@@ -69,7 +64,6 @@ ROCM_FUNCTIONAL_BINARY_OP(logical_or, or, bool)
 ROCM_FUNCTIONAL_UNARY_OP(negate, -, T)
 ROCM_FUNCTIONAL_UNARY_OP(logical_not, not, bool)
 ROCM_FUNCTIONAL_UNARY_OP(bit_not, ~, T)
-
 
 } // namespace ROCM_INLINE_NS
 } // namespace rocm

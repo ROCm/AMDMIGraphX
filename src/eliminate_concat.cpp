@@ -49,6 +49,14 @@ struct concat_optimizer
         return make_op("slice", {{"axes", {axis}}, {"starts", {start}}, {"ends", {input->get_shape().lens()[axis] + start}}});
     }
 
+    static instruction_ref get_output_alias(instruction_ref ins)
+    {
+        auto aliases = instruction::get_output_alias(ins, true);
+        if(aliases.size() != 1)
+            return ins;
+        return aliases.front();
+    }
+
     bool is_allocation(instruction_ref ins) const
     {
         return ins->name() == "allocate" or ins->name() == am.name();
@@ -56,8 +64,7 @@ struct concat_optimizer
     
     bool need_copy(instruction_ref ins) const
     {
-        auto alloc = instruction::get_output_alias(ins, true);
-        return not is_allocation(alloc.front());
+        return not is_allocation(get_output_alias(ins));
     }
 
     instruction_ref
@@ -67,8 +74,7 @@ struct concat_optimizer
         // If its packed then replace the allocation with the slice instead
         if(not need_copy(input) and slice->get_shape().packed() and input->outputs().size() == 1)
         {
-            auto alloc = instruction::get_output_alias(input, true);
-            m->replace_instruction(alloc.front(), slice);
+            m->replace_instruction(get_output_alias(input), slice);
             return input;
         }
         auto copy = m->insert_instruction(std::next(input), make_op(am.copy()), input, slice);
@@ -85,14 +91,11 @@ struct concat_optimizer
         // Where are the allocations for the tensors to be concatenated?
         std::vector<instruction_ref> allocations;
 
-        std::transform(ins->inputs().begin(),
-                       std::prev(ins->inputs().end()),
-                       std::back_inserter(allocations),
-                       [&](instruction_ref x) {
-                           auto aliases = instruction::get_output_alias(x, true);
-                           // cppcheck-suppress returnDanglingLifetime
-                           return aliases.front();
-                       });
+        std::transform(
+            ins->inputs().begin(),
+            std::prev(ins->inputs().end()),
+            std::back_inserter(allocations),
+            &get_output_alias);
 
         // Need to sort the allocations, so that we know where to
         // insert the "super"-allocation

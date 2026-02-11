@@ -51,7 +51,7 @@ struct concat_optimization
     /// Return the target-independent concat operator
     optional<op::concat> get_concat(const operation& op) const;
     allocation_model allocation() const;
-    bool supports_non_packed_output(instruction_ref ins) const
+    bool supports_non_packed_output(instruction_ref ins) const;
 };
 
 #else

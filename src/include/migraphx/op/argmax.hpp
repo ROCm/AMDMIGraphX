@@ -52,7 +52,7 @@ struct argmax
     {
         value normalize;
         normalize["axis"] = value::array{normalize_attribute::include_min};
-        return {{"normalize_axes", normalize}};
+        return {{"normalize_axes", normalize}, {"reduce", true}};
     }
 
     std::string name() const { return "argmax"; }

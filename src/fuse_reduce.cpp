@@ -122,8 +122,19 @@ static void create_reduce_modules(module_pass_manager& mpm)
 
         rm->add_return(rm->fuse({ins}));
         auto v = ins->get_operator().to_value();
+
+        // handle argmin/argmax
+        std::vector<std::int64_t> axes;
+        if(v.contains("axes"))
+        {
+            axes = v["axes"].to_vector<std::int64_t>();
+        }
+        else if(v.contains("axis"))
+        {
+            axes = {v["axis"].to<std::int64_t>()};
+        }
         mpm.get_module().replace_instruction(
-            ins, make_op("fused_reduce", {{"axes", v["axes"]}}), ins->inputs(), {rm});
+            ins, make_op("fused_reduce", {{"axes", axes}}), ins->inputs(), {rm});
     }
 }
 

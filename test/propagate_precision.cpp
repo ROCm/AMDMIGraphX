@@ -250,11 +250,10 @@ TEST_CASE(propagate_no_crossover_through_bool_int_chain)
         auto sig      = m1.add_instruction(migraphx::make_op("sigmoid"), x);
         auto cvt_bool = m1.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), sig);
-        auto n        = m1.add_instruction(migraphx::make_op("not"), cvt_bool);
-        auto cvt_int  = m1.add_instruction(
+        auto n       = m1.add_instruction(migraphx::make_op("not"), cvt_bool);
+        auto cvt_int = m1.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::int64_type}}), n);
-        auto rsum =
-            m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), cvt_int);
+        auto rsum = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), cvt_int);
         m1.add_return({rsum});
     }
     run_pass(m1);

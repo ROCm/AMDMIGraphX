@@ -65,15 +65,11 @@ std::vector<std::size_t> get_broadcast_axes(const shape& input_shape, const shap
  */
 bool axes_disjoint(const std::vector<std::size_t>& axes1, const std::vector<int64_t>& axes2)
 {
-    for(auto a1 : axes1)
-    {
-        for(auto a2 : axes2)
-        {
-            if(static_cast<int64_t>(a1) == a2)
-                return false;
-        }
-    }
-    return true;
+    return std::none_of(axes1.begin(), axes1.end(), [&](auto a1) {
+        return std::any_of(axes2.begin(), axes2.end(), [&](auto a2) {
+            return static_cast<int64_t>(a1) == a2;
+        });
+    });
 }
 
 /*

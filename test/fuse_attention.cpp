@@ -574,20 +574,18 @@ TEST_CASE(gemm_softmax_gemm_flash_decoding)
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 12, 2, 256, 1}}}), k2_rmax);
         auto k2_sub = mm->add_instruction(migraphx::make_op("sub"), lse, k2_broad1);
         auto k2_exp = mm->add_instruction(migraphx::make_op("exp"), k2_sub);
-        auto k2_rsum1 =
-            mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), k2_exp);
-        auto k2_broad2 = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {1, 12, 2, 256, 1}}}), k2_rsum1);
-        auto k2_div    = mm->add_instruction(migraphx::make_op("div"), k2_exp, k2_broad2);
         auto k2_broad3 = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {1, 12, 2, 256, 256}}}), k2_div);
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 12, 2, 256, 256}}}), k2_exp);
         auto k2_convert = mm->add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), k2_broad3);
         auto k2_mul = mm->add_instruction(migraphx::make_op("mul"), o_p, k2_convert);
-        auto k2_rsum2 =
+        auto k2_rsum1 =
             mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), k2_mul);
+        auto k2_rsum2 =
+            mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), k2_convert);
+        auto k2_div = mm->add_instruction(migraphx::make_op("div"), k2_rsum1, k2_rsum2);
         auto k2_squeeze =
-            mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), k2_rsum2);
+            mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), k2_div);
         mm->add_return({k2_squeeze});
     }
     EXPECT(p1.sort() == p2.sort());
@@ -691,20 +689,18 @@ TEST_CASE(flash_decoding_3d)
             migraphx::make_op("multibroadcast", {{"out_lens", {1, num_splits, 256, 1}}}), k2_rmax);
         auto k2_sub = mm->add_instruction(migraphx::make_op("sub"), lse, k2_broad1);
         auto k2_exp = mm->add_instruction(migraphx::make_op("exp"), k2_sub);
-        auto k2_rsum1 =
-            mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {g_axis}}}), k2_exp);
-        auto k2_broad2 = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {1, num_splits, 256, 1}}}), k2_rsum1);
-        auto k2_div    = mm->add_instruction(migraphx::make_op("div"), k2_exp, k2_broad2);
         auto k2_broad3 = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", q_prime_shape}}), k2_div);
+            migraphx::make_op("multibroadcast", {{"out_lens", q_prime_shape}}), k2_exp);
         auto k2_convert = mm->add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), k2_broad3);
         auto k2_mul = mm->add_instruction(migraphx::make_op("mul"), o_p, k2_convert);
-        auto k2_rsum2 =
+        auto k2_rsum1 =
             mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {g_axis}}}), k2_mul);
+        auto k2_rsum2 =
+            mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {g_axis}}}), k2_convert);
+        auto k2_div = mm->add_instruction(migraphx::make_op("div"), k2_rsum1, k2_rsum2);
         auto k2_squeeze =
-            mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {g_axis}}}), k2_rsum2);
+            mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {g_axis}}}), k2_div);
         mm->add_return({k2_squeeze});
     }
     EXPECT(p1.sort() == p2.sort());
@@ -816,20 +812,18 @@ TEST_CASE(flash_decoding_3d_rectangular)
             migraphx::make_op("multibroadcast", {{"out_lens", {1, num_splits, 240, 1}}}), k2_rmax);
         auto k2_sub = mm->add_instruction(migraphx::make_op("sub"), lse, k2_broad1);
         auto k2_exp = mm->add_instruction(migraphx::make_op("exp"), k2_sub);
-        auto k2_rsum1 =
-            mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {g_axis}}}), k2_exp);
-        auto k2_broad2 = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {1, num_splits, 240, 1}}}), k2_rsum1);
-        auto k2_div    = mm->add_instruction(migraphx::make_op("div"), k2_exp, k2_broad2);
         auto k2_broad3 = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", q_prime_shape}}), k2_div);
+            migraphx::make_op("multibroadcast", {{"out_lens", q_prime_shape}}), k2_exp);
         auto k2_convert = mm->add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), k2_broad3);
         auto k2_mul = mm->add_instruction(migraphx::make_op("mul"), o_p, k2_convert);
-        auto k2_rsum2 =
+        auto k2_rsum1 =
             mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {g_axis}}}), k2_mul);
+        auto k2_rsum2 =
+            mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {g_axis}}}), k2_convert);
+        auto k2_div = mm->add_instruction(migraphx::make_op("div"), k2_rsum1, k2_rsum2);
         auto k2_squeeze =
-            mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {g_axis}}}), k2_rsum2);
+            mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {g_axis}}}), k2_div);
         mm->add_return({k2_squeeze});
     }
     EXPECT(p1.sort() == p2.sort());
@@ -949,20 +943,18 @@ TEST_CASE(flash_decoding_3d_padding)
             migraphx::make_op("multibroadcast", {{"out_lens", {1, num_splits, 242, 1}}}), k2_rmax);
         auto k2_sub = mm->add_instruction(migraphx::make_op("sub"), lse, k2_broad1);
         auto k2_exp = mm->add_instruction(migraphx::make_op("exp"), k2_sub);
-        auto k2_rsum1 =
-            mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {g_axis}}}), k2_exp);
-        auto k2_broad2 = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {1, num_splits, 242, 1}}}), k2_rsum1);
-        auto k2_div    = mm->add_instruction(migraphx::make_op("div"), k2_exp, k2_broad2);
         auto k2_broad3 = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", q_prime_shape}}), k2_div);
+            migraphx::make_op("multibroadcast", {{"out_lens", q_prime_shape}}), k2_exp);
         auto k2_convert = mm->add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), k2_broad3);
         auto k2_mul = mm->add_instruction(migraphx::make_op("mul"), o_p, k2_convert);
-        auto k2_rsum2 =
+        auto k2_rsum1 =
             mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {g_axis}}}), k2_mul);
+        auto k2_rsum2 =
+            mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {g_axis}}}), k2_convert);
+        auto k2_div = mm->add_instruction(migraphx::make_op("div"), k2_rsum1, k2_rsum2);
         auto k2_squeeze =
-            mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {g_axis}}}), k2_rsum2);
+            mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {g_axis}}}), k2_div);
 
         // Slice to remove padding: [1, 242, 256] -> [1, 241, 256]
         auto sliced = mm->add_instruction(
@@ -1256,21 +1248,18 @@ TEST_CASE(flash_decoding_3d_auto_split_large_sequence)
             k2_rmax);
         auto k2_sub = mm->add_instruction(migraphx::make_op("sub"), lse, k2_broad1);
         auto k2_exp = mm->add_instruction(migraphx::make_op("exp"), k2_sub);
-        auto k2_rsum1 =
-            mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {g_axis}}}), k2_exp);
-        auto k2_broad2 = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {1, expected_splits, 512, 1}}}),
-            k2_rsum1);
-        auto k2_div    = mm->add_instruction(migraphx::make_op("div"), k2_exp, k2_broad2);
         auto k2_broad3 = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", q_prime_shape}}), k2_div);
+            migraphx::make_op("multibroadcast", {{"out_lens", q_prime_shape}}), k2_exp);
         auto k2_convert = mm->add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), k2_broad3);
         auto k2_mul = mm->add_instruction(migraphx::make_op("mul"), o_p, k2_convert);
-        auto k2_rsum2 =
+        auto k2_rsum1 =
             mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {g_axis}}}), k2_mul);
+        auto k2_rsum2 =
+            mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {g_axis}}}), k2_convert);
+        auto k2_div = mm->add_instruction(migraphx::make_op("div"), k2_rsum1, k2_rsum2);
         auto k2_squeeze =
-            mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {g_axis}}}), k2_rsum2);
+            mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {g_axis}}}), k2_div);
         mm->add_return({k2_squeeze});
     }
     EXPECT(p1.sort() == p2.sort());

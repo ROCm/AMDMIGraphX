@@ -239,7 +239,7 @@ TEST_CASE(is_lvalue_reference)
     EXPECT(rocm::is_lvalue_reference<volatile int&>{});
     EXPECT(rocm::is_lvalue_reference<const volatile int&>{});
     EXPECT(rocm::is_lvalue_reference<tt_cat::simple_class&>{});
-    EXPECT(rocm::is_lvalue_reference<int(&)[2]>{});
+    EXPECT(rocm::is_lvalue_reference<int (&)[2]>{});
 
     EXPECT(not rocm::is_lvalue_reference<int>{});
     EXPECT(not rocm::is_lvalue_reference<int&&>{});
@@ -257,7 +257,7 @@ TEST_CASE(is_rvalue_reference)
     EXPECT(rocm::is_rvalue_reference<volatile int&&>{});
     EXPECT(rocm::is_rvalue_reference<const volatile int&&>{});
     EXPECT(rocm::is_rvalue_reference<tt_cat::simple_class&&>{});
-    EXPECT(rocm::is_rvalue_reference<int(&&)[2]>{});
+    EXPECT(rocm::is_rvalue_reference<int (&&)[2]>{});
 
     EXPECT(not rocm::is_rvalue_reference<int>{});
     EXPECT(not rocm::is_rvalue_reference<int&>{});
@@ -311,8 +311,8 @@ TEST_CASE(is_reference)
     EXPECT(rocm::is_reference<volatile int&&>{});
     EXPECT(rocm::is_reference<tt_cat::simple_class&>{});
     EXPECT(rocm::is_reference<tt_cat::simple_class&&>{});
-    EXPECT(rocm::is_reference<int(&)[2]>{});
-    EXPECT(rocm::is_reference<int(&&)[2]>{});
+    EXPECT(rocm::is_reference<int (&)[2]>{});
+    EXPECT(rocm::is_reference<int (&&)[2]>{});
 
     EXPECT(not rocm::is_reference<int>{});
     EXPECT(not rocm::is_reference<int*>{});

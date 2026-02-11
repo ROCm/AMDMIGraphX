@@ -210,7 +210,8 @@ TEST_CASE(is_nothrow_assignable)
     EXPECT(rocm::is_nothrow_assignable<float&, int>{});
     EXPECT(rocm::is_nothrow_assignable<tt_rel::nothrow_assign&, const tt_rel::nothrow_assign&>{});
 
-    EXPECT(not rocm::is_nothrow_assignable<tt_rel::throwing_assign&, const tt_rel::throwing_assign&>{});
+    EXPECT(not rocm::is_nothrow_assignable<tt_rel::throwing_assign&,
+                                           const tt_rel::throwing_assign&>{});
     EXPECT(not rocm::is_nothrow_assignable<int, int>{});
     EXPECT(not rocm::is_nothrow_assignable<void, void>{});
     EXPECT(not rocm::is_nothrow_assignable<const int&, int>{});
@@ -223,7 +224,8 @@ TEST_CASE(is_trivially_assignable)
     EXPECT(rocm::is_trivially_assignable<float&, int>{});
     EXPECT(rocm::is_trivially_assignable<tt_rel::trivial_class&, const tt_rel::trivial_class&>{});
 
-    EXPECT(not rocm::is_trivially_assignable<tt_rel::non_trivial_assign&, const tt_rel::non_trivial_assign&>{});
+    EXPECT(not rocm::is_trivially_assignable<tt_rel::non_trivial_assign&,
+                                             const tt_rel::non_trivial_assign&>{});
     EXPECT(not rocm::is_trivially_assignable<int, int>{});
     EXPECT(not rocm::is_trivially_assignable<void, void>{});
     EXPECT(not rocm::is_trivially_assignable<const int&, int>{});
@@ -261,7 +263,8 @@ TEST_CASE(is_nothrow_constructible)
     EXPECT(rocm::is_nothrow_constructible<tt_rel::trivial_class>{});
 
     EXPECT(not rocm::is_nothrow_constructible<tt_rel::throwing_default>{});
-    EXPECT(not rocm::is_nothrow_constructible<tt_rel::throwing_copy, const tt_rel::throwing_copy&>{});
+    EXPECT(
+        not rocm::is_nothrow_constructible<tt_rel::throwing_copy, const tt_rel::throwing_copy&>{});
     EXPECT(not rocm::is_nothrow_constructible<void>{});
     EXPECT(not rocm::is_nothrow_constructible<tt_rel::func_t>{});
 }
@@ -277,7 +280,8 @@ TEST_CASE(is_trivially_constructible)
     EXPECT(rocm::is_trivially_constructible<tt_rel::trivial_class, const tt_rel::trivial_class&>{});
     EXPECT(rocm::is_trivially_constructible<tt_rel::test_enum>{});
 
-    EXPECT(not rocm::is_trivially_constructible<tt_rel::non_trivial_copy, const tt_rel::non_trivial_copy&>{});
+    EXPECT(not rocm::is_trivially_constructible<tt_rel::non_trivial_copy,
+                                                const tt_rel::non_trivial_copy&>{});
     EXPECT(not rocm::is_trivially_constructible<void>{});
     EXPECT(not rocm::is_trivially_constructible<tt_rel::func_t>{});
     EXPECT(not rocm::is_trivially_constructible<tt_rel::convertible_from_int, int>{});

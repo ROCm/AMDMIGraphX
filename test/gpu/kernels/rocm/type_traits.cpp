@@ -100,7 +100,6 @@ TEST_CASE(add_pointer)
     ROCM_TRANSFORM_CHECK(rocm::add_pointer, volatile*, volatile**);
 }
 
-
 struct c1
 {
 };
@@ -261,5 +260,3 @@ TEST_CASE(void_t)
     ROCM_CHECK_TYPE(rocm::void_t<>, void);
     ROCM_CHECK_TYPE(rocm::void_t<int, int>, void);
 }
-
-

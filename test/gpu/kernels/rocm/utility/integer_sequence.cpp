@@ -26,15 +26,9 @@ TEST_CASE(integer_sequence_value_type_size_t)
 
 // ---- integer_sequence: size ----
 
-TEST_CASE(integer_sequence_size_0)
-{
-    static_assert(rocm::integer_sequence<int>::size() == 0);
-}
+TEST_CASE(integer_sequence_size_0) { static_assert(rocm::integer_sequence<int>::size() == 0); }
 
-TEST_CASE(integer_sequence_size_1)
-{
-    static_assert(rocm::integer_sequence<int, 42>::size() == 1);
-}
+TEST_CASE(integer_sequence_size_1) { static_assert(rocm::integer_sequence<int, 42>::size() == 1); }
 
 TEST_CASE(integer_sequence_size_3)
 {
@@ -56,14 +50,10 @@ TEST_CASE(index_sequence_is_integer_sequence)
 
 TEST_CASE(index_sequence_empty)
 {
-    EXPECT(
-        rocm::is_same<rocm::index_sequence<>, rocm::integer_sequence<rocm::size_t>>{});
+    EXPECT(rocm::is_same<rocm::index_sequence<>, rocm::integer_sequence<rocm::size_t>>{});
 }
 
-TEST_CASE(index_sequence_size)
-{
-    static_assert(rocm::index_sequence<0, 1, 2, 3>::size() == 4);
-}
+TEST_CASE(index_sequence_size) { static_assert(rocm::index_sequence<0, 1, 2, 3>::size() == 4); }
 
 TEST_CASE(index_sequence_value_type)
 {
@@ -79,14 +69,13 @@ TEST_CASE(make_integer_sequence_0)
 
 TEST_CASE(make_integer_sequence_1)
 {
-    EXPECT(
-        rocm::is_same<rocm::make_integer_sequence<int, 1>, rocm::integer_sequence<int, 0>>{});
+    EXPECT(rocm::is_same<rocm::make_integer_sequence<int, 1>, rocm::integer_sequence<int, 0>>{});
 }
 
 TEST_CASE(make_integer_sequence_3)
 {
-    EXPECT(rocm::is_same<rocm::make_integer_sequence<int, 3>,
-                         rocm::integer_sequence<int, 0, 1, 2>>{});
+    EXPECT(
+        rocm::is_same<rocm::make_integer_sequence<int, 3>, rocm::integer_sequence<int, 0, 1, 2>>{});
 }
 
 TEST_CASE(make_integer_sequence_5)
@@ -124,10 +113,7 @@ TEST_CASE(make_index_sequence_4)
     EXPECT(rocm::is_same<rocm::make_index_sequence<4>, rocm::index_sequence<0, 1, 2, 3>>{});
 }
 
-TEST_CASE(make_index_sequence_size)
-{
-    static_assert(rocm::make_index_sequence<6>::size() == 6);
-}
+TEST_CASE(make_index_sequence_size) { static_assert(rocm::make_index_sequence<6>::size() == 6); }
 
 // ---- index_sequence_for ----
 

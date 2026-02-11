@@ -186,15 +186,14 @@ constexpr void swap(array<T, N>& x, array<T, N>& y) noexcept(noexcept(x.swap(y))
 namespace detail {
 
 template <class T, size_t N, size_t... Is>
-constexpr array<remove_cv_t<T>, N>
-to_array_lvalue(T (&a)[N], rocm::index_sequence<Is...>) // NOLINT
+constexpr array<remove_cv_t<T>, N> to_array_lvalue(T (&a)[N], rocm::index_sequence<Is...>) // NOLINT
 {
     return {{a[Is]...}};
 }
 
 template <class T, size_t N, size_t... Is>
-constexpr array<remove_cv_t<T>, N>
-to_array_rvalue(T (&&a)[N], rocm::index_sequence<Is...>) // NOLINT
+constexpr array<remove_cv_t<T>, N> to_array_rvalue(T (&&a)[N],
+                                                   rocm::index_sequence<Is...>) // NOLINT
 {
     return {{static_cast<T&&>(a[Is])...}};
 }
@@ -210,7 +209,8 @@ constexpr array<remove_cv_t<T>, N> to_array(T (&a)[N]) // NOLINT
 template <class T, size_t N>
 constexpr array<remove_cv_t<T>, N> to_array(T (&&a)[N]) // NOLINT
 {
-    return detail::to_array_rvalue(static_cast<T(&&)[N]>(a), rocm::make_index_sequence<N>{}); // NOLINT
+    return detail::to_array_rvalue(static_cast<T(&&)[N]>(a),
+                                   rocm::make_index_sequence<N>{}); // NOLINT
 }
 
 } // namespace ROCM_INLINE_NS

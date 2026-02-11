@@ -72,7 +72,7 @@ TEST_CASE(subscript_read)
 TEST_CASE(subscript_write)
 {
     rocm::array<int, 3> a = {1, 2, 3};
-    a[1] = 99;
+    a[1]                  = 99;
     EXPECT(a[1] == 99);
 }
 
@@ -95,7 +95,7 @@ TEST_CASE(at_read)
 TEST_CASE(at_write)
 {
     rocm::array<int, 3> a = {1, 2, 3};
-    a.at(0) = 77;
+    a.at(0)               = 77;
     EXPECT(a.at(0) == 77);
 }
 
@@ -116,14 +116,14 @@ TEST_CASE(back)
 TEST_CASE(front_write)
 {
     rocm::array<int, 3> a = {1, 2, 3};
-    a.front() = 99;
+    a.front()             = 99;
     EXPECT(a[0] == 99);
 }
 
 TEST_CASE(back_write)
 {
     rocm::array<int, 3> a = {1, 2, 3};
-    a.back() = 99;
+    a.back()              = 99;
     EXPECT(a[2] == 99);
 }
 
@@ -227,7 +227,7 @@ TEST_CASE(begin_end_const)
 TEST_CASE(cbegin_cend)
 {
     rocm::array<int, 3> a = {1, 2, 3};
-    auto it                = a.cbegin();
+    auto it               = a.cbegin();
     EXPECT(*it == 1);
     EXPECT(a.cend() - a.cbegin() == 3);
 }
@@ -237,7 +237,7 @@ TEST_CASE(cbegin_cend)
 TEST_CASE(rbegin_rend)
 {
     rocm::array<int, 4> a = {10, 20, 30, 40};
-    auto it                = a.rbegin();
+    auto it               = a.rbegin();
     EXPECT(*it == 40);
     ++it;
     EXPECT(*it == 30);
@@ -430,7 +430,7 @@ TEST_CASE(type_aliases)
 TEST_CASE(iterate_forward)
 {
     rocm::array<int, 5> a = {1, 2, 3, 4, 5};
-    int sum                = 0;
+    int sum               = 0;
     for(auto it = a.begin(); it != a.end(); ++it)
         sum += *it;
     EXPECT(sum == 15);
@@ -439,8 +439,8 @@ TEST_CASE(iterate_forward)
 TEST_CASE(iterate_reverse)
 {
     rocm::array<int, 4> a = {10, 20, 30, 40};
-    int result             = 0;
-    int factor             = 1;
+    int result            = 0;
+    int factor            = 1;
     for(auto it = a.rbegin(); it != a.rend(); ++it)
     {
         result += *it * factor;

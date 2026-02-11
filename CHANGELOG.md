@@ -13,12 +13,18 @@ Full documentation for MIGraphX is available at
 ### Changed
 
 * Refactored instruction output alias to return a vector of aliases (#4540).
+<<<<<<< HEAD
 * Changed parsing of ONNX ops like ConstantOfShape to insert undefined if expected shape has 0 elements (#4567).
+=======
+* Updated the ONNX clip operator to support opset 13 (#4518).
+>>>>>>> 17b7cae7896f92c40846c29c8edd3d5ceffed749
 
 ### Resolved issues
 
 * Fixed a bug with operators `pack_fp4`, `unpack_fp4`, and the `fuse_mlir` pass handling non-standard input shapes (#4560).
 * Fixed an issue in `propagate_precision` pass where precision for div operations could be incorrectly propagated across type boundaries (e.g., from integral to floating-point) (#4561).
+* Fixed an issue with clip operator when using fp16 input type on opset 6 (#4518). 
+* Fixed an issue with `reshape_lazy`'s shape computation that was leading to invalid reshapes (#4594).
 
 ### Optimized
 

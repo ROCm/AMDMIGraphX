@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2025-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -20,17 +20,31 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
 
-#include <onnx_test.hpp>
+#include "verify_program.hpp"
+#include <migraphx/make_op.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/literal.hpp>
 
-TEST_CASE(clip_test_op11_no_args)
+struct test_gather_flatten_stride_offset : verify_program<test_gather_flatten_stride_offset>
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3}});
-    mm->add_instruction(migraphx::make_op("identity"), l0);
-    auto prog = optimize_onnx("clip_test_op11_no_args.onnx");
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
 
-    EXPECT(p == prog);
-}
+        auto data    = mm->add_parameter("X", {migraphx::shape::float_type, {1, 16}});
+        auto flatten = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {16}}}), data);
+
+        migraphx::shape indices_shape{migraphx::shape::int32_type, {1, 4}};
+        std::vector<int32_t> indices = {1, 5, 9, 13};
+        auto indices_literal         = mm->add_literal(migraphx::literal{indices_shape, indices});
+
+        auto gather = mm->add_instruction(migraphx::make_op("gather"), flatten, indices_literal);
+        mm->add_return({gather});
+
+        return p;
+    }
+};

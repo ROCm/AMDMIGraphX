@@ -201,9 +201,15 @@ void run_verify::verify(const program_info& pi) const
     {
         std::vector<std::pair<std::string, result_future>> results;
         migraphx::parameter_map m;
+        auto custom_data = pi.data_values ? pi.data_values() : migraphx::parameter_map{};
         for(auto&& x : p.get_parameter_shapes())
         {
-            if(x.second.dynamic())
+            auto it = custom_data.find(x.first);
+            if(it != custom_data.end())
+            {
+                m[x.first] = it->second;
+            }
+            else if(x.second.dynamic())
             {
                 // create static shape using maximum dimensions
                 migraphx::shape static_shape{x.second.type(), x.second.max_lens()};

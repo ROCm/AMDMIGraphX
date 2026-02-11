@@ -85,15 +85,14 @@ struct concat_optimizer
         // Where are the allocations for the tensors to be concatenated?
         std::vector<instruction_ref> allocations;
 
-        std::transform(
-            ins->inputs().begin(),
-            std::prev(ins->inputs().end()),
-            std::back_inserter(allocations),
-            [&](instruction_ref x) { 
-                auto aliases = instruction::get_output_alias(x, true);
-               // cppcheck-suppress returnDanglingLifetime
-               return aliases.front();
-            });
+        std::transform(ins->inputs().begin(),
+                       std::prev(ins->inputs().end()),
+                       std::back_inserter(allocations),
+                       [&](instruction_ref x) {
+                           auto aliases = instruction::get_output_alias(x, true);
+                           // cppcheck-suppress returnDanglingLifetime
+                           return aliases.front();
+                       });
 
         // Need to sort the allocations, so that we know where to
         // insert the "super"-allocation

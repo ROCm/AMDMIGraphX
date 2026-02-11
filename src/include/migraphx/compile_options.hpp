@@ -32,19 +32,34 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct mlir_ops_options
 {
-    bool attention = false;
+#ifdef _WIN32
+#ifdef MIGRAPHX_USE_MIOPEN
     bool convolution = false;
     bool convolution_backwards = false;
-    bool dot = false;
-    bool fused = false;
     bool fused_convolution = false;
-    bool fused_dot = false;    
-};
+#else
+    bool convolution = true;
+    bool convolution_backwards = true;
+    bool fused_convolution = true;
+#endif
+#ifdef MIGRAPHX_USE_HIPBLASLT
+    bool attention = false;
+    bool dot = false;
+    bool fused_dot = false; 
+#else
+    bool attention = true;
+    bool dot = true;
+    bool fused_dot = true; 
+#endif
 
-struct disable_passes_options
-{
-    bool simplify_algebra = false;
-    bool propagate_constant = false;
+#else
+    bool convolution = false;
+    bool convolution_backwards = false;
+    bool fused_convolution = false;
+    bool attention = false;
+    bool dot = false;
+    bool fused_dot = false;    
+#endif
 };
 
 struct compile_options
@@ -59,7 +74,6 @@ struct compile_options
     bool exhaustive_tune = false;
 
     mlir_ops_options mlir_ops{};
-    disable_passes_options disable_passes{};
 
     tracer trace{};
 };

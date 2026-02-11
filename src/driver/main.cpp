@@ -711,25 +711,6 @@ struct compiler
            {"--exhaustive-tune"},
            ap.help("Exhastively search for best tuning parameters for kernels"),
            ap.set_value(true));
-
-        ap(co.mlir_ops.attention,
-           {"--mlir-attention"},
-           ap.help("Execute attetntion on mlir"),
-           ap.set_value(true));
-        ap(co.mlir_ops.convolution,
-           {"--mlir-convolution"},
-           ap.help("Execute convolution on mlir"),
-           ap.set_value(true));
-        ap(co.mlir_ops.dot,
-           {"--mlir-dot"},
-           ap.help("Execute dot on mlir"),
-           ap.set_value(true));
-        ap(co.mlir_ops.fused,
-           {"--mlir-fused"},
-           ap.help("Execute fused on mlir"),
-           ap.set_value(true));
-        co.mlir_ops.fused_convolution = co.mlir_ops.fused_dot = co.mlir_ops.fused;
-
         ap(to_fp16, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(true));
         ap(to_bf16, {"--bf16"}, ap.help("Quantize for bf16"), ap.set_value(true));
         ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));

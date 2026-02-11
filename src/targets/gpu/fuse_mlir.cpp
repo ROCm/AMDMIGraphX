@@ -135,11 +135,14 @@ bool mlir_attention_enabled(context* ctx)
     if(not mlir_enabled())
         return false;
     if(specific_op<rejected>("attention"))
-        return ctx->get_mlir_ops().attention;
+        return false;
     // Enable attention by default for mi300
     if(ctx != nullptr and starts_with(ctx->get_current_device().get_gfx_name(), "gfx94"))
         return true;
-    return specific_op<requested>("attention");
+    if (specific_op<requested>("attention"))
+        return true;
+    //if attention is not set by env check mlir ops
+    return ctx->get_mlir_ops().attention;
 #else
     return false;
 #endif
@@ -1502,15 +1505,15 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     const auto& device_name = ctx == nullptr ? "" : ctx->get_current_device().get_gfx_name();
     const bool is_navi = starts_with(device_name, "gfx11") or starts_with(device_name, "gfx12");
 
-    auto get_mode = [&](std::string_view option, bool op, mlir_mode m1, mlir_mode m2 = mlir_mode::fast) {
+    auto get_mode = [&](std::string_view option, bool mlir_op, mlir_mode m1, mlir_mode m2 = mlir_mode::fast) {
         if(specific_op<rejected>(option))
-        {
-            if (op) return mlir_mode::all;
             return mlir_mode::none;
-        }
         if(specific_op<requested>(option))
             return mlir_mode::all;
         if(is_navi)
+            return mlir_mode::all;
+        //if mlir op is not set by env check in mlir ops
+        if(mlir_op)
             return mlir_mode::all;
         return std::max(m1, m2);
     };

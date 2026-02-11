@@ -74,6 +74,7 @@ endif()
 file(GLOB KERNEL_FILES CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/*.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/rocm/*.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/rocm/utility/*.hpp
 )
 
 if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)

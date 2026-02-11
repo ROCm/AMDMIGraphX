@@ -26,7 +26,7 @@
 #define ROCM_GUARD_ROCM_TYPE_TRAITS_HPP
 
 #include <rocm/config.hpp>
-#include <rocm/declval.hpp>
+#include <rocm/utility/declval.hpp>
 #include <rocm/integral_constant.hpp>
 
 namespace rocm {

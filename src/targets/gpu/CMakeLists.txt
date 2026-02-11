@@ -71,10 +71,8 @@ else()
     set(MIGRAPHX_USE_HIPRTC ON CACHE BOOL "Use hipRTC APIs")
 endif()
 
-file(GLOB KERNEL_FILES CONFIGURE_DEPENDS
-    ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/*.hpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/rocm/*.hpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/rocm/utility/*.hpp
+file(GLOB_RECURSE KERNEL_FILES CONFIGURE_DEPENDS LIST_DIRECTORIES false
+    ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/*.hpp
 )
 
 if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)

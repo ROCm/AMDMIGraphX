@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -108,6 +108,57 @@ struct gemm_softmax_gemm
     {
         return contains({shape::type_t::float_type, shape::half_type}, t);
     }
+};
+
+struct fmha_fwd_base
+{
+    float scale = 1.0;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.scale, "scale"));
+    }
+
+    std::string name() const { return "gpu::fmha_fwd_base"; }
+
+    // Inputs: [Q, K, V] or [Q, K, bias, V]
+    // K is [batch, nhead, N, K] (un-transposed for FMHA).
+    shape compute_shape(std::vector<shape> inputs, const std::vector<module_ref>&) const
+    {
+        check_shapes{inputs, *this}.same_ndims();
+        if(inputs.size() < 3)
+            MIGRAPHX_THROW(name() + ": Expected at least 3 inputs but got " +
+                           to_string(inputs.size()));
+
+        const auto& q_shape = inputs[0];     // [batch, nhead, M, K]
+        const auto& k_shape = inputs[1];     // [batch, nhead, N, K]
+        const auto& v_shape = inputs.back(); // [batch, nhead, N, O]
+
+        auto rank  = q_shape.ndim();
+        auto batch = q_shape.lens()[rank - 4];
+        auto nhead = q_shape.lens()[rank - 3];
+        auto m     = q_shape.lens()[rank - 2];
+        auto n     = k_shape.lens()[rank - 2];
+        auto o     = v_shape.lens()[rank - 1];
+
+        const bool has_bias = inputs.size() == 4;
+        if(has_bias)
+        {
+            const auto& bias_shape                 = inputs[2];
+            std::vector<std::size_t> expected_lens = {batch, nhead, m, n};
+            if(bias_shape.lens() != expected_lens)
+            {
+                MIGRAPHX_THROW(name() + ": bias shape mismatch. Expected " +
+                               to_string_range(expected_lens) + " but got " +
+                               to_string_range(bias_shape.lens()));
+            }
+        }
+
+        return shape{q_shape.type(), {batch, nhead, m, o}};
+    }
+
+    static bool is_ck_supported_type(shape::type_t t) { return contains({shape::half_type}, t); }
 };
 
 } // namespace gpu

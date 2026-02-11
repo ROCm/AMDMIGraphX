@@ -82,6 +82,12 @@ struct ck_gemm_softmax_gemm : gemm_softmax_gemm
 };
 MIGRAPHX_REGISTER_OP(ck_gemm_softmax_gemm);
 
+struct ck_fmha_fwd : fmha_fwd_base
+{
+    std::string name() const { return "gpu::ck_fmha_fwd"; }
+};
+MIGRAPHX_REGISTER_OP(ck_fmha_fwd);
+
 namespace {
 
 MIGRAPHX_PRED_MATCHER(is_ck_gemm, instruction_ref ins)
@@ -203,10 +209,25 @@ struct find_ck_gemm_softmax_gemm
     }
 };
 
+struct find_ck_fmha_fwd
+{
+    auto matcher() const { return match::name("gpu::pre_ck_fmha_fwd"); }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+        auto v   = ins->get_operator().to_value();
+        assert(v.contains("scale"));
+        auto scale = v.at("scale").to<float>();
+        mpm.get_module().replace_instruction(ins, ck_fmha_fwd{scale}, ins->inputs());
+    }
+};
+
 } // namespace
 
 void fuse_ck::apply(module_pass_manager& mpm) const
 {
+    match::find_matches(mpm, find_ck_fmha_fwd{});
     match::find_matches(mpm, find_ck_gemm_softmax_gemm{});
     match::find_matches(mpm, find_ck_gemm_pointwise{});
     match::find_matches(mpm, find_ck_gemm{});

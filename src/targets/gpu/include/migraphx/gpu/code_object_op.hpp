@@ -42,6 +42,10 @@ struct code_object_op
     std::string symbol_name = "";
     std::size_t global      = 0;
     std::size_t local       = 0;
+    std::size_t global_y    = 1;
+    std::size_t global_z    = 1;
+    std::size_t local_y     = 1;
+    std::size_t local_z     = 1;
     std::vector<shape> expected_inputs{};
     shape output{};
     std::int64_t output_arg = -1;
@@ -54,6 +58,10 @@ struct code_object_op
                     f(self.symbol_name, "symbol_name"),
                     f(self.global, "global"),
                     f(self.local, "local"),
+                    f(self.global_y, "global_y"),
+                    f(self.global_z, "global_z"),
+                    f(self.local_y, "local_y"),
+                    f(self.local_z, "local_z"),
                     f(self.expected_inputs, "expected_inputs"),
                     f(self.output, "output"),
                     f(self.output_arg, "output_arg"));
@@ -84,6 +92,10 @@ struct code_object_op
         os << "symbol_name=" << op.symbol_name << ",";
         os << "global=" << op.global << ",";
         os << "local=" << op.local << ",";
+        if(op.global_y != 1 or op.global_z != 1)
+            os << "global_y=" << op.global_y << ",global_z=" << op.global_z << ",";
+        if(op.local_y != 1 or op.local_z != 1)
+            os << "local_y=" << op.local_y << ",local_z=" << op.local_z << ",";
         if(op.output_arg != -1)
             os << "output_arg=" << op.output_arg << ",";
         os << "]";

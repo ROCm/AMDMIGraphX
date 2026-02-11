@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -113,8 +113,8 @@ static std::vector<std::string> get_compiler_warnings()
     if(hip_has_flags({"-Werror", "-Wunsafe-buffer-usage"}))
         warnings.push_back("-Wno-unsafe-buffer-usage");
 
-    if(hip_has_flags({"-Werror", "-Wnrvo"}))
-        warnings.push_back("-Wno-nrvo");
+    // if(hip_has_flags({"-Werror", "-Wnrvo"}))
+    //     warnings.push_back("-Wno-nrvo");
 
     return warnings;
 }
@@ -216,6 +216,10 @@ compile_hip_code_object(context& ctx, const std::string& content, hip_compile_op
                           options.kernel_name,
                           options.global,
                           options.local,
+                          options.global_y,
+                          options.global_z,
+                          options.local_y,
+                          options.local_z,
                           options.inputs,
                           options.output,
                           options.output_arg};

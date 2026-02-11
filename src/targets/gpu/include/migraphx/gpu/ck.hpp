@@ -33,6 +33,8 @@
 #include "ck/host/headers.hpp"
 #include "ck/host/device_gemm_multiple_d/problem.hpp"
 #include "ck/host/device_batched_gemm_softmax_gemm/problem.hpp"
+#include "ck/host/device_fmha_fwd/problem.hpp"
+#include "ck/host/device_fmha_fwd/operation.hpp"
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -86,6 +88,35 @@ static std::vector<src_file> create_ck_headers()
 static inline const std::vector<src_file>& ck_headers()
 {
     static const auto& headers = create_ck_headers();
+    return headers;
+}
+
+static std::unordered_map<std::string, std::string> create_ck_tile_header_strings()
+{
+    std::unordered_map<std::string, std::string> result;
+    auto tile_headers = ck::host::GetTileHeaders();
+
+    std::transform(
+        tile_headers.begin(), tile_headers.end(), std::inserter(result, result.begin()), [&](auto& p) {
+            return std::pair<std::string, std::string>(p.first, ck_disable_warnings(p.second));
+        });
+    return result;
+}
+
+static std::vector<src_file> create_ck_tile_headers()
+{
+    static const auto& header_strings = create_ck_tile_header_strings();
+    std::vector<src_file> srcs;
+    std::transform(header_strings.begin(),
+                   header_strings.end(),
+                   std::back_inserter(srcs),
+                   [&](auto& p) { return src_file{p}; });
+    return srcs;
+}
+
+static inline const std::vector<src_file>& ck_tile_headers()
+{
+    static const auto& headers = create_ck_tile_headers();
     return headers;
 }
 

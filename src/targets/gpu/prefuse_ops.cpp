@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -136,6 +136,12 @@ struct pre_gemm_softmax_gemm : gemm_softmax_gemm
 };
 MIGRAPHX_REGISTER_OP(pre_gemm_softmax_gemm);
 
+struct pre_ck_fmha_fwd : fmha_fwd_base
+{
+    std::string name() const { return "gpu::pre_ck_fmha_fwd"; }
+};
+MIGRAPHX_REGISTER_OP(pre_ck_fmha_fwd);
+
 auto is_ck_gemm()
 {
     return match::make_basic_pred_matcher([=](instruction_ref ins) {
@@ -174,6 +180,46 @@ auto is_bias_supported()
     });
 }
 
+// True if shape has innermost stride 1 (row-major). FMHA kernel requires this for Q, K, V, O, bias.
+static bool has_innermost_stride_one(const shape& s)
+{
+    return s.ndim() >= 1 and not s.scalar() and s.strides().back() == 1;
+}
+
+static instruction_ref skip_transpose(instruction_ref ins)
+{
+    while(ins->name() == "contiguous")
+        ins = ins->inputs()[0];
+    if(ins->name() == "transpose")
+        ins = ins->inputs()[0];
+    return ins;
+}
+
+// True if Q, K, and bias (if present) all have innermost stride 1.
+// K is checked on the original tensor before transpose since the FMHA kernel handles K^T
+// internally. V - the FMHA kernel supports both row-major and column-major V (is_v_rowmajor).
+static bool is_fmha_compatible_layout(const match::matcher_result& r)
+{
+    auto gemm1_ins = r.instructions["gemm1"];
+    // Q
+    if(not has_innermost_stride_one(gemm1_ins->inputs()[0]->get_shape()))
+        return false;
+    // K — must have an explicit transpose that we can undo.
+    auto k_input    = gemm1_ins->inputs()[1];
+    auto original_k = skip_transpose(k_input);
+    if(original_k == k_input)
+        return false;
+    if(not has_innermost_stride_one(original_k->get_shape()))
+        return false;
+
+    if(contains(r.instructions, "bias"))
+    {
+        if(not has_innermost_stride_one(r.instructions["bias"]->get_shape()))
+            return false;
+    }
+    return true;
+}
+
 struct find_gemm_softmax_gemm
 {
     bool enable_attention = false;
@@ -209,9 +255,7 @@ struct find_gemm_softmax_gemm
         if(contains(r.instructions, "scale"))
         {
             auto scale_lit = r.instructions["scale"];
-            // CK only supports single-valued scale
             scale_lit->eval().visit([&](const auto s) {
-                // CK only supports single-valued scale
                 if(not std::all_of(
                        s.begin() + 1, s.end(), [&](auto v) { return float_equal(v, s.front()); }))
                     return;
@@ -230,10 +274,68 @@ struct find_gemm_softmax_gemm
             inputs.push_back(r.instructions["bias"]);
         }
 
-        inputs.push_back(gemm2_ins->inputs().back()); // B1
+        inputs.push_back(gemm2_ins->inputs().back()); 
 
         mpm.get_module().replace_instruction(
             ins, pre_gemm_softmax_gemm{gemm2_ins->get_operator(), scale}, inputs);
+    }
+};
+
+struct find_fmha_ck
+{
+    bool enable_attention = false;
+
+    auto matcher() const
+    {
+        auto gemm1 = match::skip(match::name("contiguous"))(match::name("dot")(
+            match::any_of(is_ck_gemm(), is_test_gemm(enable_attention)).bind("gemm1")));
+        auto mul   = match::name("mul")(
+            match::nargs(2), match::either_arg(0, 1)(match::is_constant().bind("scale"), gemm1));
+        auto add = match::name("add")(
+            match::nargs(2), match::either_arg(0, 1)(match::none_of(mul).bind("bias"), mul));
+        auto softmax =
+            match::name("softmax")(match::arg(0)(match::any_of(mul, add, gemm1))).bind("softmax");
+
+        return match::name("dot")(
+            match::any_of(is_ck_gemm(), is_test_gemm(enable_attention)).bind("gemm2"))(
+            match::arg(0)(softmax));
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        if(not is_fmha_compatible_layout(r))
+            return;
+
+        auto ins       = r.result;
+        auto gemm2_ins = r.instructions["gemm2"];
+        auto gemm1_ins = r.instructions["gemm1"];
+
+        float scale = 1.0;
+        if(contains(r.instructions, "scale"))
+        {
+            auto scale_lit = r.instructions["scale"];
+            scale_lit->eval().visit([&](const auto s) {
+                if(not std::all_of(
+                       s.begin() + 1, s.end(), [&](auto v) { return float_equal(v, s.front()); }))
+                    return;
+                scale = s.front();
+            });
+        }
+
+        auto inputs = gemm1_ins->inputs(); // Q, K_transposed
+        if(contains(r.instructions, "bias"))
+        {
+            inputs.push_back(r.instructions["bias"]);
+        }
+        inputs.push_back(gemm2_ins->inputs().back()); // V
+
+        // Undo the transpose on K: the FMHA kernel expects K in [batch, nhead, N, K]
+        auto& m           = mpm.get_module();
+        auto k_transposed = inputs[1];
+        auto k_original   = m.insert_instruction(
+            ins, migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), k_transposed);
+        inputs[1] = k_original;
+        m.replace_instruction(ins, pre_ck_fmha_fwd{scale}, inputs);
     }
 };
 
@@ -261,6 +363,7 @@ void prefuse_ops::apply(module_pass_manager& mpm) const
         mpm.run_pass(dead_code_elimination{});
         match::find_matches(mpm.get_module(), find_add_layernorm{});
     }
+    match::find_matches(mpm, find_fmha_ck{enable_attention});
     match::find_matches(mpm, find_gemm_softmax_gemm{enable_attention});
 
     if(enabled(MIGRAPHX_DISABLE_MLIR{}))

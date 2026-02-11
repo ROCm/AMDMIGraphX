@@ -24,7 +24,7 @@ Full documentation for MIGraphX is available at
 ### Resolved issues
 
 * Fixed a bug with operators `pack_fp4`, `unpack_fp4`, and the `fuse_mlir` pass handling non-standard input shapes (#4560).
-* Fixed an issue in `propagate_precision` pass where precision for div operations could be incorrectly propagated across type boundaries (e.g., from integral to floating-point) (#4561).
+* Fixed an issue in `propagate_precision` pass where precision could be incorrectly propagated across type boundaries (e.g., from integral to floating-point) (#4603).
 * Fixed an issue with clip operator when using fp16 input type on opset 6 (#4518). 
 
 ### Optimized
@@ -65,7 +65,7 @@ Full documentation for MIGraphX is available at
 
 ### Resolved issues
 
-* Fixed an issue in `propagate_precision` pass where precision for div operations could be incorrectly propagated across type category boundaries (e.g., from integral to floating-point types).
+* Fixed an issue in `propagate_precision` pass where precision could be incorrectly propagated across type category boundaries (e.g., from integral to floating-point types).
 * Quiet nrvo and noreturn warnings (#4429).
 * Fixed `pointwise: Wrong number of arguments` error when quantizing certain models to `int8` (#4398).
 * TopK exception bugfix (#4329).

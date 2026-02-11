@@ -239,4 +239,36 @@ TEST_CASE(propagate_type_category_boundary)
     EXPECT(m1.sort() == m2.sort());
 }
 
+// Verify that int precision propagation through a bool/int op chain
+// does not cross back into upstream float pointwise ops
+TEST_CASE(propagate_no_crossover_through_bool_int_chain)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1, 32}};
+    migraphx::module m1;
+    {
+        auto x        = m1.add_parameter("x", s1);
+        auto sig      = m1.add_instruction(migraphx::make_op("sigmoid"), x);
+        auto cvt_bool = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), sig);
+        auto n        = m1.add_instruction(migraphx::make_op("not"), cvt_bool);
+        auto cvt_int  = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int64_type}}), n);
+        auto rsum =
+            m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), cvt_int);
+        m1.add_return({rsum});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x       = m2.add_parameter("x", s1);
+        auto sig     = m2.add_instruction(migraphx::make_op("sigmoid"), x);
+        auto cvt_int = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int64_type}}), sig);
+        auto n    = m2.add_instruction(migraphx::make_op("not"), cvt_int);
+        auto rsum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), n);
+        m2.add_return({rsum});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

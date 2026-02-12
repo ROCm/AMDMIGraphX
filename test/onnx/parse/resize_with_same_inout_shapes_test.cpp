@@ -38,10 +38,10 @@ TEST_CASE(resize_with_same_inout_shapes_test)
 
     mm->add_instruction(migraphx::make_op("undefined"));
 
-    // scales computed from sizes: {1/1, 3/3, 5/5} = {1, 1, 1}
+    // sizes attribute used directly to avoid float rounding of non-integer scales
     auto r =
         mm->add_instruction(migraphx::make_op("resize",
-                                              {{"scales", {1.0f, 1.0f, 1.0f}},
+                                              {{"sizes", {1, 3, 5}},
                                                {"mode", "linear"},
                                                {"coordinate_transformation_mode", "half_pixel"}}),
                             inx);

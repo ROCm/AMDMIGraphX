@@ -81,6 +81,9 @@ struct parse_resize : op_parser<parse_resize>
 
         int opset_version = -1;
 
+        // Tracks whether the constant input was int64 sizes (true) or float scales (false)
+        bool is_sizes_input = false;
+
         // if scale an attr must be greater or equal to 1
         bool is_scale_attr() const { return not r_attr.scales.empty(); }
 
@@ -152,6 +155,7 @@ struct parse_resize : op_parser<parse_resize>
 
                     if(type == shape::int64_type)
                     { // When input is using sizes
+                        is_sizes_input = true;
                         assign_output_sizes(arg_out);
                         check_output_size();
                         compute_scales();
@@ -330,9 +334,22 @@ struct parse_resize : op_parser<parse_resize>
                                                    resize_args& resize,
                                                    instruction_ref args_0)
     {
-        // If scales are constant and input is static, emit 1-input resize with attributes
+        // If scales/sizes are constant and input is static, emit 1-input resize with attributes
         if(resize.is_constant_scale_input() and not args_0->get_shape().dynamic())
         {
+            // Use sizes attribute when the ONNX input was int64 sizes to preserve
+            // exact output dimensions.  Using scales would lose precision for
+            // non-integer ratios (e.g. 5/3 as float, then float*3 != 5).
+            if(resize.is_sizes_input)
+            {
+                return info.add_instruction(
+                    make_op(
+                        "resize",
+                        {{"sizes", resize.out_lens},
+                         {"nearest_mode", resize.get_nearest_mode()},
+                         {"coordinate_transformation_mode", resize.get_coord_trans_mode()}}),
+                    args_0);
+            }
             return info.add_instruction(
                 make_op("resize",
                         {{"scales", resize.vec_scale},
@@ -354,9 +371,19 @@ struct parse_resize : op_parser<parse_resize>
                                               resize_args& resize,
                                               instruction_ref& args_0)
     {
-        // If scales are constant and input is static, emit 1-input resize with attributes
+        // If scales/sizes are constant and input is static, emit 1-input resize with attributes
         if(resize.is_constant_scale_input() and not args_0->get_shape().dynamic())
         {
+            if(resize.is_sizes_input)
+            {
+                return info.add_instruction(
+                    make_op(
+                        "resize",
+                        {{"sizes", resize.out_lens},
+                         {"mode", resize.get_mode()},
+                         {"coordinate_transformation_mode", resize.get_coord_trans_mode()}}),
+                    args_0);
+            }
             return info.add_instruction(
                 make_op("resize",
                         {{"scales", resize.vec_scale},

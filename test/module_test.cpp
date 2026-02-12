@@ -1602,4 +1602,433 @@ TEST_CASE(hoist_external_inputs_adjacent_instructions)
     EXPECT(std::distance(mm->begin(), dot1) < std::distance(mm->begin(), dot2));
 }
 
+TEST_CASE(move_output_instructions_after_single_output)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", s);
+        auto src  = m1.add_instruction(migraphx::make_op("abs"), x);
+        auto out1 = m1.add_instruction(migraphx::make_op("neg"), src);
+        auto dst  = m1.add_instruction(migraphx::make_op("relu"), x);
+        m1.add_return({out1, dst});
+        m1.move_output_instructions_after(src, dst);
+    }
+
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", s);
+        auto src  = m2.add_instruction(migraphx::make_op("abs"), x);
+        auto dst  = m2.add_instruction(migraphx::make_op("relu"), x);
+        auto out1 = m2.add_instruction(migraphx::make_op("neg"), src);
+        m2.add_return({out1, dst});
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(move_output_instructions_after_transitive_outputs)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", s);
+        auto src = m1.add_instruction(migraphx::make_op("abs"), x);
+        auto a   = m1.add_instruction(migraphx::make_op("neg"), src);
+        auto b   = m1.add_instruction(migraphx::make_op("relu"), a);
+        auto dst = m1.add_instruction(migraphx::make_op("sqrt"), x);
+        m1.add_return({b, dst});
+        m1.move_output_instructions_after(src, dst);
+    }
+
+    migraphx::module m2;
+    {
+        auto x   = m2.add_parameter("x", s);
+        auto src = m2.add_instruction(migraphx::make_op("abs"), x);
+        auto dst = m2.add_instruction(migraphx::make_op("sqrt"), x);
+        auto a   = m2.add_instruction(migraphx::make_op("neg"), src);
+        auto b   = m2.add_instruction(migraphx::make_op("relu"), a);
+        m2.add_return({b, dst});
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(move_output_instructions_after_multiple_direct_outputs)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", s);
+        auto src = m1.add_instruction(migraphx::make_op("abs"), x);
+        auto a   = m1.add_instruction(migraphx::make_op("neg"), src);
+        auto b   = m1.add_instruction(migraphx::make_op("relu"), src);
+        auto dst = m1.add_instruction(migraphx::make_op("sqrt"), x);
+        m1.add_return({a, b, dst});
+        m1.move_output_instructions_after(src, dst);
+    }
+
+    migraphx::module m2;
+    {
+        auto x   = m2.add_parameter("x", s);
+        auto src = m2.add_instruction(migraphx::make_op("abs"), x);
+        auto dst = m2.add_instruction(migraphx::make_op("sqrt"), x);
+        auto a   = m2.add_instruction(migraphx::make_op("neg"), src);
+        auto b   = m2.add_instruction(migraphx::make_op("relu"), src);
+        m2.add_return({a, b, dst});
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(move_output_instructions_after_no_outputs_between)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", s);
+        auto src  = m1.add_instruction(migraphx::make_op("abs"), x);
+        auto dst  = m1.add_instruction(migraphx::make_op("sqrt"), x);
+        auto out1 = m1.add_instruction(migraphx::make_op("neg"), src);
+        m1.add_return({out1, dst});
+        m1.move_output_instructions_after(src, dst);
+    }
+
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", s);
+        auto src  = m2.add_instruction(migraphx::make_op("abs"), x);
+        auto dst  = m2.add_instruction(migraphx::make_op("sqrt"), x);
+        auto out1 = m2.add_instruction(migraphx::make_op("neg"), src);
+        m2.add_return({out1, dst});
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(move_output_instructions_after_diamond)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", s);
+        auto src = m1.add_instruction(migraphx::make_op("abs"), x);
+        auto a   = m1.add_instruction(migraphx::make_op("neg"), src);
+        auto b   = m1.add_instruction(migraphx::make_op("relu"), src);
+        auto c   = m1.add_instruction(migraphx::make_op("add"), a, b);
+        auto dst = m1.add_instruction(migraphx::make_op("sqrt"), x);
+        m1.add_return({c, dst});
+        m1.move_output_instructions_after(src, dst);
+    }
+
+    migraphx::module m2;
+    {
+        auto x   = m2.add_parameter("x", s);
+        auto src = m2.add_instruction(migraphx::make_op("abs"), x);
+        auto dst = m2.add_instruction(migraphx::make_op("sqrt"), x);
+        auto a   = m2.add_instruction(migraphx::make_op("neg"), src);
+        auto b   = m2.add_instruction(migraphx::make_op("relu"), src);
+        auto c   = m2.add_instruction(migraphx::make_op("add"), a, b);
+        m2.add_return({c, dst});
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(move_output_instructions_after_mixed)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", s);
+        auto y    = m1.add_parameter("y", s);
+        auto src  = m1.add_instruction(migraphx::make_op("abs"), x);
+        auto mid  = m1.add_instruction(migraphx::make_op("neg"), y);
+        auto out1 = m1.add_instruction(migraphx::make_op("relu"), src);
+        auto dst  = m1.add_instruction(migraphx::make_op("sqrt"), y);
+        auto out2 = m1.add_instruction(migraphx::make_op("tanh"), src);
+        m1.add_return({out1, out2, dst, mid});
+        m1.move_output_instructions_after(src, dst);
+    }
+
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", s);
+        auto y    = m2.add_parameter("y", s);
+        auto src  = m2.add_instruction(migraphx::make_op("abs"), x);
+        auto mid  = m2.add_instruction(migraphx::make_op("neg"), y);
+        auto dst  = m2.add_instruction(migraphx::make_op("sqrt"), y);
+        auto out1 = m2.add_instruction(migraphx::make_op("relu"), src);
+        auto out2 = m2.add_instruction(migraphx::make_op("tanh"), src);
+        m2.add_return({out1, out2, dst, mid});
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(move_output_instructions_after_dst_depends_on_src)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", s);
+        auto src  = m1.add_instruction(migraphx::make_op("abs"), x);
+        auto out1 = m1.add_instruction(migraphx::make_op("neg"), src);
+        auto dst  = m1.add_instruction(migraphx::make_op("relu"), src);
+        m1.add_return({out1, dst});
+        m1.move_output_instructions_after(src, dst);
+    }
+
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", s);
+        auto src  = m2.add_instruction(migraphx::make_op("abs"), x);
+        auto dst  = m2.add_instruction(migraphx::make_op("relu"), src);
+        auto out1 = m2.add_instruction(migraphx::make_op("neg"), src);
+        m2.add_return({out1, dst});
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(move_output_instructions_after_module_output)
+{
+    // When src is referenced by instructions inside a submodule, src->outputs()
+    // includes those cross-module instructions. The function resolves them to
+    // the instruction in the current module that owns the submodule and moves
+    // that instruction instead.
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape cond_s{migraphx::shape::bool_type, {1}};
+
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto cond = mm->add_parameter("cond", cond_s);
+        auto src  = mm->add_instruction(migraphx::make_op("abs"), x);
+
+        auto* then_mod = p1.create_module("then_mod");
+        auto sub_neg   = then_mod->add_instruction(migraphx::make_op("neg"), src);
+        then_mod->add_return({sub_neg});
+
+        auto* else_mod = p1.create_module("else_mod");
+        auto sub_relu  = else_mod->add_instruction(migraphx::make_op("relu"), src);
+        else_mod->add_return({sub_relu});
+
+        auto out1   = mm->add_instruction(migraphx::make_op("tanh"), src);
+        auto if_ins = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+        auto dst    = mm->add_instruction(migraphx::make_op("sqrt"), x);
+        mm->add_return({out1, if_ins, dst});
+        mm->move_output_instructions_after(src, dst);
+    }
+
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto cond = mm->add_parameter("cond", cond_s);
+        auto src  = mm->add_instruction(migraphx::make_op("abs"), x);
+
+        auto* then_mod = p2.create_module("then_mod");
+        auto sub_neg   = then_mod->add_instruction(migraphx::make_op("neg"), src);
+        then_mod->add_return({sub_neg});
+
+        auto* else_mod = p2.create_module("else_mod");
+        auto sub_relu  = else_mod->add_instruction(migraphx::make_op("relu"), src);
+        else_mod->add_return({sub_relu});
+
+        auto dst    = mm->add_instruction(migraphx::make_op("sqrt"), x);
+        auto out1   = mm->add_instruction(migraphx::make_op("tanh"), src);
+        auto if_ins = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+        mm->add_return({out1, if_ins, dst});
+    }
+
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(move_output_instructions_after_only_cross_module_output)
+{
+    // src has no direct outputs in the current module between src and dst,
+    // only cross-module outputs. The owning instruction (if) is between src
+    // and dst, so it gets moved after dst.
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape cond_s{migraphx::shape::bool_type, {1}};
+
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto cond = mm->add_parameter("cond", cond_s);
+        auto src  = mm->add_instruction(migraphx::make_op("abs"), x);
+
+        auto* then_mod = p1.create_module("then_mod");
+        auto sub_neg   = then_mod->add_instruction(migraphx::make_op("neg"), src);
+        then_mod->add_return({sub_neg});
+
+        auto* else_mod = p1.create_module("else_mod");
+        auto sub_relu  = else_mod->add_instruction(migraphx::make_op("relu"), src);
+        else_mod->add_return({sub_relu});
+
+        auto if_ins = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+        auto dst    = mm->add_instruction(migraphx::make_op("sqrt"), x);
+        mm->add_return({if_ins, dst});
+        mm->move_output_instructions_after(src, dst);
+    }
+
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto cond = mm->add_parameter("cond", cond_s);
+        auto src  = mm->add_instruction(migraphx::make_op("abs"), x);
+
+        auto* then_mod = p2.create_module("then_mod");
+        auto sub_neg   = then_mod->add_instruction(migraphx::make_op("neg"), src);
+        then_mod->add_return({sub_neg});
+
+        auto* else_mod = p2.create_module("else_mod");
+        auto sub_relu  = else_mod->add_instruction(migraphx::make_op("relu"), src);
+        else_mod->add_return({sub_relu});
+
+        auto dst    = mm->add_instruction(migraphx::make_op("sqrt"), x);
+        auto if_ins = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+        mm->add_return({if_ins, dst});
+    }
+
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(move_output_instructions_after_cross_module_not_between)
+{
+    // src has cross-module outputs, but the owning instruction (if) is already
+    // after dst. Nothing should move.
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape cond_s{migraphx::shape::bool_type, {1}};
+
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto cond = mm->add_parameter("cond", cond_s);
+        auto src  = mm->add_instruction(migraphx::make_op("abs"), x);
+
+        auto* then_mod = p1.create_module("then_mod");
+        auto sub_neg   = then_mod->add_instruction(migraphx::make_op("neg"), src);
+        then_mod->add_return({sub_neg});
+
+        auto* else_mod = p1.create_module("else_mod");
+        auto sub_relu  = else_mod->add_instruction(migraphx::make_op("relu"), src);
+        else_mod->add_return({sub_relu});
+
+        auto dst    = mm->add_instruction(migraphx::make_op("sqrt"), x);
+        auto if_ins = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+        mm->add_return({if_ins, dst});
+        mm->move_output_instructions_after(src, dst);
+    }
+
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto cond = mm->add_parameter("cond", cond_s);
+        auto src  = mm->add_instruction(migraphx::make_op("abs"), x);
+
+        auto* then_mod = p2.create_module("then_mod");
+        auto sub_neg   = then_mod->add_instruction(migraphx::make_op("neg"), src);
+        then_mod->add_return({sub_neg});
+
+        auto* else_mod = p2.create_module("else_mod");
+        auto sub_relu  = else_mod->add_instruction(migraphx::make_op("relu"), src);
+        else_mod->add_return({sub_relu});
+
+        auto dst    = mm->add_instruction(migraphx::make_op("sqrt"), x);
+        auto if_ins = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+        mm->add_return({if_ins, dst});
+    }
+
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(move_output_instructions_after_cross_module_mixed)
+{
+    // src has cross-module outputs to submodules of two different instructions:
+    // one between src and dst (should move), one after dst (should NOT move).
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape cond_s{migraphx::shape::bool_type, {1}};
+
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", s);
+        auto cond1 = mm->add_parameter("cond1", cond_s);
+        auto cond2 = mm->add_parameter("cond2", cond_s);
+        auto src   = mm->add_instruction(migraphx::make_op("abs"), x);
+
+        auto* then_mod1 = p1.create_module("then_mod1");
+        auto sub1       = then_mod1->add_instruction(migraphx::make_op("neg"), src);
+        then_mod1->add_return({sub1});
+
+        auto* else_mod1 = p1.create_module("else_mod1");
+        auto sub2       = else_mod1->add_instruction(migraphx::make_op("relu"), src);
+        else_mod1->add_return({sub2});
+
+        // if1 is between src and dst — should be moved
+        auto if1 = mm->add_instruction(migraphx::make_op("if"), {cond1}, {then_mod1, else_mod1});
+        auto dst = mm->add_instruction(migraphx::make_op("sqrt"), x);
+
+        auto* then_mod2 = p1.create_module("then_mod2");
+        auto sub3       = then_mod2->add_instruction(migraphx::make_op("tanh"), src);
+        then_mod2->add_return({sub3});
+
+        auto* else_mod2 = p1.create_module("else_mod2");
+        auto sub4       = else_mod2->add_instruction(migraphx::make_op("sin"), src);
+        else_mod2->add_return({sub4});
+
+        // if2 is after dst — should NOT be moved
+        auto if2 = mm->add_instruction(migraphx::make_op("if"), {cond2}, {then_mod2, else_mod2});
+        mm->add_return({if1, if2, dst});
+        mm->move_output_instructions_after(src, dst);
+    }
+
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto x     = mm->add_parameter("x", s);
+        auto cond1 = mm->add_parameter("cond1", cond_s);
+        auto cond2 = mm->add_parameter("cond2", cond_s);
+        auto src   = mm->add_instruction(migraphx::make_op("abs"), x);
+
+        auto* then_mod1 = p2.create_module("then_mod1");
+        auto sub1       = then_mod1->add_instruction(migraphx::make_op("neg"), src);
+        then_mod1->add_return({sub1});
+
+        auto* else_mod1 = p2.create_module("else_mod1");
+        auto sub2       = else_mod1->add_instruction(migraphx::make_op("relu"), src);
+        else_mod1->add_return({sub2});
+
+        auto* then_mod2 = p2.create_module("then_mod2");
+        auto sub3       = then_mod2->add_instruction(migraphx::make_op("tanh"), src);
+        then_mod2->add_return({sub3});
+
+        auto* else_mod2 = p2.create_module("else_mod2");
+        auto sub4       = else_mod2->add_instruction(migraphx::make_op("sin"), src);
+        else_mod2->add_return({sub4});
+
+        // Expected: if1 moved after dst, if2 stays after dst
+        auto dst = mm->add_instruction(migraphx::make_op("sqrt"), x);
+        auto if1 = mm->add_instruction(migraphx::make_op("if"), {cond1}, {then_mod1, else_mod1});
+        auto if2 = mm->add_instruction(migraphx::make_op("if"), {cond2}, {then_mod2, else_mod2});
+        mm->add_return({if1, if2, dst});
+    }
+
+    EXPECT(p1 == p2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

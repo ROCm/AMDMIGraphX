@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,12 +30,10 @@ TEST_CASE(range_inputs_test)
 {
     // Note: This test requires "range_inputs_test.onnx" which should be generated
     // by running `gen_onnx.range_inputs_test()` in gen_onnx.py.
-    
     migraphx::program p = read_onnx("range_inputs_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape s{migraphx::shape::float_type, {1}, {0}};
-    
     // Test 1: Start=0, Limit=5, Delta=1 -> [0, 1, 2, 3, 4]
     {
         std::vector<float> start_val = {0.0f};

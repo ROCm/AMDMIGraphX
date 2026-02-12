@@ -174,6 +174,7 @@ add_library(migraphx_gpu
     gemm_impl.cpp
     hip.cpp
     hipblaslt.cpp
+    insert_runtime_compile_op.cpp
     hip_gemm_impl.cpp
     hsa_chiplet.cpp
     kernel.cpp

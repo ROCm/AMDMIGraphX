@@ -13,6 +13,7 @@ Full documentation for MIGraphX is available at
 ### Changed
 
 * Refactored instruction output alias to return a vector of aliases (#4540).
+* Changed parsing of ONNX ops like ConstantOfShape to insert undefined if expected shape has 0 elements (#4567).
 * Updated the ONNX clip operator to support opset 13 (#4518).
 
 ### Resolved issues

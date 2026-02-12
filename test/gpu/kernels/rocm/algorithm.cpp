@@ -65,15 +65,13 @@ TEST_CASE(accumulate_basic)
 TEST_CASE(accumulate_empty_range)
 {
     empty_range arr = {};
-    auto sum =
-        rocm::accumulate(arr.begin(), arr.begin(), 42, [](int a, int b) { return a + b; });
+    auto sum = rocm::accumulate(arr.begin(), arr.begin(), 42, [](int a, int b) { return a + b; });
     EXPECT(sum == 42);
 }
 TEST_CASE(accumulate_multiply)
 {
     rocm::array<int, 3> arr = {2, 3, 4};
-    auto product =
-        rocm::accumulate(arr.begin(), arr.end(), 1, [](int a, int b) { return a * b; });
+    auto product = rocm::accumulate(arr.begin(), arr.end(), 1, [](int a, int b) { return a * b; });
     EXPECT(product == 24);
 }
 TEST_CASE(accumulate_single_element)
@@ -94,7 +92,7 @@ TEST_CASE(copy_empty_range)
 {
     rocm::array<int, 3> src = {1, 2, 3};
     rocm::array<int, 3> dst = {0, 0, 0};
-    auto* result                = rocm::copy(src.begin(), src.begin(), dst.begin());
+    auto* result            = rocm::copy(src.begin(), src.begin(), dst.begin());
     EXPECT(result == dst.begin());
     rocm::array<int, 3> expected = {0, 0, 0};
     EXPECT(dst == expected);
@@ -141,13 +139,13 @@ TEST_CASE(copy_if_all_match)
 TEST_CASE(is_sorted_until_sorted)
 {
     rocm::array<int, 4> arr = {1, 2, 3, 4};
-    auto* result = rocm::is_sorted_until(arr.begin(), arr.end(), rocm::less<>{});
+    auto* result            = rocm::is_sorted_until(arr.begin(), arr.end(), rocm::less<>{});
     EXPECT(result == arr.end());
 }
 TEST_CASE(is_sorted_until_unsorted)
 {
     rocm::array<int, 5> arr = {1, 2, 4, 3, 5};
-    auto* result = rocm::is_sorted_until(arr.begin(), arr.end(), rocm::less<>{});
+    auto* result            = rocm::is_sorted_until(arr.begin(), arr.end(), rocm::less<>{});
     EXPECT(result == arr.begin() + 3);
 }
 TEST_CASE(is_sorted_until_empty)
@@ -159,13 +157,13 @@ TEST_CASE(is_sorted_until_empty)
 TEST_CASE(is_sorted_until_single)
 {
     rocm::array<int, 1> arr = {42};
-    auto* result = rocm::is_sorted_until(arr.begin(), arr.end(), rocm::less<>{});
+    auto* result            = rocm::is_sorted_until(arr.begin(), arr.end(), rocm::less<>{});
     EXPECT(result == arr.end());
 }
 TEST_CASE(is_sorted_until_descending)
 {
     rocm::array<int, 4> arr = {4, 3, 2, 1};
-    auto* result = rocm::is_sorted_until(arr.begin(), arr.end(), rocm::greater<>{});
+    auto* result            = rocm::is_sorted_until(arr.begin(), arr.end(), rocm::greater<>{});
     EXPECT(result == arr.end());
 }
 TEST_CASE(is_sorted_true)
@@ -192,7 +190,7 @@ TEST_CASE(is_sorted_duplicates)
 TEST_CASE(for_each_basic)
 {
     rocm::array<int, 3> arr = {1, 2, 3};
-    int sum                     = 0;
+    int sum                 = 0;
     rocm::for_each(arr.begin(), arr.end(), [&sum](int x) { sum += x; });
     EXPECT(sum == 6);
 }
@@ -214,19 +212,19 @@ TEST_CASE(for_each_empty)
 TEST_CASE(find_if_found)
 {
     rocm::array<int, 5> arr = {1, 3, 5, 7, 9};
-    auto* result = rocm::find_if(arr.begin(), arr.end(), [](int x) { return x > 5; });
+    auto* result            = rocm::find_if(arr.begin(), arr.end(), [](int x) { return x > 5; });
     EXPECT(result == arr.begin() + 3);
 }
 TEST_CASE(find_if_not_found)
 {
     rocm::array<int, 4> arr = {1, 3, 5, 7};
-    auto* result = rocm::find_if(arr.begin(), arr.end(), [](int x) { return x > 10; });
+    auto* result            = rocm::find_if(arr.begin(), arr.end(), [](int x) { return x > 10; });
     EXPECT(result == arr.end());
 }
 TEST_CASE(find_if_first_element)
 {
     rocm::array<int, 4> arr = {10, 3, 5, 7};
-    auto* result = rocm::find_if(arr.begin(), arr.end(), [](int x) { return x > 5; });
+    auto* result            = rocm::find_if(arr.begin(), arr.end(), [](int x) { return x > 5; });
     EXPECT(result == arr.begin());
 }
 TEST_CASE(find_if_empty)
@@ -238,25 +236,25 @@ TEST_CASE(find_if_empty)
 TEST_CASE(find_basic)
 {
     rocm::array<int, 4> arr = {10, 20, 30, 40};
-    auto* result                = rocm::find(arr.begin(), arr.end(), 30);
+    auto* result            = rocm::find(arr.begin(), arr.end(), 30);
     EXPECT(result == arr.begin() + 2);
 }
 TEST_CASE(find_not_found)
 {
     rocm::array<int, 4> arr = {10, 20, 30, 40};
-    auto* result                = rocm::find(arr.begin(), arr.end(), 50);
+    auto* result            = rocm::find(arr.begin(), arr.end(), 50);
     EXPECT(result == arr.end());
 }
 TEST_CASE(find_first_element)
 {
     rocm::array<int, 4> arr = {10, 20, 30, 40};
-    auto* result                = rocm::find(arr.begin(), arr.end(), 10);
+    auto* result            = rocm::find(arr.begin(), arr.end(), 10);
     EXPECT(result == arr.begin());
 }
 TEST_CASE(find_duplicates)
 {
     rocm::array<int, 5> arr = {10, 20, 30, 20, 40};
-    auto* result                = rocm::find(arr.begin(), arr.end(), 20);
+    auto* result            = rocm::find(arr.begin(), arr.end(), 20);
     EXPECT(result == arr.begin() + 1);
 }
 
@@ -338,13 +336,13 @@ TEST_CASE(search_not_found)
 TEST_CASE(search_empty_needle)
 {
     rocm::array<int, 3> haystack = {1, 2, 3};
-    empty_range needle               = {};
+    empty_range needle           = {};
     auto* result = rocm::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
     EXPECT(result == haystack.begin());
 }
 TEST_CASE(search_empty_haystack)
 {
-    empty_range haystack           = {};
+    empty_range haystack       = {};
     rocm::array<int, 1> needle = {1};
     auto* result = rocm::search(haystack.begin(), haystack.end(), needle.begin(), needle.end());
     EXPECT(result == haystack.end());
@@ -475,14 +473,14 @@ TEST_CASE(inner_product_basic)
 {
     rocm::array<int, 3> a = {1, 2, 3};
     rocm::array<int, 3> b = {4, 5, 6};
-    auto result               = rocm::inner_product(a.begin(), a.end(), b.begin(), 0);
+    auto result           = rocm::inner_product(a.begin(), a.end(), b.begin(), 0);
     EXPECT(result == 32);
 }
 TEST_CASE(inner_product_custom_ops)
 {
     rocm::array<int, 3> a = {1, 2, 3};
     rocm::array<int, 3> b = {4, 5, 6};
-    auto result               = rocm::inner_product(
+    auto result           = rocm::inner_product(
         a.begin(),
         a.end(),
         b.begin(),
@@ -502,7 +500,7 @@ TEST_CASE(inner_product_single)
 {
     rocm::array<int, 1> a = {3};
     rocm::array<int, 1> b = {7};
-    auto result               = rocm::inner_product(a.begin(), a.end(), b.begin(), 5);
+    auto result           = rocm::inner_product(a.begin(), a.end(), b.begin(), 5);
     EXPECT(result == 26);
 }
 
@@ -560,7 +558,7 @@ TEST_CASE(iota_negative)
 TEST_CASE(min_element_basic)
 {
     rocm::array<int, 5> arr = {3, 1, 4, 1, 5};
-    auto* result                = rocm::min_element(arr.begin(), arr.end(), rocm::less<>{});
+    auto* result            = rocm::min_element(arr.begin(), arr.end(), rocm::less<>{});
     EXPECT(result == arr.begin() + 1);
 }
 TEST_CASE(min_element_empty)
@@ -572,26 +570,26 @@ TEST_CASE(min_element_empty)
 TEST_CASE(min_element_single)
 {
     rocm::array<int, 1> arr = {42};
-    auto* result                = rocm::min_element(arr.begin(), arr.end(), rocm::less<>{});
+    auto* result            = rocm::min_element(arr.begin(), arr.end(), rocm::less<>{});
     EXPECT(result == arr.begin());
 }
 TEST_CASE(min_element_all_equal)
 {
     rocm::array<int, 4> arr = {5, 5, 5, 5};
-    auto* result                = rocm::min_element(arr.begin(), arr.end(), rocm::less<>{});
+    auto* result            = rocm::min_element(arr.begin(), arr.end(), rocm::less<>{});
     EXPECT(result == arr.begin());
 }
 TEST_CASE(min_element_custom_compare)
 {
     rocm::array<int, 4> arr = {1, 2, 3, 4};
-    auto* result = rocm::min_element(arr.begin(), arr.end(), rocm::greater<>{});
+    auto* result            = rocm::min_element(arr.begin(), arr.end(), rocm::greater<>{});
     EXPECT(result == arr.begin() + 3);
 }
 
 TEST_CASE(rotate_left_by_two)
 {
     rocm::array<int, 6> arr      = {1, 2, 3, 4, 5, 6};
-    auto* result                     = rocm::rotate(arr.begin(), arr.begin() + 2, arr.end());
+    auto* result                 = rocm::rotate(arr.begin(), arr.begin() + 2, arr.end());
     rocm::array<int, 6> expected = {3, 4, 5, 6, 1, 2};
     EXPECT(arr == expected);
     EXPECT(result == arr.begin() + 4);
@@ -599,7 +597,7 @@ TEST_CASE(rotate_left_by_two)
 TEST_CASE(rotate_right_by_one)
 {
     rocm::array<int, 5> arr      = {1, 2, 3, 4, 5};
-    auto* result                     = rocm::rotate(arr.begin(), arr.end() - 1, arr.end());
+    auto* result                 = rocm::rotate(arr.begin(), arr.end() - 1, arr.end());
     rocm::array<int, 5> expected = {5, 1, 2, 3, 4};
     EXPECT(arr == expected);
     EXPECT(result == arr.begin() + 1);
@@ -607,7 +605,7 @@ TEST_CASE(rotate_right_by_one)
 TEST_CASE(rotate_half_array)
 {
     rocm::array<int, 8> arr      = {1, 2, 3, 4, 5, 6, 7, 8};
-    auto* result                     = rocm::rotate(arr.begin(), arr.begin() + 4, arr.end());
+    auto* result                 = rocm::rotate(arr.begin(), arr.begin() + 4, arr.end());
     rocm::array<int, 8> expected = {5, 6, 7, 8, 1, 2, 3, 4};
     EXPECT(arr == expected);
     EXPECT(result == arr.begin() + 4);
@@ -615,7 +613,7 @@ TEST_CASE(rotate_half_array)
 TEST_CASE(rotate_almost_full)
 {
     rocm::array<int, 5> arr      = {1, 2, 3, 4, 5};
-    auto* result                     = rocm::rotate(arr.begin(), arr.begin() + 4, arr.end());
+    auto* result                 = rocm::rotate(arr.begin(), arr.begin() + 4, arr.end());
     rocm::array<int, 5> expected = {5, 1, 2, 3, 4};
     EXPECT(arr == expected);
     EXPECT(result == arr.begin() + 1);
@@ -623,15 +621,15 @@ TEST_CASE(rotate_almost_full)
 TEST_CASE(rotate_two_elements)
 {
     rocm::array<int, 2> arr      = {1, 2};
-    auto* result                     = rocm::rotate(arr.begin(), arr.begin() + 1, arr.end());
+    auto* result                 = rocm::rotate(arr.begin(), arr.begin() + 1, arr.end());
     rocm::array<int, 2> expected = {2, 1};
     EXPECT(arr == expected);
     EXPECT(result == arr.begin() + 1);
 }
 TEST_CASE(rotate_partial_range)
 {
-    rocm::array<int, 7> arr = {1, 2, 3, 4, 5, 6, 7};
-    auto* result = rocm::rotate(arr.begin() + 1, arr.begin() + 3, arr.begin() + 5);
+    rocm::array<int, 7> arr      = {1, 2, 3, 4, 5, 6, 7};
+    auto* result                 = rocm::rotate(arr.begin() + 1, arr.begin() + 3, arr.begin() + 5);
     rocm::array<int, 7> expected = {1, 4, 5, 2, 3, 6, 7};
     EXPECT(arr == expected);
     EXPECT(result == arr.begin() + 3);
@@ -639,7 +637,7 @@ TEST_CASE(rotate_partial_range)
 TEST_CASE(rotate_with_duplicates)
 {
     rocm::array<int, 6> arr      = {1, 1, 2, 2, 3, 3};
-    auto* result                     = rocm::rotate(arr.begin(), arr.begin() + 2, arr.end());
+    auto* result                 = rocm::rotate(arr.begin(), arr.begin() + 2, arr.end());
     rocm::array<int, 6> expected = {2, 2, 3, 3, 1, 1};
     EXPECT(arr == expected);
     EXPECT(result == arr.begin() + 4);
@@ -647,7 +645,7 @@ TEST_CASE(rotate_with_duplicates)
 TEST_CASE(rotate_stress_test_large_shift)
 {
     rocm::array<int, 10> arr      = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-    auto* result                      = rocm::rotate(arr.begin(), arr.begin() + 7, arr.end());
+    auto* result                  = rocm::rotate(arr.begin(), arr.begin() + 7, arr.end());
     rocm::array<int, 10> expected = {7, 8, 9, 0, 1, 2, 3, 4, 5, 6};
     EXPECT(arr == expected);
     EXPECT(result == arr.begin() + 3);
@@ -656,7 +654,7 @@ TEST_CASE(rotate_edge_case_middle_equals_first)
 {
     rocm::array<int, 4> arr      = {1, 2, 3, 4};
     rocm::array<int, 4> original = arr;
-    auto* result                     = rocm::rotate(arr.begin(), arr.begin(), arr.end());
+    auto* result                 = rocm::rotate(arr.begin(), arr.begin(), arr.end());
     EXPECT(arr == original);
     EXPECT(result == arr.end());
 }
@@ -664,7 +662,7 @@ TEST_CASE(rotate_edge_case_middle_equals_last)
 {
     rocm::array<int, 4> arr      = {1, 2, 3, 4};
     rocm::array<int, 4> original = arr;
-    auto* result                     = rocm::rotate(arr.begin(), arr.end(), arr.end());
+    auto* result                 = rocm::rotate(arr.begin(), arr.end(), arr.end());
     EXPECT(arr == original);
     EXPECT(result == arr.begin());
 }
@@ -672,19 +670,19 @@ TEST_CASE(rotate_edge_case_middle_equals_last)
 TEST_CASE(upper_bound_basic)
 {
     rocm::array<int, 5> arr = {1, 2, 2, 3, 4};
-    auto* result = rocm::upper_bound(arr.begin(), arr.end(), 2, rocm::less<>{});
+    auto* result            = rocm::upper_bound(arr.begin(), arr.end(), 2, rocm::less<>{});
     EXPECT(result == arr.begin() + 3);
 }
 TEST_CASE(upper_bound_not_found)
 {
     rocm::array<int, 4> arr = {1, 2, 3, 4};
-    auto* result = rocm::upper_bound(arr.begin(), arr.end(), 5, rocm::less<>{});
+    auto* result            = rocm::upper_bound(arr.begin(), arr.end(), 5, rocm::less<>{});
     EXPECT(result == arr.end());
 }
 TEST_CASE(upper_bound_first_element)
 {
     rocm::array<int, 4> arr = {1, 2, 3, 4};
-    auto* result = rocm::upper_bound(arr.begin(), arr.end(), 0, rocm::less<>{});
+    auto* result            = rocm::upper_bound(arr.begin(), arr.end(), 0, rocm::less<>{});
     EXPECT(result == arr.begin());
 }
 TEST_CASE(upper_bound_empty)
@@ -696,61 +694,61 @@ TEST_CASE(upper_bound_empty)
 TEST_CASE(upper_bound_all_equal)
 {
     rocm::array<int, 3> arr = {2, 2, 2};
-    auto* result = rocm::upper_bound(arr.begin(), arr.end(), 2, rocm::less<>{});
+    auto* result            = rocm::upper_bound(arr.begin(), arr.end(), 2, rocm::less<>{});
     EXPECT(result == arr.end());
 }
 TEST_CASE(upper_bound_multiple_duplicates)
 {
     rocm::array<int, 8> arr = {1, 2, 2, 2, 2, 3, 4, 5};
-    auto* result = rocm::upper_bound(arr.begin(), arr.end(), 2, rocm::less<>{});
+    auto* result            = rocm::upper_bound(arr.begin(), arr.end(), 2, rocm::less<>{});
     EXPECT(result == arr.begin() + 5);
 }
 TEST_CASE(upper_bound_all_smaller)
 {
     rocm::array<int, 5> arr = {1, 2, 3, 4, 5};
-    auto* result = rocm::upper_bound(arr.begin(), arr.end(), 0, rocm::less<>{});
+    auto* result            = rocm::upper_bound(arr.begin(), arr.end(), 0, rocm::less<>{});
     EXPECT(result == arr.begin());
 }
 TEST_CASE(upper_bound_all_larger)
 {
     rocm::array<int, 5> arr = {1, 2, 3, 4, 5};
-    auto* result = rocm::upper_bound(arr.begin(), arr.end(), 10, rocm::less<>{});
+    auto* result            = rocm::upper_bound(arr.begin(), arr.end(), 10, rocm::less<>{});
     EXPECT(result == arr.end());
 }
 TEST_CASE(upper_bound_single_element_match)
 {
     rocm::array<int, 1> arr = {5};
-    auto* result = rocm::upper_bound(arr.begin(), arr.end(), 5, rocm::less<>{});
+    auto* result            = rocm::upper_bound(arr.begin(), arr.end(), 5, rocm::less<>{});
     EXPECT(result == arr.end());
 }
 TEST_CASE(upper_bound_single_element_smaller)
 {
     rocm::array<int, 1> arr = {5};
-    auto* result = rocm::upper_bound(arr.begin(), arr.end(), 3, rocm::less<>{});
+    auto* result            = rocm::upper_bound(arr.begin(), arr.end(), 3, rocm::less<>{});
     EXPECT(result == arr.begin());
 }
 TEST_CASE(upper_bound_single_element_larger)
 {
     rocm::array<int, 1> arr = {5};
-    auto* result = rocm::upper_bound(arr.begin(), arr.end(), 7, rocm::less<>{});
+    auto* result            = rocm::upper_bound(arr.begin(), arr.end(), 7, rocm::less<>{});
     EXPECT(result == arr.end());
 }
 TEST_CASE(upper_bound_beginning_duplicates)
 {
     rocm::array<int, 6> arr = {1, 1, 1, 4, 5, 6};
-    auto* result = rocm::upper_bound(arr.begin(), arr.end(), 1, rocm::less<>{});
+    auto* result            = rocm::upper_bound(arr.begin(), arr.end(), 1, rocm::less<>{});
     EXPECT(result == arr.begin() + 3);
 }
 TEST_CASE(upper_bound_end_duplicates)
 {
     rocm::array<int, 6> arr = {1, 2, 3, 5, 5, 5};
-    auto* result = rocm::upper_bound(arr.begin(), arr.end(), 5, rocm::less<>{});
+    auto* result            = rocm::upper_bound(arr.begin(), arr.end(), 5, rocm::less<>{});
     EXPECT(result == arr.end());
 }
 TEST_CASE(upper_bound_middle_value)
 {
     rocm::array<int, 7> arr = {1, 3, 5, 7, 9, 11, 13};
-    auto* result = rocm::upper_bound(arr.begin(), arr.end(), 7, rocm::less<>{});
+    auto* result            = rocm::upper_bound(arr.begin(), arr.end(), 7, rocm::less<>{});
     EXPECT(result == arr.begin() + 4);
 }
 TEST_CASE(upper_bound_partial_range)
@@ -762,19 +760,19 @@ TEST_CASE(upper_bound_partial_range)
 TEST_CASE(upper_bound_reverse_comparator)
 {
     rocm::array<int, 5> arr = {5, 4, 3, 2, 1};
-    auto* result = rocm::upper_bound(arr.begin(), arr.end(), 3, rocm::greater<>{});
+    auto* result            = rocm::upper_bound(arr.begin(), arr.end(), 3, rocm::greater<>{});
     EXPECT(result == arr.begin() + 3);
 }
 TEST_CASE(upper_bound_large_array_power_of_two)
 {
     rocm::array<int, 16> arr = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
-    auto* result = rocm::upper_bound(arr.begin(), arr.end(), 8, rocm::less<>{});
+    auto* result             = rocm::upper_bound(arr.begin(), arr.end(), 8, rocm::less<>{});
     EXPECT(result == arr.begin() + 8);
 }
 TEST_CASE(upper_bound_stress_binary_search)
 {
     rocm::array<int, 15> arr = {2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30};
-    auto* result = rocm::upper_bound(arr.begin(), arr.end(), 16, rocm::less<>{});
+    auto* result             = rocm::upper_bound(arr.begin(), arr.end(), 16, rocm::less<>{});
     EXPECT(result == arr.begin() + 8);
 }
 TEST_CASE(upper_bound_stress_test_boundary)
@@ -874,27 +872,24 @@ TEST_CASE(merge_basic)
     rocm::array<int, 3> arr1   = {1, 3, 5};
     rocm::array<int, 3> arr2   = {2, 4, 6};
     rocm::array<int, 6> result = {0, 0, 0, 0, 0, 0};
-    rocm::merge(
-        arr1.begin(), arr1.end(), arr2.begin(), arr2.end(), result.begin(), rocm::less<>{});
+    rocm::merge(arr1.begin(), arr1.end(), arr2.begin(), arr2.end(), result.begin(), rocm::less<>{});
     rocm::array<int, 6> expected = {1, 2, 3, 4, 5, 6};
     EXPECT(result == expected);
 }
 TEST_CASE(merge_empty_first)
 {
-    empty_range arr1               = {};
+    empty_range arr1           = {};
     rocm::array<int, 3> arr2   = {1, 2, 3};
     rocm::array<int, 3> result = {0, 0, 0};
-    rocm::merge(
-        arr1.begin(), arr1.end(), arr2.begin(), arr2.end(), result.begin(), rocm::less<>{});
+    rocm::merge(arr1.begin(), arr1.end(), arr2.begin(), arr2.end(), result.begin(), rocm::less<>{});
     EXPECT(result == arr2);
 }
 TEST_CASE(merge_empty_second)
 {
     rocm::array<int, 3> arr1   = {1, 2, 3};
-    empty_range arr2               = {};
+    empty_range arr2           = {};
     rocm::array<int, 3> result = {0, 0, 0};
-    rocm::merge(
-        arr1.begin(), arr1.end(), arr2.begin(), arr2.end(), result.begin(), rocm::less<>{});
+    rocm::merge(arr1.begin(), arr1.end(), arr2.begin(), arr2.end(), result.begin(), rocm::less<>{});
     EXPECT(result == arr1);
 }
 TEST_CASE(merge_both_empty)
@@ -911,8 +906,7 @@ TEST_CASE(merge_overlapping_ranges)
     rocm::array<int, 4> arr1   = {1, 3, 5, 7};
     rocm::array<int, 2> arr2   = {2, 6};
     rocm::array<int, 6> result = {0, 0, 0, 0, 0, 0};
-    rocm::merge(
-        arr1.begin(), arr1.end(), arr2.begin(), arr2.end(), result.begin(), rocm::less<>{});
+    rocm::merge(arr1.begin(), arr1.end(), arr2.begin(), arr2.end(), result.begin(), rocm::less<>{});
     rocm::array<int, 6> expected = {1, 2, 3, 5, 6, 7};
     EXPECT(result == expected);
 }
@@ -921,8 +915,7 @@ TEST_CASE(merge_duplicates)
     rocm::array<int, 3> arr1   = {1, 2, 3};
     rocm::array<int, 3> arr2   = {2, 3, 4};
     rocm::array<int, 6> result = {0, 0, 0, 0, 0, 0};
-    rocm::merge(
-        arr1.begin(), arr1.end(), arr2.begin(), arr2.end(), result.begin(), rocm::less<>{});
+    rocm::merge(arr1.begin(), arr1.end(), arr2.begin(), arr2.end(), result.begin(), rocm::less<>{});
     rocm::array<int, 6> expected = {1, 2, 2, 3, 3, 4};
     EXPECT(result == expected);
 }
@@ -932,8 +925,7 @@ TEST_CASE(merge_different_sizes)
     rocm::array<int, 2> arr1   = {1, 5};
     rocm::array<int, 4> arr2   = {2, 3, 4, 6};
     rocm::array<int, 6> result = {0, 0, 0, 0, 0, 0};
-    rocm::merge(
-        arr1.begin(), arr1.end(), arr2.begin(), arr2.end(), result.begin(), rocm::less<>{});
+    rocm::merge(arr1.begin(), arr1.end(), arr2.begin(), arr2.end(), result.begin(), rocm::less<>{});
     rocm::array<int, 6> expected = {1, 2, 3, 4, 5, 6};
     EXPECT(result == expected);
 }
@@ -942,8 +934,7 @@ TEST_CASE(merge_first_all_smaller)
     rocm::array<int, 3> arr1   = {1, 2, 3};
     rocm::array<int, 3> arr2   = {4, 5, 6};
     rocm::array<int, 6> result = {0, 0, 0, 0, 0, 0};
-    rocm::merge(
-        arr1.begin(), arr1.end(), arr2.begin(), arr2.end(), result.begin(), rocm::less<>{});
+    rocm::merge(arr1.begin(), arr1.end(), arr2.begin(), arr2.end(), result.begin(), rocm::less<>{});
     rocm::array<int, 6> expected = {1, 2, 3, 4, 5, 6};
     EXPECT(result == expected);
 }
@@ -952,8 +943,7 @@ TEST_CASE(merge_first_all_larger)
     rocm::array<int, 3> arr1   = {4, 5, 6};
     rocm::array<int, 3> arr2   = {1, 2, 3};
     rocm::array<int, 6> result = {0, 0, 0, 0, 0, 0};
-    rocm::merge(
-        arr1.begin(), arr1.end(), arr2.begin(), arr2.end(), result.begin(), rocm::less<>{});
+    rocm::merge(arr1.begin(), arr1.end(), arr2.begin(), arr2.end(), result.begin(), rocm::less<>{});
     rocm::array<int, 6> expected = {1, 2, 3, 4, 5, 6};
     EXPECT(result == expected);
 }
@@ -962,8 +952,7 @@ TEST_CASE(merge_interleaved)
     rocm::array<int, 4> arr1   = {1, 3, 5, 7};
     rocm::array<int, 4> arr2   = {2, 4, 6, 8};
     rocm::array<int, 8> result = {0, 0, 0, 0, 0, 0, 0, 0};
-    rocm::merge(
-        arr1.begin(), arr1.end(), arr2.begin(), arr2.end(), result.begin(), rocm::less<>{});
+    rocm::merge(arr1.begin(), arr1.end(), arr2.begin(), arr2.end(), result.begin(), rocm::less<>{});
     rocm::array<int, 8> expected = {1, 2, 3, 4, 5, 6, 7, 8};
     EXPECT(result == expected);
 }
@@ -972,8 +961,7 @@ TEST_CASE(merge_many_duplicates)
     rocm::array<int, 4> arr1   = {1, 1, 2, 2};
     rocm::array<int, 4> arr2   = {1, 2, 2, 3};
     rocm::array<int, 8> result = {0, 0, 0, 0, 0, 0, 0, 0};
-    rocm::merge(
-        arr1.begin(), arr1.end(), arr2.begin(), arr2.end(), result.begin(), rocm::less<>{});
+    rocm::merge(arr1.begin(), arr1.end(), arr2.begin(), arr2.end(), result.begin(), rocm::less<>{});
     rocm::array<int, 8> expected = {1, 1, 1, 2, 2, 2, 2, 3};
     EXPECT(result == expected);
 }
@@ -982,8 +970,7 @@ TEST_CASE(merge_all_equal_elements)
     rocm::array<int, 3> arr1   = {5, 5, 5};
     rocm::array<int, 2> arr2   = {5, 5};
     rocm::array<int, 5> result = {0, 0, 0, 0, 0};
-    rocm::merge(
-        arr1.begin(), arr1.end(), arr2.begin(), arr2.end(), result.begin(), rocm::less<>{});
+    rocm::merge(arr1.begin(), arr1.end(), arr2.begin(), arr2.end(), result.begin(), rocm::less<>{});
     rocm::array<int, 5> expected = {5, 5, 5, 5, 5};
     EXPECT(result == expected);
 }
@@ -992,8 +979,7 @@ TEST_CASE(merge_single_elements)
     rocm::array<int, 1> arr1   = {3};
     rocm::array<int, 1> arr2   = {1};
     rocm::array<int, 2> result = {0, 0};
-    rocm::merge(
-        arr1.begin(), arr1.end(), arr2.begin(), arr2.end(), result.begin(), rocm::less<>{});
+    rocm::merge(arr1.begin(), arr1.end(), arr2.begin(), arr2.end(), result.begin(), rocm::less<>{});
     rocm::array<int, 2> expected = {1, 3};
     EXPECT(result == expected);
 }
@@ -1002,8 +988,7 @@ TEST_CASE(merge_one_single_element)
     rocm::array<int, 1> arr1   = {3};
     rocm::array<int, 4> arr2   = {1, 2, 4, 5};
     rocm::array<int, 5> result = {0, 0, 0, 0, 0};
-    rocm::merge(
-        arr1.begin(), arr1.end(), arr2.begin(), arr2.end(), result.begin(), rocm::less<>{});
+    rocm::merge(arr1.begin(), arr1.end(), arr2.begin(), arr2.end(), result.begin(), rocm::less<>{});
     rocm::array<int, 5> expected = {1, 2, 3, 4, 5};
     EXPECT(result == expected);
 }
@@ -1022,8 +1007,7 @@ TEST_CASE(merge_negative_numbers)
     rocm::array<int, 3> arr1   = {-5, -2, 1};
     rocm::array<int, 3> arr2   = {-3, 0, 3};
     rocm::array<int, 6> result = {0, 0, 0, 0, 0, 0};
-    rocm::merge(
-        arr1.begin(), arr1.end(), arr2.begin(), arr2.end(), result.begin(), rocm::less<>{});
+    rocm::merge(arr1.begin(), arr1.end(), arr2.begin(), arr2.end(), result.begin(), rocm::less<>{});
     rocm::array<int, 6> expected = {-5, -3, -2, 0, 1, 3};
     EXPECT(result == expected);
 }
@@ -1032,8 +1016,7 @@ TEST_CASE(merge_large_difference)
     rocm::array<int, 3> arr1   = {1, 1000, 2000};
     rocm::array<int, 3> arr2   = {2, 500, 1500};
     rocm::array<int, 6> result = {0, 0, 0, 0, 0, 0};
-    rocm::merge(
-        arr1.begin(), arr1.end(), arr2.begin(), arr2.end(), result.begin(), rocm::less<>{});
+    rocm::merge(arr1.begin(), arr1.end(), arr2.begin(), arr2.end(), result.begin(), rocm::less<>{});
     rocm::array<int, 6> expected = {1, 2, 500, 1000, 1500, 2000};
     EXPECT(result == expected);
 }
@@ -1043,11 +1026,11 @@ TEST_CASE(merge_partial_ranges)
     rocm::array<int, 6> arr2   = {10, 11, 12, 13, 14, 15};
     rocm::array<int, 5> result = {0, 0, 0, 0, 0};
     rocm::merge(arr1.begin() + 2,
-                    arr1.begin() + 5,
-                    arr2.begin() + 1,
-                    arr2.begin() + 3,
-                    result.begin(),
-                    rocm::less<>{});
+                arr1.begin() + 5,
+                arr2.begin() + 1,
+                arr2.begin() + 3,
+                result.begin(),
+                rocm::less<>{});
     rocm::array<int, 5> expected = {2, 3, 4, 11, 12};
     EXPECT(result == expected);
 }
@@ -1056,8 +1039,7 @@ TEST_CASE(merge_stability_test)
     rocm::array<int, 4> arr1   = {1, 3, 5, 7};
     rocm::array<int, 4> arr2   = {2, 3, 6, 7};
     rocm::array<int, 8> result = {0, 0, 0, 0, 0, 0, 0, 0};
-    rocm::merge(
-        arr1.begin(), arr1.end(), arr2.begin(), arr2.end(), result.begin(), rocm::less<>{});
+    rocm::merge(arr1.begin(), arr1.end(), arr2.begin(), arr2.end(), result.begin(), rocm::less<>{});
     rocm::array<int, 8> expected = {1, 2, 3, 3, 5, 6, 7, 7};
     EXPECT(result == expected);
 }
@@ -1071,8 +1053,8 @@ TEST_CASE(swap_self_assignment)
 TEST_CASE(find_if_predicate_consistency)
 {
     rocm::array<int, 4> arr = {1, 2, 3, 4};
-    int call_count              = 0;
-    auto predicate              = [&call_count](int x) {
+    int call_count          = 0;
+    auto predicate          = [&call_count](int x) {
         call_count++;
         return x > 2;
     };

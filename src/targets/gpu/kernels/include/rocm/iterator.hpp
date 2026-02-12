@@ -8,8 +8,6 @@
 namespace rocm {
 inline namespace ROCM_INLINE_NS {
 
-
-
 } // namespace ROCM_INLINE_NS
 } // namespace rocm
 #endif // ROCM_GUARD_ROCM_ITERATOR_HPP

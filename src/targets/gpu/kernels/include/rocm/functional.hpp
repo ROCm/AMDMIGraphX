@@ -7,8 +7,6 @@
 namespace rocm {
 inline namespace ROCM_INLINE_NS {
 
-
-
 } // namespace ROCM_INLINE_NS
 } // namespace rocm
 #endif // ROCM_GUARD_ROCM_FUNCTIONAL_HPP

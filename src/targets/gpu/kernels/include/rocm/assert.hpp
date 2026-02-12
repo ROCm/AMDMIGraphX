@@ -127,14 +127,13 @@ assert_fail(const T1& assertion, const T2& file, const T3& line, const T4& funct
 }
 
 // NOLINTNEXTLINE
-#define ROCM_ASSERT_FAIL(cond, ...)                     \
+#define ROCM_ASSERT_FAIL(cond, ...)                         \
     ((cond) ? void(0) : [](auto&&... private_migraphx_xs) { \
         assert_fail(private_migraphx_xs...);                \
     }(__VA_ARGS__))
 
 // NOLINTNEXTLINE
-#define ROCM_CHECK(cond) \
-    ROCM_ASSERT_FAIL(cond, #cond, __FILE__, __LINE__, __PRETTY_FUNCTION__)
+#define ROCM_CHECK(cond) ROCM_ASSERT_FAIL(cond, #cond, __FILE__, __LINE__, __PRETTY_FUNCTION__)
 
 #ifdef ROCM_DEBUG
 // NOLINTNEXTLINE
@@ -147,8 +146,6 @@ assert_fail(const T1& assertion, const T2& file, const T3& line, const T4& funct
 #define ROCM_UNREACHABLE __builtin_unreachable
 #define ROCM_ASSERT(cond)
 #endif
-
-
 
 } // namespace ROCM_INLINE_NS
 } // namespace rocm

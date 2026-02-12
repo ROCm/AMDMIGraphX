@@ -26,6 +26,7 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/transform_view.hpp>
+#include <migraphx/stringutils.hpp>
 #include <sstream>
 
 namespace migraphx {

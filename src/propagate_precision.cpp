@@ -135,7 +135,7 @@ static std::unordered_set<instruction_ref> find_adjacent_inputs(instruction_ref 
         if(contains(result, ins))
             return;
         // Stop at div when crossing type category boundary (e.g., int to float)
-        if(not same_category(precision{ins->get_shape().type()}, target) and ins->name() == "div")
+        if(not same_category(precision{ins->get_shape().type()}, target))
             return;
         auto next = get_next_input(ins);
         if(not next.has_value())
@@ -161,8 +161,7 @@ static std::unordered_set<instruction_ref> find_adjacent_outputs(instruction_ref
             if(contains(result, output))
                 continue;
             // Stop at div when crossing type category boundary (e.g., int to float)
-            if(not same_category(precision{output->get_shape().type()}, target) and
-               output->name() == "div")
+            if(not same_category(precision{output->get_shape().type()}, target))
                 continue;
             auto next = get_next_input(output);
             if(not next.has_value())

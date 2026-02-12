@@ -31,6 +31,7 @@
 #include <migraphx/kernels/array.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
 #include <migraphx/kernels/bit.hpp>
+#include <migraphx/kernels/algorithm.hpp>
 
 namespace migraphx {
 

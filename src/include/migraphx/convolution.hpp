@@ -46,7 +46,10 @@ void convolution(
     auto wei_c    = wei_lens[1];
     std::vector<std::size_t> win_size(wei_lens.begin() + 1, wei_lens.end());
 
-    par_for(output_shape.elements(), [&](auto i) {
+    shape win_shape{output_shape.type(), win_size};
+
+    // Compute the convolution output value for a single output element index
+    auto compute = [&](auto i) {
         auto idx_o = output_shape.multi(i);
         auto w     = idx_o[1];
         auto n_dim = idx_o.size();
@@ -59,8 +62,6 @@ void convolution(
                                 std::ptrdiff_t(padding[d_2]));
         }
         const auto group_id = w / (wei_n / group);
-
-        shape win_shape{output_shape.type(), win_size};
 
         double acc = 0.0;
         shape_for_each(win_shape, [&](const auto& idx_win) {
@@ -92,9 +93,39 @@ void convolution(
                 acc += input(idx.begin(), idx.end()) * weights(idx_wei.begin(), idx_wei.end());
             }
         });
+        return acc;
+    };
 
-        output[i] = acc;
-    });
+    // When the input is spatially broadcast (stride-0 spatial dims, e.g. a
+    // broadcast bias), every spatial position in a channel produces the same
+    // result. Compute only one position per batch*channel, then fill.
+    auto& in_strides = input.get_shape().strides();
+    bool spatial_bcast =
+        in_strides.size() > 2 and
+        std::all_of(in_strides.begin() + 2, in_strides.end(), [](auto s) { return s == 0; });
+    if(spatial_bcast)
+    {
+        auto out_lens       = output_shape.lens();
+        std::size_t spatial = 1;
+        for(std::size_t d = 2; d < out_lens.size(); d++)
+            spatial *= out_lens[d];
+
+        auto n_batch_chan = out_lens[0] * out_lens[1];
+        std::vector<double> values(n_batch_chan);
+        par_for(n_batch_chan, [&](auto bc) {
+            values[bc] = compute(bc * spatial); // first spatial pos
+        });
+
+        par_for(n_batch_chan, [&](auto bc) {
+            auto val  = values[bc];
+            auto base = bc * spatial;
+            for(std::size_t s = 0; s < spatial; s++)
+                output[base + s] = val;
+        });
+        return;
+    }
+
+    par_for(output_shape.elements(), [&](auto i) { output[i] = compute(i); });
 }
 
 } // namespace MIGRAPHX_INLINE_NS

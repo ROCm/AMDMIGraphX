@@ -216,7 +216,7 @@ struct reshape_lazy
             // unsqueeze
             else // if(rdim < idim)
             {
-                auto start = rdims.begin() + i;
+                auto start = rdims.begin() + r;
                 auto it    = compute_end_dim(start, rdims.end(), idim);
                 if(it == start)
                     return nullopt;

@@ -157,7 +157,7 @@ struct hip_copy_to_gpu_alloc
         copy_to_gpu(ctx, args.front(), result);
         return result;
     }
-    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return -1; }
+    std::vector<std::size_t> output_alias(const std::vector<shape>&) const { return {}; }
 };
 
 struct hip_copy_to_gpu

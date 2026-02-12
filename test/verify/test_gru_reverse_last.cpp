@@ -30,6 +30,7 @@
 #include <migraphx/serialize.hpp>
 
 #include <migraphx/op/common.hpp>
+#include <migraphx/op/builder/insert.hpp>
 
 struct test_gru_reverse_last : verify_program<test_gru_reverse_last>
 {
@@ -59,22 +60,17 @@ struct test_gru_reverse_last : verify_program<test_gru_reverse_last>
         auto ih   = mm->add_parameter("ih", ih_shape);
         auto und  = mm->add_instruction(migraphx::make_op("undefined"));
 
-        auto output = mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
-                                                                      migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
-        mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), output);
+        auto results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
+             {"actv_func",
+              migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
+                                                                  migraphx::make_op("tanh")})},
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
+             {"clip", clip}});
+        mm->add_return({results.at(1)});
 
         return p;
     }

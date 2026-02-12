@@ -30,6 +30,7 @@
 #include <migraphx/make_op.hpp>
 
 #include <migraphx/op/common.hpp>
+#include <migraphx/op/builder/insert.hpp>
 
 struct test_gru_reverse_3args : verify_program<test_gru_reverse_3args>
 {
@@ -52,18 +53,17 @@ struct test_gru_reverse_3args : verify_program<test_gru_reverse_3args>
         auto seq = mm->add_parameter("seq", in_shape);
         auto w   = mm->add_parameter("w", w_shape);
         auto r   = mm->add_parameter("r", r_shape);
-        mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
-                                                                      migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r);
+        auto results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r},
+            {{"hidden_size", hidden_size},
+             {"actv_func",
+              migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
+                                                                  migraphx::make_op("tanh")})},
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
+             {"clip", clip}});
+        mm->add_return({results.at(0)});
 
         return p;
     }

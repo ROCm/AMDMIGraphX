@@ -30,6 +30,7 @@
 #include <migraphx/serialize.hpp>
 
 #include <migraphx/op/common.hpp>
+#include <migraphx/op/builder/insert.hpp>
 
 struct test_gru_bidirct_layout : verify_program<test_gru_bidirct_layout>
 {
@@ -63,27 +64,21 @@ struct test_gru_bidirct_layout : verify_program<test_gru_bidirct_layout>
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
-                                                                      migraphx::make_op("tanh"),
-                                                                      migraphx::make_op("sigmoid"),
-                                                                      migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
-        auto lho = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
+        auto results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
+             {"actv_func",
+              migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
+                                                                  migraphx::make_op("tanh"),
+                                                                  migraphx::make_op("sigmoid"),
+                                                                  migraphx::make_op("tanh")})},
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
+             {"clip", clip}});
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
-        hs  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), hs);
-        lho = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), lho);
+        auto hs  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), results.at(0));
+        auto lho = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), results.at(1));
         mm->add_return({hs, lho});
 
         return p;

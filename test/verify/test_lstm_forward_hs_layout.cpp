@@ -30,6 +30,7 @@
 #include <migraphx/serialize.hpp>
 
 #include <migraphx/op/common.hpp>
+#include <migraphx/op/builder/insert.hpp>
 
 struct test_lstm_forward_hs_layout : verify_program<test_lstm_forward_hs_layout>
 {
@@ -68,26 +69,20 @@ struct test_lstm_forward_hs_layout : verify_program<test_lstm_forward_hs_layout>
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
         ic  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ic);
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
-                                                                      migraphx::make_op("tanh"),
-                                                                      migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih,
-            ic,
-            pph);
+        auto results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r, bias, und, ih, ic, pph},
+            {{"hidden_size", hidden_size},
+             {"actv_func",
+              migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
+                                                                  migraphx::make_op("tanh"),
+                                                                  migraphx::make_op("tanh")})},
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
+             {"clip", clip}});
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
-        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), hs);
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}),
+                            results.at(0));
 
         return p;
     }

@@ -25,6 +25,7 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/common.hpp>
+#include <migraphx/op/builder/insert.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
@@ -91,22 +92,18 @@ TEST_CASE(rnn_forward)
         auto bias = mm->add_literal(migraphx::literal{b_shape, bias_data});
         auto und  = mm->add_instruction(migraphx::make_op("undefined"));
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
+        auto rnn_results = migraphx::op::builder::add(
+            "rnn",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
-        auto lho = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
+                 {"clip", clip}});
+        auto hs = rnn_results.at(0);
+        auto lho = rnn_results.at(1);
         mm->add_return({hs, lho});
         p.compile(migraphx::make_target("ref"));
 
@@ -165,20 +162,16 @@ TEST_CASE(rnn_forward)
         std::vector<int32_t> len_data(batch_size, static_cast<int32_t>(seq_len));
         auto sql = mm->add_literal(seq_len_s, len_data);
 
-        auto out_hs = mm->add_instruction(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
+        auto rnn_results = migraphx::op::builder::add(
+            "rnn",
+            *mm,
+            {seq, w, r, bias, sql, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func", {}},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            sql,
-            ih);
-        auto last_out = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
+                 {"clip", clip}});
+        auto out_hs = rnn_results.at(0);
+        auto last_out = rnn_results.at(1);
         mm->add_return({out_hs, last_out});
         p.compile(migraphx::make_target("ref"));
 
@@ -222,20 +215,16 @@ TEST_CASE(rnn_forward)
         std::vector<int32_t> len_data{2, 1};
         auto sql = mm->add_literal(seq_len_s, len_data);
 
-        auto out_hs = mm->add_instruction(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
+        auto rnn_results = migraphx::op::builder::add(
+            "rnn",
+            *mm,
+            {seq, w, r, bias, sql, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func", {}},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            sql,
-            ih);
-        auto last_out = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
+                 {"clip", clip}});
+        auto out_hs = rnn_results.at(0);
+        auto last_out = rnn_results.at(1);
         mm->add_return({out_hs, last_out});
         p.compile(migraphx::make_target("ref"));
 
@@ -278,17 +267,16 @@ TEST_CASE(rnn_forward)
         auto w   = mm->add_literal(migraphx::literal{w_shape, w_data});
         auto r   = mm->add_literal(migraphx::literal{r_shape, r_data});
 
-        auto out_hs = mm->add_instruction(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
+        auto rnn_results = migraphx::op::builder::add(
+            "rnn",
+            *mm,
+            {seq, w, r},
+            {{"hidden_size", hidden_size},
                  {"actv_func", {}},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r);
-        mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
+                 {"clip", clip}});
+        auto out_hs = rnn_results.at(0);
+        mm->add_return({rnn_results.at(1)});
         p.compile(migraphx::make_target("ref"));
 
         auto last_output = p.eval({}).back();
@@ -316,20 +304,16 @@ TEST_CASE(rnn_forward)
         auto bias = mm->add_literal(migraphx::literal{b_shape, bias_data});
         auto und  = mm->add_instruction(migraphx::make_op("undefined"));
 
-        mm->add_instruction(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
+        auto rnn_results = migraphx::op::builder::add(
+            "rnn",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
+                 {"clip", clip}});
+        mm->add_return({rnn_results.at(0)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -411,22 +395,18 @@ TEST_CASE(rnn_forward_layout)
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
+        auto rnn_results = migraphx::op::builder::add(
+            "rnn",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
-        auto lho = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
+                 {"clip", clip}});
+        auto hs = rnn_results.at(0);
+        auto lho = rnn_results.at(1);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
         hs  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), hs);
         lho = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), lho);
@@ -492,20 +472,16 @@ TEST_CASE(rnn_forward_layout)
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
 
-        auto out_hs = mm->add_instruction(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
+        auto rnn_results = migraphx::op::builder::add(
+            "rnn",
+            *mm,
+            {seq, w, r, bias, sql, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func", {}},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            sql,
-            ih);
-        auto last_out = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
+                 {"clip", clip}});
+        auto out_hs = rnn_results.at(0);
+        auto last_out = rnn_results.at(1);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
         out_hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}),
                                      out_hs);
@@ -557,20 +533,16 @@ TEST_CASE(rnn_forward_layout)
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
 
-        auto out_hs = mm->add_instruction(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
+        auto rnn_results = migraphx::op::builder::add(
+            "rnn",
+            *mm,
+            {seq, w, r, bias, sql, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func", {}},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            sql,
-            ih);
-        auto last_out = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
+                 {"clip", clip}});
+        auto out_hs = rnn_results.at(0);
+        auto last_out = rnn_results.at(1);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
         out_hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}),
                                      out_hs);
@@ -629,23 +601,20 @@ TEST_CASE(rnn_forward_layout)
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
 
-        auto out_hs = mm->add_instruction(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
+        auto rnn_results = migraphx::op::builder::add(
+            "rnn",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
+                 {"clip", clip}});
+        auto out_hs = rnn_results.at(0);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
         out_hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}),
                                      out_hs);
+        mm->add_return({out_hs});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -719,19 +688,15 @@ TEST_CASE(rnn_reverse)
         auto bias = mm->add_literal(migraphx::literal{b_shape, bias_data});
         auto und  = mm->add_instruction(migraphx::make_op("undefined"));
 
-        mm->add_instruction(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
+        auto rnn_results = migraphx::op::builder::add(
+            "rnn",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func", {}},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
+                 {"clip", clip}});
+        mm->add_return({rnn_results.at(0)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -767,21 +732,17 @@ TEST_CASE(rnn_reverse)
         auto bias = mm->add_literal(migraphx::literal{b_shape, bias_data});
         auto und  = mm->add_instruction(migraphx::make_op("undefined"));
 
-        auto out_hs = mm->add_instruction(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
+        auto rnn_results = migraphx::op::builder::add(
+            "rnn",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func", {}},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
+                 {"clip", clip}});
+        auto out_hs = rnn_results.at(0);
 
-        mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
+        mm->add_return({rnn_results.at(1)});
         p.compile(migraphx::make_target("ref"));
 
         auto last_output = p.eval({}).back();
@@ -816,21 +777,17 @@ TEST_CASE(rnn_reverse)
         std::vector<int32_t> len_data(batch_size, static_cast<int32_t>(seq_len));
         auto sql = mm->add_literal(seq_len_s, len_data);
 
-        auto out_hs = mm->add_instruction(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
+        auto rnn_results = migraphx::op::builder::add(
+            "rnn",
+            *mm,
+            {seq, w, r, bias, sql, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func", {}},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            sql,
-            ih);
+                 {"clip", clip}});
+        auto out_hs = rnn_results.at(0);
 
-        auto lho = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
+        auto lho = rnn_results.at(1);
         mm->add_return({out_hs, lho});
         p.compile(migraphx::make_target("ref"));
 
@@ -876,21 +833,17 @@ TEST_CASE(rnn_reverse)
         std::vector<int32_t> len_data{2, 1};
         auto sql = mm->add_literal(seq_len_s, len_data);
 
-        auto out_hs = mm->add_instruction(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
+        auto rnn_results = migraphx::op::builder::add(
+            "rnn",
+            *mm,
+            {seq, w, r, bias, sql, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func", {}},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            sql,
-            ih);
+                 {"clip", clip}});
+        auto out_hs = rnn_results.at(0);
 
-        auto lho = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
+        auto lho = rnn_results.at(1);
         mm->add_return({out_hs, lho});
         p.compile(migraphx::make_target("ref"));
 
@@ -986,21 +939,18 @@ TEST_CASE(rnn_reverse_layout)
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
+        auto rnn_results = migraphx::op::builder::add(
+            "rnn",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func", {}},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
+                 {"clip", clip}});
+        auto hs = rnn_results.at(0);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
         hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), hs);
+        mm->add_return({hs});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -1040,22 +990,19 @@ TEST_CASE(rnn_reverse_layout)
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
 
-        auto out_hs = mm->add_instruction(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
+        auto rnn_results = migraphx::op::builder::add(
+            "rnn",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func", {}},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
+                 {"clip", clip}});
+        auto out_hs = rnn_results.at(0);
 
-        auto lho = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
+        auto lho = rnn_results.at(1);
         lho = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), lho);
+        mm->add_return({lho});
         p.compile(migraphx::make_target("ref"));
 
         auto last_output = p.eval({}).back();
@@ -1094,21 +1041,17 @@ TEST_CASE(rnn_reverse_layout)
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
 
-        auto out_hs = mm->add_instruction(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
+        auto rnn_results = migraphx::op::builder::add(
+            "rnn",
+            *mm,
+            {seq, w, r, bias, sql, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func", {}},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            sql,
-            ih);
+                 {"clip", clip}});
+        auto out_hs = rnn_results.at(0);
 
-        auto lho = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
+        auto lho = rnn_results.at(1);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
         out_hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}),
                                      out_hs);
@@ -1162,21 +1105,17 @@ TEST_CASE(rnn_reverse_layout)
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
 
-        auto out_hs = mm->add_instruction(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
+        auto rnn_results = migraphx::op::builder::add(
+            "rnn",
+            *mm,
+            {seq, w, r, bias, sql, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func", {}},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            sql,
-            ih);
+                 {"clip", clip}});
+        auto out_hs = rnn_results.at(0);
 
-        auto lho = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
+        auto lho = rnn_results.at(1);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
         out_hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}),
                                      out_hs);
@@ -1272,20 +1211,16 @@ TEST_CASE(rnn_bidirectional)
         auto r      = mm->add_literal(migraphx::literal{r_shape, r_data});
         auto bias   = mm->add_literal(migraphx::literal{b_shape, bias_data});
         auto und    = mm->add_instruction(migraphx::make_op("undefined"));
-        auto out_hs = mm->add_instruction(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
+        auto rnn_results = migraphx::op::builder::add(
+            "rnn",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func", {}},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
-        auto lho = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
+                 {"clip", clip}});
+        auto out_hs = rnn_results.at(0);
+        auto lho = rnn_results.at(1);
         mm->add_return({out_hs, lho});
         p.compile(migraphx::make_target("ref"));
 
@@ -1340,21 +1275,17 @@ TEST_CASE(rnn_bidirectional)
         std::vector<int32_t> len_data{1, 2};
         auto sql = mm->add_literal(seq_len_s, len_data);
 
-        auto out_hs = mm->add_instruction(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
+        auto rnn_results = migraphx::op::builder::add(
+            "rnn",
+            *mm,
+            {seq, w, r, bias, sql, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            sql,
-            ih);
-        auto lho = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
+                 {"clip", clip}});
+        auto out_hs = rnn_results.at(0);
+        auto lho = rnn_results.at(1);
         mm->add_return({out_hs, lho});
         p.compile(migraphx::make_target("ref"));
 
@@ -1402,21 +1333,19 @@ TEST_CASE(rnn_bidirectional)
         auto r    = mm->add_literal(migraphx::literal{r_shape, r_data});
         auto bias = mm->add_literal(migraphx::literal{b_shape, bias_data});
 
-        auto out_hs = mm->add_instruction(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
+        auto rnn_results = migraphx::op::builder::add(
+            "rnn",
+            *mm,
+            {seq, w, r, bias},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias);
+                 {"clip", clip}});
+        auto out_hs = rnn_results.at(0);
 
-        mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
+        mm->add_return({rnn_results.at(1)});
         p.compile(migraphx::make_target("ref"));
 
         auto last_output = p.eval({}).back();
@@ -1451,18 +1380,17 @@ TEST_CASE(rnn_bidirectional)
         auto w   = mm->add_literal(migraphx::literal{w_shape, w_data});
         auto r   = mm->add_literal(migraphx::literal{r_shape, r_data});
 
-        mm->add_instruction(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
+        auto rnn_results = migraphx::op::builder::add(
+            "rnn",
+            *mm,
+            {seq, w, r},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r);
+                 {"clip", clip}});
+        mm->add_return({rnn_results.at(0)});
         p.compile(migraphx::make_target("ref"));
 
         auto last_output = p.eval({}).back();
@@ -1493,19 +1421,15 @@ TEST_CASE(rnn_bidirectional)
         auto r    = mm->add_literal(migraphx::literal{r_shape, r_data});
         auto bias = mm->add_literal(migraphx::literal{b_shape, bias_data});
         auto und  = mm->add_instruction(migraphx::make_op("undefined"));
-        mm->add_instruction(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
+        auto rnn_results = migraphx::op::builder::add(
+            "rnn",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func", {}},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
+                 {"clip", clip}});
+        mm->add_return({rnn_results.at(0)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -1593,20 +1517,16 @@ TEST_CASE(rnn_bidirectional_layout)
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
 
-        auto out_hs = mm->add_instruction(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
+        auto rnn_results = migraphx::op::builder::add(
+            "rnn",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func", {}},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
-        auto lho = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
+                 {"clip", clip}});
+        auto out_hs = rnn_results.at(0);
+        auto lho = rnn_results.at(1);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
         out_hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}),
                                      out_hs);
@@ -1669,21 +1589,17 @@ TEST_CASE(rnn_bidirectional_layout)
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
 
-        auto out_hs = mm->add_instruction(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
+        auto rnn_results = migraphx::op::builder::add(
+            "rnn",
+            *mm,
+            {seq, w, r, bias, sql, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            sql,
-            ih);
-        auto lho = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
+                 {"clip", clip}});
+        auto out_hs = rnn_results.at(0);
+        auto lho = rnn_results.at(1);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
         out_hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}),
                                      out_hs);
@@ -1738,21 +1654,20 @@ TEST_CASE(rnn_bidirectional_layout)
         std::vector<int64_t> perm{1, 0, 2};
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
 
-        auto out_hs = mm->add_instruction(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
+        auto rnn_results = migraphx::op::builder::add(
+            "rnn",
+            *mm,
+            {seq, w, r, bias},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias);
-        auto lho = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
+                 {"clip", clip}});
+        auto out_hs = rnn_results.at(0);
+        auto lho = rnn_results.at(1);
         lho = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), lho);
+        mm->add_return({lho});
         p.compile(migraphx::make_target("ref"));
 
         auto last_output = p.eval({}).back();
@@ -1789,21 +1704,21 @@ TEST_CASE(rnn_bidirectional_layout)
         std::vector<int64_t> perm{1, 0, 2};
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
 
-        auto out_hs = mm->add_instruction(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
+        auto rnn_results = migraphx::op::builder::add(
+            "rnn",
+            *mm,
+            {seq, w, r},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r);
+                 {"clip", clip}});
+        auto out_hs = rnn_results.at(0);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
         out_hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}),
                                      out_hs);
+        mm->add_return({out_hs});
         p.compile(migraphx::make_target("ref"));
 
         auto last_output = p.eval({}).back();
@@ -1840,22 +1755,19 @@ TEST_CASE(rnn_bidirectional_layout)
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
 
-        auto out_hs = mm->add_instruction(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
+        auto rnn_results = migraphx::op::builder::add(
+            "rnn",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func", {}},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
+                 {"clip", clip}});
+        auto out_hs = rnn_results.at(0);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
         out_hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}),
                                      out_hs);
+        mm->add_return({out_hs});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -1943,16 +1855,16 @@ TEST_CASE(rnn_fp16)
     auto r_half = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), r);
 
-    auto out_hs = mm->add_instruction(
-        migraphx::make_op("rnn",
-                          {{"hidden_size", hidden_size},
+    auto rnn_results = migraphx::op::builder::add(
+        "rnn",
+        *mm,
+        {seq_half, w_half, r_half},
+        {{"hidden_size", hidden_size},
                            {"actv_func", {}},
                            {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-                           {"clip", clip}}),
-        seq_half,
-        w_half,
-        r_half);
-    mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
+                           {"clip", clip}});
+    auto out_hs = rnn_results.at(0);
+    mm->add_return({rnn_results.at(1)});
 
     p.compile(migraphx::make_target("ref"));
 
@@ -2034,23 +1946,19 @@ TEST_CASE(gru_forward)
         auto bias = mm->add_literal(migraphx::literal{b_shape, bias_data});
         auto und  = mm->add_instruction(migraphx::make_op("undefined"));
         auto ih   = mm->add_literal(migraphx::literal{ih_shape, ih_data});
-        mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip},
-                 {"linear_before_reset", 1}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
+                 {"linear_before_reset", 1}});
 
+        mm->add_return({gru_results.at(0)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -2076,23 +1984,19 @@ TEST_CASE(gru_forward)
         auto bias      = mm->add_literal(migraphx::literal{b_shape, bias_data});
         auto und       = mm->add_instruction(migraphx::make_op("undefined"));
         auto ih        = mm->add_literal(migraphx::literal{ih_shape, ih_data});
-        auto concat_hs = mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip},
-                 {"linear_before_reset", 1}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
-        mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), concat_hs);
+                 {"linear_before_reset", 1}});
+        auto concat_hs = gru_results.at(0);
+        mm->add_return({gru_results.at(1)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -2122,24 +2026,19 @@ TEST_CASE(gru_forward)
         auto bias      = mm->add_literal(migraphx::literal{b_shape, bias_data});
         auto und       = mm->add_instruction(migraphx::make_op("undefined"));
         auto ih        = mm->add_literal(migraphx::literal{ih_shape, ih_data});
-        auto concat_hs = mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip},
-                 {"linear_before_reset", 1}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
-        mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), concat_hs);
-        mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), concat_hs);
+                 {"linear_before_reset", 1}});
+        auto concat_hs = gru_results.at(0);
+        mm->add_return({gru_results.at(1)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -2169,23 +2068,19 @@ TEST_CASE(gru_forward)
         auto bias      = mm->add_literal(migraphx::literal{b_shape, bias_data});
         auto und       = mm->add_instruction(migraphx::make_op("undefined"));
         auto ih        = mm->add_literal(migraphx::literal{ih_shape, ih_data});
-        auto concat_hs = mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip},
-                 {"linear_before_reset", 0}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
-        mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), concat_hs);
+                 {"linear_before_reset", 0}});
+        auto concat_hs = gru_results.at(0);
+        mm->add_return({gru_results.at(1)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -2277,24 +2172,21 @@ TEST_CASE(gru_forward_layout)
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip},
-                 {"linear_before_reset", 1}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
+                 {"linear_before_reset", 1}});
+        auto hs = gru_results.at(0);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
-        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), hs);
+        hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), hs);
+        mm->add_return({hs});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -2324,24 +2216,21 @@ TEST_CASE(gru_forward_layout)
         std::vector<int64_t> perm{1, 0, 2};
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
-        auto concat_hs = mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip},
-                 {"linear_before_reset", 1}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
-        auto last_output = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), concat_hs);
-        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), last_output);
+                 {"linear_before_reset", 1}});
+        auto concat_hs = gru_results.at(0);
+        auto last_output = gru_results.at(1);
+        last_output = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), last_output);
+        mm->add_return({last_output});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -2376,25 +2265,21 @@ TEST_CASE(gru_forward_layout)
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
 
-        auto concat_hs = mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip},
-                 {"linear_before_reset", 1}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
-        auto last_output = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), concat_hs);
-        last_output      = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), concat_hs);
-        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), last_output);
+                 {"linear_before_reset", 1}});
+        auto concat_hs = gru_results.at(0);
+        auto last_output = gru_results.at(1);
+        last_output = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), last_output);
+        mm->add_return({last_output});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -2429,24 +2314,21 @@ TEST_CASE(gru_forward_layout)
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
 
-        auto concat_hs = mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip},
-                 {"linear_before_reset", 0}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
-        auto last_output = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), concat_hs);
-        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), last_output);
+                 {"linear_before_reset", 0}});
+        auto concat_hs = gru_results.at(0);
+        auto last_output = gru_results.at(1);
+        last_output = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), last_output);
+        mm->add_return({last_output});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -2522,20 +2404,19 @@ TEST_CASE(gru_forward_args)
         auto seq = mm->add_literal(migraphx::literal{in_shape, input});
         auto w   = mm->add_literal(migraphx::literal{w_shape, w_data});
         auto r   = mm->add_literal(migraphx::literal{r_shape, r_data});
-        mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip},
-                 {"linear_before_reset", 1}}),
-            seq,
-            w,
-            r);
+                 {"linear_before_reset", 1}});
 
+        mm->add_return({gru_results.at(0)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -2564,21 +2445,19 @@ TEST_CASE(gru_forward_args)
         auto w    = mm->add_literal(migraphx::literal{w_shape, w_data});
         auto r    = mm->add_literal(migraphx::literal{r_shape, r_data});
         auto bias = mm->add_literal(migraphx::literal{b_shape, bias_data});
-        mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip},
-                 {"linear_before_reset", 1}}),
-            seq,
-            w,
-            r,
-            bias);
+                 {"linear_before_reset", 1}});
 
+        mm->add_return({gru_results.at(0)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -2606,23 +2485,19 @@ TEST_CASE(gru_forward_args)
         auto r   = mm->add_literal(migraphx::literal{r_shape, r_data});
         auto ih  = mm->add_literal(migraphx::literal{ih_shape, ih_data});
         auto und = mm->add_instruction(migraphx::make_op("undefined"));
-        mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, und, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip},
-                 {"linear_before_reset", 1}}),
-            seq,
-            w,
-            r,
-            und,
-            und,
-            ih);
+                 {"linear_before_reset", 1}});
 
+        mm->add_return({gru_results.at(0)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -2706,21 +2581,17 @@ TEST_CASE(gru_forward_actv_funcs)
         auto bias      = mm->add_literal(migraphx::literal{b_shape, bias_data});
         auto und       = mm->add_instruction(migraphx::make_op("undefined"));
         auto ih        = mm->add_literal(migraphx::literal{ih_shape, ih_data});
-        auto concat_hs = mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func", {}},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip},
-                 {"linear_before_reset", 1}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
-        mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), concat_hs);
+                 {"linear_before_reset", 1}});
+        auto concat_hs = gru_results.at(0);
+        mm->add_return({gru_results.at(1)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -2750,22 +2621,18 @@ TEST_CASE(gru_forward_actv_funcs)
         auto bias = mm->add_literal(migraphx::literal{b_shape, bias_data});
         auto und  = mm->add_instruction(migraphx::make_op("undefined"));
         auto ih   = mm->add_literal(migraphx::literal{ih_shape, ih_data});
-        mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(
                       std::vector<migraphx::operation>{migraphx::make_op("sigmoid")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip},
-                 {"linear_before_reset", 1}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
+                 {"linear_before_reset", 1}});
+        mm->add_return({gru_results.at(0)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -2791,22 +2658,18 @@ TEST_CASE(gru_forward_actv_funcs)
         auto bias      = mm->add_literal(migraphx::literal{b_shape, bias_data});
         auto und       = mm->add_instruction(migraphx::make_op("undefined"));
         auto ih        = mm->add_literal(migraphx::literal{ih_shape, ih_data});
-        auto concat_hs = mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip},
-                 {"linear_before_reset", 1}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
-        mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), concat_hs);
+                 {"linear_before_reset", 1}});
+        auto concat_hs = gru_results.at(0);
+        mm->add_return({gru_results.at(1)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -2840,23 +2703,19 @@ TEST_CASE(gru_forward_actv_funcs)
         auto bias = mm->add_literal(migraphx::literal{b_shape, bias_data});
         auto und  = mm->add_instruction(migraphx::make_op("undefined"));
         auto ih   = mm->add_literal(migraphx::literal{ih_shape, ih_data});
-        mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip},
-                 {"linear_before_reset", 1}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
+                 {"linear_before_reset", 1}});
 
+        mm->add_return({gru_results.at(0)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -2944,23 +2803,19 @@ TEST_CASE(gru_reverse)
         auto bias = mm->add_literal(migraphx::literal{b_shape, bias_data});
         auto und  = mm->add_instruction(migraphx::make_op("undefined"));
         auto ih   = mm->add_literal(migraphx::literal{ih_shape, ih_data});
-        auto hs   = mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                    {"actv_func",
                     migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                         migraphx::make_op("tanh")})},
                    {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
                    {"clip", clip},
-                   {"linear_before_reset", 1}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
-        auto lho = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
+                   {"linear_before_reset", 1}});
+        auto hs = gru_results.at(0);
+        auto lho = gru_results.at(1);
         mm->add_return({lho, hs});
         p.compile(migraphx::make_target("ref"));
         auto outputs = p.eval({});
@@ -3006,23 +2861,19 @@ TEST_CASE(gru_reverse)
         std::vector<int32_t> len_data{1, 2};
         auto sql = mm->add_literal(seq_len_s, len_data);
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, sql, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
                  {"clip", clip},
-                 {"linear_before_reset", 1}}),
-            seq,
-            w,
-            r,
-            bias,
-            sql,
-            ih);
-        auto lho = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
+                 {"linear_before_reset", 1}});
+        auto hs = gru_results.at(0);
+        auto lho = gru_results.at(1);
         mm->add_return({lho, hs});
         p.compile(migraphx::make_target("ref"));
         auto outputs = p.eval({});
@@ -3064,23 +2915,19 @@ TEST_CASE(gru_reverse)
         auto bias      = mm->add_literal(migraphx::literal{b_shape, bias_data});
         auto und       = mm->add_instruction(migraphx::make_op("undefined"));
         auto ih        = mm->add_literal(migraphx::literal{ih_shape, ih_data});
-        auto concat_hs = mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
                  {"clip", clip},
-                 {"linear_before_reset", 0}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
-        mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), concat_hs);
+                 {"linear_before_reset", 0}});
+        auto concat_hs = gru_results.at(0);
+        mm->add_return({gru_results.at(1)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -3110,20 +2957,16 @@ TEST_CASE(gru_reverse)
         auto bias = mm->add_literal(migraphx::literal{b_shape, bias_data});
         auto und  = mm->add_instruction(migraphx::make_op("undefined"));
         auto ih   = mm->add_literal(migraphx::literal{ih_shape, ih_data});
-        mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func", {}},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
                  {"clip", clip},
-                 {"linear_before_reset", 1}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
+                 {"linear_before_reset", 1}});
+        mm->add_return({gru_results.at(0)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -3153,23 +2996,19 @@ TEST_CASE(gru_reverse)
         auto bias = mm->add_literal(migraphx::literal{b_shape, bias_data});
         auto und  = mm->add_instruction(migraphx::make_op("undefined"));
         auto ih   = mm->add_literal(migraphx::literal{ih_shape, ih_data});
-        mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
                  {"clip", clip},
-                 {"linear_before_reset", 1}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
+                 {"linear_before_reset", 1}});
 
+        mm->add_return({gru_results.at(0)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -3262,23 +3101,19 @@ TEST_CASE(gru_reverse_layout)
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
                  {"clip", clip},
-                 {"linear_before_reset", 1}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
-        auto lho = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
+                 {"linear_before_reset", 1}});
+        auto hs = gru_results.at(0);
+        auto lho = gru_results.at(1);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
         hs  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), hs);
         lho = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), lho);
@@ -3331,23 +3166,19 @@ TEST_CASE(gru_reverse_layout)
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, sql, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
                  {"clip", clip},
-                 {"linear_before_reset", 1}}),
-            seq,
-            w,
-            r,
-            bias,
-            sql,
-            ih);
-        auto lho = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
+                 {"linear_before_reset", 1}});
+        auto hs = gru_results.at(0);
+        auto lho = gru_results.at(1);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
         hs  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), hs);
         lho = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), lho);
@@ -3398,24 +3229,21 @@ TEST_CASE(gru_reverse_layout)
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
 
-        auto concat_hs = mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
                  {"clip", clip},
-                 {"linear_before_reset", 0}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
-        auto lho = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), concat_hs);
+                 {"linear_before_reset", 0}});
+        auto concat_hs = gru_results.at(0);
+        auto lho = gru_results.at(1);
         lho = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), lho);
+        mm->add_return({lho});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -3454,25 +3282,22 @@ TEST_CASE(gru_reverse_layout)
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
                  {"clip", clip},
-                 {"linear_before_reset", 1}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
+                 {"linear_before_reset", 1}});
+        auto hs = gru_results.at(0);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
         hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), hs);
 
+        mm->add_return({hs});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -3578,10 +3403,11 @@ TEST_CASE(gru_bidirectional)
         auto bias = mm->add_literal(migraphx::literal{b_shape, bias_data});
         auto und  = mm->add_instruction(migraphx::make_op("undefined"));
         auto ih   = mm->add_literal(migraphx::literal{ih_shape, ih_data});
-        auto hs   = mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                    {"actv_func",
                     migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                         migraphx::make_op("tanh"),
@@ -3589,14 +3415,9 @@ TEST_CASE(gru_bidirectional)
                                                                         migraphx::make_op("tanh")})},
                    {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                    {"clip", clip},
-                   {"linear_before_reset", 1}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
-        auto lho = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
+                   {"linear_before_reset", 1}});
+        auto hs = gru_results.at(0);
+        auto lho = gru_results.at(1);
         mm->add_return({hs, lho});
         p.compile(migraphx::make_target("ref"));
         auto outputs   = p.eval({});
@@ -3643,10 +3464,11 @@ TEST_CASE(gru_bidirectional)
         std::vector<int32_t> len_data(batch_size, static_cast<int32_t>(seq_len));
         auto sql = mm->add_literal(seq_len_s, len_data);
 
-        auto concat_hs = mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, sql, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
@@ -3654,14 +3476,9 @@ TEST_CASE(gru_bidirectional)
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
-                 {"linear_before_reset", 1}}),
-            seq,
-            w,
-            r,
-            bias,
-            sql,
-            ih);
-        auto lho = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), concat_hs);
+                 {"linear_before_reset", 1}});
+        auto concat_hs = gru_results.at(0);
+        auto lho = gru_results.at(1);
         mm->add_return({concat_hs, lho});
         p.compile(migraphx::make_target("ref"));
         auto outputs   = p.eval({});
@@ -3710,10 +3527,11 @@ TEST_CASE(gru_bidirectional)
         std::vector<int32_t> len_data{1, 2};
         auto sql = mm->add_literal(seq_len_s, len_data);
 
-        auto concat_hs = mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, sql, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
@@ -3721,14 +3539,9 @@ TEST_CASE(gru_bidirectional)
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
-                 {"linear_before_reset", 1}}),
-            seq,
-            w,
-            r,
-            bias,
-            sql,
-            ih);
-        auto lho = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), concat_hs);
+                 {"linear_before_reset", 1}});
+        auto concat_hs = gru_results.at(0);
+        auto lho = gru_results.at(1);
         mm->add_return({concat_hs, lho});
         p.compile(migraphx::make_target("ref"));
         auto outputs   = p.eval({});
@@ -3768,10 +3581,11 @@ TEST_CASE(gru_bidirectional)
         auto bias      = mm->add_literal(migraphx::literal{b_shape, bias_data});
         auto und       = mm->add_instruction(migraphx::make_op("undefined"));
         auto ih        = mm->add_literal(migraphx::literal{ih_shape, ih_data});
-        auto concat_hs = mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
@@ -3779,14 +3593,9 @@ TEST_CASE(gru_bidirectional)
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
-                 {"linear_before_reset", 0}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
-        mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), concat_hs);
+                 {"linear_before_reset", 0}});
+        auto concat_hs = gru_results.at(0);
+        mm->add_return({gru_results.at(1)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -3891,10 +3700,11 @@ TEST_CASE(gru_bidirectional_layout)
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
@@ -3902,14 +3712,9 @@ TEST_CASE(gru_bidirectional_layout)
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
-                 {"linear_before_reset", 1}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
-        auto lho = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
+                 {"linear_before_reset", 1}});
+        auto hs = gru_results.at(0);
+        auto lho = gru_results.at(1);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
         hs  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), hs);
         lho = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), lho);
@@ -3964,10 +3769,11 @@ TEST_CASE(gru_bidirectional_layout)
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
 
-        auto concat_hs = mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, sql, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
@@ -3975,14 +3781,9 @@ TEST_CASE(gru_bidirectional_layout)
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
-                 {"linear_before_reset", 1}}),
-            seq,
-            w,
-            r,
-            bias,
-            sql,
-            ih);
-        auto lho = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), concat_hs);
+                 {"linear_before_reset", 1}});
+        auto concat_hs = gru_results.at(0);
+        auto lho = gru_results.at(1);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
         concat_hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}),
                                         concat_hs);
@@ -4040,10 +3841,11 @@ TEST_CASE(gru_bidirectional_layout)
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
 
-        auto concat_hs = mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, sql, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
@@ -4051,14 +3853,9 @@ TEST_CASE(gru_bidirectional_layout)
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
-                 {"linear_before_reset", 1}}),
-            seq,
-            w,
-            r,
-            bias,
-            sql,
-            ih);
-        auto lho = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), concat_hs);
+                 {"linear_before_reset", 1}});
+        auto concat_hs = gru_results.at(0);
+        auto lho = gru_results.at(1);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
         concat_hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}),
                                         concat_hs);
@@ -4107,10 +3904,11 @@ TEST_CASE(gru_bidirectional_layout)
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
 
-        auto concat_hs = mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
@@ -4118,15 +3916,11 @@ TEST_CASE(gru_bidirectional_layout)
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
-                 {"linear_before_reset", 0}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
-        auto lho = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), concat_hs);
-        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), lho);
+                 {"linear_before_reset", 0}});
+        auto concat_hs = gru_results.at(0);
+        auto lho = gru_results.at(1);
+        lho = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), lho);
+        mm->add_return({lho});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -4209,10 +4003,11 @@ TEST_CASE(gru_bidirectional_args)
         auto seq = mm->add_literal(migraphx::literal{in_shape, input});
         auto w   = mm->add_literal(migraphx::literal{w_shape, w_data});
         auto r   = mm->add_literal(migraphx::literal{r_shape, r_data});
-        mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
@@ -4220,11 +4015,9 @@ TEST_CASE(gru_bidirectional_args)
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
-                 {"linear_before_reset", 0}}),
-            seq,
-            w,
-            r);
+                 {"linear_before_reset", 0}});
 
+        mm->add_return({gru_results.at(0)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -4261,10 +4054,11 @@ TEST_CASE(gru_bidirectional_args)
         auto w    = mm->add_literal(migraphx::literal{w_shape, w_data});
         auto r    = mm->add_literal(migraphx::literal{r_shape, r_data});
         auto bias = mm->add_literal(migraphx::literal{b_shape, bias_data});
-        mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
@@ -4272,12 +4066,9 @@ TEST_CASE(gru_bidirectional_args)
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
-                 {"linear_before_reset", 1}}),
-            seq,
-            w,
-            r,
-            bias);
+                 {"linear_before_reset", 1}});
 
+        mm->add_return({gru_results.at(0)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -4310,10 +4101,11 @@ TEST_CASE(gru_bidirectional_args)
         auto r   = mm->add_literal(migraphx::literal{r_shape, r_data});
         auto ih  = mm->add_literal(migraphx::literal{ih_shape, ih_data});
         auto und = mm->add_instruction(migraphx::make_op("undefined"));
-        mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, und, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
@@ -4321,14 +4113,9 @@ TEST_CASE(gru_bidirectional_args)
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
-                 {"linear_before_reset", 1}}),
-            seq,
-            w,
-            r,
-            und,
-            und,
-            ih);
+                 {"linear_before_reset", 1}});
 
+        mm->add_return({gru_results.at(0)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -4433,21 +4220,17 @@ TEST_CASE(gru_bidirectional_actv_funcs)
         auto bias      = mm->add_literal(migraphx::literal{b_shape, bias_data});
         auto und       = mm->add_instruction(migraphx::make_op("undefined"));
         auto ih        = mm->add_literal(migraphx::literal{ih_shape, ih_data});
-        auto concat_hs = mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func", {}},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
-                 {"linear_before_reset", 1}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
-        mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), concat_hs);
+                 {"linear_before_reset", 1}});
+        auto concat_hs = gru_results.at(0);
+        mm->add_return({gru_results.at(1)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -4471,22 +4254,18 @@ TEST_CASE(gru_bidirectional_actv_funcs)
         auto bias = mm->add_literal(migraphx::literal{b_shape, bias_data});
         auto und  = mm->add_instruction(migraphx::make_op("undefined"));
         auto ih   = mm->add_literal(migraphx::literal{ih_shape, ih_data});
-        mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(
                       std::vector<migraphx::operation>{migraphx::make_op("sigmoid")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
-                 {"linear_before_reset", 0}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
+                 {"linear_before_reset", 0}});
+        mm->add_return({gru_results.at(0)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -4514,22 +4293,18 @@ TEST_CASE(gru_bidirectional_actv_funcs)
         auto bias = mm->add_literal(migraphx::literal{b_shape, bias_data});
         auto und  = mm->add_instruction(migraphx::make_op("undefined"));
         auto ih   = mm->add_literal(migraphx::literal{ih_shape, ih_data});
-        mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
-                 {"linear_before_reset", 1}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
+                 {"linear_before_reset", 1}});
+        mm->add_return({gru_results.at(0)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -4559,24 +4334,20 @@ TEST_CASE(gru_bidirectional_actv_funcs)
         auto bias      = mm->add_literal(migraphx::literal{b_shape, bias_data});
         auto und       = mm->add_instruction(migraphx::make_op("undefined"));
         auto ih        = mm->add_literal(migraphx::literal{ih_shape, ih_data});
-        auto concat_hs = mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh"),
                                                                       migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
-                 {"linear_before_reset", 1}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
-        mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), concat_hs);
+                 {"linear_before_reset", 1}});
+        auto concat_hs = gru_results.at(0);
+        mm->add_return({gru_results.at(1)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -4599,10 +4370,11 @@ TEST_CASE(gru_bidirectional_actv_funcs)
         auto bias = mm->add_literal(migraphx::literal{b_shape, bias_data});
         auto und  = mm->add_instruction(migraphx::make_op("undefined"));
         auto ih   = mm->add_literal(migraphx::literal{ih_shape, ih_data});
-        mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
+        auto gru_results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
@@ -4610,14 +4382,9 @@ TEST_CASE(gru_bidirectional_actv_funcs)
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
-                 {"linear_before_reset", 1}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
+                 {"linear_before_reset", 1}});
 
+        mm->add_return({gru_results.at(0)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -4722,10 +4489,11 @@ TEST_CASE(gru_bidirectional_seq_1)
     auto bias = mm->add_literal(migraphx::literal{b_shape, bias_data});
     auto und  = mm->add_instruction(migraphx::make_op("undefined"));
     auto ih   = mm->add_literal(migraphx::literal{ih_shape, ih_data});
-    mm->add_instruction(
-        migraphx::make_op(
-            "gru",
-            {{"hidden_size", hidden_size},
+    auto gru_results = migraphx::op::builder::add(
+        "gru",
+        *mm,
+        {seq, w, r, bias, und, ih},
+        {{"hidden_size", hidden_size},
              {"actv_func",
               migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                   migraphx::make_op("tanh"),
@@ -4733,14 +4501,9 @@ TEST_CASE(gru_bidirectional_seq_1)
                                                                   migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
              {"clip", clip},
-             {"linear_before_reset", 1}}),
-        seq,
-        w,
-        r,
-        bias,
-        und,
-        ih);
+             {"linear_before_reset", 1}});
 
+    mm->add_return({gru_results.at(0)});
     p.compile(migraphx::make_target("ref"));
     auto hs_concat = p.eval({}).back();
     std::vector<float> hs_data;
@@ -4833,10 +4596,11 @@ TEST_CASE(gru_fp16)
     auto ih_half = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), ih);
 
-    mm->add_instruction(
-        migraphx::make_op(
-            "gru",
-            {{"hidden_size", hidden_size},
+    auto gru_results = migraphx::op::builder::add(
+        "gru",
+        *mm,
+        {seq_half, w_half, r_half, bias_half, und_half, ih_half},
+        {{"hidden_size", hidden_size},
              {"actv_func",
               migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                   migraphx::make_op("tanh"),
@@ -4844,14 +4608,9 @@ TEST_CASE(gru_fp16)
                                                                   migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
              {"clip", clip},
-             {"linear_before_reset", 1}}),
-        seq_half,
-        w_half,
-        r_half,
-        bias_half,
-        und_half,
-        ih_half);
+             {"linear_before_reset", 1}});
 
+    mm->add_return({gru_results.at(0)});
     p.compile(migraphx::make_target("ref"));
     auto hs_concat = p.eval({}).back();
     std::vector<float> hs_data;
@@ -4963,25 +4722,19 @@ TEST_CASE(lstm_forward)
         auto ic   = mm->add_literal(migraphx::literal{ic_shape, ic_data});
         auto und  = mm->add_instruction(migraphx::make_op("undefined"));
 
-        mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r, bias, und, ih, ic, und},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih,
-            ic,
-            und);
+                 {"input_forget", 0}});
+        mm->add_return({lstm_results.at(0)});
         p.compile(migraphx::make_target("ref"));
 
         auto hs_concat = p.eval({}).back();
@@ -5011,26 +4764,20 @@ TEST_CASE(lstm_forward)
         auto ic   = mm->add_literal(migraphx::literal{ic_shape, ic_data});
         auto und  = mm->add_instruction(migraphx::make_op("undefined"));
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r, bias, und, ih, ic, und},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih,
-            ic,
-            und);
-        mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
+                 {"input_forget", 0}});
+        auto hs = lstm_results.at(0);
+        mm->add_return({lstm_results.at(1)});
         p.compile(migraphx::make_target("ref"));
 
         auto last_hs = p.eval({}).back();
@@ -5064,26 +4811,20 @@ TEST_CASE(lstm_forward)
         auto ic   = mm->add_literal(migraphx::literal{ic_shape, ic_data});
         auto und  = mm->add_instruction(migraphx::make_op("undefined"));
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r, bias, und, ih, ic, und},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih,
-            ic,
-            und);
-        mm->add_instruction(migraphx::make_op("rnn_last_cell_output"), hs);
+                 {"input_forget", 0}});
+        auto hs = lstm_results.at(0);
+        mm->add_return({lstm_results.at(2)});
         p.compile(migraphx::make_target("ref"));
 
         auto last_hs = p.eval({}).back();
@@ -5207,27 +4948,22 @@ TEST_CASE(lstm_forward_layout)
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
         ic  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ic);
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r, bias, und, ih, ic, und},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih,
-            ic,
-            und);
+                 {"input_forget", 0}});
+        auto hs = lstm_results.at(0);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
-        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), hs);
+        hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), hs);
+        mm->add_return({hs});
         p.compile(migraphx::make_target("ref"));
 
         auto hs_concat = p.eval({}).back();
@@ -5262,27 +4998,22 @@ TEST_CASE(lstm_forward_layout)
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
         ic  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ic);
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r, bias, und, ih, ic, und},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih,
-            ic,
-            und);
-        auto last_output = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
-        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), last_output);
+                 {"input_forget", 0}});
+        auto hs = lstm_results.at(0);
+        auto last_output = lstm_results.at(1);
+        last_output = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), last_output);
+        mm->add_return({last_output});
         p.compile(migraphx::make_target("ref"));
 
         auto last_hs = p.eval({}).back();
@@ -5321,27 +5052,22 @@ TEST_CASE(lstm_forward_layout)
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
         ic  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ic);
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r, bias, und, ih, ic, und},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih,
-            ic,
-            und);
-        auto cell_output = mm->add_instruction(migraphx::make_op("rnn_last_cell_output"), hs);
-        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), cell_output);
+                 {"input_forget", 0}});
+        auto hs = lstm_results.at(0);
+        auto cell_output = lstm_results.at(2);
+        cell_output = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), cell_output);
+        mm->add_return({cell_output});
         p.compile(migraphx::make_target("ref"));
 
         auto last_hs = p.eval({}).back();
@@ -5454,20 +5180,19 @@ TEST_CASE(lstm_forward_more)
         auto seq = mm->add_literal(migraphx::literal{in_shape, input_data});
         auto w   = mm->add_literal(migraphx::literal{w_shape, w_data});
         auto r   = mm->add_literal(migraphx::literal{r_shape, r_data});
-        mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r);
+                 {"input_forget", 0}});
+        mm->add_return({lstm_results.at(0)});
         p.compile(migraphx::make_target("ref"));
 
         auto last_hs = p.eval({}).back();
@@ -5498,25 +5223,19 @@ TEST_CASE(lstm_forward_more)
         auto pph  = mm->add_literal(migraphx::literal{pph_shape, pph_data});
         auto und  = mm->add_instruction(migraphx::make_op("undefined"));
 
-        mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r, bias, und, ih, ic, pph},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih,
-            ic,
-            pph);
+                 {"input_forget", 0}});
+        mm->add_return({lstm_results.at(0)});
         p.compile(migraphx::make_target("ref"));
 
         auto hs_concat = p.eval({}).back();
@@ -5555,26 +5274,20 @@ TEST_CASE(lstm_forward_more)
 
         auto und = mm->add_instruction(migraphx::make_op("undefined"));
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r, bias, sql, ih, ic, und},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r,
-            bias,
-            sql,
-            ih,
-            ic,
-            und);
-        mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
+                 {"input_forget", 0}});
+        auto hs = lstm_results.at(0);
+        mm->add_return({lstm_results.at(1)});
         p.compile(migraphx::make_target("ref"));
 
         auto last_hs = p.eval({}).back();
@@ -5613,26 +5326,20 @@ TEST_CASE(lstm_forward_more)
         auto pph  = mm->add_literal(migraphx::literal{pph_shape, pph_data});
         auto und  = mm->add_instruction(migraphx::make_op("undefined"));
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r, bias, und, ih, ic, pph},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih,
-            ic,
-            pph);
-        mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
+                 {"input_forget", 0}});
+        auto hs = lstm_results.at(0);
+        mm->add_return({lstm_results.at(1)});
         p.compile(migraphx::make_target("ref"));
 
         auto hs_concat = p.eval({}).back();
@@ -5749,22 +5456,22 @@ TEST_CASE(lstm_forward_more_layout)
         std::vector<int64_t> perm{1, 0, 2};
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r);
+                 {"input_forget", 0}});
+        auto hs = lstm_results.at(0);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
-        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), hs);
+        hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), hs);
+        mm->add_return({hs});
         p.compile(migraphx::make_target("ref"));
 
         auto last_hs = p.eval({}).back();
@@ -5800,27 +5507,22 @@ TEST_CASE(lstm_forward_more_layout)
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
         ic  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ic);
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r, bias, und, ih, ic, pph},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih,
-            ic,
-            pph);
+                 {"input_forget", 0}});
+        auto hs = lstm_results.at(0);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
-        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), hs);
+        hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), hs);
+        mm->add_return({hs});
         p.compile(migraphx::make_target("ref"));
 
         auto hs_concat = p.eval({}).back();
@@ -5865,27 +5567,22 @@ TEST_CASE(lstm_forward_more_layout)
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
         ic  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ic);
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r, bias, sql, ih, ic, und},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r,
-            bias,
-            sql,
-            ih,
-            ic,
-            und);
-        auto last_output = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
-        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), last_output);
+                 {"input_forget", 0}});
+        auto hs = lstm_results.at(0);
+        auto last_output = lstm_results.at(1);
+        last_output = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), last_output);
+        mm->add_return({last_output});
         p.compile(migraphx::make_target("ref"));
 
         auto last_hs = p.eval({}).back();
@@ -5929,27 +5626,22 @@ TEST_CASE(lstm_forward_more_layout)
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
         ic  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ic);
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r, bias, und, ih, ic, pph},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih,
-            ic,
-            pph);
-        auto last_output = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
-        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), last_output);
+                 {"input_forget", 0}});
+        auto hs = lstm_results.at(0);
+        auto last_output = lstm_results.at(1);
+        last_output = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), last_output);
+        mm->add_return({last_output});
         p.compile(migraphx::make_target("ref"));
 
         auto hs_concat = p.eval({}).back();
@@ -6067,25 +5759,19 @@ TEST_CASE(lstm_reverse)
         auto bias = mm->add_literal(migraphx::literal{b_shape, bias_data});
         auto pph  = mm->add_literal(migraphx::literal{pph_shape, pph_data});
         auto und  = mm->add_instruction(migraphx::make_op("undefined"));
-        mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r, bias, und, ih, ic, pph},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih,
-            ic,
-            pph);
+                 {"input_forget", 0}});
+        mm->add_return({lstm_results.at(0)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
@@ -6121,25 +5807,19 @@ TEST_CASE(lstm_reverse)
         migraphx::shape seq_len_s{migraphx::shape::int32_type, {batch_size}};
         std::vector<int32_t> len_data(batch_size, static_cast<int32_t>(seq_len));
         auto sql = mm->add_literal(seq_len_s, len_data);
-        mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r, bias, sql, ih, ic, pph},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r,
-            bias,
-            sql,
-            ih,
-            ic,
-            pph);
+                 {"input_forget", 0}});
+        mm->add_return({lstm_results.at(0)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
@@ -6175,25 +5855,19 @@ TEST_CASE(lstm_reverse)
         migraphx::shape seq_len_s{migraphx::shape::int32_type, {batch_size}};
         std::vector<int32_t> len_data{3, 2, 1};
         auto sql = mm->add_literal(seq_len_s, len_data);
-        mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r, bias, sql, ih, ic, pph},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r,
-            bias,
-            sql,
-            ih,
-            ic,
-            pph);
+                 {"input_forget", 0}});
+        mm->add_return({lstm_results.at(0)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
@@ -6216,21 +5890,20 @@ TEST_CASE(lstm_reverse)
         auto seq = mm->add_literal(migraphx::literal{in_shape, input_data});
         auto w   = mm->add_literal(migraphx::literal{w_shape, w_data});
         auto r   = mm->add_literal(migraphx::literal{r_shape, r_data});
-        auto hs  = mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r},
+            {{"hidden_size", hidden_size},
                   {"actv_func",
                    migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                        migraphx::make_op("tanh"),
                                                                        migraphx::make_op("tanh")})},
                   {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
                   {"clip", clip},
-                  {"input_forget", 0}}),
-            seq,
-            w,
-            r);
-        mm->add_instruction(migraphx::make_op("rnn_last_cell_output"), hs);
+                  {"input_forget", 0}});
+        auto hs = lstm_results.at(0);
+        mm->add_return({lstm_results.at(2)});
 
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
@@ -6258,18 +5931,17 @@ TEST_CASE(lstm_reverse)
         auto seq = mm->add_literal(migraphx::literal{in_shape, input_data});
         auto w   = mm->add_literal(migraphx::literal{w_shape, w_data});
         auto r   = mm->add_literal(migraphx::literal{r_shape, r_data});
-        auto hs  = mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r},
+            {{"hidden_size", hidden_size},
                   {"actv_func", {}},
                   {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
                   {"clip", clip},
-                  {"input_forget", 0}}),
-            seq,
-            w,
-            r);
-        mm->add_instruction(migraphx::make_op("rnn_last_cell_output"), hs);
+                  {"input_forget", 0}});
+        auto hs = lstm_results.at(0);
+        mm->add_return({lstm_results.at(2)});
 
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
@@ -6393,27 +6065,22 @@ TEST_CASE(lstm_reverse_layout)
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
         ic  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ic);
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r, bias, und, ih, ic, pph},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih,
-            ic,
-            pph);
+                 {"input_forget", 0}});
+        auto hs = lstm_results.at(0);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
-        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), hs);
+        hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), hs);
+        mm->add_return({hs});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
@@ -6456,27 +6123,22 @@ TEST_CASE(lstm_reverse_layout)
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
         ic  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ic);
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r, bias, sql, ih, ic, pph},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r,
-            bias,
-            sql,
-            ih,
-            ic,
-            pph);
+                 {"input_forget", 0}});
+        auto hs = lstm_results.at(0);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
-        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), hs);
+        hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), hs);
+        mm->add_return({hs});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
@@ -6520,27 +6182,22 @@ TEST_CASE(lstm_reverse_layout)
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
         ic  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ic);
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r, bias, sql, ih, ic, pph},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r,
-            bias,
-            sql,
-            ih,
-            ic,
-            pph);
+                 {"input_forget", 0}});
+        auto hs = lstm_results.at(0);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
-        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), hs);
+        hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), hs);
+        mm->add_return({hs});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
@@ -6569,23 +6226,23 @@ TEST_CASE(lstm_reverse_layout)
         std::vector<int64_t> perm{1, 0, 2};
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
 
-        auto hs  = mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r},
+            {{"hidden_size", hidden_size},
                   {"actv_func",
                    migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                        migraphx::make_op("tanh"),
                                                                        migraphx::make_op("tanh")})},
                   {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
                   {"clip", clip},
-                  {"input_forget", 0}}),
-            seq,
-            w,
-            r);
-        auto cell_output = mm->add_instruction(migraphx::make_op("rnn_last_cell_output"), hs);
-        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), cell_output);
+                  {"input_forget", 0}});
+        auto hs = lstm_results.at(0);
+        auto cell_output = lstm_results.at(2);
+        cell_output = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), cell_output);
 
+        mm->add_return({cell_output});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
@@ -6696,19 +6353,18 @@ TEST_CASE(lstm_reverse_actv)
 
         auto w = mm->add_literal(migraphx::literal{w_shape, w_data});
         auto r = mm->add_literal(migraphx::literal{r_shape, r_data});
-        mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(
                       std::vector<migraphx::operation>{migraphx::make_op("sigmoid")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r);
+                 {"input_forget", 0}});
+        mm->add_return({lstm_results.at(0)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
@@ -6731,20 +6387,19 @@ TEST_CASE(lstm_reverse_actv)
 
         auto w  = mm->add_literal(migraphx::literal{w_shape, w_data});
         auto r  = mm->add_literal(migraphx::literal{r_shape, r_data});
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{
                       migraphx::make_op("tanh"), migraphx::make_op("sigmoid")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r);
-        mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
+                 {"input_forget", 0}});
+        auto hs = lstm_results.at(0);
+        mm->add_return({lstm_results.at(1)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
@@ -6777,20 +6432,19 @@ TEST_CASE(lstm_reverse_actv)
 
         auto w = mm->add_literal(migraphx::literal{w_shape, w_data});
         auto r = mm->add_literal(migraphx::literal{r_shape, r_data});
-        mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r);
+                 {"input_forget", 0}});
+        mm->add_return({lstm_results.at(0)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
@@ -6896,10 +6550,11 @@ TEST_CASE(lstm_bidirectional)
         auto bias = mm->add_literal(migraphx::literal{b_shape, bias_data});
         auto pph  = mm->add_literal(migraphx::literal{pph_shape, pph_data});
         auto und  = mm->add_instruction(migraphx::make_op("undefined"));
-        mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r, bias, und, ih, ic, pph},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
@@ -6909,15 +6564,8 @@ TEST_CASE(lstm_bidirectional)
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih,
-            ic,
-            pph);
+                 {"input_forget", 0}});
+        mm->add_return({lstm_results.at(0)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
@@ -6952,10 +6600,11 @@ TEST_CASE(lstm_bidirectional)
         auto bias = mm->add_literal(migraphx::literal{b_shape, bias_data});
         auto pph  = mm->add_literal(migraphx::literal{pph_shape, pph_data});
         auto und  = mm->add_instruction(migraphx::make_op("undefined"));
-        auto hs   = mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r, bias, und, ih, ic, pph},
+            {{"hidden_size", hidden_size},
                    {"actv_func",
                     migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                         migraphx::make_op("tanh"),
@@ -6965,16 +6614,9 @@ TEST_CASE(lstm_bidirectional)
                                                                         migraphx::make_op("tanh")})},
                    {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                    {"clip", clip},
-                   {"input_forget", 0}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih,
-            ic,
-            pph);
-        mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
+                   {"input_forget", 0}});
+        auto hs = lstm_results.at(0);
+        mm->add_return({lstm_results.at(1)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
@@ -6998,10 +6640,11 @@ TEST_CASE(lstm_bidirectional)
         auto bias = mm->add_literal(migraphx::literal{b_shape, bias_data});
         auto pph  = mm->add_literal(migraphx::literal{pph_shape, pph_data});
         auto und  = mm->add_instruction(migraphx::make_op("undefined"));
-        auto hs   = mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r, bias, und, ih, ic, pph},
+            {{"hidden_size", hidden_size},
                    {"actv_func",
                     migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                         migraphx::make_op("tanh"),
@@ -7011,16 +6654,9 @@ TEST_CASE(lstm_bidirectional)
                                                                         migraphx::make_op("tanh")})},
                    {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                    {"clip", clip},
-                   {"input_forget", 0}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih,
-            ic,
-            pph);
-        mm->add_instruction(migraphx::make_op("rnn_last_cell_output"), hs);
+                   {"input_forget", 0}});
+        auto hs = lstm_results.at(0);
+        mm->add_return({lstm_results.at(2)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
@@ -7039,10 +6675,11 @@ TEST_CASE(lstm_bidirectional)
         auto seq = mm->add_literal(migraphx::literal{in_shape, input_data});
         auto w   = mm->add_literal(migraphx::literal{w_shape, w_data});
         auto r   = mm->add_literal(migraphx::literal{r_shape, r_data});
-        mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
@@ -7052,10 +6689,8 @@ TEST_CASE(lstm_bidirectional)
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r);
+                 {"input_forget", 0}});
+        mm->add_return({lstm_results.at(0)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
@@ -7089,10 +6724,11 @@ TEST_CASE(lstm_bidirectional)
         auto seq = mm->add_literal(migraphx::literal{in_shape1, input_data1});
         auto w   = mm->add_literal(migraphx::literal{w_shape, w_data});
         auto r   = mm->add_literal(migraphx::literal{r_shape, r_data});
-        mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
@@ -7102,10 +6738,8 @@ TEST_CASE(lstm_bidirectional)
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r);
+                 {"input_forget", 0}});
+        mm->add_return({lstm_results.at(0)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
@@ -7210,10 +6844,11 @@ TEST_CASE(lstm_bidirectional_layout)
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
         ic  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ic);
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r, bias, und, ih, ic, pph},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
@@ -7223,17 +6858,11 @@ TEST_CASE(lstm_bidirectional_layout)
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih,
-            ic,
-            pph);
+                 {"input_forget", 0}});
+        auto hs = lstm_results.at(0);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
-        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), hs);
+        hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), hs);
+        mm->add_return({hs});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
@@ -7276,10 +6905,11 @@ TEST_CASE(lstm_bidirectional_layout)
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
         ic  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ic);
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r, bias, und, ih, ic, pph},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
@@ -7289,17 +6919,11 @@ TEST_CASE(lstm_bidirectional_layout)
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih,
-            ic,
-            pph);
-        auto last_output = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
-        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), last_output);
+                 {"input_forget", 0}});
+        auto hs = lstm_results.at(0);
+        auto last_output = lstm_results.at(1);
+        last_output = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), last_output);
+        mm->add_return({last_output});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
@@ -7330,10 +6954,11 @@ TEST_CASE(lstm_bidirectional_layout)
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
         ic  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ic);
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r, bias, und, ih, ic, pph},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
@@ -7343,17 +6968,11 @@ TEST_CASE(lstm_bidirectional_layout)
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih,
-            ic,
-            pph);
-        auto cell_output = mm->add_instruction(migraphx::make_op("rnn_last_cell_output"), hs);
-        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), cell_output);
+                 {"input_forget", 0}});
+        auto hs = lstm_results.at(0);
+        auto cell_output = lstm_results.at(2);
+        cell_output = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), cell_output);
+        mm->add_return({cell_output});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
@@ -7377,10 +6996,11 @@ TEST_CASE(lstm_bidirectional_layout)
         std::vector<int64_t> perm{1, 0, 2};
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
@@ -7390,12 +7010,11 @@ TEST_CASE(lstm_bidirectional_layout)
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r);
+                 {"input_forget", 0}});
+        auto hs = lstm_results.at(0);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
-        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), hs);
+        hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), hs);
+        mm->add_return({hs});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
@@ -7434,10 +7053,11 @@ TEST_CASE(lstm_bidirectional_layout)
         std::vector<int64_t> perm{1, 0, 2};
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
@@ -7447,12 +7067,11 @@ TEST_CASE(lstm_bidirectional_layout)
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r);
+                 {"input_forget", 0}});
+        auto hs = lstm_results.at(0);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
-        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), hs);
+        hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), hs);
+        mm->add_return({hs});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
@@ -7556,10 +7175,11 @@ TEST_CASE(lstm_bidirectional_var_seq_lens)
         auto bias   = mm->add_literal(migraphx::literal{b_shape, bias_data});
         auto pph    = mm->add_literal(migraphx::literal{pph_shape, pph_data});
         auto sql    = mm->add_literal(migraphx::literal{sl_shape, sl_data});
-        auto out_hs = mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r, bias, sql, ih, ic, pph},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
@@ -7569,17 +7189,10 @@ TEST_CASE(lstm_bidirectional_var_seq_lens)
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r,
-            bias,
-            sql,
-            ih,
-            ic,
-            pph);
-        auto lho = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto lco = mm->add_instruction(migraphx::make_op("rnn_last_cell_output"), out_hs);
+                 {"input_forget", 0}});
+        auto out_hs = lstm_results.at(0);
+        auto lho = lstm_results.at(1);
+        auto lco = lstm_results.at(2);
         mm->add_return({out_hs, lho, lco});
         p.compile(migraphx::make_target("ref"));
 
@@ -7643,10 +7256,11 @@ TEST_CASE(lstm_bidirectional_var_seq_lens)
         std::vector<int32_t> len_data(batch_size, static_cast<int32_t>(seq_len));
         auto sql = mm->add_literal(seq_len_s, len_data);
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r, bias, sql, ih, ic, pph},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
@@ -7656,17 +7270,10 @@ TEST_CASE(lstm_bidirectional_var_seq_lens)
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r,
-            bias,
-            sql,
-            ih,
-            ic,
-            pph);
-        auto lho = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
-        auto lco = mm->add_instruction(migraphx::make_op("rnn_last_cell_output"), hs);
+                 {"input_forget", 0}});
+        auto hs = lstm_results.at(0);
+        auto lho = lstm_results.at(1);
+        auto lco = lstm_results.at(2);
         mm->add_return({hs, lho, lco});
         p.compile(migraphx::make_target("ref"));
         auto outputs = p.eval({});
@@ -7809,10 +7416,11 @@ TEST_CASE(lstm_bidirectional_var_seq_lens_layout)
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
         ic  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ic);
 
-        auto out_hs = mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r, bias, sql, ih, ic, pph},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
@@ -7822,17 +7430,10 @@ TEST_CASE(lstm_bidirectional_var_seq_lens_layout)
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r,
-            bias,
-            sql,
-            ih,
-            ic,
-            pph);
-        auto lho = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto lco = mm->add_instruction(migraphx::make_op("rnn_last_cell_output"), out_hs);
+                 {"input_forget", 0}});
+        auto out_hs = lstm_results.at(0);
+        auto lho = lstm_results.at(1);
+        auto lco = lstm_results.at(2);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
         out_hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}),
                                      out_hs);
@@ -7909,10 +7510,11 @@ TEST_CASE(lstm_bidirectional_var_seq_lens_layout)
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
         ic  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ic);
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r, bias, sql, ih, ic, pph},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
@@ -7922,17 +7524,10 @@ TEST_CASE(lstm_bidirectional_var_seq_lens_layout)
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r,
-            bias,
-            sql,
-            ih,
-            ic,
-            pph);
-        auto lho = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
-        auto lco = mm->add_instruction(migraphx::make_op("rnn_last_cell_output"), hs);
+                 {"input_forget", 0}});
+        auto hs = lstm_results.at(0);
+        auto lho = lstm_results.at(1);
+        auto lco = lstm_results.at(2);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
         hs  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), hs);
         lho = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), lho);
@@ -8041,17 +7636,16 @@ TEST_CASE(lstm_bidirectional_actv_func)
         auto seq = mm->add_literal(migraphx::literal{in_shape, input_data});
         auto w   = mm->add_literal(migraphx::literal{w_shape, w_data});
         auto r   = mm->add_literal(migraphx::literal{r_shape, r_data});
-        mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r},
+            {{"hidden_size", hidden_size},
                  {"actv_func", {}},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r);
+                 {"input_forget", 0}});
+        mm->add_return({lstm_results.at(0)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
@@ -8081,19 +7675,18 @@ TEST_CASE(lstm_bidirectional_actv_func)
         auto seq = mm->add_literal(migraphx::literal{in_shape, input_data});
         auto w   = mm->add_literal(migraphx::literal{w_shape, w_data});
         auto r   = mm->add_literal(migraphx::literal{r_shape, r_data});
-        mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r},
+            {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(
                       std::vector<migraphx::operation>{migraphx::make_op("sigmoid")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r);
+                 {"input_forget", 0}});
+        mm->add_return({lstm_results.at(0)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
@@ -8121,20 +7714,19 @@ TEST_CASE(lstm_bidirectional_actv_func)
         auto seq = mm->add_literal(migraphx::literal{in_shape, input_data});
         auto w   = mm->add_literal(migraphx::literal{w_shape, w_data});
         auto r   = mm->add_literal(migraphx::literal{r_shape, r_data});
-        auto hs  = mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r},
+            {{"hidden_size", hidden_size},
                   {"actv_func",
                    migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                        migraphx::make_op("tanh")})},
                   {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                   {"clip", clip},
-                  {"input_forget", 0}}),
-            seq,
-            w,
-            r);
-        mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
+                  {"input_forget", 0}});
+        auto hs = lstm_results.at(0);
+        mm->add_return({lstm_results.at(1)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
@@ -8154,10 +7746,11 @@ TEST_CASE(lstm_bidirectional_actv_func)
         auto seq = mm->add_literal(migraphx::literal{in_shape, input_data});
         auto w   = mm->add_literal(migraphx::literal{w_shape, w_data});
         auto r   = mm->add_literal(migraphx::literal{r_shape, r_data});
-        auto hs  = mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r},
+            {{"hidden_size", hidden_size},
                   {"actv_func",
                    migraphx::to_value(
                       std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
@@ -8166,11 +7759,9 @@ TEST_CASE(lstm_bidirectional_actv_func)
                                                         migraphx::make_op("sigmoid")})},
                   {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                   {"clip", clip},
-                  {"input_forget", 0}}),
-            seq,
-            w,
-            r);
-        mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
+                  {"input_forget", 0}});
+        auto hs = lstm_results.at(0);
+        mm->add_return({lstm_results.at(1)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
@@ -8190,10 +7781,11 @@ TEST_CASE(lstm_bidirectional_actv_func)
         auto seq = mm->add_literal(migraphx::literal{in_shape, input_data});
         auto w   = mm->add_literal(migraphx::literal{w_shape, w_data});
         auto r   = mm->add_literal(migraphx::literal{r_shape, r_data});
-        auto hs  = mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r},
+            {{"hidden_size", hidden_size},
                   {"actv_func",
                    migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                        migraphx::make_op("tanh"),
@@ -8202,11 +7794,9 @@ TEST_CASE(lstm_bidirectional_actv_func)
                                                                        migraphx::make_op("tanh")})},
                   {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                   {"clip", clip},
-                  {"input_forget", 0}}),
-            seq,
-            w,
-            r);
-        mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
+                  {"input_forget", 0}});
+        auto hs = lstm_results.at(0);
+        mm->add_return({lstm_results.at(1)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
@@ -8226,10 +7816,11 @@ TEST_CASE(lstm_bidirectional_actv_func)
         auto seq = mm->add_literal(migraphx::literal{in_shape, input_data});
         auto w   = mm->add_literal(migraphx::literal{w_shape, w_data});
         auto r   = mm->add_literal(migraphx::literal{r_shape, r_data});
-        auto hs  = mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
+        auto lstm_results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r},
+            {{"hidden_size", hidden_size},
                   {"actv_func",
                    migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                        migraphx::make_op("tanh"),
@@ -8239,11 +7830,9 @@ TEST_CASE(lstm_bidirectional_actv_func)
                                                                        migraphx::make_op("tanh")})},
                   {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                   {"clip", clip},
-                  {"input_forget", 0}}),
-            seq,
-            w,
-            r);
-        mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
+                  {"input_forget", 0}});
+        auto hs = lstm_results.at(0);
+        mm->add_return({lstm_results.at(1)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
@@ -8365,25 +7954,19 @@ TEST_CASE(lstm_fp16)
     auto und_half = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), und);
 
-    mm->add_instruction(
-        migraphx::make_op(
-            "lstm",
-            {{"hidden_size", hidden_size},
+    auto lstm_results = migraphx::op::builder::add(
+        "lstm",
+        *mm,
+        {seq_half, w_half, r_half, bias_half, und_half, ih_half, ic_half, und_half},
+        {{"hidden_size", hidden_size},
              {"actv_func",
               migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                   migraphx::make_op("tanh"),
                                                                   migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
              {"clip", clip},
-             {"input_forget", 0}}),
-        seq_half,
-        w_half,
-        r_half,
-        bias_half,
-        und_half,
-        ih_half,
-        ic_half,
-        und_half);
+             {"input_forget", 0}});
+    mm->add_return({lstm_results.at(0)});
     p.compile(migraphx::make_target("ref"));
 
     auto hs_concat = p.eval({}).back();

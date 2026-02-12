@@ -45,7 +45,6 @@
 #include <migraphx/rewrite_gelu.hpp>
 #include <migraphx/rewrite_pooling.hpp>
 #include <migraphx/rewrite_quantization.hpp>
-#include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/simplify_algebra.hpp>
 #include <migraphx/simplify_dyn_ops.hpp>
 #include <migraphx/simplify_qdq.hpp>
@@ -84,7 +83,6 @@ static std::unordered_map<std::string, pass> create_passes_lookup()
         rewrite_gelu{},
         rewrite_pooling{},
         rewrite_quantization{},
-        rewrite_rnn{},
         simplify_algebra{},
         simplify_dyn_ops{},
         simplify_qdq{},

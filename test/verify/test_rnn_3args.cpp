@@ -25,9 +25,8 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/serialize.hpp>
-
 #include <migraphx/make_op.hpp>
+#include <migraphx/op/builder/insert.hpp>
 
 #include <migraphx/op/common.hpp>
 
@@ -52,17 +51,15 @@ struct test_rnn_3args : verify_program<test_rnn_3args>
         auto w   = mm->add_parameter("w", w_shape);
         auto r   = mm->add_parameter("r", r_shape);
 
-        mm->add_instruction(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r);
+        migraphx::op::builder::add(
+            "rnn",
+            *mm,
+            {seq, w, r},
+            {{"hidden_size", hidden_size},
+             {"actv_func",
+              migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
+             {"clip", clip}});
 
         return p;
     }

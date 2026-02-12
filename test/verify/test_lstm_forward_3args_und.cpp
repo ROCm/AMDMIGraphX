@@ -30,6 +30,7 @@
 #include <migraphx/serialize.hpp>
 
 #include <migraphx/op/common.hpp>
+#include <migraphx/op/builder/insert.hpp>
 
 struct test_lstm_forward_3args_und : verify_program<test_lstm_forward_3args_und>
 {
@@ -53,24 +54,17 @@ struct test_lstm_forward_3args_und : verify_program<test_lstm_forward_3args_und>
         auto w   = mm->add_parameter("w", w_shape);
         auto r   = mm->add_parameter("r", r_shape);
         auto und = mm->add_instruction(migraphx::make_op("undefined"));
-        mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
-                                                                      migraphx::make_op("tanh"),
-                                                                      migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            und,
-            und,
-            und,
-            und,
-            und);
+        migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r, und, und, und, und, und},
+            {{"hidden_size", hidden_size},
+             {"actv_func",
+              migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
+                                                                  migraphx::make_op("tanh"),
+                                                                  migraphx::make_op("tanh")})},
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
+             {"clip", clip}});
 
         return p;
     }

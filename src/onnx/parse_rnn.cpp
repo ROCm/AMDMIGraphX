@@ -24,6 +24,7 @@
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/onnx/map_activation_functions.hpp>
 #include <migraphx/op/common.hpp>
+#include <migraphx/op/builder/insert.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
@@ -161,16 +162,15 @@ struct parse_rnn : op_parser<parse_rnn>
             rnn_transpose_inputs(info, args);
         }
 
-        // first output for the concatenation of hidden states
-        auto hidden_states = info.add_instruction(make_op("rnn",
-                                                          {{"hidden_size", hidden_size},
-                                                           {"actv_func", to_value(vec_actv_funcs)},
-                                                           {"direction", dirct},
-                                                           {"clip", clip}}),
-                                                  args);
-
-        // second output for the last hidden state
-        auto last_output = info.add_instruction(make_op("rnn_last_hs_output"), hidden_states);
+        auto results = op::builder::add("rnn",
+                                         *info.mod,
+                                         args,
+                                         {{"hidden_size", hidden_size},
+                                          {"actv_func", to_value(vec_actv_funcs)},
+                                          {"direction", dirct},
+                                          {"clip", clip}});
+        auto hidden_states = results.at(0);
+        auto last_output   = results.at(1);
 
         if(layout != 0)
         {

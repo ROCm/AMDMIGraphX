@@ -30,6 +30,7 @@
 #include <migraphx/serialize.hpp>
 
 #include <migraphx/op/common.hpp>
+#include <migraphx/op/builder/insert.hpp>
 
 struct test_lstm_forward_hs : verify_program<test_lstm_forward_hs>
 {
@@ -63,24 +64,17 @@ struct test_lstm_forward_hs : verify_program<test_lstm_forward_hs>
         auto pph  = mm->add_parameter("pph", pph_shape);
         auto und  = mm->add_instruction(migraphx::make_op("undefined"));
 
-        mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
-                                                                      migraphx::make_op("tanh"),
-                                                                      migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih,
-            ic,
-            pph);
+        migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r, bias, und, ih, ic, pph},
+            {{"hidden_size", hidden_size},
+             {"actv_func",
+              migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
+                                                                  migraphx::make_op("tanh"),
+                                                                  migraphx::make_op("tanh")})},
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
+             {"clip", clip}});
 
         return p;
     }

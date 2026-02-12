@@ -30,6 +30,7 @@
 #include <migraphx/serialize.hpp>
 
 #include <migraphx/op/common.hpp>
+#include <migraphx/op/builder/insert.hpp>
 
 struct test_gru_reverse_last_layout : verify_program<test_gru_reverse_last_layout>
 {
@@ -63,23 +64,17 @@ struct test_gru_reverse_last_layout : verify_program<test_gru_reverse_last_layou
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
 
-        auto output = mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
-                                                                      migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
-        auto lho = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), output);
-        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), lho);
+        auto results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
+             {"actv_func",
+              migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
+                                                                  migraphx::make_op("tanh")})},
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
+             {"clip", clip}});
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), results.at(1));
 
         return p;
     }

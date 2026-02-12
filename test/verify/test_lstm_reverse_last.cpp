@@ -30,6 +30,7 @@
 #include <migraphx/serialize.hpp>
 
 #include <migraphx/op/common.hpp>
+#include <migraphx/op/builder/insert.hpp>
 
 struct test_lstm_reverse_last : verify_program<test_lstm_reverse_last>
 {
@@ -63,25 +64,17 @@ struct test_lstm_reverse_last : verify_program<test_lstm_reverse_last>
         auto pph  = mm->add_parameter("pph", pph_shape);
         auto und  = mm->add_instruction(migraphx::make_op("undefined"));
 
-        auto output = mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
-                                                                      migraphx::make_op("tanh"),
-                                                                      migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih,
-            ic,
-            pph);
-        mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), output);
+        migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r, bias, und, ih, ic, pph},
+            {{"hidden_size", hidden_size},
+             {"actv_func",
+              migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
+                                                                  migraphx::make_op("tanh"),
+                                                                  migraphx::make_op("tanh")})},
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
+             {"clip", clip}});
 
         return p;
     }

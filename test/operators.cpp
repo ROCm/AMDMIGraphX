@@ -138,19 +138,6 @@ TEST_CASE(ops)
     EXPECT(names.size() > 1);
 }
 
-TEST_CASE(rnn)
-{
-    migraphx::shape s{migraphx::shape::float_type, {2, 1}};
-    std::vector<float> data1(2, 2.0f);
-    std::vector<float> data2(2, 3.0f);
-    migraphx::argument a1(s, data1.data());
-    migraphx::argument a2(s, data2.data());
-
-    auto op = migraphx::make_op("rnn");
-
-    EXPECT(test::throws([&] { op.compute(s, {a1, a2}); }));
-}
-
 TEST_CASE(if_op)
 {
     migraphx::shape s{migraphx::shape::bool_type, {1}};

@@ -30,6 +30,7 @@
 #include <migraphx/make_op.hpp>
 
 #include <migraphx/op/common.hpp>
+#include <migraphx/op/builder/insert.hpp>
 
 struct test_var_sl_gru_bidirct : verify_program<test_var_sl_gru_bidirct>
 {
@@ -61,25 +62,19 @@ struct test_var_sl_gru_bidirct : verify_program<test_var_sl_gru_bidirct>
         std::vector<int> sl_data{2, 1, 3};
         auto sql = mm->add_literal(migraphx::literal{sl_shape, sl_data});
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
-                                                                      migraphx::make_op("tanh"),
-                                                                      migraphx::make_op("sigmoid"),
-                                                                      migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            sql,
-            ih);
-        auto lho = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
-        mm->add_return({hs, lho});
+        auto results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, sql, ih},
+            {{"hidden_size", hidden_size},
+             {"actv_func",
+              migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
+                                                                  migraphx::make_op("tanh"),
+                                                                  migraphx::make_op("sigmoid"),
+                                                                  migraphx::make_op("tanh")})},
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
+             {"clip", clip}});
+        mm->add_return({results.at(0), results.at(1)});
 
         return p;
     }

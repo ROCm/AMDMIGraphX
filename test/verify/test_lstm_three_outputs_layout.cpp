@@ -30,6 +30,7 @@
 #include <migraphx/make_op.hpp>
 
 #include <migraphx/op/common.hpp>
+#include <migraphx/op/builder/insert.hpp>
 
 struct test_lstm_three_outputs_layout : verify_program<test_lstm_three_outputs_layout>
 {
@@ -56,27 +57,24 @@ struct test_lstm_three_outputs_layout : verify_program<test_lstm_three_outputs_l
         std::vector<int64_t> perm{1, 0, 2};
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
-                                                                      migraphx::make_op("tanh"),
-                                                                      migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r);
-        auto last_hs   = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
-        auto last_cell = mm->add_instruction(migraphx::make_op("rnn_last_cell_output"), hs);
+        auto results = migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r},
+            {{"hidden_size", hidden_size},
+             {"actv_func",
+              migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
+                                                                  migraphx::make_op("tanh"),
+                                                                  migraphx::make_op("tanh")})},
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
+             {"clip", clip}});
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
-        hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), hs);
-        last_hs =
-            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), last_hs);
-        last_cell =
-            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), last_cell);
+        auto hs = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", perm_hid}}), results.at(0));
+        auto last_hs = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", perm}}), results.at(1));
+        auto last_cell = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", perm}}), results.at(2));
         mm->add_return({hs, last_hs, last_cell});
 
         return p;

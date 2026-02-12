@@ -24,6 +24,7 @@
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/onnx/map_activation_functions.hpp>
 #include <migraphx/op/common.hpp>
+#include <migraphx/op/builder/insert.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
@@ -167,18 +168,16 @@ struct parse_gru : op_parser<parse_gru>
             gru_transpose_inputs(info, args);
         }
 
-        // first output for concatenation of hidden states
-        auto hidden_states =
-            info.add_instruction(make_op("gru",
+        auto results = op::builder::add("gru",
+                                         *info.mod,
+                                         args,
                                          {{"hidden_size", hidden_size},
                                           {"actv_func", to_value(vec_actv_funcs)},
                                           {"direction", dirct},
                                           {"clip", clip},
-                                          {"linear_before_reset", linear_before_reset}}),
-                                 args);
-
-        // second output for last gru output
-        auto last_output = info.add_instruction(make_op("rnn_last_hs_output"), hidden_states);
+                                          {"linear_before_reset", linear_before_reset}});
+        auto hidden_states = results.at(0);
+        auto last_output   = results.at(1);
 
         if(layout != 0)
         {

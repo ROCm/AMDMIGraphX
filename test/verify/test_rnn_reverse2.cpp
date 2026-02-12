@@ -26,8 +26,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
-
-#include <migraphx/serialize.hpp>
+#include <migraphx/op/builder/insert.hpp>
 
 #include <migraphx/op/common.hpp>
 
@@ -57,20 +56,15 @@ struct test_rnn_reverse2 : verify_program<test_rnn_reverse2>
         auto ih   = mm->add_parameter("ih", ih_shape);
         auto und  = mm->add_instruction(migraphx::make_op("undefined"));
 
-        mm->add_instruction(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
+        migraphx::op::builder::add(
+            "rnn",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"hidden_size", hidden_size},
+             {"actv_func",
+              migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
+             {"clip", clip}});
 
         return p;
     }

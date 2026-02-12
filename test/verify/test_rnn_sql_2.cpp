@@ -26,8 +26,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
-
-#include <migraphx/serialize.hpp>
+#include <migraphx/op/builder/insert.hpp>
 
 #include <migraphx/op/common.hpp>
 
@@ -64,22 +63,16 @@ struct test_rnn_sql_2 : verify_program<test_rnn_sql_2>
         auto sql = mm->add_literal(migraphx::literal{s_shape, sl_data});
         auto ih  = mm->add_parameter("ih", ih_shape);
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            sql,
-            ih);
-        auto last_hs = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
-        mm->add_return({hs, last_hs});
+        auto results = migraphx::op::builder::add(
+            "rnn",
+            *mm,
+            {seq, w, r, bias, sql, ih},
+            {{"hidden_size", hidden_size},
+             {"actv_func",
+              migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
+             {"clip", clip}});
+        mm->add_return({results.at(0), results.at(1)});
 
         return p;
     }

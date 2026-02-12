@@ -26,8 +26,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
-
-#include <migraphx/serialize.hpp>
+#include <migraphx/op/builder/insert.hpp>
 
 #include <migraphx/op/common.hpp>
 
@@ -53,24 +52,17 @@ struct test_lstm_bidirct_3args_und : verify_program<test_lstm_bidirct_3args_und>
         auto w   = mm->add_parameter("w", w_shape);
         auto r   = mm->add_parameter("r", r_shape);
         auto und = mm->add_instruction(migraphx::make_op("undefined"));
-        mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
-                                                                      migraphx::make_op("tanh"),
-                                                                      migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            und,
-            und,
-            und,
-            und,
-            und);
+        migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, und, und, und},
+            {{"hidden_size", hidden_size},
+             {"actv_func",
+              migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
+                                                                  migraphx::make_op("tanh"),
+                                                                  migraphx::make_op("tanh")})},
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
+             {"clip", clip}});
 
         return p;
     }

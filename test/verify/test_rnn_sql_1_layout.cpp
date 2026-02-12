@@ -25,9 +25,8 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/serialize.hpp>
-
 #include <migraphx/make_op.hpp>
+#include <migraphx/op/builder/insert.hpp>
 
 #include <migraphx/op/common.hpp>
 
@@ -63,21 +62,17 @@ struct test_rnn_sql_1_layout : verify_program<test_rnn_sql_1_layout>
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            sql,
-            ih);
-        auto last_hs = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
+        auto results = migraphx::op::builder::add(
+            "rnn",
+            *mm,
+            {seq, w, r, bias, sql, ih},
+            {{"hidden_size", hidden_size},
+             {"actv_func",
+              migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
+             {"clip", clip}});
+        auto hs      = results.at(0);
+        auto last_hs = results.at(1);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
         hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), hs);
         last_hs =

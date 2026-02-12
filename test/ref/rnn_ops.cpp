@@ -274,7 +274,6 @@ TEST_CASE(rnn_forward)
              {"actv_func", {}},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
              {"clip", clip}});
-        auto out_hs = rnn_results.at(0);
         mm->add_return({rnn_results.at(1)});
         p.compile(migraphx::make_target("ref"));
 
@@ -736,7 +735,6 @@ TEST_CASE(rnn_reverse)
              {"actv_func", {}},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
              {"clip", clip}});
-        auto out_hs = rnn_results.at(0);
 
         mm->add_return({rnn_results.at(1)});
         p.compile(migraphx::make_target("ref"));
@@ -994,7 +992,6 @@ TEST_CASE(rnn_reverse_layout)
              {"actv_func", {}},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
              {"clip", clip}});
-        auto out_hs = rnn_results.at(0);
 
         auto lho = rnn_results.at(1);
         lho = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), lho);
@@ -1337,7 +1334,6 @@ TEST_CASE(rnn_bidirectional)
               migraphx::to_value({migraphx::make_op("tanh"), migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
              {"clip", clip}});
-        auto out_hs = rnn_results.at(0);
 
         mm->add_return({rnn_results.at(1)});
         p.compile(migraphx::make_target("ref"));
@@ -1655,7 +1651,6 @@ TEST_CASE(rnn_bidirectional_layout)
               migraphx::to_value({migraphx::make_op("tanh"), migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
              {"clip", clip}});
-        auto out_hs = rnn_results.at(0);
         auto lho    = rnn_results.at(1);
         lho = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), lho);
         mm->add_return({lho});
@@ -1853,7 +1848,6 @@ TEST_CASE(rnn_fp16)
          {"actv_func", {}},
          {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
          {"clip", clip}});
-    auto out_hs = rnn_results.at(0);
     mm->add_return({rnn_results.at(1)});
 
     p.compile(migraphx::make_target("ref"));
@@ -1983,7 +1977,6 @@ TEST_CASE(gru_forward)
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
              {"clip", clip},
              {"linear_before_reset", 1}});
-        auto concat_hs = gru_results.at(0);
         mm->add_return({gru_results.at(1)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
@@ -2024,7 +2017,6 @@ TEST_CASE(gru_forward)
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
              {"clip", clip},
              {"linear_before_reset", 1}});
-        auto concat_hs = gru_results.at(0);
         mm->add_return({gru_results.at(1)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
@@ -2065,7 +2057,6 @@ TEST_CASE(gru_forward)
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
              {"clip", clip},
              {"linear_before_reset", 0}});
-        auto concat_hs = gru_results.at(0);
         mm->add_return({gru_results.at(1)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
@@ -2211,7 +2202,6 @@ TEST_CASE(gru_forward_layout)
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
              {"clip", clip},
              {"linear_before_reset", 1}});
-        auto concat_hs   = gru_results.at(0);
         auto last_output = gru_results.at(1);
         last_output = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}),
                                           last_output);
@@ -2260,7 +2250,6 @@ TEST_CASE(gru_forward_layout)
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
              {"clip", clip},
              {"linear_before_reset", 1}});
-        auto concat_hs   = gru_results.at(0);
         auto last_output = gru_results.at(1);
         last_output = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}),
                                           last_output);
@@ -2309,7 +2298,6 @@ TEST_CASE(gru_forward_layout)
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
              {"clip", clip},
              {"linear_before_reset", 0}});
-        auto concat_hs   = gru_results.at(0);
         auto last_output = gru_results.at(1);
         last_output = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}),
                                           last_output);
@@ -2572,7 +2560,6 @@ TEST_CASE(gru_forward_actv_funcs)
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
              {"clip", clip},
              {"linear_before_reset", 1}});
-        auto concat_hs = gru_results.at(0);
         mm->add_return({gru_results.at(1)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
@@ -2647,7 +2634,6 @@ TEST_CASE(gru_forward_actv_funcs)
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
              {"clip", clip},
              {"linear_before_reset", 1}});
-        auto concat_hs = gru_results.at(0);
         mm->add_return({gru_results.at(1)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
@@ -2901,7 +2887,6 @@ TEST_CASE(gru_reverse)
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
              {"clip", clip},
              {"linear_before_reset", 0}});
-        auto concat_hs = gru_results.at(0);
         mm->add_return({gru_results.at(1)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
@@ -3211,7 +3196,6 @@ TEST_CASE(gru_reverse_layout)
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
              {"clip", clip},
              {"linear_before_reset", 0}});
-        auto concat_hs = gru_results.at(0);
         auto lho       = gru_results.at(1);
         lho = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), lho);
         mm->add_return({lho});
@@ -3564,7 +3548,6 @@ TEST_CASE(gru_bidirectional)
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
              {"clip", clip},
              {"linear_before_reset", 0}});
-        auto concat_hs = gru_results.at(0);
         mm->add_return({gru_results.at(1)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
@@ -3887,7 +3870,6 @@ TEST_CASE(gru_bidirectional_layout)
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
              {"clip", clip},
              {"linear_before_reset", 0}});
-        auto concat_hs = gru_results.at(0);
         auto lho       = gru_results.at(1);
         lho = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), lho);
         mm->add_return({lho});
@@ -4199,7 +4181,6 @@ TEST_CASE(gru_bidirectional_actv_funcs)
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
              {"clip", clip},
              {"linear_before_reset", 1}});
-        auto concat_hs = gru_results.at(0);
         mm->add_return({gru_results.at(1)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
@@ -4313,7 +4294,6 @@ TEST_CASE(gru_bidirectional_actv_funcs)
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
              {"clip", clip},
              {"linear_before_reset", 1}});
-        auto concat_hs = gru_results.at(0);
         mm->add_return({gru_results.at(1)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
@@ -4743,7 +4723,6 @@ TEST_CASE(lstm_forward)
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
              {"clip", clip},
              {"input_forget", 0}});
-        auto hs = lstm_results.at(0);
         mm->add_return({lstm_results.at(1)});
         p.compile(migraphx::make_target("ref"));
 
@@ -4790,7 +4769,6 @@ TEST_CASE(lstm_forward)
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
              {"clip", clip},
              {"input_forget", 0}});
-        auto hs = lstm_results.at(0);
         mm->add_return({lstm_results.at(2)});
         p.compile(migraphx::make_target("ref"));
 
@@ -4977,7 +4955,6 @@ TEST_CASE(lstm_forward_layout)
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
              {"clip", clip},
              {"input_forget", 0}});
-        auto hs          = lstm_results.at(0);
         auto last_output = lstm_results.at(1);
         last_output = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}),
                                           last_output);
@@ -5032,7 +5009,6 @@ TEST_CASE(lstm_forward_layout)
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
              {"clip", clip},
              {"input_forget", 0}});
-        auto hs          = lstm_results.at(0);
         auto cell_output = lstm_results.at(2);
         cell_output = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}),
                                           cell_output);
@@ -5255,7 +5231,6 @@ TEST_CASE(lstm_forward_more)
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
              {"clip", clip},
              {"input_forget", 0}});
-        auto hs = lstm_results.at(0);
         mm->add_return({lstm_results.at(1)});
         p.compile(migraphx::make_target("ref"));
 
@@ -5307,7 +5282,6 @@ TEST_CASE(lstm_forward_more)
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
              {"clip", clip},
              {"input_forget", 0}});
-        auto hs = lstm_results.at(0);
         mm->add_return({lstm_results.at(1)});
         p.compile(migraphx::make_target("ref"));
 
@@ -5548,7 +5522,6 @@ TEST_CASE(lstm_forward_more_layout)
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
              {"clip", clip},
              {"input_forget", 0}});
-        auto hs          = lstm_results.at(0);
         auto last_output = lstm_results.at(1);
         last_output = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}),
                                           last_output);
@@ -5608,7 +5581,6 @@ TEST_CASE(lstm_forward_more_layout)
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
              {"clip", clip},
              {"input_forget", 0}});
-        auto hs          = lstm_results.at(0);
         auto last_output = lstm_results.at(1);
         last_output = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}),
                                           last_output);
@@ -5873,7 +5845,6 @@ TEST_CASE(lstm_reverse)
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
              {"clip", clip},
              {"input_forget", 0}});
-        auto hs = lstm_results.at(0);
         mm->add_return({lstm_results.at(2)});
 
         p.compile(migraphx::make_target("ref"));
@@ -5911,7 +5882,6 @@ TEST_CASE(lstm_reverse)
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
              {"clip", clip},
              {"input_forget", 0}});
-        auto hs = lstm_results.at(0);
         mm->add_return({lstm_results.at(2)});
 
         p.compile(migraphx::make_target("ref"));
@@ -6209,7 +6179,6 @@ TEST_CASE(lstm_reverse_layout)
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
              {"clip", clip},
              {"input_forget", 0}});
-        auto hs          = lstm_results.at(0);
         auto cell_output = lstm_results.at(2);
         cell_output = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}),
                                           cell_output);
@@ -6367,7 +6336,6 @@ TEST_CASE(lstm_reverse_actv)
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
              {"clip", clip},
              {"input_forget", 0}});
-        auto hs = lstm_results.at(0);
         mm->add_return({lstm_results.at(1)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
@@ -6584,7 +6552,6 @@ TEST_CASE(lstm_bidirectional)
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
              {"clip", clip},
              {"input_forget", 0}});
-        auto hs = lstm_results.at(0);
         mm->add_return({lstm_results.at(1)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
@@ -6624,7 +6591,6 @@ TEST_CASE(lstm_bidirectional)
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
              {"clip", clip},
              {"input_forget", 0}});
-        auto hs = lstm_results.at(0);
         mm->add_return({lstm_results.at(2)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
@@ -6889,7 +6855,6 @@ TEST_CASE(lstm_bidirectional_layout)
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
              {"clip", clip},
              {"input_forget", 0}});
-        auto hs          = lstm_results.at(0);
         auto last_output = lstm_results.at(1);
         last_output = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}),
                                           last_output);
@@ -6939,7 +6904,6 @@ TEST_CASE(lstm_bidirectional_layout)
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
              {"clip", clip},
              {"input_forget", 0}});
-        auto hs          = lstm_results.at(0);
         auto cell_output = lstm_results.at(2);
         cell_output = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}),
                                           cell_output);
@@ -7693,7 +7657,6 @@ TEST_CASE(lstm_bidirectional_actv_func)
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
              {"clip", clip},
              {"input_forget", 0}});
-        auto hs = lstm_results.at(0);
         mm->add_return({lstm_results.at(1)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
@@ -7727,7 +7690,6 @@ TEST_CASE(lstm_bidirectional_actv_func)
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
              {"clip", clip},
              {"input_forget", 0}});
-        auto hs = lstm_results.at(0);
         mm->add_return({lstm_results.at(1)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
@@ -7762,7 +7724,6 @@ TEST_CASE(lstm_bidirectional_actv_func)
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
              {"clip", clip},
              {"input_forget", 0}});
-        auto hs = lstm_results.at(0);
         mm->add_return({lstm_results.at(1)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();
@@ -7798,7 +7759,6 @@ TEST_CASE(lstm_bidirectional_actv_func)
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
              {"clip", clip},
              {"input_forget", 0}});
-        auto hs = lstm_results.at(0);
         mm->add_return({lstm_results.at(1)});
         p.compile(migraphx::make_target("ref"));
         auto hs_concat = p.eval({}).back();

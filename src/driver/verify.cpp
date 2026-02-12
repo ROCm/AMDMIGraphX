@@ -197,6 +197,8 @@ void verify_instructions(const program& prog,
             continue;
         if(ins.name() == "undefined")
             continue;
+        if(ins.can_eval())
+            continue;
         program p;
         auto* mm_p = p.get_main_module();
         std::vector<instruction_ref> inputs;
@@ -213,6 +215,7 @@ void verify_instructions(const program& prog,
         {
             std::cout << "Verify: " << ins.name() << std::endl;
             std::cout << p << std::endl;
+            p.print_py(std::cout);
             verify_program(ins.name(), p, t, options, vo, create_param_map(p, false), tols);
         }
         catch(...)

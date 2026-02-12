@@ -59,13 +59,13 @@ static bool is_const_ins(instruction_ref ins, const std::unordered_set<std::stri
            skip_ops.find(ins->name()) == skip_ops.end();
 }
 
-static argument as_packed(const argument& c)
+static literal as_packed(const argument& c)
 {
     if(c.get_shape().packed())
-        return c;
+        return literal(c.get_shape(), c.data());
     auto s = c.get_shape().with_lens(c.get_shape().lens());
-    argument result;
-    c.visit([&](auto x) { result = literal{s, x.begin(), x.end()}.get_argument(); });
+    literal result;
+    c.visit([&](auto x) { result = literal{s, x.begin(), x.end()}; });
     return result;
 }
 
@@ -98,11 +98,15 @@ void propagate_constant::apply(module& m) const
 
     // Compute literals in parallel
     std::vector<instruction_ref> const_instrs_vec{const_instrs.begin(), const_instrs.end()};
-    std::vector<argument> literals(const_instrs_vec.size());
+    std::vector<literal> literals(const_instrs_vec.size());
     std::size_t grainsize = 1;
+#ifdef _WIN32
+    grainsize = std::max<std::size_t>(const_instrs_vec.size() / (std::thread::hardware_concurrency()/2), 1);
+#else
 #if !MIGRAPHX_HAS_EXECUTORS
     std::size_t n = std::max<std::size_t>(2048 / std::thread::hardware_concurrency(), 1);
     grainsize     = const_instrs_vec.size() / n;
+#endif
 #endif
     simple_par_for(const_instrs_vec.size(), grainsize, [&](const auto i) {
         literals[i] = as_packed(const_instrs_vec[i]->eval());
@@ -128,7 +132,7 @@ void propagate_constant::apply(module& m) const
             }
             assert(literals[i].get_shape().lens() == const_instrs_vec[i]->get_shape().lens());
             assert(literals[i].get_shape().bytes() <= const_instrs_vec[i]->get_shape().bytes());
-            auto l = m.add_literal(literals[i].get_shape(), literals[i].data());
+            auto l = m.add_literal(literals[i]);
             m.replace_instruction(const_instrs_vec[i], l);
         }
     }

@@ -31,5 +31,13 @@ namespace rocm {
 #define ROCM_INLINE_NS pocket_version_1
 #endif
 
+#ifdef __HIP_DEVICE_COMPILE__
+// NOLINTNEXTLINE
+#define ROCM_HIP_HOST_DEVICE __host__ __device__
+#else
+// NOLINTNEXTLINE
+#define ROCM_HIP_HOST_DEVICE
+#endif
+
 } // namespace rocm
 #endif // ROCM_GUARD_ROCM_CONFIG_HPP

@@ -27,6 +27,10 @@
 
 #include <rocm/config.hpp>
 
+#ifndef __HIPCC_RTC__
+#include <cstdint>
+#endif
+
 namespace rocm {
 inline namespace ROCM_INLINE_NS {
 

@@ -68,8 +68,7 @@ struct test_var_sl_gru_forward : verify_program<test_var_sl_gru_forward>
             {seq, w, r, bias, sql, ih},
             {{"hidden_size", hidden_size},
              {"actv_func",
-              migraphx::to_value({migraphx::make_op("sigmoid"),
-                                                                  migraphx::make_op("tanh")})},
+              migraphx::to_value({migraphx::make_op("sigmoid"), migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
              {"clip", clip}});
         mm->add_return({results.at(1), results.at(0)});

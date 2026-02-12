@@ -58,8 +58,7 @@ TEST_CASE(rnn_builder_returns_two_outputs)
         m,
         {seq, w, r, bias, und, ih},
         {{"hidden_size", hidden_size},
-         {"actv_func",
-          migraphx::to_value({migraphx::make_op("tanh")})},
+         {"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
          {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
          {"clip", 0.0f}});
 
@@ -106,9 +105,7 @@ TEST_CASE(rnn_builder_bidirectional_outputs)
         m,
         {seq, w, r, bias, und, ih},
         {{"hidden_size", hidden_size},
-         {"actv_func",
-          migraphx::to_value({migraphx::make_op("tanh"),
-                                                              migraphx::make_op("tanh")})},
+         {"actv_func", migraphx::to_value({migraphx::make_op("tanh"), migraphx::make_op("tanh")})},
          {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
          {"clip", 0.0f}});
 
@@ -148,8 +145,7 @@ TEST_CASE(rnn_builder_3args)
         m,
         {seq, w, r, und, und, und},
         {{"hidden_size", hidden_size},
-         {"actv_func",
-          migraphx::to_value({migraphx::make_op("tanh")})},
+         {"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
          {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
          {"clip", 0.0f}});
 
@@ -189,8 +185,7 @@ TEST_CASE(rnn_builder_numerical_forward)
         *mm,
         {seq, w, r, bias, und, ih},
         {{"hidden_size", hidden_size},
-         {"actv_func",
-          migraphx::to_value({migraphx::make_op("tanh")})},
+         {"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
          {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
          {"clip", 0.0f}});
     mm->add_return({results.at(0), results.at(1)});

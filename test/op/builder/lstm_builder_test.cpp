@@ -61,8 +61,9 @@ TEST_CASE(lstm_builder_returns_three_outputs)
         {seq, w, r, bias, und, ih, ic, und},
         {{"hidden_size", hidden_size},
          {"actv_func",
-          migraphx::to_value({
-              migraphx::make_op("sigmoid"), migraphx::make_op("tanh"), migraphx::make_op("tanh")})},
+          migraphx::to_value({migraphx::make_op("sigmoid"),
+                              migraphx::make_op("tanh"),
+                              migraphx::make_op("tanh")})},
          {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
          {"clip", 0.0f},
          {"input_forget", 0}});
@@ -122,11 +123,11 @@ TEST_CASE(lstm_builder_bidirectional_outputs)
         {{"hidden_size", hidden_size},
          {"actv_func",
           migraphx::to_value({migraphx::make_op("sigmoid"),
-                                                              migraphx::make_op("tanh"),
-                                                              migraphx::make_op("tanh"),
-                                                              migraphx::make_op("sigmoid"),
-                                                              migraphx::make_op("tanh"),
-                                                              migraphx::make_op("tanh")})},
+                              migraphx::make_op("tanh"),
+                              migraphx::make_op("tanh"),
+                              migraphx::make_op("sigmoid"),
+                              migraphx::make_op("tanh"),
+                              migraphx::make_op("tanh")})},
          {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
          {"clip", 0.0f},
          {"input_forget", 0}});
@@ -171,8 +172,9 @@ TEST_CASE(lstm_builder_numerical_forward)
         {seq, w, r, bias, und, ih, ic, und},
         {{"hidden_size", hidden_size},
          {"actv_func",
-          migraphx::to_value({
-              migraphx::make_op("sigmoid"), migraphx::make_op("tanh"), migraphx::make_op("tanh")})},
+          migraphx::to_value({migraphx::make_op("sigmoid"),
+                              migraphx::make_op("tanh"),
+                              migraphx::make_op("tanh")})},
          {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
          {"clip", 0.0f},
          {"input_forget", 0}});

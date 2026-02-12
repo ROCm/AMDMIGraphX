@@ -71,8 +71,8 @@ struct test_lstm_forward_hs : verify_program<test_lstm_forward_hs>
             {{"hidden_size", hidden_size},
              {"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
-                                                                  migraphx::make_op("tanh"),
-                                                                  migraphx::make_op("tanh")})},
+                                  migraphx::make_op("tanh"),
+                                  migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
              {"clip", clip}});
 

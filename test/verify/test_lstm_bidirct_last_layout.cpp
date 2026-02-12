@@ -76,11 +76,11 @@ struct test_lstm_bidirct_last_layout : verify_program<test_lstm_bidirct_last_lay
             {{"hidden_size", hidden_size},
              {"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
-                                                                  migraphx::make_op("tanh"),
-                                                                  migraphx::make_op("tanh"),
-                                                                  migraphx::make_op("sigmoid"),
-                                                                  migraphx::make_op("tanh"),
-                                                                  migraphx::make_op("tanh")})},
+                                  migraphx::make_op("tanh"),
+                                  migraphx::make_op("tanh"),
+                                  migraphx::make_op("sigmoid"),
+                                  migraphx::make_op("tanh"),
+                                  migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
              {"clip", clip}});
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), results.at(1));

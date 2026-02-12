@@ -61,8 +61,7 @@ struct test_rnn_4args_layout : verify_program<test_rnn_4args_layout>
             *mm,
             {seq, w, r, bias},
             {{"hidden_size", hidden_size},
-             {"actv_func",
-              migraphx::to_value({migraphx::make_op("tanh")})},
+             {"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
              {"clip", clip}});
         auto hs = results.at(0);

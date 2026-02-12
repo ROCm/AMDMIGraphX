@@ -61,8 +61,7 @@ struct test_rnn_reverse : verify_program<test_rnn_reverse>
             *mm,
             {seq, w, r, bias, und, ih},
             {{"hidden_size", hidden_size},
-             {"actv_func",
-              migraphx::to_value({migraphx::make_op("tanh")})},
+             {"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
              {"clip", clip}});
 

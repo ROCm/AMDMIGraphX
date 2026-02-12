@@ -61,9 +61,9 @@ struct test_gru_bidirct_3args_und : verify_program<test_gru_bidirct_3args_und>
             {{"hidden_size", hidden_size},
              {"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
-                                                                  migraphx::make_op("tanh"),
-                                                                  migraphx::make_op("sigmoid"),
-                                                                  migraphx::make_op("tanh")})},
+                                  migraphx::make_op("tanh"),
+                                  migraphx::make_op("sigmoid"),
+                                  migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
              {"clip", clip}});
         mm->add_return({results.at(0)});

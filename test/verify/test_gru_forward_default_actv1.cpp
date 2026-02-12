@@ -66,8 +66,7 @@ struct test_gru_forward_default_actv1 : verify_program<test_gru_forward_default_
             {seq, w, r, bias, und, ih},
             {{"hidden_size", hidden_size},
              {"actv_func",
-              migraphx::to_value({migraphx::make_op("sigmoid"),
-                                                                  migraphx::make_op("sigmoid")})},
+              migraphx::to_value({migraphx::make_op("sigmoid"), migraphx::make_op("sigmoid")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
              {"clip", clip}});
         mm->add_return({results.at(0)});

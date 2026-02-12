@@ -56,8 +56,7 @@ struct test_rnn_3args : verify_program<test_rnn_3args>
             *mm,
             {seq, w, r},
             {{"hidden_size", hidden_size},
-             {"actv_func",
-              migraphx::to_value({migraphx::make_op("tanh")})},
+             {"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
              {"clip", clip}});
 

@@ -70,8 +70,7 @@ struct test_gru_forward_layout : verify_program<test_gru_forward_layout>
             {seq, w, r, bias, und, ih},
             {{"hidden_size", hidden_size},
              {"actv_func",
-              migraphx::to_value({migraphx::make_op("sigmoid"),
-                                                                  migraphx::make_op("tanh")})},
+              migraphx::to_value({migraphx::make_op("sigmoid"), migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
              {"clip", clip}});
         std::vector<int64_t> perm_hid{2, 0, 1, 3};

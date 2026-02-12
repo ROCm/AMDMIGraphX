@@ -68,8 +68,7 @@ struct test_rnn_sql_2 : verify_program<test_rnn_sql_2>
             *mm,
             {seq, w, r, bias, sql, ih},
             {{"hidden_size", hidden_size},
-             {"actv_func",
-              migraphx::to_value({migraphx::make_op("tanh")})},
+             {"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
              {"clip", clip}});
         mm->add_return({results.at(0), results.at(1)});

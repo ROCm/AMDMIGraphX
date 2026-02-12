@@ -60,8 +60,7 @@ struct test_rnn_bi_3args_layout : verify_program<test_rnn_bi_3args_layout>
             {seq, w, r},
             {{"hidden_size", hidden_size},
              {"actv_func",
-              migraphx::to_value({migraphx::make_op("tanh"),
-                                                                  migraphx::make_op("tanh")})},
+              migraphx::to_value({migraphx::make_op("tanh"), migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
              {"clip", clip}});
         auto last_output = results.at(1);

@@ -59,8 +59,7 @@ TEST_CASE(gru_builder_returns_two_outputs)
         {seq, w, r, bias, und, ih},
         {{"hidden_size", hidden_size},
          {"actv_func",
-          migraphx::to_value({migraphx::make_op("sigmoid"),
-                                                              migraphx::make_op("tanh")})},
+          migraphx::to_value({migraphx::make_op("sigmoid"), migraphx::make_op("tanh")})},
          {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
          {"clip", 0.0f},
          {"linear_before_reset", 0}});
@@ -111,9 +110,9 @@ TEST_CASE(gru_builder_bidirectional_outputs)
         {{"hidden_size", hidden_size},
          {"actv_func",
           migraphx::to_value({migraphx::make_op("sigmoid"),
-                                                              migraphx::make_op("tanh"),
-                                                              migraphx::make_op("sigmoid"),
-                                                              migraphx::make_op("tanh")})},
+                              migraphx::make_op("tanh"),
+                              migraphx::make_op("sigmoid"),
+                              migraphx::make_op("tanh")})},
          {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
          {"clip", 0.0f},
          {"linear_before_reset", 0}});
@@ -155,8 +154,7 @@ TEST_CASE(gru_builder_linear_before_reset)
         {seq, w, r, bias, und, ih},
         {{"hidden_size", hidden_size},
          {"actv_func",
-          migraphx::to_value({migraphx::make_op("sigmoid"),
-                                                              migraphx::make_op("tanh")})},
+          migraphx::to_value({migraphx::make_op("sigmoid"), migraphx::make_op("tanh")})},
          {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
          {"clip", 0.0f},
          {"linear_before_reset", 1}});
@@ -198,8 +196,7 @@ TEST_CASE(gru_builder_numerical_forward)
         {seq, w, r, bias, und, ih},
         {{"hidden_size", hidden_size},
          {"actv_func",
-          migraphx::to_value({migraphx::make_op("sigmoid"),
-                                                              migraphx::make_op("tanh")})},
+          migraphx::to_value({migraphx::make_op("sigmoid"), migraphx::make_op("tanh")})},
          {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
          {"clip", 0.0f},
          {"linear_before_reset", 0}});

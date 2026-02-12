@@ -398,6 +398,72 @@ TEST_CASE(is_interdependent_large_set)
     EXPECT(migraphx::is_interdependent(subset, &m, m.begin()));
 }
 
+// Tests for reaches with large graphs (n > 16) to exercise the
+// large-n path in track_visits that uses a precomputed in_range set.
+//
+// Long chain (32 instructions between start and end):
+//
+//   x --> relu0 --> relu1 --> ... --> relu30 --> abs
+//
+TEST_CASE(reaches_large_linear)
+{
+    migraphx::module m;
+    migraphx::shape s{migraphx::shape::float_type, {3, 3}};
+    auto x = m.add_parameter("x", s);
+
+    const int chain_len = 31;
+    std::vector<migraphx::instruction_ref> chain;
+    chain.push_back(x);
+    for(int i = 0; i < chain_len; i++)
+        chain.push_back(m.add_instruction(migraphx::make_op("relu"), chain.back()));
+    auto last = m.add_instruction(migraphx::make_op("abs"), chain.back());
+
+    // Start to end (distance = 32)
+    EXPECT(migraphx::reaches(x, last, &m));
+
+    // Mid-chain to end
+    EXPECT(migraphx::reaches(chain[15], last, &m));
+
+    // Start to mid-chain
+    EXPECT(migraphx::reaches(x, chain[20], &m));
+
+    // Same instruction
+    EXPECT(migraphx::reaches(chain[16], chain[16], &m));
+}
+
+//
+// Two interleaved independent chains (no connection between them):
+//
+//   x --> relu0 --> relu1 --> ... --> relu19
+//   y --> tanh0 --> tanh1 --> ... --> tanh19
+//
+TEST_CASE(reaches_large_independent_chains)
+{
+    migraphx::module m;
+    migraphx::shape s{migraphx::shape::float_type, {3, 3}};
+    auto x = m.add_parameter("x", s);
+    auto y = m.add_parameter("y", s);
+
+    const int chain_len = 20;
+    std::vector<migraphx::instruction_ref> chain_a;
+    chain_a.push_back(x);
+    for(int i = 0; i < chain_len; i++)
+        chain_a.push_back(m.add_instruction(migraphx::make_op("relu"), chain_a.back()));
+
+    std::vector<migraphx::instruction_ref> chain_b;
+    chain_b.push_back(y);
+    for(int i = 0; i < chain_len; i++)
+        chain_b.push_back(m.add_instruction(migraphx::make_op("tanh"), chain_b.back()));
+
+    // Within each chain: reachable
+    EXPECT(migraphx::reaches(x, chain_a.back(), &m));
+    EXPECT(migraphx::reaches(y, chain_b.back(), &m));
+
+    // Across chains: not reachable
+    EXPECT(not migraphx::reaches(x, chain_b.back(), &m));
+    EXPECT(not migraphx::reaches(y, chain_a.back(), &m));
+}
+
 // Tests for the find_instructions_between function
 //
 // Linear chain:

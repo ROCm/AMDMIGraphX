@@ -56,7 +56,7 @@ struct test_gru_bidirct_3args : verify_program<test_gru_bidirct_3args>
             "gru",
             *mm,
             {seq, w, r},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("sigmoid"),

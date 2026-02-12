@@ -57,7 +57,7 @@ struct test_rnn_bi_3args_layout : verify_program<test_rnn_bi_3args_layout>
             "rnn",
             *mm,
             {seq, w, r},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("tanh"), migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)}});
         auto last_output = results.at(1);

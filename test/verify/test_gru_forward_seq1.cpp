@@ -56,7 +56,7 @@ struct test_gru_forward_seq1 : verify_program<test_gru_forward_seq1>
             "gru",
             *mm,
             {seq, w, r},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"), migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         mm->add_return({results.at(0)});

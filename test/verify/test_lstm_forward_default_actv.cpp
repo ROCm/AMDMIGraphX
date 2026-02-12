@@ -56,7 +56,7 @@ struct test_lstm_forward_default_actv : verify_program<test_lstm_forward_default
             "lstm",
             *mm,
             {seq, w, r},
-             {{"actv_func", {}},
+            {{"actv_func", {}},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
 
         return p;

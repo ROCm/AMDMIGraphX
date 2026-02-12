@@ -60,7 +60,7 @@ struct test_gru_reverse_3args_layout : verify_program<test_gru_reverse_3args_lay
             "gru",
             *mm,
             {seq, w, r},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"), migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)}});
         std::vector<int64_t> perm_hid{2, 0, 1, 3};

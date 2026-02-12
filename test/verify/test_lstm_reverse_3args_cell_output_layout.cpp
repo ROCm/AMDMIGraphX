@@ -60,7 +60,7 @@ struct test_lstm_reverse_3args_cell_layout : verify_program<test_lstm_reverse_3a
             "lstm",
             *mm,
             {seq, w, r},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},

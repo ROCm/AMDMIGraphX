@@ -65,7 +65,7 @@ struct test_lstm_bidirct_default_actv1 : verify_program<test_lstm_bidirct_defaul
             "lstm",
             *mm,
             {seq, w, r, bias, sql, ih},
-             {{"actv_func", migraphx::to_value({migraphx::make_op("sigmoid")})},
+            {{"actv_func", migraphx::to_value({migraphx::make_op("sigmoid")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)}});
 
         return p;

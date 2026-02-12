@@ -59,7 +59,7 @@ struct test_rnn_bidirectional : verify_program<test_rnn_bidirectional>
             "rnn",
             *mm,
             {seq, w, r, bias, und, ih},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("tanh"), migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)}});
 

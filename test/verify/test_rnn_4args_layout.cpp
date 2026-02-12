@@ -59,7 +59,7 @@ struct test_rnn_4args_layout : verify_program<test_rnn_4args_layout>
             "rnn",
             *mm,
             {seq, w, r, bias},
-             {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
+            {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)}});
         auto hs = results.at(0);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};

@@ -56,7 +56,7 @@ struct test_gru_forward_default_actv : verify_program<test_gru_forward_default_a
             "gru",
             *mm,
             {seq, w, r},
-             {{"actv_func", {}},
+            {{"actv_func", {}},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         mm->add_return({results.at(0)});
 

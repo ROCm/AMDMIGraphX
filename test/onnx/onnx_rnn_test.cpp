@@ -83,7 +83,7 @@ TEST_CASE(rnn_test_bidirectional)
         "rnn",
         *mm,
         {seq, w, r, bias, seq_len, ih},
-         {{"actv_func",
+        {{"actv_func",
           migraphx::to_value({migraphx::make_op("tanh"), migraphx::make_op("sigmoid")})},
          {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)}});
     auto prog = read_rnn_onnx("onnx_rnn_bi.onnx");
@@ -123,7 +123,7 @@ TEST_CASE(rnn_test_bidirectional_layout)
         "rnn",
         *mm,
         {seq, w, r, bias, seq_len, ih},
-         {{"actv_func",
+        {{"actv_func",
           migraphx::to_value({migraphx::make_op("tanh"), migraphx::make_op("sigmoid")})},
          {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)}});
     auto out_hs      = results.at(0);
@@ -166,7 +166,7 @@ TEST_CASE(rnn_test_one_direction)
             "rnn",
             *mm,
             {seq, w, r, bias, seq_len, ih},
-             {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
+            {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         auto prog = read_rnn_onnx("onnx_rnn_forward.onnx");
 
@@ -186,7 +186,7 @@ TEST_CASE(rnn_test_one_direction)
             "rnn",
             *mm,
             {seq, w, r, und, und, und},
-             {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
+            {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         auto prog = read_rnn_onnx("rnn_f_default_af_test.onnx");
 
@@ -207,7 +207,7 @@ TEST_CASE(rnn_test_one_direction)
             "rnn",
             *mm,
             {seq, w, r, bias, seq_len, ih},
-             {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
+            {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)}});
         auto prog = read_rnn_onnx("onnx_rnn_reverse.onnx");
 
@@ -226,7 +226,7 @@ TEST_CASE(rnn_test_one_direction)
             "rnn",
             *mm,
             {seq, w, r, und, und, und},
-             {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
+            {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)}});
         auto prog = read_rnn_onnx("onnx_rnn_3args.onnx");
 
@@ -249,7 +249,7 @@ TEST_CASE(rnn_test_one_direction)
             "rnn",
             *mm,
             {seq, w, r, bias, seq_len, und},
-             {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
+            {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         auto prog = read_rnn_onnx("onnx_rnn_5args.onnx");
 
@@ -290,7 +290,7 @@ TEST_CASE(rnn_test_one_direction_layout)
             "rnn",
             *mm,
             {seq, w, r, bias, seq_len, ih},
-             {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
+            {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         auto out_hs      = results.at(0);
         auto last_output = results.at(1);
@@ -322,7 +322,7 @@ TEST_CASE(rnn_test_one_direction_layout)
             "rnn",
             *mm,
             {seq, w, r, bias, seq_len, ih},
-             {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
+            {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)}});
         auto out_hs      = results.at(0);
         auto last_output = results.at(1);
@@ -351,7 +351,7 @@ TEST_CASE(rnn_test_one_direction_layout)
             "rnn",
             *mm,
             {seq, w, r, und, und, und},
-             {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
+            {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)}});
         auto out_hs      = results.at(0);
         auto last_output = results.at(1);
@@ -383,7 +383,7 @@ TEST_CASE(rnn_test_one_direction_layout)
             "rnn",
             *mm,
             {seq, w, r, bias, seq_len, und},
-             {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
+            {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         auto out_hs      = results.at(0);
         auto last_output = results.at(1);
@@ -432,7 +432,7 @@ TEST_CASE(gru_test)
             "gru",
             *mm,
             {seq, w, r, bias, seq_len, ih},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("tanh"), migraphx::make_op("sigmoid")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
              {"linear_before_reset", 1}});
@@ -464,7 +464,7 @@ TEST_CASE(gru_test)
             "gru",
             *mm,
             {seq, w, r, bias, seq_len, ih},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("tanh"), migraphx::make_op("sigmoid")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)}});
         auto prog = read_rnn_onnx("onnx_gru_reverse.onnx");
@@ -495,7 +495,7 @@ TEST_CASE(gru_test)
             "gru",
             *mm,
             {seq, w, r, bias, seq_len, ih},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("tanh"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("relu"),
@@ -541,7 +541,7 @@ TEST_CASE(gru_layout_test)
             "gru",
             *mm,
             {seq, w, r, bias, seq_len, ih},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("tanh"), migraphx::make_op("sigmoid")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
              {"linear_before_reset", 1}});
@@ -583,7 +583,7 @@ TEST_CASE(gru_layout_test)
             "gru",
             *mm,
             {seq, w, r, bias, seq_len, ih},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("tanh"), migraphx::make_op("sigmoid")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)}});
         auto out_hs      = results.at(0);
@@ -624,7 +624,7 @@ TEST_CASE(gru_layout_test)
             "gru",
             *mm,
             {seq, w, r, bias, seq_len, ih},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("tanh"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("relu"),
@@ -667,7 +667,7 @@ TEST_CASE(gru_test_args)
             "gru",
             *mm,
             {seq, w, r, und, und, und},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("tanh"), migraphx::make_op("sigmoid")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         auto prog = read_rnn_onnx("onnx_gru_3arg.onnx");
@@ -695,7 +695,7 @@ TEST_CASE(gru_test_args)
             "gru",
             *mm,
             {seq, w, r, bias, und, und},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("relu"), migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)}});
         auto prog = read_rnn_onnx("onnx_gru_4arg.onnx");
@@ -725,7 +725,7 @@ TEST_CASE(gru_test_args)
             "gru",
             *mm,
             {seq, w, r, bias, seq_len, und},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("tanh"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("relu"),
@@ -766,7 +766,7 @@ TEST_CASE(gru_test_args_layout)
             "gru",
             *mm,
             {seq, w, r, und, und, und},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("tanh"), migraphx::make_op("sigmoid")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         auto out_hs      = results.at(0);
@@ -803,7 +803,7 @@ TEST_CASE(gru_test_args_layout)
             "gru",
             *mm,
             {seq, w, r, bias, und, und},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("relu"), migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
              {"linear_before_reset", 1}});
@@ -843,7 +843,7 @@ TEST_CASE(gru_test_args_layout)
             "gru",
             *mm,
             {seq, w, r, bias, seq_len, und},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("tanh"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("relu"),
@@ -892,7 +892,7 @@ TEST_CASE(gru_test_actv_funcs)
             "gru",
             *mm,
             {seq, w, r, bias, seq_len, ih},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("sigmoid"),
@@ -926,7 +926,7 @@ TEST_CASE(gru_test_actv_funcs)
             "gru",
             *mm,
             {seq, w, r, bias, seq_len, ih},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("sigmoid"),
@@ -960,7 +960,7 @@ TEST_CASE(gru_test_actv_funcs)
             "gru",
             *mm,
             {seq, w, r, bias, seq_len, ih},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
@@ -994,7 +994,7 @@ TEST_CASE(gru_test_actv_funcs)
             "gru",
             *mm,
             {seq, w, r, bias, seq_len, ih},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"), migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         auto prog = read_rnn_onnx("onnx_gru_forward_0.onnx");
@@ -1025,7 +1025,7 @@ TEST_CASE(gru_test_actv_funcs)
             "gru",
             *mm,
             {seq, w, r, bias, seq_len, ih},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("relu"), migraphx::make_op("relu")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)}});
         auto prog = read_rnn_onnx("onnx_gru_reverse_1.onnx");
@@ -1069,7 +1069,7 @@ TEST_CASE(lstm_forward)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, ih, ic, pph},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
@@ -1092,7 +1092,7 @@ TEST_CASE(lstm_forward)
             "lstm",
             *mm,
             {seq, w, r, und, und, und, und, und},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
@@ -1115,7 +1115,7 @@ TEST_CASE(lstm_forward)
             "lstm",
             *mm,
             {seq, w, r, und, und, und, und, und},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
@@ -1138,7 +1138,7 @@ TEST_CASE(lstm_forward)
             "lstm",
             *mm,
             {seq, w, r, und, und, und, und, und},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
@@ -1161,7 +1161,7 @@ TEST_CASE(lstm_forward)
             "lstm",
             *mm,
             {seq, w, r, und, und, und, und, und},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
@@ -1185,7 +1185,7 @@ TEST_CASE(lstm_forward)
             "lstm",
             *mm,
             {seq, w, r, bias, und, und, und, und},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
@@ -1210,7 +1210,7 @@ TEST_CASE(lstm_forward)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, und, und, und},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
@@ -1236,7 +1236,7 @@ TEST_CASE(lstm_forward)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, ih, und, und},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
@@ -1263,7 +1263,7 @@ TEST_CASE(lstm_forward)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, ih, ic, und},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
@@ -1311,7 +1311,7 @@ TEST_CASE(lstm_forward_layout)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, ih, ic, pph},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
@@ -1351,7 +1351,7 @@ TEST_CASE(lstm_forward_layout)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, ih, ic, pph},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
@@ -1397,7 +1397,7 @@ TEST_CASE(lstm_forward_actv_func)
             "lstm",
             *mm,
             {seq, w, r, und, und, und, und, und},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
@@ -1421,7 +1421,7 @@ TEST_CASE(lstm_forward_actv_func)
             "lstm",
             *mm,
             {seq, w, r, bias, und, und, und, und},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("sigmoid")})},
@@ -1446,7 +1446,7 @@ TEST_CASE(lstm_forward_actv_func)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, und, und, und},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("tanh"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("sigmoid")})},
@@ -1487,7 +1487,7 @@ TEST_CASE(lstm_reverse)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, ih, ic, pph},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
@@ -1512,7 +1512,7 @@ TEST_CASE(lstm_reverse)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, und, und, und},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
@@ -1535,7 +1535,7 @@ TEST_CASE(lstm_reverse)
             "lstm",
             *mm,
             {seq, w, r, und, und, und, und, und},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
@@ -1583,7 +1583,7 @@ TEST_CASE(lstm_reverse_layout)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, ih, ic, pph},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
@@ -1623,7 +1623,7 @@ TEST_CASE(lstm_reverse_layout)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, ih, ic, pph},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
@@ -1674,7 +1674,7 @@ TEST_CASE(lstm_bidirectional)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, ih, ic, pph},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh"),
@@ -1700,7 +1700,7 @@ TEST_CASE(lstm_bidirectional)
             "lstm",
             *mm,
             {seq, w, r, und, und, und, und, und},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh"),
@@ -1727,7 +1727,7 @@ TEST_CASE(lstm_bidirectional)
             "lstm",
             *mm,
             {seq, w, r, bias, und, und, und, und},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh"),
@@ -1755,7 +1755,7 @@ TEST_CASE(lstm_bidirectional)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, und, und, und},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh"),
@@ -1784,7 +1784,7 @@ TEST_CASE(lstm_bidirectional)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, ih, und, und},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh"),
@@ -1814,7 +1814,7 @@ TEST_CASE(lstm_bidirectional)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, ih, ic, und},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh"),
@@ -1864,7 +1864,7 @@ TEST_CASE(lstm_bidirectional_layout)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, ih, ic, pph},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh"),
@@ -1905,7 +1905,7 @@ TEST_CASE(lstm_bidirectional_layout)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, ih, ic, pph},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh"),
@@ -1955,7 +1955,7 @@ TEST_CASE(lstm_bi_actv_funcs)
             "lstm",
             *mm,
             {seq, w, r, und, und, und, und, und},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh"),
@@ -1982,7 +1982,7 @@ TEST_CASE(lstm_bi_actv_funcs)
             "lstm",
             *mm,
             {seq, w, r, bias, und, und, und, und},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("sigmoid"),
@@ -2010,7 +2010,7 @@ TEST_CASE(lstm_bi_actv_funcs)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, und, und, und},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh"),
@@ -2039,7 +2039,7 @@ TEST_CASE(lstm_bi_actv_funcs)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, ih, und, und},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh"),
@@ -2069,7 +2069,7 @@ TEST_CASE(lstm_bi_actv_funcs)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, ih, ic, und},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("tanh"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("sigmoid"),
@@ -2095,7 +2095,7 @@ TEST_CASE(lstm_bi_actv_funcs)
             "lstm",
             *mm,
             {seq, w, r, und, und, und, und, und},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh"),

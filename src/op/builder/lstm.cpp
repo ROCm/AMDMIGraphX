@@ -300,8 +300,7 @@ struct lstm_builder : op_builder<lstm_builder>
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.actv_funcs, "actv_func"),
-                    f(self.direction, "direction"));
+        return pack(f(self.actv_funcs, "actv_func"), f(self.direction, "direction"));
     }
 
     // NOLINTNEXTLINE(readability-function-cognitive-complexity)

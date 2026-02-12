@@ -59,7 +59,7 @@ struct test_rnn_forward : verify_program<test_rnn_forward>
             "rnn",
             *mm,
             {seq, w, r, bias, und, ih},
-             {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
+            {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         mm->add_return({results.at(0), results.at(1)});
 

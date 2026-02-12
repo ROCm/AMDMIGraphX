@@ -63,7 +63,7 @@ struct test_rnn_forward_layout : verify_program<test_rnn_forward_layout>
             "rnn",
             *mm,
             {seq, w, r, bias, und, ih},
-             {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
+            {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         auto hs  = results.at(0);
         auto lho = results.at(1);

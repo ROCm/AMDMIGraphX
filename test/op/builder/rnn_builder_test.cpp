@@ -57,7 +57,7 @@ TEST_CASE(rnn_builder_returns_two_outputs)
         "rnn",
         m,
         {seq, w, r, bias, und, ih},
-         {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
+        {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
          {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
 
     EXPECT(results.size() == 2);
@@ -102,7 +102,7 @@ TEST_CASE(rnn_builder_bidirectional_outputs)
         "rnn",
         m,
         {seq, w, r, bias, und, ih},
-         {{"actv_func", migraphx::to_value({migraphx::make_op("tanh"), migraphx::make_op("tanh")})},
+        {{"actv_func", migraphx::to_value({migraphx::make_op("tanh"), migraphx::make_op("tanh")})},
          {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)}});
 
     EXPECT(results.size() == 2);
@@ -140,7 +140,7 @@ TEST_CASE(rnn_builder_3args)
         "rnn",
         m,
         {seq, w, r, und, und, und},
-         {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
+        {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
          {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
 
     EXPECT(results.size() == 2);
@@ -178,7 +178,7 @@ TEST_CASE(rnn_builder_numerical_forward)
         "rnn",
         *mm,
         {seq, w, r, bias, und, ih},
-         {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
+        {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
          {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
     mm->add_return({results.at(0), results.at(1)});
 

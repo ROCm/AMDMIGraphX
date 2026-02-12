@@ -63,7 +63,7 @@ struct test_gru_reverse_last : verify_program<test_gru_reverse_last>
             "gru",
             *mm,
             {seq, w, r, bias, und, ih},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"), migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)}});
         mm->add_return({results.at(1)});

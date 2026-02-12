@@ -63,7 +63,7 @@ struct test_gru_bidirct_default_actv1 : verify_program<test_gru_bidirct_default_
             "gru",
             *mm,
             {seq, w, r, bias, und, ih},
-             {{"actv_func", migraphx::to_value({migraphx::make_op("sigmoid")})},
+            {{"actv_func", migraphx::to_value({migraphx::make_op("sigmoid")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)}});
         mm->add_return({results.at(0)});
 

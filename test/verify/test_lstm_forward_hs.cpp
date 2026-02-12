@@ -67,7 +67,7 @@ struct test_lstm_forward_hs : verify_program<test_lstm_forward_hs>
             "lstm",
             *mm,
             {seq, w, r, bias, und, ih, ic, pph},
-             {{"actv_func",
+            {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},

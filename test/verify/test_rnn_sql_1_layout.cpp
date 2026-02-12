@@ -65,7 +65,7 @@ struct test_rnn_sql_1_layout : verify_program<test_rnn_sql_1_layout>
             "rnn",
             *mm,
             {seq, w, r, bias, sql, ih},
-             {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
+            {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         auto hs      = results.at(0);
         auto last_hs = results.at(1);

@@ -1141,6 +1141,8 @@ struct find_gather
         auto output_dims = gather_ins->get_shape().lens();
         const auto r_in  = data_ins->get_shape().lens().size();
         const auto r_idx = indices_arg.get_shape().lens().size();
+        auto data_shape = data_ins->get_shape().as_standard();
+        auto indices_shape = indices_arg.get_shape().as_standard();
         assert(axis_index < r_in);
 
         shape output_s{shape::float_type, output_dims}; // element type doesn't matter here
@@ -1161,8 +1163,8 @@ struct find_gather
                       idx_multi.begin());
 
             // 3) look up the actual index value (may be negative)
-            const std::int64_t idx_lin  = indices_arg.get_shape().index(idx_multi);
-            const std::int64_t axis_len = data_ins->get_shape().lens().at(axis_index);
+            const std::int64_t idx_lin  = indices_shape.index(idx_multi);
+            const std::int64_t axis_len = data_shape.lens().at(axis_index);
             auto idx_val                = indices.at(idx_lin);
 
             // Normalize negative indices into [0, axis_len)
@@ -1186,7 +1188,7 @@ struct find_gather
                       in_multi.begin() + axis_index + 1);
 
             // 5) map input multi-index -> flat offset in contiguous buffer
-            const auto in_lin = data_ins->get_shape().index(in_multi);
+            const auto in_lin = data_shape.index(in_multi);
             return in_lin;
         });
 

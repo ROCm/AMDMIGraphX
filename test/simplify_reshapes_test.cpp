@@ -2430,6 +2430,33 @@ TEST_CASE(gather_axis1_same_stride_diff_base)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(gather_axis1_transposed)
+{
+    migraphx::module m1;
+    {
+        migraphx::shape si{migraphx::shape::int32_type, {1}};
+        std::vector<int32_t> indices = {1};
+        auto x                       = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+        auto tx  = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), x);
+        auto ind = m1.add_literal(migraphx::literal{si, indices});
+        auto g = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), tx, ind);
+        m1.add_return({g});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x                       = m2.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+        auto unsqueeze = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), x);
+        auto transpose =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), unsqueeze);
+        auto slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), transpose);
+        auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), slice);
+        m2.add_return({squeeze});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(gather_flatten_stride_slice)
 {
     migraphx::module m1;

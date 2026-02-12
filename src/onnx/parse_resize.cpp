@@ -343,11 +343,10 @@ struct parse_resize : op_parser<parse_resize>
             if(resize.is_sizes_input)
             {
                 return info.add_instruction(
-                    make_op(
-                        "resize",
-                        {{"sizes", resize.out_lens},
-                         {"nearest_mode", resize.get_nearest_mode()},
-                         {"coordinate_transformation_mode", resize.get_coord_trans_mode()}}),
+                    make_op("resize",
+                            {{"sizes", resize.out_lens},
+                             {"nearest_mode", resize.get_nearest_mode()},
+                             {"coordinate_transformation_mode", resize.get_coord_trans_mode()}}),
                     args_0);
             }
             return info.add_instruction(
@@ -377,11 +376,10 @@ struct parse_resize : op_parser<parse_resize>
             if(resize.is_sizes_input)
             {
                 return info.add_instruction(
-                    make_op(
-                        "resize",
-                        {{"sizes", resize.out_lens},
-                         {"mode", resize.get_mode()},
-                         {"coordinate_transformation_mode", resize.get_coord_trans_mode()}}),
+                    make_op("resize",
+                            {{"sizes", resize.out_lens},
+                             {"mode", resize.get_mode()},
+                             {"coordinate_transformation_mode", resize.get_coord_trans_mode()}}),
                     args_0);
             }
             return info.add_instruction(

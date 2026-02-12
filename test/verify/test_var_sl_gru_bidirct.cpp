@@ -68,7 +68,7 @@ struct test_var_sl_gru_bidirct : verify_program<test_var_sl_gru_bidirct>
             {seq, w, r, bias, sql, ih},
             {{"hidden_size", hidden_size},
              {"actv_func",
-              migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
+              migraphx::to_value({migraphx::make_op("sigmoid"),
                                                                   migraphx::make_op("tanh"),
                                                                   migraphx::make_op("sigmoid"),
                                                                   migraphx::make_op("tanh")})},

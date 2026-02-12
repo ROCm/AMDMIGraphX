@@ -76,7 +76,7 @@ struct test_lstm_forward_last_layout : verify_program<test_lstm_forward_last_lay
             {seq, w, r, bias, len, ih, ic, pph},
             {{"hidden_size", hidden_size},
              {"actv_func",
-              migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
+              migraphx::to_value({migraphx::make_op("sigmoid"),
                                                                   migraphx::make_op("tanh"),
                                                                   migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},

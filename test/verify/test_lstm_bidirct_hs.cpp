@@ -68,7 +68,7 @@ struct test_lstm_bidirct_hs : verify_program<test_lstm_bidirct_hs>
             {seq, w, r, bias, sql, ih},
             {{"hidden_size", hidden_size},
              {"actv_func",
-              migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
+              migraphx::to_value({migraphx::make_op("sigmoid"),
                                                                   migraphx::make_op("tanh"),
                                                                   migraphx::make_op("tanh"),
                                                                   migraphx::make_op("sigmoid"),

@@ -66,7 +66,7 @@ struct test_lstm_bidirct_default_actv2 : verify_program<test_lstm_bidirct_defaul
             {seq, w, r, bias, und, ih},
             {{"hidden_size", hidden_size},
              {"actv_func",
-              migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh"),
+              migraphx::to_value({migraphx::make_op("tanh"),
                                                                   migraphx::make_op("sigmoid")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
              {"clip", clip}});

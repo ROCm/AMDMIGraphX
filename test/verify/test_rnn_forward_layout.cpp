@@ -66,7 +66,7 @@ struct test_rnn_forward_layout : verify_program<test_rnn_forward_layout>
             {seq, w, r, bias, und, ih},
             {{"hidden_size", hidden_size},
              {"actv_func",
-              migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
+              migraphx::to_value({migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
              {"clip", clip}});
         auto hs  = results.at(0);

@@ -70,7 +70,7 @@ struct test_gru_bidirct_layout : verify_program<test_gru_bidirct_layout>
             {seq, w, r, bias, und, ih},
             {{"hidden_size", hidden_size},
              {"actv_func",
-              migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
+              migraphx::to_value({migraphx::make_op("sigmoid"),
                                                                   migraphx::make_op("tanh"),
                                                                   migraphx::make_op("sigmoid"),
                                                                   migraphx::make_op("tanh")})},

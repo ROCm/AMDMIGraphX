@@ -61,7 +61,7 @@ TEST_CASE(lstm_builder_returns_three_outputs)
         {seq, w, r, bias, und, ih, ic, und},
         {{"hidden_size", hidden_size},
          {"actv_func",
-          migraphx::to_value(std::vector<migraphx::operation>{
+          migraphx::to_value({
               migraphx::make_op("sigmoid"), migraphx::make_op("tanh"), migraphx::make_op("tanh")})},
          {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
          {"clip", 0.0f},
@@ -121,7 +121,7 @@ TEST_CASE(lstm_builder_bidirectional_outputs)
         {seq, w, r, bias, und, ih, ic, und},
         {{"hidden_size", hidden_size},
          {"actv_func",
-          migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
+          migraphx::to_value({migraphx::make_op("sigmoid"),
                                                               migraphx::make_op("tanh"),
                                                               migraphx::make_op("tanh"),
                                                               migraphx::make_op("sigmoid"),
@@ -171,7 +171,7 @@ TEST_CASE(lstm_builder_numerical_forward)
         {seq, w, r, bias, und, ih, ic, und},
         {{"hidden_size", hidden_size},
          {"actv_func",
-          migraphx::to_value(std::vector<migraphx::operation>{
+          migraphx::to_value({
               migraphx::make_op("sigmoid"), migraphx::make_op("tanh"), migraphx::make_op("tanh")})},
          {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
          {"clip", 0.0f},

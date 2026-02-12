@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/serialize.hpp>
+#include <migraphx/float_equal.hpp>
 #include <migraphx/functional.hpp>
 #include <test.hpp>
 
@@ -192,6 +193,64 @@ TEST_CASE(from_value_binary)
 
     auto out = migraphx::from_value<migraphx::value::binary>(v);
     EXPECT(out == data);
+}
+
+TEST_CASE(to_value_initializer_list_int)
+{
+    auto v = migraphx::to_value({1, 2, 3});
+    EXPECT(v.is_array());
+    EXPECT(v.size() == 3);
+    EXPECT(v[0].to<int>() == 1);
+    EXPECT(v[1].to<int>() == 2);
+    EXPECT(v[2].to<int>() == 3);
+}
+
+TEST_CASE(to_value_initializer_list_double)
+{
+    auto v = migraphx::to_value({1.5, 2.5, 3.5});
+    EXPECT(v.is_array());
+    EXPECT(v.size() == 3);
+    EXPECT(migraphx::float_equal(v[0].to<double>(), 1.5));
+    EXPECT(migraphx::float_equal(v[1].to<double>(), 2.5));
+    EXPECT(migraphx::float_equal(v[2].to<double>(), 3.5));
+}
+
+TEST_CASE(to_value_initializer_list_string)
+{
+    auto v = migraphx::to_value({std::string("hello"), std::string("world")});
+    EXPECT(v.is_array());
+    EXPECT(v.size() == 2);
+    EXPECT(v[0].to<std::string>() == "hello");
+    EXPECT(v[1].to<std::string>() == "world");
+}
+
+TEST_CASE(to_value_initializer_list_empty)
+{
+    auto v = migraphx::to_value(std::initializer_list<int>{});
+    EXPECT(v.is_array());
+    EXPECT(v.size() == 0);
+}
+
+TEST_CASE(to_value_initializer_list_single)
+{
+    auto v = migraphx::to_value({42});
+    EXPECT(v.is_array());
+    EXPECT(v.size() == 1);
+    EXPECT(v[0].to<int>() == 42);
+}
+
+TEST_CASE(to_value_initializer_list_matches_vector)
+{
+    auto v1 = migraphx::to_value({10, 20, 30});
+    auto v2 = migraphx::to_value(std::vector<int>{10, 20, 30});
+    EXPECT(v1 == v2);
+}
+
+TEST_CASE(to_value_initializer_list_roundtrip)
+{
+    auto v   = migraphx::to_value({5, 10, 15, 20});
+    auto vec = migraphx::from_value<std::vector<int>>(v);
+    EXPECT(vec == std::vector<int>{5, 10, 15, 20});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

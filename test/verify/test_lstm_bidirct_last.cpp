@@ -70,7 +70,7 @@ struct test_lstm_bidirct_last : verify_program<test_lstm_bidirct_last>
             {seq, w, r, bias, und, ih, ic, pph},
             {{"hidden_size", hidden_size},
              {"actv_func",
-              migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
+              migraphx::to_value({migraphx::make_op("sigmoid"),
                                                                   migraphx::make_op("tanh"),
                                                                   migraphx::make_op("tanh"),
                                                                   migraphx::make_op("sigmoid"),

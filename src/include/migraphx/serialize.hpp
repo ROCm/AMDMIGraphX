@@ -273,6 +273,12 @@ value to_value(const T& x)
 }
 
 template <class T>
+value to_value(const std::initializer_list<T>& x)
+{
+    return to_value(std::vector<T>(x));
+}
+
+template <class T>
 void from_value(const value& v, T& x)
 {
     detail::from_value_impl(rank<11>{}, v, x);

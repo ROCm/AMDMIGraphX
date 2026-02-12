@@ -398,13 +398,8 @@ TEST_CASE(is_interdependent_large_set)
     EXPECT(migraphx::is_interdependent(subset, &m, m.begin()));
 }
 
-// Tests for reaches with large graphs (n > 16) to exercise the
-// large-n path in track_visits that uses a precomputed in_range set.
-//
 // Long chain (32 instructions between start and end):
-//
 //   x --> relu0 --> relu1 --> ... --> relu30 --> abs
-//
 TEST_CASE(reaches_large_linear)
 {
     migraphx::module m;

@@ -93,8 +93,9 @@ struct dynamic_code_object_op
 {
     operation pre_op = precompile_op{};
 
-    // This implementation will be updated to store compiled code objects for all encountered shapes
-    // id a way that can be used by all dynamic_code_object_op instances
+    // This implementation currently caches for each dynamic_code_object_op instance
+    // It will be updated to store compiled code objects for all encountered shapes
+    //  in a way that can be used by all dynamic_code_object_op instances
     using cache_map_type = std::unordered_map<const dynamic_code_object_op*, dynamic_op_cache>;
     std::shared_ptr<cache_map_type> cache_map = std::make_shared<cache_map_type>();
 

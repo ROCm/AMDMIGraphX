@@ -128,6 +128,8 @@ struct MIGRAPHX_EXPORT module
     instruction_ref move_instruction(instruction_ref src, instruction_ref dst);
     instruction_ref move_instructions(instruction_ref src, instruction_ref dst);
 
+    void move_output_instructions_after(instruction_ref src, instruction_ref dst);
+
     std::vector<instruction_ref>
     add_instructions(const std::vector<instruction_ref>& instructions,
                      std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,

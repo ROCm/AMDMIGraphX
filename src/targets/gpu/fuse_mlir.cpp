@@ -331,14 +331,21 @@ auto is_mlir_dot(mlir_mode mode)
         {
             return true;
         }
-        if(mode != mlir_mode::fast)
-            return true;
         auto a = ins->inputs().front()->get_shape();
         auto b = ins->inputs().back()->get_shape();
         auto g = std::accumulate(a.lens().begin(), a.lens().end() - 2, 1, std::multiplies<>{});
         auto m = a.lens()[a.lens().size() - 2];
         auto n = b.lens().back();
         auto k = a.lens().back();
+
+        bool is_fp32 = (ins->get_shape().type() == shape::float_type);
+        if(g == 1 and (m == 1 or n == 1) and is_fp32)
+        {
+            return false;
+        }
+
+        if(mode != mlir_mode::fast)
+            return true;
         // Skipping GEMMs with a K dimension greater than 2048 is a course-grained strategy
         // to avoid poor-performing GEMM kernels from MLIR
         // TODO: Investigate a more precise strategy

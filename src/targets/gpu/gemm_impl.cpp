@@ -31,6 +31,7 @@
 #include <migraphx/time.hpp>
 #include <type_traits>
 #include <thread>
+#include <cstring>
 
 using microseconds = std::chrono::duration<double, std::micro>;
 
@@ -258,8 +259,75 @@ struct gemm_impl
         }
     }
 
+    // Check if this is a GEMV case
+    bool can_use_gemv() const
+    {
+        if(strided_batched || is_3inputs || arg_type != rocblas_datatype_f32_r)
+            return false;
+        if(m == 1 && !transa)
+            return true;
+        if(n == 1 && !transb)
+            return true;
+        return false;
+    }
+
+    void run_gemv(context& ctx, const std::vector<argument>& input_args) const
+    {
+        auto handle = ctx.get_stream().get_rocblas();
+        float alpha_f = alpha;
+        float beta_f  = 0.0f;
+        rocblas_status status;
+
+        if(m == 1)
+        {
+            rocblas_operation trans_op = transb ? rocblas_operation_transpose : rocblas_operation_none;
+            rocblas_int gemv_m = transb ? k : n;
+            rocblas_int gemv_n = transb ? n : k;
+
+            status = rocblas_sgemv(handle,
+                                   trans_op,
+                                   gemv_m, gemv_n,
+                                   &alpha_f,
+                                   reinterpret_cast<const float*>(input_args[1].data()),  // B matrix
+                                   ldb,  // Use precomputed leading dimension
+                                   reinterpret_cast<const float*>(input_args[0].data()),  // A vector (x)
+                                   1,
+                                   &beta_f,
+                                   reinterpret_cast<float*>(input_args[2].data()),        // C output (y)
+                                   1);
+        }
+        else // n == 1
+        {
+            rocblas_operation trans_op = transa ? rocblas_operation_none : rocblas_operation_transpose;
+            rocblas_int gemv_m = transa ? m : k;
+            rocblas_int gemv_n = transa ? k : m;
+
+            status = rocblas_sgemv(handle,
+                                   trans_op,
+                                   gemv_m, gemv_n,
+                                   &alpha_f,
+                                   reinterpret_cast<const float*>(input_args[0].data()),  // A matrix
+                                   lda,  // Use precomputed leading dimension
+                                   reinterpret_cast<const float*>(input_args[1].data()),  // B vector (x)
+                                   1,
+                                   &beta_f,
+                                   reinterpret_cast<float*>(input_args[2].data()),        // C output (y)
+                                   1);
+        }
+
+        if(status != rocblas_status_success)
+            MIGRAPHX_THROW("rocblas_sgemv failed with status " + std::to_string(status));
+    }
+
     void run(context& ctx, const std::vector<argument>& input_args, int32_t solution_idx = 0) const
     {
+        // Use GEMV for M=1 or N=1 cases
+        if(can_use_gemv())
+        {
+            run_gemv(ctx, input_args);
+            return;
+        }
+
         if(strided_batched)
         {
             auto common_args = create_strided_batched_args_common(ctx, compute_type, input_args);

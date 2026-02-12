@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -131,6 +131,10 @@ std::vector<shape> reduce_dims(const std::vector<shape>& shapes)
 {
     if(shapes.empty())
         return {};
+    if(std::any_of(shapes.begin(), shapes.end(), [](const auto& s) { return s.dynamic(); }))
+    {
+        return shapes;
+    }
     auto result = shapes;
     auto base   = base_lens(shapes);
     for(auto&& s : shapes)

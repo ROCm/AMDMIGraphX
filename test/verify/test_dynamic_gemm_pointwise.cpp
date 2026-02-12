@@ -27,30 +27,43 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/env.hpp>
+#include <test.hpp>
 
-template <std::size_t... TestDims>
-struct test_dynamic_pointwise : verify_program<test_dynamic_pointwise<TestDims...>>
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MLIR)
+
+template <std::size_t B, std::size_t K>
+struct test_dynamic_gemm_pointwise : verify_program<test_dynamic_gemm_pointwise<B, K>>
 {
     migraphx::program create_program() const
     {
-        migraphx::shape s{migraphx::shape::float_type, {{2, 4}, {8, 16}, {4, 24}}};
+        // Skip test when MLIR is disabled
+        if(migraphx::enabled(MIGRAPHX_DISABLE_MLIR{}))
+            test::skip("MIGRAPHX_DISABLE_MLIR is set");
+
+        migraphx::shape s_x{migraphx::shape::float_type, {{2, 4}, {3, 3}, {4, 24}}};
+        migraphx::shape s_w{migraphx::shape::float_type, {{2, 4}, {4, 24}, {5, 5}}};
         migraphx::program p;
-        auto* mm  = p.get_main_module();
-        auto x    = mm->add_parameter("x", s);
-        auto y    = mm->add_parameter("y", s);
-        auto relu = mm->add_instruction(migraphx::make_op("relu"), x);
-        auto add  = mm->add_instruction(migraphx::make_op("add"), relu, y);
-        mm->add_return({add});
+        auto* mm = p.get_main_module();
+        auto x   = mm->add_parameter("x", s_x);
+        auto w   = mm->add_parameter("w", s_w);
+        auto b =
+            mm->add_literal(migraphx::generate_literal({migraphx::shape::float_type, {1, 3, 5}}));
+        auto gemm = mm->add_instruction(migraphx::make_op("dot"), x, w);
+        auto b_bc = mm->add_instruction(migraphx::make_op("multibroadcast"), b, gemm);
+        auto add  = mm->add_instruction(migraphx::make_op("add"), gemm, b_bc);
+        auto relu = mm->add_instruction(migraphx::make_op("relu"), add);
+        mm->add_return({relu});
         return p;
     };
 
     std::unordered_map<std::string, migraphx::shape> get_test_dims() const
     {
-        return {{"x", migraphx::shape{migraphx::shape::float_type, {TestDims...}}},
-                {"y", migraphx::shape{migraphx::shape::float_type, {TestDims...}}}};
+        return {{"x", migraphx::shape{migraphx::shape::float_type, {B, 3, K}}},
+                {"w", migraphx::shape{migraphx::shape::float_type, {B, K, 5}}}};
     }
 };
 
-template struct test_dynamic_pointwise<4, 16, 24>; // maxes
-template struct test_dynamic_pointwise<2, 8, 4>;   // mins
-template struct test_dynamic_pointwise<3, 10, 13>; // in between
+template struct test_dynamic_gemm_pointwise<4, 4>;
+template struct test_dynamic_gemm_pointwise<3, 24>;
+template struct test_dynamic_gemm_pointwise<2, 16>;

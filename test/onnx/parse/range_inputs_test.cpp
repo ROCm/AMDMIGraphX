@@ -27,7 +27,7 @@
 TEST_CASE(range_inputs_test)
 {
     migraphx::program p;
-    auto* mm = p.get_main_module();
+    auto* mm   = p.get_main_module();
     auto start = mm->add_parameter("start", migraphx::shape{migraphx::shape::float_type, {1}, {0}});
     auto limit = mm->add_parameter("limit", migraphx::shape{migraphx::shape::float_type, {1}, {0}});
     auto delta = mm->add_parameter("delta", migraphx::shape{migraphx::shape::float_type, {1}, {0}});

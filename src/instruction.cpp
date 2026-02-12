@@ -589,8 +589,6 @@ static auto track_visits(instruction_ref start, instruction_ref end, F f)
     {
         // Pre-compute the set of instructions in [start, end] so that the
         // out-of-range check is O(1) instead of O(n) per visited node.
-        // Without this, std::distance(ins, end) is O(n) on std::list iterators,
-        // making the overall DFS O(n^2).
         std::unordered_set<instruction_ref> in_range;
         in_range.reserve(n + 1);
         for(auto it = start; it != end; ++it)

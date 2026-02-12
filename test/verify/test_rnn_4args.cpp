@@ -39,7 +39,6 @@ struct test_rnn_4args : verify_program<test_rnn_4args>
         std::size_t hidden_size = 4;
         std::size_t input_size  = 3;
         std::size_t num_dirct   = 1;
-        float clip              = 0.0f;
 
         migraphx::program p;
         auto* mm = p.get_main_module();
@@ -57,10 +56,8 @@ struct test_rnn_4args : verify_program<test_rnn_4args>
             "rnn",
             *mm,
             {seq, w, r, bias},
-            {{"hidden_size", hidden_size},
-             {"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
-             {"clip", clip}});
+             {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)}});
 
         return p;
     }

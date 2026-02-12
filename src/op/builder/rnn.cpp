@@ -153,18 +153,14 @@ struct rnn_builder : op_builder<rnn_builder>
 {
     static std::vector<std::string> names() { return {"rnn"}; }
 
-    std::size_t hidden_size = 1;
     std::vector<operation> actv_funcs{};
     op::rnn_direction direction = op::rnn_direction::forward;
-    float clip                  = 0.0f;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.hidden_size, "hidden_size"),
-                    f(self.actv_funcs, "actv_func"),
-                    f(self.direction, "direction"),
-                    f(self.clip, "clip"));
+        return pack(f(self.actv_funcs, "actv_func"),
+                    f(self.direction, "direction"));
     }
 
     // NOLINTNEXTLINE(readability-function-cognitive-complexity)

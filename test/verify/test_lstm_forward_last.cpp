@@ -41,7 +41,6 @@ struct test_lstm_forward_last : verify_program<test_lstm_forward_last>
         std::size_t hidden_size = 5;
         std::size_t input_size  = 8;
         std::size_t num_dirct   = 1;
-        float clip              = 0.0f;
 
         migraphx::program p;
         auto* mm = p.get_main_module();
@@ -69,13 +68,11 @@ struct test_lstm_forward_last : verify_program<test_lstm_forward_last>
             "lstm",
             *mm,
             {seq, w, r, bias, len, ih, ic, pph},
-            {{"hidden_size", hidden_size},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-             {"clip", clip}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
 
         return p;
     }

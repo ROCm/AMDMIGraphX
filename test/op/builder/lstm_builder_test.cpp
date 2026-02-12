@@ -59,14 +59,11 @@ TEST_CASE(lstm_builder_returns_three_outputs)
         "lstm",
         m,
         {seq, w, r, bias, und, ih, ic, und},
-        {{"hidden_size", hidden_size},
-         {"actv_func",
+         {{"actv_func",
           migraphx::to_value({migraphx::make_op("sigmoid"),
                               migraphx::make_op("tanh"),
                               migraphx::make_op("tanh")})},
-         {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-         {"clip", 0.0f},
-         {"input_forget", 0}});
+         {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
 
     EXPECT(results.size() == 3);
 
@@ -120,17 +117,14 @@ TEST_CASE(lstm_builder_bidirectional_outputs)
         "lstm",
         m,
         {seq, w, r, bias, und, ih, ic, und},
-        {{"hidden_size", hidden_size},
-         {"actv_func",
+         {{"actv_func",
           migraphx::to_value({migraphx::make_op("sigmoid"),
                               migraphx::make_op("tanh"),
                               migraphx::make_op("tanh"),
                               migraphx::make_op("sigmoid"),
                               migraphx::make_op("tanh"),
                               migraphx::make_op("tanh")})},
-         {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-         {"clip", 0.0f},
-         {"input_forget", 0}});
+         {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)}});
 
     EXPECT(results.size() == 3);
 
@@ -170,14 +164,11 @@ TEST_CASE(lstm_builder_numerical_forward)
         "lstm",
         *mm,
         {seq, w, r, bias, und, ih, ic, und},
-        {{"hidden_size", hidden_size},
-         {"actv_func",
+         {{"actv_func",
           migraphx::to_value({migraphx::make_op("sigmoid"),
                               migraphx::make_op("tanh"),
                               migraphx::make_op("tanh")})},
-         {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-         {"clip", 0.0f},
-         {"input_forget", 0}});
+         {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
     mm->add_return({results.at(0), results.at(1), results.at(2)});
 
     p.compile(migraphx::make_target("ref"));

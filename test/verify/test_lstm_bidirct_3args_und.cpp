@@ -39,7 +39,6 @@ struct test_lstm_bidirct_3args_und : verify_program<test_lstm_bidirct_3args_und>
         std::size_t hidden_size = 5;
         std::size_t input_size  = 8;
         std::size_t num_dirct   = 2;
-        float clip              = 0.0f;
 
         migraphx::program p;
         auto* mm = p.get_main_module();
@@ -56,13 +55,11 @@ struct test_lstm_bidirct_3args_und : verify_program<test_lstm_bidirct_3args_und>
             "gru",
             *mm,
             {seq, w, r, und, und, und},
-            {{"hidden_size", hidden_size},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-             {"clip", clip}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)}});
 
         return p;
     }

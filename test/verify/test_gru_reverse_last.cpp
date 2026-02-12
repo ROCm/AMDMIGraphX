@@ -41,7 +41,6 @@ struct test_gru_reverse_last : verify_program<test_gru_reverse_last>
         std::size_t hidden_size = 5;
         std::size_t input_size  = 8;
         std::size_t num_dirct   = 1;
-        float clip              = 0.0f;
 
         migraphx::program p;
         auto* mm = p.get_main_module();
@@ -64,11 +63,9 @@ struct test_gru_reverse_last : verify_program<test_gru_reverse_last>
             "gru",
             *mm,
             {seq, w, r, bias, und, ih},
-            {{"hidden_size", hidden_size},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"), migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
-             {"clip", clip}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)}});
         mm->add_return({results.at(1)});
 
         return p;

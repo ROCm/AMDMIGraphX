@@ -41,7 +41,6 @@ struct test_gru_two_outputs : verify_program<test_gru_two_outputs>
         std::size_t hidden_size = 5;
         std::size_t input_size  = 8;
         std::size_t num_dirct   = 1;
-        float clip              = 0.0f;
 
         migraphx::program p;
         auto* mm = p.get_main_module();
@@ -57,10 +56,8 @@ struct test_gru_two_outputs : verify_program<test_gru_two_outputs>
             "gru",
             *mm,
             {seq, w, r},
-            {{"hidden_size", hidden_size},
-             {"actv_func", {}},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-             {"clip", clip}});
+             {{"actv_func", {}},
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         mm->add_return({results.at(0), results.at(1)});
 
         return p;

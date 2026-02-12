@@ -294,20 +294,14 @@ struct lstm_builder : op_builder<lstm_builder>
 {
     static std::vector<std::string> names() { return {"lstm"}; }
 
-    std::size_t hidden_size = 1;
     std::vector<operation> actv_funcs{};
     op::rnn_direction direction = op::rnn_direction::forward;
-    float clip                  = 0.0f;
-    int input_forget            = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.hidden_size, "hidden_size"),
-                    f(self.actv_funcs, "actv_func"),
-                    f(self.direction, "direction"),
-                    f(self.clip, "clip"),
-                    f(self.input_forget, "input_forget"));
+        return pack(f(self.actv_funcs, "actv_func"),
+                    f(self.direction, "direction"));
     }
 
     // NOLINTNEXTLINE(readability-function-cognitive-complexity)

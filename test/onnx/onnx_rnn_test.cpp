@@ -62,7 +62,6 @@ TEST_CASE(rnn_test_bidirectional)
     std::size_t hs = 20; // hidden size
     std::size_t is = 10; // input size
     std::size_t nd = 2;  // num directions
-    float clip     = 0.0f;
     migraphx::shape seq_shape{migraphx::shape::float_type, {sl, bs, is}};
     migraphx::shape w_shape{migraphx::shape::float_type, {nd, hs, is}};
     migraphx::shape r_shape{migraphx::shape::float_type, {nd, hs, hs}};
@@ -84,11 +83,9 @@ TEST_CASE(rnn_test_bidirectional)
         "rnn",
         *mm,
         {seq, w, r, bias, seq_len, ih},
-        {{"hidden_size", hs},
-         {"actv_func",
+         {{"actv_func",
           migraphx::to_value({migraphx::make_op("tanh"), migraphx::make_op("sigmoid")})},
-         {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-         {"clip", clip}});
+         {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)}});
     auto prog = read_rnn_onnx("onnx_rnn_bi.onnx");
 
     EXPECT(p == prog);
@@ -101,7 +98,6 @@ TEST_CASE(rnn_test_bidirectional_layout)
     std::size_t hs = 20; // hidden size
     std::size_t is = 10; // input size
     std::size_t nd = 2;  // num directions
-    float clip     = 0.0f;
     migraphx::shape seq_shape{migraphx::shape::float_type, {bs, sl, is}};
     migraphx::shape w_shape{migraphx::shape::float_type, {nd, hs, is}};
     migraphx::shape r_shape{migraphx::shape::float_type, {nd, hs, hs}};
@@ -127,11 +123,9 @@ TEST_CASE(rnn_test_bidirectional_layout)
         "rnn",
         *mm,
         {seq, w, r, bias, seq_len, ih},
-        {{"hidden_size", hs},
-         {"actv_func",
+         {{"actv_func",
           migraphx::to_value({migraphx::make_op("tanh"), migraphx::make_op("sigmoid")})},
-         {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-         {"clip", clip}});
+         {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)}});
     auto out_hs      = results.at(0);
     auto last_output = results.at(1);
     std::vector<int64_t> perm_hid{2, 0, 1, 3};
@@ -150,7 +144,6 @@ TEST_CASE(rnn_test_one_direction)
     std::size_t hs = 20; // hidden size
     std::size_t is = 10; // input size
     std::size_t nd = 1;  // num directions
-    float clip     = 0.0f;
     migraphx::shape seq_shape{migraphx::shape::float_type, {sl, bs, is}};
     migraphx::shape w_shape{migraphx::shape::float_type, {nd, hs, is}};
     migraphx::shape r_shape{migraphx::shape::float_type, {nd, hs, hs}};
@@ -173,10 +166,8 @@ TEST_CASE(rnn_test_one_direction)
             "rnn",
             *mm,
             {seq, w, r, bias, seq_len, ih},
-            {{"hidden_size", hs},
-             {"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-             {"clip", clip}});
+             {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         auto prog = read_rnn_onnx("onnx_rnn_forward.onnx");
 
         EXPECT(p == prog);
@@ -195,10 +186,8 @@ TEST_CASE(rnn_test_one_direction)
             "rnn",
             *mm,
             {seq, w, r, und, und, und},
-            {{"hidden_size", hs},
-             {"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-             {"clip", clip}});
+             {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         auto prog = read_rnn_onnx("rnn_f_default_af_test.onnx");
 
         EXPECT(p == prog);
@@ -218,10 +207,8 @@ TEST_CASE(rnn_test_one_direction)
             "rnn",
             *mm,
             {seq, w, r, bias, seq_len, ih},
-            {{"hidden_size", hs},
-             {"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
-             {"clip", clip}});
+             {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)}});
         auto prog = read_rnn_onnx("onnx_rnn_reverse.onnx");
 
         EXPECT(p == prog);
@@ -239,10 +226,8 @@ TEST_CASE(rnn_test_one_direction)
             "rnn",
             *mm,
             {seq, w, r, und, und, und},
-            {{"hidden_size", hs},
-             {"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
-             {"clip", clip}});
+             {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)}});
         auto prog = read_rnn_onnx("onnx_rnn_3args.onnx");
 
         EXPECT(p == prog);
@@ -264,10 +249,8 @@ TEST_CASE(rnn_test_one_direction)
             "rnn",
             *mm,
             {seq, w, r, bias, seq_len, und},
-            {{"hidden_size", hs},
-             {"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-             {"clip", clip}});
+             {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         auto prog = read_rnn_onnx("onnx_rnn_5args.onnx");
 
         EXPECT(p == prog);
@@ -281,7 +264,6 @@ TEST_CASE(rnn_test_one_direction_layout)
     std::size_t hs = 20; // hidden size
     std::size_t is = 10; // input size
     std::size_t nd = 1;  // num directions
-    float clip     = 0.0f;
     migraphx::shape seq_shape{migraphx::shape::float_type, {bs, sl, is}};
     migraphx::shape w_shape{migraphx::shape::float_type, {nd, hs, is}};
     migraphx::shape r_shape{migraphx::shape::float_type, {nd, hs, hs}};
@@ -308,10 +290,8 @@ TEST_CASE(rnn_test_one_direction_layout)
             "rnn",
             *mm,
             {seq, w, r, bias, seq_len, ih},
-            {{"hidden_size", hs},
-             {"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-             {"clip", clip}});
+             {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         auto out_hs      = results.at(0);
         auto last_output = results.at(1);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
@@ -342,10 +322,8 @@ TEST_CASE(rnn_test_one_direction_layout)
             "rnn",
             *mm,
             {seq, w, r, bias, seq_len, ih},
-            {{"hidden_size", hs},
-             {"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
-             {"clip", clip}});
+             {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)}});
         auto out_hs      = results.at(0);
         auto last_output = results.at(1);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
@@ -373,10 +351,8 @@ TEST_CASE(rnn_test_one_direction_layout)
             "rnn",
             *mm,
             {seq, w, r, und, und, und},
-            {{"hidden_size", hs},
-             {"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
-             {"clip", clip}});
+             {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)}});
         auto out_hs      = results.at(0);
         auto last_output = results.at(1);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
@@ -407,10 +383,8 @@ TEST_CASE(rnn_test_one_direction_layout)
             "rnn",
             *mm,
             {seq, w, r, bias, seq_len, und},
-            {{"hidden_size", hs},
-             {"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-             {"clip", clip}});
+             {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         auto out_hs      = results.at(0);
         auto last_output = results.at(1);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
@@ -435,7 +409,6 @@ TEST_CASE(gru_test)
     std::size_t hs = 20; // hidden size
     std::size_t is = 10; // input size
     std::size_t nd = 2;  // num directions
-    float clip     = 0.0f;
     // forward
     {
         nd = 1;
@@ -459,11 +432,9 @@ TEST_CASE(gru_test)
             "gru",
             *mm,
             {seq, w, r, bias, seq_len, ih},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("tanh"), migraphx::make_op("sigmoid")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-             {"clip", clip},
              {"linear_before_reset", 1}});
         auto prog = read_rnn_onnx("onnx_gru_forward.onnx");
 
@@ -493,11 +464,9 @@ TEST_CASE(gru_test)
             "gru",
             *mm,
             {seq, w, r, bias, seq_len, ih},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("tanh"), migraphx::make_op("sigmoid")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
-             {"clip", clip}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)}});
         auto prog = read_rnn_onnx("onnx_gru_reverse.onnx");
 
         EXPECT(p == prog);
@@ -526,14 +495,12 @@ TEST_CASE(gru_test)
             "gru",
             *mm,
             {seq, w, r, bias, seq_len, ih},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("tanh"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("relu"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-             {"clip", clip}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)}});
         auto prog = read_rnn_onnx("onnx_gru_bi.onnx");
 
         EXPECT(p == prog);
@@ -547,7 +514,6 @@ TEST_CASE(gru_layout_test)
     std::size_t hs = 20; // hidden size
     std::size_t is = 10; // input size
     std::size_t nd = 2;  // num directions
-    float clip     = 0.0f;
     // forward
     {
         nd = 1;
@@ -575,11 +541,9 @@ TEST_CASE(gru_layout_test)
             "gru",
             *mm,
             {seq, w, r, bias, seq_len, ih},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("tanh"), migraphx::make_op("sigmoid")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-             {"clip", clip},
              {"linear_before_reset", 1}});
         auto out_hs      = results.at(0);
         auto last_output = results.at(1);
@@ -619,11 +583,9 @@ TEST_CASE(gru_layout_test)
             "gru",
             *mm,
             {seq, w, r, bias, seq_len, ih},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("tanh"), migraphx::make_op("sigmoid")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
-             {"clip", clip}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)}});
         auto out_hs      = results.at(0);
         auto last_output = results.at(1);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
@@ -662,14 +624,12 @@ TEST_CASE(gru_layout_test)
             "gru",
             *mm,
             {seq, w, r, bias, seq_len, ih},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("tanh"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("relu"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-             {"clip", clip}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)}});
         auto out_hs      = results.at(0);
         auto last_output = results.at(1);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
@@ -689,7 +649,6 @@ TEST_CASE(gru_test_args)
     std::size_t hs = 20; // hidden size
     std::size_t is = 10; // input size
     std::size_t nd = 2;  // num directions
-    float clip     = 0.0f;
 
     // 3 arguments
     {
@@ -708,11 +667,9 @@ TEST_CASE(gru_test_args)
             "gru",
             *mm,
             {seq, w, r, und, und, und},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("tanh"), migraphx::make_op("sigmoid")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-             {"clip", clip}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         auto prog = read_rnn_onnx("onnx_gru_3arg.onnx");
 
         EXPECT(p == prog);
@@ -738,11 +695,9 @@ TEST_CASE(gru_test_args)
             "gru",
             *mm,
             {seq, w, r, bias, und, und},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("relu"), migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
-             {"clip", clip}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)}});
         auto prog = read_rnn_onnx("onnx_gru_4arg.onnx");
 
         EXPECT(p == prog);
@@ -770,14 +725,12 @@ TEST_CASE(gru_test_args)
             "gru",
             *mm,
             {seq, w, r, bias, seq_len, und},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("tanh"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("relu"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-             {"clip", clip}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)}});
         auto prog = read_rnn_onnx("onnx_gru_5arg.onnx");
 
         EXPECT(p == prog);
@@ -791,7 +744,6 @@ TEST_CASE(gru_test_args_layout)
     std::size_t hs = 20; // hidden size
     std::size_t is = 10; // input size
     std::size_t nd = 2;  // num directions
-    float clip     = 0.0f;
 
     // 3 arguments
     {
@@ -814,11 +766,9 @@ TEST_CASE(gru_test_args_layout)
             "gru",
             *mm,
             {seq, w, r, und, und, und},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("tanh"), migraphx::make_op("sigmoid")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-             {"clip", clip}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         auto out_hs      = results.at(0);
         auto last_output = results.at(1);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
@@ -853,11 +803,9 @@ TEST_CASE(gru_test_args_layout)
             "gru",
             *mm,
             {seq, w, r, bias, und, und},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("relu"), migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
-             {"clip", clip},
              {"linear_before_reset", 1}});
         auto out_hs      = results.at(0);
         auto last_output = results.at(1);
@@ -895,14 +843,12 @@ TEST_CASE(gru_test_args_layout)
             "gru",
             *mm,
             {seq, w, r, bias, seq_len, und},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("tanh"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("relu"),
                                   migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-             {"clip", clip},
              {"linear_before_reset", 1}});
         auto out_hs      = results.at(0);
         auto last_output = results.at(1);
@@ -923,7 +869,6 @@ TEST_CASE(gru_test_actv_funcs)
     std::size_t hs = 20; // hidden size
     std::size_t is = 10; // input size
     std::size_t nd = 2;  // num directions
-    float clip     = 0.0f;
     // bidirection, 0 actv function
     {
         nd = 2;
@@ -947,14 +892,12 @@ TEST_CASE(gru_test_actv_funcs)
             "gru",
             *mm,
             {seq, w, r, bias, seq_len, ih},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-             {"clip", clip}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)}});
         auto prog = read_rnn_onnx("onnx_gru_bi_0.onnx");
 
         EXPECT(p == prog);
@@ -983,14 +926,12 @@ TEST_CASE(gru_test_actv_funcs)
             "gru",
             *mm,
             {seq, w, r, bias, seq_len, ih},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("sigmoid")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-             {"clip", clip}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)}});
         auto prog = read_rnn_onnx("onnx_gru_bi_1.onnx");
 
         EXPECT(p == prog);
@@ -1019,14 +960,12 @@ TEST_CASE(gru_test_actv_funcs)
             "gru",
             *mm,
             {seq, w, r, bias, seq_len, ih},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-             {"clip", clip}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)}});
         auto prog = read_rnn_onnx("onnx_gru_bi_2.onnx");
 
         EXPECT(p == prog);
@@ -1055,11 +994,9 @@ TEST_CASE(gru_test_actv_funcs)
             "gru",
             *mm,
             {seq, w, r, bias, seq_len, ih},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"), migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-             {"clip", clip}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         auto prog = read_rnn_onnx("onnx_gru_forward_0.onnx");
 
         EXPECT(p == prog);
@@ -1088,11 +1025,9 @@ TEST_CASE(gru_test_actv_funcs)
             "gru",
             *mm,
             {seq, w, r, bias, seq_len, ih},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("relu"), migraphx::make_op("relu")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
-             {"clip", clip}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)}});
         auto prog = read_rnn_onnx("onnx_gru_reverse_1.onnx");
 
         EXPECT(p == prog);
@@ -1111,8 +1046,6 @@ TEST_CASE(lstm_forward)
     std::size_t hs   = 20; // hidden size
     std::size_t is   = 10; // input size
     std::size_t nd   = 1;  // num directions
-    float clip       = 0.0f;
-    int input_forget = 1;
     migraphx::shape seq_shape{migraphx::shape::float_type, {sl, bs, is}};
     migraphx::shape w_shape{migraphx::shape::float_type, {nd, 4 * hs, is}};
     migraphx::shape r_shape{migraphx::shape::float_type, {nd, 4 * hs, hs}};
@@ -1136,14 +1069,11 @@ TEST_CASE(lstm_forward)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, ih, ic, pph},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-             {"clip", clip},
-             {"input_forget", input_forget}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         auto prog = read_rnn_onnx("onnx_lstm_forward.onnx");
 
         EXPECT(p == prog);
@@ -1162,14 +1092,11 @@ TEST_CASE(lstm_forward)
             "lstm",
             *mm,
             {seq, w, r, und, und, und, und, und},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-             {"clip", clip},
-             {"input_forget", input_forget}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         auto prog = read_rnn_onnx("onnx_lstm_f3args.onnx");
 
         EXPECT(p == prog);
@@ -1188,14 +1115,11 @@ TEST_CASE(lstm_forward)
             "lstm",
             *mm,
             {seq, w, r, und, und, und, und, und},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-             {"clip", clip},
-             {"input_forget", input_forget}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         auto prog = read_rnn_onnx("onnx_lstm_hs.onnx");
 
         EXPECT(p == prog);
@@ -1214,14 +1138,11 @@ TEST_CASE(lstm_forward)
             "lstm",
             *mm,
             {seq, w, r, und, und, und, und, und},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-             {"clip", clip},
-             {"input_forget", input_forget}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         auto prog = read_rnn_onnx("onnx_lstm_last.onnx");
 
         EXPECT(p == prog);
@@ -1240,14 +1161,11 @@ TEST_CASE(lstm_forward)
             "lstm",
             *mm,
             {seq, w, r, und, und, und, und, und},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-             {"clip", clip},
-             {"input_forget", input_forget}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         auto prog = read_rnn_onnx("onnx_lstm_cell.onnx");
 
         EXPECT(p == prog);
@@ -1267,14 +1185,11 @@ TEST_CASE(lstm_forward)
             "lstm",
             *mm,
             {seq, w, r, bias, und, und, und, und},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-             {"clip", clip},
-             {"input_forget", input_forget}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         auto prog = read_rnn_onnx("onnx_lstm_f4args.onnx");
 
         EXPECT(p == prog);
@@ -1295,14 +1210,11 @@ TEST_CASE(lstm_forward)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, und, und, und},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-             {"clip", clip},
-             {"input_forget", input_forget}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         auto prog = read_rnn_onnx("onnx_lstm_f5args.onnx");
 
         EXPECT(p == prog);
@@ -1324,14 +1236,11 @@ TEST_CASE(lstm_forward)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, ih, und, und},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-             {"clip", clip},
-             {"input_forget", input_forget}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         auto prog = read_rnn_onnx("onnx_lstm_f6args.onnx");
 
         EXPECT(p == prog);
@@ -1354,14 +1263,11 @@ TEST_CASE(lstm_forward)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, ih, ic, und},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-             {"clip", clip},
-             {"input_forget", input_forget}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         auto prog = read_rnn_onnx("onnx_lstm_f7args.onnx");
 
         EXPECT(p == prog);
@@ -1375,8 +1281,6 @@ TEST_CASE(lstm_forward_layout)
     std::size_t hs   = 20; // hidden size
     std::size_t is   = 10; // input size
     std::size_t nd   = 1;  // num directions
-    float clip       = 0.0f;
-    int input_forget = 1;
     migraphx::shape seq_shape{migraphx::shape::float_type, {bs, sl, is}};
     migraphx::shape w_shape{migraphx::shape::float_type, {nd, 4 * hs, is}};
     migraphx::shape r_shape{migraphx::shape::float_type, {nd, 4 * hs, hs}};
@@ -1407,14 +1311,11 @@ TEST_CASE(lstm_forward_layout)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, ih, ic, pph},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-             {"clip", clip},
-             {"input_forget", input_forget}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         auto out_hs      = results.at(0);
         auto last_output = results.at(1);
         auto last_cell   = results.at(2);
@@ -1450,14 +1351,11 @@ TEST_CASE(lstm_forward_layout)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, ih, ic, pph},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-             {"clip", clip},
-             {"input_forget", input_forget}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         auto out_hs      = results.at(0);
         auto last_output = results.at(1);
         auto last_cell   = results.at(2);
@@ -1480,8 +1378,6 @@ TEST_CASE(lstm_forward_actv_func)
     std::size_t hs   = 20; // hidden size
     std::size_t is   = 10; // input size
     std::size_t nd   = 1;  // num directions
-    float clip       = 0.0f;
-    int input_forget = 1;
     migraphx::shape seq_shape{migraphx::shape::float_type, {sl, bs, is}};
     migraphx::shape w_shape{migraphx::shape::float_type, {nd, 4 * hs, is}};
     migraphx::shape r_shape{migraphx::shape::float_type, {nd, 4 * hs, hs}};
@@ -1501,14 +1397,11 @@ TEST_CASE(lstm_forward_actv_func)
             "lstm",
             *mm,
             {seq, w, r, und, und, und, und, und},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-             {"clip", clip},
-             {"input_forget", input_forget}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         auto prog = read_rnn_onnx("onnx_lstm_f0af.onnx");
 
         EXPECT(p == prog);
@@ -1528,14 +1421,11 @@ TEST_CASE(lstm_forward_actv_func)
             "lstm",
             *mm,
             {seq, w, r, bias, und, und, und, und},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("sigmoid")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-             {"clip", clip},
-             {"input_forget", input_forget}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         auto prog = read_rnn_onnx("onnx_lstm_f1af.onnx");
 
         EXPECT(p == prog);
@@ -1556,14 +1446,11 @@ TEST_CASE(lstm_forward_actv_func)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, und, und, und},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("tanh"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("sigmoid")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-             {"clip", clip},
-             {"input_forget", input_forget}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         auto prog = read_rnn_onnx("onnx_lstm_f2af.onnx");
 
         EXPECT(p == prog);
@@ -1577,8 +1464,6 @@ TEST_CASE(lstm_reverse)
     std::size_t hs   = 20; // hidden size
     std::size_t is   = 10; // input size
     std::size_t nd   = 1;  // num directions
-    float clip       = 0.0f;
-    int input_forget = 1;
     migraphx::shape seq_shape{migraphx::shape::float_type, {sl, bs, is}};
     migraphx::shape w_shape{migraphx::shape::float_type, {nd, 4 * hs, is}};
     migraphx::shape r_shape{migraphx::shape::float_type, {nd, 4 * hs, hs}};
@@ -1602,14 +1487,11 @@ TEST_CASE(lstm_reverse)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, ih, ic, pph},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
-             {"clip", clip},
-             {"input_forget", input_forget}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)}});
         auto prog = read_rnn_onnx("onnx_lstm_reverse.onnx");
 
         EXPECT(p == prog);
@@ -1630,14 +1512,11 @@ TEST_CASE(lstm_reverse)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, und, und, und},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
-             {"clip", clip},
-             {"input_forget", input_forget}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)}});
         auto prog = read_rnn_onnx("onnx_lstm_r5args.onnx");
 
         EXPECT(p == prog);
@@ -1656,14 +1535,11 @@ TEST_CASE(lstm_reverse)
             "lstm",
             *mm,
             {seq, w, r, und, und, und, und, und},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
-             {"clip", clip},
-             {"input_forget", input_forget}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)}});
         auto prog = read_rnn_onnx("onnx_lstm_r0af.onnx");
 
         EXPECT(p == prog);
@@ -1677,8 +1553,6 @@ TEST_CASE(lstm_reverse_layout)
     std::size_t hs   = 20; // hidden size
     std::size_t is   = 10; // input size
     std::size_t nd   = 1;  // num directions
-    float clip       = 0.0f;
-    int input_forget = 1;
     migraphx::shape seq_shape{migraphx::shape::float_type, {bs, sl, is}};
     migraphx::shape w_shape{migraphx::shape::float_type, {nd, 4 * hs, is}};
     migraphx::shape r_shape{migraphx::shape::float_type, {nd, 4 * hs, hs}};
@@ -1709,14 +1583,11 @@ TEST_CASE(lstm_reverse_layout)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, ih, ic, pph},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
-             {"clip", clip},
-             {"input_forget", input_forget}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)}});
         auto out_hs      = results.at(0);
         auto last_output = results.at(1);
         auto last_cell   = results.at(2);
@@ -1752,14 +1623,11 @@ TEST_CASE(lstm_reverse_layout)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, ih, ic, pph},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
-             {"clip", clip},
-             {"input_forget", input_forget}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)}});
         auto out_hs      = results.at(0);
         auto last_output = results.at(1);
         auto last_cell   = results.at(2);
@@ -1783,8 +1651,6 @@ TEST_CASE(lstm_bidirectional)
     std::size_t hs   = 20; // hidden size
     std::size_t is   = 10; // input size
     std::size_t nd   = 2;  // num directions
-    float clip       = 0.0f;
-    int input_forget = 1;
     migraphx::shape seq_shape{migraphx::shape::float_type, {sl, bs, is}};
     migraphx::shape w_shape{migraphx::shape::float_type, {nd, 4 * hs, is}};
     migraphx::shape r_shape{migraphx::shape::float_type, {nd, 4 * hs, hs}};
@@ -1808,17 +1674,14 @@ TEST_CASE(lstm_bidirectional)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, ih, ic, pph},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-             {"clip", clip},
-             {"input_forget", input_forget}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)}});
         auto prog = read_rnn_onnx("onnx_lstm_bi.onnx");
 
         EXPECT(p == prog);
@@ -1837,17 +1700,14 @@ TEST_CASE(lstm_bidirectional)
             "lstm",
             *mm,
             {seq, w, r, und, und, und, und, und},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-             {"clip", clip},
-             {"input_forget", input_forget}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)}});
         auto prog = read_rnn_onnx("onnx_lstm_bi3args.onnx");
 
         EXPECT(p == prog);
@@ -1867,17 +1727,14 @@ TEST_CASE(lstm_bidirectional)
             "lstm",
             *mm,
             {seq, w, r, bias, und, und, und, und},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-             {"clip", clip},
-             {"input_forget", input_forget}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)}});
         auto prog = read_rnn_onnx("onnx_lstm_bi4args.onnx");
 
         EXPECT(p == prog);
@@ -1898,17 +1755,14 @@ TEST_CASE(lstm_bidirectional)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, und, und, und},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-             {"clip", clip},
-             {"input_forget", input_forget}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)}});
         auto prog = read_rnn_onnx("onnx_lstm_bi5args.onnx");
 
         EXPECT(p == prog);
@@ -1930,17 +1784,14 @@ TEST_CASE(lstm_bidirectional)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, ih, und, und},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-             {"clip", clip},
-             {"input_forget", input_forget}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)}});
         auto prog = read_rnn_onnx("onnx_lstm_bi6args.onnx");
 
         EXPECT(p == prog);
@@ -1963,17 +1814,14 @@ TEST_CASE(lstm_bidirectional)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, ih, ic, und},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-             {"clip", clip},
-             {"input_forget", input_forget}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)}});
         auto prog = read_rnn_onnx("onnx_lstm_bi7args.onnx");
 
         EXPECT(p == prog);
@@ -1987,8 +1835,6 @@ TEST_CASE(lstm_bidirectional_layout)
     std::size_t hs   = 20; // hidden size
     std::size_t is   = 10; // input size
     std::size_t nd   = 2;  // num directions
-    float clip       = 0.0f;
-    int input_forget = 1;
     migraphx::shape seq_shape{migraphx::shape::float_type, {bs, sl, is}};
     migraphx::shape w_shape{migraphx::shape::float_type, {nd, 4 * hs, is}};
     migraphx::shape r_shape{migraphx::shape::float_type, {nd, 4 * hs, hs}};
@@ -2018,17 +1864,14 @@ TEST_CASE(lstm_bidirectional_layout)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, ih, ic, pph},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-             {"clip", clip},
-             {"input_forget", input_forget}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)}});
         auto out_hs      = results.at(0);
         auto last_output = results.at(1);
         auto last_cell   = results.at(2);
@@ -2062,17 +1905,14 @@ TEST_CASE(lstm_bidirectional_layout)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, ih, ic, pph},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-             {"clip", clip},
-             {"input_forget", input_forget}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)}});
         auto out_hs      = results.at(0);
         auto last_output = results.at(1);
         auto last_cell   = results.at(2);
@@ -2094,8 +1934,6 @@ TEST_CASE(lstm_bi_actv_funcs)
     std::size_t hs   = 20; // hidden size
     std::size_t is   = 10; // input size
     std::size_t nd   = 2;  // num directions
-    float clip       = 0.0f;
-    int input_forget = 1;
     migraphx::shape seq_shape{migraphx::shape::float_type, {sl, bs, is}};
     migraphx::shape w_shape{migraphx::shape::float_type, {nd, 4 * hs, is}};
     migraphx::shape r_shape{migraphx::shape::float_type, {nd, 4 * hs, hs}};
@@ -2117,17 +1955,14 @@ TEST_CASE(lstm_bi_actv_funcs)
             "lstm",
             *mm,
             {seq, w, r, und, und, und, und, und},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-             {"clip", clip},
-             {"input_forget", input_forget}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)}});
         auto prog = read_rnn_onnx("onnx_lstm_bi0af.onnx");
 
         EXPECT(p == prog);
@@ -2147,17 +1982,14 @@ TEST_CASE(lstm_bi_actv_funcs)
             "lstm",
             *mm,
             {seq, w, r, bias, und, und, und, und},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("sigmoid")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-             {"clip", clip},
-             {"input_forget", input_forget}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)}});
         auto prog = read_rnn_onnx("onnx_lstm_bi1af.onnx");
 
         EXPECT(p == prog);
@@ -2178,17 +2010,14 @@ TEST_CASE(lstm_bi_actv_funcs)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, und, und, und},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-             {"clip", clip},
-             {"input_forget", input_forget}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)}});
         auto prog = read_rnn_onnx("onnx_lstm_bi2af.onnx");
 
         EXPECT(p == prog);
@@ -2210,17 +2039,14 @@ TEST_CASE(lstm_bi_actv_funcs)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, ih, und, und},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-             {"clip", clip},
-             {"input_forget", input_forget}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)}});
         auto prog = read_rnn_onnx("onnx_lstm_bi3af.onnx");
 
         EXPECT(p == prog);
@@ -2243,17 +2069,14 @@ TEST_CASE(lstm_bi_actv_funcs)
             "lstm",
             *mm,
             {seq, w, r, bias, seq_len, ih, ic, und},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("tanh"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-             {"clip", clip},
-             {"input_forget", input_forget}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)}});
         auto prog = read_rnn_onnx("onnx_lstm_bi4af.onnx");
 
         EXPECT(p == prog);
@@ -2272,17 +2095,14 @@ TEST_CASE(lstm_bi_actv_funcs)
             "lstm",
             *mm,
             {seq, w, r, und, und, und, und, und},
-            {{"hidden_size", hs},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-             {"clip", clip},
-             {"input_forget", input_forget}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)}});
         auto prog = read_rnn_onnx("onnx_lstm_bi5af.onnx");
 
         EXPECT(p == prog);

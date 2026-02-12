@@ -57,10 +57,8 @@ TEST_CASE(rnn_builder_returns_two_outputs)
         "rnn",
         m,
         {seq, w, r, bias, und, ih},
-        {{"hidden_size", hidden_size},
-         {"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
-         {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-         {"clip", 0.0f}});
+         {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
+         {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
 
     EXPECT(results.size() == 2);
     // hidden_states: [seq_len, num_directions, batch_size, hidden_size]
@@ -104,10 +102,8 @@ TEST_CASE(rnn_builder_bidirectional_outputs)
         "rnn",
         m,
         {seq, w, r, bias, und, ih},
-        {{"hidden_size", hidden_size},
-         {"actv_func", migraphx::to_value({migraphx::make_op("tanh"), migraphx::make_op("tanh")})},
-         {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-         {"clip", 0.0f}});
+         {{"actv_func", migraphx::to_value({migraphx::make_op("tanh"), migraphx::make_op("tanh")})},
+         {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)}});
 
     EXPECT(results.size() == 2);
     auto hs_shape = results.at(0)->get_shape();
@@ -144,10 +140,8 @@ TEST_CASE(rnn_builder_3args)
         "rnn",
         m,
         {seq, w, r, und, und, und},
-        {{"hidden_size", hidden_size},
-         {"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
-         {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-         {"clip", 0.0f}});
+         {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
+         {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
 
     EXPECT(results.size() == 2);
     auto hs_shape = results.at(0)->get_shape();
@@ -184,10 +178,8 @@ TEST_CASE(rnn_builder_numerical_forward)
         "rnn",
         *mm,
         {seq, w, r, bias, und, ih},
-        {{"hidden_size", hidden_size},
-         {"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
-         {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-         {"clip", 0.0f}});
+         {{"actv_func", migraphx::to_value({migraphx::make_op("tanh")})},
+         {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
     mm->add_return({results.at(0), results.at(1)});
 
     p.compile(migraphx::make_target("ref"));

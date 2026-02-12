@@ -57,11 +57,9 @@ TEST_CASE(gru_builder_returns_two_outputs)
         "gru",
         m,
         {seq, w, r, bias, und, ih},
-        {{"hidden_size", hidden_size},
-         {"actv_func",
+         {{"actv_func",
           migraphx::to_value({migraphx::make_op("sigmoid"), migraphx::make_op("tanh")})},
          {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-         {"clip", 0.0f},
          {"linear_before_reset", 0}});
 
     EXPECT(results.size() == 2);
@@ -107,14 +105,12 @@ TEST_CASE(gru_builder_bidirectional_outputs)
         "gru",
         m,
         {seq, w, r, bias, und, ih},
-        {{"hidden_size", hidden_size},
-         {"actv_func",
+         {{"actv_func",
           migraphx::to_value({migraphx::make_op("sigmoid"),
                               migraphx::make_op("tanh"),
                               migraphx::make_op("sigmoid"),
                               migraphx::make_op("tanh")})},
          {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-         {"clip", 0.0f},
          {"linear_before_reset", 0}});
 
     EXPECT(results.size() == 2);
@@ -152,11 +148,9 @@ TEST_CASE(gru_builder_linear_before_reset)
         "gru",
         m,
         {seq, w, r, bias, und, ih},
-        {{"hidden_size", hidden_size},
-         {"actv_func",
+         {{"actv_func",
           migraphx::to_value({migraphx::make_op("sigmoid"), migraphx::make_op("tanh")})},
          {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-         {"clip", 0.0f},
          {"linear_before_reset", 1}});
 
     EXPECT(results.size() == 2);
@@ -194,11 +188,9 @@ TEST_CASE(gru_builder_numerical_forward)
         "gru",
         *mm,
         {seq, w, r, bias, und, ih},
-        {{"hidden_size", hidden_size},
-         {"actv_func",
+         {{"actv_func",
           migraphx::to_value({migraphx::make_op("sigmoid"), migraphx::make_op("tanh")})},
          {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-         {"clip", 0.0f},
          {"linear_before_reset", 0}});
     mm->add_return({results.at(0), results.at(1)});
 

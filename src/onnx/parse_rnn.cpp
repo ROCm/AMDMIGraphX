@@ -165,10 +165,8 @@ struct parse_rnn : op_parser<parse_rnn>
         auto results       = op::builder::add("rnn",
                                         *info.mod,
                                         args,
-                                              {{"hidden_size", hidden_size},
-                                               {"actv_func", to_value(vec_actv_funcs)},
-                                               {"direction", dirct},
-                                               {"clip", clip}});
+                                              {{"actv_func", to_value(vec_actv_funcs)},
+                                               {"direction", dirct}});
         auto hidden_states = results.at(0);
         auto last_output   = results.at(1);
 

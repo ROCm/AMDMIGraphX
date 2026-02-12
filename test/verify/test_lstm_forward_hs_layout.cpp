@@ -41,7 +41,6 @@ struct test_lstm_forward_hs_layout : verify_program<test_lstm_forward_hs_layout>
         std::size_t hidden_size = 5;
         std::size_t input_size  = 8;
         std::size_t num_dirct   = 1;
-        float clip              = 0.0f;
 
         migraphx::program p;
         auto* mm = p.get_main_module();
@@ -73,13 +72,11 @@ struct test_lstm_forward_hs_layout : verify_program<test_lstm_forward_hs_layout>
             "lstm",
             *mm,
             {seq, w, r, bias, und, ih, ic, pph},
-            {{"hidden_size", hidden_size},
-             {"actv_func",
+             {{"actv_func",
               migraphx::to_value({migraphx::make_op("sigmoid"),
                                   migraphx::make_op("tanh"),
                                   migraphx::make_op("tanh")})},
-             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-             {"clip", clip}});
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}),
                             results.at(0));

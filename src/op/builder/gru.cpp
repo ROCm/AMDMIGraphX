@@ -236,19 +236,15 @@ struct gru_builder : op_builder<gru_builder>
 {
     static std::vector<std::string> names() { return {"gru"}; }
 
-    std::size_t hidden_size = 1;
     std::vector<operation> actv_funcs{};
     op::rnn_direction direction = op::rnn_direction::forward;
-    float clip                  = 0.0f;
     int linear_before_reset     = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.hidden_size, "hidden_size"),
-                    f(self.actv_funcs, "actv_func"),
+        return pack(f(self.actv_funcs, "actv_func"),
                     f(self.direction, "direction"),
-                    f(self.clip, "clip"),
                     f(self.linear_before_reset, "linear_before_reset"));
     }
 

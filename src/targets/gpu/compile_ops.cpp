@@ -92,7 +92,13 @@ struct dynamic_code_object_op
 {
     operation pre_op = precompile_op{};
 
-    std::shared_ptr<dynamic_op_cache> cache = std::make_shared<dynamic_op_cache>();
+    // This implementation currently caches for each dynamic_code_object_op instance
+    // It will be updated to store compiled code objects for all encountered shapes
+    //  in a way that can be used by all dynamic_code_object_op instances
+    using cache_map_type = std::unordered_map<const dynamic_code_object_op*, dynamic_op_cache>;
+    std::shared_ptr<cache_map_type> cache_map = std::make_shared<cache_map_type>();
+
+    dynamic_op_cache& get_cache() const { return (*cache_map)[this]; }
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -134,10 +140,11 @@ struct dynamic_code_object_op
         auto static_args = std::vector<argument>{args.begin(), args.end()};
         auto output_arg  = static_args.back();
 
-        if(cache->mod.size() > 0 and cache->input_shapes == to_shapes(args))
+        auto& cache = get_cache();
+        if(cache.mod.size() > 0 and cache.input_shapes == to_shapes(args))
         {
-            static_args[static_args.size() - 1] = output_arg.reshape(cache->output_shape);
-            auto* mod                           = &cache->mod;
+            static_args[static_args.size() - 1] = output_arg.reshape(cache.output_shape);
+            auto* mod                           = &cache.mod;
             auto param_map                      = build_param_map(static_args, mod);
             auto results                        = run(mod, param_map);
             if(results.size() > 1)
@@ -211,9 +218,9 @@ struct dynamic_code_object_op
 
         // Update cache
         // TODO: This will be updated to store compiled code objects for all encountered shapes
-        cache->mod          = runtime_mod;
-        cache->input_shapes = to_shapes(args);
-        cache->output_shape = static_args.back().get_shape();
+        cache.mod          = runtime_mod;
+        cache.input_shapes = to_shapes(args);
+        cache.output_shape = static_args.back().get_shape();
 
         // Build param_map based on ACTUAL parameters that exist
         module_ref runtime_mod_ref = &runtime_mod;

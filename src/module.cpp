@@ -435,6 +435,61 @@ instruction_ref module::move_instructions(instruction_ref src, instruction_ref d
     return src;
 }
 
+void module::move_output_instructions_after(instruction_ref src, instruction_ref dst)
+{
+    auto d = std::distance(src, dst);
+    std::vector<std::pair<std::size_t, instruction_ref>> instructions;
+    // When an output is in a submodule (cross-module reference), resolve it to
+    // the instruction in this module that owns the submodule containing the output.
+    // The map is lazily built on the first cross-module output encountered.
+    std::optional<std::unordered_map<const_module_ref, instruction_ref>> mod_owner_map;
+    auto resolve_output = [&](instruction_ref output) -> instruction_ref {
+        if(this->has_instruction(output))
+            return output;
+        if(not mod_owner_map)
+        {
+            mod_owner_map.emplace();
+            auto r = range(std::next(src), dst);
+            for(auto ins : iterator_for(r))
+            {
+                for(auto* mod : ins->module_inputs())
+                {
+                    (*mod_owner_map)[mod] = ins;
+                    for(auto* smod : mod->get_sub_modules())
+                        (*mod_owner_map)[smod] = ins;
+                }
+            }
+        }
+        auto it = std::find_if(mod_owner_map->begin(), mod_owner_map->end(), [&](const auto& p) {
+            return p.first->has_instruction(output);
+        });
+        if(it != mod_owner_map->end())
+            return it->second;
+        return this->end();
+    };
+    fix([&](auto self, instruction_ref ins) {
+        for(auto output : ins->outputs())
+        {
+            output = resolve_output(output);
+            if(is_end(output, this->end()))
+                continue;
+            if(any_of(instructions, [&](const auto& p) { return p.second == output; }))
+                continue;
+            auto i = std::distance(src, output);
+            if(i >= d)
+                continue;
+            instructions.emplace_back(i, output);
+            self(output);
+        }
+    })(src);
+    std::sort(instructions.begin(), instructions.end(), by(std::less<>{}, [](auto&& p) {
+                  return p.first;
+              }));
+    auto loc = std::next(dst);
+    for(auto [i, ins] : instructions)
+        this->move_instruction(ins, loc);
+}
+
 std::vector<instruction_ref>
 module::add_instructions(const std::vector<instruction_ref>& instructions,
                          std::unordered_map<instruction_ref, instruction_ref>* map_ins,

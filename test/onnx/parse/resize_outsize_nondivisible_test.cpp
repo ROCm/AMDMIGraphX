@@ -42,12 +42,12 @@ TEST_CASE(resize_outsize_nondivisible_test)
 
     mm->add_instruction(migraphx::make_op("undefined"));
 
-    auto r = mm->add_instruction(
-        migraphx::make_op("resize",
-                          {{"sizes", {1, 1, 5, 5}},
-                           {"nearest_mode", "floor"},
-                           {"coordinate_transformation_mode", "asymmetric"}}),
-        inx);
+    auto r =
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"sizes", {1, 1, 5, 5}},
+                                               {"nearest_mode", "floor"},
+                                               {"coordinate_transformation_mode", "asymmetric"}}),
+                            inx);
     mm->add_return({r});
 
     auto prog = read_onnx("resize_outsize_nondivisible_test.onnx");

@@ -31,6 +31,7 @@
 #include <migraphx/transform_view.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/program.hpp>
+#include <migraphx/par.hpp>
 #include <bitset>
 #include <map>
 #include <numeric>

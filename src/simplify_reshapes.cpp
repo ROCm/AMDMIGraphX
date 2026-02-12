@@ -1141,7 +1141,7 @@ struct find_gather
         auto output_dims = gather_ins->get_shape().lens();
         const auto r_in  = data_ins->get_shape().lens().size();
         const auto r_idx = indices_arg.get_shape().lens().size();
-        auto data_shape = data_ins->get_shape().as_standard();
+        auto data_shape    = data_ins->get_shape().as_standard();
         auto indices_shape = indices_arg.get_shape().as_standard();
         assert(axis_index < r_in);
 

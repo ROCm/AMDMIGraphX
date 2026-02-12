@@ -38,7 +38,8 @@ struct test_gather_nhwc : verify_program<test_gather_nhwc>
         std::vector<int> indices = {1};
         auto data                = mm->add_parameter("data", data_shape);
         auto idx_lit             = mm->add_literal(migraphx::literal{indices_shape, indices});
-        auto transpose = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), data);
+        auto transpose           = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), data);
         auto gather =
             mm->add_instruction(migraphx::make_op("gather", {{"axis", 1}}), transpose, idx_lit);
         mm->add_return({gather});

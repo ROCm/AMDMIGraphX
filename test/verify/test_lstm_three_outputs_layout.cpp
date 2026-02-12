@@ -69,10 +69,10 @@ struct test_lstm_three_outputs_layout : verify_program<test_lstm_three_outputs_l
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
              {"clip", clip}});
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
-        auto hs = mm->add_instruction(
-            migraphx::make_op("transpose", {{"permutation", perm_hid}}), results.at(0));
-        auto last_hs = mm->add_instruction(
-            migraphx::make_op("transpose", {{"permutation", perm}}), results.at(1));
+        auto hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}),
+                                      results.at(0));
+        auto last_hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}),
+                                           results.at(1));
         auto last_cell = mm->add_instruction(
             migraphx::make_op("transpose", {{"permutation", perm}}), results.at(2));
         mm->add_return({hs, last_hs, last_cell});

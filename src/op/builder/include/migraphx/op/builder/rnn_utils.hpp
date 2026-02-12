@@ -130,12 +130,11 @@ inline instruction_ref compute_var_sl_last_cell_output(module& m,
                                                        instruction_ref seq_lens,
                                                        op::rnn_direction dirct)
 {
-    auto shifted_co =
-        m.insert_instruction(ins,
-                             make_op("rnn_var_sl_shift_output",
-                                     {{"output_name", "cell_outputs"}, {"direction", dirct}}),
-                             cell_outputs,
-                             seq_lens);
+    auto shifted_co = m.insert_instruction(
+        ins,
+        make_op("rnn_var_sl_shift_output", {{"output_name", "cell_outputs"}, {"direction", dirct}}),
+        cell_outputs,
+        seq_lens);
     auto last_cell = m.insert_instruction(
         ins, make_op("rnn_var_sl_last_output", {{"direction", dirct}}), shifted_co, seq_lens);
     return last_cell;
@@ -147,12 +146,11 @@ inline instruction_ref apply_var_sl_shift_hs(module& m,
                                              instruction_ref seq_lens,
                                              op::rnn_direction dirct)
 {
-    return m.insert_instruction(
-        ins,
-        make_op("rnn_var_sl_shift_output",
-                {{"output_name", "hidden_states"}, {"direction", dirct}}),
-        hidden_states,
-        seq_lens);
+    return m.insert_instruction(ins,
+                                make_op("rnn_var_sl_shift_output",
+                                        {{"output_name", "hidden_states"}, {"direction", dirct}}),
+                                hidden_states,
+                                seq_lens);
 }
 
 } // namespace rnn_utils

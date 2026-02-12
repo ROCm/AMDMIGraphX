@@ -42,8 +42,7 @@ TEST_CASE(lstm_builder_returns_three_outputs)
     migraphx::module m;
     migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
     migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, 4 * hidden_size, input_size}};
-    migraphx::shape r_shape{migraphx::shape::float_type,
-                            {num_dirct, 4 * hidden_size, hidden_size}};
+    migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, 4 * hidden_size, hidden_size}};
     migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 8 * hidden_size}};
     migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
     migraphx::shape ic_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
@@ -103,8 +102,7 @@ TEST_CASE(lstm_builder_bidirectional_outputs)
     migraphx::module m;
     migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
     migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, 4 * hidden_size, input_size}};
-    migraphx::shape r_shape{migraphx::shape::float_type,
-                            {num_dirct, 4 * hidden_size, hidden_size}};
+    migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, 4 * hidden_size, hidden_size}};
     migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 8 * hidden_size}};
     migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
     migraphx::shape ic_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
@@ -154,8 +152,7 @@ TEST_CASE(lstm_builder_numerical_forward)
     auto* mm = p.get_main_module();
     migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
     migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, 4 * hidden_size, input_size}};
-    migraphx::shape r_shape{migraphx::shape::float_type,
-                            {num_dirct, 4 * hidden_size, hidden_size}};
+    migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, 4 * hidden_size, hidden_size}};
     migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 8 * hidden_size}};
     migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
     migraphx::shape ic_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
@@ -207,4 +204,3 @@ TEST_CASE(lstm_builder_numerical_forward)
     EXPECT(hs_result.get_shape().lens()[2] == batch_size);
     EXPECT(hs_result.get_shape().lens()[3] == hidden_size);
 }
-

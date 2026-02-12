@@ -128,8 +128,8 @@ static std::vector<instruction_ref> vanilla_rnn_cell(bool is_forward,
     return {hidden_out, last_out};
 }
 
-static std::vector<operation> get_vanilla_rnn_actv_funcs(
-    const std::vector<operation>& actv_funcs, op::rnn_direction direction)
+static std::vector<operation> get_vanilla_rnn_actv_funcs(const std::vector<operation>& actv_funcs,
+                                                         op::rnn_direction direction)
 {
     if(direction == op::rnn_direction::bidirectional)
     {
@@ -173,10 +173,10 @@ struct rnn_builder : op_builder<rnn_builder>
     {
         auto resolved_actv = get_vanilla_rnn_actv_funcs(actv_funcs, direction);
 
-        shape seq_shape         = args[0]->get_shape();
-        std::size_t hs          = args[1]->get_shape().lens()[1];
-        std::size_t batch_size  = seq_shape.lens()[1];
-        shape::type_t type      = seq_shape.type();
+        shape seq_shape        = args[0]->get_shape();
+        std::size_t hs         = args[1]->get_shape().lens()[1];
+        std::size_t batch_size = seq_shape.lens()[1];
+        shape::type_t type     = seq_shape.type();
         migraphx::shape ih_shape{type, {1, batch_size, hs}};
         std::vector<float> data(ih_shape.elements(), 0);
 
@@ -196,23 +196,15 @@ struct rnn_builder : op_builder<rnn_builder>
         {
             // input weight matrix
             auto w_forward = m.insert_instruction(
-                ins,
-                make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}),
-                args[1]);
+                ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), args[1]);
             auto w_reverse = m.insert_instruction(
-                ins,
-                make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}),
-                args[1]);
+                ins, make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), args[1]);
 
             // hidden state weight matrix
             auto r_forward = m.insert_instruction(
-                ins,
-                make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}),
-                args[2]);
+                ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), args[2]);
             auto r_reverse = m.insert_instruction(
-                ins,
-                make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}),
-                args[2]);
+                ins, make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), args[2]);
 
             // process bias
             instruction_ref bias_forward = m.end();
@@ -319,18 +311,12 @@ struct rnn_builder : op_builder<rnn_builder>
             }
 
             auto ret = vanilla_rnn_cell(
-                is_forward,
-                m,
-                ins,
-                {local_args[0], w, r, bias, seq_lens, ih},
-                resolved_actv.at(0));
-            last_output =
-                m.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), ret[1]);
+                is_forward, m, ins, {local_args[0], w, r, bias, seq_lens, ih}, resolved_actv.at(0));
+            last_output = m.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), ret[1]);
 
             if(ret[0] == m.end())
             {
-                hidden_states =
-                    m.insert_instruction(ins, make_op("concat", {{"axis", 0}}), ret[1]);
+                hidden_states = m.insert_instruction(ins, make_op("concat", {{"axis", 0}}), ret[1]);
             }
             else
             {
@@ -342,19 +328,18 @@ struct rnn_builder : op_builder<rnn_builder>
         }
 
         // pad hidden states if needed
-        hidden_states =
-            rnn_utils::pad_hidden_states(m, ins, args[0], seq_lens, hidden_states);
+        hidden_states = rnn_utils::pad_hidden_states(m, ins, args[0], seq_lens, hidden_states);
 
         // handle variable sequence lengths for last output
         if(variable_seq_len)
         {
             hidden_states =
                 rnn_utils::apply_var_sl_shift_hs(m, ins, hidden_states, seq_lens, direction);
-            last_output = m.insert_instruction(
-                ins,
-                make_op("rnn_var_sl_last_output", {{"direction", direction}}),
-                hidden_states,
-                seq_lens);
+            last_output =
+                m.insert_instruction(ins,
+                                     make_op("rnn_var_sl_last_output", {{"direction", direction}}),
+                                     hidden_states,
+                                     seq_lens);
         }
 
         return {hidden_states, last_output};

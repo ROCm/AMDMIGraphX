@@ -54,7 +54,7 @@ struct test_rnn_bi_3args_layout : verify_program<test_rnn_bi_3args_layout>
         std::vector<int64_t> perm{1, 0, 2};
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
 
-        auto results     = migraphx::op::builder::add(
+        auto results = migraphx::op::builder::add(
             "rnn",
             *mm,
             {seq, w, r},

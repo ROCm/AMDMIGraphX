@@ -60,7 +60,7 @@ struct test_rnn_bidirectional_layout : verify_program<test_rnn_bidirectional_lay
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
 
-        auto results     = migraphx::op::builder::add(
+        auto results = migraphx::op::builder::add(
             "rnn",
             *mm,
             {seq, w, r, bias, und, ih},

@@ -168,14 +168,14 @@ struct parse_gru : op_parser<parse_gru>
             gru_transpose_inputs(info, args);
         }
 
-        auto results = op::builder::add("gru",
-                                         *info.mod,
-                                         args,
-                                         {{"hidden_size", hidden_size},
-                                          {"actv_func", to_value(vec_actv_funcs)},
-                                          {"direction", dirct},
-                                          {"clip", clip},
-                                          {"linear_before_reset", linear_before_reset}});
+        auto results       = op::builder::add("gru",
+                                        *info.mod,
+                                        args,
+                                              {{"hidden_size", hidden_size},
+                                               {"actv_func", to_value(vec_actv_funcs)},
+                                               {"direction", dirct},
+                                               {"clip", clip},
+                                               {"linear_before_reset", linear_before_reset}});
         auto hidden_states = results.at(0);
         auto last_output   = results.at(1);
 

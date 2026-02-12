@@ -189,14 +189,14 @@ struct parse_lstm : op_parser<parse_lstm>
             lstm_transpose_inputs(info, args);
         }
 
-        auto results = op::builder::add("lstm",
-                                         *info.mod,
-                                         args,
-                                         {{"hidden_size", hidden_size},
-                                          {"actv_func", to_value(vec_actv_funcs)},
-                                          {"direction", dirct},
-                                          {"clip", clip},
-                                          {"input_forget", input_forget}});
+        auto results          = op::builder::add("lstm",
+                                        *info.mod,
+                                        args,
+                                                 {{"hidden_size", hidden_size},
+                                                  {"actv_func", to_value(vec_actv_funcs)},
+                                                  {"direction", dirct},
+                                                  {"clip", clip},
+                                                  {"input_forget", input_forget}});
         auto hidden_states    = results.at(0);
         auto last_output      = results.at(1);
         auto last_cell_output = results.at(2);

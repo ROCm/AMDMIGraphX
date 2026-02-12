@@ -107,8 +107,8 @@ TEST_CASE(rnn_builder_bidirectional_outputs)
         {seq, w, r, bias, und, ih},
         {{"hidden_size", hidden_size},
          {"actv_func",
-          migraphx::to_value(
-              std::vector<migraphx::operation>{migraphx::make_op("tanh"), migraphx::make_op("tanh")})},
+          migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh"),
+                                                              migraphx::make_op("tanh")})},
          {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
          {"clip", 0.0f}});
 
@@ -226,4 +226,3 @@ TEST_CASE(rnn_builder_numerical_forward)
     EXPECT(lho_result.get_shape().lens()[1] == batch_size);
     EXPECT(lho_result.get_shape().lens()[2] == hidden_size);
 }
-

@@ -118,9 +118,7 @@ static std::vector<instruction_ref> lstm_cell(bool is_forward,
             ins, make_op("broadcast", {{"axis", 1}, {"out_lens", ic_lens}}), ppho);
 
         auto pphf = m.insert_instruction(
-            ins,
-            make_op("slice", {{"axes", {0}}, {"starts", {2 * hs}}, {"ends", {3 * hs}}}),
-            spph);
+            ins, make_op("slice", {{"axes", {0}}, {"starts", {2 * hs}}, {"ends", {3 * hs}}}), spph);
         pphf_brcst = m.insert_instruction(
             ins, make_op("broadcast", {{"axis", 1}, {"out_lens", ic_lens}}), pphf);
     }
@@ -147,9 +145,7 @@ static std::vector<instruction_ref> lstm_cell(bool is_forward,
         auto it_before_actv = m.insert_instruction(
             ins, make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {hs}}}), xt_sih);
         auto ot_before_actv = m.insert_instruction(
-            ins,
-            make_op("slice", {{"axes", {1}}, {"starts", {hs}}, {"ends", {2 * hs}}}),
-            xt_sih);
+            ins, make_op("slice", {{"axes", {1}}, {"starts", {hs}}, {"ends", {2 * hs}}}), xt_sih);
         auto ft_before_actv = m.insert_instruction(
             ins,
             make_op("slice", {{"axes", {1}}, {"starts", {2 * hs}}, {"ends", {3 * hs}}}),
@@ -298,7 +294,7 @@ struct lstm_builder : op_builder<lstm_builder>
 {
     static std::vector<std::string> names() { return {"lstm"}; }
 
-    std::size_t hidden_size     = 1;
+    std::size_t hidden_size = 1;
     std::vector<operation> actv_funcs{};
     op::rnn_direction direction = op::rnn_direction::forward;
     float clip                  = 0.0f;
@@ -320,10 +316,10 @@ struct lstm_builder : op_builder<lstm_builder>
     {
         auto resolved_actv = get_lstm_actv_funcs(actv_funcs, direction);
 
-        shape seq_shape         = args[0]->get_shape();
-        std::size_t hs          = args[2]->get_shape().lens()[2];
-        std::size_t batch_size  = seq_shape.lens()[1];
-        shape::type_t type      = seq_shape.type();
+        shape seq_shape        = args[0]->get_shape();
+        std::size_t hs         = args[2]->get_shape().lens()[2];
+        std::size_t batch_size = seq_shape.lens()[1];
+        shape::type_t type     = seq_shape.type();
         migraphx::shape ihc_shape{type, {1, batch_size, hs}};
         std::vector<float> ihc_data(ihc_shape.elements(), 0.0);
 
@@ -345,23 +341,15 @@ struct lstm_builder : op_builder<lstm_builder>
         {
             // input weight matrix
             auto w_forward = m.insert_instruction(
-                ins,
-                make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}),
-                args[1]);
+                ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), args[1]);
             auto w_reverse = m.insert_instruction(
-                ins,
-                make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}),
-                args[1]);
+                ins, make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), args[1]);
 
             // hidden state weight matrix
             auto r_forward = m.insert_instruction(
-                ins,
-                make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}),
-                args[2]);
+                ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), args[2]);
             auto r_reverse = m.insert_instruction(
-                ins,
-                make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}),
-                args[2]);
+                ins, make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), args[2]);
 
             // process bias
             instruction_ref bias_forward = m.end();
@@ -550,16 +538,14 @@ struct lstm_builder : op_builder<lstm_builder>
                                  resolved_actv.at(1),
                                  resolved_actv.at(2));
 
-            last_hs_output =
-                m.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), ret[1]);
+            last_hs_output = m.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), ret[1]);
             last_cell_output =
                 m.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), ret[3]);
 
             if(ret[0] == m.end())
             {
                 cell_outputs  = ret[3];
-                hidden_states = m.insert_instruction(
-                    ins, make_op("concat", {{"axis", 0}}), ret[1]);
+                hidden_states = m.insert_instruction(ins, make_op("concat", {{"axis", 0}}), ret[1]);
             }
             else
             {
@@ -576,22 +562,20 @@ struct lstm_builder : op_builder<lstm_builder>
         }
 
         // pad hidden states if needed
-        hidden_states =
-            rnn_utils::pad_hidden_states(m, ins, args[0], seq_lens, hidden_states);
+        hidden_states = rnn_utils::pad_hidden_states(m, ins, args[0], seq_lens, hidden_states);
 
         // handle variable sequence lengths
         if(variable_seq_len)
         {
             hidden_states =
                 rnn_utils::apply_var_sl_shift_hs(m, ins, hidden_states, seq_lens, direction);
-            last_hs_output = m.insert_instruction(
-                ins,
-                make_op("rnn_var_sl_last_output", {{"direction", direction}}),
-                hidden_states,
-                seq_lens);
-            last_cell_output =
-                rnn_utils::compute_var_sl_last_cell_output(
-                    m, ins, cell_outputs, seq_lens, direction);
+            last_hs_output =
+                m.insert_instruction(ins,
+                                     make_op("rnn_var_sl_last_output", {{"direction", direction}}),
+                                     hidden_states,
+                                     seq_lens);
+            last_cell_output = rnn_utils::compute_var_sl_last_cell_output(
+                m, ins, cell_outputs, seq_lens, direction);
         }
 
         return {hidden_states, last_hs_output, last_cell_output};

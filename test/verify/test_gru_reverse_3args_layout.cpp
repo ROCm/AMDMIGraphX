@@ -68,7 +68,8 @@ struct test_gru_reverse_3args_layout : verify_program<test_gru_reverse_3args_lay
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
              {"clip", clip}});
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
-        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), results.at(0));
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}),
+                            results.at(0));
 
         return p;
     }

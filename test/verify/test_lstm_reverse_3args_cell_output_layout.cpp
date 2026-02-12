@@ -68,8 +68,7 @@ struct test_lstm_reverse_3args_cell_layout : verify_program<test_lstm_reverse_3a
                                                                   migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
              {"clip", clip}});
-        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}),
-                            results.at(2));
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), results.at(2));
 
         return p;
     }

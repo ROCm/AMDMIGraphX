@@ -75,8 +75,10 @@ struct test_gru_forward_layout : verify_program<test_gru_forward_layout>
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
              {"clip", clip}});
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
-        auto hs  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), results.at(0));
-        auto lho = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), results.at(1));
+        auto hs  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}),
+                                      results.at(0));
+        auto lho = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}),
+                                       results.at(1));
         mm->add_return({lho, hs});
 
         return p;

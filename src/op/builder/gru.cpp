@@ -138,16 +138,12 @@ static std::vector<instruction_ref> gru_cell(bool is_forward,
         auto xw_r = m.insert_instruction(
             ins, make_op("slice", {{"axes", {1}}, {"starts", {hs}}, {"ends", {2 * hs}}}), xt_w);
         auto xw_h = m.insert_instruction(
-            ins,
-            make_op("slice", {{"axes", {1}}, {"starts", {2 * hs}}, {"ends", {3 * hs}}}),
-            xt_w);
+            ins, make_op("slice", {{"axes", {1}}, {"starts", {2 * hs}}, {"ends", {3 * hs}}}), xt_w);
 
         auto hr_z = m.insert_instruction(
             ins, make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {hs}}}), ih1_rzr);
         auto hr_r = m.insert_instruction(
-            ins,
-            make_op("slice", {{"axes", {1}}, {"starts", {hs}}, {"ends", {2 * hs}}}),
-            ih1_rzr);
+            ins, make_op("slice", {{"axes", {1}}, {"starts", {hs}}, {"ends", {2 * hs}}}), ih1_rzr);
 
         auto xw_hr_z = m.insert_instruction(ins, make_op("add"), xw_z, hr_z);
         auto zt      = m.insert_instruction(ins, actv_func1, xw_hr_z);
@@ -240,7 +236,7 @@ struct gru_builder : op_builder<gru_builder>
 {
     static std::vector<std::string> names() { return {"gru"}; }
 
-    std::size_t hidden_size     = 1;
+    std::size_t hidden_size = 1;
     std::vector<operation> actv_funcs{};
     op::rnn_direction direction = op::rnn_direction::forward;
     float clip                  = 0.0f;
@@ -262,10 +258,10 @@ struct gru_builder : op_builder<gru_builder>
     {
         auto resolved_actv = get_gru_actv_funcs(actv_funcs, direction);
 
-        shape seq_shape         = args[0]->get_shape();
-        std::size_t hs          = args[2]->get_shape().lens()[2];
-        std::size_t batch_size  = seq_shape.lens()[1];
-        shape::type_t type      = seq_shape.type();
+        shape seq_shape        = args[0]->get_shape();
+        std::size_t hs         = args[2]->get_shape().lens()[2];
+        std::size_t batch_size = seq_shape.lens()[1];
+        shape::type_t type     = seq_shape.type();
         migraphx::shape ih_shape{type, {1, batch_size, hs}};
         std::vector<float> data(ih_shape.elements(), 0.0);
 
@@ -285,23 +281,15 @@ struct gru_builder : op_builder<gru_builder>
         {
             // w weight matrix
             auto w_forward = m.insert_instruction(
-                ins,
-                make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}),
-                args[1]);
+                ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), args[1]);
             auto w_reverse = m.insert_instruction(
-                ins,
-                make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}),
-                args[1]);
+                ins, make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), args[1]);
 
             // r weight matrix
             auto r_forward = m.insert_instruction(
-                ins,
-                make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}),
-                args[2]);
+                ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), args[2]);
             auto r_reverse = m.insert_instruction(
-                ins,
-                make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}),
-                args[2]);
+                ins, make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), args[2]);
 
             // bias
             instruction_ref bias_forward = m.end();
@@ -418,13 +406,11 @@ struct gru_builder : op_builder<gru_builder>
                                 resolved_actv.at(0),
                                 resolved_actv.at(1));
 
-            last_output =
-                m.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), ret[1]);
+            last_output = m.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), ret[1]);
 
             if(ret[0] == m.end())
             {
-                hidden_states =
-                    m.insert_instruction(ins, make_op("concat", {{"axis", 0}}), ret[1]);
+                hidden_states = m.insert_instruction(ins, make_op("concat", {{"axis", 0}}), ret[1]);
             }
             else
             {
@@ -436,19 +422,18 @@ struct gru_builder : op_builder<gru_builder>
         }
 
         // pad hidden states if needed
-        hidden_states =
-            rnn_utils::pad_hidden_states(m, ins, args[0], seq_lens, hidden_states);
+        hidden_states = rnn_utils::pad_hidden_states(m, ins, args[0], seq_lens, hidden_states);
 
         // handle variable sequence lengths for last output
         if(variable_seq_len)
         {
             hidden_states =
                 rnn_utils::apply_var_sl_shift_hs(m, ins, hidden_states, seq_lens, direction);
-            last_output = m.insert_instruction(
-                ins,
-                make_op("rnn_var_sl_last_output", {{"direction", direction}}),
-                hidden_states,
-                seq_lens);
+            last_output =
+                m.insert_instruction(ins,
+                                     make_op("rnn_var_sl_last_output", {{"direction", direction}}),
+                                     hidden_states,
+                                     seq_lens);
         }
 
         return {hidden_states, last_output};

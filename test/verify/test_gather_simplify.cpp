@@ -22,29 +22,25 @@
  * THE SOFTWARE.
  */
 
-#include <onnx_test.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/literal.hpp>
 
-TEST_CASE(clip_test_args_type_mismatch)
+struct test_gather_simplify : verify_program<test_gather_simplify>
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-
-    auto input   = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3, 3}});
-    auto min_val = mm->add_literal(migraphx::literal{
-        migraphx::shape{migraphx::shape::float_type, {1, 3}}, {1.5f, 2.5f, 3.5f}});
-    auto max_val = mm->add_literal(
-        migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {3, 1}}, {2, 3, 4}});
-
-    auto min_bc =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 3}}}), min_val);
-    auto max_bc =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 3}}}), max_val);
-    auto max_converted = mm->add_instruction(
-        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), max_bc);
-
-    auto clip = mm->add_instruction(migraphx::make_op("clip"), input, min_bc, max_converted);
-    mm->add_return({clip});
-
-    auto prog = read_onnx("clip_test_args_type_mismatch.onnx");
-    EXPECT(p.sort() == prog.sort());
-}
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape data_shape{migraphx::shape::float_type, {2, 4}};
+        migraphx::shape indices_shape{migraphx::shape::int32_type, {2, 3}};
+        std::vector<int> indices = {1, 1, 1, 2, 2, 2};
+        auto data                = mm->add_parameter("data", data_shape);
+        auto idx_lit             = mm->add_literal(migraphx::literal{indices_shape, indices});
+        auto gather =
+            mm->add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, idx_lit);
+        mm->add_return({gather});
+        return p;
+    }
+};

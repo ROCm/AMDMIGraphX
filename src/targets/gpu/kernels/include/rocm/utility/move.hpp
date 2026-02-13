@@ -7,7 +7,7 @@
 namespace rocm {
 inline namespace ROCM_INLINE_NS {
 
-template<class T>
+template <class T>
 constexpr remove_reference_t<T>&& move(T&& x) noexcept
 {
     return static_cast<remove_reference_t<T>&&>(x);

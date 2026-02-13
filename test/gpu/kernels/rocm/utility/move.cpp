@@ -71,10 +71,7 @@ TEST_CASE(move_exact_type_int_ref)
     EXPECT(rocm::is_same<decltype(rocm::move(rx)), int&&>{});
 }
 
-TEST_CASE(move_exact_type_int_rvalue)
-{
-    EXPECT(rocm::is_same<decltype(rocm::move(0)), int&&>{});
-}
+TEST_CASE(move_exact_type_int_rvalue) { EXPECT(rocm::is_same<decltype(rocm::move(0)), int&&>{}); }
 
 // ---- const lvalue: move yields const T&& ----
 

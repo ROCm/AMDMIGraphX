@@ -52,10 +52,7 @@ TEST_CASE(forward_rvalue_as_rvalue)
     EXPECT(not is_lvalue(rocm::forward<int>(42)));
 }
 
-TEST_CASE(forward_rvalue_preserves_value)
-{
-    EXPECT(rocm::forward<int>(99) == 99);
-}
+TEST_CASE(forward_rvalue_preserves_value) { EXPECT(rocm::forward<int>(99) == 99); }
 
 // ---- return type checks ----
 
@@ -126,10 +123,7 @@ TEST_CASE(perfect_forwarding_lvalue)
     EXPECT(perfect_forward(x) == 3);
 }
 
-TEST_CASE(perfect_forwarding_rvalue)
-{
-    EXPECT(perfect_forward(8) == 8);
-}
+TEST_CASE(perfect_forwarding_rvalue) { EXPECT(perfect_forward(8) == 8); }
 
 // ---- noexcept ----
 

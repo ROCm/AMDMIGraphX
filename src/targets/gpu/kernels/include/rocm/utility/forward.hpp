@@ -7,13 +7,13 @@
 namespace rocm {
 inline namespace ROCM_INLINE_NS {
 
-template<class T>
+template <class T>
 constexpr T&& forward(remove_reference_t<T>& x) noexcept
 {
     return static_cast<T&&>(x);
 }
 
-template<class T>
+template <class T>
 constexpr T&& forward(remove_reference_t<T>&& x) noexcept
 {
     static_assert(not is_lvalue_reference<T>{}, "can not forward an rvalue as an lvalue");

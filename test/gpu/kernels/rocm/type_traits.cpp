@@ -126,7 +126,7 @@ TEST_CASE(remove_pointer)
     ROCM_TRANSFORM_CHECK(rocm::remove_pointer, (&&)[2], (&&)[2]);
     // Function pointers are stripped
     ROCM_TRANSFORM_CHECK(rocm::remove_pointer, (*)(long), (long));
-    ROCM_TRANSFORM_CHECK(rocm::remove_pointer, (* const)(long), (long));
+    ROCM_TRANSFORM_CHECK(rocm::remove_pointer, (*const)(long), (long));
 }
 
 struct c1

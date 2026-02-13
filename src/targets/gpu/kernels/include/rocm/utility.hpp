@@ -3,7 +3,9 @@
 
 #include <rocm/config.hpp>
 #include <rocm/utility/declval.hpp>
+#include <rocm/utility/forward.hpp>
 #include <rocm/utility/integer_sequence.hpp>
+#include <rocm/utility/move.hpp>
 #include <rocm/utility/swap.hpp>
 
 namespace rocm {

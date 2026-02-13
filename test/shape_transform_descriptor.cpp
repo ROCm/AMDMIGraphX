@@ -1246,5 +1246,121 @@ TEST_CASE(rebase_adjust_axes_many_moved_groups)
                });
     }
 }
+TEST_CASE(generate_shape_transforms_for)
+{
+    EXPECT(generate_for({3}, {1}, {3}) == ops{});
+    EXPECT(generate_for({3}, {0}, {1}) == ops{make_op("multibroadcast", {{"out_lens", {3}}})});
+    EXPECT(generate_for({3}, {3}, {9}) ==
+           ops{
+               make_op("reshape", {{"dims", {3, 3}}}),
+               make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}),
+           });
+
+    EXPECT(generate_for({3, 4, 5, 2}, {2, 0, 0, 1}, {6}) ==
+           ops{
+               make_op("reshape", {{"dims", {3, 1, 1, 2}}}),
+               make_op("multibroadcast", {{"out_lens", {3, 4, 5, 2}}}),
+           });
+    EXPECT(generate_for({3, 2}, {3, 0}, {9}) ==
+           ops{
+               make_op("reshape", {{"dims", {3, 1, 3}}}),
+               make_op("multibroadcast", {{"out_lens", {3, 2, 3}}}),
+               make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {1}}}),
+           });
+
+    EXPECT(generate_for({3, 2}, {2, 1}, {6}) == ops{
+                                                    make_op("reshape", {{"dims", {3, 2}}}),
+                                                });
+
+    EXPECT(generate_for({3, 2}, {1, 3}, {6}) == ops{
+                                                    make_op("reshape", {{"dims", {2, 3}}}),
+                                                    make_op("transpose", {{"permutation", {1, 0}}}),
+                                                });
+
+    EXPECT(generate_for({2, 2, 2, 2, 3}, {0, 2, 0, 1, 0}, {4}) ==
+           ops{
+               make_op("reshape", {{"dims", {1, 2, 1, 2, 1}}}),
+               make_op("multibroadcast", {{"out_lens", {2, 2, 2, 2, 3}}}),
+           });
+
+    EXPECT(generate_for({2, 2, 3}, {4, 1, 0}, {8}) ==
+           ops{
+               make_op("reshape", {{"dims", {2, 4}}}),
+               make_op("broadcast", {{"axis", 0}, {"out_lens", {2, 4, 3}}}),
+               make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}}),
+           });
+
+    EXPECT(generate_for({2, 3, 4, 1}, {4, 16, 1, 1}, {48}) ==
+           ops{
+               make_op("reshape", {{"dims", {3, 4, 4, 1}}}),
+               make_op("transpose", {{"permutation", {1, 0, 2, 3}}}),
+               make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}),
+           });
+}
+
+TEST_CASE(generate_shape_transforms_for_overlap)
+{
+    // TODO: Overlaping strides not supported yet, need to support something like torch.unfold.Collapse annotationCheck warning on line R1331[misspell] test/shape_transform_descriptor.cpp#L1331Check warning: [misspell] test/shape_transform_descriptor.cpp#L1331"Overlaping" is a misspelling of "Overlapping"migraphx / misspellView details
+
+    // Case 1: {2, 3} with strides {1, 1} - overlapping rows
+    // Row 0 accesses [0, 1, 2], Row 1 accesses [1, 2, 3]
+    // Total elements needed: 4 (exactly matches input size)
+    EXPECT(generate_for({2, 3}, {1, 1}, {4}) == std::nullopt);
+    // EXPECT(generate_for({2, 3}, {1, 1}, {4}) ==
+    //        ops{
+    //            make_op("broadcast", {{"axis", 0}, {"out_lens", {2, 4}}}),
+    //            make_op("reshape", {{"dims", {8}}}),
+    //            make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}),
+    //            make_op("reshape", {{"dims", {4}}}),
+    //            make_op("reshape", {{"dims", {2, 2}}}),
+    //            make_op("multibroadcast", {{"out_lens", {2, 3}}}),
+    //            make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {3}}}),
+    //        });
+
+    // Case 2: {3, 2, 1} with strides {3, 2, 1}
+    // Element at (i,j,k) is at index i*3 + j*2 + k*1
+    // Max index is (2,1,0) = 2*3 + 1*2 + 0*1 = 8
+    // So we need 9 elements total (indices 0-8)
+    EXPECT(generate_for({3, 2, 1}, {3, 2, 1}, {9}) == std::nullopt);
+    // EXPECT(generate_for({3, 2, 1}, {3, 2, 1}, {9}) ==
+    //        ops{
+    //            make_op("reshape", {{"dims", {9}}}),
+    //            // Extract the specific pattern of elements based on strides
+    //            make_op("reshape", {{"dims", {3, 3}}}),
+    //            make_op("transpose", {{"permutation", {1, 0}}}),
+    //            make_op("reshape", {{"dims", {3, 3}}}),
+    //            make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}}),
+    //            make_op("reshape", {{"dims", {3, 2}}}),
+    //            make_op("multibroadcast", {{"out_lens", {3, 2, 1}}}),
+    //        });
+}
+
+TEST_CASE(generate_shape_transforms_for_offset)
+{
+    EXPECT(generate_for({3, 1}, {4, 1}, {30}, 1) ==
+           ops{
+               make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {24}}}),
+               make_op("reshape", {{"dims", {2, 3, 4}}}),
+               make_op("slice", {{"axes", {0, 2}}, {"starts", {0, 1}}, {"ends", {1, 2}}}),
+           });
+
+    EXPECT(generate_for({3, 1}, {5, 1}, {30}, 1) ==
+           ops{
+               make_op("reshape", {{"dims", {2, 3, 5}}}),
+               make_op("slice", {{"axes", {0, 2}}, {"starts", {0, 1}}, {"ends", {1, 2}}}),
+           });
+
+    EXPECT(generate_for({3, 2}, {10, 1}, {60}, 1) ==
+           ops{
+               make_op("reshape", {{"dims", {2, 3, 10}}}),
+               make_op("slice", {{"axes", {0, 2}}, {"starts", {0, 1}}, {"ends", {1, 3}}}),
+           });
+
+    EXPECT(generate_for({4, 3, 2}, {24, 4, 1}, {96}, 5) ==
+           ops{
+               make_op("reshape", {{"dims", {4, 6, 4}}}),
+               make_op("slice", {{"axes", {1, 2}}, {"starts", {1, 1}}, {"ends", {4, 3}}}),
+           });
+}
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -71,6 +71,15 @@ struct conditional<false, T, F>
 template <bool B, class T, class F>
 using conditional_t = typename conditional<B, T, F>::type;
 
+template<class T> struct add_cv { using type = const volatile T; };
+template<class T> using add_cv_t = typename add_cv<T>::type;
+ 
+template<class T> struct add_const { using type = const T; };
+template<class T> using add_const_t = typename add_const<T>::type;
+
+template<class T> struct add_volatile { using type = volatile T; };
+template<class T> using add_volatile_t = typename add_volatile<T>::type;
+
 template <class T>
 struct remove_cv
 {

@@ -317,6 +317,94 @@ TEST_CASE(remove_cvref)
     ROCM_TRANSFORM_CHECK(rocm::remove_cvref, const volatile(&&)[2], [2]);
 }
 
+TEST_CASE(add_const)
+{
+    // Plain types get const
+    ROCM_TRANSFORM_CHECK(rocm::add_const, , const);
+    // Already const is idempotent
+    ROCM_TRANSFORM_CHECK(rocm::add_const, const, const);
+    // Volatile gets const added
+    ROCM_TRANSFORM_CHECK(rocm::add_const, volatile, const volatile);
+    // Pointers get const on the pointer
+    ROCM_TRANSFORM_CHECK(rocm::add_const, *, * const);
+    ROCM_TRANSFORM_CHECK(rocm::add_const, * volatile, * const volatile);
+    // Already const pointer is idempotent
+    ROCM_TRANSFORM_CHECK(rocm::add_const, * const, * const);
+    // Pointer-to-cv gets const on the pointer
+    ROCM_TRANSFORM_CHECK(rocm::add_const, const*, const* const);
+    ROCM_TRANSFORM_CHECK(rocm::add_const, volatile*, volatile* const);
+    // References are unchanged
+    ROCM_TRANSFORM_CHECK(rocm::add_const, &, &);
+    ROCM_TRANSFORM_CHECK(rocm::add_const, const&, const&);
+    ROCM_TRANSFORM_CHECK(rocm::add_const, volatile&, volatile&);
+    ROCM_TRANSFORM_CHECK(rocm::add_const, &&, &&);
+    ROCM_TRANSFORM_CHECK(rocm::add_const, const&&, const&&);
+    // Arrays get const on element type
+    ROCM_TRANSFORM_CHECK(rocm::add_const, [2], const[2]);
+    ROCM_TRANSFORM_CHECK(rocm::add_const, const[2], const[2]);
+    ROCM_TRANSFORM_CHECK(rocm::add_const, [2][3], const[2][3]);
+    // Reference to array unchanged
+    ROCM_TRANSFORM_CHECK(rocm::add_const, (&)[2], (&)[2]);
+}
+
+TEST_CASE(add_volatile)
+{
+    // Plain types get volatile
+    ROCM_TRANSFORM_CHECK(rocm::add_volatile, , volatile);
+    // Const gets volatile added
+    ROCM_TRANSFORM_CHECK(rocm::add_volatile, const, const volatile);
+    // Already volatile is idempotent
+    ROCM_TRANSFORM_CHECK(rocm::add_volatile, volatile, volatile);
+    // Pointers get volatile on the pointer
+    ROCM_TRANSFORM_CHECK(rocm::add_volatile, *, * volatile);
+    ROCM_TRANSFORM_CHECK(rocm::add_volatile, * const, * const volatile);
+    // Already volatile pointer is idempotent
+    ROCM_TRANSFORM_CHECK(rocm::add_volatile, * volatile, * volatile);
+    // Pointer-to-cv gets volatile on the pointer
+    ROCM_TRANSFORM_CHECK(rocm::add_volatile, const*, const* volatile);
+    ROCM_TRANSFORM_CHECK(rocm::add_volatile, volatile*, volatile* volatile);
+    // References are unchanged
+    ROCM_TRANSFORM_CHECK(rocm::add_volatile, &, &);
+    ROCM_TRANSFORM_CHECK(rocm::add_volatile, const&, const&);
+    ROCM_TRANSFORM_CHECK(rocm::add_volatile, volatile&, volatile&);
+    ROCM_TRANSFORM_CHECK(rocm::add_volatile, &&, &&);
+    // Arrays get volatile on element type
+    ROCM_TRANSFORM_CHECK(rocm::add_volatile, [2], volatile[2]);
+    ROCM_TRANSFORM_CHECK(rocm::add_volatile, const[2], const volatile[2]);
+    ROCM_TRANSFORM_CHECK(rocm::add_volatile, [2][3], volatile[2][3]);
+    // Reference to array unchanged
+    ROCM_TRANSFORM_CHECK(rocm::add_volatile, (&)[2], (&)[2]);
+}
+
+TEST_CASE(add_cv)
+{
+    // Plain types get const volatile
+    ROCM_TRANSFORM_CHECK(rocm::add_cv, , const volatile);
+    // Const gets volatile added
+    ROCM_TRANSFORM_CHECK(rocm::add_cv, const, const volatile);
+    // Volatile gets const added
+    ROCM_TRANSFORM_CHECK(rocm::add_cv, volatile, const volatile);
+    // Pointers get const volatile on the pointer
+    ROCM_TRANSFORM_CHECK(rocm::add_cv, *, * const volatile);
+    ROCM_TRANSFORM_CHECK(rocm::add_cv, * volatile, * const volatile);
+    ROCM_TRANSFORM_CHECK(rocm::add_cv, * const, * const volatile);
+    // Pointer-to-cv gets const volatile on the pointer
+    ROCM_TRANSFORM_CHECK(rocm::add_cv, const*, const* const volatile);
+    ROCM_TRANSFORM_CHECK(rocm::add_cv, volatile*, volatile* const volatile);
+    // References are unchanged
+    ROCM_TRANSFORM_CHECK(rocm::add_cv, &, &);
+    ROCM_TRANSFORM_CHECK(rocm::add_cv, const&, const&);
+    ROCM_TRANSFORM_CHECK(rocm::add_cv, volatile&, volatile&);
+    ROCM_TRANSFORM_CHECK(rocm::add_cv, &&, &&);
+    ROCM_TRANSFORM_CHECK(rocm::add_cv, const&&, const&&);
+    // Arrays get const volatile on element type
+    ROCM_TRANSFORM_CHECK(rocm::add_cv, [2], const volatile[2]);
+    ROCM_TRANSFORM_CHECK(rocm::add_cv, const[2], const volatile[2]);
+    ROCM_TRANSFORM_CHECK(rocm::add_cv, [2][3], const volatile[2][3]);
+    // Reference to array unchanged
+    ROCM_TRANSFORM_CHECK(rocm::add_cv, (&)[2], (&)[2]);
+}
+
 TEST_CASE(type_identity)
 {
     ROCM_TRANSFORM_CHECK(rocm::type_identity, , );

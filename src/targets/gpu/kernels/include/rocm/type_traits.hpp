@@ -28,6 +28,7 @@
 #include <rocm/config.hpp>
 #include <rocm/utility/declval.hpp>
 #include <rocm/integral_constant.hpp>
+#include <rocm/stddef.hpp>
 
 namespace rocm {
 inline namespace ROCM_INLINE_NS {
@@ -202,21 +203,27 @@ using void_t = void;
     template <class T>                       \
     struct name : bool_constant<__##name(T)> \
     {                                        \
-    }
+    }; \
+    template <class T> \
+    inline constexpr bool name##_v = name<T>::value
 
 // NOLINTNEXTLINE
 #define ROCM_BUILTIN_TYPE_TRAIT2(name)          \
     template <class T, class U>                 \
     struct name : bool_constant<__##name(T, U)> \
     {                                           \
-    }
+    }; \
+    template <class T, class U> \
+    inline constexpr bool name##_v = name<T, U>::value
 
 // NOLINTNEXTLINE
 #define ROCM_BUILTIN_TYPE_TRAITN(name)           \
     template <class... Ts>                       \
     struct name : bool_constant<__##name(Ts...)> \
     {                                            \
-    }
+    }; \
+    template <class... Ts> \
+    inline constexpr bool name##_v = name<Ts...>::value
 
 // ROCM_BUILTIN_TYPE_TRAIT1(is_arithmetic);
 // ROCM_BUILTIN_TYPE_TRAIT1(is_destructible);
@@ -269,6 +276,32 @@ template <class T>
 struct is_void : is_same<void, remove_cv_t<T>>
 {
 };
+template <class T>
+inline constexpr bool is_void_v = is_void<T>::value;
+
+template <class T>
+struct is_null_pointer : is_same<nullptr_t, remove_cv_t<T>>
+{
+};
+template <class T>
+inline constexpr bool is_null_pointer_v = is_null_pointer<T>::value;
+
+template<class T>
+struct is_pointer : false_type {};
+ 
+template<class T>
+struct is_pointer<T*> : true_type {};
+ 
+template<class T>
+struct is_pointer<T* const> : true_type {};
+ 
+template<class T>
+struct is_pointer<T* volatile> : true_type {};
+ 
+template<class T>
+struct is_pointer<T* const volatile> : true_type {};
+template <class T>
+inline constexpr bool is_pointer_v = is_pointer<T>::value;
 
 } // namespace ROCM_INLINE_NS
 } // namespace rocm

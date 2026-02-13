@@ -301,6 +301,73 @@ TEST_CASE(is_member_function_pointer)
     EXPECT(not rocm::is_member_function_pointer<tt_cat::simple_class>{});
 }
 
+TEST_CASE(is_pointer)
+{
+    EXPECT(rocm::is_pointer<int*>{});
+    EXPECT(rocm::is_pointer<const int*>{});
+    EXPECT(rocm::is_pointer<volatile int*>{});
+    EXPECT(rocm::is_pointer<const volatile int*>{});
+    EXPECT(rocm::is_pointer<tt_cat::simple_class*>{});
+    EXPECT(rocm::is_pointer<tt_cat::udt*>{});
+    // top-level cv-qualified pointers are still pointers
+    EXPECT(rocm::is_pointer<int* const>{});
+    EXPECT(rocm::is_pointer<int* volatile>{});
+    EXPECT(rocm::is_pointer<int* const volatile>{});
+    // function pointers
+    EXPECT(rocm::is_pointer<tt_cat::func_ptr>{});
+    EXPECT(rocm::is_pointer<tt_cat::func_ptr_i>{});
+    EXPECT(rocm::is_pointer<int (*const)()>{});
+    // void pointers
+    EXPECT(rocm::is_pointer<void*>{});
+    EXPECT(rocm::is_pointer<const void*>{});
+
+    EXPECT(not rocm::is_pointer<int>{});
+    EXPECT(not rocm::is_pointer<int&>{});
+    EXPECT(not rocm::is_pointer<int&&>{});
+    EXPECT(not rocm::is_pointer<tt_cat::simple_class>{});
+    EXPECT(not rocm::is_pointer<int*&>{});
+    EXPECT(not rocm::is_pointer<int (&)[2]>{});
+    EXPECT(not rocm::is_pointer<int[2]>{});
+    EXPECT(not rocm::is_pointer<char[sizeof(void*)]>{});
+    EXPECT(not rocm::is_pointer<void>{});
+    // member function pointers are not pointers (3.9.2p3)
+    EXPECT(not rocm::is_pointer<tt_cat::mfp_void>{});
+    EXPECT(not rocm::is_pointer<tt_cat::mfp_int>{});
+    EXPECT(not rocm::is_pointer<tt_cat::mfp_int_arg>{});
+    EXPECT(not rocm::is_pointer<tt_cat::mfp_int_flt>{});
+    // member object pointer is not a pointer
+    EXPECT(not rocm::is_pointer<tt_cat::mop>{});
+    // function types are not pointers
+    EXPECT(not rocm::is_pointer<tt_cat::func_t0>{});
+    EXPECT(not rocm::is_pointer<tt_cat::func_t1>{});
+    EXPECT(not rocm::is_pointer<tt_cat::func_t2>{});
+    EXPECT(not rocm::is_pointer<tt_cat::test_enum>{});
+    EXPECT(not rocm::is_pointer<tt_cat::simple_union>{});
+}
+
+TEST_CASE(is_null_pointer)
+{
+    EXPECT(rocm::is_null_pointer<decltype(nullptr)>{});
+    EXPECT(rocm::is_null_pointer<const decltype(nullptr)>{});
+    EXPECT(rocm::is_null_pointer<volatile decltype(nullptr)>{});
+    EXPECT(rocm::is_null_pointer<const volatile decltype(nullptr)>{});
+
+    EXPECT(not rocm::is_null_pointer<int>{});
+    EXPECT(not rocm::is_null_pointer<int*>{});
+    EXPECT(not rocm::is_null_pointer<void*>{});
+    EXPECT(not rocm::is_null_pointer<void>{});
+    EXPECT(not rocm::is_null_pointer<float>{});
+    EXPECT(not rocm::is_null_pointer<bool>{});
+    EXPECT(not rocm::is_null_pointer<tt_cat::simple_class>{});
+    EXPECT(not rocm::is_null_pointer<tt_cat::test_enum>{});
+    EXPECT(not rocm::is_null_pointer<tt_cat::func_ptr>{});
+    EXPECT(not rocm::is_null_pointer<int&>{});
+    EXPECT(not rocm::is_null_pointer<int&&>{});
+    EXPECT(not rocm::is_null_pointer<tt_cat::func_t0>{});
+    EXPECT(not rocm::is_null_pointer<tt_cat::mop>{});
+    EXPECT(not rocm::is_null_pointer<tt_cat::mfp_void>{});
+}
+
 // ---------- composite type categories ----------
 
 TEST_CASE(is_reference)

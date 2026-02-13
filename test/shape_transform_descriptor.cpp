@@ -1301,7 +1301,12 @@ TEST_CASE(generate_shape_transforms_for)
 
 TEST_CASE(generate_shape_transforms_for_overlap)
 {
-    // TODO: Overlaping strides not supported yet, need to support something like torch.unfold.Collapse annotationCheck warning on line R1331[misspell] test/shape_transform_descriptor.cpp#L1331Check warning: [misspell] test/shape_transform_descriptor.cpp#L1331"Overlaping" is a misspelling of "Overlapping"migraphx / misspellView details
+
+    // TODO: Overlaping strides not supported yet, need to support something like
+    // torch.unfold.Collapse annotationCheck warning on line R1331[misspell]
+    // test/shape_transform_descriptor.cpp#L1331Check warning: [misspell]
+    // test/shape_transform_descriptor.cpp#L1331"Overlaping" is a misspelling of
+    // "Overlapping" migraphx / misspellView details
 
     // Case 1: {2, 3} with strides {1, 1} - overlapping rows
     // Row 0 accesses [0, 1, 2], Row 1 accesses [1, 2, 3]
@@ -1363,6 +1368,5 @@ TEST_CASE(generate_shape_transforms_for_offset)
                make_op("slice", {{"axes", {1, 2}}, {"starts", {1, 1}}, {"ends", {4, 3}}}),
            });
 }
-
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

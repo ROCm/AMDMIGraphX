@@ -99,16 +99,7 @@ constexpr T rotl(T x, int s) noexcept
 template <class T, ROCM_REQUIRES(rocm::is_unsigned<T>{})>
 constexpr T rotr(T x, int s) noexcept
 {
-    const int n = numeric_limits<T>::digits;
-    int r       = s % n;
-
-    if(r == 0)
-        return x;
-
-    if(r > 0)
-        return (x >> r) | (x << (n - r));
-
-    return (x << -r) | (x >> (n + r));
+    return rotl(x, -s);
 }
 
 } // namespace ROCM_INLINE_NS

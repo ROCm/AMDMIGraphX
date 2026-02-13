@@ -66,8 +66,7 @@ MIGRAPHX_PRED_MATCHER(depthwise_conv_1x1, instruction_ref ins)
         return false;
     auto w = ins->inputs().at(1)->get_shape();
     // Check 1x1 kernel
-    if(not std::all_of(
-           w.lens().begin() + 2, w.lens().end(), [](std::size_t i) { return i == 1; }))
+    if(not std::all_of(w.lens().begin() + 2, w.lens().end(), [](std::size_t i) { return i == 1; }))
         return false;
     // Check depthwise: group == input channels
     auto x_shape = ins->inputs().at(0)->get_shape();
@@ -182,8 +181,7 @@ struct find_depthwise
             }
             auto sliced_input = m.insert_instruction(
                 ins,
-                make_op("slice",
-                        {{"axes", spatial_axes}, {"starts", i_starts}, {"ends", i_ends}}),
+                make_op("slice", {{"axes", spatial_axes}, {"starts", i_starts}, {"ends", i_ends}}),
                 input);
 
             // Slice weight at kernel position: [C, 1, kh:kh+1, kw:kw+1]
@@ -196,8 +194,7 @@ struct find_depthwise
             }
             auto sliced_w = m.insert_instruction(
                 ins,
-                make_op("slice",
-                        {{"axes", spatial_axes}, {"starts", w_starts}, {"ends", w_ends}}),
+                make_op("slice", {{"axes", spatial_axes}, {"starts", w_starts}, {"ends", w_ends}}),
                 weights);
 
             // Squeeze to [C]
@@ -206,9 +203,7 @@ struct find_depthwise
 
             // Broadcast [C] -> output shape along channel axis
             auto bcast_w = m.insert_instruction(
-                ins,
-                make_op("broadcast", {{"axis", 1}, {"out_lens", out_lens}}),
-                sq_w);
+                ins, make_op("broadcast", {{"axis", 1}, {"out_lens", out_lens}}), sq_w);
 
             // Multiply
             auto prod = m.insert_instruction(ins, make_op("mul"), sliced_input, bcast_w);

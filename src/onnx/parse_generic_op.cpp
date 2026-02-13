@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,8 +22,10 @@
  * THE SOFTWARE.
  */
 #include <migraphx/onnx/op_parser.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
+#include <algorithm>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -89,7 +91,27 @@ struct parse_generic_op : op_parser<parse_generic_op>
                 return info.make_contiguous(arg);
             });
         }
-        return info.add_instruction(op, args);
+
+        // Skip zero-element filtering for dynamic shapes
+        if(any_of(args, [](const auto& arg) { return arg->get_shape().dynamic(); }))
+        {
+            return info.add_instruction(op, args);
+        }
+
+        // Filter out args that have 0 elements
+        std::vector<instruction_ref> new_args{};
+        std::copy_if(args.begin(),
+                     args.end(),
+                     std::back_inserter(new_args),
+                     [](const instruction_ref& arg) { return arg->get_shape().elements() > 0; });
+
+        // If all args have 0 elements, return an undefined instruction
+        if(new_args.empty())
+        {
+            return info.add_instruction(make_op("undefined"));
+        }
+
+        return info.add_instruction(op, new_args);
     }
 };
 

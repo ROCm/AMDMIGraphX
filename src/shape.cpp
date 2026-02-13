@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -390,9 +390,9 @@ std::size_t shape::ndim() const
 {
     if(this->dynamic())
     {
-        return dyn_dims().size();
+        return impl->m_dyn_dims.size();
     }
-    return lens().size();
+    return impl->m_lens.size();
 }
 
 std::size_t shape::elements() const { return impl->elements(); }
@@ -670,7 +670,7 @@ bool shape::computable() const { return is_computable(this->type()); }
 
 const std::vector<shape::dynamic_dimension>& shape::dyn_dims() const
 {
-    if(not this->dynamic())
+    if(ndim() > 0 and not this->dynamic())
     {
         MIGRAPHX_THROW("SHAPE: dyn_dims() called on a static shape");
     }

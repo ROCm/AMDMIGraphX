@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -190,10 +190,24 @@ Stream& print_stream_impl(rank<4>, Stream& s, std::nullptr_t)
     return s;
 }
 
+template <class Stream, class Optional>
+auto print_stream_impl(rank<5>, Stream& s, const Optional& x)
+    -> decltype(bool(Optional{*x}), x.has_value(), x.value(), void())
+{
+    if(x.has_value())
+    {
+        print_stream(s, x.value());
+    }
+    else
+    {
+        s << "nullopt";
+    }
+}
+
 template <class Stream, class T>
 void print_stream(Stream& s, const T& x)
 {
-    print_stream_impl(rank<5>{}, s, x);
+    print_stream_impl(rank<6>{}, s, x);
 }
 
 template <class T>

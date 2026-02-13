@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -699,16 +699,18 @@ struct mlir_program
 
     static bool input_is_unpack_fp4(instruction_ref ins)
     {
-        ins = instruction::get_output_alias(ins);
-        if(ins->name() == "reshape")
-        {
-            return input_is_unpack_fp4(ins->inputs().front());
-        }
-        if(ins->name() == "unpack_fp4")
-        {
-            return true;
-        }
-        return false;
+        auto aliases = instruction::get_output_alias(ins);
+        return std::any_of(aliases.begin(), aliases.end(), [](instruction_ref alias) {
+            if(alias->name() == "reshape")
+            {
+                return input_is_unpack_fp4(alias->inputs().front());
+            }
+            if(alias->name() == "unpack_fp4")
+            {
+                return true;
+            }
+            return false;
+        });
     }
 
     static shape make_fp4_unpacked_shape(shape s)

@@ -8,8 +8,7 @@ struct can_bit_cast : rocm::false_type
 };
 
 template <class To, class From>
-struct can_bit_cast<To, From, rocm::void_t<decltype(rocm::bit_cast<To>(From{}))>>
-    : rocm::true_type
+struct can_bit_cast<To, From, rocm::void_t<decltype(rocm::bit_cast<To>(From{}))>> : rocm::true_type
 {
 };
 
@@ -184,7 +183,8 @@ TEST_CASE(bit_cast_identity)
     // Float/double identity verified via integer bit patterns
     EXPECT(rocm::bit_cast<unsigned int>(rocm::bit_cast<float>(1.0f)) == 0x3F800000u);
     EXPECT(rocm::bit_cast<unsigned int>(rocm::bit_cast<float>(0.0f)) == 0x00000000u);
-    EXPECT(rocm::bit_cast<unsigned long long>(rocm::bit_cast<double>(1.0)) == 0x3FF0000000000000ull);
+    EXPECT(rocm::bit_cast<unsigned long long>(rocm::bit_cast<double>(1.0)) ==
+           0x3FF0000000000000ull);
 }
 
 TEST_CASE(bit_cast_int_unsigned)
@@ -235,9 +235,8 @@ TEST_CASE(bit_cast_roundtrip)
                rocm::bit_cast<float>(rocm::bit_cast<unsigned int>(0.0f))) == 0x00000000u);
     EXPECT(rocm::bit_cast<unsigned int>(
                rocm::bit_cast<float>(rocm::bit_cast<unsigned int>(-1.0f))) == 0xBF800000u);
-    EXPECT(rocm::bit_cast<unsigned int>(
-               rocm::bit_cast<float>(rocm::bit_cast<unsigned int>(3.14f))) ==
-           rocm::bit_cast<unsigned int>(3.14f));
+    EXPECT(rocm::bit_cast<unsigned int>(rocm::bit_cast<float>(
+               rocm::bit_cast<unsigned int>(3.14f))) == rocm::bit_cast<unsigned int>(3.14f));
 
     // int -> unsigned int -> int
     EXPECT(rocm::bit_cast<int>(rocm::bit_cast<unsigned int>(0)) == 0);

@@ -1068,8 +1068,7 @@ TEST_CASE(transform_binary_basic)
     rocm::array<int, 4> a   = {1, 2, 3, 4};
     rocm::array<int, 4> b   = {10, 20, 30, 40};
     rocm::array<int, 4> out = {0, 0, 0, 0};
-    rocm::transform(
-        a.begin(), a.end(), b.begin(), out.begin(), [](int x, int y) { return x + y; });
+    rocm::transform(a.begin(), a.end(), b.begin(), out.begin(), [](int x, int y) { return x + y; });
     rocm::array<int, 4> expected = {11, 22, 33, 44};
     EXPECT(out == expected);
 }
@@ -1078,8 +1077,7 @@ TEST_CASE(transform_binary_multiply)
     rocm::array<int, 3> a   = {2, 3, 4};
     rocm::array<int, 3> b   = {5, 6, 7};
     rocm::array<int, 3> out = {0, 0, 0};
-    rocm::transform(
-        a.begin(), a.end(), b.begin(), out.begin(), [](int x, int y) { return x * y; });
+    rocm::transform(a.begin(), a.end(), b.begin(), out.begin(), [](int x, int y) { return x * y; });
     rocm::array<int, 3> expected = {10, 18, 28};
     EXPECT(out == expected);
 }
@@ -1133,11 +1131,9 @@ TEST_CASE(search_predicate_found)
     rocm::array<int, 6> haystack = {1, 2, 3, 4, 3, 4};
     rocm::array<int, 2> needle   = {13, 14};
     auto* result                 = rocm::search(
-        haystack.begin(),
-        haystack.end(),
-        needle.begin(),
-        needle.end(),
-        [](int x, int y) { return x % 10 == y % 10; });
+        haystack.begin(), haystack.end(), needle.begin(), needle.end(), [](int x, int y) {
+            return x % 10 == y % 10;
+        });
     EXPECT(result == haystack.begin() + 2);
 }
 TEST_CASE(search_predicate_not_found)
@@ -1145,11 +1141,9 @@ TEST_CASE(search_predicate_not_found)
     rocm::array<int, 5> haystack = {1, 2, 3, 4, 5};
     rocm::array<int, 2> needle   = {16, 17};
     auto* result                 = rocm::search(
-        haystack.begin(),
-        haystack.end(),
-        needle.begin(),
-        needle.end(),
-        [](int x, int y) { return x % 10 == y % 10; });
+        haystack.begin(), haystack.end(), needle.begin(), needle.end(), [](int x, int y) {
+            return x % 10 == y % 10;
+        });
     EXPECT(result == haystack.end());
 }
 TEST_CASE(search_predicate_empty_needle)
@@ -1157,11 +1151,9 @@ TEST_CASE(search_predicate_empty_needle)
     rocm::array<int, 3> haystack = {1, 2, 3};
     empty_range needle           = {};
     auto* result                 = rocm::search(
-        haystack.begin(),
-        haystack.end(),
-        needle.begin(),
-        needle.end(),
-        [](int x, int y) { return x == y; });
+        haystack.begin(), haystack.end(), needle.begin(), needle.end(), [](int x, int y) {
+            return x == y;
+        });
     EXPECT(result == haystack.begin());
 }
 

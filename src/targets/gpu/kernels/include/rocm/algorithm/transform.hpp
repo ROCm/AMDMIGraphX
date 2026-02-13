@@ -17,8 +17,8 @@ transform(Iterator first1, Iterator last1, OutputIterator out, UnaryOp unary_op)
 }
 
 template <class Iterator1, class Iterator2, class OutputIterator, class BinaryOp>
-constexpr OutputIterator
-transform(Iterator1 first1, Iterator1 last1, Iterator2 first2, OutputIterator out, BinaryOp binary_op)
+constexpr OutputIterator transform(
+    Iterator1 first1, Iterator1 last1, Iterator2 first2, OutputIterator out, BinaryOp binary_op)
 {
     for(; first1 != last1; ++out, ++first1, ++first2)
         *out = binary_op(*first1, *first2);

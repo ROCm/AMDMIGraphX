@@ -100,11 +100,10 @@ struct parse_generic_op : op_parser<parse_generic_op>
 
         // Filter out args that have 0 elements
         std::vector<instruction_ref> new_args{};
-        std::copy_if(
-            args.begin(),
-            args.end(),
-            std::back_inserter(new_args),
-            [](const instruction_ref& arg) { return arg->get_shape().elements() > 0; });
+        std::copy_if(args.begin(),
+                     args.end(),
+                     std::back_inserter(new_args),
+                     [](const instruction_ref& arg) { return arg->get_shape().elements() > 0; });
 
         // If all args have 0 elements, return an undefined instruction
         if(new_args.empty())

@@ -50,6 +50,61 @@ MIGRAPHX_PRED_MATCHER(conv_1x1, instruction_ref ins)
     return std::all_of(w.lens().begin() + 2, w.lens().end(), [](std::size_t i) { return i == 1; });
 }
 
+MIGRAPHX_PRED_MATCHER(depthwise_conv_1x1, instruction_ref ins)
+{
+    if(ins->name() != "convolution")
+        return false;
+    auto v     = ins->get_operator().to_value();
+    auto group = v.at("group").to<int>();
+    if(group == 1)
+        return false;
+    if(not all_of(v.at("stride"), [](const value& x) { return x.to<std::size_t>() == 1; }))
+        return false;
+    if(not all_of(v.at("padding"), [](const value& x) { return x.to<std::size_t>() == 0; }))
+        return false;
+    if(not all_of(v.at("dilation"), [](const value& x) { return x.to<std::size_t>() == 1; }))
+        return false;
+    auto w = ins->inputs().at(1)->get_shape();
+    // Check 1x1 kernel
+    if(not std::all_of(
+           w.lens().begin() + 2, w.lens().end(), [](std::size_t i) { return i == 1; }))
+        return false;
+    // Check depthwise: group == input channels
+    auto x_shape = ins->inputs().at(0)->get_shape();
+    if(static_cast<std::size_t>(group) != x_shape.lens().at(1))
+        return false;
+    // Check multiplier == 1: output channels == group
+    return static_cast<std::size_t>(group) == w.lens().at(0);
+}
+
+struct find_1x1_depthwise
+{
+    auto matcher() const { return depthwise_conv_1x1(match::arg(1)(match::is_constant())); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+
+        auto input   = ins->inputs().front();
+        auto weights = ins->inputs().back();
+
+        // Squeeze all dimensions except first: [C, 1, 1, ...] -> [C]
+        std::vector<int64_t> sq_axes(weights->get_shape().ndim() - 1);
+        std::iota(sq_axes.begin(), sq_axes.end(), 1);
+        auto sq_weights =
+            m.insert_instruction(ins, make_op("squeeze", {{"axes", sq_axes}}), weights);
+
+        // Broadcast [C] -> output shape along channel axis (axis 1)
+        auto bcast_weights = m.insert_instruction(
+            ins,
+            make_op("broadcast", {{"axis", 1}, {"out_lens", ins->get_shape().lens()}}),
+            sq_weights);
+
+        // Replace convolution with elementwise multiply
+        m.replace_instruction(ins, make_op("mul"), input, bcast_weights);
+    }
+};
+
 struct find_1x1_convolution
 {
     auto matcher() const { return conv_1x1(match::arg(1)(match::is_constant())); }
@@ -109,7 +164,10 @@ struct find_1x1_convolution
 
 } // namespace
 
-void rewrite_dot::apply(module& m) const { match::find_matches(m, find_1x1_convolution{}); }
+void rewrite_dot::apply(module& m) const
+{
+    match::find_matches(m, find_1x1_convolution{}, find_1x1_depthwise{});
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -100,6 +100,35 @@ TEST_CASE(add_pointer)
     ROCM_TRANSFORM_CHECK(rocm::add_pointer, volatile*, volatile**);
 }
 
+TEST_CASE(remove_pointer)
+{
+    // Non-pointer types are unchanged
+    ROCM_TRANSFORM_CHECK(rocm::remove_pointer, , );
+    ROCM_TRANSFORM_CHECK(rocm::remove_pointer, const, const);
+    ROCM_TRANSFORM_CHECK(rocm::remove_pointer, volatile, volatile);
+    // Pointer types are stripped
+    ROCM_TRANSFORM_CHECK(rocm::remove_pointer, *, );
+    ROCM_TRANSFORM_CHECK(rocm::remove_pointer, * const, );
+    ROCM_TRANSFORM_CHECK(rocm::remove_pointer, * volatile, );
+    // Pointer to cv-qualified types
+    ROCM_TRANSFORM_CHECK(rocm::remove_pointer, const*, const);
+    ROCM_TRANSFORM_CHECK(rocm::remove_pointer, volatile*, volatile);
+    // References are unchanged
+    ROCM_TRANSFORM_CHECK(rocm::remove_pointer, &, &);
+    ROCM_TRANSFORM_CHECK(rocm::remove_pointer, const&, const&);
+    ROCM_TRANSFORM_CHECK(rocm::remove_pointer, &&, &&);
+    ROCM_TRANSFORM_CHECK(rocm::remove_pointer, const&&, const&&);
+    // Arrays are unchanged
+    ROCM_TRANSFORM_CHECK(rocm::remove_pointer, const[2], const[2]);
+    ROCM_TRANSFORM_CHECK(rocm::remove_pointer, const[2][3], const[2][3]);
+    // References to arrays are unchanged
+    ROCM_TRANSFORM_CHECK(rocm::remove_pointer, (&)[2], (&)[2]);
+    ROCM_TRANSFORM_CHECK(rocm::remove_pointer, (&&)[2], (&&)[2]);
+    // Function pointers are stripped
+    ROCM_TRANSFORM_CHECK(rocm::remove_pointer, (*)(long), (long));
+    ROCM_TRANSFORM_CHECK(rocm::remove_pointer, (* const)(long), (long));
+}
+
 struct c1
 {
 };

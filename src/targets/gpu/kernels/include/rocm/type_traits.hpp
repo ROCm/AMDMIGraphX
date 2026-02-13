@@ -95,6 +95,19 @@ template <class T>
 using remove_cv_t = typename remove_cv<T>::type;
 
 template <class T>
+struct remove_const
+{
+    typedef T type;
+};
+template <class T>
+struct remove_const<const T>
+{
+    typedef T type;
+};
+template <class T>
+using remove_const_t = typename remove_const<T>::type;
+
+template <class T>
 struct remove_reference
 {
     using type = T;
@@ -120,6 +133,35 @@ struct add_pointer : type_identity<remove_reference_t<T>*>
 
 template <class T>
 using add_pointer_t = typename add_pointer<T>::type;
+
+template <class T>
+struct remove_pointer
+{
+    using type = T;
+};
+template <class T>
+struct remove_pointer<T*>
+{
+    using type = T;
+};
+template <class T>
+struct remove_pointer<T* const>
+{
+    using type = T;
+};
+template <class T>
+struct remove_pointer<T* volatile>
+{
+    using type = T;
+};
+template <class T>
+struct remove_pointer<T* const volatile>
+{
+    using type = T;
+};
+
+template <class T>
+using remove_pointer_t = typename remove_pointer<T>::type;
 
 template <class... Ts>
 struct common_type;

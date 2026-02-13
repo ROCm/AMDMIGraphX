@@ -66,8 +66,7 @@ MIGRAPHX_PRED_MATCHER(depthwise_conv_1x1, instruction_ref ins)
         return false;
     auto w = ins->inputs().at(1)->get_shape();
     // Check 1x1 kernel
-    if(not std::all_of(
-           w.lens().begin() + 2, w.lens().end(), [](std::size_t i) { return i == 1; }))
+    if(not std::all_of(w.lens().begin() + 2, w.lens().end(), [](std::size_t i) { return i == 1; }))
         return false;
     // Check depthwise: group == input channels
     auto x_shape = ins->inputs().at(0)->get_shape();

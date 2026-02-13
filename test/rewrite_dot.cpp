@@ -124,8 +124,7 @@ TEST_CASE(nchw_depthwise_conv_1x1)
     {
         auto x    = m1.add_parameter("x", s1);
         auto w    = m1.add_literal(migraphx::generate_literal(s2));
-        auto conv = m1.add_instruction(
-            migraphx::make_op("convolution", {{"group", 4}}), x, w);
+        auto conv = m1.add_instruction(migraphx::make_op("convolution", {{"group", 4}}), x, w);
         m1.add_return({conv});
     }
     run_pass(m1);
@@ -133,8 +132,7 @@ TEST_CASE(nchw_depthwise_conv_1x1)
     {
         auto x         = m2.add_parameter("x", s1);
         auto w         = m2.add_literal(migraphx::generate_literal(s2));
-        auto squeeze   = m2.add_instruction(
-            migraphx::make_op("squeeze", {{"axes", {1, 2, 3}}}), w);
+        auto squeeze   = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1, 2, 3}}}), w);
         auto broadcast = m2.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 4, 3, 3}}}), squeeze);
         auto mul = m2.add_instruction(migraphx::make_op("mul"), x, broadcast);
@@ -151,8 +149,7 @@ TEST_CASE(nchw_depthwise_conv_1x1_non_constant)
     {
         auto x    = m1.add_parameter("x", s1);
         auto w    = m1.add_parameter("w", s2);
-        auto conv = m1.add_instruction(
-            migraphx::make_op("convolution", {{"group", 4}}), x, w);
+        auto conv = m1.add_instruction(migraphx::make_op("convolution", {{"group", 4}}), x, w);
         m1.add_return({conv});
     }
     migraphx::module m2 = m1;
@@ -168,8 +165,7 @@ TEST_CASE(nchw_depthwise_conv_3x3)
     {
         auto x    = m1.add_parameter("x", s1);
         auto w    = m1.add_literal(migraphx::generate_literal(s2));
-        auto conv = m1.add_instruction(
-            migraphx::make_op("convolution", {{"group", 4}}), x, w);
+        auto conv = m1.add_instruction(migraphx::make_op("convolution", {{"group", 4}}), x, w);
         m1.add_return({conv});
     }
     migraphx::module m2 = m1;
@@ -185,8 +181,7 @@ TEST_CASE(nchw_depthwise_conv_1x1_multiplier)
     {
         auto x    = m1.add_parameter("x", s1);
         auto w    = m1.add_literal(migraphx::generate_literal(s2));
-        auto conv = m1.add_instruction(
-            migraphx::make_op("convolution", {{"group", 4}}), x, w);
+        auto conv = m1.add_instruction(migraphx::make_op("convolution", {{"group", 4}}), x, w);
         m1.add_return({conv});
     }
     migraphx::module m2 = m1;

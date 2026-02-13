@@ -406,6 +406,104 @@ TEST_CASE(is_member_pointer)
     EXPECT(not rocm::is_member_pointer<tt_cat::func_t0>{});
 }
 
+TEST_CASE(is_arithmetic)
+{
+    // integral types
+    EXPECT(rocm::is_arithmetic<bool>{});
+    EXPECT(rocm::is_arithmetic<bool const>{});
+    EXPECT(rocm::is_arithmetic<bool volatile>{});
+    EXPECT(rocm::is_arithmetic<bool const volatile>{});
+
+    EXPECT(rocm::is_arithmetic<char>{});
+    EXPECT(rocm::is_arithmetic<char const>{});
+    EXPECT(rocm::is_arithmetic<char volatile>{});
+    EXPECT(rocm::is_arithmetic<char const volatile>{});
+    EXPECT(rocm::is_arithmetic<signed char>{});
+    EXPECT(rocm::is_arithmetic<signed char const>{});
+    EXPECT(rocm::is_arithmetic<signed char volatile>{});
+    EXPECT(rocm::is_arithmetic<signed char const volatile>{});
+    EXPECT(rocm::is_arithmetic<unsigned char>{});
+    EXPECT(rocm::is_arithmetic<unsigned char const>{});
+    EXPECT(rocm::is_arithmetic<unsigned char volatile>{});
+    EXPECT(rocm::is_arithmetic<unsigned char const volatile>{});
+    EXPECT(rocm::is_arithmetic<wchar_t>{});
+    EXPECT(rocm::is_arithmetic<wchar_t const>{});
+
+    EXPECT(rocm::is_arithmetic<short>{});
+    EXPECT(rocm::is_arithmetic<short const>{});
+    EXPECT(rocm::is_arithmetic<short volatile>{});
+    EXPECT(rocm::is_arithmetic<short const volatile>{});
+    EXPECT(rocm::is_arithmetic<unsigned short>{});
+    EXPECT(rocm::is_arithmetic<unsigned short const>{});
+    EXPECT(rocm::is_arithmetic<unsigned short volatile>{});
+    EXPECT(rocm::is_arithmetic<unsigned short const volatile>{});
+
+    EXPECT(rocm::is_arithmetic<int>{});
+    EXPECT(rocm::is_arithmetic<int const>{});
+    EXPECT(rocm::is_arithmetic<int volatile>{});
+    EXPECT(rocm::is_arithmetic<int const volatile>{});
+    EXPECT(rocm::is_arithmetic<unsigned int>{});
+    EXPECT(rocm::is_arithmetic<unsigned int const>{});
+    EXPECT(rocm::is_arithmetic<unsigned int volatile>{});
+    EXPECT(rocm::is_arithmetic<unsigned int const volatile>{});
+
+    EXPECT(rocm::is_arithmetic<long>{});
+    EXPECT(rocm::is_arithmetic<long const>{});
+    EXPECT(rocm::is_arithmetic<long volatile>{});
+    EXPECT(rocm::is_arithmetic<long const volatile>{});
+    EXPECT(rocm::is_arithmetic<unsigned long>{});
+    EXPECT(rocm::is_arithmetic<unsigned long const>{});
+    EXPECT(rocm::is_arithmetic<unsigned long volatile>{});
+    EXPECT(rocm::is_arithmetic<unsigned long const volatile>{});
+
+    EXPECT(rocm::is_arithmetic<long long>{});
+    EXPECT(rocm::is_arithmetic<long long const>{});
+    EXPECT(rocm::is_arithmetic<long long volatile>{});
+    EXPECT(rocm::is_arithmetic<long long const volatile>{});
+    EXPECT(rocm::is_arithmetic<unsigned long long>{});
+    EXPECT(rocm::is_arithmetic<unsigned long long const>{});
+    EXPECT(rocm::is_arithmetic<unsigned long long volatile>{});
+    EXPECT(rocm::is_arithmetic<unsigned long long const volatile>{});
+
+    // floating-point types
+    EXPECT(rocm::is_arithmetic<float>{});
+    EXPECT(rocm::is_arithmetic<float const>{});
+    EXPECT(rocm::is_arithmetic<float volatile>{});
+    EXPECT(rocm::is_arithmetic<float const volatile>{});
+
+    EXPECT(rocm::is_arithmetic<double>{});
+    EXPECT(rocm::is_arithmetic<double const>{});
+    EXPECT(rocm::is_arithmetic<double volatile>{});
+    EXPECT(rocm::is_arithmetic<double const volatile>{});
+
+    EXPECT(rocm::is_arithmetic<long double>{});
+    EXPECT(rocm::is_arithmetic<long double const>{});
+    EXPECT(rocm::is_arithmetic<long double volatile>{});
+    EXPECT(rocm::is_arithmetic<long double const volatile>{});
+
+    // non-arithmetic types
+    EXPECT(not rocm::is_arithmetic<void>{});
+    EXPECT(not rocm::is_arithmetic<tt_cat::udt>{});
+    EXPECT(not rocm::is_arithmetic<tt_cat::simple_class>{});
+    EXPECT(not rocm::is_arithmetic<tt_cat::test_enum>{});
+    EXPECT(not rocm::is_arithmetic<tt_cat::scoped_enum>{});
+    EXPECT(not rocm::is_arithmetic<tt_cat::simple_union>{});
+    EXPECT(not rocm::is_arithmetic<tt_cat::incomplete_type>{});
+    EXPECT(not rocm::is_arithmetic<float*>{});
+    EXPECT(not rocm::is_arithmetic<float&>{});
+    EXPECT(not rocm::is_arithmetic<float&&>{});
+    EXPECT(not rocm::is_arithmetic<const float&>{});
+    EXPECT(not rocm::is_arithmetic<float[2]>{});
+    EXPECT(not rocm::is_arithmetic<int*>{});
+    EXPECT(not rocm::is_arithmetic<int&>{});
+    EXPECT(not rocm::is_arithmetic<int&&>{});
+    EXPECT(not rocm::is_arithmetic<int[2]>{});
+    EXPECT(not rocm::is_arithmetic<tt_cat::func_t0>{});
+    EXPECT(not rocm::is_arithmetic<tt_cat::func_ptr>{});
+    EXPECT(not rocm::is_arithmetic<tt_cat::mop>{});
+    EXPECT(not rocm::is_arithmetic<tt_cat::mfp_void>{});
+}
+
 TEST_CASE(is_fundamental)
 {
     EXPECT(rocm::is_fundamental<void>{});

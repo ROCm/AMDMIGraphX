@@ -249,7 +249,6 @@ using void_t = void;
     template <class... Ts>                       \
     inline constexpr bool name##_v = __##name(Ts...)
 
-// ROCM_BUILTIN_TYPE_TRAIT1(is_arithmetic);
 // ROCM_BUILTIN_TYPE_TRAIT1(is_destructible);
 // ROCM_BUILTIN_TYPE_TRAIT1(is_nothrow_destructible);
 // ROCM_BUILTIN_TYPE_TRAIT1(is_scalar);
@@ -257,6 +256,7 @@ using void_t = void;
 // ROCM_BUILTIN_TYPE_TRAIT1(is_void);
 ROCM_BUILTIN_TYPE_TRAIT1(is_abstract);
 ROCM_BUILTIN_TYPE_TRAIT1(is_aggregate);
+ROCM_BUILTIN_TYPE_TRAIT1(is_arithmetic);
 ROCM_BUILTIN_TYPE_TRAIT1(is_array);
 ROCM_BUILTIN_TYPE_TRAIT1(is_class);
 ROCM_BUILTIN_TYPE_TRAIT1(is_compound);

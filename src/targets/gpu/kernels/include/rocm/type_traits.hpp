@@ -205,7 +205,7 @@ using void_t = void;
     {                                        \
     };                                       \
     template <class T>                       \
-    inline constexpr bool name##_v = name<T>::value
+    inline constexpr bool name##_v = __##name(T)
 
 // NOLINTNEXTLINE
 #define ROCM_BUILTIN_TYPE_TRAIT2(name)          \
@@ -214,7 +214,7 @@ using void_t = void;
     {                                           \
     };                                          \
     template <class T, class U>                 \
-    inline constexpr bool name##_v = name<T, U>::value
+    inline constexpr bool name##_v = __##name(T, U)
 
 // NOLINTNEXTLINE
 #define ROCM_BUILTIN_TYPE_TRAITN(name)           \
@@ -223,12 +223,11 @@ using void_t = void;
     {                                            \
     };                                           \
     template <class... Ts>                       \
-    inline constexpr bool name##_v = name<Ts...>::value
+    inline constexpr bool name##_v = __##name(Ts...)
 
 // ROCM_BUILTIN_TYPE_TRAIT1(is_arithmetic);
 // ROCM_BUILTIN_TYPE_TRAIT1(is_destructible);
 // ROCM_BUILTIN_TYPE_TRAIT1(is_nothrow_destructible);
-// ROCM_BUILTIN_TYPE_TRAIT1(is_pointer);
 // ROCM_BUILTIN_TYPE_TRAIT1(is_scalar);
 // ROCM_BUILTIN_TYPE_TRAIT1(is_signed);
 // ROCM_BUILTIN_TYPE_TRAIT1(is_void);
@@ -252,6 +251,7 @@ ROCM_BUILTIN_TYPE_TRAIT1(is_member_object_pointer);
 ROCM_BUILTIN_TYPE_TRAIT1(is_member_pointer);
 ROCM_BUILTIN_TYPE_TRAIT1(is_object);
 ROCM_BUILTIN_TYPE_TRAIT1(is_pod);
+ROCM_BUILTIN_TYPE_TRAIT1(is_pointer);
 ROCM_BUILTIN_TYPE_TRAIT1(is_polymorphic);
 ROCM_BUILTIN_TYPE_TRAIT1(is_reference);
 ROCM_BUILTIN_TYPE_TRAIT1(is_rvalue_reference);
@@ -285,33 +285,6 @@ struct is_null_pointer : is_same<nullptr_t, remove_cv_t<T>>
 };
 template <class T>
 inline constexpr bool is_null_pointer_v = is_null_pointer<T>::value;
-
-template <class T>
-struct is_pointer : false_type
-{
-};
-
-template <class T>
-struct is_pointer<T*> : true_type
-{
-};
-
-template <class T>
-struct is_pointer<T* const> : true_type
-{
-};
-
-template <class T>
-struct is_pointer<T* volatile> : true_type
-{
-};
-
-template <class T>
-struct is_pointer<T* const volatile> : true_type
-{
-};
-template <class T>
-inline constexpr bool is_pointer_v = is_pointer<T>::value;
 
 } // namespace ROCM_INLINE_NS
 } // namespace rocm

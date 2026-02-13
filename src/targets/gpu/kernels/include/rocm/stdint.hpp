@@ -54,8 +54,6 @@ using int64_t  = std::int64_t;
 using uint64_t = std::uint64_t;
 #endif
 
-using size_t    = uint64_t;
-using ptrdiff_t = int64_t;
 using intptr_t  = int64_t;
 using uintptr_t = uint64_t;
 using intmax_t  = int64_t;

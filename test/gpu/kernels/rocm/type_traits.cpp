@@ -253,6 +253,70 @@ TEST_CASE(remove_reference)
     ROCM_TRANSFORM_CHECK(rocm::remove_reference, (&&)[2], [2]);
 }
 
+TEST_CASE(remove_cvref)
+{
+    // cv-qualifiers stripped
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, , );
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, const, );
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, volatile, );
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, const volatile, );
+    // lvalue references with cv-qualifiers stripped
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, &, );
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, const&, );
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, volatile&, );
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, const volatile&, );
+    // rvalue references with cv-qualifiers stripped
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, &&, );
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, const&&, );
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, volatile&&, );
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, const volatile&&, );
+    // Pointer top-level cv stripped
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, *, *);
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, * const, *);
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, * volatile, *);
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, * const volatile, *);
+    // Pointer top-level cv stripped via lvalue ref
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, * &, *);
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, * const&, *);
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, * volatile&, *);
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, * const volatile&, *);
+    // Pointer top-level cv stripped via rvalue ref
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, * &&, *);
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, * const&&, *);
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, * volatile&&, *);
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, * const volatile&&, *);
+    // Pointee cv-qualifiers preserved
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, const*, const*);
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, volatile*, volatile*);
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, const* const, const*);
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, const* volatile, const*);
+    // Pointee cv-qualifiers preserved via lvalue ref
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, const* &, const*);
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, volatile* &, volatile*);
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, const* const&, const*);
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, const* volatile&, const*);
+    // Pointee cv-qualifiers preserved via rvalue ref
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, const* &&, const*);
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, volatile* &&, volatile*);
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, const* const&&, const*);
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, const* volatile&&, const*);
+    // Arrays with cv-qualifiers stripped
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, [2], [2]);
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, const[2], [2]);
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, volatile[2], [2]);
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, const volatile[2], [2]);
+    // Arrays via lvalue ref with cv-qualifiers stripped
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, (&)[2], [2]);
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, const(&)[2], [2]);
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, volatile(&)[2], [2]);
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, const volatile(&)[2], [2]);
+    // Arrays via rvalue ref with cv-qualifiers stripped
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, (&&)[2], [2]);
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, const(&&)[2], [2]);
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, volatile(&&)[2], [2]);
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, const volatile(&&)[2], [2]);
+}
+
 TEST_CASE(type_identity)
 {
     ROCM_TRANSFORM_CHECK(rocm::type_identity, , );

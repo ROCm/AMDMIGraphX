@@ -276,12 +276,12 @@ TEST_CASE(remove_cvref)
     ROCM_TRANSFORM_CHECK(rocm::remove_cvref, * volatile, *);
     ROCM_TRANSFORM_CHECK(rocm::remove_cvref, * const volatile, *);
     // Pointer top-level cv stripped via lvalue ref
-    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, * &, *);
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, *&, *);
     ROCM_TRANSFORM_CHECK(rocm::remove_cvref, * const&, *);
     ROCM_TRANSFORM_CHECK(rocm::remove_cvref, * volatile&, *);
     ROCM_TRANSFORM_CHECK(rocm::remove_cvref, * const volatile&, *);
     // Pointer top-level cv stripped via rvalue ref
-    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, * &&, *);
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, *&&, *);
     ROCM_TRANSFORM_CHECK(rocm::remove_cvref, * const&&, *);
     ROCM_TRANSFORM_CHECK(rocm::remove_cvref, * volatile&&, *);
     ROCM_TRANSFORM_CHECK(rocm::remove_cvref, * const volatile&&, *);
@@ -291,13 +291,13 @@ TEST_CASE(remove_cvref)
     ROCM_TRANSFORM_CHECK(rocm::remove_cvref, const* const, const*);
     ROCM_TRANSFORM_CHECK(rocm::remove_cvref, const* volatile, const*);
     // Pointee cv-qualifiers preserved via lvalue ref
-    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, const* &, const*);
-    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, volatile* &, volatile*);
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, const*&, const*);
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, volatile*&, volatile*);
     ROCM_TRANSFORM_CHECK(rocm::remove_cvref, const* const&, const*);
     ROCM_TRANSFORM_CHECK(rocm::remove_cvref, const* volatile&, const*);
     // Pointee cv-qualifiers preserved via rvalue ref
-    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, const* &&, const*);
-    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, volatile* &&, volatile*);
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, const*&&, const*);
+    ROCM_TRANSFORM_CHECK(rocm::remove_cvref, volatile * &&, volatile*);
     ROCM_TRANSFORM_CHECK(rocm::remove_cvref, const* const&&, const*);
     ROCM_TRANSFORM_CHECK(rocm::remove_cvref, const* volatile&&, const*);
     // Arrays with cv-qualifiers stripped

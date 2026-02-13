@@ -126,7 +126,7 @@ struct remove_reference<T&&>
 template <class T>
 using remove_reference_t = typename remove_reference<T>::type;
 
-template<class T>
+template <class T>
 struct remove_cvref : remove_cv<remove_reference_t<T>>
 {
 };

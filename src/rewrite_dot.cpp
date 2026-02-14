@@ -27,6 +27,8 @@
 #include <migraphx/matcher.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/permutation.hpp>
+#include <migraphx/literal.hpp>
+#include <migraphx/op/common.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -66,7 +68,8 @@ MIGRAPHX_PRED_MATCHER(depthwise_conv_1x1, instruction_ref ins)
         return false;
     auto w = ins->inputs().at(1)->get_shape();
     // Check 1x1 kernel
-    if(not std::all_of(w.lens().begin() + 2, w.lens().end(), [](std::size_t i) { return i == 1; }))
+    if(not std::all_of(
+           w.lens().begin() + 2, w.lens().end(), [](std::size_t i) { return i == 1; }))
         return false;
     // Check depthwise: group == input channels
     auto x_shape = ins->inputs().at(0)->get_shape();
@@ -126,7 +129,8 @@ MIGRAPHX_PRED_MATCHER(conv_channelwise, instruction_ref ins)
     if(group == 1)
         return c_in == 1;
     // group > 1: depthwise with multiplier == 1
-    return static_cast<std::size_t>(group) == c_in and static_cast<std::size_t>(group) == c_out;
+    return static_cast<std::size_t>(group) == c_in and
+           static_cast<std::size_t>(group) == c_out;
 }
 
 struct find_c1_1x1_convolution
@@ -199,94 +203,96 @@ struct find_channelwise_convolution
         auto input   = ins->inputs().front();
         auto weights = ins->inputs().back();
 
-        auto out_lens    = ins->get_shape().lens();
         auto w_lens      = weights->get_shape().lens();
         auto x_lens      = input->get_shape().lens();
         auto ndim        = ins->get_shape().ndim();
         auto num_spatial = ndim - 2;
 
-        // Build product shape: [N, C_out, k_0, ..., k_{ns-1}, s_0, ..., s_{ns-1}]
+        // Compute kernel_elements for the average pooling scale factor
+        std::size_t kernel_elements = 1;
+        for(std::size_t d = 2; d < ndim; ++d)
+            kernel_elements *= w_lens[d];
+
+        // Pre-scale weights by kernel_elements to compensate for average pooling
+        auto scale_lit = m.add_literal(
+            literal{shape{weights->get_shape().type(), {1}},
+                    {static_cast<double>(kernel_elements)}});
+        auto scale_bcast = m.insert_instruction(
+            ins, make_op("multibroadcast", {{"out_lens", w_lens}}), scale_lit);
+        auto scaled_weights =
+            m.insert_instruction(ins, make_op("mul"), weights, scale_bcast);
+
+        // Build interleaved product shape: [N, C_out, k0, s0, k1, s1, ...]
         std::vector<std::size_t> prod_lens;
         prod_lens.push_back(x_lens[0]);
         prod_lens.push_back(w_lens[0]);
-        for(std::size_t d = 2; d < ndim; ++d)
-            prod_lens.push_back(w_lens[d]);
-        for(std::size_t d = 2; d < ndim; ++d)
-            prod_lens.push_back(x_lens[d]);
+        for(std::size_t d = 0; d < num_spatial; ++d)
+        {
+            prod_lens.push_back(w_lens[2 + d]);
+            prod_lens.push_back(x_lens[2 + d]);
+        }
 
-        // Unsqueeze input: [N, C_in, H, W] -> [N, C_in, 1, ..., 1, H, W]
-        // Insert num_spatial singleton dims at positions 2..2+num_spatial-1
-        std::vector<int64_t> input_unsq_axes(num_spatial);
-        std::iota(input_unsq_axes.begin(), input_unsq_axes.end(), 2);
+        // Unsqueeze input: [N, C_in, s0, s1, ...] -> [N, C_in, 1, s0, 1, s1, ...]
+        // Insert singletons at positions 2, 4, 6, ... for the kernel dims
+        std::vector<int64_t> input_unsq_axes;
+        for(std::size_t d = 0; d < num_spatial; ++d)
+            input_unsq_axes.push_back(static_cast<int64_t>(2 + 2 * d));
         auto unsq_input =
             m.insert_instruction(ins, make_op("unsqueeze", {{"axes", input_unsq_axes}}), input);
-
-        // Broadcast input to product shape
         auto bcast_input = m.insert_instruction(
             ins, make_op("multibroadcast", {{"out_lens", prod_lens}}), unsq_input);
 
-        // Squeeze weight axis 1: [C_out, 1, k_0, ...] -> [C_out, k_0, ...]
-        auto sq_weights = m.insert_instruction(ins, make_op("squeeze", {{"axes", {1}}}), weights);
+        // Squeeze weight axis 1: [C_out, 1, k0, ...] -> [C_out, k0, ...]
+        auto sq_weights =
+            m.insert_instruction(ins, make_op("squeeze", {{"axes", {1}}}), scaled_weights);
 
-        // Unsqueeze weight: [C_out, k_0, ...] -> [1, C_out, k_0, ..., 1, ..., 1]
-        // Add batch dim at 0 and spatial singleton dims at the end
+        // Unsqueeze weight: [C_out, k0, k1, ...] -> [1, C_out, k0, 1, k1, 1, ...]
+        // Add batch dim at 0 and spatial singletons at 3, 5, 7, ...
         std::vector<int64_t> w_unsq_axes;
         w_unsq_axes.push_back(0);
         for(std::size_t d = 0; d < num_spatial; ++d)
-            w_unsq_axes.push_back(static_cast<int64_t>(2 + num_spatial + d));
+            w_unsq_axes.push_back(static_cast<int64_t>(3 + 2 * d));
         auto unsq_weights =
             m.insert_instruction(ins, make_op("unsqueeze", {{"axes", w_unsq_axes}}), sq_weights);
-
-        // Broadcast weight to product shape
         auto bcast_weights = m.insert_instruction(
             ins, make_op("multibroadcast", {{"out_lens", prod_lens}}), unsq_weights);
 
-        // Multiply in broadcast space: [N, C_out, k_0, ..., k_{ns-1}, s_0, ..., s_{ns-1}]
+        // Multiply in interleaved broadcast space: [N, C_out, k0, s0, k1, s1, ...]
         auto product = m.insert_instruction(ins, make_op("mul"), bcast_input, bcast_weights);
 
-        // Reduce each spatial dimension by slicing the kernel and spatial axes
-        // Process in reverse order (last spatial dim first)
-        auto current = product;
-        for(int d = static_cast<int>(num_spatial) - 1; d >= 0; --d)
+        // Reshape to flatten paired dims: [N, C_out, k0*s0, k1*s1, ...]
+        std::vector<int64_t> flat_dims;
+        flat_dims.push_back(static_cast<int64_t>(x_lens[0]));
+        flat_dims.push_back(static_cast<int64_t>(w_lens[0]));
+        for(std::size_t d = 0; d < num_spatial; ++d)
+            flat_dims.push_back(static_cast<int64_t>(w_lens[2 + d] * x_lens[2 + d]));
+        auto reshaped =
+            m.insert_instruction(ins, make_op("reshape", {{"dims", flat_dims}}), product);
+
+        // Dilated average pooling: the anti-diagonal sum becomes a standard pooling
+        // Window of size k_d with dilation (s_d + 1) in each flattened spatial dim
+        std::vector<std::size_t> pool_lengths;
+        std::vector<std::size_t> pool_dilations;
+        std::vector<std::size_t> pool_stride;
+        std::vector<std::size_t> pool_padding;
+        for(std::size_t d = 0; d < num_spatial; ++d)
         {
-            // kernel axis for dimension d is at position 2+d
-            // spatial axis for dimension d is at position 3+2*d
-            auto kernel_axis  = static_cast<int64_t>(2 + d);
-            auto spatial_axis = static_cast<int64_t>(3 + 2 * d);
-            auto kernel_size  = w_lens[2 + d];
-            auto out_size     = out_lens[2 + d];
-
-            instruction_ref accum;
-            for(std::size_t ki = 0; ki < kernel_size; ++ki)
-            {
-                auto ki_start = static_cast<int64_t>(ki);
-
-                // Slice kernel dim at [ki:ki+1] and spatial dim at [ki:ki+out_size]
-                auto sliced = m.insert_instruction(
-                    ins,
-                    make_op("slice",
-                            {{"axes", {kernel_axis, spatial_axis}},
-                             {"starts", {ki_start, ki_start}},
-                             {"ends", {ki_start + 1, ki_start + static_cast<int64_t>(out_size)}}}),
-                    current);
-
-                // Squeeze the kernel dim
-                auto squeezed = m.insert_instruction(
-                    ins, make_op("squeeze", {{"axes", {kernel_axis}}}), sliced);
-
-                if(ki == 0)
-                {
-                    accum = squeezed;
-                }
-                else
-                {
-                    accum = m.insert_instruction(ins, make_op("add"), accum, squeezed);
-                }
-            }
-            current = accum;
+            pool_lengths.push_back(w_lens[2 + d]);
+            pool_dilations.push_back(x_lens[2 + d] + 1);
+            pool_stride.push_back(1);
+            pool_padding.push_back(0);
         }
 
-        m.replace_instruction(ins, current);
+        m.replace_instruction(
+            ins,
+            make_op("pooling",
+                     {{"mode", op::pooling_mode::average},
+                      {"lengths", pool_lengths},
+                      {"dilations", pool_dilations},
+                      {"stride", pool_stride},
+                      {"padding", pool_padding},
+                      {"count_include_pad", true}}),
+            reshaped);
     }
 };
 

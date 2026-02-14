@@ -66,8 +66,7 @@ MIGRAPHX_PRED_MATCHER(depthwise_conv_1x1, instruction_ref ins)
         return false;
     auto w = ins->inputs().at(1)->get_shape();
     // Check 1x1 kernel
-    if(not std::all_of(
-           w.lens().begin() + 2, w.lens().end(), [](std::size_t i) { return i == 1; }))
+    if(not std::all_of(w.lens().begin() + 2, w.lens().end(), [](std::size_t i) { return i == 1; }))
         return false;
     // Check depthwise: group == input channels
     auto x_shape = ins->inputs().at(0)->get_shape();
@@ -127,8 +126,7 @@ MIGRAPHX_PRED_MATCHER(conv_channelwise, instruction_ref ins)
     if(group == 1)
         return c_in == 1;
     // group > 1: depthwise with multiplier == 1
-    return static_cast<std::size_t>(group) == c_in and
-           static_cast<std::size_t>(group) == c_out;
+    return static_cast<std::size_t>(group) == c_in and static_cast<std::size_t>(group) == c_out;
 }
 
 struct find_c1_1x1_convolution
@@ -228,8 +226,7 @@ struct find_channelwise_convolution
             ins, make_op("multibroadcast", {{"out_lens", prod_lens}}), unsq_input);
 
         // Squeeze weight axis 1: [C_out, 1, k_0, ...] -> [C_out, k_0, ...]
-        auto sq_weights =
-            m.insert_instruction(ins, make_op("squeeze", {{"axes", {1}}}), weights);
+        auto sq_weights = m.insert_instruction(ins, make_op("squeeze", {{"axes", {1}}}), weights);
 
         // Unsqueeze weight: [C_out, k_0, ...] -> [1, C_out, k_0, ..., 1, ..., 1]
         // Add batch dim at 0 and spatial singleton dims at the end
@@ -270,8 +267,7 @@ struct find_channelwise_convolution
                     make_op("slice",
                             {{"axes", {kernel_axis, spatial_axis}},
                              {"starts", {ki_start, ki_start}},
-                             {"ends",
-                              {ki_start + 1, ki_start + static_cast<int64_t>(out_size)}}}),
+                             {"ends", {ki_start + 1, ki_start + static_cast<int64_t>(out_size)}}}),
                     current);
 
                 // Squeeze the kernel dim

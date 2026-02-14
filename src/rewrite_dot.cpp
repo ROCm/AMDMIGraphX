@@ -66,33 +66,8 @@ MIGRAPHX_PRED_MATCHER(depthwise_conv_1x1, instruction_ref ins)
         return false;
     auto w = ins->inputs().at(1)->get_shape();
     // Check 1x1 kernel
-    if(not std::all_of(w.lens().begin() + 2, w.lens().end(), [](std::size_t i) { return i == 1; }))
-        return false;
-    // Check depthwise: group == input channels
-    auto x_shape = ins->inputs().at(0)->get_shape();
-    if(static_cast<std::size_t>(group) != x_shape.lens().at(1))
-        return false;
-    // Check multiplier == 1: output channels == group
-    return static_cast<std::size_t>(group) == w.lens().at(0);
-}
-
-MIGRAPHX_PRED_MATCHER(depthwise_conv, instruction_ref ins)
-{
-    if(ins->name() != "convolution")
-        return false;
-    auto v     = ins->get_operator().to_value();
-    auto group = v.at("group").to<int>();
-    if(group == 1)
-        return false;
-    if(not all_of(v.at("stride"), [](const value& x) { return x.to<std::size_t>() == 1; }))
-        return false;
-    if(not all_of(v.at("padding"), [](const value& x) { return x.to<std::size_t>() == 0; }))
-        return false;
-    if(not all_of(v.at("dilation"), [](const value& x) { return x.to<std::size_t>() == 1; }))
-        return false;
-    auto w = ins->inputs().at(1)->get_shape();
-    // Exclude 1x1 kernel (handled by find_1x1_depthwise)
-    if(std::all_of(w.lens().begin() + 2, w.lens().end(), [](std::size_t i) { return i == 1; }))
+    if(not std::all_of(
+           w.lens().begin() + 2, w.lens().end(), [](std::size_t i) { return i == 1; }))
         return false;
     // Check depthwise: group == input channels
     auto x_shape = ins->inputs().at(0)->get_shape();
@@ -124,27 +99,36 @@ MIGRAPHX_PRED_MATCHER(conv_c1_1x1, instruction_ref ins)
     return std::all_of(w.lens().begin() + 2, w.lens().end(), [](std::size_t i) { return i == 1; });
 }
 
-MIGRAPHX_PRED_MATCHER(conv_c1, instruction_ref ins)
+// Matches convolution where each filter has 1 input channel:
+// - depthwise (group == C_in, multiplier == 1) with non-1x1 kernel
+// - group=1 with C_in=1 and non-1x1 kernel
+MIGRAPHX_PRED_MATCHER(conv_channelwise, instruction_ref ins)
 {
     if(ins->name() != "convolution")
         return false;
-    auto v = ins->get_operator().to_value();
-    if(v.at("group").to<int>() != 1)
-        return false;
+    auto v     = ins->get_operator().to_value();
+    auto group = v.at("group").to<int>();
     if(not all_of(v.at("stride"), [](const value& x) { return x.to<std::size_t>() == 1; }))
         return false;
     if(not all_of(v.at("padding"), [](const value& x) { return x.to<std::size_t>() == 0; }))
         return false;
     if(not all_of(v.at("dilation"), [](const value& x) { return x.to<std::size_t>() == 1; }))
         return false;
-    // Check C_in == 1
-    auto x_shape = ins->inputs().at(0)->get_shape();
-    if(x_shape.lens().at(1) != 1)
-        return false;
     auto w = ins->inputs().at(1)->get_shape();
-    // Exclude 1x1 kernel (handled by find_c1_1x1_convolution)
-    return not std::all_of(
-        w.lens().begin() + 2, w.lens().end(), [](std::size_t i) { return i == 1; });
+    // Weight must have 1 input channel per group
+    if(w.lens().at(1) != 1)
+        return false;
+    // Exclude 1x1 kernel (handled by 1x1 matchers)
+    if(std::all_of(w.lens().begin() + 2, w.lens().end(), [](std::size_t i) { return i == 1; }))
+        return false;
+    auto x_shape = ins->inputs().at(0)->get_shape();
+    auto c_in    = x_shape.lens().at(1);
+    auto c_out   = w.lens().at(0);
+    if(group == 1)
+        return c_in == 1;
+    // group > 1: depthwise with multiplier == 1
+    return static_cast<std::size_t>(group) == c_in and
+           static_cast<std::size_t>(group) == c_out;
 }
 
 struct find_c1_1x1_convolution
@@ -178,102 +162,6 @@ struct find_c1_1x1_convolution
     }
 };
 
-struct find_c1_convolution
-{
-    auto matcher() const { return conv_c1(match::arg(1)(match::is_constant())); }
-
-    void apply(module& m, const match::matcher_result& r) const
-    {
-        auto ins = r.result;
-
-        auto input   = ins->inputs().front();
-        auto weights = ins->inputs().back();
-
-        auto out_lens    = ins->get_shape().lens();
-        auto w_lens      = weights->get_shape().lens();
-        auto ndim        = ins->get_shape().ndim();
-        auto num_spatial = ndim - 2;
-
-        std::vector<std::size_t> kernel_lens(w_lens.begin() + 2, w_lens.end());
-        std::size_t total_kernel = std::accumulate(
-            kernel_lens.begin(), kernel_lens.end(), std::size_t{1}, std::multiplies<>{});
-
-        // Spatial axes: {2, 3, ...}
-        std::vector<int64_t> spatial_axes(num_spatial);
-        std::iota(spatial_axes.begin(), spatial_axes.end(), 2);
-
-        // Squeeze axes for sliced weight: {1, 2, 3, ...}
-        std::vector<int64_t> sq_axes(ndim - 1);
-        std::iota(sq_axes.begin(), sq_axes.end(), 1);
-
-        instruction_ref result;
-
-        for(std::size_t k = 0; k < total_kernel; ++k)
-        {
-            // Compute multi-dimensional kernel index from flat index
-            std::vector<int64_t> kidx(num_spatial);
-            auto remaining = k;
-            for(int d = static_cast<int>(num_spatial) - 1; d >= 0; --d)
-            {
-                kidx[d] = remaining % kernel_lens[d];
-                remaining /= kernel_lens[d];
-            }
-
-            // Slice input: [N, 1, kh:kh+H_out, kw:kw+W_out]
-            std::vector<int64_t> i_starts(num_spatial);
-            std::vector<int64_t> i_ends(num_spatial);
-            for(std::size_t d = 0; d < num_spatial; ++d)
-            {
-                i_starts[d] = kidx[d];
-                i_ends[d]   = kidx[d] + static_cast<int64_t>(out_lens[d + 2]);
-            }
-            auto sliced_input = m.insert_instruction(
-                ins,
-                make_op("slice", {{"axes", spatial_axes}, {"starts", i_starts}, {"ends", i_ends}}),
-                input);
-
-            // Broadcast sliced input [N, 1, H_out, W_out] -> [N, C_out, H_out, W_out]
-            auto bcast_input = m.insert_instruction(
-                ins, make_op("multibroadcast", {{"out_lens", out_lens}}), sliced_input);
-
-            // Slice weight at kernel position: [C_out, 1, kh:kh+1, kw:kw+1]
-            std::vector<int64_t> w_starts(num_spatial);
-            std::vector<int64_t> w_ends(num_spatial);
-            for(std::size_t d = 0; d < num_spatial; ++d)
-            {
-                w_starts[d] = kidx[d];
-                w_ends[d]   = kidx[d] + 1;
-            }
-            auto sliced_w = m.insert_instruction(
-                ins,
-                make_op("slice", {{"axes", spatial_axes}, {"starts", w_starts}, {"ends", w_ends}}),
-                weights);
-
-            // Squeeze to [C_out]
-            auto sq_w =
-                m.insert_instruction(ins, make_op("squeeze", {{"axes", sq_axes}}), sliced_w);
-
-            // Broadcast weight [C_out] -> [N, C_out, H_out, W_out] along axis 1
-            auto bcast_w = m.insert_instruction(
-                ins, make_op("broadcast", {{"axis", 1}, {"out_lens", out_lens}}), sq_w);
-
-            // Multiply
-            auto prod = m.insert_instruction(ins, make_op("mul"), bcast_input, bcast_w);
-
-            if(k == 0)
-            {
-                result = prod;
-            }
-            else
-            {
-                result = m.insert_instruction(ins, make_op("add"), result, prod);
-            }
-        }
-
-        m.replace_instruction(ins, result);
-    }
-};
-
 struct find_1x1_depthwise
 {
     auto matcher() const { return depthwise_conv_1x1(match::arg(1)(match::is_constant())); }
@@ -302,9 +190,9 @@ struct find_1x1_depthwise
     }
 };
 
-struct find_depthwise
+struct find_channelwise_convolution
 {
-    auto matcher() const { return depthwise_conv(match::arg(1)(match::is_constant())); }
+    auto matcher() const { return conv_channelwise(match::arg(1)(match::is_constant())); }
 
     void apply(module& m, const match::matcher_result& r) const
     {
@@ -315,82 +203,94 @@ struct find_depthwise
 
         auto out_lens    = ins->get_shape().lens();
         auto w_lens      = weights->get_shape().lens();
+        auto x_lens      = input->get_shape().lens();
         auto ndim        = ins->get_shape().ndim();
         auto num_spatial = ndim - 2;
 
-        std::vector<std::size_t> kernel_lens(w_lens.begin() + 2, w_lens.end());
-        std::size_t total_kernel = std::accumulate(
-            kernel_lens.begin(), kernel_lens.end(), std::size_t{1}, std::multiplies<>{});
+        // Build product shape: [N, C_out, k_0, ..., k_{ns-1}, s_0, ..., s_{ns-1}]
+        std::vector<std::size_t> prod_lens;
+        prod_lens.push_back(x_lens[0]);
+        prod_lens.push_back(w_lens[0]);
+        for(std::size_t d = 2; d < ndim; ++d)
+            prod_lens.push_back(w_lens[d]);
+        for(std::size_t d = 2; d < ndim; ++d)
+            prod_lens.push_back(x_lens[d]);
 
-        // Spatial axes: {2, 3, ...}
-        std::vector<int64_t> spatial_axes(num_spatial);
-        std::iota(spatial_axes.begin(), spatial_axes.end(), 2);
+        // Unsqueeze input: [N, C_in, H, W] -> [N, C_in, 1, ..., 1, H, W]
+        // Insert num_spatial singleton dims at positions 2..2+num_spatial-1
+        std::vector<int64_t> input_unsq_axes(num_spatial);
+        std::iota(input_unsq_axes.begin(), input_unsq_axes.end(), 2);
+        auto unsq_input =
+            m.insert_instruction(ins, make_op("unsqueeze", {{"axes", input_unsq_axes}}), input);
 
-        // Squeeze axes for sliced weight: {1, 2, 3, ...}
-        std::vector<int64_t> sq_axes(ndim - 1);
-        std::iota(sq_axes.begin(), sq_axes.end(), 1);
+        // Broadcast input to product shape
+        auto bcast_input = m.insert_instruction(
+            ins, make_op("multibroadcast", {{"out_lens", prod_lens}}), unsq_input);
 
-        instruction_ref result;
+        // Squeeze weight axis 1: [C_out, 1, k_0, ...] -> [C_out, k_0, ...]
+        auto sq_weights =
+            m.insert_instruction(ins, make_op("squeeze", {{"axes", {1}}}), weights);
 
-        for(std::size_t k = 0; k < total_kernel; ++k)
+        // Unsqueeze weight: [C_out, k_0, ...] -> [1, C_out, k_0, ..., 1, ..., 1]
+        // Add batch dim at 0 and spatial singleton dims at the end
+        std::vector<int64_t> w_unsq_axes;
+        w_unsq_axes.push_back(0);
+        for(std::size_t d = 0; d < num_spatial; ++d)
+            w_unsq_axes.push_back(static_cast<int64_t>(2 + num_spatial + d));
+        auto unsq_weights =
+            m.insert_instruction(ins, make_op("unsqueeze", {{"axes", w_unsq_axes}}), sq_weights);
+
+        // Broadcast weight to product shape
+        auto bcast_weights = m.insert_instruction(
+            ins, make_op("multibroadcast", {{"out_lens", prod_lens}}), unsq_weights);
+
+        // Multiply in broadcast space: [N, C_out, k_0, ..., k_{ns-1}, s_0, ..., s_{ns-1}]
+        auto product = m.insert_instruction(ins, make_op("mul"), bcast_input, bcast_weights);
+
+        // Reduce each spatial dimension by slicing the kernel and spatial axes
+        // Process in reverse order (last spatial dim first)
+        auto current = product;
+        for(int d = static_cast<int>(num_spatial) - 1; d >= 0; --d)
         {
-            // Compute multi-dimensional kernel index from flat index
-            std::vector<int64_t> kidx(num_spatial);
-            auto remaining = k;
-            for(int d = static_cast<int>(num_spatial) - 1; d >= 0; --d)
+            // kernel axis for dimension d is at position 2+d
+            // spatial axis for dimension d is at position 3+2*d
+            auto kernel_axis  = static_cast<int64_t>(2 + d);
+            auto spatial_axis = static_cast<int64_t>(3 + 2 * d);
+            auto kernel_size  = w_lens[2 + d];
+            auto out_size     = out_lens[2 + d];
+
+            instruction_ref accum;
+            for(std::size_t ki = 0; ki < kernel_size; ++ki)
             {
-                kidx[d] = remaining % kernel_lens[d];
-                remaining /= kernel_lens[d];
+                auto ki_start = static_cast<int64_t>(ki);
+
+                // Slice kernel dim at [ki:ki+1] and spatial dim at [ki:ki+out_size]
+                auto sliced = m.insert_instruction(
+                    ins,
+                    make_op("slice",
+                            {{"axes", {kernel_axis, spatial_axis}},
+                             {"starts", {ki_start, ki_start}},
+                             {"ends",
+                              {ki_start + 1, ki_start + static_cast<int64_t>(out_size)}}}),
+                    current);
+
+                // Squeeze the kernel dim
+                auto squeezed = m.insert_instruction(
+                    ins, make_op("squeeze", {{"axes", {kernel_axis}}}), sliced);
+
+                if(ki == 0)
+                {
+                    accum = squeezed;
+                }
+                else
+                {
+                    accum = m.insert_instruction(ins, make_op("add"), accum, squeezed);
+                }
             }
-
-            // Slice input: [N, C, kh:kh+H_out, kw:kw+W_out]
-            std::vector<int64_t> i_starts(num_spatial);
-            std::vector<int64_t> i_ends(num_spatial);
-            for(std::size_t d = 0; d < num_spatial; ++d)
-            {
-                i_starts[d] = kidx[d];
-                i_ends[d]   = kidx[d] + static_cast<int64_t>(out_lens[d + 2]);
-            }
-            auto sliced_input = m.insert_instruction(
-                ins,
-                make_op("slice", {{"axes", spatial_axes}, {"starts", i_starts}, {"ends", i_ends}}),
-                input);
-
-            // Slice weight at kernel position: [C, 1, kh:kh+1, kw:kw+1]
-            std::vector<int64_t> w_starts(num_spatial);
-            std::vector<int64_t> w_ends(num_spatial);
-            for(std::size_t d = 0; d < num_spatial; ++d)
-            {
-                w_starts[d] = kidx[d];
-                w_ends[d]   = kidx[d] + 1;
-            }
-            auto sliced_w = m.insert_instruction(
-                ins,
-                make_op("slice", {{"axes", spatial_axes}, {"starts", w_starts}, {"ends", w_ends}}),
-                weights);
-
-            // Squeeze to [C]
-            auto sq_w =
-                m.insert_instruction(ins, make_op("squeeze", {{"axes", sq_axes}}), sliced_w);
-
-            // Broadcast [C] -> output shape along channel axis
-            auto bcast_w = m.insert_instruction(
-                ins, make_op("broadcast", {{"axis", 1}, {"out_lens", out_lens}}), sq_w);
-
-            // Multiply
-            auto prod = m.insert_instruction(ins, make_op("mul"), sliced_input, bcast_w);
-
-            if(k == 0)
-            {
-                result = prod;
-            }
-            else
-            {
-                result = m.insert_instruction(ins, make_op("add"), result, prod);
-            }
+            current = accum;
         }
 
-        m.replace_instruction(ins, result);
+        m.replace_instruction(ins, current);
     }
 };
 
@@ -457,10 +357,9 @@ void rewrite_dot::apply(module& m) const
 {
     match::find_matches(m,
                         find_c1_1x1_convolution{},
-                        find_c1_convolution{},
+                        find_channelwise_convolution{},
                         find_1x1_convolution{},
-                        find_1x1_depthwise{},
-                        find_depthwise{});
+                        find_1x1_depthwise{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -22,6 +22,7 @@ Full documentation for MIGraphX is available at
 * Fixed an issue in `propagate_precision` pass where precision could be incorrectly propagated across type boundaries (e.g., from integral to floating-point) (#4603).
 * Fixed an issue with clip operator when using fp16 input type on opset 6 (#4518). 
 * Fixed an issue with `reshape_lazy`'s shape computation that was leading to invalid reshapes (#4594).
+* Fixed `eliminate_pad` pass bug that was removing nonzero `pad` instructions (#4600).
 
 ### Optimized
 

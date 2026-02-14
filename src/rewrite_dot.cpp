@@ -66,8 +66,7 @@ MIGRAPHX_PRED_MATCHER(depthwise_conv_1x1, instruction_ref ins)
         return false;
     auto w = ins->inputs().at(1)->get_shape();
     // Check 1x1 kernel
-    if(not std::all_of(
-           w.lens().begin() + 2, w.lens().end(), [](std::size_t i) { return i == 1; }))
+    if(not std::all_of(w.lens().begin() + 2, w.lens().end(), [](std::size_t i) { return i == 1; }))
         return false;
     // Check depthwise: group == input channels
     auto x_shape = ins->inputs().at(0)->get_shape();
@@ -156,8 +155,8 @@ struct find_c1_1x1_convolution
     {
         auto ins = r.result;
 
-        auto input   = ins->inputs().front();
-        auto weights = ins->inputs().back();
+        auto input    = ins->inputs().front();
+        auto weights  = ins->inputs().back();
         auto out_lens = ins->get_shape().lens();
 
         // Squeeze weight [C_out, 1, 1, ...] -> [C_out]
@@ -168,13 +167,11 @@ struct find_c1_1x1_convolution
 
         // Broadcast weight [C_out] -> [N, C_out, H, W] along axis 1
         auto bcast_weights = m.insert_instruction(
-            ins,
-            make_op("broadcast", {{"axis", 1}, {"out_lens", out_lens}}),
-            sq_weights);
+            ins, make_op("broadcast", {{"axis", 1}, {"out_lens", out_lens}}), sq_weights);
 
         // Broadcast input [N, 1, H, W] -> [N, C_out, H, W]
-        auto bcast_input = m.insert_instruction(
-            ins, make_op("multibroadcast", {{"out_lens", out_lens}}), input);
+        auto bcast_input =
+            m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", out_lens}}), input);
 
         // Replace with elementwise multiply
         m.replace_instruction(ins, make_op("mul"), bcast_input, bcast_weights);
@@ -232,8 +229,7 @@ struct find_c1_convolution
             }
             auto sliced_input = m.insert_instruction(
                 ins,
-                make_op("slice",
-                        {{"axes", spatial_axes}, {"starts", i_starts}, {"ends", i_ends}}),
+                make_op("slice", {{"axes", spatial_axes}, {"starts", i_starts}, {"ends", i_ends}}),
                 input);
 
             // Broadcast sliced input [N, 1, H_out, W_out] -> [N, C_out, H_out, W_out]
@@ -250,8 +246,7 @@ struct find_c1_convolution
             }
             auto sliced_w = m.insert_instruction(
                 ins,
-                make_op("slice",
-                        {{"axes", spatial_axes}, {"starts", w_starts}, {"ends", w_ends}}),
+                make_op("slice", {{"axes", spatial_axes}, {"starts", w_starts}, {"ends", w_ends}}),
                 weights);
 
             // Squeeze to [C_out]
@@ -358,8 +353,7 @@ struct find_depthwise
             }
             auto sliced_input = m.insert_instruction(
                 ins,
-                make_op("slice",
-                        {{"axes", spatial_axes}, {"starts", i_starts}, {"ends", i_ends}}),
+                make_op("slice", {{"axes", spatial_axes}, {"starts", i_starts}, {"ends", i_ends}}),
                 input);
 
             // Slice weight at kernel position: [C, 1, kh:kh+1, kw:kw+1]
@@ -372,8 +366,7 @@ struct find_depthwise
             }
             auto sliced_w = m.insert_instruction(
                 ins,
-                make_op("slice",
-                        {{"axes", spatial_axes}, {"starts", w_starts}, {"ends", w_ends}}),
+                make_op("slice", {{"axes", spatial_axes}, {"starts", w_starts}, {"ends", w_ends}}),
                 weights);
 
             // Squeeze to [C]

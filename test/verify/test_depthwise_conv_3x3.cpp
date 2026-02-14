@@ -36,7 +36,7 @@ struct test_depthwise_conv_3x3 : verify_program<test_depthwise_conv_3x3<DType>>
         auto* mm     = p.get_main_module();
         auto input   = mm->add_parameter("x", migraphx::shape{DType, {2, 4, 5, 5}});
         auto weights = mm->add_parameter("w", migraphx::shape{DType, {4, 1, 3, 3}});
-        auto conv    =
+        auto conv =
             mm->add_instruction(migraphx::make_op("convolution", {{"group", 4}}), input, weights);
         mm->add_return({conv});
         return p;

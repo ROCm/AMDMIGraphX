@@ -327,8 +327,7 @@ TEST_CASE(nchw_conv_c1_1x1)
     {
         auto x       = m2.add_parameter("x", s1);
         auto w       = m2.add_literal(migraphx::generate_literal(s2));
-        auto squeeze = m2.add_instruction(
-            migraphx::make_op("squeeze", {{"axes", {1, 2, 3}}}), w);
+        auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1, 2, 3}}}), w);
         auto bcast_w = m2.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 3, 4, 4}}}), squeeze);
         auto bcast_x = m2.add_instruction(
@@ -374,8 +373,8 @@ TEST_CASE(nchw_conv_c1_3x3)
                         "slice",
                         {{"axes", {2, 3}}, {"starts", {kh, kw}}, {"ends", {kh + 1, kw + 1}}}),
                     w);
-                auto sq_w = m2.add_instruction(
-                    migraphx::make_op("squeeze", {{"axes", {1, 2, 3}}}), sliced_w);
+                auto sq_w = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1, 2, 3}}}),
+                                               sliced_w);
                 auto bcast_w = m2.add_instruction(
                     migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 3, 3, 3}}}),
                     sq_w);
@@ -418,10 +417,10 @@ TEST_CASE(nchw_conv_c1_3x3_stride)
     migraphx::shape s2{migraphx::shape::float_type, {3, 1, 3, 3}};
     migraphx::module m1;
     {
-        auto x    = m1.add_parameter("x", s1);
-        auto w    = m1.add_literal(migraphx::generate_literal(s2));
-        auto conv = m1.add_instruction(
-            migraphx::make_op("convolution", {{"stride", {2, 2}}}), x, w);
+        auto x = m1.add_parameter("x", s1);
+        auto w = m1.add_literal(migraphx::generate_literal(s2));
+        auto conv =
+            m1.add_instruction(migraphx::make_op("convolution", {{"stride", {2, 2}}}), x, w);
         m1.add_return({conv});
     }
     migraphx::module m2 = m1;

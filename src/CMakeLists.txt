@@ -262,7 +262,7 @@ register_migraphx_ops(
     quantizelinear
     random_uniform
     random_seed
-    range
+    dynamic_range
     recip
     reduce_all
     reduce_any

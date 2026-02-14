@@ -46,7 +46,7 @@ struct parse_range : op_parser<parse_range>
 
         if(start_arg.empty() or limit_arg.empty() or delta_arg.empty())
         {
-            return info.add_instruction(make_op("range"), args);
+            return info.add_instruction(make_op("dynamic_range"), args);
         }
 
         assert(args[0]->get_shape().elements() == 1 and args[1]->get_shape().elements() == 1 and

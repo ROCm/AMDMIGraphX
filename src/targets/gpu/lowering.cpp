@@ -125,7 +125,7 @@ struct miopen_apply
         add_reshape_lazy_op();
         add_concat_past_present_op();
         add_scan_slice_op();
-        add_range_op();
+        add_dynamic_range_op();
     }
 
     void copy_params() const
@@ -494,9 +494,9 @@ struct miopen_apply
         });
     }
 
-    void add_range_op()
+    void add_dynamic_range_op()
     {
-        apply_map.emplace("range", [=](instruction_ref ins) {
+        apply_map.emplace("dynamic_range", [=](instruction_ref ins) {
             auto s = ins->get_shape();
             std::vector<instruction_ref> cpu_inputs;
             auto inputs = ins->inputs();

@@ -32,7 +32,7 @@ TEST_CASE(range_inputs_test)
     auto limit = mm->add_parameter("limit", migraphx::shape{migraphx::shape::float_type, {1}, {0}});
     auto delta = mm->add_parameter("delta", migraphx::shape{migraphx::shape::float_type, {1}, {0}});
 
-    mm->add_instruction(migraphx::make_op("range"), start, limit, delta);
+    mm->add_instruction(migraphx::make_op("dynamic_range"), start, limit, delta);
 
     auto prog = optimize_onnx("range_inputs_test.onnx");
 

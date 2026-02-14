@@ -37,21 +37,13 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct range : op_name<range>
+struct dynamic_range : op_name<dynamic_range>
 {
-    std::string name() const { return "range"; }
-
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(3);
-
+        check_shapes{inputs, *this}.has(3).same_type();
         const auto& type = inputs.at(0).type();
-        if(std::any_of(inputs.begin(), inputs.end(), [&](auto s) { return s.type() != type; }))
-        {
-            MIGRAPHX_THROW("RANGE: valid inputs types are half, float, double, int16, int32, and "
-                           "int64, and all inputs must be of the same type");
-        }
-
         // The output shape is 1D with unknown size if we don't evaluate.
         return shape{type, {shape::dynamic_dimension{0, std::numeric_limits<std::size_t>::max()}}};
     }
@@ -71,12 +63,14 @@ struct range : op_name<range>
 
             result = argument{shape{args[0].get_shape().type(), {num_elements}}};
 
-            result.visit([&](auto output) {
-                for(size_t i = 0; i < num_elements; ++i)
-                {
-                    output[i] = start_val + (static_cast<decltype(start_val)>(i) * delta_val);
-                }
-            });
+            using value_type = decltype(start_val);
+            std::vector<value_type> output_data(num_elements);
+            for(size_t i = 0; i < num_elements; ++i)
+            {
+                output_data[i] = start_val + (static_cast<value_type>(i) * delta_val);
+            }
+
+            result.fill(output_data.begin(), output_data.end());
         });
         return result;
     }

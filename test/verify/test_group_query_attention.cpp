@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -244,6 +244,7 @@ struct test_group_query_attention_decode_small
                                   /* do_rotary=            */ true,
                                   /* scale=                */ 0.5);
     }
+    std::string section() const { return "attention"; }
 };
 
 struct test_group_query_attention_decode : verify_program<test_group_query_attention_decode>
@@ -260,6 +261,7 @@ struct test_group_query_attention_decode : verify_program<test_group_query_atten
                                   /* do_rotary=            */ true,
                                   /* scale=                */ 1.0 / sqrt(128.0));
     }
+    std::string section() const { return "attention"; }
 };
 
 struct test_group_query_attention_prefill_small
@@ -277,6 +279,7 @@ struct test_group_query_attention_prefill_small
                                   /* do_rotary=            */ true,
                                   /* scale=                */ 0.5);
     }
+    std::string section() const { return "attention"; }
 };
 
 struct test_group_query_attention_prefill : verify_program<test_group_query_attention_prefill>
@@ -293,6 +296,7 @@ struct test_group_query_attention_prefill : verify_program<test_group_query_atte
                                   /* do_rotary=            */ true,
                                   /* scale=                */ 1.0);
     }
+    std::string section() const { return "attention"; }
 };
 
 struct test_group_query_attention_no_rotary : verify_program<test_group_query_attention_no_rotary>
@@ -309,6 +313,7 @@ struct test_group_query_attention_no_rotary : verify_program<test_group_query_at
                                   /* do_rotary=            */ false,
                                   /* scale=                */ 1.0 / sqrt(128.0));
     }
+    std::string section() const { return "attention"; }
 };
 
 struct test_group_query_attention_grouped : verify_program<test_group_query_attention_grouped>
@@ -325,6 +330,7 @@ struct test_group_query_attention_grouped : verify_program<test_group_query_atte
                                   /* do_rotary=            */ true,
                                   /* scale=                */ 1.0 / sqrt(128.0));
     }
+    // std::string section() const { return "attention"; }
 };
 
 struct test_group_query_attention_rotary_only
@@ -344,6 +350,7 @@ struct test_group_query_attention_rotary_only
                                   /* test_rotary=          */ true,
                                   /* test_concat=          */ false);
     }
+    std::string section() const { return "attention"; }
 };
 
 struct test_group_query_attention_concat_only
@@ -363,6 +370,7 @@ struct test_group_query_attention_concat_only
                                   /* test_rotary=          */ false,
                                   /* test_concat=          */ true);
     }
+    std::string section() const { return "attention"; }
 };
 
 struct test_group_query_attention_concat_only_small
@@ -382,6 +390,7 @@ struct test_group_query_attention_concat_only_small
                                   /* test_rotary=          */ false,
                                   /* test_concat=          */ true);
     }
+    std::string section() const { return "attention"; }
 };
 
 struct test_group_query_attention_prefill_local
@@ -402,6 +411,7 @@ struct test_group_query_attention_prefill_local
                                   /* test_concat=          */ false,
                                   /* local_window_size=    */ 2);
     }
+    // std::string section() const { return "attention"; }
 };
 
 struct test_group_query_attention_decode_local
@@ -422,4 +432,5 @@ struct test_group_query_attention_decode_local
                                   /* test_concat=          */ false,
                                   /* local_window_size=    */ 2);
     }
+    // std::string section() const { return "attention"; }
 };

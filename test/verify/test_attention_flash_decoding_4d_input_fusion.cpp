@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,6 +31,7 @@ template <migraphx::shape::type_t DType>
 struct test_attention_flash_decoding_4d_input_fusion
     : verify_program<test_attention_flash_decoding_4d_input_fusion<DType>>
 {
+    std::string section() const { return "attention"; }
     migraphx::program create_program() const
     {
         // 4D Shape: [batch, num_heads, sequence_length, head_dim]

@@ -45,6 +45,7 @@
 #include <migraphx/propagate_precision.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/replace_allocate.hpp>
+#include <migraphx/rewrite_broadcast.hpp>
 #include <migraphx/rewrite_dot.hpp>
 #include <migraphx/rewrite_gelu.hpp>
 #include <migraphx/rewrite_low_precision.hpp>
@@ -143,6 +144,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         enable_pass(mlir_enabled(), fuse_attention{.attn_enabled = mlir_attention_enabled(&ctx),
                                                    .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
+        dead_code_elimination{},
+        rewrite_broadcast{},
         dead_code_elimination{},
         optimize_module{},
         enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_pointwise_reduce{}),

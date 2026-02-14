@@ -68,8 +68,7 @@ MIGRAPHX_PRED_MATCHER(depthwise_conv_1x1, instruction_ref ins)
         return false;
     auto w = ins->inputs().at(1)->get_shape();
     // Check 1x1 kernel
-    if(not std::all_of(
-           w.lens().begin() + 2, w.lens().end(), [](std::size_t i) { return i == 1; }))
+    if(not std::all_of(w.lens().begin() + 2, w.lens().end(), [](std::size_t i) { return i == 1; }))
         return false;
     // Check depthwise: group == input channels
     auto x_shape = ins->inputs().at(0)->get_shape();
@@ -129,8 +128,7 @@ MIGRAPHX_PRED_MATCHER(conv_channelwise, instruction_ref ins)
     if(group == 1)
         return c_in == 1;
     // group > 1: depthwise with multiplier == 1
-    return static_cast<std::size_t>(group) == c_in and
-           static_cast<std::size_t>(group) == c_out;
+    return static_cast<std::size_t>(group) == c_in and static_cast<std::size_t>(group) == c_out;
 }
 
 struct find_c1_1x1_convolution
@@ -214,13 +212,11 @@ struct find_channelwise_convolution
             kernel_elements *= w_lens[d];
 
         // Pre-scale weights by kernel_elements to compensate for average pooling
-        auto scale_lit = m.add_literal(
-            literal{shape{weights->get_shape().type(), {1}},
-                    {static_cast<double>(kernel_elements)}});
-        auto scale_bcast = m.insert_instruction(
-            ins, make_op("multibroadcast", {{"out_lens", w_lens}}), scale_lit);
-        auto scaled_weights =
-            m.insert_instruction(ins, make_op("mul"), weights, scale_bcast);
+        auto scale_lit = m.add_literal(literal{shape{weights->get_shape().type(), {1}},
+                                               {static_cast<double>(kernel_elements)}});
+        auto scale_bcast =
+            m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", w_lens}}), scale_lit);
+        auto scaled_weights = m.insert_instruction(ins, make_op("mul"), weights, scale_bcast);
 
         // Build interleaved product shape: [N, C_out, k0, s0, k1, s1, ...]
         std::vector<std::size_t> prod_lens;
@@ -283,16 +279,15 @@ struct find_channelwise_convolution
             pool_padding.push_back(0);
         }
 
-        m.replace_instruction(
-            ins,
-            make_op("pooling",
-                     {{"mode", op::pooling_mode::average},
-                      {"lengths", pool_lengths},
-                      {"dilations", pool_dilations},
-                      {"stride", pool_stride},
-                      {"padding", pool_padding},
-                      {"count_include_pad", true}}),
-            reshaped);
+        m.replace_instruction(ins,
+                              make_op("pooling",
+                                      {{"mode", op::pooling_mode::average},
+                                       {"lengths", pool_lengths},
+                                       {"dilations", pool_dilations},
+                                       {"stride", pool_stride},
+                                       {"padding", pool_padding},
+                                       {"count_include_pad", true}}),
+                              reshaped);
     }
 };
 

@@ -126,17 +126,15 @@ TEST_CASE(nchw_depthwise_conv_1x1)
     {
         auto x    = m1.add_parameter("x", s1);
         auto w    = m1.add_literal(migraphx::generate_literal(s2));
-        auto conv = m1.add_instruction(
-            migraphx::make_op("convolution", {{"group", 4}}), x, w);
+        auto conv = m1.add_instruction(migraphx::make_op("convolution", {{"group", 4}}), x, w);
         m1.add_return({conv});
     }
     run_pass(m1);
     migraphx::module m2;
     {
-        auto x       = m2.add_parameter("x", s1);
-        auto w       = m2.add_literal(migraphx::generate_literal(s2));
-        auto squeeze = m2.add_instruction(
-            migraphx::make_op("squeeze", {{"axes", {1, 2, 3}}}), w);
+        auto x         = m2.add_parameter("x", s1);
+        auto w         = m2.add_literal(migraphx::generate_literal(s2));
+        auto squeeze   = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1, 2, 3}}}), w);
         auto broadcast = m2.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 4, 3, 3}}}), squeeze);
         auto mul = m2.add_instruction(migraphx::make_op("mul"), x, broadcast);
@@ -153,8 +151,7 @@ TEST_CASE(nchw_depthwise_conv_1x1_non_constant)
     {
         auto x    = m1.add_parameter("x", s1);
         auto w    = m1.add_parameter("w", s2);
-        auto conv = m1.add_instruction(
-            migraphx::make_op("convolution", {{"group", 4}}), x, w);
+        auto conv = m1.add_instruction(migraphx::make_op("convolution", {{"group", 4}}), x, w);
         m1.add_return({conv});
     }
     migraphx::module m2 = m1;
@@ -163,13 +160,12 @@ TEST_CASE(nchw_depthwise_conv_1x1_non_constant)
 }
 
 // Helper to build the expected pooling-based module for channelwise convolution
-static migraphx::instruction_ref
-build_channelwise_expected(migraphx::module& m2,
-                           migraphx::instruction_ref x,
-                           migraphx::instruction_ref w,
-                           const std::vector<std::size_t>& w_lens,
-                           const std::vector<std::size_t>& x_lens,
-                           std::size_t num_spatial)
+static migraphx::instruction_ref build_channelwise_expected(migraphx::module& m2,
+                                                            migraphx::instruction_ref x,
+                                                            migraphx::instruction_ref w,
+                                                            const std::vector<std::size_t>& w_lens,
+                                                            const std::vector<std::size_t>& x_lens,
+                                                            std::size_t num_spatial)
 {
     auto ndim = 2 + num_spatial;
 
@@ -179,11 +175,10 @@ build_channelwise_expected(migraphx::module& m2,
         kernel_elements *= w_lens[d];
 
     // Scale weights
-    auto scale_lit = m2.add_literal(
-        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}},
-                          {static_cast<double>(kernel_elements)}});
-    auto scale_bcast = m2.add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", w_lens}}), scale_lit);
+    auto scale_lit = m2.add_literal(migraphx::literal{
+        migraphx::shape{migraphx::shape::float_type, {1}}, {static_cast<double>(kernel_elements)}});
+    auto scale_bcast =
+        m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", w_lens}}), scale_lit);
     auto scaled_w = m2.add_instruction(migraphx::make_op("mul"), w, scale_bcast);
 
     // Build interleaved product shape: [N, C_out, k0, s0, k1, s1, ...]
@@ -202,8 +197,8 @@ build_channelwise_expected(migraphx::module& m2,
         input_unsq_axes.push_back(static_cast<int64_t>(2 + 2 * d));
     auto unsq_x =
         m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", input_unsq_axes}}), x);
-    auto bcast_x = m2.add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", prod_lens}}), unsq_x);
+    auto bcast_x =
+        m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", prod_lens}}), unsq_x);
 
     // Squeeze weight axis 1, then unsqueeze for interleaved layout
     auto sq_w = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), scaled_w);
@@ -211,10 +206,9 @@ build_channelwise_expected(migraphx::module& m2,
     w_unsq_axes.push_back(0);
     for(std::size_t d = 0; d < num_spatial; ++d)
         w_unsq_axes.push_back(static_cast<int64_t>(3 + 2 * d));
-    auto unsq_w =
-        m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", w_unsq_axes}}), sq_w);
-    auto bcast_w = m2.add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", prod_lens}}), unsq_w);
+    auto unsq_w = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", w_unsq_axes}}), sq_w);
+    auto bcast_w =
+        m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", prod_lens}}), unsq_w);
 
     // Multiply
     auto product = m2.add_instruction(migraphx::make_op("mul"), bcast_x, bcast_w);
@@ -241,15 +235,14 @@ build_channelwise_expected(migraphx::module& m2,
         pool_padding.push_back(0);
     }
 
-    return m2.add_instruction(
-        migraphx::make_op("pooling",
-                           {{"mode", migraphx::op::pooling_mode::average},
-                            {"lengths", pool_lengths},
-                            {"dilations", pool_dilations},
-                            {"stride", pool_stride},
-                            {"padding", pool_padding},
-                            {"count_include_pad", true}}),
-        reshaped);
+    return m2.add_instruction(migraphx::make_op("pooling",
+                                                {{"mode", migraphx::op::pooling_mode::average},
+                                                 {"lengths", pool_lengths},
+                                                 {"dilations", pool_dilations},
+                                                 {"stride", pool_stride},
+                                                 {"padding", pool_padding},
+                                                 {"count_include_pad", true}}),
+                              reshaped);
 }
 
 TEST_CASE(nchw_depthwise_conv_3x3)
@@ -260,8 +253,7 @@ TEST_CASE(nchw_depthwise_conv_3x3)
     {
         auto x    = m1.add_parameter("x", s1);
         auto w    = m1.add_literal(migraphx::generate_literal(s2));
-        auto conv = m1.add_instruction(
-            migraphx::make_op("convolution", {{"group", 4}}), x, w);
+        auto conv = m1.add_instruction(migraphx::make_op("convolution", {{"group", 4}}), x, w);
         m1.add_return({conv});
     }
     run_pass(m1);
@@ -283,8 +275,7 @@ TEST_CASE(nchw_depthwise_conv_1x3)
     {
         auto x    = m1.add_parameter("x", s1);
         auto w    = m1.add_literal(migraphx::generate_literal(s2));
-        auto conv = m1.add_instruction(
-            migraphx::make_op("convolution", {{"group", 8}}), x, w);
+        auto conv = m1.add_instruction(migraphx::make_op("convolution", {{"group", 8}}), x, w);
         m1.add_return({conv});
     }
     run_pass(m1);
@@ -306,8 +297,7 @@ TEST_CASE(nchw_depthwise_conv_3x3_non_constant)
     {
         auto x    = m1.add_parameter("x", s1);
         auto w    = m1.add_parameter("w", s2);
-        auto conv = m1.add_instruction(
-            migraphx::make_op("convolution", {{"group", 4}}), x, w);
+        auto conv = m1.add_instruction(migraphx::make_op("convolution", {{"group", 4}}), x, w);
         m1.add_return({conv});
     }
     migraphx::module m2 = m1;
@@ -340,8 +330,7 @@ TEST_CASE(nchw_depthwise_conv_1x1_multiplier)
     {
         auto x    = m1.add_parameter("x", s1);
         auto w    = m1.add_literal(migraphx::generate_literal(s2));
-        auto conv = m1.add_instruction(
-            migraphx::make_op("convolution", {{"group", 4}}), x, w);
+        auto conv = m1.add_instruction(migraphx::make_op("convolution", {{"group", 4}}), x, w);
         m1.add_return({conv});
     }
     migraphx::module m2 = m1;
@@ -365,8 +354,7 @@ TEST_CASE(nchw_conv_c1_1x1)
     {
         auto x       = m2.add_parameter("x", s1);
         auto w       = m2.add_literal(migraphx::generate_literal(s2));
-        auto squeeze = m2.add_instruction(
-            migraphx::make_op("squeeze", {{"axes", {1, 2, 3}}}), w);
+        auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1, 2, 3}}}), w);
         auto bcast_w = m2.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 3, 4, 4}}}), squeeze);
         auto bcast_x = m2.add_instruction(

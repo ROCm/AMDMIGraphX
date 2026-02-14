@@ -28,20 +28,20 @@
 #include <migraphx/make_op.hpp>
 
 template <migraphx::shape::type_t DType>
-struct test_depthwise_conv_3x3 : verify_program<test_depthwise_conv_3x3<DType>>
+struct test_depthwise_conv_1x3 : verify_program<test_depthwise_conv_1x3<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm     = p.get_main_module();
-        auto input   = mm->add_parameter("x", migraphx::shape{DType, {2, 4, 5, 5}});
-        auto weights = mm->add_parameter("w", migraphx::shape{DType, {4, 1, 3, 3}});
-        auto conv    =
-            mm->add_instruction(migraphx::make_op("convolution", {{"group", 4}}), input, weights);
+        auto input   = mm->add_parameter("x", migraphx::shape{DType, {1, 8, 4, 6}});
+        auto weights = mm->add_parameter("w", migraphx::shape{DType, {8, 1, 1, 3}});
+        auto conv =
+            mm->add_instruction(migraphx::make_op("convolution", {{"group", 8}}), input, weights);
         mm->add_return({conv});
         return p;
     }
     std::string section() const { return "conv"; }
 };
-template struct test_depthwise_conv_3x3<migraphx::shape::float_type>;
-template struct test_depthwise_conv_3x3<migraphx::shape::half_type>;
+template struct test_depthwise_conv_1x3<migraphx::shape::float_type>;
+template struct test_depthwise_conv_1x3<migraphx::shape::half_type>;

@@ -310,4 +310,123 @@ TEST_CASE(nchw_depthwise_conv_1x1_multiplier)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(nchw_conv_c1_1x1)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 1, 4, 4}};
+    migraphx::shape s2{migraphx::shape::float_type, {3, 1, 1, 1}};
+    // Output shape: [2, 3, 4, 4]
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", s1);
+        auto w    = m1.add_literal(migraphx::generate_literal(s2));
+        auto conv = m1.add_instruction(migraphx::make_op("convolution"), x, w);
+        m1.add_return({conv});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x       = m2.add_parameter("x", s1);
+        auto w       = m2.add_literal(migraphx::generate_literal(s2));
+        auto squeeze = m2.add_instruction(
+            migraphx::make_op("squeeze", {{"axes", {1, 2, 3}}}), w);
+        auto bcast_w = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 3, 4, 4}}}), squeeze);
+        auto bcast_x = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4, 4}}}), x);
+        auto mul = m2.add_instruction(migraphx::make_op("mul"), bcast_x, bcast_w);
+        m2.add_return({mul});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(nchw_conv_c1_3x3)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 1, 5, 5}};
+    migraphx::shape s2{migraphx::shape::float_type, {3, 1, 3, 3}};
+    // Output shape: [2, 3, 3, 3]
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", s1);
+        auto w    = m1.add_literal(migraphx::generate_literal(s2));
+        auto conv = m1.add_instruction(migraphx::make_op("convolution"), x, w);
+        m1.add_return({conv});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", s1);
+        auto w = m2.add_literal(migraphx::generate_literal(s2));
+
+        migraphx::instruction_ref result;
+        for(int kh = 0; kh < 3; kh++)
+        {
+            for(int kw = 0; kw < 3; kw++)
+            {
+                auto sliced_x = m2.add_instruction(
+                    migraphx::make_op(
+                        "slice",
+                        {{"axes", {2, 3}}, {"starts", {kh, kw}}, {"ends", {kh + 3, kw + 3}}}),
+                    x);
+                auto bcast_x = m2.add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 3, 3}}}), sliced_x);
+                auto sliced_w = m2.add_instruction(
+                    migraphx::make_op(
+                        "slice",
+                        {{"axes", {2, 3}}, {"starts", {kh, kw}}, {"ends", {kh + 1, kw + 1}}}),
+                    w);
+                auto sq_w = m2.add_instruction(
+                    migraphx::make_op("squeeze", {{"axes", {1, 2, 3}}}), sliced_w);
+                auto bcast_w = m2.add_instruction(
+                    migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 3, 3, 3}}}),
+                    sq_w);
+                auto prod = m2.add_instruction(migraphx::make_op("mul"), bcast_x, bcast_w);
+
+                if(kh == 0 and kw == 0)
+                {
+                    result = prod;
+                }
+                else
+                {
+                    result = m2.add_instruction(migraphx::make_op("add"), result, prod);
+                }
+            }
+        }
+        m2.add_return({result});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(nchw_conv_c1_3x3_non_constant)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 1, 5, 5}};
+    migraphx::shape s2{migraphx::shape::float_type, {3, 1, 3, 3}};
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", s1);
+        auto w    = m1.add_parameter("w", s2);
+        auto conv = m1.add_instruction(migraphx::make_op("convolution"), x, w);
+        m1.add_return({conv});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(nchw_conv_c1_3x3_stride)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 1, 7, 7}};
+    migraphx::shape s2{migraphx::shape::float_type, {3, 1, 3, 3}};
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", s1);
+        auto w    = m1.add_literal(migraphx::generate_literal(s2));
+        auto conv = m1.add_instruction(
+            migraphx::make_op("convolution", {{"stride", {2, 2}}}), x, w);
+        m1.add_return({conv});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

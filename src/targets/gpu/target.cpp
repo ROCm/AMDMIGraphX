@@ -70,6 +70,7 @@
 #include <migraphx/gpu/fuse_ck.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
+#include <migraphx/gpu/gen/fuse_gen.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/gpu/schedule_model.hpp>
@@ -84,6 +85,7 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_REWRITE_DOT)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_GEN)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_REWRITE_LRN)
 #ifndef _WIN32
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
@@ -152,6 +154,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 #endif
         dead_code_elimination{},
         enable_pass(mlir_enabled() and disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_mlir{&ctx}),
+        dead_code_elimination{},
+        enable_pass(enabled(MIGRAPHX_ENABLE_GEN{}), gen::fuse_gen{}),
         dead_code_elimination{},
         fuse_concat{},
         dead_code_elimination{},

@@ -63,6 +63,23 @@ if(MIGRAPHX_ENABLE_GPU)
         target_link_libraries(test_gpu_${BASE_NAME} migraphx_gpu migraphx_kernels register_targets)
     endforeach()
     add_subdirectory(gpu/kernels)
+
+    # gpu gen tests
+    file(GLOB GPU_GEN_TESTS CONFIGURE_DEPENDS gpu/gen/*.cpp)
+
+    foreach(TEST ${GPU_GEN_TESTS})
+        get_filename_component(BASE_NAME ${TEST} NAME_WE)
+        rocm_add_test_executable(test_gpu_gen_${BASE_NAME} ${TEST})
+        rocm_clang_tidy_check(test_gpu_gen_${BASE_NAME})
+        set_tests_properties(test_gpu_gen_${BASE_NAME} PROPERTIES
+            COST 10
+            RESOURCE_LOCK gpu
+        )
+        if(MIGRAPHX_USE_HIPRTC)
+        target_compile_definitions(test_gpu_gen_${BASE_NAME} PUBLIC -DMIGRAPHX_USE_HIPRTC)
+        endif()
+        target_link_libraries(test_gpu_gen_${BASE_NAME} migraphx_gpu migraphx_kernels register_targets)
+    endforeach()
 endif()
 
 if(MIGRAPHX_ENABLE_FPGA)

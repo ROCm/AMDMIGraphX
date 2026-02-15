@@ -140,6 +140,7 @@ target_link_libraries(migraphx_gpu_kernel_file_check compile_migraphx_gpu_kernel
 rocm_clang_tidy_check(migraphx_gpu_kernel_file_check)
 
 file(GLOB JIT_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/jit/*.cpp)
+file(GLOB GEN_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/gen/*.cpp)
 
 if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
     list(REMOVE_ITEM JIT_GPU_SRCS
@@ -202,11 +203,13 @@ add_library(migraphx_gpu
     topk.cpp
     write_literals.cpp
     ${JIT_GPU_SRCS}
+    ${GEN_GPU_SRCS}
     ${MIOPEN_SRCS}
 )
 
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 migraphx_generate_export_header(migraphx_gpu)
+target_include_directories(migraphx_gpu PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/gen/include>)
 
 function(register_migraphx_gpu_ops PREFIX)
     foreach(OP ${ARGN})

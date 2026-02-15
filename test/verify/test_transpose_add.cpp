@@ -36,9 +36,11 @@ struct test_transpose_add : verify_program<test_transpose_add>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {635, 64, 88}, {1, 55880, 635}});
-        auto y = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type, {635, 64, 88}});
-        auto r    = mm->add_instruction(migraphx::make_op("add"), x, y);
+        auto x   = mm->add_parameter(
+            "x", migraphx::shape{migraphx::shape::float_type, {635, 64, 88}, {1, 55880, 635}});
+        auto y =
+            mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type, {635, 64, 88}});
+        auto r = mm->add_instruction(migraphx::make_op("add"), x, y);
         mm->add_return({r});
         return p;
     }

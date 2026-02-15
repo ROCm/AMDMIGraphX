@@ -56,15 +56,14 @@ void gen_lanewise::apply(module& m) const
     //   store = gpu::gen::store(z_output, tid, result)
     //   @return(store)
 
-    auto ret = std::find_if(
-        m.begin(), m.end(), [](const auto& ins) { return ins.name() == "@return"; });
+    auto ret =
+        std::find_if(m.begin(), m.end(), [](const auto& ins) { return ins.name() == "@return"; });
     if(ret == m.end())
         return;
 
     // Insert thread ID
-    bool has_tiles = std::any_of(m.begin(), m.end(), [](const auto& ins) {
-        return ins.name() == "gpu::gen::tile_region";
-    });
+    bool has_tiles = std::any_of(
+        m.begin(), m.end(), [](const auto& ins) { return ins.name() == "gpu::gen::tile_region"; });
 
     auto first_non_param = std::find_if(m.begin(), m.end(), [](const auto& ins) {
         return ins.name() != "@param" and ins.name() != "gpu::gen::workgroup_id" and
@@ -91,8 +90,7 @@ void gen_lanewise::apply(module& m) const
         auto src = copy_ins->inputs()[0];
         auto dst = copy_ins->inputs()[1];
 
-        auto store = m.insert_instruction(
-            copy_ins, make_op("gpu::gen::store"), dst, tid, src);
+        auto store = m.insert_instruction(copy_ins, make_op("gpu::gen::store"), dst, tid, src);
         m.replace_instruction(copy_ins, store);
     }
 
@@ -120,8 +118,7 @@ void gen_lanewise::apply(module& m) const
         if(not needs_load)
             continue;
 
-        auto load = m.insert_instruction(
-            std::next(tid), make_op("gpu::gen::load"), ins, tid);
+        auto load     = m.insert_instruction(std::next(tid), make_op("gpu::gen::load"), ins, tid);
         load_map[ins] = load;
     }
 
@@ -132,7 +129,7 @@ void gen_lanewise::apply(module& m) const
         if(starts_with(n, "@") or starts_with(n, "gpu::gen::"))
             continue;
 
-        auto inputs = ins->inputs();
+        auto inputs       = ins->inputs();
         bool any_replaced = false;
         std::vector<instruction_ref> new_inputs;
         for(auto input : inputs)

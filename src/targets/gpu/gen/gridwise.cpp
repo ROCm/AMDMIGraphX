@@ -42,8 +42,8 @@ void gen_gridwise::apply(module& m) const
     // - Inserts workgroup_id for multi-tile distribution
 
     // Find the return instruction
-    auto ret = std::find_if(
-        m.begin(), m.end(), [](const auto& ins) { return ins.name() == "@return"; });
+    auto ret =
+        std::find_if(m.begin(), m.end(), [](const auto& ins) { return ins.name() == "@return"; });
     if(ret == m.end())
         return;
 

@@ -127,11 +127,11 @@ TEST_CASE(tile_region_output_shape)
     migraphx::module m;
     auto x    = m.add_parameter("x", shape{shape::float_type, {64, 128, 256}});
     auto wgid = m.add_instruction(make_op("gpu::gen::workgroup_id"));
-    auto tile = m.add_instruction(
-        make_op("gpu::gen::tile_region",
-                {{"tile_dims", std::vector<std::size_t>{32, 64}}, {"axis", 1}}),
-        x,
-        wgid);
+    auto tile =
+        m.add_instruction(make_op("gpu::gen::tile_region",
+                                  {{"tile_dims", std::vector<std::size_t>{32, 64}}, {"axis", 1}}),
+                          x,
+                          wgid);
     m.add_return({tile});
 
     EXPECT(tile->get_shape().type() == shape::float_type);
@@ -144,9 +144,8 @@ TEST_CASE(reduce_waves_output_shape)
 {
     migraphx::module m;
     auto x   = m.add_parameter("x", {shape::float_type});
-    auto lds = m.add_instruction(
-        make_op("gpu::gen::lds_allocate",
-                {{"shape", migraphx::to_value(shape{shape::float_type, {8}})}}));
+    auto lds = m.add_instruction(make_op(
+        "gpu::gen::lds_allocate", {{"shape", migraphx::to_value(shape{shape::float_type, {8}})}}));
     auto red = m.add_instruction(make_op("gpu::gen::reduce_waves", {{"op", "sum"}}), x, lds);
     m.add_return({red});
 
@@ -158,8 +157,8 @@ TEST_CASE(strided_load_output_shape)
     migraphx::module m;
     auto x  = m.add_parameter("x", shape{shape::float_type, {256}});
     auto id = m.add_instruction(make_op("gpu::gen::global_id"));
-    auto ld = m.add_instruction(
-        make_op("gpu::gen::strided_load", {{"size", 4}, {"stride", 64}}), x, id);
+    auto ld =
+        m.add_instruction(make_op("gpu::gen::strided_load", {{"size", 4}, {"stride", 64}}), x, id);
     m.add_return({ld});
 
     EXPECT(ld->get_shape().type() == shape::float_type);

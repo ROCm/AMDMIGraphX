@@ -48,10 +48,7 @@ bool is_already_fused(instruction_ref ins)
 
 struct find_gen_pointwise
 {
-    auto matcher() const
-    {
-        return match::name("pointwise")(match::used_once());
-    }
+    auto matcher() const { return match::name("pointwise")(match::used_once()); }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
@@ -91,8 +88,8 @@ struct find_gen_pointwise
         std::sort(pm_params.begin(), pm_params.end());
         for(std::size_t i = 0; i < ins->inputs().size() and i < pm_params.size(); ++i)
         {
-            auto pm_param   = pm->get_parameter(pm_params[i]);
-            auto outer_input = ins->inputs()[i];
+            auto pm_param       = pm->get_parameter(pm_params[i]);
+            auto outer_input    = ins->inputs()[i];
             inner_map[pm_param] = outer_map.at(outer_input);
         }
 
@@ -112,16 +109,14 @@ struct find_gen_pointwise
             std::vector<instruction_ref> new_inputs;
             for(auto input : pm_ins.inputs())
                 new_inputs.push_back(inner_map.at(input));
-            instruction_ref pm_ins_ref = std::find_if(
-                pm->begin(), pm->end(), [&](const auto& i) { return &i == &pm_ins; });
-            inner_map[pm_ins_ref] =
-                gen_mod->add_instruction(pm_ins.get_operator(), new_inputs);
+            instruction_ref pm_ins_ref =
+                std::find_if(pm->begin(), pm->end(), [&](const auto& i) { return &i == &pm_ins; });
+            inner_map[pm_ins_ref] = gen_mod->add_instruction(pm_ins.get_operator(), new_inputs);
         }
 
         auto inputs = find_inputs(outer_map, &mpm.get_module(), gen_mod);
 
-        mpm.get_module().replace_instruction(
-            ins, make_op("gpu::gen::op"), inputs, {gen_mod});
+        mpm.get_module().replace_instruction(ins, make_op("gpu::gen::op"), inputs, {gen_mod});
     }
 };
 
@@ -129,11 +124,8 @@ struct find_gen_reduce
 {
     auto matcher() const
     {
-        return match::name("reduce_sum",
-                           "reduce_mean",
-                           "reduce_max",
-                           "reduce_min",
-                           "reduce_prod")(match::used_once());
+        return match::name("reduce_sum", "reduce_mean", "reduce_max", "reduce_min", "reduce_prod")(
+            match::used_once());
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
@@ -169,8 +161,7 @@ struct find_gen_reduce
 
         auto inputs = find_inputs(map_ins, &mpm.get_module(), gen_mod);
 
-        mpm.get_module().replace_instruction(
-            ins, make_op("gpu::gen::op"), inputs, {gen_mod});
+        mpm.get_module().replace_instruction(ins, make_op("gpu::gen::op"), inputs, {gen_mod});
     }
 };
 
@@ -211,8 +202,7 @@ struct find_gen_gather
 
         auto inputs = find_inputs(map_ins, &mpm.get_module(), gen_mod);
 
-        mpm.get_module().replace_instruction(
-            ins, make_op("gpu::gen::op"), inputs, {gen_mod});
+        mpm.get_module().replace_instruction(ins, make_op("gpu::gen::op"), inputs, {gen_mod});
     }
 };
 

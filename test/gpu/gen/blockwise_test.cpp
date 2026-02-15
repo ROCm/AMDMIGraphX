@@ -60,8 +60,7 @@ TEST_CASE(blockwise_1d_no_tiling)
         auto y   = m2.add_parameter("y", shape{shape::float_type, {16}});
         auto z   = m2.add_parameter("z_output", shape{shape::float_type, {16}});
         auto add = m2.add_instruction(make_op("add"), x, y);
-        auto cp  = m2.add_instruction(
-            make_op("gpu::gen::copy", {{"schedule", "per_lane"}}), add, z);
+        auto cp = m2.add_instruction(make_op("gpu::gen::copy", {{"schedule", "per_lane"}}), add, z);
         m2.add_return({cp});
     }
 
@@ -89,7 +88,7 @@ TEST_CASE(blockwise_2d_tile_region)
         auto wgid = m2.add_instruction(make_op("gpu::gen::workgroup_id"));
         auto tx   = m2.add_instruction(
             make_op("gpu::gen::tile_region",
-                    {{"tile_dims", std::vector<std::size_t>{16, 16}}, {"axis", 0}}),
+                      {{"tile_dims", std::vector<std::size_t>{16, 16}}, {"axis", 0}}),
             x,
             wgid);
         auto ty = m2.add_instruction(
@@ -103,8 +102,8 @@ TEST_CASE(blockwise_2d_tile_region)
             z,
             wgid);
         auto add = m2.add_instruction(make_op("add"), tx, ty);
-        auto cp  = m2.add_instruction(
-            make_op("gpu::gen::copy", {{"schedule", "per_lane"}}), add, tz);
+        auto cp =
+            m2.add_instruction(make_op("gpu::gen::copy", {{"schedule", "per_lane"}}), add, tz);
         m2.add_return({cp});
     }
 

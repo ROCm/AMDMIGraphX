@@ -72,10 +72,9 @@ std::size_t compute_vec_size(const std::vector<shape>& inputs)
     {
         if(elements % vsize == 0)
         {
-            bool all_compatible =
-                std::all_of(inputs.begin(), inputs.end(), [&](const auto& s) {
-                    return s.elements() % vsize == 0;
-                });
+            bool all_compatible = std::all_of(inputs.begin(), inputs.end(), [&](const auto& s) {
+                return s.elements() % vsize == 0;
+            });
             if(all_compatible)
                 return vsize;
         }

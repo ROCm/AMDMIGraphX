@@ -36,8 +36,7 @@ using migraphx::shape;
 static void run_pass(migraphx::module& m)
 {
     migraphx::run_passes(m,
-                         {migraphx::gpu::gen::gen_gridwise{},
-                          migraphx::dead_code_elimination{}});
+                         {migraphx::gpu::gen::gen_gridwise{}, migraphx::dead_code_elimination{}});
 }
 
 // No @return in module: pass is a no-op
@@ -79,8 +78,7 @@ TEST_CASE(gridwise_1d_adds_output_and_copy)
         auto y   = m2.add_parameter("y", shape{shape::float_type, {16}});
         auto z   = m2.add_parameter("z_output", shape{shape::float_type, {16}});
         auto add = m2.add_instruction(make_op("add"), x, y);
-        auto cp  = m2.add_instruction(
-            make_op("gpu::gen::copy", {{"schedule", "per_lane"}}), add, z);
+        auto cp = m2.add_instruction(make_op("gpu::gen::copy", {{"schedule", "per_lane"}}), add, z);
         m2.add_return({cp});
     }
 
@@ -106,8 +104,7 @@ TEST_CASE(gridwise_2d_adds_output_copy_wgid_removed)
         auto y   = m2.add_parameter("y", shape{shape::float_type, {16, 16}});
         auto z   = m2.add_parameter("z_output", shape{shape::float_type, {16, 16}});
         auto add = m2.add_instruction(make_op("add"), x, y);
-        auto cp  = m2.add_instruction(
-            make_op("gpu::gen::copy", {{"schedule", "per_lane"}}), add, z);
+        auto cp = m2.add_instruction(make_op("gpu::gen::copy", {{"schedule", "per_lane"}}), add, z);
         m2.add_return({cp});
     }
 

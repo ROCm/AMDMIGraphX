@@ -121,9 +121,8 @@ std::string generate_gen_function(const module& m)
     return g.str();
 }
 
-std::string generate_gen_kernel(const module& m,
-                                const std::string& kernel_name,
-                                std::size_t total_params)
+std::string
+generate_gen_kernel(const module& m, const std::string& kernel_name, std::size_t total_params)
 {
     auto preamble = generate_gen_function(m);
 

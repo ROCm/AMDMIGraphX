@@ -35,8 +35,7 @@ using migraphx::shape;
 
 static void run_pass(migraphx::program& p)
 {
-    migraphx::run_passes(
-        p, {migraphx::gpu::gen::fuse_gen{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(p, {migraphx::gpu::gen::fuse_gen{}, migraphx::dead_code_elimination{}});
 }
 
 template <class F>
@@ -52,8 +51,7 @@ migraphx::instruction_ref add_gen_op(migraphx::program& p,
     std::vector<migraphx::instruction_ref> params;
     for(std::size_t i = 0; i < inputs.size(); ++i)
     {
-        params.push_back(
-            pm->add_parameter("x" + std::to_string(i), inputs[i]->get_shape()));
+        params.push_back(pm->add_parameter("x" + std::to_string(i), inputs[i]->get_shape()));
     }
     auto r = f(pm, params);
     pm->add_return({r});
@@ -79,14 +77,13 @@ TEST_CASE(fuse_pointwise_add)
         auto s   = shape{shape::float_type, {4, 8}};
         auto x   = mm->add_parameter("x", s);
         auto y   = mm->add_parameter("y", s);
-        add_gen_op(
-            p2,
-            "gen_main:pointwise0",
-            {x, y},
-            make_op("pointwise"),
-            [](auto* pm, const auto& params) {
-                return pm->add_instruction(migraphx::make_op("add"), params[0], params[1]);
-            });
+        add_gen_op(p2,
+                   "gen_main:pointwise0",
+                   {x, y},
+                   make_op("pointwise"),
+                   [](auto* pm, const auto& params) {
+                       return pm->add_instruction(migraphx::make_op("add"), params[0], params[1]);
+                   });
     }
     EXPECT(p1.sort() == p2.sort());
 }
@@ -114,16 +111,15 @@ TEST_CASE(fuse_pointwise_mul_add)
         auto x   = mm->add_parameter("x", s);
         auto y   = mm->add_parameter("y", s);
         auto z   = mm->add_parameter("z", s);
-        add_gen_op(
-            p2,
-            "gen_main:pointwise0",
-            {x, y, z},
-            make_op("pointwise"),
-            [](auto* pm, const auto& params) {
-                auto mul =
-                    pm->add_instruction(migraphx::make_op("mul"), params[0], params[1]);
-                return pm->add_instruction(migraphx::make_op("add"), mul, params[2]);
-            });
+        add_gen_op(p2,
+                   "gen_main:pointwise0",
+                   {x, y, z},
+                   make_op("pointwise"),
+                   [](auto* pm, const auto& params) {
+                       auto mul =
+                           pm->add_instruction(migraphx::make_op("mul"), params[0], params[1]);
+                       return pm->add_instruction(migraphx::make_op("add"), mul, params[2]);
+                   });
     }
     EXPECT(p1.sort() == p2.sort());
 }

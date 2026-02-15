@@ -31,28 +31,22 @@ using migraphx::gpu::gen::compute_vec_size;
 
 TEST_CASE(vec_size_float_aligned)
 {
-    std::vector<shape> inputs = {
-        shape{shape::float_type, {256}},
-        shape{shape::float_type, {256}}};
-    auto vec = compute_vec_size(inputs);
+    std::vector<shape> inputs = {shape{shape::float_type, {256}}, shape{shape::float_type, {256}}};
+    auto vec                  = compute_vec_size(inputs);
     EXPECT(vec == 4);
 }
 
 TEST_CASE(vec_size_float_unaligned)
 {
-    std::vector<shape> inputs = {
-        shape{shape::float_type, {3}},
-        shape{shape::float_type, {3}}};
-    auto vec = compute_vec_size(inputs);
+    std::vector<shape> inputs = {shape{shape::float_type, {3}}, shape{shape::float_type, {3}}};
+    auto vec                  = compute_vec_size(inputs);
     EXPECT(vec == 1);
 }
 
 TEST_CASE(vec_size_half)
 {
-    std::vector<shape> inputs = {
-        shape{shape::half_type, {256}},
-        shape{shape::half_type, {256}}};
-    auto vec = compute_vec_size(inputs);
+    std::vector<shape> inputs = {shape{shape::half_type, {256}}, shape{shape::half_type, {256}}};
+    auto vec                  = compute_vec_size(inputs);
     EXPECT(vec == 2);
 }
 

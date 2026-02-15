@@ -56,8 +56,8 @@ struct gen_op
         check_shapes{inputs, *this, true}.has_at_least(1);
         if(mods.size() != 1)
             MIGRAPHX_THROW("gpu::gen::op should have one submodule.");
-        auto result =
-            mods[0]->compute_shapes(inputs, {.name = name(), .strict_type = true, .strict_lens = true});
+        auto result = mods[0]->compute_shapes(
+            inputs, {.name = name(), .strict_type = true, .strict_lens = true});
         if(result.size() == 1)
             return result.front();
         return shape{result};
@@ -174,8 +174,7 @@ struct vector_load
 
     value attributes() const
     {
-        return {{"gpu_gen",
-                 "gen::vec_load<" + std::to_string(size) + ">(${0}.data(), ${1})"}};
+        return {{"gpu_gen", "gen::vec_load<" + std::to_string(size) + ">(${0}.data(), ${1})"}};
     }
 };
 MIGRAPHX_REGISTER_OP(vector_load);
@@ -202,8 +201,7 @@ struct vector_store
     value attributes() const
     {
         return {{"gpu_gen",
-                 "(void)gen::vec_store<" + std::to_string(size) +
-                     ">(${0}.data(), ${1}, ${2})"}};
+                 "(void)gen::vec_store<" + std::to_string(size) + ">(${0}.data(), ${1}, ${2})"}};
     }
 };
 MIGRAPHX_REGISTER_OP(vector_store);
@@ -231,8 +229,8 @@ struct strided_load
     value attributes() const
     {
         return {{"gpu_gen",
-                 "gen::strided_load<" + std::to_string(size) + ", " +
-                     std::to_string(stride) + ">(${0}.data(), ${1})"}};
+                 "gen::strided_load<" + std::to_string(size) + ", " + std::to_string(stride) +
+                     ">(${0}.data(), ${1})"}};
     }
 };
 MIGRAPHX_REGISTER_OP(strided_load);
@@ -394,10 +392,7 @@ struct lane_reduce
         return shape{inputs[0].type()};
     }
 
-    value attributes() const
-    {
-        return {{"gpu_gen", "gen::lane_reduce_" + op + "(${0})"}};
-    }
+    value attributes() const { return {{"gpu_gen", "gen::lane_reduce_" + op + "(${0})"}}; }
 };
 MIGRAPHX_REGISTER_OP(lane_reduce);
 
@@ -420,10 +415,7 @@ struct dpp_reduce
         return inputs[0];
     }
 
-    value attributes() const
-    {
-        return {{"gpu_gen", "gen::dpp_reduce_" + op + "(${0})"}};
-    }
+    value attributes() const { return {{"gpu_gen", "gen::dpp_reduce_" + op + "(${0})"}}; }
 };
 MIGRAPHX_REGISTER_OP(dpp_reduce);
 
@@ -568,10 +560,7 @@ struct conditional_load
         return shape{inputs[0].type()};
     }
 
-    value attributes() const
-    {
-        return {{"gpu_gen", "gen::conditional_load(${0}, ${1}, ${2})"}};
-    }
+    value attributes() const { return {{"gpu_gen", "gen::conditional_load(${0}, ${1}, ${2})"}}; }
 };
 MIGRAPHX_REGISTER_OP(conditional_load);
 

@@ -202,9 +202,8 @@ template <class T>
 __device__ auto
 block_reduce_sum(T x, T* lds, index_int nwaves, index_int wave_id, index_int lane_id)
 {
-    return block_reduce_impl(x, lds, nwaves, wave_id, lane_id, [](auto a, auto b) {
-        return a + b;
-    });
+    return block_reduce_impl(
+        x, lds, nwaves, wave_id, lane_id, [](auto a, auto b) { return a + b; });
 }
 
 template <class T>
@@ -243,10 +242,10 @@ __device__ auto pad_index(Shape shape, Pads pads, index_int i)
     auto idx  = i;
     for(index_int d = ndim; d > 0; --d)
     {
-        auto dim  = d - 1;
-        auto len  = shape.lens[dim];
-        auto pos  = idx % shape.lens[dim];
-        idx       = idx / shape.lens[dim];
+        auto dim        = d - 1;
+        auto len        = shape.lens[dim];
+        auto pos        = idx % shape.lens[dim];
+        idx             = idx / shape.lens[dim];
         auto pad_before = pads[dim];
         auto input_pos  = static_cast<int64_t>(pos) - pad_before;
         if(input_pos < 0 or input_pos >= static_cast<int64_t>(len))

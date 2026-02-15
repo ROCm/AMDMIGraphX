@@ -41,12 +41,12 @@ namespace gen {
 
 MIGRAPHX_GPU_EXPORT std::string generate_gen_function(const module& m);
 
-MIGRAPHX_GPU_EXPORT std::string generate_gen_kernel(const module& m,
-                                                     const std::string& kernel_name,
-                                                     std::size_t total_params);
+MIGRAPHX_GPU_EXPORT std::string
+generate_gen_kernel(const module& m, const std::string& kernel_name, std::size_t total_params);
 
-MIGRAPHX_GPU_EXPORT operation
-compile_gen(context& ctx, const std::vector<shape>& in_shapes, const_module_ref pm);
+MIGRAPHX_GPU_EXPORT operation compile_gen(context& ctx,
+                                          const std::vector<shape>& in_shapes,
+                                          const_module_ref pm);
 
 } // namespace gen
 } // namespace gpu

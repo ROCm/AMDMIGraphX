@@ -70,12 +70,12 @@ void gen_blockwise::apply(module& m) const
             continue;
 
         // Insert tile_region after the parameter
-        auto tile = m.insert_instruction(
-            std::next(ins),
-            make_op("gpu::gen::tile_region",
-                     {{"tile_dims", config.tile_dims}, {"axis", config.axis}}),
-            ins,
-            wg_id_ref);
+        auto tile =
+            m.insert_instruction(std::next(ins),
+                                 make_op("gpu::gen::tile_region",
+                                         {{"tile_dims", config.tile_dims}, {"axis", config.axis}}),
+                                 ins,
+                                 wg_id_ref);
 
         // Replace uses of the parameter with the tiled region
         // (except the tile_region itself)

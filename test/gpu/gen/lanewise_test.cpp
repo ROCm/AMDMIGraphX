@@ -59,14 +59,14 @@ TEST_CASE(lanewise_1d_pointwise)
 
     migraphx::module m2;
     {
-        auto x    = m2.add_parameter("x", shape{shape::float_type, {16}});
-        auto y    = m2.add_parameter("y", shape{shape::float_type, {16}});
-        auto z    = m2.add_parameter("z_output", shape{shape::float_type, {16}});
-        auto gid  = m2.add_instruction(make_op("gpu::gen::global_id"));
-        auto lx   = m2.add_instruction(make_op("gpu::gen::load"), x, gid);
-        auto ly   = m2.add_instruction(make_op("gpu::gen::load"), y, gid);
-        auto add  = m2.add_instruction(make_op("add"), lx, ly);
-        auto st   = m2.add_instruction(make_op("gpu::gen::store"), z, gid, add);
+        auto x   = m2.add_parameter("x", shape{shape::float_type, {16}});
+        auto y   = m2.add_parameter("y", shape{shape::float_type, {16}});
+        auto z   = m2.add_parameter("z_output", shape{shape::float_type, {16}});
+        auto gid = m2.add_instruction(make_op("gpu::gen::global_id"));
+        auto lx  = m2.add_instruction(make_op("gpu::gen::load"), x, gid);
+        auto ly  = m2.add_instruction(make_op("gpu::gen::load"), y, gid);
+        auto add = m2.add_instruction(make_op("add"), lx, ly);
+        auto st  = m2.add_instruction(make_op("gpu::gen::store"), z, gid, add);
         m2.add_return({st});
     }
 

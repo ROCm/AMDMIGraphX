@@ -8805,6 +8805,142 @@ def matmul_vv_test():
 
 
 @onnx_test()
+def matmul_1024_test():
+    m = n = k = 1024
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT16, [m, k])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT16, [k, n])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [m, n])
+
+    node = onnx.helper.make_node(
+        'MatMul',
+        inputs=['1', '2'],
+        outputs=['y'],
+    )
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def matmul_1024_const_test():
+    m = n = k = 1024
+    np.random.seed(0)
+    a_values = np.random.rand(m, k).astype(np.float16)
+    b_values = np.random.rand(k, n).astype(np.float16)
+
+    a_tensor = helper.make_tensor(name='1',
+                                  data_type=TensorProto.FLOAT16,
+                                  dims=[m, k],
+                                  vals=a_values.flatten().tolist())
+    b_tensor = helper.make_tensor(name='2',
+                                  data_type=TensorProto.FLOAT16,
+                                  dims=[k, n],
+                                  vals=b_values.flatten().tolist())
+
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [m, n])
+
+    node = onnx.helper.make_node(
+        'MatMul',
+        inputs=['1', '2'],
+        outputs=['y'],
+    )
+
+    return ([node], [], [y], [a_tensor, b_tensor])
+
+
+@onnx_test()
+def matmul_4096_const_test():
+    m = n = k = 4096
+    np.random.seed(0)
+    a_values = np.random.rand(m, k).astype(np.float16)
+    b_values = np.random.rand(k, n).astype(np.float16)
+
+    a_tensor = helper.make_tensor(name='1',
+                                  data_type=TensorProto.FLOAT16,
+                                  dims=[m, k],
+                                  vals=a_values.flatten().tolist())
+    b_tensor = helper.make_tensor(name='2',
+                                  data_type=TensorProto.FLOAT16,
+                                  dims=[k, n],
+                                  vals=b_values.flatten().tolist())
+
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [m, n])
+
+    node = onnx.helper.make_node(
+        'MatMul',
+        inputs=['1', '2'],
+        outputs=['y'],
+    )
+
+    return ([node], [], [y], [a_tensor, b_tensor])
+
+
+@onnx_test()
+def matmul_1024_const_chain_test():
+    m = n = k = 1024
+    np.random.seed(0)
+    a_values = np.random.rand(m, k).astype(np.float16)
+    b_values = np.random.rand(k, n).astype(np.float16)
+    c_values = np.random.rand(n, n).astype(np.float16)
+
+    a_tensor = helper.make_tensor(name='A',
+                                  data_type=TensorProto.FLOAT16,
+                                  dims=[m, k],
+                                  vals=a_values.flatten().tolist())
+    b_tensor = helper.make_tensor(name='B',
+                                  data_type=TensorProto.FLOAT16,
+                                  dims=[k, n],
+                                  vals=b_values.flatten().tolist())
+    c_tensor = helper.make_tensor(name='C',
+                                  data_type=TensorProto.FLOAT16,
+                                  dims=[n, n],
+                                  vals=c_values.flatten().tolist())
+
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [m, n])
+
+    node1 = onnx.helper.make_node(
+        'MatMul',
+        inputs=['A', 'B'],
+        outputs=['AB'],
+    )
+
+    node2 = onnx.helper.make_node(
+        'MatMul',
+        inputs=['AB', 'C'],
+        outputs=['y'],
+    )
+
+    return ([node1, node2], [], [y], [a_tensor, b_tensor, c_tensor])
+
+
+@onnx_test()
+def conv_const_test():
+    # Constant 2D convolution: input [1, 128, 56, 56], weight [256, 128, 3, 3]
+    # Output shape: [1, 256, 54, 54]  (~363M FLOPs)
+    np.random.seed(42)
+    x_values = np.random.rand(1, 128, 56, 56).astype(np.float32)
+    w_values = np.random.rand(256, 128, 3, 3).astype(np.float32)
+
+    x_tensor = helper.make_tensor(name='X',
+                                  data_type=TensorProto.FLOAT,
+                                  dims=[1, 128, 56, 56],
+                                  vals=x_values.flatten().tolist())
+    w_tensor = helper.make_tensor(name='W',
+                                  data_type=TensorProto.FLOAT,
+                                  dims=[256, 128, 3, 3],
+                                  vals=w_values.flatten().tolist())
+
+    y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 256, 54, 54])
+
+    node = onnx.helper.make_node(
+        'Conv',
+        inputs=['X', 'W'],
+        outputs=['Y'],
+    )
+
+    return ([node], [], [y], [x_tensor, w_tensor])
+
+
+@onnx_test()
 def matmul_dyn_mm_test():
     m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None, 7])
     m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [7, None])

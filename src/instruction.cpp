@@ -587,15 +587,11 @@ static auto track_visits(instruction_ref start, instruction_ref end, F f)
     }
     else
     {
-        // Pre-compute the set of instructions in [start, end] so that the
-        // out-of-range check is O(1) instead of O(n) per visited node.
         std::unordered_set<instruction_ref> in_range;
         in_range.reserve(n + 1);
         for(auto it = start; it != std::next(end); ++it)
             in_range.insert(it);
         auto stop = [&](auto ins) {
-            // Treat "not in range" and "already visited" the same by erasing on
-            // first visit. Subsequent visits will fail the range check.
             auto it = in_range.find(ins);
             if(it == in_range.end())
                 return true;

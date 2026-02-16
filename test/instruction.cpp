@@ -408,14 +408,16 @@ TEST_CASE(reaches_large_linear)
     migraphx::shape s{migraphx::shape::float_type, {3, 3}};
     auto x = m.add_parameter("x", s);
 
-    const int chain_len = 30000;
+    // Keep this just above the small threshold (16) so we exercise the large-n
+    // path in track_visits without making the default unit test too heavy.
+    const int chain_len = 1000;
     std::vector<migraphx::instruction_ref> chain;
     chain.push_back(x);
     for(int i = 0; i < chain_len; i++)
         chain.push_back(m.add_instruction(migraphx::make_op("relu"), chain.back()));
     auto last = m.add_instruction(migraphx::make_op("abs"), chain.back());
 
-    const int repeats = 5;
+    const int repeats = 3;
     for(int i = 0; i < repeats; i++)
     {
         // Start to end (distance = chain_len + 1)
@@ -445,13 +447,14 @@ TEST_CASE(reaches_large_independent_chains)
     const int chain_len = 20;
     std::vector<migraphx::instruction_ref> chain_a;
     chain_a.push_back(x);
-    for(int i = 0; i < chain_len; i++)
-        chain_a.push_back(m.add_instruction(migraphx::make_op("relu"), chain_a.back()));
-
     std::vector<migraphx::instruction_ref> chain_b;
     chain_b.push_back(y);
     for(int i = 0; i < chain_len; i++)
+    {
+        // Interleave insertion into the module to exercise ordering with mixed instructions
+        chain_a.push_back(m.add_instruction(migraphx::make_op("relu"), chain_a.back()));
         chain_b.push_back(m.add_instruction(migraphx::make_op("tanh"), chain_b.back()));
+    }
 
     // Within each chain: reachable
     EXPECT(migraphx::reaches(x, chain_a.back(), &m));

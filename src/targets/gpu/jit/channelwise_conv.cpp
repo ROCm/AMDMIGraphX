@@ -108,9 +108,10 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
         return compile_hip_code_object(ctx, src, options);
     }
 
-    compiler_replace compile(context& ctx, instruction_ref ins, const operation& op, const value& solution) const
+    compiler_replace
+    compile(context& ctx, instruction_ref ins, const operation& op, const value& solution) const
     {
-        auto v        = op.to_value();
+        auto v = op.to_value();
         for(const auto& x : solution)
             v.insert(x);
         return compile_op(ctx, to_shapes(ins->inputs()), v);
@@ -122,16 +123,16 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
                                               bool exhaustive) const
     {
         tuning_config tc;
-        auto shapes       = to_shapes(ins->inputs());
-        tc.problem        = to_value(shapes);
+        auto shapes = to_shapes(ins->inputs());
+        tc.problem  = to_value(shapes);
         if(exhaustive)
         {
             std::vector<std::size_t> sizes;
-            for(auto i:range(1, 64))
-                sizes.push_back(i*4);
-            for(auto tile_h:sizes)
+            for(auto i : range(1, 64))
+                sizes.push_back(i * 4);
+            for(auto tile_h : sizes)
             {
-                for(auto tile_w:sizes)
+                for(auto tile_w : sizes)
                 {
                     auto block_size = tile_h * tile_w;
                     if(block_size > 1024)

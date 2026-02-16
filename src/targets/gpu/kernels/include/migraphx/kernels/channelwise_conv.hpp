@@ -41,7 +41,7 @@ channelwise_conv(KernelLens kernel_lens, SpatialLens, Output output, Input1 x, I
     constexpr index_int spatial_total = SpatialLens{}.product();
     constexpr index_int product_total = kernel_total * spatial_total;
 
-    constexpr auto out_spatial_lens = return_array_c([] {
+    constexpr auto out_spatial_lens       = return_array_c([] {
         constexpr auto kl      = KernelLens{};
         constexpr auto sl      = SpatialLens{};
         constexpr index_int ns = array_size(KernelLens{});
@@ -52,7 +52,7 @@ channelwise_conv(KernelLens kernel_lens, SpatialLens, Output output, Input1 x, I
     });
     constexpr index_int out_spatial_total = out_spatial_lens.product();
 
-    constexpr auto prod_lens = return_array_c([] {
+    constexpr auto prod_lens    = return_array_c([] {
         constexpr auto kl      = KernelLens{};
         constexpr auto sl      = SpatialLens{};
         constexpr index_int ns = array_size(KernelLens{});
@@ -71,50 +71,47 @@ channelwise_conv(KernelLens kernel_lens, SpatialLens, Output output, Input1 x, I
     auto idx            = make_index();
     auto keep_non_batch = [](auto, auto i, auto) { return i >= 2; };
 
-    slice_schedule<per_block>(idx, keep_non_batch)(x, w, output)(
-        [&](auto x_ch, auto w_ch, auto out_ch) {
-            // Phase 1: elementwise multiply into shared memory
-            idx.local_stride(_c<product_total>, [&](auto i) {
-                auto prod_multi = prod_lens.multi(i);
-                auto ch_idx =
-                    generate_array<index_int>(_c<2 + 2 * NS>, [&](auto d) -> index_int {
-                        if constexpr(d < 2)
-                            return 0;
-                        else
-                            return prod_multi[d - _c<2>];
-                    });
-                smem[i] = x_ch[ch_idx] * w_ch[ch_idx];
+    slice_schedule<per_block>(idx,
+                              keep_non_batch)(x, w, output)([&](auto x_ch, auto w_ch, auto out_ch) {
+        // Phase 1: elementwise multiply into shared memory
+        idx.local_stride(_c<product_total>, [&](auto i) {
+            auto prod_multi = prod_lens.multi(i);
+            auto ch_idx     = generate_array<index_int>(_c<2 + 2 * NS>, [&](auto d) -> index_int {
+                if constexpr(d < 2)
+                    return 0;
+                else
+                    return prod_multi[d - _c<2>];
             });
-
-            __syncthreads();
-
-            // Phase 2: sliding window reduce from shared memory
-            idx.local_stride(_c<out_spatial_total>, [&](auto j) {
-                auto out_spatial = out_spatial_lens.multi(j);
-                T acc            = 0;
-                for(index_int ki = 0; ki < kernel_total; ki++)
-                {
-                    auto k_multi  = kernel_lens.multi(ki);
-                    auto smem_idx = generate_array<index_int>(
-                        _c<2 * NS>, [&](auto d) -> index_int {
-                            if constexpr(d < NS)
-                                return k_multi[d];
-                            else
-                                return out_spatial[d - _c<NS>] + k_multi[d - _c<NS>];
-                        });
-                    acc += smem[smem_idx.dot(prod_strides)];
-                }
-
-                auto out_idx =
-                    generate_array<index_int>(_c<2 + NS>, [&](auto d) -> index_int {
-                        if constexpr(d < 2)
-                            return 0;
-                        else
-                            return out_spatial[d - _c<2>];
-                    });
-                out_ch[out_idx] = acc;
-            });
+            smem[i]         = x_ch[ch_idx] * w_ch[ch_idx];
         });
+
+        __syncthreads();
+
+        // Phase 2: sliding window reduce from shared memory
+        idx.local_stride(_c<out_spatial_total>, [&](auto j) {
+            auto out_spatial = out_spatial_lens.multi(j);
+            T acc            = 0;
+            for(index_int ki = 0; ki < kernel_total; ki++)
+            {
+                auto k_multi  = kernel_lens.multi(ki);
+                auto smem_idx = generate_array<index_int>(_c<2 * NS>, [&](auto d) -> index_int {
+                    if constexpr(d < NS)
+                        return k_multi[d];
+                    else
+                        return out_spatial[d - _c<NS>] + k_multi[d - _c<NS>];
+                });
+                acc += smem[smem_idx.dot(prod_strides)];
+            }
+
+            auto out_idx    = generate_array<index_int>(_c<2 + NS>, [&](auto d) -> index_int {
+                if constexpr(d < 2)
+                    return 0;
+                else
+                    return out_spatial[d - _c<2>];
+            });
+            out_ch[out_idx] = acc;
+        });
+    });
 }
 
 } // namespace migraphx

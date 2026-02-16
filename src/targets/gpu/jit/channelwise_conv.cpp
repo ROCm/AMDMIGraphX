@@ -56,21 +56,18 @@ MIGRAPHX_GLOBAL void channelwise_conv_kernel(void* x_p, void* w_p, void* y_p)
 
 struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
 {
-    std::vector<std::string> names() const
-    {
-        return {"gpu::channelwise_conv", "channelwise_conv"};
-    }
+    std::vector<std::string> names() const { return {"gpu::channelwise_conv", "channelwise_conv"}; }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
-        auto num_spatial    = v.at("num_spatial").to<std::size_t>();
-        const auto& x_s     = inputs.at(0);
-        const auto& w_s     = inputs.at(1);
-        const auto& out_s   = inputs.back();
-        options.inputs      = inputs;
-        options.output      = out_s;
-        options.kernel_name = "channelwise_conv_kernel";
+        auto num_spatial       = v.at("num_spatial").to<std::size_t>();
+        const auto& x_s        = inputs.at(0);
+        const auto& w_s        = inputs.at(1);
+        const auto& out_s      = inputs.back();
+        options.inputs         = inputs;
+        options.output         = out_s;
+        options.kernel_name    = "channelwise_conv_kernel";
         options.virtual_inputs = inputs;
 
         auto x_lens   = x_s.lens();
@@ -85,7 +82,7 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
         }
         else
         {
-            tile_sizes[0] = 8;
+            tile_sizes[0]               = 8;
             tile_sizes[num_spatial - 1] = 32;
             for(std::size_t d = 1; d + 1 < num_spatial; ++d)
                 tile_sizes[d] = 1;
@@ -105,8 +102,8 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
 
         options.set_launch_params(v, num_blocks * block_size, block_size);
 
-        auto src = interpolate_string(channelwise_conv_kernel,
-                                      {{"tile", to_string_range(tile_sizes)}});
+        auto src =
+            interpolate_string(channelwise_conv_kernel, {{"tile", to_string_range(tile_sizes)}});
 
         return compile_hip_code_object(ctx, src, options);
     }

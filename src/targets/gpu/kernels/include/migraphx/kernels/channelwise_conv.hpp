@@ -58,7 +58,8 @@ __device__ void channelwise_conv(TileLens, Output output, Input x, Weights w)
     // Derive spatial and kernel lens from input shapes (already full-rank)
     constexpr auto spatial_lens = make_slice(get_shape_c<Input>{}, keep_spatial).lens;
     constexpr auto kernel_lens  = make_slice(get_shape_c<Weights>{}, keep_spatial).lens;
-    constexpr auto wregs_shape  = make_packed_shape(make_slice(get_shape_c<Weights>{}, keep_spatial));
+    constexpr auto wregs_shape =
+        make_packed_shape(make_slice(get_shape_c<Weights>{}, keep_spatial));
 
     constexpr index_int kernel_total = kernel_lens.product();
 
@@ -67,11 +68,11 @@ __device__ void channelwise_conv(TileLens, Output output, Input x, Weights w)
     constexpr auto in_nc  = make_shape(index_ints<N, C_in>{});
 
     // All full-rank (2+NS)-dim with [1, 1, ...] batch/channel prefix
-    constexpr auto tile_lens        = return_array_c([] {
-        constexpr auto sl          = decltype(spatial_lens){};
-        constexpr auto tl          = TileLens{};
-        constexpr index_int nd     = sl.size();
-        constexpr index_int ns     = array_size(TileLens{});
+    constexpr auto tile_lens = return_array_c([] {
+        constexpr auto sl      = decltype(spatial_lens){};
+        constexpr auto tl      = TileLens{};
+        constexpr index_int nd = sl.size();
+        constexpr index_int ns = array_size(TileLens{});
         array<index_int, nd> result;
         result[0] = 1;
         result[1] = 1;
@@ -79,12 +80,12 @@ __device__ void channelwise_conv(TileLens, Output output, Input x, Weights w)
             result[2 + i] = tl[i];
         return result;
     });
-    constexpr auto halo_lens        = transform(tile_lens, kernel_lens,
-        [](auto t, auto k) { return t + k - 1; });
-    constexpr auto out_spatial_lens = transform(spatial_lens, kernel_lens,
-        [](auto s, auto k) { return s - k + 1; });
-    constexpr auto tiles_per_dim    = transform(out_spatial_lens, tile_lens,
-        [](auto o, auto t) { return (o + t - 1) / t; });
+    constexpr auto halo_lens =
+        transform(tile_lens, kernel_lens, [](auto t, auto k) { return t + k - 1; });
+    constexpr auto out_spatial_lens =
+        transform(spatial_lens, kernel_lens, [](auto s, auto k) { return s - k + 1; });
+    constexpr auto tiles_per_dim =
+        transform(out_spatial_lens, tile_lens, [](auto o, auto t) { return (o + t - 1) / t; });
 
     constexpr auto tile_shape      = make_shape(tile_lens);
     constexpr auto halo_shape      = make_shape(halo_lens);
@@ -92,7 +93,7 @@ __device__ void channelwise_conv(TileLens, Output output, Input x, Weights w)
     constexpr index_int tile_total = tile_lens.product();
 
     // Block shape: [N, C_out, tiles_h, tiles_w]
-    constexpr auto block_lens = return_array_c([] {
+    constexpr auto block_lens  = return_array_c([] {
         constexpr auto tpd     = decltype(tiles_per_dim){};
         constexpr index_int nd = tpd.size();
         array<index_int, nd> result;
@@ -121,7 +122,7 @@ __device__ void channelwise_conv(TileLens, Output output, Input x, Weights w)
 
     // Tile origin: [0, 0, tile_row * TileH, tile_col * TileW]
     constexpr index_int NDIM = spatial_lens.size();
-    auto tile_origin = generate_array<index_int>(_c<NDIM>, [&](auto d) -> index_int {
+    auto tile_origin         = generate_array<index_int>(_c<NDIM>, [&](auto d) -> index_int {
         if constexpr(d < 2)
             return 0;
         else

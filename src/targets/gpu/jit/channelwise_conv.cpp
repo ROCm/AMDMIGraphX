@@ -82,8 +82,8 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
         }
         else
         {
-            tile_sizes[0]               = 8;
-            tile_sizes[num_spatial - 1] = 32;
+            tile_sizes[0]               = v.get("tile_h", 8);
+            tile_sizes[num_spatial - 1] = v.get("tile_w", 32);
             for(std::size_t d = 1; d + 1 < num_spatial; ++d)
                 tile_sizes[d] = 1;
         }
@@ -108,9 +108,55 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
         return compile_hip_code_object(ctx, src, options);
     }
 
-    compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
+    compiler_replace compile(context& ctx, instruction_ref ins, const operation& op, const value& solution) const
     {
-        return compile_op(ctx, to_shapes(ins->inputs()), op.to_value());
+        auto v        = op.to_value();
+        for(const auto& x : solution)
+            v.insert(x);
+        return compile_op(ctx, to_shapes(ins->inputs()), v);
+    }
+
+    optional<tuning_config> get_tuning_config(const context& ctx,
+                                              instruction_ref ins,
+                                              const operation& op,
+                                              bool exhaustive) const
+    {
+        tuning_config tc;
+        auto shapes       = to_shapes(ins->inputs());
+        tc.problem        = to_value(shapes);
+        if(exhaustive)
+        {
+            std::vector<std::size_t> sizes;
+            for(auto i:range(1, 64))
+                sizes.push_back(i*4);
+            for(auto tile_h:sizes)
+            {
+                for(auto tile_w:sizes)
+                {
+                    auto block_size = tile_h * tile_w;
+                    if(block_size > 1024)
+                        continue;
+                    if(block_size < ctx.get_current_device().get_wavefront_size())
+                        continue;
+                    if((block_size % ctx.get_current_device().get_wavefront_size()) != 0)
+                        continue;
+                    tc.solutions.push_back({{"tile_h", tile_h}, {"tile_w", tile_w}});
+                }
+            }
+        }
+        else
+        {
+            tc.solutions.push_back({{"tile_h", 8}, {"tile_w", 32}});
+            tc.solutions.push_back({{"tile_h", 32}, {"tile_w", 32}});
+            tc.solutions.push_back({{"tile_h", 12}, {"tile_w", 32}});
+            tc.solutions.push_back({{"tile_h", 24}, {"tile_w", 16}});
+            // tc.solutions.push_back({{"tile_h", 20}, {"tile_w", 8}});
+            tc.solutions.push_back({{"tile_h", 32}, {"tile_w", 4}});
+
+            // tc.solutions.push_back({{"tile_h", 16}, {"tile_w", 32}});
+            // tc.solutions.push_back({{"tile_h", 64}, {"tile_w", 16}});
+        }
+        return tc;
     }
 };
 

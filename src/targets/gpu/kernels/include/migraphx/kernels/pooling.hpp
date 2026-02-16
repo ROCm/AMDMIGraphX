@@ -186,7 +186,7 @@ constexpr window<Window, Stride, Padding> make_window(Window w, Stride s, Paddin
     return {w, s, p};
 }
 
-template <class Algo, index_int GroupSize, class Schedule= per_device, class Output, class F>
+template <class Algo, index_int GroupSize, class Schedule = per_device, class Output, class F>
 __device__ void pooling_reduce(Output output, F f)
 {
     if constexpr(GroupSize < 2)

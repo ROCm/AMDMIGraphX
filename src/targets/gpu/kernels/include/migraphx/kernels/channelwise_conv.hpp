@@ -31,20 +31,9 @@
 #include <migraphx/kernels/copy.hpp>
 #include <migraphx/kernels/reduce.hpp>
 #include <migraphx/kernels/uninitialized_buffer.hpp>
+#include <migraphx/kernels/pooling.hpp>
 
 namespace migraphx {
-
-template <class Output, class F>
-__device__ void per_block_pooling_reduce(index idx, Output output, F f)
-{
-    constexpr auto nelements = get_shape_c<Output>{}.elements();
-    idx.local_stride(nelements, [&](auto i) {
-        auto out_idx = get_shape_c<Output>{}.multi(i);
-        auto slicer  = [](auto input) { return reduce_slice<decltype(output)>(input, 0); };
-        auto r       = reduce::lane::make(idx, slicer);
-        r.outer([&] { output[out_idx] = f(out_idx, r); });
-    });
-}
 
 template <class KernelLens, class SpatialLens, class Output, class Input, class Weights>
 __device__ void channelwise_conv(KernelLens, SpatialLens, Output output, Input x, Weights w)
@@ -92,7 +81,7 @@ __device__ void channelwise_conv(KernelLens, SpatialLens, Output output, Input x
         __syncthreads();
 
         // Phase 3: sliding window multiply-reduce
-        per_block_pooling_reduce(idx, out_ch, [&](auto out_idx, auto r) {
+        pooling_reduce<reduce::lane, 1, per_block>(out_ch, [&](auto out_idx, auto r) {
             return r.reduce(op::sum{}, T{0}, [&](auto ki) {
                 auto k_multi = wregs_shape.multi(ki);
                 return smem_input[out_idx + k_multi] * wregs[k_multi];

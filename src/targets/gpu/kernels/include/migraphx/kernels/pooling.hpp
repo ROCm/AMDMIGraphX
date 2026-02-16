@@ -186,18 +186,18 @@ constexpr window<Window, Stride, Padding> make_window(Window w, Stride s, Paddin
     return {w, s, p};
 }
 
-template <class Algo, index_int GroupSize, class Output, class F>
+template <class Algo, index_int GroupSize, class Schedule= per_device, class Output, class F>
 __device__ void pooling_reduce(Output output, F f)
 {
     if constexpr(GroupSize < 2)
     {
-        Algo::template run<decltype(output)>(
+        Algo::template run<decltype(output), Schedule>(
             [&](auto out_idx, auto r) { r.outer([&] { output[out_idx] = f(out_idx, r); }); });
     }
     else
     {
         auto goutput = as_vec<GroupSize>(output, output.get_shape().lens.size() - _c<1>);
-        Algo::template run<decltype(goutput)>([&](auto out_idx, auto r) {
+        Algo::template run<decltype(goutput), Schedule>([&](auto out_idx, auto r) {
             auto i = out_idx;
             i.back() *= GroupSize;
             auto result = vec_generate<GroupSize>([&](auto) {

@@ -81,8 +81,7 @@ static void add_gen_inputs(module_ref gen_mod,
     else
     {
         // Regular input: add as parameter
-        outer_map[input] =
-            gen_mod->add_parameter(param_name(param_idx++), input->get_shape());
+        outer_map[input] = gen_mod->add_parameter(param_name(param_idx++), input->get_shape());
     }
 }
 
@@ -282,15 +281,15 @@ static void inline_submodule(module_ref gen_mod,
         // If this is a pointwise op with a submodule, inline its contents
         if(pm_ins.name() == "pointwise" and not pm_ins.module_inputs().empty())
         {
-            auto* pw_mod      = pm_ins.module_inputs().front();
-            auto pw_params    = pw_mod->get_parameter_names();
+            auto* pw_mod   = pm_ins.module_inputs().front();
+            auto pw_params = pw_mod->get_parameter_names();
             std::sort(pw_params.begin(), pw_params.end());
 
             // Map pointwise module params to current gen module values
             std::unordered_map<instruction_ref, instruction_ref> pw_map;
             for(std::size_t i = 0; i < pm_ins.inputs().size() and i < pw_params.size(); ++i)
             {
-                auto pw_param = pw_mod->get_parameter(pw_params[i]);
+                auto pw_param    = pw_mod->get_parameter(pw_params[i]);
                 pw_map[pw_param] = inner_map.at(pm_ins.inputs()[i]);
             }
 

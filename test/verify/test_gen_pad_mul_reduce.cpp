@@ -34,9 +34,9 @@ struct test_gen_pad_mul_reduce : verify_program<test_gen_pad_mul_reduce>
         migraphx::program p;
         auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::float_type, {8}};
-        auto x   = mm->add_parameter("x", s);
-        auto pad = mm->add_instruction(
-            migraphx::make_op("pad", {{"pads", {2, 2}}, {"value", 0.0f}}), x);
+        auto x = mm->add_parameter("x", s);
+        auto pad =
+            mm->add_instruction(migraphx::make_op("pad", {{"pads", {2, 2}}, {"value", 0.0f}}), x);
         auto y   = mm->add_parameter("y", {migraphx::shape::float_type, {12}});
         auto mul = mm->add_instruction(migraphx::make_op("mul"), pad, y);
         auto red = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), mul);

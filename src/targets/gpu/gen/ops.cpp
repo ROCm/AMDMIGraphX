@@ -509,7 +509,7 @@ struct pad_index
     {
         // For 1D: input_idx = output_idx - pad_before
         // Returns -1 if out of bounds
-        auto input_len = input_shape.elements();
+        auto input_len  = input_shape.elements();
         auto pad_before = pads.empty() ? 0 : pads[0];
         return {{"gpu_gen",
                  "gen::pad_index_1d(" + std::to_string(input_len) + ", " +
@@ -572,8 +572,7 @@ struct reverse_index
     {
         // For 1D: input_idx = (len - 1) - output_idx
         auto len = input_shape.elements();
-        return {{"gpu_gen",
-                 "gen::reverse_index_1d(" + std::to_string(len) + ", ${0})"}};
+        return {{"gpu_gen", "gen::reverse_index_1d(" + std::to_string(len) + ", ${0})"}};
     }
 };
 MIGRAPHX_REGISTER_OP(reverse_index);
@@ -621,10 +620,7 @@ struct conditional_load
         return shape{inputs[0].type()};
     }
 
-    value attributes() const
-    {
-        return {{"gpu_gen", "gen::conditional_load(${0}, ${1}, ${2})"}};
-    }
+    value attributes() const { return {{"gpu_gen", "gen::conditional_load(${0}, ${1}, ${2})"}}; }
 };
 MIGRAPHX_REGISTER_OP(conditional_load);
 

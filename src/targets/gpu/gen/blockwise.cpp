@@ -49,15 +49,14 @@ void gen_blockwise::apply(module& m) const
         if(v.at("algo").to<std::string>() != "block")
             continue;
 
-        auto block_size     = v.at("block_size").to<std::size_t>();
-        std::size_t nwaves  = (block_size + 63) / 64; // waves per block
-        auto data_type      = ins->inputs().front()->get_shape().type();
+        auto block_size    = v.at("block_size").to<std::size_t>();
+        std::size_t nwaves = (block_size + 63) / 64; // waves per block
+        auto data_type     = ins->inputs().front()->get_shape().type();
 
         // Allocate LDS buffer: one element per wave for cross-wave reduction
         auto lds = m.insert_instruction(
             ins,
-            make_op("gpu::gen::lds_allocate",
-                    {{"shape", to_value(shape{data_type, {nwaves}})}}));
+            make_op("gpu::gen::lds_allocate", {{"shape", to_value(shape{data_type, {nwaves}})}}));
 
         // Add LDS as additional input to gridwise_reduce
         auto inputs = ins->inputs();

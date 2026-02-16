@@ -110,20 +110,20 @@ void gen_lanewise::apply(module& m) const
     {
         if(ins->name() == "pad")
         {
-            auto v          = ins->get_operator().to_value();
-            auto pads       = v.at("pads").to_vector<std::int64_t>();
-            auto input      = ins->inputs().front();
-            auto input_s    = input->get_shape();
-            auto pad_value  = 0.0f;
+            auto v         = ins->get_operator().to_value();
+            auto pads      = v.at("pads").to_vector<std::int64_t>();
+            auto input     = ins->inputs().front();
+            auto input_s   = input->get_shape();
+            auto pad_value = 0.0f;
             if(v.contains("value"))
                 pad_value = v.at("value").to<float>();
 
             // pad_index(tid) -> int64 index (-1 if out of bounds)
-            auto pad_idx = m.insert_instruction(
-                ins,
-                make_op("gpu::gen::pad_index",
-                        {{"input_shape", to_value(input_s)}, {"pads", pads}}),
-                tid);
+            auto pad_idx =
+                m.insert_instruction(ins,
+                                     make_op("gpu::gen::pad_index",
+                                             {{"input_shape", to_value(input_s)}, {"pads", pads}}),
+                                     tid);
             // conditional_load(input, pad_idx, fill_value)
             auto fill_lit = m.add_literal(migraphx::literal{shape{input_s.type()}, {pad_value}});
             auto loaded   = m.insert_instruction(
@@ -139,15 +139,14 @@ void gen_lanewise::apply(module& m) const
             auto input_s = data->get_shape();
 
             // gather_index(indices, tid) -> index into data
-            auto g_idx = m.insert_instruction(
-                ins,
-                make_op("gpu::gen::gather_index",
-                        {{"input_shape", to_value(input_s)}, {"axis", axis}}),
-                indices,
-                tid);
+            auto g_idx =
+                m.insert_instruction(ins,
+                                     make_op("gpu::gen::gather_index",
+                                             {{"input_shape", to_value(input_s)}, {"axis", axis}}),
+                                     indices,
+                                     tid);
             // load(data, gather_idx)
-            auto loaded = m.insert_instruction(
-                ins, make_op("gpu::gen::load"), data, g_idx);
+            auto loaded      = m.insert_instruction(ins, make_op("gpu::gen::load"), data, g_idx);
             index_remap[ins] = loaded;
         }
         else if(ins->name() == "reverse")
@@ -158,14 +157,13 @@ void gen_lanewise::apply(module& m) const
             auto input_s = input->get_shape();
 
             // reverse_index(tid) -> reversed index
-            auto r_idx = m.insert_instruction(
-                ins,
-                make_op("gpu::gen::reverse_index",
-                        {{"input_shape", to_value(input_s)}, {"axes", axes}}),
-                tid);
+            auto r_idx =
+                m.insert_instruction(ins,
+                                     make_op("gpu::gen::reverse_index",
+                                             {{"input_shape", to_value(input_s)}, {"axes", axes}}),
+                                     tid);
             // load(input, reversed_idx)
-            auto loaded = m.insert_instruction(
-                ins, make_op("gpu::gen::load"), input, r_idx);
+            auto loaded      = m.insert_instruction(ins, make_op("gpu::gen::load"), input, r_idx);
             index_remap[ins] = loaded;
         }
     }
@@ -238,9 +236,8 @@ void gen_lanewise::apply(module& m) const
                 else
                     new_inputs.push_back(input);
             }
-            auto new_ins =
-                m.insert_instruction(insert_point, ins->get_operator(), new_inputs);
-            remap[ins] = new_ins;
+            auto new_ins = m.insert_instruction(insert_point, ins->get_operator(), new_inputs);
+            remap[ins]   = new_ins;
         }
 
         // Rewire store to use the new scalar computation
@@ -293,9 +290,8 @@ void gen_lanewise::apply(module& m) const
         else if(algo == "wave")
         {
             // Wave reduce: load + dpp_reduce
-            auto loaded = m.insert_instruction(
-                gw_ins, make_op("gpu::gen::load"), input, tid);
-            result = m.insert_instruction(
+            auto loaded = m.insert_instruction(gw_ins, make_op("gpu::gen::load"), input, tid);
+            result      = m.insert_instruction(
                 gw_ins, make_op("gpu::gen::dpp_reduce", {{"op", rop}}), loaded);
         }
         else // block
@@ -303,8 +299,7 @@ void gen_lanewise::apply(module& m) const
             // Block reduce: strided_load + lane_reduce + dpp_reduce + reduce_waves
             // Each thread loads several strided elements, reduces locally,
             // then wave-level and block-level reductions follow.
-            std::size_t elements_per_thread =
-                (reduce_elements + block_size - 1) / block_size;
+            std::size_t elements_per_thread = (reduce_elements + block_size - 1) / block_size;
             if(elements_per_thread < 1)
                 elements_per_thread = 1;
 
@@ -322,8 +317,7 @@ void gen_lanewise::apply(module& m) const
             }
             else
             {
-                partial = m.insert_instruction(
-                    gw_ins, make_op("gpu::gen::load"), input, tid);
+                partial = m.insert_instruction(gw_ins, make_op("gpu::gen::load"), input, tid);
             }
 
             // Wave-level reduction via DPP

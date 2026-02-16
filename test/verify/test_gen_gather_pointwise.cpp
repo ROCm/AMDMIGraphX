@@ -38,8 +38,8 @@ struct test_gen_gather_pointwise : verify_program<test_gen_gather_pointwise>
         migraphx::shape idx_s{migraphx::shape::int32_type, {4}};
         auto data    = mm->add_parameter("data", data_s);
         auto indices = mm->add_literal(migraphx::literal{idx_s, {0, 2, 4, 6}});
-        auto gather  = mm->add_instruction(
-            migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+        auto gather =
+            mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
         auto y   = mm->add_parameter("y", {migraphx::shape::float_type, {4}});
         auto add = mm->add_instruction(migraphx::make_op("add"), gather, y);
         mm->add_return({add});

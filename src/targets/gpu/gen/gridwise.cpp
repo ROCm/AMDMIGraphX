@@ -113,9 +113,9 @@ void gen_gridwise::apply(module& m) const
 
     for(auto ins : reduce_ops)
     {
-        auto input_shape    = ins->inputs().front()->get_shape();
-        auto output_shape   = ins->get_shape();
-        auto input_elements = input_shape.elements();
+        auto input_shape     = ins->inputs().front()->get_shape();
+        auto output_shape    = ins->get_shape();
+        auto input_elements  = input_shape.elements();
         auto output_elements = output_shape.elements();
         auto reduce_elements = input_elements / output_elements;
 
@@ -126,14 +126,13 @@ void gen_gridwise::apply(module& m) const
         if(algo == "wave")
             block_size = 64;
 
-        auto gw_reduce = m.insert_instruction(
-            ins,
-            make_op("gpu::gen::gridwise_reduce",
-                    {{"op", rop},
-                     {"algo", algo},
-                     {"reduce_elements", reduce_elements},
-                     {"block_size", block_size}}),
-            ins->inputs());
+        auto gw_reduce = m.insert_instruction(ins,
+                                              make_op("gpu::gen::gridwise_reduce",
+                                                      {{"op", rop},
+                                                       {"algo", algo},
+                                                       {"reduce_elements", reduce_elements},
+                                                       {"block_size", block_size}}),
+                                              ins->inputs());
         m.replace_instruction(ins, gw_reduce);
     }
 

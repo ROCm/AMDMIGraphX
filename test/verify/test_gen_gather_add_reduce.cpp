@@ -38,8 +38,8 @@ struct test_gen_gather_add_reduce : verify_program<test_gen_gather_add_reduce>
         migraphx::shape idx_s{migraphx::shape::int32_type, {8}};
         auto data    = mm->add_parameter("data", data_s);
         auto indices = mm->add_literal(migraphx::literal{idx_s, {0, 2, 4, 6, 8, 10, 12, 14}});
-        auto gather  = mm->add_instruction(
-            migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+        auto gather =
+            mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
         auto y   = mm->add_parameter("y", {migraphx::shape::float_type, {8}});
         auto add = mm->add_instruction(migraphx::make_op("add"), gather, y);
         auto red = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), add);

@@ -37,7 +37,7 @@ struct test_gen_concat_reduce : verify_program<test_gen_concat_reduce>
         auto x      = mm->add_parameter("x", s);
         auto y      = mm->add_parameter("y", s);
         auto concat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), x, y);
-        auto red = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), concat);
+        auto red    = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), concat);
         mm->add_return({red});
         return p;
     }

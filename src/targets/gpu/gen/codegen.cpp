@@ -190,13 +190,12 @@ operation compile_gen(context& ctx, const std::vector<shape>& in_shapes, const_m
     options.emplace_param("-Wno-gnu-statement-expression");
 
     // Detect reduction ops in the lowered module for launch param selection
-    bool has_reduce = std::any_of(m.begin(), m.end(), [](const auto& ins) {
+    bool has_reduce       = std::any_of(m.begin(), m.end(), [](const auto& ins) {
         return ins.name() == "gpu::gen::dpp_reduce" or ins.name() == "gpu::gen::reduce_waves" or
                ins.name() == "gpu::gen::lane_reduce";
     });
-    bool has_block_reduce = std::any_of(m.begin(), m.end(), [](const auto& ins) {
-        return ins.name() == "gpu::gen::reduce_waves";
-    });
+    bool has_block_reduce = std::any_of(
+        m.begin(), m.end(), [](const auto& ins) { return ins.name() == "gpu::gen::reduce_waves"; });
 
     if(has_reduce)
     {
@@ -211,8 +210,7 @@ operation compile_gen(context& ctx, const std::vector<shape>& in_shapes, const_m
         {
             // Wave or lane reduce
             auto input_elements = in_shapes.front().elements();
-            options.set_launch_params(
-                value{}, compute_global_for(ctx, input_elements, 256));
+            options.set_launch_params(value{}, compute_global_for(ctx, input_elements, 256));
         }
     }
     else if(config.ntiles > 0)

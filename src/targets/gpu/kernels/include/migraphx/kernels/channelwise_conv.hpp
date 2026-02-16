@@ -27,6 +27,8 @@
 
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/array.hpp>
+#include <migraphx/kernels/slice.hpp>
+#include <migraphx/kernels/uninitialized_buffer.hpp>
 
 namespace migraphx {
 
@@ -39,7 +41,7 @@ channelwise_conv(KernelLens kernel_lens, SpatialLens, Output output, Input1 x, I
     constexpr index_int spatial_total = SpatialLens{}.product();
     constexpr index_int product_total = kernel_total * spatial_total;
 
-    constexpr auto out_spatial_lens       = return_array_c([] {
+    constexpr auto out_spatial_lens = return_array_c([] {
         constexpr auto kl      = KernelLens{};
         constexpr auto sl      = SpatialLens{};
         constexpr index_int ns = array_size(KernelLens{});
@@ -50,7 +52,7 @@ channelwise_conv(KernelLens kernel_lens, SpatialLens, Output output, Input1 x, I
     });
     constexpr index_int out_spatial_total = out_spatial_lens.product();
 
-    constexpr auto prod_lens  = return_array_c([] {
+    constexpr auto prod_lens = return_array_c([] {
         constexpr auto kl      = KernelLens{};
         constexpr auto sl      = SpatialLens{};
         constexpr index_int ns = array_size(KernelLens{});
@@ -61,63 +63,58 @@ channelwise_conv(KernelLens kernel_lens, SpatialLens, Output output, Input1 x, I
             result[ns + i] = sl[i];
         return result;
     });
-    constexpr auto smem_shape = make_shape(prod_lens);
+    constexpr auto prod_strides = calculate_strides(prod_lens);
 
     using T = typename Output::type;
-    __shared__ T smem[product_total];
+    __shared__ uninitialized_buffer<T, product_total> smem;
 
-    auto idx = make_index();
+    auto idx            = make_index();
+    auto keep_non_batch = [](auto, auto i, auto) { return i >= 2; };
 
-    index_int C = output.get_shape().lens[1];
-    auto n      = idx.group / C;
-    auto c      = idx.group % C;
-
-    // Phase 1: elementwise multiply into shared memory
-    for(index_int i = idx.local; i < product_total; i += idx.nlocal())
-    {
-        auto prod_multi = prod_lens.multi(i);
-        auto bcast_idx  = generate_array<index_int>(_c<2 + 2 * NS>, [&](auto d) -> index_int {
-            if constexpr(d == 0)
-                return n;
-            else if constexpr(d == 1)
-                return c;
-            else
-                return prod_multi[d - _c<2>];
-        });
-        smem[i]         = x[bcast_idx] * w[bcast_idx];
-    }
-
-    __syncthreads();
-
-    auto smem_view = make_tensor_view(&smem[0], smem_shape);
-
-    // Phase 2: sliding window reduce from shared memory
-    for(index_int j = idx.local; j < out_spatial_total; j += idx.nlocal())
-    {
-        auto out_spatial = out_spatial_lens.multi(j);
-        T acc            = 0;
-        for(index_int ki = 0; ki < kernel_total; ki++)
-        {
-            auto k_multi  = kernel_lens.multi(ki);
-            auto smem_idx = generate_array<index_int>(_c<2 * NS>, [&](auto d) -> index_int {
-                if constexpr(d < NS)
-                    return k_multi[d];
-                else
-                    return out_spatial[d - _c<NS>] + k_multi[d - _c<NS>];
+    slice_schedule<per_block>(idx, keep_non_batch)(x, w, output)(
+        [&](auto x_ch, auto w_ch, auto out_ch) {
+            // Phase 1: elementwise multiply into shared memory
+            idx.local_stride(_c<product_total>, [&](auto i) {
+                auto prod_multi = prod_lens.multi(i);
+                auto ch_idx =
+                    generate_array<index_int>(_c<2 + 2 * NS>, [&](auto d) -> index_int {
+                        if constexpr(d < 2)
+                            return 0;
+                        else
+                            return prod_multi[d - _c<2>];
+                    });
+                smem[i] = x_ch[ch_idx] * w_ch[ch_idx];
             });
-            acc += smem_view[smem_idx];
-        }
 
-        auto out_idx    = generate_array<index_int>(_c<2 + NS>, [&](auto d) -> index_int {
-            if constexpr(d == 0)
-                return n;
-            else if constexpr(d == 1)
-                return c;
-            else
-                return out_spatial[d - _c<2>];
+            __syncthreads();
+
+            // Phase 2: sliding window reduce from shared memory
+            idx.local_stride(_c<out_spatial_total>, [&](auto j) {
+                auto out_spatial = out_spatial_lens.multi(j);
+                T acc            = 0;
+                for(index_int ki = 0; ki < kernel_total; ki++)
+                {
+                    auto k_multi  = kernel_lens.multi(ki);
+                    auto smem_idx = generate_array<index_int>(
+                        _c<2 * NS>, [&](auto d) -> index_int {
+                            if constexpr(d < NS)
+                                return k_multi[d];
+                            else
+                                return out_spatial[d - _c<NS>] + k_multi[d - _c<NS>];
+                        });
+                    acc += smem[smem_idx.dot(prod_strides)];
+                }
+
+                auto out_idx =
+                    generate_array<index_int>(_c<2 + NS>, [&](auto d) -> index_int {
+                        if constexpr(d < 2)
+                            return 0;
+                        else
+                            return out_spatial[d - _c<2>];
+                    });
+                out_ch[out_idx] = acc;
+            });
         });
-        output[out_idx] = acc;
-    }
 }
 
 } // namespace migraphx

@@ -516,11 +516,11 @@ struct block
         return reducer<Slicer>{{}, idx, slicer};
     }
 
-    template <class Output, class Schedule=per_device, class F>
+    template <class Output, class Schedule = per_device, class F>
     static __device__ void run(F f)
     {
         auto idx                 = make_index();
-        auto schedule = Schedule{idx};
+        auto schedule            = Schedule{idx};
         constexpr auto nelements = get_shape_c<Output>{}.elements();
         schedule.local_stride(nelements * idx.nlocal(), [&](auto i) {
             const auto out_idx = get_shape_c<Output>{}.multi(i / idx.nlocal());
@@ -571,11 +571,11 @@ struct block_large
         return reducer<Slicer>{{}, idx, slicer};
     }
 
-    template <class Output, class Schedule=per_device, class F>
+    template <class Output, class Schedule = per_device, class F>
     static __device__ void run(F f)
     {
         auto idx                 = make_index();
-        auto schedule = Schedule{idx};
+        auto schedule            = Schedule{idx};
         constexpr auto nelements = get_shape_c<Output>{}.elements();
         schedule.local_stride(nelements * idx.nlocal(), [&](auto i) {
             const auto out_idx = get_shape_c<Output>{}.multi(i / idx.nlocal());
@@ -650,11 +650,11 @@ struct subwave
         return reducer<Slicer>{{}, idx, slicer};
     }
 
-    template <class Output, class Schedule=per_device, class F>
+    template <class Output, class Schedule = per_device, class F>
     static __device__ void run(F f)
     {
         auto idx                 = make_index();
-        auto schedule = Schedule{idx};
+        auto schedule            = Schedule{idx};
         constexpr auto nelements = get_shape_c<Output>{}.elements();
         schedule.local_stride(nelements * idx.nlocal_subwave<SubWaveSize>(), [&](auto i) {
             const auto out_idx = get_shape_c<Output>{}.multi(i / idx.nlocal_subwave<SubWaveSize>());
@@ -712,11 +712,11 @@ struct lane
         return reducer<Slicer>{{}, idx, slicer};
     }
 
-    template <class Output, class Schedule=per_device, class F>
+    template <class Output, class Schedule = per_device, class F>
     static __device__ void run(F f)
     {
         auto idx                 = make_index();
-        auto schedule = Schedule{idx};
+        auto schedule            = Schedule{idx};
         constexpr auto nelements = get_shape_c<Output>{}.elements();
         schedule.local_stride(nelements, [&](auto i) {
             const auto out_idx = get_shape_c<Output>{}.multi(i);

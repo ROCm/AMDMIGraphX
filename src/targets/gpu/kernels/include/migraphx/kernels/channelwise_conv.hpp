@@ -47,8 +47,7 @@ __device__ void per_block_pooling_reduce(index idx, Output output, F f)
 }
 
 template <class KernelLens, class SpatialLens, class Output, class Input, class Weights>
-__device__ void
-channelwise_conv(KernelLens, SpatialLens, Output output, Input x, Weights w)
+__device__ void channelwise_conv(KernelLens, SpatialLens, Output output, Input x, Weights w)
 {
     constexpr index_int kernel_total  = KernelLens{}.product();
     constexpr index_int spatial_total = SpatialLens{}.product();
@@ -57,10 +56,10 @@ channelwise_conv(KernelLens, SpatialLens, Output output, Input x, Weights w)
     constexpr index_int C_out = get_shape_c<Output>{}.lens[1];
     constexpr index_int C_in  = get_shape_c<Input>{}.lens[1];
 
-    constexpr auto smem_shape  = make_packed_shape(make_slice(get_shape_c<Input>{},
-        [](auto, auto i, auto) { return i >= 2; }));
-    constexpr auto wregs_shape = make_packed_shape(make_slice(get_shape_c<Weights>{},
-        [](auto, auto i, auto) { return i >= 2; }));
+    constexpr auto smem_shape = make_packed_shape(
+        make_slice(get_shape_c<Input>{}, [](auto, auto i, auto) { return i >= 2; }));
+    constexpr auto wregs_shape = make_packed_shape(
+        make_slice(get_shape_c<Weights>{}, [](auto, auto i, auto) { return i >= 2; }));
 
     constexpr auto out_nc = make_shape(index_ints<N, C_out>{});
     constexpr auto co_cin = make_shape(index_ints<C_out / C_in, C_in>{});

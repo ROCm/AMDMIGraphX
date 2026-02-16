@@ -134,7 +134,7 @@ __device__ void channelwise_conv(TileLens, Output output, Input x, Weights w)
     idx.local_stride(_c<halo_total>, [&](auto i) {
         auto halo_multi = halo_shape.multi(index_int{i});
         auto src_pos    = tile_origin + halo_multi;
-        smem.data()[i]  = in_bounds(src_pos, spatial_lens) ? T{x_ch[src_pos]} : T{0};
+        smem[i]  = in_bounds(src_pos, spatial_lens) ? T{x_ch[src_pos]} : T{0};
     });
 
     // Phase 2: copy weights into registers

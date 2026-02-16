@@ -452,6 +452,18 @@ constexpr auto transform(integral_const_array<T, Xs...>, integral_const_array<U,
     return integral_const_array<T, f(Xs, Ys)...>{};
 }
 
+template <class T, T... Xs, class U, U... Ys>
+constexpr auto join(integral_const_array<T, Xs...>, integral_const_array<U, Ys...>)
+{
+    return integral_const_array<T, Xs..., Ys...>{};
+}
+
+template <class T, T... Xs, class U, U... Ys, class... Arrays>
+constexpr auto join(integral_const_array<T, Xs...>, integral_const_array<U, Ys...>, Arrays...)
+{
+    return join(integral_const_array<T, Xs..., Ys...>{}, Arrays{}...);
+}
+
 template <class F>
 constexpr auto return_array_c(F f)
 {

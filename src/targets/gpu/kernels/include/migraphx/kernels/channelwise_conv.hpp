@@ -68,18 +68,8 @@ __device__ void channelwise_conv(TileLens, Output output, Input x, Weights w)
     constexpr auto in_nc  = make_shape(index_ints<N, C_in>{});
 
     // All full-rank (2+NS)-dim with [1, 1, ...] batch/channel prefix
-    constexpr auto tile_lens = return_array_c([] {
-        constexpr auto sl      = decltype(spatial_lens){};
-        constexpr auto tl      = TileLens{};
-        constexpr index_int nd = sl.size();
-        constexpr index_int ns = array_size(TileLens{});
-        array<index_int, nd> result;
-        result[0] = 1;
-        result[1] = 1;
-        for(index_int i = 0; i < ns; i++)
-            result[2 + i] = tl[i];
-        return result;
-    });
+    constexpr auto tile_lens = join(index_ints<1, 1>{}, TileLens{});
+
     constexpr auto halo_lens =
         transform(tile_lens, kernel_lens, [](auto t, auto k) { return t + k - 1; });
     constexpr auto out_spatial_lens =

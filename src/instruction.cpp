@@ -594,14 +594,13 @@ static auto track_visits(instruction_ref start, instruction_ref end, F f)
         for(auto it = start; it != end; ++it)
             in_range.insert(it);
         in_range.insert(end);
-
-        std::unordered_set<instruction_ref> visited;
-        visited.reserve(n);
         auto stop = [&](auto ins) {
-            if(not visited.insert(ins).second)
+            // Treat "not in range" and "already visited" the same by erasing on
+            // first visit. Subsequent visits will fail the range check.
+            auto it = in_range.find(ins);
+            if(it == in_range.end())
                 return true;
-            if(in_range.count(ins) == 0)
-                return true;
+            in_range.erase(it);
             return false;
         };
         return f(stop);

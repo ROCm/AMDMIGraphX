@@ -27,48 +27,18 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_gen_pointwise_add : verify_program<test_gen_pointwise_add>
+struct test_gen_concat_pointwise : verify_program<test_gen_concat_pointwise>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape s{migraphx::shape::float_type, {64}};
-        auto x   = mm->add_parameter("x", s);
-        auto y   = mm->add_parameter("y", s);
-        auto add = mm->add_instruction(migraphx::make_op("add"), x, y);
-        mm->add_return({add});
-        return p;
-    }
-};
-
-struct test_gen_pointwise_mul : verify_program<test_gen_pointwise_mul>
-{
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        migraphx::shape s{migraphx::shape::float_type, {128}};
-        auto x   = mm->add_parameter("x", s);
-        auto y   = mm->add_parameter("y", s);
-        auto mul = mm->add_instruction(migraphx::make_op("mul"), x, y);
-        mm->add_return({mul});
-        return p;
-    }
-};
-
-struct test_gen_pointwise_mul_add : verify_program<test_gen_pointwise_mul_add>
-{
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        migraphx::shape s{migraphx::shape::float_type, {256}};
-        auto x   = mm->add_parameter("x", s);
-        auto y   = mm->add_parameter("y", s);
-        auto z   = mm->add_parameter("z", s);
-        auto mul = mm->add_instruction(migraphx::make_op("mul"), x, y);
-        auto add = mm->add_instruction(migraphx::make_op("add"), mul, z);
+        migraphx::shape s{migraphx::shape::float_type, {4}};
+        auto x      = mm->add_parameter("x", s);
+        auto y      = mm->add_parameter("y", s);
+        auto concat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), x, y);
+        auto z      = mm->add_parameter("z", {migraphx::shape::float_type, {8}});
+        auto add    = mm->add_instruction(migraphx::make_op("add"), concat, z);
         mm->add_return({add});
         return p;
     }

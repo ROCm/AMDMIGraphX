@@ -111,4 +111,55 @@ TEST_CASE(gridwise_2d_adds_output_copy_wgid_removed)
     EXPECT(m1.sort() == m2.sort());
 }
 
+// reduce_sum gets replaced with gridwise_reduce[algo=block, op=sum]
+TEST_CASE(gridwise_reduce_sum_block)
+{
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", shape{shape::float_type, {256}});
+        auto red = m1.add_instruction(make_op("reduce_sum", {{"axes", {0}}}), x);
+        m1.add_return({red});
+    }
+    run_pass(m1);
+
+    // After gridwise: reduce_sum replaced by gridwise_reduce, z_output + copy added
+    bool found_gridwise_reduce = false;
+    for(auto& ins : m1)
+    {
+        if(ins.name() == "gpu::gen::gridwise_reduce")
+        {
+            auto v = ins.get_operator().to_value();
+            EXPECT(v.at("op").to<std::string>() == "sum");
+            EXPECT(v.at("algo").to<std::string>() == "block");
+            EXPECT(v.at("reduce_elements").to<std::size_t>() == 256);
+            found_gridwise_reduce = true;
+        }
+    }
+    EXPECT(found_gridwise_reduce);
+}
+
+// Small reduce (<=64 elements) -> wave algo
+TEST_CASE(gridwise_reduce_sum_wave)
+{
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", shape{shape::float_type, {32}});
+        auto red = m1.add_instruction(make_op("reduce_sum", {{"axes", {0}}}), x);
+        m1.add_return({red});
+    }
+    run_pass(m1);
+
+    bool found_wave = false;
+    for(auto& ins : m1)
+    {
+        if(ins.name() == "gpu::gen::gridwise_reduce")
+        {
+            auto v = ins.get_operator().to_value();
+            EXPECT(v.at("algo").to<std::string>() == "wave");
+            found_wave = true;
+        }
+    }
+    EXPECT(found_wave);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

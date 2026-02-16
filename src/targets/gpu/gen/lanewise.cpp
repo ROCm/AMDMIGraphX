@@ -29,6 +29,8 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/literal.hpp>
+#include <migraphx/value.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -94,60 +96,255 @@ void gen_lanewise::apply(module& m) const
         m.replace_instruction(copy_ins, store);
     }
 
-    // Step 2: Insert loads for input params and rebuild pointwise ops
-    // with scalar inputs. We find all params (except z_output) that are
-    // used by non-gen ops, insert loads, and rebuild those ops.
+    // Step 2: Lower index transform ops (pad, gather, reverse) to gen IR.
+    // These produce index transforms + loads that yield scalar values.
+    std::vector<instruction_ref> index_ops;
+    for(auto ins : iterator_for(m))
+    {
+        if(contains({"pad", "gather", "reverse"}, ins->name()))
+            index_ops.push_back(ins);
+    }
+
+    std::unordered_map<instruction_ref, instruction_ref> index_remap;
+    for(auto ins : index_ops)
+    {
+        if(ins->name() == "pad")
+        {
+            auto v          = ins->get_operator().to_value();
+            auto pads       = v.at("pads").to_vector<std::int64_t>();
+            auto input      = ins->inputs().front();
+            auto input_s    = input->get_shape();
+            auto pad_value  = 0.0f;
+            if(v.contains("value"))
+                pad_value = v.at("value").to<float>();
+
+            // pad_index(tid) -> int64 index (-1 if out of bounds)
+            auto pad_idx = m.insert_instruction(
+                ins,
+                make_op("gpu::gen::pad_index",
+                        {{"input_shape", to_value(input_s)}, {"pads", pads}}),
+                tid);
+            // conditional_load(input, pad_idx, fill_value)
+            auto fill_lit = m.add_literal(migraphx::literal{shape{input_s.type()}, {pad_value}});
+            auto loaded   = m.insert_instruction(
+                ins, make_op("gpu::gen::conditional_load"), input, pad_idx, fill_lit);
+            index_remap[ins] = loaded;
+        }
+        else if(ins->name() == "gather")
+        {
+            auto v       = ins->get_operator().to_value();
+            auto axis    = v.at("axis").to<std::int64_t>();
+            auto data    = ins->inputs()[0];
+            auto indices = ins->inputs()[1];
+            auto input_s = data->get_shape();
+
+            // gather_index(indices, tid) -> index into data
+            auto g_idx = m.insert_instruction(
+                ins,
+                make_op("gpu::gen::gather_index",
+                        {{"input_shape", to_value(input_s)}, {"axis", axis}}),
+                indices,
+                tid);
+            // load(data, gather_idx)
+            auto loaded = m.insert_instruction(
+                ins, make_op("gpu::gen::load"), data, g_idx);
+            index_remap[ins] = loaded;
+        }
+        else if(ins->name() == "reverse")
+        {
+            auto v       = ins->get_operator().to_value();
+            auto axes    = v.at("axes").to_vector<std::int64_t>();
+            auto input   = ins->inputs().front();
+            auto input_s = input->get_shape();
+
+            // reverse_index(tid) -> reversed index
+            auto r_idx = m.insert_instruction(
+                ins,
+                make_op("gpu::gen::reverse_index",
+                        {{"input_shape", to_value(input_s)}, {"axes", axes}}),
+                tid);
+            // load(input, reversed_idx)
+            auto loaded = m.insert_instruction(
+                ins, make_op("gpu::gen::load"), input, r_idx);
+            index_remap[ins] = loaded;
+        }
+    }
+
+    // Step 3: Insert loads for tensor-producing instructions that feed into
+    // pointwise ops. This covers @param inputs and tile_region outputs.
+    // Skip z_output since it's the output buffer.
     std::unordered_map<instruction_ref, instruction_ref> load_map;
     for(auto ins : iterator_for(m))
     {
-        if(ins->name() != "@param")
-            continue;
-        auto pname = ins->get_operator().to_value().at("parameter").to<std::string>();
-        if(pname == "z_output")
-            continue;
+        // Skip the output param
+        if(ins->name() == "@param")
+        {
+            auto pname = ins->get_operator().to_value().at("parameter").to<std::string>();
+            if(pname == "z_output")
+                continue;
+        }
 
+        // Only insert loads for instructions whose outputs feed into pointwise ops
         bool needs_load = false;
         for(auto out : ins->outputs())
         {
             auto n = out->name();
             if(starts_with(n, "@") or starts_with(n, "gpu::gen::"))
                 continue;
+            // This output is a pointwise op consuming our tensor
             needs_load = true;
             break;
         }
         if(not needs_load)
             continue;
 
+        // Only load from @param or gen IR instructions that produce tensors
+        if(ins->name() != "@param" and not starts_with(ins->name(), "gpu::gen::"))
+            continue;
+
         auto load     = m.insert_instruction(std::next(tid), make_op("gpu::gen::load"), ins, tid);
         load_map[ins] = load;
     }
 
-    // Rebuild pointwise ops with all scalar inputs at once
+    // Collect pointwise ops, then rebuild as new scalar instructions.
+    // We can't modify in-place because intermediate shape mismatches
+    // trigger validation errors.
+    std::vector<instruction_ref> pw_ops;
     for(auto ins : iterator_for(m))
     {
         auto n = ins->name();
         if(starts_with(n, "@") or starts_with(n, "gpu::gen::"))
             continue;
+        pw_ops.push_back(ins);
+    }
 
-        auto inputs       = ins->inputs();
-        bool any_replaced = false;
-        std::vector<instruction_ref> new_inputs;
-        for(auto input : inputs)
+    if(not pw_ops.empty())
+    {
+        auto insert_point = std::find_if(
+            m.begin(), m.end(), [](const auto& ins) { return ins.name() == "gpu::gen::store"; });
+        if(insert_point == m.end())
+            insert_point = std::find_if(
+                m.begin(), m.end(), [](const auto& ins) { return ins.name() == "@return"; });
+
+        std::unordered_map<instruction_ref, instruction_ref> remap = load_map;
+        remap.insert(index_remap.begin(), index_remap.end());
+        for(auto ins : pw_ops)
         {
-            if(contains(load_map, input))
+            std::vector<instruction_ref> new_inputs;
+            for(auto input : ins->inputs())
             {
-                new_inputs.push_back(load_map.at(input));
-                any_replaced = true;
+                if(contains(remap, input))
+                    new_inputs.push_back(remap.at(input));
+                else
+                    new_inputs.push_back(input);
+            }
+            auto new_ins =
+                m.insert_instruction(insert_point, ins->get_operator(), new_inputs);
+            remap[ins] = new_ins;
+        }
+
+        // Rewire store to use the new scalar computation
+        for(auto ins : iterator_for(m))
+        {
+            if(ins->name() != "gpu::gen::store")
+                continue;
+            auto inputs      = ins->inputs();
+            auto value_input = inputs[2];
+            if(contains(remap, value_input))
+            {
+                m.replace_instruction(
+                    ins, ins->get_operator(), inputs[0], inputs[1], remap.at(value_input));
+            }
+        }
+    }
+
+    // Step 4: Lower gridwise_reduce to final gen IR reduction ops
+    std::vector<instruction_ref> gw_reduces;
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() == "gpu::gen::gridwise_reduce")
+            gw_reduces.push_back(ins);
+    }
+
+    for(auto gw_ins : gw_reduces)
+    {
+        auto v               = gw_ins->get_operator().to_value();
+        auto rop             = v.at("op").to<std::string>();
+        auto algo            = v.at("algo").to<std::string>();
+        auto reduce_elements = v.at("reduce_elements").to<std::size_t>();
+        auto block_size      = v.at("block_size").to<std::size_t>();
+        auto input           = gw_ins->inputs().front();
+
+        instruction_ref result;
+
+        if(algo == "lane")
+        {
+            // Lane reduce: strided_load + lane_reduce
+            // Each thread loads N strided elements and reduces locally
+            auto loaded = m.insert_instruction(
+                gw_ins,
+                make_op("gpu::gen::strided_load",
+                        {{"size", reduce_elements}, {"stride", std::size_t{1}}}),
+                input,
+                tid);
+            result = m.insert_instruction(
+                gw_ins, make_op("gpu::gen::lane_reduce", {{"op", rop}}), loaded);
+        }
+        else if(algo == "wave")
+        {
+            // Wave reduce: load + dpp_reduce
+            auto loaded = m.insert_instruction(
+                gw_ins, make_op("gpu::gen::load"), input, tid);
+            result = m.insert_instruction(
+                gw_ins, make_op("gpu::gen::dpp_reduce", {{"op", rop}}), loaded);
+        }
+        else // block
+        {
+            // Block reduce: strided_load + lane_reduce + dpp_reduce + reduce_waves
+            // Each thread loads several strided elements, reduces locally,
+            // then wave-level and block-level reductions follow.
+            std::size_t elements_per_thread =
+                (reduce_elements + block_size - 1) / block_size;
+            if(elements_per_thread < 1)
+                elements_per_thread = 1;
+
+            instruction_ref partial;
+            if(elements_per_thread > 1)
+            {
+                auto loaded = m.insert_instruction(
+                    gw_ins,
+                    make_op("gpu::gen::strided_load",
+                            {{"size", elements_per_thread}, {"stride", block_size}}),
+                    input,
+                    tid);
+                partial = m.insert_instruction(
+                    gw_ins, make_op("gpu::gen::lane_reduce", {{"op", rop}}), loaded);
             }
             else
             {
-                new_inputs.push_back(input);
+                partial = m.insert_instruction(
+                    gw_ins, make_op("gpu::gen::load"), input, tid);
+            }
+
+            // Wave-level reduction via DPP
+            auto wave_result = m.insert_instruction(
+                gw_ins, make_op("gpu::gen::dpp_reduce", {{"op", rop}}), partial);
+
+            // Block-level reduction via LDS (lds_buffer added by blockwise pass)
+            if(gw_ins->inputs().size() > 1)
+            {
+                auto lds_buf = gw_ins->inputs().back();
+                result       = m.insert_instruction(
+                    gw_ins, make_op("gpu::gen::reduce_waves", {{"op", rop}}), wave_result, lds_buf);
+            }
+            else
+            {
+                // Fallback if no LDS buffer (shouldn't happen for block algo)
+                result = wave_result;
             }
         }
-        if(any_replaced)
-        {
-            m.replace_instruction(ins, ins->get_operator(), new_inputs);
-        }
+
+        m.replace_instruction(gw_ins, result);
     }
 }
 

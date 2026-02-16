@@ -97,4 +97,82 @@ TEST_CASE(lanewise_2d_copy_uses_local_id)
     EXPECT(found_local_id);
 }
 
+// Block reduce (256 elements, 256 block_size -> 1 element per thread):
+// load + dpp_reduce + reduce_waves (no lane_reduce since each thread has 1 element)
+TEST_CASE(lanewise_block_reduce_small)
+{
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", shape{shape::float_type, {256}});
+        auto red = m1.add_instruction(make_op("reduce_sum", {{"axes", {0}}}), x);
+        m1.add_return({red});
+    }
+    run_pass(m1);
+
+    bool found_dpp_reduce   = false;
+    bool found_reduce_waves = false;
+    for(auto& ins : m1)
+    {
+        if(ins.name() == "gpu::gen::dpp_reduce")
+            found_dpp_reduce = true;
+        if(ins.name() == "gpu::gen::reduce_waves")
+            found_reduce_waves = true;
+    }
+    EXPECT(found_dpp_reduce);
+    EXPECT(found_reduce_waves);
+}
+
+// Block reduce (1024 elements -> multiple elements per thread):
+// strided_load + lane_reduce + dpp_reduce + reduce_waves
+TEST_CASE(lanewise_block_reduce_large)
+{
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", shape{shape::float_type, {1024}});
+        auto red = m1.add_instruction(make_op("reduce_sum", {{"axes", {0}}}), x);
+        m1.add_return({red});
+    }
+    run_pass(m1);
+
+    bool found_lane_reduce  = false;
+    bool found_dpp_reduce   = false;
+    bool found_reduce_waves = false;
+    for(auto& ins : m1)
+    {
+        if(ins.name() == "gpu::gen::lane_reduce")
+            found_lane_reduce = true;
+        if(ins.name() == "gpu::gen::dpp_reduce")
+            found_dpp_reduce = true;
+        if(ins.name() == "gpu::gen::reduce_waves")
+            found_reduce_waves = true;
+    }
+    EXPECT(found_lane_reduce);
+    EXPECT(found_dpp_reduce);
+    EXPECT(found_reduce_waves);
+}
+
+// Wave reduce: gridwise_reduce[algo=wave] -> load + dpp_reduce (no reduce_waves)
+TEST_CASE(lanewise_wave_reduce)
+{
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", shape{shape::float_type, {32}});
+        auto red = m1.add_instruction(make_op("reduce_sum", {{"axes", {0}}}), x);
+        m1.add_return({red});
+    }
+    run_pass(m1);
+
+    bool found_dpp_reduce   = false;
+    bool found_reduce_waves = false;
+    for(auto& ins : m1)
+    {
+        if(ins.name() == "gpu::gen::dpp_reduce")
+            found_dpp_reduce = true;
+        if(ins.name() == "gpu::gen::reduce_waves")
+            found_reduce_waves = true;
+    }
+    EXPECT(found_dpp_reduce);
+    EXPECT(not found_reduce_waves);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

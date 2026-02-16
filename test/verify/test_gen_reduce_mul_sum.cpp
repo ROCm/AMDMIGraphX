@@ -27,22 +27,9 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_gen_pointwise_add : verify_program<test_gen_pointwise_add>
-{
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        migraphx::shape s{migraphx::shape::float_type, {64}};
-        auto x   = mm->add_parameter("x", s);
-        auto y   = mm->add_parameter("y", s);
-        auto add = mm->add_instruction(migraphx::make_op("add"), x, y);
-        mm->add_return({add});
-        return p;
-    }
-};
-
-struct test_gen_pointwise_mul : verify_program<test_gen_pointwise_mul>
+// Standalone reduce_sum (not fused with pointwise)
+// fuse_pointwise_reduce won't fuse a bare reduce_sum, so fuse_gen picks it up
+struct test_gen_reduce_sum_standalone : verify_program<test_gen_reduce_sum_standalone>
 {
     migraphx::program create_program() const
     {
@@ -50,26 +37,8 @@ struct test_gen_pointwise_mul : verify_program<test_gen_pointwise_mul>
         auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::float_type, {128}};
         auto x   = mm->add_parameter("x", s);
-        auto y   = mm->add_parameter("y", s);
-        auto mul = mm->add_instruction(migraphx::make_op("mul"), x, y);
-        mm->add_return({mul});
-        return p;
-    }
-};
-
-struct test_gen_pointwise_mul_add : verify_program<test_gen_pointwise_mul_add>
-{
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        migraphx::shape s{migraphx::shape::float_type, {256}};
-        auto x   = mm->add_parameter("x", s);
-        auto y   = mm->add_parameter("y", s);
-        auto z   = mm->add_parameter("z", s);
-        auto mul = mm->add_instruction(migraphx::make_op("mul"), x, y);
-        auto add = mm->add_instruction(migraphx::make_op("add"), mul, z);
-        mm->add_return({add});
+        auto red = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), x);
+        mm->add_return({red});
         return p;
     }
 };

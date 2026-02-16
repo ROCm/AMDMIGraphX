@@ -112,6 +112,18 @@ std::string generate_gen_function(const module& m)
         {
             return names.at(ins->inputs().front());
         }
+        // tile_region passes through to the tensor input
+        if(ins->name() == "gpu::gen::tile_region")
+        {
+            return names.at(ins->inputs().front());
+        }
+        // lds_allocate: use a GCC statement expression to declare __shared__ and return pointer
+        if(ins->name() == "gpu::gen::lds_allocate")
+        {
+            auto lds_shape = ins->get_shape();
+            return "({static __shared__ " + shape::cpp_type(lds_shape.type()) + " lds_data[" +
+                   std::to_string(lds_shape.elements()) + "]; lds_data;})";
+        }
         MIGRAPHX_THROW("gen codegen: Unknown operator: " + ins->name());
     });
 
@@ -149,7 +161,11 @@ operation compile_gen(context& ctx, const std::vector<shape>& in_shapes, const_m
     m.sort();
 
     if(enabled(MIGRAPHX_TRACE_COMPILE{}))
+    {
         std::cerr << "compile_gen: lowered module:\n" << m << std::endl;
+        std::cerr << "compile_gen: in_shapes=" << in_shapes.size()
+                  << " module_params=" << m.get_parameter_shapes().size() << std::endl;
+    }
 
     // Compute tiling config
     auto config = compute_tile_config(in_shapes);
@@ -170,8 +186,36 @@ operation compile_gen(context& ctx, const std::vector<shape>& in_shapes, const_m
     options.kernel_name = kernel_name;
     options.emplace_param("-Wno-float-equal");
     options.emplace_param("-Wno-unused-parameter");
+    options.emplace_param("-Wno-unused-variable");
+    options.emplace_param("-Wno-gnu-statement-expression");
 
-    if(config.ntiles > 0)
+    // Detect reduction ops in the lowered module for launch param selection
+    bool has_reduce = std::any_of(m.begin(), m.end(), [](const auto& ins) {
+        return ins.name() == "gpu::gen::dpp_reduce" or ins.name() == "gpu::gen::reduce_waves" or
+               ins.name() == "gpu::gen::lane_reduce";
+    });
+    bool has_block_reduce = std::any_of(m.begin(), m.end(), [](const auto& ins) {
+        return ins.name() == "gpu::gen::reduce_waves";
+    });
+
+    if(has_reduce)
+    {
+        auto output_elements = options.output.elements();
+        if(has_block_reduce)
+        {
+            // Block reduce: one workgroup per output element
+            std::size_t block_size = 256;
+            options.set_launch_params(value{}, output_elements * block_size, block_size);
+        }
+        else
+        {
+            // Wave or lane reduce
+            auto input_elements = in_shapes.front().elements();
+            options.set_launch_params(
+                value{}, compute_global_for(ctx, input_elements, 256));
+        }
+    }
+    else if(config.ntiles > 0)
     {
         options.set_launch_params(
             value{},

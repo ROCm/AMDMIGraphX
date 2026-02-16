@@ -298,6 +298,8 @@ struct lds_allocate
     }
 
     shape compute_shape(std::vector<shape>) const { return alloc_shape; }
+
+    // No gpu_gen attribute -- handled specially in codegen as a __shared__ declaration
 };
 MIGRAPHX_REGISTER_OP(lds_allocate);
 
@@ -442,10 +444,41 @@ struct reduce_waves
     {
         return {{"gpu_gen",
                  "gen::block_reduce_" + op +
-                     "(${0}, ${1}.data(), idx.nwaves(), idx.wave_id(), idx.local_wave())"}};
+                     "(${0}, ${1}, idx.nlocal() / idx.nlocal_wave(), "
+                     "idx.local / idx.nlocal_wave(), idx.local_wave())"}};
     }
 };
 MIGRAPHX_REGISTER_OP(reduce_waves);
+
+struct gridwise_reduce
+{
+    std::string op              = "sum";   // "sum", "max", "min", "product"
+    std::string algo            = "block"; // "lane", "wave", "block"
+    std::size_t reduce_elements = 1;
+    std::size_t block_size      = 256;
+
+    std::string name() const { return "gpu::gen::gridwise_reduce"; }
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.op, "op"),
+                    f(self.algo, "algo"),
+                    f(self.reduce_elements, "reduce_elements"),
+                    f(self.block_size, "block_size"));
+    }
+
+    // inputs: input tensor [, optional lds_buffer from blockwise]
+    // output: reduced shape
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(1, 2);
+        auto s            = inputs[0];
+        auto out_elements = s.elements() / reduce_elements;
+        return shape{s.type(), {out_elements}};
+    }
+};
+MIGRAPHX_REGISTER_OP(gridwise_reduce);
 
 // ============================================================
 // Index Transformation Operations
@@ -464,11 +497,23 @@ struct pad_index
         return pack(f(self.input_shape, "input_shape"), f(self.pads, "pads"));
     }
 
-    // inputs: index
+    // inputs: index (output position)
+    // output: input position (int64, -1 if out of bounds)
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1);
-        return shape{shape::uint32_type};
+        return shape{shape::int64_type};
+    }
+
+    value attributes() const
+    {
+        // For 1D: input_idx = output_idx - pad_before
+        // Returns -1 if out of bounds
+        auto input_len = input_shape.elements();
+        auto pad_before = pads.empty() ? 0 : pads[0];
+        return {{"gpu_gen",
+                 "gen::pad_index_1d(" + std::to_string(input_len) + ", " +
+                     std::to_string(pad_before) + ", ${0})"}};
     }
 };
 MIGRAPHX_REGISTER_OP(pad_index);
@@ -486,11 +531,18 @@ struct gather_index
         return pack(f(self.input_shape, "input_shape"), f(self.axis, "axis"));
     }
 
-    // inputs: indices_tensor, index
+    // inputs: indices_tensor, index (output position)
+    // output: input position
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(2);
         return shape{shape::uint32_type};
+    }
+
+    value attributes() const
+    {
+        // For 1D gather on axis 0: input_idx = indices[output_idx]
+        return {{"gpu_gen", "gen::gather_index_1d(${0}, ${1})"}};
     }
 };
 MIGRAPHX_REGISTER_OP(gather_index);
@@ -508,11 +560,20 @@ struct reverse_index
         return pack(f(self.input_shape, "input_shape"), f(self.axes, "axes"));
     }
 
-    // inputs: index
+    // inputs: index (output position)
+    // output: input position (reversed)
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1);
         return shape{shape::uint32_type};
+    }
+
+    value attributes() const
+    {
+        // For 1D: input_idx = (len - 1) - output_idx
+        auto len = input_shape.elements();
+        return {{"gpu_gen",
+                 "gen::reverse_index_1d(" + std::to_string(len) + ", ${0})"}};
     }
 };
 MIGRAPHX_REGISTER_OP(reverse_index);
@@ -560,7 +621,10 @@ struct conditional_load
         return shape{inputs[0].type()};
     }
 
-    value attributes() const { return {{"gpu_gen", "gen::conditional_load(${0}, ${1}, ${2})"}}; }
+    value attributes() const
+    {
+        return {{"gpu_gen", "gen::conditional_load(${0}, ${1}, ${2})"}};
+    }
 };
 MIGRAPHX_REGISTER_OP(conditional_load);
 

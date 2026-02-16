@@ -37,10 +37,35 @@ namespace gen {
 void gen_blockwise::apply(module& m) const
 {
     // Blockwise pass: manages work within a single workgroup.
-    // - Inserts tile_region ops to create tiled views when tiling is active.
-    // - Manages LDS allocations for data sharing between lanes.
-    // - Inserts barriers for synchronization.
+    // - For pointwise: inserts tile_region ops when tiling is active
+    // - For block-algo reductions: inserts lds_allocate for cross-wave communication
 
+    // Handle block-algo reductions: insert LDS allocation
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() != "gpu::gen::gridwise_reduce")
+            continue;
+        auto v = ins->get_operator().to_value();
+        if(v.at("algo").to<std::string>() != "block")
+            continue;
+
+        auto block_size     = v.at("block_size").to<std::size_t>();
+        std::size_t nwaves  = (block_size + 63) / 64; // waves per block
+        auto data_type      = ins->inputs().front()->get_shape().type();
+
+        // Allocate LDS buffer: one element per wave for cross-wave reduction
+        auto lds = m.insert_instruction(
+            ins,
+            make_op("gpu::gen::lds_allocate",
+                    {{"shape", to_value(shape{data_type, {nwaves}})}}));
+
+        // Add LDS as additional input to gridwise_reduce
+        auto inputs = ins->inputs();
+        inputs.push_back(lds);
+        m.replace_instruction(ins, ins->get_operator(), inputs);
+    }
+
+    // Handle pointwise tiling
     auto param_shapes = m.get_parameter_shapes();
     std::vector<shape> shapes;
     for(const auto& p : param_shapes)
@@ -49,9 +74,8 @@ void gen_blockwise::apply(module& m) const
     auto config = compute_tile_config(shapes);
 
     if(config.ntiles == 0 or config.tile_dims.empty())
-        return; // No tiling needed at blockwise level
+        return;
 
-    // Find workgroup_id instruction
     auto wg_id = std::find_if(
         m.begin(), m.end(), [](const auto& ins) { return ins.name() == "gpu::gen::workgroup_id"; });
     if(wg_id == m.end())
@@ -59,7 +83,6 @@ void gen_blockwise::apply(module& m) const
 
     instruction_ref wg_id_ref = wg_id;
 
-    // Insert tile_region for each parameter
     for(auto ins : iterator_for(m))
     {
         if(ins->name() != "@param")
@@ -69,7 +92,6 @@ void gen_blockwise::apply(module& m) const
         if(s.ndim() < 2)
             continue;
 
-        // Insert tile_region after the parameter
         auto tile =
             m.insert_instruction(std::next(ins),
                                  make_op("gpu::gen::tile_region",
@@ -77,8 +99,6 @@ void gen_blockwise::apply(module& m) const
                                  ins,
                                  wg_id_ref);
 
-        // Replace uses of the parameter with the tiled region
-        // (except the tile_region itself)
         for(auto output : ins->outputs())
         {
             if(output == tile)

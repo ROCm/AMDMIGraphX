@@ -22,44 +22,26 @@
  * THE SOFTWARE.
  */
 #include <migraphx/gpu/gen/fuse_gen.hpp>
+#include <migraphx/fuse_pointwise.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
 #include <test.hpp>
-#include <pointwise.hpp>
 
 using migraphx::make_op;
 using migraphx::shape;
 
 static void run_pass(migraphx::program& p)
 {
-    migraphx::run_passes(p, {migraphx::gpu::gen::fuse_gen{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(p,
+                         {migraphx::fuse_pointwise{},
+                          migraphx::gpu::gen::fuse_gen{},
+                          migraphx::dead_code_elimination{}});
 }
 
-template <class F>
-migraphx::instruction_ref add_gen_op(migraphx::program& p,
-                                     const std::string& name,
-                                     std::vector<migraphx::instruction_ref> inputs,
-                                     const migraphx::operation& orig_op,
-                                     const F& f)
-{
-    auto* mm = p.get_main_module();
-    auto* pm = p.create_module(name);
-    pm->set_bypass();
-    std::vector<migraphx::instruction_ref> params;
-    for(std::size_t i = 0; i < inputs.size(); ++i)
-    {
-        params.push_back(pm->add_parameter("x" + std::to_string(i), inputs[i]->get_shape()));
-    }
-    auto r = f(pm, params);
-    pm->add_return({r});
-    (void)orig_op;
-    return mm->add_instruction(make_op("gpu::gen::op"), inputs, {pm});
-}
-
-TEST_CASE(fuse_pointwise_add)
+TEST_CASE(fuse_add)
 {
     migraphx::program p1;
     {
@@ -67,28 +49,22 @@ TEST_CASE(fuse_pointwise_add)
         auto s   = shape{shape::float_type, {4, 8}};
         auto x   = mm->add_parameter("x", s);
         auto y   = mm->add_parameter("y", s);
-        add_pointwise(p1, "main:pointwise0", {x, y}, single_pointwise("add"));
+        mm->add_instruction(make_op("add"), x, y);
     }
     run_pass(p1);
 
-    migraphx::program p2;
+    // After fuse_pointwise + fuse_gen, the add should be wrapped in gpu::gen::op
+    auto* mm          = p1.get_main_module();
+    bool found_gen_op = false;
+    for(auto& ins : *mm)
     {
-        auto* mm = p2.get_main_module();
-        auto s   = shape{shape::float_type, {4, 8}};
-        auto x   = mm->add_parameter("x", s);
-        auto y   = mm->add_parameter("y", s);
-        add_gen_op(p2,
-                   "gen_main:pointwise0",
-                   {x, y},
-                   make_op("pointwise"),
-                   [](auto* pm, const auto& params) {
-                       return pm->add_instruction(migraphx::make_op("add"), params[0], params[1]);
-                   });
+        if(ins.name() == "gpu::gen::op")
+            found_gen_op = true;
     }
-    EXPECT(p1.sort() == p2.sort());
+    EXPECT(found_gen_op);
 }
 
-TEST_CASE(fuse_pointwise_mul_add)
+TEST_CASE(fuse_mul_add)
 {
     migraphx::program p1;
     {
@@ -97,31 +73,19 @@ TEST_CASE(fuse_pointwise_mul_add)
         auto x   = mm->add_parameter("x", s);
         auto y   = mm->add_parameter("y", s);
         auto z   = mm->add_parameter("z", s);
-        add_pointwise(p1, "main:pointwise0", {x, y, z}, [](auto* pm, const auto& params) {
-            auto mul = pm->add_instruction(migraphx::make_op("mul"), params[0], params[1]);
-            return pm->add_instruction(migraphx::make_op("add"), mul, params[2]);
-        });
+        auto mul = mm->add_instruction(make_op("mul"), x, y);
+        mm->add_instruction(make_op("add"), mul, z);
     }
     run_pass(p1);
 
-    migraphx::program p2;
+    auto* mm          = p1.get_main_module();
+    bool found_gen_op = false;
+    for(auto& ins : *mm)
     {
-        auto* mm = p2.get_main_module();
-        auto s   = shape{shape::float_type, {16}};
-        auto x   = mm->add_parameter("x", s);
-        auto y   = mm->add_parameter("y", s);
-        auto z   = mm->add_parameter("z", s);
-        add_gen_op(p2,
-                   "gen_main:pointwise0",
-                   {x, y, z},
-                   make_op("pointwise"),
-                   [](auto* pm, const auto& params) {
-                       auto mul =
-                           pm->add_instruction(migraphx::make_op("mul"), params[0], params[1]);
-                       return pm->add_instruction(migraphx::make_op("add"), mul, params[2]);
-                   });
+        if(ins.name() == "gpu::gen::op")
+            found_gen_op = true;
     }
-    EXPECT(p1.sort() == p2.sort());
+    EXPECT(found_gen_op);
 }
 
 TEST_CASE(no_fuse_identity)
@@ -136,8 +100,15 @@ TEST_CASE(no_fuse_identity)
     migraphx::program p2 = p1;
     run_pass(p1);
 
-    // identity should not be fused
-    EXPECT(p1.sort() == p2.sort());
+    // identity should not be fused into gen::op
+    auto* mm          = p1.get_main_module();
+    bool found_gen_op = false;
+    for(auto& ins : *mm)
+    {
+        if(ins.name() == "gpu::gen::op")
+            found_gen_op = true;
+    }
+    EXPECT(not found_gen_op);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

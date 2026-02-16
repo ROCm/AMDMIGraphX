@@ -231,44 +231,41 @@ block_reduce_product(T x, T* lds, index_int nwaves, index_int wave_id, index_int
 }
 
 // ============================================================
-// Index transformation helpers
+// Index transformation helpers (1D specializations)
 // ============================================================
 
-template <class Shape, class Pads>
-__device__ auto pad_index(Shape shape, Pads pads, index_int i)
+// Pad: transform output index to input index for 1D padding.
+// Returns -1 if the output position corresponds to a padded region.
+__device__ inline int64_t pad_index_1d(index_int input_len, index_int pad_before, index_int out_idx)
 {
-    // Transform output index to input index accounting for padding
-    auto ndim = shape.lens.size();
-    auto idx  = i;
-    for(index_int d = ndim; d > 0; --d)
-    {
-        auto dim        = d - 1;
-        auto len        = shape.lens[dim];
-        auto pos        = idx % shape.lens[dim];
-        idx             = idx / shape.lens[dim];
-        auto pad_before = pads[dim];
-        auto input_pos  = static_cast<int64_t>(pos) - pad_before;
-        if(input_pos < 0 or input_pos >= static_cast<int64_t>(len))
-            return static_cast<int64_t>(-1); // Out of bounds
-    }
-    return static_cast<int64_t>(i);
+    auto in_idx = static_cast<int64_t>(out_idx) - static_cast<int64_t>(pad_before);
+    if(in_idx < 0 or in_idx >= static_cast<int64_t>(input_len))
+        return -1;
+    return in_idx;
 }
 
-template <class Shape, class Axes>
-__device__ auto reverse_index(Shape shape, Axes axes, index_int i)
+// Gather: transform output index using an indices tensor for 1D gather on axis 0.
+// Returns the data index by looking up indices[out_idx].
+template <class Indices>
+__device__ auto gather_index_1d(Indices indices, index_int out_idx)
 {
-    // Transform index by reversing along specified axes
-    (void)shape;
-    (void)axes;
-    return i; // Placeholder: full implementation reverses multi-dim index
+    auto idx = static_cast<int64_t>(indices[out_idx]);
+    return static_cast<index_int>(idx);
 }
 
-template <class Shape, class Indices, index_int Axis>
-__device__ auto gather_index(Shape shape, Indices indices, index_int i)
+// Reverse: transform output index for 1D reversal.
+__device__ inline index_int reverse_index_1d(index_int len, index_int out_idx)
 {
-    (void)shape;
-    (void)indices;
-    return i; // Placeholder: full implementation maps through gather indices
+    return (len - 1) - out_idx;
+}
+
+// Conditional load: load from data[idx] if idx is in bounds, else return fill.
+template <class T, class Fill>
+__device__ auto conditional_load(T data, int64_t idx, Fill fill)
+{
+    if(idx >= 0 and static_cast<index_int>(idx) < data.get_shape().elements())
+        return data[static_cast<index_int>(idx)];
+    return static_cast<decltype(data[0])>(fill);
 }
 
 } // namespace gen

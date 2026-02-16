@@ -27,9 +27,11 @@
 #include <migraphx/gpu/gemm_softmax_gemm.hpp>
 #include <migraphx/match/layernorm.hpp>
 #include <migraphx/register_op.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_common_subexpression.hpp>
+#include <numeric>
 #ifdef MIGRAPHX_USE_COMPOSABLEKERNEL
 #include <migraphx/gpu/ck.hpp>
 #endif
@@ -237,6 +239,113 @@ struct find_gemm_softmax_gemm
     }
 };
 
+struct channelwise_conv
+{
+    std::size_t num_spatial = 2;
+
+    std::string name() const { return "gpu::channelwise_conv"; }
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.num_spatial, "num_spatial"));
+    }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(2);
+        auto lens = inputs.front().lens();
+        std::vector<std::size_t> out_lens;
+        out_lens.push_back(lens[0]);
+        out_lens.push_back(lens[1]);
+        for(std::size_t d = 0; d < num_spatial; ++d)
+        {
+            auto kernel_size  = lens[2 + d];
+            auto spatial_size = lens[2 + num_spatial + d];
+            out_lens.push_back(spatial_size - kernel_size + 1);
+        }
+        return {inputs.front().type(), out_lens};
+    }
+};
+MIGRAPHX_REGISTER_OP(channelwise_conv);
+
+MIGRAPHX_PRED_MATCHER(conv_channelwise, instruction_ref ins)
+{
+    if(ins->name() != "convolution")
+        return false;
+    auto v = ins->get_operator().to_value();
+    if(not all_of(v.at("stride"), [](const value& x) { return x.to<std::size_t>() == 1; }))
+        return false;
+    if(not all_of(v.at("padding"), [](const value& x) { return x.to<std::size_t>() == 0; }))
+        return false;
+    if(not all_of(v.at("dilation"), [](const value& x) { return x.to<std::size_t>() == 1; }))
+        return false;
+    auto w_lens = ins->inputs().back()->get_shape().lens();
+    if(w_lens[1] != 1)
+        return false;
+    auto x_lens = ins->inputs().front()->get_shape().lens();
+    auto c_in   = x_lens[1];
+    auto group  = v.at("group").to<int>();
+    if(group != 1 and group != static_cast<int>(c_in))
+        return false;
+    return true;
+}
+
+struct find_channelwise_convolution
+{
+    auto matcher() const { return conv_channelwise(); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+
+        auto input   = ins->inputs().front();
+        auto weights = ins->inputs().back();
+
+        auto w_lens      = weights->get_shape().lens();
+        auto x_lens      = input->get_shape().lens();
+        auto ndim        = ins->get_shape().ndim();
+        auto num_spatial = ndim - 2;
+
+        // Build product shape: [N, C, k_0, ..., k_{ns-1}, s_0, ..., s_{ns-1}]
+        std::vector<std::size_t> prod_lens;
+        prod_lens.push_back(x_lens[0]);
+        prod_lens.push_back(w_lens[0]);
+        for(std::size_t d = 2; d < ndim; ++d)
+            prod_lens.push_back(w_lens[d]);
+        for(std::size_t d = 2; d < ndim; ++d)
+            prod_lens.push_back(x_lens[d]);
+
+        // Unsqueeze input: [N, C_in, H, W] -> [N, C_in, 1, ..., 1, H, W]
+        std::vector<int64_t> input_unsq_axes(num_spatial);
+        std::iota(input_unsq_axes.begin(), input_unsq_axes.end(), 2);
+        auto unsq_input =
+            m.insert_instruction(ins, make_op("unsqueeze", {{"axes", input_unsq_axes}}), input);
+
+        // Broadcast input to product shape
+        auto bcast_input = m.insert_instruction(
+            ins, make_op("multibroadcast", {{"out_lens", prod_lens}}), unsq_input);
+
+        // Squeeze weight axis 1: [C_out, 1, k_0, ...] -> [C_out, k_0, ...]
+        auto sq_weights = m.insert_instruction(ins, make_op("squeeze", {{"axes", {1}}}), weights);
+
+        // Unsqueeze weight: [C_out, k_0, ...] -> [1, C_out, k_0, ..., 1, ..., 1]
+        std::vector<int64_t> w_unsq_axes;
+        w_unsq_axes.push_back(0);
+        for(std::size_t d = 0; d < num_spatial; ++d)
+            w_unsq_axes.push_back(static_cast<int64_t>(2 + num_spatial + d));
+        auto unsq_weights =
+            m.insert_instruction(ins, make_op("unsqueeze", {{"axes", w_unsq_axes}}), sq_weights);
+
+        // Broadcast weight to product shape
+        auto bcast_weights = m.insert_instruction(
+            ins, make_op("multibroadcast", {{"out_lens", prod_lens}}), unsq_weights);
+
+        m.replace_instruction(
+            ins, channelwise_conv{num_spatial}, bcast_input, bcast_weights);
+    }
+};
+
 void inline_group_sub_module(module_pass_manager& mpm)
 {
     auto& m = mpm.get_module();
@@ -262,6 +371,7 @@ void prefuse_ops::apply(module_pass_manager& mpm) const
         match::find_matches(mpm.get_module(), find_add_layernorm{});
     }
     match::find_matches(mpm, find_gemm_softmax_gemm{enable_attention});
+    match::find_matches(mpm.get_module(), find_channelwise_convolution{});
 
     if(enabled(MIGRAPHX_DISABLE_MLIR{}))
     {

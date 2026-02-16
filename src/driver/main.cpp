@@ -49,6 +49,8 @@
 
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_identity.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/pass_manager.hpp>
@@ -187,6 +189,7 @@ struct loader
     bool optimize               = false;
     bool mlir                   = false;
     bool skip_unknown_operators = false;
+    bool replace_literals       = false;
     bool brief                  = false;
     bool verbose                = false;
     std::string output_type;
@@ -252,6 +255,10 @@ struct loader
            ap.nargs(2));
         ap(optimize, {"--optimize", "-O"}, ap.help("Optimize when reading"), ap.set_value(true));
         ap(mlir, {"--mlir"}, ap.help("Offload everything to mlir"), ap.set_value(true));
+        ap(replace_literals,
+           {"--replace-literals"},
+           ap.help("Replace literals with parameters"),
+           ap.set_value(true));
         ap(passes, {"--apply-pass", "-p"}, ap.help("Passes to apply to model"), ap.append());
         ap(output_type,
            {"--graphviz", "-g"},
@@ -410,6 +417,29 @@ struct loader
         return options;
     }
 
+    static void replace_literals_with_params(program& p)
+    {
+        for(auto& mod_pair : p.get_modules())
+        {
+            auto& m                 = *mod_pair;
+            auto existing_names     = m.get_parameter_names();
+            std::size_t literal_idx = 0;
+            for(auto ins : iterator_for(m))
+            {
+                if(ins->name() != "@literal")
+                    continue;
+                std::string pname;
+                do
+                {
+                    pname = "literal:" + std::to_string(literal_idx++);
+                } while(std::find(existing_names.begin(), existing_names.end(), pname) !=
+                        existing_names.end());
+                existing_names.push_back(pname);
+                m.replace_instruction(ins, m.insert_parameter(ins, pname, ins->get_shape()));
+            }
+        }
+    }
+
     static std::string get_file_type(const std::string& file)
     {
         if(ends_with(file, ".onnx"))
@@ -466,6 +496,11 @@ struct loader
         if(trim > 0)
         {
             trim_module(*p.get_main_module(), trim, trim_size);
+        }
+        if(replace_literals)
+        {
+            replace_literals_with_params(p);
+            migraphx::run_passes(*p.get_main_module(), {migraphx::dead_code_elimination{}});
         }
         // Remove unused variable when exporting to cpp
         if(output_type == "cpp")

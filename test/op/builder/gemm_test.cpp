@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,7 +32,7 @@ TEST_CASE(gemm_invalid_input_dim_op_builder_test)
     mm.add_parameter("b", {migraphx::shape::float_type, {3, 3, 3}});
 
     EXPECT(test::throws<migraphx::exception>(
-        [&] { make_op_module("gemm", {}, mm.get_parameters()); },
+        [&] { make_op_module("gemm", mm.get_parameters()); },
         "gemm op_builder: A and B should be rank 2, A is rank 1, B is rank 3"));
 }
 

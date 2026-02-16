@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,15 +27,7 @@
 TEST_CASE(transpose_gather_test)
 {
     migraphx::program p;
-    auto* mm             = p.get_main_module();
-    auto make_contiguous = [&mm](migraphx::instruction_ref ins) {
-        if(ins->get_shape().standard())
-        {
-            return ins;
-        }
-
-        return mm->add_instruction(migraphx::make_op("contiguous"), ins);
-    };
+    auto* mm = p.get_main_module();
 
     auto data =
         mm->add_parameter("data", migraphx::shape{migraphx::shape::float_type, {3, 5, 4, 6}});
@@ -46,9 +38,7 @@ TEST_CASE(transpose_gather_test)
     auto tr_ind =
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), ind);
     int axis = 1;
-    mm->add_instruction(migraphx::make_op("gather", {{"axis", axis}}),
-                        make_contiguous(tr_data),
-                        make_contiguous(tr_ind));
+    mm->add_instruction(migraphx::make_op("gather", {{"axis", axis}}), tr_data, tr_ind);
 
     auto prog = optimize_onnx("transpose_gather_test.onnx");
 

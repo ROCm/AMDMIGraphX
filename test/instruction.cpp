@@ -1,7 +1,7 @@
 //
 // The MIT License (MIT)
 //
-// Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -398,9 +398,6 @@ TEST_CASE(is_interdependent_large_set)
     EXPECT(migraphx::is_interdependent(subset, &m, m.begin()));
 }
 
-// Tests for reaches with large graphs (n > 16) to exercise the
-// large-n path in track_visits that uses a precomputed in_range set.
-//
 // Long chain (large n) between start and end:
 //
 //   x --> relu0 --> relu1 --> ... --> relu(N-1) --> abs
@@ -411,11 +408,6 @@ TEST_CASE(reaches_large_linear)
     migraphx::shape s{migraphx::shape::float_type, {3, 3}};
     auto x = m.add_parameter("x", s);
 
-    // Keep this large enough to make the old O(n^2) path visibly slow,
-    // while still being reasonable for a unit test with the optimized code.
-    // Note: reaches() uses recursive DFS, so extremely large linear chains can
-    // overflow the stack. We keep the chain length moderate and repeat queries
-    // to amplify runtime differences.
     const int chain_len = 30000;
     std::vector<migraphx::instruction_ref> chain;
     chain.push_back(x);

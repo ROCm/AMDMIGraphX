@@ -100,3 +100,38 @@ struct test_channelwise_conv_1d : verify_program<test_channelwise_conv_1d<DType>
 };
 template struct test_channelwise_conv_1d<migraphx::shape::float_type>;
 template struct test_channelwise_conv_1d<migraphx::shape::half_type>;
+
+template <migraphx::shape::type_t DType>
+struct test_channelwise_conv_large : verify_program<test_channelwise_conv_large<DType>>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm     = p.get_main_module();
+        auto input   = mm->add_parameter("x", migraphx::shape{DType, {1, 16, 56, 56}});
+        auto weights = mm->add_parameter("w", migraphx::shape{DType, {16, 1, 3, 3}});
+        mm->add_instruction(migraphx::make_op("convolution", {{"group", 16}}), input, weights);
+        return p;
+    }
+    std::string section() const { return "conv"; }
+};
+template struct test_channelwise_conv_large<migraphx::shape::float_type>;
+template struct test_channelwise_conv_large<migraphx::shape::half_type>;
+
+template <migraphx::shape::type_t DType>
+struct test_channelwise_conv_non_divisible
+    : verify_program<test_channelwise_conv_non_divisible<DType>>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm     = p.get_main_module();
+        auto input   = mm->add_parameter("x", migraphx::shape{DType, {1, 8, 30, 30}});
+        auto weights = mm->add_parameter("w", migraphx::shape{DType, {8, 1, 3, 3}});
+        mm->add_instruction(migraphx::make_op("convolution", {{"group", 8}}), input, weights);
+        return p;
+    }
+    std::string section() const { return "conv"; }
+};
+template struct test_channelwise_conv_non_divisible<migraphx::shape::float_type>;
+template struct test_channelwise_conv_non_divisible<migraphx::shape::half_type>;

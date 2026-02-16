@@ -44,7 +44,7 @@ extern "C" {
 MIGRAPHX_GLOBAL void channelwise_conv_kernel(void* x_p, void* w_p, void* y_p)
 {
     transform_args(make_tensors(), rotate_last())(x_p, w_p, y_p)([](auto output, auto x, auto w) {
-        channelwise_conv<${algo}>(index_ints<${kernel}>{}, output, x, w);
+        channelwise_conv(index_ints<${kernel}>{}, index_ints<${spatial}>{}, output, x, w);
     });
 }
 
@@ -56,32 +56,35 @@ MIGRAPHX_GLOBAL void channelwise_conv_kernel(void* x_p, void* w_p, void* y_p)
 
 struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
 {
-    std::vector<std::string> names() const { return {"gpu::channelwise_conv", "channelwise_conv"}; }
+    std::vector<std::string> names() const
+    {
+        return {"gpu::channelwise_conv", "channelwise_conv"};
+    }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
-        auto num_spatial       = v.at("num_spatial").to<std::size_t>();
-        const auto& x_s        = inputs.at(0);
-        const auto& out_s      = inputs.back();
-        options.inputs         = inputs;
-        options.output         = out_s;
-        options.kernel_name    = "channelwise_conv_kernel";
+        auto num_spatial    = v.at("num_spatial").to<std::size_t>();
+        const auto& x_s     = inputs.at(0);
+        const auto& out_s   = inputs.back();
+        options.inputs      = inputs;
+        options.output      = out_s;
+        options.kernel_name = "channelwise_conv_kernel";
         options.virtual_inputs = inputs;
 
         auto x_lens = x_s.lens();
-        std::vector<std::size_t> kernel_sizes(x_lens.begin() + 2, x_lens.begin() + 2 + num_spatial);
-        std::size_t kernel_total = 1;
-        for(auto k : kernel_sizes)
-            kernel_total *= k;
+        std::vector<std::size_t> kernel_sizes(x_lens.begin() + 2,
+                                              x_lens.begin() + 2 + num_spatial);
+        std::vector<std::size_t> spatial_sizes(x_lens.begin() + 2 + num_spatial, x_lens.end());
 
-        std::string algo       = "reduce::lane";
+        auto num_channels  = out_s.lens()[0] * out_s.lens()[1];
         std::size_t block_size = 256;
 
-        options.set_launch_params(v, compute_global_for(ctx, out_s.elements(), 256), block_size);
+        options.set_launch_params(v, num_channels * block_size, block_size);
 
         auto src = interpolate_string(channelwise_conv_kernel,
-                                      {{"algo", algo}, {"kernel", to_string_range(kernel_sizes)}});
+                                      {{"kernel", to_string_range(kernel_sizes)},
+                                       {"spatial", to_string_range(spatial_sizes)}});
 
         return compile_hip_code_object(ctx, src, options);
     }

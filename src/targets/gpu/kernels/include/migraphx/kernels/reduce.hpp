@@ -516,12 +516,13 @@ struct block
         return reducer<Slicer>{{}, idx, slicer};
     }
 
-    template <class Output, class F>
+    template <class Output, class Schedule=per_device, class F>
     static __device__ void run(F f)
     {
         auto idx                 = make_index();
+        auto schedule = Schedule{idx};
         constexpr auto nelements = get_shape_c<Output>{}.elements();
-        idx.global_stride(nelements * idx.nlocal(), [&](auto i) {
+        schedule.local_stride(nelements * idx.nlocal(), [&](auto i) {
             const auto out_idx = get_shape_c<Output>{}.multi(i / idx.nlocal());
             f(out_idx, make(idx, [&](auto input) { return reduce_slice<Output>(input, out_idx); }));
         });
@@ -570,12 +571,13 @@ struct block_large
         return reducer<Slicer>{{}, idx, slicer};
     }
 
-    template <class Output, class F>
+    template <class Output, class Schedule=per_device, class F>
     static __device__ void run(F f)
     {
         auto idx                 = make_index();
+        auto schedule = Schedule{idx};
         constexpr auto nelements = get_shape_c<Output>{}.elements();
-        idx.global_stride(nelements * idx.nlocal(), [&](auto i) {
+        schedule.local_stride(nelements * idx.nlocal(), [&](auto i) {
             const auto out_idx = get_shape_c<Output>{}.multi(i / idx.nlocal());
             f(out_idx, make(idx, [&](auto input) { return reduce_slice<Output>(input, out_idx); }));
         });
@@ -648,12 +650,13 @@ struct subwave
         return reducer<Slicer>{{}, idx, slicer};
     }
 
-    template <class Output, class F>
+    template <class Output, class Schedule=per_device, class F>
     static __device__ void run(F f)
     {
         auto idx                 = make_index();
+        auto schedule = Schedule{idx};
         constexpr auto nelements = get_shape_c<Output>{}.elements();
-        idx.global_stride(nelements * idx.nlocal_subwave<SubWaveSize>(), [&](auto i) {
+        schedule.local_stride(nelements * idx.nlocal_subwave<SubWaveSize>(), [&](auto i) {
             const auto out_idx = get_shape_c<Output>{}.multi(i / idx.nlocal_subwave<SubWaveSize>());
             f(out_idx, make(idx, [&](auto input) { return reduce_slice<Output>(input, out_idx); }));
         });
@@ -709,12 +712,13 @@ struct lane
         return reducer<Slicer>{{}, idx, slicer};
     }
 
-    template <class Output, class F>
+    template <class Output, class Schedule=per_device, class F>
     static __device__ void run(F f)
     {
         auto idx                 = make_index();
+        auto schedule = Schedule{idx};
         constexpr auto nelements = get_shape_c<Output>{}.elements();
-        idx.global_stride(nelements, [&](auto i) {
+        schedule.local_stride(nelements, [&](auto i) {
             const auto out_idx = get_shape_c<Output>{}.multi(i);
             f(out_idx, make(idx, [&](auto input) { return reduce_slice<Output>(input, out_idx); }));
         });

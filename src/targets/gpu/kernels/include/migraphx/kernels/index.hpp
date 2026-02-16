@@ -268,6 +268,12 @@ struct index
     }
 
     template <class F, class N>
+    __device__ void device_stride(N n, F f) const
+    {
+        for_stride<false>(_c<0>, n, _c<1>, f);
+    }
+
+    template <class F, class N>
     __device__ void global_stride(N n, F f) const
     {
         for_stride<false>(global, n, nglobal(), f);
@@ -330,6 +336,29 @@ struct per_block
     constexpr void local_stride(N n, F f) const
     {
         return idx.local_stride(n, f);
+    }
+};
+
+struct per_device
+{
+    index idx;
+
+    constexpr auto local() const { return idx.global; }
+
+    constexpr auto nlocal() const { return idx.nglobal(); }
+
+    constexpr auto size() const { return _c<1>; }
+
+    template <class N, class F>
+    constexpr void group_stride(N n, F f) const
+    {
+        return idx.device_stride(n, f);
+    }
+
+    template <class N, class F>
+    constexpr void local_stride(N n, F f) const
+    {
+        return idx.global_stride(n, f);
     }
 };
 

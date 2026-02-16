@@ -26,90 +26,78 @@
 #define MIGRAPHX_GUARD_KERNELS_CHANNELWISE_CONV_HPP
 
 #include <migraphx/kernels/index.hpp>
-#include <migraphx/kernels/array.hpp>
+#include <migraphx/kernels/algorithm.hpp>
 #include <migraphx/kernels/slice.hpp>
+#include <migraphx/kernels/copy.hpp>
+#include <migraphx/kernels/reduce.hpp>
 #include <migraphx/kernels/uninitialized_buffer.hpp>
 
 namespace migraphx {
 
-template <class KernelLens, class SpatialLens, class Output, class Input1, class Input2>
-__device__ void
-channelwise_conv(KernelLens kernel_lens, SpatialLens, Output output, Input1 x, Input2 w)
+template <class Output, class F>
+__device__ void per_block_pooling_reduce(index idx, Output output, F f)
 {
-    constexpr index_int NS            = array_size(KernelLens{});
+    constexpr auto nelements = get_shape_c<Output>{}.elements();
+    idx.local_stride(nelements, [&](auto i) {
+        auto out_idx = get_shape_c<Output>{}.multi(i);
+        auto slicer  = [](auto input) { return reduce_slice<decltype(output)>(input, 0); };
+        auto r       = reduce::lane::make(idx, slicer);
+        r.outer([&] { output[out_idx] = f(out_idx, r); });
+    });
+}
+
+template <class KernelLens, class SpatialLens, class Output, class Input, class Weights>
+__device__ void
+channelwise_conv(KernelLens, SpatialLens, Output output, Input x, Weights w)
+{
     constexpr index_int kernel_total  = KernelLens{}.product();
     constexpr index_int spatial_total = SpatialLens{}.product();
-    constexpr index_int product_total = kernel_total * spatial_total;
 
-    constexpr auto out_spatial_lens       = return_array_c([] {
-        constexpr auto kl      = KernelLens{};
-        constexpr auto sl      = SpatialLens{};
-        constexpr index_int ns = array_size(KernelLens{});
-        array<index_int, ns> result;
-        for(index_int i = 0; i < ns; i++)
-            result[i] = sl[i] - kl[i] + 1;
-        return result;
-    });
-    constexpr index_int out_spatial_total = out_spatial_lens.product();
+    constexpr index_int N     = get_shape_c<Output>{}.lens[0];
+    constexpr index_int C_out = get_shape_c<Output>{}.lens[1];
+    constexpr index_int C_in  = get_shape_c<Input>{}.lens[1];
 
-    constexpr auto prod_lens    = return_array_c([] {
-        constexpr auto kl      = KernelLens{};
-        constexpr auto sl      = SpatialLens{};
-        constexpr index_int ns = array_size(KernelLens{});
-        array<index_int, 2 * ns> result;
-        for(index_int i = 0; i < ns; i++)
-            result[i] = kl[i];
-        for(index_int i = 0; i < ns; i++)
-            result[ns + i] = sl[i];
-        return result;
-    });
-    constexpr auto prod_strides = calculate_strides(prod_lens);
+    constexpr auto smem_shape  = make_packed_shape(make_slice(get_shape_c<Input>{},
+        [](auto, auto i, auto) { return i >= 2; }));
+    constexpr auto wregs_shape = make_packed_shape(make_slice(get_shape_c<Weights>{},
+        [](auto, auto i, auto) { return i >= 2; }));
+
+    constexpr auto out_nc = make_shape(index_ints<N, C_out>{});
+    constexpr auto co_cin = make_shape(index_ints<C_out / C_in, C_in>{});
+    constexpr auto in_nc  = make_shape(index_ints<N, C_in>{});
 
     using T = typename Output::type;
-    __shared__ uninitialized_buffer<T, product_total> smem;
+    __shared__ uninitialized_buffer<T, spatial_total> smem;
 
-    auto idx            = make_index();
-    auto keep_non_batch = [](auto, auto i, auto) { return i >= 2; };
+    auto idx          = make_index();
+    auto keep_spatial = [](auto, auto i, auto) { return i >= 2; };
 
-    slice_schedule<per_block>(idx,
-                              keep_non_batch)(x, w, output)([&](auto x_ch, auto w_ch, auto out_ch) {
-        // Phase 1: elementwise multiply into shared memory
-        idx.local_stride(_c<product_total>, [&](auto i) {
-            auto prod_multi = prod_lens.multi(i);
-            auto ch_idx     = generate_array<index_int>(_c<2 + 2 * NS>, [&](auto d) -> index_int {
-                if constexpr(d < 2)
-                    return 0;
-                else
-                    return prod_multi[d - _c<2>];
-            });
-            smem[i]         = x_ch[ch_idx] * w_ch[ch_idx];
-        });
+    slice_schedule<per_block>(idx, keep_spatial)(output)([&](auto out_ch) {
+        auto nc_multi = out_nc.multi(idx.group);
+        auto n        = nc_multi[0];
+        auto co       = nc_multi[1];
+        auto c_in     = co_cin.multi(co)[1];
+
+        auto x_ch = slice_tensor(x, in_nc.index(make_array(n, c_in)), keep_spatial);
+        auto w_ch = slice_tensor(w, co, keep_spatial);
+
+        // Phase 1: copy input channel into shared memory
+        auto smem_input = make_tensor_view(smem.data(), smem_shape);
+        local_tensor_copy(idx, x_ch, smem_input);
+
+        // Phase 2: copy weights into registers
+        array<T, kernel_total> wregs_arr;
+        auto wregs = make_tensor_view(wregs_arr.begin(), wregs_shape);
+        copy(w_ch.begin(), w_ch.end(), wregs.begin());
 
         __syncthreads();
 
-        // Phase 2: sliding window reduce from shared memory
-        idx.local_stride(_c<out_spatial_total>, [&](auto j) {
-            auto out_spatial = out_spatial_lens.multi(j);
-            T acc            = 0;
-            for(index_int ki = 0; ki < kernel_total; ki++)
-            {
-                auto k_multi  = kernel_lens.multi(ki);
-                auto smem_idx = generate_array<index_int>(_c<2 * NS>, [&](auto d) -> index_int {
-                    if constexpr(d < NS)
-                        return k_multi[d];
-                    else
-                        return out_spatial[d - _c<NS>] + k_multi[d - _c<NS>];
-                });
-                acc += smem[smem_idx.dot(prod_strides)];
-            }
-
-            auto out_idx    = generate_array<index_int>(_c<2 + NS>, [&](auto d) -> index_int {
-                if constexpr(d < 2)
-                    return 0;
-                else
-                    return out_spatial[d - _c<2>];
-            });
-            out_ch[out_idx] = acc;
+        // Phase 3: sliding window multiply-reduce
+        per_block_pooling_reduce(idx, out_ch, [&](auto out_idx, auto r) {
+            return r.reduce(op::sum{}, T{0}, [&](auto ki) {
+                auto k_multi = wregs_shape.multi(ki);
+                return smem_input[out_idx + k_multi] * wregs[k_multi];
+            })(reduce::make_indices(_c<kernel_total>));
         });
     });
 }

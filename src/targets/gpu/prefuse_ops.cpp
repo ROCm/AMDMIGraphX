@@ -341,8 +341,7 @@ struct find_channelwise_convolution
         auto bcast_weights = m.insert_instruction(
             ins, make_op("multibroadcast", {{"out_lens", prod_lens}}), unsq_weights);
 
-        m.replace_instruction(
-            ins, channelwise_conv{num_spatial}, bcast_input, bcast_weights);
+        m.replace_instruction(ins, channelwise_conv{num_spatial}, bcast_input, bcast_weights);
     }
 };
 

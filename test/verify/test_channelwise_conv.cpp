@@ -28,8 +28,7 @@
 #include <migraphx/make_op.hpp>
 
 template <migraphx::shape::type_t DType>
-struct test_channelwise_conv_depthwise
-    : verify_program<test_channelwise_conv_depthwise<DType>>
+struct test_channelwise_conv_depthwise : verify_program<test_channelwise_conv_depthwise<DType>>
 {
     migraphx::program create_program() const
     {
@@ -82,8 +81,7 @@ template struct test_channelwise_conv_depthwise_5x5<migraphx::shape::float_type>
 template struct test_channelwise_conv_depthwise_5x5<migraphx::shape::half_type>;
 
 template <migraphx::shape::type_t DType>
-struct test_channelwise_conv_1d
-    : verify_program<test_channelwise_conv_1d<DType>>
+struct test_channelwise_conv_1d : verify_program<test_channelwise_conv_1d<DType>>
 {
     migraphx::program create_program() const
     {

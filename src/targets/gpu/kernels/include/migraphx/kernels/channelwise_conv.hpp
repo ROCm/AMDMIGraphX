@@ -42,15 +42,14 @@ __device__ void channelwise_conv(KernelLens kernel_lens, Output output, Input1 x
     pooling_reduce<Algo, 1>(output, [&](auto out_idx, auto r) {
         auto result = r.reduce(op::sum{}, 0, [&](auto ki) {
             auto kmulti    = kernel_lens.multi(ki);
-            auto bcast_idx = generate_array<index_int>(
-                _c<NDIM>, [&](auto d) -> index_int {
-                    if constexpr(d < 2)
-                        return out_idx[d];
-                    else if constexpr(d < 2 + NS)
-                        return kmulti[d - _c<2>];
-                    else
-                        return out_idx[d - _c<NS>] + kmulti[d - _c<2 + NS>];
-                });
+            auto bcast_idx = generate_array<index_int>(_c<NDIM>, [&](auto d) -> index_int {
+                if constexpr(d < 2)
+                    return out_idx[d];
+                else if constexpr(d < 2 + NS)
+                    return kmulti[d - _c<2>];
+                else
+                    return out_idx[d - _c<NS>] + kmulti[d - _c<2 + NS>];
+            });
             return x[bcast_idx] * w[bcast_idx];
         })(reduce::make_indices(_c<kernel_total>));
         return result;

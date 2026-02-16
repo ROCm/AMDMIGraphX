@@ -31,21 +31,18 @@
 namespace migraphx {
 
 template <class KernelLens, class SpatialLens, class Output, class Input1, class Input2>
-__device__ void channelwise_conv(KernelLens kernel_lens,
-                                 SpatialLens,
-                                 Output output,
-                                 Input1 x,
-                                 Input2 w)
+__device__ void
+channelwise_conv(KernelLens kernel_lens, SpatialLens, Output output, Input1 x, Input2 w)
 {
     constexpr index_int NS            = array_size(KernelLens{});
     constexpr index_int kernel_total  = KernelLens{}.product();
     constexpr index_int spatial_total = SpatialLens{}.product();
     constexpr index_int product_total = kernel_total * spatial_total;
 
-    constexpr auto out_spatial_lens = return_array_c([] {
-        constexpr auto kl          = KernelLens{};
-        constexpr auto sl          = SpatialLens{};
-        constexpr index_int ns     = array_size(KernelLens{});
+    constexpr auto out_spatial_lens       = return_array_c([] {
+        constexpr auto kl      = KernelLens{};
+        constexpr auto sl      = SpatialLens{};
+        constexpr index_int ns = array_size(KernelLens{});
         array<index_int, ns> result;
         for(index_int i = 0; i < ns; i++)
             result[i] = sl[i] - kl[i] + 1;
@@ -53,10 +50,10 @@ __device__ void channelwise_conv(KernelLens kernel_lens,
     });
     constexpr index_int out_spatial_total = out_spatial_lens.product();
 
-    constexpr auto prod_lens = return_array_c([] {
-        constexpr auto kl              = KernelLens{};
-        constexpr auto sl              = SpatialLens{};
-        constexpr index_int ns         = array_size(KernelLens{});
+    constexpr auto prod_lens  = return_array_c([] {
+        constexpr auto kl      = KernelLens{};
+        constexpr auto sl      = SpatialLens{};
+        constexpr index_int ns = array_size(KernelLens{});
         array<index_int, 2 * ns> result;
         for(index_int i = 0; i < ns; i++)
             result[i] = kl[i];
@@ -79,16 +76,15 @@ __device__ void channelwise_conv(KernelLens kernel_lens,
     for(index_int i = idx.local; i < product_total; i += idx.nlocal())
     {
         auto prod_multi = prod_lens.multi(i);
-        auto bcast_idx =
-            generate_array<index_int>(_c<2 + 2 * NS>, [&](auto d) -> index_int {
-                if constexpr(d == 0)
-                    return n;
-                else if constexpr(d == 1)
-                    return c;
-                else
-                    return prod_multi[d - _c<2>];
-            });
-        smem[i] = x[bcast_idx] * w[bcast_idx];
+        auto bcast_idx  = generate_array<index_int>(_c<2 + 2 * NS>, [&](auto d) -> index_int {
+            if constexpr(d == 0)
+                return n;
+            else if constexpr(d == 1)
+                return c;
+            else
+                return prod_multi[d - _c<2>];
+        });
+        smem[i]         = x[bcast_idx] * w[bcast_idx];
     }
 
     __syncthreads();
@@ -112,7 +108,7 @@ __device__ void channelwise_conv(KernelLens kernel_lens,
             acc += smem_view[smem_idx];
         }
 
-        auto out_idx = generate_array<index_int>(_c<2 + NS>, [&](auto d) -> index_int {
+        auto out_idx    = generate_array<index_int>(_c<2 + NS>, [&](auto d) -> index_int {
             if constexpr(d == 0)
                 return n;
             else if constexpr(d == 1)

@@ -105,9 +105,9 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
 
         options.set_launch_params(v, num_blocks * block_size, block_size);
 
-        auto src = interpolate_string(channelwise_conv_kernel,
-                                      {{"tile", to_string_range(tile_sizes)},
-                                       {"ntiles", std::to_string(noutputs)}});
+        auto src = interpolate_string(
+            channelwise_conv_kernel,
+            {{"tile", to_string_range(tile_sizes)}, {"ntiles", std::to_string(noutputs)}});
 
         return compile_hip_code_object(ctx, src, options);
     }
@@ -157,7 +157,7 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
             tc.solutions.push_back({{"tile_h", 8}, {"tile_w", 64}, {"noutputs", 8}});
             tc.solutions.push_back({{"tile_h", 8}, {"tile_w", 64}, {"noutputs", 4}});
             tc.solutions.push_back({{"tile_h", 16}, {"tile_w", 64}, {"noutputs", 4}});
-            tc.solutions.push_back({{"tile_h", 48}, {"tile_w", 16}, {"noutputs", 1}});        
+            tc.solutions.push_back({{"tile_h", 48}, {"tile_w", 16}, {"noutputs", 1}});
         }
         return tc;
     }

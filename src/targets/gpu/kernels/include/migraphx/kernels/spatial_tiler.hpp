@@ -86,6 +86,18 @@ struct spatial_tiler
     static constexpr index_int tiles_total  = tiles_per_dim.product();
     static constexpr index_int NDIM         = out_spatial_lens.size();
 
+    static constexpr bool is_padded = [] {
+        return (out_spatial_lens != tiles_per_dim * output_lens);
+        // constexpr auto osl     = decltype(out_spatial_lens){};
+        // constexpr auto tpd     = decltype(tiles_per_dim){};
+        // constexpr auto ol      = decltype(output_lens){};
+        // constexpr index_int nd = osl.size();
+        // for(index_int i = 0; i < nd; i++)
+        //     if(tpd[i] * ol[i] != osl[i])
+        //         return true;
+        // return false;
+    }();
+
     index idx;
     array<index_int, NDIM> tile_origin;
 
@@ -137,7 +149,10 @@ struct spatial_tiler
         idx.local_stride(_c<halo_total_v>, [&](auto i) {
             auto halo_multi = halo_shape.multi(index_int{i});
             auto src_pos    = tile_origin + halo_multi;
-            smem[i]         = in_bounds(src_pos, input_spatial) ? T{input_ch[src_pos]} : T{0};
+            if constexpr(is_padded)
+                smem[i] = in_bounds(src_pos, input_spatial) ? T{input_ch[src_pos]} : T{0};
+            else
+                smem[i] = input_ch[src_pos];
         });
 
         return make_tensor_view(smem.data(), halo_shape);
@@ -150,8 +165,11 @@ struct spatial_tiler
         idx.local_stride(_c<output_total>, [&](auto j) {
             auto out_multi = output_shape.multi(index_int{j});
             auto out_pos   = tile_origin + out_multi;
-            if(not in_bounds(out_pos, out_spatial_lens))
-                return;
+            if constexpr(is_padded)
+            {
+                if(not in_bounds(out_pos, out_spatial_lens))
+                    return;
+            }
             f(out_pos, out_multi);
         });
     }

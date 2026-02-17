@@ -25,6 +25,7 @@ Full documentation for MIGraphX is available at
 * Fixed `eliminate_pad` pass bug that was removing nonzero `pad` instructions (#4600).
 
 ### Optimized
+* Added optimized fusion for local_window mode of GQA operator
 
 ### Removed
 

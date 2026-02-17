@@ -83,7 +83,7 @@ __device__ void channelwise_conv(TileLens, OutputLens, Output output, Input x, W
     constexpr index_int output_total = output_lens.product();
 
     // Block shape: [N, C_out, tiles_h, tiles_w]
-    constexpr auto block_lens = return_array_c([] {
+    constexpr auto block_lens  = return_array_c([] {
         constexpr auto tpd     = decltype(tiles_per_dim){};
         constexpr index_int nd = tpd.size();
         array<index_int, nd> result;

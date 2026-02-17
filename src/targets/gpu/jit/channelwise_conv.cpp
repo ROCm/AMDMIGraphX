@@ -56,19 +56,16 @@ MIGRAPHX_GLOBAL void channelwise_conv_kernel(void* x_p, void* w_p, void* y_p)
 
 struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
 {
-    std::vector<std::string> names() const
-    {
-        return {"gpu::channelwise_conv", "channelwise_conv"};
-    }
+    std::vector<std::string> names() const { return {"gpu::channelwise_conv", "channelwise_conv"}; }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
-        auto num_spatial    = v.at("num_spatial").to<std::size_t>();
-        const auto& out_s   = inputs.back();
-        options.inputs      = inputs;
-        options.output      = out_s;
-        options.kernel_name = "channelwise_conv_kernel";
+        auto num_spatial       = v.at("num_spatial").to<std::size_t>();
+        const auto& out_s      = inputs.back();
+        options.inputs         = inputs;
+        options.output         = out_s;
+        options.kernel_name    = "channelwise_conv_kernel";
         options.virtual_inputs = inputs;
 
         auto out_lens = out_s.lens();
@@ -159,15 +156,19 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
             tc.solutions.push_back({{"tile_h", 8}, {"tile_w", 32}, {"outputs_per_thread", 1}});
             // for(auto opt : {1, 2})
             // {
-            //     tc.solutions.push_back({{"tile_h", 8}, {"tile_w", 32}, {"outputs_per_thread", opt}});
-            //     tc.solutions.push_back({{"tile_h", 32}, {"tile_w", 32}, {"outputs_per_thread", opt}});
-            //     tc.solutions.push_back({{"tile_h", 12}, {"tile_w", 32}, {"outputs_per_thread", opt}});
-            //     tc.solutions.push_back({{"tile_h", 24}, {"tile_w", 16}, {"outputs_per_thread", opt}});
-            //     // tc.solutions.push_back({{"tile_h", 20}, {"tile_w", 8}, {"outputs_per_thread", opt}});
-            //     tc.solutions.push_back({{"tile_h", 32}, {"tile_w", 4}, {"outputs_per_thread", opt}});
-    
-            //     // tc.solutions.push_back({{"tile_h", 16}, {"tile_w", 32}, {"outputs_per_thread", opt}});
-            //     // tc.solutions.push_back({{"tile_h", 64}, {"tile_w", 16}, {"outputs_per_thread", opt}});
+            //     tc.solutions.push_back({{"tile_h", 8}, {"tile_w", 32}, {"outputs_per_thread",
+            //     opt}}); tc.solutions.push_back({{"tile_h", 32}, {"tile_w", 32},
+            //     {"outputs_per_thread", opt}}); tc.solutions.push_back({{"tile_h", 12}, {"tile_w",
+            //     32}, {"outputs_per_thread", opt}}); tc.solutions.push_back({{"tile_h", 24},
+            //     {"tile_w", 16}, {"outputs_per_thread", opt}});
+            //     // tc.solutions.push_back({{"tile_h", 20}, {"tile_w", 8}, {"outputs_per_thread",
+            //     opt}}); tc.solutions.push_back({{"tile_h", 32}, {"tile_w", 4},
+            //     {"outputs_per_thread", opt}});
+
+            //     // tc.solutions.push_back({{"tile_h", 16}, {"tile_w", 32}, {"outputs_per_thread",
+            //     opt}});
+            //     // tc.solutions.push_back({{"tile_h", 64}, {"tile_w", 16}, {"outputs_per_thread",
+            //     opt}});
             // }
         }
         return tc;

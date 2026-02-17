@@ -44,7 +44,7 @@ extern "C" {
 MIGRAPHX_GLOBAL void channelwise_conv_kernel(void* x_p, void* w_p, void* y_p)
 {
     transform_args(make_tensors(), rotate_last())(x_p, w_p, y_p)([](auto output, auto x, auto w) {
-        channelwise_conv(index_ints<${tile}>{}, output, x, w);
+        channelwise_conv(index_ints<${tile}>{}, index_ints<${output_tile}>{}, output, x, w);
     });
 }
 
@@ -56,54 +56,61 @@ MIGRAPHX_GLOBAL void channelwise_conv_kernel(void* x_p, void* w_p, void* y_p)
 
 struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
 {
-    std::vector<std::string> names() const { return {"gpu::channelwise_conv", "channelwise_conv"}; }
+    std::vector<std::string> names() const
+    {
+        return {"gpu::channelwise_conv", "channelwise_conv"};
+    }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
-        auto num_spatial       = v.at("num_spatial").to<std::size_t>();
-        const auto& x_s        = inputs.at(0);
-        const auto& w_s        = inputs.at(1);
-        const auto& out_s      = inputs.back();
-        options.inputs         = inputs;
-        options.output         = out_s;
-        options.kernel_name    = "channelwise_conv_kernel";
+        auto num_spatial    = v.at("num_spatial").to<std::size_t>();
+        const auto& out_s   = inputs.back();
+        options.inputs      = inputs;
+        options.output      = out_s;
+        options.kernel_name = "channelwise_conv_kernel";
         options.virtual_inputs = inputs;
 
-        auto x_lens   = x_s.lens();
-        auto w_lens   = w_s.lens();
         auto out_lens = out_s.lens();
 
-        // Tile dimensions: for 2D use 8xH, 32xW; for 1D use 256
+        // Thread block tile dimensions
         std::vector<std::size_t> tile_sizes(num_spatial);
         if(num_spatial == 1)
         {
-            tile_sizes[0] = 256;
+            tile_sizes[0] = v.get("tile_w", std::size_t{256});
         }
         else
         {
-            tile_sizes[0]               = v.get("tile_h", 8);
-            tile_sizes[num_spatial - 1] = v.get("tile_w", 32);
+            tile_sizes[0]               = v.get("tile_h", std::size_t{8});
+            tile_sizes[num_spatial - 1] = v.get("tile_w", std::size_t{32});
             for(std::size_t d = 1; d + 1 < num_spatial; ++d)
                 tile_sizes[d] = 1;
         }
+
+        // Outputs per thread along W (last spatial dim)
+        auto outputs_per_thread = v.get("outputs_per_thread", std::size_t{4});
+
+        // Output tile = thread tile with last dim scaled by outputs_per_thread
+        std::vector<std::size_t> output_tile_sizes = tile_sizes;
+        output_tile_sizes.back() *= outputs_per_thread;
 
         std::size_t block_size = 1;
         for(auto t : tile_sizes)
             block_size *= t;
 
-        // Compute number of tiles per spatial dim: ceil(out_spatial / tile)
+        // Blocks: N * C_out * prod(ceil(out_spatial / output_tile))
         std::size_t num_blocks = out_lens[0] * out_lens[1];
         for(std::size_t d = 0; d < num_spatial; ++d)
         {
             auto out_spatial = out_lens[2 + d];
-            num_blocks *= (out_spatial + tile_sizes[d] - 1) / tile_sizes[d];
+            num_blocks *= (out_spatial + output_tile_sizes[d] - 1) / output_tile_sizes[d];
         }
 
         options.set_launch_params(v, num_blocks * block_size, block_size);
 
-        auto src =
-            interpolate_string(channelwise_conv_kernel, {{"tile", to_string_range(tile_sizes)}});
+        auto src = interpolate_string(channelwise_conv_kernel,
+                                      {{"tile", to_string_range(tile_sizes)},
+                                       {"output_tile", to_string_range(output_tile_sizes)}});
 
         return compile_hip_code_object(ctx, src, options);
     }
@@ -141,21 +148,27 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
                         continue;
                     if((block_size % ctx.get_current_device().get_wavefront_size()) != 0)
                         continue;
-                    tc.solutions.push_back({{"tile_h", tile_h}, {"tile_w", tile_w}});
+                    for(auto opt : {1, 2, 4, 8})
+                        tc.solutions.push_back(
+                            {{"tile_h", tile_h}, {"tile_w", tile_w}, {"outputs_per_thread", opt}});
                 }
             }
         }
         else
         {
-            tc.solutions.push_back({{"tile_h", 8}, {"tile_w", 32}});
-            tc.solutions.push_back({{"tile_h", 32}, {"tile_w", 32}});
-            tc.solutions.push_back({{"tile_h", 12}, {"tile_w", 32}});
-            tc.solutions.push_back({{"tile_h", 24}, {"tile_w", 16}});
-            // tc.solutions.push_back({{"tile_h", 20}, {"tile_w", 8}});
-            tc.solutions.push_back({{"tile_h", 32}, {"tile_w", 4}});
-
-            // tc.solutions.push_back({{"tile_h", 16}, {"tile_w", 32}});
-            // tc.solutions.push_back({{"tile_h", 64}, {"tile_w", 16}});
+            tc.solutions.push_back({{"tile_h", 8}, {"tile_w", 32}, {"outputs_per_thread", 1}});
+            // for(auto opt : {1, 2})
+            // {
+            //     tc.solutions.push_back({{"tile_h", 8}, {"tile_w", 32}, {"outputs_per_thread", opt}});
+            //     tc.solutions.push_back({{"tile_h", 32}, {"tile_w", 32}, {"outputs_per_thread", opt}});
+            //     tc.solutions.push_back({{"tile_h", 12}, {"tile_w", 32}, {"outputs_per_thread", opt}});
+            //     tc.solutions.push_back({{"tile_h", 24}, {"tile_w", 16}, {"outputs_per_thread", opt}});
+            //     // tc.solutions.push_back({{"tile_h", 20}, {"tile_w", 8}, {"outputs_per_thread", opt}});
+            //     tc.solutions.push_back({{"tile_h", 32}, {"tile_w", 4}, {"outputs_per_thread", opt}});
+    
+            //     // tc.solutions.push_back({{"tile_h", 16}, {"tile_w", 32}, {"outputs_per_thread", opt}});
+            //     // tc.solutions.push_back({{"tile_h", 64}, {"tile_w", 16}, {"outputs_per_thread", opt}});
+            // }
         }
         return tc;
     }

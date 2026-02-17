@@ -186,11 +186,12 @@ struct parse_matmul : op_parser<parse_matmul>
     {
         auto dq_a0 = handle_dequantized(info, a0, scale_a0, zp_a0, (a0 == zp_a0));
         auto dq_a1 = handle_dequantized(info, a1, scale_a1, zp_a1, (a1 == zp_a1));
-        auto res   = info.add_instruction(make_op("dot"), dq_a0, dq_a1);
+        auto res   = op::builder::add("dot", *info.mod, {dq_a0, dq_a1}).at(0);
 
         // Handle case of the bias after scaling
         if(has_scale_bias)
-            res = info.add_common_op("sub", res, scaled_bias);
+            res =
+                op::builder::insert_common_op(*info.mod, info.mod->end(), "sub", res, scaled_bias);
 
         return res;
     }

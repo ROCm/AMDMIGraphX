@@ -303,9 +303,6 @@ struct parse_matmul : op_parser<parse_matmul>
         }
         else
         {
-            const auto s0_lens = a0->get_shape().lens();
-            const auto s1_lens = a1->get_shape().lens();
-
             if(is_dot and args.size() > 2)
             {
                 MIGRAPHX_THROW(op_name + ": Bias Args not supported");

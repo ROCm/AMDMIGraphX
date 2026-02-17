@@ -163,10 +163,10 @@ struct parse_matmul : op_parser<parse_matmul>
             dq_args.push_back(zp_a0);
         }
 
-        const auto& lens = a0->get_shape().lens();
+        const auto& lens     = a0->get_shape().lens();
         const auto scale_len = scale_a0->get_shape().lens().at(0);
-        const auto rit = std::find(lens.rbegin(), lens.rend(), scale_len);
-        const int axis = (rit != lens.rend()) ? static_cast<int>(lens.rend() - rit - 1) : 1;
+        const auto rit       = std::find(lens.rbegin(), lens.rend(), scale_len);
+        const int axis       = (rit != lens.rend()) ? static_cast<int>(lens.rend() - rit - 1) : 1;
 
         dequantized_op =
             op::builder::add("dequantizelinear", *info.mod, dq_args, {{"axis", axis}}).at(0);
@@ -305,8 +305,10 @@ struct parse_matmul : op_parser<parse_matmul>
             {
                 auto unpack2 = [](auto&& v) { return std::make_pair(v[0], v[1]); };
 
-                std::tie(a0, ba0) = unpack2(op::builder::add("bias_uint8", *info.mod, {a0, ba0}, {{"has_bias", has_ba0}}));
-                std::tie(a1, ba1) = unpack2(op::builder::add("bias_uint8", *info.mod, {a1, ba1}, {{"has_bias", has_ba1}}));
+                std::tie(a0, ba0) = unpack2(
+                    op::builder::add("bias_uint8", *info.mod, {a0, ba0}, {{"has_bias", has_ba0}}));
+                std::tie(a1, ba1) = unpack2(
+                    op::builder::add("bias_uint8", *info.mod, {a1, ba1}, {{"has_bias", has_ba1}}));
             }
 
             // Apply the scale to dequantize input to then perform a simple dot

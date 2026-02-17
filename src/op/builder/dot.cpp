@@ -53,8 +53,8 @@ struct quant_dot : op_builder<quant_dot>
     {
         auto a0      = args[0];
         auto a1      = args[1];
-        auto ba0     = args[2];
-        auto ba1     = args[3];
+        auto ba0     = args.size() > 2 ? args[2] : a0;
+        auto ba1     = args.size() > 3 ? args[3] : a1;
         auto s0_lens = a0->get_shape().lens();
         auto s1_lens = a1->get_shape().lens();
 

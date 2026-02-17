@@ -157,19 +157,23 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
             // tc.solutions.push_back({{"tile_h", 8}, {"tile_w", 64}, {"outputs_per_thread", 4}});
             for(auto opt : {1, 2})
             {
-                tc.solutions.push_back({{"tile_h", 8}, {"tile_w", 32}, {"outputs_per_thread",
-                opt}}); tc.solutions.push_back({{"tile_h", 32}, {"tile_w", 32},
-                {"outputs_per_thread", opt}}); tc.solutions.push_back({{"tile_h", 12}, {"tile_w",
-                32}, {"outputs_per_thread", opt}}); tc.solutions.push_back({{"tile_h", 24},
-                {"tile_w", 16}, {"outputs_per_thread", opt}});
-                tc.solutions.push_back({{"tile_h", 20}, {"tile_w", 8}, {"outputs_per_thread",
-                opt}}); tc.solutions.push_back({{"tile_h", 32}, {"tile_w", 4},
-                {"outputs_per_thread", opt}});
+                tc.solutions.push_back(
+                    {{"tile_h", 8}, {"tile_w", 32}, {"outputs_per_thread", opt}});
+                tc.solutions.push_back(
+                    {{"tile_h", 32}, {"tile_w", 32}, {"outputs_per_thread", opt}});
+                tc.solutions.push_back(
+                    {{"tile_h", 12}, {"tile_w", 32}, {"outputs_per_thread", opt}});
+                tc.solutions.push_back(
+                    {{"tile_h", 24}, {"tile_w", 16}, {"outputs_per_thread", opt}});
+                tc.solutions.push_back(
+                    {{"tile_h", 20}, {"tile_w", 8}, {"outputs_per_thread", opt}});
+                tc.solutions.push_back(
+                    {{"tile_h", 32}, {"tile_w", 4}, {"outputs_per_thread", opt}});
 
-                tc.solutions.push_back({{"tile_h", 16}, {"tile_w", 32}, {"outputs_per_thread",
-                opt}});
-                tc.solutions.push_back({{"tile_h", 64}, {"tile_w", 16}, {"outputs_per_thread",
-                opt}});
+                tc.solutions.push_back(
+                    {{"tile_h", 16}, {"tile_w", 32}, {"outputs_per_thread", opt}});
+                tc.solutions.push_back(
+                    {{"tile_h", 64}, {"tile_w", 16}, {"outputs_per_thread", opt}});
             }
         }
         return tc;

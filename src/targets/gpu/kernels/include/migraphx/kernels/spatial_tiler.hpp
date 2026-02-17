@@ -47,7 +47,10 @@ constexpr bool in_bounds(Pos pos, Lens lens)
 template <index_int NTiles, class TileLens, class OutputShape>
 struct spatial_tiler
 {
-    static constexpr auto keep_spatial() { return [](auto, auto i, auto) { return i >= 2; }; }
+    static constexpr auto keep_spatial()
+    {
+        return [](auto, auto i, auto) { return i >= 2; };
+    }
 
     // Output region per block: tile with last dim scaled by NTiles
     static constexpr auto output_lens()
@@ -175,7 +178,7 @@ __device__ auto make_spatial_tiler(index idx, TileLens, OutputShape)
         result[1] = olens[1];
         return result;
     }));
-    auto block_multi = block_shape.multi(idx.group);
+    auto block_multi           = block_shape.multi(idx.group);
     auto tile_origin = generate_array<index_int>(_c<tiler_type::NDIM()>, [&](auto d) -> index_int {
         if constexpr(d < 2)
             return 0;

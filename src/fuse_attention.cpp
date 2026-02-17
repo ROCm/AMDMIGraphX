@@ -775,14 +775,18 @@ struct find_kv_cache_attention
         auto attn_scores       = match::any_of(scale, gemm1);
         auto causal_mask =
             match::name("where")(match::arg(0)(broadcasted_const), match::arg(2)(attn_scores));
-        auto local_window_comp = match::skip(match::name(skip_set))(match::name("convert")(match::arg(0)(match::name("greater"))));
-        auto local_window_mask = match::name("where")(match::arg(0)(match::any_of(local_window_comp, broadcasted_const)), match::arg(2)(match::any_of(causal_mask, scale, gemm1)));
+        auto local_window_comp = match::skip(match::name(skip_set))(
+            match::name("convert")(match::arg(0)(match::name("greater"))));
+        auto local_window_mask =
+            match::name("where")(match::arg(0)(match::any_of(local_window_comp, broadcasted_const)),
+                                 match::arg(2)(match::any_of(causal_mask, scale, gemm1)));
         auto greater = match::name("greater")(match::arg(1)(match::any().bind("total_sl")));
         auto conv_greater =
             match::skip(match::name("unsqueeze"))(match::name("convert")(match::arg(0)(greater)));
-        auto bc_greater         = match::name("multibroadcast")(match::arg(0)(conv_greater));
-        auto mask               = match::name("where")(match::arg(0)(bc_greater),
-                                         match::arg(2)(match::any_of(local_window_mask, causal_mask, scale, gemm1)));
+        auto bc_greater = match::name("multibroadcast")(match::arg(0)(conv_greater));
+        auto mask       = match::name("where")(
+            match::arg(0)(bc_greater),
+            match::arg(2)(match::any_of(local_window_mask, causal_mask, scale, gemm1)));
         auto attn_probabilities = match::skip(match::name("convert"))(
             match::softmax_input(match::skip(match::name("convert"))(mask)));
         auto values =

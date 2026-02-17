@@ -266,12 +266,12 @@ struct parse_matmul : op_parser<parse_matmul>
         if(s0.ndim() == 1)
         {
             is_a_prepended = true;
-            a0             = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), args[0]);
+            a0 = op::builder::add("unsqueeze", *info.mod, {args[0]}, {{"axes", {0}}}).at(0);
         }
         if(s1.ndim() == 1)
         {
             is_b_appended = true;
-            a1            = info.add_instruction(make_op("unsqueeze", {{"axes", {1}}}), args[1]);
+            a1 = op::builder::add("unsqueeze", *info.mod, {args[1]}, {{"axes", {1}}}).at(0);
         }
 
         auto is_quant_dot        = opd.op_name == "quant_dot";
@@ -384,12 +384,14 @@ struct parse_matmul : op_parser<parse_matmul>
         int64_t num_axis = dot_res->get_shape().ndim();
         if(is_a_prepended)
         {
-            dot_res = info.add_instruction(make_op("squeeze", {{"axes", {num_axis - 2}}}), dot_res);
+            dot_res =
+                op::builder::add("squeeze", *info.mod, {dot_res}, {{"axes", {num_axis - 2}}}).at(0);
             --num_axis;
         }
         if(is_b_appended)
         {
-            dot_res = info.add_instruction(make_op("squeeze", {{"axes", {num_axis - 1}}}), dot_res);
+            dot_res =
+                op::builder::add("squeeze", *info.mod, {dot_res}, {{"axes", {num_axis - 1}}}).at(0);
         }
 
         return dot_res;

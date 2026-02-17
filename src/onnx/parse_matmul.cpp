@@ -25,7 +25,6 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
-
 #include <migraphx/op/builder/insert.hpp>
 
 namespace migraphx {
@@ -163,6 +162,7 @@ struct parse_matmul : op_parser<parse_matmul>
             dq_args.push_back(zp_a0);
         }
 
+        // obtaining axis parameter for the dequant op-builder
         const auto& lens     = a0->get_shape().lens();
         const auto scale_len = scale_a0->get_shape().lens().at(0);
         const auto rit       = std::find(lens.rbegin(), lens.rend(), scale_len);

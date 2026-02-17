@@ -53,7 +53,7 @@ TEST_CASE(matmulintegertofloat_zp_bias_test)
     auto bc_zp_x1 = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", x1->get_shape().lens()}}), sq_zp_x1);
     auto r1 = mm->add_instruction(migraphx::make_op("dequantizelinear"), x1, bc_scale_x1, bc_zp_x1);
-    
+
     auto dot = mm->add_instruction(migraphx::make_op("dot"), r0, r1);
 
     auto mb_bias =

@@ -54,7 +54,7 @@ struct spatial_tiler
 
     // Output region per block: tile with last dim scaled by NTiles
     static constexpr auto output_lens = return_array_c([] {
-        auto result    = decltype(tile_lens){};
+        auto result       = decltype(tile_lens){};
         constexpr auto nd = result.size();
         array<index_int, nd> r;
         for(index_int i = 0; i < nd; i++)
@@ -65,10 +65,10 @@ struct spatial_tiler
 
     static constexpr auto out_spatial_lens = make_slice(OutputShape{}, keep_spatial).lens;
 
-    static constexpr auto tiles_per_dim = transform(
-        out_spatial_lens, output_lens, [](auto o, auto t) { return (o + t - 1) / t; });
+    static constexpr auto tiles_per_dim =
+        transform(out_spatial_lens, output_lens, [](auto o, auto t) { return (o + t - 1) / t; });
 
-    static constexpr auto block_lens = return_array_c([] {
+    static constexpr auto block_lens  = return_array_c([] {
         constexpr auto tpd     = decltype(tiles_per_dim){};
         constexpr index_int nd = tpd.size();
         constexpr auto olens   = OutputShape{}.lens;
@@ -81,10 +81,10 @@ struct spatial_tiler
     });
     static constexpr auto block_shape = make_shape(block_lens);
 
-    static constexpr auto output_shape       = make_shape(output_lens);
-    static constexpr index_int output_total  = output_lens.product();
-    static constexpr index_int tiles_total   = tiles_per_dim.product();
-    static constexpr index_int NDIM          = out_spatial_lens.size();
+    static constexpr auto output_shape      = make_shape(output_lens);
+    static constexpr index_int output_total = output_lens.product();
+    static constexpr index_int tiles_total  = tiles_per_dim.product();
+    static constexpr index_int NDIM         = out_spatial_lens.size();
 
     index idx;
     array<index_int, NDIM> tile_origin;
@@ -94,8 +94,8 @@ struct spatial_tiler
     static constexpr auto halo_lens_for()
     {
         constexpr auto input_spatial = make_slice(InputShape{}, keep_spatial).lens;
-        constexpr auto halo_extra    = transform(
-            input_spatial, out_spatial_lens, [](auto is, auto os) { return is - os; });
+        constexpr auto halo_extra =
+            transform(input_spatial, out_spatial_lens, [](auto is, auto os) { return is - os; });
         return transform(output_lens, halo_extra, [](auto o, auto h) { return o + h; });
     }
 
@@ -131,8 +131,8 @@ struct spatial_tiler
         constexpr auto n_in   = nslices(get_shape_c<Input>{}, keep_spatial);
         constexpr auto groups = n_out / n_in;
         auto channel_idx      = idx.group / tiles_total;
-        auto input_ch         = slice_tensor(
-            input, (channel_idx / index_int{groups}) % index_int{n_in}, keep_spatial);
+        auto input_ch =
+            slice_tensor(input, (channel_idx / index_int{groups}) % index_int{n_in}, keep_spatial);
 
         idx.local_stride(_c<halo_total_v>, [&](auto i) {
             auto halo_multi = halo_shape.multi(index_int{i});
@@ -163,13 +163,12 @@ __device__ auto make_spatial_tiler(index idx, TileLens, OutputShape)
     using tiler_type = spatial_tiler<NTiles, TileLens, OutputShape>;
 
     auto block_multi = tiler_type::block_shape.multi(idx.group);
-    auto tile_origin =
-        generate_array<index_int>(_c<tiler_type::NDIM>, [&](auto d) -> index_int {
-            if constexpr(d < 2)
-                return 0;
-            else
-                return block_multi[d] * tiler_type::output_lens[d];
-        });
+    auto tile_origin = generate_array<index_int>(_c<tiler_type::NDIM>, [&](auto d) -> index_int {
+        if constexpr(d < 2)
+            return 0;
+        else
+            return block_multi[d] * tiler_type::output_lens[d];
+    });
 
     return tiler_type{idx, tile_origin};
 }

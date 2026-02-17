@@ -43,7 +43,7 @@ __device__ void channelwise_conv(TileLens, Output output, Input x, Weights w)
     auto w_ch   = tiler.slice(w);
     auto out_ch = tiler.slice(output);
 
-    using T                    = typename Output::type;
+    using T = typename Output::type;
     array<T, decltype(w_ch.get_shape().elements()){}> wregs_arr;
     auto wregs = make_tensor_view(wregs_arr.begin(), make_packed_shape(w_ch.get_shape()));
     copy(w_ch.begin(), w_ch.end(), wregs.begin());

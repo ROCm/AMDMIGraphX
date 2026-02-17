@@ -369,7 +369,7 @@ inline migraphx::program create_gqa_program(const size_t batch_size,
                                    scores);
     out      = mm->add_instruction(
         migraphx::make_op("reshape",
-                               {{"dims", {batch_size, sequence_length, head_size * num_heads}}}),
+                          {{"dims", {batch_size, sequence_length, head_size * num_heads}}}),
         out);
 
     return p;
@@ -413,19 +413,18 @@ inline migraphx::program make_dequantizelinear_axis_prog()
 {
     migraphx::program p;
     std::vector<size_t> input_lens{1, 1, 5, 1};
-    auto* mm      = p.get_main_module();
-    auto l0       = mm->add_parameter("0", {migraphx::shape::int8_type, input_lens});
-    auto l1       = mm->add_parameter("1", {migraphx::shape::float_type, {5}});
-    auto l2       = mm->add_parameter("2", {migraphx::shape::int8_type, {5}});
-    
-    auto unsq_scale = mm->add_instruction(
-        migraphx::make_op("unsqueeze", {{"axes", {0, 1, 3}}}), l1);
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("0", {migraphx::shape::int8_type, input_lens});
+    auto l1  = mm->add_parameter("1", {migraphx::shape::float_type, {5}});
+    auto l2  = mm->add_parameter("2", {migraphx::shape::int8_type, {5}});
+
+    auto unsq_scale =
+        mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 1, 3}}}), l1);
     auto l1_bcast = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), unsq_scale);
-    auto unsq_zp = mm->add_instruction(
-        migraphx::make_op("unsqueeze", {{"axes", {0, 1, 3}}}), l2);
+    auto unsq_zp  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 1, 3}}}), l2);
     auto l2_bcast = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens",   input_lens}}), unsq_zp);
+        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), unsq_zp);
 
     l2_bcast = mm->add_instruction(
         migraphx::make_op("convert",
@@ -668,7 +667,7 @@ make_simplified_layer_norm(const std::vector<int64_t>& input_shape,
     auto x_sq      = add_common_op(*mm, migraphx::make_op("mul"), {float_x, float_x});
     auto norm_axis = axis < 0 ? axis + x->get_shape().lens().size() : axis;
     auto rms = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {norm_axis}}}), x_sq);
-    rms         = mm->add_instruction(migraphx::make_op("convert", {{"target_type", dtype}}), rms);
+    rms      = mm->add_instruction(migraphx::make_op("convert", {{"target_type", dtype}}), rms);
     rms      = add_common_op(*mm, migraphx::make_op("add"), {rms, eps});
     auto rrms   = mm->add_instruction(migraphx::make_op("rsqrt"), {rms});
     auto result = add_common_op(*mm, migraphx::make_op("mul"), {x, rrms});
@@ -735,20 +734,18 @@ inline migraphx::program make_quantizelinear_axis_prog()
     std::vector<size_t> input_lens{1, 1, 5, 1};
     auto* mm = p.get_main_module();
 
-    auto l0       = mm->add_parameter("0", {migraphx::shape::float_type, input_lens});
-    auto l1       = mm->add_parameter("1", {migraphx::shape::float_type, {5}});
-    auto l2       = mm->add_parameter("2", {migraphx::shape::int8_type, {5}});
-    
-    auto unsq_l1 = mm->add_instruction(
-        migraphx::make_op("unsqueeze", {{"axes", {0, 1, 3}}}), l1);
+    auto l0 = mm->add_parameter("0", {migraphx::shape::float_type, input_lens});
+    auto l1 = mm->add_parameter("1", {migraphx::shape::float_type, {5}});
+    auto l2 = mm->add_parameter("2", {migraphx::shape::int8_type, {5}});
+
+    auto unsq_l1  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 1, 3}}}), l1);
     auto l1_bcast = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), unsq_l1);
-    
-    auto div      = mm->add_instruction(migraphx::make_op("div"), l0, l1_bcast);
-    auto round    = mm->add_instruction(migraphx::make_op("nearbyint"), div);
-    
-    auto unsq_l2 = mm->add_instruction(
-        migraphx::make_op("unsqueeze", {{"axes", {0, 1, 3}}}), l2);
+
+    auto div   = mm->add_instruction(migraphx::make_op("div"), l0, l1_bcast);
+    auto round = mm->add_instruction(migraphx::make_op("nearbyint"), div);
+
+    auto unsq_l2  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 1, 3}}}), l2);
     auto l2_bcast = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), unsq_l2);
 

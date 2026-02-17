@@ -47,19 +47,13 @@ constexpr bool in_bounds(Pos pos, Lens lens)
 template <index_int NTiles, class TileLens, class OutputShape>
 struct spatial_tiler
 {
-    static constexpr auto keep_spatial()
-    {
-        return [](auto, auto i, auto) { return i >= 2; };
-    }
-
-    // Full-rank tile lens: [1, 1, TileH, TileW]
-    static constexpr auto tile_lens() { return join(index_ints<1, 1>{}, TileLens{}); }
+    static constexpr auto keep_spatial() { return [](auto, auto i, auto) { return i >= 2; }; }
 
     // Output region per block: tile with last dim scaled by NTiles
     static constexpr auto output_lens()
     {
         return return_array_c([] {
-            auto result       = decltype(tile_lens()){};
+            auto result       = join(index_ints<1, 1>{}, TileLens{});
             constexpr auto nd = result.size();
             array<index_int, nd> r;
             for(index_int i = 0; i < nd; i++)
@@ -80,25 +74,6 @@ struct spatial_tiler
             out_spatial_lens(), output_lens(), [](auto o, auto t) { return (o + t - 1) / t; });
     }
 
-    static constexpr auto block_lens()
-    {
-        return return_array_c([] {
-            constexpr auto tpd     = decltype(tiles_per_dim()){};
-            constexpr index_int nd = tpd.size();
-            constexpr auto olens   = OutputShape{}.lens;
-            array<index_int, nd> result;
-            for(index_int i = 0; i < nd; i++)
-                result[i] = tpd[i];
-            result[0] = olens[0];
-            result[1] = olens[1];
-            return result;
-        });
-    }
-
-    static constexpr auto block_shape() { return make_shape(block_lens()); }
-
-    static constexpr auto output_shape() { return make_shape(output_lens()); }
-    static constexpr index_int output_total() { return output_lens().product(); }
     static constexpr index_int tiles_total() { return tiles_per_dim().product(); }
     static constexpr index_int NDIM() { return out_spatial_lens().size(); }
 
@@ -171,8 +146,8 @@ struct spatial_tiler
     template <class F>
     __device__ void for_each(F f) const
     {
-        idx.local_stride(_c<output_total()>, [&](auto j) {
-            auto out_multi = output_shape().multi(index_int{j});
+        idx.local_stride(_c<output_lens().product()>, [&](auto j) {
+            auto out_multi = make_shape(output_lens()).multi(index_int{j});
             auto out_pos   = tile_origin + out_multi;
             if constexpr(is_padded())
             {
@@ -189,7 +164,18 @@ __device__ auto make_spatial_tiler(index idx, TileLens, OutputShape)
 {
     using tiler_type = spatial_tiler<NTiles, TileLens, OutputShape>;
 
-    auto block_multi = tiler_type::block_shape().multi(idx.group);
+    constexpr auto block_shape = make_shape(return_array_c([] {
+        constexpr auto tpd     = decltype(tiler_type::tiles_per_dim()){};
+        constexpr index_int nd = tpd.size();
+        constexpr auto olens   = OutputShape{}.lens;
+        array<index_int, nd> result;
+        for(index_int i = 0; i < nd; i++)
+            result[i] = tpd[i];
+        result[0] = olens[0];
+        result[1] = olens[1];
+        return result;
+    }));
+    auto block_multi = block_shape.multi(idx.group);
     auto tile_origin = generate_array<index_int>(_c<tiler_type::NDIM()>, [&](auto d) -> index_int {
         if constexpr(d < 2)
             return 0;

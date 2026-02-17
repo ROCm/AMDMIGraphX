@@ -40,8 +40,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 #if MIGRAPHX_USE_BLAZE
-namespace detail {
-
 template <class T>
 using blaze_row_major = blaze::CustomMatrix<T, blaze::unaligned, blaze::unpadded, blaze::rowMajor>;
 template <class T>
@@ -97,7 +95,6 @@ inline std::size_t batch_offset(const shape& s, std::size_t batch, std::size_t n
     return offset;
 }
 
-// Dispatch to Blaze matrix with correct storage order and call continuation
 template <class T, class Func>
 void with_blaze_mat(T* ptr, std::size_t rows, std::size_t cols, mat_order order, Func&& func)
 {
@@ -113,59 +110,31 @@ void with_blaze_mat(T* ptr, std::size_t rows, std::size_t cols, mat_order order,
     }
 }
 
-// Copy from arbitrary layout to contiguous row-major float buffer
 template <class U>
-void copy_to_rm_float(float* dst,
-                      const U* src,
-                      std::size_t rows,
-                      std::size_t cols,
-                      mat_order order,
-                      std::size_t spacing)
+void strided_copy_to_float(float* dst,
+                           const U* src,
+                           std::size_t rows,
+                           std::size_t cols,
+                           std::size_t row_stride,
+                           std::size_t col_stride)
 {
-    if(order == mat_order::row_major and spacing == cols)
-    {
-        for(std::size_t i = 0; i < rows * cols; i++)
-            dst[i] = static_cast<float>(src[i]);
-    }
-    else
-    {
-        for(std::size_t i = 0; i < rows; i++)
-            for(std::size_t j = 0; j < cols; j++)
-            {
-                auto src_idx = (order == mat_order::row_major) ? (i * spacing + j)
-                                                               : (j * spacing + i);
-                dst[i * cols + j] = static_cast<float>(src[src_idx]);
-            }
-    }
+    for(std::size_t i = 0; i < rows; i++)
+        for(std::size_t j = 0; j < cols; j++)
+            dst[i * cols + j] = static_cast<float>(src[i * row_stride + j * col_stride]);
 }
 
-// Copy from contiguous row-major float buffer to arbitrary layout
 template <class T>
-void copy_from_rm_float(T* dst,
-                        const float* src,
-                        std::size_t rows,
-                        std::size_t cols,
-                        mat_order order,
-                        std::size_t spacing)
+void strided_copy_from_float(T* dst,
+                             const float* src,
+                             std::size_t rows,
+                             std::size_t cols,
+                             std::size_t row_stride,
+                             std::size_t col_stride)
 {
-    if(order == mat_order::row_major and spacing == cols)
-    {
-        for(std::size_t i = 0; i < rows * cols; i++)
-            dst[i] = static_cast<T>(src[i]);
-    }
-    else
-    {
-        for(std::size_t i = 0; i < rows; i++)
-            for(std::size_t j = 0; j < cols; j++)
-            {
-                auto dst_idx = (order == mat_order::row_major) ? (i * spacing + j)
-                                                               : (j * spacing + i);
-                dst[dst_idx] = static_cast<T>(src[i * cols + j]);
-            }
-    }
+    for(std::size_t i = 0; i < rows; i++)
+        for(std::size_t j = 0; j < cols; j++)
+            dst[i * row_stride + j * col_stride] = static_cast<T>(src[i * cols + j]);
 }
-
-} // namespace detail
 #endif
 
 template <class T, class U, class F>
@@ -181,13 +150,6 @@ void gemm(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat, F alpha
     assert(cmat.get_shape().lens()[dim_1] == bmat.get_shape().lens()[dim_1]);
 
 #if MIGRAPHX_USE_BLAZE
-    auto a_layout = detail::get_blaze_layout(amat.get_shape());
-    auto b_layout = detail::get_blaze_layout(bmat.get_shape());
-    auto c_layout = detail::get_blaze_layout(cmat.get_shape());
-
-    if(a_layout.order != detail::mat_order::unsupported and
-       b_layout.order != detail::mat_order::unsupported and
-       c_layout.order != detail::mat_order::unsupported)
     {
         auto m_size = amat.get_shape().lens()[dim_0];
         auto n_size = bmat.get_shape().lens()[dim_1];
@@ -197,38 +159,33 @@ void gemm(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat, F alpha
         for(std::size_t i = 0; i < dim_0; i++)
             num_batches *= cmat.get_shape().lens()[i];
 
-        bool all_packed = a_layout.packed and b_layout.packed and c_layout.packed;
-        bool native     = detail::is_blaze_native_type<U>() and std::is_same<T, U>{};
-
-        auto order_char = [](detail::mat_order o) {
-            return o == detail::mat_order::col_major ? "T" : "N";
-        };
-        std::cerr << "[blaze gemm] " << m_size << "x" << k_size << "x" << n_size
-                  << " batches=" << num_batches << " layout="
-                  << order_char(a_layout.order) << order_char(b_layout.order)
-                  << order_char(c_layout.order)
-                  << (native and all_packed ? " (native)" : " (upcast to float)") << std::endl;
-
-        // Native path: direct Blaze GEMM with correct storage orders (no copy)
-        if constexpr(detail::is_blaze_native_type<U>() and std::is_same<T, U>{})
+        // Native zero-copy path: float/double with packed row/col-major inner 2D
+        if constexpr(is_blaze_native_type<U>() and std::is_same<T, U>{})
         {
-            if(all_packed)
+            auto a_layout = get_blaze_layout(amat.get_shape());
+            auto b_layout = get_blaze_layout(bmat.get_shape());
+            auto c_layout = get_blaze_layout(cmat.get_shape());
+
+            if(a_layout.packed and b_layout.packed and c_layout.packed)
             {
+                std::cerr << "[blaze gemm] " << m_size << "x" << k_size << "x" << n_size
+                          << " batches=" << num_batches << " (native)" << std::endl;
+
                 for(std::size_t batch = 0; batch < num_batches; batch++)
                 {
-                    auto a_off = detail::batch_offset(amat.get_shape(), batch, dim_0);
-                    auto b_off = detail::batch_offset(bmat.get_shape(), batch, dim_0);
-                    auto c_off = detail::batch_offset(cmat.get_shape(), batch, dim_0);
+                    auto a_off = batch_offset(amat.get_shape(), batch, dim_0);
+                    auto b_off = batch_offset(bmat.get_shape(), batch, dim_0);
+                    auto c_off = batch_offset(cmat.get_shape(), batch, dim_0);
 
-                    detail::with_blaze_mat(
+                    with_blaze_mat(
                         amat.data() + a_off, m_size, k_size, a_layout.order, [&](auto& a_mat) {
-                            detail::with_blaze_mat(
+                            with_blaze_mat(
                                 bmat.data() + b_off,
                                 k_size,
                                 n_size,
                                 b_layout.order,
                                 [&](auto& b_mat) {
-                                    detail::with_blaze_mat(
+                                    with_blaze_mat(
                                         cmat.data() + c_off,
                                         m_size,
                                         n_size,
@@ -247,49 +204,57 @@ void gemm(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat, F alpha
             }
         }
 
-        // Copy path: handles non-native types, padded layouts, or both.
-        // Copies each batch slice to contiguous row-major float buffers,
-        // runs Blaze GEMM, and copies back with layout conversion.
+        // Copy path: works for any type and any layout.
+        // Copies each batch slice to standard row-major float buffers using raw strides,
+        // runs Blaze GEMM, then copies back.
+        auto a_row_stride = amat.get_shape().strides()[dim_0];
+        auto a_col_stride = amat.get_shape().strides()[dim_1];
+        auto b_row_stride = bmat.get_shape().strides()[dim_0];
+        auto b_col_stride = bmat.get_shape().strides()[dim_1];
+        auto c_row_stride = cmat.get_shape().strides()[dim_0];
+        auto c_col_stride = cmat.get_shape().strides()[dim_1];
+
+        std::cerr << "[blaze gemm] " << m_size << "x" << k_size << "x" << n_size
+                  << " batches=" << num_batches << " (copy to float)" << std::endl;
+
         std::vector<float> a_buf(m_size * k_size);
         std::vector<float> b_buf(k_size * n_size);
         std::vector<float> c_buf(m_size * n_size);
 
         for(std::size_t batch = 0; batch < num_batches; batch++)
         {
-            auto a_off = detail::batch_offset(amat.get_shape(), batch, dim_0);
-            auto b_off = detail::batch_offset(bmat.get_shape(), batch, dim_0);
-            auto c_off = detail::batch_offset(cmat.get_shape(), batch, dim_0);
+            auto a_off = batch_offset(amat.get_shape(), batch, dim_0);
+            auto b_off = batch_offset(bmat.get_shape(), batch, dim_0);
+            auto c_off = batch_offset(cmat.get_shape(), batch, dim_0);
 
-            detail::copy_to_rm_float(
-                a_buf.data(), amat.data() + a_off, m_size, k_size,
-                a_layout.order, a_layout.spacing);
-            detail::copy_to_rm_float(
-                b_buf.data(), bmat.data() + b_off, k_size, n_size,
-                b_layout.order, b_layout.spacing);
+            strided_copy_to_float(
+                a_buf.data(), amat.data() + a_off,
+                m_size, k_size, a_row_stride, a_col_stride);
+            strided_copy_to_float(
+                b_buf.data(), bmat.data() + b_off,
+                k_size, n_size, b_row_stride, b_col_stride);
             if(not float_equal(beta, F{0}))
-                detail::copy_to_rm_float(
-                    c_buf.data(), cmat.data() + c_off, m_size, n_size,
-                    c_layout.order, c_layout.spacing);
+                strided_copy_to_float(
+                    c_buf.data(), cmat.data() + c_off,
+                    m_size, n_size, c_row_stride, c_col_stride);
 
-            detail::blaze_row_major<float> a(a_buf.data(), m_size, k_size);
-            detail::blaze_row_major<float> b(b_buf.data(), k_size, n_size);
-            detail::blaze_row_major<float> c(c_buf.data(), m_size, n_size);
+            blaze_row_major<float> a(a_buf.data(), m_size, k_size);
+            blaze_row_major<float> b(b_buf.data(), k_size, n_size);
+            blaze_row_major<float> c(c_buf.data(), m_size, n_size);
 
             if(float_equal(alpha, F{1}) and float_equal(beta, F{0}))
                 c = a * b;
             else
                 c = alpha * (a * b) + beta * c;
 
-            detail::copy_from_rm_float(
-                cmat.data() + c_off, c_buf.data(), m_size, n_size,
-                c_layout.order, c_layout.spacing);
+            strided_copy_from_float(
+                cmat.data() + c_off, c_buf.data(),
+                m_size, n_size, c_row_stride, c_col_stride);
         }
         return;
     }
 #endif
 
-    // Fallback: naive element-wise GEMM for unsupported layouts
-    std::cerr << "[gemm fallback] unsupported layout, using naive loop" << std::endl;
     auto cs = cmat.get_shape();
     par_for(cs.elements(), [&](auto i) {
         auto c_idx = cs.multi(i);

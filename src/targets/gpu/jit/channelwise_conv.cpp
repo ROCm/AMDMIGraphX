@@ -153,7 +153,8 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
         }
         else
         {
-            tc.solutions.push_back({{"tile_h", 8}, {"tile_w", 32}, {"outputs_per_thread", 1}});
+            // tc.solutions.push_back({{"tile_h", 8}, {"tile_w", 32}, {"outputs_per_thread", 1}});
+            tc.solutions.push_back({{"tile_h", 8}, {"tile_w", 64}, {"outputs_per_thread", 4}});
             // for(auto opt : {1, 2})
             // {
             //     tc.solutions.push_back({{"tile_h", 8}, {"tile_w", 32}, {"outputs_per_thread",

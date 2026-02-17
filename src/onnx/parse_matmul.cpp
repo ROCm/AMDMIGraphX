@@ -41,23 +41,6 @@ struct parse_matmul : op_parser<parse_matmul>
                 {"MatMulIntegerToFloat", "quant_dot_scaled"}};
     }
 
-    // Convert to half prior to a shift to ensure we preserve accuracy here then
-    // convert back to int8
-    static instruction_ref add_int8_shift(const onnx_parser::node_info& info,
-                                          const instruction_ref& offset_op,
-                                          instruction_ref& unshifted_input)
-    {
-        auto unshifted_input_half = info.add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}),
-            unshifted_input);
-
-        auto input_shifted_half = info.add_common_op("add", unshifted_input_half, offset_op);
-
-        return info.add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}),
-            input_shifted_half);
-    }
-
     static bool is_symmetric_zero_point(instruction_ref zp)
     {
         if(not zp->can_eval())
@@ -166,23 +149,6 @@ struct parse_matmul : op_parser<parse_matmul>
         return input;
     }
 
-    static void shift_input_and_bias(const onnx_parser::node_info& info,
-                                     const instruction_ref& offset_op,
-                                     const bool has_bias,
-                                     instruction_ref& input,
-                                     instruction_ref& input_bias)
-    {
-        input = add_int8_shift(info, offset_op, input);
-        if(has_bias)
-        {
-            input_bias = add_int8_shift(info, offset_op, input_bias);
-        }
-        else
-        {
-            input_bias = input;
-        }
-    }
-
     static instruction_ref handle_dequantized(const onnx_parser::node_info& info,
                                               const instruction_ref& a0,
                                               const instruction_ref& scale_a0,
@@ -227,26 +193,6 @@ struct parse_matmul : op_parser<parse_matmul>
             res = info.add_common_op("sub", res, scaled_bias);
 
         return res;
-    }
-
-    static void handle_uint8_input(const onnx_parser::node_info& info,
-                                   const bool has_bias,
-                                   const instruction_ref& offset_op,
-                                   instruction_ref& arg,
-                                   instruction_ref& bias_arg)
-    {
-        auto arg_type = arg->get_shape().type();
-        // always convert uint8 to int8 to avoid rollover
-        if(arg_type == migraphx::shape::uint8_type)
-        {
-            shift_input_and_bias(info, offset_op, has_bias, arg, bias_arg);
-        }
-
-        // subtract bias from result after conversion
-        if(has_bias)
-        {
-            bias_arg = info.add_common_op("sub", arg, bias_arg);
-        }
     }
 
     instruction_ref parse(const op_desc& opd,
@@ -357,10 +303,10 @@ struct parse_matmul : op_parser<parse_matmul>
             if((is_quant_dot and ((a0_type == migraphx::shape::uint8_type) or
                                   (a1_type == migraphx::shape::uint8_type))))
             {
-                auto offset_op = info.add_literal(
-                    migraphx::literal{migraphx::shape{migraphx::shape::half_type}, {-128}});
-                handle_uint8_input(info, has_ba0, offset_op, a0, ba0);
-                handle_uint8_input(info, has_ba1, offset_op, a1, ba1);
+                auto unpack2 = [](auto&& v) { return std::make_pair(v[0], v[1]); };
+
+                std::tie(a0, ba0) = unpack2(op::builder::add("bias_uint8", *info.mod, {a0, ba0}, {{"has_bias", has_ba0}}));
+                std::tie(a1, ba1) = unpack2(op::builder::add("bias_uint8", *info.mod, {a1, ba1}, {{"has_bias", has_ba1}}));
             }
 
             // Apply the scale to dequantize input to then perform a simple dot

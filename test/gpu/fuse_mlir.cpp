@@ -2779,6 +2779,66 @@ TEST_CASE_SKIP(dot_add_dot_both_multi_user, "Not supported in rocMLIR")
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(dyn_dot)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {{1, 4}, {6, 6}}};
+    migraphx::shape s2{migraphx::shape::float_type, {6, 3}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto a   = mm->add_parameter("a", s1);
+        auto b   = mm->add_parameter("b", s2);
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        mm->add_return({dot});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm    = p2.get_main_module();
+        auto a      = mm->add_parameter("a", s1);
+        auto b      = mm->add_parameter("b", s2);
+        auto a_cont = mm->add_instruction(migraphx::make_op("contiguous"), a);
+
+        auto fused =
+            add_mlir(p2, "mlir_dot0", {a_cont, b}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
+                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                return std::make_tuple(dot->get_operator(), dot);
+            });
+        mm->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(dyn_conv)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {{1, 4}, {56, 56}, {8, 64}, {8, 64}}};
+    migraphx::shape s2{migraphx::shape::float_type, {14, 56, 3, 3}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s1);
+        auto w    = mm->add_parameter("w", s2);
+        auto conv = mm->add_instruction(migraphx::make_op("convolution"), x, w);
+        mm->add_return({conv});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm    = p2.get_main_module();
+        auto x      = mm->add_parameter("x", s1);
+        auto w      = mm->add_parameter("w", s2);
+        auto x_cont = mm->add_instruction(migraphx::make_op("contiguous"), x);
+        auto conv   = add_mlir(
+            p2, "mlir_convolution0", {x_cont, w}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
+                auto c =
+                    pm->add_instruction(migraphx::make_op("convolution"), inputs[0], inputs[1]);
+                return std::make_tuple(c->get_operator(), c);
+            });
+        mm->add_return({conv});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 int main(int argc, const char* argv[])
 {
     if(migraphx::gpu::mlir_enabled())

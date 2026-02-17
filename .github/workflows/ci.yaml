@@ -193,8 +193,7 @@ jobs:
           -DROCM_ENABLE_GH_ANNOTATIONS=On \
           -DGPU_TARGETS=gfx908 \
           ..
-        make -j$(nproc) cppcheck
-        ../tools/cppcheck/test.sh
+        make -j$(nproc) cppcheck && ../tools/cppcheck/test.sh
 
     # GH actions can not update existing cache, as a workaround clear cache and then save it
     - name: Clear cppcheck cache before saving
@@ -449,7 +448,8 @@ jobs:
           -DCMAKE_CXX_FLAGS_DEBUG="-g1 -Os -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined" \
           -DCMAKE_CXX_FLAGS_CODECOV="-g1 -Og -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer" \
           -DCMAKE_EXE_LINKER_FLAGS='-fuse-ld=lld' \
-          -DCMAKE_SHARED_LINKER_FLAGS='-fuse-ld=lld'
+          -DCMAKE_SHARED_LINKER_FLAGS='-fuse-ld=lld' \
+          -DCTEST_TIMEOUT=${{matrix.configuration == 'release' && '5000' || '10000'}}
         ${{ github.workspace }}/cget/bin/ccache -s
 
     # GH actions can not update existing cache, as a workaround clear cache and then save it
@@ -569,7 +569,8 @@ jobs:
           -DCMAKE_CXX_FLAGS_CODECOV="-g1 -Og -fdebug-prefix-map=$PWD=. -fdebug-types-section -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer" \
           -DCMAKE_EXE_LINKER_FLAGS='-fuse-ld=lld' \
           -DCMAKE_SHARED_LINKER_FLAGS='-fuse-ld=lld' \
-          -DMIGRAPHX_ENABLE_FPGA=On
+          -DMIGRAPHX_ENABLE_FPGA=On \
+          -DCTEST_TIMEOUT=${{matrix.configuration == 'release' && '5000' || '10000'}}
         ${{ github.workspace }}/cget/bin/ccache -s
 
     # this is a workaround, with GH actions can not update existing cache

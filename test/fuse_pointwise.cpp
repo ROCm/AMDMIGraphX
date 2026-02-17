@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -41,6 +41,35 @@ static void run_pass(migraphx::program& p, migraphx::fuse_pointwise pass = {})
 TEST_CASE(single)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto z    = mm->add_parameter("z", s);
+        auto add1 = mm->add_instruction(migraphx::make_op("add"), x, y);
+        auto pass = mm->add_instruction(pass_op{}, add1);
+        auto add2 = mm->add_instruction(migraphx::make_op("add"), pass, z);
+        mm->add_return({add2});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto z    = mm->add_parameter("z", s);
+        auto add1 = add_pointwise(p2, "main:pointwise0", {x, y}, single_pointwise("add"));
+        auto pass = mm->add_instruction(pass_op{}, add1);
+        auto add2 = add_pointwise(p2, "main:pointwise1", {pass, z}, single_pointwise("add"));
+        mm->add_return({add2});
+    }
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(single_dyn)
+{
+    migraphx::shape s{migraphx::shape::float_type, {{1, 3}, {4, 8}}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -943,14 +972,14 @@ TEST_CASE(add_reshape_add_nonstandard)
     migraphx::shape s3{migraphx::shape::float_type, {3, 10, 4, 2, 2}};
     migraphx::program p1;
     {
-        auto* mm     = p1.get_main_module();
-        auto x       = mm->add_parameter("x", s1);
-        auto y       = mm->add_parameter("y", s1);
-        auto z       = mm->add_parameter("z", s2);
-        auto add1    = mm->add_instruction(migraphx::make_op("add"), x, y);
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s1);
+        auto y    = mm->add_parameter("y", s1);
+        auto z    = mm->add_parameter("z", s2);
+        auto add1 = mm->add_instruction(migraphx::make_op("add"), x, y);
         auto reshape =
             mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), add1);
-        auto add2    = mm->add_instruction(migraphx::make_op("add"), reshape, z);
+        auto add2 = mm->add_instruction(migraphx::make_op("add"), reshape, z);
         mm->add_return({add2});
     }
     run_pass(p1);
@@ -1079,6 +1108,40 @@ TEST_CASE(add_broadcast_add)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(add_broadcast_add_dyn)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {{2, 4}, {1, 1}}};
+    migraphx::shape s2{migraphx::shape::float_type, {{2, 4}, {3, 3}}};
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", s1);
+        auto y     = mm->add_parameter("y", s1);
+        auto z     = mm->add_parameter("z", s2);
+        auto add1  = mm->add_instruction(migraphx::make_op("add"), x, y);
+        auto badd1 = mm->add_instruction(migraphx::make_op("multibroadcast"), add1, z);
+        auto add2  = mm->add_instruction(migraphx::make_op("add"), badd1, z);
+        mm->add_return({add2});
+    }
+    run_pass(p1, {.enable_rewrite_broadcasts = true});
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s1);
+        auto y   = mm->add_parameter("y", s1);
+        auto z   = mm->add_parameter("z", s2);
+        auto bx  = mm->add_instruction(migraphx::make_op("multibroadcast"), x, z);
+        auto by  = mm->add_instruction(migraphx::make_op("multibroadcast"), y, z);
+        auto fadd =
+            add_pointwise(p2, "main:pointwise0", {bx, by, z}, [=](auto* pm, const auto& inputs) {
+                auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+                return pm->add_instruction(migraphx::make_op("add"), add1, inputs[2]);
+            });
+        mm->add_return({fadd});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 TEST_CASE(rewrite_broadcast_multi_output)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
@@ -1165,24 +1228,34 @@ TEST_CASE(if_cross_module_multi_out_find_output)
         auto x    = mm->add_parameter("x", s1);
         auto y    = mm->add_parameter("y", s1);
         auto cond = mm->add_parameter("cond", migraphx::shape{migraphx::shape::bool_type, {1}});
-        auto add1 = add_pointwise(p2, "main:pointwise0", {x, y}, single_pointwise("add"));
+        auto fused = add_pointwise(
+            p2,
+            "main:pointwise0",
+            {x, y},
+            [=](auto* pm, const auto& inputs) -> std::vector<migraphx::instruction_ref> {
+                auto sqrt_r = pm->add_instruction(migraphx::make_op("sqrt"), inputs[0]);
+                auto add_r  = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+                return {sqrt_r, add_r};
+            });
+        auto sqrt_out =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
+        auto add_out =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
 
         auto* then_mod = p2.create_module("If_then_1");
         {
             auto relu = add_pointwise(
-                p2, then_mod, "If_then_1:pointwise0", {add1}, single_pointwise("relu"));
+                p2, then_mod, "If_then_1:pointwise0", {add_out}, single_pointwise("relu"));
             then_mod->add_return({relu});
         }
 
         auto* else_mod = p2.create_module("If_else_1");
         {
-            else_mod->add_return({add1});
+            else_mod->add_return({add_out});
         }
 
         auto if_ins = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
-
-        auto sqrt = add_pointwise(p2, "main:pointwise1", {x}, single_pointwise("sqrt"));
-        mm->add_return({sqrt, if_ins});
+        mm->add_return({sqrt_out, if_ins});
     }
     EXPECT(p1.sort() == p2.sort());
 }

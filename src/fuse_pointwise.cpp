@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -46,7 +46,7 @@ static literal get_scalar(instruction_ref ins)
     if(contains({"contiguous", "broadcast", "multibroadcast"}, ins->name()))
         return get_scalar(ins->inputs().front());
     const auto& s = ins->get_shape();
-    if(s.elements() != 1 and not(s.scalar()))
+    if(s.dynamic() or (s.elements() != 1 and not(s.scalar())))
         return {};
     if(not ins->can_eval())
         return {};
@@ -162,31 +162,6 @@ static module::with_inputs append_pointwise_module(instruction_ref ins, instruct
     return {std::move(pm), inputs};
 }
 
-static void move_output_instructions_after(module& m, instruction_ref src, instruction_ref dst)
-{
-    auto d = std::distance(src, dst);
-    std::vector<std::pair<std::size_t, instruction_ref>> instructions;
-    fix([&](auto self, instruction_ref ins) {
-        for(auto output : ins->outputs())
-        {
-            assert(m.has_instruction(output));
-            if(any_of(instructions, [&](const auto& p) { return p.second == output; }))
-                continue;
-            auto i = std::distance(src, output);
-            if(i >= d)
-                continue;
-            instructions.emplace_back(i, output);
-            self(output);
-        }
-    })(src);
-    std::sort(instructions.begin(), instructions.end(), by(std::less<>{}, [](auto&& p) {
-                  return p.first;
-              }));
-    auto loc = std::next(dst);
-    for(auto [i, ins] : instructions)
-        m.move_instruction(ins, loc);
-}
-
 static void replace_with_tuple(module& m, instruction_ref ins, instruction_ref rep, bool first)
 
 {
@@ -232,7 +207,7 @@ merge_instruction(module_pass_manager& mpm, instruction_ref input, instruction_r
         mpm.get_module().insert_instruction(output, input->get_operator(), fused.inputs, {new_pm});
     if(fins->get_shape().tuple_size() != output->get_shape().tuple_size())
     {
-        move_output_instructions_after(mpm.get_module(), input, fins);
+        mpm.get_module().move_output_instructions_after(input, fins);
         replace_with_tuple(mpm.get_module(), input, fins, false);
     }
     replace_with_tuple(mpm.get_module(), output, fins, true);
@@ -282,11 +257,7 @@ find_output_pointwise(const module& m, instruction_ref ins, bool multi_out)
                          return false;
                      if(is_dead(output))
                          return false;
-                     // TODO: move_output_instructions_after doesnt handle outputs from different
-                     // modules so only fuse from the same module
-                     return std::all_of(output->outputs().begin(),
-                                        output->outputs().end(),
-                                        [&](auto out) { return m.has_instruction(out); });
+                     return true;
                  });
     if(outputs.size() < 2)
         return result;
@@ -340,27 +311,39 @@ struct pointwise_reshape : rewrite_reshapes_base
     static std::string name() { return "pointwise"; }
 };
 
-struct pointwise_broadcast_pointwise
+struct pointwise_broadcast_pointwise : match::supports_dynamic_shapes
 {
     auto matcher() const
     {
+        auto pointwise = match::name("pointwise")(match::used_once()).bind("x");
         auto broadcast_pointwise =
-            match::name("multibroadcast")(
-                match::used_once(),
-                match::args(match::name("pointwise")(match::used_once()).bind("x")))
+            match::name("multibroadcast")(match::used_once(), match::args(pointwise))
                 .bind("broadcast");
-        return match::name("pointwise")(match::any_of[match::inputs()](broadcast_pointwise));
+        auto dyn_broadcast_pointwise =
+            match::name("multibroadcast")(match::used_once(),
+                                          match::nargs(2),
+                                          match::arg(0)(pointwise),
+                                          match::arg(1)(match::any().bind("ref_ins")))
+                .bind("broadcast");
+        return match::name("pointwise")(match::any_of[match::inputs()](
+            match::any_of(broadcast_pointwise, dyn_broadcast_pointwise)));
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto broadcast_ins = r.instructions["broadcast"];
-        auto x_ins         = r.instructions["x"];
+        auto broadcast_ins    = r.instructions["broadcast"];
+        auto x_ins            = r.instructions["x"];
+        bool is_dyn_broadcast = contains(r.instructions, "ref_ins");
 
         auto broadcast = broadcast_ins->get_operator();
 
         auto x_inputs = x_ins->inputs();
         std::transform(x_inputs.begin(), x_inputs.end(), x_inputs.begin(), [&](auto input) {
+            if(is_dyn_broadcast)
+            {
+                return m.insert_instruction(
+                    broadcast_ins, broadcast, {input, r.instructions["ref_ins"]});
+            }
             return m.insert_instruction(broadcast_ins, broadcast, input);
         });
 

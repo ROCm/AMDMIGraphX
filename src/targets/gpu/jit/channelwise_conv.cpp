@@ -84,12 +84,12 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
                 tile_sizes[d] = 1;
         }
 
-        // Outputs per thread along W (last spatial dim)
-        auto outputs_per_thread = v.get("outputs_per_thread", std::size_t{4});
+        // Outputs per lane along W (last spatial dim)
+        auto noutputs = v.get("noutputs", std::size_t{4});
 
-        // Output tile = thread tile with last dim scaled by outputs_per_thread
+        // Output tile = lane tile with last dim scaled by noutputs
         std::vector<std::size_t> output_tile_sizes = tile_sizes;
-        output_tile_sizes.back() *= outputs_per_thread;
+        output_tile_sizes.back() *= noutputs;
 
         std::size_t block_size = 1;
         for(auto t : tile_sizes)
@@ -107,7 +107,7 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
 
         auto src = interpolate_string(channelwise_conv_kernel,
                                       {{"tile", to_string_range(tile_sizes)},
-                                       {"ntiles", std::to_string(outputs_per_thread)}});
+                                       {"ntiles", std::to_string(noutputs)}});
 
         return compile_hip_code_object(ctx, src, options);
     }
@@ -123,7 +123,7 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
 
     optional<tuning_config> get_tuning_config(const context& ctx,
                                               instruction_ref ins,
-                                              const operation& op,
+                                              const operation&,
                                               bool exhaustive) const
     {
         tuning_config tc;
@@ -147,34 +147,17 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
                         continue;
                     for(auto opt : {1, 2, 4, 8})
                         tc.solutions.push_back(
-                            {{"tile_h", tile_h}, {"tile_w", tile_w}, {"outputs_per_thread", opt}});
+                            {{"tile_h", tile_h}, {"tile_w", tile_w}, {"noutputs", opt}});
                 }
             }
         }
         else
         {
-            // tc.solutions.push_back({{"tile_h", 8}, {"tile_w", 32}, {"outputs_per_thread", 1}});
-            // tc.solutions.push_back({{"tile_h", 8}, {"tile_w", 64}, {"outputs_per_thread", 4}});
-            for(auto opt : {1, 2})
-            {
-                tc.solutions.push_back(
-                    {{"tile_h", 8}, {"tile_w", 32}, {"outputs_per_thread", opt}});
-                tc.solutions.push_back(
-                    {{"tile_h", 32}, {"tile_w", 32}, {"outputs_per_thread", opt}});
-                tc.solutions.push_back(
-                    {{"tile_h", 12}, {"tile_w", 32}, {"outputs_per_thread", opt}});
-                tc.solutions.push_back(
-                    {{"tile_h", 24}, {"tile_w", 16}, {"outputs_per_thread", opt}});
-                tc.solutions.push_back(
-                    {{"tile_h", 20}, {"tile_w", 8}, {"outputs_per_thread", opt}});
-                tc.solutions.push_back(
-                    {{"tile_h", 32}, {"tile_w", 4}, {"outputs_per_thread", opt}});
-
-                tc.solutions.push_back(
-                    {{"tile_h", 16}, {"tile_w", 32}, {"outputs_per_thread", opt}});
-                tc.solutions.push_back(
-                    {{"tile_h", 64}, {"tile_w", 16}, {"outputs_per_thread", opt}});
-            }
+            tc.solutions.push_back({{"tile_h", 8}, {"tile_w", 32}, {"noutputs", 1}});
+            tc.solutions.push_back({{"tile_h", 8}, {"tile_w", 64}, {"noutputs", 8}});
+            tc.solutions.push_back({{"tile_h", 8}, {"tile_w", 64}, {"noutputs", 4}});
+            tc.solutions.push_back({{"tile_h", 16}, {"tile_w", 64}, {"noutputs", 4}});
+            tc.solutions.push_back({{"tile_h", 48}, {"tile_w", 16}, {"noutputs", 1}});        
         }
         return tc;
     }

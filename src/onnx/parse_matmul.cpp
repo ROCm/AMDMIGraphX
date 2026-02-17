@@ -192,7 +192,7 @@ struct parse_matmul : op_parser<parse_matmul>
         instruction_ref dequantized_op;
 
         std::vector<instruction_ref> dq_args{a0, scale_a0};
-        if(!no_zp)
+        if(not no_zp)
         {
             dq_args.push_back(zp_a0);
         }

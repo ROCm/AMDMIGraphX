@@ -47,7 +47,10 @@ constexpr bool in_bounds(Pos pos, Lens lens)
 template <index_int NTiles, class TileLens, class OutputShape>
 struct spatial_tiler
 {
-    static constexpr auto keep_spatial() { return [](auto, auto i, auto) { return i >= 2; }; }
+    static constexpr auto keep_spatial()
+    {
+        return [](auto, auto i, auto) { return i >= 2; };
+    }
 
     // Full-rank tile lens: [1, 1, TileH, TileW]
     static constexpr auto tile_lens() { return join(index_ints<1, 1>{}, TileLens{}); }
@@ -149,8 +152,8 @@ struct spatial_tiler
         constexpr auto n_in   = nslices(get_shape_c<Input>{}, keep_spatial());
         constexpr auto groups = n_out / n_in;
         auto channel_idx      = idx.group / tiles_total();
-        auto input_ch =
-            slice_tensor(input, (channel_idx / index_int{groups}) % index_int{n_in}, keep_spatial());
+        auto input_ch         = slice_tensor(
+            input, (channel_idx / index_int{groups}) % index_int{n_in}, keep_spatial());
 
         idx.local_stride(_c<halo_total_v>, [&](auto i) {
             auto halo_multi = halo_shape.multi(index_int{i});
@@ -187,13 +190,12 @@ __device__ auto make_spatial_tiler(index idx, TileLens, OutputShape)
     using tiler_type = spatial_tiler<NTiles, TileLens, OutputShape>;
 
     auto block_multi = tiler_type::block_shape().multi(idx.group);
-    auto tile_origin =
-        generate_array<index_int>(_c<tiler_type::NDIM()>, [&](auto d) -> index_int {
-            if constexpr(d < 2)
-                return 0;
-            else
-                return block_multi[d] * tiler_type::output_lens()[d];
-        });
+    auto tile_origin = generate_array<index_int>(_c<tiler_type::NDIM()>, [&](auto d) -> index_int {
+        if constexpr(d < 2)
+            return 0;
+        else
+            return block_multi[d] * tiler_type::output_lens()[d];
+    });
 
     return tiler_type{idx, tile_origin};
 }

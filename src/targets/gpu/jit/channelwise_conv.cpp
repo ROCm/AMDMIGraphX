@@ -44,7 +44,7 @@ extern "C" {
 MIGRAPHX_GLOBAL void channelwise_conv_kernel(void* x_p, void* w_p, void* y_p)
 {
     transform_args(make_tensors(), rotate_last())(x_p, w_p, y_p)([](auto output, auto x, auto w) {
-        channelwise_conv(index_ints<${tile}>{}, index_ints<${output_tile}>{}, output, x, w);
+        channelwise_conv<index_ints<${tile}>, ${ntiles}>(index_ints<${tile}>{}, output, x, w);
     });
 }
 
@@ -107,7 +107,7 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
 
         auto src = interpolate_string(channelwise_conv_kernel,
                                       {{"tile", to_string_range(tile_sizes)},
-                                       {"output_tile", to_string_range(output_tile_sizes)}});
+                                       {"ntiles", std::to_string(outputs_per_thread)}});
 
         return compile_hip_code_object(ctx, src, options);
     }

@@ -343,6 +343,13 @@ endif()
 target_include_directories(migraphx SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
 target_link_libraries(migraphx PUBLIC Threads::Threads)
 
+if(MIGRAPHX_USE_BLAZE)
+    target_compile_definitions(migraphx PUBLIC MIGRAPHX_USE_BLAZE=1)
+    target_include_directories(migraphx SYSTEM PUBLIC $<BUILD_INTERFACE:${BLAZE_INCLUDE_DIR}>)
+else()
+    target_compile_definitions(migraphx PUBLIC MIGRAPHX_USE_BLAZE=0)
+endif()
+
 if(MIGRAPHX_HAS_EXECUTORS AND ParallelSTL_USES_TBB)
     list(APPEND MIGRAPHX_CONFIG_DEPENDS PACKAGE TBB)
 endif()

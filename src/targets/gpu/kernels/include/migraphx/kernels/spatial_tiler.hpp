@@ -88,14 +88,6 @@ struct spatial_tiler
 
     static constexpr bool is_padded = [] {
         return (out_spatial_lens != tiles_per_dim * output_lens);
-        // constexpr auto osl     = decltype(out_spatial_lens){};
-        // constexpr auto tpd     = decltype(tiles_per_dim){};
-        // constexpr auto ol      = decltype(output_lens){};
-        // constexpr index_int nd = osl.size();
-        // for(index_int i = 0; i < nd; i++)
-        //     if(tpd[i] * ol[i] != osl[i])
-        //         return true;
-        // return false;
     }();
 
     index idx;

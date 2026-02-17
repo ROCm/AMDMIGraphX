@@ -87,11 +87,23 @@ else()
 option(MIGRAPHX_USE_COMPOSABLEKERNEL "Enable MIGraphX to use composable kernel JIT library" ON)
 endif()
 
+option(MIGRAPHX_USE_BLAZE "Enable Blaze for optimized CPU GEMM" ON)
+
 find_path(HALF_INCLUDE_DIR half.hpp PATH_SUFFIXES half)
 if (NOT HALF_INCLUDE_DIR)
     message(FATAL_ERROR "Could not find half.hpp - Please check that the install path of half.hpp has been added to CMAKE_PREFIX_PATH")
 else()
     message(STATUS "half.hpp is at ${HALF_INCLUDE_DIR}")
+endif()
+
+if(MIGRAPHX_USE_BLAZE)
+    find_path(BLAZE_INCLUDE_DIR blaze/Blaze.h)
+    if(NOT BLAZE_INCLUDE_DIR)
+        message(STATUS "Blaze not found, disabling MIGRAPHX_USE_BLAZE")
+        set(MIGRAPHX_USE_BLAZE OFF)
+    else()
+        message(STATUS "Blaze found at ${BLAZE_INCLUDE_DIR}")
+    endif()
 endif()
 
 include(CheckTypeSize)

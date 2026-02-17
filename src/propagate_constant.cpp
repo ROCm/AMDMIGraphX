@@ -31,6 +31,10 @@
 #include <thread>
 #include <unordered_set>
 
+#if MIGRAPHX_USE_BLAZE
+#include <migraphx/make_op.hpp>
+#endif
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
@@ -69,8 +73,93 @@ static argument as_packed(const argument& c)
     return result;
 }
 
+#if MIGRAPHX_USE_BLAZE
+// Rewrite constant 2D convolutions to im2col + dot in the graph.
+// The existing propagate_constant loop will then fold these ops,
+// with dot going through the Blaze-accelerated gemm.
+static void rewrite_const_conv_to_im2col(module& m,
+                                         const std::unordered_set<std::string>& skip_ops)
+{
+    std::vector<instruction_ref> const_convs;
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() == "convolution" and is_const_ins(ins, skip_ops))
+            const_convs.push_back(ins);
+    }
+
+    for(auto ins : const_convs)
+    {
+        auto conv_val = ins->get_operator().to_value();
+
+        if(conv_val["group"].to<int>() != 1)
+            continue;
+        if(conv_val["padding_mode"].to<int>() != 0)
+            continue;
+        auto conv_stride = conv_val["stride"].to_vector<std::size_t>();
+        if(conv_stride.size() != 2)
+            continue;
+
+        auto input  = ins->inputs()[0];
+        auto weight = ins->inputs()[1];
+
+        if(input->get_shape().ndim() != 4 or weight->get_shape().ndim() != 4)
+            continue;
+        if(input->get_shape().lens()[0] != 1)
+            continue; // im2col only supports batch=1
+
+        auto C_out     = weight->get_shape().lens()[0];
+        auto C_in_kHkW = weight->get_shape().elements() / C_out;
+
+        // im2col(input, weight) -> [outH*outW, C_in*kH*kW]
+        auto col = m.insert_instruction(ins,
+                                        make_op("im2col",
+                                                {{"padding", conv_val["padding"]},
+                                                 {"stride", conv_val["stride"]},
+                                                 {"dilation", conv_val["dilation"]}}),
+                                        input,
+                                        weight);
+
+        // reshape weight [C_out, C_in, kH, kW] -> [C_out, C_in*kH*kW]
+        auto w_2d = m.insert_instruction(
+            ins,
+            make_op("reshape", {{"dims", {C_out, C_in_kHkW}}}),
+            weight);
+
+        // transpose weight -> [C_in*kH*kW, C_out]
+        auto w_t = m.insert_instruction(
+            ins, make_op("transpose", {{"permutation", {1, 0}}}), w_2d);
+
+        auto w_contig = m.insert_instruction(ins, make_op("contiguous"), w_t);
+
+        // dot: [outH*outW, C_in*kH*kW] x [C_in*kH*kW, C_out] = [outH*outW, C_out]
+        auto result_2d = m.insert_instruction(ins, make_op("dot"), col, w_contig);
+
+        // transpose -> [C_out, outH*outW]
+        auto result_t = m.insert_instruction(
+            ins, make_op("transpose", {{"permutation", {1, 0}}}), result_2d);
+
+        auto result_contig = m.insert_instruction(ins, make_op("contiguous"), result_t);
+
+        // reshape to conv output shape [1, C_out, outH, outW]
+        auto out_lens = ins->get_shape().lens();
+        m.replace_instruction(
+            ins,
+            make_op("reshape",
+                    {{"dims",
+                      std::vector<std::size_t>(out_lens.begin(), out_lens.end())}}),
+            result_contig);
+    }
+}
+#endif
+
 void propagate_constant::apply(module& m) const
 {
+#if MIGRAPHX_USE_BLAZE
+    // Rewrite constant convolutions to im2col + dot so the main loop
+    // evaluates them through Blaze-accelerated gemm instead of naive conv.
+    rewrite_const_conv_to_im2col(m, skip_ops);
+#endif
+
     std::unordered_set<instruction_ref> const_instrs;
     auto last = std::prev(m.end());
 

@@ -26,6 +26,9 @@
 
 #include <array>
 #include <migraphx/check_shapes.hpp>
+#include <migraphx/argument.hpp>
+#include <migraphx/dyn_output.hpp>
+#include <migraphx/dfor.hpp>
 #include <migraphx/op/common.hpp>
 #include <migraphx/config.hpp>
 #include <cmath>
@@ -86,6 +89,51 @@ struct im2col
 
         auto channels_col = kernel_height * kernel_width * input_channels;
         return {input.type(), {output_height * output_width, channels_col}};
+    }
+
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
+    {
+        argument result{dyn_out.computed_shape};
+        auto input_shape   = args[0].get_shape();
+        auto weights_shape = args[1].get_shape();
+        visit_all(result, args[0])([&](auto col, auto input) {
+            const std::size_t& height   = input_shape.lens()[2];
+            const std::size_t& width    = input_shape.lens()[3];
+            const std::size_t& channels = weights_shape.lens()[1];
+            const std::size_t& kernel_h = weights_shape.lens()[2];
+            const std::size_t& kernel_w = weights_shape.lens()[3];
+            const std::size_t& pad_h    = padding[0];
+            const std::size_t& pad_w    = padding[1];
+            const std::size_t& stride_h = stride[0];
+            const std::size_t& stride_w = stride[1];
+
+            long kdiv2_h = long(kernel_h) / 2;
+            long kdiv2_w = long(kernel_w) / 2;
+            const std::size_t col_height = (height - kernel_h + 2 * pad_h) / stride_h + 1;
+            const std::size_t col_width  = (width - kernel_w + 2 * pad_w) / stride_w + 1;
+            long iinput = kdiv2_h - long(pad_h);
+            for(std::size_t ioutput = 0; ioutput < col_height; ioutput++, iinput += stride_h)
+            {
+                long jinput = kdiv2_w - long(pad_w);
+                for(std::size_t joutput = 0; joutput < col_width; joutput++, jinput += stride_w)
+                {
+                    std::size_t ldx = ioutput * col_width + joutput;
+                    std::size_t p   = 0;
+                    dfor(channels,
+                         kernel_h,
+                         kernel_w)([&](std::size_t c, std::size_t koffset, std::size_t loffset) {
+                        auto idx    = iinput + long(koffset) - kdiv2_h;
+                        auto jdx    = jinput + long(loffset) - kdiv2_w;
+                        col(ldx, p) =
+                            ((idx >= 0) and (idx < height) and (jdx >= 0) and (jdx < width))
+                                ? input(0, c, idx, jdx)
+                                : 0;
+                        p++;
+                    });
+                }
+            }
+        });
+        return result;
     }
 };
 

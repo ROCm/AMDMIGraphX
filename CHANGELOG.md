@@ -23,6 +23,7 @@ Full documentation for MIGraphX is available at
 * Fixed an issue with `reshape_lazy`'s shape computation that was leading to invalid reshapes (#4594).
 
 ### Optimized
+* Added optimized fusion for local_window mode of GQA operator
 
 ### Removed
 

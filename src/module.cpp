@@ -292,6 +292,26 @@ instruction_ref module::add_instruction(const operation& op, std::vector<instruc
 {
     return insert_instruction(this->insert_end(), op, std::move(args));
 }
+
+instruction_ref module::add_instruction(const operation& op,
+                                        const std::string& debug_symbol,
+                                        std::vector<instruction_ref> args)
+{ return insert_instruction(this->insert_end(), op, debug_symbol, std::move(args)); }
+
+instruction_ref module::add_instruction(const operation& op,
+                                        std::vector<instruction_ref> args,
+                                        std::vector<module_ref> module_args)
+{ return insert_instruction(this->insert_end(), op, std::move(args), std::move(module_args)); }
+
+instruction_ref module::add_instruction(const operation& op,
+                                        const std::string& debug_symbol,
+                                        std::vector<instruction_ref> args,
+                                        std::vector<module_ref> module_args)
+{
+    return insert_instruction(
+        this->insert_end(), op, debug_symbol, std::move(args), std::move(module_args));
+}
+
 instruction_ref module::insert_instruction(instruction_ref ins,
                                            const operation& op,
                                            std::vector<instruction_ref> args)
@@ -305,11 +325,14 @@ instruction_ref module::insert_instruction(instruction_ref ins,
     return result;
 }
 
-instruction_ref module::add_instruction(const operation& op,
-                                        std::vector<instruction_ref> args,
-                                        std::vector<module_ref> module_args)
+instruction_ref module::insert_instruction(instruction_ref ins,
+                                           const operation& op,
+                                           const std::string& debug_symbol,
+                                           std::vector<instruction_ref> args)
 {
-    return insert_instruction(this->insert_end(), op, std::move(args), std::move(module_args));
+    auto new_ins = insert_instruction(ins, op, args);
+    new_ins->add_debug_symbol(debug_symbol);
+    return ins;
 }
 
 instruction_ref module::insert_instruction(instruction_ref ins,
@@ -324,6 +347,17 @@ instruction_ref module::insert_instruction(instruction_ref ins,
     instruction::backreference(result);
     assert(result->valid(begin()));
     return result;
+}
+
+instruction_ref module::insert_instruction(instruction_ref ins,
+                                           const operation& op,
+                                           const std::string& debug_symbol,
+                                           std::vector<instruction_ref> args,
+                                           std::vector<module_ref> module_args)
+{
+    auto new_ins = insert_instruction(ins, op, args, module_args);
+    new_ins->add_debug_symbol(debug_symbol);
+    return ins;
 }
 
 instruction_ref module::replace_instruction(instruction_ref ins,
@@ -560,6 +594,13 @@ module::insert_instructions(instruction_ref ins,
 
 instruction_ref module::add_literal(literal l) { return insert_literal(begin(), std::move(l)); }
 
+instruction_ref module::add_literal(literal l, const std::string& debug_symbol)
+{
+    auto lit_ins = add_literal(l);
+    lit_ins->add_debug_symbol(debug_symbol);
+    return lit_ins;
+}
+
 instruction_ref module::add_outline(const shape& s)
 {
     impl->push_front({builtin::outline{s}, s, {}});
@@ -585,6 +626,14 @@ instruction_ref module::insert_literal(instruction_ref ins, literal l)
 {
     impl->emplace(ins, std::move(l));
     return std::prev(ins);
+}
+
+instruction_ref
+module::insert_literal(instruction_ref ins, literal l, const std::string& debug_symbol)
+{
+    auto lit_ins = insert_literal(ins, l);
+    lit_ins->add_debug_symbol(debug_symbol);
+    return lit_ins;
 }
 
 instruction_ref module::insert_parameter(instruction_ref ins, std::string name, shape s)

@@ -194,7 +194,13 @@ const std::vector<instruction_ref>& instruction::outputs() const { return output
 
 const std::set<std::string>& instruction::get_debug_symbols() const { return debug_symbols; }
 
-void instruction::add_debug_symbol(const std::string& symbol) { debug_symbols.insert(symbol); }
+void instruction::add_debug_symbol(const std::string& symbol)
+{
+    if(not symbol.empty())
+    {
+        debug_symbols.insert(symbol);
+    }
+}
 
 bool operator==(const instruction& x, const instruction& y)
 {

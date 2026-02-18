@@ -137,6 +137,9 @@ static void remove_contiguous(const std::string& op_name, module& m, F f)
 
         for(auto arg : args)
         {
+            // check that arg is still in ins->inputs()
+            if(not contains(ins->inputs(), arg))
+                continue;
             if(arg->name() != op_name)
                 continue;
             if(enabled(MIGRAPHX_TRACE_ELIMINATE_CONTIGUOUS{}))

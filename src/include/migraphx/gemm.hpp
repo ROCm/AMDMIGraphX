@@ -61,7 +61,7 @@ enum class mat_order
 
 struct blaze_layout
 {
-    mat_order order   = mat_order::unsupported;
+    mat_order order     = mat_order::unsupported;
     std::size_t spacing = 0;
     bool packed         = false;
 };
@@ -169,25 +169,25 @@ void gemm(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat, F alpha
 
                     with_blaze_mat(
                         amat.data() + a_off, m_size, k_size, a_layout.order, [&](auto& a_mat) {
-                            with_blaze_mat(
-                                bmat.data() + b_off,
-                                k_size,
-                                n_size,
-                                b_layout.order,
-                                [&](auto& b_mat) {
-                                    with_blaze_mat(
-                                        cmat.data() + c_off,
-                                        m_size,
-                                        n_size,
-                                        c_layout.order,
-                                        [&](auto& c_mat) {
-                                            if(float_equal(alpha, F{1}) and
-                                               float_equal(beta, F{0}))
-                                                c_mat = a_mat * b_mat;
-                                            else
-                                                c_mat = alpha * (a_mat * b_mat) + beta * c_mat;
-                                        });
-                                });
+                            with_blaze_mat(bmat.data() + b_off,
+                                           k_size,
+                                           n_size,
+                                           b_layout.order,
+                                           [&](auto& b_mat) {
+                                               with_blaze_mat(cmat.data() + c_off,
+                                                              m_size,
+                                                              n_size,
+                                                              c_layout.order,
+                                                              [&](auto& c_mat) {
+                                                                  if(float_equal(alpha, F{1}) and
+                                                                     float_equal(beta, F{0}))
+                                                                      c_mat = a_mat * b_mat;
+                                                                  else
+                                                                      c_mat =
+                                                                          alpha * (a_mat * b_mat) +
+                                                                          beta * c_mat;
+                                                              });
+                                           });
                         });
                 }
                 return;
@@ -217,16 +217,31 @@ void gemm(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat, F alpha
             auto b_off = batch_offset(bmat.get_shape(), batch, dim_0);
             auto c_off = batch_offset(cmat.get_shape(), batch, dim_0);
 
-            copy_2d(a_buf.data(), k_size, std::size_t{1},
-                    amat.data() + a_off, a_row_stride, a_col_stride,
-                    m_size, k_size);
-            copy_2d(b_buf.data(), n_size, std::size_t{1},
-                    bmat.data() + b_off, b_row_stride, b_col_stride,
-                    k_size, n_size);
+            copy_2d(a_buf.data(),
+                    k_size,
+                    std::size_t{1},
+                    amat.data() + a_off,
+                    a_row_stride,
+                    a_col_stride,
+                    m_size,
+                    k_size);
+            copy_2d(b_buf.data(),
+                    n_size,
+                    std::size_t{1},
+                    bmat.data() + b_off,
+                    b_row_stride,
+                    b_col_stride,
+                    k_size,
+                    n_size);
             if(not float_equal(beta, F{0}))
-                copy_2d(c_buf.data(), n_size, std::size_t{1},
-                        cmat.data() + c_off, c_row_stride, c_col_stride,
-                        m_size, n_size);
+                copy_2d(c_buf.data(),
+                        n_size,
+                        std::size_t{1},
+                        cmat.data() + c_off,
+                        c_row_stride,
+                        c_col_stride,
+                        m_size,
+                        n_size);
 
             blaze_row_major<float> a(a_buf.data(), m_size, k_size);
             blaze_row_major<float> b(b_buf.data(), k_size, n_size);
@@ -237,9 +252,14 @@ void gemm(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat, F alpha
             else
                 c = alpha * (a * b) + beta * c;
 
-            copy_2d(cmat.data() + c_off, c_row_stride, c_col_stride,
-                    c_buf.data(), n_size, std::size_t{1},
-                    m_size, n_size);
+            copy_2d(cmat.data() + c_off,
+                    c_row_stride,
+                    c_col_stride,
+                    c_buf.data(),
+                    n_size,
+                    std::size_t{1},
+                    m_size,
+                    n_size);
         }
         return;
     }

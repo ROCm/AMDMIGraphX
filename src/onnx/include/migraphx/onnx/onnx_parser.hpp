@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -53,10 +53,6 @@ struct onnx_parser
         std::size_t num_outputs = 1;
         std::string name        = "";
         module* mod             = nullptr;
-        std::string onnx_node_name{};
-        std::string onnx_op_type{};
-
-        std::string get_debug_symbol() const;
 
         instruction_ref make_contiguous(instruction_ref ins) const;
         instruction_ref add_bias(const std::vector<instruction_ref>& args,

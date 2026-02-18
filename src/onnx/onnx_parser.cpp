@@ -122,13 +122,6 @@ instruction_ref onnx_parser::node_info::make_contiguous(instruction_ref ins) con
     return ins;
 }
 
-std::string onnx_parser::node_info::get_debug_symbol() const
-{
-    if(onnx_node_name.empty() and onnx_op_type.empty())
-        return {};
-    return "onnx::" + onnx_op_type + "::" + onnx_node_name;
-}
-
 instruction_ref onnx_parser::node_info::add_bias(const std::vector<instruction_ref>& args,
                                                  instruction_ref curr_ins,
                                                  uint64_t axis) const
@@ -178,8 +171,8 @@ instruction_ref onnx_parser::node_info::add_broadcastable_binary_op(const std::s
  * operation.
  *
  */
-instruction_ref onnx_parser::node_info::add_common_op(const std::string& op_name,
-                                                      std::vector<instruction_ref> inputs) const
+instruction_ref onnx_parser::nme ode_info::add_common_op(const std::string& op_name,
+                                                         std::vector<instruction_ref> inputs) const
 {
     auto ins          = migraphx::add_common_op(*mod, make_op(op_name), std::move(inputs));
     auto debug_symbol = get_debug_symbol();

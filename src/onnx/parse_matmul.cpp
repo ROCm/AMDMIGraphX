@@ -232,21 +232,7 @@ struct parse_matmul : op_parser<parse_matmul>
                 MIGRAPHX_THROW(op_name + ": dynamic inputs not supported");
             }
 
-            auto s0_dds = a0->get_shape().to_dynamic().dyn_dims();
-            auto s1_dds = a1->get_shape().to_dynamic().dyn_dims();
-
-            if(not std::equal(
-                   s0_dds.rbegin() + 2, s0_dds.rend(), s1_dds.rbegin() + 2, s1_dds.rend()))
-            {
-                auto broadcasted_a0 = info.add_instruction(make_op("broadcast_for_dot"), a0, a1);
-                auto broadcasted_a1 = info.add_instruction(make_op("broadcast_for_dot"), a1, a0);
-                dot_res =
-                    info.add_instruction(make_op(opd.op_name), broadcasted_a0, broadcasted_a1);
-            }
-            else
-            {
-                dot_res = info.add_instruction(make_op(opd.op_name), a0, a1);
-            }
+            dot_res = op::builder::add(opd.op_name, *info.mod, {a0, a1}).at(0);
         }
         else
         {

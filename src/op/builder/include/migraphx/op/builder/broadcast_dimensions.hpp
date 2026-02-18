@@ -34,15 +34,17 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 namespace builder {
 
+namespace detail {
 template <typename Builder>
-void broadcast_dimensions(Builder& bldr,
-                          const std::vector<size_t>& s0_lens,
-                          const std::vector<size_t>& s1_lens,
-                          const instruction_ref& a0,
-                          const instruction_ref& a1,
-                          instruction_ref& ba0,
-                          instruction_ref& ba1)
+void broadcast_dimensions_static(Builder& bldr,
+                                 const instruction_ref& a0,
+                                 const instruction_ref& a1,
+                                 instruction_ref& ba0,
+                                 instruction_ref& ba1)
 {
+    auto s0_lens = a0->get_shape().lens();
+    auto s1_lens = a1->get_shape().lens();
+
     // try broadcasting if dimensions other than last two do not match
     if(std::equal(s0_lens.rbegin() + 2, s0_lens.rend(), s1_lens.rbegin() + 2, s1_lens.rend()))
         return;
@@ -65,6 +67,43 @@ void broadcast_dimensions(Builder& bldr,
     {
         ba1 = bldr.add_instruction(make_op("multibroadcast", {{"out_lens", l1_broadcasted_lens}}),
                                    a1);
+    }
+}
+
+template <typename Builder>
+void broadcast_dimensions_dynamic(Builder& bldr,
+                                  const instruction_ref& a0,
+                                  const instruction_ref& a1,
+                                  instruction_ref& ba0,
+                                  instruction_ref& ba1)
+{
+    std::cout << "broadcast_dimensions_dynamic\n";
+
+    auto s0_dds = a0->get_shape().to_dynamic().dyn_dims();
+    auto s1_dds = a1->get_shape().to_dynamic().dyn_dims();
+
+    if(not std::equal(s0_dds.rbegin() + 2, s0_dds.rend(), s1_dds.rbegin() + 2, s1_dds.rend()))
+    {
+        ba0 = bldr.add_instruction(make_op("broadcast_for_dot"), a0, a1);
+        ba1 = bldr.add_instruction(make_op("broadcast_for_dot"), a1, a0);
+    }
+}
+} // namespace detail
+
+template <typename Builder>
+void broadcast_dimensions(Builder& bldr,
+                          const instruction_ref& a0,
+                          const instruction_ref& a1,
+                          instruction_ref& ba0,
+                          instruction_ref& ba1)
+{
+    if(a0->get_shape().dynamic() or a1->get_shape().dynamic())
+    {
+        detail::broadcast_dimensions_dynamic(bldr, a0, a1, ba0, ba1);
+    }
+    else
+    {
+        detail::broadcast_dimensions_static(bldr, a0, a1, ba0, ba1);
     }
 }
 

@@ -40,10 +40,8 @@ namespace detail
         auto a1      = args[1];
         auto ba0     = args.size() > 2 ? args[2] : a0;
         auto ba1     = args.size() > 3 ? args[3] : a1;
-        auto s0_lens = a0->get_shape().lens();
-        auto s1_lens = a1->get_shape().lens();
 
-        op::builder::broadcast_dimensions(m, s0_lens, s1_lens, a0, a1, ba0, ba1);
+        op::builder::broadcast_dimensions(m, a0, a1, ba0, ba1);
         return {m.add_instruction(make_op(name), ba0, ba1)};
     }
 }

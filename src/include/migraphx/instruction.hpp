@@ -98,7 +98,7 @@ struct MIGRAPHX_EXPORT instruction
 
     const std::set<std::string>& get_debug_symbols() const;
 
-    void add_debug_symbol(const std::string& symbol);
+    void add_debug_symbols(const std::set<std::string>& symbols);
 
     MIGRAPHX_EXPORT friend bool operator==(const instruction& x, const instruction& y);
 

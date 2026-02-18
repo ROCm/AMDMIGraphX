@@ -174,20 +174,20 @@ instruction_ref onnx_parser::node_info::add_broadcastable_binary_op(const std::s
  */
 instruction_ref onnx_parser::node_info::add_common_op(const std::string& op_name,
                                                       std::vector<instruction_ref> inputs) const
-{ return migraphx::add_common_op(*mod, make_op(op_name), onnx_node_name, std::move(inputs)); }
+{ return migraphx::add_common_op(*mod, make_op(op_name), {onnx_node_name}, std::move(inputs)); }
 
 instruction_ref
 onnx_parser::node_info::add_instruction(const operation& op,
                                         const std::vector<instruction_ref>& args) const
-{ return mod->add_instruction(op, onnx_node_name, args); }
+{ return mod->add_instruction(op, {onnx_node_name}, args); }
 
 instruction_ref onnx_parser::node_info::add_instruction(const operation& op,
                                                         const std::vector<instruction_ref>& args,
                                                         const std::vector<module_ref>& mods) const
-{ return mod->add_instruction(op, onnx_node_name, args, mods); }
+{ return mod->add_instruction(op, {onnx_node_name}, args, mods); }
 
 instruction_ref onnx_parser::node_info::add_literal(literal l) const
-{ return mod->add_literal(std::move(l), onnx_node_name); }
+{ return mod->add_literal(std::move(l), {onnx_node_name}); }
 
 onnx_parser::onnx_parser()
 {

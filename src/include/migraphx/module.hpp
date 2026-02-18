@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_MIGRAPHLIB_MODULE_HPP
 
 #include <list>
+#include <set>
 #include <unordered_set>
 #include <unordered_map>
 #include <migraphx/operation.hpp>
@@ -94,15 +95,15 @@ struct MIGRAPHX_EXPORT module
                                     std::vector<module_ref> module_args);
 
     template <class... Ts, MIGRAPHX_REQUIRES(std::is_same<Ts, instruction_ref>{}...)>
-    instruction_ref add_instruction(operation op, const std::string& debug_symbol, Ts... args)
-    { return add_instruction(op, debug_symbol, {args...}); }
+    instruction_ref add_instruction(operation op, const std::set<std::string>& debug_symbols, Ts... args)
+    { return add_instruction(op, debug_symbols, {args...}); }
 
     instruction_ref add_instruction(const operation& op,
-                                    const std::string& debug_symbol,
+                                    const std::set<std::string>& debug_symbols,
                                     std::vector<instruction_ref> args);
 
     instruction_ref add_instruction(const operation& op,
-                                    const std::string& debug_symbol,
+                                    const std::set<std::string>& debug_symbols,
                                     std::vector<instruction_ref> args,
                                     std::vector<module_ref> module_args);
 
@@ -123,18 +124,18 @@ struct MIGRAPHX_EXPORT module
     template <class... Ts, MIGRAPHX_REQUIRES(std::is_same<Ts, instruction_ref>{}...)>
     instruction_ref insert_instruction(instruction_ref ins,
                                        operation op,
-                                       const std::string& debug_symbol,
+                                       const std::set<std::string>& debug_symbols,
                                        Ts... args)
-    { return insert_instruction(ins, op, debug_symbol, {args...}); }
+    { return insert_instruction(ins, op, debug_symbols, {args...}); }
 
     instruction_ref insert_instruction(instruction_ref ins,
                                        const operation& op,
-                                       const std::string& debug_symbol,
+                                       const std::set<std::string>& debug_symbols,
                                        std::vector<instruction_ref> args);
 
     instruction_ref insert_instruction(instruction_ref ins,
                                        const operation& op,
-                                       const std::string& debug_symbol,
+                                       const std::set<std::string>& debug_symbols,
                                        std::vector<instruction_ref> args,
                                        std::vector<module_ref> module_args);
 
@@ -205,7 +206,7 @@ struct MIGRAPHX_EXPORT module
 
     instruction_ref add_literal(literal l);
 
-    instruction_ref add_literal(literal l, const std::string& debug_symbol);
+    instruction_ref add_literal(literal l, const std::set<std::string>& debug_symbols);
 
     instruction_ref add_outline(const shape& s);
 
@@ -217,7 +218,7 @@ struct MIGRAPHX_EXPORT module
 
     instruction_ref insert_literal(instruction_ref ins, literal l);
 
-    instruction_ref insert_literal(instruction_ref ins, literal l, const std::string& debug_symbol);
+    instruction_ref insert_literal(instruction_ref ins, literal l, const std::set<std::string>& debug_symbols);
 
     instruction_ref insert_parameter(instruction_ref ins, std::string name, shape s);
 

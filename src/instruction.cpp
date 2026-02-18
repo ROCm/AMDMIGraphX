@@ -194,11 +194,14 @@ const std::vector<instruction_ref>& instruction::outputs() const { return output
 
 const std::set<std::string>& instruction::get_debug_symbols() const { return debug_symbols; }
 
-void instruction::add_debug_symbol(const std::string& symbol)
+void instruction::add_debug_symbols(const std::set<std::string>& symbols)
 {
-    if(not symbol.empty())
+    for(const auto& symbol : symbols)
     {
-        debug_symbols.insert(symbol);
+        if(not symbol.empty())
+        {
+            debug_symbols.insert(symbol);
+        }
     }
 }
 

@@ -30,4 +30,4 @@ msgpack/msgpack-c@cpp-3.3.0 -DMSGPACK_BUILD_TESTS=Off -DMSGPACK_BUILD_EXAMPLES=O
 sqlite3@3.50.4 -DCMAKE_POSITION_INDEPENDENT_CODE=On
 ROCm/composable_kernel@ad0db05b040bacda751c65c705261b8a0a7ed25d --cmake subdir -DCMAKE_DIR=codegen -DCMAKE_POSITION_INDEPENDENT_CODE=On -DBUILD_TESTING=Off
 ROCm/rocMLIR@8b45d8aff9634f57488af0c1f89fdc5c2b2f6250 -DBUILD_FAT_LIBROCKCOMPILER=On -DLLVM_INCLUDE_TESTS=Off
-live-clones/blaze@v3.8.2 -X header -DHEADER_DIR=blaze -H sha256:7dd931bdbc57af7b8effe0f7db95b4cd5b0bb6126a419e0fd23a59db11a4ddad
+live-clones/blaze@v3.8.2 -X header -DHEADER_DIR=. -H sha256:7dd931bdbc57af7b8effe0f7db95b4cd5b0bb6126a419e0fd23a59db11a4ddad

@@ -29,7 +29,7 @@
 #include <migraphx/par_for.hpp>
 #include <migraphx/tensor_view.hpp>
 #include <migraphx/float_equal.hpp>
-#include <iostream>
+#include <migraphx/env.hpp>
 
 #if MIGRAPHX_USE_BLAZE
 #include <blaze/Blaze.h>
@@ -40,6 +40,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_BLAZE_DEBUG)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_BLAZE)
 
 #if MIGRAPHX_USE_BLAZE
 template <class T>
@@ -142,6 +143,7 @@ void gemm(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat, F alpha
     assert(cmat.get_shape().lens()[dim_1] == bmat.get_shape().lens()[dim_1]);
 
 #if MIGRAPHX_USE_BLAZE
+    if(not enabled(MIGRAPHX_DISABLE_BLAZE{}))
     {
         auto m_size = amat.get_shape().lens()[dim_0];
         auto n_size = bmat.get_shape().lens()[dim_1];
@@ -160,8 +162,11 @@ void gemm(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat, F alpha
 
             if(a_layout.packed and b_layout.packed and c_layout.packed)
             {
-                std::cerr << "[blaze gemm] " << m_size << "x" << k_size << "x" << n_size
-                          << " batches=" << num_batches << " (native)" << std::endl;
+                if(enabled(MIGRAPHX_BLAZE_DEBUG{}))
+                {
+                    std::cerr << "[blaze gemm] " << m_size << "x" << k_size << "x" << n_size
+                              << " batches=" << num_batches << " (native)" << std::endl;
+                }
 
                 for(std::size_t batch = 0; batch < num_batches; batch++)
                 {
@@ -206,8 +211,11 @@ void gemm(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat, F alpha
         auto c_row_stride = cmat.get_shape().strides()[dim_0];
         auto c_col_stride = cmat.get_shape().strides()[dim_1];
 
-        std::cerr << "[blaze gemm] " << m_size << "x" << k_size << "x" << n_size
-                  << " batches=" << num_batches << " (copy to float)" << std::endl;
+        if(enabled(MIGRAPHX_BLAZE_DEBUG{}))
+        {
+            std::cerr << "[blaze gemm] " << m_size << "x" << k_size << "x" << n_size
+                      << " batches=" << num_batches << " (copy to float)" << std::endl;
+        }
 
         std::vector<float> a_buf(m_size * k_size);
         std::vector<float> b_buf(k_size * n_size);

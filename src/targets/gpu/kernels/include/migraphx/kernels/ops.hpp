@@ -126,8 +126,11 @@ struct logical_or
     }
 };
 
-// argmin op, first index variant
-// returns the tuple with the minimum value and index, ties broken by first index
+// argmin op 
+// SelectLast: 
+// true -> return larger index on tie
+// false -> return smaller index on tie
+template <bool SelectLast = false>
 struct argmin
 {
     template <class T, class U>
@@ -139,31 +142,19 @@ struct argmin
             return x;
         if(yval < xval)
             return y;
-        // return smaller index in case of tie
-        return x[_c<1>] < y[_c<1>] ? x : y;
+        // tie breaking based on SelectLast
+        if constexpr(SelectLast)
+            return x[_c<1>] > y[_c<1>] ? x : y;
+        else
+            return x[_c<1>] < y[_c<1>] ? x : y;
     }
 };
 
-// argmin op, last index variant
-// returns the tuple with the minimum value and index, ties broken by last index
-struct argmin_last
-{
-    template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
-    {
-        auto xval = x[_c<0>];
-        auto yval = y[_c<0>];
-        if(xval < yval)
-            return x;
-        if(yval < xval)
-            return y;
-        // return larger index in case of tie
-        return x[_c<1>] > y[_c<1>] ? x : y;
-    }
-};
-
-// argmax op, first index variant
-// returns the tuple with the maximum value and index, ties broken by first index
+// argmax op
+// SelectLast
+//  true -> return larger index on tie
+//  false -> return smaller index on tie
+template <bool SelectLast = false>
 struct argmax
 {
     template <class T, class U>
@@ -175,26 +166,11 @@ struct argmax
             return x;
         if(yval > xval)
             return y;
-        // return smaller index in case of tie
-        return x[_c<1>] < y[_c<1>] ? x : y;
-    }
-};
-
-// argmax op, last index variant
-// returns the tuple with the maximum value and index, ties broken by last index
-struct argmax_last
-{
-    template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
-    {
-        auto xval = x[_c<0>];
-        auto yval = y[_c<0>];
-        if(xval > yval)
-            return x;
-        if(yval > xval)
-            return y;
-        // return larger index in case of tie
-        return x[_c<1>] > y[_c<1>] ? x : y;
+        // tie breaking based on SelectLast
+        if constexpr(SelectLast)
+            return x[_c<1>] > y[_c<1>] ? x : y;
+        else
+            return x[_c<1>] < y[_c<1>] ? x : y;
     }
 };
 } // namespace op

@@ -412,19 +412,19 @@ void reduce_op::set(instruction_ref ins, const operation& op)
     else if(op.name() == "gpu::arg_reduce")
     {
         // extract the inner argmin/argmax operation
-        auto inner_op         = from_value<operation>(op.to_value().at("op"));
-        auto inner_v          = inner_op.to_value();
-        bool select_last      = inner_v.get("select_last_index", false);
-        std::string op_suffix = select_last ? "_last" : "";
+        auto inner_op    = from_value<operation>(op.to_value().at("op"));
+        auto inner_v     = inner_op.to_value();
+        bool select_last = inner_v.get("select_last_index", false);
+        std::string select_last_str = select_last ? "true" : "false";
 
         if(inner_op.name() == "argmin")
         {
-            reduction = "op::argmin" + op_suffix + "{}";
+            reduction = "op::argmin<" + select_last_str + ">{}";
             init      = "make_tuple(highest{}, int64_t{0})";
         }
         else if(inner_op.name() == "argmax")
         {
-            reduction = "op::argmax" + op_suffix + "{}";
+            reduction = "op::argmax<" + select_last_str + ">{}";
             init      = "make_tuple(lowest{}, int64_t{0})";
         }
         else

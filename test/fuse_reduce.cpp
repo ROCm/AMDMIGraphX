@@ -100,11 +100,8 @@ TEST_CASE(pointwise_reduce)
         auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), add);
         mm->add_return({rsum});
     }
-    std::cout << "p1 before pass" << std::endl;
-    p1.debug_print();
     run_pass(p1);
-    std::cout << "p1 after pass" << std::endl;
-    p1.debug_print();
+
     migraphx::program p2;
     {
         auto* mm  = p2.get_main_module();
@@ -1340,6 +1337,178 @@ TEST_CASE(pointwise_argmax)
                     migraphx::make_op("argmax", {{"axis", axes.front()}}), add);
             });
         mm->add_return({argmax1});
+    }
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(argmin_pointwise)
+{
+    // argmin → broadcast → pointwise (fusable)
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape si{migraphx::shape::int64_type, {2, 1}};
+    migraphx::program p1;
+    {
+        auto* mm      = p1.get_main_module();
+        auto x        = mm->add_parameter("x", s);
+        auto y        = mm->add_parameter("y", si);
+        auto argmin1  = mm->add_instruction(migraphx::make_op("argmin", {{"axis", 1}}), x);
+        auto argminb  = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), argmin1);
+        auto yb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), y);
+        auto add = add_pointwise(p1, "main:pointwise0", {argminb, yb}, single_pointwise("add"));
+        mm->add_return({add});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", si);
+        auto yb  = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), y);
+        auto add = add_reduce(
+            p2,
+            "main:argmin0:main:pointwise0",
+            {x, yb},
+            {1},
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto argmin1 = rm->add_instruction(
+                    migraphx::make_op("argmin", {{"axis", axes.front()}}), inputs[0]);
+                auto argminb = rm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), argmin1);
+                return add_pointwise(
+                    p2, rm, "main:pointwise0", {argminb, inputs[1]}, single_pointwise("add"));
+            });
+        mm->add_return({add});
+    }
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(argmin_pointwise_unfusable_broadcast)
+{
+    // argmin → broadcast to different dims → pointwise (unfusable)
+    migraphx::shape s{migraphx::shape::float_type, {2, 1, 3}};
+    migraphx::shape si{migraphx::shape::int64_type, {2, 1, 1}};
+    migraphx::program p1;
+    {
+        auto* mm     = p1.get_main_module();
+        auto x       = mm->add_parameter("x", s);
+        auto y       = mm->add_parameter("y", si);
+        auto argmin1 = mm->add_instruction(migraphx::make_op("argmin", {{"axis", 2}}), x);
+        auto argminb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 3}}}), argmin1);
+        auto yb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 3}}}), y);
+        auto add = add_pointwise(p1, "main:pointwise0", {argminb, yb}, single_pointwise("add"));
+        mm->add_return({add});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm     = p2.get_main_module();
+        auto x       = mm->add_parameter("x", s);
+        auto y       = mm->add_parameter("y", si);
+        auto argmin1 = add_reduce(
+            p2, "main:argmin0", {x}, {2}, [](auto* rm, const auto& inputs, const auto& axes) {
+                return rm->add_instruction(
+                    migraphx::make_op("argmin", {{"axis", axes.front()}}), inputs);
+            });
+        auto argminb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 3}}}), argmin1);
+        auto yb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 3}}}), y);
+        auto add = add_pointwise(p2, "main:pointwise0", {argminb, yb}, single_pointwise("add"));
+        mm->add_return({add});
+    }
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(reduce_argmin)
+{
+    // reduce_sum → broadcast → pointwise → argmin (fusable two-reduce pattern)
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", s);
+        auto rsum  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        auto rsumb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsum);
+        auto sub     = add_pointwise(p1, "main:pointwise0", {rsumb, x}, single_pointwise("sub"));
+        auto argmin1 = mm->add_instruction(migraphx::make_op("argmin", {{"axis", 1}}), sub);
+        mm->add_return({argmin1});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm     = p2.get_main_module();
+        auto x       = mm->add_parameter("x", s);
+        auto argmin1 = add_reduce(
+            p2,
+            "main:argmin1:main:reduce_sum0:main:pointwise0",
+            {x},
+            {1},
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto rsum = rm->add_instruction(
+                    migraphx::make_op("reduce_sum", {{"axes", axes}}), inputs[0]);
+                auto rsumb = rm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsum);
+                auto sub = add_pointwise(
+                    p2, rm, "main:pointwise0", {rsumb, inputs[0]}, single_pointwise("sub"));
+                return rm->add_instruction(
+                    migraphx::make_op("argmin", {{"axis", axes.front()}}), sub);
+            });
+        mm->add_return({argmin1});
+    }
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(reduce_argmin_unfusable_broadcast)
+{
+    // reduce_sum → broadcast to different dims → pointwise → argmin (unfusable)
+    migraphx::shape s{migraphx::shape::float_type, {2, 1, 3}};
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", s);
+        auto rsum  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), x);
+        auto rsumb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 3}}}), rsum);
+        auto xb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 3}}}), x);
+        auto sub     = add_pointwise(p1, "main:pointwise0", {rsumb, xb}, single_pointwise("sub"));
+        auto argmin1 = mm->add_instruction(migraphx::make_op("argmin", {{"axis", 2}}), sub);
+        mm->add_return({argmin1});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto rsum = add_reduce(
+            p2, "main:reduce_sum0", {x}, {2}, [](auto* rm, const auto& inputs, const auto& axes) {
+                return rm->add_instruction(
+                    migraphx::make_op("reduce_sum", {{"axes", axes}}), inputs);
+            });
+        auto rsumb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 3}}}), rsum);
+        auto xb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 3}}}), x);
+        auto argmin1 = add_reduce(
+            p2,
+            "main:pointwise0:main:argmin1",
+            {rsumb, xb},
+            {2},
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto sub = add_pointwise(
+                    p2, rm, "main:pointwise0", {inputs[0], inputs[1]}, single_pointwise("sub"));
+                return rm->add_instruction(
+                    migraphx::make_op("argmin", {{"axis", axes.front()}}), sub);
+            });
+        mm->add_return({argmin1});
     }
     EXPECT(p1 == p2);
 }

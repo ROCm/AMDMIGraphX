@@ -154,11 +154,21 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
         else
         {
             tc.solutions.push_back({{"tile_h", 8}, {"tile_w", 32}, {"noutputs", 1}});
-            tc.solutions.push_back({{"tile_h", 8}, {"tile_w", 64}, {"noutputs", 8}});
+            
+            tc.solutions.push_back({{"tile_h", 8}, {"tile_w", 8}, {"noutputs", 8}});
+            tc.solutions.push_back({{"tile_h", 8}, {"tile_w", 16}, {"noutputs", 2}});
             tc.solutions.push_back({{"tile_h", 8}, {"tile_w", 64}, {"noutputs", 4}});
+            tc.solutions.push_back({{"tile_h", 8}, {"tile_w", 64}, {"noutputs", 8}});
+            tc.solutions.push_back({{"tile_h", 16}, {"tile_w", 8}, {"noutputs", 4}});
+            tc.solutions.push_back({{"tile_h", 16}, {"tile_w", 16}, {"noutputs", 2}});
             tc.solutions.push_back({{"tile_h", 16}, {"tile_w", 64}, {"noutputs", 4}});
+            tc.solutions.push_back({{"tile_h", 32}, {"tile_w", 16}, {"noutputs", 8}});
+            tc.solutions.push_back({{"tile_h", 32}, {"tile_w", 32}, {"noutputs", 1}});
+            tc.solutions.push_back({{"tile_h", 40}, {"tile_w", 12}, {"noutputs", 1}});
             tc.solutions.push_back({{"tile_h", 48}, {"tile_w", 16}, {"noutputs", 1}});
             tc.solutions.push_back({{"tile_h", 56}, {"tile_w", 4}, {"noutputs", 1}});
+            tc.solutions.push_back({{"tile_h", 76}, {"tile_w", 8}, {"noutputs", 8}});
+            tc.solutions.push_back({{"tile_h", 128}, {"tile_w", 8}, {"noutputs", 8}});
         }
         return tc;
     }

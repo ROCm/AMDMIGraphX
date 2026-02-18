@@ -49,7 +49,9 @@ static const char* const ck_fmha_fwd_kernel = R"__migraphx__(
 using namespace migraphx;
 
 extern "C" {
+using KernelType = ${solution};
 
+__launch_bounds__(KernelType::Kernel::kBlockSize, KernelType::Kernel::kBlockPerCu)
 __global__ void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_last())(${args})([](auto... xs) {
@@ -109,6 +111,7 @@ struct ck_fmha_fwd_compiler : compiler<ck_fmha_fwd_compiler>
             MIGRAPHX_THROW("No FMHA solutions for arch " + arch);
         const auto& solution    = solutions.at(tuning_value);
         const auto template_str = solution.ToTemplateString();
+        // std::cout << tuning_value << ":\n" << template_str << std::endl;
 
         // Compute launch dimensions
         auto bm0 = solution.GetTemplateParameter<std::size_t>("BM0");
@@ -143,7 +146,8 @@ struct ck_fmha_fwd_compiler : compiler<ck_fmha_fwd_compiler>
         options.output               = o_shape;
         options.kernel_name          = v.get("kernel", std::string{"ck_fmha_fwd_kernel"});
         options.emplace_param("-DSCALE=" + std::to_string(scale));
-
+        options.emplace_param("-DCK_TILE_FMHA_FWD_FAST_EXP2=1");
+        options.emplace_param("-fgpu-flush-denormals-to-zero");
         auto src = interpolate_string(ck_fmha_fwd_kernel,
                                       {{"include", include_header},
                                        {"solution", template_str},

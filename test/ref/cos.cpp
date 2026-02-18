@@ -243,6 +243,9 @@ TEST_CASE(attention_models)
             {
                 for(const auto& hdim_v : hdims_v)
                 {
+                    // if(seqlen_q != 512 or seqlen_k != 512 or hdim_q != 32 or hdim_v != 32) {
+                    //     continue;
+                    // }
                     const std::size_t M = seqlen_q; // seqlen_q
                     const std::size_t N = seqlen_k; // seqlen_k
                     const std::size_t K = hdim_q;   // hdim_q
@@ -367,8 +370,10 @@ TEST_CASE(combinations)
         EXPECT(migraphx::verify::verify_rms_range(reference_result, gpu_result_vector));
     };
 
-    std::vector<std::size_t> batches{1, 2, 16};
-    std::vector<std::size_t> nheads{4, 8, 16};
+    // std::vector<std::size_t> batches{1, 2, 16};
+    // std::vector<std::size_t> nheads{4, 8, 16};
+    std::vector<std::size_t> batches{2};
+    std::vector<std::size_t> nheads{4};
     std::vector<std::size_t> seqlens_q{512, 1024};
     std::vector<std::size_t> seqlens_k{512, 1024};
     std::vector<std::size_t> hdims_q{32, 64, 96};

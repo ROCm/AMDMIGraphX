@@ -118,12 +118,12 @@ void rewrite_arg_reduce(module& m)
 {
     for(auto ins : find_arg_reduce(m))
     {
-        auto input      = ins->inputs().front();
-        auto v          = ins->get_operator().to_value();
-        auto axis_val   = v["axis"].to<int64_t>();
-        auto ndim       = input->get_shape().ndim();
-        auto axis       = axis_val < 0 ? axis_val + ndim : axis_val;
-        auto axis_size  = input->get_shape().lens()[axis];
+        auto input     = ins->inputs().front();
+        auto v         = ins->get_operator().to_value();
+        auto axis_val  = v["axis"].to<int64_t>();
+        auto ndim      = input->get_shape().ndim();
+        auto axis      = axis_val < 0 ? axis_val + ndim : axis_val;
+        auto axis_size = input->get_shape().lens()[axis];
 
         // make_indices to generate lazy indices
         auto indices = m.insert_instruction(ins, make_indices{axis_size});

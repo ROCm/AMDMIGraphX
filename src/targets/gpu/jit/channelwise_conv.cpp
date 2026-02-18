@@ -154,7 +154,7 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
         else
         {
             tc.solutions.push_back({{"tile_h", 8}, {"tile_w", 32}, {"noutputs", 1}});
-            
+
             tc.solutions.push_back({{"tile_h", 8}, {"tile_w", 8}, {"noutputs", 8}});
             tc.solutions.push_back({{"tile_h", 8}, {"tile_w", 16}, {"noutputs", 2}});
             tc.solutions.push_back({{"tile_h", 8}, {"tile_w", 64}, {"noutputs", 4}});

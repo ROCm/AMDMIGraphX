@@ -52,8 +52,11 @@ void insert_runtime_compile_op::apply(module& m) const
     }
 
     // Move all parameters to the beginning in order
-    // Start from the first parameter's position
-    auto insert_pos = param_ins.empty() ? m.begin() : param_ins[0];
+    // Find the first param instruction in the module
+    auto insert_pos = *std::find_if(iterator_for(m).begin(), iterator_for(m).end(), [](auto ins) {
+        return ins->name() == "@param";
+    });
+
     for(auto param_ref : param_ins)
     {
         m.move_instruction(param_ref, insert_pos);
@@ -71,4 +74,3 @@ void insert_runtime_compile_op::apply(module& m) const
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-

@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_KERNELS_OPS_HPP
 
 #include <migraphx/kernels/math.hpp>
+#include <migraphx/kernels/tuple.hpp>
 
 namespace migraphx {
 namespace op {
@@ -122,6 +123,78 @@ struct logical_or
         if(static_cast<bool>(x) or static_cast<bool>(y))
             return static_cast<T>(1);
         return static_cast<T>(0);
+    }
+};
+
+// argmin op, first index variant
+// returns the tuple with the minimum value and index, ties broken by first index
+struct argmin
+{
+    template <class T, class U>
+    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
+    {
+        auto xval = x[_c<0>];
+        auto yval = y[_c<0>];
+        if(xval < yval)
+            return x;
+        if(yval < xval)
+            return y;
+        // return smaller index in case of tie
+        return x[_c<1>] < y[_c<1>] ? x : y;
+    }
+};
+
+// argmin op, last index variant
+// returns the tuple with the minimum value and index, ties broken by last index
+struct argmin_last
+{
+    template <class T, class U>
+    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
+    {
+        auto xval = x[_c<0>];
+        auto yval = y[_c<0>];
+        if(xval < yval)
+            return x;
+        if(yval < xval)
+            return y;
+        // return larger index in case of tie
+        return x[_c<1>] > y[_c<1>] ? x : y;
+    }
+};
+
+// argmax op, first index variant
+// returns the tuple with the maximum value and index, ties broken by first index
+struct argmax
+{
+    template <class T, class U>
+    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
+    {
+        auto xval = x[_c<0>];
+        auto yval = y[_c<0>];
+        if(xval > yval)
+            return x;
+        if(yval > xval)
+            return y;
+        // return smaller index in case of tie
+        return x[_c<1>] < y[_c<1>] ? x : y;
+    }
+};
+
+// argmax op, last index variant
+// returns the tuple with the maximum value and index, ties broken by last index
+struct argmax_last
+{
+    template <class T, class U>
+    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
+    {
+        auto xval = x[_c<0>];
+        auto yval = y[_c<0>];
+        if(xval > yval)
+            return x;
+        if(yval > xval)
+            return y;
+        // return larger index in case of tie
+        return x[_c<1>] > y[_c<1>] ? x : y;
     }
 };
 } // namespace op

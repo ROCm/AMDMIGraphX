@@ -409,6 +409,31 @@ void reduce_op::set(instruction_ref ins, const operation& op)
         set(rop.name(), input, output);
         read = "compose(array_apply(" + read + "), MIGRAPHX_LIFT(make_array))";
     }
+    else if(op.name() == "gpu::arg_reduce")
+    {
+        // extract the inner argmin/argmax operation
+        auto inner_op         = from_value<operation>(op.to_value().at("op"));
+        auto inner_v          = inner_op.to_value();
+        bool select_last      = inner_v.get("select_last_index", false);
+        std::string op_suffix = select_last ? "_last" : "";
+
+        if(inner_op.name() == "argmin")
+        {
+            reduction = "op::argmin" + op_suffix + "{}";
+            init      = "make_tuple(highest{}, int64_t{0})";
+        }
+        else if(inner_op.name() == "argmax")
+        {
+            reduction = "op::argmax" + op_suffix + "{}";
+            init      = "make_tuple(lowest{}, int64_t{0})";
+        }
+        else
+        {
+            MIGRAPHX_THROW("Unsupported arg operation");
+        }
+        // read creates tuples from (value, index), cast index to int64_t
+        read = "[](auto val, auto idx) { return make_tuple(val, static_cast<int64_t>(idx)); }";
+    }
     else
     {
         set(op.name(), ins->inputs().front()->get_shape(), ins->get_shape());
@@ -528,8 +553,13 @@ std::string generate_reduce(module m, const std::string& name)
         {
             const auto& x = names.at(ins->inputs().front());
             auto index    = ins->get_operator().to_value()["index"].to<std::size_t>();
-            return interpolate_string("${x}[${index}]",
+            return interpolate_string("${x}[_c<${index}>]",
                                       {{"x", x}, {"index", std::to_string(index)}});
+        }
+        if(ins->name() == "gpu::make_indices")
+        {
+            auto size = ins->get_operator().to_value()["size"].to<std::size_t>();
+            return "reduce::make_indices(_c<" + std::to_string(size) + ">)";
         }
         if(ins->name() == "identity")
         {

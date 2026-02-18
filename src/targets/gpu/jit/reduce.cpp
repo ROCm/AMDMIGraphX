@@ -341,10 +341,11 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         auto nelements = reduce_output_shape.elements();
         auto algo =
             v.get("algo", get_reduce_algo(ctx, options.virtual_inputs, reduction_shape.lens()));
+        bool no_vectorize = v.get("no_vectorize", false);
         if(algo == "block" or algo == "wave")
         {
-            // Vectorize if the axis is a reduction axis
-            if(reduce_output_shape.lens()[faxis] == 1)
+            // Vectorize if the axis is a reduction axis (but not for argmin/argmax)
+            if(reduce_output_shape.lens()[faxis] == 1 and not no_vectorize)
                 vec = vectorize::elements(ctx, faxis, options.virtual_inputs);
             auto relements  = reduction_shape.elements() / vec.size;
             if(algo == "block")
@@ -397,6 +398,12 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         for(const auto& x : solution)
             v.insert(x);
         auto* rm      = ins->module_inputs().front();
+        // disable vectorization for argmin/argmax since comparisons don't work with vector types
+        bool has_arg_reduce = std::any_of(rm->begin(), rm->end(), [](const auto& i) {
+            return i.name() == "argmin" or i.name() == "argmax";
+        });
+        if(has_arg_reduce)
+            v["no_vectorize"] = true;
         v["preamble"] = generate_reduce(*rm, "fused_reduce_op");
         v["lambda"]   = "MIGRAPHX_LIFT(fused_reduce_op)";
         v["kernel"]   = generate_name_from_ops(*rm) + "_kernel";

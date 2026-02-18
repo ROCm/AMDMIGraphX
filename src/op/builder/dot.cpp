@@ -23,7 +23,6 @@
 
 #include <migraphx/op/builder/op_builder.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/common.hpp>
 #include <migraphx/op/builder/broadcast_dimensions.hpp>
 
 namespace migraphx {

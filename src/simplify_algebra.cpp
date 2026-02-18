@@ -2118,11 +2118,90 @@ struct find_split_transpose
     }
 };
 
+// When a convolution's input is a spatially-broadcast constant (e.g. a bias
+// vector broadcast to [N, IC, H, W] with stride-0 spatial dims), the full
+// spatial convolution is redundant.  Replace it with:
+//   W_reduced[oc,ic] = sum_{kh,kw} W[oc,ic,kh,kw]   (reduce_sum)
+//   result = dot(input_2d, W_reduced^T)               (tiny GEMM)
+//   multibroadcast result to the original output shape
+struct find_conv_broadcast_input
+{
+    auto matcher() const
+    {
+        return match::name("convolution")(match::args(
+            match::name("broadcast", "multibroadcast")(match::args(match::is_constant().bind("x")))
+                .bind("bcast"),
+            match::is_constant().bind("w")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins   = r.result;
+        auto x_ins = r.instructions["x"];
+        auto w_ins = r.instructions["w"];
+
+        auto conv_op = any_cast<op::convolution>(ins->get_operator());
+        if(conv_op.group != 1)
+            return;
+
+        const auto& x_shape = x_ins->get_shape();
+        const auto& w_shape = w_ins->get_shape();
+
+        if(x_shape.dynamic() or w_shape.dynamic() or ins->get_shape().dynamic())
+            return;
+
+        const auto& x_lens = x_shape.lens();
+        for(std::size_t i = 2; i < x_lens.size(); i++)
+        {
+            if(x_lens[i] != 1)
+                return;
+        }
+
+        auto ndim = w_shape.ndim();
+        auto oc   = w_shape.lens()[0];
+        auto ic   = w_shape.lens()[1];
+
+        auto out_lens = ins->get_shape().lens();
+        auto n        = out_lens[0];
+
+        if(x_shape.elements() != n * ic)
+            return;
+
+        std::vector<int64_t> spatial_axes;
+        for(std::size_t i = 2; i < ndim; i++)
+            spatial_axes.push_back(static_cast<int64_t>(i));
+
+        auto w_reduced =
+            m.insert_instruction(ins, make_op("reduce_sum", {{"axes", spatial_axes}}), w_ins);
+        auto w_2d = m.insert_instruction(
+            ins, make_op("reshape", {{"dims", std::vector<std::size_t>{oc, ic}}}), w_reduced);
+        auto w_t = m.insert_instruction(
+            ins, make_op("transpose", {{"permutation", std::vector<int64_t>{1, 0}}}), w_2d);
+
+        instruction_ref x_2d;
+        if(x_shape.ndim() == 1 and n == 1)
+            x_2d = m.insert_instruction(
+                ins, make_op("unsqueeze", {{"axes", std::vector<int64_t>{0}}}), x_ins);
+        else
+            x_2d = m.insert_instruction(
+                ins, make_op("reshape", {{"dims", std::vector<std::size_t>{n, ic}}}), x_ins);
+
+        auto dot_result = m.insert_instruction(ins, make_op("dot"), x_2d, w_t);
+
+        auto dot_1d = m.insert_instruction(
+            ins, make_op("squeeze", {{"axes", std::vector<int64_t>{0}}}), dot_result);
+
+        m.replace_instruction(
+            ins, make_op("broadcast", {{"axis", 1}, {"out_lens", out_lens}}), dot_1d);
+    }
+};
+
 void simplify_algebra::apply(module& m) const
 {
     // Run simplifications multiple times
     m.repeat_while_changes(8, [&] {
         match::find_matches(m,
+                            find_conv_broadcast_input{},
                             find_inner_broadcast{},
                             find_dot_broadcast{},
                             find_double_add_lit_broadcast{},

@@ -30,19 +30,18 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 namespace builder {
 
-namespace detail
+namespace detail {
+static std::vector<instruction_ref>
+insert(module& m, const std::string& name, const std::vector<instruction_ref>& args)
 {
-    static std::vector<instruction_ref>
-    insert(module& m, const std::string& name, const std::vector<instruction_ref>& args)
-    {
-        auto a0      = args[0];
-        auto a1      = args[1];
-        auto ba0     = args.size() > 2 ? args[2] : a0;
-        auto ba1     = args.size() > 3 ? args[3] : a1;
+    auto a0  = args[0];
+    auto a1  = args[1];
+    auto ba0 = args.size() > 2 ? args[2] : a0;
+    auto ba1 = args.size() > 3 ? args[3] : a1;
 
-        op::builder::broadcast_dimensions(m, a0, a1, ba0, ba1);
-        return {m.add_instruction(make_op(name), ba0, ba1)};
-    }
+    op::builder::broadcast_dimensions(m, a0, a1, ba0, ba1);
+    return {m.add_instruction(make_op(name), ba0, ba1)};
+}
 } // namespace detail
 
 struct dot : op_builder<dot>

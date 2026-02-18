@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -117,16 +117,18 @@ void rewrite_arg_reduce(module& m)
 {
     for(auto ins : find_arg_reduce(m))
     {
-        auto input = ins->inputs().front();
-        auto v = ins->get_operator().to_value();
-        auto axis = v["axis"].to<std::size_t>();
+        auto input     = ins->inputs().front();
+        auto v         = ins->get_operator().to_value();
+        auto axis      = v["axis"].to<std::size_t>();
         auto axis_size = input->get_shape().lens()[axis];
 
         // make_indices to generate lazy indices
         auto indices = m.insert_instruction(ins, make_indices{axis_size});
         // arg_reduce op to get values and indices tuple
-        auto arg_reduce_ins = m.insert_instruction(ins, arg_reduce{ins->get_operator()}, input, indices);
-        auto result = m.insert_instruction(ins, make_op("get_tuple_elem", {{"index", 1}}), arg_reduce_ins);
+        auto arg_reduce_ins =
+            m.insert_instruction(ins, arg_reduce{ins->get_operator()}, input, indices);
+        auto result =
+            m.insert_instruction(ins, make_op("get_tuple_elem", {{"index", 1}}), arg_reduce_ins);
         m.replace_instruction(ins, result);
     }
 }
@@ -189,7 +191,8 @@ void fuse_reductions(module& m)
 
 } // namespace
 
-void prepare_reduce::apply(module& m) const {
+void prepare_reduce::apply(module& m) const
+{
     // rewrite argmin/argmax to handle tuples
     rewrite_arg_reduce(m);
     fuse_reductions(m);

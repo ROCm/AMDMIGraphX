@@ -412,9 +412,9 @@ void reduce_op::set(instruction_ref ins, const operation& op)
     else if(op.name() == "gpu::arg_reduce")
     {
         // extract the inner argmin/argmax operation
-        auto inner_op    = from_value<operation>(op.to_value().at("op"));
-        auto inner_v     = inner_op.to_value();
-        bool select_last = inner_v.get("select_last_index", false);
+        auto inner_op               = from_value<operation>(op.to_value().at("op"));
+        auto inner_v                = inner_op.to_value();
+        bool select_last            = inner_v.get("select_last_index", false);
         std::string select_last_str = select_last ? "true" : "false";
 
         if(inner_op.name() == "argmin")
@@ -554,7 +554,7 @@ std::string generate_reduce(module m, const std::string& name)
             const auto& x = names.at(ins->inputs().front());
             auto index    = ins->get_operator().to_value()["index"].to<std::size_t>();
             return interpolate_string("${x}[_c<${index}>]",
-                                      {{"x", x}, {"index", std::to_string(index)}});
+                                          {{"x", x}, {"index", std::to_string(index)}});
         }
         if(ins->name() == "gpu::make_indices")
         {

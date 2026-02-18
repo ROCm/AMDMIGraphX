@@ -47,7 +47,8 @@ struct arg_reduce
     migraphx::shape compute_shape(const std::vector<migraphx::shape>& inputs) const
     {
         auto reduced_shape = op.compute_shape({inputs.front()});
-        return migraphx::shape{{reduced_shape, reduced_shape.with_type(migraphx::shape::int64_type)}};
+        return migraphx::shape{
+            {reduced_shape, reduced_shape.with_type(migraphx::shape::int64_type)}};
     }
 };
 
@@ -112,11 +113,12 @@ TEST_CASE(argmin_rewrite)
 
     migraphx::module m2;
     {
-        auto x         = m2.add_parameter("x", s);
-        auto indices   = m2.add_instruction(make_indices{3});
-        auto arg_red   = m2.add_instruction(
-            arg_reduce{migraphx::make_op("argmin", {{"axis", 1}})}, x, indices);
-        auto result = m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), arg_red);
+        auto x       = m2.add_parameter("x", s);
+        auto indices = m2.add_instruction(make_indices{3});
+        auto arg_red =
+            m2.add_instruction(arg_reduce{migraphx::make_op("argmin", {{"axis", 1}})}, x, indices);
+        auto result =
+            m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), arg_red);
         m2.add_return({result});
     }
 
@@ -138,11 +140,12 @@ TEST_CASE(argmax_rewrite)
 
     migraphx::module m2;
     {
-        auto x         = m2.add_parameter("x", s);
-        auto indices   = m2.add_instruction(make_indices{4});
-        auto arg_red   = m2.add_instruction(
-            arg_reduce{migraphx::make_op("argmax", {{"axis", 2}})}, x, indices);
-        auto result = m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), arg_red);
+        auto x       = m2.add_parameter("x", s);
+        auto indices = m2.add_instruction(make_indices{4});
+        auto arg_red =
+            m2.add_instruction(arg_reduce{migraphx::make_op("argmax", {{"axis", 2}})}, x, indices);
+        auto result =
+            m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), arg_red);
         m2.add_return({result});
     }
 
@@ -164,11 +167,12 @@ TEST_CASE(argmin_axis0)
 
     migraphx::module m2;
     {
-        auto x         = m2.add_parameter("x", s);
-        auto indices   = m2.add_instruction(make_indices{5});
-        auto arg_red   = m2.add_instruction(
-            arg_reduce{migraphx::make_op("argmin", {{"axis", 0}})}, x, indices);
-        auto result = m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), arg_red);
+        auto x       = m2.add_parameter("x", s);
+        auto indices = m2.add_instruction(make_indices{5});
+        auto arg_red =
+            m2.add_instruction(arg_reduce{migraphx::make_op("argmin", {{"axis", 0}})}, x, indices);
+        auto result =
+            m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), arg_red);
         m2.add_return({result});
     }
 
@@ -235,8 +239,8 @@ TEST_CASE(no_parallel_reduce_dependent)
     {
         auto x  = m1.add_parameter("x", s);
         auto r1 = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
-        auto bc = m1.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4}}}), r1);
+        auto bc =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4}}}), r1);
         auto r2 = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), bc);
         m1.add_return({r2});
     }
@@ -266,13 +270,14 @@ TEST_CASE(argmin_no_parallel_with_reduce)
 
     migraphx::module m2;
     {
-        auto x         = m2.add_parameter("x", s);
-        auto y         = m2.add_parameter("y", s);
+        auto x = m2.add_parameter("x", s);
+        auto y = m2.add_parameter("y", s);
         // argmin gets rewritten
-        auto indices   = m2.add_instruction(make_indices{3});
-        auto arg_red   = m2.add_instruction(
-            arg_reduce{migraphx::make_op("argmin", {{"axis", 1}})}, x, indices);
-        auto argmin_result = m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), arg_red);
+        auto indices = m2.add_instruction(make_indices{3});
+        auto arg_red =
+            m2.add_instruction(arg_reduce{migraphx::make_op("argmin", {{"axis", 1}})}, x, indices);
+        auto argmin_result =
+            m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), arg_red);
         // reduce_sum remains unchanged (only 1 reduce, no parallel fusion)
         auto rsum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), y);
         m2.add_return({argmin_result, rsum});
@@ -282,4 +287,3 @@ TEST_CASE(argmin_no_parallel_with_reduce)
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }
-

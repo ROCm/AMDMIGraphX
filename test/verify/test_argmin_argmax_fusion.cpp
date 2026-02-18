@@ -167,10 +167,10 @@ struct test_arg_fusion_argmin_broadcast : verify_program<test_arg_fusion_argmin_
         auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::float_type, {2, 3, 4}};
         migraphx::shape bs{migraphx::shape::float_type, {1, 3, 4}};
-        auto x   = mm->add_parameter("x", s);
-        auto y   = mm->add_parameter("y", bs);
-        auto yb  = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), y);
+        auto x = mm->add_parameter("x", s);
+        auto y = mm->add_parameter("y", bs);
+        auto yb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), y);
         auto add = mm->add_instruction(migraphx::make_op("add"), x, yb);
         mm->add_instruction(migraphx::make_op("argmin", {{"axis", 1}}), add);
         return p;
@@ -188,10 +188,10 @@ struct test_arg_fusion_argmax_broadcast : verify_program<test_arg_fusion_argmax_
         auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::float_type, {2, 3, 4}};
         migraphx::shape bs{migraphx::shape::float_type, {2, 1, 4}};
-        auto x   = mm->add_parameter("x", s);
-        auto y   = mm->add_parameter("y", bs);
-        auto yb  = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), y);
+        auto x = mm->add_parameter("x", s);
+        auto y = mm->add_parameter("y", bs);
+        auto yb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), y);
         auto mul = mm->add_instruction(migraphx::make_op("mul"), x, yb);
         mm->add_instruction(migraphx::make_op("argmax", {{"axis", 2}}), mul);
         return p;

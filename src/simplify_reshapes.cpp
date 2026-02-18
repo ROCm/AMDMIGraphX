@@ -311,7 +311,7 @@ struct find_op_shape_transform_op
         if(is_reduce(ins))
         {
             auto v = ins->get_operator().to_value();
-            // handle argmin/argmax 
+            // handle argmin/argmax
             if(v.contains("axis"))
             {
                 auto op_axis  = v.at("axis").to<std::size_t>();

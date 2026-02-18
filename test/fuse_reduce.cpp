@@ -1209,8 +1209,8 @@ TEST_CASE(argmin_fuse)
         auto x       = mm->add_parameter("x", s);
         auto argmin1 = add_reduce(
             p2, "main:argmin0", {x}, {1}, [](auto* rm, const auto& inputs, const auto& axes) {
-                return rm->add_instruction(
-                    migraphx::make_op("argmin", {{"axis", axes.front()}}), inputs);
+                return rm->add_instruction(migraphx::make_op("argmin", {{"axis", axes.front()}}),
+                                           inputs);
             });
         mm->add_return({argmin1});
     }
@@ -1236,8 +1236,8 @@ TEST_CASE(argmax_fuse)
         auto x       = mm->add_parameter("x", s);
         auto argmax1 = add_reduce(
             p2, "main:argmax0", {x}, {1}, [](auto* rm, const auto& inputs, const auto& axes) {
-                return rm->add_instruction(
-                    migraphx::make_op("argmax", {{"axis", axes.front()}}), inputs);
+                return rm->add_instruction(migraphx::make_op("argmax", {{"axis", axes.front()}}),
+                                           inputs);
             });
         mm->add_return({argmax1});
     }
@@ -1263,8 +1263,8 @@ TEST_CASE(argmin_axis0)
         auto x       = mm->add_parameter("x", s);
         auto argmin1 = add_reduce(
             p2, "main:argmin0", {x}, {0}, [](auto* rm, const auto& inputs, const auto& axes) {
-                return rm->add_instruction(
-                    migraphx::make_op("argmin", {{"axis", axes.front()}}), inputs);
+                return rm->add_instruction(migraphx::make_op("argmin", {{"axis", axes.front()}}),
+                                           inputs);
             });
         mm->add_return({argmin1});
     }
@@ -1298,8 +1298,8 @@ TEST_CASE(pointwise_argmin)
             [&](auto* rm, const auto& inputs, const auto& axes) {
                 auto add =
                     add_pointwise(p2, rm, "main:pointwise0", inputs, single_pointwise("add"));
-                return rm->add_instruction(
-                    migraphx::make_op("argmin", {{"axis", axes.front()}}), add);
+                return rm->add_instruction(migraphx::make_op("argmin", {{"axis", axes.front()}}),
+                                           add);
             });
         mm->add_return({argmin1});
     }
@@ -1333,8 +1333,8 @@ TEST_CASE(pointwise_argmax)
             [&](auto* rm, const auto& inputs, const auto& axes) {
                 auto add =
                     add_pointwise(p2, rm, "main:pointwise0", inputs, single_pointwise("add"));
-                return rm->add_instruction(
-                    migraphx::make_op("argmax", {{"axis", axes.front()}}), add);
+                return rm->add_instruction(migraphx::make_op("argmax", {{"axis", axes.front()}}),
+                                           add);
             });
         mm->add_return({argmax1});
     }
@@ -1348,14 +1348,14 @@ TEST_CASE(argmin_pointwise)
     migraphx::shape si{migraphx::shape::int64_type, {2, 1}};
     migraphx::program p1;
     {
-        auto* mm      = p1.get_main_module();
-        auto x        = mm->add_parameter("x", s);
-        auto y        = mm->add_parameter("y", si);
-        auto argmin1  = mm->add_instruction(migraphx::make_op("argmin", {{"axis", 1}}), x);
-        auto argminb  = mm->add_instruction(
+        auto* mm     = p1.get_main_module();
+        auto x       = mm->add_parameter("x", s);
+        auto y       = mm->add_parameter("y", si);
+        auto argmin1 = mm->add_instruction(migraphx::make_op("argmin", {{"axis", 1}}), x);
+        auto argminb = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), argmin1);
-        auto yb = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), y);
+        auto yb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), y);
         auto add = add_pointwise(p1, "main:pointwise0", {argminb, yb}, single_pointwise("add"));
         mm->add_return({add});
     }
@@ -1365,8 +1365,8 @@ TEST_CASE(argmin_pointwise)
         auto* mm = p2.get_main_module();
         auto x   = mm->add_parameter("x", s);
         auto y   = mm->add_parameter("y", si);
-        auto yb  = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), y);
+        auto yb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), y);
         auto add = add_reduce(
             p2,
             "main:argmin0:main:pointwise0",
@@ -1411,8 +1411,8 @@ TEST_CASE(argmin_pointwise_unfusable_broadcast)
         auto y       = mm->add_parameter("y", si);
         auto argmin1 = add_reduce(
             p2, "main:argmin0", {x}, {2}, [](auto* rm, const auto& inputs, const auto& axes) {
-                return rm->add_instruction(
-                    migraphx::make_op("argmin", {{"axis", axes.front()}}), inputs);
+                return rm->add_instruction(migraphx::make_op("argmin", {{"axis", axes.front()}}),
+                                           inputs);
             });
         auto argminb = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 3}}}), argmin1);
@@ -1451,14 +1451,14 @@ TEST_CASE(reduce_argmin)
             {x},
             {1},
             [&](auto* rm, const auto& inputs, const auto& axes) {
-                auto rsum = rm->add_instruction(
-                    migraphx::make_op("reduce_sum", {{"axes", axes}}), inputs[0]);
+                auto rsum  = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
+                                                inputs[0]);
                 auto rsumb = rm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsum);
                 auto sub = add_pointwise(
                     p2, rm, "main:pointwise0", {rsumb, inputs[0]}, single_pointwise("sub"));
-                return rm->add_instruction(
-                    migraphx::make_op("argmin", {{"axis", axes.front()}}), sub);
+                return rm->add_instruction(migraphx::make_op("argmin", {{"axis", axes.front()}}),
+                                           sub);
             });
         mm->add_return({argmin1});
     }
@@ -1490,8 +1490,8 @@ TEST_CASE(reduce_argmin_unfusable_broadcast)
         auto x    = mm->add_parameter("x", s);
         auto rsum = add_reduce(
             p2, "main:reduce_sum0", {x}, {2}, [](auto* rm, const auto& inputs, const auto& axes) {
-                return rm->add_instruction(
-                    migraphx::make_op("reduce_sum", {{"axes", axes}}), inputs);
+                return rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
+                                           inputs);
             });
         auto rsumb = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 3}}}), rsum);
@@ -1505,8 +1505,8 @@ TEST_CASE(reduce_argmin_unfusable_broadcast)
             [&](auto* rm, const auto& inputs, const auto& axes) {
                 auto sub = add_pointwise(
                     p2, rm, "main:pointwise0", {inputs[0], inputs[1]}, single_pointwise("sub"));
-                return rm->add_instruction(
-                    migraphx::make_op("argmin", {{"axis", axes.front()}}), sub);
+                return rm->add_instruction(migraphx::make_op("argmin", {{"axis", axes.front()}}),
+                                           sub);
             });
         mm->add_return({argmin1});
     }

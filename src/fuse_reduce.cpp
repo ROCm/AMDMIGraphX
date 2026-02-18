@@ -416,7 +416,7 @@ struct reduce_reshape : rewrite_reshapes_base
             // handle argmin/argmax
             if(sop.name() == "argmin" or sop.name() == "argmax")
             {
-                auto v = sop.to_value();
+                auto v    = sop.to_value();
                 v["axis"] = axes.front();
                 return make_op(sop.name(), v);
             }

@@ -32,7 +32,7 @@ namespace builder {
 
 namespace detail
 {
-    std::vector<instruction_ref>
+    static std::vector<instruction_ref>
     insert(module& m, const std::string& name, const std::vector<instruction_ref>& args)
     {
         auto a0      = args[0];
@@ -43,7 +43,7 @@ namespace detail
         op::builder::broadcast_dimensions(m, a0, a1, ba0, ba1);
         return {m.add_instruction(make_op(name), ba0, ba1)};
     }
-}
+} // namespace detail
 
 struct dot : op_builder<dot>
 {

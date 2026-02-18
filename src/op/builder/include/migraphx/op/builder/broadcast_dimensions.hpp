@@ -34,6 +34,7 @@ namespace op {
 namespace builder {
 
 namespace detail {
+
 template <typename Builder>
 void broadcast_dimensions_static(Builder& bldr,
                                  const instruction_ref& a0,
@@ -87,6 +88,7 @@ void broadcast_dimensions_dynamic(Builder& bldr,
         ba1 = bldr.add_instruction(make_op("broadcast_for_dot"), a1, a0);
     }
 }
+
 } // namespace detail
 
 template <typename Builder>

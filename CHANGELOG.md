@@ -3,6 +3,31 @@
 Full documentation for MIGraphX is available at
 [https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/](https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/).
 
+## Develop
+
+### Added
+
+* Added a dedicated logger for MIGraphX.
+* [Linux] Use HSA API to query number of chiplets for architectures where this is applicable (ex. gfx90a).
+
+### Changed
+
+* Refactored instruction output alias to return a vector of aliases (#4540).
+* Changed parsing of ONNX ops like ConstantOfShape to insert undefined if expected shape has 0 elements (#4567).
+* Updated the ONNX clip operator to support opset 13 (#4518).
+
+### Resolved issues
+
+* Fixed a bug with operators `pack_fp4`, `unpack_fp4`, and the `fuse_mlir` pass handling non-standard input shapes (#4560).
+* Fixed an issue in `propagate_precision` pass where precision could be incorrectly propagated across type boundaries (e.g., from integral to floating-point) (#4603).
+* Fixed an issue with clip operator when using fp16 input type on opset 6 (#4518). 
+* Fixed an issue with `reshape_lazy`'s shape computation that was leading to invalid reshapes (#4594).
+* Fixed `eliminate_pad` pass bug that was removing nonzero `pad` instructions (#4600).
+
+### Optimized
+
+### Removed
+
 ## MIGraphX 2.15 for ROCm 7.2.0
 
 ### Added
@@ -35,6 +60,7 @@ Full documentation for MIGraphX is available at
 
 ### Resolved issues
 
+* Fixed an issue in `propagate_precision` pass where precision could be incorrectly propagated across type category boundaries (e.g., from integral to floating-point types).
 * Quiet nrvo and noreturn warnings (#4429).
 * Fixed `pointwise: Wrong number of arguments` error when quantizing certain models to `int8` (#4398).
 * TopK exception bugfix (#4329).

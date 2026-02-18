@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -38,7 +38,8 @@ static void run_pass(migraphx::module& m)
 {
     migraphx::run_passes(m,
                          {
-                             migraphx::simplify_reshapes{.enable_op_shape_transform_op = true},
+                             migraphx::simplify_reshapes{.enable_op_shape_transform_op = true,
+                                                         .enable_gather_rewrite        = true},
                              migraphx::eliminate_common_subexpression{},
                              migraphx::dead_code_elimination{},
                          });
@@ -1516,8 +1517,7 @@ TEST_CASE(optimize_resize)
 
     auto create_optimized_module = [&] {
         migraphx::module m;
-        auto inx                  = m.add_parameter("X", sx);
-        std::vector<int64_t> dims = {1, 1, 2, 1, 2, 1};
+        auto inx  = m.add_parameter("X", sx);
         auto rspx = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3, 5}}}), inx);
         auto mbx  = m.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 2, 2, 2, 3}}}), rspx);
@@ -1526,6 +1526,47 @@ TEST_CASE(optimize_resize)
         auto rmbb = m.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 4, 6}}}), rmb);
         auto r = m.add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), rmbb);
+        m.add_return({r});
+
+        return m;
+    };
+
+    EXPECT(m1 == create_optimized_module());
+}
+
+TEST_CASE(optimize_resize_flatten)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {4}};
+    auto create_resize_module = [&] {
+        migraphx::module m;
+        auto inx = m.add_parameter("X", sx);
+
+        migraphx::shape si{migraphx::shape::int32_type, {48}};
+        std::vector<int> ind = {0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3,
+                                3, 3, 2, 2, 2, 3, 3, 3, 0, 0, 0, 1, 1, 1, 0, 0,
+                                0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 3, 3};
+        auto li              = m.add_literal(migraphx::literal(si, ind));
+
+        auto gr = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), inx, li);
+        auto r  = m.add_instruction(migraphx::make_op("softmax", {{"axis", 0}}), gr);
+        m.add_return({r});
+
+        return m;
+    };
+
+    auto m1 = create_resize_module();
+    run_pass(m1);
+
+    auto create_optimized_module = [&] {
+        migraphx::module m;
+        auto inx = m.add_parameter("X", sx);
+        auto rspx =
+            m.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 1, 2, 1}}}), inx);
+        auto mbx = m.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 2, 3}}}), rspx);
+
+        auto rmb = m.add_instruction(migraphx::make_op("reshape", {{"dims", {48}}}), mbx);
+        auto r   = m.add_instruction(migraphx::make_op("softmax", {{"axis", 0}}), rmb);
         m.add_return({r});
 
         return m;
@@ -1588,54 +1629,86 @@ TEST_CASE(optimize_resize_ndims_unequal)
 {
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
     migraphx::shape sy{migraphx::shape::float_type, {1, 1, 4, 3, 2}};
-    auto create_resize_module = [&] {
-        migraphx::module m;
-        auto inx = m.add_parameter("X", sx);
-        auto iny = m.add_parameter("Y", sy);
+
+    migraphx::module m1;
+    {
+        auto inx = m1.add_parameter("X", sx);
+        auto iny = m1.add_parameter("Y", sy);
 
         migraphx::shape si{migraphx::shape::int32_type, {1, 1, 4, 3, 2}};
         std::vector<int> ind = {0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1,
                                 2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 3, 3};
-        auto li              = m.add_literal(migraphx::literal(si, ind));
+        auto li              = m1.add_literal(migraphx::literal(si, ind));
 
-        auto lrsp = m.add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), inx);
-        auto gr   = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
-        auto r    = m.add_instruction(migraphx::make_op("sub"), iny, gr);
-        m.add_return({r});
+        auto lrsp = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), inx);
+        auto gr   = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
+        auto r    = m1.add_instruction(migraphx::make_op("sub"), iny, gr);
+        m1.add_return({r});
+    }
+    run_pass(m1);
 
-        return m;
-    };
+    migraphx::module m2;
+    {
+        auto inx = m2.add_parameter("X", sx);
+        auto iny = m2.add_parameter("Y", sy);
 
-    auto m = create_resize_module();
-    run_pass(m);
-    EXPECT(m == create_resize_module());
+        auto rsp_y =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 3}}}), iny);
+        auto trans_x = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {2, 0, 3, 1}}}), inx);
+        auto mb = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 3}}}), trans_x);
+        auto sub = m2.add_instruction(migraphx::make_op("sub"), rsp_y, mb);
+        auto rsp_out =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 4, 3, 2}}}), sub);
+        m2.add_return({rsp_out});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
 }
 
 TEST_CASE(optimize_resize_ind_non_brcst)
 {
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 3, 2}};
     migraphx::shape sy{migraphx::shape::float_type, {1, 1, 4, 6}};
-    auto create_resize_module = [&] {
-        migraphx::module m;
-        auto inx = m.add_parameter("X", sx);
-        auto iny = m.add_parameter("Y", sy);
+
+    migraphx::module m1;
+    {
+        auto inx = m1.add_parameter("X", sx);
+        auto iny = m1.add_parameter("Y", sy);
 
         migraphx::shape si{migraphx::shape::int32_type, {1, 1, 4, 6}};
         std::vector<int> ind = {0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1,
                                 2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 3, 3};
-        auto li              = m.add_literal(migraphx::literal(si, ind));
+        auto li              = m1.add_literal(migraphx::literal(si, ind));
 
-        auto lrsp = m.add_instruction(migraphx::make_op("reshape", {{"dims", {6}}}), inx);
-        auto gr   = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
-        auto r    = m.add_instruction(migraphx::make_op("sub"), iny, gr);
-        m.add_return({r});
+        auto lrsp = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {6}}}), inx);
+        auto gr   = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
+        auto r    = m1.add_instruction(migraphx::make_op("sub"), iny, gr);
+        m1.add_return({r});
+    }
+    run_pass(m1);
 
-        return m;
-    };
+    migraphx::module m2;
+    {
+        auto inx = m2.add_parameter("X", sx);
+        auto iny = m2.add_parameter("Y", sy);
 
-    auto m = create_resize_module();
-    run_pass(m);
-    EXPECT(m == create_resize_module());
+        auto rsp1 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {6}}}), inx);
+        auto slc  = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}), rsp1);
+        auto rsp2 =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 2, 1, 2, 1}}}), slc);
+        auto mb = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 2, 2, 2, 3}}}), rsp2);
+        auto rsp_y =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 2, 2, 2, 3}}}), iny);
+        auto sub  = m2.add_instruction(migraphx::make_op("sub"), rsp_y, mb);
+        auto rsp3 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 4, 6}}}), sub);
+        m2.add_return({rsp3});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
 }
 
 TEST_CASE(optimize_resize_ind_non_const)
@@ -1680,21 +1753,32 @@ TEST_CASE(optimize_where_true)
         return m;
     };
 
-    auto return_xy = [&](bool cond) {
+    auto create_expected = [&](bool cond) {
         migraphx::module m;
-        auto x = m.add_parameter("X", s);
-        auto y = m.add_parameter("Y", s);
-        cond ? m.add_return({x}) : m.add_return({y});
+        auto inx = m.add_parameter("X", s);
+        auto iny = m.add_parameter("Y", s);
+
+        auto data = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), inx, iny);
+        auto rsp  = m.add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), data);
+        auto bc   = m.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {12, 1, 3, 2}}}), rsp);
+        int64_t start = cond ? 1 : 0;
+        int64_t end   = cond ? 2 : 1;
+        auto slc      = m.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {start}}, {"ends", {end}}}), bc);
+        m.add_return({slc});
         return m;
     };
 
     auto m = create_where_module(true);
     run_pass(m);
-    EXPECT(m == return_xy(true));
+    auto expected = create_expected(true);
+    EXPECT(m.sort() == expected.sort());
 
     auto m1 = create_where_module(false);
     run_pass(m1);
-    EXPECT(m1 == return_xy(false));
+    auto expected1 = create_expected(false);
+    EXPECT(m1.sort() == expected1.sort());
 }
 
 TEST_CASE(where_different_cond_values)
@@ -1722,96 +1806,1083 @@ TEST_CASE(where_different_cond_values)
 
 TEST_CASE(where_axis_nonzero)
 {
-    auto create_where_module = [] {
-        migraphx::module m;
-        migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 2}};
-        auto inx = m.add_parameter("X", s);
-        auto iny = m.add_parameter("Y", s);
+    migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 2}};
+
+    migraphx::module m1;
+    {
+        auto inx = m1.add_parameter("X", s);
+        auto iny = m1.add_parameter("Y", s);
 
         migraphx::shape si{migraphx::shape::bool_type, {1, 1, 3, 2}};
         std::vector<char> idata(6, 1);
-        auto li     = m.add_literal(migraphx::literal(si, idata));
-        auto data   = m.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), inx, iny);
-        auto data_1 = m.add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), data);
-        auto r      = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data_1, li);
-        m.add_return({r});
-        return m;
-    };
+        auto li     = m1.add_literal(migraphx::literal(si, idata));
+        auto data   = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), inx, iny);
+        auto data_1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), data);
+        auto r      = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data_1, li);
+        m1.add_return({r});
+    }
+    run_pass(m1);
 
-    auto m = create_where_module();
-    run_pass(m);
-    EXPECT(m == create_where_module());
+    migraphx::module m2;
+    {
+        auto inx = m2.add_parameter("X", s);
+        auto iny = m2.add_parameter("Y", s);
+
+        auto data = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), inx, iny);
+        auto tr   = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {1, 2, 3, 0}}}), data);
+        auto rsp = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {12, 1}}}), tr);
+        auto bc  = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {12, 1, 3, 2}}}), rsp);
+        auto slc = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), bc);
+        m2.add_return({slc});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
 }
 
 TEST_CASE(where_three_concat_inputs)
 {
-    auto create_where_module = [] {
-        migraphx::module m;
-        migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 2}};
-        auto inx = m.add_parameter("X", s);
-        auto iny = m.add_parameter("Y", s);
+    migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 2}};
+
+    migraphx::module m1;
+    {
+        auto inx = m1.add_parameter("X", s);
+        auto iny = m1.add_parameter("Y", s);
 
         migraphx::shape si{migraphx::shape::bool_type, {1, 1, 3, 2}};
         std::vector<char> idata(6, 1);
-        auto li     = m.add_literal(migraphx::literal(si, idata));
-        auto data   = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), inx, iny, inx);
-        auto data_1 = m.add_instruction(migraphx::make_op("reshape", {{"dims", {18}}}), data);
-        auto r      = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data_1, li);
-        m.add_return({r});
-        return m;
-    };
+        auto li     = m1.add_literal(migraphx::literal(si, idata));
+        auto data   = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), inx, iny, inx);
+        auto data_1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {18}}}), data);
+        auto r      = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data_1, li);
+        m1.add_return({r});
+    }
+    run_pass(m1);
 
-    auto m = create_where_module();
-    run_pass(m);
-    EXPECT(m == create_where_module());
+    migraphx::module m2;
+    {
+        auto inx = m2.add_parameter("X", s);
+        auto iny = m2.add_parameter("Y", s);
+
+        auto data = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), inx, iny, inx);
+        auto rsp  = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {18}}}), data);
+        auto bc   = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {18, 1, 3, 2}}}), rsp);
+        auto slc = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), bc);
+        m2.add_return({slc});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
 }
 
 TEST_CASE(where_three_inputs_diff_shapes)
 {
-    auto create_where_module = [] {
-        migraphx::module m;
-        migraphx::shape sx{migraphx::shape::float_type, {1, 1, 3, 2}};
-        migraphx::shape sy{migraphx::shape::float_type, {2, 1, 3, 2}};
-        auto inx = m.add_parameter("X", sx);
-        auto iny = m.add_parameter("Y", sy);
+    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 3, 2}};
+    migraphx::shape sy{migraphx::shape::float_type, {2, 1, 3, 2}};
+
+    migraphx::module m1;
+    {
+        auto inx = m1.add_parameter("X", sx);
+        auto iny = m1.add_parameter("Y", sy);
 
         migraphx::shape si{migraphx::shape::bool_type, {1, 1, 3, 2}};
         std::vector<char> idata(6, 1);
-        auto li     = m.add_literal(migraphx::literal(si, idata));
-        auto data   = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), inx, iny);
-        auto data_1 = m.add_instruction(migraphx::make_op("reshape", {{"dims", {18}}}), data);
-        auto r      = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data_1, li);
-        m.add_return({r});
-        return m;
-    };
+        auto li     = m1.add_literal(migraphx::literal(si, idata));
+        auto data   = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), inx, iny);
+        auto data_1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {18}}}), data);
+        auto r      = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data_1, li);
+        m1.add_return({r});
+    }
+    run_pass(m1);
 
-    auto m = create_where_module();
-    run_pass(m);
-    EXPECT(m == create_where_module());
+    migraphx::module m2;
+    {
+        auto inx = m2.add_parameter("X", sx);
+        auto iny = m2.add_parameter("Y", sy);
+
+        auto data = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), inx, iny);
+        auto rsp  = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {18}}}), data);
+        auto bc   = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {18, 1, 3, 2}}}), rsp);
+        auto slc = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), bc);
+        m2.add_return({slc});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
 }
 
 TEST_CASE(where_three_lens_diff)
 {
-    auto create_where_module = [] {
-        migraphx::module m;
-        migraphx::shape sx{migraphx::shape::float_type, {1, 1, 3, 2}};
-        migraphx::shape sy{migraphx::shape::float_type, {1, 1, 3, 2}};
-        auto inx = m.add_parameter("X", sx);
-        auto iny = m.add_parameter("Y", sy);
+    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 3, 2}};
+    migraphx::shape sy{migraphx::shape::float_type, {1, 1, 3, 2}};
+
+    migraphx::module m1;
+    {
+        auto inx = m1.add_parameter("X", sx);
+        auto iny = m1.add_parameter("Y", sy);
 
         migraphx::shape si{migraphx::shape::bool_type, {1, 1, 6}};
         std::vector<char> idata(6, 1);
-        auto li     = m.add_literal(migraphx::literal(si, idata));
-        auto data   = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), inx, iny);
-        auto data_1 = m.add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), data);
-        auto r      = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data_1, li);
-        m.add_return({r});
-        return m;
-    };
+        auto li     = m1.add_literal(migraphx::literal(si, idata));
+        auto data   = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), inx, iny);
+        auto data_1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), data);
+        auto r      = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data_1, li);
+        m1.add_return({r});
+    }
+    run_pass(m1);
 
-    auto m = create_where_module();
+    migraphx::module m2;
+    {
+        auto inx = m2.add_parameter("X", sx);
+        auto iny = m2.add_parameter("Y", sy);
+
+        auto data = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), inx, iny);
+        auto rsp  = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), data);
+        auto bc   = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {12, 1, 6}}}), rsp);
+        auto slc = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), bc);
+        m2.add_return({slc});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_1d_nd_indices)
+{
+    migraphx::module m;
+    auto x = m.add_parameter("x", {migraphx::shape::float_type, {6}});
+    migraphx::shape si{migraphx::shape::int32_type, {2, 3}};
+    std::vector<int> indices = {0, 1, 2, 3, 4, 5};
+    auto li                  = m.add_literal(migraphx::literal(si, indices));
+    auto g                   = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), x, li);
+    m.add_return({g});
+
     run_pass(m);
-    EXPECT(m == create_where_module());
+
+    migraphx::module expected;
+    auto xe       = expected.add_parameter("x", {migraphx::shape::float_type, {6}});
+    auto reshaped = expected.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3}}}), xe);
+    expected.add_return({reshaped});
+
+    EXPECT(m == expected);
+}
+
+TEST_CASE(gather_axis_slice_broadcast)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {2, 4}});
+        migraphx::shape si{migraphx::shape::int32_type, {2, 3}};
+        std::vector<int> indices = {1, 1, 1, 2, 2, 2};
+        auto li                  = m1.add_literal(migraphx::literal(si, indices));
+        auto g = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), x, li);
+        m1.add_return({g});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x  = m2.add_parameter("x", {migraphx::shape::float_type, {2, 4}});
+        auto br = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {2, 4, 3}}}), x);
+        auto sliced = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {3}}}), br);
+        m2.add_return({sliced});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_constant_single_index)
+{
+    migraphx::module m1;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {3, 4, 5}};
+        auto data = m1.add_parameter("data", s);
+        migraphx::shape si{migraphx::shape::int32_type, {1}};
+        auto indices = m1.add_literal(migraphx::literal{si, {2}});
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
+        m1.add_return({gather});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto s        = migraphx::shape{migraphx::shape::float_type, {3, 4, 5}};
+        auto data     = m2.add_parameter("data", s);
+        auto reshaped = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 20}}}), data);
+        auto sliced   = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {10}}, {"ends", {15}}}),
+            reshaped);
+        auto unsqueezed =
+            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), sliced);
+        m2.add_return({unsqueezed});
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(gather_multi_axis_stride)
+{
+    migraphx::module m1;
+    {
+        auto x       = m1.add_parameter("X", {migraphx::shape::float_type, {1, 3, 4, 4}});
+        auto flatten = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {48}}}), x);
+
+        migraphx::shape indices_shape{migraphx::shape::int32_type, {2, 3, 1, 4}};
+        std::vector<int32_t> indices = {0, 1, 2, 3, 16, 17, 18, 19, 32, 33, 34, 35,
+                                        4, 5, 6, 7, 20, 21, 22, 23, 36, 37, 38, 39};
+        auto li                      = m1.add_literal(migraphx::literal{indices_shape, indices});
+        auto gather                  = m1.add_instruction(migraphx::make_op("gather"), flatten, li);
+        m1.add_return({gather});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("X", {migraphx::shape::float_type, {1, 3, 4, 4}});
+        auto unsq = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3}}}), x);
+        auto tr   = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {2, 0, 1, 3, 4}}}), unsq);
+        auto sq     = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), tr);
+        auto sliced = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), sq);
+        m2.add_return({sliced});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_flatten_multi_axis_stride)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("X", {migraphx::shape::float_type, {48}});
+
+        migraphx::shape indices_shape{migraphx::shape::int32_type, {24}};
+        std::vector<int32_t> indices = {0, 1, 2, 3, 16, 17, 18, 19, 32, 33, 34, 35,
+                                        4, 5, 6, 7, 20, 21, 22, 23, 36, 37, 38, 39};
+        auto li                      = m1.add_literal(migraphx::literal{indices_shape, indices});
+        auto gather                  = m1.add_instruction(migraphx::make_op("gather"), x, li);
+        m1.add_return({gather});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x   = m2.add_parameter("X", {migraphx::shape::float_type, {48}});
+        auto rsp = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 4, 4}}}), x);
+        auto tr =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0, 2}}}), rsp);
+        auto slc = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), tr);
+        auto rsp2 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {24}}}), slc);
+        m2.add_return({rsp2});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_constant_same_indices)
+{
+    migraphx::module m1;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {3, 4, 5}};
+        auto data = m1.add_parameter("data", s);
+        migraphx::shape si{migraphx::shape::int32_type, {3}};
+        auto indices = m1.add_literal(migraphx::literal{si, {1, 1, 1}});
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+        m1.add_return({gather});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {3, 4, 5}};
+        auto data = m2.add_parameter("data", s);
+        auto unsq = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), data);
+        auto rsp1 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 1, 20}}}), unsq);
+        auto mb   = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {3, 3, 20}}}), rsp1);
+        auto slc = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), mb);
+        auto rsp2 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 3, 4, 5}}}), slc);
+        auto sq   = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), rsp2);
+        m2.add_return({sq});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_constant_same_indices_1d)
+{
+    migraphx::module m1;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {12}};
+        auto data = m1.add_parameter("data", s);
+        migraphx::shape si{migraphx::shape::int32_type, {3}};
+        auto indices = m1.add_literal(migraphx::literal{si, {1, 1, 1}});
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+        auto unsqueeze =
+            m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), gather);
+        m1.add_return({unsqueeze});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {12}};
+        auto data = m2.add_parameter("data", s);
+        auto bc   = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {12, 3}}}), data);
+        auto slc = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), bc);
+        m2.add_return({slc});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_constant_sequential_indices)
+{
+    migraphx::module m1;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {5, 6}};
+        auto data = m1.add_parameter("data", s);
+        migraphx::shape si{migraphx::shape::int32_type, {3}};
+        auto indices = m1.add_literal(migraphx::literal{si, {1, 2, 3}});
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+        m1.add_return({gather});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {5, 6}};
+        auto data = m2.add_parameter("data", s);
+        auto rsp1 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {30}}}), data);
+        auto slc  = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {6}}, {"ends", {24}}}), rsp1);
+        auto rsp2 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 6}}}), slc);
+        m2.add_return({rsp2});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_constant_sequential_indices_1d)
+{
+    migraphx::module m1;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {30}};
+        auto data = m1.add_parameter("data", s);
+        migraphx::shape si{migraphx::shape::int32_type, {3}};
+        auto indices = m1.add_literal(migraphx::literal{si, {1, 2, 3}});
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+        m1.add_return({gather});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {30}};
+        auto data = m2.add_parameter("data", s);
+        auto unsq = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), data);
+        auto mb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 30}}}), unsq);
+        auto rsp1 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {60}}}), mb);
+        auto slc1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {31}}}), rsp1);
+        auto rsp2 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {10, 3}}}), slc1);
+        auto slc2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), rsp2);
+        auto sq = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), slc2);
+        m2.add_return({sq});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_constant_stride_indices_1d)
+{
+    migraphx::module m1;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {30}};
+        auto data = m1.add_parameter("data", s);
+        migraphx::shape si{migraphx::shape::int32_type, {3}};
+        auto indices = m1.add_literal(migraphx::literal{si, {1, 5, 9}});
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+        m1.add_return({gather});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {30}};
+        auto data = m2.add_parameter("data", s);
+        auto slc1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {24}}}), data);
+        auto rsp  = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3, 4}}}), slc1);
+        auto slc2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0, 2}}, {"starts", {0, 1}}, {"ends", {1, 2}}}),
+            rsp);
+        auto sq = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0, 2}}}), slc2);
+        m2.add_return({sq});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_constant_stride_divisible_indices_1d)
+{
+    migraphx::module m1;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {30}};
+        auto data = m1.add_parameter("data", s);
+        migraphx::shape si{migraphx::shape::int32_type, {3}};
+        auto indices = m1.add_literal(migraphx::literal{si, {0, 5, 10}});
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+        m1.add_return({gather});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {30}};
+        auto data = m2.add_parameter("data", s);
+        auto rsp  = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3, 5}}}), data);
+        auto slc  = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0, 2}}, {"starts", {0, 0}}, {"ends", {1, 1}}}),
+            rsp);
+        auto sq = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0, 2}}}), slc);
+        m2.add_return({sq});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_constant_stride_divisible_indices_window_1d)
+{
+    migraphx::module m1;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {30}};
+        auto data = m1.add_parameter("data", s);
+        migraphx::shape si{migraphx::shape::int32_type, {3}};
+        auto indices = m1.add_literal(migraphx::literal{si, {5, 10, 15}});
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+        m1.add_return({gather});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {30}};
+        auto data = m2.add_parameter("data", s);
+        auto unsq = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), data);
+        auto mb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 30}}}), unsq);
+        auto rsp1 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {60}}}), mb);
+        auto slc1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {5}}, {"ends", {35}}}), rsp1);
+        auto rsp2 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3, 5}}}), slc1);
+        auto slc2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0, 2}}, {"starts", {0, 0}}, {"ends", {1, 1}}}),
+            rsp2);
+        auto sq = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0, 2}}}), slc2);
+        m2.add_return({sq});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_constant_stride_divisible_both_indices_1d)
+{
+    migraphx::module m1;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {15}};
+        auto data = m1.add_parameter("data", s);
+        migraphx::shape si{migraphx::shape::int32_type, {3}};
+        auto indices = m1.add_literal(migraphx::literal{si, {0, 5, 10}});
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+        m1.add_return({gather});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {15}};
+        auto data = m2.add_parameter("data", s);
+        auto rsp  = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 5}}}), data);
+        auto slc  = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), rsp);
+        auto sq = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), slc);
+        m2.add_return({sq});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_sequential_stride_rtr_1d)
+{
+    migraphx::module m1;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {8}};
+        auto data = m1.add_parameter("data", s);
+        migraphx::shape si{migraphx::shape::int32_type, {8}};
+        auto indices = m1.add_literal(migraphx::literal{si, {0, 4, 1, 5, 2, 6, 3, 7}});
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+        m1.add_return({gather});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto s        = migraphx::shape{migraphx::shape::float_type, {8}};
+        auto data     = m2.add_parameter("data", s);
+        auto reshape1 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4}}}), data);
+        auto transpose =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), reshape1);
+        auto reshape2 =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), transpose);
+        m2.add_return({reshape2});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_sequential_stride_rtr_window_1d)
+{
+    migraphx::module m1;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {12}};
+        auto data = m1.add_parameter("data", s);
+        migraphx::shape si{migraphx::shape::int32_type, {8}};
+        auto indices = m1.add_literal(migraphx::literal{si, {1, 4, 7, 10, 2, 5, 8, 11}});
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+        m1.add_return({gather});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {12}};
+        auto data = m2.add_parameter("data", s);
+        auto rsp1 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 3}}}), data);
+        auto tr =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), rsp1);
+        auto slc = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {3}}}), tr);
+        auto rsp2 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), slc);
+        m2.add_return({rsp2});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_axis0_half_split_concat)
+{
+    // This pattern is not optimized - gather remains
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {4, 3}});
+        migraphx::shape si{migraphx::shape::int32_type, {4}};
+        std::vector<int32_t> indices = {2, 3, 0, 1};
+        auto li                      = m1.add_literal(migraphx::literal(si, indices));
+        auto g = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), x, li);
+        m1.add_return({g});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+
+    // Verify output shape is correct: {4, 3}
+    auto result =
+        std::find_if(m1.begin(), m1.end(), [](const auto& ins) { return ins.name() == "@return"; });
+    EXPECT(result != m1.end());
+    EXPECT(result->inputs().front()->get_shape().lens() == std::vector<std::size_t>{4, 3});
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_axis1_same_stride_diff_base)
+{
+    // This pattern is not optimized - gather remains
+    migraphx::module m1;
+    {
+        migraphx::shape si{migraphx::shape::int32_type, {2, 2}};
+        std::vector<int32_t> indices = {1, 1, 0, 2};
+        auto x                       = m1.add_parameter("x", {migraphx::shape::float_type, {3, 3}});
+        auto tx  = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), x);
+        auto ind = m1.add_literal(migraphx::literal{si, indices});
+        auto tind =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), ind);
+        auto g = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), tx, tind);
+        m1.add_return({g});
+    }
+    auto m2 = m1;
+    // Verify there is no hang
+    run_pass(m1);
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_axis1_transposed)
+{
+    migraphx::module m1;
+    {
+        migraphx::shape si{migraphx::shape::int32_type, {1}};
+        std::vector<int32_t> indices = {1};
+        auto x                       = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+        auto tx  = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), x);
+        auto ind = m1.add_literal(migraphx::literal{si, indices});
+        auto g   = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), tx, ind);
+        m1.add_return({g});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x         = m2.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+        auto unsqueeze = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), x);
+        auto transpose = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), unsqueeze);
+        auto slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), transpose);
+        auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), slice);
+        m2.add_return({squeeze});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_flatten_stride_slice)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("X", {migraphx::shape::float_type, {8}});
+        migraphx::shape si{migraphx::shape::int32_type, {4}};
+        std::vector<int32_t> indices = {1, 5, 2, 6};
+        auto li                      = m1.add_literal(migraphx::literal{si, indices});
+        auto g                       = m1.add_instruction(migraphx::make_op("gather"), x, li);
+        m1.add_return({g});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x   = m2.add_parameter("X", {migraphx::shape::float_type, {8}});
+        auto rsp = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4}}}), x);
+        auto tr =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), rsp);
+        auto slc = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {3}}}), tr);
+        auto rsp2 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), slc);
+        m2.add_return({rsp2});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_flatten_stride_first)
+{
+    migraphx::module m;
+    auto x = m.add_parameter("X", {migraphx::shape::float_type, {8}});
+    migraphx::shape si{migraphx::shape::int32_type, {4}};
+    std::vector<int32_t> indices = {0, 2, 4, 6};
+    auto li                      = m.add_literal(migraphx::literal{si, indices});
+    auto g                       = m.add_instruction(migraphx::make_op("gather"), x, li);
+    m.add_return({g});
+
+    run_pass(m);
+
+    migraphx::module expected;
+    auto xe = expected.add_parameter("X", {migraphx::shape::float_type, {8}});
+    auto reshape_block =
+        expected.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 2}}}), xe);
+    auto slice = expected.add_instruction(
+        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), reshape_block);
+    auto result = expected.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), slice);
+    expected.add_return({result});
+
+    EXPECT(m == expected);
+}
+
+TEST_CASE(gather_flatten_stride_offset)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("X", {migraphx::shape::float_type, {16}});
+        migraphx::shape si{migraphx::shape::int32_type, {1, 4}};
+        std::vector<int32_t> indices = {1, 5, 9, 13};
+        auto li                      = m1.add_literal(migraphx::literal{si, indices});
+        auto g                       = m1.add_instruction(migraphx::make_op("gather"), x, li);
+        m1.add_return({g});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x   = m2.add_parameter("X", {migraphx::shape::float_type, {16}});
+        auto rsp = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 4}}}), x);
+        auto slc = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), rsp);
+        auto unsq = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), slc);
+        auto sq   = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), unsq);
+        m2.add_return({sq});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_flatten_stride_grid)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("X", {migraphx::shape::float_type, {768}});
+        migraphx::shape si{migraphx::shape::int32_type, {48}};
+        std::vector<int32_t> indices = {17,  21,  25,  29,  81,  85,  89,  93,  145, 149, 153, 157,
+                                        209, 213, 217, 221, 273, 277, 281, 285, 337, 341, 345, 349,
+                                        401, 405, 409, 413, 465, 469, 473, 477, 529, 533, 537, 541,
+                                        593, 597, 601, 605, 657, 661, 665, 669, 721, 725, 729, 733};
+        auto li                      = m1.add_literal(migraphx::literal{si, indices});
+        auto g                       = m1.add_instruction(migraphx::make_op("gather"), x, li);
+        m1.add_return({g});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x   = m2.add_parameter("X", {migraphx::shape::float_type, {768}});
+        auto rsp = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {12, 16, 4}}}), x);
+        auto slc = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1, 2}}, {"starts", {4, 1}}, {"ends", {8, 2}}}),
+            rsp);
+        auto rsp2 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {48}}}), slc);
+        m2.add_return({rsp2});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_flatten_permutation)
+{
+    migraphx::module m;
+    auto x = m.add_parameter("X", {migraphx::shape::float_type, {16}});
+    migraphx::shape si{migraphx::shape::int32_type, {16}};
+    std::vector<int32_t> indices = {0, 2, 8, 10, 4, 6, 12, 14, 1, 3, 9, 11, 5, 7, 13, 15};
+    auto li                      = m.add_literal(migraphx::literal{si, indices});
+    auto g                       = m.add_instruction(migraphx::make_op("gather"), x, li);
+    m.add_return({g});
+
+    run_pass(m);
+
+    migraphx::module expected;
+    auto xe = expected.add_parameter("X", {migraphx::shape::float_type, {16}});
+    auto reshape_perm =
+        expected.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 2}}}), xe);
+    auto transpose = expected.add_instruction(
+        migraphx::make_op("transpose", {{"permutation", {3, 1, 0, 2}}}), reshape_perm);
+    auto reshape_out =
+        expected.add_instruction(migraphx::make_op("reshape", {{"dims", {16}}}), transpose);
+    expected.add_return({reshape_out});
+
+    EXPECT(m == expected);
+}
+
+TEST_CASE(gather_flatten_channel_patch)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("X", {migraphx::shape::float_type, {48}});
+        migraphx::shape si{migraphx::shape::int32_type, {12}};
+        std::vector<int32_t> indices = {5, 21, 37, 9, 25, 41, 6, 22, 38, 10, 26, 42};
+        auto li                      = m1.add_literal(migraphx::literal{si, indices});
+        auto g                       = m1.add_instruction(migraphx::make_op("gather"), x, li);
+        m1.add_return({g});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x   = m2.add_parameter("X", {migraphx::shape::float_type, {48}});
+        auto rsp = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 4, 4}}}), x);
+        auto tr =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 1, 0}}}), rsp);
+        auto slc = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {1, 1}}, {"ends", {3, 3}}}),
+            tr);
+        auto rsp2 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), slc);
+        m2.add_return({rsp2});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_flatten_channel_parity_permutation)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("X", {migraphx::shape::float_type, {48}});
+        migraphx::shape si{migraphx::shape::int32_type, {48}};
+        std::vector<int32_t> indices = {0, 2, 8,  10, 16, 18, 24, 26, 32, 34, 40, 42,
+                                        4, 6, 12, 14, 20, 22, 28, 30, 36, 38, 44, 46,
+                                        1, 3, 9,  11, 17, 19, 25, 27, 33, 35, 41, 43,
+                                        5, 7, 13, 15, 21, 23, 29, 31, 37, 39, 45, 47};
+        auto li                      = m1.add_literal(migraphx::literal{si, indices});
+        auto g                       = m1.add_instruction(migraphx::make_op("gather"), x, li);
+        m1.add_return({g});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x   = m2.add_parameter("X", {migraphx::shape::float_type, {48}});
+        auto rsp = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {6, 2, 2, 2}}}), x);
+        auto tr  = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {3, 1, 0, 2}}}), rsp);
+        auto rsp2 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {48}}}), tr);
+        m2.add_return({rsp2});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_axis1_factorized_grid_const)
+{
+    migraphx::module m1;
+    {
+        auto data = m1.add_parameter("data", {migraphx::shape::float_type, {3, 8, 5}});
+        migraphx::shape si{migraphx::shape::int32_type, {2, 2, 1}};
+        std::vector<int32_t> indices = {1, 3, 5, 7};
+        auto li                      = m1.add_literal(migraphx::literal{si, indices});
+        auto g = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, li);
+        m1.add_return({g});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto data = m2.add_parameter("data", {migraphx::shape::float_type, {3, 8, 5}});
+        auto rsp1 = m2.add_instruction(
+            migraphx::make_op("reshape", {{"dims", std::vector<int64_t>{3, 4, 2, 5}}}), data);
+        auto rsp2 = m2.add_instruction(
+            migraphx::make_op("reshape", {{"dims", std::vector<int64_t>{12, 10}}}), rsp1);
+        auto slc  = m2.add_instruction(migraphx::make_op("slice",
+                                                         {{"axes", std::vector<int64_t>{1}},
+                                                          {"starts", std::vector<int64_t>{5}},
+                                                          {"ends", std::vector<int64_t>{10}}}),
+                                      rsp2);
+        auto rsp3 = m2.add_instruction(
+            migraphx::make_op("reshape", {{"dims", std::vector<int64_t>{3, 2, 2, 1, 5}}}), slc);
+        m2.add_return({rsp3});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_axis1_factorized_grid_multi_const)
+{
+    migraphx::module m1;
+    {
+        auto data = m1.add_parameter("data", {migraphx::shape::float_type, {2, 27, 4}});
+        migraphx::shape si{migraphx::shape::int32_type, {3, 1}};
+        std::vector<int32_t> indices = {5, 14, 23};
+        auto li                      = m1.add_literal(migraphx::literal{si, indices});
+        auto g = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, li);
+        m1.add_return({g});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto data = m2.add_parameter("data", {migraphx::shape::float_type, {2, 27, 4}});
+        auto rsp1 = m2.add_instruction(
+            migraphx::make_op("reshape", {{"dims", std::vector<int64_t>{2, 3, 9, 4}}}), data);
+        auto rsp2 = m2.add_instruction(
+            migraphx::make_op("reshape", {{"dims", std::vector<int64_t>{6, 36}}}), rsp1);
+        auto slc  = m2.add_instruction(migraphx::make_op("slice",
+                                                         {{"axes", std::vector<int64_t>{1}},
+                                                          {"starts", std::vector<int64_t>{20}},
+                                                          {"ends", std::vector<int64_t>{24}}}),
+                                      rsp2);
+        auto rsp3 = m2.add_instruction(
+            migraphx::make_op("reshape", {{"dims", std::vector<int64_t>{2, 3, 1, 4}}}), slc);
+        m2.add_return({rsp3});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_constant_scalar_index)
+{
+    migraphx::module m1;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {3, 4}};
+        auto data = m1.add_parameter("data", s);
+        migraphx::shape si{migraphx::shape::int32_type};
+        auto indices = m1.add_literal(migraphx::literal{si, {2}});
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+        m1.add_return({gather});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto s     = migraphx::shape{migraphx::shape::float_type, {3, 4}};
+        auto data  = m2.add_parameter("data", s);
+        auto slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), data);
+        auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), slice);
+        m2.add_return({squeeze});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_constant_scalar_index_axis2)
+{
+    migraphx::module m1;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {8, 32, 19}};
+        auto data = m1.add_parameter("data", s);
+        migraphx::shape si{migraphx::shape::int32_type};
+        auto indices = m1.add_literal(migraphx::literal{si, {0}});
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 2}}), data, indices);
+        m1.add_return({gather});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {8, 32, 19}};
+        auto data = m2.add_parameter("data", s);
+        auto reshape1 =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {256, 19}}}), data);
+        auto slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), reshape1);
+        auto reshape2 =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {8, 32, 1}}}), slice);
+        auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), reshape2);
+        m2.add_return({squeeze});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_constant_scalar_index_single_dim)
+{
+    migraphx::module m1;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {4}};
+        auto data = m1.add_parameter("data", s);
+        migraphx::shape si{migraphx::shape::int32_type};
+        auto indices = m1.add_literal(migraphx::literal{si, {2}});
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+        m1.add_return({gather});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto s         = migraphx::shape{migraphx::shape::float_type, {4}};
+        auto data      = m2.add_parameter("data", s);
+        auto unsqueeze = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), data);
+        auto slice     = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), unsqueeze);
+        auto reshape = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1}}}), slice);
+        auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), reshape);
+        m2.add_return({squeeze});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_constant_negative_index)
+{
+    migraphx::module m1;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {3, 4}};
+        auto data = m1.add_parameter("data", s);
+        migraphx::shape si{migraphx::shape::int32_type, {1}};
+        auto indices = m1.add_literal(migraphx::literal{si, {-1}});
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+        m1.add_return({gather});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto s     = migraphx::shape{migraphx::shape::float_type, {3, 4}};
+        auto data  = m2.add_parameter("data", s);
+        auto slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), data);
+        m2.add_return({slice});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_non_constant_indices)
+{
+    // Should not be transformed
+    migraphx::module m1;
+    {
+        auto s       = migraphx::shape{migraphx::shape::float_type, {3, 4}};
+        auto si      = migraphx::shape{migraphx::shape::int32_type, {2}};
+        auto data    = m1.add_parameter("data", s);
+        auto indices = m1.add_parameter("indices", si);
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+        m1.add_return({gather});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(gather_axis_1)
+{
+    migraphx::module m1;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {2, 5, 3}};
+        auto data = m1.add_parameter("data", s);
+        migraphx::shape si{migraphx::shape::int32_type, {2}};
+        auto indices = m1.add_literal(migraphx::literal{si, {0, 1}});
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
+        m1.add_return({gather});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {2, 5, 3}};
+        auto data = m2.add_parameter("data", s);
+        auto rsp1 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 15}}}), data);
+        auto slc  = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {6}}}), rsp1);
+        auto rsp2 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 3}}}), slc);
+        m2.add_return({rsp2});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_onnx_axis_one_ex)
+{
+    migraphx::module m1;
+    {
+        auto s    = migraphx::shape{migraphx::shape::float_type, {3, 3}};
+        auto data = m1.add_parameter("data", s);
+        migraphx::shape si{migraphx::shape::int32_type, {2, 1}};
+        auto indices = m1.add_literal(migraphx::literal{si, {0, 2}});
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
+        m1.add_return({gather});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1.sort() == m2.sort());
 }
 
 TEST_CASE(reshape_cont)
@@ -2556,6 +3627,67 @@ TEST_CASE(reduce_squeeze_pointwise3)
         auto add       = m2.add_instruction(migraphx::make_op("add"), reduce_sum, unsqueeze);
         auto relu      = m2.add_instruction(migraphx::make_op("relu"), add);
         auto squeeze   = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {2, 3}}}), relu);
+        m2.add_return({squeeze});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(reduce_squeeze_pointwise4)
+{
+    auto s1 = migraphx::shape{migraphx::shape::float_type, {1, 3}};
+    auto s2 = migraphx::shape{migraphx::shape::float_type, {1}};
+    migraphx::module m1;
+    {
+        auto x          = m1.add_parameter("x", s1);
+        auto y          = m1.add_parameter("y", s2);
+        auto reduce_sum = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        auto squeeze =
+            m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), reduce_sum);
+        auto add  = m1.add_instruction(migraphx::make_op("add"), squeeze, y);
+        auto relu = m1.add_instruction(migraphx::make_op("relu"), add);
+        m1.add_return({relu});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x          = m2.add_parameter("x", s1);
+        auto y          = m2.add_parameter("y", s2);
+        auto reduce_sum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        auto unsqueeze  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), y);
+        auto add        = m2.add_instruction(migraphx::make_op("add"), reduce_sum, unsqueeze);
+        auto relu       = m2.add_instruction(migraphx::make_op("relu"), add);
+        auto squeeze    = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), relu);
+        m2.add_return({squeeze});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(reduce_squeeze_pointwise5)
+{
+    auto s1 = migraphx::shape{migraphx::shape::float_type, {1, 3}};
+    auto s2 = migraphx::shape{migraphx::shape::float_type, {1}, {0}};
+    migraphx::module m1;
+    {
+        auto x          = m1.add_parameter("x", s1);
+        auto y          = m1.add_parameter("y", s2);
+        auto reduce_sum = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        auto squeeze =
+            m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), reduce_sum);
+        auto add  = m1.add_instruction(migraphx::make_op("add"), squeeze, y);
+        auto relu = m1.add_instruction(migraphx::make_op("relu"), add);
+        m1.add_return({relu});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x          = m2.add_parameter("x", s1);
+        auto y          = m2.add_parameter("y", s2);
+        auto reduce_sum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        auto unsqueeze =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 1}}}), y);
+        auto add     = m2.add_instruction(migraphx::make_op("add"), reduce_sum, unsqueeze);
+        auto relu    = m2.add_instruction(migraphx::make_op("relu"), add);
+        auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), relu);
         m2.add_return({squeeze});
     }
     EXPECT(m1.sort() == m2.sort());
@@ -3469,6 +4601,63 @@ TEST_CASE(add_transpose)
         auto c3  = m2.add_literal(migraphx::generate_literal(s2));
         auto dot = m2.add_instruction(migraphx::make_op("dot"), mul, c3);
         m2.add_return({dot});
+    };
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(slice_squeeze_unsqueeze)
+{
+    migraphx::shape s{migraphx::shape::float_type, {12, 6, 1}};
+    migraphx::module m1;
+    {
+        auto x     = m1.add_parameter("x", s);
+        auto slice = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), x);
+        auto squeeze = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {0, 2}}}), slice);
+        auto unsqueeze =
+            m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 1}}}), squeeze);
+        m1.add_return({unsqueeze});
+    };
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x         = m2.add_parameter("x", s);
+        auto unsqueeze = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), x);
+        auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), unsqueeze);
+        auto slice   = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), squeeze);
+        m2.add_return({slice});
+    };
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(slice_reshape_reshape)
+{
+    migraphx::shape s{migraphx::shape::float_type, {3, 3, 20}};
+    migraphx::module m1;
+    {
+        auto x     = m1.add_parameter("x", s);
+        auto slice = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), x);
+        auto reshape1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {60}}}), slice);
+        auto reshape2 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 4, 5}}}), reshape1);
+        m1.add_return({reshape2});
+    };
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x     = m2.add_parameter("x", s);
+        auto slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), x);
+        auto reshape =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 3, 4, 5}}}), slice);
+        auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), reshape);
+        m2.add_return({squeeze});
     };
 
     EXPECT(m1.sort() == m2.sort());

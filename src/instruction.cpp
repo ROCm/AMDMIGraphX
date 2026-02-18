@@ -592,10 +592,8 @@ static auto track_visits(instruction_ref start, instruction_ref end, F f)
         for(auto it = start; it != std::next(end); ++it)
             in_range.insert(it);
         auto stop = [&](auto ins) {
-            auto it = in_range.find(ins);
-            if(it == in_range.end())
+            if(in_range.erase(it) == 0)
                 return true;
-            in_range.erase(it);
             return false;
         };
         return f(stop);

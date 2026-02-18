@@ -314,7 +314,9 @@ struct find_op_shape_transform_op
             // handle argmin/argmax
             if(v.contains("axis"))
             {
-                auto op_axis  = v.at("axis").to<std::size_t>();
+                auto axis_val = v.at("axis").to<int64_t>();
+                auto ndim     = ins->inputs().front()->get_shape().ndim();
+                auto op_axis  = axis_val < 0 ? axis_val + ndim : axis_val;
                 auto new_axes = am.at(op_axis);
                 // argmin/argmax only support single axis
                 if(new_axes.size() != 1)
@@ -359,7 +361,10 @@ struct find_op_shape_transform_op
             // handle argmin/argmax
             if(v.contains("axis"))
             {
-                op_axes = {v.at("axis").to<std::size_t>()};
+                auto axis_val = v.at("axis").to<int64_t>();
+                auto ndim     = ins->inputs().front()->get_shape().ndim();
+                auto axis     = axis_val < 0 ? axis_val + ndim : axis_val;
+                op_axes       = {static_cast<std::size_t>(axis)};
             }
             else
             {

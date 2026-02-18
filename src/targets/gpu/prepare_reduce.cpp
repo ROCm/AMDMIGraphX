@@ -73,8 +73,9 @@ struct arg_reduce
     {
         // inputs: [values, indices (lazy)]
         // output: tuple of (reduced_value_shape, reduced_index_shape)
-        auto reduced_shape = op.compute_shape({inputs.front()});
-        return shape{{reduced_shape, reduced_shape.with_type(shape::int64_type)}};
+        auto index_shape = op.compute_shape({inputs.front()});
+        auto value_shape = index_shape.with_type(inputs.front().type());
+        return shape{{value_shape, index_shape}};
     }
 };
 MIGRAPHX_REGISTER_OP(arg_reduce);
@@ -117,10 +118,12 @@ void rewrite_arg_reduce(module& m)
 {
     for(auto ins : find_arg_reduce(m))
     {
-        auto input     = ins->inputs().front();
-        auto v         = ins->get_operator().to_value();
-        auto axis      = v["axis"].to<std::size_t>();
-        auto axis_size = input->get_shape().lens()[axis];
+        auto input      = ins->inputs().front();
+        auto v          = ins->get_operator().to_value();
+        auto axis_val   = v["axis"].to<int64_t>();
+        auto ndim       = input->get_shape().ndim();
+        auto axis       = axis_val < 0 ? axis_val + ndim : axis_val;
+        auto axis_size  = input->get_shape().lens()[axis];
 
         // make_indices to generate lazy indices
         auto indices = m.insert_instruction(ins, make_indices{axis_size});

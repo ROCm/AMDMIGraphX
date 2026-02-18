@@ -46,9 +46,9 @@ struct arg_reduce
 
     migraphx::shape compute_shape(const std::vector<migraphx::shape>& inputs) const
     {
-        auto reduced_shape = op.compute_shape({inputs.front()});
-        return migraphx::shape{
-            {reduced_shape, reduced_shape.with_type(migraphx::shape::int64_type)}};
+        auto index_shape = op.compute_shape({inputs.front()});
+        auto value_shape = index_shape.with_type(inputs.front().type());
+        return migraphx::shape{{value_shape, index_shape}};
     }
 };
 

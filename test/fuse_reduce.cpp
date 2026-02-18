@@ -100,8 +100,11 @@ TEST_CASE(pointwise_reduce)
         auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), add);
         mm->add_return({rsum});
     }
+    std::cout << "p1 before pass" << std::endl;
+    p1.debug_print();
     run_pass(p1);
-
+    std::cout << "p1 after pass" << std::endl;
+    p1.debug_print();
     migraphx::program p2;
     {
         auto* mm  = p2.get_main_module();
@@ -1188,6 +1191,157 @@ TEST_CASE(reshape_reduce_reduce_reduce_diff_axes)
     }
 
     EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(argmin_fuse)
+{
+    // Test that argmin with axis=1 gets wrapped in fused_reduce with axes={1}
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::program p1;
+    {
+        auto* mm     = p1.get_main_module();
+        auto x       = mm->add_parameter("x", s);
+        auto argmin1 = mm->add_instruction(migraphx::make_op("argmin", {{"axis", 1}}), x);
+        mm->add_return({argmin1});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm     = p2.get_main_module();
+        auto x       = mm->add_parameter("x", s);
+        auto argmin1 = add_reduce(
+            p2, "main:argmin0", {x}, {1}, [](auto* rm, const auto& inputs, const auto& axes) {
+                return rm->add_instruction(
+                    migraphx::make_op("argmin", {{"axis", axes.front()}}), inputs);
+            });
+        mm->add_return({argmin1});
+    }
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(argmax_fuse)
+{
+    // Test that argmax with axis=1 gets wrapped in fused_reduce with axes={1}
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::program p1;
+    {
+        auto* mm     = p1.get_main_module();
+        auto x       = mm->add_parameter("x", s);
+        auto argmax1 = mm->add_instruction(migraphx::make_op("argmax", {{"axis", 1}}), x);
+        mm->add_return({argmax1});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm     = p2.get_main_module();
+        auto x       = mm->add_parameter("x", s);
+        auto argmax1 = add_reduce(
+            p2, "main:argmax0", {x}, {1}, [](auto* rm, const auto& inputs, const auto& axes) {
+                return rm->add_instruction(
+                    migraphx::make_op("argmax", {{"axis", axes.front()}}), inputs);
+            });
+        mm->add_return({argmax1});
+    }
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(argmin_axis0)
+{
+    // Test that argmin with axis=0 gets wrapped in fused_reduce with axes={0}
+    migraphx::shape s{migraphx::shape::float_type, {4, 5, 6}};
+    migraphx::program p1;
+    {
+        auto* mm     = p1.get_main_module();
+        auto x       = mm->add_parameter("x", s);
+        auto argmin1 = mm->add_instruction(migraphx::make_op("argmin", {{"axis", 0}}), x);
+        mm->add_return({argmin1});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm     = p2.get_main_module();
+        auto x       = mm->add_parameter("x", s);
+        auto argmin1 = add_reduce(
+            p2, "main:argmin0", {x}, {0}, [](auto* rm, const auto& inputs, const auto& axes) {
+                return rm->add_instruction(
+                    migraphx::make_op("argmin", {{"axis", axes.front()}}), inputs);
+            });
+        mm->add_return({argmin1});
+    }
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(pointwise_argmin)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::program p1;
+    {
+        auto* mm     = p1.get_main_module();
+        auto x       = mm->add_parameter("x", s);
+        auto y       = mm->add_parameter("y", s);
+        auto add     = add_pointwise(p1, "main:pointwise0", {x, y}, single_pointwise("add"));
+        auto argmin1 = mm->add_instruction(migraphx::make_op("argmin", {{"axis", 1}}), add);
+        mm->add_return({argmin1});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm     = p2.get_main_module();
+        auto x       = mm->add_parameter("x", s);
+        auto y       = mm->add_parameter("y", s);
+        auto argmin1 = add_reduce(
+            p2,
+            "main:pointwise0:main:argmin0",
+            {x, y},
+            {1},
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto add =
+                    add_pointwise(p2, rm, "main:pointwise0", inputs, single_pointwise("add"));
+                return rm->add_instruction(
+                    migraphx::make_op("argmin", {{"axis", axes.front()}}), add);
+            });
+        mm->add_return({argmin1});
+    }
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(pointwise_argmax)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::program p1;
+    {
+        auto* mm     = p1.get_main_module();
+        auto x       = mm->add_parameter("x", s);
+        auto y       = mm->add_parameter("y", s);
+        auto add     = add_pointwise(p1, "main:pointwise0", {x, y}, single_pointwise("add"));
+        auto argmax1 = mm->add_instruction(migraphx::make_op("argmax", {{"axis", 1}}), add);
+        mm->add_return({argmax1});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm     = p2.get_main_module();
+        auto x       = mm->add_parameter("x", s);
+        auto y       = mm->add_parameter("y", s);
+        auto argmax1 = add_reduce(
+            p2,
+            "main:pointwise0:main:argmax0",
+            {x, y},
+            {1},
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto add =
+                    add_pointwise(p2, rm, "main:pointwise0", inputs, single_pointwise("add"));
+                return rm->add_instruction(
+                    migraphx::make_op("argmax", {{"axis", axes.front()}}), add);
+            });
+        mm->add_return({argmax1});
+    }
+    EXPECT(p1 == p2);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

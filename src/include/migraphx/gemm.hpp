@@ -110,30 +110,20 @@ void with_blaze_mat(T* ptr, std::size_t rows, std::size_t cols, mat_order order,
     }
 }
 
-template <class U>
-void strided_copy_to_float(float* dst,
-                           const U* src,
-                           std::size_t rows,
-                           std::size_t cols,
-                           std::size_t row_stride,
-                           std::size_t col_stride)
+template <class T, class U>
+void copy_2d(T* dst,
+             std::size_t dst_row_stride,
+             std::size_t dst_col_stride,
+             const U* src,
+             std::size_t src_row_stride,
+             std::size_t src_col_stride,
+             std::size_t rows,
+             std::size_t cols)
 {
     for(std::size_t i = 0; i < rows; i++)
         for(std::size_t j = 0; j < cols; j++)
-            dst[i * cols + j] = static_cast<float>(src[i * row_stride + j * col_stride]);
-}
-
-template <class T>
-void strided_copy_from_float(T* dst,
-                             const float* src,
-                             std::size_t rows,
-                             std::size_t cols,
-                             std::size_t row_stride,
-                             std::size_t col_stride)
-{
-    for(std::size_t i = 0; i < rows; i++)
-        for(std::size_t j = 0; j < cols; j++)
-            dst[i * row_stride + j * col_stride] = static_cast<T>(src[i * cols + j]);
+            dst[i * dst_row_stride + j * dst_col_stride] =
+                static_cast<T>(src[i * src_row_stride + j * src_col_stride]);
 }
 #endif
 
@@ -227,16 +217,16 @@ void gemm(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat, F alpha
             auto b_off = batch_offset(bmat.get_shape(), batch, dim_0);
             auto c_off = batch_offset(cmat.get_shape(), batch, dim_0);
 
-            strided_copy_to_float(
-                a_buf.data(), amat.data() + a_off,
-                m_size, k_size, a_row_stride, a_col_stride);
-            strided_copy_to_float(
-                b_buf.data(), bmat.data() + b_off,
-                k_size, n_size, b_row_stride, b_col_stride);
+            copy_2d(a_buf.data(), k_size, std::size_t{1},
+                    amat.data() + a_off, a_row_stride, a_col_stride,
+                    m_size, k_size);
+            copy_2d(b_buf.data(), n_size, std::size_t{1},
+                    bmat.data() + b_off, b_row_stride, b_col_stride,
+                    k_size, n_size);
             if(not float_equal(beta, F{0}))
-                strided_copy_to_float(
-                    c_buf.data(), cmat.data() + c_off,
-                    m_size, n_size, c_row_stride, c_col_stride);
+                copy_2d(c_buf.data(), n_size, std::size_t{1},
+                        cmat.data() + c_off, c_row_stride, c_col_stride,
+                        m_size, n_size);
 
             blaze_row_major<float> a(a_buf.data(), m_size, k_size);
             blaze_row_major<float> b(b_buf.data(), k_size, n_size);
@@ -247,9 +237,9 @@ void gemm(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat, F alpha
             else
                 c = alpha * (a * b) + beta * c;
 
-            strided_copy_from_float(
-                cmat.data() + c_off, c_buf.data(),
-                m_size, n_size, c_row_stride, c_col_stride);
+            copy_2d(cmat.data() + c_off, c_row_stride, c_col_stride,
+                    c_buf.data(), n_size, std::size_t{1},
+                    m_size, n_size);
         }
         return;
     }

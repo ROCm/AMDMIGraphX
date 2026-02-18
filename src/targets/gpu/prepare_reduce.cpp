@@ -57,14 +57,86 @@ struct parallel_reduce
 };
 MIGRAPHX_REGISTER_OP(parallel_reduce);
 
+struct arg_reduce
+{
+    operation op;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.op, "op"));
+    }
+
+    std::string name() const { return "gpu::arg_reduce"; }
+
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        // inputs: [values, indices (lazy)]
+        // output: tuple of (reduced_value_shape, reduced_index_shape)
+        auto reduced_shape = op.compute_shape({inputs.front()});
+        return shape{{reduced_shape, reduced_shape.with_type(shape::int64_type)}};
+    }
+};
+MIGRAPHX_REGISTER_OP(arg_reduce);
+
+struct make_indices
+{
+    std::size_t size = 0;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.size, "size"));
+    }
+
+    std::string name() const { return "gpu::make_indices"; }
+
+    // This op produces a lazy index tensor,shape matches the reduction dimension
+    shape compute_shape(const std::vector<shape>&) const
+    {
+        return shape{shape::int64_type, {size}};
+    }
+};
+MIGRAPHX_REGISTER_OP(make_indices);
+
 namespace {
+
+// find argmin/argmax operations
+std::vector<instruction_ref> find_arg_reduce(module& m)
+{
+    std::vector<instruction_ref> result;
+    auto im = iterator_for(m);
+    std::copy_if(im.begin(), im.end(), std::back_inserter(result), [](auto ins) {
+        return ins->name() == "argmin" or ins->name() == "argmax";
+    });
+    return result;
+}
+
+// rewrite argmin/argmax to return lazy indices and values tuple
+void rewrite_arg_reduce(module& m)
+{
+    for(auto ins : find_arg_reduce(m))
+    {
+        auto input = ins->inputs().front();
+        auto v = ins->get_operator().to_value();
+        auto axis = v["axis"].to<std::size_t>();
+        auto axis_size = input->get_shape().lens()[axis];
+
+        // make_indices to generate lazy indices
+        auto indices = m.insert_instruction(ins, make_indices{axis_size});
+        // arg_reduce op to get values and indices tuple
+        auto arg_reduce_ins = m.insert_instruction(ins, arg_reduce{ins->get_operator()}, input, indices);
+        auto result = m.insert_instruction(ins, make_op("get_tuple_elem", {{"index", 1}}), arg_reduce_ins);
+        m.replace_instruction(ins, result);
+    }
+}
 
 std::vector<instruction_ref> find_reduce(module& m)
 {
     std::vector<instruction_ref> result;
     auto im = iterator_for(m);
     std::copy_if(im.begin(), im.end(), std::back_inserter(result), [](auto ins) {
-        if(contains({"gpu::parallel_reduce", "reduce_mean"}, ins->name()))
+        if(contains({"gpu::parallel_reduce", "reduce_mean", "gpu::arg_reduce"}, ins->name()))
             return false;
         return contains(ins->name(), "reduce");
     });
@@ -117,7 +189,11 @@ void fuse_reductions(module& m)
 
 } // namespace
 
-void prepare_reduce::apply(module& m) const { fuse_reductions(m); }
+void prepare_reduce::apply(module& m) const {
+    // rewrite argmin/argmax to handle tuples
+    rewrite_arg_reduce(m);
+    fuse_reductions(m);
+}
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

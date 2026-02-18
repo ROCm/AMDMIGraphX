@@ -1,6 +1,7 @@
 FROM ubuntu:22.04
 
-ARG PREFIX=/usr/local
+# MIGraphX prereqs (protobuf, etc.) installed here to avoid conflicting with ONNX Runtime in the same container
+ARG PREFIX=/opt/migraphx-deps
 
 # Support multiarch
 RUN dpkg --add-architecture i386
@@ -106,8 +107,8 @@ RUN mkdir -p $ONNX_HOME/models && chmod 777 $ONNX_HOME/models
 
 COPY ./tools/install_prereqs.sh /
 COPY ./tools/requirements-py.txt /requirements-py.txt
-RUN /install_prereqs.sh /usr/local / && rm /install_prereqs.sh && rm /requirements-py.txt
-RUN test -f /usr/local/hash || exit 1
+RUN /install_prereqs.sh "$PREFIX" / && rm /install_prereqs.sh && rm /requirements-py.txt
+RUN test -f "$PREFIX/hash" || exit 1
 
 # Install yapf
 RUN pip3 install yapf==0.28.0
@@ -141,6 +142,7 @@ ADD tools/pai_provider_test_launcher.sh /onnxruntime/tools/ci_build/github/pai/p
 
 ENV MIOPEN_FIND_DB_PATH=/tmp/miopen/find-db
 ENV MIOPEN_USER_DB_PATH=/tmp/miopen/user-db
+ENV MIGRAPHX_DEPS_DIR=$PREFIX
 ENV LD_LIBRARY_PATH=$PREFIX/lib
 
 # Setup ubsan environment to printstacktrace

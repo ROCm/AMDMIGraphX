@@ -276,7 +276,11 @@ struct find_op_shape_transform_op
         return is_reduce(ins) or ins->get_operator().attributes().contains("pointwise");
     }
 
-    static bool is_reduce(instruction_ref ins) { return starts_with(ins->name(), "reduce_"); }
+    static bool is_reduce(instruction_ref ins)
+    {
+        return starts_with(ins->name(), "reduce_") or ins->name() == "argmin" or
+               ins->name() == "argmax";
+    }
 
     template <class F>
     static instruction_ref find_input_if(instruction_ref start, instruction_ref last, F f)
@@ -306,7 +310,19 @@ struct find_op_shape_transform_op
     {
         if(is_reduce(ins))
         {
-            auto v       = ins->get_operator().to_value();
+            auto v = ins->get_operator().to_value();
+            // handle argmin/argmax 
+            if(v.contains("axis"))
+            {
+                auto op_axis  = v.at("axis").to<std::size_t>();
+                auto new_axes = am.at(op_axis);
+                // argmin/argmax only support single axis
+                if(new_axes.size() != 1)
+                    MIGRAPHX_THROW("argmin/argmax cannot be reshaped to multiple axes");
+                v["axis"] = new_axes.front();
+                return m.insert_instruction(
+                    ins, make_op(ins->name(), v), inputs, ins->module_inputs());
+            }
             auto op_axes = v.at("axes").to_vector<std::size_t>();
             std::vector<int64_t> axes;
             for(auto axis : op_axes)
@@ -338,8 +354,17 @@ struct find_op_shape_transform_op
     {
         if(is_reduce(ins))
         {
-            auto v       = ins->get_operator().to_value();
-            auto op_axes = v.at("axes").to_vector<std::size_t>();
+            auto v = ins->get_operator().to_value();
+            std::vector<std::size_t> op_axes;
+            // handle argmin/argmax
+            if(v.contains("axis"))
+            {
+                op_axes = {v.at("axis").to<std::size_t>()};
+            }
+            else
+            {
+                op_axes = v.at("axes").to_vector<std::size_t>();
+            }
             std::sort(op_axes.begin(), op_axes.end());
             auto broadcasted_axes = desc.find_broadcasted_axes();
             return equal(op_axes, broadcasted_axes);

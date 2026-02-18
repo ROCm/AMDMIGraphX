@@ -413,6 +413,13 @@ struct reduce_reshape : rewrite_reshapes_base
         auto outs = sm->fuse(*oldm, inputs, nullptr, transform_op([&](const operation& sop) {
             if(contains(sop.name(), "reduce"))
                 return make_op(sop.name(), {{"axes", axes}});
+            // handle argmin/argmax
+            if(sop.name() == "argmin" or sop.name() == "argmax")
+            {
+                auto v = sop.to_value();
+                v["axis"] = axes.front();
+                return make_op(sop.name(), v);
+            }
             if(sop.name() == "multibroadcast")
                 return make_op("multibroadcast", {{"out_lens", dims}});
             assert(sop.name() == "pointwise");

@@ -107,12 +107,8 @@ TEST_CASE(argmin_rewrite)
         auto argmin = m1.add_instruction(migraphx::make_op("argmin", {{"axis", 1}}), x);
         m1.add_return({argmin});
     }
-    std::cout << "m1 before pass" << std::endl;
-    m1.debug_print();
 
     run_pass(m1);
-    std::cout << "m1 after pass" << std::endl;  
-    m1.debug_print();
 
     migraphx::module m2;
     {
@@ -138,11 +134,7 @@ TEST_CASE(argmax_rewrite)
         auto argmax = m1.add_instruction(migraphx::make_op("argmax", {{"axis", 2}}), x);
         m1.add_return({argmax});
     }
-    std::cout << "m1 before pass" << std::endl;
-    m1.debug_print();
     run_pass(m1);
-    std::cout << "m1 after pass" << std::endl;
-    m1.debug_print();
 
     migraphx::module m2;
     {

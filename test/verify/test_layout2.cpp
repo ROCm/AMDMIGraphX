@@ -22,18 +22,22 @@
  * THE SOFTWARE.
  */
 
-#include <onnx_test.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-TEST_CASE(undefined_test)
+struct test_layout2 : verify_program<test_layout2>
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
-    mm->add_instruction(migraphx::make_op("undefined"));
-    auto l2 = mm->add_instruction(migraphx::make_op("undefined"));
-    mm->add_return({l2});
-
-    auto prog = read_onnx("undefined_test.onnx");
-
-    EXPECT(p == prog);
-}
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::half_type, {635, 5632}};
+        auto x = mm->add_parameter("x", s);
+        auto layout =
+            mm->add_instruction(migraphx::make_op("layout", {{"permutation", {1, 0}}}), x);
+        mm->add_return({layout});
+        return p;
+    }
+};

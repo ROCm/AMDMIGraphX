@@ -130,8 +130,9 @@ auto operator==(const T& x, const U& y) -> decltype(x.name() == y.name())
 } // namespace operation_operators
 
 template <class T>
-auto compute_shape_op(rank<3>, const T& x, const std::vector<shape>& inputs)
-    -> decltype(x.compute_shape(inputs))
+auto compute_shape_op(rank<3>,
+                      const T& x,
+                      const std::vector<shape>& inputs) -> decltype(x.compute_shape(inputs))
 {
     return x.compute_shape(inputs);
 }
@@ -148,8 +149,9 @@ auto compute_shape_op(rank<2>, const T& x, const std::vector<shape>& inputs)
 }
 
 template <class T>
-auto compute_shape_op(rank<1>, const T& x, const std::vector<shape>& inputs)
-    -> decltype(x.compute_shape(inputs, {}))
+auto compute_shape_op(rank<1>,
+                      const T& x,
+                      const std::vector<shape>& inputs) -> decltype(x.compute_shape(inputs, {}))
 {
     return x.compute_shape(inputs, {});
 }
@@ -386,8 +388,9 @@ auto is_context_free_op(rank<0>, const T&, const shape&, const std::vector<argum
     -> std::false_type;
 
 template <class T>
-auto is_context_free_op(const T& x) -> decltype(is_context_free_op(
-    rank<1>{}, x, std::declval<const shape&>(), std::declval<std::vector<argument>>()))
+auto is_context_free_op(const T& x)
+    -> decltype(is_context_free_op(
+        rank<1>{}, x, std::declval<const shape&>(), std::declval<std::vector<argument>>()))
 {
     return {};
 }
@@ -474,6 +477,32 @@ value compile_op(const T& x,
 }
 
 template <class T>
+auto runtime_compile_op(rank<1>,
+                        const T& x,
+                        context& ctx,
+                        const std::vector<shape>& input,
+                        const std::vector<module_ref>& module_args)
+    -> decltype(x.runtime_compile(auto_any_cast(ctx), input, module_args), void())
+{
+    x.runtime_compile(auto_any_cast(ctx), input, module_args);
+}
+
+template <class T>
+void runtime_compile_op(
+    rank<0>, const T&, context&, const std::vector<shape>&, const std::vector<module_ref>&)
+{
+}
+
+template <class T>
+void runtime_compile_op(const T& x,
+                        context& ctx,
+                        const std::vector<shape>& input,
+                        const std::vector<module_ref>& module_args)
+{
+    runtime_compile_op(rank<1>{}, x, ctx, input, module_args);
+}
+
+template <class T>
 value attributes_op(const T&)
 {
     return value::object{};
@@ -544,6 +573,10 @@ struct MIGRAPHX_EXPORT operation
                      const std::vector<module_ref>& module_args,
                      std::function<std::vector<argument>(
                          module_ref&, const std::unordered_map<std::string, argument>&)> run) const;
+    // (optional)
+    void runtime_compile(context& ctx,
+                         const std::vector<shape>& input,
+                         const std::vector<module_ref>& module_args) const;
     // (optional)
     value to_value() const;
     // (optional)
@@ -806,6 +839,29 @@ struct operation
     }
 
     template <class T>
+    static auto
+    private_detail_te_default_runtime_compile(char,
+                                              T&& private_detail_te_self,
+                                              context& ctx,
+                                              const std::vector<shape>& input,
+                                              const std::vector<module_ref>& module_args)
+        -> decltype(private_detail_te_self.runtime_compile(ctx, input, module_args))
+    {
+        private_detail_te_self.runtime_compile(ctx, input, module_args);
+    }
+
+    template <class T>
+    static void
+    private_detail_te_default_runtime_compile(float,
+                                              T&& private_detail_te_self,
+                                              context& ctx,
+                                              const std::vector<shape>& input,
+                                              const std::vector<module_ref>& module_args)
+    {
+        detail::runtime_compile_op(private_detail_te_self, ctx, input, module_args);
+    }
+
+    template <class T>
     static auto private_detail_te_default_to_value(char, T&& private_detail_te_self)
         -> decltype(private_detail_te_self.to_value())
     {
@@ -918,6 +974,12 @@ struct operation
                      std::declval<const std::vector<module_ref>&>(),
                      std::declval<std::function<std::vector<argument>(
                          module_ref&, const std::unordered_map<std::string, argument>&)>>()),
+                 private_detail_te_default_runtime_compile(
+                     char(0),
+                     std::declval<PrivateDetailTypeErasedT>(),
+                     std::declval<context&>(),
+                     std::declval<const std::vector<shape>&>(),
+                     std::declval<const std::vector<module_ref>&>()),
                  private_detail_te_default_to_value(char(0),
                                                     std::declval<PrivateDetailTypeErasedT>()),
                  private_detail_te_default_from_value(char(0),
@@ -1095,6 +1157,14 @@ struct operation
             ctx, output, input, module_args, std::move(run));
     }
 
+    void runtime_compile(context& ctx,
+                         const std::vector<shape>& input,
+                         const std::vector<module_ref>& module_args) const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        (*this).private_detail_te_get_handle().runtime_compile(ctx, input, module_args);
+    }
+
     value to_value() const
     {
         assert((*this).private_detail_te_handle_mem_var);
@@ -1167,6 +1237,9 @@ struct operation
                 const std::vector<module_ref>& module_args,
                 std::function<std::vector<argument>(
                     module_ref&, const std::unordered_map<std::string, argument>&)> run) const = 0;
+        virtual void runtime_compile(context& ctx,
+                                     const std::vector<shape>& input,
+                                     const std::vector<module_ref>& module_args) const         = 0;
         virtual value to_value() const                                                         = 0;
         virtual void from_value(const value& v)                                                = 0;
         virtual value attributes() const                                                       = 0;
@@ -1303,6 +1376,15 @@ struct operation
                 char(0), private_detail_te_value, ctx, output, input, module_args, std::move(run));
         }
 
+        void runtime_compile(context& ctx,
+                             const std::vector<shape>& input,
+                             const std::vector<module_ref>& module_args) const override
+        {
+
+            private_detail_te_default_runtime_compile(
+                char(0), private_detail_te_value, ctx, input, module_args);
+        }
+
         value to_value() const override
         {
 
@@ -1426,8 +1508,8 @@ inline shape compute_shape(const operation& op, const std::vector<shape>& inputs
 }
 
 template <class T>
-inline auto compute_shape(const T& op, const std::vector<shape>& inputs)
-    -> decltype(op.compute_shape(inputs))
+inline auto compute_shape(const T& op,
+                          const std::vector<shape>& inputs) -> decltype(op.compute_shape(inputs))
 {
     return op.compute_shape(inputs);
 }

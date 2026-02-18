@@ -130,32 +130,22 @@ struct dynamic_code_object_op
                        [](const auto& name, const auto& arg) { return std::make_pair(name, arg); });
         return param_map;
     }
-    argument compute(context& ctx,
-                     const shape&,
-                     const std::vector<argument>& args,
-                     const std::vector<module_ref>& module_args,
-                     const std::function<std::vector<argument>(
-                         module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
+    void runtime_compile(context& ctx,
+                         const std::vector<shape>& input_shapes,
+                         const std::vector<module_ref>& module_args) const
     {
-        auto static_args = std::vector<argument>{args.begin(), args.end()};
-        auto output_arg  = static_args.back();
 
         auto& cache = get_cache();
-        if(cache.mod.size() > 0 and cache.input_shapes == to_shapes(args))
-        {
-            static_args[static_args.size() - 1] = output_arg.reshape(cache.output_shape);
-            auto* mod                           = &cache.mod;
-            auto param_map                      = build_param_map(static_args, mod);
-            auto results                        = run(mod, param_map);
-            if(results.size() > 1)
-                return results;
-            return results.front();
-        }
+        if(cache.mod.size() > 0 and cache.input_shapes == input_shapes)
+            return;
 
-        if(output_arg.get_shape().dynamic())
+        auto static_shapes = std::vector<shape>{input_shapes.begin(), input_shapes.end()};
+        auto output_shape  = static_shapes.back();
+
+        if(output_shape.dynamic())
         {
-            auto out_shape = pre_op.compute_shape(to_shapes(static_args), module_args);
-            static_args[static_args.size() - 1] = output_arg.reshape(out_shape);
+            auto out_shape = pre_op.compute_shape(static_shapes, module_args);
+            static_shapes[static_shapes.size() - 1] = out_shape;
         }
 
         // Rewrite submodule without dynamic shapes to be used as the IR for compilation
@@ -166,13 +156,12 @@ struct dynamic_code_object_op
         {
             auto pnames = module_args.front()->get_parameter_names();
             std::unordered_map<std::string, shape> mod_arg_shapes;
-            std::transform(pnames.begin(),
-                           pnames.end(),
-                           args.begin(),
-                           std::inserter(mod_arg_shapes, mod_arg_shapes.end()),
-                           [&](const auto& name, const auto& arg) {
-                               return std::make_pair(name, arg.get_shape());
-                           });
+            std::transform(
+                pnames.begin(),
+                pnames.end(),
+                input_shapes.begin(),
+                std::inserter(mod_arg_shapes, mod_arg_shapes.end()),
+                [&](const auto& name, const auto& shape) { return std::make_pair(name, shape); });
             static_submod = module_args.front()->with_static_shapes(mod_arg_shapes);
             static_submod.set_bypass(true);
             runtime_mod_name = "runtime_mod:" + module_args.front()->name();
@@ -181,15 +170,15 @@ struct dynamic_code_object_op
         // Create runtime module which will be compiled and cached
         auto runtime_mod = module(runtime_mod_name);
         std::vector<instruction_ref> args_ins;
-        std::vector<size_t> idx(static_args.size());
+        std::vector<size_t> idx(static_shapes.size());
         std::iota(std::begin(idx), std::end(idx), 0);
-        std::transform(static_args.begin(),
-                       static_args.end(),
+        std::transform(static_shapes.begin(),
+                       static_shapes.end(),
                        idx.begin(),
                        std::back_inserter(args_ins),
-                       [&](const auto& arg, const auto& i) {
+                       [&](const auto& shape, const auto& i) {
                            return runtime_mod.add_parameter(
-                               runtime_mod_name + ":x" + std::to_string(i), arg.get_shape());
+                               runtime_mod_name + ":x" + std::to_string(i), shape);
                        });
         instruction_ref ins;
         if(not module_args.empty())
@@ -221,20 +210,33 @@ struct dynamic_code_object_op
         // Update cache
         // TODO: This will be updated to store compiled code objects for all encountered shapes
         cache.mod          = runtime_mod;
-        cache.input_shapes = to_shapes(args);
-        cache.output_shape = static_args.back().get_shape();
+        cache.input_shapes = input_shapes;
+        cache.output_shape = static_shapes.back();
+    }
 
-        // Build param_map based on ACTUAL parameters that exist
-        module_ref runtime_mod_ref = &runtime_mod;
-        auto param_map             = build_param_map(static_args, runtime_mod_ref);
+    argument compute(context& ctx,
+                     const shape&,
+                     const std::vector<argument>& args,
+                     const std::vector<module_ref>& module_args,
+                     const std::function<std::vector<argument>(
+                         module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
+    {
+        auto static_args = std::vector<argument>{args.begin(), args.end()};
+        auto output_arg  = static_args.back();
 
-        auto results = run(runtime_mod_ref, param_map);
+        runtime_compile(ctx, to_shapes(args), module_args);
 
+        auto& cache                         = get_cache();
+        static_args[static_args.size() - 1] = output_arg.reshape(cache.output_shape);
+        auto* mod                           = &cache.mod;
+        auto param_map                      = build_param_map(static_args, mod);
+        auto results                        = run(mod, param_map);
         if(results.size() > 1)
             return results;
         return results.front();
     }
 };
+
 MIGRAPHX_REGISTER_OP(dynamic_code_object_op);
 
 struct compiled_result

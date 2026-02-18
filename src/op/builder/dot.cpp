@@ -31,25 +31,10 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 namespace builder {
 
-struct dot : op_builder<dot>
+namespace detail
 {
     std::vector<instruction_ref>
-    insert(module& m, instruction_ref /*ins*/, const std::vector<instruction_ref>& args) const
-    {
-        auto a0      = args[0];
-        auto a1      = args[1];
-        auto s0_lens = a0->get_shape().lens();
-        auto s1_lens = a1->get_shape().lens();
-
-        op::builder::broadcast_dimensions(m, s0_lens, s1_lens, a0, a1, a0, a1);
-        return {m.add_instruction(make_op(name()), a0, a1)};
-    }
-};
-
-struct quant_dot : op_builder<quant_dot>
-{
-    std::vector<instruction_ref>
-    insert(module& m, instruction_ref /*ins*/, const std::vector<instruction_ref>& args) const
+    insert(module& m, const std::string& name, const std::vector<instruction_ref>& args)
     {
         auto a0      = args[0];
         auto a1      = args[1];
@@ -59,7 +44,25 @@ struct quant_dot : op_builder<quant_dot>
         auto s1_lens = a1->get_shape().lens();
 
         op::builder::broadcast_dimensions(m, s0_lens, s1_lens, a0, a1, ba0, ba1);
-        return {m.add_instruction(make_op(name()), ba0, ba1)};
+        return {m.add_instruction(make_op(name), ba0, ba1)};
+    }
+}
+
+struct dot : op_builder<dot>
+{
+    std::vector<instruction_ref>
+    insert(module& m, instruction_ref /*ins*/, const std::vector<instruction_ref>& args) const
+    {
+        return detail::insert(m, name(), args);
+    }
+};
+
+struct quant_dot : op_builder<quant_dot>
+{
+    std::vector<instruction_ref>
+    insert(module& m, instruction_ref /*ins*/, const std::vector<instruction_ref>& args) const
+    {
+        return detail::insert(m, name(), args);
     }
 };
 

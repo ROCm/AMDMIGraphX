@@ -39,6 +39,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_BLAZE_DEBUG)
+
 #if MIGRAPHX_USE_BLAZE
 template <class T>
 using blaze_row_major = blaze::CustomMatrix<T, blaze::unaligned, blaze::unpadded, blaze::rowMajor>;

@@ -591,7 +591,7 @@ static auto track_visits(instruction_ref start, instruction_ref end, F f)
         in_range.reserve(n + 1);
         in_range.insert(start, end);
         auto stop = [&](auto ins) {
-            if(in_range.erase(it) == 0)
+            if(in_range.erase(ins) == 0)
                 return true;
             return false;
         };

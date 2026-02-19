@@ -54,6 +54,7 @@ struct concat_optimizer
         auto aliases = instruction::get_output_alias(ins, true);
         if(aliases.size() != 1)
             return ins;
+        // cppcheck-suppress returnDanglingLifetime
         return aliases.front();
     }
 

@@ -46,7 +46,10 @@ struct concat_optimizer
 
     static operation make_slice(instruction_ref input, std::size_t axis, std::size_t start)
     {
-        return make_op("slice", {{"axes", {axis}}, {"starts", {start}}, {"ends", {input->get_shape().lens()[axis] + start}}});
+        return make_op("slice",
+                       {{"axes", {axis}},
+                        {"starts", {start}},
+                        {"ends", {input->get_shape().lens()[axis] + start}}});
     }
 
     static instruction_ref get_output_alias(instruction_ref ins)
@@ -103,15 +106,18 @@ struct concat_optimizer
                       return std::distance(m->begin(), x) < std::distance(m->begin(), y);
                   });
         // Move "super" allocation to the front
-        auto first = sorted_allocations.front();
-        auto super = m->move_instruction(last, first);
+        auto first                        = sorted_allocations.front();
+        auto super                        = m->move_instruction(last, first);
         std::vector<instruction_ref> args = {super};
-        std::size_t start = 0;
-        std::transform(ins->inputs().begin(), ins->inputs().end() - 1, std::back_inserter(args), [&](instruction_ref input) {
-            auto x = insert_copy(make_slice(input, axis, start), input, super);
-            start += x->get_shape().lens()[axis];
-            return x;
-        });
+        std::size_t start                 = 0;
+        std::transform(ins->inputs().begin(),
+                       ins->inputs().end() - 1,
+                       std::back_inserter(args),
+                       [&](instruction_ref input) {
+                           auto x = insert_copy(make_slice(input, axis, start), input, super);
+                           start += x->get_shape().lens()[axis];
+                           return x;
+                       });
         m->replace_instruction(ins, migraphx::make_op("identity"), args);
     }
 };
@@ -135,15 +141,17 @@ void eliminate_concat::apply(module& m) const
         if(not concat_op.has_value())
             continue;
         auto lens              = ins->inputs().front()->get_shape().lens();
-        std::size_t axis = tune_axis(lens.size(), concat_op->axis, concat_op->name());
-        auto ncopies = std::count_if(ins->inputs().begin(), std::prev(ins->inputs().end()), [&](instruction_ref input) {
-            if(co.need_copy(input)) {
-                return true;
-            }
-            if (is_packed(input, axis))
-                return false;
-            return not concat_opt.supports_non_packed_output(input);
-        });
+        std::size_t axis       = tune_axis(lens.size(), concat_op->axis, concat_op->name());
+        auto ncopies           = std::count_if(
+            ins->inputs().begin(), std::prev(ins->inputs().end()), [&](instruction_ref input) {
+                if(co.need_copy(input))
+                {
+                    return true;
+                }
+                if(is_packed(input, axis))
+                    return false;
+                return not concat_opt.supports_non_packed_output(input);
+            });
         if(ncopies > 1)
             continue;
         co.replace_concat(ins, axis);

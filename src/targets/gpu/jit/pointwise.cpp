@@ -59,7 +59,10 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 
 struct pointwise_compiler : compiler<pointwise_compiler>
 {
-    std::vector<std::string> names() const { return {"pointwise", "contiguous", "layout", "hip::copy"}; }
+    std::vector<std::string> names() const
+    {
+        return {"pointwise", "contiguous", "layout", "hip::copy"};
+    }
 
     static std::size_t oversubscribe_if(bool b)
     {

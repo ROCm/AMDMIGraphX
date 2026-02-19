@@ -888,12 +888,11 @@ struct find_contiguous_copy
     {
         auto ins = r.result;
         const bool is_copy = ins->name() == "hip::copy";
-        operation op = make_op("gpu::precompile_op", {{"op", to_value(make_op(is_copy ? "hip::copy" : "contiguous"))}, {"additional_args", is_copy ? 0 : 1}});
+        operation op       = make_op("gpu::precompile_op",
+                                     {{"op", to_value(make_op(is_copy ? "hip::copy" : "contiguous"))},
+                                      {"additional_args", is_copy ? 0 : 1}});
 
-        m.replace_instruction(
-            ins,
-            op,
-            ins->inputs());
+        m.replace_instruction(ins, op, ins->inputs());
     }
 };
 
@@ -1045,7 +1044,10 @@ struct find_concat_pointwise
 
 void fuse_ops::apply(module& m) const
 {
-    match::find_matches(m, find_pointwise_layout_contiguous{}, find_contiguous_layout_pointwise{}, find_precompile_copy{});
+    match::find_matches(m,
+                        find_pointwise_layout_contiguous{},
+                        find_contiguous_layout_pointwise{},
+                        find_precompile_copy{});
     run_passes(m, {dead_code_elimination{}});
 #if MIGRAPHX_USE_MIOPEN
     match::find_matches(m, find_conv_pointwise{ctx}, find_conv_bias_relu{ctx}, find_conv_bias{ctx});

@@ -49,10 +49,7 @@ struct concat_gpu_optimization
     {
         return ins->name() == "gpu::precompile_op";
     }
-    gpu_allocation_model allocation() const
-    {
-        return gpu_allocation_model{};
-    }
+    gpu_allocation_model allocation() const { return gpu_allocation_model{}; }
 };
 
 } // namespace gpu

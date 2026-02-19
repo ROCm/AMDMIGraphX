@@ -54,8 +54,6 @@ _toc.yml
 #==============================================================================#
 # Directories to ignore (do not add trailing '/'s, they skip symlinks).
 #==============================================================================#
-# Nested build directory
-/build*
 
 # Downloaded models
 test/onnx/models
@@ -75,11 +73,6 @@ docs/doxygen/xml/
 docs/_doxygen
 docs/html
 /_readthedocs
-
-# JetBrains config directories (ignoring symlinks)
-.idea/
-cmake-build*/
-build*/
 
 # Recommended location to install rbuild dependencies from README.md
 depend*/

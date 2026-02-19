@@ -35,6 +35,10 @@ namespace builder {
 
 struct clip : op_builder<clip>
 {
+    template <class Self, class F>
+    static auto reflect(Self&, F)
+    { return pack(); }
+
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
     {

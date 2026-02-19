@@ -54,6 +54,16 @@ struct op_builder_if
 MIGRAPHX_EXPORT void register_builder(const std::string& name, op_builder_if opb_if);
 
 template <class T>
+void apply_debug_symbols(T& x, const value& options)
+{
+    if(options.contains("debug_symbols"))
+    {
+        x.debug_symbols =
+            from_value<std::set<std::string>>(options.at("debug_symbols").without_key());
+    }
+}
+
+template <class T>
 auto invoke_builder(const std::string& /*name*/,
                     module& m,
                     instruction_ref ins,
@@ -62,6 +72,7 @@ auto invoke_builder(const std::string& /*name*/,
                     const value& options) -> decltype(T{}.insert(m, ins, args, module_args))
 {
     auto x = from_value<T>(options);
+    apply_debug_symbols(x, options);
     return x.insert(m, ins, args, module_args);
 }
 
@@ -76,6 +87,7 @@ auto invoke_builder(const std::string& /*name*/,
     if(not module_args.empty())
         MIGRAPHX_THROW("Module args should be empty");
     auto x = from_value<T>(options);
+    apply_debug_symbols(x, options);
     return x.insert(m, ins, args);
 }
 
@@ -88,6 +100,7 @@ auto invoke_builder(const std::string& name,
                     const value& options) -> decltype(T{}.insert(name, m, ins, args, module_args))
 {
     auto x = from_value<T>(options);
+    apply_debug_symbols(x, options);
     return x.insert(name, m, ins, args, module_args);
 }
 
@@ -102,6 +115,7 @@ auto invoke_builder(const std::string& name,
     if(not module_args.empty())
         MIGRAPHX_THROW("Module args should be empty");
     auto x = from_value<T>(options);
+    apply_debug_symbols(x, options);
     return x.insert(name, m, ins, args);
 }
 
@@ -140,6 +154,7 @@ struct register_builder_action
 template <class T>
 struct op_builder : auto_register<register_builder_action, T>
 {
+    std::set<std::string> debug_symbols;
     static std::vector<std::string> names()
     {
         static const std::string& name = get_type_name<T>();

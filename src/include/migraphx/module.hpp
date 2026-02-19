@@ -95,7 +95,8 @@ struct MIGRAPHX_EXPORT module
                                     std::vector<module_ref> module_args);
 
     template <class... Ts, MIGRAPHX_REQUIRES(std::is_same<Ts, instruction_ref>{}...)>
-    instruction_ref add_instruction(operation op, const std::set<std::string>& debug_symbols, Ts... args)
+    instruction_ref
+        add_instruction(operation op, const std::set<std::string>& debug_symbols, Ts... args)
     { return add_instruction(op, debug_symbols, {args...}); }
 
     instruction_ref add_instruction(const operation& op,
@@ -218,7 +219,8 @@ struct MIGRAPHX_EXPORT module
 
     instruction_ref insert_literal(instruction_ref ins, literal l);
 
-    instruction_ref insert_literal(instruction_ref ins, literal l, const std::set<std::string>& debug_symbols);
+    instruction_ref
+    insert_literal(instruction_ref ins, literal l, const std::set<std::string>& debug_symbols);
 
     instruction_ref insert_parameter(instruction_ref ins, std::string name, shape s);
 

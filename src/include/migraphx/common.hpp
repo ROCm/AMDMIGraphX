@@ -124,11 +124,12 @@ MIGRAPHX_EXPORT std::vector<instruction_ref> insert_common_args(module& m,
                                                                 std::vector<instruction_ref> inputs,
                                                                 common_options options = {});
 
-MIGRAPHX_EXPORT std::vector<instruction_ref> insert_common_args(module& m,
-                                                                instruction_ref ins,
-                                                                const std::set<std::string>& debug_symbols,
-                                                                std::vector<instruction_ref> inputs,
-                                                                common_options options = {});
+MIGRAPHX_EXPORT std::vector<instruction_ref>
+insert_common_args(module& m,
+                   instruction_ref ins,
+                   const std::set<std::string>& debug_symbols,
+                   std::vector<instruction_ref> inputs,
+                   common_options options = {});
 
 MIGRAPHX_EXPORT
 std::vector<instruction_ref>

@@ -211,8 +211,10 @@ std::vector<instruction_ref> insert_common_args_impl(module& m,
             }
             if(options.common_type and input->get_shape().type() != common.type())
             {
-                input = m.insert_instruction(
-                    ins, make_op("convert", {{"target_type", common.type()}}), debug_symbols, input);
+                input = m.insert_instruction(ins,
+                                             make_op("convert", {{"target_type", common.type()}}),
+                                             debug_symbols,
+                                             input);
             }
             return input;
         });

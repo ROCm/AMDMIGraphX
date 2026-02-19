@@ -39,6 +39,8 @@ struct parse_batchnorm : op_parser<parse_batchnorm>
                           const std::vector<instruction_ref>& args) const
     {
         value options = {};
+        options.insert({"debug_symbols", std::set<std::string>({info.onnx_node_name})});
+
         if(contains(info.attributes, "epsilon"))
         {
             const float epsilon = parser.parse_value(info.attributes.at("epsilon")).at<float>();

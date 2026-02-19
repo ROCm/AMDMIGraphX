@@ -147,8 +147,9 @@ struct convolution : convolution_base<convolution>
         auto kdims = in_lens.size() - 2;
 
         validate_or_init_attributes(kdims, x, weights);
-
-        auto conv = m.insert_instruction(ins, make_conv_op("convolution"), x, weights);
+        std::cout << "conv debug symbols empty?: " << debug_symbols.empty() << std::endl;
+        auto conv =
+            m.insert_instruction(ins, make_conv_op("convolution"), debug_symbols, x, weights);
         return {add_bias(m, ins, args, conv, 1)};
     }
 
@@ -201,7 +202,7 @@ struct quant_convolution : convolution_base<quant_convolution>
         auto x_zp = get_zero_point(m, x, 2, args);
         auto w_zp = get_zero_point(m, weights, 3, args);
         handle_quant_inputs(m, ins, x, weights, x_zp, w_zp);
-        auto conv = m.insert_instruction(ins, op, x, weights);
+        auto conv = m.insert_instruction(ins, op, debug_symbols, x, weights);
         return {handle_quant_bias(m, ins, op, conv, x, weights, x_zp, w_zp)};
     }
 

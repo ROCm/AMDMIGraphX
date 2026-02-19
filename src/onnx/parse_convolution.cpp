@@ -64,6 +64,9 @@ struct parse_convolution : op_parser<parse_convolution>
         check_padding_mode(info, opd.onnx_name);
 
         value options = {};
+        std::set<std::string> debug_s{info.onnx_node_name};
+        options.insert({"debug_symbols", debug_s});
+
         if(contains(info.attributes, "strides"))
         {
             const auto& attr = info.attributes["strides"].ints();

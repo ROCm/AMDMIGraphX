@@ -62,7 +62,7 @@ struct test_concat : migraphx::auto_register_op<test_concat>
         inputs.pop_back();
         auto result = op.normalize_compute_shape(std::move(inputs));
         if(result != out)
-            MIGRAPHX_THROW("Allocation doesnt match");
+            MIGRAPHX_THROW("Allocation doesn't match");
         return result;
     }
     migraphx::argument compute(migraphx::context&,

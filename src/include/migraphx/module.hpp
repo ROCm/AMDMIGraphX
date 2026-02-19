@@ -110,9 +110,7 @@ struct MIGRAPHX_EXPORT module
 
     template <class... Ts, MIGRAPHX_REQUIRES(std::is_same<Ts, instruction_ref>{}...)>
     instruction_ref insert_instruction(instruction_ref ins, operation op, Ts... args)
-    {
-        return insert_instruction(ins, op, {args...});
-    }
+    { return insert_instruction(ins, op, {args...}); }
     instruction_ref
     insert_instruction(instruction_ref ins, const operation& op, std::vector<instruction_ref> args);
 

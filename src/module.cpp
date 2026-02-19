@@ -320,9 +320,7 @@ insert_generic_instructions(module& m,
 }
 
 instruction_ref module::add_instruction(const operation& op, std::vector<instruction_ref> args)
-{
-    return insert_instruction(this->insert_end(), op, std::move(args));
-}
+{ return insert_instruction(this->insert_end(), op, std::move(args)); }
 instruction_ref module::insert_instruction(instruction_ref ins,
                                            const operation& op,
                                            std::vector<instruction_ref> args)
@@ -341,9 +339,7 @@ instruction_ref module::insert_instruction(instruction_ref ins,
 instruction_ref module::add_instruction(const operation& op,
                                         std::vector<instruction_ref> args,
                                         std::vector<module_ref> module_args)
-{
-    return insert_instruction(this->insert_end(), op, std::move(args), std::move(module_args));
-}
+{ return insert_instruction(this->insert_end(), op, std::move(args), std::move(module_args)); }
 
 instruction_ref module::insert_instruction(instruction_ref ins,
                                            const operation& op,

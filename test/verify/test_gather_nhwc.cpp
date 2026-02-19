@@ -22,18 +22,27 @@
  * THE SOFTWARE.
  */
 
-#include <onnx_test.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/literal.hpp>
 
-TEST_CASE(undefined_test)
+struct test_gather_nhwc : verify_program<test_gather_nhwc>
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
-    mm->add_instruction(migraphx::make_op("undefined"));
-    auto l2 = mm->add_instruction(migraphx::make_op("undefined"));
-    mm->add_return({l2});
-
-    auto prog = read_onnx("undefined_test.onnx");
-
-    EXPECT(p == prog);
-}
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape data_shape{migraphx::shape::float_type, {1, 2, 2, 3}};
+        migraphx::shape indices_shape{migraphx::shape::int32_type, {1}};
+        std::vector<int> indices = {1};
+        auto data                = mm->add_parameter("data", data_shape);
+        auto idx_lit             = mm->add_literal(migraphx::literal{indices_shape, indices});
+        auto transpose           = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), data);
+        auto gather =
+            mm->add_instruction(migraphx::make_op("gather", {{"axis", 1}}), transpose, idx_lit);
+        mm->add_return({gather});
+        return p;
+    }
+};

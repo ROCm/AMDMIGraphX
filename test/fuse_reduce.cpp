@@ -1214,7 +1214,7 @@ TEST_CASE(argmin_fuse)
             });
         mm->add_return({argmin1});
     }
-    EXPECT(p1 == p2);
+    EXPECT(p1.sort() == p2.sort());
 }
 
 TEST_CASE(argmax_fuse)
@@ -1241,7 +1241,7 @@ TEST_CASE(argmax_fuse)
             });
         mm->add_return({argmax1});
     }
-    EXPECT(p1 == p2);
+    EXPECT(p1.sort() == p2.sort());
 }
 
 TEST_CASE(argmin_axis0)
@@ -1268,7 +1268,7 @@ TEST_CASE(argmin_axis0)
             });
         mm->add_return({argmin1});
     }
-    EXPECT(p1 == p2);
+    EXPECT(p1.sort() == p2.sort());
 }
 
 TEST_CASE(pointwise_argmin)
@@ -1303,7 +1303,7 @@ TEST_CASE(pointwise_argmin)
             });
         mm->add_return({argmin1});
     }
-    EXPECT(p1 == p2);
+    EXPECT(p1.sort() == p2.sort());
 }
 
 TEST_CASE(pointwise_argmax)
@@ -1338,7 +1338,7 @@ TEST_CASE(pointwise_argmax)
             });
         mm->add_return({argmax1});
     }
-    EXPECT(p1 == p2);
+    EXPECT(p1.sort() == p2.sort());
 }
 
 TEST_CASE(argmin_pointwise)
@@ -1382,7 +1382,7 @@ TEST_CASE(argmin_pointwise)
             });
         mm->add_return({add});
     }
-    EXPECT(p1 == p2);
+    EXPECT(p1.sort() == p2.sort());
 }
 
 TEST_CASE(argmin_pointwise_unfusable_broadcast)
@@ -1421,7 +1421,7 @@ TEST_CASE(argmin_pointwise_unfusable_broadcast)
         auto add = add_pointwise(p2, "main:pointwise0", {argminb, yb}, single_pointwise("add"));
         mm->add_return({add});
     }
-    EXPECT(p1 == p2);
+    EXPECT(p1.sort() == p2.sort());
 }
 
 TEST_CASE(reduce_argmin)
@@ -1462,7 +1462,7 @@ TEST_CASE(reduce_argmin)
             });
         mm->add_return({argmin1});
     }
-    EXPECT(p1 == p2);
+    EXPECT(p1.sort() == p2.sort());
 }
 
 TEST_CASE(reduce_argmin_unfusable_broadcast)
@@ -1510,7 +1510,102 @@ TEST_CASE(reduce_argmin_unfusable_broadcast)
             });
         mm->add_return({argmin1});
     }
-    EXPECT(p1 == p2);
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(argmin_reshape_pointwise)
+{
+    // Test that argmin axis gets transformed correctly when reshaped
+    // Input: {64, 4} with argmin on axis 1
+    // Reshape to: {8, 8, 2, 2} means axis 1 splits into axes {2, 3}
+    // After reshape, argmin should use axis 2 (first of the new axes)
+    migraphx::shape s1{migraphx::shape::float_type, {64, 4}};
+    migraphx::shape s2{migraphx::shape::int64_type, {8, 8, 2, 2}};
+    migraphx::program p1;
+    {
+        auto* mm     = p1.get_main_module();
+        auto x       = mm->add_parameter("x", s1);
+        auto y       = mm->add_parameter("y", s2);
+        auto argmin  = mm->add_instruction(migraphx::make_op("argmin", {{"axis", 1}}), x);
+        auto argminb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), argmin);
+        auto argminr =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), argminb);
+        auto add = add_pointwise(p1, "main:pointwise0", {argminr, y}, single_pointwise("add"));
+        mm->add_return({add});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s1);
+        auto y   = mm->add_parameter("y", s2);
+        auto xr  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), x);
+        // argmin in fused_reduce with axes={2,3}, but argmin only uses axis=2
+        auto argmin_reduce = add_reduce(
+            p2,
+            "main:argmin0_reshape",
+            {xr},
+            {2, 3},
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                return rm->add_instruction(
+                    migraphx::make_op("argmin", {{"axis", axes.front()}}), inputs[0]);
+            });
+        // Output shape is {8,8,1,2} - only axis 2 reduced, axis 3 remains
+        auto argminb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), argmin_reduce);
+        auto add = add_pointwise(p2, "main:pointwise0", {argminb, y}, single_pointwise("add"));
+        mm->add_return({add});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(argmax_reshape_pointwise)
+{
+    // Test that argmax axis gets transformed correctly when reshaped
+    migraphx::shape s1{migraphx::shape::float_type, {2, 32, 40960}};
+    migraphx::shape s2{migraphx::shape::int64_type, {2, 320, 64, 64}};
+    migraphx::shape s3{migraphx::shape::float_type, {2, 32, 10, 64, 64}};
+    migraphx::shape s3i{migraphx::shape::int64_type, {2, 32, 10, 64, 64}};
+    migraphx::program p1;
+    {
+        auto* mm     = p1.get_main_module();
+        auto x       = mm->add_parameter("x", s1);
+        auto y       = mm->add_parameter("y", s2);
+        auto argmax  = mm->add_instruction(migraphx::make_op("argmax", {{"axis", 2}}), x);
+        auto argmaxb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), argmax);
+        auto argmaxr =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), argmaxb);
+        auto add = add_pointwise(p1, "main:pointwise0", {argmaxr, y}, single_pointwise("add"));
+        mm->add_return({add});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s1);
+        auto y   = mm->add_parameter("y", s2);
+        auto xr  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s3.lens()}}), x);
+        // argmax in fused_reduce with axes={2,3,4}, but argmax only uses axis=2
+        auto argmax_reduce = add_reduce(
+            p2,
+            "main:argmax0_reshape",
+            {xr},
+            {2, 3, 4},
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                return rm->add_instruction(
+                    migraphx::make_op("argmax", {{"axis", axes.front()}}), inputs[0]);
+            });
+        // Output shape is {2,32,1,64,64} - only axis 2 reduced
+        auto argmaxb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s3.lens()}}), argmax_reduce);
+        auto yr = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s3i.lens()}}), y);
+        auto add = add_pointwise(p2, "main:pointwise0", {argmaxb, yr}, single_pointwise("add"));
+        auto addr = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), add);
+        mm->add_return({addr});
+    }
+    EXPECT(p1.sort() == p2.sort());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

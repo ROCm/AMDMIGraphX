@@ -61,6 +61,7 @@ struct module_impl
     uint32_t nparams = 0;
     bool bypass      = false; // used for skipping compiler passes
     bit_signal<64> changed{};
+    std::shared_ptr<const std::set<std::string>> active_debug_symbols;
 
     bool contains(instruction_ref ins) const
     {
@@ -128,6 +129,38 @@ struct module_impl
 };
 
 const operation& get_operation(instruction_ref ins) { return ins->get_operator(); }
+
+scoped_debug_symbols::scoped_debug_symbols(module& m, std::set<std::string> symbols)
+    : mod(&m), previous(m.impl->active_debug_symbols)
+{
+    mod->impl->active_debug_symbols =
+        std::make_shared<const std::set<std::string>>(std::move(symbols));
+}
+
+scoped_debug_symbols::~scoped_debug_symbols()
+{
+    if(mod != nullptr)
+        mod->impl->active_debug_symbols = previous;
+}
+
+scoped_debug_symbols::scoped_debug_symbols(scoped_debug_symbols&& other) noexcept
+    : mod(other.mod), previous(std::move(other.previous))
+{
+    other.mod = nullptr;
+}
+
+scoped_debug_symbols& scoped_debug_symbols::operator=(scoped_debug_symbols&& other) noexcept
+{
+    if(this != &other)
+    {
+        if(mod != nullptr)
+            mod->impl->active_debug_symbols = previous;
+        mod      = other.mod;
+        previous = std::move(other.previous);
+        other.mod = nullptr;
+    }
+    return *this;
+}
 
 module::module(const std::string& name) : impl(std::make_unique<module_impl>())
 {
@@ -322,6 +355,8 @@ instruction_ref module::insert_instruction(instruction_ref ins,
     auto result = impl->insert(ins, {op, r, std::move(args)});
     instruction::backreference(result);
     assert(result->valid(begin()));
+    if(impl->active_debug_symbols != nullptr)
+        result->add_debug_symbols(*impl->active_debug_symbols);
     return result;
 }
 
@@ -336,6 +371,8 @@ instruction_ref module::insert_instruction(instruction_ref ins,
     auto result    = impl->insert(ins, {op, out_shape, std::move(args), std::move(module_args)});
     instruction::backreference(result);
     assert(result->valid(begin()));
+    if(impl->active_debug_symbols != nullptr)
+        result->add_debug_symbols(*impl->active_debug_symbols);
     return result;
 }
 
@@ -594,13 +631,6 @@ module::insert_instructions(instruction_ref ins,
 
 instruction_ref module::add_literal(literal l) { return insert_literal(begin(), std::move(l)); }
 
-instruction_ref module::add_literal(literal l, const std::set<std::string>& debug_symbols)
-{
-    auto lit_ins = add_literal(l);
-    lit_ins->add_debug_symbols(debug_symbols);
-    return lit_ins;
-}
-
 instruction_ref module::add_outline(const shape& s)
 {
     impl->push_front({builtin::outline{s}, s, {}});
@@ -625,15 +655,10 @@ instruction_ref module::add_return(std::vector<instruction_ref> args)
 instruction_ref module::insert_literal(instruction_ref ins, literal l)
 {
     impl->emplace(ins, std::move(l));
-    return std::prev(ins);
-}
-
-instruction_ref
-module::insert_literal(instruction_ref ins, literal l, const std::set<std::string>& debug_symbols)
-{
-    auto lit_ins = insert_literal(ins, l);
-    lit_ins->add_debug_symbols(debug_symbols);
-    return lit_ins;
+    auto result = std::prev(ins);
+    if(impl->active_debug_symbols != nullptr)
+        result->add_debug_symbols(*impl->active_debug_symbols);
+    return result;
 }
 
 instruction_ref module::insert_parameter(instruction_ref ins, std::string name, shape s)

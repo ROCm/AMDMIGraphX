@@ -59,49 +59,34 @@ struct batchnorm : op_builder<batchnorm>
         auto x_rank = x_lens.size();
         if(x_rank == 1 or x_rank == 2)
         {
-            auto eps =
-                m.add_literal(migraphx::literal{migraphx::shape{x_type}, {epsilon}}, debug_symbols);
-            auto x_sub_mean = insert_common_op(m, ins, "sub", debug_symbols, args[0], args[3]);
-            auto var_eps    = insert_common_op(m, ins, "add", debug_symbols, args[4], eps);
-            auto rsqrt      = m.insert_instruction(ins, make_op("rsqrt"), debug_symbols, var_eps);
-            auto mul0       = insert_common_op(m, ins, "mul", debug_symbols, args[1], rsqrt);
-            auto r0         = insert_common_op(m, ins, "mul", debug_symbols, x_sub_mean, mul0);
-            return {insert_common_op(m, ins, "add", debug_symbols, r0, args[2])};
+            auto eps        = m.add_literal(migraphx::literal{migraphx::shape{x_type}, {epsilon}});
+            auto x_sub_mean = insert_common_op(m, ins, "sub", args[0], args[3]);
+            auto var_eps    = insert_common_op(m, ins, "add", args[4], eps);
+            auto rsqrt      = m.insert_instruction(ins, make_op("rsqrt"), var_eps);
+            auto mul0       = insert_common_op(m, ins, "mul", args[1], rsqrt);
+            auto r0         = insert_common_op(m, ins, "mul", x_sub_mean, mul0);
+            return {insert_common_op(m, ins, "add", r0, args[2])};
         }
         else if(x_rank > 2)
         {
             // unsqueeze tensors of shape (C) to broadcast correctly
             std::vector<int64_t> unsqueeze_axes(x_lens.size() - 2);
             std::iota(unsqueeze_axes.begin(), unsqueeze_axes.end(), 1);
-            auto eps =
-                m.add_literal(migraphx::literal{migraphx::shape{x_type}, {epsilon}}, debug_symbols);
-            auto scale_unsqueeze =
-                m.insert_instruction(ins,
-                                     migraphx::make_op("unsqueeze", {{"axes", unsqueeze_axes}}),
-                                     debug_symbols,
-                                     args[1]);
-            auto bias_unsqueeze =
-                m.insert_instruction(ins,
-                                     migraphx::make_op("unsqueeze", {{"axes", unsqueeze_axes}}),
-                                     debug_symbols,
-                                     args[2]);
-            auto mean_unsqueeze =
-                m.insert_instruction(ins,
-                                     migraphx::make_op("unsqueeze", {{"axes", unsqueeze_axes}}),
-                                     debug_symbols,
-                                     args[3]);
-            auto var_unsqueeze =
-                m.insert_instruction(ins,
-                                     migraphx::make_op("unsqueeze", {{"axes", unsqueeze_axes}}),
-                                     debug_symbols,
-                                     args[4]);
-            auto x_sub_mean =
-                insert_common_op(m, ins, "sub", debug_symbols, args[0], mean_unsqueeze);
-            auto var_eps = insert_common_op(m, ins, "add", debug_symbols, var_unsqueeze, eps);
-            auto rsqrt   = m.insert_instruction(ins, make_op("rsqrt"), debug_symbols, var_eps);
-            auto mul0    = insert_common_op(m, ins, "mul", debug_symbols, scale_unsqueeze, rsqrt);
-            auto r0      = insert_common_op(m, ins, "mul", debug_symbols, x_sub_mean, mul0);
-            return {insert_common_op(m, ins, "add", debug_symbols, r0, bias_unsqueeze)};
+            auto eps = m.add_literal(migraphx::literal{migraphx::shape{x_type}, {epsilon}});
+            auto scale_unsqueeze = m.insert_instruction(
+                ins, migraphx::make_op("unsqueeze", {{"axes", unsqueeze_axes}}), args[1]);
+            auto bias_unsqueeze = m.insert_instruction(
+                ins, migraphx::make_op("unsqueeze", {{"axes", unsqueeze_axes}}), args[2]);
+            auto mean_unsqueeze = m.insert_instruction(
+                ins, migraphx::make_op("unsqueeze", {{"axes", unsqueeze_axes}}), args[3]);
+            auto var_unsqueeze = m.insert_instruction(
+                ins, migraphx::make_op("unsqueeze", {{"axes", unsqueeze_axes}}), args[4]);
+            auto x_sub_mean = insert_common_op(m, ins, "sub", args[0], mean_unsqueeze);
+            auto var_eps    = insert_common_op(m, ins, "add", var_unsqueeze, eps);
+            auto rsqrt      = m.insert_instruction(ins, make_op("rsqrt"), var_eps);
+            auto mul0       = insert_common_op(m, ins, "mul", scale_unsqueeze, rsqrt);
+            auto r0         = insert_common_op(m, ins, "mul", x_sub_mean, mul0);
+            return {insert_common_op(m, ins, "add", r0, bias_unsqueeze)};
         }
         else
         {

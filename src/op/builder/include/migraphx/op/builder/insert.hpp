@@ -67,14 +67,6 @@ insert_common_op(module& m, instruction_ref ins, const std::string& op_name, Ins
     return insert_common_op(m, ins, make_op(op_name), {args...});
 }
 
-template <class... Ins>
-instruction_ref insert_common_op(module& m,
-                                 instruction_ref ins,
-                                 const std::string& op_name,
-                                 const std::set<std::string>& debug_symbols,
-                                 Ins... args)
-{ return insert_common_op(m, ins, make_op(op_name), debug_symbols, {args...}); }
-
 } // namespace builder
 } // namespace op
 } // namespace MIGRAPHX_INLINE_NS

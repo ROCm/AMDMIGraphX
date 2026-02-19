@@ -53,6 +53,20 @@ using ins_dep_map   = std::unordered_map<instruction_ref, std::vector<instructio
 
 struct module_with_inputs;
 
+struct MIGRAPHX_EXPORT scoped_debug_symbols
+{
+    scoped_debug_symbols(module& m, std::set<std::string> symbols);
+    ~scoped_debug_symbols();
+    scoped_debug_symbols(const scoped_debug_symbols&)            = delete;
+    scoped_debug_symbols& operator=(const scoped_debug_symbols&) = delete;
+    scoped_debug_symbols(scoped_debug_symbols&& other) noexcept;
+    scoped_debug_symbols& operator=(scoped_debug_symbols&& other) noexcept;
+
+    private:
+    module* mod;
+    std::shared_ptr<const std::set<std::string>> previous;
+};
+
 /**
  * @brief Stores the instruction stream
  */
@@ -207,8 +221,6 @@ struct MIGRAPHX_EXPORT module
 
     instruction_ref add_literal(literal l);
 
-    instruction_ref add_literal(literal l, const std::set<std::string>& debug_symbols);
-
     instruction_ref add_outline(const shape& s);
 
     instruction_ref add_parameter(std::string name, shape s);
@@ -218,9 +230,6 @@ struct MIGRAPHX_EXPORT module
     instruction_ref replace_return(std::vector<instruction_ref> args);
 
     instruction_ref insert_literal(instruction_ref ins, literal l);
-
-    instruction_ref
-    insert_literal(instruction_ref ins, literal l, const std::set<std::string>& debug_symbols);
 
     instruction_ref insert_parameter(instruction_ref ins, std::string name, shape s);
 
@@ -387,6 +396,7 @@ struct MIGRAPHX_EXPORT module
     friend bool operator!=(const module& x, const module& y) { return not(x == y); }
 
     friend struct program;
+    friend struct scoped_debug_symbols;
 
     private:
     void set_name(const std::string& name);

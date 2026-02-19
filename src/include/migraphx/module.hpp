@@ -113,7 +113,6 @@ struct MIGRAPHX_EXPORT module
     {
         return insert_instruction(ins, op, {args...});
     }
-
     instruction_ref
     insert_instruction(instruction_ref ins, const operation& op, std::vector<instruction_ref> args);
 

@@ -323,12 +323,6 @@ instruction_ref module::add_instruction(const operation& op, std::vector<instruc
 {
     return insert_instruction(this->insert_end(), op, std::move(args));
 }
-
-instruction_ref module::add_instruction(const operation& op,
-                                        std::vector<instruction_ref> args,
-                                        std::vector<module_ref> module_args)
-{ return insert_instruction(this->insert_end(), op, std::move(args), std::move(module_args)); }
-
 instruction_ref module::insert_instruction(instruction_ref ins,
                                            const operation& op,
                                            std::vector<instruction_ref> args)
@@ -342,6 +336,13 @@ instruction_ref module::insert_instruction(instruction_ref ins,
     if(impl->active_debug_symbols != nullptr)
         result->add_debug_symbols(*impl->active_debug_symbols);
     return result;
+}
+
+instruction_ref module::add_instruction(const operation& op,
+                                        std::vector<instruction_ref> args,
+                                        std::vector<module_ref> module_args)
+{
+    return insert_instruction(this->insert_end(), op, std::move(args), std::move(module_args));
 }
 
 instruction_ref module::insert_instruction(instruction_ref ins,

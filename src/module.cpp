@@ -145,9 +145,7 @@ scoped_debug_symbols::~scoped_debug_symbols()
 
 scoped_debug_symbols::scoped_debug_symbols(scoped_debug_symbols&& other) noexcept
     : mod(other.mod), previous(std::move(other.previous))
-{
-    other.mod = nullptr;
-}
+{ other.mod = nullptr; }
 
 scoped_debug_symbols& scoped_debug_symbols::operator=(scoped_debug_symbols&& other) noexcept
 {
@@ -155,8 +153,8 @@ scoped_debug_symbols& scoped_debug_symbols::operator=(scoped_debug_symbols&& oth
     {
         if(mod != nullptr)
             mod->impl->active_debug_symbols = previous;
-        mod      = other.mod;
-        previous = std::move(other.previous);
+        mod       = other.mod;
+        previous  = std::move(other.previous);
         other.mod = nullptr;
     }
     return *this;
@@ -331,20 +329,6 @@ instruction_ref module::add_instruction(const operation& op,
                                         std::vector<module_ref> module_args)
 { return insert_instruction(this->insert_end(), op, std::move(args), std::move(module_args)); }
 
-instruction_ref module::add_instruction(const operation& op,
-                                        const std::set<std::string>& debug_symbols,
-                                        std::vector<instruction_ref> args)
-{ return insert_instruction(this->insert_end(), op, debug_symbols, std::move(args)); }
-
-instruction_ref module::add_instruction(const operation& op,
-                                        const std::set<std::string>& debug_symbols,
-                                        std::vector<instruction_ref> args,
-                                        std::vector<module_ref> module_args)
-{
-    return insert_instruction(
-        this->insert_end(), op, debug_symbols, std::move(args), std::move(module_args));
-}
-
 instruction_ref module::insert_instruction(instruction_ref ins,
                                            const operation& op,
                                            std::vector<instruction_ref> args)
@@ -374,27 +358,6 @@ instruction_ref module::insert_instruction(instruction_ref ins,
     if(impl->active_debug_symbols != nullptr)
         result->add_debug_symbols(*impl->active_debug_symbols);
     return result;
-}
-
-instruction_ref module::insert_instruction(instruction_ref ins,
-                                           const operation& op,
-                                           const std::set<std::string>& debug_symbols,
-                                           std::vector<instruction_ref> args)
-{
-    auto new_ins = insert_instruction(ins, op, args);
-    new_ins->add_debug_symbols(debug_symbols);
-    return new_ins;
-}
-
-instruction_ref module::insert_instruction(instruction_ref ins,
-                                           const operation& op,
-                                           const std::set<std::string>& debug_symbols,
-                                           std::vector<instruction_ref> args,
-                                           std::vector<module_ref> module_args)
-{
-    auto new_ins = insert_instruction(ins, op, args, module_args);
-    new_ins->add_debug_symbols(debug_symbols);
-    return new_ins;
 }
 
 instruction_ref module::replace_instruction(instruction_ref ins,

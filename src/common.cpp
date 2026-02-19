@@ -151,11 +151,10 @@ shape common_shape(const std::vector<shape>& shapes)
     return {compute_common_types(shapes), compute_common_lens(shapes)};
 }
 
-std::vector<instruction_ref> insert_common_args_impl(module& m,
-                                                     instruction_ref ins,
-                                                     const std::set<std::string>& debug_symbols,
-                                                     std::vector<instruction_ref> inputs,
-                                                     common_options options)
+std::vector<instruction_ref> insert_common_args(module& m,
+                                                instruction_ref ins,
+                                                std::vector<instruction_ref> inputs,
+                                                common_options options)
 {
     if(std::any_of(
            inputs.cbegin(), inputs.cend(), [](auto input) { return input->get_shape().dynamic(); }))
@@ -168,10 +167,7 @@ std::vector<instruction_ref> insert_common_args_impl(module& m,
             auto s0 = inputs[0]->get_shape();
             // always add both multibroadcast instructions for dynamic shapes
             inputs[0] = m.insert_instruction(
-                ins,
-                make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}),
-                debug_symbols,
-                inputs);
+                ins, make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}), inputs);
             std::transform(inputs.begin() + 1, inputs.end(), inputs.begin() + 1, [&](auto input) {
                 // uses previous input to avoid recalculating the common shape from the
                 // full set of input shapes at runtime
@@ -179,7 +175,6 @@ std::vector<instruction_ref> insert_common_args_impl(module& m,
                 return m.insert_instruction(
                     ins,
                     make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}),
-                    debug_symbols,
                     input,
                     inputs[0]);
             });
@@ -191,7 +186,7 @@ std::vector<instruction_ref> insert_common_args_impl(module& m,
                 if(input->get_shape().type() != c_type)
                 {
                     input = m.insert_instruction(
-                        ins, make_op("convert", {{"target_type", c_type}}), debug_symbols, input);
+                        ins, make_op("convert", {{"target_type", c_type}}), input);
                 }
                 return input;
             });
@@ -203,37 +198,19 @@ std::vector<instruction_ref> insert_common_args_impl(module& m,
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
             if(options.common_lens and input->get_shape().lens() != common.lens())
             {
-                input =
-                    m.insert_instruction(ins,
-                                         make_op("multibroadcast", {{"out_lens", common.lens()}}),
-                                         debug_symbols,
-                                         input);
+                input = m.insert_instruction(
+                    ins, make_op("multibroadcast", {{"out_lens", common.lens()}}), input);
             }
             if(options.common_type and input->get_shape().type() != common.type())
             {
-                input = m.insert_instruction(ins,
-                                             make_op("convert", {{"target_type", common.type()}}),
-                                             debug_symbols,
-                                             input);
+                input = m.insert_instruction(
+                    ins, make_op("convert", {{"target_type", common.type()}}), input);
             }
             return input;
         });
     }
     return inputs;
 }
-
-std::vector<instruction_ref> insert_common_args(module& m,
-                                                instruction_ref ins,
-                                                std::vector<instruction_ref> inputs,
-                                                common_options options)
-{ return insert_common_args_impl(m, ins, {}, std::move(inputs), options); }
-
-std::vector<instruction_ref> insert_common_args(module& m,
-                                                instruction_ref ins,
-                                                const std::set<std::string>& debug_symbols,
-                                                std::vector<instruction_ref> inputs,
-                                                common_options options)
-{ return insert_common_args_impl(m, ins, debug_symbols, std::move(inputs), options); }
 
 std::vector<instruction_ref>
 add_common_args(module& m, std::vector<instruction_ref> inputs, common_options options)
@@ -250,20 +227,6 @@ instruction_ref insert_common_op(module& m,
     return m.insert_instruction(ins, op, insert_common_args(m, ins, std::move(inputs), options));
 }
 
-instruction_ref insert_common_op(module& m,
-                                 instruction_ref ins,
-                                 const operation& op,
-                                 const std::set<std::string>& debug_symbols,
-                                 std::vector<instruction_ref> inputs,
-                                 common_options options)
-{
-    return m.insert_instruction(
-        ins,
-        op,
-        debug_symbols,
-        insert_common_args(m, ins, debug_symbols, std::move(inputs), options));
-}
-
 instruction_ref add_common_op(module& m,
                               const operation& op,
                               std::vector<instruction_ref> inputs,
@@ -271,13 +234,6 @@ instruction_ref add_common_op(module& m,
 {
     return insert_common_op(m, m.end(), op, std::move(inputs), options);
 }
-
-instruction_ref add_common_op(module& m,
-                              const operation& op,
-                              const std::set<std::string>& debug_symbols,
-                              std::vector<instruction_ref> inputs,
-                              common_options options)
-{ return insert_common_op(m, m.end(), op, debug_symbols, std::move(inputs), options); }
 
 shape make_bcast_shape(const shape& input_shape, const std::vector<std::size_t>& bcast_lens)
 {

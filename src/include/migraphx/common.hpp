@@ -27,7 +27,6 @@
 #include <migraphx/config.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/instruction_ref.hpp>
-#include <set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -124,13 +123,6 @@ MIGRAPHX_EXPORT std::vector<instruction_ref> insert_common_args(module& m,
                                                                 std::vector<instruction_ref> inputs,
                                                                 common_options options = {});
 
-MIGRAPHX_EXPORT std::vector<instruction_ref>
-insert_common_args(module& m,
-                   instruction_ref ins,
-                   const std::set<std::string>& debug_symbols,
-                   std::vector<instruction_ref> inputs,
-                   common_options options = {});
-
 MIGRAPHX_EXPORT
 std::vector<instruction_ref>
 add_common_args(module& m, std::vector<instruction_ref> inputs, common_options options = {});
@@ -142,26 +134,12 @@ instruction_ref insert_common_op(module& m,
                                  std::vector<instruction_ref> inputs,
                                  common_options options = {});
 
-MIGRAPHX_EXPORT
-instruction_ref insert_common_op(module& m,
-                                 instruction_ref ins,
-                                 const operation& op,
-                                 const std::set<std::string>& debug_symbols,
-                                 std::vector<instruction_ref> inputs,
-                                 common_options options = {});
-
 /**
  * @brief Wrapper for insert_common_args() which inserts operation at the end of the module.
  */
 MIGRAPHX_EXPORT
 instruction_ref add_common_op(module& m,
                               const operation& op,
-                              std::vector<instruction_ref> inputs,
-                              common_options options = {});
-MIGRAPHX_EXPORT
-instruction_ref add_common_op(module& m,
-                              const operation& op,
-                              const std::set<std::string>& debug_symbols,
                               std::vector<instruction_ref> inputs,
                               common_options options = {});
 

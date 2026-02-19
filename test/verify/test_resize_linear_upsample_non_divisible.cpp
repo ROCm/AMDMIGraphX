@@ -29,7 +29,8 @@
 
 // Linear mode upsample
 template <migraphx::shape::type_t DType>
-struct test_resize_linear_upsample_non_divisible : verify_program<test_resize_linear_upsample_non_divisible<DType>>
+struct test_resize_linear_upsample_non_divisible
+    : verify_program<test_resize_linear_upsample_non_divisible<DType>>
 {
     migraphx::program create_program() const
     {

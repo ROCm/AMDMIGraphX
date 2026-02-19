@@ -29,7 +29,8 @@
 
 // Linear mode upsample
 template <migraphx::shape::type_t DType>
-struct test_resize_linear_upsample_non_divisible_nhwc : verify_program<test_resize_linear_upsample_non_divisible_nhwc<DType>>
+struct test_resize_linear_upsample_non_divisible_nhwc
+    : verify_program<test_resize_linear_upsample_non_divisible_nhwc<DType>>
 {
     migraphx::program create_program() const
     {
@@ -38,14 +39,17 @@ struct test_resize_linear_upsample_non_divisible_nhwc : verify_program<test_resi
 
         migraphx::shape sx{DType, {1, 2, 4, 3}};
         auto x = mm->add_parameter("X", sx);
-        auto trans1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), x);
+        auto trans1 =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), x);
 
-        auto resize = mm->add_instruction(migraphx::make_op("resize",
-                                              {{"scales", {1.0f, 1.0f, 2.1f, 2.1f}},
-                                               {"mode", "linear"},
-                                               {"coordinate_transformation_mode", "half_pixel"}}),
-                            trans1);
-        auto trans2 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), resize);
+        auto resize = mm->add_instruction(
+            migraphx::make_op("resize",
+                              {{"scales", {1.0f, 1.0f, 2.1f, 2.1f}},
+                               {"mode", "linear"},
+                               {"coordinate_transformation_mode", "half_pixel"}}),
+            trans1);
+        auto trans2 = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), resize);
         mm->add_return({trans2});
         return p;
     }

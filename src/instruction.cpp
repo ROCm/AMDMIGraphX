@@ -587,9 +587,9 @@ static auto track_visits(instruction_ref start, instruction_ref end, F f)
     }
     else
     {
-        std::unordered_set<instruction_ref> in_range;
-        in_range.reserve(n + 1);
-        in_range.insert(start, end);
+        auto instructions = range(start, end);
+        auto instruction_refs = iterator_for(instructions);
+        std::unordered_set<instruction_ref> in_range(instruction_refs.begin(), instruction_refs.end());
         auto stop = [&](auto ins) {
             if(in_range.erase(ins) == 0)
                 return true;

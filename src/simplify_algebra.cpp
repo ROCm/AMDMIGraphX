@@ -2147,7 +2147,8 @@ struct find_conv_broadcast_input
         const auto& w_shape = w_ins->get_shape();
 
         const auto& x_lens = x_shape.lens();
-        if(std::any_of(x_lens.begin() + 2, x_lens.end(), [](auto l) { return l != 1; }))
+        if(x_lens.size() > 2 and
+           std::any_of(x_lens.begin() + 2, x_lens.end(), [](auto l) { return l != 1; }))
             return;
 
         auto oc = w_shape.lens()[0];

@@ -140,9 +140,9 @@ void eliminate_concat::apply(module& m) const
         // Look for the concat operator
         if(not concat_op.has_value())
             continue;
-        auto lens              = ins->inputs().front()->get_shape().lens();
-        std::size_t axis       = tune_axis(lens.size(), concat_op->axis, concat_op->name());
-        auto ncopies           = std::count_if(
+        auto lens        = ins->inputs().front()->get_shape().lens();
+        std::size_t axis = tune_axis(lens.size(), concat_op->axis, concat_op->name());
+        auto ncopies     = std::count_if(
             ins->inputs().begin(), std::prev(ins->inputs().end()), [&](instruction_ref input) {
                 if(co.need_copy(input))
                 {

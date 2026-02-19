@@ -195,9 +195,8 @@ __device__ void resize_linear(Input input, Output output, Scales scales)
         auto out_multi = out_shape.multi(out_idx);
 
         // Precompute interpolation parameters for each dimension
-        auto params = array_transform(in_shape.lens, out_shape.lens, out_multi, scales)([](auto... xs) {
-            return compute_interp_params_1d<CoordOp>(xs...);
-        });
+        auto params = array_transform(in_shape.lens, out_shape.lens, out_multi, scales)(
+            [](auto... xs) { return compute_interp_params_1d<CoordOp>(xs...); });
 
         index_int active_count =
             count_if(scales.begin(), scales.end(), [](auto scale) { return scale != 1.0f; });
@@ -205,7 +204,7 @@ __device__ void resize_linear(Input input, Output output, Scales scales)
 
         // Initialize in_multi with non-interpolated dimensions (where i0 == i1)
         auto in_multi = array_transform(params)([](const interp_params& p) { return p.i0; });
-        
+
         // Accumulate over 2^active_count corners instead of 2^ndim
         const index_int corners = (1u << active_count);
         float acc               = 0.0f;

@@ -62,7 +62,7 @@ static bool is_const_ins(instruction_ref ins, const std::unordered_set<std::stri
 static literal as_packed(const argument& c)
 {
     if(c.get_shape().packed())
-        return literal(c.get_shape(), c.data());
+        return {c.get_shape(), c.data()};
     auto s = c.get_shape().with_lens(c.get_shape().lens());
     literal result;
     c.visit([&](auto x) { result = literal{s, x.begin(), x.end()}; });
@@ -101,7 +101,8 @@ void propagate_constant::apply(module& m) const
     std::vector<literal> literals(const_instrs_vec.size());
     std::size_t grainsize = 1;
 #ifdef _WIN32
-    grainsize = std::max<std::size_t>(const_instrs_vec.size() / (std::thread::hardware_concurrency()/2), 1);
+    grainsize = std::max<std::size_t>(
+        const_instrs_vec.size() / (std::thread::hardware_concurrency() / 2), 1);
 #else
 #if !MIGRAPHX_HAS_EXECUTORS
     std::size_t n = std::max<std::size_t>(2048 / std::thread::hardware_concurrency(), 1);

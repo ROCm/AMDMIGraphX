@@ -287,7 +287,7 @@ struct resize
                                [](auto scale_i, size_t in_len) {
                                    return static_cast<size_t>(scale_i * in_len);
                                });
-                return shape{input_s.type(), lens};
+                return input_s.with_lens(lens);
             }
         }
         else

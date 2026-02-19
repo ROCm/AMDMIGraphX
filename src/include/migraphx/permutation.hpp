@@ -68,7 +68,7 @@ MIGRAPHX_EXPORT std::vector<int64_t> find_permutation(const std::vector<shape>& 
 
 /// Normalize the shapes so the order of dimensions will be in the order it is
 /// in memory as much as possible.
-MIGRAPHX_EXPORT std::vector<shape> normalize_permutation(const std::vector<shape>& shapes);
+MIGRAPHX_EXPORT std::vector<shape> normalize_permutation(const std::vector<shape>& shapes, std::vector<int64_t>* permutation = nullptr);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

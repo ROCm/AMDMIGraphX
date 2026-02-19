@@ -40,7 +40,7 @@ struct runtime_compile_op
         return pack();
     }
 
-    std::string name() const { return "gpu::runtime_compile_op"; }
+    std::string name() const { return "runtime_compile_op"; }
 
     shape compute_shape(const std::vector<shape>&, const std::vector<module_ref>&) const
     {
@@ -104,7 +104,6 @@ void compile_dyn_ins(context& ctx,
         auto ins = runtime_dyn_inss[i];
         assert(ins->get_operator().name() == "gpu::dynamic_code_object_op");
 
-        // Call the runtime_compile method through the operation interface
         ins->get_operator().runtime_compile(
             ctx, compile_input_shapes.at(ins), ins->module_inputs());
     });

@@ -26,6 +26,8 @@ Full documentation for MIGraphX is available at
 
 ### Optimized
 
+* Added a new pass to replace convolution with constant broadcast input with a reduced GEMM which improves model compilation time (#4621).
+
 ### Removed
 
 ## MIGraphX 2.15 for ROCm 7.2.0

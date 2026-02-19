@@ -41,7 +41,7 @@ struct coord_transform_half_pixel
 {
     MIGRAPHX_DEVICE_CONSTEXPR float operator()(index_int, index_int, float idx, float scale) const
     {
-        MIGRAPHX_ASSERT((scale - 0.5f) > 0 or (scale - 0.5f) < 0);
+        MIGRAPHX_ASSERT(scale > 0 or scale < 0);
         return (idx + 0.5f) / scale - 0.5f;
     }
 };
@@ -51,7 +51,7 @@ struct coord_transform_pytorch_half_pixel
     MIGRAPHX_DEVICE_CONSTEXPR float
     operator()(index_int, index_int l_out, float idx, float scale) const
     {
-        MIGRAPHX_ASSERT((scale - 0.5f) > 0 or (scale - 0.5f) < 0);
+        MIGRAPHX_ASSERT(scale > 0 or scale < 0);
         return l_out > 1 ? (idx + 0.5f) / scale - 0.5f : 0.0f;
     }
 };
@@ -61,7 +61,6 @@ struct coord_transform_align_corners
     MIGRAPHX_DEVICE_CONSTEXPR float
     operator()(index_int l_in, index_int l_out, float idx, float) const
     {
-        MIGRAPHX_ASSERT(l_out != 1);
         return (l_out == 1) ? 0.0f : (1.0f * idx * (l_in - 1.0f) / (l_out - 1.0f));
     }
 };
@@ -196,26 +195,20 @@ __device__ void resize_linear(Input input, Output output, Scales scales)
         auto out_multi = out_shape.multi(out_idx);
 
         // Precompute interpolation parameters for each dimension
-        array<interp_params, ndim> params{};
-        for(index_int d = 0; d < ndim; ++d)
-        {
-            params[d] = compute_interp_params_1d<CoordOp>(
-                in_shape.lens[d], out_shape.lens[d], out_multi[d], scales[d]);
-        }
+        auto params = array_transform(in_shape.lens, out_shape.lens, out_multi, scales)([](auto... xs) {
+            return compute_interp_params_1d<CoordOp>(xs...);
+        });
 
         index_int active_count =
             count_if(scales.begin(), scales.end(), [](auto scale) { return scale != 1.0f; });
+        MIGRAPHX_ASSERT(active_count < 32);
 
         // Initialize in_multi with non-interpolated dimensions (where i0 == i1)
-        array<index_int, ndim> in_multi{};
-        for(index_int d = 0; d < ndim; ++d)
-        {
-            in_multi[d] = params[d].i0;
-        }
-
+        auto in_multi = array_transform(params)([](const interp_params& p) { return p.i0; });
+        
         // Accumulate over 2^active_count corners instead of 2^ndim
-        float acc               = 0.0f;
         const index_int corners = (1u << active_count);
+        float acc               = 0.0f;
 
         for(index_int subset = 0; subset < corners; ++subset)
         {

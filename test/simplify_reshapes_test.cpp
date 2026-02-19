@@ -4850,4 +4850,100 @@ TEST_CASE(conv_add_layernorm_conv)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(argmin_reshape_unsqueeze)
+{
+    // Test that argmin followed by reshape to add dimension gets simplified to unsqueeze
+    auto s1 = migraphx::shape{migraphx::shape::float_type, {2, 12}};
+    auto s2 = migraphx::shape{migraphx::shape::int64_type, {2, 3, 4}};
+    migraphx::module m1;
+    {
+        auto x       = m1.add_parameter("x", s1);
+        auto y       = m1.add_parameter("y", s2);
+        auto argmin  = m1.add_instruction(migraphx::make_op("argmin", {{"axis", 1}}), x);
+        auto reshape = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 1, 1}}}),
+                                          argmin);
+        auto bc      = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), reshape);
+        auto add = m1.add_instruction(migraphx::make_op("add"), bc, y);
+        m1.add_return({add});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x         = m2.add_parameter("x", s1);
+        auto y         = m2.add_parameter("y", s2);
+        auto argmin    = m2.add_instruction(migraphx::make_op("argmin", {{"axis", 1}}), x);
+        auto unsqueeze = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), argmin);
+        auto bc        = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), unsqueeze);
+        auto add = m2.add_instruction(migraphx::make_op("add"), bc, y);
+        m2.add_return({add});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(argmax_reshape_unsqueeze)
+{
+    // Test that argmax followed by reshape to add dimension gets simplified to unsqueeze
+    auto s1 = migraphx::shape{migraphx::shape::float_type, {3, 8}};
+    auto s2 = migraphx::shape{migraphx::shape::int64_type, {3, 2, 4}};
+    migraphx::module m1;
+    {
+        auto x       = m1.add_parameter("x", s1);
+        auto y       = m1.add_parameter("y", s2);
+        auto argmax  = m1.add_instruction(migraphx::make_op("argmax", {{"axis", 1}}), x);
+        auto reshape = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 1, 1}}}),
+                                          argmax);
+        auto bc      = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), reshape);
+        auto add = m1.add_instruction(migraphx::make_op("add"), bc, y);
+        m1.add_return({add});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x         = m2.add_parameter("x", s1);
+        auto y         = m2.add_parameter("y", s2);
+        auto argmax    = m2.add_instruction(migraphx::make_op("argmax", {{"axis", 1}}), x);
+        auto unsqueeze = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), argmax);
+        auto bc        = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), unsqueeze);
+        auto add = m2.add_instruction(migraphx::make_op("add"), bc, y);
+        m2.add_return({add});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(argmin_negative_axis_reshape)
+{
+    // Test that argmin with negative axis followed by reshape works correctly
+    auto s1 = migraphx::shape{migraphx::shape::float_type, {2, 3, 4}};
+    auto s2 = migraphx::shape{migraphx::shape::int64_type, {2, 3, 2, 2}};
+    migraphx::module m1;
+    {
+        auto x       = m1.add_parameter("x", s1);
+        auto y       = m1.add_parameter("y", s2);
+        auto argmin  = m1.add_instruction(migraphx::make_op("argmin", {{"axis", -1}}), x);
+        auto reshape = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3, 1, 1}}}),
+                                          argmin);
+        auto bc      = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), reshape);
+        auto add = m1.add_instruction(migraphx::make_op("add"), bc, y);
+        m1.add_return({add});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x         = m2.add_parameter("x", s1);
+        auto y         = m2.add_parameter("y", s2);
+        auto argmin    = m2.add_instruction(migraphx::make_op("argmin", {{"axis", -1}}), x);
+        auto unsqueeze = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3}}}), argmin);
+        auto bc        = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), unsqueeze);
+        auto add = m2.add_instruction(migraphx::make_op("add"), bc, y);
+        m2.add_return({add});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

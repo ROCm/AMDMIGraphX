@@ -126,32 +126,37 @@ struct logical_or
     }
 };
 
+template <class Compare1, class Compare2>
+constexpr auto compare_pair(Compare1 compare1, Compare2 compare2)
+{
+    return [=](const auto& x, const auto& y) {
+        if(compare1(x[_c<0>], y[_c<0>]))
+            return true;
+        if(compare1(y[_c<0>], x[_c<0>]))
+            return false;
+        return compare2(x[_c<1>], y[_c<1>]);
+    };
+}
+
 // argmin op
 // SelectLast:
-// true -> return larger index on tie
-// false -> return smaller index on tie
+//  true -> return larger index on tie
+//  false -> return smaller index on tie
 template <bool SelectLast = false>
 struct argmin
 {
     template <class T, class U>
     MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
     {
-        auto xval = x[_c<0>];
-        auto yval = y[_c<0>];
-        if(xval < yval)
-            return x;
-        if(yval < xval)
-            return y;
-        // tie breaking based on SelectLast
         if constexpr(SelectLast)
-            return x[_c<1>] > y[_c<1>] ? x : y;
+            return migraphx::min(x, y, compare_pair(less{}, greater{}));
         else
-            return x[_c<1>] < y[_c<1>] ? x : y;
+            return migraphx::min(x, y, compare_pair(less{}, less{}));
     }
 };
 
 // argmax op
-// SelectLast
+// SelectLast:
 //  true -> return larger index on tie
 //  false -> return smaller index on tie
 template <bool SelectLast = false>
@@ -160,17 +165,10 @@ struct argmax
     template <class T, class U>
     MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
     {
-        auto xval = x[_c<0>];
-        auto yval = y[_c<0>];
-        if(xval > yval)
-            return x;
-        if(yval > xval)
-            return y;
-        // tie breaking based on SelectLast
         if constexpr(SelectLast)
-            return x[_c<1>] > y[_c<1>] ? x : y;
+            return migraphx::max(x, y, compare_pair(less{}, less{}));
         else
-            return x[_c<1>] < y[_c<1>] ? x : y;
+            return migraphx::max(x, y, compare_pair(less{}, greater{}));
     }
 };
 } // namespace op

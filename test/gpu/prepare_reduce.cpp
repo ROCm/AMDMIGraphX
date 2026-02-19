@@ -66,7 +66,7 @@ struct make_indices
 
     migraphx::shape compute_shape(const std::vector<migraphx::shape>&) const
     {
-        return migraphx::shape{migraphx::shape::int64_type, {size}};
+        return migraphx::shape{migraphx::shape::uint32_type, {size}};
     }
 };
 

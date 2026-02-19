@@ -95,7 +95,7 @@ struct make_indices
     // This op produces a lazy index tensor,shape matches the reduction dimension
     shape compute_shape(const std::vector<shape>&) const
     {
-        return shape{shape::int64_type, {size}};
+        return shape{shape::uint32_type, {size}};
     }
 };
 MIGRAPHX_REGISTER_OP(make_indices);

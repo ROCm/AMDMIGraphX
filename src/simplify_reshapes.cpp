@@ -318,9 +318,8 @@ struct find_op_shape_transform_op
                 auto ndim     = ins->inputs().front()->get_shape().ndim();
                 auto op_axis  = axis_val < 0 ? axis_val + ndim : axis_val;
                 auto new_axes = am.at(op_axis);
-                // argmin/argmax only support single axis
-                if(new_axes.size() != 1)
-                    MIGRAPHX_THROW("argmin/argmax cannot be reshaped to multiple axes");
+                // is_valid ensures single axis mapping for argmin/argmax
+                assert(new_axes.size() == 1);
                 v["axis"] = new_axes.front();
                 return m.insert_instruction(
                     ins, make_op(ins->name(), v), inputs, ins->module_inputs());
@@ -365,6 +364,10 @@ struct find_op_shape_transform_op
                 auto ndim     = ins->inputs().front()->get_shape().ndim();
                 auto axis     = axis_val < 0 ? axis_val + ndim : axis_val;
                 op_axes       = {static_cast<std::size_t>(axis)};
+                // argmin/argmax only support single axis
+                auto axes_map = desc.common_axes_map_from_src();
+                if(axis < axes_map.size() and axes_map[axis].size() != 1)
+                    return false;
             }
             else
             {

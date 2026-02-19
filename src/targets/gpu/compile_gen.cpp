@@ -420,19 +420,19 @@ void reduce_op::set(instruction_ref ins, const operation& op)
         if(inner_op.name() == "argmin")
         {
             reduction = "op::argmin<" + select_last_str + ">{}";
-            init      = "make_tuple(highest{}, int64_t{0})";
+            init      = "make_tuple(highest{}, index_int{0})";
         }
         else if(inner_op.name() == "argmax")
         {
             reduction = "op::argmax<" + select_last_str + ">{}";
-            init      = "make_tuple(lowest{}, int64_t{0})";
+            init      = "make_tuple(lowest{}, index_int{0})";
         }
         else
         {
             MIGRAPHX_THROW("Unsupported arg operation");
         }
-        // read creates tuples from (value, index), cast index to int64_t
-        read = "[](auto val, auto idx) { return make_tuple(val, static_cast<int64_t>(idx)); }";
+        // read creates tuples from (value, index), cast index to index_int
+        read = "[](auto val, auto idx) { return make_tuple(val, static_cast<index_int>(idx)); }";
     }
     else
     {

@@ -2129,7 +2129,7 @@ struct find_conv_broadcast_input
     auto matcher() const
     {
         return match::name("convolution")(match::args(
-            match::name("broadcast", "multibroadcast")(match::args(match::is_constant().bind("x")))
+            match::name("broadcast", "multibroadcast")(match::args(match::any().bind("x")))
                 .bind("bcast"),
             match::is_constant().bind("w")));
     }
@@ -2140,24 +2140,16 @@ struct find_conv_broadcast_input
         auto x_ins = r.instructions["x"];
         auto w_ins = r.instructions["w"];
 
-        auto conv_op = any_cast<op::convolution>(ins->get_operator());
-        if(conv_op.group != 1)
+        if(ins->get_operator().to_value()["group"].to<int>() != 1)
             return;
 
         const auto& x_shape = x_ins->get_shape();
         const auto& w_shape = w_ins->get_shape();
 
-        if(x_shape.dynamic() or w_shape.dynamic() or ins->get_shape().dynamic())
+        const auto& x_lens = x_shape.lens();
+        if(std::any_of(x_lens.begin() + 2, x_lens.end(), [](auto l) { return l != 1; }))
             return;
 
-        const auto& x_lens = x_shape.lens();
-        for(std::size_t i = 2; i < x_lens.size(); i++)
-        {
-            if(x_lens[i] != 1)
-                return;
-        }
-
-        auto ndim = w_shape.ndim();
         auto oc   = w_shape.lens()[0];
         auto ic   = w_shape.lens()[1];
 
@@ -2167,9 +2159,9 @@ struct find_conv_broadcast_input
         if(x_shape.elements() != n * ic)
             return;
 
-        std::vector<int64_t> spatial_axes;
-        for(std::size_t i = 2; i < ndim; i++)
-            spatial_axes.push_back(static_cast<int64_t>(i));
+        auto ndim = w_shape.ndim();
+        std::vector<int64_t> spatial_axes(ndim - 2);
+        std::iota(spatial_axes.begin(), spatial_axes.end(), 2);
 
         auto w_reduced =
             m.insert_instruction(ins, make_op("reduce_sum", {{"axes", spatial_axes}}), w_ins);

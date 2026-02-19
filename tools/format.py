@@ -40,21 +40,24 @@ def is_excluded(f):
     return base in EXCLUDE_FILES
 
 
-def clang_format(against, apply=False, path=CLANG_FORMAT_PATH):
+def clang_format(against, apply=False, whole_file=False, path=CLANG_FORMAT_PATH):
     base = get_merge_base(against)
+    files = get_changed_files(base)
+    files = [
+        f for f in files if f.endswith(CLANG_EXTENSIONS) and not is_excluded(f)
+    ]
     clang_format = os.path.join(path, 'clang-format')
     if not os.path.exists(clang_format):
         print(f"{clang_format} not installed. Skipping format.")
+        return
+    if whole_file and apply:
+        run([clang_format, '-i'] + files, cwd=get_top(), verbose=True)
         return
     git_clang_format = os.path.join(path, 'git-clang-format')
     if not os.path.exists(git_clang_format):
         print(f"{git_clang_format} not installed. Skipping format.")
         return
     diff_flag = [] if apply else ["--diff"]
-    files = get_changed_files(base)
-    files = [
-        f for f in files if f.endswith(CLANG_EXTENSIONS) and not is_excluded(f)
-    ]
     run([git_clang_format, '--binary', clang_format] + diff_flag + [base] +
         files,
         cwd=get_top(),
@@ -80,10 +83,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('against', default='develop', nargs='?')
     parser.add_argument('-i', '--in-place', action='store_true')
+    parser.add_argument('-w', '--whole-file', action='store_true')
     parser.add_argument('-q', '--quiet', action='store_true')
     args = parser.parse_args()
     try:
-        clang_format(args.against, apply=args.in_place)
+        clang_format(args.against, apply=args.in_place, whole_file=args.whole_file)
         yapf_format(args.against, apply=args.in_place)
     except subprocess.CalledProcessError as ex:
         if ex.stdout:

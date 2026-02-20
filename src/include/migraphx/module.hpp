@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_MIGRAPHLIB_MODULE_HPP
 
 #include <list>
+#include <set>
 #include <unordered_set>
 #include <unordered_map>
 #include <migraphx/operation.hpp>
@@ -52,6 +53,20 @@ using ins_dep_map   = std::unordered_map<instruction_ref, std::vector<instructio
 
 struct module_with_inputs;
 
+struct MIGRAPHX_EXPORT scoped_debug_symbols
+{
+    scoped_debug_symbols(module& m, std::set<std::string> symbols);
+    ~scoped_debug_symbols();
+    scoped_debug_symbols(const scoped_debug_symbols&)            = delete;
+    scoped_debug_symbols& operator=(const scoped_debug_symbols&) = delete;
+    scoped_debug_symbols(scoped_debug_symbols&& other) noexcept;
+    scoped_debug_symbols& operator=(scoped_debug_symbols&& other) noexcept;
+
+    private:
+    module* mod;
+    std::set<std::string> previous;
+};
+
 /**
  * @brief Stores the instruction stream
  */
@@ -63,7 +78,7 @@ struct MIGRAPHX_EXPORT module
                                                    const std::vector<instruction_ref>& inputs,
                                                    const std::vector<module_ref>& mod_args)>;
 
-    module(const std::string& name = "");
+    module(const std::string& name = "", bool use_debug_symbols = false);
 
     // move constructor
     module(module&&) noexcept;
@@ -81,6 +96,9 @@ struct MIGRAPHX_EXPORT module
     bool bypass() const;
     void set_bypass(bool b = true);
 
+    bool get_use_debug_symbols() const;
+    void set_use_debug_symbols(bool b = true);
+
     template <class... Ts, MIGRAPHX_REQUIRES(std::is_same<Ts, instruction_ref>{}...)>
     instruction_ref add_instruction(operation op, Ts... args)
     {
@@ -95,9 +113,7 @@ struct MIGRAPHX_EXPORT module
 
     template <class... Ts, MIGRAPHX_REQUIRES(std::is_same<Ts, instruction_ref>{}...)>
     instruction_ref insert_instruction(instruction_ref ins, operation op, Ts... args)
-    {
-        return insert_instruction(ins, op, {args...});
-    }
+    { return insert_instruction(ins, op, {args...}); }
     instruction_ref
     insert_instruction(instruction_ref ins, const operation& op, std::vector<instruction_ref> args);
 
@@ -348,6 +364,7 @@ struct MIGRAPHX_EXPORT module
     friend bool operator!=(const module& x, const module& y) { return not(x == y); }
 
     friend struct program;
+    friend struct scoped_debug_symbols;
 
     private:
     void set_name(const std::string& name);
@@ -356,6 +373,8 @@ struct MIGRAPHX_EXPORT module
                             const module& pmod,
                             instruction_ref ins,
                             ins_dep_map& deps) const;
+    void propagate_replace_debug_symbols(instruction_ref rep_ins,
+                                         const std::set<std::string>& debug_symbols);
 
     std::unique_ptr<module_impl> impl;
 };

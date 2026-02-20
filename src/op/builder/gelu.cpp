@@ -57,6 +57,10 @@ struct gelu_quick : op_builder<gelu_quick>
 
 struct gelu_erf : op_builder<gelu_erf>
 {
+    template <class Self, class F>
+    static auto reflect(Self&, F)
+    { return pack(); }
+
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
     {
@@ -124,6 +128,10 @@ struct gelu_tanh : op_builder<gelu_tanh>
 
 struct gelu_split : op_builder<gelu_split>
 {
+    template <class Self, class F>
+    static auto reflect(Self&, F)
+    { return pack(); }
+
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
     {

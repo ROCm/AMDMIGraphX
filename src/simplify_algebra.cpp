@@ -1633,7 +1633,7 @@ struct find_add_convs
     }
 };
 
-MIGRAPHX_PRED_MATCHER(horiz_conv_dot, instruction_ref ins)
+MIGRAPHX_BASIC_MATCHER(horiz_conv_dot, match::matcher_context& ctx, instruction_ref ins)
 {
     // checking size to prevent matching block quantized quant_dot for now
     auto pred = [&](auto name) {
@@ -1642,10 +1642,52 @@ MIGRAPHX_PRED_MATCHER(horiz_conv_dot, instruction_ref ins)
                    i->inputs().at(1)->can_eval() and i->inputs().size() == 2;
         };
     };
-    auto dots  = std::count_if(ins->outputs().begin(), ins->outputs().end(), pred("dot"));
-    auto qdots = std::count_if(ins->outputs().begin(), ins->outputs().end(), pred("quant_dot"));
-    auto convs = std::count_if(ins->outputs().begin(), ins->outputs().end(), pred("convolution"));
-    return (dots >= 2 or convs >= 2 or qdots >= 2);
+
+    // adding matched instructions to matcher_context to have their debug_symbols propagate
+    auto add_instructions_to_ctx = [&ctx](std::string key_prefix,
+                                          const std::vector<instruction_ref>& ins_vec) {
+        int count = 1;
+        for(instruction_ref d : ins_vec)
+        {
+            std::stringstream ss;
+            ss << key_prefix << "_" << count;
+            ctx.instructions[ss.str()] = d;
+            count++;
+        }
+    };
+    bool found_horiz = false;
+    std::vector<instruction_ref> dots;
+    std::copy_if(
+        ins->outputs().begin(), ins->outputs().end(), std::back_inserter(dots), pred("dot"));
+    std::vector<instruction_ref> qdots;
+    std::copy_if(
+        ins->outputs().begin(), ins->outputs().end(), std::back_inserter(qdots), pred("quant_dot"));
+    std::vector<instruction_ref> convs;
+    std::copy_if(ins->outputs().begin(),
+                 ins->outputs().end(),
+                 std::back_inserter(convs),
+                 pred("convolution"));
+    if(dots.size() >= 2)
+    {
+        found_horiz = true;
+        add_instructions_to_ctx("dot", dots);
+    }
+    else if(qdots.size() >= 2)
+    {
+        found_horiz = true;
+        add_instructions_to_ctx("qdot", qdots);
+    }
+    else if(convs.size() >= 2)
+    {
+        found_horiz = true;
+        add_instructions_to_ctx("conv", convs);
+    }
+
+    if(found_horiz)
+    {
+        return {ins};
+    }
+    return nullopt;
 }
 
 struct find_conv_dot_horiz_fusion

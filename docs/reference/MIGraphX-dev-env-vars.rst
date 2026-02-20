@@ -514,6 +514,14 @@ Compilation tracing
 
       | Default: Quantization parameters aren't printed.
 
+  * - | ``MIGRAPHX_ENABLE_DEBUG_SYMBOLS``
+      | Adds parsing and propagating of debug symbols through compiler passes such that the origin of instructions
+      | can be more easily determined. For ONNX models, the debug symbols are the ONNX node names.
+      
+    - | ``1``: Enable parsing and propagating debug symbols.
+
+      | Default: Debug symbols are not parsed nor propagated.
+
 MLIR
 **************************
 

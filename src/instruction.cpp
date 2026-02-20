@@ -28,6 +28,8 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/iterator.hpp>
+#include <migraphx/env.hpp>
+#include <migraphx/stringutils.hpp>
 #include <bitset>
 #include <queue>
 
@@ -187,6 +189,11 @@ const std::vector<instruction_ref>& instruction::inputs() const { return argumen
 const std::vector<module_ref>& instruction::module_inputs() const { return module_args; }
 
 const std::vector<instruction_ref>& instruction::outputs() const { return output; }
+
+const std::set<std::string>& instruction::get_debug_symbols() const { return debug_symbols; }
+
+void instruction::add_debug_symbols(const std::set<std::string>& symbols)
+{ debug_symbols.insert(symbols.begin(), symbols.end()); }
 
 bool operator==(const instruction& x, const instruction& y)
 {
@@ -439,6 +446,12 @@ void instruction::print(std::ostream& os,
     // print tid
     if(ins->target_id != 0)
         os << ", target_id=" << ins->target_id;
+
+    // print debug symbols if they exist
+    if(not ins->debug_symbols.empty())
+    {
+        os << " /* " << join_strings(ins->debug_symbols, ", ") << " */";
+    }
 }
 
 static void debug_name(std::ostream& os, const instruction& ins)

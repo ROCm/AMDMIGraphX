@@ -44,6 +44,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_ONNX_PARSER)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_DEBUG_SYMBOLS)
 
 static shape shape_from_dyn_dims(shape::type_t shape_type,
                                  const std::vector<shape::dynamic_dimension>& dyn_dims)
@@ -133,16 +134,15 @@ instruction_ref onnx_parser::node_info::add_bias(const std::vector<instruction_r
         // if curr_ins has a dynamic output shape use 2 input broadcast
         if(curr_ins->get_shape().dynamic())
         {
-            bias_bcast =
-                mod->add_instruction(make_op("broadcast", {{"axis", axis}}), args[2], curr_ins);
+            bias_bcast = add_instruction(make_op("broadcast", {{"axis", axis}}), args[2], curr_ins);
         }
         else
         {
-            bias_bcast = mod->add_instruction(
+            bias_bcast = add_instruction(
                 make_op("broadcast", {{"axis", axis}, {"out_lens", curr_ins->get_shape().lens()}}),
                 args[2]);
         }
-        return mod->add_instruction(make_op("add"), curr_ins, bias_bcast);
+        return add_instruction(make_op("add"), curr_ins, bias_bcast);
     }
     return curr_ins;
 }
@@ -175,28 +175,20 @@ instruction_ref onnx_parser::node_info::add_broadcastable_binary_op(const std::s
  */
 instruction_ref onnx_parser::node_info::add_common_op(const std::string& op_name,
                                                       std::vector<instruction_ref> inputs) const
-{
-    return migraphx::add_common_op(*mod, make_op(op_name), std::move(inputs));
-}
+{ return migraphx::add_common_op(*mod, make_op(op_name), std::move(inputs)); }
 
 instruction_ref
 onnx_parser::node_info::add_instruction(const operation& op,
                                         const std::vector<instruction_ref>& args) const
-{
-    return mod->add_instruction(op, args);
-}
+{ return mod->add_instruction(op, args); }
 
 instruction_ref onnx_parser::node_info::add_instruction(const operation& op,
                                                         const std::vector<instruction_ref>& args,
                                                         const std::vector<module_ref>& mods) const
-{
-    return mod->add_instruction(op, args, mods);
-}
+{ return mod->add_instruction(op, args, mods); }
 
 instruction_ref onnx_parser::node_info::add_literal(literal l) const
-{
-    return mod->add_literal(std::move(l));
-}
+{ return mod->add_literal(std::move(l)); }
 
 onnx_parser::onnx_parser()
 {
@@ -601,8 +593,17 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
         else
         {
             std::string node_name = node.op_type() + "_" + std::to_string(mod->size());
-            result                = ops[node.op_type()](
-                *this, {get_attributes(node), output_num, node_name, mod}, args);
+            node_info ninfo{get_attributes(node), output_num, node_name, mod};
+            if(mod->get_use_debug_symbols())
+            {
+                std::string debug_symbol = node.name().empty() ? std::string("migx_uid:") + node_name : node.name();
+                scoped_debug_symbols guard(*mod, {debug_symbol});
+                result = ops[node.op_type()](*this, ninfo, args);
+            }
+            else
+            {
+                result = ops[node.op_type()](*this, ninfo, args);
+            }
         }
 
         output_num = std::min<std::size_t>(output_num, result.size());

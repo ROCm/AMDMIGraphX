@@ -37,6 +37,7 @@
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/time_op.hpp>
+#include <migraphx/make_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -92,9 +93,9 @@ struct dynamic_code_object_op
 {
     operation pre_op = precompile_op{};
 
-    // This implementation currently caches for each dynamic_code_object_op instance
-    // It will be updated to store compiled code objects for all encountered shapes
-    //  in a way that can be used by all dynamic_code_object_op instances
+    // // This implementation currently caches for each dynamic_code_object_op instance
+    // // It will be updated to store compiled code objects for all encountered shapes
+    // //  in a way that can be used by all dynamic_code_object_op instances
     using cache_map_type = std::unordered_map<const dynamic_code_object_op*, dynamic_op_cache>;
     std::shared_ptr<cache_map_type> cache_map = std::make_shared<cache_map_type>();
 
@@ -130,32 +131,23 @@ struct dynamic_code_object_op
                        [](const auto& name, const auto& arg) { return std::make_pair(name, arg); });
         return param_map;
     }
-    argument compute(context& ctx,
-                     const shape&,
-                     const std::vector<argument>& args,
-                     const std::vector<module_ref>& module_args,
-                     const std::function<std::vector<argument>(
-                         module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
+
+    void compile_and_cache(context& ctx,
+                           const std::vector<shape>& input_shapes,
+                           const std::vector<module_ref>& module_args) const
     {
-        auto static_args = std::vector<argument>{args.begin(), args.end()};
-        auto output_arg  = static_args.back();
 
         auto& cache = get_cache();
-        if(cache.mod.size() > 0 and cache.input_shapes == to_shapes(args))
-        {
-            static_args[static_args.size() - 1] = output_arg.reshape(cache.output_shape);
-            auto* mod                           = &cache.mod;
-            auto param_map                      = build_param_map(static_args, mod);
-            auto results                        = run(mod, param_map);
-            if(results.size() > 1)
-                return results;
-            return results.front();
-        }
+        if(cache.mod.size() > 0 and cache.input_shapes == input_shapes)
+            return;
 
-        if(output_arg.get_shape().dynamic())
+        auto static_shapes = std::vector<shape>{input_shapes.begin(), input_shapes.end()};
+        auto output_shape  = static_shapes.back();
+
+        if(output_shape.dynamic())
         {
-            auto out_shape = pre_op.compute_shape(to_shapes(static_args), module_args);
-            static_args[static_args.size() - 1] = output_arg.reshape(out_shape);
+            auto out_shape = pre_op.compute_shape(static_shapes, module_args);
+            static_shapes[static_shapes.size() - 1] = out_shape;
         }
 
         // Rewrite submodule without dynamic shapes to be used as the IR for compilation
@@ -166,13 +158,12 @@ struct dynamic_code_object_op
         {
             auto pnames = module_args.front()->get_parameter_names();
             std::unordered_map<std::string, shape> mod_arg_shapes;
-            std::transform(pnames.begin(),
-                           pnames.end(),
-                           args.begin(),
-                           std::inserter(mod_arg_shapes, mod_arg_shapes.end()),
-                           [&](const auto& name, const auto& arg) {
-                               return std::make_pair(name, arg.get_shape());
-                           });
+            std::transform(
+                pnames.begin(),
+                pnames.end(),
+                input_shapes.begin(),
+                std::inserter(mod_arg_shapes, mod_arg_shapes.end()),
+                [&](const auto& name, const auto& shape) { return std::make_pair(name, shape); });
             static_submod = module_args.front()->with_static_shapes(mod_arg_shapes);
             static_submod.set_bypass(true);
             runtime_mod_name = "runtime_mod:" + module_args.front()->name();
@@ -181,15 +172,15 @@ struct dynamic_code_object_op
         // Create runtime module which will be compiled and cached
         auto runtime_mod = module(runtime_mod_name);
         std::vector<instruction_ref> args_ins;
-        std::vector<size_t> idx(static_args.size());
+        std::vector<size_t> idx(static_shapes.size());
         std::iota(std::begin(idx), std::end(idx), 0);
-        std::transform(static_args.begin(),
-                       static_args.end(),
+        std::transform(static_shapes.begin(),
+                       static_shapes.end(),
                        idx.begin(),
                        std::back_inserter(args_ins),
-                       [&](const auto& arg, const auto& i) {
+                       [&](const auto& shape, const auto& i) {
                            return runtime_mod.add_parameter(
-                               runtime_mod_name + ":x" + std::to_string(i), arg.get_shape());
+                               runtime_mod_name + ":x" + std::to_string(i), shape);
                        });
         instruction_ref ins;
         if(not module_args.empty())
@@ -221,21 +212,151 @@ struct dynamic_code_object_op
         // Update cache
         // TODO: This will be updated to store compiled code objects for all encountered shapes
         cache.mod          = runtime_mod;
-        cache.input_shapes = to_shapes(args);
-        cache.output_shape = static_args.back().get_shape();
+        cache.input_shapes = input_shapes;
+        cache.output_shape = static_shapes.back();
+    }
 
-        // Build param_map based on ACTUAL parameters that exist
-        module_ref runtime_mod_ref = &runtime_mod;
-        auto param_map             = build_param_map(static_args, runtime_mod_ref);
+    argument compute(context& ctx,
+                     const shape&,
+                     const std::vector<argument>& args,
+                     const std::vector<module_ref>& module_args,
+                     const std::function<std::vector<argument>(
+                         module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
+    {
+        auto static_args = std::vector<argument>{args.begin(), args.end()};
+        auto output_arg  = static_args.back();
 
-        auto results = run(runtime_mod_ref, param_map);
+        compile_and_cache(ctx, to_shapes(args), module_args);
 
+        auto& cache                         = get_cache();
+        static_args[static_args.size() - 1] = output_arg.reshape(cache.output_shape);
+        auto* mod                           = &cache.mod;
+        auto param_map                      = build_param_map(static_args, mod);
+        auto results                        = run(mod, param_map);
         if(results.size() > 1)
             return results;
         return results.front();
     }
 };
 MIGRAPHX_REGISTER_OP(dynamic_code_object_op);
+
+struct runtime_compile_op
+{
+    template <class Self, class F>
+    static auto reflect(Self&, F)
+    {
+        return pack();
+    }
+
+    std::string name() const { return "gpu::runtime_compile_op"; }
+
+    shape compute_shape(const std::vector<shape>&, const std::vector<module_ref>&) const
+    {
+        return {};
+    }
+
+    void find_dyn_inss(
+        module_ref target_mod,
+        std::unordered_map<std::string, shape> param_shapes,
+        std::vector<instruction_ref>& runtime_dyn_inss,
+        std::unordered_map<instruction_ref, std::vector<shape>>& compile_input_shapes) const
+    {
+        std::unordered_map<instruction_ref, shape> ins_shapes;
+        runtime_dyn_inss.clear();
+        for(auto ins : iterator_for(*target_mod))
+        {
+            if(ins->name() == "@param")
+            {
+                auto param_name = any_cast<builtin::param>(ins->get_operator()).parameter;
+                ins_shapes[ins] = param_shapes.at(param_name);
+            }
+            else if(ins->name() == "@literal")
+            {
+                ins_shapes[ins] = ins->get_shape();
+            }
+            else
+            {
+                std::vector<shape> input_shapes;
+                input_shapes.reserve(ins->inputs().size());
+                for(auto input_ins : ins->inputs())
+                {
+                    input_shapes.push_back(ins_shapes.at(input_ins));
+                }
+                // Check if this is a dynamic_code_object_op and collect it
+                if(ins->name() == "gpu::dynamic_code_object_op")
+                {
+                    runtime_dyn_inss.push_back(ins);
+                    compile_input_shapes[ins] = input_shapes;
+                }
+                ins_shapes[ins] =
+                    ins->get_operator().compute_shape(input_shapes, ins->module_inputs());
+            }
+        }
+    }
+
+    argument compute(context& ctx,
+                     const shape&,
+                     const std::vector<argument>& args,
+                     const std::vector<module_ref>& module_args,
+                     std::function<std::vector<argument>(
+                         module_ref&, const std::unordered_map<std::string, argument>&)>) const
+    {
+        // Map to store static inference shapes for all dynamic instructions
+        std::unordered_map<instruction_ref, std::vector<shape>> compile_input_shapes;
+
+        // Module arg to this instruction should be the main module
+        assert(not module_args.empty());
+        auto* mod = module_args.front();
+
+        // Map parameters to input args shapes. The args here should be the parameters
+        // to the main module.
+        auto params = mod->get_parameter_names();
+        std::unordered_map<std::string, shape> param_shapes;
+        for(std::size_t i = 0; i < params.size() and i < args.size(); ++i)
+        {
+            param_shapes[params[i]] = args[i].get_shape();
+        }
+
+        // Find all dynamic_code_object_op instructions and compute shapes in the same loop
+        // (since instruction_ref can't be serialized, we find them here instead of storing in
+        // dyn_inss)
+        std::vector<instruction_ref> runtime_dyn_inss;
+        find_dyn_inss(mod, param_shapes, runtime_dyn_inss, compile_input_shapes);
+
+        // If no dynamic instructions found, nothing to compile
+        if(runtime_dyn_inss.empty())
+            return {};
+
+        // All dyn_inss should be in the main module
+        assert(std::all_of(runtime_dyn_inss.begin(), runtime_dyn_inss.end(), [&](const auto& ins) {
+            return mod->has_instruction(ins);
+        }));
+
+        // Compile all dynamic instructions in parallel using compile_and_cache
+        par_for(runtime_dyn_inss.size(), [&](std::size_t i) {
+            auto ins = runtime_dyn_inss[i];
+
+            // Verify the instruction is a dynamic_code_object_op
+            assert(ins->get_operator().name() == "gpu::dynamic_code_object_op");
+
+            // Get the dynamic_code_object_op from the instruction
+            const auto& dyn_op = any_cast<dynamic_code_object_op>(ins->get_operator());
+
+            // Get input shapes for this instruction (already computed in find_dyn_inss)
+            assert(compile_input_shapes.count(ins) > 0);
+            const auto& input_shapes = compile_input_shapes.at(ins);
+
+            // Get module args for this instruction
+            auto module_args = ins->module_inputs();
+
+            // Compile and cache the instruction
+            dyn_op.compile_and_cache(ctx, input_shapes, module_args);
+        });
+
+        return {};
+    }
+};
+MIGRAPHX_REGISTER_OP(runtime_compile_op);
 
 struct compiled_result
 {

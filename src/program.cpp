@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -747,8 +747,14 @@ value program::to_value() const
 static void mod_from_val(module_ref mod,
                          const value& v,
                          std::unordered_map<std::string, instruction_ref>& instructions,
-                         const std::unordered_map<std::string, module_ref>& map_mods)
+                         const std::unordered_map<std::string, module_ref>& map_mods,
+                         std::unordered_set<module_ref>& visited)
 {
+    // Avoid infinite recursion from circular module dependencies (e.g., self-reference)
+    if(visited.count(mod) > 0)
+        return;
+    visited.insert(mod);
+
     const auto& module_val = v.at(mod->name());
     for(const value& node : module_val.at("nodes"))
     {
@@ -791,7 +797,11 @@ static void mod_from_val(module_ref mod,
 
                 for(const auto& smod : module_inputs)
                 {
-                    mod_from_val(smod, v, instructions, map_mods);
+                    // Skip self-references to avoid circular deserialization
+                    if(smod != mod)
+                    {
+                        mod_from_val(smod, v, instructions, map_mods, visited);
+                    }
                 }
             }
 
@@ -856,8 +866,9 @@ void program::from_value(const value& v)
                    [&](auto&& pp) { return std::make_pair(pp.first, &pp.second); });
 
     std::unordered_map<std::string, instruction_ref> map_insts;
+    std::unordered_set<module_ref> visited;
     auto* mm = get_main_module();
-    mod_from_val(mm, module_vals, map_insts, map_mods);
+    mod_from_val(mm, module_vals, map_insts, map_mods, visited);
 
     // Finalize a compiled model
     if(not this->impl->contexts.empty())

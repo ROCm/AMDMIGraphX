@@ -362,6 +362,9 @@ struct MIGRAPHX_EXPORT module
                             const module& pmod,
                             instruction_ref ins,
                             ins_dep_map& deps) const;
+    void finalize(std::vector<context>& contexts,
+                  std::unordered_set<const module*>& visited,
+                  bool trace);
 
     std::unique_ptr<module_impl> impl;
 };

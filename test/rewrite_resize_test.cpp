@@ -83,7 +83,7 @@ check_resize(const migraphx::value& v, const migraphx::shape& input_shape, bool 
                 return migraphx::float_equal(x, y);
             });
         });
-        return result; 
+        return result;
     });
 }
 

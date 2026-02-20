@@ -343,8 +343,7 @@ struct resize
                                in_lens.begin(),
                                std::back_inserter(vec_scale),
                                [](float out_len, size_t in_len) {
-                                   return (in_len == 0 ? 1.0f
-                                                       : out_len / in_len);
+                                   return (in_len == 0 ? 1.0f : out_len / in_len);
                                });
             }
         }
@@ -360,17 +359,16 @@ struct resize
                     // Copy the output size from args[1].
                     std::copy(input.begin(), input.end(), out_lens.begin());
                     // Deduce the scales for each axis
-                    std::transform(
-                        input.begin(),
-                        input.end(),
-                        in_lens.begin(),
-                        std::back_inserter(vec_scale),
-                        [](float sz, size_t in_len) { return sz / in_len; });
+                    std::transform(input.begin(),
+                                   input.end(),
+                                   in_lens.begin(),
+                                   std::back_inserter(vec_scale),
+                                   [](float sz, size_t in_len) { return sz / in_len; });
                 }
                 else
                 {
                     // read the scale from args[1]
-                    std::copy(input.begin(), input.end(), std::back_inserter(vec_scale),);
+                    std::copy(input.begin(), input.end(), std::back_inserter(vec_scale), );
                     // compute the output dimensions from the given scales.  This computation
                     // always rounds down, unlike the internal computation in Nearest mode
                     // which has several options as given in nearest_mode.
@@ -411,8 +409,12 @@ struct resize
             // N-D multilinear interpolation
             visit_all(result, args[0])([&](auto output, auto data) {
                 par_for(output_shape.elements(), [&](auto out_idx) {
-                    double acc = compute_linear_interp_point(
-                        data, in_lens, output_shape.lens(), output_shape.multi(out_idx), vec_scale, idx_op);
+                    double acc = compute_linear_interp_point(data,
+                                                             in_lens,
+                                                             output_shape.lens(),
+                                                             output_shape.multi(out_idx),
+                                                             vec_scale,
+                                                             idx_op);
 
                     using out_value_t = typename decltype(output)::value_type;
                     output[out_idx]   = static_cast<out_value_t>(acc);

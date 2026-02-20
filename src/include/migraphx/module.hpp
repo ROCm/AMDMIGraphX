@@ -64,7 +64,7 @@ struct MIGRAPHX_EXPORT scoped_debug_symbols
 
     private:
     module* mod;
-    std::shared_ptr<const std::set<std::string>> previous;
+    std::set<std::string> previous;
 };
 
 /**
@@ -78,7 +78,7 @@ struct MIGRAPHX_EXPORT module
                                                    const std::vector<instruction_ref>& inputs,
                                                    const std::vector<module_ref>& mod_args)>;
 
-    module(const std::string& name = "");
+    module(const std::string& name = "", bool use_debug_symbols = false);
 
     // move constructor
     module(module&&) noexcept;
@@ -95,6 +95,9 @@ struct MIGRAPHX_EXPORT module
 
     bool bypass() const;
     void set_bypass(bool b = true);
+
+    bool get_use_debug_symbols() const;
+    void set_use_debug_symbols(bool b = true);
 
     template <class... Ts, MIGRAPHX_REQUIRES(std::is_same<Ts, instruction_ref>{}...)>
     instruction_ref add_instruction(operation op, Ts... args)
@@ -370,6 +373,7 @@ struct MIGRAPHX_EXPORT module
                             const module& pmod,
                             instruction_ref ins,
                             ins_dep_map& deps) const;
+    void propagate_replace_debug_symbols(instruction_ref rep_ins, const std::set<std::string>& debug_symbols);
 
     std::unique_ptr<module_impl> impl;
 };

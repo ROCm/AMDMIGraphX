@@ -36,8 +36,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SHOW_DEBUG_SYMBOLS)
-
 template <class T>
 static auto equal_to(const T& x)
 {
@@ -196,13 +194,7 @@ const std::set<std::string>& instruction::get_debug_symbols() const { return deb
 
 void instruction::add_debug_symbols(const std::set<std::string>& symbols)
 {
-    for(const auto& symbol : symbols)
-    {
-        if(not symbol.empty())
-        {
-            debug_symbols.insert(symbol);
-        }
-    }
+    debug_symbols.insert(symbols.begin(), symbols.end());
 }
 
 bool operator==(const instruction& x, const instruction& y)
@@ -458,7 +450,7 @@ void instruction::print(std::ostream& os,
         os << ", target_id=" << ins->target_id;
 
     // print debug symbols if enabled
-    if(enabled(MIGRAPHX_SHOW_DEBUG_SYMBOLS{}) and not ins->debug_symbols.empty())
+    if(not ins->debug_symbols.empty())
     {
         os << " /* " << join_strings(ins->debug_symbols, ", ") << " */";
     }

@@ -1370,7 +1370,7 @@ program& program::sort()
     return *this;
 }
 
-bool operator==(const program& x, const program& y) { return to_string(x) == to_string(y); }
+bool operator==(const program& x, const program& y) { return migraphx::to_string(x) == migraphx::to_string(y); }
 
 std::ostream& operator<<(std::ostream& os, const program& p)
 {

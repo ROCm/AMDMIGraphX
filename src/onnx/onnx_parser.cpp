@@ -44,6 +44,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_ONNX_PARSER)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_DEBUG_SYMBOLS)
 
 static shape shape_from_dyn_dims(shape::type_t shape_type,
                                  const std::vector<shape::dynamic_dimension>& dyn_dims)
@@ -593,8 +594,15 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
         {
             std::string node_name = node.op_type() + "_" + std::to_string(mod->size());
             node_info ninfo{get_attributes(node), output_num, node_name, mod};
-            scoped_debug_symbols guard(*mod, {node.name()});
-            result = ops[node.op_type()](*this, ninfo, args);
+            if(mod->get_use_debug_symbols())
+            {
+                scoped_debug_symbols guard(*mod, {node.name()});
+                result = ops[node.op_type()](*this, ninfo, args);
+            }
+            else
+            {
+                result = ops[node.op_type()](*this, ninfo, args);
+            }
         }
 
         output_num = std::min<std::size_t>(output_num, result.size());

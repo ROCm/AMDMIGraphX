@@ -476,6 +476,21 @@ auto make_match_runner_with_trace(source_location location, Finder& f)
         }
         // If its already invalid dont validate it again
         bool invalidated = validate and get_module(mod).validate() != get_module(mod).end();
+
+        optional<scoped_debug_symbols> debug_guard;
+
+        std::set<std::string> symbols;
+        const auto& mr_result_symbols = r.result->get_debug_symbols();
+        symbols.insert(mr_result_symbols.begin(), mr_result_symbols.end());
+        for(const auto& mr_ins : r.instructions)
+        {
+            const auto& ins_symbols = mr_ins.second->get_debug_symbols();
+            symbols.insert(ins_symbols.begin(), ins_symbols.end());
+        }
+
+        if(not symbols.empty())
+            debug_guard.emplace(get_module(mod), symbols);
+
         if(trace_enabled)
         {
             if(trace > 1)
@@ -512,6 +527,17 @@ auto make_match_runner(Finder& f)
         match::matcher_result r = match::match_instruction(get_module(mod), ins, m);
         if(r.result == get_module(mod).end())
             return false;
+        std::set<std::string> symbols;
+        const auto& mr_result_symbols = r.result->get_debug_symbols();
+        symbols.insert(mr_result_symbols.begin(), mr_result_symbols.end());
+        for(const auto& mr_ins : r.instructions)
+        {
+            const auto& ins_symbols = mr_ins.second->get_debug_symbols();
+            symbols.insert(ins_symbols.begin(), ins_symbols.end());
+        }
+        optional<scoped_debug_symbols> debug_guard;
+        if(not symbols.empty())
+            debug_guard.emplace(get_module(mod), symbols);
         f.apply(mod, r);
         return true;
     };
@@ -580,6 +606,9 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
             }
             // If its already invalid dont validate it again
             bool invalidated = validate and get_module(mod).validate() != get_module(mod).end();
+            optional<scoped_debug_symbols> debug_guard;
+            if(not r.result->get_debug_symbols().empty())
+                debug_guard.emplace(get_module(mod), r.result->get_debug_symbols());
             auto apply_time =
                 time<std::chrono::duration<double, std::micro>>([&] { m.apply(mod, r); });
             if(time_matchers or trace_for)

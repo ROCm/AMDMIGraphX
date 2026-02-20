@@ -51,6 +51,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_FINALIZE)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_DEBUG_SYMBOLS)
 
 struct module_impl
 {
@@ -61,7 +62,8 @@ struct module_impl
     uint32_t nparams = 0;
     bool bypass      = false; // used for skipping compiler passes
     bit_signal<64> changed{};
-    std::shared_ptr<const std::set<std::string>> active_debug_symbols;
+    bool use_debug_symbols = false;
+    std::set<std::string> active_debug_symbols;
 
     bool contains(instruction_ref ins) const
     {
@@ -131,16 +133,15 @@ struct module_impl
 const operation& get_operation(instruction_ref ins) { return ins->get_operator(); }
 
 scoped_debug_symbols::scoped_debug_symbols(module& m, std::set<std::string> symbols)
-    : mod(&m), previous(m.impl->active_debug_symbols)
+    : mod(&m), previous(std::move(m.impl->active_debug_symbols))
 {
-    mod->impl->active_debug_symbols =
-        std::make_shared<const std::set<std::string>>(std::move(symbols));
+    mod->impl->active_debug_symbols = std::move(symbols);
 }
 
 scoped_debug_symbols::~scoped_debug_symbols()
 {
     if(mod != nullptr)
-        mod->impl->active_debug_symbols = previous;
+        mod->impl->active_debug_symbols = std::move(previous);
 }
 
 scoped_debug_symbols::scoped_debug_symbols(scoped_debug_symbols&& other) noexcept
@@ -152,7 +153,7 @@ scoped_debug_symbols& scoped_debug_symbols::operator=(scoped_debug_symbols&& oth
     if(this != &other)
     {
         if(mod != nullptr)
-            mod->impl->active_debug_symbols = previous;
+            mod->impl->active_debug_symbols = std::move(previous);
         mod       = other.mod;
         previous  = std::move(other.previous);
         other.mod = nullptr;
@@ -160,9 +161,17 @@ scoped_debug_symbols& scoped_debug_symbols::operator=(scoped_debug_symbols&& oth
     return *this;
 }
 
-module::module(const std::string& name) : impl(std::make_unique<module_impl>())
+module::module(const std::string& name, bool use_debug_symbols) : impl(std::make_unique<module_impl>())
 {
     impl->name = name;
+    if(enabled(MIGRAPHX_ENABLE_DEBUG_SYMBOLS{}))
+    {
+        impl->use_debug_symbols = true;
+    }
+    else
+    {
+        impl->use_debug_symbols = use_debug_symbols;
+    }
 }
 
 module::module(module&&) noexcept = default;
@@ -184,6 +193,9 @@ void module::set_name(const std::string& name) { impl->name = name; }
 
 bool module::bypass() const { return impl->bypass; }
 void module::set_bypass(bool b) { impl->bypass = b; }
+
+bool module::get_use_debug_symbols() const { return impl->use_debug_symbols; }
+void module::set_use_debug_symbols(bool b) { impl->use_debug_symbols = b; }
 
 void module::assign(const module& m)
 {
@@ -321,6 +333,7 @@ insert_generic_instructions(module& m,
 
 instruction_ref module::add_instruction(const operation& op, std::vector<instruction_ref> args)
 { return insert_instruction(this->insert_end(), op, std::move(args)); }
+
 instruction_ref module::insert_instruction(instruction_ref ins,
                                            const operation& op,
                                            std::vector<instruction_ref> args)
@@ -331,8 +344,8 @@ instruction_ref module::insert_instruction(instruction_ref ins,
     auto result = impl->insert(ins, {op, r, std::move(args)});
     instruction::backreference(result);
     assert(result->valid(begin()));
-    if(impl->active_debug_symbols != nullptr)
-        result->add_debug_symbols(*impl->active_debug_symbols);
+    if(not impl->active_debug_symbols.empty())
+        result->add_debug_symbols(impl->active_debug_symbols);
     return result;
 }
 
@@ -352,9 +365,55 @@ instruction_ref module::insert_instruction(instruction_ref ins,
     auto result    = impl->insert(ins, {op, out_shape, std::move(args), std::move(module_args)});
     instruction::backreference(result);
     assert(result->valid(begin()));
-    if(impl->active_debug_symbols != nullptr)
-        result->add_debug_symbols(*impl->active_debug_symbols);
+    if(not impl->active_debug_symbols.empty())
+        result->add_debug_symbols(impl->active_debug_symbols);
     return result;
+}
+
+/**
+ * old_ins : instruction that will be replaced
+ * Traverse inputs of old_ins and gather debug_symbols of instructions that will become dead code.
+ */
+std::set<std::string> gather_replace_debug_symbols(instruction_ref old_ins)
+{
+    std::set<std::string> debug_symbols;
+    if(starts_with(old_ins->name(), "@"))
+        return debug_symbols;
+    const auto& old_ins_debug = old_ins->get_debug_symbols();
+    if(old_ins_debug.empty())
+        return debug_symbols;
+    debug_symbols.insert(old_ins_debug.begin(), old_ins_debug.end());
+    for(auto input : old_ins->inputs())
+    {
+        // check if only output to old_ins
+        if(input->outputs().size() == 1 and input->outputs().at(0) == old_ins)
+        {
+            const auto& gdebug = gather_replace_debug_symbols(input);
+            debug_symbols.insert(gdebug.begin(), gdebug.end());
+        }
+    }
+    return debug_symbols;
+}
+
+/**
+ * Add gathered debug_symbols to rep_ins and traverse it's inputs to add the same debug_symbols
+ * to instructions with empty debug_symbols.
+ */
+void module::propagate_replace_debug_symbols(instruction_ref rep_ins, const std::set<std::string>& debug_symbols)
+{
+    if(starts_with(rep_ins->name(), "@"))
+        return ;
+    if(debug_symbols.empty())
+        return;
+    rep_ins->add_debug_symbols(debug_symbols);
+    for(auto input : rep_ins->inputs())
+    {
+        auto input_ds = input->get_debug_symbols();
+        if(input_ds.empty() or input_ds == impl->active_debug_symbols)
+        {
+            propagate_replace_debug_symbols(input, debug_symbols);
+        }
+    }
 }
 
 instruction_ref module::replace_instruction(instruction_ref ins,
@@ -366,7 +425,16 @@ instruction_ref module::replace_instruction(instruction_ref ins,
     assert(not starts_with(op.name(), "@"));
 
     shape r = compute_shape(op, args);
-    instruction::replace(ins, op, r, std::move(args));
+    if(get_use_debug_symbols())
+    {
+        auto debug_symbols = gather_replace_debug_symbols(ins);
+        instruction::replace(ins, op, r, std::move(args));
+        propagate_replace_debug_symbols(ins, debug_symbols);
+    }
+    else
+    {
+        instruction::replace(ins, op, r, std::move(args));
+    }
     assert(ins->valid(begin()));
     return ins;
 }
@@ -380,7 +448,16 @@ instruction_ref module::replace_instruction(instruction_ref ins,
     assert(has_instruction(ins));
     assert(not starts_with(op.name(), "@"));
     auto out_shape = compute_shape(op, args, module_args);
-    instruction::replace(ins, op, out_shape, std::move(args), std::move(module_args));
+    if(get_use_debug_symbols())
+    {
+        auto debug_symbols = gather_replace_debug_symbols(ins);
+        instruction::replace(ins, op, out_shape, std::move(args), std::move(module_args));
+        propagate_replace_debug_symbols(ins, debug_symbols);
+    }
+    else
+    {
+        instruction::replace(ins, op, out_shape, std::move(args), std::move(module_args));
+    }
     assert(ins->valid(begin()));
     return ins;
 }
@@ -403,6 +480,10 @@ instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref
     {
         return rep;
     }
+
+    std::set<std::string> debug_symbols;
+    if(get_use_debug_symbols())
+        debug_symbols = gather_replace_debug_symbols(ins);
     // Make a copy of outputs which can be changed when calling replace_argument
     auto outputs = ins->outputs();
     for(auto out : outputs)
@@ -414,6 +495,9 @@ instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref
         }
         assert(out->valid(begin()));
     }
+    if(get_use_debug_symbols())
+        propagate_replace_debug_symbols(rep, debug_symbols);
+
     // Replacement should not be dead code unless its the last instruction
     assert(not rep->outputs().empty() or rep == std::prev(end()));
     // Output of the original instruction should only be the replacement or empty
@@ -616,8 +700,8 @@ instruction_ref module::insert_literal(instruction_ref ins, literal l)
 {
     impl->emplace(ins, std::move(l));
     auto result = std::prev(ins);
-    if(impl->active_debug_symbols != nullptr)
-        result->add_debug_symbols(*impl->active_debug_symbols);
+    if(not impl->active_debug_symbols.empty())
+        result->add_debug_symbols(impl->active_debug_symbols);
     return result;
 }
 

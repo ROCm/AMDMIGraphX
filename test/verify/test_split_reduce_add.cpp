@@ -20,26 +20,36 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
- *
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_REDUCE_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_REDUCE_HPP
 
-#include <migraphx/config.hpp>
-#include <string>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/shape.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module_pass_manager;
-
-struct MIGRAPHX_EXPORT fuse_pointwise_reduce
+template <std::size_t N, migraphx::shape::type_t DType>
+struct test_split_reduce_add : verify_program<test_split_reduce_add<N, DType>>
 {
-    std::size_t split_size = 65280;
-    std::string name() const { return "fuse_pointwise_reduce"; }
-    void apply(module_pass_manager& mpm) const;
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{DType, {N, 32, 20, 16}};
+        migraphx::shape bs{DType, {1, 32, 1, 16}, {1, 1, 1, 32}};
+        auto x = mm->add_parameter("x", s);
+        auto y = mm->add_parameter("y", bs);
+        auto reduce_mean =
+            mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {0, 2}}}), x);
+        auto add = mm->add_instruction(migraphx::make_op("add"), reduce_mean, y);
+        mm->add_return({add});
+        return p;
+    };
+
+    std::string section() const { return "reduce"; }
 };
 
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_REDUCE_HPP
+template struct test_split_reduce_add<14400, migraphx::shape::float_type>;
+template struct test_split_reduce_add<3276, migraphx::shape::float_type>;
+template struct test_split_reduce_add<3277, migraphx::shape::float_type>;

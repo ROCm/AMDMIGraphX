@@ -447,7 +447,7 @@ void instruction::print(std::ostream& os,
     if(ins->target_id != 0)
         os << ", target_id=" << ins->target_id;
 
-    // print debug symbols if enabled
+    // print debug symbols if they exist
     if(not ins->debug_symbols.empty())
     {
         os << " /* " << join_strings(ins->debug_symbols, ", ") << " */";

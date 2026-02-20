@@ -1394,11 +1394,24 @@ module::print_py(std::ostream& os,
                     // ins->get_literal().visit([&](auto v) {
                     //     use_abs = std::none_of(v.begin(), v.end(), [](auto x) { return x < 0; });
                     // });
+                    double fill_value = ins->get_literal().template at<double>();
+                    bool is_fill      = false;
+                    ins->get_literal().visit([&](auto v) {
+                        is_fill = std::all_of(v.begin()+1, v.end(), [&](auto x) {
+			    return float_equal(x, fill_value);
+			});
+                    });
                     if(use_abs)
                         os << "migraphx.abs_literal(";
-                    os << "migraphx.generate_argument(";
+                    if(is_fill)
+                        os << "migraphx.fill_argument(";
+                    else
+                        os << "migraphx.generate_argument(";
                     print_py_shape(os, ins->get_shape());
-                    os << ", " << seed << ")";
+                    if(is_fill)
+                        os << ", " << fill_value << ")";
+                    else
+                        os << ", " << seed << ")";
                     if(use_abs)
                         os << ")";
                     seed++;

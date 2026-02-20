@@ -56,6 +56,35 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_OPTIMIZE);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_ASM);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_SRC);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_HIP_FLAGS);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_COMPILE_GENERIC);
+
+static std::string get_compile_arch(const std::string& arch)
+{
+    auto val = string_value_of(MIGRAPHX_GPU_COMPILE_GENERIC{});
+    if(val.empty())
+        return arch;
+    if(val == "1")
+    {
+        static const std::vector<std::pair<std::string, std::string>> generic_arch_map = {
+            {"gfx12", "gfx12-generic"},
+            {"gfx11", "gfx11-generic"},
+            {"gfx103", "gfx10-3-generic"},
+            {"gfx101", "gfx10-1-generic"},
+            {"gfx94", "gfx9-4-generic"},
+            {"gfx95", "gfx9-4-generic"},
+            {"gfx9", "gfx9-generic"},
+        };
+        auto name = trim(split_string(arch, ':').front());
+        auto it =
+            std::find_if(generic_arch_map.begin(), generic_arch_map.end(), [&](const auto& p) {
+                return starts_with(name, p.first);
+            });
+        if(it != generic_arch_map.end())
+            return it->second;
+        return arch;
+    }
+    return val;
+}
 
 #ifdef MIGRAPHX_USE_HIPRTC
 
@@ -216,7 +245,7 @@ std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_sr
     options.push_back("-fno-gpu-rdc");
     options.push_back("-O" + string_value_of(MIGRAPHX_GPU_OPTIMIZE{}, "3"));
     options.push_back("-Wno-cuda-compat");
-    options.push_back("--offload-arch=" + arch);
+    options.push_back("--offload-arch=" + get_compile_arch(arch));
     std::vector<std::string> extra_flags =
         split_string(string_value_of(MIGRAPHX_GPU_HIP_FLAGS{}, ""), ' ');
     options.insert(options.end(), extra_flags.begin(), extra_flags.end());
@@ -334,7 +363,7 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
     if(enabled(MIGRAPHX_GPU_DEBUG_SYM{}))
         compiler.flags.emplace_back("-g");
     compiler.flags.emplace_back("-c");
-    compiler.flags.emplace_back("--offload-arch=" + arch);
+    compiler.flags.emplace_back("--offload-arch=" + get_compile_arch(arch));
     compiler.flags.emplace_back("--cuda-device-only");
     compiler.flags.emplace_back("-O" + string_value_of(MIGRAPHX_GPU_OPTIMIZE{}, "3") + " ");
 

@@ -317,7 +317,7 @@ struct find_op_shape_transform_op
                 auto axis_val = v.at("axis").to<int64_t>();
                 auto ndim     = ins->inputs().front()->get_shape().ndim();
                 auto op_axis  = axis_val < 0 ? axis_val + ndim : axis_val;
-                auto new_axes = am.at(op_axis);
+                const auto& new_axes = am.at(op_axis);
                 // is_valid ensures single axis mapping for argmin/argmax
                 assert(new_axes.size() == 1);
                 v["axis"] = new_axes.front();

@@ -68,10 +68,14 @@
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/eliminate_data_type_for_gpu.hpp>
 #include <migraphx/gpu/fuse_ck.hpp>
+#include <migraphx/gpu/fuse_gather_concat.hpp>
+#include <migraphx/gpu/fuse_gather_transpose.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
+#include <migraphx/gpu/merge_parallel_gathers.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
 #include <migraphx/gpu/lowering.hpp>
+#include <migraphx/gpu/optimize_gather.hpp>
 #include <migraphx/gpu/schedule_model.hpp>
 #include <migraphx/gpu/sync_device.hpp>
 #include <migraphx/gpu/target.hpp>
@@ -161,6 +165,14 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         eliminate_contiguous{"gpu::contiguous"},
         dead_code_elimination{},
         eliminate_concat{concat_gpu_optimization{}},
+        dead_code_elimination{},
+        merge_parallel_gathers{},
+        dead_code_elimination{},
+        optimize_gather{},
+        dead_code_elimination{},
+        fuse_gather_concat{},
+        dead_code_elimination{},
+        fuse_gather_transpose{},
         dead_code_elimination{},
 #if MIGRAPHX_USE_MIOPEN
         compile_miopen{&gctx},

@@ -169,6 +169,8 @@ add_library(migraphx_gpu
     eliminate_data_type_for_gpu.cpp
     fixed_pad.cpp
     fuse_ck.cpp
+    fuse_gather_concat.cpp
+    fuse_gather_transpose.cpp
     fuse_mlir.cpp
     fuse_ops.cpp
     gemm_impl.cpp
@@ -181,10 +183,12 @@ add_library(migraphx_gpu
     logsoftmax.cpp
     loop.cpp
     lrn.cpp
+    merge_parallel_gathers.cpp
     mlir.cpp
     multinomial.cpp
     no_device.cpp
     nonzero.cpp
+    optimize_gather.cpp
     pack_args.cpp
     prefuse_ops.cpp
     prepare_mlir.cpp

@@ -280,6 +280,7 @@ register_migraphx_ops(
     rnn_last_hs_output
     rnn_var_sl_last_output
     roialign
+    rotary_embedding
     rsqrt
     run_on_target
     scalar

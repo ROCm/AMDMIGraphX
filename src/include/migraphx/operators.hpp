@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -116,6 +116,7 @@
 #include <migraphx/op/rnn_variable_seq_lens.hpp>
 #include <migraphx/op/rnn_var_sl_last_output.hpp>
 #include <migraphx/op/roialign.hpp>
+#include <migraphx/op/rotary_embedding.hpp>
 #include <migraphx/op/rsqrt.hpp>
 #include <migraphx/op/scalar.hpp>
 #include <migraphx/op/scan_slice.hpp>

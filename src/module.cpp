@@ -25,6 +25,7 @@
 #include <migraphx/algorithm.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/bit_signal.hpp>
+#include <migraphx/shape.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/target.hpp>
@@ -1525,6 +1526,37 @@ std::vector<module_ref> module::get_sub_modules(bool shallow) const
     }
 
     return vec_modules;
+}
+
+module module::with_static_shapes(const std::unordered_map<std::string, shape>& input_shapes)
+{
+    // This routine creates a new module with the same instructions but with different input shapes.
+    // The sequence of instructions (operators and interconnectivity) is copied, but all input
+    // parameter shapes are replaced with new "input_shapes".
+
+    // ensure input_shapes is the same length as the parameters.
+    auto param_names = this->get_parameter_names();
+    assert(param_names.size() == input_shapes.size());
+
+    module new_mod;
+    std::unordered_map<instruction_ref, instruction_ref> ins_map;
+
+    // create parameters with new shapes in new_mod and fill ins_map for params
+    for(auto ins : iterator_for(*this))
+    {
+        if(ins->name() == "@param")
+        {
+            auto pname = any_cast<builtin::param>(ins->get_operator()).parameter;
+            assert(input_shapes.count(pname) > 0);
+            ins_map[ins] = new_mod.add_parameter(pname, input_shapes.at(pname));
+        }
+    }
+
+    // Copy remaining instructions in order
+    auto ret = new_mod.insert_instructions(new_mod.end(), this, &ins_map);
+    new_mod.add_return(ret);
+
+    return new_mod;
 }
 
 module& module::sort()

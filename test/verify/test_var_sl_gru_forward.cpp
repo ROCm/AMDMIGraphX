@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,6 +30,7 @@
 #include <migraphx/make_op.hpp>
 
 #include <migraphx/op/common.hpp>
+#include <migraphx/op/builder/insert.hpp>
 
 struct test_var_sl_gru_forward : verify_program<test_var_sl_gru_forward>
 {
@@ -40,7 +41,6 @@ struct test_var_sl_gru_forward : verify_program<test_var_sl_gru_forward>
         std::size_t hidden_size = 5;
         std::size_t input_size  = 8;
         std::size_t num_dirct   = 1;
-        float clip              = 0.0f;
 
         migraphx::program p;
         auto* mm = p.get_main_module();
@@ -61,23 +61,14 @@ struct test_var_sl_gru_forward : verify_program<test_var_sl_gru_forward>
         std::vector<int> sl_data{3, 2, 1};
         auto sql = mm->add_literal(migraphx::literal{sl_shape, sl_data});
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
-                                                                      migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            sql,
-            ih);
-        auto lho = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
-        mm->add_return({lho, hs});
+        auto results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, sql, ih},
+            {{"actv_func",
+              migraphx::to_value({migraphx::make_op("sigmoid"), migraphx::make_op("tanh")})},
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
+        mm->add_return({results.at(1), results.at(0)});
 
         return p;
     }

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -136,19 +136,6 @@ TEST_CASE(ops)
 {
     auto names = migraphx::get_operators();
     EXPECT(names.size() > 1);
-}
-
-TEST_CASE(rnn)
-{
-    migraphx::shape s{migraphx::shape::float_type, {2, 1}};
-    std::vector<float> data1(2, 2.0f);
-    std::vector<float> data2(2, 3.0f);
-    migraphx::argument a1(s, data1.data());
-    migraphx::argument a2(s, data2.data());
-
-    auto op = migraphx::make_op("rnn");
-
-    EXPECT(test::throws([&] { op.compute(s, {a1, a2}); }));
 }
 
 TEST_CASE(if_op)

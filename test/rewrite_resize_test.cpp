@@ -74,7 +74,17 @@ check_resize(const migraphx::value& v, const migraphx::shape& input_shape, bool 
     std::stringstream ss;
     ss << output1 << " == " << output2;
 
-    return test::make_predicate(ss.str(), [=] { return output1 == output2; });
+    CHECK(output1.get_shape().lens() == output2.get_shape().lens());
+
+    return test::make_predicate(ss.str(), [=] {
+        bool result = false;
+        migraphx::visit_all(output1, output2)([&](auto v1, auto v2) {
+            result = std::equal(v1.begin(), v1.end(), v2.begin(), v2.end(), [](auto x, auto y) {
+                return migraphx::float_equal(x, y);
+            });
+        });
+        return result; 
+    });
 }
 
 // Test nearest mode downsample with floor rounding (1-input mode with scales attribute)

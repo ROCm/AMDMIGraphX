@@ -2735,6 +2735,348 @@ def spacetodepth_nondivisibility_test():
     return ([node], [x], [y])
 
 
+def make_sparse_attention_io_shapes(batch_size, sequence_length, head_size,
+                                    max_cache_sequence_length, num_layout,
+                                    max_blocks, max_nnz_blocks,
+                                    max_rotary_sequence_length, attributes):
+    num_heads = attributes['num_heads']
+    kv_num_heads = attributes['kv_num_heads']
+    rotary_dim = head_size // 2
+    return {
+        'qkv': [
+            TensorProto.FLOAT,
+            [
+                batch_size, sequence_length,
+                (num_heads + 2 * kv_num_heads) * head_size
+            ]
+        ],
+        'past_key': [
+            TensorProto.FLOAT,
+            [batch_size, kv_num_heads, max_cache_sequence_length, head_size]
+        ],
+        'past_value': [
+            TensorProto.FLOAT,
+            [batch_size, kv_num_heads, max_cache_sequence_length, head_size]
+        ],
+        'block_row_indices': [TensorProto.INT32, [num_layout, max_blocks + 1]],
+        'block_col_indices': [TensorProto.INT32, [num_layout, max_nnz_blocks]],
+        'total_sequence_length': [TensorProto.INT32, [1]],
+        'key_total_sequence_lengths': [TensorProto.INT32, [batch_size]],
+        'cos_cache':
+        [TensorProto.FLOAT, [max_rotary_sequence_length, rotary_dim]],
+        'sin_cache':
+        [TensorProto.FLOAT, [max_rotary_sequence_length, rotary_dim]],
+        'output': [
+            TensorProto.FLOAT,
+            [batch_size, sequence_length, num_heads * head_size]
+        ],
+        'present_key': [
+            TensorProto.FLOAT,
+            [batch_size, kv_num_heads, max_cache_sequence_length, head_size]
+        ],
+        'present_value': [
+            TensorProto.FLOAT,
+            [batch_size, kv_num_heads, max_cache_sequence_length, head_size]
+        ]
+    }
+
+
+def sparse_attention_test_base(io_shapes, attributes, do_rotary):
+    inputs = [
+        'qkv', '', '', 'past_key', 'past_value', 'block_row_indices',
+        'block_col_indices', 'total_sequence_length',
+        'key_total_sequence_lengths'
+    ]
+    if do_rotary:
+        inputs = inputs + ['cos_cache', 'sin_cache']
+
+    outputs = ['output', 'present_key', 'present_value']
+
+    node = onnx.helper.make_node("SparseAttention",
+                                 inputs=inputs,
+                                 outputs=outputs,
+                                 **attributes,
+                                 domain='com.microsoft')
+
+    graph_inputs = [
+        helper.make_tensor_value_info(input, io_shapes[input][0],
+                                      io_shapes[input][1]) for input in inputs
+        if input in io_shapes
+    ]
+    graph_outputs = [
+        helper.make_tensor_value_info(out, io_shapes[out][0],
+                                      io_shapes[out][1]) for out in outputs
+    ]
+
+    return ([node], graph_inputs, graph_outputs)
+
+
+def sparse_attention_test_default_args(do_rotary, rotary_interleaved):
+    attributes = {
+        'num_heads': 4,
+        'kv_num_heads': 2,
+        'sparse_block_size': 8,
+    }
+    if do_rotary == 1:
+        attributes.update({
+            'do_rotary': do_rotary,
+            'rotary_interleaved': rotary_interleaved
+        })
+    shapes = make_sparse_attention_io_shapes(batch_size=2,
+                                             sequence_length=32,
+                                             head_size=16,
+                                             max_cache_sequence_length=32,
+                                             num_layout=2,
+                                             max_blocks=4,
+                                             max_nnz_blocks=10,
+                                             max_rotary_sequence_length=32,
+                                             attributes=attributes)
+    return attributes, shapes
+
+
+@onnx_test()
+def sparse_attention_test():
+    attributes, shapes = sparse_attention_test_default_args(0, 0)
+    return sparse_attention_test_base(shapes, attributes, False)
+
+
+@onnx_test()
+def sparse_attention_rotary_test():
+    attributes, shapes = sparse_attention_test_default_args(1, 0)
+    attributes["scale"] = 1.0
+    return sparse_attention_test_base(shapes, attributes, True)
+
+
+@onnx_test()
+def sparse_attention_missing_num_heads_test():
+    attributes, shapes = sparse_attention_test_default_args(0, 0)
+    attributes.pop("num_heads")
+    return sparse_attention_test_base(shapes, attributes, False)
+
+
+@onnx_test()
+def sparse_attention_invalid_num_heads_test():
+    attributes, shapes = sparse_attention_test_default_args(0, 0)
+    attributes["num_heads"] = 0
+    return sparse_attention_test_base(shapes, attributes, False)
+
+
+@onnx_test()
+def sparse_attention_missing_kv_num_heads_test():
+    attributes, shapes = sparse_attention_test_default_args(0, 0)
+    attributes.pop("kv_num_heads")
+    return sparse_attention_test_base(shapes, attributes, False)
+
+
+@onnx_test()
+def sparse_attention_invalid_kv_num_heads_test():
+    attributes, shapes = sparse_attention_test_default_args(0, 0)
+    attributes["kv_num_heads"] = 0
+    return sparse_attention_test_base(shapes, attributes, False)
+
+
+@onnx_test()
+def sparse_attention_missing_sparse_block_size_test():
+    attributes, shapes = sparse_attention_test_default_args(0, 0)
+    attributes.pop("sparse_block_size")
+    return sparse_attention_test_base(shapes, attributes, False)
+
+
+@onnx_test()
+def sparse_attention_invalid_sparse_block_size_test():
+    attributes, shapes = sparse_attention_test_default_args(0, 0)
+    attributes["sparse_block_size"] = 0
+    return sparse_attention_test_base(shapes, attributes, False)
+
+
+@onnx_test()
+def sparse_attention_too_few_inputs_test():
+    attributes, shapes = sparse_attention_test_default_args(1, 0)
+    return sparse_attention_test_base(shapes, attributes, False)
+
+
+@onnx_test()
+def sparse_attention_too_many_inputs_test():
+    attributes, shapes = sparse_attention_test_default_args(0, 0)
+    return sparse_attention_test_base(shapes, attributes, True)
+
+
+@onnx_test()
+def sparse_attention_qkv_invalid_rank_test():
+    attributes, shapes = sparse_attention_test_default_args(0, 0)
+    shapes['qkv'][1].append(2)
+    return sparse_attention_test_base(shapes, attributes, False)
+
+
+@onnx_test()
+def sparse_attention_qkv_invalid_hidden_size_test():
+    attributes, shapes = sparse_attention_test_default_args(0, 0)
+    shapes['qkv'][1][2] = shapes['qkv'][1][2] + 1
+    return sparse_attention_test_base(shapes, attributes, False)
+
+
+@onnx_test()
+def sparse_attention_invalid_head_size_test():
+    attributes = {
+        'num_heads': 4,
+        'kv_num_heads': 2,
+        'sparse_block_size': 8,
+        'do_rotary': 0,
+        'rotary_interleaved': 0,
+    }
+    shapes = make_sparse_attention_io_shapes(batch_size=2,
+                                             sequence_length=32,
+                                             head_size=9,
+                                             max_cache_sequence_length=32,
+                                             num_layout=2,
+                                             max_blocks=4,
+                                             max_nnz_blocks=10,
+                                             max_rotary_sequence_length=32,
+                                             attributes=attributes)
+    return sparse_attention_test_base(shapes, attributes, False)
+
+
+@onnx_test()
+def sparse_attention_rotary_invalid_head_size_test():
+    attributes = {
+        'num_heads': 4,
+        'kv_num_heads': 2,
+        'sparse_block_size': 8,
+        'do_rotary': 1,
+        'rotary_interleaved': 0,
+    }
+    shapes = make_sparse_attention_io_shapes(batch_size=2,
+                                             sequence_length=32,
+                                             head_size=8,
+                                             max_cache_sequence_length=32,
+                                             num_layout=2,
+                                             max_blocks=4,
+                                             max_nnz_blocks=10,
+                                             max_rotary_sequence_length=32,
+                                             attributes=attributes)
+    return sparse_attention_test_base(shapes, attributes, True)
+
+
+@onnx_test()
+def sparse_attention_past_k_invalid_rank_test():
+    attributes, shapes = sparse_attention_test_default_args(0, 0)
+    shapes['past_key'][1].pop()
+    return sparse_attention_test_base(shapes, attributes, False)
+
+
+@onnx_test()
+def sparse_attention_past_k_invalid_dim0_test():
+    attributes, shapes = sparse_attention_test_default_args(0, 0)
+    shapes['past_key'][1][0] = shapes['past_key'][1][0] + 1
+    return sparse_attention_test_base(shapes, attributes, False)
+
+
+@onnx_test()
+def sparse_attention_past_k_invalid_dim1_test():
+    attributes, shapes = sparse_attention_test_default_args(0, 0)
+    shapes['past_key'][1][1] = shapes['past_key'][1][1] + 1
+    return sparse_attention_test_base(shapes, attributes, False)
+
+
+@onnx_test()
+def sparse_attention_past_k_invalid_dim3_test():
+    attributes, shapes = sparse_attention_test_default_args(0, 0)
+    shapes['past_key'][1][3] = shapes['past_key'][1][3] + 1
+    return sparse_attention_test_base(shapes, attributes, False)
+
+
+@onnx_test()
+def sparse_attention_past_v_invalid_shape_test():
+    attributes, shapes = sparse_attention_test_default_args(0, 0)
+    shapes['past_value'][1][2] = shapes['past_value'][1][2] + 1
+    return sparse_attention_test_base(shapes, attributes, False)
+
+
+@onnx_test()
+def sparse_attention_block_row_indices_invalid_rank_test():
+    attributes, shapes = sparse_attention_test_default_args(0, 0)
+    shapes['block_row_indices'][1].pop()
+    return sparse_attention_test_base(shapes, attributes, False)
+
+
+@onnx_test()
+def sparse_attention_block_row_indices_invalid_dim0_test():
+    attributes, shapes = sparse_attention_test_default_args(0, 0)
+    shapes['block_row_indices'][1][0] = shapes['block_row_indices'][1][0] + 1
+    return sparse_attention_test_base(shapes, attributes, False)
+
+
+@onnx_test()
+def sparse_attention_block_row_indices_invalid_dim1_test():
+    attributes, shapes = sparse_attention_test_default_args(0, 0)
+    shapes['block_row_indices'][1][1] = 1
+    return sparse_attention_test_base(shapes, attributes, False)
+
+
+@onnx_test()
+def sparse_attention_block_col_indices_invalid_rank_test():
+    attributes, shapes = sparse_attention_test_default_args(0, 0)
+    shapes['block_col_indices'][1].pop()
+    return sparse_attention_test_base(shapes, attributes, False)
+
+
+@onnx_test()
+def sparse_attention_block_col_indices_invalid_dim0_test():
+    attributes, shapes = sparse_attention_test_default_args(0, 0)
+    shapes['block_col_indices'][1][0] = shapes['block_col_indices'][1][0] + 1
+    return sparse_attention_test_base(shapes, attributes, False)
+
+
+@onnx_test()
+def sparse_attention_block_col_indices_invalid_dim1_test():
+    attributes, shapes = sparse_attention_test_default_args(0, 0)
+    max_blocks = shapes['block_row_indices'][1][1] - 1
+    shapes['block_col_indices'][1][1] = max_blocks * max_blocks + 1
+    return sparse_attention_test_base(shapes, attributes, False)
+
+
+@onnx_test()
+def sparse_attention_total_sequence_length_invalid_rank_test():
+    attributes, shapes = sparse_attention_test_default_args(0, 0)
+    shapes['total_sequence_length'][1].append(2)
+    return sparse_attention_test_base(shapes, attributes, False)
+
+
+@onnx_test()
+def sparse_attention_total_sequence_length_invalid_len_test():
+    attributes, shapes = sparse_attention_test_default_args(0, 0)
+    shapes['total_sequence_length'][1][0] = 2
+    return sparse_attention_test_base(shapes, attributes, False)
+
+
+@onnx_test()
+def sparse_attention_key_total_sequence_lengths_invalid_rank_test():
+    attributes, shapes = sparse_attention_test_default_args(0, 0)
+    shapes['key_total_sequence_lengths'][1].append(2)
+    return sparse_attention_test_base(shapes, attributes, False)
+
+
+@onnx_test()
+def sparse_attention_key_total_sequence_lengths_invalid_len_test():
+    attributes, shapes = sparse_attention_test_default_args(0, 0)
+    shapes['key_total_sequence_lengths'][1][0] += 1
+    return sparse_attention_test_base(shapes, attributes, False)
+
+
+@onnx_test()
+def sparse_attention_cos_cache_invalid_dim1_test():
+    attributes, shapes = sparse_attention_test_default_args(1, 0)
+    shapes['cos_cache'][1][1] += 1
+    return sparse_attention_test_base(shapes, attributes, True)
+
+
+@onnx_test()
+def sparse_attention_sin_cache_invalid_shape_test():
+    attributes, shapes = sparse_attention_test_default_args(1, 0)
+    shapes['sin_cache'][1][0] += 1
+    return sparse_attention_test_base(shapes, attributes, True)
+
+
 @onnx_test()
 def dequantizelinear_test():
     arg0 = helper.make_tensor_value_info('0', TensorProto.INT8, [5])

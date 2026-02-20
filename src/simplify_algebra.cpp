@@ -1645,7 +1645,7 @@ MIGRAPHX_BASIC_MATCHER(horiz_conv_dot, match::matcher_context& ctx, instruction_
 
     // adding matched instructions to matcher_context to have their debug_symbols propagate
     auto add_instructions_to_ctx = [&ctx](std::string key_prefix,
-                                          std::vector<instruction_ref> ins_vec) {
+                                          const std::vector<instruction_ref>& ins_vec) {
         int count = 1;
         for(instruction_ref d : ins_vec)
         {

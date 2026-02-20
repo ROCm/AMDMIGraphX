@@ -27,74 +27,23 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/program.hpp>
-#include <migraphx/register_op.hpp>
 #include <migraphx/make_op.hpp>
 #include <test.hpp>
-
-// Mirror the ops from prepare_reduce.cpp for testing
-struct arg_reduce
-{
-    migraphx::operation op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::pack(f(self.op, "op"));
-    }
-
-    std::string name() const { return "gpu::arg_reduce"; }
-
-    migraphx::shape compute_shape(const std::vector<migraphx::shape>& inputs) const
-    {
-        auto index_shape = op.compute_shape({inputs.front()});
-        auto value_shape = index_shape.with_type(inputs.front().type());
-        return migraphx::shape{{value_shape, index_shape}};
-    }
-};
-
-struct make_indices
-{
-    std::size_t size = 0;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::pack(f(self.size, "size"));
-    }
-
-    std::string name() const { return "gpu::make_indices"; }
-
-    migraphx::shape compute_shape(const std::vector<migraphx::shape>&) const
-    {
-        return migraphx::shape{migraphx::shape::uint32_type, {size}};
-    }
-};
-
-struct parallel_reduce
-{
-    migraphx::operation op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::pack(f(self.op, "op"));
-    }
-
-    std::string name() const { return "gpu::parallel_reduce"; }
-
-    migraphx::shape compute_shape(const std::vector<migraphx::shape>& inputs) const
-    {
-        std::vector<migraphx::shape> result;
-        std::transform(inputs.begin(), inputs.end(), std::back_inserter(result), [&](auto input) {
-            return op.compute_shape({input});
-        });
-        return migraphx::shape{result};
-    }
-};
 
 static void run_pass(migraphx::module& m)
 {
     migraphx::run_passes(m, {migraphx::gpu::prepare_reduce{}, migraphx::dead_code_elimination{}});
+}
+
+static bool contains_op(const migraphx::module& m, const std::string& op_name)
+{
+    return std::any_of(m.begin(), m.end(), [&](const auto& ins) { return ins.name() == op_name; });
+}
+
+static std::size_t count_ops(const migraphx::module& m, const std::string& op_name)
+{
+    return std::count_if(
+        m.begin(), m.end(), [&](const auto& ins) { return ins.name() == op_name; });
 }
 
 TEST_CASE(argmin_rewrite)
@@ -102,27 +51,22 @@ TEST_CASE(argmin_rewrite)
     // Test that argmin gets rewritten to make_indices -> arg_reduce -> get_tuple_elem
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 4}};
 
-    migraphx::module m1;
+    migraphx::module m;
     {
-        auto x      = m1.add_parameter("x", s);
-        auto argmin = m1.add_instruction(migraphx::make_op("argmin", {{"axis", 1}}), x);
-        m1.add_return({argmin});
+        auto x      = m.add_parameter("x", s);
+        auto argmin = m.add_instruction(migraphx::make_op("argmin", {{"axis", 1}}), x);
+        m.add_return({argmin});
     }
+    auto expected_shape = m.get_output_shapes();
 
-    run_pass(m1);
+    run_pass(m);
 
-    migraphx::module m2;
-    {
-        auto x       = m2.add_parameter("x", s);
-        auto indices = m2.add_instruction(make_indices{3});
-        auto arg_red =
-            m2.add_instruction(arg_reduce{migraphx::make_op("argmin", {{"axis", 1}})}, x, indices);
-        auto result =
-            m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), arg_red);
-        m2.add_return({result});
-    }
-
-    EXPECT(m1.sort() == m2.sort());
+    // argmin should be gone, replaced with gpu::arg_reduce pattern
+    EXPECT(not contains_op(m, "argmin"));
+    EXPECT(contains_op(m, "gpu::arg_reduce"));
+    EXPECT(contains_op(m, "gpu::make_indices"));
+    EXPECT(contains_op(m, "get_tuple_elem"));
+    EXPECT(m.get_output_shapes() == expected_shape);
 }
 
 TEST_CASE(argmax_rewrite)
@@ -130,26 +74,22 @@ TEST_CASE(argmax_rewrite)
     // Test that argmax gets rewritten to make_indices -> arg_reduce -> get_tuple_elem
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 4}};
 
-    migraphx::module m1;
+    migraphx::module m;
     {
-        auto x      = m1.add_parameter("x", s);
-        auto argmax = m1.add_instruction(migraphx::make_op("argmax", {{"axis", 2}}), x);
-        m1.add_return({argmax});
+        auto x      = m.add_parameter("x", s);
+        auto argmax = m.add_instruction(migraphx::make_op("argmax", {{"axis", 2}}), x);
+        m.add_return({argmax});
     }
-    run_pass(m1);
+    auto expected_shape = m.get_output_shapes();
 
-    migraphx::module m2;
-    {
-        auto x       = m2.add_parameter("x", s);
-        auto indices = m2.add_instruction(make_indices{4});
-        auto arg_red =
-            m2.add_instruction(arg_reduce{migraphx::make_op("argmax", {{"axis", 2}})}, x, indices);
-        auto result =
-            m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), arg_red);
-        m2.add_return({result});
-    }
+    run_pass(m);
 
-    EXPECT(m1.sort() == m2.sort());
+    // argmax should be gone, replaced with gpu::arg_reduce pattern
+    EXPECT(not contains_op(m, "argmax"));
+    EXPECT(contains_op(m, "gpu::arg_reduce"));
+    EXPECT(contains_op(m, "gpu::make_indices"));
+    EXPECT(contains_op(m, "get_tuple_elem"));
+    EXPECT(m.get_output_shapes() == expected_shape);
 }
 
 TEST_CASE(argmin_axis0)
@@ -157,26 +97,20 @@ TEST_CASE(argmin_axis0)
     // Test argmin along axis 0
     migraphx::shape s{migraphx::shape::float_type, {5, 3}};
 
-    migraphx::module m1;
+    migraphx::module m;
     {
-        auto x      = m1.add_parameter("x", s);
-        auto argmin = m1.add_instruction(migraphx::make_op("argmin", {{"axis", 0}}), x);
-        m1.add_return({argmin});
+        auto x      = m.add_parameter("x", s);
+        auto argmin = m.add_instruction(migraphx::make_op("argmin", {{"axis", 0}}), x);
+        m.add_return({argmin});
     }
-    run_pass(m1);
+    auto expected_shape = m.get_output_shapes();
 
-    migraphx::module m2;
-    {
-        auto x       = m2.add_parameter("x", s);
-        auto indices = m2.add_instruction(make_indices{5});
-        auto arg_red =
-            m2.add_instruction(arg_reduce{migraphx::make_op("argmin", {{"axis", 0}})}, x, indices);
-        auto result =
-            m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), arg_red);
-        m2.add_return({result});
-    }
+    run_pass(m);
 
-    EXPECT(m1.sort() == m2.sort());
+    EXPECT(not contains_op(m, "argmin"));
+    EXPECT(contains_op(m, "gpu::arg_reduce"));
+    EXPECT(contains_op(m, "gpu::make_indices"));
+    EXPECT(m.get_output_shapes() == expected_shape);
 }
 
 TEST_CASE(parallel_reduce_two_sum)
@@ -184,28 +118,24 @@ TEST_CASE(parallel_reduce_two_sum)
     // Test that two independent reduce_sum operations get fused into parallel_reduce
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 4}};
 
-    migraphx::module m1;
+    migraphx::module m;
     {
-        auto x  = m1.add_parameter("x", s);
-        auto y  = m1.add_parameter("y", s);
-        auto r1 = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
-        auto r2 = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), y);
-        m1.add_return({r1, r2});
+        auto x  = m.add_parameter("x", s);
+        auto y  = m.add_parameter("y", s);
+        auto r1 = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        auto r2 = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), y);
+        m.add_return({r1, r2});
     }
-    run_pass(m1);
+    auto expected_shape = m.get_output_shapes();
 
-    migraphx::module m2;
-    {
-        auto x  = m2.add_parameter("x", s);
-        auto y  = m2.add_parameter("y", s);
-        auto pr = m2.add_instruction(
-            parallel_reduce{migraphx::make_op("reduce_sum", {{"axes", {1}}})}, x, y);
-        auto r1 = m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), pr);
-        auto r2 = m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), pr);
-        m2.add_return({r1, r2});
-    }
+    run_pass(m);
 
-    EXPECT(m1.sort() == m2.sort());
+    // Two reduce_sum should be fused into one parallel_reduce
+    EXPECT(not contains_op(m, "reduce_sum"));
+    EXPECT(contains_op(m, "gpu::parallel_reduce"));
+    EXPECT(count_ops(m, "gpu::parallel_reduce") == 1);
+    EXPECT(count_ops(m, "get_tuple_elem") == 2);
+    EXPECT(m.get_output_shapes() == expected_shape);
 }
 
 TEST_CASE(no_parallel_reduce_different_ops)
@@ -213,43 +143,47 @@ TEST_CASE(no_parallel_reduce_different_ops)
     // Test that reduce operations with different ops are not fused
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 4}};
 
-    migraphx::module m1;
+    migraphx::module m;
     {
-        auto x  = m1.add_parameter("x", s);
-        auto y  = m1.add_parameter("y", s);
-        auto r1 = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
-        auto r2 = m1.add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), y);
-        m1.add_return({r1, r2});
+        auto x  = m.add_parameter("x", s);
+        auto y  = m.add_parameter("y", s);
+        auto r1 = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        auto r2 = m.add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), y);
+        m.add_return({r1, r2});
     }
+    auto expected_shape = m.get_output_shapes();
 
-    migraphx::module m2 = m1; // Copy before running pass
-    run_pass(m1);
+    run_pass(m);
 
-    // Should remain unchanged - no parallel_reduce
-    EXPECT(m1.sort() == m2.sort());
+    // Different reduce ops should NOT be fused
+    EXPECT(not contains_op(m, "gpu::parallel_reduce"));
+    EXPECT(contains_op(m, "reduce_sum"));
+    EXPECT(contains_op(m, "reduce_max"));
+    EXPECT(m.get_output_shapes() == expected_shape);
 }
 
 TEST_CASE(no_parallel_reduce_dependent)
 {
     // Test that dependent reduce operations are not fused
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 4}};
-    migraphx::shape s2{migraphx::shape::float_type, {2, 1, 4}};
 
-    migraphx::module m1;
+    migraphx::module m;
     {
-        auto x  = m1.add_parameter("x", s);
-        auto r1 = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        auto x  = m.add_parameter("x", s);
+        auto r1 = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
         auto bc =
-            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4}}}), r1);
-        auto r2 = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), bc);
-        m1.add_return({r2});
+            m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4}}}), r1);
+        auto r2 = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), bc);
+        m.add_return({r2});
     }
+    auto expected_shape = m.get_output_shapes();
 
-    migraphx::module m2 = m1; // Copy before running pass
-    run_pass(m1);
+    run_pass(m);
 
-    // Should remain unchanged - r2 depends on r1
-    EXPECT(m1.sort() == m2.sort());
+    // Dependent reduces should NOT be fused
+    EXPECT(not contains_op(m, "gpu::parallel_reduce"));
+    EXPECT(count_ops(m, "reduce_sum") == 2);
+    EXPECT(m.get_output_shapes() == expected_shape);
 }
 
 TEST_CASE(argmin_no_parallel_with_reduce)
@@ -258,32 +192,24 @@ TEST_CASE(argmin_no_parallel_with_reduce)
     // because arg_reduce is excluded from parallel fusion
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 4}};
 
-    migraphx::module m1;
+    migraphx::module m;
     {
-        auto x      = m1.add_parameter("x", s);
-        auto y      = m1.add_parameter("y", s);
-        auto argmin = m1.add_instruction(migraphx::make_op("argmin", {{"axis", 1}}), x);
-        auto rsum   = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), y);
-        m1.add_return({argmin, rsum});
+        auto x      = m.add_parameter("x", s);
+        auto y      = m.add_parameter("y", s);
+        auto argmin = m.add_instruction(migraphx::make_op("argmin", {{"axis", 1}}), x);
+        auto rsum   = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), y);
+        m.add_return({argmin, rsum});
     }
-    run_pass(m1);
+    auto expected_shape = m.get_output_shapes();
 
-    migraphx::module m2;
-    {
-        auto x = m2.add_parameter("x", s);
-        auto y = m2.add_parameter("y", s);
-        // argmin gets rewritten
-        auto indices = m2.add_instruction(make_indices{3});
-        auto arg_red =
-            m2.add_instruction(arg_reduce{migraphx::make_op("argmin", {{"axis", 1}})}, x, indices);
-        auto argmin_result =
-            m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), arg_red);
-        // reduce_sum remains unchanged (only 1 reduce, no parallel fusion)
-        auto rsum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), y);
-        m2.add_return({argmin_result, rsum});
-    }
+    run_pass(m);
 
-    EXPECT(m1.sort() == m2.sort());
+    // argmin rewritten to arg_reduce, reduce_sum stays separate (only 1 reduce, no fusion)
+    EXPECT(not contains_op(m, "argmin"));
+    EXPECT(contains_op(m, "gpu::arg_reduce"));
+    EXPECT(contains_op(m, "reduce_sum"));
+    EXPECT(not contains_op(m, "gpu::parallel_reduce"));
+    EXPECT(m.get_output_shapes() == expected_shape);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

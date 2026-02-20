@@ -315,6 +315,31 @@ constexpr auto convert(U v)
 }
 
 template <class T, class U>
+constexpr auto deref(U v)
+{
+    return vec_transform(v)([](auto x) -> T { return *reinterpret_cast<T*>(x); });
+}
+
+template <class T>
+constexpr auto addressof(T& x)
+{
+    if constexpr(vec_size<T>() < 2)
+    {
+        return reinterpret_cast<uint64_t>(&x);
+    }
+    else
+    {
+        constexpr auto n             = vec_size<T>();
+        safe_vec<uint64_t, n> result = {0};
+        auto base                    = reinterpret_cast<uint64_t>(&x);
+        constexpr auto element_size  = sizeof(vec_type<T>);
+        for(int i = 0; i < n; i++)
+            result[i] = base + i * element_size;
+        return result;
+    }
+}
+
+template <class T, class U>
 constexpr auto ceil_div(T x, U y)
 {
     return (x + y - _c<1>) / y;

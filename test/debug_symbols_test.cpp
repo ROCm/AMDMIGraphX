@@ -39,6 +39,18 @@
 
 // Two adds fused into a single pointwise op via fuse_pointwise.
 // Both symbols should appear on the fused pointwise instruction.
+//
+//  Before:                          After:
+//
+//   x   y                           x  y  z
+//    \ /                              \ | /
+//    add  {add0}                   pointwise  {add0, add1}
+//     |  z                             |
+//     | /                           @return
+//    add  {add1}
+//     |
+//   @return
+//
 TEST_CASE(pw_double_add)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
@@ -86,6 +98,21 @@ TEST_CASE(pw_double_add)
 // Diamond pattern: add1 feeds into both add2 and add3, which then feed
 // into add4. All four are fused into one pointwise op. Verifies that
 // symbols from every instruction in the diamond appear on the fused result.
+//
+//  Before:                       After:
+//
+//    x   y                        x   y
+//     \ /                          \ /
+//     add1 {add1}               pointwise  {add1, add2, add3, add4}
+//    / \                            |
+//   x   y                        @return
+//   |   |
+//  add2 add3 {add2} {add3}
+//    \  /
+//    add4 {add4}
+//      |
+//   @return
+//
 TEST_CASE(pw_used_twice_fused)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
@@ -130,6 +157,22 @@ TEST_CASE(pw_used_twice_fused)
 // simplify_algebra. The two dots are fused into concat + single dot + slices.
 // Each new instruction inherits the symbols of the original dots it derives
 // from (e.g. the concat and fused dot carry both "gemm1" and "gemm2").
+//
+//  Before:                          After:
+//
+//   input  a   input  b              a       b
+//     \   /      \   /                \     /
+//     dot {g1}   dot {g2}           concat    {g1, g2}
+//       \       /                  input |
+//        \     /                     \   |
+//        add {sum}                    dot      {g1, g2}
+//          |                         /   \
+//        pass                  slice{g1}  slice{g2}
+//                                  \       /
+//                                   add   {sum}
+//                                    |
+//                                  pass
+//
 TEST_CASE(horiz_fusion_dot)
 {
     auto type = migraphx::shape::int32_type;
@@ -175,10 +218,18 @@ TEST_CASE(horiz_fusion_dot)
 }
 
 // Tests symbol propagation through add reassociation in simplify_algebra
-// (find_double_add_lit_broadcast). Input: add0(add1(x, 1), add2(y, 2))
-// is reassociated to add(add(x, y), add(1, 2)). gather_replace_debug_symbols
-// collects symbols from add0 and its dead-code inputs (add1, add2), then
-// propagate_replace_debug_symbols spreads them to all replacement instructions.
+// (find_double_add_lit_broadcast). Checks add(add(x,1), add(y,2)) -> (add(add(x,y), add(1,2)).
+//
+//  Before:                          After:
+//
+//   x   1    y   2                    1   2       x   y
+//    \ /      \ /                      \ /         \ /
+//   add1{a1} add2{a2}                 add{a0,a1,a2} add{a0,a1,a2}
+//      \     /                              \       /
+//      add0{a0}                             add{a0,a1,a2}
+//        |                                    |
+//       pass                                 pass
+//
 TEST_CASE(simplify_add_debug_symbols)
 {
     migraphx::module m1;
@@ -216,11 +267,20 @@ TEST_CASE(simplify_add_debug_symbols)
     EXPECT(to_string(m1.sort()) == to_string(m2.sort()));
 }
 
-// Tests the replace_instruction(ins, rep) overload that replaces an
-// instruction with an existing instruction_ref. find_unit_ops simplifies
-// add(relu(x), broadcast(0)) to relu(x). gather_replace_debug_symbols
-// walks the dead-code chain (add -> relu) collecting both symbols, then
-// propagates them onto the surviving relu instruction.
+// Tests the replace_instruction(ins, rep) overload via find_unit_ops which
+// simplifies add(relu(x), broadcast(0)) to relu(x).
+//
+//  Before:                       After:
+//
+//    x     0                       x
+//    |     |                       |
+//  relu   bcast                  relu  {add, relu}
+//  {relu} (0.0)                    |
+//     \   /                       pass
+//     add  {add}
+//      |
+//     pass
+//
 TEST_CASE(replace_with_insref_debug_symbols)
 {
     migraphx::module m1;
@@ -250,11 +310,19 @@ TEST_CASE(replace_with_insref_debug_symbols)
     EXPECT(to_string(m1.sort()) == to_string(m2.sort()));
 }
 
-// Directly tests that gather_replace_debug_symbols walks the dead-code
-// input chain. relu(x) feeds exclusively into add(relu, y). When add is
-// replaced by mul(x, y) via replace_instruction(ins, rep), the gather step
-// sees relu's sole consumer is add, so it collects "onnx:relu" along with
-// "onnx:add" and propagates both to the replacement mul instruction.
+// Tests that debug_symbols propagate through the dead-code chain.
+//
+//  Before:                       After:
+//
+//    x                             x   y
+//    |                              \ /
+//   relu  {relu}                   mul  {add, relu}
+//    |  y                            |
+//    | /                            pass
+//   add   {add}
+//    |          (relu becomes dead code, removed by DCE)
+//   pass
+//
 TEST_CASE(gather_replace_chain_debug_symbols)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
@@ -287,10 +355,19 @@ TEST_CASE(gather_replace_chain_debug_symbols)
 }
 
 // Tests the distributive law transform in simplify_algebra (find_mul_add):
-// mul(add(3, x), 2) -> add(mul(2, x), mul(2, 3)). The matcher's scoped
-// guard captures "onnx:mul" from r.result, and gather_replace_debug_symbols
-// also collects "onnx:add" from the dead-code add (its sole consumer was
-// the mul being replaced). Both symbols propagate to all three new instructions.
+// mul(add(3, x), 2) -> add(mul(2, x), mul(2, 3)).
+//
+//  Before:                           After:
+//
+//    3   x                           2   x        2   3
+//     \ /                             \ /          \ /
+//    add  {add}                      mul{add,mul}  mul{add,mul}
+//     |  2                                 \       /
+//     | /                                  add{add,mul}
+//    mul  {mul}                              |
+//     |                                    pass
+//    pass
+//
 TEST_CASE(simplify_mul_add_debug_symbols)
 {
     migraphx::module m1;
@@ -325,9 +402,19 @@ TEST_CASE(simplify_mul_add_debug_symbols)
 }
 
 // Tests symbol propagation through find_div_const in simplify_algebra:
-// div(x, c) -> mul(x, recip(c)). The matcher's scoped guard sets "onnx:div"
-// as the active symbol, so recip gets it via insert_instruction. The
-// replace_instruction propagation then confirms "onnx:div" on the mul as well.
+// div(x, c) -> mul(x, recip(c)).
+//
+//  Before:                       After:
+//
+//   x   c                         c
+//    \ /                          |
+//   div  {div}                  recip  {div}
+//    |                           x  |
+//   pass                          \ |
+//                                 mul  {div}
+//                                  |
+//                                 pass
+//
 TEST_CASE(simplify_div_const_debug_symbols)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
@@ -363,8 +450,15 @@ TEST_CASE(simplify_div_const_debug_symbols)
 // Unit test for the scoped_debug_symbols RAII guard's save/restore behavior.
 // An outer guard sets "outer", a nested inner guard temporarily replaces it
 // with "inner", and after the inner guard's destructor runs the outer symbols
-// are restored. Instructions created in each scope should carry only the
-// symbols active at the time they were added.
+// are restored. Instructions created in each scope carry only the symbols
+// active at the time they were added.
+//
+//   scope     active symbols     instruction     gets symbol
+//   -------   ----------------   -----------     -----------
+//   outer     {"outer"}          add1(x, y)      {"outer"}
+//     inner   {"inner"}          add2(add1, x)   {"inner"}
+//   outer     {"outer"}          add3(add2, y)   {"outer"}
+//
 TEST_CASE(scoped_debug_symbols_nesting)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
@@ -390,9 +484,24 @@ TEST_CASE(scoped_debug_symbols_nesting)
     EXPECT(add3->get_debug_symbols() == std::set<std::string>{"outer"});
 }
 
-// Three sequential adds fused into a single pointwise op via fuse_pointwise:
-// add(add(add(x, y), z), w). All three ONNX node symbols should appear on
-// the fused pointwise instruction. Extends pw_double_add to a longer chain.
+// Three sequential adds fused into a single pointwise op via fuse_pointwise.
+// All three ONNX node symbols should appear on the fused pointwise instruction.
+// Extends pw_double_add to a longer chain.
+//
+//  Before:                         After:
+//
+//   x   y                          x  y  z  w
+//    \ /                             \ | | /
+//    add  {add1}                   pointwise  {add1, add2, add3}
+//     |  z                              |
+//     | /                            @return
+//    add  {add2}
+//     |  w
+//     | /
+//    add  {add3}
+//     |
+//   @return
+//
 TEST_CASE(pw_triple_add_fused)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
@@ -435,10 +544,21 @@ TEST_CASE(pw_triple_add_fused)
 }
 
 // Same add-reassociation pattern as simplify_add_debug_symbols but with
-// set_use_debug_symbols() NOT called. The matcher's scoped guard still tags
-// new instructions with the matched result's symbols ("onnx:add0") via
-// insert_instruction, but replace_instruction skips gather/propagate when
-// the flag is off. Dead-code symbols "onnx:add1" and "onnx:add2" are lost.
+// set_use_debug_symbols() NOT called.
+//
+//  Before:                          After (flag OFF):
+//
+//   x   1    y   2                    1   2       x   y
+//    \ /      \ /                      \ /         \ /
+//   add1{a1} add2{a2}                 add{}     add{}
+//      \     /                           \     /
+//      add0{a0}                           add{a0}
+//        |                                  |
+//       pass                              pass
+//
+//  (compare with simplify_add_debug_symbols where flag ON
+//   gives {a0, a1, a2} on every instruction)
+//
 TEST_CASE(no_propagation_without_flag)
 {
     migraphx::module m1;
@@ -464,9 +584,7 @@ TEST_CASE(no_propagation_without_flag)
         auto one  = m2.add_literal(1);
         auto two  = m2.add_literal(2);
         auto sum1 = m2.add_instruction(migraphx::make_op("add"), one, two);
-        sum1->add_debug_symbols({"onnx:add0"});
         auto sum2 = m2.add_instruction(migraphx::make_op("add"), x, y);
-        sum2->add_debug_symbols({"onnx:add0"});
         auto sum3 = m2.add_instruction(migraphx::make_op("add"), sum2, sum1);
         sum3->add_debug_symbols({"onnx:add0"});
         m2.add_instruction(pass_op{}, sum3);
@@ -475,8 +593,11 @@ TEST_CASE(no_propagation_without_flag)
 }
 
 // Verifies that debug symbols appear in the module's printed/serialized
-// output using the expected "/* sym_a, sym_b */" comment format produced
-// by instruction::print.
+// output using the expected comment format produced by instruction::print.
+//
+//  Printed output includes:
+//    @2 = add(@0,@1) -> float_type, {2, 3} /* sym_a, sym_b */
+//
 TEST_CASE(debug_symbols_in_print)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};

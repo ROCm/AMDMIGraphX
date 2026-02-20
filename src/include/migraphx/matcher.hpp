@@ -477,17 +477,20 @@ auto make_match_runner_with_trace(source_location location, Finder& f)
         // If its already invalid dont validate it again
         bool invalidated = validate and get_module(mod).validate() != get_module(mod).end();
 
-        optional<scoped_debug_symbols> debug_guard;
-
+        // Get debug symbols from matcher_context.instructions and matcher_result.
         std::set<std::string> symbols;
-        const auto& mr_result_symbols = r.result->get_debug_symbols();
-        symbols.insert(mr_result_symbols.begin(), mr_result_symbols.end());
-        for(const auto& mr_ins : r.instructions)
+        if(get_module(mod).get_use_debug_symbols())
         {
-            const auto& ins_symbols = mr_ins.second->get_debug_symbols();
-            symbols.insert(ins_symbols.begin(), ins_symbols.end());
+            const auto& mr_result_symbols = r.result->get_debug_symbols();
+            symbols.insert(mr_result_symbols.begin(), mr_result_symbols.end());
+            for(const auto& mr_ins : r.instructions)
+            {
+                const auto& ins_symbols = mr_ins.second->get_debug_symbols();
+                symbols.insert(ins_symbols.begin(), ins_symbols.end());
+            }
         }
-
+        // `scoped_debug_symbols` for matcher apply.
+        optional<scoped_debug_symbols> debug_guard;
         if(not symbols.empty())
             debug_guard.emplace(get_module(mod), symbols);
 
@@ -527,14 +530,20 @@ auto make_match_runner(Finder& f)
         match::matcher_result r = match::match_instruction(get_module(mod), ins, m);
         if(r.result == get_module(mod).end())
             return false;
+
+        // Get debug symbols from matcher_context.instructions and matcher_result.
         std::set<std::string> symbols;
-        const auto& mr_result_symbols = r.result->get_debug_symbols();
-        symbols.insert(mr_result_symbols.begin(), mr_result_symbols.end());
-        for(const auto& mr_ins : r.instructions)
+        if(get_module(mod).get_use_debug_symbols())
         {
-            const auto& ins_symbols = mr_ins.second->get_debug_symbols();
-            symbols.insert(ins_symbols.begin(), ins_symbols.end());
+            const auto& mr_result_symbols = r.result->get_debug_symbols();
+            symbols.insert(mr_result_symbols.begin(), mr_result_symbols.end());
+            for(const auto& mr_ins : r.instructions)
+            {
+                const auto& ins_symbols = mr_ins.second->get_debug_symbols();
+                symbols.insert(ins_symbols.begin(), ins_symbols.end());
+            }
         }
+        // `scoped_debug_symbols` for matcher apply.
         optional<scoped_debug_symbols> debug_guard;
         if(not symbols.empty())
             debug_guard.emplace(get_module(mod), symbols);

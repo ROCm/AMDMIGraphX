@@ -22,8 +22,8 @@ RUN git clone --single-branch --branch ${ONNXRUNTIME_BRANCH} --recursive ${ONNXR
     cd onnxruntime && git checkout $(cat /.onnxrt-commit) && \
     /bin/sh /onnxruntime/dockerfiles/scripts/install_common_deps.sh
 
-# Install half package required by the test stage
-RUN apt-get update && apt-get install -y --no-install-recommends half && \
+# Install half package and gdb required by the test stage
+RUN apt-get update && apt-get install -y --no-install-recommends half gdb && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Add AMDMIGraphX CI test scripts (layout expected by build_and_test_onnxrt.sh)

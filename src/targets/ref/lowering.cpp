@@ -29,7 +29,6 @@
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/convolution_backwards.hpp>
 #include <migraphx/op/quant_convolution.hpp>
-#include <migraphx/op/dot.hpp>
 #include <migraphx/op/quant_dot.hpp>
 #include <migraphx/op/im2col.hpp>
 #include <migraphx/op/logsoftmax.hpp>
@@ -202,27 +201,6 @@ struct ref_op
 };
 MIGRAPHX_REGISTER_OP(ref_op)
 
-struct ref_gemm
-{
-    op::dot op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op, f);
-    }
-    std::string name() const { return "ref::dot"; }
-    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
-
-    argument compute(context&, const dyn_output& dyn_out, std::vector<argument> args) const
-    {
-        argument result{dyn_out.computed_shape};
-        gemm(result, args[0], args[1]);
-        return result;
-    }
-};
-MIGRAPHX_REGISTER_OP(ref_gemm)
-
 struct ref_quant_gemm
 {
     op::quant_dot op;
@@ -244,7 +222,7 @@ struct ref_quant_gemm
     }
 };
 
-MIGRAPHX_REGISTER_OP(ref_gemm)
+MIGRAPHX_REGISTER_OP(ref_quant_gemm)
 
 template <class Op>
 struct ref_softmax : auto_register_op<ref_softmax<Op>>
@@ -381,7 +359,6 @@ struct ref_apply
 
     void init()
     {
-        apply_map["dot"]        = extend_op<ref_gemm, op::dot>();
         apply_map["quant_dot"]  = extend_op<ref_quant_gemm, op::quant_dot>();
         apply_map["im2col"]     = extend_op<ref_im2col, op::im2col>();
         apply_map["logsoftmax"] = extend_op<ref_softmax<op::logsoftmax>, op::logsoftmax>();

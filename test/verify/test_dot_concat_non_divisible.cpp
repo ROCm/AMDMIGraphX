@@ -38,13 +38,14 @@ struct test_dot_concat_non_divisible : verify_program<test_dot_concat_non_divisi
         auto a2 = mm->add_parameter("a2", migraphx::shape{migraphx::shape::half_type, {4, 5, 16}});
         auto b2 = mm->add_parameter("b2", migraphx::shape{migraphx::shape::half_type, {4, 16, 24}});
 
-        auto dot1    = mm->add_instruction(migraphx::make_op("dot"), a1, b1);
-        auto relu1   = mm->add_instruction(migraphx::make_op("relu"), dot1);
+        auto dot1  = mm->add_instruction(migraphx::make_op("dot"), a1, b1);
+        auto relu1 = mm->add_instruction(migraphx::make_op("relu"), dot1);
 
-        auto dot2    = mm->add_instruction(migraphx::make_op("dot"), a2, b2);
+        auto dot2     = mm->add_instruction(migraphx::make_op("dot"), a2, b2);
         auto sigmoid1 = mm->add_instruction(migraphx::make_op("sigmoid"), dot2);
 
-        auto concat  = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), relu1, sigmoid1);
+        auto concat =
+            mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), relu1, sigmoid1);
 
         mm->add_return({concat});
         return p;

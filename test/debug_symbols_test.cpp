@@ -44,11 +44,11 @@ TEST_CASE(pw_double_add)
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
     migraphx::program p1;
     {
-        auto* mm  = p1.get_main_module();
+        auto* mm = p1.get_main_module();
         mm->set_use_debug_symbols();
-        auto x    = mm->add_parameter("x", s);
-        auto y    = mm->add_parameter("y", s);
-        auto z    = mm->add_parameter("z", s);
+        auto x = mm->add_parameter("x", s);
+        auto y = mm->add_parameter("y", s);
+        auto z = mm->add_parameter("z", s);
         migraphx::instruction_ref add1;
         {
             migraphx::scoped_debug_symbols guard0(*mm, {"onnx:add0"});
@@ -65,11 +65,11 @@ TEST_CASE(pw_double_add)
 
     migraphx::program p2;
     {
-        auto* mm  = p2.get_main_module();
+        auto* mm = p2.get_main_module();
         mm->set_use_debug_symbols();
-        auto x    = mm->add_parameter("x", s);
-        auto y    = mm->add_parameter("y", s);
-        auto z    = mm->add_parameter("z", s);
+        auto x = mm->add_parameter("x", s);
+        auto y = mm->add_parameter("y", s);
+        auto z = mm->add_parameter("z", s);
         auto fadd =
             add_pointwise(p2, "main:pointwise0", {x, y, z}, [=](auto* pm, const auto& inputs) {
                 auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
@@ -79,10 +79,9 @@ TEST_CASE(pw_double_add)
         mm->add_return({fadd});
     }
     // BUG straight equality is not working even though both call migraphx::to_string
-    //EXPECT(p1 == p2);
+    // EXPECT(p1 == p2);
     EXPECT(to_string(p1) == to_string(p2));
 }
-
 
 // Diamond pattern: add1 feeds into both add2 and add3, which then feed
 // into add4. All four are fused into one pointwise op. Verifies that
@@ -92,7 +91,7 @@ TEST_CASE(pw_used_twice_fused)
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
     migraphx::program p1;
     {
-        auto* mm  = p1.get_main_module();
+        auto* mm = p1.get_main_module();
         mm->set_use_debug_symbols();
         auto x    = mm->add_parameter("x", s);
         auto y    = mm->add_parameter("y", s);
@@ -110,7 +109,7 @@ TEST_CASE(pw_used_twice_fused)
 
     migraphx::program p2;
     {
-        auto* mm  = p2.get_main_module();
+        auto* mm = p2.get_main_module();
         mm->set_use_debug_symbols();
         auto x    = mm->add_parameter("x", s);
         auto y    = mm->add_parameter("y", s);
@@ -134,7 +133,7 @@ TEST_CASE(pw_used_twice_fused)
 TEST_CASE(horiz_fusion_dot)
 {
     auto type = migraphx::shape::int32_type;
-    auto s = migraphx::shape{type, {3, 2, 2}};
+    auto s    = migraphx::shape{type, {3, 2, 2}};
     migraphx::module m1;
     {
         m1.set_use_debug_symbols();
@@ -143,9 +142,9 @@ TEST_CASE(horiz_fusion_dot)
         auto b     = m1.add_literal(migraphx::generate_literal(s, 1));
         auto x     = m1.add_instruction(migraphx::make_op("dot"), input, a);
         x->add_debug_symbols({"gemm1"});
-        auto y     = m1.add_instruction(migraphx::make_op("dot"), input, b);
+        auto y = m1.add_instruction(migraphx::make_op("dot"), input, b);
         y->add_debug_symbols({"gemm2"});
-        auto sum   = m1.add_instruction(migraphx::make_op("add"), x, y);
+        auto sum = m1.add_instruction(migraphx::make_op("add"), x, y);
         sum->add_debug_symbols({"sum"});
         m1.add_instruction(pass_op{}, sum);
     }
@@ -159,9 +158,9 @@ TEST_CASE(horiz_fusion_dot)
         auto b      = m2.add_literal(migraphx::generate_literal(s, 1));
         auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), a, b);
         concat->add_debug_symbols({"gemm1", "gemm2"});
-        auto dot    = m2.add_instruction(migraphx::make_op("dot"), input, concat);
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), input, concat);
         dot->add_debug_symbols({"gemm1", "gemm2"});
-        auto x      = m2.add_instruction(
+        auto x = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {2}}}), dot);
         x->add_debug_symbols({"gemm1"});
         auto y = m2.add_instruction(
@@ -227,14 +226,14 @@ TEST_CASE(replace_with_insref_debug_symbols)
     migraphx::module m1;
     {
         m1.set_use_debug_symbols();
-        auto x      = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
-        auto zero   = m1.add_literal(
+        auto x    = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+        auto zero = m1.add_literal(
             migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.0f}});
-        auto bcast  = m1.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {2, 3}}}), zero);
+        auto bcast =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3}}}), zero);
         auto relu_x = m1.add_instruction(migraphx::make_op("relu"), x);
         relu_x->add_debug_symbols({"onnx:relu"});
-        auto add_r  = m1.add_instruction(migraphx::make_op("add"), relu_x, bcast);
+        auto add_r = m1.add_instruction(migraphx::make_op("add"), relu_x, bcast);
         add_r->add_debug_symbols({"onnx:add"});
         m1.add_instruction(pass_op{}, add_r);
     }
@@ -266,7 +265,7 @@ TEST_CASE(gather_replace_chain_debug_symbols)
         auto y      = m1.add_parameter("y", s);
         auto relu_x = m1.add_instruction(migraphx::make_op("relu"), x);
         relu_x->add_debug_symbols({"onnx:relu"});
-        auto add_r  = m1.add_instruction(migraphx::make_op("add"), relu_x, y);
+        auto add_r = m1.add_instruction(migraphx::make_op("add"), relu_x, y);
         add_r->add_debug_symbols({"onnx:add"});
         m1.add_instruction(pass_op{}, add_r);
 
@@ -318,7 +317,7 @@ TEST_CASE(simplify_mul_add_debug_symbols)
         mul1->add_debug_symbols({"onnx:add", "onnx:mul"});
         auto mul2 = m2.add_instruction(migraphx::make_op("mul"), two, one);
         mul2->add_debug_symbols({"onnx:add", "onnx:mul"});
-        auto sum  = m2.add_instruction(migraphx::make_op("add"), mul1, mul2);
+        auto sum = m2.add_instruction(migraphx::make_op("add"), mul1, mul2);
         sum->add_debug_symbols({"onnx:add", "onnx:mul"});
         m2.add_instruction(pass_op{}, sum);
     }
@@ -336,9 +335,9 @@ TEST_CASE(simplify_div_const_debug_symbols)
     {
         m1.set_use_debug_symbols();
         auto x = m1.add_parameter("x", s);
-        auto c = m1.add_literal(
-            migraphx::literal{migraphx::shape{migraphx::shape::float_type, {2, 3}},
-                              {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f}});
+        auto c =
+            m1.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {2, 3}},
+                                             {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f}});
         auto div_r = m1.add_instruction(migraphx::make_op("div"), x, c);
         div_r->add_debug_symbols({"onnx:div"});
         m1.add_instruction(pass_op{}, div_r);
@@ -349,9 +348,9 @@ TEST_CASE(simplify_div_const_debug_symbols)
     {
         m2.set_use_debug_symbols();
         auto x = m2.add_parameter("x", s);
-        auto c = m2.add_literal(
-            migraphx::literal{migraphx::shape{migraphx::shape::float_type, {2, 3}},
-                              {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f}});
+        auto c =
+            m2.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {2, 3}},
+                                             {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f}});
         auto recip = m2.add_instruction(migraphx::make_op("recip"), c);
         recip->add_debug_symbols({"onnx:div"});
         auto mul_r = m2.add_instruction(migraphx::make_op("mul"), x, recip);
@@ -401,10 +400,10 @@ TEST_CASE(pw_triple_add_fused)
     {
         auto* mm = p1.get_main_module();
         mm->set_use_debug_symbols();
-        auto x = mm->add_parameter("x", s);
-        auto y = mm->add_parameter("y", s);
-        auto z = mm->add_parameter("z", s);
-        auto w = mm->add_parameter("w", s);
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto z    = mm->add_parameter("z", s);
+        auto w    = mm->add_parameter("w", s);
         auto add1 = mm->add_instruction(migraphx::make_op("add"), x, y);
         add1->add_debug_symbols({"onnx:add1"});
         auto add2 = mm->add_instruction(migraphx::make_op("add"), add1, z);

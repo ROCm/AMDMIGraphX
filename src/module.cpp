@@ -134,9 +134,7 @@ const operation& get_operation(instruction_ref ins) { return ins->get_operator()
 
 scoped_debug_symbols::scoped_debug_symbols(module& m, std::set<std::string> symbols)
     : mod(&m), previous(std::move(m.impl->active_debug_symbols))
-{
-    mod->impl->active_debug_symbols = std::move(symbols);
-}
+{ mod->impl->active_debug_symbols = std::move(symbols); }
 
 scoped_debug_symbols::~scoped_debug_symbols()
 {
@@ -161,7 +159,8 @@ scoped_debug_symbols& scoped_debug_symbols::operator=(scoped_debug_symbols&& oth
     return *this;
 }
 
-module::module(const std::string& name, bool use_debug_symbols) : impl(std::make_unique<module_impl>())
+module::module(const std::string& name,
+               bool use_debug_symbols) :impl(std::make_unique<module_impl>())
 {
     impl->name = name;
     if(enabled(MIGRAPHX_ENABLE_DEBUG_SYMBOLS{}))
@@ -399,10 +398,11 @@ std::set<std::string> gather_replace_debug_symbols(instruction_ref old_ins)
  * Add gathered debug_symbols to rep_ins and traverse it's inputs to add the same debug_symbols
  * to instructions with empty debug_symbols.
  */
-void module::propagate_replace_debug_symbols(instruction_ref rep_ins, const std::set<std::string>& debug_symbols)
+void module::propagate_replace_debug_symbols(instruction_ref rep_ins,
+                                             const std::set<std::string>& debug_symbols)
 {
     if(starts_with(rep_ins->name(), "@"))
-        return ;
+        return;
     if(debug_symbols.empty())
         return;
     rep_ins->add_debug_symbols(debug_symbols);

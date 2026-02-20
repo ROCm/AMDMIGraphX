@@ -1644,7 +1644,8 @@ MIGRAPHX_BASIC_MATCHER(horiz_conv_dot, match::matcher_context& ctx, instruction_
     };
 
     // adding matched instructions to matcher_context to have their debug_symbols propagate
-    auto add_instructions_to_ctx = [&ctx](std::string key_prefix, std::vector<instruction_ref> ins_vec){
+    auto add_instructions_to_ctx = [&ctx](std::string key_prefix,
+                                          std::vector<instruction_ref> ins_vec) {
         int count = 1;
         for(instruction_ref d : ins_vec)
         {
@@ -1656,11 +1657,16 @@ MIGRAPHX_BASIC_MATCHER(horiz_conv_dot, match::matcher_context& ctx, instruction_
     };
     bool found_horiz = false;
     std::vector<instruction_ref> dots;
-    std::copy_if(ins->outputs().begin(), ins->outputs().end(), std::back_inserter(dots), pred("dot"));
+    std::copy_if(
+        ins->outputs().begin(), ins->outputs().end(), std::back_inserter(dots), pred("dot"));
     std::vector<instruction_ref> qdots;
-    std::copy_if(ins->outputs().begin(), ins->outputs().end(), std::back_inserter(dots), pred("quant_dot"));
+    std::copy_if(
+        ins->outputs().begin(), ins->outputs().end(), std::back_inserter(dots), pred("quant_dot"));
     std::vector<instruction_ref> convs;
-    std::copy_if(ins->outputs().begin(), ins->outputs().end(), std::back_inserter(dots), pred("convolution"));
+    std::copy_if(ins->outputs().begin(),
+                 ins->outputs().end(),
+                 std::back_inserter(dots),
+                 pred("convolution"));
     if(dots.size() >= 2)
     {
         found_horiz = true;

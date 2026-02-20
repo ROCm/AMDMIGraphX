@@ -45,6 +45,7 @@ Full documentation for MIGraphX is available at
 * Added Torch-MIGraphX installation instructions.
 * Added Operator Builders with supporting documentation.
 * Added index range check to the Gather operator.
+* Added support for `SplitToSequence` and `ConcatFromSequence` operators (static support).
 
 
 ### Changed

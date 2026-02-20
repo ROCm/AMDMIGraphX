@@ -1542,15 +1542,15 @@ TEST_CASE(argmin_reshape_pointwise)
         auto y   = mm->add_parameter("y", s2);
         auto xr  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), x);
         // argmin in fused_reduce with axes={2,3}, but argmin only uses axis=2
-        auto argmin_reduce = add_reduce(
-            p2,
-            "main:argmin0_reshape",
-            {xr},
-            {2, 3},
-            [&](auto* rm, const auto& inputs, const auto& axes) {
-                return rm->add_instruction(
-                    migraphx::make_op("argmin", {{"axis", axes.front()}}), inputs[0]);
-            });
+        auto argmin_reduce =
+            add_reduce(p2,
+                       "main:argmin0_reshape",
+                       {xr},
+                       {2, 3},
+                       [&](auto* rm, const auto& inputs, const auto& axes) {
+                           return rm->add_instruction(
+                               migraphx::make_op("argmin", {{"axis", axes.front()}}), inputs[0]);
+                       });
         // Output shape is {8,8,1,2} - only axis 2 reduced, axis 3 remains
         auto argminb = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), argmin_reduce);
@@ -1588,20 +1588,20 @@ TEST_CASE(argmax_reshape_pointwise)
         auto y   = mm->add_parameter("y", s2);
         auto xr  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s3.lens()}}), x);
         // argmax in fused_reduce with axes={2,3,4}, but argmax only uses axis=2
-        auto argmax_reduce = add_reduce(
-            p2,
-            "main:argmax0_reshape",
-            {xr},
-            {2, 3, 4},
-            [&](auto* rm, const auto& inputs, const auto& axes) {
-                return rm->add_instruction(
-                    migraphx::make_op("argmax", {{"axis", axes.front()}}), inputs[0]);
-            });
+        auto argmax_reduce =
+            add_reduce(p2,
+                       "main:argmax0_reshape",
+                       {xr},
+                       {2, 3, 4},
+                       [&](auto* rm, const auto& inputs, const auto& axes) {
+                           return rm->add_instruction(
+                               migraphx::make_op("argmax", {{"axis", axes.front()}}), inputs[0]);
+                       });
         // Output shape is {2,32,1,64,64} - only axis 2 reduced
         auto argmaxb = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", s3.lens()}}), argmax_reduce);
-        auto yr = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s3i.lens()}}), y);
-        auto add = add_pointwise(p2, "main:pointwise0", {argmaxb, yr}, single_pointwise("add"));
+        auto yr   = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s3i.lens()}}), y);
+        auto add  = add_pointwise(p2, "main:pointwise0", {argmaxb, yr}, single_pointwise("add"));
         auto addr = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), add);
         mm->add_return({addr});
     }

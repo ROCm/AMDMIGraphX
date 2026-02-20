@@ -26,6 +26,7 @@
 #define MIGRAPHX_GUARD_GPU_PREPARE_REDUCE_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/gpu/export.h>
 #include <string>
 
 namespace migraphx {
@@ -35,7 +36,7 @@ struct module;
 
 namespace gpu {
 
-struct prepare_reduce
+struct MIGRAPHX_GPU_EXPORT prepare_reduce
 {
     std::string name() const { return "gpu::prepare_reduce"; }
     void apply(module& m) const;

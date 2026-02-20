@@ -46,4 +46,3 @@ struct test_arg_fusion_argmax_broadcast : verify_program<test_arg_fusion_argmax_
 
     std::string section() const { return "reduce"; }
 };
-

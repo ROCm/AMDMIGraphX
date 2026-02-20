@@ -46,4 +46,3 @@ struct test_arg_fusion_argmin_broadcast : verify_program<test_arg_fusion_argmin_
 
     std::string section() const { return "reduce"; }
 };
-

@@ -42,4 +42,3 @@ struct test_arg_fusion_argmax_shape_8_5_256 : verify_program<test_arg_fusion_arg
 
     std::string section() const { return "reduce"; }
 };
-

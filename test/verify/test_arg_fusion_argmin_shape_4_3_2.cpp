@@ -42,4 +42,3 @@ struct test_arg_fusion_argmin_shape_4_3_2 : verify_program<test_arg_fusion_argmi
 
     std::string section() const { return "reduce"; }
 };
-

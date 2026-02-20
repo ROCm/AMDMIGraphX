@@ -179,7 +179,7 @@ static std::vector<shape> split_reduce(const std::vector<shape>& inputs,
     // r0 is the size of the reduction along the other axes(that is not faxis)
     std::size_t r0 = reduce_shape.elements() / r;
     // Scale the min_size by r0 to account for the reduction from other axes.
-    std::size_t n  = split_dim(r, std::min<std::size_t>(min_size / r0, 1), max_splits);
+    std::size_t n = split_dim(r, std::min<std::size_t>(min_size / r0, 1), max_splits);
     assert(n != 1);
     std::transform(
         inputs.begin(), inputs.end(), std::back_inserter(result), [&](const shape& s) -> shape {

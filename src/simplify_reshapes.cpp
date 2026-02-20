@@ -263,10 +263,9 @@ struct find_op_shape_transform_op
 
     auto matcher() const
     {
-        auto reshapes = match::name(shape_transform_ops());
-        auto match_op = match::any_of(match::reduce(), match::pointwise());
-        auto x_op =
-            match_op(match::none_of(fusable_split()));
+        auto reshapes      = match::name(shape_transform_ops());
+        auto match_op      = match::any_of(match::reduce(), match::pointwise());
+        auto x_op          = match_op(match::none_of(fusable_split()));
         auto reshapes_x_op = reshapes(match::arg(0)(match::skip(reshapes())(x_op.bind("x"))));
         return match_op(match::any_of[match::inputs()](reshapes_x_op.bind("input")));
     }

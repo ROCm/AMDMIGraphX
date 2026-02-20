@@ -217,8 +217,7 @@ struct ref_gemm
     argument compute(context&, const dyn_output& dyn_out, std::vector<argument> args) const
     {
         argument result{dyn_out.computed_shape};
-        visit_all(result, args[0], args[1])(
-            [&](auto cmat, auto amat, auto bmat) { gemm(cmat, amat, bmat, 1.0f, 0.0f); });
+        gemm(result, args[0], args[1]);
         return result;
     }
 };
@@ -240,10 +239,7 @@ struct ref_quant_gemm
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        result.visit([&](auto cmat) {
-            visit_all(args.at(0), args.at(1))(
-                [&](auto amat, auto bmat) { return gemm(cmat, amat, bmat, 1.0f, 0.0f); });
-        });
+        gemm(result, args[0], args[1]);
         return result;
     }
 };

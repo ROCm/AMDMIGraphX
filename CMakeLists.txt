@@ -47,6 +47,11 @@ if(NOT WIN32)
 endif()
 
 list(APPEND CMAKE_PREFIX_PATH /opt/rocm /opt/rocm/llvm $ENV{ROCM_PATH} $ENV{HIP_PATH})
+# Prereqs installed by install_prereqs.sh to a custom dir (e.g. /opt/migraphx-deps
+# or project-relative deps/) to avoid conflicting with ONNX Runtime in the same container
+if(DEFINED ENV{MIGRAPHX_DEPS_DIR})
+    list(APPEND CMAKE_PREFIX_PATH "$ENV{MIGRAPHX_DEPS_DIR}")
+endif()
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 project(migraphx LANGUAGES C CXX)

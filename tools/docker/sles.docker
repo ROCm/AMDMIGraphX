@@ -41,6 +41,9 @@ RUN pip3 install yapf==0.28.0
 # ADD docs/sphinx/requirements.txt /doc-requirements.txt
 # RUN pip3 install -r /doc-requirements.txt
 
+# MIGraphX prereqs installed here to avoid conflicting with ONNX Runtime in the same container
+ARG PREFIX=/opt/migraphx-deps
+
 # Install dependencies
 ADD dev-requirements.txt /dev-requirements.txt
 ADD requirements.txt /requirements.txt
@@ -48,4 +51,7 @@ ADD rbuild.ini /rbuild.ini
 
 COPY ./tools/install_prereqs.sh /
 COPY ./tools/requirements-py.txt /
-RUN /install_prereqs.sh /usr/local / && rm /install_prereqs.sh && rm /requirements-py.txt
+RUN /install_prereqs.sh "$PREFIX" / && rm /install_prereqs.sh && rm /requirements-py.txt
+
+ENV MIGRAPHX_DEPS_DIR=$PREFIX
+ENV LD_LIBRARY_PATH=$PREFIX/lib

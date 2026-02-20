@@ -110,7 +110,10 @@ Once completed, all prerequisites are in the `depend` folder and MIGraphX is in 
 
     By default, all prerequisites are installed at the default location (`/usr/local`) and are accessible by all
     users. For the default location, `sudo` is required to run the script. You can also specify a different
-    location using `./tools/install_prereqs.sh $custom_location`.
+    location using `./tools/install_prereqs.sh $custom_location`. To install relative to the project directory
+    (e.g. into `deps/` so they do not conflict with other builds such as ONNX Runtime in the same container),
+    run from the project root: `./tools/install_prereqs.sh deps .` then set `export MIGRAPHX_DEPS_DIR=$PWD/deps`
+    (or pass `-DCMAKE_PREFIX_PATH=$PWD/deps` when configuring CMake).
 
 3. Go to the project folder and create a `build` directory:
 

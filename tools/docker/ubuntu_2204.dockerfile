@@ -1,6 +1,7 @@
 FROM ubuntu:22.04
 
-ARG PREFIX=/usr/local
+# MIGraphX prereqs installed here to avoid conflicting with ONNX Runtime in the same container
+ARG PREFIX=/opt/migraphx-deps
 
 # Support multiarch
 RUN dpkg --add-architecture i386
@@ -80,9 +81,9 @@ ADD requirements.txt /requirements.txt
 ADD rbuild.ini /rbuild.ini
 
 COPY ./tools/install_prereqs.sh /
-COPY ./tools/requirements-py.txt / 
-RUN /install_prereqs.sh /usr/local / && rm /install_prereqs.sh && rm /requirements-py.txt
-RUN test -f /usr/local/hash || exit 1
+COPY ./tools/requirements-py.txt /
+RUN /install_prereqs.sh "$PREFIX" / && rm /install_prereqs.sh && rm /requirements-py.txt
+RUN test -f "$PREFIX/hash" || exit 1
 
 # Install yapf
 RUN pip3 install yapf==0.28.0
@@ -114,6 +115,7 @@ RUN cget -p /usr/local install ROCmSoftwarePlatform/rocMLIR@a997d5f51314b45d7a4c
 
 ENV MIOPEN_FIND_DB_PATH=/tmp/miopen/find-db
 ENV MIOPEN_USER_DB_PATH=/tmp/miopen/user-db
+ENV MIGRAPHX_DEPS_DIR=$PREFIX
 ENV LD_LIBRARY_PATH=$PREFIX/lib
 
 # Setup ubsan environment to printstacktrace

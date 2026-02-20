@@ -78,15 +78,23 @@ PREFIX=/usr/local
 REQ_FILE_DIR="$(dirname -- "$0")"
 if [ "$#" -ge 2 ]; then
   PREFIX=$1
-  cd $2
+  cd "$2"
 elif [ "$#" -eq 1 ]; then
   PREFIX=$1
 fi
 
+# Resolve relative PREFIX to absolute so deps can be installed relative to
+# the current (or -d) directory and not pollute /usr/local (avoids conflicts
+# with e.g. ONNX Runtime in the same container).
+if [ "${PREFIX#/}" = "$PREFIX" ]; then
+  PREFIX="$(pwd)/$PREFIX"
+fi
+mkdir -p "$PREFIX"
+
 echo "Dependencies are installed at $PREFIX"
 
 # Install deps with rbuild
-rbuild prepare -d $PREFIX -s develop
+rbuild prepare -d "$PREFIX" -s develop
 
 if [[ ("${ID}" != "sles") ]]; then
 export CMAKE_ARGS="-DONNX_USE_PROTOBUF_SHARED_LIBS=ON"

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -138,8 +138,16 @@ struct parse_qlinearmatmul : op_parser<parse_qlinearmatmul>
            not std::equal(lens_a.rbegin() + 2, lens_a.rend(), lens_b.rbegin() + 2, lens_b.rend()))
             MIGRAPHX_THROW("QLINEARMATMUL: mismatched input dimensions");
 
-        if(migraphx::any_of({args[1], args[2], args[4], args[5]},
+        if(migraphx::any_of({args[1], args[2]},
                             [](auto arg) { return not arg->get_shape().scalar(); }))
+            MIGRAPHX_THROW("QLINEARMATMUL: unsupported row/column quantization");
+
+        const auto& in_scale_b   = args[4];
+        const auto& in_zero_pt_b = args[5];
+        size_t dim_scale_b       = in_scale_b->get_shape().lens().size();
+        size_t dim_zero_pt_b     = in_zero_pt_b->get_shape().lens().size();
+
+        if((dim_scale_b > 1) or (dim_zero_pt_b > 1))
             MIGRAPHX_THROW("QLINEARMATMUL: unsupported row/column quantization");
     }
 
@@ -160,7 +168,8 @@ struct parse_qlinearmatmul : op_parser<parse_qlinearmatmul>
         const auto& in_b         = args[3];
         const auto& in_scale_b   = args[4];
         const auto& in_zero_pt_b = args[5];
-        auto dquant_b = bcast_qdq_instr("dequantizelinear", in_b, in_scale_b, in_zero_pt_b, info);
+        auto dquant_b            = bcast_qdq_instr(
+            "dequantizelinear", in_b, in_scale_b, in_zero_pt_b, info, in_b->get_shape().ndim() - 1);
 
         bool is_a_prepended = false;
         bool is_b_appended  = false;

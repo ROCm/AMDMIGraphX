@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -35,7 +35,8 @@ instruction_ref bcast_qdq_instr(const std::string& op_name,
                                 instruction_ref x_in,
                                 instruction_ref arg_fscale,
                                 instruction_ref arg_z_pt,
-                                const onnx_parser::node_info& info)
+                                const onnx_parser::node_info& info,
+                                int axis)
 {
     auto in_lens = x_in->get_shape().lens();
 
@@ -43,7 +44,7 @@ instruction_ref bcast_qdq_instr(const std::string& op_name,
     instruction_ref bcast_scale;
     if(arg_fscale->get_shape().elements() > 1)
         bcast_scale = info.add_instruction(
-            migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", in_lens}}), arg_fscale);
+            migraphx::make_op("broadcast", {{"axis", axis}, {"out_lens", in_lens}}), arg_fscale);
     else
         bcast_scale = info.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", in_lens}}), arg_fscale);
@@ -52,7 +53,7 @@ instruction_ref bcast_qdq_instr(const std::string& op_name,
     instruction_ref bcast_zero_pt;
     if(arg_z_pt->get_shape().elements() > 1)
         bcast_zero_pt = info.add_instruction(
-            migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", in_lens}}), arg_z_pt);
+            migraphx::make_op("broadcast", {{"axis", axis}, {"out_lens", in_lens}}), arg_z_pt);
     else
         bcast_zero_pt = info.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", in_lens}}), arg_z_pt);

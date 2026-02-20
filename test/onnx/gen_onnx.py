@@ -28,6 +28,7 @@ import numpy as np
 import onnx
 from onnx import helper
 from onnx import TensorProto
+from onnx import numpy_helper
 from onnx.numpy_helper import from_array
 
 
@@ -11848,6 +11849,43 @@ def qlinearconv_scale_1D_test():
 
 
 @onnx_test()
+def qlinearconv_perchannel_weightbias_test():
+    np.random.seed(42)
+
+    x = helper.make_tensor_value_info('X', TensorProto.UINT8, [1, 3, 224, 224])
+    sc_x = helper.make_tensor('X_scale', TensorProto.FLOAT, [], [0.0186])
+    zero_pt_x = helper.make_tensor('X_zero_point', TensorProto.UINT8, [], [114])
+
+    out_channels = 64
+    wt_data = np.random.randint(-128, 127, size=(out_channels, 3, 7, 7)).astype(np.int8)
+    wt = numpy_helper.from_array(wt_data, 'W')
+    sc_wt_data = np.random.uniform(0.0001, 0.01, size=(out_channels,)).astype(np.float32)
+    sc_wt = numpy_helper.from_array(sc_wt_data, 'W_scale')
+    zero_pt_wt_data = np.zeros((out_channels,), dtype=np.int8)
+    zero_pt_wt = numpy_helper.from_array(zero_pt_wt_data, 'W_zero_point')
+
+    sc_y = helper.make_tensor('Y_scale', TensorProto.FLOAT, [], [0.0312])
+    zero_pt_y = helper.make_tensor('Y_zero_point', TensorProto.UINT8, [], [128])
+
+    bias_data = np.random.randint(-10000, 10000, size=(out_channels,)).astype(np.int32)
+    bias = numpy_helper.from_array(bias_data, 'B')
+
+    out = helper.make_tensor_value_info('Y', TensorProto.UINT8, [1, 64, 112, 112])
+
+    node = onnx.helper.make_node(
+        'QLinearConv',
+        inputs=['X', 'X_scale', 'X_zero_point', 'W', 'W_scale', 'W_zero_point',
+                'Y_scale', 'Y_zero_point', 'B'],
+        outputs=['Y'],
+        kernel_shape=[7, 7],
+        pads=[3, 3, 3, 3],
+        strides=[2, 2],
+    )
+    return ([node], [x], [out],
+            [sc_x, zero_pt_x, wt, sc_wt, zero_pt_wt, sc_y, zero_pt_y, bias])
+
+
+@onnx_test()
 def qlinearglobalavgpool_test():
     x = helper.make_tensor_value_info('X', TensorProto.UINT8, [1, 3, 4, 4])
 
@@ -18305,3 +18343,33 @@ def scan_arg_shapes_mismatch_test():
     )
     return ([node], [init_state, scan_ins1,
                      scan_ins2], [final_state, scan_outs])
+
+@onnx_test()
+def qlinearmatmul_2D_perchannel_test():
+    a = helper.make_tensor_value_info('A', TensorProto.UINT8, [1, 2048])
+    sc_a = helper.make_tensor('A_scale', TensorProto.FLOAT, [], [0.06])
+    zero_pt_a = helper.make_tensor('A_zero_point', TensorProto.UINT8, [], [30])
+
+    np.random.seed(42)
+    b_data = np.random.randint(0, 96, size=[2048, 1000], dtype=np.uint8)
+    b = from_array(b_data, 'B')
+    sc_b_data = (np.random.rand(1000) * 0.001).astype(np.float32)
+    sc_b = from_array(sc_b_data, 'B_scale')
+    zero_pt_b_data = np.random.randint(0, 96, size=[1000], dtype=np.uint8)
+    zero_pt_b = from_array(zero_pt_b_data, 'B_zero_point')
+
+    sc_c = helper.make_tensor('C_scale', TensorProto.FLOAT, [], [0.18])
+    zero_pt_c = helper.make_tensor('C_zero_point', TensorProto.UINT8, [], [65])
+
+    c = helper.make_tensor_value_info('C', TensorProto.UINT8, [1, 1000])
+
+    node = onnx.helper.make_node(
+        'QLinearMatMul',
+        inputs=[
+            'A', 'A_scale', 'A_zero_point', 'B', 'B_scale', 'B_zero_point',
+            'C_scale', 'C_zero_point'
+        ],
+        outputs=['C'],
+    )
+    return ([node], [a], [c],
+            [sc_a, zero_pt_a, b, sc_b, zero_pt_b, sc_c, zero_pt_c])

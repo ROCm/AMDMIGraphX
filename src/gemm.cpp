@@ -69,40 +69,35 @@ void gemm_naive(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat)
 #if MIGRAPHX_USE_BLAZE
 
 template <class T>
-using blaze_row_major = blaze::CustomMatrix<T, blaze::unaligned, blaze::unpadded, blaze::rowMajor>;
+using matrix = blaze::CustomMatrix<T, blaze::unaligned, blaze::unpadded>; // NOLINT
+
 template <class T>
-using blaze_col_major =
-    blaze::CustomMatrix<T, blaze::unaligned, blaze::unpadded, blaze::columnMajor>;
-
-enum class mat_order
+auto make_mat(T* ptr, const shape& s)
 {
-    row_major,
-    col_major,
-    unsupported
-};
-
-struct blaze_layout
-{
-    mat_order order     = mat_order::unsupported;
-    std::size_t spacing = 0;
-    bool packed         = false;
-};
-
-blaze_layout get_blaze_layout(const shape& s)
-{
-    if(s.ndim() < 2)
-        return {};
     auto dim_0 = s.ndim() - 2;
     auto dim_1 = s.ndim() - 1;
-    auto s0    = s.strides()[dim_0];
-    auto s1    = s.strides()[dim_1];
-    auto rows  = s.lens()[dim_0];
-    auto cols  = s.lens()[dim_1];
-    if(s1 == 1 and s0 >= cols)
-        return {mat_order::row_major, s0, s0 == cols};
-    if(s0 == 1 and s1 >= rows)
-        return {mat_order::col_major, s1, s1 == rows};
-    return {};
+    if(s.strides()[dim_0] == 1)
+        return matrix<T>{ptr, s.lens()[dim_1], s.lens()[dim_0], s.strides()[dim_1]};
+    return matrix<T>{ptr, s.lens()[dim_0], s.lens()[dim_1], s.strides()[dim_0]};
+}
+
+template <class T, class F>
+void visit_mat(T* ptr, const shape& s, F f)
+{
+    auto mat = make_mat(ptr, s);
+    if(s.strides()[s.ndim() - 2] == 1)
+        f(blaze::trans(mat));
+    else
+        f(mat);
+}
+
+bool is_mat_layout_supported(const shape& s)
+{
+    if(s.ndim() < 2)
+        return false;
+    auto dim_0 = s.ndim() - 2;
+    auto dim_1 = s.ndim() - 1;
+    return s.strides()[dim_1] == 1 or s.strides()[dim_0] == 1;
 }
 
 shape make_batch_shape(const shape& s, std::size_t n_batch_dims)
@@ -137,34 +132,6 @@ constexpr bool is_blaze_native_type()
     return std::is_same<T, float>{} or std::is_same<T, double>{};
 }
 
-template <class T, class Func>
-void with_blaze_mat(T* ptr, std::size_t rows, std::size_t cols, mat_order order, Func&& func)
-{
-    if(order == mat_order::col_major)
-    {
-        blaze_col_major<T> mat(ptr, rows, cols);
-        func(mat);
-    }
-    else
-    {
-        blaze_row_major<T> mat(ptr, rows, cols);
-        func(mat);
-    }
-}
-
-template <class T>
-void blaze_gemm_native(T* c, mat_order c_order,
-                       const T* a, mat_order a_order,
-                       const T* b, mat_order b_order,
-                       std::size_t m, std::size_t k, std::size_t n)
-{
-    with_blaze_mat(const_cast<T*>(a), m, k, a_order, [&](const auto& a_mat) {
-        with_blaze_mat(const_cast<T*>(b), k, n, b_order, [&](const auto& b_mat) {
-            with_blaze_mat(c, m, n, c_order, [&](auto& c_mat) { c_mat = a_mat * b_mat; });
-        });
-    });
-}
-
 template <class T, class U>
 void gemm_blaze(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat)
 {
@@ -184,14 +151,12 @@ void gemm_blaze(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat)
     auto b_batch = make_batch_shape(bmat.get_shape(), dim_0);
     auto c_batch = make_batch_shape(cmat.get_shape(), dim_0);
 
-    // Native zero-copy path for float/double with packed layouts
+    // Native zero-copy path for float/double with supported layouts
     if constexpr(is_blaze_native_type<U>() and std::is_same<T, U>{})
     {
-        auto a_layout = get_blaze_layout(amat.get_shape());
-        auto b_layout = get_blaze_layout(bmat.get_shape());
-        auto c_layout = get_blaze_layout(cmat.get_shape());
-
-        if(a_layout.packed and b_layout.packed and c_layout.packed)
+        if(is_mat_layout_supported(amat.get_shape()) and
+           is_mat_layout_supported(bmat.get_shape()) and
+           is_mat_layout_supported(cmat.get_shape()))
         {
             if(enabled(MIGRAPHX_BLAZE_DEBUG{}))
             {
@@ -201,11 +166,12 @@ void gemm_blaze(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat)
 
             for(std::size_t batch = 0; batch < num_batches; batch++)
             {
-                blaze_gemm_native(
-                    cmat.data() + c_batch.index(batch), c_layout.order,
-                    amat.data() + a_batch.index(batch), a_layout.order,
-                    bmat.data() + b_batch.index(batch), b_layout.order,
-                    m_size, k_size, n_size);
+                visit_mat(amat.data() + a_batch.index(batch), amat.get_shape(), [&](const auto& a) {
+                    visit_mat(bmat.data() + b_batch.index(batch), bmat.get_shape(), [&](const auto& b) {
+                        auto c = make_mat(cmat.data() + c_batch.index(batch), cmat.get_shape());
+                        c = a * b;
+                    });
+                });
             }
             return;
         }
@@ -238,9 +204,9 @@ void gemm_blaze(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat)
                 bmat.data() + b_batch.index(batch), b_row_stride, b_col_stride,
                 k_size, n_size);
 
-        blaze_row_major<float> a(a_buf.data(), m_size, k_size);
-        blaze_row_major<float> b(b_buf.data(), k_size, n_size);
-        blaze_row_major<float> c(c_buf.data(), m_size, n_size);
+        matrix<float> a(a_buf.data(), m_size, k_size);
+        matrix<float> b(b_buf.data(), k_size, n_size);
+        matrix<float> c(c_buf.data(), m_size, n_size);
         c = a * b;
 
         copy_2d(cmat.data() + c_batch.index(batch), c_row_stride, c_col_stride,

@@ -21,49 +21,56 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/onnx/op_parser.hpp>
+
+#include <migraphx/common.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/op/builder/op_builder.hpp>
 #include <migraphx/op/builder/insert.hpp>
-#include <migraphx/ranges.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace onnx {
+namespace op {
+namespace builder {
 
-struct parse_aten : op_parser<parse_aten>
+struct embedding_bag : op_builder<embedding_bag>
 {
-    std::vector<op_desc> operators() const { return {{"ATen"}}; }
+    // reduce_mode: 0 = sum, 1 = mean, 2 = max
+    int64_t mode = 0;
 
-    instruction_ref parse(const op_desc& /*opd*/,
-                          const onnx_parser& /*parser*/,
-                          onnx_parser::node_info info,
-                          std::vector<instruction_ref> args) const
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
     {
-        if(contains(info.attributes, "operator"))
-        {
-            auto op_name = info.attributes.at("operator").s();
-            if(op_name.find("embedding_bag") != std::string::npos)
-            {
-                return parse_embedding_bag(info, std::move(args));
-            }
-        }
-        MIGRAPHX_THROW("PARSE_ATEN: unsupported custom operator");
+        return pack(f(self.mode, "mode"));
     }
 
-    instruction_ref parse_embedding_bag(onnx_parser::node_info& info,
-                                        std::vector<instruction_ref> args) const
+    std::vector<instruction_ref>
+    insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
     {
-        value options = {};
+        if(args[2]->get_shape().elements() != 1)
+            MIGRAPHX_THROW("EMBEDDING_BAG: MIGraphX only supports offsets of size 1");
 
-        if(contains(info.attributes, "mode"))
+        auto l0 = m.insert_instruction(ins, make_op("gather"), args[0], args[1]);
+
+        switch(mode)
         {
-            int64_t mode = info.attributes.at("mode").i();
-            options.insert({"mode", mode});
+        case 0: // sum
+            l0 = m.insert_instruction(ins, make_op("reduce_sum", {{"axes", {0}}}), l0);
+            break;
+        case 1: // mean
+            l0 = m.insert_instruction(ins, make_op("reduce_mean", {{"axes", {0}}}), l0);
+            break;
+        case 2: // max
+            l0 = m.insert_instruction(ins, make_op("reduce_max", {{"axes", {0}}}), l0);
+            break;
+        default: MIGRAPHX_THROW("EMBEDDING_BAG: Unsupported reduce mode: " + std::to_string(mode));
         }
 
-        return op::builder::add("embedding_bag", *info.mod, args, options).at(0);
+        return {l0};
     }
 };
 
-} // namespace onnx
+} // namespace builder
+} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

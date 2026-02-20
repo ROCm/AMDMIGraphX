@@ -1661,11 +1661,11 @@ MIGRAPHX_BASIC_MATCHER(horiz_conv_dot, match::matcher_context& ctx, instruction_
         ins->outputs().begin(), ins->outputs().end(), std::back_inserter(dots), pred("dot"));
     std::vector<instruction_ref> qdots;
     std::copy_if(
-        ins->outputs().begin(), ins->outputs().end(), std::back_inserter(dots), pred("quant_dot"));
+        ins->outputs().begin(), ins->outputs().end(), std::back_inserter(qdots), pred("quant_dot"));
     std::vector<instruction_ref> convs;
     std::copy_if(ins->outputs().begin(),
                  ins->outputs().end(),
-                 std::back_inserter(dots),
+                 std::back_inserter(convs),
                  pred("convolution"));
     if(dots.size() >= 2)
     {

@@ -596,7 +596,8 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
             node_info ninfo{get_attributes(node), output_num, node_name, mod};
             if(mod->get_use_debug_symbols())
             {
-                scoped_debug_symbols guard(*mod, {node.name()});
+                std::string debug_symbol = node.name().empty() ? std::string("migx_uid:") + node_name : node.name();
+                scoped_debug_symbols guard(*mod, {debug_symbol});
                 result = ops[node.op_type()](*this, ninfo, args);
             }
             else

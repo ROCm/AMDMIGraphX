@@ -45,6 +45,7 @@ Full documentation for MIGraphX is available at
 * Added Torch-MIGraphX installation instructions.
 * Added Operator Builders with supporting documentation.
 * Added index range check to the Gather operator.
+* Allow running in the driver a pass from a backend target using 'pass_name@target_name' for the pass name
 
 
 ### Changed

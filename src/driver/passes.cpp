@@ -41,6 +41,7 @@
 #include <migraphx/optimize_module.hpp>
 #include <migraphx/promote_literals.hpp>
 #include <migraphx/propagate_constant.hpp>
+#include <migraphx/register_target.hpp>
 #include <migraphx/rewrite_dot.hpp>
 #include <migraphx/rewrite_gelu.hpp>
 #include <migraphx/rewrite_pooling.hpp>
@@ -57,6 +58,14 @@
 namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
+
+struct pass_with_context : pass
+{
+    pass_with_context(const pass& p, std::shared_ptr<context> pctx = nullptr) : pass(p), ctx(pctx)
+    {
+    }
+    std::shared_ptr<context> ctx = nullptr;
+};
 
 static std::unordered_map<std::string, pass> create_passes_lookup()
 {
@@ -97,15 +106,35 @@ static std::unordered_map<std::string, pass> create_passes_lookup()
     return result;
 }
 
+std::optional<pass> get_pass(const std::string& name)
+{
+    static const std::unordered_map<std::string, pass> lookup = create_passes_lookup();
+    if(contains(lookup, name))
+        return lookup.at(name);
+    auto fields = split_string(name, '@');
+    if(fields.size() != 2)
+        return std::nullopt;
+    auto base_name   = fields[0];
+    auto target_name = fields[1];
+    auto t           = make_target(target_name);
+    auto ctx         = std::make_shared<context>(t.get_context());
+    auto passes      = t.get_passes(*ctx, {});
+    auto it          = std::find_if(
+        passes.begin(), passes.end(), [&](const pass& p) { return p.name() == base_name; });
+    if(it == passes.end())
+        return std::nullopt;
+    return pass_with_context(*it, ctx);
+}
+
 std::vector<pass> get_passes(const std::vector<std::string>& names)
 {
     std::vector<pass> result;
-    static const std::unordered_map<std::string, pass> lookup = create_passes_lookup();
     std::transform(
         names.begin(), names.end(), std::back_inserter(result), [](const std::string& name) {
-            if(not contains(lookup, name))
+            auto p = get_pass(name);
+            if(not p)
                 MIGRAPHX_THROW("Unknown pass: " + name);
-            return lookup.at(name);
+            return *p;
         });
     return result;
 }

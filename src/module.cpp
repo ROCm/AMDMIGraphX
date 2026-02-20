@@ -393,7 +393,7 @@ std::set<std::string> gather_replace_debug_symbols(instruction_ref old_ins)
 }
 
 /**
- * Add gathered debug_symbols to rep_ins and traverse it's inputs to add the same debug_symbols
+ * Add gathered debug_symbols to rep_ins and traverse its inputs to add the same debug_symbols
  * to instructions with empty debug_symbols.
  */
 void module::propagate_replace_debug_symbols(instruction_ref rep_ins,

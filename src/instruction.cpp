@@ -28,6 +28,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/iterator.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <bitset>
 #include <queue>
 

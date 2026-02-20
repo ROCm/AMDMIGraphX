@@ -614,8 +614,10 @@ struct mlir_program
         return result;
     }
 
-    MlirBlock
-    insert(MlirBlock body, const module& m, std::unordered_map<instruction_ref, MlirValue>& ins_map)
+    MlirBlock insert(MlirBlock body,
+                     const module& m,
+                     const std::vector<shape>& outputs,
+                     std::unordered_map<instruction_ref, MlirValue>& ins_map)
     {
         auto names = m.get_parameter_names();
         std::sort(names.begin(), names.end());
@@ -625,7 +627,6 @@ struct mlir_program
             names.end(),
             std::back_inserter(input_shapes),
             [&](const std::string& name) { return get_shape_for_mlir(m.get_parameter(name)); });
-        std::vector<shape> outputs = m.get_output_shapes();
 
         std::vector<MlirLocation> arg_locs(input_shapes.size(), location);
         auto body_inputs   = make_mlir_shapeds(input_shapes);
@@ -765,19 +766,75 @@ struct mlir_program
             MIGRAPHX_THROW("Missing @return as last instruction.");
     }
 
-    void parse(const module& m)
+    static std::vector<shape> get_output_shapes(const module& m,
+                                                const std::vector<shape>& input_shapes = {})
+    {
+        if(input_shapes.empty())
+            return m.get_output_shapes();
+        auto r = input_shapes.back();
+        if(r.type() != shape::tuple_type)
+            return {r};
+        return r.sub_shapes();
+    }
+
+    static bool is_skipped(instruction_ref ins)
+    {
+        return contains({"contiguous", "unpack_fp4"}, ins->name());
+    }
+
+    static instruction_ref get_terminal_return(instruction_ref ins)
+    {
+        if(is_skipped(ins))
+            return get_terminal_return(ins->inputs().at(0));
+        return ins;
+    }
+
+    static auto make_get_shape_for_mlir(const module& m, const std::vector<shape>& output_shapes)
+    {
+        auto returns = m.get_returns();
+        std::unordered_map<instruction_ref, shape> ret_shapes;
+        std::transform(returns.begin(),
+                       returns.end(),
+                       output_shapes.begin(),
+                       std::inserter(ret_shapes, ret_shapes.begin()),
+                       [](instruction_ref ins, const shape& s) {
+                           return std::make_pair(get_terminal_return(ins), s);
+                       });
+        return [=](instruction_ref ins) {
+            shape ret = contains(ret_shapes, ins) ? ret_shapes.at(ins) : ins->get_shape();
+            if(ins->name() == "@return")
+            {
+                assert(ins->inputs().size() == 1);
+                ret = output_shapes.front();
+            }
+            else if(input_is_unpack_fp4(ins))
+            {
+                ret = ret.with_type(shape::fp4x2_type);
+            }
+            else if(ins->get_shape().type() == shape::fp4x2_type)
+            {
+                ret = make_fp4_unpacked_shape(ret);
+            }
+            return ret;
+        };
+    }
+
+    void parse(const module& m, const std::vector<shape>& input_shapes = {})
     {
         validate(m);
         sym_name   = get_symbol_name(m);
         auto mbody = mlirModuleGetBody(mmodule.get());
         std::unordered_map<instruction_ref, MlirValue> ins_map;
-        auto fbody = insert(mbody, m, ins_map);
+        auto output_shapes = get_output_shapes(m, input_shapes);
+        auto fbody         = insert(mbody, m, output_shapes, ins_map);
+
+        auto get_shape_for_mlir = make_get_shape_for_mlir(m, output_shapes);
 
         for(auto ins : iterator_for(m))
         {
             if(ins->name() == "@param")
                 continue;
-            if(contains({"contiguous", "unpack_fp4"}, ins->name()))
+            if(is_skipped(ins))
             {
                 ins_map[ins] = ins_map[ins->inputs().at(0)];
                 continue;
@@ -1133,7 +1190,7 @@ std::string dump_mlir(module m, const std::vector<shape>& inputs)
     }
     prepare(m);
     mlir_program mp;
-    mp.parse(*mr);
+    mp.parse(*mr, inputs);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     return mlir_print(&mlirOperationPrint, mod_op);
 }
@@ -1199,7 +1256,7 @@ void dump_mlir_to_file(module m, const std::vector<shape>& inputs, const fs::pat
     std::cout << "Dumping MLIR file to: " << f << std::endl;
 
     mlir_program mp;
-    mp.parse(m);
+    mp.parse(m, inputs);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
 
     std::string mlir_str = mlir_print(&mlirOperationPrint, mod_op);
@@ -1228,7 +1285,7 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     mlir_program mp;
 
     mp.set_gpu_properties(migraphx_ctx);
-    mp.parse(m);
+    mp.parse(m, in_shapes);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     if(trace)
     {
@@ -1236,18 +1293,10 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
 
-    auto co = mp.compile(solution);
-
+    auto co            = mp.compile(solution);
     co.expected_inputs = in_shapes;
-    auto out_shapes    = m.get_output_shapes();
-    if(out_shapes.size() == 1)
-    {
-        co.output = m.get_output_shapes().front();
-    }
-    else
-    {
-        co.output = shape{out_shapes};
-    }
+    co.output          = in_shapes.back();
+
     mlir_code_object mco;
     mco.cop                 = co;
     size_t num_prefill_args = mlirGetNumPrefillArgs(mp.mmodule.get());
@@ -1299,7 +1348,7 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
     prepare(m);
     mlir_program mp;
     mp.set_gpu_properties(migraphx_ctx);
-    mp.parse(m);
+    mp.parse(m, inputs);
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
     if(trace)
     {

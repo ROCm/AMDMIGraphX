@@ -42,6 +42,7 @@
 #include <migraphx/supported_segments.hpp>
 #include <migraphx/pmr/unordered_map.hpp>
 #include <migraphx/graphviz.hpp>
+#include <migraphx/runtime_compile.hpp>
 
 #include <iostream>
 #include <queue>
@@ -518,6 +519,20 @@ static std::vector<argument> generic_eval(const module* mod,
                            });
 
             return prog_outputs;
+        }
+        else if(name == "runtime_compile_op")
+        {
+            results.insert_or_assign(ins, trace(ins, [&] {
+                std::unordered_map<std::string, shape> param_shapes;
+                std::transform(
+                    params.begin(),
+                    params.end(),
+                    std::inserter(param_shapes, param_shapes.end()),
+                    [&](const auto& p) { return std::make_pair(p.first, p.second.get_shape()); });
+                auto mod_ref = const_cast<module_ref>(mod);
+                compile_dyn_ins(ctx[ins->get_target_id()], mod_ref, param_shapes);
+                return argument{ins->get_shape(), nullptr};
+            }));
         }
         else
         {

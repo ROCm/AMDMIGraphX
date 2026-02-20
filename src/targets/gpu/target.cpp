@@ -76,6 +76,7 @@
 #include <migraphx/gpu/sync_device.hpp>
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/write_literals.hpp>
+#include <migraphx/gpu/insert_runtime_compile_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -187,6 +188,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         preallocate_param{"scratch", gpu_allocation_model{}},
         dead_code_elimination{},
         eliminate_allocation{"hip::allocate"},
+        insert_runtime_compile_op{},
         check_context<context>{},
         normalize_ops{},
         dead_code_elimination{},

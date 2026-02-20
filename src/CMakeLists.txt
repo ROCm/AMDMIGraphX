@@ -130,6 +130,7 @@ add_library(migraphx
     rewrite_quantization.cpp
     rewrite_rnn.cpp
     rewrite_topk.cpp
+    runtime_compile.cpp
     schedule.cpp
     serialize.cpp
     shape.cpp

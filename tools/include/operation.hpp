@@ -477,6 +477,31 @@ value compile_op(const T& x,
 }
 
 template <class T>
+auto runtime_compile_op(rank<1>,
+                        const T& x,
+                        context& ctx,
+                        const std::vector<shape>& input,
+                        const std::vector<module_ref>& module_args)
+    -> decltype(x.runtime_compile(auto_any_cast(ctx), input, module_args), void())
+{
+    x.runtime_compile(auto_any_cast(ctx), input, module_args);
+}
+
+template <class T>
+void runtime_compile_op(rank<0>, const T&, context&, const std::vector<shape>&, const std::vector<module_ref>&)
+{
+}
+
+template <class T>
+void runtime_compile_op(const T& x,
+                        context& ctx,
+                        const std::vector<shape>& input,
+                        const std::vector<module_ref>& module_args)
+{
+    runtime_compile_op(rank<1>{}, x, ctx, input, module_args);
+}
+
+template <class T>
 value attributes_op(const T&)
 {
     return value::object{};
@@ -583,6 +608,12 @@ lifetime get_lifetime_op(const T&)
                 'std::function<std::vector<argument>(module_ref&, const std::unordered_map<std::string, argument>&)>',
             const   = True,
             default = 'detail::compute_op'),
+        virtual('runtime_compile',
+                ctx         = 'context&',
+                input       = 'const std::vector<shape>&',
+                module_args = 'const std::vector<module_ref>&',
+                const       = True,
+                default     = 'detail::runtime_compile_op'),
         virtual('to_value', returns = 'value', const = True, default = 'detail::to_value_op'),
         virtual('from_value', v = 'const value&', default = 'detail::from_value_op'),
         virtual('attributes', returns = 'value', const = True, default = 'detail::attributes_op'),

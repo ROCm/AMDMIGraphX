@@ -21,32 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_RTGLIB_REWRITE_RESIZE_HPP
+#define MIGRAPHX_GUARD_RTGLIB_REWRITE_RESIZE_HPP
 
-#include <onnx_test.hpp>
+#include <string>
+#include <migraphx/config.hpp>
 
-TEST_CASE(resize_downsample_linear_test)
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+struct module;
+
+/**
+ * Rewrite resize operations to use gather-based implementation
+ * for nearest and linear interpolation modes when shapes are static.
+ */
+struct MIGRAPHX_EXPORT rewrite_resize
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
+    bool affine_only = false;
+    std::string name() const { return "rewrite_resize"; }
+    void apply(module& m) const;
+};
 
-    std::vector<float> ds = {1.0f, 1.0f, 0.6f, 0.5f};
-    migraphx::shape ss{migraphx::shape::float_type, {4}};
-    mm->add_literal(migraphx::literal{ss, ds});
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
 
-    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 4}};
-    auto x = mm->add_parameter("X", sx);
-
-    mm->add_instruction(migraphx::make_op("undefined"));
-
-    auto r =
-        mm->add_instruction(migraphx::make_op("resize",
-                                              {{"scales", {1.0f, 1.0f, 0.6f, 0.5f}},
-                                               {"mode", "linear"},
-                                               {"coordinate_transformation_mode", "half_pixel"}}),
-                            x);
-    mm->add_return({r});
-
-    auto prog = read_onnx("resize_downsample_linear_test.onnx");
-
-    EXPECT(p == prog);
-}
+#endif

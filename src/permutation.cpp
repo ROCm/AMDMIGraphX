@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -75,13 +75,16 @@ std::vector<int64_t> find_permutation(const std::vector<shape>& shapes)
 }
 
 /// Normalize shapes by reordering them by their permutation
-std::vector<shape> normalize_permutation(const std::vector<shape>& shapes)
+std::vector<shape> normalize_permutation(const std::vector<shape>& shapes,
+                                         std::vector<int64_t>* permutation)
 {
     auto result = shapes;
     auto perm   = find_permutation(shapes);
     std::transform(result.begin(), result.end(), result.begin(), [&](auto s) {
         return reorder_shape(s, perm);
     });
+    if(permutation)
+        *permutation = std::move(perm);
     return result;
 }
 

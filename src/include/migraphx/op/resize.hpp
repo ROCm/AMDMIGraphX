@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,7 +30,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
 #include <migraphx/literal.hpp>
-#include <migraphx/shape_for_each.hpp>
+#include <migraphx/par_for.hpp>
 #include <migraphx/config.hpp>
 #include <cmath>
 #include <utility>
@@ -287,7 +287,7 @@ struct resize
                                [](auto scale_i, size_t in_len) {
                                    return static_cast<size_t>(scale_i * in_len);
                                });
-                return shape{input_s.type(), lens};
+                return input_s.with_lens(lens);
             }
         }
         else
@@ -325,46 +325,31 @@ struct resize
         }
     }
 
-    argument compute(const migraphx::shape&, std::vector<argument> args) const
+    argument compute(shape output_shape, std::vector<argument> args) const
     {
         auto in_lens = args[0].get_shape().lens();
-        std::vector<size_t> out_lens(in_lens.size());
 
         // Scales are either given, or calculated from output shape
-        std::vector<float> vec_scale(in_lens.size(), 1.0f);
+        std::vector<float> vec_scale = this->scales;
 
         if(args.size() == 1)
         {
             // single input argument; sizes or scales is constant.
             // In practice, the input is never a dynamic shape.
-            if(not sizes.empty())
+            if(scales.empty())
             {
-                out_lens = sizes;
-                // compute scales
-                std::transform(out_lens.begin(),
-                               out_lens.end(),
+                std::transform(output_shape.lens().begin(),
+                               output_shape.lens().end(),
                                in_lens.begin(),
-                               vec_scale.begin(),
-                               [](size_t out_len, size_t in_len) {
-                                   return (in_len == 0 ? 1.0f
-                                                       : static_cast<float>(out_len) / in_len);
-                               });
-            }
-            else
-            {
-                vec_scale = this->scales;
-                // compute output sizes
-                std::transform(in_lens.begin(),
-                               in_lens.end(),
-                               scales.begin(),
-                               out_lens.begin(),
-                               [](size_t in_len, auto scale_i) {
-                                   return static_cast<size_t>(scale_i * in_len);
+                               std::back_inserter(vec_scale),
+                               [](float out_len, size_t in_len) {
+                                   return (in_len == 0 ? 1.0f : out_len / in_len);
                                });
             }
         }
         else
         {
+            std::vector<size_t> out_lens(in_lens.size());
             // 2 inputs; 2nd input is either sizes or scales.
             // First input may be dynamic.
             args[1].visit([&](auto input) {
@@ -374,17 +359,16 @@ struct resize
                     // Copy the output size from args[1].
                     std::copy(input.begin(), input.end(), out_lens.begin());
                     // Deduce the scales for each axis
-                    std::transform(
-                        input.begin(),
-                        input.end(),
-                        in_lens.begin(),
-                        vec_scale.begin(),
-                        [](auto sz, size_t in_len) { return static_cast<float>(sz) / in_len; });
+                    std::transform(input.begin(),
+                                   input.end(),
+                                   in_lens.begin(),
+                                   std::back_inserter(vec_scale),
+                                   [](float sz, size_t in_len) { return sz / in_len; });
                 }
                 else
                 {
                     // read the scale from args[1]
-                    std::copy(input.begin(), input.end(), vec_scale.begin());
+                    std::copy(input.begin(), input.end(), std::back_inserter(vec_scale), );
                     // compute the output dimensions from the given scales.  This computation
                     // always rounds down, unlike the internal computation in Nearest mode
                     // which has several options as given in nearest_mode.
@@ -392,14 +376,14 @@ struct resize
                                    input.end(),
                                    in_lens.begin(),
                                    out_lens.begin(),
-                                   [](auto scale_i, size_t in_len) {
-                                       return static_cast<size_t>(scale_i * in_len);
+                                   [](auto scale_i, size_t in_len) -> std::size_t {
+                                       return scale_i * in_len;
                                    });
                 }
             });
+            output_shape = {args[0].get_shape().type(), out_lens};
         }
 
-        shape output_shape = {args[0].get_shape().type(), out_lens};
         argument result{output_shape};
 
         auto idx_op = get_original_idx_op(coordinate_transformation_mode);
@@ -409,10 +393,13 @@ struct resize
             auto nearest_op = get_nearest_op(nearest_mode);
             // Populate each element in output by selecting "nearest" item in input.
             visit_all(result, args[0])([&](auto output, auto data) {
-                migraphx::shape out_comp_shape{data.get_shape().type(), out_lens};
-                shape_for_each(out_comp_shape, [&](const auto& out_idx_v, size_t out_idx) {
-                    auto in_idx = compute_nearest_indices(
-                        in_lens, out_lens, out_idx_v, vec_scale, nearest_op, idx_op);
+                par_for(output_shape.elements(), [&](auto out_idx) {
+                    auto in_idx     = compute_nearest_indices(in_lens,
+                                                          output_shape.lens(),
+                                                          output_shape.multi(out_idx),
+                                                          vec_scale,
+                                                          nearest_op,
+                                                          idx_op);
                     output[out_idx] = data(in_idx.begin(), in_idx.end());
                 });
             });
@@ -421,10 +408,13 @@ struct resize
         {
             // N-D multilinear interpolation
             visit_all(result, args[0])([&](auto output, auto data) {
-                migraphx::shape out_comp_shape{data.get_shape().type(), out_lens};
-                shape_for_each(out_comp_shape, [&](const auto& out_idx_v, std::size_t out_idx) {
-                    double acc = compute_linear_interp_point(
-                        data, in_lens, out_lens, out_idx_v, vec_scale, idx_op);
+                par_for(output_shape.elements(), [&](auto out_idx) {
+                    double acc = compute_linear_interp_point(data,
+                                                             in_lens,
+                                                             output_shape.lens(),
+                                                             output_shape.multi(out_idx),
+                                                             vec_scale,
+                                                             idx_op);
 
                     using out_value_t = typename decltype(output)::value_type;
                     output[out_idx]   = static_cast<out_value_t>(acc);

@@ -22,31 +22,32 @@
  * THE SOFTWARE.
  */
 
-#include <onnx_test.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-TEST_CASE(resize_downsample_linear_test)
+// Nearest mode with round_prefer_ceil rounding
+template <migraphx::shape::type_t DType>
+struct test_resize_nearest_round_prefer_ceil
+    : verify_program<test_resize_nearest_round_prefer_ceil<DType>>
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
 
-    std::vector<float> ds = {1.0f, 1.0f, 0.6f, 0.5f};
-    migraphx::shape ss{migraphx::shape::float_type, {4}};
-    mm->add_literal(migraphx::literal{ss, ds});
+        migraphx::shape sx{DType, {1, 1, 2, 4}};
+        auto x = mm->add_parameter("X", sx);
 
-    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 4}};
-    auto x = mm->add_parameter("X", sx);
-
-    mm->add_instruction(migraphx::make_op("undefined"));
-
-    auto r =
         mm->add_instruction(migraphx::make_op("resize",
-                                              {{"scales", {1.0f, 1.0f, 0.6f, 0.5f}},
-                                               {"mode", "linear"},
+                                              {{"scales", {1.0f, 1.0f, 2.0f, 1.5f}},
+                                               {"nearest_mode", "round_prefer_ceil"},
                                                {"coordinate_transformation_mode", "half_pixel"}}),
                             x);
-    mm->add_return({r});
+        return p;
+    }
+};
 
-    auto prog = read_onnx("resize_downsample_linear_test.onnx");
-
-    EXPECT(p == prog);
-}
+template struct test_resize_nearest_round_prefer_ceil<migraphx::shape::float_type>;
+template struct test_resize_nearest_round_prefer_ceil<migraphx::shape::half_type>;

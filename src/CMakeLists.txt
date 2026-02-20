@@ -81,6 +81,7 @@ add_library(migraphx
     fuse_pointwise.cpp
     fuse_pointwise_reduce.cpp
     fuse_reduce.cpp
+    gemm.cpp
     generate.cpp
     graphviz.cpp
     inline_module.cpp
@@ -342,6 +343,20 @@ endif()
 
 target_include_directories(migraphx SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
 target_link_libraries(migraphx PUBLIC Threads::Threads)
+
+if(MIGRAPHX_USE_BLAZE)
+    find_path(BLAZE_INCLUDE blaze/Blaze.h)
+    if(BLAZE_INCLUDE)
+        target_compile_definitions(migraphx PUBLIC MIGRAPHX_USE_BLAZE=1)
+        target_compile_definitions(migraphx PRIVATE BLAZE_USE_CPP_THREADS)
+        target_include_directories(migraphx SYSTEM PUBLIC $<BUILD_INTERFACE:${BLAZE_INCLUDE}>)
+    else()
+        message(STATUS "Blaze not found, disabling MIGRAPHX_USE_BLAZE")
+        target_compile_definitions(migraphx PUBLIC MIGRAPHX_USE_BLAZE=0)
+    endif()
+else()
+    target_compile_definitions(migraphx PUBLIC MIGRAPHX_USE_BLAZE=0)
+endif()
 
 if(MIGRAPHX_HAS_EXECUTORS AND ParallelSTL_USES_TBB)
     list(APPEND MIGRAPHX_CONFIG_DEPENDS PACKAGE TBB)

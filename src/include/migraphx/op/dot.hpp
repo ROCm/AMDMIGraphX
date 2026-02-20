@@ -125,9 +125,8 @@ struct dot
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        argument result = argument{dyn_out.computed_shape};
-        visit_all(result, args[0], args[1])(
-            [&](auto cmat, auto amat, auto bmat) { gemm(cmat, amat, bmat, 1.0f, 0.0f); });
+        argument result{dyn_out.computed_shape};
+        gemm(result, args[0], args[1]);
         return result;
     }
 };

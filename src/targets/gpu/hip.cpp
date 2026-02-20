@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -42,6 +42,7 @@ MIGRAPHX_REGISTER_OP(hip_allocate)
 MIGRAPHX_REGISTER_OP(hip_fill)
 MIGRAPHX_REGISTER_OP(hip_sync_stream)
 MIGRAPHX_REGISTER_OP(hip_copy_to_gpu)
+MIGRAPHX_REGISTER_OP(hip_copy_to_gpu_alloc)
 MIGRAPHX_REGISTER_OP(hip_copy_from_gpu)
 MIGRAPHX_REGISTER_OP(hip_copy)
 MIGRAPHX_REGISTER_OP(hip_allocate_memory)

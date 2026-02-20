@@ -143,6 +143,23 @@ struct hip_sync_stream
     }
 };
 
+struct hip_copy_to_gpu_alloc
+{
+    std::string name() const { return "hip::copy_to_gpu_alloc"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this, true}.has(1);
+        return inputs.front();
+    }
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
+    {
+        argument result = allocate_gpu(args.front().get_shape());
+        copy_to_gpu(ctx, args.front(), result);
+        return result;
+    }
+    std::vector<std::size_t> output_alias(const std::vector<shape>&) const { return {}; }
+};
+
 struct hip_copy_to_gpu
 {
     std::string name() const { return "hip::copy_to_gpu"; }

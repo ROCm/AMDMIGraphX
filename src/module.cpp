@@ -379,8 +379,6 @@ std::set<std::string> gather_replace_debug_symbols(instruction_ref old_ins)
     if(starts_with(old_ins->name(), "@"))
         return debug_symbols;
     const auto& old_ins_debug = old_ins->get_debug_symbols();
-    if(old_ins_debug.empty())
-        return debug_symbols;
     debug_symbols.insert(old_ins_debug.begin(), old_ins_debug.end());
     for(auto input : old_ins->inputs())
     {

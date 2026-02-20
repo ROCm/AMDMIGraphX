@@ -178,7 +178,7 @@ static std::size_t integer_divide_ceil(std::size_t x, std::size_t y)
     return (x + y - std::size_t{1}) / y;
 }
 
-static std::size_t compute_tile_factor(std::size_t r, std::size_t max_size = 64)
+std::size_t compute_tile_factor(std::size_t r, std::size_t max_size)
 {
     std::size_t n = 1;
     auto factors  = make_array(2, 3, 5, 7, 11);

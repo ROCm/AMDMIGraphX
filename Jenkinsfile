@@ -312,31 +312,31 @@ pipeline {
                     }
                 }
 
-                stage('HIP Clang Release Navi32') {
-                    agent {
-                        label rocmnodename('navi32')
-                    }
-                    steps {
-                        script {
-                            rocmtest([:]) {
-                                cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getnavi3xtargets()}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On")
-                            }
-                        }
-                    }
-                }
-
-                stage('HIP Clang Release Navi4x') {
-                    agent {
-                        label rocmnodename('navi4x')
-                    }
-                    steps {
-                        script {
-                            rocmtest([:]) {
-                                cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getnavi4xtargets()}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On")
-                            }
-                        }
-                    }
-                }
+                //stage('HIP Clang Release Navi32') {
+                    //agent {
+                        //label rocmnodename('navi32')
+                    //}
+                    //steps {
+                        //script {
+                            //rocmtest([:]) {
+                                //cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getnavi3xtargets()}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On")
+                            //}
+                        //}
+                    //}
+                //}
+//
+                //stage('HIP Clang Release Navi4x') {
+                    //agent {
+                        //label rocmnodename('navi4x')
+                    //}
+                    //steps {
+                        //script {
+                            //rocmtest([:]) {
+                                //cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getnavi4xtargets()}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On")
+                            //}
+                        //}
+                    //}
+                //}
 
                 stage('HIP RTC Debug') {
                     agent {

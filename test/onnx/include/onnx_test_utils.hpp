@@ -260,13 +260,11 @@ inline migraphx::program create_gqa_program(const size_t batch_size,
     transposed_qkv = mm->add_instruction(
         migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), transposed_qkv);
 
-    auto q = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {num_heads}}}),
-        transposed_qkv);
-    auto cur_k = mm->add_instruction(
-        migraphx::make_op(
-            "slice",
-            {{"axes", {1}}, {"starts", {num_heads}}, {"ends", {num_heads + kv_num_heads}}}),
+    auto qk = mm->add_instruction(
+        migraphx::make_op("slice",
+                          {{"axes", {1}},
+                           {"starts", {0}},
+                           {"ends", {num_heads + kv_num_heads}}}),
         transposed_qkv);
     auto cur_v =
         mm->add_instruction(migraphx::make_op("slice",
@@ -277,17 +275,20 @@ inline migraphx::program create_gqa_program(const size_t batch_size,
 
     if(do_rotary)
     {
-        q = migraphx::op::builder::add("rotary_embedding",
-                                       *mm,
-                                       {q, slk_lit, cos_cache, sin_cache},
-                                       {{"interleaved", false}})
-                .at(0);
-        cur_k = migraphx::op::builder::add("rotary_embedding",
-                                           *mm,
-                                           {cur_k, slk_lit, cos_cache, sin_cache},
-                                           {{"interleaved", false}})
-                    .at(0);
+        qk = migraphx::op::builder::add("rotary_embedding",
+                                        *mm,
+                                        {qk, slk_lit, cos_cache, sin_cache},
+                                        {{"interleaved", false}})
+                 .at(0);
     }
+
+    auto q = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {num_heads}}}), qk);
+    auto cur_k = mm->add_instruction(
+        migraphx::make_op(
+            "slice",
+            {{"axes", {1}}, {"starts", {num_heads}}, {"ends", {num_heads + kv_num_heads}}}),
+        qk);
 
     std::vector<migraphx::instruction_ref> concat_k_inputs{cur_k, slk_lit, k};
     std::vector<migraphx::instruction_ref> concat_v_inputs{cur_v, slk_lit, v};

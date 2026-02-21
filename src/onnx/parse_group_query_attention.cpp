@@ -118,36 +118,34 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         transposed_qkv = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}),
                                               transposed_qkv);
 
-        auto q = info.add_instruction(
-            make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {num_heads}}}),
-            transposed_qkv);
-        auto cur_k = info.add_instruction(
+        auto qk = info.add_instruction(
             make_op("slice",
-                    {{"axes", {1}}, {"starts", {num_heads}}, {"ends", {num_heads + kv_num_heads}}}),
+                    {{"axes", {1}},
+                     {"starts", {0}},
+                     {"ends", {num_heads + kv_num_heads}}}),
             transposed_qkv);
-        auto cur_v = info.add_instruction(make_op("slice",
-                                                  {{"axes", {1}},
-                                                   {"starts", {num_heads + kv_num_heads}},
-                                                   {"ends", {num_heads + (2 * kv_num_heads)}}}),
-                                          transposed_qkv);
+        auto cur_v = info.add_instruction(
+            make_op("slice",
+                    {{"axes", {1}},
+                     {"starts", {num_heads + kv_num_heads}},
+                     {"ends", {num_heads + (2 * kv_num_heads)}}}),
+            transposed_qkv);
 
         if(do_rotary)
         {
-            auto seqlens_k = args.at(5);
-            auto cos_cache = args.at(7);
-            auto sin_cache = args.at(8);
-
-            q = op::builder::add("rotary_embedding",
-                                 *info.mod,
-                                 {q, seqlens_k, cos_cache, sin_cache},
-                                 {{"interleaved", rotary_interleaved}})
-                    .at(0);
-            cur_k = op::builder::add("rotary_embedding",
-                                     *info.mod,
-                                     {cur_k, seqlens_k, cos_cache, sin_cache},
-                                     {{"interleaved", rotary_interleaved}})
-                        .at(0);
+            qk = op::builder::add("rotary_embedding",
+                                  *info.mod,
+                                  {qk, args.at(5), args.at(7), args.at(8)},
+                                  {{"interleaved", rotary_interleaved}})
+                     .at(0);
         }
+
+        auto q = info.add_instruction(
+            make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {num_heads}}}), qk);
+        auto cur_k = info.add_instruction(
+            make_op("slice",
+                    {{"axes", {1}}, {"starts", {num_heads}}, {"ends", {num_heads + kv_num_heads}}}),
+            qk);
 
         auto k   = args.at(3);
         auto v   = args.at(4);

@@ -191,7 +191,7 @@ pipeline {
                             sh 'printenv'
                             checkout scm
                             def calculateOrtImageTagScript = """
-                                sha256sum Dockerfile.ort test/onnx/.onnxrt-commit tools/build_and_test_onnxrt.sh tools/pai_test_launcher.sh tools/pai_provider_test_launcher.sh | sha256sum | cut -d " " -f 1
+                                sha256sum tools/docker/ort.dockerfile test/onnx/.onnxrt-commit tools/build_and_test_onnxrt.sh tools/pai_test_launcher.sh tools/pai_provider_test_launcher.sh | sha256sum | cut -d " " -f 1
                             """
                             env.IMAGE_TAG_ORT = sh(script: "bash -c '${calculateOrtImageTagScript}'", returnStdout: true).trim()
                             env.IMAGE_EXISTS_ORT = sh(script: "docker manifest inspect ${DOCKER_IMAGE_ORT}:${IMAGE_TAG_ORT}", returnStatus: true) == 0 ? 'true' : 'false'
@@ -241,9 +241,9 @@ pipeline {
 
                             try {
                                 sh "docker pull ${DOCKER_IMAGE_ORT}:latest"
-                                builtOrtImage = docker.build("${DOCKER_IMAGE_ORT}:${IMAGE_TAG_ORT}", "-f Dockerfile.ort --cache-from ${DOCKER_IMAGE_ORT}:latest .")
+                                builtOrtImage = docker.build("${DOCKER_IMAGE_ORT}:${IMAGE_TAG_ORT}", "-f tools/docker/ort.dockerfile --cache-from ${DOCKER_IMAGE_ORT}:latest .")
                             } catch(Exception ex) {
-                                builtOrtImage = docker.build("${DOCKER_IMAGE_ORT}:${IMAGE_TAG_ORT}", "-f Dockerfile.ort --no-cache .")
+                                builtOrtImage = docker.build("${DOCKER_IMAGE_ORT}:${IMAGE_TAG_ORT}", "-f tools/docker/ort.dockerfile --no-cache .")
                             }
                             builtOrtImage.push("${IMAGE_TAG_ORT}")
                             builtOrtImage.push("latest")

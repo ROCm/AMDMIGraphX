@@ -25,6 +25,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/op/builder/insert.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -232,46 +233,11 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
                                                   const onnx_parser::node_info& info,
                                                   const rotary_parameters& params)
     {
-        if(params.interleaved)
-        {
-            std::vector<float> signs(params.rotary_embedding_dim);
-            for(auto i = 0; i < params.rotary_embedding_dim; ++i)
-            {
-                signs[i] = (i % 2 == 0) ? -1.0 : 1.0;
-            }
-            auto signs_lit = info.add_literal(
-                literal{shape{in->get_shape().type(), {params.rotary_embedding_dim}}, signs});
-            signs_lit = info.add_instruction(
-                make_op("multibroadcast", {{"out_lens", in->get_shape().lens()}}), signs_lit);
-            auto mul_cos = info.add_broadcastable_binary_op("mul", in, cos);
-            auto mul_sin = info.add_broadcastable_binary_op("mul", signs_lit, sin);
-
-            auto rs_in = info.add_instruction(
-                make_op("reshape", {{"dims", {in->get_shape().elements() / 2, 2}}}), in);
-            auto evens = info.add_instruction(
-                make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), rs_in);
-            auto odds = info.add_instruction(
-                make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), rs_in);
-            auto in2 = info.add_instruction(make_op("concat", {{"axis", -1}}), odds, evens);
-            in2 = info.add_instruction(make_op("reshape", {{"dims", in->get_shape().lens()}}), in2);
-            mul_sin = info.add_broadcastable_binary_op("mul", mul_sin, in2);
-            return info.add_broadcastable_binary_op("add", mul_sin, mul_cos);
-        }
-
-        auto pos = info.add_instruction(
-            make_op("slice",
-                    {{"axes", {-1}}, {"starts", {0}}, {"ends", {params.rotary_embedding_dim / 2}}}),
-            in);
-        auto neg     = info.add_instruction(make_op("slice",
-                                                    {{"axes", {-1}},
-                                                     {"starts", {params.rotary_embedding_dim / 2}},
-                                                     {"ends", {params.rotary_embedding_dim}}}),
-                                        in);
-        neg          = info.add_instruction(make_op("neg"), neg);
-        auto concat  = info.add_instruction(make_op("concat", {{"axis", -1}}), neg, pos);
-        auto mul_sin = info.add_broadcastable_binary_op("mul", concat, sin);
-        auto mul_cos = info.add_broadcastable_binary_op("mul", in, cos);
-        return info.add_broadcastable_binary_op("add", mul_sin, mul_cos);
+        return op::builder::add("rotary_embedding",
+                                *info.mod,
+                                {in, cos, sin},
+                                {{"interleaved", params.interleaved}})
+            .at(0);
     }
 
     static instruction_ref get_cache_slice(const instruction_ref& cache,

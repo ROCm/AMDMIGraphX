@@ -26,6 +26,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/float_equal.hpp>
+#include <migraphx/op/builder/insert.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -117,32 +118,43 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         transposed_qkv = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}),
                                               transposed_qkv);
 
-        auto rotary_qkv = transposed_qkv;
-        if(do_rotary)
-        {
-            std::vector<instruction_ref> rotary_inputs{
-                transposed_qkv, args.at(5), args.at(7), args.at(8)};
-            rotary_qkv = info.add_instruction(make_op("gqa_rotary_embedding",
-                                                      {{"kv_num_heads", kv_num_heads},
-                                                       {"num_heads", num_heads},
-                                                       {"interleaved", rotary_interleaved}}),
-                                              rotary_inputs);
-        }
-
-        auto k        = args.at(3);
-        auto v        = args.at(4);
-        auto slk      = args.at(5);
-        auto rotary_k = info.add_instruction(
+        auto q = info.add_instruction(
+            make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {num_heads}}}),
+            transposed_qkv);
+        auto cur_k = info.add_instruction(
             make_op("slice",
                     {{"axes", {1}}, {"starts", {num_heads}}, {"ends", {num_heads + kv_num_heads}}}),
-            rotary_qkv);
-        auto rotary_v = info.add_instruction(make_op("slice",
-                                                     {{"axes", {1}},
-                                                      {"starts", {num_heads + kv_num_heads}},
-                                                      {"ends", {num_heads + (2 * kv_num_heads)}}}),
-                                             rotary_qkv);
-        std::vector<instruction_ref> concat_k_inputs{rotary_k, slk, k};
-        std::vector<instruction_ref> concat_v_inputs{rotary_v, slk, v};
+            transposed_qkv);
+        auto cur_v = info.add_instruction(
+            make_op("slice",
+                    {{"axes", {1}},
+                     {"starts", {num_heads + kv_num_heads}},
+                     {"ends", {num_heads + (2 * kv_num_heads)}}}),
+            transposed_qkv);
+
+        if(do_rotary)
+        {
+            auto seqlens_k = args.at(5);
+            auto cos_cache = args.at(7);
+            auto sin_cache = args.at(8);
+
+            q = op::builder::add("rotary_embedding",
+                                 *info.mod,
+                                 {q, seqlens_k, cos_cache, sin_cache},
+                                 {{"interleaved", rotary_interleaved}})
+                    .at(0);
+            cur_k = op::builder::add("rotary_embedding",
+                                     *info.mod,
+                                     {cur_k, seqlens_k, cos_cache, sin_cache},
+                                     {{"interleaved", rotary_interleaved}})
+                        .at(0);
+        }
+
+        auto k   = args.at(3);
+        auto v   = args.at(4);
+        auto slk = args.at(5);
+        std::vector<instruction_ref> concat_k_inputs{cur_k, slk, k};
+        std::vector<instruction_ref> concat_v_inputs{cur_v, slk, v};
 
         k = info.add_instruction(make_op("concat_past_present", {{"kv_num_heads", kv_num_heads}}),
                                  concat_k_inputs);
@@ -156,9 +168,6 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         auto max_seq_len         = k->get_shape().lens()[2];
         auto past_sl             = info.add_instruction(
             make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), slk);
-
-        auto q = info.add_instruction(
-            make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {num_heads}}}), rotary_qkv);
 
         if(kv_num_heads_factor != 1)
         {
@@ -186,7 +195,7 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         auto bc_range =
             info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), range);
 
-        auto scalar_s = shape{rotary_qkv->get_shape().type(), {1}};
+        auto scalar_s = shape{transposed_qkv->get_shape().type(), {1}};
         auto ninf = info.add_literal(literal{scalar_s, {-std::numeric_limits<float>::infinity()}});
         ninf      = info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), ninf);
 

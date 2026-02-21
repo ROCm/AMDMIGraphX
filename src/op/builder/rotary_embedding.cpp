@@ -55,11 +55,10 @@ struct rotary_embedding : op_builder<rotary_embedding>
 
         if(args.size() == 4)
         {
-            auto pos_ids   = args[1];
-            auto cos_cache = args[2];
-            auto sin_cache = args[3];
-            std::tie(cos, sin) =
-                gather_cache(m, ins, in, pos_ids, cos_cache, sin_cache);
+            auto pos_ids       = args[1];
+            auto cos_cache     = args[2];
+            auto sin_cache     = args[3];
+            std::tie(cos, sin) = gather_cache(m, ins, in, pos_ids, cos_cache, sin_cache);
         }
         else
         {
@@ -70,13 +69,12 @@ struct rotary_embedding : op_builder<rotary_embedding>
         return apply_rotation(m, ins, in, cos, sin);
     }
 
-    std::pair<instruction_ref, instruction_ref>
-    gather_cache(module& m,
-                 instruction_ref ins,
-                 instruction_ref in,
-                 instruction_ref pos_ids,
-                 instruction_ref cos_cache,
-                 instruction_ref sin_cache) const
+    std::pair<instruction_ref, instruction_ref> gather_cache(module& m,
+                                                             instruction_ref ins,
+                                                             instruction_ref in,
+                                                             instruction_ref pos_ids,
+                                                             instruction_ref cos_cache,
+                                                             instruction_ref sin_cache) const
     {
         auto in_lens   = in->get_shape().lens();
         auto batch     = in_lens[0];
@@ -89,12 +87,12 @@ struct rotary_embedding : op_builder<rotary_embedding>
 
         if(seq_len == 1)
         {
-            auto pos = m.insert_instruction(
-                ins, make_op("reshape", {{"dims", {batch, 1, 1}}}), pos_ids);
-            cos_gathered = m.insert_instruction(
-                ins, make_op("gathernd", {{"batch_dims", 0}}), cos_cache, pos);
-            sin_gathered = m.insert_instruction(
-                ins, make_op("gathernd", {{"batch_dims", 0}}), sin_cache, pos);
+            auto pos =
+                m.insert_instruction(ins, make_op("reshape", {{"dims", {batch, 1, 1}}}), pos_ids);
+            cos_gathered =
+                m.insert_instruction(ins, make_op("gathernd", {{"batch_dims", 0}}), cos_cache, pos);
+            sin_gathered =
+                m.insert_instruction(ins, make_op("gathernd", {{"batch_dims", 0}}), sin_cache, pos);
         }
         else
         {
@@ -107,22 +105,16 @@ struct rotary_embedding : op_builder<rotary_embedding>
                 make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {seq_len}}}),
                 sin_cache);
             cos_gathered = m.insert_instruction(
-                ins,
-                make_op("reshape", {{"dims", {1, seq_len, half_head}}}),
-                cos_gathered);
+                ins, make_op("reshape", {{"dims", {1, seq_len, half_head}}}), cos_gathered);
             sin_gathered = m.insert_instruction(
-                ins,
-                make_op("reshape", {{"dims", {1, seq_len, half_head}}}),
-                sin_gathered);
+                ins, make_op("reshape", {{"dims", {1, seq_len, half_head}}}), sin_gathered);
             cos_gathered = m.insert_instruction(
                 ins,
-                make_op("multibroadcast",
-                        {{"out_lens", {batch, seq_len, half_head}}}),
+                make_op("multibroadcast", {{"out_lens", {batch, seq_len, half_head}}}),
                 cos_gathered);
             sin_gathered = m.insert_instruction(
                 ins,
-                make_op("multibroadcast",
-                        {{"out_lens", {batch, seq_len, half_head}}}),
+                make_op("multibroadcast", {{"out_lens", {batch, seq_len, half_head}}}),
                 sin_gathered);
         }
 
@@ -142,13 +134,9 @@ struct rotary_embedding : op_builder<rotary_embedding>
             ins, make_op("concat", {{"axis", -1}}), sin_gathered, sin_gathered);
 
         auto cos_rs = m.insert_instruction(
-            ins,
-            make_op("reshape", {{"dims", {batch, 1, seq_len, head_size}}}),
-            cos_doubled);
+            ins, make_op("reshape", {{"dims", {batch, 1, seq_len, head_size}}}), cos_doubled);
         auto sin_rs = m.insert_instruction(
-            ins,
-            make_op("reshape", {{"dims", {batch, 1, seq_len, head_size}}}),
-            sin_doubled);
+            ins, make_op("reshape", {{"dims", {batch, 1, seq_len, head_size}}}), sin_doubled);
 
         return {cos_rs, sin_rs};
     }
@@ -164,8 +152,7 @@ struct rotary_embedding : op_builder<rotary_embedding>
         auto half_D  = D / 2;
         auto dtype   = in->get_shape().type();
 
-        auto signs =
-            m.add_literal(migraphx::literal{migraphx::shape{dtype, {2}}, {-1.0f, 1.0f}});
+        auto signs = m.add_literal(migraphx::literal{migraphx::shape{dtype, {2}}, {-1.0f, 1.0f}});
 
         instruction_ref rotated;
 
@@ -177,16 +164,14 @@ struct rotary_embedding : op_builder<rotary_embedding>
             signs = m.insert_instruction(ins, make_op("reshape", {{"dims", {D}}}), signs);
 
             auto N     = in->get_shape().elements() / 2;
-            auto rs_in = m.insert_instruction(
-                ins, make_op("reshape", {{"dims", {N, 2}}}), in);
+            auto rs_in = m.insert_instruction(ins, make_op("reshape", {{"dims", {N, 2}}}), in);
             auto evens = m.insert_instruction(
                 ins, make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), rs_in);
             auto odds = m.insert_instruction(
                 ins, make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), rs_in);
-            auto swapped = m.insert_instruction(
-                ins, make_op("concat", {{"axis", -1}}), odds, evens);
-            rotated = m.insert_instruction(
-                ins, make_op("reshape", {{"dims", in_lens}}), swapped);
+            auto swapped =
+                m.insert_instruction(ins, make_op("concat", {{"axis", -1}}), odds, evens);
+            rotated = m.insert_instruction(ins, make_op("reshape", {{"dims", in_lens}}), swapped);
         }
         else
         {
@@ -196,20 +181,15 @@ struct rotary_embedding : op_builder<rotary_embedding>
             signs = m.insert_instruction(ins, make_op("reshape", {{"dims", {D}}}), signs);
 
             auto first_half = m.insert_instruction(
-                ins,
-                make_op("slice", {{"axes", {-1}}, {"starts", {0}}, {"ends", {half_D}}}),
-                in);
+                ins, make_op("slice", {{"axes", {-1}}, {"starts", {0}}, {"ends", {half_D}}}), in);
             auto second_half = m.insert_instruction(
-                ins,
-                make_op("slice",
-                        {{"axes", {-1}}, {"starts", {half_D}}, {"ends", {D}}}),
-                in);
+                ins, make_op("slice", {{"axes", {-1}}, {"starts", {half_D}}, {"ends", {D}}}), in);
             rotated = m.insert_instruction(
                 ins, make_op("concat", {{"axis", -1}}), second_half, first_half);
         }
 
-        signs = m.insert_instruction(
-            ins, make_op("multibroadcast", {{"out_lens", in_lens}}), signs);
+        signs =
+            m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", in_lens}}), signs);
 
         auto mul_cos = insert_common_op(m, ins, make_op("mul"), {in, cos});
         auto mul_sin = insert_common_op(m, ins, make_op("mul"), {signs, sin});

@@ -125,12 +125,11 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
             make_op("slice",
                     {{"axes", {1}}, {"starts", {num_heads}}, {"ends", {num_heads + kv_num_heads}}}),
             transposed_qkv);
-        auto cur_v = info.add_instruction(
-            make_op("slice",
-                    {{"axes", {1}},
-                     {"starts", {num_heads + kv_num_heads}},
-                     {"ends", {num_heads + (2 * kv_num_heads)}}}),
-            transposed_qkv);
+        auto cur_v = info.add_instruction(make_op("slice",
+                                                  {{"axes", {1}},
+                                                   {"starts", {num_heads + kv_num_heads}},
+                                                   {"ends", {num_heads + (2 * kv_num_heads)}}}),
+                                          transposed_qkv);
 
         if(do_rotary)
         {

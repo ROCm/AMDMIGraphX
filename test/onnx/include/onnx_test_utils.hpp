@@ -268,12 +268,12 @@ inline migraphx::program create_gqa_program(const size_t batch_size,
             "slice",
             {{"axes", {1}}, {"starts", {num_heads}}, {"ends", {num_heads + kv_num_heads}}}),
         transposed_qkv);
-    auto cur_v = mm->add_instruction(
-        migraphx::make_op("slice",
-                          {{"axes", {1}},
-                           {"starts", {num_heads + kv_num_heads}},
-                           {"ends", {num_heads + (2 * kv_num_heads)}}}),
-        transposed_qkv);
+    auto cur_v =
+        mm->add_instruction(migraphx::make_op("slice",
+                                              {{"axes", {1}},
+                                               {"starts", {num_heads + kv_num_heads}},
+                                               {"ends", {num_heads + (2 * kv_num_heads)}}}),
+                            transposed_qkv);
 
     if(do_rotary)
     {

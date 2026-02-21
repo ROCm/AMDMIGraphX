@@ -68,12 +68,11 @@ TEST_CASE(rotary_embedding_non_interleaved_structure_test)
     auto e_cos   = expected.add_parameter("cos_cache", cache_shape);
     auto e_sin   = expected.add_parameter("sin_cache", cache_shape);
 
-    auto signs =
-        expected.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {2}},
-                                               {-1.0f, 1.0f}});
+    auto signs = expected.add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {2}}, {-1.0f, 1.0f}});
     signs = expected.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 1}}}), signs);
-    signs = expected.add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {2, 2}}}), signs);
+    signs = expected.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2}}}),
+                                     signs);
     signs = expected.add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), signs);
 
     auto first_half = expected.add_instruction(
@@ -111,24 +110,23 @@ TEST_CASE(rotary_embedding_interleaved_structure_test)
     auto e_cos   = expected.add_parameter("cos_cache", cache_shape);
     auto e_sin   = expected.add_parameter("sin_cache", cache_shape);
 
-    auto signs =
-        expected.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {2}},
-                                               {-1.0f, 1.0f}});
+    auto signs = expected.add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {2}}, {-1.0f, 1.0f}});
     signs = expected.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2}}}), signs);
-    signs = expected.add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {2, 2}}}), signs);
+    signs = expected.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2}}}),
+                                     signs);
     signs = expected.add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), signs);
 
-    auto rs_in = expected.add_instruction(
-        migraphx::make_op("reshape", {{"dims", {4, 2}}}), e_input);
+    auto rs_in =
+        expected.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 2}}}), e_input);
     auto evens = expected.add_instruction(
         migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), rs_in);
     auto odds = expected.add_instruction(
         migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), rs_in);
     auto swapped =
         expected.add_instruction(migraphx::make_op("concat", {{"axis", -1}}), odds, evens);
-    auto rotated = expected.add_instruction(
-        migraphx::make_op("reshape", {{"dims", {1, 2, 1, 4}}}), swapped);
+    auto rotated =
+        expected.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 1, 4}}}), swapped);
 
     signs = expected.add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 1, 4}}}), signs);
@@ -293,7 +291,7 @@ TEST_CASE(rotary_embedding_4arg_cache_gather_verify_test)
     // output[i] = in[i]*0.5 + signs[i]*rotated[i]*0.8
     // = [1*0.5+(-1)*3*0.8, 2*0.5+(-1)*4*0.8, 3*0.5+1*1*0.8, 4*0.5+1*2*0.8]
     // = [0.5-2.4, 1.0-3.2, 1.5+0.8, 2.0+1.6] = [-1.9, -2.2, 2.3, 3.6]
-    pos_data = {1};
+    pos_data      = {1};
     pp["pos_ids"] = migraphx::argument(pos_shape, pos_data.data());
 
     result = p.eval(pp).back();

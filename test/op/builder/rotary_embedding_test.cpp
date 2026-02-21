@@ -87,7 +87,7 @@ TEST_CASE(rotary_embedding_non_interleaved_structure_test)
 
     auto mul_cos = add_common_op(expected, migraphx::make_op("mul"), {e_input, e_cos});
     auto mul_sin = add_common_op(expected, migraphx::make_op("mul"), {signs, e_sin});
-    mul_sin      = add_common_op(expected, migraphx::make_op("mul"), {mul_sin, rotated});
+    mul_sin      = add_common_op(expected, migraphx::make_op("mul"), {rotated, mul_sin});
     add_common_op(expected, migraphx::make_op("add"), {mul_cos, mul_sin});
 
     EXPECT(mm == expected);
@@ -133,7 +133,7 @@ TEST_CASE(rotary_embedding_interleaved_structure_test)
 
     auto mul_cos = add_common_op(expected, migraphx::make_op("mul"), {e_input, e_cos});
     auto mul_sin = add_common_op(expected, migraphx::make_op("mul"), {signs, e_sin});
-    mul_sin      = add_common_op(expected, migraphx::make_op("mul"), {mul_sin, rotated});
+    mul_sin      = add_common_op(expected, migraphx::make_op("mul"), {rotated, mul_sin});
     add_common_op(expected, migraphx::make_op("add"), {mul_cos, mul_sin});
 
     EXPECT(mm == expected);

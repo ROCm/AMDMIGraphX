@@ -193,7 +193,7 @@ struct rotary_embedding : op_builder<rotary_embedding>
 
         auto mul_cos = insert_common_op(m, ins, make_op("mul"), {in, cos});
         auto mul_sin = insert_common_op(m, ins, make_op("mul"), {signs, sin});
-        mul_sin      = insert_common_op(m, ins, make_op("mul"), {mul_sin, rotated});
+        mul_sin      = insert_common_op(m, ins, make_op("mul"), {rotated, mul_sin});
         return {insert_common_op(m, ins, make_op("add"), {mul_cos, mul_sin})};
     }
 };

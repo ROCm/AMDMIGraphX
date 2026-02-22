@@ -34,70 +34,8 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-struct parallel_reduce
-{
-    operation op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.op, "op"));
-    }
-
-    std::string name() const { return "gpu::parallel_reduce"; }
-
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        std::vector<shape> result;
-        std::transform(inputs.begin(), inputs.end(), std::back_inserter(result), [&](auto input) {
-            return op.compute_shape({input});
-        });
-        return shape{result};
-    }
-};
 MIGRAPHX_REGISTER_OP(parallel_reduce);
-
-struct arg_reduce
-{
-    operation op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.op, "op"));
-    }
-
-    std::string name() const { return "gpu::arg_reduce"; }
-
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        // inputs: [values, indices (lazy)]
-        // output: tuple of (reduced_value_shape, reduced_index_shape)
-        auto index_shape = op.compute_shape({inputs.front()});
-        auto value_shape = index_shape.with_type(inputs.front().type());
-        return shape{{value_shape, index_shape}};
-    }
-};
 MIGRAPHX_REGISTER_OP(arg_reduce);
-
-struct make_indices
-{
-    std::size_t size = 0;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.size, "size"));
-    }
-
-    std::string name() const { return "gpu::make_indices"; }
-
-    // This op produces a lazy index tensor,shape matches the reduction dimension
-    shape compute_shape(const std::vector<shape>&) const
-    {
-        return shape{shape::uint32_type, {size}};
-    }
-};
 MIGRAPHX_REGISTER_OP(make_indices);
 
 namespace {

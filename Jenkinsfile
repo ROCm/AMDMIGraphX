@@ -400,7 +400,7 @@ pipeline {
                                     apt install half
                                     #ls -lR
                                     md5sum ./build/*.deb
-                                    dpkg -i ./build/*.deb
+                                    apt install ./build/*.deb
                                     env
                                     cd /onnxruntime && ./build_and_test_onnxrt.sh
                                 '''

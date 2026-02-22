@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,7 +26,11 @@
 #define MIGRAPHX_GUARD_GPU_PREPARE_REDUCE_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/gpu/export.h>
+#include <migraphx/operation.hpp>
+#include <migraphx/shape.hpp>
 #include <string>
+#include <algorithm>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -35,7 +39,67 @@ struct module;
 
 namespace gpu {
 
-struct prepare_reduce
+struct parallel_reduce
+{
+    operation op;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.op, "op"));
+    }
+
+    std::string name() const { return "gpu::parallel_reduce"; }
+
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        std::vector<shape> result;
+        std::transform(inputs.begin(), inputs.end(), std::back_inserter(result), [&](auto input) {
+            return op.compute_shape({input});
+        });
+        return shape{result};
+    }
+};
+
+struct arg_reduce
+{
+    operation op;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.op, "op"));
+    }
+
+    std::string name() const { return "gpu::arg_reduce"; }
+
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        auto index_shape = op.compute_shape({inputs.front()});
+        auto value_shape = index_shape.with_type(inputs.front().type());
+        return shape{{value_shape, index_shape}};
+    }
+};
+
+struct make_indices
+{
+    std::size_t size = 0;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.size, "size"));
+    }
+
+    std::string name() const { return "gpu::make_indices"; }
+
+    shape compute_shape(const std::vector<shape>&) const
+    {
+        return shape{shape::uint32_type, {size}};
+    }
+};
+
+struct MIGRAPHX_GPU_EXPORT prepare_reduce
 {
     std::string name() const { return "gpu::prepare_reduce"; }
     void apply(module& m) const;

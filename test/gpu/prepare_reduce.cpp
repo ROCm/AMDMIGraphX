@@ -42,9 +42,13 @@ static migraphx::instruction_ref add_arg_reduce(migraphx::module& m,
                                                 int axis)
 {
     auto reduce_axis_size = x->get_shape().lens().at(axis);
-    auto indices          = m.add_instruction(migraphx::gpu::make_indices{reduce_axis_size});
-    auto ar               = m.add_instruction(
-        migraphx::gpu::arg_reduce{migraphx::make_op(op_name, {{"axis", axis}})}, x, indices);
+    auto indices =
+        m.add_instruction(migraphx::make_op("gpu::make_indices", {{"size", reduce_axis_size}}));
+    auto ar = m.add_instruction(
+        migraphx::make_op("gpu::arg_reduce",
+                          {{"op", migraphx::to_value(migraphx::make_op(op_name, {{"axis", axis}}))}}),
+        x,
+        indices);
     return m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), ar);
 }
 
@@ -133,7 +137,11 @@ TEST_CASE(parallel_reduce_two_sum)
         auto x  = m2.add_parameter("x", s);
         auto y  = m2.add_parameter("y", s);
         auto pr = m2.add_instruction(
-            migraphx::gpu::parallel_reduce{migraphx::make_op("reduce_sum", {{"axes", {1}}})}, x, y);
+            migraphx::make_op(
+                "gpu::parallel_reduce",
+                {{"op", migraphx::to_value(migraphx::make_op("reduce_sum", {{"axes", {1}}}))}}),
+            x,
+            y);
         auto r1 = m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), pr);
         auto r2 = m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), pr);
         m2.add_return({r1, r2});

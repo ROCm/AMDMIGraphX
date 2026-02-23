@@ -95,6 +95,19 @@ TEST_CASE(make_op_invalid_key)
     EXPECT(test::throws([] { migraphx::make_op("convolution", {{"paddings", {1, 1}}}); }));
 }
 
+TEST_CASE(copy_nd_make_op_and_serialize)
+{
+    auto op = migraphx::make_op("copy_nd", {{"axis", 2}, {"deref", false}});
+    EXPECT(op.name() == "copy_nd");
+    auto v = migraphx::to_value(op);
+    // Operation serialization stores attributes under "operator"
+    auto op_val = v.at("operator");
+    EXPECT(op_val.at("axis").to<std::size_t>() == 2);
+    EXPECT(op_val.at("deref").to<bool>() == false);
+    auto op2 = migraphx::from_value<migraphx::operation>(v);
+    EXPECT(op == op2);
+}
+
 TEST_CASE(load_offset)
 {
     migraphx::shape s{migraphx::shape::float_type, {4}};

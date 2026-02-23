@@ -4905,6 +4905,58 @@ TEST_CASE(test_scatternd_dyn5)
     throws_shape(migraphx::make_op("scatternd_none"), ds, is, us);
 }
 
+TEST_CASE(test_copy_nd)
+{
+    // copy_nd(src, offsets, dest) -> dest shape; axis and optional deref
+    auto dtype  = migraphx::shape::float_type;
+    auto otype  = migraphx::shape::int64_type;
+    auto src    = migraphx::shape{dtype, {2, 3, 4}};   // axis 2 len 4
+    auto dest   = migraphx::shape{dtype, {2, 3, 10}};  // axis 2 len 10 >= 4
+    auto off1   = migraphx::shape{otype, {1}};         // single offset
+    auto off_multi = migraphx::shape{otype, {2, 3}};  // 2*3 = num_outer for axis 2
+
+    expect_shape(dest, migraphx::make_op("copy_nd", {{"axis", 2}}), src, off1, dest);
+    expect_shape(dest, migraphx::make_op("copy_nd", {{"axis", 2}}), src, off_multi, dest);
+
+    // axis 0
+    migraphx::shape src0{dtype, {2, 4}}, dest0{dtype, {5, 4}}, off0{otype, {1}};
+    expect_shape(dest0, migraphx::make_op("copy_nd", {{"axis", 0}}), src0, off0, dest0);
+
+    // axis 1
+    migraphx::shape src1{dtype, {2, 3, 4}}, dest1{dtype, {2, 8, 4}}, off1d{otype, {2}};
+    expect_shape(dest1, migraphx::make_op("copy_nd", {{"axis", 1}}), src1, off1d, dest1);
+
+    // Invalid: axis >= ndim
+    throws_shape(migraphx::make_op("copy_nd", {{"axis", 3}}), src, off1, dest);
+
+    // Invalid: dest axis dim < src axis dim
+    migraphx::shape dest_small{dtype, {2, 3, 2}};
+    throws_shape(migraphx::make_op("copy_nd", {{"axis", 2}}), src, off1, dest_small);
+
+    // Invalid: src and dest rank mismatch
+    migraphx::shape src_2d{dtype, {2, 4}};
+    throws_shape(migraphx::make_op("copy_nd", {{"axis", 0}}), src_2d, off1, dest);
+
+    // Invalid: src and dest dims mismatch (non-axis)
+    migraphx::shape dest_bad{dtype, {2, 5, 10}};  // dim 1 differs
+    throws_shape(migraphx::make_op("copy_nd", {{"axis", 2}}), src, off1, dest_bad);
+
+    // Invalid: wrong number of offsets (not 1 and not num_outer)
+    migraphx::shape off_bad{otype, {5}};  // 5 != 1 and 5 != 2*3
+    throws_shape(migraphx::make_op("copy_nd", {{"axis", 2}}), src, off_bad, dest);
+
+    // Invalid: deref true but dest not unsigned int
+    throws_shape(migraphx::make_op("copy_nd", {{"axis", 2}, {"deref", true}}), src, off1, dest);
+
+    // Valid: deref true with uint dest (shape only)
+    migraphx::shape dest_uint{migraphx::shape::uint64_type, {2, 3, 10}};
+    expect_shape(dest_uint,
+                 migraphx::make_op("copy_nd", {{"axis", 2}, {"deref", true}}),
+                 src,
+                 off1,
+                 dest_uint);
+}
+
 TEST_CASE(test_squeeze)
 {
     migraphx::shape s1{migraphx::shape::float_type, {4, 1, 3, 1, 3}};

@@ -194,6 +194,7 @@ register_migraphx_ops(
     concat
     concat_past_present
     contiguous
+    copy_nd
     convert
     convolution
     convolution_backwards

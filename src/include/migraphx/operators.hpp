@@ -45,6 +45,7 @@
 #include <migraphx/op/concat.hpp>
 #include <migraphx/op/concat_past_present.hpp>
 #include <migraphx/op/contiguous.hpp>
+#include <migraphx/op/copy_nd.hpp>
 #include <migraphx/op/convert.hpp>
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/convolution_backwards.hpp>

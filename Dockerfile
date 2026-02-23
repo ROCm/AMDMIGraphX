@@ -119,7 +119,6 @@ RUN pip3 install -r /doc-requirements.txt
 # Install latest ccache version
 RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake
 RUN cget -p $PREFIX install ccache@v4.1 -DENABLE_TESTING=OFF
-RUN cget -p /opt/cmake install kitware/cmake@v3.28.0
 # Install a newer version of doxygen because the one that comes with ubuntu is broken
 RUN cget -p $PREFIX install doxygen@Release_1_14_0
 

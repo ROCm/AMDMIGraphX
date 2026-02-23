@@ -45,8 +45,9 @@ static migraphx::instruction_ref add_arg_reduce(migraphx::module& m,
     auto indices =
         m.add_instruction(migraphx::make_op("gpu::make_indices", {{"size", reduce_axis_size}}));
     auto ar = m.add_instruction(
-        migraphx::make_op("gpu::arg_reduce",
-                          {{"op", migraphx::to_value(migraphx::make_op(op_name, {{"axis", axis}}))}}),
+        migraphx::make_op(
+            "gpu::arg_reduce",
+            {{"op", migraphx::to_value(migraphx::make_op(op_name, {{"axis", axis}}))}}),
         x,
         indices);
     return m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), ar);

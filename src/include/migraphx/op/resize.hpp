@@ -368,7 +368,7 @@ struct resize
                 else
                 {
                     // read the scale from args[1]
-                    std::copy(input.begin(), input.end(), std::back_inserter(vec_scale), );
+                    std::copy(input.begin(), input.end(), std::back_inserter(vec_scale));
                     // compute the output dimensions from the given scales.  This computation
                     // always rounds down, unlike the internal computation in Nearest mode
                     // which has several options as given in nearest_mode.

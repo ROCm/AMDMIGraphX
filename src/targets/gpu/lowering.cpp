@@ -124,7 +124,7 @@ struct miopen_apply
         add_select_module_op();
         add_reshape_lazy_op();
         add_concat_past_present_op();
-        add_copy_nd_op();
+        add_insert_slice_op();
         add_scan_slice_op();
     }
 
@@ -545,9 +545,9 @@ struct miopen_apply
         });
     }
 
-    void add_copy_nd_op()
+    void add_insert_slice_op()
     {
-        apply_map.emplace("copy_nd", [=](instruction_ref ins) {
+        apply_map.emplace("insert_slice", [=](instruction_ref ins) {
             return mod->replace_instruction(ins,
                                             make_op("gpu::precompile_op",
                                                     {{"op", to_value(ins->get_operator())},

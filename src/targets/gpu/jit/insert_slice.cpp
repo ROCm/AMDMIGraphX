@@ -10,12 +10,9 @@
  * copies of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
  *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
@@ -32,8 +29,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 // NOLINTNEXTLINE
-static const char* const copy_nd_kernel = R"__migraphx__(
-#include <migraphx/kernels/copy_nd.hpp>
+static const char* const insert_slice_kernel = R"__migraphx__(
+#include <migraphx/kernels/insert_slice.hpp>
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/generic_constant.hpp>
 #include <args.hpp>
@@ -42,10 +39,10 @@ namespace migraphx {
 
 extern "C" {
 
-MIGRAPHX_GLOBAL void copy_nd_kernel(void* src, void* offsets, void* dest)
+MIGRAPHX_GLOBAL void insert_slice_kernel(void* src, void* offsets, void* dest)
 {
     make_tensors()(src, offsets, dest)([&](auto&&... xs) {
-        copy_nd(xs..., MIGRAPHX_MAKE_CONSTANT(index_int{AXIS}));
+        insert_slice(xs..., MIGRAPHX_MAKE_CONSTANT(index_int{AXIS}));
     });
 }
 
@@ -54,26 +51,26 @@ MIGRAPHX_GLOBAL void copy_nd_kernel(void* src, void* offsets, void* dest)
 } // namespace migraphx
 )__migraphx__";
 
-struct copy_nd_compiler : compiler<copy_nd_compiler>
+struct insert_slice_compiler : compiler<insert_slice_compiler>
 {
-    std::vector<std::string> names() const { return {"copy_nd", "gpu::copy_nd"}; }
+    std::vector<std::string> names() const { return {"insert_slice", "gpu::insert_slice"}; }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         if(v.get("deref", false))
-            MIGRAPHX_THROW("copy_nd: deref=true is not implemented for GPU");
+            MIGRAPHX_THROW("insert_slice: deref=true is not implemented for GPU");
 
         hip_compile_options options;
         const auto& src_shape = inputs[0];
         options.set_launch_params(v, compute_global_for(ctx, src_shape.elements()));
         options.inputs      = inputs;
         options.output      = inputs.back();
-        options.kernel_name = "copy_nd_kernel";
+        options.kernel_name = "insert_slice_kernel";
 
         auto axis = v.at("axis").to<std::size_t>();
         options.emplace_param("-DAXIS=" + std::to_string(axis));
 
-        return compile_hip_code_object(ctx, copy_nd_kernel, options);
+        return compile_hip_code_object(ctx, insert_slice_kernel, options);
     }
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const

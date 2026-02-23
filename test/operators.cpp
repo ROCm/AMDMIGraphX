@@ -95,10 +95,10 @@ TEST_CASE(make_op_invalid_key)
     EXPECT(test::throws([] { migraphx::make_op("convolution", {{"paddings", {1, 1}}}); }));
 }
 
-TEST_CASE(copy_nd_make_op_and_serialize)
+TEST_CASE(insert_slice_make_op_and_serialize)
 {
-    auto op = migraphx::make_op("copy_nd", {{"axis", 2}, {"deref", false}});
-    EXPECT(op.name() == "copy_nd");
+    auto op = migraphx::make_op("insert_slice", {{"axis", 2}, {"deref", false}});
+    EXPECT(op.name() == "insert_slice");
     auto v = migraphx::to_value(op);
     // Operation serialization stores attributes under "operator"
     auto op_val = v.at("operator");

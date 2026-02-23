@@ -10,12 +10,9 @@
  * copies of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
  *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
@@ -28,7 +25,7 @@
 #include <migraphx/shape.hpp>
 
 template <migraphx::shape::type_t DType>
-struct test_copy_nd : verify_program<test_copy_nd<DType>>
+struct test_insert_slice : verify_program<test_insert_slice<DType>>
 {
     migraphx::program create_program() const
     {
@@ -45,18 +42,18 @@ struct test_copy_nd : verify_program<test_copy_nd<DType>>
         auto off  = mm->add_literal(migraphx::literal{off_shape, {2}});
         auto dest = mm->add_parameter("dest", dest_shape);
         auto r    = mm->add_instruction(
-            migraphx::make_op("copy_nd", {{"axis", 2}}), src, off, dest);
+            migraphx::make_op("insert_slice", {{"axis", 2}}), src, off, dest);
         mm->add_return({r});
 
         return p;
     }
 };
 
-template struct test_copy_nd<migraphx::shape::float_type>;
-template struct test_copy_nd<migraphx::shape::half_type>;
+template struct test_insert_slice<migraphx::shape::float_type>;
+template struct test_insert_slice<migraphx::shape::half_type>;
 
 template <migraphx::shape::type_t DType>
-struct test_copy_nd_multi_offset : verify_program<test_copy_nd_multi_offset<DType>>
+struct test_insert_slice_multi_offset : verify_program<test_insert_slice_multi_offset<DType>>
 {
     migraphx::program create_program() const
     {
@@ -73,12 +70,12 @@ struct test_copy_nd_multi_offset : verify_program<test_copy_nd_multi_offset<DTyp
         auto off  = mm->add_literal(migraphx::literal{off_shape, {0, 2, 1, 3}});
         auto dest = mm->add_parameter("dest", dest_shape);
         auto r    = mm->add_instruction(
-            migraphx::make_op("copy_nd", {{"axis", 2}}), src, off, dest);
+            migraphx::make_op("insert_slice", {{"axis", 2}}), src, off, dest);
         mm->add_return({r});
 
         return p;
     }
 };
 
-template struct test_copy_nd_multi_offset<migraphx::shape::float_type>;
-template struct test_copy_nd_multi_offset<migraphx::shape::half_type>;
+template struct test_insert_slice_multi_offset<migraphx::shape::float_type>;
+template struct test_insert_slice_multi_offset<migraphx::shape::half_type>;

@@ -10,12 +10,9 @@
  * copies of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
  *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
@@ -30,7 +27,7 @@
 
 #include <test.hpp>
 
-TEST_CASE(copy_nd_single_offset_axis_0)
+TEST_CASE(insert_slice_single_offset_axis_0)
 {
     // dest shape [6], src shape [2], offset 2 -> copy src into dest at indices 2,3
     migraphx::program p;
@@ -50,7 +47,7 @@ TEST_CASE(copy_nd_single_offset_axis_0)
     auto off  = mm->add_literal(migraphx::literal{off_shape, off_data});
     auto dest = mm->add_literal(migraphx::literal{dest_shape, dest_data});
     auto r    = mm->add_instruction(
-        migraphx::make_op("copy_nd", {{"axis", 0}}), src, off, dest);
+        migraphx::make_op("insert_slice", {{"axis", 0}}), src, off, dest);
     mm->add_return({r});
 
     p.compile(migraphx::make_target("ref"));
@@ -62,7 +59,7 @@ TEST_CASE(copy_nd_single_offset_axis_0)
     EXPECT(migraphx::verify::verify_rms_range(result_vec, gold));
 }
 
-TEST_CASE(copy_nd_single_offset_axis_1)
+TEST_CASE(insert_slice_single_offset_axis_1)
 {
     // dest [2, 8, 3], src [2, 2, 3], axis=1, offset=3 -> dest[:, 3:5, :] = src
     migraphx::program p;
@@ -82,7 +79,7 @@ TEST_CASE(copy_nd_single_offset_axis_1)
     auto off  = mm->add_literal(migraphx::literal{off_shape, off_data});
     auto dest = mm->add_literal(migraphx::literal{dest_shape, dest_data});
     auto r    = mm->add_instruction(
-        migraphx::make_op("copy_nd", {{"axis", 1}}), src, off, dest);
+        migraphx::make_op("insert_slice", {{"axis", 1}}), src, off, dest);
     mm->add_return({r});
 
     p.compile(migraphx::make_target("ref"));
@@ -101,7 +98,7 @@ TEST_CASE(copy_nd_single_offset_axis_1)
             }
 }
 
-TEST_CASE(copy_nd_multi_offset_axis_2)
+TEST_CASE(insert_slice_multi_offset_axis_2)
 {
     // dest [2, 2, 6], src [2, 2, 2], axis=2. Offsets [0, 2] per batch row -> row0 at 0:2, row1 at 2:4
     migraphx::program p;
@@ -121,7 +118,7 @@ TEST_CASE(copy_nd_multi_offset_axis_2)
     auto off  = mm->add_literal(migraphx::literal{off_shape, off_data});
     auto dest = mm->add_literal(migraphx::literal{dest_shape, dest_data});
     auto r    = mm->add_instruction(
-        migraphx::make_op("copy_nd", {{"axis", 2}}), src, off, dest);
+        migraphx::make_op("insert_slice", {{"axis", 2}}), src, off, dest);
     mm->add_return({r});
 
     p.compile(migraphx::make_target("ref"));
@@ -144,7 +141,7 @@ TEST_CASE(copy_nd_multi_offset_axis_2)
     EXPECT(result_vec[12 + 6 + 4] == 8.0f);
 }
 
-TEST_CASE(copy_nd_1d_single_offset)
+TEST_CASE(insert_slice_1d_single_offset)
 {
     // Simple 1D: dest length 5, src length 2, offset 1
     migraphx::program p;
@@ -164,7 +161,7 @@ TEST_CASE(copy_nd_1d_single_offset)
     auto off  = mm->add_literal(migraphx::literal{off_shape, off_data});
     auto dest = mm->add_literal(migraphx::literal{dest_shape, dest_data});
     auto r    = mm->add_instruction(
-        migraphx::make_op("copy_nd", {{"axis", 0}}), src, off, dest);
+        migraphx::make_op("insert_slice", {{"axis", 0}}), src, off, dest);
     mm->add_return({r});
 
     p.compile(migraphx::make_target("ref"));
@@ -176,7 +173,7 @@ TEST_CASE(copy_nd_1d_single_offset)
     EXPECT(migraphx::verify::verify_rms_range(result_vec, gold));
 }
 
-TEST_CASE(copy_nd_deref_cpu_throws)
+TEST_CASE(insert_slice_deref_cpu_throws)
 {
     // When deref=true, CPU compute should throw
     migraphx::program p;
@@ -197,7 +194,7 @@ TEST_CASE(copy_nd_deref_cpu_throws)
     auto off  = mm->add_literal(migraphx::literal{off_shape, off_data});
     auto dest = mm->add_literal(migraphx::literal{dest_shape, dest_data});
     auto r    = mm->add_instruction(
-        migraphx::make_op("copy_nd", {{"axis", 0}, {"deref", true}}), src, off, dest);
+        migraphx::make_op("insert_slice", {{"axis", 0}, {"deref", true}}), src, off, dest);
     mm->add_return({r});
 
     p.compile(migraphx::make_target("ref"));

@@ -21,8 +21,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_COPY_ND_HPP
-#define MIGRAPHX_GUARD_OPERATORS_COPY_ND_HPP
+#ifndef MIGRAPHX_GUARD_OPERATORS_INSERT_SLICE_HPP
+#define MIGRAPHX_GUARD_OPERATORS_INSERT_SLICE_HPP
 
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/shape_for_each.hpp>
@@ -36,27 +36,21 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
 /**
- * Copy a tensor (src) into another tensor (dest) at given offset(s) along one axis.
- * Can replace or complement patterns like concat_past_present with a generic
- * offset-based copy.
+ * Insert a tensor (src) into another tensor (dest) at given offset(s) along one axis.
  *
  * Inputs: src, offsets, dest (in that order).
  * - src: tensor to copy from.
- * - offsets: scalar or tensor of offsets along axis (one per "outer" slice;
- *   size = product of dest dims before axis).
+ * - offsets: scalar or tensor of offsets along axis (one per "outer" slice).
  * - dest: tensor to copy into; output shape = dest shape (in-place).
  *
  * Attributes:
  * - axis: dimension along which the offset is applied.
  * - deref: when true, dest must be unsigned integer type; the value of dest
- *   is dereferenced (interpreted as pointer/offset) and the write is performed
- *   there. When false, src is copied directly into dest at the given offsets.
+ *   is dereferenced and the write is performed there.
  *
  * Constraint: dest.lens()[axis] >= src.lens()[axis].
- * When deref is true, dest must have an unsigned integer type (uint8, uint16,
- * uint32, uint64).
  */
-struct copy_nd
+struct insert_slice
 {
     std::size_t axis = 0;
     bool deref       = false;
@@ -67,16 +61,16 @@ struct copy_nd
         return pack(f(self.axis, "axis"), f(self.deref, "deref"));
     }
 
-    std::string name() const { return "copy_nd"; }
+    std::string name() const { return "insert_slice"; }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(3);
 
-        const shape& src_shape    = inputs[0];
+        const shape& src_shape     = inputs[0];
         const shape& offsets_shape = inputs[1];
-        const shape& dest_shape   = inputs[2];
-        
+        const shape& dest_shape    = inputs[2];
+
         if(axis >= dest_shape.ndim())
             MIGRAPHX_THROW(name() + ": axis " + std::to_string(axis) +
                            " must be less than dest ndim " + std::to_string(dest_shape.ndim()));
@@ -91,7 +85,6 @@ struct copy_nd
                            std::to_string(dest_axis_len) + " < " + std::to_string(src_axis_len) +
                            ")");
 
-        // Check matching dimensions (except axis)
         for(std::size_t i = 0; i < dest_shape.ndim(); ++i)
         {
             if(i == axis)
@@ -109,7 +102,6 @@ struct copy_nd
                               ": when deref is true, dest must have unsigned integer type");
         }
 
-        // Offsets: either 1 element (scalar) or product of dest dims before axis
         std::size_t num_outer = 1;
         for(std::size_t i = 0; i < axis; ++i)
             num_outer *= dest_shape.lens()[i];
@@ -128,8 +120,6 @@ struct copy_nd
         argument dest = args[2];
         if(deref)
         {
-            // When deref is true, dest holds indices/pointers; writing through them
-            // is target-specific (e.g. GPU). CPU path not implemented for deref.
             MIGRAPHX_THROW(name() + ": deref=true is not implemented for CPU execution");
         }
 

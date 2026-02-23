@@ -144,8 +144,8 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         auto slk_s = slk->get_shape();
         auto zero_slk = info.add_literal(migraphx::literal{slk_s, std::vector<int>(slk_s.elements(), 0)});
         auto bc_slk = info.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, kv_num_heads}}}), sequence_length > 1 ? zero_slk : slk);
-        k = info.add_instruction(make_op("copy_nd", {{"axis", 2}}), rotary_k, bc_slk, k);
-        v = info.add_instruction(make_op("copy_nd", {{"axis", 2}}), rotary_v, bc_slk, v);
+        k = info.add_instruction(make_op("insert_slice", {{"axis", 2}}), rotary_k, bc_slk, k);
+        v = info.add_instruction(make_op("insert_slice", {{"axis", 2}}), rotary_v, bc_slk, v);
 
         auto k_out = k;
         auto v_out = v;

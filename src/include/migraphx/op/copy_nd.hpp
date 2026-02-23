@@ -76,7 +76,7 @@ struct copy_nd
         const shape& src_shape    = inputs[0];
         const shape& offsets_shape = inputs[1];
         const shape& dest_shape   = inputs[2];
-
+        
         if(axis >= dest_shape.ndim())
             MIGRAPHX_THROW(name() + ": axis " + std::to_string(axis) +
                            " must be less than dest ndim " + std::to_string(dest_shape.ndim()));

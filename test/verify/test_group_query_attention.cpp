@@ -110,12 +110,11 @@ static migraphx::program create_gqa_program(const size_t batch_size,
     std::vector<migraphx::instruction_ref> concat_k_inputs{rotary_k, slk, k};
     std::vector<migraphx::instruction_ref> concat_v_inputs{rotary_v, slk, v};
 
-    k = mm->add_instruction(
-        migraphx::make_op("concat_past_present", {{"kv_num_heads", kv_num_heads}}),
-        concat_k_inputs);
-    v = mm->add_instruction(
-        migraphx::make_op("concat_past_present", {{"kv_num_heads", kv_num_heads}}),
-        concat_v_inputs);
+    auto zero_slk = mm->add_literal(migraphx::literal{slk_s, std::vector<int>(slk_s.elements(), 0)});
+    auto bc_slk = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, kv_num_heads}}}), sequence_length > 1 ? zero_slk : slk);
+    
+    k = mm->add_instruction(migraphx::make_op("copy_nd", {{"axis", 2}}), rotary_k, bc_slk, k);
+    v = mm->add_instruction(migraphx::make_op("copy_nd", {{"axis", 2}}), rotary_v, bc_slk, v);
 
     auto k_out = k;
     auto v_out = v;

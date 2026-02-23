@@ -104,6 +104,7 @@ struct onnx_parser
     std::unordered_map<std::string, std::vector<shape::dynamic_dimension>> map_dyn_input_dims;
     bool use_dyn_output          = false;
     bool skip_unknown_operators  = false;
+    bool use_debug_symbols       = false;
     int64_t max_loop_iterations  = 10;
     int64_t limit_max_iterations = std::numeric_limits<uint16_t>::max();
     int64_t opset_version        = 13;

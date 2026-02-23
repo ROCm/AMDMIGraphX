@@ -53,20 +53,6 @@ using ins_dep_map   = std::unordered_map<instruction_ref, std::vector<instructio
 
 struct module_with_inputs;
 
-struct MIGRAPHX_EXPORT scoped_debug_symbols
-{
-    scoped_debug_symbols(module& m, std::set<std::string> symbols);
-    ~scoped_debug_symbols();
-    scoped_debug_symbols(const scoped_debug_symbols&)            = delete;
-    scoped_debug_symbols& operator=(const scoped_debug_symbols&) = delete;
-    scoped_debug_symbols(scoped_debug_symbols&& other) noexcept;
-    scoped_debug_symbols& operator=(scoped_debug_symbols&& other) noexcept;
-
-    private:
-    module* mod;
-    std::set<std::string> previous;
-};
-
 /**
  * @brief Stores the instruction stream
  */
@@ -78,7 +64,7 @@ struct MIGRAPHX_EXPORT module
                                                    const std::vector<instruction_ref>& inputs,
                                                    const std::vector<module_ref>& mod_args)>;
 
-    module(const std::string& name = "", bool use_debug_symbols = false);
+    module(const std::string& name = "");
 
     // move constructor
     module(module&&) noexcept;
@@ -96,8 +82,9 @@ struct MIGRAPHX_EXPORT module
     bool bypass() const;
     void set_bypass(bool b = true);
 
-    bool get_use_debug_symbols() const;
-    void set_use_debug_symbols(bool b = true);
+    bool has_debug_symbols() const;
+    void add_debug_symbols(instruction_ref ins, std::set<std::string> symbols);
+    void clear_debug_symbols(instruction_ref ins);
 
     template <class... Ts, MIGRAPHX_REQUIRES(std::is_same<Ts, instruction_ref>{}...)>
     instruction_ref add_instruction(operation op, Ts... args)

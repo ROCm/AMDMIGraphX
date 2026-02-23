@@ -63,7 +63,7 @@ struct module_impl
     bool bypass      = false; // used for skipping compiler passes
     bit_signal<64> changed{};
     bool use_debug_symbols = false;
-    std::set<std::string> active_debug_symbols;
+    std::size_t num_debug_symbols = 0;
 
     bool contains(instruction_ref ins) const
     {
@@ -132,46 +132,8 @@ struct module_impl
 
 const operation& get_operation(instruction_ref ins) { return ins->get_operator(); }
 
-scoped_debug_symbols::scoped_debug_symbols(module& m, std::set<std::string> symbols)
-    : mod(&m), previous(std::move(m.impl->active_debug_symbols))
-{ mod->impl->active_debug_symbols = std::move(symbols); }
-
-scoped_debug_symbols::~scoped_debug_symbols()
-{
-    if(mod != nullptr)
-        mod->impl->active_debug_symbols = std::move(previous);
-}
-
-scoped_debug_symbols::scoped_debug_symbols(scoped_debug_symbols&& other) noexcept
-    : mod(other.mod), previous(std::move(other.previous))
-{ other.mod = nullptr; }
-
-scoped_debug_symbols& scoped_debug_symbols::operator=(scoped_debug_symbols&& other) noexcept
-{
-    if(this != &other)
-    {
-        if(mod != nullptr)
-            mod->impl->active_debug_symbols = std::move(previous);
-        mod       = other.mod;
-        previous  = std::move(other.previous);
-        other.mod = nullptr;
-    }
-    return *this;
-}
-
-module::module(const std::string& name,
-               bool use_debug_symbols) :impl(std::make_unique<module_impl>())
-{
-    impl->name = name;
-    if(enabled(MIGRAPHX_ENABLE_DEBUG_SYMBOLS{}))
-    {
-        impl->use_debug_symbols = true;
-    }
-    else
-    {
-        impl->use_debug_symbols = use_debug_symbols;
-    }
-}
+module::module(const std::string& name) :impl(std::make_unique<module_impl>())
+{ impl->name = name; }
 
 module::module(module&&) noexcept = default;
 module::~module() noexcept        = default;
@@ -193,8 +155,7 @@ void module::set_name(const std::string& name) { impl->name = name; }
 bool module::bypass() const { return impl->bypass; }
 void module::set_bypass(bool b) { impl->bypass = b; }
 
-bool module::get_use_debug_symbols() const { return impl->use_debug_symbols; }
-void module::set_use_debug_symbols(bool b) { impl->use_debug_symbols = b; }
+bool module::has_debug_symbols() const { return impl->has_debug_symbols; }
 
 void module::assign(const module& m)
 {
@@ -343,8 +304,6 @@ instruction_ref module::insert_instruction(instruction_ref ins,
     auto result = impl->insert(ins, {op, r, std::move(args)});
     instruction::backreference(result);
     assert(result->valid(begin()));
-    if(not impl->active_debug_symbols.empty())
-        result->add_debug_symbols(impl->active_debug_symbols);
     return result;
 }
 
@@ -364,52 +323,54 @@ instruction_ref module::insert_instruction(instruction_ref ins,
     auto result    = impl->insert(ins, {op, out_shape, std::move(args), std::move(module_args)});
     instruction::backreference(result);
     assert(result->valid(begin()));
-    if(not impl->active_debug_symbols.empty())
-        result->add_debug_symbols(impl->active_debug_symbols);
     return result;
 }
 
 /**
- * old_ins : instruction that will be replaced
- * Traverse inputs of old_ins and gather debug_symbols of instructions that will become dead code.
- */
-std::set<std::string> gather_replace_debug_symbols(instruction_ref old_ins)
+ * Traverse inputs of `ins` and gather instructions that output only to `ins` (would become deadcode
+ * without `ins`).
+ **/
+static std::unordered_set<instruction_ref> gather_splice(module_ref m, instruction_ref ins)
 {
-    std::set<std::string> debug_symbols;
-    if(starts_with(old_ins->name(), "@"))
-        return debug_symbols;
-    const auto& old_ins_debug = old_ins->get_debug_symbols();
-    debug_symbols.insert(old_ins_debug.begin(), old_ins_debug.end());
-    for(auto input : old_ins->inputs())
-    {
-        // check if only output to old_ins
-        if(input->outputs().size() == 1 and input->outputs().at(0) == old_ins)
+    std::unordered_set<instruction_ref> result = {ins};
+    // TODO: add visited list
+    fix<void>([&](auto self, const std::vector<instruction_ref>& inputs) {
+        for(auto input : inputs)
         {
-            const auto& gdebug = gather_replace_debug_symbols(input);
-            debug_symbols.insert(gdebug.begin(), gdebug.end());
+            if(not m->has_instruction(input))
+                continue;
+            if(contains(result, input))
+                continue;
+            if(any_of(input->outputs(),
+                      [&](instruction_ref output) { return not contains(result, output); }))
+                continue;
+            result.insert(input);
+            self(input->inputs());
         }
-    }
-    return debug_symbols;
+    });
+    return result;
 }
 
-/**
- * Add gathered debug_symbols to rep_ins and traverse it's inputs to add the same debug_symbols
- * to instructions with empty debug_symbols.
- */
-void module::propagate_replace_debug_symbols(instruction_ref rep_ins,
-                                             const std::set<std::string>& debug_symbols)
+void propagate_debug_symbols(module_ref m,
+                             bool has_debug_symbols,
+                             instruction_ref ins,
+                             instruction_ref rep)
 {
-    if(starts_with(rep_ins->name(), "@"))
-        return;
-    if(debug_symbols.empty())
-        return;
-    rep_ins->add_debug_symbols(debug_symbols);
-    for(auto input : rep_ins->inputs())
+    if(has_debug_symbols)
     {
-        auto input_ds = input->get_debug_symbols();
-        if(input_ds.empty() or input_ds == impl->active_debug_symbols)
+        auto old_splice = gather_splice(m, ins);
+        auto new_splice = gather_splice(m, rep);
+        std::unordered_set<std::string> symbols;
+        for(auto i : old_splice)
         {
-            propagate_replace_debug_symbols(input, debug_symbols);
+            copy(ins->get_debug_symbols(), std::inserter(symbols, symbols.begin()));
+        }
+        for(auto i : new_splice)
+        {
+            for(const auto& symbol : symbols)
+            {
+                m->add_debug_symbol(i, symbol);
+            }
         }
     }
 }
@@ -423,16 +384,8 @@ instruction_ref module::replace_instruction(instruction_ref ins,
     assert(not starts_with(op.name(), "@"));
 
     shape r = compute_shape(op, args);
-    if(get_use_debug_symbols())
-    {
-        auto debug_symbols = gather_replace_debug_symbols(ins);
-        instruction::replace(ins, op, r, std::move(args));
-        propagate_replace_debug_symbols(ins, debug_symbols);
-    }
-    else
-    {
-        instruction::replace(ins, op, r, std::move(args));
-    }
+    propagate_debug_symbols(m, m.has_debug_symbols(), ins, rep);
+    instruction::replace(ins, op, r, std::move(args));
     assert(ins->valid(begin()));
     return ins;
 }
@@ -446,16 +399,8 @@ instruction_ref module::replace_instruction(instruction_ref ins,
     assert(has_instruction(ins));
     assert(not starts_with(op.name(), "@"));
     auto out_shape = compute_shape(op, args, module_args);
-    if(get_use_debug_symbols())
-    {
-        auto debug_symbols = gather_replace_debug_symbols(ins);
-        instruction::replace(ins, op, out_shape, std::move(args), std::move(module_args));
-        propagate_replace_debug_symbols(ins, debug_symbols);
-    }
-    else
-    {
-        instruction::replace(ins, op, out_shape, std::move(args), std::move(module_args));
-    }
+    propagate_debug_symbols(m, m.has_debug_symbols(), ins, rep);
+    instruction::replace(ins, op, out_shape, std::move(args), std::move(module_args));
     assert(ins->valid(begin()));
     return ins;
 }
@@ -479,9 +424,7 @@ instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref
         return rep;
     }
 
-    std::set<std::string> debug_symbols;
-    if(get_use_debug_symbols())
-        debug_symbols = gather_replace_debug_symbols(ins);
+    propagate_debug_symbols(m, m.has_debug_symbols(), ins, rep);
     // Make a copy of outputs which can be changed when calling replace_argument
     auto outputs = ins->outputs();
     for(auto out : outputs)
@@ -493,8 +436,6 @@ instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref
         }
         assert(out->valid(begin()));
     }
-    if(get_use_debug_symbols())
-        propagate_replace_debug_symbols(rep, debug_symbols);
 
     // Replacement should not be dead code unless its the last instruction
     assert(not rep->outputs().empty() or rep == std::prev(end()));
@@ -698,8 +639,6 @@ instruction_ref module::insert_literal(instruction_ref ins, literal l)
 {
     impl->emplace(ins, std::move(l));
     auto result = std::prev(ins);
-    if(not impl->active_debug_symbols.empty())
-        result->add_debug_symbols(impl->active_debug_symbols);
     return result;
 }
 

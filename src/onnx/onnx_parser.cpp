@@ -44,7 +44,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_ONNX_PARSER)
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_DEBUG_SYMBOLS)
 
 static shape shape_from_dyn_dims(shape::type_t shape_type,
                                  const std::vector<shape::dynamic_dimension>& dyn_dims)
@@ -310,9 +309,13 @@ int64_t onnx_parser::get_opset_version(const onnx::ModelProto& model)
     return version;
 }
 
-static void print_added_instructions(module* mod,
-                                     const std::vector<instruction_ref>& args,
-                                     const std::vector<instruction_ref>& result)
+/**
+ * Get the instructions added by the parser not in `args`.
+ * Does a DFS through inputs of result up to the instructions `args`.
+ */
+static std::vector<instruction_ref>
+get_added_instructions(const std::vector<instruction_ref>& args,
+                       const std::vector<instruction_ref>& result)
 {
     // Print instructions added by the parser not in args
     std::vector<instruction_ref> added_instructions;
@@ -327,7 +330,7 @@ static void print_added_instructions(module* mod,
             added_instructions.push_back(ins);
         }
     })(result);
-    mod->debug_print(added_instructions);
+    return added_instructions;
 }
 
 static bool is_type_packed_int4(const onnx::TensorProto& t)
@@ -583,6 +586,7 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
 
         std::vector<instruction_ref> result;
         std::size_t output_num = node.output().size();
+        std::string node_name  = node.op_type() + "_" + std::to_string(mod->size());
         if(ops.count(node.op_type()) == 0)
         {
             if(skip_unknown_operators)
@@ -592,18 +596,28 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
         }
         else
         {
-            std::string node_name = node.op_type() + "_" + std::to_string(mod->size());
-            node_info ninfo{get_attributes(node), output_num, node_name, mod};
-            if(mod->get_use_debug_symbols())
+            result = ops[node.op_type()](
+                *this, {get_attributes(node), output_num, node_name, mod}, args);
+        }
+        output_num = std::min<std::size_t>(output_num, result.size());
+        std::transform(node.output().begin(),
+                       node.output().begin() + output_num,
+                       result.begin(),
+                       std::inserter(instructions, instructions.end()),
+                       [](auto&& x, auto&& y) { return std::make_pair(x, y); });
+        auto added_instructions = get_added_instructions(args, result);
+        if(this->use_debug_symbols)
+        {
+            std::string debug_symbol =
+                node.name().empty() ? std::string("migx_uid:") + node_name : node.name();
+            for(auto ins : added_instructions)
             {
-                std::string debug_symbol = node.name().empty() ? std::string("migx_uid:") + node_name : node.name();
-                scoped_debug_symbols guard(*mod, {debug_symbol});
-                result = ops[node.op_type()](*this, ninfo, args);
+                mod->add_debug_symbol(ins, debug_symbol);
             }
-            else
-            {
-                result = ops[node.op_type()](*this, ninfo, args);
-            }
+        }
+        if(enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
+        {
+            mod->debug_print(added_instructions);
         }
 
         output_num = std::min<std::size_t>(output_num, result.size());
@@ -612,11 +626,6 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
                        result.begin(),
                        std::inserter(instructions, instructions.end()),
                        [](auto&& x, auto&& y) { return std::make_pair(x, y); });
-
-        if(enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
-        {
-            print_added_instructions(mod, args, result);
-        }
     }
 
     // Find instructions corresponding to the output

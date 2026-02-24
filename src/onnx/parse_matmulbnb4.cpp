@@ -153,11 +153,11 @@ private:
         // For BNB4, the input B is transposed, flattened and quantized blockwise
         // We need to unpack the 4-bit data first
         
-        // Unpack the 4-bit data
+        // Unpack the 4-bit data - this doubles the elements (4-bit to 8-bit)
         auto unpacked = info.add_instruction(make_op("unpack_int4"), b);
         
-        // Reshape to (k, n) since B was transposed before quantization
-        unpacked = info.add_instruction(make_op("reshape", {{"dims", {k, n}}}), unpacked);
+        // Reshape to (n, k) - the format after unpacking the transposed, flattened matrix
+        unpacked = info.add_instruction(make_op("reshape", {{"dims", {n, k}}}), unpacked);
         
         return unpacked;
     }
@@ -169,29 +169,26 @@ private:
                                             instruction_ref absmax) const
     {
         // absmax is a 1D tensor with (n * k + block_size - 1) / block_size elements
-        // Each element represents the scale for one block
+        // Need to expand it to match the (n, k) structure for blockwise scaling
         
-        // Expand absmax to apply blockwise scaling
         auto expanded_absmax = info.add_instruction(make_op("unsqueeze", {{"axes", {1}}}), absmax);
         
         auto bc_lens = expanded_absmax->get_shape().lens();
         bc_lens[1] = block_size;
         expanded_absmax = info.add_instruction(make_op("multibroadcast", {{"out_lens", bc_lens}}), expanded_absmax);
         
-        // Flatten to get scales for all elements
+        // Reshape to match total elements
         expanded_absmax = info.add_instruction(make_op("reshape", {{"dims", {n * k}}}), expanded_absmax);
         
-        // Handle runt block if n*k is not divisible by block_size
-        const size_t total_elements = n * k;
-        if(expanded_absmax->get_shape().lens()[0] > total_elements)
+        // Handle runt block by slicing to exact n*k elements
+        if(expanded_absmax->get_shape().lens()[0] > n * k)
         {
             expanded_absmax = info.add_instruction(
-                make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {total_elements}}}), expanded_absmax);
+                make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {n * k}}}), expanded_absmax);
         }
         
-        // Reshape to (n, k) then transpose to (k, n) to match unpacked B tensor
+        // Reshape to (n, k) to match the unpacked B tensor format
         expanded_absmax = info.add_instruction(make_op("reshape", {{"dims", {n, k}}}), expanded_absmax);
-        expanded_absmax = info.add_instruction(make_op("transpose", {{"permutation", {1, 0}}}), expanded_absmax);
         
         return expanded_absmax;
     }

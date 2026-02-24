@@ -239,7 +239,6 @@ private:
         
         if(a_rank == 1)
         {
-            is_a_prepended = true;
             a = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), a);
         }
         

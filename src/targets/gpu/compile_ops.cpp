@@ -115,14 +115,13 @@ struct compile_plan
                          bool cache_solution = false)
     {
         compiles.emplace_back([=] {
-            for(const auto& solution : solutions)
-            {
+            std::any_of(solutions.begin(), solutions.end(), [&](const auto& solution) {
                 try
                 {
                     results[i] = compiled_result{compile(*ctx, ins, preop, solution), ins};
                     if(cache_solution)
                         cached_solution = solution;
-                    return;
+                    return true;
                 }
                 catch(const std::exception& e)
                 {
@@ -130,12 +129,14 @@ struct compile_plan
                     if(trace_level > 0)
                         std::cerr << "Exception in " + preop.name() + ": " + e.what() << std::endl;
                     results[i] = nullopt;
+                    return false;
                 }
                 catch(...)
                 {
                     results[i] = nullopt;
+                    return false;
                 }
-            }
+            });
         });
     }
 

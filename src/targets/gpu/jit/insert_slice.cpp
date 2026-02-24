@@ -42,7 +42,7 @@ extern "C" {
 MIGRAPHX_GLOBAL void insert_slice_kernel(void* src, void* offsets, void* dest)
 {
     make_tensors()(src, offsets, dest)([&](auto&&... xs) {
-        insert_slice(xs..., MIGRAPHX_MAKE_CONSTANT(index_int{AXIS}));
+        insert_slice<DEREF>(xs..., MIGRAPHX_MAKE_CONSTANT(index_int{AXIS}));
     });
 }
 
@@ -67,9 +67,10 @@ struct insert_slice_compiler : compiler<insert_slice_compiler>
         options.output      = inputs.back();
         options.kernel_name = "insert_slice_kernel";
 
+        std::string deref = v.get("deref", false) ? "true" : "false";
         auto axis = v.at("axis").to<std::size_t>();
         options.emplace_param("-DAXIS=" + std::to_string(axis));
-
+        options.emplace_param("-DDEREF=" + deref);
         return compile_hip_code_object(ctx, insert_slice_kernel, options);
     }
 

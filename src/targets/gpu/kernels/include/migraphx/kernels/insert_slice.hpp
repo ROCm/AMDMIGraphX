@@ -27,7 +27,7 @@
 
 namespace migraphx {
 
-template <class Src, class Offsets, class Dest>
+template <bool Deref,class Src, class Offsets, class Dest>
 __device__ void insert_slice(Src src_t, Offsets offsets_t, Dest dest_t, index_int axis)
 {
     auto ind       = make_index();
@@ -52,8 +52,15 @@ __device__ void insert_slice(Src src_t, Offsets offsets_t, Dest dest_t, index_in
 
         auto dest_multi  = src_multi;
         dest_multi[axis] = off + src_multi[axis];
-
-        dest_t[dest_multi] = src_t[idx];
+        if constexpr(Deref)
+        {
+            // dereference pointer stored in dest_t[dest_multi] and write src_t[idx] to the dereferenced pointer
+            *reinterpret_cast<typename Src::value_type*>(dest_t[dest_multi]) = src_t[idx];
+        }
+        else
+        {
+            dest_t[dest_multi] = src_t[idx];
+        }
     });
 }
 

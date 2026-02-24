@@ -9,6 +9,7 @@ Full documentation for MIGraphX is available at
 
 * Added a dedicated logger for MIGraphX.
 * [Linux] Use HSA API to query number of chiplets for architectures where this is applicable (ex. gfx90a).
+* Added Eigen third party headers for ref GEMMs (#4631). 
 
 ### Changed
 

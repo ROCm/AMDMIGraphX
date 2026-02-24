@@ -38,9 +38,7 @@ TEST_CASE(conv_transpose_auto_pad_same_upper_symmetric_test)
     // Symmetric padding: both dimensions get padding=1
     auto conv_transpose = mm->add_instruction(
         migraphx::make_op("convolution_backwards",
-                         {{"padding", {1, 1}},
-                          {"stride", {1, 1}},
-                          {"dilation", {1, 1}}}),
+                          {{"padding", {1, 1}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
         input,
         weight);
     mm->add_return({conv_transpose});
@@ -64,9 +62,7 @@ TEST_CASE(conv_transpose_auto_pad_same_upper_asymmetric_test)
     // Asymmetric padding handled by: padding set to 0, then slice to crop output
     auto conv_transpose = mm->add_instruction(
         migraphx::make_op("convolution_backwards",
-                         {{"padding", {0, 0}},
-                          {"stride", {1, 1}},
-                          {"dilation", {1, 1}}}),
+                          {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
         input,
         weight);
 
@@ -96,9 +92,7 @@ TEST_CASE(conv_transpose_auto_pad_same_lower_asymmetric_test)
     // Asymmetric padding handled by: padding set to 0, then slice
     auto conv_transpose = mm->add_instruction(
         migraphx::make_op("convolution_backwards",
-                         {{"padding", {0, 0}},
-                          {"stride", {1, 1}},
-                          {"dilation", {1, 1}}}),
+                          {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
         input,
         weight);
 
@@ -126,9 +120,7 @@ TEST_CASE(conv_transpose_auto_pad_valid_test)
     // No padding applied
     auto conv_transpose = mm->add_instruction(
         migraphx::make_op("convolution_backwards",
-                         {{"padding", {0, 0}},
-                          {"stride", {1, 1}},
-                          {"dilation", {1, 1}}}),
+                          {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
         input,
         weight);
     mm->add_return({conv_transpose});
@@ -151,9 +143,7 @@ TEST_CASE(conv_transpose_auto_pad_same_upper_stride_test)
     // With stride=2, auto_pad calculation differs
     auto conv_transpose = mm->add_instruction(
         migraphx::make_op("convolution_backwards",
-                         {{"padding", {1, 1}},
-                          {"stride", {2, 2}},
-                          {"dilation", {1, 1}}}),
+                          {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
         input,
         weight);
     mm->add_return({conv_transpose});

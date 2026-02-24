@@ -44,6 +44,7 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_COMPILE_PARALLEL);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_BENCHMARKING);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SKIP_BENCHMARKING);
 
 struct precompile_op
 {
@@ -102,28 +103,37 @@ struct compile_plan
     module_ref mod;
     optional<tuning_config> config                 = nullopt;
     std::vector<optional<compiled_result>> results = {};
+    optional<value> cached_solution                = nullopt;
     void update_config(bool exhaustive)
     {
         config = get_tuning_config(*ctx, ins, preop, exhaustive);
     }
     template <class Vector>
-    void insert_compiles(Vector& compiles, const value& solution, std::size_t i)
+    void insert_compiles(
+        Vector& compiles, std::vector<value> solutions, std::size_t i, bool cache_solution = false)
     {
         compiles.emplace_back([=] {
-            try
+            for(const auto& solution : solutions)
             {
-                results[i] = compiled_result{compile(*ctx, ins, preop, solution), ins};
-            }
-            catch(const std::exception& e)
-            {
-                const auto trace_level = value_of(MIGRAPHX_TRACE_BENCHMARKING{});
-                if(trace_level > 0)
-                    std::cerr << "Exception in " + preop.name() + ": " + e.what() << std::endl;
-                results[i] = nullopt;
-            }
-            catch(...)
-            {
-                results[i] = nullopt;
+                try
+                {
+                    results[i] = compiled_result{compile(*ctx, ins, preop, solution), ins};
+                    if(cache_solution)
+                        cached_solution = solution;
+                    return;
+                }
+                catch(const std::exception& e)
+                {
+                    const auto trace_level = value_of(MIGRAPHX_TRACE_BENCHMARKING{});
+                    if(trace_level > 0)
+                        std::cerr << "Exception in " + preop.name() + ": " + e.what()
+                                  << std::endl;
+                    results[i] = nullopt;
+                }
+                catch(...)
+                {
+                    results[i] = nullopt;
+                }
             }
         });
     }
@@ -141,27 +151,34 @@ struct compile_plan
                 if(solution.is_null())
                     return;
                 results.resize(1);
-                insert_compiles(compiles, solution, 0);
+                insert_compiles(compiles, {solution}, 0);
             }
             else
             {
-                ctx->get_problem_cache().mark(preop.name(), problem);
                 const auto& solutions = config->solutions;
                 if(solutions.empty())
                     MIGRAPHX_THROW("No solutions provided for " + preop.name() + " with " +
                                    problem_string() + "\n\n" + print_modules());
-                results.resize(solutions.size());
-                for(auto i : range(solutions.size()))
+                ctx->get_problem_cache().mark(preop.name(), problem);
+                if(enabled(MIGRAPHX_SKIP_BENCHMARKING{}))
                 {
-                    auto solution = solutions[i];
-                    insert_compiles(compiles, solution, i);
+                    results.resize(1);
+                    insert_compiles(compiles, solutions, 0, true);
+                }
+                else
+                {
+                    results.resize(solutions.size());
+                    for(auto i : range(solutions.size()))
+                    {
+                        insert_compiles(compiles, {solutions[i]}, i);
+                    }
                 }
             }
         }
         else
         {
             results.resize(1);
-            insert_compiles(compiles, value{}, 0);
+            insert_compiles(compiles, {value{}}, 0);
         }
     }
     std::string problem_string() const
@@ -299,8 +316,23 @@ struct compile_plan
 
     void replace(module& m) const
     {
-        const auto& cr = benchmark();
-        cr.replace.replace(m, cr.ins);
+        if(enabled(MIGRAPHX_SKIP_BENCHMARKING{}))
+        {
+            assert(results.size() == 1);
+            if(not results.front().has_value())
+                MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
+                               problem_string() + "\n\n" + print_modules());
+            const auto& cr = *results.front();
+            cr.replace.replace(m, cr.ins);
+            if(config.has_value() and cached_solution.has_value())
+                ctx->get_problem_cache().insert(
+                    preop.name(), config->problem, *cached_solution);
+        }
+        else
+        {
+            const auto& cr = benchmark();
+            cr.replace.replace(m, cr.ins);
+        }
     }
 };
 

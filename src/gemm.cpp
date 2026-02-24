@@ -26,7 +26,6 @@
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/dfor.hpp>
 #include <migraphx/par_for.hpp>
-#include <migraphx/env.hpp>
 #include <iostream>
 #include <numeric>
 #include <vector>
@@ -38,13 +37,10 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_BLAZE_DEBUG)
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_BLAZE)
-
 namespace {
 
 template <class T, class U>
-void gemm_naive(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat)
+[[maybe_unused]] void gemm_naive(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat)
 {
     std::size_t n_dims = cmat.get_shape().ndim();
     std::size_t dim_0  = n_dims - 2;
@@ -158,12 +154,6 @@ void gemm_blaze(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat)
            is_mat_layout_supported(bmat.get_shape()) and
            is_mat_layout_supported(cmat.get_shape()))
         {
-            if(enabled(MIGRAPHX_BLAZE_DEBUG{}))
-            {
-                std::cerr << "[blaze gemm] " << m_size << "x" << k_size << "x" << n_size
-                          << " batches=" << num_batches << " (native)" << std::endl;
-            }
-
             for(std::size_t batch = 0; batch < num_batches; batch++)
             {
                 visit_mat(amat.data() + a_batch.index(batch), amat.get_shape(), [&](const auto& a) {
@@ -178,18 +168,14 @@ void gemm_blaze(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat)
     }
 
     // Copy path: convert to contiguous row-major float, run Blaze, copy back
-    auto a_row_stride = amat.get_shape().strides()[dim_0];
-    auto a_col_stride = amat.get_shape().strides()[dim_1];
-    auto b_row_stride = bmat.get_shape().strides()[dim_0];
-    auto b_col_stride = bmat.get_shape().strides()[dim_1];
-    auto c_row_stride = cmat.get_shape().strides()[dim_0];
-    auto c_col_stride = cmat.get_shape().strides()[dim_1];
+    const auto row_col_strides = [&](const auto& mat) {
+        const auto& strides = mat.get_shape().strides();
+        return std::pair{strides[dim_0], strides[dim_1]};
+    };
 
-    if(enabled(MIGRAPHX_BLAZE_DEBUG{}))
-    {
-        std::cerr << "[blaze gemm] " << m_size << "x" << k_size << "x" << n_size
-                  << " batches=" << num_batches << " (copy to float)" << std::endl;
-    }
+    const auto [a_row_stride, a_col_stride] = row_col_strides(amat);
+    const auto [b_row_stride, b_col_stride] = row_col_strides(bmat);
+    const auto [c_row_stride, c_col_stride] = row_col_strides(cmat);
 
     std::vector<float> a_buf(m_size * k_size);
     std::vector<float> b_buf(k_size * n_size);
@@ -218,7 +204,7 @@ void gemm_blaze(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat)
 #endif
 
 template <class Visitor>
-void dispatch_gemm(const argument& c_arg, const argument& a_arg, const argument& b_arg, Visitor v)
+void gemm_ref(const argument& c_arg, const argument& a_arg, const argument& b_arg, Visitor v)
 {
     if(c_arg.get_shape().type() == a_arg.get_shape().type())
     {
@@ -239,15 +225,12 @@ void dispatch_gemm(const argument& c_arg, const argument& a_arg, const argument&
 void gemm(const argument& c_arg, const argument& a_arg, const argument& b_arg)
 {
 #if MIGRAPHX_USE_BLAZE
-    if(not enabled(MIGRAPHX_DISABLE_BLAZE{}))
-    {
-        dispatch_gemm(c_arg, a_arg, b_arg,
-                      [](auto cmat, auto amat, auto bmat) { gemm_blaze(cmat, amat, bmat); });
-        return;
-    }
+    gemm_ref(c_arg, a_arg, b_arg,
+             [](auto cmat, auto amat, auto bmat) { gemm_blaze(cmat, amat, bmat); });
+#else
+    gemm_ref(c_arg, a_arg, b_arg,
+             [](auto cmat, auto amat, auto bmat) { gemm_naive(cmat, amat, bmat); });
 #endif
-    dispatch_gemm(c_arg, a_arg, b_arg,
-                  [](auto cmat, auto amat, auto bmat) { gemm_naive(cmat, amat, bmat); });
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -215,12 +215,21 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
     {
         if(args.size() > 4)
         {
-            const auto key_pad_lens     = args.at(4)->get_shape().lens();
+            auto key_pad_mask = args.at(4);
+            
+            // Skip validation if key_padding_mask is undefined or empty
+            if(key_pad_mask->name() == "undefined")
+                return;
+                
+            const auto key_pad_lens     = key_pad_mask->get_shape().lens();
             const auto key_pad_len_size = key_pad_lens.size();
-            const auto key_pad_type     = args.at(4)->get_shape().type();
+            const auto key_pad_type     = key_pad_mask->get_shape().type();
 
-            if(key_pad_type != shape::int32_type)
-                MIGRAPHX_THROW("MultiHeadAttention: Key padding mask must be a int32 tensor");
+            // Accept integer types (int32, int64) and boolean types for key padding mask
+            if(key_pad_type != shape::int32_type && 
+               key_pad_type != shape::int64_type && 
+               key_pad_type != shape::bool_type)
+                MIGRAPHX_THROW("MultiHeadAttention: Key padding mask must be int32, int64, or bool tensor");
 
             if(key_pad_len_size > 3 or key_pad_len_size < 1)
                 MIGRAPHX_THROW(

@@ -109,8 +109,10 @@ struct compile_plan
         config = get_tuning_config(*ctx, ins, preop, exhaustive);
     }
     template <class Vector>
-    void insert_compiles(
-        Vector& compiles, std::vector<value> solutions, std::size_t i, bool cache_solution = false)
+    void insert_compiles(Vector& compiles,
+                         std::vector<value> solutions,
+                         std::size_t i,
+                         bool cache_solution = false)
     {
         compiles.emplace_back([=] {
             for(const auto& solution : solutions)
@@ -126,8 +128,7 @@ struct compile_plan
                 {
                     const auto trace_level = value_of(MIGRAPHX_TRACE_BENCHMARKING{});
                     if(trace_level > 0)
-                        std::cerr << "Exception in " + preop.name() + ": " + e.what()
-                                  << std::endl;
+                        std::cerr << "Exception in " + preop.name() + ": " + e.what() << std::endl;
                     results[i] = nullopt;
                 }
                 catch(...)
@@ -325,8 +326,7 @@ struct compile_plan
             const auto& cr = *results.front();
             cr.replace.replace(m, cr.ins);
             if(config.has_value() and cached_solution.has_value())
-                ctx->get_problem_cache().insert(
-                    preop.name(), config->problem, *cached_solution);
+                ctx->get_problem_cache().insert(preop.name(), config->problem, *cached_solution);
         }
         else
         {

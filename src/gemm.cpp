@@ -26,11 +26,9 @@
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/dfor.hpp>
 #include <migraphx/par_for.hpp>
-#include <migraphx/env.hpp>
 #include <numeric>
 #include <vector>
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_EIGEN)
 
 #if MIGRAPHX_USE_EIGEN
 #include <Eigen/Core>
@@ -235,15 +233,12 @@ void gemm_ref(const argument& c_arg, const argument& a_arg, const argument& b_ar
 void gemm(const argument& c_arg, const argument& a_arg, const argument& b_arg)
 {
 #if MIGRAPHX_USE_EIGEN
-    if(not enabled(MIGRAPHX_DISABLE_EIGEN{}))
-    {
     gemm_ref(
         c_arg, a_arg, b_arg, [](auto cmat, auto amat, auto bmat) { gemm_eigen(cmat, amat, bmat); });
-    return;
-    }
-#endif
+#else
     gemm_ref(
         c_arg, a_arg, b_arg, [](auto cmat, auto amat, auto bmat) { gemm_naive(cmat, amat, bmat); });
+#endif
 
 }
 

@@ -1,0 +1,26 @@
+quantizelinear_mxfp4_odd_test:Ê
+P
+0
+1out"QuantizeLinear*
+axis *
+
+block_size  *
+output_dtype quantizelinear_mxfp4_odd_testZ
+0
+
+
+@
+
+Z
+1
+
+
+
+
+b
+out
+
+
+@
+
+B

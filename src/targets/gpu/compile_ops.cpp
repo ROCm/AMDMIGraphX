@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,7 +29,9 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/pass_manager.hpp>
+#include <migraphx/eliminate_identity.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/memory_coloring.hpp>
 #include <migraphx/op/identity.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
@@ -72,9 +74,9 @@ struct precompile_op
         return op.compute_shape(inputs, mods);
     }
 
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
     {
-        return shapes.size() - 1;
+        return {shapes.size() - 1};
     }
 };
 
@@ -183,7 +185,8 @@ struct compile_plan
                 submodules << to_string(*sm) << "\n";
             }
         }
-        return config->detailed_problem_info + "\n\nModule:\n" + current_module.str() +
+        return (config ? config->detailed_problem_info : "Problem: no config provided") +
+               "\n\nModule:\n" + current_module.str() +
                (not submodules.str().empty() ? "\n" + submodules.str() : "") + "Input Shapes:\n" +
                print_input_shapes();
     }
@@ -255,12 +258,22 @@ struct compile_plan
                                           });
                            auto bench_ins = bench_mm->add_instruction(
                                cr->ins->get_operator(), bench_ins_inputs, cr->ins->module_inputs());
+                           bench_mm->add_return({bench_ins});
                            cr->replace.replace(*bench_mm, bench_ins);
                            // do dead code elimination
-                           run_passes(*bench_mm, {dead_code_elimination{}});
-                           // by default, measure runtime with bundle of 1 benchmark config,
-                           // repeat 20 times
-                           auto t = time_program(*ctx, bench_prog, cr->replace.fill_map, 1, 20);
+                           run_passes(*bench_mm,
+                                      {
+                                          eliminate_identity{},
+                                          dead_code_elimination{},
+                                          memory_coloring{"hip::allocate"},
+                                      });
+                           if(trace_level > 2)
+                               std::cout << bench_prog << std::endl;
+                           auto t = time_program(*ctx,
+                                                 bench_prog,
+                                                 cr->replace.fill_map,
+                                                 /* bundle */ 10,
+                                                 /* nrun */ 20);
                            if(trace_level > 1)
                                std::cout << t << "ms" << std::endl;
                            return t;

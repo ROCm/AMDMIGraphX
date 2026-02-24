@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -71,12 +71,14 @@ struct gather
         {
             data = data.to_dynamic();
         }
+        const bool scalar_indices =
+            indices.ndim() == 1 and indices.scalar() and indices.elements() == 1;
         if(data.dynamic())
         {
             auto dims = data.dyn_dims();
             dims.erase(dims.begin() + axis);
 
-            if(not indices.scalar())
+            if(not scalar_indices)
             {
                 auto index_dims = indices.to_dynamic().dyn_dims();
                 dims.insert(dims.begin() + axis, index_dims.begin(), index_dims.end());
@@ -89,7 +91,7 @@ struct gather
             auto lens = data.lens();
             lens.erase(lens.begin() + axis);
 
-            if(not indices.scalar())
+            if(not scalar_indices)
             {
                 auto ind_lens = indices.lens();
                 lens.insert(lens.begin() + axis, ind_lens.begin(), ind_lens.end());
@@ -112,12 +114,21 @@ struct gather
         auto lens                 = args[0].get_shape().lens();
         std::size_t axis_dim_size = lens[axis];
         // max dimension in axis
+
+        auto check_index_range = [](auto in_index, auto axis_dim_size) {
+            if(in_index < 0 or in_index >= axis_dim_size)
+            {
+                MIGRAPHX_THROW("Gather: Out of bounds index detected");
+            }
+        };
+
         visit_all(result, args[0])([&](auto output, auto data) {
             args[1].visit([&](auto indices) {
                 if(dyn_out.computed_shape.scalar())
                 {
                     auto in_index = indices.front();
                     in_index      = (in_index < 0) ? in_index + axis_dim_size : in_index;
+                    check_index_range(in_index, axis_dim_size);
                     output[0]     = data[in_index];
                 }
                 else
@@ -132,6 +143,7 @@ struct gather
                         // don't go out of bounds: https://github.com/ROCm/AMDMIGraphX/issues/2838
                         assert(in_index >= 0 and in_index < axis_dim_size);
                         data_idx[axis]  = in_index;
+                        check_index_range(data_idx[axis], axis_dim_size);
                         output[out_idx] = data(data_idx.begin(), data_idx.end());
                     });
                 }

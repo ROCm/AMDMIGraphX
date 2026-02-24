@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -216,7 +216,7 @@ struct reshape_lazy
             // unsqueeze
             else // if(rdim < idim)
             {
-                auto start = rdims.begin() + i;
+                auto start = rdims.begin() + r;
                 auto it    = compute_end_dim(start, rdims.end(), idim);
                 if(it == start)
                     return nullopt;
@@ -316,7 +316,7 @@ struct reshape_lazy
         return args[0].reshape(dyn_out.computed_shape);
     }
 
-    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
+    std::vector<std::size_t> output_alias(const std::vector<shape>&) const { return {0}; }
 };
 
 } // namespace op

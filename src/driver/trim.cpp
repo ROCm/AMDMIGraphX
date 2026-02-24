@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -37,11 +37,11 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 static instruction_ref capture_arg(std::unordered_set<instruction_ref>& s, instruction_ref ins)
 {
-    auto alias = instruction::get_output_alias(ins, true);
-    if(alias != ins)
+    auto aliases = instruction::get_output_alias(ins, true);
+    if(aliases.size() == 1 and aliases.front() != ins)
     {
         s.insert(ins);
-        return capture_arg(s, alias);
+        return capture_arg(s, aliases.front());
     }
     if(contains({"reshape", "contiguous"}, ins->name()))
     {

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,8 +29,8 @@ TEST_CASE(undefined_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
     mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
-    auto l1 = mm->add_instruction(migraphx::make_op("undefined"));
-    auto l2 = mm->add_instruction(migraphx::make_op("identity"), l1);
+    mm->add_instruction(migraphx::make_op("undefined"));
+    auto l2 = mm->add_instruction(migraphx::make_op("undefined"));
     mm->add_return({l2});
 
     auto prog = read_onnx("undefined_test.onnx");

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -43,7 +43,10 @@ void adjust_allocation::apply(module& m) const
         if(ins->get_operator().is_context_free())
             continue;
 
-        auto alias_ins = instruction::get_output_alias(ins, true);
+        auto aliases = instruction::get_output_alias(ins, true);
+        if(aliases.size() != 1)
+            continue;
+        auto alias_ins = aliases.front();
         if(alias_ins->name() != model.name() and alias_ins->name() != "@param")
             continue;
         // shape allocated is different from actual shape

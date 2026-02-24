@@ -1,0 +1,31 @@
+	 mha_invalid_bias_dimensions_test:ë
+I
+q
+k
+v
+biasout"MultiHeadAttention*
+	num_heads :com.microsoft mha_invalid_bias_dimensions_testZ
+q
+
+
+
+Z
+k
+
+
+
+Z
+v
+
+
+
+Z
+bias
+
+
+b
+out
+
+
+
+B

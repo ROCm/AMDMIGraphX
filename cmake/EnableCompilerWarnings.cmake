@@ -95,8 +95,10 @@ else()
                 -Wno-float-conversion
                 -Wno-gnu-anonymous-struct
                 -Wno-gnu-zero-variadic-macro-arguments
+                -Wno-missing-noreturn
                 -Wno-missing-prototypes
                 -Wno-nested-anon-types
+                -Wno-nrvo
                 -Wno-option-ignored
                 -Wno-padded
                 -Wno-shorten-64-to-32

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,24 +23,47 @@
  */
 
 #include <unordered_map>
-#include <migraphx/ranges.hpp>
 #include <migraphx/op/builder/op_builder.hpp>
 #include <migraphx/op/builder/insert.hpp>
+#include <migraphx/register_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 namespace builder {
 
-static std::unordered_map<std::string, builder_func>& builder_map()
+// NOLINTNEXTLINE(modernize-return-braced-init-list)
+value get_default_options() { return value::object{}; }
+
+static std::unordered_map<std::string, op_builder_if>& builder_map()
 {
-    static std::unordered_map<std::string, builder_func> m; // NOLINT
+    static std::unordered_map<std::string, op_builder_if> m; // NOLINT
     return m;
 }
 
-void register_builder(const std::string& name, builder_func f)
+bool has_op_builder(const std::string& name) { return builder_map().count(name) == 1; }
+
+void register_builder(const std::string& name, op_builder_if opb_if)
 {
-    builder_map()[name] = std::move(f);
+    builder_map()[name] = std::move(opb_if);
+}
+
+value get_op_builder_value(const std::string& name)
+{
+    if(has_op_builder(name))
+        return builder_map().at(name).to_val_func();
+    else if(has_op(name))
+        return make_op(name).to_value();
+    MIGRAPHX_THROW("GET_OP_BUILDER_VALUE: OpBuilder not found: " + name);
+}
+
+static std::vector<instruction_ref> default_op_builder(module& m,
+                                                       const std::vector<instruction_ref>& args,
+                                                       const std::string& name,
+                                                       const value& options)
+{
+    const auto& op = make_op(name, options);
+    return {m.add_instruction(op, args)};
 }
 
 std::vector<instruction_ref> insert(const std::string& name,
@@ -49,7 +72,8 @@ std::vector<instruction_ref> insert(const std::string& name,
                                     const std::vector<instruction_ref>& args,
                                     const value& options)
 {
-    return at(builder_map(), name, "Builder not found: " + name)(m, ins, args, {}, options);
+    return has_op_builder(name) ? builder_map()[name].bld_func(m, ins, args, {}, options)
+                                : default_op_builder(m, args, name, options);
 }
 
 std::vector<instruction_ref> insert(const std::string& name,
@@ -59,8 +83,8 @@ std::vector<instruction_ref> insert(const std::string& name,
                                     const std::vector<module_ref>& module_args,
                                     const value& options)
 {
-    return at(builder_map(), name, "Builder not found: " + name)(
-        m, ins, args, module_args, options);
+    return has_op_builder(name) ? builder_map()[name].bld_func(m, ins, args, module_args, options)
+                                : default_op_builder(m, args, name, options);
 }
 
 std::vector<instruction_ref> add(const std::string& name,
@@ -68,7 +92,8 @@ std::vector<instruction_ref> add(const std::string& name,
                                  const std::vector<instruction_ref>& args,
                                  const value& options)
 {
-    return at(builder_map(), name, "Builder not found: " + name)(m, m.end(), args, {}, options);
+    return has_op_builder(name) ? builder_map()[name].bld_func(m, m.end(), args, {}, options)
+                                : default_op_builder(m, args, name, options);
 }
 
 std::vector<instruction_ref> add(const std::string& name,
@@ -77,8 +102,9 @@ std::vector<instruction_ref> add(const std::string& name,
                                  const std::vector<module_ref>& module_args,
                                  const value& options)
 {
-    return at(builder_map(), name, "Builder not found: " + name)(
-        m, m.end(), args, module_args, options);
+    return has_op_builder(name)
+               ? builder_map()[name].bld_func(m, m.end(), args, module_args, options)
+               : default_op_builder(m, args, name, options);
 }
 
 } // namespace builder

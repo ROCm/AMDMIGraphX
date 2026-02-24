@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,10 +30,16 @@
 #include <migraphx/par_for.hpp>
 #include <migraphx/fp4_casts.hpp>
 
+#include <sstream>
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
+/**
+ * Packs fastest dimension of tensor into fp4x2_type such that the
+ * output dimensions are [x_0, ..., x_pack/2, ...]
+ */
 struct pack_fp4
 {
     int64_t axis = -1;
@@ -58,19 +64,20 @@ struct pack_fp4
         check_shapes{inputs, *this}.same_dims().has(1);
         const auto& in_shape = inputs.front();
         auto new_lens        = in_shape.lens();
-        if(new_lens[axis] % 2 != 0)
+        if(new_lens.at(axis) % 2 != 0)
         {
-            MIGRAPHX_THROW("PACK_FP4: Can not pack axis that has odd lengths");
+            std::stringstream msg;
+            msg << "PACK_FP4: Can not pack along axis of odd length (" << new_lens.at(axis) << ")";
+            MIGRAPHX_THROW(msg.str());
         }
         new_lens[axis] /= 2;
-        return {migraphx::shape::fp4x2_type, new_lens};
+        return in_shape.with_lens(migraphx::shape::fp4x2_type, new_lens);
     }
 
     argument compute(const shape& output_shape, const std::vector<argument>& args) const
     {
         const auto& input = args.front();
-        auto in_shape = input.get_shape();
-
+        auto in_shape     = input.get_shape();
         argument result{output_shape};
         auto out = result.get<uint8_t>();
         input.visit([&](auto inp) {

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -296,6 +296,19 @@ TEST_CASE(empty_literal)
     auto count = std::distance(mm->begin(), mm->end());
     run_pass(p);
     EXPECT(std::distance(mm->begin(), mm->end()) == (count - 1));
+}
+
+TEST_CASE(zero_element_shape_eliminated)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape zero_elem_shape{migraphx::shape::float_type, {2, 0, 4}};
+    auto x = mm->add_parameter("x", zero_elem_shape);
+    auto y = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type, {2, 3, 4}});
+    mm->add_instruction(migraphx::make_op("neg"), x);
+    mm->add_return({y});
+    run_pass(p);
+    EXPECT(std::none_of(mm->begin(), mm->end(), [](auto&& ins) { return ins.name() == "neg"; }));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

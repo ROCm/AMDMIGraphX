@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -213,7 +213,7 @@ void transform(Range&& r, Iterator it, F f)
 template <class Range1, class Range2, class Iterator, class F>
 void transform(Range1&& r1, Range2&& r2, Iterator it, F f)
 {
-    std::transform(r1.begin(), r1.end(), r2.begin(), it, f);
+    std::transform(r1.begin(), r1.end(), r2.begin(), it, std::move(f));
 }
 
 template <class Range>
@@ -230,6 +230,18 @@ void replace(Range&& r, const T& old, const T& new_x)
 
 template <class R1, class R2, class... Predicate>
 bool equal(R1&& r1, R2&& r2, Predicate... pred)
+{
+    return std::equal(r1.begin(), r1.end(), r2.begin(), r2.end(), pred...);
+}
+
+template <class T, class R2, class... Predicate>
+bool equal(const std::initializer_list<T>& r1, R2&& r2, Predicate... pred)
+{
+    return std::equal(r1.begin(), r1.end(), r2.begin(), r2.end(), pred...);
+}
+
+template <class R1, class T, class... Predicate>
+bool equal(R1&& r1, const std::initializer_list<T>& r2, Predicate... pred)
 {
     return std::equal(r1.begin(), r1.end(), r2.begin(), r2.end(), pred...);
 }

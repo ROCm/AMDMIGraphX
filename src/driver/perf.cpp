@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -118,19 +118,23 @@ bool is_offload_copy_set(const program& p)
     {
         if(i.name() == "hip::copy_to_gpu")
         {
-            auto copy_arg = instruction::get_output_alias(i.inputs().front(), true);
-            param_ins.erase(copy_arg);
+            auto copy_args = instruction::get_output_alias(i.inputs().front(), true);
+            for(auto copy_arg : copy_args)
+                param_ins.erase(copy_arg);
         }
         else if(i.name() == "@return")
         {
             auto return_args = i.inputs();
-            for(const auto& j : return_args)
-            {
-                auto alias_ins = instruction::get_output_alias(j, true);
-                if((alias_ins->name() == "@param" and param_ins.erase(alias_ins) == 0) or
-                   (alias_ins->name() != "hip::copy_from_gpu"))
+            return std::all_of(return_args.begin(), return_args.end(), [&](const auto& j) {
+                auto aliases = instruction::get_output_alias(j, true);
+                return std::all_of(aliases.begin(), aliases.end(), [&](instruction_ref alias_ins) {
+                    if(alias_ins->name() == "hip::copy_from_gpu")
+                        return true;
+                    if(alias_ins->name() == "@param")
+                        return not contains(param_ins, alias_ins);
                     return false;
-            }
+                });
+            });
         }
     }
     return param_ins.empty();

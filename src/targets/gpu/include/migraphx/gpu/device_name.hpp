@@ -43,6 +43,8 @@ MIGRAPHX_GPU_EXPORT bool gfx_has_fp8ocp_intrinsics();
 
 MIGRAPHX_GPU_EXPORT bool gfx_has_bf16_intrinsics();
 
+MIGRAPHX_GPU_EXPORT bool gfx_has_mx_intrinsics();
+
 MIGRAPHX_GPU_EXPORT bool gfx_has_fp8fnuz_support();
 
 #if MIGRAPHX_USE_HIPBLASLT

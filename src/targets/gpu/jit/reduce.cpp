@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,7 +28,7 @@
 #include <migraphx/gpu/compile_gen.hpp>
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/algorithm.hpp>
-#include <migraphx/array.hpp>
+#include <migraphx/split_factor.hpp>
 #include <migraphx/bit.hpp>
 
 namespace migraphx {
@@ -151,8 +151,11 @@ static std::size_t compute_subwave_size(context& ctx, std::size_t n)
 /// {K}, then this will create a tensor of {K/N, N} where N is the number of
 /// split groups. To compute the number of split groups it finds the largest
 /// divisor that can divide K to make it less than min_size.
+/// The max_splits parameter limits the maximum number of split groups to prevent excessive
+/// splitting.
 static std::vector<shape> split_reduce(const std::vector<shape>& inputs,
-                                       std::size_t min_size = 1024)
+                                       std::size_t min_size   = 8192,
+                                       std::size_t max_splits = 16)
 {
     std::vector<shape> result;
     auto input_shape         = inputs.front();
@@ -172,18 +175,8 @@ static std::vector<shape> split_reduce(const std::vector<shape>& inputs,
 
     assert(faxis < reduce_shape.lens().size());
 
-    std::size_t n = 1;
-    auto r        = input_shape.lens()[faxis];
-    auto factors  = make_array(2, 3, 5, 7, 11);
-    while(r > min_size)
-    {
-        // NOLINTNEXTLINE(readability-qualified-auto)
-        auto it = std::find_if(factors.begin(), factors.end(), [&](auto d) { return r % d == 0; });
-        if(it == factors.end())
-            break;
-        r /= *it;
-        n *= *it;
-    }
+    std::size_t r = input_shape.lens()[faxis];
+    std::size_t n = split_dim(r, min_size, max_splits);
     assert(n != 1);
     std::transform(
         inputs.begin(), inputs.end(), std::back_inserter(result), [&](const shape& s) -> shape {

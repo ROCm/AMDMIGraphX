@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -2708,6 +2708,30 @@ TEST_CASE(pointwise_strict_type)
     EXPECT(test::throws([&] { mm->add_instruction(migraphx::make_op("pointwise"), {x}, {&pm}); }));
 }
 
+TEST_CASE(pointwise_broadcast_input)
+{
+    auto s1 = migraphx::shape::from_permutation(migraphx::shape::float_type, {2, 3}, {1, 0});
+    migraphx::shape s2{migraphx::shape::float_type, {2, 3}, {1, 0}};
+    migraphx::shape s3{migraphx::shape::float_type, {2, 3}, {0, 1}};
+    migraphx::shape is{migraphx::shape::float_type, {1}, {0}};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::module pm;
+    {
+        auto x   = pm.add_parameter("x", is);
+        auto y   = pm.add_parameter("y", is);
+        auto z   = pm.add_parameter("z", is);
+        auto mul = pm.add_instruction(migraphx::make_op("mul"), y, z);
+        auto add = pm.add_instruction(migraphx::make_op("add"), mul, x);
+        pm.add_return({add});
+    }
+    auto x  = mm->add_parameter("x", s1);
+    auto y  = mm->add_parameter("y", s2);
+    auto z  = mm->add_parameter("z", s3);
+    auto pw = mm->add_instruction(migraphx::make_op("pointwise"), {x, y, z}, {&pm});
+    EXPECT(pw->get_shape() == x->get_shape());
+}
+
 TEST_CASE(pooling_shape0)
 {
     migraphx::shape input{migraphx::shape::float_type, {4, 3, 3, 3}};
@@ -3639,6 +3663,47 @@ TEST_CASE(reshape_lazy_broadcast_squeeze_error)
     migraphx::shape input{migraphx::shape::float_type, {2, 16, 16, 1280}, {0, 0, 0, 1}};
     std::vector<int64_t> new_shape = {2, 16, 20480};
     throws_shape(migraphx::make_op("reshape_lazy", {{"dims", new_shape}}), input);
+}
+
+TEST_CASE(reshape_lazy_nonpacked_transpose)
+{
+    migraphx::shape input{migraphx::shape::float_type, {1, 3, 512, 512}, {786432, 1, 1536, 3}};
+    migraphx::shape output{
+        migraphx::shape::float_type, {1, 3, 256, 2, 256, 2}, {786432, 1, 3072, 1536, 6, 3}};
+    expect_shape(output, migraphx::make_op("reshape_lazy", {{"dims", output.lens()}}), input);
+}
+
+// Unsqueeze first dim, then equal for remaining two (r > i entering equal branch)
+TEST_CASE(reshape_lazy_nonpacked_unsqueeze_then_equal)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 16, 8}, {256, 16, 2}};
+    migraphx::shape output{migraphx::shape::float_type, {2, 2, 16, 8}, {512, 256, 16, 2}};
+    expect_shape(output, migraphx::make_op("reshape_lazy", {{"dims", output.lens()}}), input);
+}
+
+// Unsqueeze both dims of a 2D non-packed shape (r > i after first unsqueeze)
+TEST_CASE(reshape_lazy_nonpacked_unsqueeze_both)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 16}, {32, 2}};
+    migraphx::shape output{migraphx::shape::float_type, {2, 2, 4, 4}, {64, 32, 8, 2}};
+    expect_shape(output, migraphx::make_op("reshape_lazy", {{"dims", output.lens()}}), input);
+}
+
+// Squeeze first two dims, then unsqueeze last dim (i > r entering unsqueeze branch)
+TEST_CASE(reshape_lazy_nonpacked_squeeze_then_unsqueeze)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 3, 10}, {60, 20, 2}};
+    migraphx::shape output{migraphx::shape::float_type, {6, 2, 5}, {20, 10, 2}};
+    expect_shape(output, migraphx::make_op("reshape_lazy", {{"dims", output.lens()}}), input);
+}
+
+// Three consecutive unsqueezes on a non-packed shape (r diverges from i three times)
+TEST_CASE(reshape_lazy_nonpacked_three_unsqueezes)
+{
+    migraphx::shape input{migraphx::shape::float_type, {6, 4, 10}, {80, 20, 2}};
+    migraphx::shape output{
+        migraphx::shape::float_type, {2, 3, 2, 2, 2, 5}, {240, 80, 40, 20, 10, 2}};
+    expect_shape(output, migraphx::make_op("reshape_lazy", {{"dims", output.lens()}}), input);
 }
 
 TEST_CASE(reshape_lazy_dyn_shape)

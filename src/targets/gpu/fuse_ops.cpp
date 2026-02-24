@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -251,9 +251,9 @@ struct miopen_fusion
         return pack(f(self.ops, "ops"));
     }
 
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
     {
-        return shapes.size() - 1;
+        return {shapes.size() - 1};
     }
 
     value compile(context& ctx, const shape&, std::vector<shape> inputs)
@@ -383,9 +383,9 @@ struct miopen_conv_bias
     }
 
     shape get_workspace(context& ctx) { return fp.get_workspace(ctx); }
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
     {
-        return shapes.size() - 1;
+        return {shapes.size() - 1};
     }
 };
 MIGRAPHX_REGISTER_OP(miopen_conv_bias)
@@ -431,9 +431,9 @@ struct miopen_conv_bias_relu
     }
 
     shape get_workspace(context& ctx) { return fp.get_workspace(ctx); }
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
     {
-        return shapes.size() - 1;
+        return {shapes.size() - 1};
     }
 };
 MIGRAPHX_REGISTER_OP(miopen_conv_bias_relu)

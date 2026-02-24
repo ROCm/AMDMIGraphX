@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -45,6 +45,7 @@
 #include <migraphx/json.hpp>
 #include <migraphx/version.h>
 #include <migraphx/env.hpp>
+#include <migraphx/logger.hpp>
 
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_identity.hpp>
@@ -62,8 +63,12 @@
 
 #include <fstream>
 #include <iomanip>
+#include <optional>
 
 namespace {
+
+using dims_map = std::unordered_map<std::string, std::vector<std::size_t>>;
+
 std::vector<std::string>
 get_unrecognized_migraphx_envs(const char* envp[],
                                const std::map<std::string, std::string>& used_env)
@@ -91,6 +96,72 @@ std::string get_formatted_timestamp(std::chrono::time_point<std::chrono::system_
     ss << std::put_time(now_as_tm_date, "%Y-%m-%d %H:%M:%S");
     return ss.str();
 }
+
+struct logger_options
+{
+    std::string log_level;
+    std::vector<std::string> log_files;
+
+    void parse(migraphx::driver::argument_parser& ap)
+    {
+        ap(log_level,
+           {"--log-level"},
+           ap.help("Set log level (none/0, error/1, warn/2, info/3, debug/4, trace/5)"),
+           ap.validate([](auto&, auto&, auto& params) {
+               if(not params.empty())
+               {
+                   auto const& level_str = params.back();
+                   if(not parse_log_level_string(level_str))
+                   {
+                       throw std::runtime_error(
+                           "Invalid log level: " + level_str +
+                           ". Valid levels: none/0, error/1, warn/2, info/3, debug/4, trace/5");
+                   }
+               }
+           }));
+        ap(log_files,
+           {"--log-file"},
+           ap.help("Log to file(s) (--log-file file1.log file2.log ...)"),
+           ap.append(),
+           ap.nargs(2));
+        ap.post_action([this](auto&&) { this->apply(); });
+    }
+
+    void apply() const
+    {
+        if(not log_level.empty())
+        {
+            auto level = parse_log_level_string(log_level);
+            if(level)
+                migraphx::log::set_severity(*level);
+        }
+        for(const auto& log_file : log_files)
+        {
+            migraphx::log::add_file_logger(log_file);
+        }
+    }
+
+    private:
+    static std::optional<migraphx::log::severity>
+    parse_log_level_string(const std::string& level_str)
+    {
+        if(level_str == "trace" or level_str == "5")
+            return migraphx::log::severity::trace;
+        else if(level_str == "debug" or level_str == "4")
+            return migraphx::log::severity::debug;
+        else if(level_str == "info" or level_str == "3")
+            return migraphx::log::severity::info;
+        else if(level_str == "warn" or level_str == "2")
+            return migraphx::log::severity::warn;
+        else if(level_str == "error" or level_str == "1")
+            return migraphx::log::severity::error;
+        else if(level_str == "none" or level_str == "0")
+            return migraphx::log::severity::none;
+
+        return std::nullopt;
+    }
+};
+
 } // namespace
 
 namespace migraphx {
@@ -213,7 +284,7 @@ struct loader
 
     static auto parse_param_dims(const std::vector<std::string>& param_dims_info)
     {
-        std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
+        dims_map map_input_dims;
         std::string name = "";
         for(auto&& x : param_dims_info)
         {
@@ -502,16 +573,24 @@ struct program_params
         return map_load_args;
     }
 
-    auto generate(const program& p, const target& t, bool offload, unsigned batch)
+    auto generate(const program& p,
+                  const target& t,
+                  bool offload,
+                  unsigned batch,
+                  dims_map map_input_dims = {})
     {
         parameter_map m;
         auto param_shapes = p.get_parameter_shapes();
         std::unordered_map<std::string, shape> static_param_shapes;
-        std::transform(
-            param_shapes.cbegin(),
-            param_shapes.cend(),
-            std::inserter(static_param_shapes, static_param_shapes.end()),
-            [&](const auto& x) { return std::make_pair(x.first, x.second.to_static(batch)); });
+        for(auto&& param : param_shapes)
+        {
+            if(contains(map_input_dims, param.first))
+                static_param_shapes[param.first] = {param.second.type(),
+                                                    map_input_dims[param.first]};
+            else
+                static_param_shapes[param.first] = param.second.to_static(batch);
+        }
+
         for(auto&& s : fill0)
             m[s] = fill_argument(static_param_shapes.at(s), 0);
         for(auto&& s : fill1)
@@ -591,7 +670,8 @@ struct compiler
 
     auto params(const program& p)
     {
-        return parameters.generate(p, ct.get_target(), co.offload_copy, l.batch);
+        return parameters.generate(
+            p, ct.get_target(), co.offload_copy, l.batch, loader::parse_param_dims(l.param_dims));
     }
 
     auto host_params(const program& p)
@@ -718,7 +798,8 @@ struct verify : command<verify>
         ap(bisect, {"-b", "--bisect"}, ap.help("Bisect program and verify"), ap.set_value(true));
         ap(vo.ref_use_double,
            {"--ref-use-double"},
-           ap.help("Convert floating point values to double on ref"),
+           ap.help(
+               "Convert floating point values to double on ref. Also removes Q/DQ pairs on ref."),
            ap.set_value(true));
         ap(vo.compiled_model, {"--compiled-model", "-c"}, ap.help("Compiled model to use"));
     }
@@ -730,7 +811,8 @@ struct verify : command<verify>
         std::cout << p << std::endl;
 
         auto t = c.ct.get_target();
-        auto m = c.parameters.generate(p, t, true, c.l.batch);
+        auto m =
+            c.parameters.generate(p, t, true, c.l.batch, loader::parse_param_dims(c.l.param_dims));
 
         if(c.to_fp16)
         {
@@ -991,6 +1073,11 @@ using namespace migraphx::driver; // NOLINT
 int main(int argc, const char* argv[], const char* envp[])
 {
     std::vector<std::string> args(argv + 1, argv + argc);
+    // Save original args for display purposes before they get modified
+    const std::vector<std::string> original_args = args;
+
+    migraphx::driver::argument_parser ap;
+
     // no argument, print the help infomration by default
     if(args.empty())
     {
@@ -1014,15 +1101,16 @@ int main(int argc, const char* argv[], const char* envp[])
     if(m.count(cmd) > 0)
     {
         std::string driver_invocation =
-            std::string(argv[0]) + " " + migraphx::to_string_range(args, " ");
+            std::string(argv[0]) + " " + migraphx::to_string_range(original_args, " ");
         std::cout << "Running [ " << get_version() << " ]: " << driver_invocation << std::endl;
 
         // Print start timestamp
         auto start_time = std::chrono::system_clock::now();
         std::cout << "[" << get_formatted_timestamp(start_time) << "]" << std::endl;
 
-        m.at(cmd)(argv[0],
-                  {args.begin() + 1, args.end()}); // run driver command found in commands map
+        logger_options log_opts;
+        log_opts.parse(ap);
+        m.at(cmd)(ap, {args.begin() + 1, args.end()}); // run driver command found in commands map
 
         // Dump all the MIGraphX (consumed) Environment Variables:
         const auto mgx_env_map = migraphx::get_all_envs();
@@ -1045,7 +1133,7 @@ int main(int argc, const char* argv[], const char* envp[])
     }
     else
     {
-        run_command<main_command>(argv[0], args);
+        run_command<main_command>(ap, args);
     }
 
     return 0;

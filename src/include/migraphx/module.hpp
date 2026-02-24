@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -127,6 +127,8 @@ struct MIGRAPHX_EXPORT module
 
     instruction_ref move_instruction(instruction_ref src, instruction_ref dst);
     instruction_ref move_instructions(instruction_ref src, instruction_ref dst);
+
+    void move_output_instructions_after(instruction_ref src, instruction_ref dst);
 
     std::vector<instruction_ref>
     add_instructions(const std::vector<instruction_ref>& instructions,
@@ -339,6 +341,7 @@ struct MIGRAPHX_EXPORT module
     ins_dep_map calc_implicit_deps() const;
 
     void repeat_while_changes(std::size_t n, const std::function<void()>& f);
+    void hoist_external_inputs(instruction_ref start_ins, instruction_ref end_ins);
 
     MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const module& m);
     MIGRAPHX_EXPORT friend bool operator==(const module& x, const module& y);

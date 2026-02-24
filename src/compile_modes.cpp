@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,33 +21,38 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_COMPILE_OPTIONS_HPP
-#define MIGRAPHX_GUARD_RTGLIB_COMPILE_OPTIONS_HPP
-
-#include <migraphx/config.hpp>
-#include <migraphx/tracer.hpp>
 #include <migraphx/compile_modes.hpp>
+#include <cstdlib>
+#include <algorithm>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct compile_options
+compile_modes convert_to_compile_mode(uint8_t mode)
 {
-    /**
-     * Have MIGX allocate memory for parameters and add instructions
-     * to copy parameters and output to/from an offload device like a GPU.
-     */
-    bool offload_copy = false;
-
-    bool fast_math       = true;
-    bool exhaustive_tune = false;
-
-    compile_modes compile_mode = compile_modes::EAGER;
-
-    tracer trace{};
-};
+    // If mode is not in range 0-100, return BALANCED
+    if(mode > 100)
+        return compile_modes::BALANCED;
+    
+    // Define the enum values as integers for comparison
+    constexpr uint8_t eager_val    = static_cast<uint8_t>(compile_modes::EAGER);
+    constexpr uint8_t balanced_val = static_cast<uint8_t>(compile_modes::BALANCED);
+    constexpr uint8_t max_val      = static_cast<uint8_t>(compile_modes::MAX);
+    
+    // Calculate distances to each enum value
+    uint8_t dist_to_eager    = std::abs(mode - eager_val);
+    uint8_t dist_to_balanced = std::abs(mode - balanced_val);
+    uint8_t dist_to_max      = std::abs(mode - max_val);
+    // Find the minimum distance
+    uint8_t min_dist = std::min({dist_to_eager, dist_to_balanced, dist_to_max});
+    
+    // Return the enum value with minimum distance
+    if(min_dist == dist_to_eager)
+        return compile_modes::EAGER;
+    if(min_dist == dist_to_balanced)
+        return compile_modes::BALANCED;
+    return compile_modes::MAX;
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

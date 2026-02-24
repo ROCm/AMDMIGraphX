@@ -156,16 +156,16 @@ void module::set_bypass(bool b) { impl->bypass = b; }
 
 bool module::has_debug_symbols() const { return impl->num_debug_symbols; }
 
-void module::add_debug_symbols(instruction_ref ins, std::set<std::string> symbols)
+void module::add_debug_symbols(instruction_ref ins, std::unordered_set<std::string> symbols)
 {
     ins->add_debug_symbols(symbols);
     impl->num_debug_symbols++;
 }
 
-void module::rm_debug_symbols(instruction_ref)
+void module::rm_debug_symbols(instruction_ref ins)
 {
+    ins->rm_debug_symbols();
     impl->num_debug_symbols--;
-    ins->rm_debug_symbols(symbols);
 }
 
 void module::assign(const module& m)
@@ -362,26 +362,23 @@ static std::unordered_set<instruction_ref> gather_splice(module_ref m, instructi
     return result;
 }
 
-void propagate_debug_symbols(module_ref m,
-                             bool has_debug_symbols,
-                             instruction_ref ins,
-                             instruction_ref rep)
+static void propagate_debug_symbols(module_ref m,
+                                    bool has_debug_symbols,
+                                    instruction_ref ins,
+                                    instruction_ref rep)
 {
     if(has_debug_symbols)
     {
         auto old_splice = gather_splice(m, ins);
         auto new_splice = gather_splice(m, rep);
         std::unordered_set<std::string> symbols;
-        for(auto i : old_splice)
+        for(auto old_ins : old_splice)
         {
-            copy(ins->get_debug_symbols(), std::inserter(symbols, symbols.begin()));
+            copy(old_ins->get_debug_symbols(), std::inserter(symbols, symbols.begin()));
         }
-        for(auto i : new_splice)
+        for(auto new_ins : new_splice)
         {
-            for(const auto& symbol : symbols)
-            {
-                m->add_debug_symbol(i, symbol);
-            }
+            m->add_debug_symbols(new_ins, symbols);
         }
     }
 }
@@ -395,8 +392,26 @@ instruction_ref module::replace_instruction(instruction_ref ins,
     assert(not starts_with(op.name(), "@"));
 
     shape r = compute_shape(op, args);
-    propagate_debug_symbols(m, m.has_debug_symbols(), ins, rep);
+    std::unordered_set<instruction_ref> old_splice;
+    std::unordered_set<instruction_ref> new_splice;
+    if(has_debug_symbols())
+    {
+        old_splice = gather_splice(this, ins);
+    }
     instruction::replace(ins, op, r, std::move(args));
+    if(has_debug_symbols())
+    {
+        new_splice = gather_splice(this, ins);
+        std::unordered_set<std::string> symbols;
+        for(auto old_ins : old_splice)
+        {
+            copy(old_ins->get_debug_symbols(), std::inserter(symbols, symbols.begin()));
+        }
+        for(auto new_ins : new_splice)
+        {
+            this->add_debug_symbols(new_ins, symbols);
+        }
+    }
     assert(ins->valid(begin()));
     return ins;
 }
@@ -649,8 +664,7 @@ instruction_ref module::add_return(std::vector<instruction_ref> args)
 instruction_ref module::insert_literal(instruction_ref ins, literal l)
 {
     impl->emplace(ins, std::move(l));
-    auto result = std::prev(ins);
-    return result;
+    return std::prev(ins);
 }
 
 instruction_ref module::insert_parameter(instruction_ref ins, std::string name, shape s)

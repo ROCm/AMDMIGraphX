@@ -25,7 +25,6 @@
 #define MIGRAPHX_GUARD_MIGRAPHLIB_MODULE_HPP
 
 #include <list>
-#include <set>
 #include <unordered_set>
 #include <unordered_map>
 #include <migraphx/operation.hpp>
@@ -85,7 +84,7 @@ struct MIGRAPHX_EXPORT module
     /// Number of instructions with debug symbols
     bool has_debug_symbols() const;
     /// Merge given symbols with instruction's symbols
-    void add_debug_symbols(instruction_ref ins, std::set<std::string> symbols);
+    void add_debug_symbols(instruction_ref ins, std::unordered_set<std::string> symbols);
     /// Clear all debug symbols from instruction
     void rm_debug_symbols(instruction_ref ins);
 

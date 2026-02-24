@@ -190,9 +190,10 @@ const std::vector<module_ref>& instruction::module_inputs() const { return modul
 
 const std::vector<instruction_ref>& instruction::outputs() const { return output; }
 
-const std::set<std::string>& instruction::get_debug_symbols() const { return debug_symbols; }
+const std::unordered_set<std::string>& instruction::get_debug_symbols() const
+{ return debug_symbols; }
 
-void instruction::add_debug_symbols(const std::set<std::string>& symbols)
+void instruction::add_debug_symbols(const std::unordered_set<std::string>& symbols)
 { debug_symbols.insert(symbols.begin(), symbols.end()); }
 
 void instruction::rm_debug_symbols() { debug_symbols.clear(); }

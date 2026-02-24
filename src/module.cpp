@@ -62,8 +62,7 @@ struct module_impl
     uint32_t nparams = 0;
     bool bypass      = false; // used for skipping compiler passes
     bit_signal<64> changed{};
-    bool use_debug_symbols = false;
-    std::size_t num_debug_symbols = 0;
+    std::size_t num_debug_symbols = 0; // number of ins with debug symbols
 
     bool contains(instruction_ref ins) const
     {
@@ -155,7 +154,19 @@ void module::set_name(const std::string& name) { impl->name = name; }
 bool module::bypass() const { return impl->bypass; }
 void module::set_bypass(bool b) { impl->bypass = b; }
 
-bool module::has_debug_symbols() const { return impl->has_debug_symbols; }
+bool module::has_debug_symbols() const { return impl->num_debug_symbols; }
+
+void module::add_debug_symbols(instruction_ref ins, std::set<std::string> symbols)
+{
+    ins->add_debug_symbols(symbols);
+    impl->num_debug_symbols++;
+}
+
+void module::rm_debug_symbols(instruction_ref)
+{
+    impl->num_debug_symbols--;
+    ins->rm_debug_symbols(symbols);
+}
 
 void module::assign(const module& m)
 {

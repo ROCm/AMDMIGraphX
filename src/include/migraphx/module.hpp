@@ -82,9 +82,12 @@ struct MIGRAPHX_EXPORT module
     bool bypass() const;
     void set_bypass(bool b = true);
 
+    /// Number of instructions with debug symbols
     bool has_debug_symbols() const;
+    /// Merge given symbols with instruction's symbols
     void add_debug_symbols(instruction_ref ins, std::set<std::string> symbols);
-    void clear_debug_symbols(instruction_ref ins);
+    /// Clear all debug symbols from instruction
+    void rm_debug_symbols(instruction_ref ins);
 
     template <class... Ts, MIGRAPHX_REQUIRES(std::is_same<Ts, instruction_ref>{}...)>
     instruction_ref add_instruction(operation op, Ts... args)

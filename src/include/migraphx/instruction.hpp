@@ -98,7 +98,11 @@ struct MIGRAPHX_EXPORT instruction
 
     const std::set<std::string>& get_debug_symbols() const;
 
+    /// Avoid using directly because module will not track number of debug symbols
     void add_debug_symbols(const std::set<std::string>& symbols);
+
+    /// Avoid using directly because module will not track number of debug symbols
+    void rm_debug_symbols();
 
     MIGRAPHX_EXPORT friend bool operator==(const instruction& x, const instruction& y);
 

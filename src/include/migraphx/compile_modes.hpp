@@ -21,33 +21,25 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_COMPILE_OPTIONS_HPP
-#define MIGRAPHX_GUARD_RTGLIB_COMPILE_OPTIONS_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_COMPILE_MODES_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_COMPILE_MODES_HPP
 
 #include <migraphx/config.hpp>
-#include <migraphx/tracer.hpp>
-#include <migraphx/compile_modes.hpp>
+#include <cstdint>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct compile_options
+enum class compile_modes
 {
-    /**
-     * Have MIGX allocate memory for parameters and add instructions
-     * to copy parameters and output to/from an offload device like a GPU.
-     */
-    bool offload_copy = false;
-
-    bool fast_math       = true;
-    bool exhaustive_tune = false;
-
-    compile_modes compile_mode = compile_modes::EAGER;
-
-    tracer trace{};
+    EAGER    = 0,
+    BALANCED = 50,
+    MAX      = 100
 };
+
+MIGRAPHX_EXPORT compile_modes convert_to_compile_mode(uint8_t mode);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-#endif
+#endif // MIGRAPHX_GUARD_MIGRAPHX_COMPILE_MODES_HPP

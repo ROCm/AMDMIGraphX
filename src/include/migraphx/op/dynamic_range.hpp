@@ -39,13 +39,14 @@ namespace op {
 
 struct dynamic_range : op_name<dynamic_range>
 {
+    static constexpr std::size_t max_range_elements = 16 * 1024 * 1024;
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(3);
         check_shapes{inputs, *this}.has(3).same_type();
         const auto& type = inputs.at(0).type();
         // The output shape is 1D with unknown size if we don't evaluate.
-        return shape{type, {shape::dynamic_dimension{0, std::numeric_limits<std::size_t>::max()}}};
+        return shape{type, {shape::dynamic_dimension{0, max_range_elements}}};
     }
 
     argument compute(const dyn_output&, std::vector<argument> args) const

@@ -590,7 +590,7 @@ static auto track_visits(instruction_ref start, instruction_ref end, F f)
     }
     else
     {
-        auto instructions = range(start, end);
+        auto instructions = range(start, std::next(end));
         auto instruction_refs = iterator_for(instructions);
         std::unordered_set<instruction_ref> in_range(instruction_refs.begin(), instruction_refs.end());
         auto stop = [&](auto ins) {

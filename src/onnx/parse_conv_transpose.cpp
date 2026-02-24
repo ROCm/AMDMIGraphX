@@ -30,6 +30,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/pad_calc.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -107,11 +108,54 @@ struct parse_conv_transpose : op_parser<parse_conv_transpose>
                 kdims, values["dilation"].size(), "PARSE_CONV_TRANSPOSE: inconsistent dilations");
         }
 
-        // TODO: auto padding needs to be implemented for this parser and operator
+        // Handle auto_pad attribute
         if(contains(info.attributes, "auto_pad") and
            to_upper(info.attributes.at("auto_pad").s()) != "NOTSET")
         {
-            MIGRAPHX_THROW("PARSE_CONV_TRANSPOSE: auto padding not supported");
+            // Auto padding only supported for static shapes
+            if(l0->get_shape().dynamic())
+            {
+                MIGRAPHX_THROW(
+                    "PARSE_CONV_TRANSPOSE: auto padding not supported with dynamic shapes");
+            }
+
+            // Get input dimensions (excluding batch and channel)
+            auto in_lens = l0->get_shape().lens();
+            std::vector<std::size_t> in_kdims(in_lens.begin() + 2, in_lens.end());
+
+            // Get kernel dimensions (excluding output channels and input channels)
+            auto k_lens = args[1]->get_shape().lens();
+            std::vector<std::size_t> k_kdims(k_lens.begin() + 2, k_lens.end());
+
+            // Get strides and dilations from values
+            std::vector<std::size_t> strides   = values["stride"].to_vector<std::size_t>();
+            std::vector<std::size_t> dilations = values["dilation"].to_vector<std::size_t>();
+
+            // Calculate auto padding
+            calc_auto_padding(info.attributes.at("auto_pad").s(),
+                              strides,
+                              k_kdims,
+                              dilations,
+                              in_kdims,
+                              padding);
+
+            // Check for asymmetric padding
+            asym_padding = is_asym_padding(padding);
+
+            size_t pad_ndims = padding.size() / 2;
+            if(not asym_padding)
+            {
+                values["padding"].clear();
+                std::transform(padding.begin(),
+                               padding.begin() + pad_ndims,
+                               std::back_inserter(values["padding"]),
+                               [](auto pad_val) { return pad_val; });
+            }
+            else
+            {
+                // set padding to 0s, asym_padding handled by parser with slice
+                values["padding"] = std::vector<std::size_t>(pad_ndims, 0);
+            }
         }
 
         if(contains(info.attributes, "group"))

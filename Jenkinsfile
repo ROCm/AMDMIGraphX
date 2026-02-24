@@ -182,24 +182,6 @@ pipeline {
             }
         }
 
-        stage('Check ORT image') {
-            steps {
-                script {
-                    gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Check ORT image", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Checking ORT image', failureDescription: 'Failed to check ORT image', successDescription: 'ORT image check succeeded') {
-                        withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
-                            sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
-                            sh 'printenv'
-                            checkout scm
-                            def calculateOrtImageTagScript = """
-                                sha256sum tools/docker/ort.dockerfile test/onnx/.onnxrt-commit tools/build_and_test_onnxrt.sh tools/pai_test_launcher.sh tools/pai_provider_test_launcher.sh | sha256sum | cut -d " " -f 1
-                            """
-                            env.IMAGE_TAG_ORT = sh(script: "bash -c '${calculateOrtImageTagScript}'", returnStdout: true).trim()
-                            env.IMAGE_EXISTS_ORT = sh(script: "docker manifest inspect ${DOCKER_IMAGE_ORT}:${IMAGE_TAG_ORT}", returnStatus: true) == 0 ? 'true' : 'false'
-                        }
-                    }
-                }
-            }
-        }
 
         stage('Build image') {
             when {
@@ -227,31 +209,6 @@ pipeline {
             }
         }
 
-        stage('Build ORT image') {
-            when {
-                expression { env.IMAGE_EXISTS_ORT == 'false' || params.FORCE_DOCKER_IMAGE_BUILD }
-            }
-            steps {
-                script {
-                    gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Build ORT image", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Building ORT image', failureDescription: 'Failed to build ORT image', successDescription: 'ORT image build succeeded') {
-                        withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
-                            sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
-                            checkout scm
-                            def builtOrtImage
-
-                            try {
-                                sh "docker pull ${DOCKER_IMAGE_ORT}:latest"
-                                builtOrtImage = docker.build("${DOCKER_IMAGE_ORT}:${IMAGE_TAG_ORT}", "-f tools/docker/ort.dockerfile --cache-from ${DOCKER_IMAGE_ORT}:latest .")
-                            } catch(Exception ex) {
-                                builtOrtImage = docker.build("${DOCKER_IMAGE_ORT}:${IMAGE_TAG_ORT}", "-f tools/docker/ort.dockerfile --no-cache .")
-                            }
-                            builtOrtImage.push("${IMAGE_TAG_ORT}")
-                            builtOrtImage.push("latest")
-                        }
-                    }
-                }
-            }
-        }
 
         stage('Tests') {
             parallel {
@@ -381,6 +338,50 @@ pipeline {
                                 def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
                                 cmake_build(flags: "-DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang -DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_MLIR=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DGPU_TARGETS='${getgputargets()}'")
                             }
+                        }
+                    }
+                }
+            }
+        }
+        stage('Check ORT image') {
+            steps {
+                script {
+                    gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Check ORT image", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Checking ORT image', failureDescription: 'Failed to check ORT image', successDescription: 'ORT image check succeeded') {
+                        withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
+                            sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
+                            sh 'printenv'
+                            checkout scm
+                            def calculateOrtImageTagScript = """
+                                sha256sum tools/docker/ort.dockerfile test/onnx/.onnxrt-commit tools/build_and_test_onnxrt.sh tools/pai_test_launcher.sh tools/pai_provider_test_launcher.sh | sha256sum | cut -d " " -f 1
+                            """
+                            env.IMAGE_TAG_ORT = sh(script: "bash -c '${calculateOrtImageTagScript}'", returnStdout: true).trim()
+                            env.IMAGE_EXISTS_ORT = sh(script: "docker manifest inspect ${DOCKER_IMAGE_ORT}:${IMAGE_TAG_ORT}", returnStatus: true) == 0 ? 'true' : 'false'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Build ORT image') {
+            when {
+                expression { env.IMAGE_EXISTS_ORT == 'false' || params.FORCE_DOCKER_IMAGE_BUILD }
+            }
+            steps {
+                script {
+                    gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Build ORT image", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Building ORT image', failureDescription: 'Failed to build ORT image', successDescription: 'ORT image build succeeded') {
+                        withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
+                            sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
+                            checkout scm
+                            def builtOrtImage
+
+                            try {
+                                sh "docker pull ${DOCKER_IMAGE_ORT}:latest"
+                                builtOrtImage = docker.build("${DOCKER_IMAGE_ORT}:${IMAGE_TAG_ORT}", "-f tools/docker/ort.dockerfile --cache-from ${DOCKER_IMAGE_ORT}:latest .")
+                            } catch(Exception ex) {
+                                builtOrtImage = docker.build("${DOCKER_IMAGE_ORT}:${IMAGE_TAG_ORT}", "-f tools/docker/ort.dockerfile --no-cache .")
+                            }
+                            builtOrtImage.push("${IMAGE_TAG_ORT}")
+                            builtOrtImage.push("latest")
                         }
                     }
                 }

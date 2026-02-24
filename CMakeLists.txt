@@ -87,7 +87,7 @@ else()
 option(MIGRAPHX_USE_COMPOSABLEKERNEL "Enable MIGraphX to use composable kernel JIT library" ON)
 endif()
 
-option(MIGRAPHX_USE_EIGEN "Enable Eigen for optimized CPU GEMM" ON)
+option(MIGRAPHX_USE_EIGEN "Enable Eigen for optimized ref GEMM" ON)
 
 find_path(HALF_INCLUDE_DIR half.hpp PATH_SUFFIXES half)
 if (NOT HALF_INCLUDE_DIR)

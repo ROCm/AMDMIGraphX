@@ -76,37 +76,43 @@ struct parse_matmulbnb4 : op_parser<parse_matmulbnb4>
             MIGRAPHX_THROW("MatMulBnb4: requires exactly 3 inputs (A, B, absmax)");
         }
 
-        // Input A - standard input tensor
-        auto a = args[0];
-        
-        // Input B - 2D constant matrix (quantized with 4 bits, transposed, flattened, and quantized blockwise)
-        auto b = args[1];
-
-        // Input absmax - quantization scales/constants
-        auto absmax = args[2];
-
-        // Validate A and B compatibility
-        auto a_shape = a->get_shape();
-        auto b_shape = b->get_shape();
-        
-        // Check that the inner dimension of A matches K
-        if(a_shape.ndim() < 2)
+        // Validate Input A
+        if(args[0]->get_shape().ndim() < 2)
         {
             MIGRAPHX_THROW("MatMulBnb4: Input A must have at least 2 dimensions");
         }
         
-        auto a_inner_dim = a_shape.lens().back();
+        auto a_inner_dim = args[0]->get_shape().lens().back();
         if(a_inner_dim != k)
         {
             MIGRAPHX_THROW("MatMulBnb4: Input A inner dimension (" + std::to_string(a_inner_dim) + 
                            ") must match attribute K (" + std::to_string(k) + ")");
         }
 
+        // Validate Input B dimensions
+        std::vector<size_t> expected_b_lens{(n * k + 1) / 2};
+        if(args[1]->get_shape().lens() != expected_b_lens)
+        {
+            MIGRAPHX_THROW("MatMulBnb4: Input B does not match expected dims: " +
+                           to_string_range(expected_b_lens) +
+                           ". Actual dims: " + to_string_range(args[1]->get_shape().lens()));
+        }
+
+        // Validate Input absmax dimensions  
+        const size_t expected_absmax_elements = (n * k + block_size - 1) / block_size;
+        if(args[2]->get_shape().elements() != expected_absmax_elements)
+        {
+            MIGRAPHX_THROW("MatMulBnb4: Input absmax does not match expected dims: " +
+                           std::to_string(expected_absmax_elements) +
+                           ". Actual dims: " + to_string_range(args[2]->get_shape().lens()));
+        }
+
         // Dequantize input B using the provided absmax scales
-        auto dequantized_b = dequantize_b_bnb4(info, n, k, block_size, quant_type, b, absmax);
+        auto dequantized_b = dequantize_b_bnb4(info, n, k, block_size, quant_type, args);
+        dequantized_b = info.add_instruction(make_op("transpose", {{"permutation", {1, 0}}}), dequantized_b);
         
         // Perform the matrix multiplication
-        return matmul(info, a, dequantized_b);
+        return matmul(info, args[0], dequantized_b);
     }
 
 private:
@@ -127,16 +133,13 @@ private:
                                      size_t k,
                                      size_t block_size,
                                      int quant_type,
-                                     instruction_ref b,
-                                     instruction_ref absmax) const
-    {
-        const size_t n_blocks = (k + block_size - 1) / block_size;
-        
+                                     const std::vector<instruction_ref>& args) const
+    {        
         // Unpack the 4-bit quantized data
-        auto unpacked_b = unpack_bnb4_data(info, n, k, block_size, b);
+        auto unpacked_b = unpack_bnb4_data(info, n, k, args[1]);
         
         // Prepare absmax for blockwise dequantization
-        auto prepared_absmax = prepare_blockwise_absmax(info, n, k, block_size, absmax);
+        auto prepared_absmax = prepare_blockwise_absmax(info, n, k, block_size, args[2]);
         
         // Apply dequantization based on quantization type
         return apply_bnb4_dequantization(info, unpacked_b, prepared_absmax, quant_type);
@@ -145,16 +148,12 @@ private:
     instruction_ref unpack_bnb4_data(onnx_parser::node_info& info,
                                     size_t n,
                                     size_t k,
-                                    size_t block_size,
                                     instruction_ref b) const
-    {
-        const size_t n_blocks = (k + block_size - 1) / block_size;
-        
+    {     
         // For BNB4, the input B is transposed, flattened and quantized blockwise
         // We need to unpack the 4-bit data first
         
-        // Reshape to handle blocks - the exact shape depends on how the data is packed
-        // Assuming the input is in a flattened format, we need to unpack and reshape
+        // Unpack the 4-bit data
         auto unpacked = info.add_instruction(make_op("unpack_int4"), b);
         
         // Reshape to (k, n) since B was transposed before quantization
@@ -169,27 +168,32 @@ private:
                                             size_t block_size,
                                             instruction_ref absmax) const
     {
-        const size_t n_blocks = (k + block_size - 1) / block_size;
+        // absmax is a 1D tensor with (n * k + block_size - 1) / block_size elements
+        // Each element represents the scale for one block
         
-        // Reshape absmax to (n, n_blocks) if it's not already
-        auto reshaped_absmax = absmax;
-        if(absmax->get_shape().ndim() == 1)
+        // Expand absmax to apply blockwise scaling
+        auto expanded_absmax = info.add_instruction(make_op("unsqueeze", {{"axes", {1}}}), absmax);
+        
+        auto bc_lens = expanded_absmax->get_shape().lens();
+        bc_lens[1] = block_size;
+        expanded_absmax = info.add_instruction(make_op("multibroadcast", {{"out_lens", bc_lens}}), expanded_absmax);
+        
+        // Flatten to get scales for all elements
+        expanded_absmax = info.add_instruction(make_op("reshape", {{"dims", {n * k}}}), expanded_absmax);
+        
+        // Handle runt block if n*k is not divisible by block_size
+        const size_t total_elements = n * k;
+        if(expanded_absmax->get_shape().lens()[0] > total_elements)
         {
-            reshaped_absmax = info.add_instruction(make_op("reshape", {{"dims", {n, n_blocks}}}), absmax);
+            expanded_absmax = info.add_instruction(
+                make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {total_elements}}}), expanded_absmax);
         }
         
-        // Expand absmax to match the unpacked data dimensions
-        // We need to broadcast the scales to match the block structure
-        reshaped_absmax = info.add_instruction(make_op("unsqueeze", {{"axes", {2}}}), reshaped_absmax);
+        // Reshape to (n, k) then transpose to (k, n) to match unpacked B tensor
+        expanded_absmax = info.add_instruction(make_op("reshape", {{"dims", {n, k}}}), expanded_absmax);
+        expanded_absmax = info.add_instruction(make_op("transpose", {{"permutation", {1, 0}}}), expanded_absmax);
         
-        auto bc_lens = reshaped_absmax->get_shape().lens();
-        bc_lens[2] = block_size;
-        reshaped_absmax = info.add_instruction(make_op("multibroadcast", {{"out_lens", bc_lens}}), reshaped_absmax);
-        
-        // Reshape to match the unpacked B tensor shape (k, n)
-        reshaped_absmax = info.add_instruction(make_op("reshape", {{"dims", {k, n}}}), reshaped_absmax);
-        
-        return reshaped_absmax;
+        return expanded_absmax;
     }
 
     instruction_ref apply_bnb4_dequantization(onnx_parser::node_info& info,
@@ -233,10 +237,6 @@ private:
     {
         const auto a_rank = a->get_shape().ndim();
         
-        // Handle different input dimensions
-        bool is_a_prepended = false;
-        bool is_b_appended = false;
-        
         if(a_rank == 1)
         {
             is_a_prepended = true;
@@ -245,11 +245,10 @@ private:
         
         // B should be 2D (k, n) after dequantization
         // If A has more than 2 dimensions, broadcast B accordingly
-        if(a->get_shape().ndim() > 2)
+        if(a_rank > 2)
         {
-            auto a_shape = a->get_shape();
             auto b_lens = b->get_shape().lens();
-            auto b_bc_lens = a_shape.lens();
+            auto b_bc_lens = a->get_shape().lens();
             // Set the last two dimensions to match B's dimensions
             std::copy(b_lens.begin(), b_lens.end(), b_bc_lens.end() - 2);
             b = info.add_instruction(make_op("multibroadcast", {{"out_lens", b_bc_lens}}), b);
@@ -258,7 +257,7 @@ private:
         auto dot = info.add_instruction(make_op("dot"), a, b);
 
         // Squeeze dimensions if they were added
-        if(is_a_prepended)
+        if(a_rank == 1)
         {
             dot = info.add_instruction(
                 make_op("squeeze", {{"axes", {dot->get_shape().ndim() - 2}}}), dot);

@@ -296,18 +296,93 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         }
     }
 
+    void check_attention_bias(const std::vector<instruction_ref>& args,
+                             multi_head_attention_parameters& params) const
+    {
+        if(args.size() > 5)
+        {
+            auto attention_bias = args.at(5);
+            auto bias_lens = attention_bias->get_shape().lens();
+            
+            // attention_bias should be 4D: (batch_size, num_heads, source_sequence_length, target_sequence_length)
+            if(bias_lens.size() != 4)
+            {
+                MIGRAPHX_THROW("MultiHeadAttention: attention_bias must be 4D tensor");
+            }
+            
+            if(bias_lens[0] != params.batch_size)
+            {
+                MIGRAPHX_THROW("MultiHeadAttention: attention_bias batch dimension must match input batch size");
+            }
+            
+            if(bias_lens[1] != params.num_heads)
+            {
+                MIGRAPHX_THROW("MultiHeadAttention: attention_bias num_heads dimension must match attribute num_heads");
+            }
+        }
+    }
+
+    void check_past_inputs(const std::vector<instruction_ref>& args,
+                          multi_head_attention_parameters& params) const
+    {
+        // past_key at index 6, past_value at index 7
+        if(args.size() > 6)
+        {
+            auto past_key = args.at(6);
+            // Skip validation if past_key is empty (undefined)
+            if(past_key->name() == "undefined")
+                return;
+                
+            auto past_key_lens = past_key->get_shape().lens();
+            if(past_key_lens.size() != 4)
+            {
+                MIGRAPHX_THROW("MultiHeadAttention: past_key must be 4D tensor");
+            }
+            
+            if(past_key_lens[0] != params.batch_size || past_key_lens[1] != params.num_heads)
+            {
+                MIGRAPHX_THROW("MultiHeadAttention: past_key dimensions must match batch_size and num_heads");
+            }
+        }
+        
+        if(args.size() > 7)
+        {
+            auto past_value = args.at(7);
+            // Skip validation if past_value is empty (undefined)
+            if(past_value->name() == "undefined")
+                return;
+                
+            auto past_value_lens = past_value->get_shape().lens();
+            if(past_value_lens.size() != 4)
+            {
+                MIGRAPHX_THROW("MultiHeadAttention: past_value must be 4D tensor");
+            }
+            
+            if(past_value_lens[0] != params.batch_size || past_value_lens[1] != params.num_heads)
+            {
+                MIGRAPHX_THROW("MultiHeadAttention: past_value dimensions must match batch_size and num_heads");
+            }
+        }
+    }
+
     void check_inputs(const std::vector<instruction_ref>& args,
                       multi_head_attention_parameters& params) const
     {
-        if(args.empty() or args.size() > 5)
-            MIGRAPHX_THROW("MultiHeadAttention: Wrong number of inputs. Only 'query', 'key' and "
-                           "'value', bias and key_padding_mask inputs are supported.");
+        if(args.empty())
+            MIGRAPHX_THROW("MultiHeadAttention: At least one input (query) is required.");
+
+        // Support up to 8 inputs: query, key, value, bias, key_padding_mask, attention_bias, past_key, past_value
+        // We'll process the inputs we support and ignore any additional ones
+        if(args.size() > 8)
+            MIGRAPHX_THROW("MultiHeadAttention: Maximum 8 inputs supported (query, key, value, bias, key_padding_mask, attention_bias, past_key, past_value).");
 
         // Order matters here. Most parameters defined by input query, key, value parameters
         // This must be used first to extract hidden size, batch, etc
         check_query_dim(args, params);
         check_bias(args, params);
         check_key_padding_mask(args, params);
+        check_attention_bias(args, params);
+        check_past_inputs(args, params);
     }
 
     std::tuple<instruction_ref, instruction_ref, instruction_ref>
@@ -634,6 +709,12 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
             info.add_instruction(make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), key);
 
         auto result = info.add_instruction(make_op("dot"), query, key_transposed);
+
+        // Apply attention_bias if present (before masking and scaling)
+        if(args.size() > 5 && args.at(5)->name() != "undefined")
+        {
+            result = info.add_common_op("add", result, args.at(5));
+        }
 
         // Must apply mask only before scaling
         if(attn_mask.has_value())

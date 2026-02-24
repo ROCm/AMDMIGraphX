@@ -40,21 +40,21 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
-    struct find_logsoftmax
+struct find_logsoftmax
+{
+    auto matcher() const { return match::name("logsoftmax"); }
+
+    void apply(module& m, const match::matcher_result& r) const
     {
-        auto matcher() const { return match::name("logsoftmax"); }
-    
-        void apply(module& m, const match::matcher_result& r) const
-        {
-            auto ins  = r.result;
-            auto op   = ins->get_operator().to_value();
-            auto axis = op["axis"].to<std::int64_t>();
-    
-            auto input = ins->inputs().front();
-            auto softmax = m.insert_instruction(ins, make_op("softmax", {{"axis", axis}}), input);
-            m.replace_instruction(ins, make_op("log"), softmax);
-        }
-    };
+        auto ins  = r.result;
+        auto op   = ins->get_operator().to_value();
+        auto axis = op["axis"].to<std::int64_t>();
+
+        auto input   = ins->inputs().front();
+        auto softmax = m.insert_instruction(ins, make_op("softmax", {{"axis", axis}}), input);
+        m.replace_instruction(ins, make_op("log"), softmax);
+    }
+};
 
 struct find_softmax
 {

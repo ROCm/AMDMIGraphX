@@ -1891,7 +1891,7 @@ struct find_log_exp
         auto bind_x = match::args(match::any().bind("x"));
         return match::name("log")(match::arg(0)(match::name("exp")(match::used_once(), bind_x)));
     }
-    
+
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins   = r.result;
@@ -1906,9 +1906,8 @@ struct find_log_div
 {
     auto matcher() const
     {
-        return match::name("log")(match::args(
-            match::name("div")(match::used_once(), 
-                match::args(match::any().bind("x"), match::any().bind("y")))));
+        return match::name("log")(match::args(match::name("div")(
+            match::used_once(), match::args(match::any().bind("x"), match::any().bind("y")))));
     }
 
     void apply(module& m, const match::matcher_result& r) const

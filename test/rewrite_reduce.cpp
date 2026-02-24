@@ -422,20 +422,22 @@ TEST_CASE(logsoftmax)
     migraphx::shape s{migraphx::shape::float_type, {1, 3, 9}};
     migraphx::module m1;
     {
-        auto x = m1.add_parameter("x", s);
+        auto x          = m1.add_parameter("x", s);
         auto logsoftmax = m1.add_instruction(migraphx::make_op("logsoftmax", {{"axis", 2}}), x);
         m1.add_return({logsoftmax});
     }
     run_pass(m1);
     migraphx::module m2;
     {
-        auto x = m2.add_parameter("x", s);
+        auto x   = m2.add_parameter("x", s);
         auto max = m2.add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), x);
-        auto maxb = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), max);
+        auto maxb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), max);
         auto sub = m2.add_instruction(migraphx::make_op("sub"), x, maxb);
         auto exp = m2.add_instruction(migraphx::make_op("exp"), sub);
         auto sum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), exp);
-        auto sumb = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), sum);
+        auto sumb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), sum);
         auto div = m2.add_instruction(migraphx::make_op("div"), exp, sumb);
         auto log = m2.add_instruction(migraphx::make_op("log"), div);
         m2.add_return({log});

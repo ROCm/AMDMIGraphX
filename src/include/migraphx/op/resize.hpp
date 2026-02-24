@@ -350,6 +350,7 @@ struct resize
         else
         {
             std::vector<size_t> out_lens(in_lens.size());
+            vec_scale.clear();
             // 2 inputs; 2nd input is either sizes or scales.
             // First input may be dynamic.
             args[1].visit([&](auto input) {

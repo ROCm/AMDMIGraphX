@@ -132,12 +132,8 @@ struct parse_conv_transpose : op_parser<parse_conv_transpose>
             std::vector<std::size_t> dilations = values["dilation"].to_vector<std::size_t>();
 
             // Calculate auto padding
-            calc_auto_padding(info.attributes.at("auto_pad").s(),
-                              strides,
-                              k_kdims,
-                              dilations,
-                              in_kdims,
-                              padding);
+            calc_auto_padding(
+                info.attributes.at("auto_pad").s(), strides, k_kdims, dilations, in_kdims, padding);
 
             // Check for asymmetric padding
             asym_padding = is_asym_padding(padding);

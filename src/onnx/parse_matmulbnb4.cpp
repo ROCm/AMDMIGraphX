@@ -178,10 +178,11 @@ private:
         expanded_absmax = info.add_instruction(make_op("reshape", {{"dims", {n * k}}}), expanded_absmax);
         
         // Handle runt block by slicing to exact n*k elements
-        if(expanded_absmax->get_shape().lens()[0] > n * k)
+        const int total_elements = static_cast<int>(n * k);
+        if(expanded_absmax->get_shape().lens()[0] > static_cast<size_t>(total_elements))
         {
             expanded_absmax = info.add_instruction(
-                make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {n * k}}}), expanded_absmax);
+                make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {total_elements}}}), expanded_absmax);
         }
         
         // Reshape to (n, k) to match the unpacked B tensor format

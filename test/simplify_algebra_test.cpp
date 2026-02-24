@@ -4817,4 +4817,47 @@ TEST_CASE(conv_broadcast_input_group)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(simplify_log_exp)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 3, 9}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        auto exp = m1.add_instruction(migraphx::make_op("exp"), x);
+        auto log = m1.add_instruction(migraphx::make_op("log"), exp);
+        m1.add_return({log});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", s);
+        m2.add_return({x});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(simplify_log_div)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 3, 9}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        auto y = m1.add_parameter("y", s);
+        auto div = m1.add_instruction(migraphx::make_op("div"), x, y);
+        auto log = m1.add_instruction(migraphx::make_op("log"), div);
+        m1.add_return({log});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", s);
+        auto y = m2.add_parameter("y", s);
+        auto logx = m2.add_instruction(migraphx::make_op("log"), x);
+        auto logy = m2.add_instruction(migraphx::make_op("log"), y);
+        auto sub = m2.add_instruction(migraphx::make_op("sub"), logx, logy);
+        m2.add_return({sub});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

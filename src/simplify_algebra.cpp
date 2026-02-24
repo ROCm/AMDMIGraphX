@@ -1883,6 +1883,46 @@ struct find_rsqrt
     }
 };
 
+// log(exp(x)) -> x
+struct find_log_exp
+{
+    auto matcher() const
+    {
+        auto bind_x = match::args(match::any().bind("x"));
+        return match::name("log")(match::arg(0)(match::name("exp")(match::used_once(), bind_x)));
+    }
+    
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins   = r.result;
+        auto x_ins = r.instructions["x"];
+
+        m.replace_instruction(ins, x_ins);
+    }
+};
+
+// log(x / y) -> log(x) - log(y)
+struct find_log_div
+{
+    auto matcher() const
+    {
+        return match::name("log")(match::args(
+            match::name("div")(match::used_once(), 
+                match::args(match::any().bind("x"), match::any().bind("y")))));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins   = r.result;
+        auto x_ins = r.instructions["x"];
+        auto y_ins = r.instructions["y"];
+
+        auto logx = m.insert_instruction(ins, make_op("log"), x_ins);
+        auto logy = m.insert_instruction(ins, make_op("log"), y_ins);
+        m.replace_instruction(ins, make_op("sub"), logx, logy);
+    }
+};
+
 static bool same_ops(const std::vector<instruction_ref>& vec_ins)
 {
     return std::all_of(vec_ins.begin(), vec_ins.end(), [&](auto i) {
@@ -2216,6 +2256,8 @@ void simplify_algebra::apply(module& m) const
                             find_div_const{},
                             find_sub_const{},
                             find_rsqrt{},
+                            find_log_exp{},
+                            find_log_div{},
                             find_concat_conv{},
                             find_concat_op{},
                             find_split_concat{},

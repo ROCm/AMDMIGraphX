@@ -40,6 +40,22 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
+    struct find_logsoftmax
+    {
+        auto matcher() const { return match::name("logsoftmax"); }
+    
+        void apply(module& m, const match::matcher_result& r) const
+        {
+            auto ins  = r.result;
+            auto op   = ins->get_operator().to_value();
+            auto axis = op["axis"].to<std::int64_t>();
+    
+            auto input = ins->inputs().front();
+            auto softmax = m.insert_instruction(ins, make_op("softmax", {{"axis", axis}}), input);
+            m.replace_instruction(ins, make_op("log"), softmax);
+        }
+    };
+
 struct find_softmax
 {
     auto matcher() const { return match::name("softmax"); }
@@ -197,6 +213,7 @@ struct find_reduce_mean
 
 void rewrite_reduce::apply(module& m) const
 {
+    match::find_matches(m, find_logsoftmax{});
     match::find_matches(m, find_softmax{}, find_reduce_mean_variance{});
 
     if(not enabled(MIGRAPHX_DISABLE_FP32_SOFTMAX{}))

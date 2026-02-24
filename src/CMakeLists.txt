@@ -164,12 +164,18 @@ rocm_install_targets(
     ${CMAKE_CURRENT_BINARY_DIR}/include
 )
 
+
 rocm_set_soversion(migraphx ${MIGRAPHX_SO_VERSION})
 function(register_migraphx_ops)
     foreach(OP ${ARGN})
         register_op(migraphx HEADER migraphx/op/${OP}.hpp OPERATORS op::${OP})
     endforeach()
 endfunction()
+
+add_version_resource(
+    TARGET migraphx
+    DESCRIPTION "MIGraphX Core Library - AMD Graph Optimization Engine"
+)
 register_migraphx_ops(
     abs
     acosh

@@ -50,6 +50,10 @@ target_include_directories(migraphx_onnx PRIVATE include)
 set_target_properties(migraphx_onnx PROPERTIES EXPORT_NAME onnx)
 migraphx_generate_export_header(migraphx_onnx)
 rocm_set_soversion(migraphx_onnx ${MIGRAPHX_SO_VERSION})
+add_version_resource(
+    TARGET migraphx_onnx
+    DESCRIPTION "MIGraphX ONNX Parser - ONNX Model Support"
+)
 rocm_clang_tidy_check(migraphx_onnx)
 target_link_libraries(migraphx_onnx PRIVATE onnx-proto)
 if(NOT WIN32)

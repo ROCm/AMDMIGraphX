@@ -45,9 +45,9 @@ struct parse_matmulbnb4 : op_parser<parse_matmulbnb4>
                           const std::vector<instruction_ref>& args) const
     {
         // Parse required attributes
-        const size_t n          = parse_attribute(parser, info, "N");
-        const size_t k          = parse_attribute(parser, info, "K");
-        const size_t block_size = parse_attribute(parser, info, "block_size");
+        const int n          = parse_attribute(parser, info, "N");
+        const int k          = parse_attribute(parser, info, "K");
+        const int block_size = parse_attribute(parser, info, "block_size");
         
         // Parse quant_type attribute (0 for FP4, 1 for NF4)
         int quant_type = 0;  // default to FP4

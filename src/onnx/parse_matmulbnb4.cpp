@@ -45,16 +45,10 @@ struct parse_matmulbnb4 : op_parser<parse_matmulbnb4>
                           const std::vector<instruction_ref>& args) const
     {
         // Parse required attributes
-        const int n          = parse_attribute(parser, info, "N");
-        const int k          = parse_attribute(parser, info, "K");
-        const int block_size = parse_attribute(parser, info, "block_size");
-        
-        // Parse quant_type attribute (0 for FP4, 1 for NF4)
-        int quant_type = 0;  // default to FP4
-        if(contains(info.attributes, "quant_type"))
-        {
-            quant_type = parse_attribute(parser, info, "quant_type");
-        }
+        const size_t n          = parse_attribute(parser, info, "N");
+        const size_t k          = parse_attribute(parser, info, "K");
+        const size_t block_size = parse_attribute(parser, info, "block_size");
+        const size_t quant_type = parse_attribute(parser, info, "quant_type");
         
         // Validate quant_type
         if(quant_type != 0 && quant_type != 1)
@@ -89,8 +83,11 @@ struct parse_matmulbnb4 : op_parser<parse_matmulbnb4>
                            ") must match attribute K (" + std::to_string(k) + ")");
         }
 
+        const size_t expected_b_elements = (n * k + 1) / 2;
+        const size_t expected_absmax_elements = (n * k + block_size - 1) / block_size;
+
         // Validate Input B dimensions
-        std::vector<size_t> expected_b_lens{(n * k + 1) / 2};
+        std::vector<size_t> expected_b_lens{expected_b_elements};
         if(args[1]->get_shape().lens() != expected_b_lens)
         {
             MIGRAPHX_THROW("MatMulBnb4: Input B does not match expected dims: " +
@@ -99,11 +96,11 @@ struct parse_matmulbnb4 : op_parser<parse_matmulbnb4>
         }
 
         // Validate Input absmax dimensions  
-        const size_t expected_absmax_elements = (n * k + block_size - 1) / block_size;
-        if(args[2]->get_shape().elements() != expected_absmax_elements)
+        std::vector<size_t> expected_absmax_lens{expected_absmax_elements};
+        if(args[2]->get_shape().lens() != expected_absmax_lens)
         {
             MIGRAPHX_THROW("MatMulBnb4: Input absmax does not match expected dims: " +
-                           std::to_string(expected_absmax_elements) +
+                           to_string_range(expected_absmax_lens) +
                            ". Actual dims: " + to_string_range(args[2]->get_shape().lens()));
         }
 
@@ -117,8 +114,8 @@ struct parse_matmulbnb4 : op_parser<parse_matmulbnb4>
 
 private:
     int parse_attribute(const onnx_parser& parser,
-                        onnx_parser::node_info& info,
-                        const std::string& attribute_name) const
+                           onnx_parser::node_info& info,
+                           const std::string& attribute_name) const
     {
         if(not contains(info.attributes, attribute_name))
         {
@@ -129,9 +126,9 @@ private:
     }
 
     instruction_ref dequantize_b_bnb4(onnx_parser::node_info& info,
-                                     size_t n,
-                                     size_t k,
-                                     size_t block_size,
+                                     int n,
+                                     int k,
+                                     int block_size,
                                      int quant_type,
                                      const std::vector<instruction_ref>& args) const
     {        
@@ -146,8 +143,8 @@ private:
     }
 
     instruction_ref unpack_bnb4_data(onnx_parser::node_info& info,
-                                    size_t n,
-                                    size_t k,
+                                    int n,
+                                    int k,
                                     instruction_ref b) const
     {     
         // For BNB4, the input B is transposed, flattened and quantized blockwise
@@ -163,9 +160,9 @@ private:
     }
 
     instruction_ref prepare_blockwise_absmax(onnx_parser::node_info& info,
-                                            size_t n,
-                                            size_t k,
-                                            size_t block_size,
+                                            int n,
+                                            int k,
+                                            int block_size,
                                             instruction_ref absmax) const
     {
         // absmax is a 1D tensor with (n * k + block_size - 1) / block_size elements

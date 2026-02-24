@@ -57,7 +57,6 @@ static eliminate_data_type for_device_functions()
     unsupported_types.erase(shape::type_t::tuple_type);
 
     std::set<std::string> device_functions = {
-        "logsoftmax",
         "nonzero",
         "prefix_scan_sum",
         "rnn_var_sl_shift_output",

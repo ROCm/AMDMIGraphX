@@ -26,12 +26,14 @@
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/dfor.hpp>
 #include <migraphx/par_for.hpp>
-#include <iostream>
+#include <migraphx/env.hpp>
 #include <numeric>
 #include <vector>
 
-#if MIGRAPHX_USE_BLAZE
-#include <blaze/Blaze.h>
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_EIGEN)
+
+#if MIGRAPHX_USE_EIGEN
+#include <Eigen/Core>
 #endif
 
 namespace migraphx {
@@ -62,29 +64,24 @@ template <class T, class U>
     });
 }
 
-#if MIGRAPHX_USE_BLAZE
+#if MIGRAPHX_USE_EIGEN
+
+using eigen_row_major = Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
+using eigen_col_major = Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>;
+using eigen_stride    = Eigen::Stride<Eigen::Dynamic, Eigen::Dynamic>;
 
 template <class T>
-using matrix = blaze::CustomMatrix<T, blaze::unaligned, blaze::unpadded>; // NOLINT
-
-template <class T>
-auto make_mat(T* ptr, const shape& s)
+auto make_eigen_map(T* ptr, const shape& s)
 {
-    auto dim_0 = s.ndim() - 2;
-    auto dim_1 = s.ndim() - 1;
-    if(s.strides()[dim_0] == 1)
-        return matrix<T>{ptr, s.lens()[dim_1], s.lens()[dim_0], s.strides()[dim_1]};
-    return matrix<T>{ptr, s.lens()[dim_0], s.lens()[dim_1], s.strides()[dim_0]};
-}
-
-template <class T, class F>
-void visit_mat(T* ptr, const shape& s, F f)
-{
-    auto mat = make_mat(ptr, s);
-    if(s.strides()[s.ndim() - 2] == 1)
-        f(blaze::trans(mat));
-    else
-        f(mat);
+    auto dim_0     = s.ndim() - 2;
+    auto dim_1     = s.ndim() - 1;
+    auto rows      = static_cast<Eigen::Index>(s.lens()[dim_0]);
+    auto cols      = static_cast<Eigen::Index>(s.lens()[dim_1]);
+    auto rowstride = static_cast<Eigen::Index>(s.strides()[dim_0]);
+    auto colstride = static_cast<Eigen::Index>(s.strides()[dim_1]);
+    return Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>,
+                      Eigen::Unaligned,
+                      eigen_stride>{ptr, rows, cols, eigen_stride{rowstride, colstride}};
 }
 
 bool is_mat_layout_supported(const shape& s)
@@ -123,13 +120,13 @@ void copy_2d(T* dst,
 }
 
 template <class T>
-constexpr bool is_blaze_native_type()
+constexpr bool is_eigen_native_type()
 {
     return std::is_same<T, float>{} or std::is_same<T, double>{};
 }
 
 template <class T, class U>
-void gemm_blaze(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat)
+void gemm_eigen(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat)
 {
     std::size_t n_dims = cmat.get_shape().ndim();
     std::size_t dim_0  = n_dims - 2;
@@ -139,35 +136,30 @@ void gemm_blaze(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat)
     auto k_size = amat.get_shape().lens()[dim_1];
     auto n_size = bmat.get_shape().lens()[dim_1];
 
-    const auto& clens   = cmat.get_shape().lens();
-    auto num_batches = std::accumulate(
-        clens.begin(), clens.begin() + dim_0, std::size_t{1}, std::multiplies<>{});
+    const auto& clens = cmat.get_shape().lens();
+    auto num_batches =
+        std::accumulate(clens.begin(), clens.begin() + dim_0, std::size_t{1}, std::multiplies<>{});
 
     auto a_batch = make_batch_shape(amat.get_shape(), dim_0);
     auto b_batch = make_batch_shape(bmat.get_shape(), dim_0);
     auto c_batch = make_batch_shape(cmat.get_shape(), dim_0);
 
-    // Native zero-copy path for float/double with supported layouts
-    if constexpr(is_blaze_native_type<U>() and std::is_same<T, U>{})
+    if constexpr(is_eigen_native_type<U>() and std::is_same<T, U>{})
     {
         if(is_mat_layout_supported(amat.get_shape()) and
-           is_mat_layout_supported(bmat.get_shape()) and
-           is_mat_layout_supported(cmat.get_shape()))
+           is_mat_layout_supported(bmat.get_shape()) and is_mat_layout_supported(cmat.get_shape()))
         {
             for(std::size_t batch = 0; batch < num_batches; batch++)
             {
-                visit_mat(amat.data() + a_batch.index(batch), amat.get_shape(), [&](const auto& a) {
-                    visit_mat(bmat.data() + b_batch.index(batch), bmat.get_shape(), [&](const auto& b) {
-                        auto c = make_mat(cmat.data() + c_batch.index(batch), cmat.get_shape());
-                        c = a * b;
-                    });
-                });
+                auto a = make_eigen_map(amat.data() + a_batch.index(batch), amat.get_shape());
+                auto b = make_eigen_map(bmat.data() + b_batch.index(batch), bmat.get_shape());
+                auto c = make_eigen_map(cmat.data() + c_batch.index(batch), cmat.get_shape());
+                c.noalias() = a * b;
             }
             return;
         }
     }
 
-    // Copy path: convert to contiguous row-major float, run Blaze, copy back
     const auto row_col_strides = [&](const auto& mat) {
         const auto& strides = mat.get_shape().strides();
         return std::pair{strides[dim_0], strides[dim_1]};
@@ -181,23 +173,42 @@ void gemm_blaze(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat)
     std::vector<float> b_buf(k_size * n_size);
     std::vector<float> c_buf(m_size * n_size);
 
+    auto mi = static_cast<Eigen::Index>(m_size);
+    auto ki = static_cast<Eigen::Index>(k_size);
+    auto ni = static_cast<Eigen::Index>(n_size);
+
     for(std::size_t batch = 0; batch < num_batches; batch++)
     {
-        copy_2d(a_buf.data(), k_size, std::size_t{1},
-                amat.data() + a_batch.index(batch), a_row_stride, a_col_stride,
-                m_size, k_size);
-        copy_2d(b_buf.data(), n_size, std::size_t{1},
-                bmat.data() + b_batch.index(batch), b_row_stride, b_col_stride,
-                k_size, n_size);
+        copy_2d(a_buf.data(),
+                k_size,
+                std::size_t{1},
+                amat.data() + a_batch.index(batch),
+                a_row_stride,
+                a_col_stride,
+                m_size,
+                k_size);
+        copy_2d(b_buf.data(),
+                n_size,
+                std::size_t{1},
+                bmat.data() + b_batch.index(batch),
+                b_row_stride,
+                b_col_stride,
+                k_size,
+                n_size);
 
-        matrix<float> a(a_buf.data(), m_size, k_size);
-        matrix<float> b(b_buf.data(), k_size, n_size);
-        matrix<float> c(c_buf.data(), m_size, n_size);
-        c = a * b;
+        Eigen::Map<eigen_row_major> a(a_buf.data(), mi, ki);
+        Eigen::Map<eigen_row_major> b(b_buf.data(), ki, ni);
+        Eigen::Map<eigen_row_major> c(c_buf.data(), mi, ni);
+        c.noalias() = a * b;
 
-        copy_2d(cmat.data() + c_batch.index(batch), c_row_stride, c_col_stride,
-                c_buf.data(), n_size, std::size_t{1},
-                m_size, n_size);
+        copy_2d(cmat.data() + c_batch.index(batch),
+                c_row_stride,
+                c_col_stride,
+                c_buf.data(),
+                n_size,
+                std::size_t{1},
+                m_size,
+                n_size);
     }
 }
 
@@ -214,23 +225,26 @@ void gemm_ref(const argument& c_arg, const argument& a_arg, const argument& b_ar
     else
     {
         c_arg.visit([&](auto cmat) {
-            visit_all(a_arg, b_arg)(
-                [&](auto amat, auto bmat) { v(cmat, amat, bmat); });
+            visit_all(a_arg, b_arg)([&](auto amat, auto bmat) { v(cmat, amat, bmat); });
         });
     }
 }
 
-} 
+} // namespace
 
 void gemm(const argument& c_arg, const argument& a_arg, const argument& b_arg)
 {
-#if MIGRAPHX_USE_BLAZE
-    gemm_ref(c_arg, a_arg, b_arg,
-             [](auto cmat, auto amat, auto bmat) { gemm_blaze(cmat, amat, bmat); });
-#else
-    gemm_ref(c_arg, a_arg, b_arg,
-             [](auto cmat, auto amat, auto bmat) { gemm_naive(cmat, amat, bmat); });
+#if MIGRAPHX_USE_EIGEN
+    if(not enabled(MIGRAPHX_DISABLE_EIGEN{}))
+    {
+    gemm_ref(
+        c_arg, a_arg, b_arg, [](auto cmat, auto amat, auto bmat) { gemm_eigen(cmat, amat, bmat); });
+    return;
+    }
 #endif
+    gemm_ref(
+        c_arg, a_arg, b_arg, [](auto cmat, auto amat, auto bmat) { gemm_naive(cmat, amat, bmat); });
+
 }
 
 } // namespace MIGRAPHX_INLINE_NS

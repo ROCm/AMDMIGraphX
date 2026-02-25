@@ -807,9 +807,10 @@ struct find_kv_cache_attention
     std::vector<instruction_ref>
     get_attn_instructions(module& m, instruction_ref start, instruction_ref end) const
     {
-        std::queue<instruction_ref> inputs;
-        std::unordered_set<instruction_ref> inss;
-        inputs.push(end);
+        // Backward BFS to collect candidate attention instructions
+        std::queue<instruction_ref> q;
+        std::unordered_set<instruction_ref> candidates;
+        q.push(end);
 
         static const std::unordered_set<std::string> valid_attn_ops = {"softmax",
                                                                        "broadcast",
@@ -832,20 +833,51 @@ struct find_kv_cache_attention
                    contains(valid_attn_ops, i->get_operator().name()) or i == start or i == end;
         };
 
-        while(not inputs.empty())
+        while(not q.empty())
         {
-            auto current_inp = inputs.front();
-            inputs.pop();
+            auto current_inp = q.front();
+            q.pop();
 
-            if(is_valid_attn_op(current_inp) and inss.insert(current_inp).second and
+            if(is_valid_attn_op(current_inp) and candidates.insert(current_inp).second and
                current_inp != start)
             {
                 for(auto i : current_inp->inputs())
                 {
-                    inputs.push(i);
+                    q.push(i);
                 }
             }
         }
+
+        // Intersect candidates with find_instructions_between to exclude
+        // pointwise side inputs not on a path from start to end.
+        auto between = find_instructions_between(start, end, &m);
+        std::unordered_set<instruction_ref> inss;
+        for(auto i : candidates)
+        {
+            if(contains(between, i))
+                inss.insert(i);
+        }
+        // Expand with candidates whose outputs are all within the set.
+        // This adds constants (literals and their broadcasts) that feed
+        // into the attention but are not between start and end.
+        bool changed = true;
+        while(changed)
+        {
+            changed = false;
+            for(auto i : candidates)
+            {
+                if(contains(inss, i))
+                    continue;
+                if(std::all_of(i->outputs().begin(), i->outputs().end(), [&](auto o) {
+                       return contains(inss, o);
+                   }))
+                {
+                    inss.insert(i);
+                    changed = true;
+                }
+            }
+        }
+
         std::vector<instruction_ref> sorted_inss(inss.begin(), inss.end());
         std::sort(
             sorted_inss.begin(), sorted_inss.end(), [&](instruction_ref x, instruction_ref y) {

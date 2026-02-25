@@ -44,4 +44,3 @@ struct insert_runtime_compile_op
 } // namespace migraphx
 
 #endif
-

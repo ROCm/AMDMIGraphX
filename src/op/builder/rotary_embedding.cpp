@@ -148,8 +148,8 @@ struct rotary_embedding : op_builder<rotary_embedding>
                                                 instruction_ref sin) const
     {
         auto in_lens = in->get_shape().lens();
-        auto D       = in_lens.back();
-        auto half_D  = D / 2;
+        auto d       = in_lens.back();
+        auto half_d  = d / 2;
         auto dtype   = in->get_shape().type();
 
         auto signs = m.add_literal(migraphx::literal{migraphx::shape{dtype, {2}}, {-1.0f, 1.0f}});
@@ -160,11 +160,11 @@ struct rotary_embedding : op_builder<rotary_embedding>
         {
             signs = m.insert_instruction(ins, make_op("reshape", {{"dims", {1, 2}}}), signs);
             signs = m.insert_instruction(
-                ins, make_op("multibroadcast", {{"out_lens", {half_D, 2}}}), signs);
-            signs = m.insert_instruction(ins, make_op("reshape", {{"dims", {D}}}), signs);
+                ins, make_op("multibroadcast", {{"out_lens", {half_d, 2}}}), signs);
+            signs = m.insert_instruction(ins, make_op("reshape", {{"dims", {d}}}), signs);
 
-            auto N     = in->get_shape().elements() / 2;
-            auto rs_in = m.insert_instruction(ins, make_op("reshape", {{"dims", {N, 2}}}), in);
+            auto n     = in->get_shape().elements() / 2;
+            auto rs_in = m.insert_instruction(ins, make_op("reshape", {{"dims", {n, 2}}}), in);
             auto evens = m.insert_instruction(
                 ins, make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), rs_in);
             auto odds = m.insert_instruction(
@@ -177,13 +177,13 @@ struct rotary_embedding : op_builder<rotary_embedding>
         {
             signs = m.insert_instruction(ins, make_op("reshape", {{"dims", {2, 1}}}), signs);
             signs = m.insert_instruction(
-                ins, make_op("multibroadcast", {{"out_lens", {2, half_D}}}), signs);
-            signs = m.insert_instruction(ins, make_op("reshape", {{"dims", {D}}}), signs);
+                ins, make_op("multibroadcast", {{"out_lens", {2, half_d}}}), signs);
+            signs = m.insert_instruction(ins, make_op("reshape", {{"dims", {d}}}), signs);
 
             auto first_half = m.insert_instruction(
-                ins, make_op("slice", {{"axes", {-1}}, {"starts", {0}}, {"ends", {half_D}}}), in);
+                ins, make_op("slice", {{"axes", {-1}}, {"starts", {0}}, {"ends", {half_d}}}), in);
             auto second_half = m.insert_instruction(
-                ins, make_op("slice", {{"axes", {-1}}, {"starts", {half_D}}, {"ends", {D}}}), in);
+                ins, make_op("slice", {{"axes", {-1}}, {"starts", {half_d}}, {"ends", {d}}}), in);
             rotated = m.insert_instruction(
                 ins, make_op("concat", {{"axis", -1}}), second_half, first_half);
         }

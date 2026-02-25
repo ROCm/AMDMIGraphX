@@ -83,7 +83,7 @@ std::vector<shape> normalize_permutation(const std::vector<shape>& shapes,
     std::transform(result.begin(), result.end(), result.begin(), [&](auto s) {
         return reorder_shape(s, perm);
     });
-    if(permutation)
+    if(permutation != nullptr)
         *permutation = std::move(perm);
     return result;
 }

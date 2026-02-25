@@ -902,7 +902,7 @@ struct find_kv_cache_attention
         auto attn_inss = get_attn_instructions(mpm.get_module(), total_sl, reshape);
 
         // Remove pointwise inputs that are used outside the attention
-        filter_multi_use_inputs(attn_inss, reshape);
+        remove_multi_use_inputs(attn_inss, reshape);
 
         // Add captured instructions to new submodule
         module m_attn;

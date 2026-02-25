@@ -124,11 +124,13 @@ template <class Input, class T, class... Ss>
 constexpr auto slice_tensor(Input input, T start, Ss... ss)
 {
     constexpr auto inner_shape = make_slice(get_shape_c<Input>{}, ss...);
-    auto outer_lens            = transform(get_shape_c<Input>{}.lens,
-                                inner_shape.lens,
-                                [=](auto x, auto inner) { return 1 + x - inner; });
-    auto outer_shape           = make_shape(outer_lens, get_shape_c<Input>{}.strides);
+    auto outer_lens            = transform(
+        get_shape_c<Input>{}.lens, inner_shape.lens, [=](auto x, auto inner) { return x / inner; });
+    // TODO: Handle non-divisble dimensions
+    auto outer_shape = make_shape(outer_lens, get_shape_c<Input>{}.strides * inner_shape.lens);
     auto offset                = outer_shape.index(start);
+    MIGRAPHX_ASSERT(outer_shape.elements() * inner_shape.elements() ==
+                    input.get_shape().elements());
     MIGRAPHX_ASSERT((offset + inner_shape.element_space()) <= get_shape_c<Input>{}.element_space());
     return make_tensor_view(input.data() + offset, inner_shape);
 }
@@ -138,9 +140,15 @@ constexpr auto slice_schedule(index idx, Ss... ss)
 {
     return [=](auto... xs) {
         return [=](auto f) {
-            // TODO: Assert nslices is the same for all xs
-            constexpr auto n = nslices(get_shape_c<decltype(arg_c<0>()(xs...))>{}, ss...);
-            Schedule{idx}.group_stride(n, [&](auto i) { f(slice_tensor(xs, i, ss...)...); });
+            constexpr auto first = get_shape_c<decltype(arg_c<0>()(xs...))>{};
+            constexpr auto n     = nslices(first, ss...);
+            MIGRAPHX_ASSERT(((n == nslices(get_shape_c<decltype(xs)>{}, ss...)) and ...));
+            Schedule{idx}.group_stride(n, [&](auto i) {
+                MIGRAPHX_ASSERT(((slice_tensor(xs, i, ss...).get_shape().elements() * n ==
+                                  xs.get_shape().elements()) and
+                                 ...));
+                f(slice_tensor(xs, i, ss...)...);
+            });
         };
     };
 }

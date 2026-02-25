@@ -220,6 +220,7 @@ constexpr auto calculate_strides(Lens)
 template <class Lens, class Strides>
 constexpr shape<Lens, Strides> make_shape(Lens lens, Strides strides)
 {
+    MIGRAPHX_ASSERT(lens.product() != 0);
     return {lens, strides};
 }
 

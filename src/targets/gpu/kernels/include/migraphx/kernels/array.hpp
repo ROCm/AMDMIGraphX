@@ -348,6 +348,22 @@ struct integral_const_array : array<T, sizeof...(Xs)>
     MIGRAPHX_DEVICE_CONSTEXPR integral_const_array() : base_array({Xs...}) {}
 
     constexpr const base_array& base() const { return *this; }
+
+    constexpr base_array carry(base_array result) const
+    {
+        index_int overflow = 0;
+        for(diff_int i = result.size() - 1; i > 0; i--)
+        {
+            auto z = result[i] + overflow;
+            if(z >= this->d[i])
+            {
+                result[i] = z % this->d[i];
+                overflow  = z / this->d[i];
+            }
+        }
+        result[0] += overflow;
+        return result;
+    }
 };
 
 template <class T, class... Ts>

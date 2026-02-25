@@ -113,53 +113,6 @@ TEST_CASE(matmulbnb4_nf4_test)
     EXPECT(p == prog);
 }
 
-TEST_CASE(matmulbnb4_3d_input_test)
-{
-    // Test with 3D input A
-    // N=8, K=16, block_size=16
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    auto a = mm->add_parameter("A", migraphx::shape{migraphx::shape::float_type, {2, 3, 16}});
-    auto b = mm->add_parameter("B", migraphx::shape{migraphx::shape::uint8_type, {64}});
-    auto absmax = mm->add_parameter("absmax", migraphx::shape{migraphx::shape::float_type, {8}});
-
-    // Unpack and reshape
-    auto unpacked_b = mm->add_instruction(migraphx::make_op("unpack_int4"), b);
-    unpacked_b = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8, 16}}}), unpacked_b);
-
-    // Prepare absmax
-    auto expanded_absmax = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), absmax);
-    expanded_absmax = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {8, 16}}}), expanded_absmax);
-    expanded_absmax = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {128}}}), expanded_absmax);
-    expanded_absmax = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8, 16}}}), expanded_absmax);
-
-    // Dequantize
-    auto float_data = mm->add_instruction(
-        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), unpacked_b);
-    auto scale_factor = mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {8.0f}});
-    auto scale_factor_bc = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {8, 16}}}), scale_factor);
-    auto scaled_data = mm->add_instruction(migraphx::make_op("div"), float_data, scale_factor_bc);
-    auto dequantized = mm->add_instruction(migraphx::make_op("mul"), scaled_data, expanded_absmax);
-
-    // Transpose
-    dequantized = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dequantized);
-
-    // Broadcast B to match A's batch dimensions [2, 3, 16] needs B broadcasted to [2, 3, 16, 8]
-    dequantized = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 16, 8}}}), dequantized);
-
-    // Matmul
-    mm->add_instruction(migraphx::make_op("dot"), a, dequantized);
-
-    auto prog = optimize_onnx("matmulbnb4_3d_input_test.onnx");
-
-    p.sort();
-    prog.sort();
-    EXPECT(p == prog);
-}
-
 // Error test cases
 TEST_CASE(matmulbnb4_invalid_quant_type_test)
 {

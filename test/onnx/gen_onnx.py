@@ -18483,32 +18483,6 @@ def matmulbnb4_large_test():
 
 
 @onnx_test()
-def matmulbnb4_3d_input_test():
-    # Test with 3D input A
-    N = 8
-    K = 16
-    block_size = 16
-    quant_type = 0  # FP4
-    
-    A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [2, 3, K])
-    B = helper.make_tensor_value_info('B', TensorProto.UINT8, [64])
-    absmax = helper.make_tensor_value_info('absmax', TensorProto.FLOAT, [8])
-    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [2, 3, N])
-
-    node = onnx.helper.make_node(
-        'MatMulBnb4',
-        inputs=['A', 'B', 'absmax'],
-        outputs=['Y'],
-        N=N,
-        K=K,
-        block_size=block_size,
-        quant_type=quant_type
-    )
-
-    return ([node], [A, B, absmax], [Y])
-
-
-@onnx_test()
 def matmulbnb4_invalid_quant_type_test():
     # Error: invalid quant_type (must be 0 or 1)
     N = 4

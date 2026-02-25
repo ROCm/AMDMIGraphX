@@ -1333,9 +1333,9 @@ TEST_CASE(kv_cache_attention_external_pointwise)
                     migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 3, 4}}}), cmask_lit);
                 auto causal =
                     gm->add_instruction(migraphx::make_op("where"), bc_cmask, bc_ninf, scaled);
-                auto unsq_slk = gm->add_instruction(
-                    migraphx::make_op("unsqueeze", {{"axes", {2}}}), inputs.at(2));
-                auto bc_slk = gm->add_instruction(
+                auto unsq_slk = gm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}),
+                                                    inputs.at(2));
+                auto bc_slk   = gm->add_instruction(
                     migraphx::make_op("broadcast", {{"out_lens", {1, 1, 1, 4}}}), unsq_slk);
                 auto grtr = gm->add_instruction(migraphx::make_op("greater"), range_lit, bc_slk);
                 auto conv_grtr = gm->add_instruction(

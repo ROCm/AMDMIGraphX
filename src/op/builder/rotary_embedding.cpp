@@ -76,12 +76,43 @@ struct rotary_embedding : op_builder<rotary_embedding>
                                                              instruction_ref cos_cache,
                                                              instruction_ref sin_cache) const
     {
-        auto in_lens   = in->get_shape().lens();
+        auto in_lens = in->get_shape().lens();
+        // Expect input layout: [batch, heads, seq, head_size]
+        if(in_lens.size() != 4)
+        {
+            MIGRAPHX_THROW(
+                "rotary_embedding: expected input of rank 4 with layout "
+                "[batch, heads, seq, head_size] in 4-arg mode");
+        }
+
         auto batch     = in_lens[0];
         auto seq_len   = in_lens[2];
         auto head_size = in_lens[3];
+
+        if(head_size % 2 != 0)
+        {
+            MIGRAPHX_THROW(
+                "rotary_embedding: head_size must be even so that head_size/2 can be used for "
+                "rotary embedding");
+        }
+
         auto half_head = head_size / 2;
 
+        // Basic compatibility check: cosine/sine caches must have last dimension == half_head
+        auto cos_lens = cos_cache->get_shape().lens();
+        auto sin_lens = sin_cache->get_shape().lens();
+        if(cos_lens.empty() || cos_lens.back() != half_head)
+        {
+            MIGRAPHX_THROW(
+                "rotary_embedding: cos_cache last dimension must equal head_size/2 to be "
+                "compatible with input");
+        }
+        if(sin_lens.empty() || sin_lens.back() != half_head)
+        {
+            MIGRAPHX_THROW(
+                "rotary_embedding: sin_cache last dimension must equal head_size/2 to be "
+                "compatible with input");
+        }
         instruction_ref cos_gathered;
         instruction_ref sin_gathered;
 

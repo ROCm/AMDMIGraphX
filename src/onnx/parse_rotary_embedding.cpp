@@ -272,9 +272,9 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
         }
 
         auto output = op::builder::add("rotary_embedding",
-                                        *info.mod,
-                                        {input, position_ids, cos_cache, sin_cache},
-                                        {{"interleaved", params.interleaved}})
+                                       *info.mod,
+                                       {input, position_ids, cos_cache, sin_cache},
+                                       {{"interleaved", params.interleaved}})
                           .at(0);
 
         if(params.head_diff)

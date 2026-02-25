@@ -130,7 +130,7 @@ struct module_impl
 
 const operation& get_operation(instruction_ref ins) { return ins->get_operator(); }
 
-module::module(const std::string& name) :impl(std::make_unique<module_impl>())
+module::module(const std::string& name) : impl(std::make_unique<module_impl>())
 {
     impl->name = name;
 }
@@ -183,7 +183,7 @@ void module::assign(const module& m)
             auto order  = any_cast<builtin::param>(ins->get_operator()).order;
             auto s      = ins->get_shape();
             copy_ins    = impl->insert(impl->instructions.end(),
-                                       {builtin::param{name, order}, std::move(s), {}});
+                                    {builtin::param{name, order}, std::move(s), {}});
             impl->nparams++;
         }
         else if(ins->name() == "@outline")
@@ -879,19 +879,6 @@ void module::finalize(std::vector<context>& contexts)
 {
     assert(not contexts.empty());
     const bool trace = enabled(MIGRAPHX_TRACE_FINALIZE{});
-    std::unordered_set<const module*> visited;
-    finalize(contexts, visited, trace);
-}
-
-void module::finalize(std::vector<context>& contexts,
-                      std::unordered_set<const module*>& visited,
-                      bool trace)
-{
-    // Avoid infinite recursion from circular module dependencies
-    if(visited.count(this) > 0)
-        return;
-    visited.insert(this);
-
     for(auto ins : iterator_for(*this))
     {
         if(trace)
@@ -902,22 +889,15 @@ void module::finalize(std::vector<context>& contexts,
         ins->finalize(contexts[ins->get_target_id()]);
         for(const auto& smod : ins->module_inputs())
         {
-            // Skip self-references to avoid circular dependencies
-            if(smod != this)
-            {
-                smod->finalize(contexts, visited, trace);
-            }
+            smod->finalize(contexts);
         }
     }
 
-    // Warn when an instruction is not normalized (only for the top-level call)
-    if(visited.size() == 1)
-    {
-        auto ins = std::find_if(begin(), end(), [](auto& i) { return i.need_normalization(); });
-        if(ins != end())
-            std::cerr << "WARNING: Instruction needs normalization, performance may be affected."
-                      << std::endl;
-    }
+    // Warn when an instruction is not normalized
+    auto ins = std::find_if(begin(), end(), [](auto& i) { return i.need_normalization(); });
+    if(ins != end())
+        std::cerr << "WARNING: Instruction needs normalization, performance may be affected."
+                  << std::endl;
 }
 
 std::unordered_map<instruction_ref, instruction_ref>
@@ -1262,7 +1242,7 @@ std::unordered_map<instruction_ref, std::string> module::print(
     std::unordered_map<instruction_ref, std::string> names) const
 {
     const bool is_root = names.empty();
-    int count          = 0;
+    int count = 0;
     for(auto ins : iterator_for(*this))
     {
         std::string var_name;
@@ -1534,23 +1514,13 @@ std::vector<module_ref> module::get_sub_modules(bool shallow) const
     for(auto ins : iterator_for(*this))
     {
         const auto& mod_args = ins->module_inputs();
-        // Filter out self-references to avoid circular dependencies
-        for(const auto& mod_arg : mod_args)
-        {
-            if(mod_arg != this)
-            {
-                vec_modules.push_back(mod_arg);
-            }
-        }
+        vec_modules.insert(vec_modules.end(), mod_args.begin(), mod_args.end());
         if(not shallow)
         {
             for(const auto& smod : mod_args)
             {
-                if(smod != this)
-                {
-                    auto sub_mods = smod->get_sub_modules();
-                    vec_modules.insert(vec_modules.end(), sub_mods.begin(), sub_mods.end());
-                }
+                auto sub_mods = smod->get_sub_modules();
+                vec_modules.insert(vec_modules.end(), sub_mods.begin(), sub_mods.end());
             }
         }
     }

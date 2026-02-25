@@ -80,9 +80,8 @@ struct rotary_embedding : op_builder<rotary_embedding>
         // Expect input layout: [batch, heads, seq, head_size]
         if(in_lens.size() != 4)
         {
-            MIGRAPHX_THROW(
-                "rotary_embedding: expected input of rank 4 with layout "
-                "[batch, heads, seq, head_size] in 4-arg mode");
+            MIGRAPHX_THROW("rotary_embedding: expected input of rank 4 with layout "
+                           "[batch, heads, seq, head_size] in 4-arg mode");
         }
 
         auto batch     = in_lens[0];

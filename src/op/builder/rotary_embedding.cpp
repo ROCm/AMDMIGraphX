@@ -28,6 +28,8 @@
 #include <migraphx/op/builder/op_builder.hpp>
 #include <migraphx/op/builder/insert.hpp>
 
+#include <numeric>
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
@@ -112,41 +114,56 @@ struct rotary_embedding : op_builder<rotary_embedding>
                 "rotary_embedding: sin_cache last dimension must equal head_size/2 to be "
                 "compatible with input");
         }
-        instruction_ref cos_gathered;
-        instruction_ref sin_gathered;
+        auto pos_elems = pos_ids->get_shape().elements();
+        instruction_ref indices;
 
-        if(seq_len == 1)
+        if(pos_elems == batch * seq_len and seq_len > 1)
         {
-            auto pos =
-                m.insert_instruction(ins, make_op("reshape", {{"dims", {batch, 1, 1}}}), pos_ids);
-            cos_gathered =
-                m.insert_instruction(ins, make_op("gathernd", {{"batch_dims", 0}}), cos_cache, pos);
-            sin_gathered =
-                m.insert_instruction(ins, make_op("gathernd", {{"batch_dims", 0}}), sin_cache, pos);
+            indices = m.insert_instruction(
+                ins, make_op("reshape", {{"dims", {batch, seq_len, 1}}}), pos_ids);
         }
         else
         {
-            cos_gathered = m.insert_instruction(
-                ins,
-                make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {seq_len}}}),
-                cos_cache);
-            sin_gathered = m.insert_instruction(
-                ins,
-                make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {seq_len}}}),
-                sin_cache);
-            cos_gathered = m.insert_instruction(
-                ins, make_op("reshape", {{"dims", {1, seq_len, half_head}}}), cos_gathered);
-            sin_gathered = m.insert_instruction(
-                ins, make_op("reshape", {{"dims", {1, seq_len, half_head}}}), sin_gathered);
-            cos_gathered = m.insert_instruction(
-                ins,
-                make_op("multibroadcast", {{"out_lens", {batch, seq_len, half_head}}}),
-                cos_gathered);
-            sin_gathered = m.insert_instruction(
-                ins,
-                make_op("multibroadcast", {{"out_lens", {batch, seq_len, half_head}}}),
-                sin_gathered);
+            instruction_ref pos;
+            if(pos_elems == 1 and batch > 1)
+            {
+                pos = m.insert_instruction(
+                    ins, make_op("reshape", {{"dims", {1, 1, 1}}}), pos_ids);
+                pos = m.insert_instruction(
+                    ins, make_op("multibroadcast", {{"out_lens", {batch, 1, 1}}}), pos);
+            }
+            else
+            {
+                pos = m.insert_instruction(
+                    ins, make_op("reshape", {{"dims", {batch, 1, 1}}}), pos_ids);
+            }
+
+            if(seq_len > 1)
+            {
+                pos = m.insert_instruction(
+                    ins, make_op("multibroadcast", {{"out_lens", {batch, seq_len, 1}}}), pos);
+                std::vector<int> range_vec(seq_len);
+                std::iota(range_vec.begin(), range_vec.end(), 0);
+                auto range_lit = m.add_literal(migraphx::literal{
+                    migraphx::shape{pos_ids->get_shape().type(), {1, seq_len, 1}}, range_vec});
+                auto range_bc = m.insert_instruction(
+                    ins,
+                    make_op("multibroadcast", {{"out_lens", {batch, seq_len, 1}}}),
+                    range_lit);
+                indices = insert_common_op(m, ins, make_op("add"), {pos, range_bc});
+            }
+            else
+            {
+                indices = pos;
+            }
         }
+
+        instruction_ref cos_gathered;
+        instruction_ref sin_gathered;
+        cos_gathered = m.insert_instruction(
+            ins, make_op("gathernd", {{"batch_dims", 0}}), cos_cache, indices);
+        sin_gathered = m.insert_instruction(
+            ins, make_op("gathernd", {{"batch_dims", 0}}), sin_cache, indices);
 
         if(interleaved)
         {

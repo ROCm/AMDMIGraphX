@@ -26,49 +26,58 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/pass_manager.hpp>
 #include <algorithm>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-void insert_runtime_compile_op::apply(module& m) const
+void insert_runtime_compile_op::apply(module_pass_manager& mpm) const
 {
-    // Check if there are any dynamic_code_object_op instructions (short-circuit on first match)
+    module& m = mpm.get_module();
+    if(*mpm.get_root_module() != m)
+        return;
+
     auto has_dynamic_op = std::any_of(iterator_for(m).begin(), iterator_for(m).end(), [](auto ins) {
         return ins->name() == "gpu::dynamic_code_object_op";
     });
 
-    // If there are no dynamic instructions, nothing to do
     if(not has_dynamic_op)
         return;
 
-    // Get module parameters and move them all to the beginning
     auto params = m.get_parameter_names();
+    std::sort(params.begin(), params.end());
     std::vector<instruction_ref> param_ins;
     for(const auto& name : params)
-    {
         param_ins.push_back(m.get_parameter(name));
-    }
 
-    // Move all parameters to the beginning in order
-    // Find the first param instruction in the module
-    auto insert_pos = *std::find_if(iterator_for(m).begin(), iterator_for(m).end(), [](auto ins) {
-        return ins->name() == "@param";
-    });
+    module* submod = mpm.create_module("runtime_compile: " + m.name());
+    std::unordered_map<instruction_ref, instruction_ref> ins_map;
+    for(const auto& name : params)
+        ins_map[m.get_parameter(name)] = submod->add_parameter(name, m.get_parameter_shape(name));
 
-    for(auto param_ref : param_ins)
+    auto submod_outputs = submod->insert_instructions(submod->end(), m.begin(), m.end(), &ins_map);
+    submod->add_return(submod_outputs);
+
+    auto return_ins = std::prev(m.end());
+    auto rt_compile_ins =
+        m.insert_instruction(return_ins, make_op("gpu::runtime_compile_op"), param_ins, {submod});
+
+    std::vector<instruction_ref> return_args;
+    if(rt_compile_ins->get_shape().type() == shape::tuple_type)
     {
-        m.move_instruction(param_ref, insert_pos);
-        insert_pos = std::next(param_ref);
+        const auto& sub_shapes = rt_compile_ins->get_shape().sub_shapes();
+        return_args.reserve(sub_shapes.size());
+        for(std::size_t i = 0; i < sub_shapes.size(); ++i)
+            return_args.push_back(m.insert_instruction(
+                return_ins, make_op("get_tuple_elem", {{"index", i}}), {rt_compile_ins}));
     }
-
-    // Create runtime_compile_op operation
-    auto rt_compile_op = make_op("gpu::runtime_compile_op");
-
-    // Insert the runtime_compile_op after all parameters
-    // It takes the module parameters as inputs and the module itself as a module arg
-    m.insert_instruction(insert_pos, rt_compile_op, param_ins, {&m});
+    else
+    {
+        return_args = {rt_compile_ins};
+    }
+    m.replace_return(return_args);
 }
 
 } // namespace gpu

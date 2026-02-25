@@ -29,14 +29,14 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-struct module;
+struct module_pass_manager;
 
 namespace gpu {
 
 struct insert_runtime_compile_op
 {
     std::string name() const { return "insert_runtime_compile_op"; }
-    void apply(module& m) const;
+    void apply(module_pass_manager& mpm) const;
 };
 
 } // namespace gpu

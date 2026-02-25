@@ -61,7 +61,8 @@ migraphx_generate_export_header(migraphx_c DIRECTORY migraphx/api)
 rocm_set_soversion(migraphx_c 3.0)
 add_version_resource(
     TARGET migraphx_c
-    DESCRIPTION "MIGraphX C API - Stable C Interface")   
+    DESCRIPTION "MIGraphX C API - Stable C Interface"
+)   
 
 if(BUILD_TESTING)
     target_compile_definitions(migraphx_c PRIVATE MIGRAPHX_BUILD_TESTING)

@@ -32,7 +32,7 @@
 
 #define VER_COMPANYNAME_STR         "Advanced Micro Devices, Inc.\0"
 #define VER_LEGALCOPYRIGHT_STR      "Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.\0"
-#define VER_PRODUCTNAME_STR         "AMD MIGraphX\0"
+#define VER_PRODUCTNAME_STR         "AMD MIGraphX @COMPONENT_FILENAME@\0"
 
 #ifndef VER_FILEDESCRIPTION_STR
 #define VER_FILEDESCRIPTION_STR     "@COMPONENT_DESCRIPTION@\0"

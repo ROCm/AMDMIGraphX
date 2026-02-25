@@ -36,7 +36,8 @@ endif()
 target_link_libraries(migraphx-hiprtc-driver PRIVATE migraphx_gpu)
 add_version_resource(
     TARGET migraphx-hiprtc-driver
-    DESCRIPTION "MIGraphX HIP RTC Driver - Runtime Compilation Driver")
+    DESCRIPTION "MIGraphX HIP RTC Driver - Runtime Compilation Driver"
+)
 add_dependencies(migraphx_all_targets migraphx-hiprtc-driver)
 rocm_install_targets(
     TARGETS migraphx-hiprtc-driver

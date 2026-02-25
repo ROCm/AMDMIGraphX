@@ -108,7 +108,8 @@ set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
 rocm_set_soversion(migraphx_device ${MIGRAPHX_SO_VERSION})
 add_version_resource(
     TARGET migraphx_device
-    DESCRIPTION "MIGraphX Device Library - GPU Device Operations")
+    DESCRIPTION "MIGraphX Device Library - GPU Device Operations"
+)
 rocm_clang_tidy_check(migraphx_device)
 target_link_libraries(migraphx_device PUBLIC migraphx)
 target_link_libraries(migraphx_device PRIVATE compile_for_gpu)

@@ -833,11 +833,7 @@ struct find_kv_cache_attention
         // its outputs are already in the set. This pulls in constants,
         // broadcasts, and side inputs that feed exclusively into the
         // attention, while excluding ops with external consumers.
-        std::vector<instruction_ref> worklist(inss.begin(), inss.end());
-        while(not worklist.empty())
-        {
-            auto ins = worklist.back();
-            worklist.pop_back();
+        auto expand = fix([&](auto self, auto ins) {
             for(auto input : ins->inputs())
             {
                 if(contains(inss, input))
@@ -849,9 +845,15 @@ struct find_kv_cache_attention
                    }))
                 {
                     inss.insert(input);
-                    worklist.push_back(input);
+                    self(input);
                 }
             }
+        });
+        // Copy inss since we will be modifying it
+        auto starts = inss;
+        for(auto ins : starts)
+        {
+            expand(ins);
         }
 
         std::vector<instruction_ref> sorted_inss(inss.begin(), inss.end());

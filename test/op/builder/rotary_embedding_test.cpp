@@ -380,8 +380,7 @@ TEST_CASE(rotary_embedding_4arg_per_batch_offset_test)
 
     // Batch 0: pos 0→[1,0,1,0], pos 1→[0,1,0,1]
     // Batch 1: pos 3→[0,-1,0,-1], pos 4→[0.5,0.5,0.5,0.5]
-    std::vector<float> expected = {
-        1, 0, 1, 0, 0, 1, 0, 1, 0, -1, 0, -1, 0.5f, 0.5f, 0.5f, 0.5f};
+    std::vector<float> expected = {1, 0, 1, 0, 0, 1, 0, 1, 0, -1, 0, -1, 0.5f, 0.5f, 0.5f, 0.5f};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, expected));
 }
 

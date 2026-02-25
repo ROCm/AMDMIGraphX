@@ -127,8 +127,7 @@ struct rotary_embedding : op_builder<rotary_embedding>
             instruction_ref pos;
             if(pos_elems == 1 and batch > 1)
             {
-                pos = m.insert_instruction(
-                    ins, make_op("reshape", {{"dims", {1, 1, 1}}}), pos_ids);
+                pos = m.insert_instruction(ins, make_op("reshape", {{"dims", {1, 1, 1}}}), pos_ids);
                 pos = m.insert_instruction(
                     ins, make_op("multibroadcast", {{"out_lens", {batch, 1, 1}}}), pos);
             }
@@ -146,10 +145,8 @@ struct rotary_embedding : op_builder<rotary_embedding>
                 std::iota(range_vec.begin(), range_vec.end(), 0);
                 auto range_lit = m.add_literal(migraphx::literal{
                     migraphx::shape{pos_ids->get_shape().type(), {1, seq_len, 1}}, range_vec});
-                auto range_bc = m.insert_instruction(
-                    ins,
-                    make_op("multibroadcast", {{"out_lens", {batch, seq_len, 1}}}),
-                    range_lit);
+                auto range_bc  = m.insert_instruction(
+                    ins, make_op("multibroadcast", {{"out_lens", {batch, seq_len, 1}}}), range_lit);
                 indices = insert_common_op(m, ins, make_op("add"), {pos, range_bc});
             }
             else
@@ -160,10 +157,10 @@ struct rotary_embedding : op_builder<rotary_embedding>
 
         instruction_ref cos_gathered;
         instruction_ref sin_gathered;
-        cos_gathered = m.insert_instruction(
-            ins, make_op("gathernd", {{"batch_dims", 0}}), cos_cache, indices);
-        sin_gathered = m.insert_instruction(
-            ins, make_op("gathernd", {{"batch_dims", 0}}), sin_cache, indices);
+        cos_gathered =
+            m.insert_instruction(ins, make_op("gathernd", {{"batch_dims", 0}}), cos_cache, indices);
+        sin_gathered =
+            m.insert_instruction(ins, make_op("gathernd", {{"batch_dims", 0}}), sin_cache, indices);
 
         if(interleaved)
         {

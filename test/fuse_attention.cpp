@@ -385,6 +385,82 @@ TEST_CASE(gemm_multi_use_pw_softmax_gemm)
     EXPECT(p1.sort() == p2.sort());
 }
 
+// Test that a pointwise op between gemm1 and gemm2 that has external uses
+// is excluded from the attention submodule (becomes a parameter) instead of
+// being duplicated inside and outside.
+TEST_CASE(gemm_multi_use_internal_pw_softmax_gemm)
+{
+    migraphx::shape s1{migraphx::shape::half_type, {1, 12, 256, 256}};
+    auto s1_elements = s1.elements();
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto a   = mm->add_parameter("1", s1);
+        auto b   = mm->add_parameter("2", s1);
+        auto b1  = mm->add_parameter("3", s1);
+        std::vector<float> eights(s1_elements, 0.125);
+        auto eight = mm->add_literal(migraphx::literal{s1, eights});
+        b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
+        b1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}),
+                                 b1);
+        auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto mul   = mm->add_instruction(migraphx::make_op("mul"), gemm1, eight);
+        auto rmax  = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), mul);
+        rmax = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}),
+                                   rmax);
+        auto sub  = mm->add_instruction(migraphx::make_op("sub"), mul, rmax);
+        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        rsum = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}),
+                                   rsum);
+        auto div   = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
+        auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, b1);
+        // mul is used both by softmax (inside attention) and externally
+        mm->add_return({gemm2, mul});
+    }
+    run_pass(p1, {.attn_enabled = true});
+
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto a   = mm->add_parameter("1", s1);
+        auto b   = mm->add_parameter("2", s1);
+        auto b1  = mm->add_parameter("3", s1);
+        std::vector<float> eights(s1_elements, 0.125);
+        auto eight = mm->add_literal(migraphx::literal{s1, eights});
+        b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
+        b1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}),
+                                 b1);
+        auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto mul   = mm->add_instruction(migraphx::make_op("mul"), gemm1, eight);
+
+        // mul is excluded from the attention submodule and passed as a parameter
+        auto group = add_group(
+            p2,
+            "attn0",
+            "attention",
+            {mul, b1},
+            [=](auto* gm, const auto& inputs) {
+                auto rmax =
+                    gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), inputs[0]);
+                rmax = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rmax);
+                auto sub = gm->add_instruction(migraphx::make_op("sub"), inputs[0], rmax);
+                auto exp = gm->add_instruction(migraphx::make_op("exp"), sub);
+                auto rsum =
+                    gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+                rsum = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsum);
+                auto div   = gm->add_instruction(migraphx::make_op("div"), exp, rsum);
+                auto gemm2 = gm->add_instruction(migraphx::make_op("dot"), div, inputs[1]);
+                return std::vector<migraphx::instruction_ref>{gemm2};
+            });
+        mm->add_return({group, mul});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 TEST_CASE(gemm_pw_softmax_lse_gemm)
 {
     migraphx::shape s1{migraphx::shape::half_type, {1, 12, 256, 256}};

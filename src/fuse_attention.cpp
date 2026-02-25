@@ -115,6 +115,43 @@ inline std::size_t calculate_groups(std::size_t groups,
     return 0;
 }
 
+// Remove pointwise/reshape instructions from the attention instruction set that have
+// outputs used outside the set. Such instructions are used elsewhere in the graph
+// and should not be duplicated inside the attention submodule. Also removes
+// instructions that become dead (no consumers in the set) after filtering.
+// The end instruction is preserved since it is the designated output.
+// Since attn_inss is topologically sorted, iterating in reverse processes consumers
+// before producers so a single pass handles cascading removals.
+void remove_multi_use_inputs(std::vector<instruction_ref>& attn_inss, instruction_ref end)
+{
+    std::unordered_set<instruction_ref> inss_set(attn_inss.begin(), attn_inss.end());
+    auto should_remove = [&](auto ins) {
+        if(ins == end)
+            return false;
+        bool has_external =
+            std::any_of(ins->outputs().begin(), ins->outputs().end(), [&](auto o) {
+                return not contains(inss_set, o);
+            });
+        // Remove pointwise/reshape with external outputs
+        if(has_external and (ins->get_operator().attributes().get("pointwise", false) or
+                             ins->get_operator().name() == "reshape"))
+            return true;
+        // Remove instructions with no consumers in the set
+        return not ins->outputs().empty() and
+               std::none_of(ins->outputs().begin(), ins->outputs().end(), [&](auto o) {
+                   return contains(inss_set, o);
+               });
+    };
+    std::for_each(attn_inss.rbegin(), attn_inss.rend(), [&](auto ins) {
+        if(should_remove(ins))
+            inss_set.erase(ins);
+    });
+    attn_inss.erase(std::remove_if(attn_inss.begin(),
+                                    attn_inss.end(),
+                                    [&](auto ins) { return not contains(inss_set, ins); }),
+                     attn_inss.end());
+}
+
 // TODO: Write this in matcher.hpp as a general matcher for iterating through inputs
 inline auto pointwise_inputs()
 {
@@ -223,6 +260,9 @@ struct find_attention
 
         // Capture all instructions part of the attention op
         auto attn_inss = get_attn_instructions(mpm.get_module(), gemm1, gemm2);
+
+        // Remove pointwise inputs that are used outside the attention
+        remove_multi_use_inputs(attn_inss, gemm2);
 
         // Add captured instructions to new submodule
         module m_attn;
@@ -861,6 +901,9 @@ struct find_kv_cache_attention
 
         // Capture all instructions part of the attention op
         auto attn_inss = get_attn_instructions(mpm.get_module(), total_sl, reshape);
+
+        // Remove pointwise inputs that are used outside the attention
+        filter_multi_use_inputs(attn_inss, reshape);
 
         // Add captured instructions to new submodule
         module m_attn;

@@ -36,7 +36,6 @@
 namespace migraphx {
 
 // Coordinate transformation mode functors
-// Use double precision to match ref implementation and avoid float precision issues
 struct coord_transform_half_pixel
 {
     MIGRAPHX_DEVICE_CONSTEXPR float operator()(index_int, index_int, float idx, float scale) const

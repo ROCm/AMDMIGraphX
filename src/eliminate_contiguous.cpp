@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -135,8 +135,11 @@ static void remove_contiguous(const std::string& op_name, module& m, F f)
         auto args     = ins->inputs();
         auto mod_args = ins->module_inputs();
 
-        for(auto arg : ins->inputs())
+        for(auto arg : args)
         {
+            // check that arg is still in ins->inputs()
+            if(not contains(ins->inputs(), arg))
+                continue;
             if(arg->name() != op_name)
                 continue;
             if(enabled(MIGRAPHX_TRACE_ELIMINATE_CONTIGUOUS{}))

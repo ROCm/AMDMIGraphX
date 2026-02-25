@@ -9880,6 +9880,23 @@ def mha_test():
 
 
 @onnx_test()
+def mha_2d_bias_test():
+    query = helper.make_tensor_value_info("q", TensorProto.FLOAT, [1, 2, 4])
+    key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 2, 4])
+    value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 2, 4])
+    bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12, 2])
+    out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 2, 4])
+
+    node = helper.make_node('MultiHeadAttention',
+                            inputs=['q', 'k', 'v', "bias"],
+                            outputs=['out'],
+                            num_heads=2,
+                            domain='com.microsoft')
+
+    return ([node], [query, key, value, bias], [out])
+
+
+@onnx_test()
 def mha_bias_test():
     query = helper.make_tensor_value_info("q", TensorProto.FLOAT, [1, 2, 4])
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 2, 4])
@@ -10217,7 +10234,7 @@ def mha_invalid_cross_value_test():
 
 
 @onnx_test()
-def mha_invalid_bias_dimensions_test():
+def mha_2d_bias_test():
     query = helper.make_tensor_value_info("q", TensorProto.FLOAT, [1, 2, 4])
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 2, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 2, 4])

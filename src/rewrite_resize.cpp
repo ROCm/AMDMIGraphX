@@ -80,7 +80,7 @@ calc_neighbor_points(const std::vector<std::vector<std::vector<std::size_t>>>& v
                   indices.end(),
                   out_idx_vec.begin(),
                   [&](std::ptrdiff_t flat_idx) -> std::size_t {
-                      // TODO: Use stuctured binding when switching to C++23
+                      // TODO: Use structured binding when switching to C++23
                       auto multi_idx = flat_s.multi<2>(flat_idx);
                       auto perm_idx  = multi_idx[0];
                       auto e_idx     = multi_idx[1];

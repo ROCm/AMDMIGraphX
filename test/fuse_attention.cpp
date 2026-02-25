@@ -436,15 +436,11 @@ TEST_CASE(gemm_multi_use_internal_pw_softmax_gemm)
         auto mul   = mm->add_instruction(migraphx::make_op("mul"), gemm1, eight);
 
         // mul is excluded from the attention submodule and passed as a parameter
-        auto group = add_group(
-            p2,
-            "attn0",
-            "attention",
-            {mul, b1},
-            [=](auto* gm, const auto& inputs) {
-                auto rmax =
-                    gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), inputs[0]);
-                rmax = gm->add_instruction(
+        auto group =
+            add_group(p2, "attn0", "attention", {mul, b1}, [=](auto* gm, const auto& inputs) {
+                auto rmax = gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}),
+                                                inputs[0]);
+                rmax      = gm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rmax);
                 auto sub = gm->add_instruction(migraphx::make_op("sub"), inputs[0], rmax);
                 auto exp = gm->add_instruction(migraphx::make_op("exp"), sub);

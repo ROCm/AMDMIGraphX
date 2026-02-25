@@ -128,10 +128,9 @@ void remove_multi_use_inputs(std::vector<instruction_ref>& attn_inss, instructio
     auto should_remove = [&](auto ins) {
         if(ins == end)
             return false;
-        bool has_external =
-            std::any_of(ins->outputs().begin(), ins->outputs().end(), [&](auto o) {
-                return not contains(inss_set, o);
-            });
+        bool has_external = std::any_of(ins->outputs().begin(), ins->outputs().end(), [&](auto o) {
+            return not contains(inss_set, o);
+        });
         // Remove pointwise/reshape with external outputs
         if(has_external and (ins->get_operator().attributes().get("pointwise", false) or
                              ins->get_operator().name() == "reshape"))
@@ -147,9 +146,9 @@ void remove_multi_use_inputs(std::vector<instruction_ref>& attn_inss, instructio
             inss_set.erase(ins);
     });
     attn_inss.erase(std::remove_if(attn_inss.begin(),
-                                    attn_inss.end(),
-                                    [&](auto ins) { return not contains(inss_set, ins); }),
-                     attn_inss.end());
+                                   attn_inss.end(),
+                                   [&](auto ins) { return not contains(inss_set, ins); }),
+                    attn_inss.end());
 }
 
 // TODO: Write this in matcher.hpp as a general matcher for iterating through inputs

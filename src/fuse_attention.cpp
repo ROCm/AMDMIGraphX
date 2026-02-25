@@ -31,7 +31,6 @@
 #include <migraphx/generic_float.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/split_factor.hpp>
-#include <queue>
 #include <optional>
 
 namespace migraphx {
@@ -807,11 +806,6 @@ struct find_kv_cache_attention
     std::vector<instruction_ref>
     get_attn_instructions(module& m, instruction_ref start, instruction_ref end) const
     {
-        // Backward BFS to collect candidate attention instructions
-        std::queue<instruction_ref> q;
-        std::unordered_set<instruction_ref> candidates;
-        q.push(end);
-
         static const std::unordered_set<std::string> valid_attn_ops = {"softmax",
                                                                        "broadcast",
                                                                        "dot",
@@ -823,57 +817,39 @@ struct find_kv_cache_attention
                                                                        "reshape",
                                                                        "reduce_sum",
                                                                        "reduce_max",
-                                                                       "broadcast",
                                                                        "multibroadcast",
                                                                        "@literal",
                                                                        "unsqueeze"};
 
         auto is_valid_attn_op = [&](auto i) {
             return i->get_operator().attributes().get("pointwise", false) or
-                   contains(valid_attn_ops, i->get_operator().name()) or i == start or i == end;
+                   contains(valid_attn_ops, i->get_operator().name());
         };
 
-        while(not q.empty())
+        // Start with instructions on data-dependency paths from start to end.
+        auto inss = find_instructions_between(start, end, &m);
+        // Expand by walking inputs of instructions already in the set.
+        // An input is added when it is a valid attention op and all of
+        // its outputs are already in the set. This pulls in constants,
+        // broadcasts, and side inputs that feed exclusively into the
+        // attention, while excluding ops with external consumers.
+        std::vector<instruction_ref> worklist(inss.begin(), inss.end());
+        while(not worklist.empty())
         {
-            auto current_inp = q.front();
-            q.pop();
-
-            if(is_valid_attn_op(current_inp) and candidates.insert(current_inp).second and
-               current_inp != start)
+            auto ins = worklist.back();
+            worklist.pop_back();
+            for(auto input : ins->inputs())
             {
-                for(auto i : current_inp->inputs())
-                {
-                    q.push(i);
-                }
-            }
-        }
-
-        // Intersect candidates with find_instructions_between to exclude
-        // pointwise side inputs not on a path from start to end.
-        auto between = find_instructions_between(start, end, &m);
-        std::unordered_set<instruction_ref> inss;
-        for(auto i : candidates)
-        {
-            if(contains(between, i))
-                inss.insert(i);
-        }
-        // Expand with candidates whose outputs are all within the set.
-        // This adds constants (literals and their broadcasts) that feed
-        // into the attention but are not between start and end.
-        bool changed = true;
-        while(changed)
-        {
-            changed = false;
-            for(auto i : candidates)
-            {
-                if(contains(inss, i))
+                if(contains(inss, input))
                     continue;
-                if(std::all_of(i->outputs().begin(), i->outputs().end(), [&](auto o) {
+                if(not is_valid_attn_op(input))
+                    continue;
+                if(std::all_of(input->outputs().begin(), input->outputs().end(), [&](auto o) {
                        return contains(inss, o);
                    }))
                 {
-                    inss.insert(i);
-                    changed = true;
+                    inss.insert(input);
+                    worklist.push_back(input);
                 }
             }
         }

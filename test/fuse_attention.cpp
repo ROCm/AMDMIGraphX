@@ -1303,14 +1303,13 @@ TEST_CASE(kv_cache_attention_external_pointwise)
             migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), slc_k, slk, past_k);
         auto cpp_v = mm->add_instruction(
             migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), v_part, slk, past_v);
-        auto unsq_slk = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), slk);
 
-        // Group inputs: {rope, cpp_k, unsq_slk, cpp_v}
+        // Group inputs: {rope, cpp_k, slk, cpp_v}
         auto group = add_group(
             p2,
             "attn0",
             "kv_cache_attention",
-            {rope, cpp_k, unsq_slk, cpp_v},
+            {rope, cpp_k, slk, cpp_v},
             [=](auto* gm, const auto& inputs) {
                 auto range_lit = gm->add_literal(migraphx::literal{s_range, {0, 1, 2, 3}});
                 auto cmask_lit = gm->add_literal(
@@ -1334,8 +1333,10 @@ TEST_CASE(kv_cache_attention_external_pointwise)
                     migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 3, 4}}}), cmask_lit);
                 auto causal =
                     gm->add_instruction(migraphx::make_op("where"), bc_cmask, bc_ninf, scaled);
+                auto unsq_slk = gm->add_instruction(
+                    migraphx::make_op("unsqueeze", {{"axes", {2}}}), inputs.at(2));
                 auto bc_slk = gm->add_instruction(
-                    migraphx::make_op("broadcast", {{"out_lens", {1, 1, 1, 4}}}), inputs.at(2));
+                    migraphx::make_op("broadcast", {{"out_lens", {1, 1, 1, 4}}}), unsq_slk);
                 auto grtr = gm->add_instruction(migraphx::make_op("greater"), range_lit, bc_slk);
                 auto conv_grtr = gm->add_instruction(
                     migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}),

@@ -226,7 +226,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
             const auto key_pad_type     = key_pad_mask->get_shape().type();
 
             // Accept integer types (int32, int64) and boolean types for key padding mask
-            if(key_pad_type != shape::int32_type && key_pad_type != shape::int64_type &&
+            if(key_pad_type != shape::int32_type and key_pad_type != shape::int64_type and
                key_pad_type != shape::bool_type)
                 MIGRAPHX_THROW(
                     "MultiHeadAttention: Key padding mask must be int32, int64, or bool tensor");
@@ -295,7 +295,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
             auto bias_lens = bias->get_shape().lens();
 
             // Skip bias validation if it's undefined or empty
-            if(bias->name() == "undefined" || bias_lens.empty())
+            if(bias->name() == "undefined" or bias_lens.empty())
                 return;
 
             // Handle different bias formats - some models may have different bias shapes
@@ -367,7 +367,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
                 MIGRAPHX_THROW("MultiHeadAttention: past_key must be 4D tensor");
             }
 
-            if(past_key_lens[0] != params.batch_size || past_key_lens[1] != params.num_heads)
+            if(past_key_lens[0] != params.batch_size or past_key_lens[1] != params.num_heads)
             {
                 MIGRAPHX_THROW(
                     "MultiHeadAttention: past_key dimensions must match batch_size and num_heads");
@@ -387,7 +387,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
                 MIGRAPHX_THROW("MultiHeadAttention: past_value must be 4D tensor");
             }
 
-            if(past_value_lens[0] != params.batch_size || past_value_lens[1] != params.num_heads)
+            if(past_value_lens[0] != params.batch_size or past_value_lens[1] != params.num_heads)
             {
                 MIGRAPHX_THROW("MultiHeadAttention: past_value dimensions must match batch_size "
                                "and num_heads");
@@ -742,7 +742,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         auto result = info.add_instruction(make_op("dot"), query, key_transposed);
 
         // Apply attention_bias if present (before masking and scaling)
-        if(args.size() > 5 && args.at(5)->name() != "undefined")
+        if(args.size() > 5 and args.at(5)->name() != "undefined")
         {
             result = info.add_common_op("add", result, args.at(5));
         }

@@ -51,14 +51,14 @@ struct parse_matmulbnb4 : op_parser<parse_matmulbnb4>
         const size_t quant_type = parse_attribute(parser, info, "quant_type");
 
         // Validate quant_type
-        if(quant_type != 0 && quant_type != 1)
+        if(quant_type != 0 and quant_type != 1)
         {
             MIGRAPHX_THROW("MatMulBnb4: quant_type must be 0 (FP4) or 1 (NF4), actual value: " +
                            std::to_string(quant_type));
         }
 
         // Validate block_size (must be power of 2 and >= 16)
-        if(block_size < 16 || (block_size & (block_size - 1)) != 0)
+        if(block_size < 16 or (block_size & (block_size - 1)) != 0)
         {
             MIGRAPHX_THROW("MatMulBnb4: block_size must be a power of 2 and >= 16, actual value: " +
                            std::to_string(block_size));

@@ -294,10 +294,6 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
             auto bias      = args.at(3);
             auto bias_lens = bias->get_shape().lens();
 
-            // Skip bias validation if it's undefined or empty
-            if(bias->name() == "undefined" or bias_lens.empty())
-                return;
-
             // Handle different bias formats - some models may have different bias shapes
             if(bias_lens.size() == 1)
             {
@@ -306,11 +302,6 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
                     MIGRAPHX_THROW(
                         "MultiheadAttention: 1D Bias must be of size hidden_size + hidden_size "
                         "+ v_hidden_size");
-                params.qkv_biased = true;
-            }
-            else if(bias_lens.size() == 0)
-            {
-                // Scalar bias - convert to appropriate format
                 params.qkv_biased = true;
             }
             else

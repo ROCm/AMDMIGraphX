@@ -344,11 +344,8 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         if(args.size() > 6)
         {
             auto past_key = args.at(6);
-            // Skip validation if past_key is empty (undefined)
-            if(past_key->name() == "undefined")
-                return;
-
             auto past_key_lens = past_key->get_shape().lens();
+
             if(past_key_lens.size() != 4)
             {
                 MIGRAPHX_THROW("MultiHeadAttention: past_key must be 4D tensor");
@@ -364,11 +361,8 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         if(args.size() > 7)
         {
             auto past_value = args.at(7);
-            // Skip validation if past_value is empty (undefined)
-            if(past_value->name() == "undefined")
-                return;
-
             auto past_value_lens = past_value->get_shape().lens();
+
             if(past_value_lens.size() != 4)
             {
                 MIGRAPHX_THROW("MultiHeadAttention: past_value must be 4D tensor");

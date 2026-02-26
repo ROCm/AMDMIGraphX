@@ -33,23 +33,23 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct mlir_ops_options
 {
 #ifdef _WIN32
-#ifdef MIGRAPHX_USE_MIOPEN
-    bool convolution = false;
-    bool convolution_backwards = false;
-    bool fused_convolution = false;
-#else
+#if defined(MIGRAPHX_USE_MIOPEN) && MIGRAPHX_USE_MIOPEN == 0
     bool convolution = true;
     bool convolution_backwards = true;
     bool fused_convolution = true;
-#endif
-#ifdef MIGRAPHX_USE_HIPBLASLT
-    bool attention = false;
-    bool dot = false;
-    bool fused_dot = false; 
 #else
+    bool convolution = false;
+    bool convolution_backwards = false;
+    bool fused_convolution = false;
+#endif
+#if defined(MIGRAPHX_USE_HIPBLASLT) && MIGRAPHX_USE_HIPBLASLT == 0
     bool attention = true;
     bool dot = true;
     bool fused_dot = true; 
+#else
+    bool attention = false;
+    bool dot = false;
+    bool fused_dot = false; 
 #endif
 
 #else

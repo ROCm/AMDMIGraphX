@@ -130,9 +130,16 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
 
         if(do_rotary)
         {
+            // GQA position semantics: prefill starts from 0, decode uses seqlens_k
+            auto pos_ids = args.at(5);
+            if(sequence_length > 1)
+            {
+                pos_ids = info.add_literal(
+                    literal{shape{pos_ids->get_shape().type(), {1}}, {0}});
+            }
             qk = op::builder::add("rotary_embedding",
                                   *info.mod,
-                                  {qk, args.at(5), args.at(7), args.at(8)},
+                                  {qk, pos_ids, args.at(7), args.at(8)},
                                   {{"interleaved", rotary_interleaved}})
                      .at(0);
         }

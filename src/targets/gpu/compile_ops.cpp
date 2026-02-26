@@ -282,13 +282,12 @@ struct runtime_compile_op
             }
             else
             {
-                std::vector<shape> input_shapes;
-                input_shapes.reserve(ins->inputs().size());
-                for(auto input_ins : ins->inputs())
-                {
-                    input_shapes.push_back(ins_shapes.at(input_ins));
-                }
-                // Check if this is a dynamic_code_object_op and collect it
+                std::vector<shape> input_shapes(ins->inputs().size());
+                std::transform(ins->inputs().begin(),
+                               ins->inputs().end(),
+                               input_shapes.begin(),
+                               [&](auto input_ins) { return ins_shapes.at(input_ins); });
+
                 if(ins->name() == "gpu::dynamic_code_object_op")
                 {
                     runtime_dyn_inss.push_back(ins);

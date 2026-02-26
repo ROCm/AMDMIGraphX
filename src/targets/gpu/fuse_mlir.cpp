@@ -257,18 +257,6 @@ get_fusable_input_op_stream(instruction_ref lower_input)
     return {upper_input, op_stream};
 }
 
-// Check if a shape has column-major strides for the last two dimensions
-static bool is_column_major_gemm(const shape& s)
-{
-    if(s.ndim() < 2)
-        return false;
-    auto strides = s.strides();
-    auto lens    = s.lens();
-    auto ndim    = s.ndim();
-    // Column-major for last two dims (k, n): stride[k] = 1, stride[n] = k
-    return strides[ndim - 2] == 1 and strides[ndim - 1] == lens[ndim - 2];
-}
-
 void fuse_input_ops(module_ref mm,
                     const std::vector<instruction_ref>& inputs,
                     std::unordered_map<instruction_ref, instruction_ref>* map_ins)
@@ -280,34 +268,10 @@ void fuse_input_ops(module_ref mm,
         if(contains(*map_ins, input))
             continue;
         auto [upper_input, op_stream] = get_fusable_input_op_stream(input);
-        instruction_ref start_ins; // The instruction to start the chain from
-
         if(not contains(*map_ins, upper_input))
-        {
-            auto input_shape = upper_input->get_shape();
-            shape param_shape;
-
-            // Preserve column-major strides if they exist (set by rewrite_dot pass)
-            // This enables transB optimization in rocMLIR
-            if(is_column_major_gemm(input_shape) and op_stream.empty())
-            {
-                param_shape = input_shape;
-            }
-            else
-            {
-                param_shape = input_shape.as_standard();
-            }
-
-            auto param          = mm->add_parameter(param_name(input_cnt++), param_shape);
-            (*map_ins)[upper_input] = param; // Keep param in map_ins for find_inputs
-            start_ins           = param;
-        }
-        else
-        {
-            start_ins = (*map_ins)[upper_input];
-        }
-
-        instruction_ref prev_input = start_ins;
+            (*map_ins)[upper_input] =
+                mm->add_parameter(param_name(input_cnt++), upper_input->get_shape().as_standard());
+        instruction_ref prev_input = (*map_ins)[upper_input];
         for(const auto& op : reverse(op_stream))
         {
             prev_input = mm->add_instruction(op, {prev_input});
@@ -316,7 +280,6 @@ void fuse_input_ops(module_ref mm,
     }
 }
 
-// Returns: {anchor_op, top_inputs}
 std::tuple<instruction_ref, std::vector<instruction_ref>>
 fuse_input_ops_and_gemm_based_op(module_ref mm,
                                  const std::vector<instruction_ref>& gemm_based_op_inputs,
@@ -329,24 +292,8 @@ fuse_input_ops_and_gemm_based_op(module_ref mm,
     {
         auto [upper_input, op_stream] = get_fusable_input_op_stream(input);
         top_inputs.push_back(upper_input);
-
-        auto input_shape = upper_input->get_shape();
-        shape param_shape;
-
-        // Preserve column-major strides if they exist (set by rewrite_dot pass)
-        // This enables transB optimization in rocMLIR
-        if(is_column_major_gemm(input_shape) and op_stream.empty())
-        {
-            param_shape = input_shape;
-        }
-        else
-        {
-            param_shape = input_shape.as_standard();
-        }
-
         instruction_ref prev_input =
-            mm->add_parameter(param_name(input_cnt++, "y"), param_shape);
-
+            mm->add_parameter(param_name(input_cnt++, "y"), upper_input->get_shape().as_standard());
         for(const auto& op : reverse(op_stream))
         {
             prev_input = mm->add_instruction(op, {prev_input});
@@ -678,20 +625,13 @@ std::vector<instruction_ref> mlir_contiguous(module_pass_manager& mpm,
                                              const std::vector<instruction_ref>& inputs)
 {
     std::vector<instruction_ref> result;
-    for(auto input : inputs)
-    {
-        // For transB: constant B matrices are pre-transformed by rewrite_dot pass
-        // and will already have column-major strides which are preserved by fuse_input_ops
-        if(input->get_shape().packed() or input->get_shape().broadcasted())
-        {
-            result.push_back(input);
-        }
-        else
-        {
-            result.push_back(mpm.get_module().insert_instruction(
-                std::next(input), make_op("contiguous"), input));
-        }
-    }
+    std::transform(
+        inputs.begin(), inputs.end(), std::back_inserter(result), [&](instruction_ref input) {
+            if(input->get_shape().packed() or input->get_shape().broadcasted())
+                return input;
+            return mpm.get_module().insert_instruction(
+                std::next(input), make_op("contiguous"), input);
+        });
     return result;
 }
 
@@ -809,7 +749,6 @@ struct find_mlir_fused_ops : match::supports_dynamic_shapes
         std::unordered_map<instruction_ref, instruction_ref> map_ins;
         module_ref mm = mpm.create_module("mlir_" + pm->name());
         mm->set_bypass();
-
         fuse_input_ops(mm, gemm_based_op->inputs(), &map_ins);
 
         bool gemm_has_multi_outs = gemm_based_op->outputs().size() > 1;
@@ -833,7 +772,6 @@ struct find_mlir_fused_ops : match::supports_dynamic_shapes
         mm->add_return(rins);
 
         auto inputs    = find_inputs(map_ins, &mpm.get_module(), mm);
-
         auto fused_ins = mpm.get_module().insert_instruction(
             pw_ins, mlir_op{gemm_based_op->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
         if(gemm_has_multi_outs)
@@ -940,7 +878,6 @@ struct find_mlir_fused_geg_ops
         module_ref mm =
             mpm.create_module("mlir_" + elemwise_ins->module_inputs().front()->name() + "_geg");
         mm->set_bypass();
-
         fuse_input_ops(mm, first_gemm_ins->inputs(), &map_ins);
 
         // need to track multi-user scenarios for both intermediates
@@ -1081,7 +1018,6 @@ struct find_mlir_standalone_op : match::supports_dynamic_shapes
         auto [anchor_op, top_inputs] = fuse_input_ops_and_gemm_based_op(
             mm, gemm_based_op->inputs(), gemm_based_op->get_operator());
         mm->add_return({anchor_op});
-
         mpm.get_module().replace_instruction(gemm_based_op,
                                              mlir_op{gemm_based_op->get_operator()},
                                              mlir_contiguous(mpm, top_inputs),

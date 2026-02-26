@@ -216,20 +216,20 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         if(args.size() > 4)
         {
             auto key_pad_mask = args.at(4);
-            
+
             // Skip validation if key_padding_mask is undefined or empty
             if(key_pad_mask->name() == "undefined")
                 return;
-                
+
             const auto key_pad_lens     = key_pad_mask->get_shape().lens();
             const auto key_pad_len_size = key_pad_lens.size();
             const auto key_pad_type     = key_pad_mask->get_shape().type();
 
             // Accept integer types (int32, int64) and boolean types for key padding mask
-            if(key_pad_type != shape::int32_type && 
-               key_pad_type != shape::int64_type && 
+            if(key_pad_type != shape::int32_type && key_pad_type != shape::int64_type &&
                key_pad_type != shape::bool_type)
-                MIGRAPHX_THROW("MultiHeadAttention: Key padding mask must be int32, int64, or bool tensor");
+                MIGRAPHX_THROW(
+                    "MultiHeadAttention: Key padding mask must be int32, int64, or bool tensor");
 
             if(key_pad_len_size > 3 or key_pad_len_size < 1)
                 MIGRAPHX_THROW(
@@ -303,8 +303,9 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
             {
                 // Standard 1D bias format
                 if(bias_lens[0] != params.hidden_size_v + (2 * params.hidden_size))
-                    MIGRAPHX_THROW("MultiheadAttention: 1D Bias must be of size hidden_size + hidden_size "
-                                   "+ v_hidden_size");
+                    MIGRAPHX_THROW(
+                        "MultiheadAttention: 1D Bias must be of size hidden_size + hidden_size "
+                        "+ v_hidden_size");
                 params.qkv_biased = true;
             }
             else if(bias_lens.size() == 0)
@@ -321,33 +322,36 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
     }
 
     void check_attention_bias(const std::vector<instruction_ref>& args,
-                             multi_head_attention_parameters& params) const
+                              multi_head_attention_parameters& params) const
     {
         if(args.size() > 5)
         {
             auto attention_bias = args.at(5);
-            auto bias_lens = attention_bias->get_shape().lens();
-            
-            // attention_bias should be 4D: (batch_size, num_heads, source_sequence_length, target_sequence_length)
+            auto bias_lens      = attention_bias->get_shape().lens();
+
+            // attention_bias should be 4D: (batch_size, num_heads, source_sequence_length,
+            // target_sequence_length)
             if(bias_lens.size() != 4)
             {
                 MIGRAPHX_THROW("MultiHeadAttention: attention_bias must be 4D tensor");
             }
-            
+
             if(bias_lens[0] != params.batch_size)
             {
-                MIGRAPHX_THROW("MultiHeadAttention: attention_bias batch dimension must match input batch size");
+                MIGRAPHX_THROW("MultiHeadAttention: attention_bias batch dimension must match "
+                               "input batch size");
             }
-            
+
             if(bias_lens[1] != params.num_heads)
             {
-                MIGRAPHX_THROW("MultiHeadAttention: attention_bias num_heads dimension must match attribute num_heads");
+                MIGRAPHX_THROW("MultiHeadAttention: attention_bias num_heads dimension must match "
+                               "attribute num_heads");
             }
         }
     }
 
     void check_past_inputs(const std::vector<instruction_ref>& args,
-                          multi_head_attention_parameters& params) const
+                           multi_head_attention_parameters& params) const
     {
         // past_key at index 6, past_value at index 7
         if(args.size() > 6)
@@ -356,35 +360,37 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
             // Skip validation if past_key is empty (undefined)
             if(past_key->name() == "undefined")
                 return;
-                
+
             auto past_key_lens = past_key->get_shape().lens();
             if(past_key_lens.size() != 4)
             {
                 MIGRAPHX_THROW("MultiHeadAttention: past_key must be 4D tensor");
             }
-            
+
             if(past_key_lens[0] != params.batch_size || past_key_lens[1] != params.num_heads)
             {
-                MIGRAPHX_THROW("MultiHeadAttention: past_key dimensions must match batch_size and num_heads");
+                MIGRAPHX_THROW(
+                    "MultiHeadAttention: past_key dimensions must match batch_size and num_heads");
             }
         }
-        
+
         if(args.size() > 7)
         {
             auto past_value = args.at(7);
             // Skip validation if past_value is empty (undefined)
             if(past_value->name() == "undefined")
                 return;
-                
+
             auto past_value_lens = past_value->get_shape().lens();
             if(past_value_lens.size() != 4)
             {
                 MIGRAPHX_THROW("MultiHeadAttention: past_value must be 4D tensor");
             }
-            
+
             if(past_value_lens[0] != params.batch_size || past_value_lens[1] != params.num_heads)
             {
-                MIGRAPHX_THROW("MultiHeadAttention: past_value dimensions must match batch_size and num_heads");
+                MIGRAPHX_THROW("MultiHeadAttention: past_value dimensions must match batch_size "
+                               "and num_heads");
             }
         }
     }
@@ -395,10 +401,11 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         if(args.empty())
             MIGRAPHX_THROW("MultiHeadAttention: At least one input (query) is required.");
 
-        // Support up to 8 inputs: query, key, value, bias, key_padding_mask, attention_bias, past_key, past_value
-        // We'll process the inputs we support and ignore any additional ones
+        // Support up to 8 inputs: query, key, value, bias, key_padding_mask, attention_bias,
+        // past_key, past_value We'll process the inputs we support and ignore any additional ones
         if(args.size() > 8)
-            MIGRAPHX_THROW("MultiHeadAttention: Maximum 8 inputs supported (query, key, value, bias, key_padding_mask, attention_bias, past_key, past_value).");
+            MIGRAPHX_THROW("MultiHeadAttention: Maximum 8 inputs supported (query, key, value, "
+                           "bias, key_padding_mask, attention_bias, past_key, past_value).");
 
         // Order matters here. Most parameters defined by input query, key, value parameters
         // This must be used first to extract hidden size, batch, etc
@@ -746,11 +753,11 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
             result = info.add_common_op("add", result, attn_mask.value());
         }
 
-        result      = info.add_common_op("mul", result, scale_literal);
-        result      = info.add_instruction(make_op("softmax", {{"axis", -1}}), result);
-        result      = info.add_instruction(make_op("dot"), result, value);
-        result      = info.add_instruction(make_op("transpose", {{"permutation", perm}}), result);
-        result      = info.add_instruction(
+        result = info.add_common_op("mul", result, scale_literal);
+        result = info.add_instruction(make_op("softmax", {{"axis", -1}}), result);
+        result = info.add_instruction(make_op("dot"), result, value);
+        result = info.add_instruction(make_op("transpose", {{"permutation", perm}}), result);
+        result = info.add_instruction(
             make_op(
                 "reshape",
                 {{"dims", {params.batch_size, params.q_sequence_length, params.hidden_size_v}}}),

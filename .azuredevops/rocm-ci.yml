@@ -15,37 +15,9 @@ resources:
     name: ROCm/ROCm
     ref: ${{ parameters.pipelinesRepoRef }}
 
-trigger:
-  batch: true
-  branches:
-    include:
-    - develop
-    - master
-  paths:
-    exclude:
-    - .githooks
-    - .github
-    - docs
-    - '.*.y*ml'
-    - '*.md'
-    - Jenkinsfile
-    - LICENSE
-
-pr:
-  autoCancel: true
-  branches:
-    include:
-    - develop
-    - master
-  paths:
-    exclude:
-    - .github
-    - docs
-    - '.*.y*ml'
-    - '*.md'
-    - Jenkinsfile
-    - LICENSE
-  drafts: false
+# Pipeline disabled: AMDMIGraphX depends on hipBLAS, which depends on rocsparse (disabled)
+trigger: none
+pr: none
 
 jobs:
   - template: ${{ variables.CI_COMPONENT_PATH }}/AMDMIGraphX.yml@pipelines_repo

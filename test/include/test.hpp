@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -190,10 +190,24 @@ Stream& print_stream_impl(rank<4>, Stream& s, std::nullptr_t)
     return s;
 }
 
+template <class Stream, class Optional>
+auto print_stream_impl(rank<5>, Stream& s, const Optional& x)
+    -> decltype(bool(Optional{*x}), x.has_value(), x.value(), void())
+{
+    if(x.has_value())
+    {
+        print_stream(s, x.value());
+    }
+    else
+    {
+        s << "nullopt";
+    }
+}
+
 template <class Stream, class T>
 void print_stream(Stream& s, const T& x)
 {
-    print_stream_impl(rank<5>{}, s, x);
+    print_stream_impl(rank<6>{}, s, x);
 }
 
 template <class T>
@@ -545,6 +559,13 @@ struct failure_error
 
 [[noreturn]] inline void fail() { throw failure_error{}; }
 
+struct skip_test
+{
+    std::string reason;
+};
+
+[[noreturn]] inline void skip(const std::string& reason = "") { throw skip_test{reason}; }
+
 struct driver
 {
     driver()
@@ -732,6 +753,16 @@ struct driver
                 failures() = 0;
                 f();
             }
+            catch(const skip_test& s)
+            {
+                skipped.push_back({name, s.reason});
+                out() << color::fg_yellow << "[ SKIPPED  ] " << color::reset << color::bold << name
+                      << color::reset;
+                if(not s.reason.empty())
+                    out() << ": " << color::fg_yellow << s.reason << color::reset;
+                out() << std::endl;
+                return;
+            }
             // cppcheck-suppress migraphx-EmptyCatchStatement
             catch(const failure_error&)
             {
@@ -834,6 +865,18 @@ struct driver
         }
         out() << color::fg_green << "[==========] " << color::fg_yellow << ran << " tests ran"
               << color::reset << std::endl;
+        if(not skipped.empty())
+        {
+            out() << color::fg_yellow << "[ SKIPPED  ] " << skipped.size() << " tests skipped"
+                  << color::reset << std::endl;
+            for(auto&& skip_info : skipped)
+            {
+                out() << color::fg_yellow << "[ SKIPPED  ] " << skip_info.first << color::reset;
+                if(not skip_info.second.empty())
+                    out() << ": " << color::fg_yellow << skip_info.second << color::reset;
+                out() << std::endl;
+            }
+        }
         if(not failed.empty())
         {
             out() << color::fg_red << "[  FAILED  ] " << color::fg_yellow << failed.size()
@@ -850,6 +893,7 @@ struct driver
         [](const std::string& name) -> std::vector<std::string> { return {name}; };
     std::vector<argument> arguments = {};
     std::vector<std::string> failed = {};
+    std::vector<std::pair<std::string, std::string>> skipped = {};
     std::size_t ran                 = 0;
     bool quiet                      = false;
 };
@@ -904,6 +948,17 @@ inline void run(int argc, const char* argv[])
     static void __VA_ARGS__();      \
     TEST_CASE_REGISTER(__VA_ARGS__) \
     static void __VA_ARGS__()
+
+// NOLINTNEXTLINE
+#define TEST_CASE_SKIP(name, reason)                           \
+    static void name##_body();                                 \
+    static void name()                                         \
+    {                                                          \
+        (void)&name##_body; /* to avoid unused func warning */ \
+        test::skip(reason);                                    \
+    }                                                          \
+    TEST_CASE_REGISTER(name)                                   \
+    static void name##_body()
 
 #ifdef __clang__
 #pragma clang diagnostic push

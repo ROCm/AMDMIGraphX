@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y software-properties-common gnupg2 --no-
     curl -sL http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add -
 
 # Add rocm repository
-RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/7.1/ jammy main > /etc/apt/sources.list.d/rocm.list'
+RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/7.1.1/ jammy main > /etc/apt/sources.list.d/rocm.list'
 
 # From docs.amd.com for installing rocm. Needed to install properly
 RUN sh -c "echo 'Package: *\nPin: release o=repo.radeon.com\nPin-priority: 600' > /etc/apt/preferences.d/rocm-pin-600"
@@ -62,6 +62,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     hipblas  \
     hipify-clang \
     hiprand-dev \
+    hipsparselt \
     half \
     libssl-dev \
     zlib1g-dev && \
@@ -69,9 +70,9 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     rm -rf /var/lib/apt/lists/*
 
 # Install pytorch
-RUN pip3 install https://repo.radeon.com/rocm/manylinux/rocm-rel-7.1/torch-2.6.0%2Brocm7.1.0.lw.git78f6ff78-cp310-cp310-linux_x86_64.whl\
-                 https://repo.radeon.com/rocm/manylinux/rocm-rel-7.1/torchvision-0.21.0%2Brocm7.1.0.git4040d51f-cp310-cp310-linux_x86_64.whl\
-                 https://repo.radeon.com/rocm/manylinux/rocm-rel-7.1/triton-3.2.0%2Brocm7.1.0.git20943800-cp310-cp310-linux_x86_64.whl
+RUN pip3 install https://repo.radeon.com/rocm/manylinux/rocm-rel-7.1.1/torch-2.8.0%2Brocm7.1.1.lw.gitcba8b9d2-cp310-cp310-linux_x86_64.whl\
+                 https://repo.radeon.com/rocm/manylinux/rocm-rel-7.1.1/torchvision-0.24.0%2Brocm7.1.1.gitb919bd0c-cp310-cp310-linux_x86_64.whl\
+                 https://repo.radeon.com/rocm/manylinux/rocm-rel-7.1.1/triton-3.4.0%2Brocm7.1.1.git0cace8d2-cp310-cp310-linux_x86_64.whl
 
 # add this for roctracer dependancies
 RUN pip3 install CppHeaderParser
@@ -118,25 +119,8 @@ RUN pip3 install -r /doc-requirements.txt
 # Install latest ccache version
 RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake
 RUN cget -p $PREFIX install ccache@v4.1 -DENABLE_TESTING=OFF
-RUN cget -p /opt/cmake install kitware/cmake@v3.28.0
 # Install a newer version of doxygen because the one that comes with ubuntu is broken
 RUN cget -p $PREFIX install doxygen@Release_1_14_0
-
-COPY ./test/onnx/.onnxrt-commit /
-
-ARG ONNXRUNTIME_REPO=https://github.com/Microsoft/onnxruntime
-ARG ONNXRUNTIME_BRANCH=main
-ARG ONNXRUNTIME_COMMIT
-
-RUN git clone --single-branch --branch ${ONNXRUNTIME_BRANCH} --recursive ${ONNXRUNTIME_REPO} onnxruntime && \
-    cd onnxruntime && \
-    if [ -z "$ONNXRUNTIME_COMMIT" ] ; then git checkout $(cat /.onnxrt-commit) ; else git checkout ${ONNXRUNTIME_COMMIT} ; fi && \
-    /bin/sh /onnxruntime/dockerfiles/scripts/install_common_deps.sh
-
-
-ADD tools/build_and_test_onnxrt.sh /onnxruntime/build_and_test_onnxrt.sh
-ADD tools/pai_test_launcher.sh /onnxruntime/tools/ci_build/github/pai/pai_test_launcher.sh
-ADD tools/pai_provider_test_launcher.sh /onnxruntime/tools/ci_build/github/pai/pai_provider_test_launcher.sh
 
 ENV MIOPEN_FIND_DB_PATH=/tmp/miopen/find-db
 ENV MIOPEN_USER_DB_PATH=/tmp/miopen/user-db

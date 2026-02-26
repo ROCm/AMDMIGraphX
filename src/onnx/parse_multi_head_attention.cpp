@@ -217,10 +217,6 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         {
             auto key_pad_mask = args.at(4);
 
-            // Skip validation if key_padding_mask is undefined or empty
-            if(key_pad_mask->name() == "undefined")
-                return;
-
             const auto key_pad_lens     = key_pad_mask->get_shape().lens();
             const auto key_pad_len_size = key_pad_lens.size();
             const auto key_pad_type     = key_pad_mask->get_shape().type();

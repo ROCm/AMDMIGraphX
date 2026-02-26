@@ -45,29 +45,16 @@ struct rotary_embedding : op_builder<rotary_embedding>
         return pack(f(self.interleaved, "interleaved"));
     }
 
-    // 3-arg: {input, cos, sin}           — cos/sin already gathered and broadcast-compatible
-    // 4-arg: {input, pos_ids, cos_cache, sin_cache} — raw caches, builder gathers internally
+    // {input, pos_ids, cos_cache, sin_cache} — raw caches, builder gathers internally
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
     {
-        auto in = args[0];
+        auto in        = args[0];
+        auto pos_ids   = args[1];
+        auto cos_cache = args[2];
+        auto sin_cache = args[3];
 
-        instruction_ref cos;
-        instruction_ref sin;
-
-        if(args.size() == 4)
-        {
-            auto pos_ids       = args[1];
-            auto cos_cache     = args[2];
-            auto sin_cache     = args[3];
-            std::tie(cos, sin) = gather_cache(m, ins, in, pos_ids, cos_cache, sin_cache);
-        }
-        else
-        {
-            cos = args[1];
-            sin = args[2];
-        }
-
+        auto [cos, sin] = gather_cache(m, ins, in, pos_ids, cos_cache, sin_cache);
         return apply_rotation(m, ins, in, cos, sin);
     }
 

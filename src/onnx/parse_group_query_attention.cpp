@@ -134,8 +134,7 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
             auto pos_ids = args.at(5);
             if(sequence_length > 1)
             {
-                pos_ids = info.add_literal(
-                    literal{shape{pos_ids->get_shape().type(), {1}}, {0}});
+                pos_ids = info.add_literal(literal{shape{pos_ids->get_shape().type(), {1}}, {0}});
             }
             qk = op::builder::add("rotary_embedding",
                                   *info.mod,

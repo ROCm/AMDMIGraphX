@@ -23,6 +23,9 @@
  */
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/op/builder/insert.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/ranges.hpp>
+#include <algorithm>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -77,7 +80,25 @@ struct parse_generic_op : op_parser<parse_generic_op>
                           const std::vector<instruction_ref>& args) const
     {
         const auto& val = parser.load_to_value(opd.op_name, info, false);
-        return op::builder::add(opd.op_name, *info.mod, args, val).at(0);
+
+        if(any_of(args, [&](const auto& arg) { return arg->get_shape().dynamic(); }))
+        {
+            return op::builder::add(opd.op_name, *info.mod, args, val).at(0);
+        }
+        // Filter out args that have 0 elements
+        std::vector<instruction_ref> new_args{};
+        std::copy_if(args.begin(),
+                     args.end(),
+                     std::back_inserter(new_args),
+                     [&](const instruction_ref& arg) { return arg->get_shape().elements() > 0; });
+
+        // If all args have 0 elements, return an undefined instruction
+        if(new_args.empty())
+        {
+            return info.add_instruction(make_op("undefined"));
+        }
+
+        return op::builder::add(opd.op_name, *info.mod, new_args, val).at(0);
     }
 };
 

@@ -343,7 +343,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         // past_key at index 6, past_value at index 7
         if(args.size() > 6)
         {
-            auto past_key = args.at(6);
+            auto past_key      = args.at(6);
             auto past_key_lens = past_key->get_shape().lens();
 
             if(past_key_lens.size() != 4)
@@ -360,7 +360,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
 
         if(args.size() > 7)
         {
-            auto past_value = args.at(7);
+            auto past_value      = args.at(7);
             auto past_value_lens = past_value->get_shape().lens();
 
             if(past_value_lens.size() != 4)

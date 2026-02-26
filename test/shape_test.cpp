@@ -51,6 +51,17 @@ TEST_CASE(test_dyn_4arg_constructor)
     EXPECT(s1.dyn_dims() == expected_dyn_dims);
 }
 
+TEST_CASE(test_dyn_4arg_constructor_empty)
+{
+    std::vector<std::size_t> mins;
+    std::vector<std::size_t> maxes;
+    std::vector<std::set<std::size_t>> opts;
+    migraphx::shape empty_dims{migraphx::shape::int32_type, mins, maxes, opts};
+
+    std::vector<migraphx::shape::dynamic_dimension> expected_dyn_dims = {};
+    EXPECT(empty_dims.dyn_dims() == expected_dyn_dims);
+}
+
 TEST_CASE(test_shape_assign)
 {
     migraphx::shape s1{migraphx::shape::float_type, {100, 32, 8, 8}};

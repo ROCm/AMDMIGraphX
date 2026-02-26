@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -53,11 +53,12 @@ void liveness(const module& m, F f)
         auto add_live_variables = [&](const auto& inputs) {
             for(auto input : inputs)
             {
-                auto i = instruction::get_output_alias(input);
+                auto aliases = instruction::get_output_alias(input);
                 // Skip if variable comes from parent
-                if(not m.has_instruction(i))
-                    continue;
-                live_set.insert(i);
+                std::copy_if(aliases.begin(),
+                             aliases.end(),
+                             std::inserter(live_set, live_set.end()),
+                             [&](auto i) { return m.has_instruction(i); });
             }
         };
         add_live_variables(ins->inputs());

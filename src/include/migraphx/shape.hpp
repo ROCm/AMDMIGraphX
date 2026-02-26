@@ -472,6 +472,8 @@ struct MIGRAPHX_EXPORT shape
      */
     std::size_t element_space() const;
 
+    void debug_print() const;
+
     private:
     shape(std::shared_ptr<shape_impl> pimpl);
     std::shared_ptr<const shape_impl> impl;

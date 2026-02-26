@@ -1228,24 +1228,34 @@ TEST_CASE(if_cross_module_multi_out_find_output)
         auto x    = mm->add_parameter("x", s1);
         auto y    = mm->add_parameter("y", s1);
         auto cond = mm->add_parameter("cond", migraphx::shape{migraphx::shape::bool_type, {1}});
-        auto add1 = add_pointwise(p2, "main:pointwise0", {x, y}, single_pointwise("add"));
+        auto fused = add_pointwise(
+            p2,
+            "main:pointwise0",
+            {x, y},
+            [=](auto* pm, const auto& inputs) -> std::vector<migraphx::instruction_ref> {
+                auto sqrt_r = pm->add_instruction(migraphx::make_op("sqrt"), inputs[0]);
+                auto add_r  = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+                return {sqrt_r, add_r};
+            });
+        auto sqrt_out =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
+        auto add_out =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
 
         auto* then_mod = p2.create_module("If_then_1");
         {
             auto relu = add_pointwise(
-                p2, then_mod, "If_then_1:pointwise0", {add1}, single_pointwise("relu"));
+                p2, then_mod, "If_then_1:pointwise0", {add_out}, single_pointwise("relu"));
             then_mod->add_return({relu});
         }
 
         auto* else_mod = p2.create_module("If_else_1");
         {
-            else_mod->add_return({add1});
+            else_mod->add_return({add_out});
         }
 
         auto if_ins = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
-
-        auto sqrt = add_pointwise(p2, "main:pointwise1", {x}, single_pointwise("sqrt"));
-        mm->add_return({sqrt, if_ins});
+        mm->add_return({sqrt_out, if_ins});
     }
     EXPECT(p1.sort() == p2.sort());
 }

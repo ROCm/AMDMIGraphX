@@ -89,8 +89,8 @@ struct dynamic_op_cache
     shape output_shape;
 };
 
-std::unordered_map<std::string, argument> build_param_map(const std::vector<argument>& args,
-                                                          const_module_ref mod)
+static std::unordered_map<std::string, argument> build_param_map(const std::vector<argument>& args,
+                                                                 const_module_ref mod)
 {
     auto pnames = mod->get_parameter_names();
     assert(pnames.size() == args.size());

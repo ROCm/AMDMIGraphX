@@ -48,9 +48,10 @@ void insert_runtime_compile_op::apply(module_pass_manager& mpm) const
 
     auto params = m.get_parameter_names();
     std::sort(params.begin(), params.end());
-    std::vector<instruction_ref> param_ins;
-    for(const auto& name : params)
-        param_ins.push_back(m.get_parameter(name));
+    std::vector<instruction_ref> param_ins(params.size());
+    std::transform(params.begin(), params.end(), param_ins.begin(), [&](const auto& name) {
+        return m.get_parameter(name);
+    });
 
     module* submod = mpm.create_module("runtime_compile: " + m.name());
     std::unordered_map<instruction_ref, instruction_ref> ins_map;

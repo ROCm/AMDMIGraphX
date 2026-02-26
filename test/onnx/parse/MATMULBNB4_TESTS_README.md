@@ -28,37 +28,33 @@ I've added the following test generation functions to `test/onnx/gen_onnx.py`:
    - N=64, K=128, block_size=64
    - Tests scalability
 
-5. **matmulbnb4_3d_input_test** - Test with 3D input
-   - Input A: [2, 3, 16]
-   - Tests broadcasting behavior
-
 ### Error Test Cases
 
-6. **matmulbnb4_invalid_quant_type_test** - Invalid quant_type value
+5. **matmulbnb4_invalid_quant_type_test** - Invalid quant_type value
    - Tests validation: quant_type must be 0 or 1
 
-7. **matmulbnb4_invalid_block_size_test** - Block size not power of 2
+6. **matmulbnb4_invalid_block_size_test** - Block size not power of 2
    - Tests validation: block_size must be power of 2
 
-8. **matmulbnb4_invalid_block_size_small_test** - Block size too small
+7. **matmulbnb4_invalid_block_size_small_test** - Block size too small
    - Tests validation: block_size must be >= 16
 
-9. **matmulbnb4_wrong_input_count_test** - Missing inputs
+8. **matmulbnb4_wrong_input_count_test** - Missing inputs
    - Tests validation: requires exactly 3 inputs
 
-10. **matmulbnb4_wrong_a_dims_test** - 1D input A
-    - Tests validation: A must have at least 2 dimensions
+9. **matmulbnb4_wrong_a_dims_test** - 1D input A
+   - Tests validation: A must have at least 2 dimensions
 
-11. **matmulbnb4_wrong_a_inner_dim_test** - Wrong K dimension
+10. **matmulbnb4_wrong_a_inner_dim_test** - Wrong K dimension
     - Tests validation: A's inner dimension must match K
 
-12. **matmulbnb4_wrong_b_dims_test** - Wrong B dimensions
+11. **matmulbnb4_wrong_b_dims_test** - Wrong B dimensions
     - Tests validation: B must have correct packed size
 
-13. **matmulbnb4_wrong_absmax_dims_test** - Wrong absmax dimensions
+12. **matmulbnb4_wrong_absmax_dims_test** - Wrong absmax dimensions
     - Tests validation: absmax must match expected size
 
-14. **matmulbnb4_missing_n_attr_test** - Missing required attribute
+13. **matmulbnb4_missing_n_attr_test** - Missing required attribute
     - Tests validation: N attribute is required
 
 ## How to Generate ONNX Test Files
@@ -73,7 +69,6 @@ python3 -c "import gen_onnx; gen_onnx.matmulbnb4_fp4_test()"
 python3 -c "import gen_onnx; gen_onnx.matmulbnb4_nf4_test()"
 python3 -c "import gen_onnx; gen_onnx.matmulbnb4_block32_test()"
 python3 -c "import gen_onnx; gen_onnx.matmulbnb4_large_test()"
-python3 -c "import gen_onnx; gen_onnx.matmulbnb4_3d_input_test()"
 python3 -c "import gen_onnx; gen_onnx.matmulbnb4_invalid_quant_type_test()"
 python3 -c "import gen_onnx; gen_onnx.matmulbnb4_invalid_block_size_test()"
 python3 -c "import gen_onnx; gen_onnx.matmulbnb4_invalid_block_size_small_test()"
@@ -97,7 +92,6 @@ tests = [
     'matmulbnb4_nf4_test', 
     'matmulbnb4_block32_test',
     'matmulbnb4_large_test',
-    'matmulbnb4_3d_input_test',
     'matmulbnb4_invalid_quant_type_test',
     'matmulbnb4_invalid_block_size_test',
     'matmulbnb4_invalid_block_size_small_test',
@@ -122,8 +116,7 @@ Created `test/onnx/parse/matmulbnb4_tests.cpp` with all test cases following the
 
 ### Valid Tests (with expected program structure):
 - `matmulbnb4_fp4_test` - FP4 quantization test
-- `matmulbnb4_nf4_test` - NF4 quantization test  
-- `matmulbnb4_3d_input_test` - 3D input broadcasting test
+- `matmulbnb4_nf4_test` - NF4 quantization test
 
 ### Error Tests (expecting exceptions):
 - `matmulbnb4_invalid_quant_type_test`
@@ -193,7 +186,6 @@ The test suite provides comprehensive coverage:
 - ✓ NF4 quantization (quant_type=1)
 - ✓ Different block sizes (16, 32, 64)
 - ✓ Various matrix dimensions
-- ✓ Multi-dimensional input (3D)
 
 ### Error Handling Tests
 - ✓ Invalid quant_type value

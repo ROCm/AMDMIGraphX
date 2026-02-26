@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,7 +24,26 @@
 
 #include <onnx_test.hpp>
 
-TEST_CASE(conv_transpose_auto_pad_error)
+// Test basic auto_pad support for ConvTranspose
+TEST_CASE(conv_transpose_auto_pad_test)
 {
-    EXPECT(test::throws([&] { read_onnx("conv_transpose_auto_pad_test.onnx"); }));
+    // This test verifies that ConvTranspose with auto_pad='SAME_UPPER' is now supported
+    // Input: 3x3, Kernel: 3x3, Stride: 1x1
+    // Expected output with SAME_UPPER: 3x3
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto input  = mm->add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3}});
+    auto weight = mm->add_parameter("w", {migraphx::shape::float_type, {1, 1, 3, 3}});
+
+    // With kernel=3, stride=1: total_padding = 3 - 1 = 2 (symmetric: 1, 1)
+    auto conv_transpose = mm->add_instruction(
+        migraphx::make_op("convolution_backwards",
+                          {{"padding", {1, 1}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
+        input,
+        weight);
+    mm->add_return({conv_transpose});
+
+    auto prog = read_onnx("conv_transpose_auto_pad_test.onnx");
+    EXPECT(p == prog);
 }

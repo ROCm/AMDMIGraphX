@@ -52,6 +52,49 @@ void calc_auto_padding(std::string auto_pad,
     }
 }
 
+void calc_conv_transpose_auto_padding(std::string auto_pad,
+                                       const std::vector<std::size_t>& strides,
+                                       const std::vector<std::size_t>& k_lens,
+                                       const std::vector<std::size_t>& dilation,
+                                       std::vector<int64_t>& paddings)
+{
+    size_t kdims = k_lens.size();
+    assert(strides.size() == kdims and dilation.size() == kdims);
+
+    auto_pad = to_upper(auto_pad);
+    if(contains(auto_pad, "SAME"))
+    {
+        bool is_same_upper = contains(auto_pad, "SAME_UPPER");
+        paddings.resize(2 * kdims);
+
+        for(size_t i = 0; i < kdims; i++)
+        {
+            // For ConvTranspose with SAME_* padding:
+            // output_size = input_size * stride
+            // total_padding = kernel_size - stride
+            int64_t dilated_kernel = k_lens[i] + (k_lens[i] - 1) * (dilation[i] - 1);
+            int64_t total_pad      = dilated_kernel - strides[i];
+
+            if(total_pad < 0)
+                total_pad = 0;
+
+            auto pad_ndims = paddings.size() / 2;
+            if(is_same_upper)
+            {
+                // SAME_UPPER: extra padding goes to the right/bottom
+                paddings[i]             = total_pad / 2;
+                paddings[i + pad_ndims] = total_pad - total_pad / 2;
+            }
+            else
+            {
+                // SAME_LOWER: extra padding goes to the left/top
+                paddings[i]             = total_pad - total_pad / 2;
+                paddings[i + pad_ndims] = total_pad / 2;
+            }
+        }
+    }
+}
+
 void calculate_padding(int64_t idx,
                        std::vector<int64_t>& pads,
                        int64_t input_dim,

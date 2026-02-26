@@ -133,20 +133,28 @@ TEST_CASE(conv_transpose_auto_pad_valid_test)
 TEST_CASE(conv_transpose_auto_pad_same_upper_stride_test)
 {
     // Test auto_pad with non-unit strides
-    // With kernel=3, stride=2, the output size changes
+    // With kernel=3, stride=2, input=4, expected output = input * stride = 8
+    // total_padding needed = kernel - stride = 3 - 2 = 1 (asymmetric)
+    // SAME_UPPER: left=0, right=1
     migraphx::program p;
     auto* mm = p.get_main_module();
 
     auto input  = mm->add_parameter("x", {migraphx::shape::float_type, {1, 1, 4, 4}});
     auto weight = mm->add_parameter("w", {migraphx::shape::float_type, {1, 1, 3, 3}});
 
-    // With stride=2, auto_pad calculation differs
+    // Asymmetric padding: use padding=0 and slice to handle it
     auto conv_transpose = mm->add_instruction(
         migraphx::make_op("convolution_backwards",
-                          {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+                          {{"padding", {0, 0}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
         input,
         weight);
-    mm->add_return({conv_transpose});
+
+    // Slice to crop from [1, 1, 9, 9] to [1, 1, 8, 8]
+    // starts=[0, 0], ends=[8, 8]
+    auto sliced = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {2, 3}}, {"starts", {0, 0}}, {"ends", {8, 8}}}),
+        conv_transpose);
+    mm->add_return({sliced});
 
     auto prog = read_onnx("conv_transpose_auto_pad_same_upper_stride_test.onnx");
     EXPECT(p == prog);

@@ -254,8 +254,10 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
                 make_op(
                     "reshape",
                     {{"dims",
-                      {params.batch_size, params.num_heads, params.seq_len, params.head_size}}}),
+                      {params.batch_size, params.seq_len, params.num_heads, params.head_size}}}),
                 input);
+            input = info.add_instruction(
+                make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), input);
         }
         instruction_ref tail;
         if(params.head_diff)
@@ -283,6 +285,8 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
         }
         if(not params.is_bnsh)
         {
+            output = info.add_instruction(
+                make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), output);
             output = info.add_instruction(
                 make_op("reshape",
                         {{"dims", {params.batch_size, params.seq_len, params.hidden_size}}}),

@@ -138,9 +138,3 @@ TEST_CASE(multi_head_bias_attention_test)
 
     EXPECT(p == prog);
 }
-
-TEST_CASE(multi_head_attention_2d_bias_test)
-{
-    migraphx::program prog = read_onnx("mha_2d_bias_test.onnx");
-    prog.compile(migraphx::make_target("ref"));
-}

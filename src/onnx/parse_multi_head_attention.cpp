@@ -315,7 +315,6 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
             else
             {
                 // For other bias shapes, skip bias processing but don't throw error
-                // Some models may have bias in different formats that we don't need to process
                 params.qkv_biased = false;
             }
         }

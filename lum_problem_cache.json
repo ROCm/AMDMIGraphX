@@ -1,0 +1,773 @@
+[
+    [
+        {
+            "name": "fused_reduce",
+            "problem": [
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1500,
+                        1024
+                    ],
+                    "strides": [
+                        1536000,
+                        1024,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                },
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1500,
+                        1024
+                    ],
+                    "strides": [
+                        1536000,
+                        1024,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                },
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1500,
+                        1024
+                    ],
+                    "strides": [
+                        1536000,
+                        1024,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                }
+            ]
+        },
+        {
+            "algo": "block",
+            "block_size": 128
+        }
+    ],
+    [
+        {
+            "name": "fused_reduce",
+            "problem": [
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1500,
+                        128
+                    ],
+                    "strides": [
+                        192000,
+                        128,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                },
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1500,
+                        128
+                    ],
+                    "strides": [
+                        0,
+                        0,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                },
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1500,
+                        128
+                    ],
+                    "strides": [
+                        192000,
+                        128,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                }
+            ]
+        },
+        {
+            "algo": "block",
+            "block_size": 128
+        }
+    ],
+    [
+        {
+            "name": "hipblaslt",
+            "problem": [
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1500,
+                        1024
+                    ],
+                    "strides": [
+                        1536000,
+                        1024,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                },
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1024,
+                        128
+                    ],
+                    "strides": [
+                        0,
+                        128,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                },
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        268435456
+                    ],
+                    "strides": [
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "uint8_type"
+                },
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1500,
+                        128
+                    ],
+                    "strides": [
+                        192000,
+                        128,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                },
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1500,
+                        128
+                    ],
+                    "strides": [
+                        192000,
+                        128,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                }
+            ]
+        },
+        341092
+    ],
+    [
+        {
+            "name": "hipblaslt",
+            "problem": [
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1500,
+                        1024
+                    ],
+                    "strides": [
+                        1536000,
+                        1024,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                },
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1024,
+                        3072
+                    ],
+                    "strides": [
+                        0,
+                        3072,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                },
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        268435456
+                    ],
+                    "strides": [
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "uint8_type"
+                },
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1500,
+                        3072
+                    ],
+                    "strides": [
+                        4608000,
+                        3072,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                },
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1500,
+                        3072
+                    ],
+                    "strides": [
+                        4608000,
+                        3072,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                }
+            ]
+        },
+        351917
+    ],
+    [
+        {
+            "name": "hipblaslt",
+            "problem": [
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1500,
+                        1024
+                    ],
+                    "strides": [
+                        1536000,
+                        1024,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                },
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1024,
+                        1024
+                    ],
+                    "strides": [
+                        0,
+                        1024,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                },
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1500,
+                        1024
+                    ],
+                    "strides": [
+                        1536000,
+                        1024,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                },
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        268435456
+                    ],
+                    "strides": [
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "uint8_type"
+                },
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1500,
+                        1024
+                    ],
+                    "strides": [
+                        1536000,
+                        1024,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                },
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1500,
+                        1024
+                    ],
+                    "strides": [
+                        1536000,
+                        1024,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                }
+            ]
+        },
+        339951
+    ],
+    [
+        {
+            "name": "hipblaslt",
+            "problem": [
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1500,
+                        1024
+                    ],
+                    "strides": [
+                        1536000,
+                        1024,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                },
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1024,
+                        5632
+                    ],
+                    "strides": [
+                        0,
+                        5632,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                },
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        268435456
+                    ],
+                    "strides": [
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "uint8_type"
+                },
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1500,
+                        5632
+                    ],
+                    "strides": [
+                        8448000,
+                        5632,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                },
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1500,
+                        5632
+                    ],
+                    "strides": [
+                        8448000,
+                        5632,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                }
+            ]
+        },
+        351919
+    ],
+    [
+        {
+            "name": "hipblaslt",
+            "problem": [
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1500,
+                        2816
+                    ],
+                    "strides": [
+                        4224000,
+                        2816,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                },
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        2816,
+                        1024
+                    ],
+                    "strides": [
+                        0,
+                        1024,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                },
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        268435456
+                    ],
+                    "strides": [
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "uint8_type"
+                },
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1500,
+                        1024
+                    ],
+                    "strides": [
+                        1536000,
+                        1024,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                },
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1500,
+                        1024
+                    ],
+                    "strides": [
+                        1536000,
+                        1024,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                }
+            ]
+        },
+        339951
+    ],
+    [
+        {
+            "name": "fused_reduce",
+            "problem": [
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1500,
+                        832
+                    ],
+                    "strides": [
+                        1248000,
+                        832,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                },
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1500,
+                        832
+                    ],
+                    "strides": [
+                        0,
+                        0,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                },
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1500,
+                        832
+                    ],
+                    "strides": [
+                        1248000,
+                        832,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                }
+            ]
+        },
+        {
+            "algo": "block",
+            "block_size": 128
+        }
+    ],
+    [
+        {
+            "name": "hipblaslt",
+            "problem": [
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1500,
+                        2816
+                    ],
+                    "strides": [
+                        4224000,
+                        2816,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                },
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        2816,
+                        1024
+                    ],
+                    "strides": [
+                        0,
+                        1024,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                },
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1500,
+                        1024
+                    ],
+                    "strides": [
+                        1536000,
+                        1024,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                },
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        268435456
+                    ],
+                    "strides": [
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "uint8_type"
+                },
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1500,
+                        1024
+                    ],
+                    "strides": [
+                        1536000,
+                        1024,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                },
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1500,
+                        1024
+                    ],
+                    "strides": [
+                        1536000,
+                        1024,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                }
+            ]
+        },
+        339951
+    ],
+    [
+        {
+            "name": "gpu::mlir_op",
+            "problem": "gfx942:sramecc+:xnack-\t80\t4\t-t f16 -out_datatype f16 -transA false -transB false -g 1 -m 1500 -n 1024 -k 832"
+        },
+        "v4:64,128,8,32,64,16,4,1,1,2,0,0,1,1"
+    ],
+    [
+        {
+            "name": "gpu::mlir_op",
+            "problem": "gfx942:sramecc+:xnack-\t80\t4\t-t f16 -out_datatype f16 -transA false -transB false -g 1 -m 1500 -n 832 -k 616"
+        },
+        "v4:64,64,4,32,64,32,8,1,1,2,0,0,1,1"
+    ],
+    [
+        {
+            "name": "fused_reduce",
+            "problem": [
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1500
+                    ],
+                    "strides": [
+                        1500,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "int64_type"
+                },
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1
+                    ],
+                    "strides": [
+                        1,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "int32_type"
+                }
+            ]
+        },
+        {
+            "algo": "block",
+            "block_size": 128
+        }
+    ],
+    [
+        {
+            "name": "fused_reduce",
+            "problem": [
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1500,
+                        1024
+                    ],
+                    "strides": [
+                        1536000,
+                        1024,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                },
+                {
+                    "dynamic_dimensions": [],
+                    "lens": [
+                        1,
+                        1500,
+                        1024
+                    ],
+                    "strides": [
+                        1536000,
+                        1024,
+                        1
+                    ],
+                    "sub_shapes": [],
+                    "type": "half_type"
+                }
+            ]
+        },
+        {
+            "algo": "block",
+            "block_size": 128
+        }
+    ],
+    [
+        {
+            "name": "gpu::mlir_op",
+            "problem": "gfx942:sramecc+:xnack-\t80\t4\t-t f16 -transQ false -transK true -transV false -transO false -causal true -return_lse false -split_kv 1 -num_heads_q 1 -num_heads_kv 1 -g 16 -seq_len_q 1500 -seq_len_k 4096 -head_dim_qk 64 -head_dim_v 64"
+        },
+        "attn:v3:64,64,64,8,64,16,16,4,1,1,2,0,1"
+    ]
+]

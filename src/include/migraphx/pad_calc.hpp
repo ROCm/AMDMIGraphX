@@ -51,10 +51,10 @@ void calculate_padding(int64_t idx,
 
 MIGRAPHX_EXPORT
 void calc_conv_transpose_auto_padding(std::string auto_pad,
-                                       const std::vector<std::size_t>& strides,
-                                       const std::vector<std::size_t>& k_lens,
-                                       const std::vector<std::size_t>& dilation,
-                                       std::vector<int64_t>& paddings);
+                                      const std::vector<std::size_t>& strides,
+                                      const std::vector<std::size_t>& k_lens,
+                                      const std::vector<std::size_t>& dilation,
+                                      std::vector<int64_t>& paddings);
 
 /*!
  * Calculate the padding for auto_padding. Used for dynamic shapes

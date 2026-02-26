@@ -53,10 +53,10 @@ void calc_auto_padding(std::string auto_pad,
 }
 
 void calc_conv_transpose_auto_padding(std::string auto_pad,
-                                       const std::vector<std::size_t>& strides,
-                                       const std::vector<std::size_t>& k_lens,
-                                       const std::vector<std::size_t>& dilation,
-                                       std::vector<int64_t>& paddings)
+                                      const std::vector<std::size_t>& strides,
+                                      const std::vector<std::size_t>& k_lens,
+                                      const std::vector<std::size_t>& dilation,
+                                      std::vector<int64_t>& paddings)
 {
     size_t kdims = k_lens.size();
     assert(strides.size() == kdims and dilation.size() == kdims);

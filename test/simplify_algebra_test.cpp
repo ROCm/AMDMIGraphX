@@ -4857,7 +4857,7 @@ TEST_CASE(simplify_log_exp_multi_use)
         auto exp = m2.add_instruction(migraphx::make_op("exp"), x);
         // log(exp(x)) simplified to x, but exp remains for reduce_sum
         auto sum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), exp);
-        m2.add_return({x, sum});  // log replaced with x directly
+        m2.add_return({x, sum}); // log replaced with x directly
     }
     EXPECT(m1.sort() == m2.sort());
 }
@@ -4880,9 +4880,9 @@ TEST_CASE(simplify_log_div)
     migraphx::module m2;
 
     {
-        auto x    = m2.add_parameter("x", s);
-        auto y    = m2.add_parameter("y", s);
-        auto sub  = m2.add_instruction(migraphx::make_op("sub"), x, y);
+        auto x   = m2.add_parameter("x", s);
+        auto y   = m2.add_parameter("y", s);
+        auto sub = m2.add_instruction(migraphx::make_op("sub"), x, y);
         m2.add_return({sub});
     }
     EXPECT(m1.sort() == m2.sort());
@@ -4895,15 +4895,15 @@ TEST_CASE(simplify_logsoftmax)
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 1024}};
     migraphx::module m1;
     {
-        auto x = m1.add_parameter("x", s);
+        auto x    = m1.add_parameter("x", s);
         auto rmax = m1.add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), x);
-        auto rmax_bc = m1.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rmax);
-        auto sub = m1.add_instruction(migraphx::make_op("sub"), x, rmax_bc);
-        auto exp = m1.add_instruction(migraphx::make_op("exp"), sub);
+        auto rmax_bc =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rmax);
+        auto sub  = m1.add_instruction(migraphx::make_op("sub"), x, rmax_bc);
+        auto exp  = m1.add_instruction(migraphx::make_op("exp"), sub);
         auto rsum = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), exp);
-        auto rsum_bc = m1.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsum);
+        auto rsum_bc =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsum);
         auto div = m1.add_instruction(migraphx::make_op("div"), exp, rsum_bc);
         auto log = m1.add_instruction(migraphx::make_op("log"), div);
         m1.add_return({log});
@@ -4912,14 +4912,14 @@ TEST_CASE(simplify_logsoftmax)
 
     migraphx::module m2;
     {
-        auto x = m2.add_parameter("x", s);
+        auto x    = m2.add_parameter("x", s);
         auto rmax = m2.add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), x);
-        auto rmax_bc = m2.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rmax);
-        auto sub = m2.add_instruction(migraphx::make_op("sub"), x, rmax_bc);
-        auto exp = m2.add_instruction(migraphx::make_op("exp"), sub);
-        auto rsum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), exp);
-        auto log_sum = m2.add_instruction(migraphx::make_op("log"), rsum);
+        auto rmax_bc =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rmax);
+        auto sub        = m2.add_instruction(migraphx::make_op("sub"), x, rmax_bc);
+        auto exp        = m2.add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum       = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), exp);
+        auto log_sum    = m2.add_instruction(migraphx::make_op("log"), rsum);
         auto log_sum_bc = m2.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), log_sum);
         auto result = m2.add_instruction(migraphx::make_op("sub"), sub, log_sum_bc);

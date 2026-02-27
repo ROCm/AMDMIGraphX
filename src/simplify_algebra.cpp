@@ -1906,15 +1906,15 @@ struct find_log_div
 {
     auto matcher() const
     {
-        auto exp = match::name("exp");
+        auto exp            = match::name("exp");
         auto reduce_sum_exp = match::name("reduce_sum")(match::arg(0)(exp));
-        auto broadcast_reduce_sum_exp = match::name("multibroadcast")(match::arg(0)(reduce_sum_exp));
+        auto broadcast_reduce_sum_exp =
+            match::name("multibroadcast")(match::arg(0)(reduce_sum_exp));
         auto positive = match::any_of(exp, reduce_sum_exp, broadcast_reduce_sum_exp);
 
         auto div_args = match::args(positive.bind("x"), positive.bind("y"));
-        auto div_op = match::name("div")(match::used_once(), div_args);
+        auto div_op   = match::name("div")(match::used_once(), div_args);
         return match::name("log")(match::args(div_op));
-
     }
 
     void apply(module& m, const match::matcher_result& r) const

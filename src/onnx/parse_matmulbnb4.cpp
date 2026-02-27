@@ -198,24 +198,22 @@ struct parse_matmulbnb4 : op_parser<parse_matmulbnb4>
     {
         // NF4 lookup table - defines dequantization values for indices 0-15
         // These values are optimized for normal distribution
-        std::vector<float> nf4_lookup_table = {
-            -1.0f,
-            -0.6961928009986877f,
-            -0.5250730514526367f,
-            -0.39491748809814453f,
-            -0.28444138169288635f,
-            -0.18477343022823334f,
-            -0.09105003625154495f,
-            0.0f,
-            0.07958029955625534f,
-            0.16093020141124725f,
-            0.24611230194568634f,
-            0.33791524171829224f,
-            0.44070982933044434f,
-            0.5626170039176941f,
-            0.7229568362236023f,
-            1.0f
-        };
+        std::vector<float> nf4_lookup_table = {-1.0f,
+                                               -0.6961928009986877f,
+                                               -0.5250730514526367f,
+                                               -0.39491748809814453f,
+                                               -0.28444138169288635f,
+                                               -0.18477343022823334f,
+                                               -0.09105003625154495f,
+                                               0.0f,
+                                               0.07958029955625534f,
+                                               0.16093020141124725f,
+                                               0.24611230194568634f,
+                                               0.33791524171829224f,
+                                               0.44070982933044434f,
+                                               0.5626170039176941f,
+                                               0.7229568362236023f,
+                                               1.0f};
 
         if(quant_type == 0)
         {
@@ -237,19 +235,17 @@ struct parse_matmulbnb4 : op_parser<parse_matmulbnb4>
         else
         {
             // Create a lookup table literal with shape [16]
-            auto lut = info.add_literal(
-                migraphx::literal{migraphx::shape{migraphx::shape::float_type, {16}}, 
-                                 nf4_lookup_table});
+            auto lut = info.add_literal(migraphx::literal{
+                migraphx::shape{migraphx::shape::float_type, {16}}, nf4_lookup_table});
 
             // Convert quantized indices to int64 for gather operation
             auto indices = info.add_instruction(
-                make_op("convert", {{"target_type", migraphx::shape::int64_type}}), 
-                quantized_data);
+                make_op("convert", {{"target_type", migraphx::shape::int64_type}}), quantized_data);
 
             // Use gather to lookup dequantized values
             // axis 0 means we're gathering from the lookup table dimension
-            auto dequant_values = info.add_instruction(
-                make_op("gather", {{"axis", 0}}), lut, indices);
+            auto dequant_values =
+                info.add_instruction(make_op("gather", {{"axis", 0}}), lut, indices);
 
             // Apply absmax scaling: final_value = dequant_value * absmax
             return info.add_instruction(make_op("mul"), dequant_values, absmax);

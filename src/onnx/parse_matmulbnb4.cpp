@@ -196,13 +196,33 @@ struct parse_matmulbnb4 : op_parser<parse_matmulbnb4>
                                               instruction_ref absmax,
                                               int quant_type) const
     {
-        // Convert quantized data to float for dequantization
-        auto float_data = info.add_instruction(
-            make_op("convert", {{"target_type", migraphx::shape::float_type}}), quantized_data);
+        // NF4 lookup table - defines dequantization values for indices 0-15
+        // These values are optimized for normal distribution
+        std::vector<float> nf4_lookup_table = {
+            -1.0f,
+            -0.6961928009986877f,
+            -0.5250730514526367f,
+            -0.39491748809814453f,
+            -0.28444138169288635f,
+            -0.18477343022823334f,
+            -0.09105003625154495f,
+            0.0f,
+            0.07958029955625534f,
+            0.16093020141124725f,
+            0.24611230194568634f,
+            0.33791524171829224f,
+            0.44070982933044434f,
+            0.5626170039176941f,
+            0.7229568362236023f,
+            1.0f
+        };
 
-        // Apply BNB4 specific dequantization formula
-        if(quant_type == 0) // FP4
+        if(quant_type == 0)
         {
+            // Convert quantized data to float for dequantization
+            auto float_data = info.add_instruction(
+                make_op("convert", {{"target_type", migraphx::shape::float_type}}), quantized_data);
+
             // For FP4: dequantized = quantized * absmax / scale_factor
             // FP4 scale factor is typically 8 (since it represents values in [-8, 7] range)
             auto scale_factor = info.add_literal(
@@ -214,19 +234,25 @@ struct parse_matmulbnb4 : op_parser<parse_matmulbnb4>
             auto scaled_data = info.add_instruction(make_op("div"), float_data, scale_factor_bc);
             return info.add_instruction(make_op("mul"), scaled_data, absmax);
         }
-        else // NF4 (quant_type == 1)
+        else
         {
-            // For NF4: more complex dequantization using lookup table approach
-            // For now, implement a simplified version similar to FP4
-            // In practice, NF4 uses a specific lookup table for dequantization
-            auto scale_factor = info.add_literal(
-                migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {8.0f}});
-            auto scale_factor_bc = info.add_instruction(
-                make_op("multibroadcast", {{"out_lens", float_data->get_shape().lens()}}),
-                scale_factor);
+            // Create a lookup table literal with shape [16]
+            auto lut = info.add_literal(
+                migraphx::literal{migraphx::shape{migraphx::shape::float_type, {16}}, 
+                                 nf4_lookup_table});
 
-            auto scaled_data = info.add_instruction(make_op("div"), float_data, scale_factor_bc);
-            return info.add_instruction(make_op("mul"), scaled_data, absmax);
+            // Convert quantized indices to int64 for gather operation
+            auto indices = info.add_instruction(
+                make_op("convert", {{"target_type", migraphx::shape::int64_type}}), 
+                quantized_data);
+
+            // Use gather to lookup dequantized values
+            // axis 0 means we're gathering from the lookup table dimension
+            auto dequant_values = info.add_instruction(
+                make_op("gather", {{"axis", 0}}), lut, indices);
+
+            // Apply absmax scaling: final_value = dequant_value * absmax
+            return info.add_instruction(make_op("mul"), dequant_values, absmax);
         }
     }
 

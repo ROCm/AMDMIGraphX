@@ -309,7 +309,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
     }
 
     void check_attention_bias(const std::vector<instruction_ref>& args,
-                              multi_head_attention_parameters& params) const
+                              const multi_head_attention_parameters& params) const
     {
         if(args.size() > 5)
         {
@@ -338,7 +338,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
     }
 
     void check_past_inputs(const std::vector<instruction_ref>& args,
-                           multi_head_attention_parameters& params) const
+                           const multi_head_attention_parameters& params) const
     {
         // past_key at index 6, past_value at index 7
         if(args.size() > 6)

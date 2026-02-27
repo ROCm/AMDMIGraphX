@@ -132,14 +132,29 @@ static eliminate_data_type for_gemm_conv()
 
 void eliminate_data_type_for_gpu::apply(module_pass_manager& mpm) const
 {
-    std::set<shape::type_t> unsupported_types;
+    std::set<shape::type_t> unsupported_floats;
     // No BF-16 Support on Navi21
     if(not gpu::gfx_has_bf16_intrinsics())
     {
-        unsupported_types.insert(shape::type_t::bf16_type);
+        unsupported_floats.insert(shape::type_t::bf16_type);
     }
-    if(not unsupported_types.empty())
-        mpm.run_pass(eliminate_data_type{unsupported_types, shape::type_t::float_type});
+    if(disable_64bit)
+    {
+        unsupported_floats.insert(shape::type_t::double_type);
+    }
+    if(not unsupported_floats.empty())
+        mpm.run_pass(eliminate_data_type{unsupported_floats, shape::type_t::float_type});
+    
+
+    std::set<shape::type_t> unsupported_ints;
+    if(disable_64bit)
+    {
+        // TODO: Check for large tensors
+        unsupported_ints.insert(shape::type_t::int64_type);
+        unsupported_ints.insert(shape::type_t::uint64_type);
+    }
+    if(not unsupported_ints.empty())
+        mpm.run_pass(eliminate_data_type{unsupported_ints, shape::type_t::int32_type});
 
     // workaround for rocBLAS unsupported error when using uint8 in quant_dot, quant_convolution &
     // pooling

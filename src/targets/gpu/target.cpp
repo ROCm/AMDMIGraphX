@@ -100,11 +100,13 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     auto& ctx = any_cast<context>(gctx);
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
     ctx.load_problem_cache();
+    compile_modes compile_mode = convert_to_compile_mode(options.compile_mode);
+    ctx.set_compile_mode(compile_mode);
 
-    if (options.compile_mode == compile_modes::MAX)
+    if (compile_mode == compile_modes::MAX)
         ctx.set_exhaustive_tune_flag(true);
 
-    if (options.compile_mode == compile_modes::MAX || options.compile_mode == compile_modes::BALANCED)
+    if (compile_mode == compile_modes::MAX || compile_mode == compile_modes::BALANCED)
     {
         // clang-format off
         return

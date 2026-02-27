@@ -4940,11 +4940,10 @@ TEST_CASE(simplify_log_div_negative)
         auto log = m1.add_instruction(migraphx::make_op("log"), div);
         m1.add_return({log});
     }
-    auto m2 = m1;  // copy before running pass
+    auto m2 = m1; // copy before running pass
     run_pass(m1);
 
     EXPECT(m1.sort() == m2.sort());
 }
-
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

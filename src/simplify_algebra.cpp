@@ -1889,7 +1889,7 @@ struct find_log_exp
     auto matcher() const
     {
         auto bind_x = match::args(match::any().bind("x"));
-        return match::name("log")(match::arg(0)(match::name("exp")(match::used_once(), bind_x)));
+        return match::name("log")(match::arg(0)(match::name("exp")(bind_x)));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -1906,8 +1906,15 @@ struct find_log_div
 {
     auto matcher() const
     {
-        return match::name("log")(match::args(match::name("div")(
-            match::used_once(), match::args(match::any().bind("x"), match::any().bind("y")))));
+        auto exp = match::name("exp");
+        auto reduce_sum_exp = match::name("reduce_sum")(match::arg(0)(exp));
+        auto broadcast_reduce_sum_exp = match::name("multibroadcast")(match::arg(0)(reduce_sum_exp));
+        auto positive = match::any_of(exp, reduce_sum_exp, broadcast_reduce_sum_exp);
+
+        auto div_args = match::args(positive.bind("x"), positive.bind("y"));
+        auto div_op = match::name("div")(match::used_once(), div_args);
+        return match::name("log")(match::args(div_op));
+
     }
 
     void apply(module& m, const match::matcher_result& r) const

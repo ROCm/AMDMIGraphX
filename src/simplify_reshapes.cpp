@@ -669,6 +669,109 @@ struct find_nested_slice
 };
 
 /**
+ *  Replace concat of N identical inputs with a multibroadcast when the
+ *  concat-axis dimension of the input is 1.
+ *
+ *  Example case:
+ *  From:
+ *  x: lens = [1, 96], strides = [96, 1]
+ *  concat(x, x, x, axis = 0)  ->  [3, 96]
+ *
+ *  To:
+ *  multibroadcast(x, out_lens = [3, 96])  ->  [3, 96], strides = [0, 1]
+ */
+struct find_concat_same_input
+{
+    auto matcher() const { return match::name("concat"); }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins    = mr.result;
+        auto inputs = ins->inputs();
+        if(inputs.size() < 2)
+            return;
+
+        auto first = inputs.front();
+        if(not std::all_of(
+               inputs.begin() + 1, inputs.end(), [&](auto i) { return i == first; }))
+            return;
+
+        auto axis = any_cast<op::concat>(ins->get_operator()).axis;
+        // multibroadcast can only broadcast dimensions of size 1
+        if(first->get_shape().lens()[axis] != 1)
+            return;
+
+        m.replace_instruction(
+            ins,
+            make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}}),
+            first);
+    }
+};
+
+/**
+ *  Replace concat of contiguous slices from the same source with a single slice.
+ *
+ *  Example case:
+ *  From:
+ *  x: lens = [19, 32]
+ *  s1  = slice[axes={0}, starts={1},  ends={2}](x)   ->  [1, 32]
+ *  s2  = slice[axes={0}, starts={2},  ends={3}](x)   ->  [1, 32]
+ *  ...
+ *  s18 = slice[axes={0}, starts={18}, ends={19}](x)  ->  [1, 32]
+ *  concat(s1, s2, ..., s18, axis = 0)  ->  [18, 32]
+ *
+ *  To:
+ *  slice[axes={0}, starts={1}, ends={19}](x)  ->  [18, 32]
+ */
+struct find_concat_contiguous_slices
+{
+    auto matcher() const
+    {
+        return match::name("concat")(match::all_of[match::inputs()](match::name("slice")));
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins    = mr.result;
+        auto inputs = ins->inputs();
+        if(inputs.size() < 2)
+            return;
+
+        int concat_axis = any_cast<op::concat>(ins->get_operator()).axis;
+
+        // All slices must share the same single source and same single axis = concat axis
+        auto src = inputs.front()->inputs().front();
+        for(const auto& input : inputs)
+        {
+            auto sop = any_cast<op::slice>(input->get_operator());
+            if(sop.axes.size() != 1 or sop.axes.front() != concat_axis)
+                return;
+            if(input->inputs().front() != src)
+                return;
+        }
+
+        // Check slices form a contiguous range in concat order
+        auto first_sop      = any_cast<op::slice>(inputs.front()->get_operator());
+        int64_t range_start = first_sop.starts.front();
+        int64_t expected    = range_start;
+        for(const auto& input : inputs)
+        {
+            auto sop = any_cast<op::slice>(input->get_operator());
+            if(sop.starts.front() != expected)
+                return;
+            expected = sop.ends.front();
+        }
+        int64_t range_end = expected;
+
+        m.replace_instruction(
+            ins,
+            make_op("slice",
+                     {{"axes", {concat_axis}}, {"starts", {range_start}}, {"ends", {range_end}}}),
+            src);
+    }
+};
+
+/**
  *  Example case
  *  From:
  *  param0: lens = [3, 4], strides = [4, 1]
@@ -1795,12 +1898,14 @@ void simplify_reshapes::apply(module& m) const
                             find_reshape_cont{},
                             find_slice_shape_transforms{},
                             find_nested_shape_transforms{},
+                            find_concat_contiguous_slices{},
                             find_concat_slice{},
                             find_concat_transpose{},
                             find_concat_reshape{},
                             find_concat_multibroadcasts{},
                             find_nested_slice{},
                             find_nested_concat{},
+                            find_concat_same_input{},
                             find_transpose_slice{},
                             find_slice_transpose{},
                             find_unary_shape_transforms{},

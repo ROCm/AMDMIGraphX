@@ -601,6 +601,174 @@ TEST_CASE(unsqueeze_broadcast_single)
     EXPECT(m1 == m2);
 }
 
+// concat(x, x, x) on axis 0 where x.lens[0] == 1 → multibroadcast
+TEST_CASE(concat_same_input_axis0)
+{
+    auto s = migraphx::shape{migraphx::shape::int64_type, {1, 96}};
+    migraphx::module m1;
+    {
+        auto x      = m1.add_parameter("x", s);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), x, x, x);
+        m1.add_return({concat});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x  = m2.add_parameter("x", s);
+        auto mb = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {3, 96}}}), x);
+        m2.add_return({mb});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// concat(x, x) on axis 1 where x.lens[1] == 1 → multibroadcast
+TEST_CASE(concat_same_input_axis1)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {4, 1, 8}};
+    migraphx::module m1;
+    {
+        auto x      = m1.add_parameter("x", s);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, x, x, x);
+        m1.add_return({concat});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x  = m2.add_parameter("x", s);
+        auto mb = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {4, 4, 8}}}), x);
+        m2.add_return({mb});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// concat(x, x) where x.lens[axis] != 1 → no change (can't broadcast)
+TEST_CASE(concat_same_input_no_change)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {2, 96}};
+    migraphx::module m1;
+    {
+        auto x      = m1.add_parameter("x", s);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), x, x);
+        m1.add_return({concat});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// concat with different inputs should not be affected
+TEST_CASE(concat_different_inputs_no_change)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {1, 96}};
+    migraphx::module m1;
+    {
+        auto x      = m1.add_parameter("x", s);
+        auto y      = m1.add_parameter("y", s);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), x, y, x);
+        m1.add_return({concat});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// concat of contiguous slices from same source → single slice
+TEST_CASE(concat_contiguous_slices)
+{
+    auto s = migraphx::shape{migraphx::shape::int64_type, {19, 32}};
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", s);
+        auto s1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), x);
+        auto s2 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), x);
+        auto s3 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {3}}, {"ends", {4}}}), x);
+        auto concat =
+            m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), s1, s2, s3);
+        m1.add_return({concat});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", s);
+        auto r = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {4}}}), x);
+        m2.add_return({r});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// concat of contiguous slices on axis 1
+TEST_CASE(concat_contiguous_slices_axis1)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {4, 10}};
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", s);
+        auto s1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {3}}}), x);
+        auto s2 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {7}}}), x);
+        auto concat =
+            m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), s1, s2);
+        m1.add_return({concat});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", s);
+        auto r = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {7}}}), x);
+        m2.add_return({r});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// non-contiguous slices (gap) should not be optimized
+TEST_CASE(concat_contiguous_slices_gap_no_change)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {10, 32}};
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", s);
+        auto s1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), x);
+        auto s2 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {6}}}), x);
+        auto concat =
+            m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), s1, s2);
+        m1.add_return({concat});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// slices from different sources should not be optimized
+TEST_CASE(concat_contiguous_slices_different_sources_no_change)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {10, 32}};
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", s);
+        auto y  = m1.add_parameter("y", s);
+        auto s1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), x);
+        auto s2 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {4}}}), y);
+        auto concat =
+            m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), s1, s2);
+        m1.add_return({concat});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(concat_slice_different_axis_1)
 {
     auto s = migraphx::shape{migraphx::shape::float_type, {2, 160}};

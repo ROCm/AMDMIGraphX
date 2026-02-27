@@ -176,7 +176,7 @@ struct parse_matmulbnb4 : op_parser<parse_matmulbnb4>
             info.add_instruction(make_op("reshape", {{"dims", {n * k}}}), expanded_absmax);
 
         // Handle runt block by slicing to exact n*k elements
-        const int total_elements = static_cast<int>(n * k);
+        const int total_elements = n * k;
         if(expanded_absmax->get_shape().lens()[0] > static_cast<size_t>(total_elements))
         {
             expanded_absmax = info.add_instruction(

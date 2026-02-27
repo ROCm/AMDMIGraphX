@@ -519,17 +519,20 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                const migraphx::target& t,
                bool offload_copy,
                bool fast_math,
-               bool exhaustive_tune) {
+               bool exhaustive_tune,
+               int8_t compile_mode) {
                 migraphx::compile_options options;
                 options.offload_copy    = offload_copy;
                 options.fast_math       = fast_math;
                 options.exhaustive_tune = exhaustive_tune;
+                options.compile_mode    = compile_mode;
                 p.compile(t, options);
             },
             py::arg("t"),
             py::arg("offload_copy")    = true,
             py::arg("fast_math")       = true,
-            py::arg("exhaustive_tune") = false)
+            py::arg("exhaustive_tune") = false,
+            py::arg("compile_mode")    = 50)
         .def("get_main_module", [](const migraphx::program& p) { return p.get_main_module(); })
         .def(
             "create_module",

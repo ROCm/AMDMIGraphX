@@ -407,6 +407,9 @@ def compile_options(h):
     h.method('set_exhaustive_tune_flag',
              api.params(value='bool'),
              invoke='migraphx::set_exhaustive_tune_flag($@)')
+    h.method('set_compile_mode',
+             api.params(value='int8_t'),
+             invoke='migraphx::set_compile_mode($@)')
 
 
 if 'enable_tensorflow' in globals():

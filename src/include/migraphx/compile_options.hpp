@@ -26,7 +26,6 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/tracer.hpp>
-#include <migraphx/compile_modes.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -42,7 +41,12 @@ struct compile_options
     bool fast_math       = true;
     bool exhaustive_tune = false;
 
-    compile_modes compile_mode = compile_modes::EAGER;
+    /**
+     * Value between 0 and 100 to define compilation mode.
+     * 0 - fast compile mode without optmizations, low performance
+     * 100 - best compile mode with max optimizations, best performance
+    */
+    int8_t compile_mode = 50;
 
     tracer trace{};
 };

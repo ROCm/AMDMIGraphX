@@ -27,6 +27,7 @@
 #include <migraphx/gpu/export.h>
 #include <migraphx/context.hpp>
 #include <migraphx/gpu/miopen.hpp>
+#include <migraphx/compile_modes.hpp>
 #if !MIGRAPHX_USE_MIOPEN
 #include <hip/hip_runtime.h>
 #include <hip/hip_runtime_api.h>
@@ -272,6 +273,10 @@ struct context
 
     void set_exhaustive_tune_flag(bool t) { exhaustive_tune = t; }
 
+    compile_modes get_compile_mode() const { return compile_mode; }
+
+    void set_compile_mode(compile_modes mode) { compile_mode = mode; } 
+
     hip_device::stream& get_stream() { return get_current_device().get_stream(); }
     hip_device::stream& get_stream(std::size_t n) { return get_current_device().get_stream(n); }
 
@@ -385,6 +390,7 @@ struct context
     std::shared_ptr<hip_device> current_device;
     std::vector<shared<hip_event_ptr>> events;
     bool exhaustive_tune = false;
+    compile_modes compile_mode;
     bool measure_perf    = false;
     // for event perf timing
     shared<hip_event_ptr> start_event = nullptr;

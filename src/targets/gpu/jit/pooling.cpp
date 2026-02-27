@@ -165,12 +165,12 @@ struct pooling_compiler : compiler<pooling_compiler>
         if(mode == "lpnorm")
             op += "<" + v.at("lp_order").to<std::string>() + ">";
 
-        algorithm algo{};
+        normalize(options.virtual_inputs, padding, stride, window);
+        algorithm algo{ctx, options.virtual_inputs.front(), window};
         options.set_launch_params(
             v,
             compute_global_for(ctx, (out_s.elements() / algo.group_size) * algo.reduce_size, 256),
             algo.block_size);
-        normalize(options.virtual_inputs, padding, stride, window);
         auto src = interpolate_string(pooling_kernel,
                                       {{"op", op + "{}"},
                                        {"algo", algo.name},

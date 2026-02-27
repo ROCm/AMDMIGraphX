@@ -144,7 +144,6 @@ void eliminate_data_type_for_gpu::apply(module_pass_manager& mpm) const
     }
     if(not unsupported_floats.empty())
         mpm.run_pass(eliminate_data_type{unsupported_floats, shape::type_t::float_type});
-    
 
     std::set<shape::type_t> unsupported_ints;
     if(disable_64bit)

@@ -139,18 +139,18 @@ struct parse_conv_transpose : op_parser<parse_conv_transpose>
             asym_padding = is_asym_padding(padding);
 
             size_t pad_ndims = padding.size() / 2;
-            if(not asym_padding)
+            if(asym_padding)
+            {
+                // set padding to 0s, asym_padding handled by parser with slice
+                values["padding"] = std::vector<std::size_t>(pad_ndims, 0);
+            }
+            else
             {
                 values["padding"].clear();
                 std::transform(padding.begin(),
                                padding.begin() + pad_ndims,
                                std::back_inserter(values["padding"]),
                                [](auto pad_val) { return pad_val; });
-            }
-            else
-            {
-                // set padding to 0s, asym_padding handled by parser with slice
-                values["padding"] = std::vector<std::size_t>(pad_ndims, 0);
             }
         }
 

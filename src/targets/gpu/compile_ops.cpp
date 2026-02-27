@@ -254,7 +254,7 @@ struct runtime_compile_op
     shape compute_shape(const std::vector<shape>& input_shapes,
                         const std::vector<module_ref>& module_args) const
     {
-        auto mod    = module_args.front();
+        auto* mod   = module_args.front();
         auto result = mod->compute_shapes(input_shapes);
         if(result.size() == 1)
             return result.front();
@@ -299,9 +299,8 @@ struct runtime_compile_op
         }
     }
 
-    void compile_and_cache(context& ctx,
-                           const std::vector<shape>& input_shapes,
-                           const module_ref mod) const
+    void
+    compile_and_cache(context& ctx, const std::vector<shape>& input_shapes, module_ref mod) const
     {
         std::unordered_map<instruction_ref, std::vector<shape>> compile_input_shapes;
 
@@ -340,8 +339,8 @@ struct runtime_compile_op
                      const shape&,
                      const std::vector<argument>& args,
                      const std::vector<module_ref>& module_args,
-                     std::function<std::vector<argument>(
-                         module_ref&, const std::unordered_map<std::string, argument>&)> run) const
+                     const std::function<std::vector<argument>(
+                         module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
     {
         assert(not module_args.empty());
         auto* mod = module_args.front();

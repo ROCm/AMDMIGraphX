@@ -840,7 +840,7 @@ struct find_kv_cache_attention
                     continue;
                 if(not is_valid_attn_op(input))
                     continue;
-                if(std::all_of(input->outputs().begin(), input->outputs().end(), [&](auto o) {
+                if(input->can_eval() or std::all_of(input->outputs().begin(), input->outputs().end(), [&](auto o) {
                        return contains(inss, o);
                    }))
                 {

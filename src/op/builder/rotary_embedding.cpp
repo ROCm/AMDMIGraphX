@@ -89,13 +89,13 @@ struct rotary_embedding : op_builder<rotary_embedding>
         // Basic compatibility check: cosine/sine caches must have last dimension == half_head
         auto cos_lens = cos_cache->get_shape().lens();
         auto sin_lens = sin_cache->get_shape().lens();
-        if(cos_lens.empty() || cos_lens.back() != half_head)
+        if(cos_lens.empty() or cos_lens.back() != half_head)
         {
             MIGRAPHX_THROW(
                 "rotary_embedding: cos_cache last dimension must equal head_size/2 to be "
                 "compatible with input");
         }
-        if(sin_lens.empty() || sin_lens.back() != half_head)
+        if(sin_lens.empty() or sin_lens.back() != half_head)
         {
             MIGRAPHX_THROW(
                 "rotary_embedding: sin_cache last dimension must equal head_size/2 to be "

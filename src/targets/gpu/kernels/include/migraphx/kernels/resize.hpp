@@ -60,7 +60,7 @@ struct coord_transform_align_corners
     MIGRAPHX_DEVICE_CONSTEXPR float
     operator()(index_int l_in, index_int l_out, float idx, float) const
     {
-        return (l_out == 1) ? 0.0f : (1.0f * idx * (l_in - 1.0f) / (l_out - 1.0f));
+        return (l_out == 1) ? 0.0f : (idx * (l_in - 1.0f) / (l_out - 1.0f));
     }
 };
 

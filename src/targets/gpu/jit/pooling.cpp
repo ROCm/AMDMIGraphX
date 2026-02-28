@@ -189,9 +189,10 @@ struct pooling_compiler : compiler<pooling_compiler>
         return compile_hip_code_object(ctx, src, options);
     }
 
-    compiler_replace compile(context& ctx, instruction_ref ins, const operation& op, const value& solution) const
+    compiler_replace
+    compile(context& ctx, instruction_ref ins, const operation& op, const value& solution) const
     {
-        auto v        = op.to_value();
+        auto v = op.to_value();
         for(const auto& x : solution)
             v.insert(x);
         return compile_op(ctx, to_shapes(ins->inputs()), v);
@@ -207,8 +208,8 @@ struct pooling_compiler : compiler<pooling_compiler>
         // if(op.name() != "fused_reduce")
         //     return nullopt;
         tuning_config tc;
-        auto shapes       = to_shapes(ins->inputs());
-        tc.problem        = value{{"input", to_value(shapes.front())}, {"config", op.to_value()}};
+        auto shapes = to_shapes(ins->inputs());
+        tc.problem  = value{{"input", to_value(shapes.front())}, {"config", op.to_value()}};
         tc.solutions.push_back({{"group_size", 1}});
         tc.solutions.push_back({{"group_size", 2}});
         tc.solutions.push_back({{"group_size", 3}});

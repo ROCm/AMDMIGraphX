@@ -89,10 +89,8 @@ struct pooling_compiler : compiler<pooling_compiler>
 
         algorithm() {}
 
-        algorithm(context& ctx, const shape& input, const std::vector<std::size_t>& window)
+        void set_block_algo(context& ctx, const std::vector<std::size_t>& window)
         {
-            if(input.strides().back() != 1)
-                return;
             std::size_t max_wavefront_size = ctx.get_current_device().get_wavefront_size();
             auto wsize                     = window.back();
             if(wsize > max_wavefront_size)
@@ -107,6 +105,13 @@ struct pooling_compiler : compiler<pooling_compiler>
                 reduce_size = compute_subwave_size(ctx, wsize);
                 name        = "reduce::subwave<" + to_string(reduce_size) + ">";
             }
+        }
+
+        algorithm(context& ctx, const shape& input, const std::vector<std::size_t>& window)
+        {
+            if(input.strides().back() != 1)
+                return;
+            set_block_algo(ctx, window);
         }
     };
 
@@ -166,6 +171,8 @@ struct pooling_compiler : compiler<pooling_compiler>
             op += "<" + v.at("lp_order").to<std::string>() + ">";
 
         algorithm algo{};
+        algo.group_size = v.get("group_size", 1);
+        // algo.set_block_algo(ctx, window);
         options.set_launch_params(
             v,
             compute_global_for(ctx, (out_s.elements() / algo.group_size) * algo.reduce_size, 256),
@@ -182,9 +189,40 @@ struct pooling_compiler : compiler<pooling_compiler>
         return compile_hip_code_object(ctx, src, options);
     }
 
-    compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
+    compiler_replace compile(context& ctx, instruction_ref ins, const operation& op, const value& solution) const
     {
-        return compile_op(ctx, to_shapes(ins->inputs()), op.to_value());
+        auto v        = op.to_value();
+        for(const auto& x : solution)
+            v.insert(x);
+        return compile_op(ctx, to_shapes(ins->inputs()), v);
+    }
+
+    optional<tuning_config> get_tuning_config(const context& ctx,
+                                              instruction_ref ins,
+                                              const operation& op,
+                                              bool exhaustive) const
+    {
+        // if(not exhaustive)
+        //     return nullopt;
+        // if(op.name() != "fused_reduce")
+        //     return nullopt;
+        tuning_config tc;
+        auto shapes       = to_shapes(ins->inputs());
+        tc.problem        = value{{"input", to_value(shapes.front())}, {"config", op.to_value()}};
+        tc.solutions.push_back({{"group_size", 1}});
+        tc.solutions.push_back({{"group_size", 2}});
+        tc.solutions.push_back({{"group_size", 3}});
+        tc.solutions.push_back({{"group_size", 4}});
+        tc.solutions.push_back({{"group_size", 7}});
+        tc.solutions.push_back({{"group_size", 8}});
+        tc.solutions.push_back({{"group_size", 9}});
+        tc.solutions.push_back({{"group_size", 11}});
+        tc.solutions.push_back({{"group_size", 16}});
+        tc.solutions.push_back({{"group_size", 32}});
+        tc.solutions.push_back({{"group_size", 49}});
+        tc.solutions.push_back({{"group_size", 64}});
+        tc.solutions.push_back({{"group_size", 128}});
+        return tc;
     }
 };
 

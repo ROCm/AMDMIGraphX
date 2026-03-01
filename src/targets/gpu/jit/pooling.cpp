@@ -240,7 +240,7 @@ struct pooling_compiler : compiler<pooling_compiler>
         {
             for(auto group_size : {1, 2, 4, 8, 16, 32, 64, 128})
             {
-                for(auto width:{1, 2, 4, 8, 16, 32, 64})
+                for(auto width : {1, 2, 4, 8, 16, 32, 64})
                 {
                     add_solution(group_size, width);
                 }
@@ -280,32 +280,32 @@ struct pooling_compiler : compiler<pooling_compiler>
             }
         }
         // Navi
-            // "group_size": 1,             "width": 1
-            // "group_size": 1,             "width": 16
-            // "group_size": 1,             "width": 2
-            // "group_size": 1,             "width": 4
-            // "group_size": 1,             "width": 8
-            // "group_size": 2,             "width": 1
-            // "group_size": 2,             "width": 2
-            // "group_size": 2,             "width": 4
-            // "group_size": 4,             "width": 1
-            // "group_size": 8,             "width": 1
-            // "group_size": 8,             "width": 2
+        // "group_size": 1,             "width": 1
+        // "group_size": 1,             "width": 16
+        // "group_size": 1,             "width": 2
+        // "group_size": 1,             "width": 4
+        // "group_size": 1,             "width": 8
+        // "group_size": 2,             "width": 1
+        // "group_size": 2,             "width": 2
+        // "group_size": 2,             "width": 4
+        // "group_size": 4,             "width": 1
+        // "group_size": 8,             "width": 1
+        // "group_size": 8,             "width": 2
         // mi300
-            // "group_size": 1,             "width": 1
-            // "group_size": 1,             "width": 16
-            // "group_size": 1,             "width": 2
-            // "group_size": 1,             "width": 4
-            // "group_size": 1,             "width": 8
-            // "group_size": 2,             "width": 1
-            // "group_size": 2,             "width": 16
-            // "group_size": 2,             "width": 2
-            // "group_size": 2,             "width": 4
-            // "group_size": 2,             "width": 8
-            // "group_size": 4,             "width": 1
-            // "group_size": 4,             "width": 2
-            // "group_size": 4,             "width": 4
-            // "group_size": 4,             "width": 8
+        // "group_size": 1,             "width": 1
+        // "group_size": 1,             "width": 16
+        // "group_size": 1,             "width": 2
+        // "group_size": 1,             "width": 4
+        // "group_size": 1,             "width": 8
+        // "group_size": 2,             "width": 1
+        // "group_size": 2,             "width": 16
+        // "group_size": 2,             "width": 2
+        // "group_size": 2,             "width": 4
+        // "group_size": 2,             "width": 8
+        // "group_size": 4,             "width": 1
+        // "group_size": 4,             "width": 2
+        // "group_size": 4,             "width": 4
+        // "group_size": 4,             "width": 8
         // tc.solutions.push_back({{"group_size", 1}});
         // tc.solutions.push_back({{"group_size", 2}});
         // tc.solutions.push_back({{"group_size", 3}});

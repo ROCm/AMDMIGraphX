@@ -35,6 +35,17 @@
 
 namespace migraphx {
 
+template <class Pos, class Lens>
+constexpr bool in_bounds(Pos pos, Lens lens)
+{
+    for(index_int d = 0; d < pos.size(); d++)
+    {
+        if(pos[d] >= lens[d])
+            return false;
+    }
+    return true;
+}
+
 template <class Derived>
 struct pool_op
 {
@@ -186,6 +197,19 @@ constexpr window<Window, Stride, Padding> make_window(Window w, Stride s, Paddin
     return {w, s, p};
 }
 
+template<index_int N, class OutputIndex, class F>
+constexpr void each_group(OutputIndex out_idx, F f)
+{
+    auto i = out_idx;
+    i.back() *= N;
+    repeat_c<N>([&](auto k) {
+        auto idx = i;
+        idx.back() += k;
+        f(idx, k);
+    });
+}
+
+
 template <class Algo, index_int GroupSize, class Output, class F>
 __device__ void pooling_reduce(Output output, F f)
 {
@@ -196,21 +220,43 @@ __device__ void pooling_reduce(Output output, F f)
     }
     else
     {
-        auto goutput = as_vec<GroupSize>(output, output.get_shape().lens.size() - _c<1>);
-        Algo::template run<decltype(goutput)>([&](auto out_idx, auto r) {
-            auto i = out_idx;
-            i.back() *= GroupSize;
-            // auto result = vec_generate<GroupSize>([&](auto k) __attribute__((const)) {
-            //     auto j = i;
-            //     j.back() += k;
-            //     return f(j, r);
-            // });
-            auto result = vec_generate<GroupSize>([&](auto) {
-                i.back()++;
-                return f(i, r);
+        constexpr auto output_shape = get_shape_c<Output>{};
+        if constexpr((output_shape.lens.back() % GroupSize) == 0)
+        {
+            auto goutput = as_vec<GroupSize>(output, output.get_shape().lens.size() - _c<1>);
+            Algo::template run<decltype(goutput)>([&](auto out_idx, auto r) {
+                auto i = out_idx;
+                i.back() *= GroupSize;
+                auto result = vec_generate<GroupSize>([&](auto) {
+                    i.back()++;
+                    return f(i, r);
+                });
+                r.outer([&] { goutput[out_idx] = result; });
             });
-            r.outer([&] { goutput[out_idx] = result; });
-        });
+        }
+        else
+        {
+            using type = typename Output::type;
+            array<type, GroupSize> result;
+            auto glens = transform_i(output_shape.lens, [](auto len, auto i) {
+                if(i == get_shape_c<Output>{}.lens.size() - 1)
+                    return len / GroupSize;
+                else
+                    return len;
+            });
+            auto goutput = make_shape(glens);
+            Algo::template run<decltype(goutput)>([&](auto out_idx, auto r) {
+                each_group<GroupSize>(out_idx, [&](auto idx, auto k) {
+                    result[k] = f(idx, r);
+                });
+                r.outer([&] { 
+                    each_group<GroupSize>(out_idx, [&](auto idx, auto k) {
+                        if(in_bounds(idx, output.get_shape().lens))
+                            output[idx] = result[k]; 
+                    });
+                });
+            });
+        }
     }
 }
 

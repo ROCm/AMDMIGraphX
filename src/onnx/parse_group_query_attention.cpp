@@ -36,7 +36,7 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
 {
     std::vector<op_desc> operators() const { return {{"GroupQueryAttention"}}; }
 
-    static instruction_ref insert_rotary(module_ref m,
+    static instruction_ref insert_rotary(module& m,
                                          bool interleaved,
                                          std::size_t sequence_length,
                                          std::vector<instruction_ref> args)
@@ -45,9 +45,9 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         auto& pos_ids = args.at(1);
         if(sequence_length > 1)
         {
-            pos_ids = m->add_literal(literal{shape{pos_ids->get_shape().type(), {1}}, {0}});
+            pos_ids = m.add_literal(literal{shape{pos_ids->get_shape().type(), {1}}, {0}});
         }
-        return op::builder::add("rotary_embedding", *m, args, {{"interleaved", interleaved}}).at(0);
+        return op::builder::add("rotary_embedding", m, args, {{"interleaved", interleaved}}).at(0);
     }
 
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,

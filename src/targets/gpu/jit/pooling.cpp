@@ -90,10 +90,9 @@ struct pooling_compiler : compiler<pooling_compiler>
 
         algorithm() {}
 
-        void set_block_algo(context& ctx, const std::vector<std::size_t>& window)
+        void set_block_algo(context& ctx, std::size_t wsize)
         {
             std::size_t max_wavefront_size = ctx.get_current_device().get_wavefront_size();
-            auto wsize                     = window.back();
             if(wsize > max_wavefront_size)
             {
                 block_size  = compute_block_size(ctx, wsize, 256);
@@ -102,10 +101,16 @@ struct pooling_compiler : compiler<pooling_compiler>
             }
             else
             {
-                block_size  = max_wavefront_size;
+                // block_size  = max_wavefront_size;
+                block_size  = 256;
                 reduce_size = compute_subwave_size(ctx, wsize);
                 name        = "reduce::subwave<" + to_string(reduce_size) + ">";
             }
+        }
+
+        void set_block_algo(context& ctx, const std::vector<std::size_t>& window)
+        {
+            set_block_algo(ctx, window.back());
         }
 
         algorithm(context& ctx, const shape& input, const std::vector<std::size_t>& window)
@@ -173,7 +178,9 @@ struct pooling_compiler : compiler<pooling_compiler>
 
         algorithm algo{};
         algo.group_size = v.get("group_size", 1);
-        // algo.set_block_algo(ctx, window);
+        auto width = v.get("width", 1);
+        if(width > 1)
+            algo.set_block_algo(ctx, width);
         options.set_launch_params(
             v,
             compute_global_for(ctx, (out_s.elements() / algo.group_size) * algo.reduce_size, 256),
@@ -211,17 +218,25 @@ struct pooling_compiler : compiler<pooling_compiler>
         tuning_config tc;
         auto shapes = to_shapes(ins->inputs());
         auto output = shapes.back();
-        tc.problem  = value{{"input", to_value(shapes.front())}, {"config", op.to_value()}};
+        auto v = op.to_value();
+        tc.problem  = value{{"input", to_value(shapes.front())}, {"config", v}};
 
+        auto w = v["lengths"].to_vector<std::size_t>();
+        auto wsize = std::accumulate(w.begin(), w.end(), 1, std::multiplies<std::size_t>());
         auto faxis = gen::find_fast_axis(output);
         auto x     = output.lens()[faxis];
-        for(auto group_size : {1, 2, 3, 4, 7, 8, 9, 11, 16, 32, 49, 64, 128})
+        for(auto group_size : {1, 2, 4, 8, 16, 32, 64, 128})
         {
             if(x < group_size)
                 continue;
             if((x % group_size) != 0)
                 continue;
-            tc.solutions.push_back({{"group_size", group_size}});
+            for(auto width:{1, 2, 4, 8, 16})
+            {
+                if(wsize < width)
+                    continue;
+                tc.solutions.push_back({{"group_size", group_size}, {"width", width}});
+            }
         }
         // tc.solutions.push_back({{"group_size", 1}});
         // tc.solutions.push_back({{"group_size", 2}});

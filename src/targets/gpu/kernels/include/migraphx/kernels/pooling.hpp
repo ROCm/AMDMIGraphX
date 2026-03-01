@@ -200,6 +200,11 @@ __device__ void pooling_reduce(Output output, F f)
         Algo::template run<decltype(goutput)>([&](auto out_idx, auto r) {
             auto i = out_idx;
             i.back() *= GroupSize;
+            // auto result = vec_generate<GroupSize>([&](auto k) __attribute__((const)) {
+            //     auto j = i;
+            //     j.back() += k;
+            //     return f(j, r);
+            // });
             auto result = vec_generate<GroupSize>([&](auto) {
                 i.back()++;
                 return f(i, r);

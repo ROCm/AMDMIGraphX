@@ -225,19 +225,87 @@ struct pooling_compiler : compiler<pooling_compiler>
         auto wsize = std::accumulate(w.begin(), w.end(), 1, std::multiplies<std::size_t>());
         auto faxis = gen::find_fast_axis(output);
         auto x     = output.lens()[faxis];
-        for(auto group_size : {1, 2, 4, 8, 16, 32, 64, 128})
-        {
+        auto add_solution = [&](auto group_size, auto width) {
             if(x < group_size)
-                continue;
+                return;
             if((x % group_size) != 0)
-                continue;
-            for(auto width:{1, 2, 4, 8, 16})
+                return;
+            if(wsize < width)
+                return;
+            if(width > ctx.get_current_device().get_wavefront_size())
+                return;
+            tc.solutions.push_back({{"group_size", group_size}, {"width", width}});
+        };
+        if(exhaustive)
+        {
+            for(auto group_size : {1, 2, 4, 8, 16, 32, 64, 128})
             {
-                if(wsize < width)
-                    continue;
-                tc.solutions.push_back({{"group_size", group_size}, {"width", width}});
+                for(auto width:{1, 2, 4, 8, 16, 32, 64})
+                {
+                    add_solution(group_size, width);
+                }
             }
         }
+        else
+        {
+            add_solution(1, 1);
+            if(ctx.get_current_device().get_wavefront_size() == 32)
+            {
+                add_solution(1, 16);
+                add_solution(1, 2);
+                add_solution(1, 4);
+                add_solution(1, 8);
+                add_solution(2, 1);
+                add_solution(2, 2);
+                add_solution(2, 4);
+                add_solution(4, 1);
+                add_solution(8, 1);
+                add_solution(8, 2);
+            }
+            else
+            {
+                add_solution(1, 16);
+                add_solution(1, 2);
+                add_solution(1, 4);
+                add_solution(1, 8);
+                add_solution(2, 1);
+                add_solution(2, 16);
+                add_solution(2, 2);
+                add_solution(2, 4);
+                add_solution(2, 8);
+                add_solution(4, 1);
+                add_solution(4, 2);
+                add_solution(4, 4);
+                add_solution(4, 8);
+            }
+        }
+        // Navi
+            // "group_size": 1,             "width": 1
+            // "group_size": 1,             "width": 16
+            // "group_size": 1,             "width": 2
+            // "group_size": 1,             "width": 4
+            // "group_size": 1,             "width": 8
+            // "group_size": 2,             "width": 1
+            // "group_size": 2,             "width": 2
+            // "group_size": 2,             "width": 4
+            // "group_size": 4,             "width": 1
+            // "group_size": 8,             "width": 1
+            // "group_size": 8,             "width": 2
+        // mi300
+            // "group_size": 1,             "width": 1
+            // "group_size": 1,             "width": 16
+            // "group_size": 1,             "width": 2
+            // "group_size": 1,             "width": 4
+            // "group_size": 1,             "width": 8
+            // "group_size": 2,             "width": 1
+            // "group_size": 2,             "width": 16
+            // "group_size": 2,             "width": 2
+            // "group_size": 2,             "width": 4
+            // "group_size": 2,             "width": 8
+            // "group_size": 4,             "width": 1
+            // "group_size": 4,             "width": 2
+            // "group_size": 4,             "width": 4
+            // "group_size": 4,             "width": 8
         // tc.solutions.push_back({{"group_size", 1}});
         // tc.solutions.push_back({{"group_size", 2}});
         // tc.solutions.push_back({{"group_size", 3}});

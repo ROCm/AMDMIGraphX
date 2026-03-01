@@ -24,6 +24,7 @@
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/compile_gen.hpp>
 #include <migraphx/op/common.hpp>
 
 #include <migraphx/gpu/compile_hip_code_object.hpp>
@@ -209,20 +210,32 @@ struct pooling_compiler : compiler<pooling_compiler>
         //     return nullopt;
         tuning_config tc;
         auto shapes = to_shapes(ins->inputs());
+        auto output = shapes.back();
         tc.problem  = value{{"input", to_value(shapes.front())}, {"config", op.to_value()}};
-        tc.solutions.push_back({{"group_size", 1}});
-        tc.solutions.push_back({{"group_size", 2}});
-        tc.solutions.push_back({{"group_size", 3}});
-        tc.solutions.push_back({{"group_size", 4}});
-        tc.solutions.push_back({{"group_size", 7}});
-        tc.solutions.push_back({{"group_size", 8}});
-        tc.solutions.push_back({{"group_size", 9}});
-        tc.solutions.push_back({{"group_size", 11}});
-        tc.solutions.push_back({{"group_size", 16}});
-        tc.solutions.push_back({{"group_size", 32}});
-        tc.solutions.push_back({{"group_size", 49}});
-        tc.solutions.push_back({{"group_size", 64}});
-        tc.solutions.push_back({{"group_size", 128}});
+
+        auto faxis = gen::find_fast_axis(output);
+        auto x = output.lens()[faxis];
+        for(auto group_size:{1, 2, 3, 4, 7, 8, 9, 11, 16, 32, 49, 64, 128})
+        {
+            if(x < group_size)
+                continue;
+            if((x % group_size) != 0)
+                continue;
+            tc.solutions.push_back({{"group_size", group_size}});
+        }
+        // tc.solutions.push_back({{"group_size", 1}});
+        // tc.solutions.push_back({{"group_size", 2}});
+        // tc.solutions.push_back({{"group_size", 3}});
+        // tc.solutions.push_back({{"group_size", 4}});
+        // tc.solutions.push_back({{"group_size", 7}});
+        // tc.solutions.push_back({{"group_size", 8}});
+        // tc.solutions.push_back({{"group_size", 9}});
+        // tc.solutions.push_back({{"group_size", 11}});
+        // tc.solutions.push_back({{"group_size", 16}});
+        // tc.solutions.push_back({{"group_size", 32}});
+        // tc.solutions.push_back({{"group_size", 49}});
+        // tc.solutions.push_back({{"group_size", 64}});
+        // tc.solutions.push_back({{"group_size", 128}});
         return tc;
     }
 };

@@ -197,7 +197,7 @@ constexpr window<Window, Stride, Padding> make_window(Window w, Stride s, Paddin
     return {w, s, p};
 }
 
-template<index_int N, class OutputIndex, class F>
+template <index_int N, class OutputIndex, class F>
 constexpr void each_group(OutputIndex out_idx, F f)
 {
     auto i = out_idx;
@@ -208,7 +208,6 @@ constexpr void each_group(OutputIndex out_idx, F f)
         f(idx, k);
     });
 }
-
 
 template <class Algo, index_int GroupSize, class Output, class F>
 __device__ void pooling_reduce(Output output, F f)
@@ -238,7 +237,7 @@ __device__ void pooling_reduce(Output output, F f)
         {
             using type = typename Output::type;
             array<type, GroupSize> result;
-            auto glens = transform_i(output_shape.lens, [](auto len, auto i) {
+            auto glens   = transform_i(output_shape.lens, [](auto len, auto i) {
                 if(i == get_shape_c<Output>{}.lens.size() - 1)
                     return len / GroupSize;
                 else
@@ -246,13 +245,11 @@ __device__ void pooling_reduce(Output output, F f)
             });
             auto goutput = make_shape(glens);
             Algo::template run<decltype(goutput)>([&](auto out_idx, auto r) {
-                each_group<GroupSize>(out_idx, [&](auto idx, auto k) {
-                    result[k] = f(idx, r);
-                });
-                r.outer([&] { 
+                each_group<GroupSize>(out_idx, [&](auto idx, auto k) { result[k] = f(idx, r); });
+                r.outer([&] {
                     each_group<GroupSize>(out_idx, [&](auto idx, auto k) {
                         if(in_bounds(idx, output.get_shape().lens))
-                            output[idx] = result[k]; 
+                            output[idx] = result[k];
                     });
                 });
             });

@@ -253,14 +253,15 @@ struct pooling_compiler : compiler<pooling_compiler>
             {
                 add_solution(1, 16);
                 add_solution(1, 2);
+                add_solution(1, 32);
                 add_solution(1, 4);
                 add_solution(1, 8);
                 add_solution(2, 1);
-                add_solution(2, 2);
                 add_solution(2, 4);
                 add_solution(4, 1);
                 add_solution(8, 1);
                 add_solution(8, 2);
+                add_solution(16, 1);
             }
             else
             {
@@ -277,35 +278,83 @@ struct pooling_compiler : compiler<pooling_compiler>
                 add_solution(4, 2);
                 add_solution(4, 4);
                 add_solution(4, 8);
+                add_solution(8, 1);
+                add_solution(8, 8);
+                add_solution(16, 1);
+                add_solution(16, 16);
             }
         }
         // Navi
-        // "group_size": 1,             "width": 1
-        // "group_size": 1,             "width": 16
-        // "group_size": 1,             "width": 2
-        // "group_size": 1,             "width": 4
-        // "group_size": 1,             "width": 8
-        // "group_size": 2,             "width": 1
-        // "group_size": 2,             "width": 2
-        // "group_size": 2,             "width": 4
-        // "group_size": 4,             "width": 1
-        // "group_size": 8,             "width": 1
-        // "group_size": 8,             "width": 2
+            // "group_size": 1,             "width": 1
+            // "group_size": 1,             "width": 16
+            // "group_size": 1,             "width": 2
+            // "group_size": 1,             "width": 32
+            // "group_size": 1,             "width": 4
+            // "group_size": 1,             "width": 8
+            // "group_size": 2,             "width": 1
+            // "group_size": 2,             "width": 4
+            // "group_size": 4,             "width": 1
+            // "group_size": 8,             "width": 1
+            // "group_size": 8,             "width": 2
+            // "group_size": 16,             "width": 1
         // mi300
-        // "group_size": 1,             "width": 1
-        // "group_size": 1,             "width": 16
-        // "group_size": 1,             "width": 2
-        // "group_size": 1,             "width": 4
-        // "group_size": 1,             "width": 8
-        // "group_size": 2,             "width": 1
-        // "group_size": 2,             "width": 16
-        // "group_size": 2,             "width": 2
-        // "group_size": 2,             "width": 4
-        // "group_size": 2,             "width": 8
-        // "group_size": 4,             "width": 1
-        // "group_size": 4,             "width": 2
-        // "group_size": 4,             "width": 4
-        // "group_size": 4,             "width": 8
+            // "group_size": 1,             "width": 1
+            // "group_size": 1,             "width": 16
+            // "group_size": 1,             "width": 2
+            // "group_size": 1,             "width": 4
+            // "group_size": 1,             "width": 8
+            // "group_size": 2,             "width": 1
+            // "group_size": 2,             "width": 16
+            // "group_size": 2,             "width": 2
+            // "group_size": 2,             "width": 4
+            // "group_size": 2,             "width": 8
+            // "group_size": 4,             "width": 1
+            // "group_size": 4,             "width": 2
+            // "group_size": 4,             "width": 4
+            // "group_size": 4,             "width": 8
+            // "group_size": 8,             "width": 1
+            // "group_size": 8,             "width": 8
+            // "group_size": 16,             "width": 1
+            // "group_size": 16,             "width": 16
+        // old:
+            // "group_size": 1,             "width": 1
+            // "group_size": 1,             "width": 16
+            // "group_size": 1,             "width": 2
+            // "group_size": 1,             "width": 4
+            // "group_size": 1,             "width": 8
+            // "group_size": 2,             "width": 1
+            // "group_size": 2,             "width": 16
+            // "group_size": 2,             "width": 2
+            // "group_size": 2,             "width": 4
+            // "group_size": 2,             "width": 8
+            // "group_size": 4,             "width": 1
+            // "group_size": 4,             "width": 2
+            // "group_size": 4,             "width": 4
+            // "group_size": 4,             "width": 8
+        // Extended:
+            // "group_size": 1,             "width": 1
+            // "group_size": 1,             "width": 16
+            // "group_size": 1,             "width": 2
+            // "group_size": 1,             "width": 32
+            // "group_size": 1,             "width": 4
+            // "group_size": 1,             "width": 64
+            // "group_size": 1,             "width": 8
+            // "group_size": 16,             "width": 1
+            // "group_size": 16,             "width": 16
+            // "group_size": 2,             "width": 1
+            // "group_size": 2,             "width": 16
+            // "group_size": 2,             "width": 2
+            // "group_size": 2,             "width": 32
+            // "group_size": 2,             "width": 4
+            // "group_size": 2,             "width": 64
+            // "group_size": 2,             "width": 8
+            // "group_size": 4,             "width": 1
+            // "group_size": 4,             "width": 2
+            // "group_size": 4,             "width": 4
+            // "group_size": 4,             "width": 8
+            // "group_size": 8,             "width": 1
+            // "group_size": 8,             "width": 32
+            // "group_size": 8,             "width": 8
         // tc.solutions.push_back({{"group_size", 1}});
         // tc.solutions.push_back({{"group_size", 2}});
         // tc.solutions.push_back({{"group_size", 3}});

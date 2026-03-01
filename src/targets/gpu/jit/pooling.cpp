@@ -214,8 +214,8 @@ struct pooling_compiler : compiler<pooling_compiler>
         tc.problem  = value{{"input", to_value(shapes.front())}, {"config", op.to_value()}};
 
         auto faxis = gen::find_fast_axis(output);
-        auto x = output.lens()[faxis];
-        for(auto group_size:{1, 2, 3, 4, 7, 8, 9, 11, 16, 32, 49, 64, 128})
+        auto x     = output.lens()[faxis];
+        for(auto group_size : {1, 2, 3, 4, 7, 8, 9, 11, 16, 32, 49, 64, 128})
         {
             if(x < group_size)
                 continue;

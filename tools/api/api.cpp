@@ -156,6 +156,11 @@ static void set_exhaustive_tune_flag(compile_options& options, bool value)
     options.exhaustive_tune = value;
 }
 
+static void set_compile_mode(compile_options& options, int8_t value)
+{
+    options.compile_mode = value;
+}
+
 static void set_file_format(file_options& options, const char* format) { options.format = format; }
 
 #ifdef MIGRAPHX_ENABLE_ONNX

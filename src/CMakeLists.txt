@@ -57,6 +57,7 @@ add_library(migraphx
     color.cpp
     common.cpp
     common_dims.cpp
+    compile_modes.cpp
     compile_src.cpp
     convert_to_json.cpp
     cpp_generator.cpp
@@ -445,5 +446,3 @@ rocm_export_targets(
     Threads
     ${MIGRAPHX_CONFIG_DEPENDS}
 )
-
-

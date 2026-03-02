@@ -22,7 +22,6 @@
  * THE SOFTWARE.
  */
 #include <migraphx/gpu/compiler.hpp>
-#include <migraphx/make_op.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compile_hip.hpp>

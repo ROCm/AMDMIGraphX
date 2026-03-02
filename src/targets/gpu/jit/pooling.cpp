@@ -212,7 +212,7 @@ struct pooling_compiler : compiler<pooling_compiler>
     {
         tuning_config tc;
         auto shapes = to_shapes(ins->inputs());
-        auto output = shapes.back();
+        const auto& output = shapes.back();
         auto v      = op.to_value();
         tc.problem  = value{{"input", to_value(shapes.front())}, {"config", v}};
 

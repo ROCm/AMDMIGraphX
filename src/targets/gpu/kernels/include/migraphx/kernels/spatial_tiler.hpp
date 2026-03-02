@@ -105,7 +105,7 @@ struct spatial_tiler
     template <class Input, class Smem>
     __device__ auto copy(Input input, Smem& smem) const
     {
-        using type                          = typename Input::type;
+        using type                       = typename Input::type;
         constexpr auto hl                = halo_lens_for<get_shape_c<Input>>();
         constexpr auto halo_shape        = make_shape(hl);
         constexpr auto input_spatial     = make_slice(get_shape_c<Input>{}, keep_spatial()).lens;

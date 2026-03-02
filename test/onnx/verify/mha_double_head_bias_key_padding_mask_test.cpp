@@ -53,7 +53,7 @@ TEST_CASE(mha_double_head_bias_mask_batch1_passthrough_mask_test)
     std::vector<float> bias_data(12, 0.0f);
 
     migraphx::shape mask_shape{migraphx::shape::int32_type, {1, 2}};
-    std::vector<float> mask_data = {1, 1};
+    std::vector<int32_t> mask_data = {1, 1};
 
     migraphx::literal query{q_shape, query_data};
     migraphx::literal key{k_shape, key_data};
@@ -113,7 +113,7 @@ TEST_CASE(mha_double_head_bias_mask_batch1_last_mask_test)
 
     // 0 = mask,1  = pass through
     migraphx::shape mask_shape{migraphx::shape::int32_type, {1, 2}};
-    std::vector<float> mask_data = {1, 0};
+    std::vector<int32_t> mask_data = {1, 0};
 
     migraphx::literal query{q_shape, query_data};
     migraphx::literal key{k_shape, key_data};
@@ -172,7 +172,7 @@ TEST_CASE(mha_double_head_bias_mask_batch1_first_mask_test)
                                     0.85529f};
 
     migraphx::shape mask_shape{migraphx::shape::int32_type, {1, 2}};
-    std::vector<float> mask_data = {0, 1};
+    std::vector<int32_t> mask_data = {0, 1};
 
     migraphx::literal query{q_shape, query_data};
     migraphx::literal key{k_shape, key_data};
@@ -231,7 +231,7 @@ TEST_CASE(mha_double_head_bias_mask_batch1_all_mask_test)
                                     0.84921235f};
 
     migraphx::shape mask_shape{migraphx::shape::int32_type, {1, 2}};
-    std::vector<float> mask_data = {0, 0};
+    std::vector<int32_t> mask_data = {0, 0};
 
     migraphx::literal query{q_shape, query_data};
     migraphx::literal key{k_shape, key_data};
@@ -252,6 +252,121 @@ TEST_CASE(mha_double_head_bias_mask_batch1_all_mask_test)
     // Gold data from AttentionNoMaskIndex from attention_op_test.cc from Onnxruntime
     std::vector<float> gold = {
         1.166096f, 1.650388f, 1.406106f, 2.30548f, 1.165592f, 1.649586f, 1.406728f, 2.304997};
+
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}
+
+TEST_CASE(mha_double_head_bias_mask_batch2_right_mask_test)
+{
+    auto p = optimize_onnx("mha_double_head_bias_mask_right_batch2_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::parameter_map pp;
+
+    migraphx::shape q_shape{migraphx::shape::float_type, {2, 2, 4}};
+    std::vector<float> query_data = {1.46175,
+                                     1.4676,
+                                     1.05493,
+                                     0.900047,
+                                     1.67605,
+                                     1.30483,
+                                     1.21247,
+                                     0.897198,
+                                     1.46175,
+                                     1.4676,
+                                     1.05493,
+                                     0.900047,
+                                     1.67605,
+                                     1.30483,
+                                     1.21247,
+                                     0.897198};
+
+    migraphx::shape k_shape{migraphx::shape::float_type, {2, 2, 4}};
+    std::vector<float> key_data = {1.71781,
+                                   2.04228,
+                                   1.88613,
+                                   1.76649,
+                                   1.62908,
+                                   2.07181,
+                                   1.79497,
+                                   2.00843,
+                                   1.71781,
+                                   2.04228,
+                                   1.88613,
+                                   1.76649,
+                                   1.62908,
+                                   2.07181,
+                                   1.79497,
+                                   2.00843};
+
+    migraphx::shape value_shape{migraphx::shape::float_type, {2, 2, 4}};
+    std::vector<float> value_data = {1.06769,
+                                     1.36994,
+                                     1.26663,
+                                     1.35326,
+                                     1.18959,
+                                     1.56367,
+                                     1.01132,
+                                     1.55191,
+                                     1.06769,
+                                     1.36994,
+                                     1.26663,
+                                     1.35326,
+                                     1.18959,
+                                     1.56367,
+                                     1.01132,
+                                     1.55191};
+
+    migraphx::shape bias_shape{migraphx::shape::float_type, {12}};
+    std::vector<float> bias_data = {0.751496f,
+                                    0.557292f,
+                                    0.6720010f,
+                                    0.1879267f,
+                                    0.352546f,
+                                    0.600021f,
+                                    0.0552079f,
+                                    0.5959239f,
+                                    0.0404032f,
+                                    0.1882552f,
+                                    0.2718655f,
+                                    0.84921235f};
+
+    migraphx::shape mask_shape{migraphx::shape::int32_type, {2}};
+    std::vector<int32_t> mask_data = {2, 1};
+
+    migraphx::literal query{q_shape, query_data};
+    migraphx::literal key{k_shape, key_data};
+    migraphx::literal value{value_shape, value_data};
+    migraphx::literal bias{bias_shape, bias_data};
+    migraphx::literal mask{mask_shape, mask_data};
+
+    pp["q"]                = query.get_argument();
+    pp["k"]                = key.get_argument();
+    pp["v"]                = value.get_argument();
+    pp["bias"]             = bias.get_argument();
+    pp["key_padding_mask"] = mask.get_argument();
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    // Gold data from AttentionNoMaskIndex from attention_op_test.cc from Onnxruntime
+    std::vector<float> gold = {1.10809f,
+                               1.5582f,
+                               1.5385f,
+                               2.20247f,
+                               1.10809f,
+                               1.5582f,
+                               1.5385f,
+                               2.20247f,
+                               1.10809f,
+                               1.5582f,
+                               1.5385f,
+                               2.20247f,
+                               1.10809f,
+                               1.5582f,
+                               1.5385f,
+                               2.20247f};
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

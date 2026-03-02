@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,6 +31,7 @@
 #include <numeric>
 #include <memory>
 #include <set>
+#include <limits>
 
 #include <migraphx/functional.hpp>
 #include <migraphx/errors.hpp>
@@ -161,6 +162,7 @@ struct MIGRAPHX_EXPORT shape
 
     static bool is_integral(type_t t);
     static bool is_compatible(const shape& actual, const shape& expected);
+    static bool is_compatible_lens(const shape& actual, const shape& expected);
 
     static bool is_unsigned(type_t t);
     static bool is_computable(type_t t);
@@ -358,6 +360,8 @@ struct MIGRAPHX_EXPORT shape
     MIGRAPHX_EXPORT friend bool operator!=(const shape& x, const shape& y);
     MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const shape& x);
 
+    static bool same_lens(const shape& x, const shape& y);
+
     template <class T>
     struct as
     {
@@ -368,6 +372,8 @@ struct MIGRAPHX_EXPORT shape
         type min() const { return std::numeric_limits<type>::lowest(); }
 
         type nan() const { return std::numeric_limits<type>::quiet_NaN(); }
+
+        type epsilon() const { return std::numeric_limits<type>::epsilon(); }
 
         template <class U>
         type operator()(U u) const
@@ -465,6 +471,8 @@ struct MIGRAPHX_EXPORT shape
      * Will clip to the maximum of size_t if overflows for dynamic shapes.
      */
     std::size_t element_space() const;
+
+    void debug_print() const;
 
     private:
     shape(std::shared_ptr<shape_impl> pimpl);

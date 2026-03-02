@@ -204,6 +204,177 @@ make_attention_program(const uint64_t batch,
     return p;
 }
 
+inline migraphx::program create_gqa_program(const size_t batch_size,
+                                            const size_t num_heads,
+                                            const size_t kv_num_heads,
+                                            const size_t sequence_length,
+                                            const size_t head_size,
+                                            const size_t past_sequence_length,
+                                            const size_t max_sequence_length,
+                                            const bool do_rotary,
+                                            const float scale,
+                                            const bool non_packed = false)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    std::vector<size_t> query_lens{
+        batch_size, sequence_length, head_size * (num_heads + 2 * (non_packed ? 0 : kv_num_heads))};
+    std::vector<size_t> key_value_lens{1};
+    std::vector<size_t> kv_lens{batch_size, kv_num_heads, max_sequence_length, head_size};
+    std::vector<size_t> slk_lens{batch_size, 1};
+    std::vector<size_t> cs_cache_lens{max_sequence_length, head_size / 2};
+    auto dtype = migraphx::shape::half_type;
+    migraphx::shape query_s{dtype, query_lens};
+    migraphx::shape kv_s{dtype, kv_lens};
+    migraphx::shape key_value_s{non_packed ? dtype : migraphx::shape::float_type,
+                                non_packed ? query_lens : key_value_lens};
+    migraphx::shape slk_s{migraphx::shape::int32_type, slk_lens};
+    migraphx::shape cs_cache_s{dtype, cs_cache_lens};
+    std::vector<int> slk_vec(slk_s.elements(), past_sequence_length);
+    std::vector<int> tsl_vec(slk_s.elements(), max_sequence_length);
+    std::vector<float> cs_max_vec(cs_cache_s.elements(), 1.0);
+
+    auto slk_lit = mm->add_literal(slk_s, slk_vec);
+    mm->add_literal(slk_s, tsl_vec);
+    auto cos_cache = mm->add_literal(cs_cache_s, cs_max_vec);
+    auto sin_cache = mm->add_literal(cs_cache_s, cs_max_vec);
+
+    auto query = mm->add_parameter(non_packed ? "query" : "qkv", query_s);
+    auto key   = mm->add_parameter("key", key_value_s);
+    auto value = mm->add_parameter("value", key_value_s);
+    auto k     = mm->add_parameter("past_key_values_key", kv_s);
+    auto v     = mm->add_parameter("past_key_values_value", kv_s);
+
+    if(non_packed)
+    {
+        query = mm->add_instruction(migraphx::make_op("concat", {{"axis", 2}}), query, key, value);
+    }
+
+    std::vector<std::size_t> bsnh{
+        batch_size, sequence_length, num_heads + 2 * kv_num_heads, head_size};
+
+    auto transposed_qkv =
+        mm->add_instruction(migraphx::make_op("reshape", {{"dims", bsnh}}), query);
+
+    transposed_qkv = mm->add_instruction(
+        migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), transposed_qkv);
+
+    auto rotary_qkv = transposed_qkv;
+    if(do_rotary)
+    {
+        std::vector<migraphx::instruction_ref> rotary_inputs{
+            transposed_qkv, slk_lit, cos_cache, sin_cache};
+        rotary_qkv = mm->add_instruction(
+            migraphx::make_op(
+                "gqa_rotary_embedding",
+                {{"kv_num_heads", kv_num_heads}, {"num_heads", num_heads}, {"interleaved", false}}),
+            rotary_inputs);
+    }
+
+    auto rotary_k = mm->add_instruction(
+        migraphx::make_op(
+            "slice",
+            {{"axes", {1}}, {"starts", {num_heads}}, {"ends", {num_heads + kv_num_heads}}}),
+        rotary_qkv);
+    auto rotary_v =
+        mm->add_instruction(migraphx::make_op("slice",
+                                              {{"axes", {1}},
+                                               {"starts", {num_heads + kv_num_heads}},
+                                               {"ends", {num_heads + (2 * kv_num_heads)}}}),
+                            rotary_qkv);
+    std::vector<migraphx::instruction_ref> concat_k_inputs{rotary_k, slk_lit, k};
+    std::vector<migraphx::instruction_ref> concat_v_inputs{rotary_v, slk_lit, v};
+
+    k = mm->add_instruction(
+        migraphx::make_op("concat_past_present", {{"kv_num_heads", kv_num_heads}}),
+        concat_k_inputs);
+    v = mm->add_instruction(
+        migraphx::make_op("concat_past_present", {{"kv_num_heads", kv_num_heads}}),
+        concat_v_inputs);
+
+    auto kv_num_heads_factor = num_heads / kv_num_heads;
+    auto max_seq_len         = kv_s.lens()[2];
+    auto past_sl             = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), slk_lit);
+
+    auto q = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {num_heads}}}),
+        rotary_qkv);
+
+    if(kv_num_heads_factor != 1)
+    {
+        auto kv_new_lens  = kv_lens;
+        kv_new_lens.at(1) = num_heads;
+        k                 = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), k);
+        v                 = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), v);
+        auto kv_unsqueezed_lens = kv_lens;
+        kv_unsqueezed_lens.insert(kv_unsqueezed_lens.begin() + 2, kv_num_heads_factor);
+        k = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", kv_unsqueezed_lens}}), k);
+        v = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", kv_unsqueezed_lens}}), v);
+        k = mm->add_instruction(migraphx::make_op("reshape", {{"dims", kv_new_lens}}), k);
+        v = mm->add_instruction(migraphx::make_op("reshape", {{"dims", kv_new_lens}}), v);
+    }
+    auto kt =
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), k);
+    auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), q, kt);
+
+    std::vector<int> range_vec(max_seq_len);
+    std::iota(range_vec.begin(), range_vec.end(), 0);
+    migraphx::shape range_s{slk_s.type(), {max_seq_len}};
+    auto range = mm->add_literal(range_s, range_vec);
+    std::vector<std::size_t> bnsm{batch_size, num_heads, sequence_length, max_seq_len};
+    auto bc_range =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}), range);
+
+    auto scalar_s = migraphx::shape{query_s.type(), {1}};
+    auto ninf =
+        mm->add_literal(migraphx::literal{scalar_s, {-std::numeric_limits<float>::infinity()}});
+    ninf = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}), ninf);
+
+    auto scale_ins = mm->add_literal(migraphx::literal{scalar_s, {scale}});
+    scale_ins =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}), scale_ins);
+    auto mul = mm->add_instruction(migraphx::make_op("mul"), gemm1, scale_ins);
+
+    if(sequence_length > 1)
+    {
+        std::vector<int> seq_range_vec(sequence_length);
+        std::iota(seq_range_vec.begin(), seq_range_vec.end(), 0);
+        migraphx::shape seq_range_s{slk_s.type(), {sequence_length}};
+        auto seq_range = mm->add_literal(seq_range_s, seq_range_vec);
+        seq_range      = mm->add_instruction(
+            migraphx::make_op("reshape", {{"dims", {sequence_length, 1}}}), seq_range);
+        seq_range = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}),
+                                        seq_range);
+        auto causal_mask = mm->add_instruction(migraphx::make_op("greater"), bc_range, seq_range);
+        causal_mask      = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}),
+            causal_mask);
+        mul = mm->add_instruction(migraphx::make_op("where"), causal_mask, ninf, mul);
+    }
+
+    auto bc_past_sl = mm->add_instruction(
+        migraphx::make_op("reshape", {{"dims", {batch_size, num_heads, 1, 1}}}), past_sl);
+    auto mask_comp =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bnsm}}), bc_past_sl);
+    auto mask = mm->add_instruction(migraphx::make_op("greater"), bc_range, mask_comp);
+    mask      = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), mask);
+    auto where   = mm->add_instruction(migraphx::make_op("where"), mask, ninf, mul);
+    auto softmax = mm->add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), where);
+    auto scores  = mm->add_instruction(migraphx::make_op("dot"), softmax, v);
+    auto out = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}),
+                                   scores);
+    out      = mm->add_instruction(
+        migraphx::make_op("reshape",
+                               {{"dims", {batch_size, sequence_length, head_size * num_heads}}}),
+        out);
+
+    return p;
+}
+
 inline void add_celu_instruction(migraphx::module* mm, const migraphx::shape& s, float alpha)
 {
     auto x                 = mm->add_parameter("x", s);

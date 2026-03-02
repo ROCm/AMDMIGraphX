@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -39,6 +39,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/problem_cache.hpp>
+#include <migraphx/gpu/hsa_chiplet.hpp>
 #include <unordered_map>
 #include <memory>
 
@@ -209,6 +210,8 @@ struct hip_device
     std::size_t get_device_minor() const { return device_props.minor; }
 
     std::size_t get_cu_count() const { return device_props.multiProcessorCount; }
+
+    std::size_t get_chiplet_count() const { return get_hsa_chiplet_count(device_id); }
 
     std::size_t get_max_workitems_per_cu() const
     {

@@ -21,31 +21,31 @@ The package installer will install all the prerequisites you need for MIGraphX.
 
 Use the following command to install MIGraphX: 
 
-  .. code:: shell
-  
-    sudo apt update && sudo apt install -y migraphx
+.. code:: shell
+
+   sudo apt update && sudo apt install -y migraphx
 
 Build MIGraphX from source
 ====================================================================
 
 .. note::
-  
-  This method for building MIGraphX requires using ``sudo``.
 
-1. Install `rocm-cmake`, `pip3`, `rocblas`, and `miopen-hip`:
+   This method for building MIGraphX requires using ``sudo``.
 
-    .. code:: shell
+1. Install ``rocm-cmake``, ``pip3``, ``rocblas``, and ``miopen-hip``:
 
-        sudo apt install -y rocm-cmake python3-pip rocblas miopen-hip
-    
-2. Install `rbuild <https://github.com/RadeonOpenCompute/rbuild>`_:
+.. code:: shell
 
-    .. code:: shell
+   sudo apt install -y rocm-cmake python3-pip rocblas miopen-hip
 
-        pip3 install --prefix /usr/local https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
-    
+2. Install `rbuild <https://github.com/RadeonOpenCompute/rbuild>`__:
+
+.. code:: shell
+
+   pip3 install --prefix /usr/local https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
+
 3. Build MIGraphX source code:
 
-    .. code:: shell
+.. code:: shell
 
-        sudo rbuild build -d depend -B build -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*')
+   sudo rbuild build -d depend -B build -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*')

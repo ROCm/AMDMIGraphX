@@ -23,7 +23,7 @@
 #####################################################################################
 onnx==1.18.0;python_version>="3.11"
 onnx==1.14.1;python_version<"3.11"
-protobuf==4.25.8
+protobuf==5.29.6
 numpy==1.26.4;python_version>="3.11"
 numpy==1.21.6;python_version<"3.11"
 packaging==23.0

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -123,7 +123,7 @@ struct miopen_apply
         add_convolution_backwards_op();
         add_select_module_op();
         add_reshape_lazy_op();
-        add_group_query_attention_op();
+        add_concat_past_present_op();
         add_scan_slice_op();
     }
 
@@ -197,11 +197,14 @@ struct miopen_apply
 
     void insert_fill(instruction_ref ins, value v) const
     {
-        instruction_ref alloc = instruction::get_output_alias(ins, true);
-        if(alloc == ins)
+        auto aliases = instruction::get_output_alias(ins, true);
+        if(aliases.size() == 1 and aliases.front() == ins)
             return;
-        auto fill = mod->insert_instruction(ins, make_op("hip::fill", {{"value", v}}), alloc);
-        instruction::replace_argument(ins, alloc, fill);
+        for(instruction_ref alloc : aliases)
+        {
+            auto fill = mod->insert_instruction(ins, make_op("hip::fill", {{"value", v}}), alloc);
+            instruction::replace_argument(ins, alloc, fill);
+        }
     }
 
     instruction_ref insert_custom_op(instruction_ref ins, const value& attrs) const
@@ -530,20 +533,9 @@ struct miopen_apply
         });
     }
 
-    void add_group_query_attention_op()
+    void add_concat_past_present_op()
     {
-        apply_map.emplace("gpu::gqa_rotary_embedding", [=](instruction_ref ins) {
-            auto s          = ins->get_shape();
-            auto output     = insert_allocation(ins, s);
-            auto new_inputs = ins->inputs();
-            new_inputs.push_back(output);
-            return mod->replace_instruction(
-                ins,
-                make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
-                new_inputs);
-        });
-
-        apply_map.emplace("gpu::concat_past_present", [=](instruction_ref ins) {
+        apply_map.emplace("concat_past_present", [=](instruction_ref ins) {
             return mod->replace_instruction(ins,
                                             make_op("gpu::precompile_op",
                                                     {{"op", to_value(ins->get_operator())},

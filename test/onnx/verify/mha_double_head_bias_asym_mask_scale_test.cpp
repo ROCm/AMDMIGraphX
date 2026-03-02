@@ -67,7 +67,7 @@ TEST_CASE(mha_double_head_bias_asym_mask_scale_test)
                                  0.818296f};
 
     migraphx::shape mask_shape{migraphx::shape::int32_type, {2, 3}};
-    std::vector<float> mask_data = {0, 0, 1, 1, 1, 1};
+    std::vector<int32_t> mask_data = {0, 0, 1, 1, 1, 1};
 
     migraphx::literal query{q_shape, query_data};
     migraphx::literal key{k_shape, key_data};

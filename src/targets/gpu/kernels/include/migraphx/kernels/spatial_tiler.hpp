@@ -152,8 +152,8 @@ __device__ auto make_spatial_tiler(index idx, TileLens, OutputShape)
     using tiler_type = spatial_tiler<NTiles, TileLens, OutputShape>;
 
     constexpr auto block_shape = make_shape(return_array_c([] {
-        auto result     = tiler_type::tiles_per_dim().base();        
-        auto olens   = OutputShape{}.lens;
+        auto result = tiler_type::tiles_per_dim().base();
+        auto olens  = OutputShape{}.lens;
         result[0] = olens[0];
         result[1] = olens[1];
         return result;

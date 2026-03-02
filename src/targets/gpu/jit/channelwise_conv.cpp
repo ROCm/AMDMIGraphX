@@ -105,9 +105,7 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
             output_tile_sizes.begin(),
             out_lens[0] * out_lens[1],
             std::multiplies<>{},
-            [](auto out_spatial, auto tile) {
-                return (out_spatial + tile - 1) / tile;
-            });
+            [](auto out_spatial, auto tile) { return (out_spatial + tile - 1) / tile; });
 
         options.set_launch_params(v, num_blocks * block_size, block_size);
 

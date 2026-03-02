@@ -111,15 +111,14 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
 
         options.set_launch_params(v, num_blocks * block_size, block_size);
 
-        auto src = interpolate_string(
-            channelwise_conv_kernel,
-            {{"tile", to_string_range(tile_sizes)},
-             {"ntiles", std::to_string(noutputs)},
-             {"kernel", options.kernel_name},
-             {"params", enum_params(inputs.size(), "void * private_p")},
-             {"args", enum_params(inputs.size(), "private_p")},
-             {"post", v.get("post", std::string{"op::id{}"})},
-             {"preamble", v.get("preamble", std::string{})}});
+        auto src = interpolate_string(channelwise_conv_kernel,
+                                      {{"tile", to_string_range(tile_sizes)},
+                                       {"ntiles", std::to_string(noutputs)},
+                                       {"kernel", options.kernel_name},
+                                       {"params", enum_params(inputs.size(), "void * private_p")},
+                                       {"args", enum_params(inputs.size(), "private_p")},
+                                       {"post", v.get("post", std::string{"op::id{}"})},
+                                       {"preamble", v.get("preamble", std::string{})}});
 
         return compile_hip_code_object(ctx, src, options);
     }

@@ -989,8 +989,7 @@ struct find_channelwise_conv_pointwise
     {
         return precompile_name("pointwise")(
             match::not_tuple(),
-            match::arg(0)(
-                precompile_name("gpu::channelwise_conv").bind("channelwise_conv")));
+            match::arg(0)(precompile_name("gpu::channelwise_conv").bind("channelwise_conv")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -1011,8 +1010,7 @@ struct find_channelwise_conv_pointwise
         auto cw_op_val            = channelwise_ins->get_operator().to_value();
         cw_op_val["output_shape"] = to_value(pw_ins->get_shape());
 
-        m.replace_instruction(
-            pw_ins, make_op(channelwise_ins->name(), cw_op_val), inputs, {pm});
+        m.replace_instruction(pw_ins, make_op(channelwise_ins->name(), cw_op_val), inputs, {pm});
     }
 };
 

@@ -38,8 +38,7 @@ template <class TileLens,
           class Input,
           class Weights,
           class... Inputs>
-__device__ void
-channelwise_conv(TileLens, F f, Output output, Input x, Weights w, Inputs... inputs)
+__device__ void channelwise_conv(TileLens, F f, Output output, Input x, Weights w, Inputs... inputs)
 {
     auto idx   = make_index();
     auto tiler = make_spatial_tiler<NTiles>(idx, TileLens{}, get_shape_c<Output>{});

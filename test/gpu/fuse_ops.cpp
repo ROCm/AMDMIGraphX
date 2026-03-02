@@ -446,8 +446,7 @@ TEST_CASE(channelwise_conv_pointwise)
             create_pointwise_module(p, "main:pointwise0", pw_inputs, single_pointwise("add"));
         auto alloc_ins2 = mm->add_instruction(alloc);
         pw_inputs.push_back(alloc_ins2);
-        auto add_ins =
-            mm->add_instruction(make_precompile_op("pointwise"), pw_inputs, {pw_add});
+        auto add_ins = mm->add_instruction(make_precompile_op("pointwise"), pw_inputs, {pw_add});
         mm->add_return({add_ins});
         return p;
     };
@@ -466,8 +465,7 @@ TEST_CASE(channelwise_conv_pointwise)
         auto pre_comp_op = migraphx::make_op(
             "gpu::precompile_op",
             {{"op", migraphx::to_value(conv_op)}, {"output_shape", migraphx::to_value(sout)}});
-        auto fused_ins =
-            mm->add_instruction(pre_comp_op, {x, w, z, alloc_ins}, {pw_add});
+        auto fused_ins = mm->add_instruction(pre_comp_op, {x, w, z, alloc_ins}, {pw_add});
         mm->add_return({fused_ins});
         return p;
     };
@@ -510,8 +508,7 @@ TEST_CASE(channelwise_conv_pointwise_already_fused)
         auto pre_comp_op = migraphx::make_op(
             "gpu::precompile_op",
             {{"op", migraphx::to_value(conv_op)}, {"output_shape", migraphx::to_value(sout)}});
-        auto conv_ins =
-            mm->add_instruction(pre_comp_op, {x, w, z, alloc_ins}, {pw_relu});
+        auto conv_ins = mm->add_instruction(pre_comp_op, {x, w, z, alloc_ins}, {pw_relu});
         auto* pw_add =
             create_pointwise_module(p, "main:pointwise1", {conv_ins, y}, single_pointwise("add"));
         auto alloc_ins2 = mm->add_instruction(alloc);

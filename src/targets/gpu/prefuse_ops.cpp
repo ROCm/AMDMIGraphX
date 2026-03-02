@@ -323,6 +323,8 @@ void inline_group_sub_module(module_pass_manager& mpm)
 
 void prefuse_ops::apply(module_pass_manager& mpm) const
 {
+    const auto& device_name = ctx == nullptr ? "" : ctx->get_current_device().get_gfx_name();
+    const bool is_navi = starts_with(device_name, "gfx11") or starts_with(device_name, "gfx12");
     if(enabled(MIGRAPHX_ENABLE_LAYERNORM_FUSION{}))
     {
         match::find_matches(mpm.get_module(), find_layernorm{});
@@ -330,7 +332,7 @@ void prefuse_ops::apply(module_pass_manager& mpm) const
         match::find_matches(mpm.get_module(), find_add_layernorm{});
     }
     match::find_matches(mpm, find_gemm_softmax_gemm{enable_attention});
-    if(ctx != nullptr and starts_with(ctx->get_current_device().get_gfx_name(), "gfx1"))
+    if(is_navi)
         match::find_matches(mpm.get_module(), find_channelwise_convolution{});
     if(enabled(MIGRAPHX_DISABLE_MLIR{}))
     {

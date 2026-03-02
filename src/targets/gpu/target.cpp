@@ -129,7 +129,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         optimize_module{},
         layout_convolution{.channels_last = enabled(MIGRAPHX_ENABLE_NHWC{})},
         dead_code_elimination{},
-        prefuse_ops{},
+        prefuse_ops{.ctx = &ctx},
         dead_code_elimination{},
         dead_code_elimination{},
         rewrite_reduce{},

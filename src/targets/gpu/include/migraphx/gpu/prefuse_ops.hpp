@@ -34,8 +34,11 @@ struct module_pass_manager;
 
 namespace gpu {
 
+struct context;
+
 struct MIGRAPHX_GPU_EXPORT prefuse_ops
 {
+    context* ctx = nullptr;
     bool enable_attention = false;
     std::string name() const { return "gpu::prefuse_ops"; }
     void apply(module_pass_manager& mpm) const;

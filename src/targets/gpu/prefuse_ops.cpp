@@ -297,6 +297,9 @@ struct find_channelwise_convolution
         auto weights     = ins->inputs().back();
         auto num_spatial = ins->get_shape().ndim() - 2;
 
+        if(input->get_shape().type() != shape::float_type)
+            return;
+
         m.replace_instruction(ins, channelwise_conv{num_spatial}, input, weights);
     }
 };
@@ -326,8 +329,8 @@ void prefuse_ops::apply(module_pass_manager& mpm) const
         match::find_matches(mpm.get_module(), find_add_layernorm{});
     }
     match::find_matches(mpm, find_gemm_softmax_gemm{enable_attention});
-    match::find_matches(mpm.get_module(), find_channelwise_convolution{});
-
+    if(ctx != nullptr and starts_with(ctx->get_current_device().get_gfx_name(), "gfx1"))
+        match::find_matches(mpm.get_module(), find_channelwise_convolution{});
     if(enabled(MIGRAPHX_DISABLE_MLIR{}))
     {
         inline_group_sub_module(mpm);

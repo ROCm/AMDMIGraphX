@@ -41,7 +41,9 @@ struct pre_gemm_softmax_gemm : migraphx::gpu::gemm_softmax_gemm
 
 static void run_pass(migraphx::module& m)
 {
-    migraphx::run_passes(m, {migraphx::gpu::prefuse_ops{.enable_attention=true}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(
+        m,
+        {migraphx::gpu::prefuse_ops{.enable_attention = true}, migraphx::dead_code_elimination{}});
 }
 
 TEST_CASE(find_gemm_softmax_gemm)

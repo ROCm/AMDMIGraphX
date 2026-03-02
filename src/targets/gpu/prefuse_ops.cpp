@@ -261,7 +261,7 @@ struct channelwise_conv
                        x_lens.begin() + 2 + num_spatial,
                        w_lens.begin() + 2,
                        std::back_inserter(out_lens),
-                       [](auto x, auto w) { return x - w + 1; });
+                       [](std::ptrdiff_t x, std::ptrdiff_t w) { return x - w + 1; });
         return inputs[0].with_lens(out_lens);
     }
 };

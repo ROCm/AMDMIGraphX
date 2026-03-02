@@ -88,8 +88,8 @@ struct spatial_tiler
     template <class Input>
     __device__ auto shared_allocate() const
     {
-        using type                       = typename Input::type;
-        constexpr auto hl                = halo_lens_for<get_shape_c<Input>>();
+        using type        = typename Input::type;
+        constexpr auto hl = halo_lens_for<get_shape_c<Input>>();
         return uninitialized_buffer<type, hl.product()>{};
     }
 
@@ -105,10 +105,10 @@ struct spatial_tiler
     template <class Input, class Smem>
     __device__ auto copy(Input input, Smem& smem) const
     {
-        using type                       = typename Input::type;
-        constexpr auto hl                = halo_lens_for<get_shape_c<Input>>();
-        constexpr auto halo_shape        = make_shape(hl);
-        constexpr auto input_spatial     = make_slice(get_shape_c<Input>{}, keep_spatial()).lens;
+        using type                   = typename Input::type;
+        constexpr auto hl            = halo_lens_for<get_shape_c<Input>>();
+        constexpr auto halo_shape    = make_shape(hl);
+        constexpr auto input_spatial = make_slice(get_shape_c<Input>{}, keep_spatial()).lens;
 
         constexpr auto n_out  = nslices(OutputShape{}, keep_spatial());
         constexpr auto n_in   = nslices(get_shape_c<Input>{}, keep_spatial());
@@ -154,8 +154,8 @@ __device__ auto make_spatial_tiler(index idx, TileLens, OutputShape)
     constexpr auto block_shape = make_shape(return_array_c([] {
         auto result = tiler_type::tiles_per_dim().base();
         auto olens  = OutputShape{}.lens;
-        result[0] = olens[0];
-        result[1] = olens[1];
+        result[0]   = olens[0];
+        result[1]   = olens[1];
         return result;
     }));
     auto block_multi           = block_shape.multi(idx.group);

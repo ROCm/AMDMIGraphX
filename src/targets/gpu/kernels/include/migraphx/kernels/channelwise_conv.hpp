@@ -45,9 +45,9 @@ __device__ void channelwise_conv(TileLens, F f, Output output, Input x, Weights 
 
     __shared__ decltype(tiler.template shared_allocate<Input>()) smem;
 
-    auto x_ch   = tiler.copy(x, smem);
-    auto w_ch   = tiler.slice(w);
-    auto out_ch = tiler.slice(output);
+    auto x_ch    = tiler.copy(x, smem);
+    auto w_ch    = tiler.slice(w);
+    auto out_ch  = tiler.slice(output);
     auto xs_pack = pack(tiler.slice(inputs)...);
 
     using t = typename Output::type;

@@ -192,7 +192,6 @@ add_library(migraphx_gpu
     perfdb.cpp
     pooling.cpp
     problem_cache.cpp
-    reverse.cpp
     rnn_variable_seq_lens.cpp
     rocblas.cpp
     schedule_model.cpp
@@ -223,7 +222,6 @@ register_migraphx_gpu_ops(hip_
     multinomial
     nonzero
     prefix_scan_sum
-    reverse
     topk
 )
 if (MIGRAPHX_USE_MIOPEN)

@@ -36,12 +36,12 @@ struct test_dot_gather_concat : verify_program<test_dot_gather_concat>
         migraphx::shape indices_shape{migraphx::shape::int32_type, {2, 4}};
         std::vector<int> indices_data{3, 2, 1, 0, 0, 1, 2, 3};
         auto indices = mm->add_literal(migraphx::literal{indices_shape, indices_data});
-        auto x1 = mm->add_parameter("x1", {migraphx::shape::float_type, {4, 8}});
-        auto x2 = mm->add_parameter("x2", {migraphx::shape::float_type, {2, 4, 16}});
-        auto x3 = mm->add_parameter("x3", {migraphx::shape::float_type, {2, 16, 8}});
-        auto gather = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), x1, indices);
-        auto dot = mm->add_instruction(migraphx::make_op("dot"), x2, x3);
-        auto concat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 2}}), dot, gather);
+        auto x1      = mm->add_parameter("x1", {migraphx::shape::float_type, {4, 8}});
+        auto x2      = mm->add_parameter("x2", {migraphx::shape::float_type, {2, 4, 16}});
+        auto x3      = mm->add_parameter("x3", {migraphx::shape::float_type, {2, 16, 8}});
+        auto gather  = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), x1, indices);
+        auto dot     = mm->add_instruction(migraphx::make_op("dot"), x2, x3);
+        auto concat  = mm->add_instruction(migraphx::make_op("concat", {{"axis", 2}}), dot, gather);
         mm->add_return({concat});
         return p;
     }

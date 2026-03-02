@@ -36,8 +36,10 @@ struct test_dot_nested_concat_last_axis : verify_program<test_dot_nested_concat_
         auto a1 = mm->add_parameter("a1", migraphx::shape{migraphx::shape::half_type, {4, 24, 16}});
         auto b1 = mm->add_parameter("b1", migraphx::shape{migraphx::shape::half_type, {4, 16, 64}});
         auto a2 = mm->add_parameter("a2", migraphx::shape{migraphx::shape::half_type, {4, 24, 16}});
-        auto b2 = mm->add_parameter("b2", migraphx::shape{migraphx::shape::half_type, {4, 16, 128}});
-        auto b3 = mm->add_parameter("b3", migraphx::shape{migraphx::shape::half_type, {4, 192, 351}});
+        auto b2 =
+            mm->add_parameter("b2", migraphx::shape{migraphx::shape::half_type, {4, 16, 128}});
+        auto b3 =
+            mm->add_parameter("b3", migraphx::shape{migraphx::shape::half_type, {4, 192, 351}});
 
         auto dot1  = mm->add_instruction(migraphx::make_op("dot"), a1, b1);
         auto relu1 = mm->add_instruction(migraphx::make_op("relu"), dot1);
@@ -48,7 +50,7 @@ struct test_dot_nested_concat_last_axis : verify_program<test_dot_nested_concat_
         auto concat1 =
             mm->add_instruction(migraphx::make_op("concat", {{"axis", 2}}), relu1, sigmoid1);
 
-        auto dot3 = mm->add_instruction(migraphx::make_op("dot"), concat1, b3);
+        auto dot3    = mm->add_instruction(migraphx::make_op("dot"), concat1, b3);
         auto concat2 = mm->add_instruction(migraphx::make_op("concat", {{"axis", 2}}), relu1, dot3);
 
         mm->add_return({concat2});

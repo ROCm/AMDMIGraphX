@@ -961,10 +961,18 @@ struct find_precompile_copy
 
     void apply(module& m, const match::matcher_result& r) const
     {
+        auto ins   = r.result;
+        auto pw    = ins->inputs().front();
+        auto alloc = ins->inputs().back();
 
-        auto ins    = r.result;
-        auto pw     = ins->inputs().front();
-        auto alloc  = ins->inputs().back();
+        // Only merge when the precompile_op's current output buffer is a plain
+        // allocation.  After eliminate_concat the buffer may be a slice of a
+        // shared super-allocation; merging a second copy on top would redirect
+        // the write and leave the first destination unwritten.
+        auto current_buf = pw->inputs().back();
+        if(current_buf->name() != "allocate" and current_buf->name() != "hip::allocate")
+            return;
+
         auto args   = pw->inputs();
         args.back() = alloc;
 

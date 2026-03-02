@@ -73,7 +73,7 @@ void calc_conv_transpose_auto_padding(std::string auto_pad,
             // output_size = input_size * stride
             // total_padding = kernel_size - stride
             int64_t dilated_kernel = k_lens[i] + (k_lens[i] - 1) * (dilation[i] - 1);
-            int64_t total_pad      = std::max(dilated_kernel - strides[i], 0);
+            int64_t total_pad      = std::max(dilated_kernel - static_cast<int64_t>(strides[i]), static_cast<int64_t>(0));
 
             auto pad_ndims = paddings.size() / 2;
             if(is_same_upper)

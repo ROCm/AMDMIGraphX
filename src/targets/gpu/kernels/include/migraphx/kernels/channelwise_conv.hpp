@@ -63,9 +63,7 @@ __device__ void channelwise_conv(TileLens, F f, Output output, Input x, Weights 
             auto k_multi = wregs.get_shape().multi(ki);
             acc += x_ch[out_multi + k_multi] * wregs[k_multi];
         });
-        xs_pack([&](auto... xs) {
-            out_ch[out_pos] = f(acc, xs[out_pos]...);
-        });
+        xs_pack([&](auto... xs) { out_ch[out_pos] = f(acc, xs[out_pos]...); });
     });
 }
 

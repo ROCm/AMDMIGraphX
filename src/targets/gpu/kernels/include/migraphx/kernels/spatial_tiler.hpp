@@ -91,10 +91,10 @@ struct spatial_tiler
     template <class Input>
     __device__ auto shared_allocate() const
     {
-        using t                          = typename Input::type;
+        using type                          = typename Input::type;
         constexpr auto hl                = halo_lens_for<get_shape_c<Input>>();
         constexpr index_int halo_total_v = hl.product();
-        return uninitialized_buffer<t, halo_total_v>{};
+        return uninitialized_buffer<type, halo_total_v>{};
     }
 
     // Slice a tensor to per-channel spatial view

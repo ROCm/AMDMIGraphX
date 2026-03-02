@@ -47,11 +47,8 @@ struct spatial_tiler
         return return_array_c([] {
             auto result       = join(index_ints<1, 1>{}, TileLens{});
             constexpr auto nd = result.size();
-            array<index_int, nd> r;
-            for(index_int i = 0; i < nd; i++)
-                r[i] = result[i];
-            r[nd - 1] *= NTiles;
-            return r;
+            result[nd - 1] *= NTiles;
+            return result;
         });
     }
 
@@ -93,8 +90,7 @@ struct spatial_tiler
     {
         using type                       = typename Input::type;
         constexpr auto hl                = halo_lens_for<get_shape_c<Input>>();
-        constexpr index_int halo_total_v = hl.product();
-        return uninitialized_buffer<type, halo_total_v>{};
+        return uninitialized_buffer<type, hl.product()>{};
     }
 
     // Slice a tensor to per-channel spatial view
@@ -109,10 +105,9 @@ struct spatial_tiler
     template <class Input, class Smem>
     __device__ auto copy(Input input, Smem& smem) const
     {
-        using t                          = typename Input::type;
+        using type                          = typename Input::type;
         constexpr auto hl                = halo_lens_for<get_shape_c<Input>>();
         constexpr auto halo_shape        = make_shape(hl);
-        constexpr index_int halo_total_v = hl.product();
         constexpr auto input_spatial     = make_slice(get_shape_c<Input>{}, keep_spatial()).lens;
 
         constexpr auto n_out  = nslices(OutputShape{}, keep_spatial());
@@ -122,11 +117,11 @@ struct spatial_tiler
         auto input_ch         = slice_tensor(
             input, (channel_idx / index_int{groups}) % index_int{n_in}, keep_spatial());
 
-        idx.local_stride(_c<halo_total_v>, [&](auto i) {
+        idx.local_stride(_c<hl.product()>, [&](auto i) {
             auto halo_multi = halo_shape.multi(index_int{i});
             auto src_pos    = tile_origin + halo_multi;
             if constexpr(is_padded())
-                smem[i] = in_bounds(src_pos, input_spatial) ? t{input_ch[src_pos]} : t{0};
+                smem[i] = in_bounds(src_pos, input_spatial) ? type{input_ch[src_pos]} : type{0};
             else
                 smem[i] = input_ch[src_pos];
         });
@@ -168,7 +163,7 @@ __device__ auto make_spatial_tiler(index idx, TileLens, OutputShape)
         return result;
     }));
     auto block_multi           = block_shape.multi(idx.group);
-    auto tile_origin = generate_array<index_int>(_c<tiler_type::NDIM()>, [&](auto d) -> index_int {
+    auto tile_origin = generate_array<index_int>(_c<tiler_type::ndim()>, [&](auto d) -> index_int {
         if constexpr(d < 2)
             return 0;
         else

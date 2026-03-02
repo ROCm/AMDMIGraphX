@@ -48,6 +48,7 @@ __device__ void channelwise_conv(TileLens, F f, Output output, Input x, Weights 
     auto x_ch   = tiler.copy(x, smem);
     auto w_ch   = tiler.slice(w);
     auto out_ch = tiler.slice(output);
+    auto xs_pack = pack(tiler.slice(inputs)...);
 
     using t = typename Output::type;
     array<t, decltype(w_ch.get_shape().elements()){}> wregs_arr;
@@ -62,7 +63,9 @@ __device__ void channelwise_conv(TileLens, F f, Output output, Input x, Weights 
             auto k_multi = wregs.get_shape().multi(ki);
             acc += x_ch[out_multi + k_multi] * wregs[k_multi];
         });
-        out_ch[out_pos] = f(acc, tiler.slice(inputs)[out_pos]...);
+        xs_pack([&](auto... xs) {
+            out_ch[out_pos] = f(acc, xs[out_pos]...);
+        });
     });
 }
 

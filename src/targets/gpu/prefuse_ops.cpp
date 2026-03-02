@@ -251,15 +251,18 @@ struct channelwise_conv
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(2);
+        check_shapes{inputs, *this}.has(2).same_ndims();
         auto x_lens = inputs[0].lens();
         auto w_lens = inputs[1].lens();
         std::vector<std::size_t> out_lens;
         out_lens.push_back(x_lens[0]);
         out_lens.push_back(w_lens[0]);
-        for(std::size_t d = 0; d < num_spatial; ++d)
-            out_lens.push_back(x_lens[2 + d] - w_lens[2 + d] + 1);
-        return {inputs.front().type(), out_lens};
+        std::transform(x_lens.begin() + 2,
+                       x_lens.begin() + 2 + num_spatial,
+                       w_lens.begin() + 2,
+                       std::back_inserter(out_lens),
+                       [](auto x, auto w) { return x - w + 1; });
+        return inputs[0].with_lens(out_lens);
     }
 };
 MIGRAPHX_REGISTER_OP(channelwise_conv);

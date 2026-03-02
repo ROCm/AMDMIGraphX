@@ -97,9 +97,7 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
         std::vector<std::size_t> output_tile_sizes = tile_sizes;
         output_tile_sizes.back() *= noutputs;
 
-        std::size_t block_size = 1;
-        for(auto t : tile_sizes)
-            block_size *= t;
+        std::size_t block_size = std::accumulate(tile_sizes.begin(), tile_sizes.end(), std::size_t{1}, std::multiplies<>());
 
         // Blocks: N * C_out * prod(ceil(out_spatial / output_tile))
         std::size_t num_blocks = out_lens[0] * out_lens[1];
@@ -150,8 +148,7 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
         if(exhaustive)
         {
             std::vector<std::size_t> sizes;
-            for(auto i : range(1, 64))
-                sizes.push_back(i * 4);
+            transform(range(1, 64), std::back_inserter(sizes), [](auto i) { return i * 4; });
             for(auto tile_h : sizes)
             {
                 for(auto tile_w : sizes)

@@ -211,10 +211,10 @@ struct pooling_compiler : compiler<pooling_compiler>
                                               bool exhaustive) const
     {
         tuning_config tc;
-        auto shapes = to_shapes(ins->inputs());
+        auto shapes        = to_shapes(ins->inputs());
         const auto& output = shapes.back();
-        auto v      = op.to_value();
-        tc.problem  = value{{"input", to_value(shapes.front())}, {"config", v}};
+        auto v             = op.to_value();
+        tc.problem         = value{{"input", to_value(shapes.front())}, {"config", v}};
 
         auto w            = v["lengths"].to_vector<std::size_t>();
         auto wsize        = std::accumulate(w.begin(), w.end(), 1, std::multiplies<std::size_t>());

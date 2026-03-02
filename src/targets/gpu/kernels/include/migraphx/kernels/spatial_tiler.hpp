@@ -33,17 +33,6 @@
 
 namespace migraphx {
 
-template <class Pos, class Lens>
-constexpr bool in_bounds(Pos pos, Lens lens)
-{
-    for(index_int d = 0; d < pos.size(); d++)
-    {
-        if(pos[d] >= lens[d])
-            return false;
-    }
-    return true;
-}
-
 template <index_int NTiles, class TileLens, class OutputShape>
 struct spatial_tiler
 {

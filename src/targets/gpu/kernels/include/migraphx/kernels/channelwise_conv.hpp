@@ -49,15 +49,15 @@ __device__ void channelwise_conv(TileLens, F f, Output output, Input x, Weights 
     auto w_ch   = tiler.slice(w);
     auto out_ch = tiler.slice(output);
 
-    using T = typename Output::type;
-    array<T, decltype(w_ch.get_shape().elements()){}> wregs_arr;
+    using t = typename Output::type;
+    array<t, decltype(w_ch.get_shape().elements()){}> wregs_arr;
     auto wregs = make_tensor_view(wregs_arr.begin(), make_packed_shape(w_ch.get_shape()));
     copy(w_ch.begin(), w_ch.end(), wregs.begin());
 
     __syncthreads();
 
     tiler.for_each([&](auto out_pos, auto out_multi) {
-        T acc = 0;
+        t acc = 0;
         repeat(wregs.get_shape().elements(), [&](auto ki) {
             auto k_multi = wregs.get_shape().multi(ki);
             acc += x_ch[out_multi + k_multi] * wregs[k_multi];

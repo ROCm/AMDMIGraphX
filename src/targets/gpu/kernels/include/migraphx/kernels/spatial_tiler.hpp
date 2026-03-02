@@ -78,7 +78,7 @@ struct spatial_tiler
     }
 
     static constexpr index_int tiles_total() { return tiles_per_dim().product(); }
-    static constexpr index_int NDIM() { return out_spatial_lens().size(); }
+    static constexpr index_int ndim() { return out_spatial_lens().size(); }
 
     static constexpr bool is_padded()
     {
@@ -86,7 +86,7 @@ struct spatial_tiler
     }
 
     index idx;
-    array<index_int, NDIM()> tile_origin;
+    array<index_int, ndim()> tile_origin;
 
     // Compute halo lens for a given input shape: output_lens + (input_spatial - output_spatial)
     template <class InputShape>
@@ -102,10 +102,10 @@ struct spatial_tiler
     template <class Input>
     __device__ auto shared_allocate() const
     {
-        using T                          = typename Input::type;
+        using t                          = typename Input::type;
         constexpr auto hl                = halo_lens_for<get_shape_c<Input>>();
         constexpr index_int halo_total_v = hl.product();
-        return uninitialized_buffer<T, halo_total_v>{};
+        return uninitialized_buffer<t, halo_total_v>{};
     }
 
     // Slice a tensor to per-channel spatial view
@@ -120,7 +120,7 @@ struct spatial_tiler
     template <class Input, class Smem>
     __device__ auto copy(Input input, Smem& smem) const
     {
-        using T                          = typename Input::type;
+        using t                          = typename Input::type;
         constexpr auto hl                = halo_lens_for<get_shape_c<Input>>();
         constexpr auto halo_shape        = make_shape(hl);
         constexpr index_int halo_total_v = hl.product();
@@ -137,7 +137,7 @@ struct spatial_tiler
             auto halo_multi = halo_shape.multi(index_int{i});
             auto src_pos    = tile_origin + halo_multi;
             if constexpr(is_padded())
-                smem[i] = in_bounds(src_pos, input_spatial) ? T{input_ch[src_pos]} : T{0};
+                smem[i] = in_bounds(src_pos, input_spatial) ? t{input_ch[src_pos]} : t{0};
             else
                 smem[i] = input_ch[src_pos];
         });

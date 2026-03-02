@@ -77,7 +77,7 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
         const auto& out_lens = out_s.lens();
 
         // Thread block tile dimensions
-        std::vector<std::size_t> tile_sizes(num_spatial);
+        std::vector<std::size_t> tile_sizes(num_spatial, 1);
         if(num_spatial == 1)
         {
             tile_sizes[0] = v.get("tile_w", std::size_t{256});
@@ -86,8 +86,6 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
         {
             tile_sizes[0]               = v.get("tile_h", std::size_t{8});
             tile_sizes[num_spatial - 1] = v.get("tile_w", std::size_t{32});
-            for(std::size_t d = 1; d + 1 < num_spatial; ++d)
-                tile_sizes[d] = 1;
         }
 
         // Outputs per lane along W (last spatial dim)
@@ -101,12 +99,15 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
             tile_sizes.begin(), tile_sizes.end(), std::size_t{1}, std::multiplies<>());
 
         // Blocks: N * C_out * prod(ceil(out_spatial / output_tile))
-        std::size_t num_blocks = out_lens[0] * out_lens[1];
-        for(std::size_t d = 0; d < num_spatial; ++d)
-        {
-            auto out_spatial = out_lens[2 + d];
-            num_blocks *= (out_spatial + output_tile_sizes[d] - 1) / output_tile_sizes[d];
-        }
+        auto num_blocks = std::inner_product(
+            out_lens.begin() + 2,
+            out_lens.end(),
+            output_tile_sizes.begin(),
+            out_lens[0] * out_lens[1],
+            std::multiplies<>{},
+            [](auto out_spatial, auto tile) {
+                return (out_spatial + tile - 1) / tile;
+            });
 
         options.set_launch_params(v, num_blocks * block_size, block_size);
 

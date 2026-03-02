@@ -64,7 +64,7 @@ struct spatial_tiler
     }
 
     static constexpr index_int tiles_total() { return tiles_per_dim().product(); }
-    static constexpr index_int ndim() { return out_spatial_lens().size(); }
+    static constexpr auto ndim() { return out_spatial_lens().size(); }
 
     static constexpr bool is_padded()
     {
@@ -118,7 +118,7 @@ struct spatial_tiler
             input, (channel_idx / index_int{groups}) % index_int{n_in}, keep_spatial());
 
         idx.local_stride(_c<hl.product()>, [&](auto i) {
-            auto halo_multi = halo_shape.multi(index_int{i});
+            auto halo_multi = halo_shape.multi(i);
             auto src_pos    = tile_origin + halo_multi;
             if constexpr(is_padded())
                 smem[i] = in_bounds(src_pos, input_spatial) ? type{input_ch[src_pos]} : type{0};
@@ -134,7 +134,7 @@ struct spatial_tiler
     __device__ void for_each(F f) const
     {
         idx.local_stride(_c<output_lens().product()>, [&](auto j) {
-            auto out_multi = make_shape(output_lens()).multi(index_int{j});
+            auto out_multi = make_shape(output_lens()).multi(j);
             auto out_pos   = tile_origin + out_multi;
             if constexpr(is_padded())
             {
@@ -152,18 +152,14 @@ __device__ auto make_spatial_tiler(index idx, TileLens, OutputShape)
     using tiler_type = spatial_tiler<NTiles, TileLens, OutputShape>;
 
     constexpr auto block_shape = make_shape(return_array_c([] {
-        constexpr auto tpd     = decltype(tiler_type::tiles_per_dim()){};
-        constexpr index_int nd = tpd.size();
-        constexpr auto olens   = OutputShape{}.lens;
-        array<index_int, nd> result;
-        for(index_int i = 0; i < nd; i++)
-            result[i] = tpd[i];
+        auto result     = tiler_type::tiles_per_dim().base();        
+        auto olens   = OutputShape{}.lens;
         result[0] = olens[0];
         result[1] = olens[1];
         return result;
     }));
     auto block_multi           = block_shape.multi(idx.group);
-    auto tile_origin = generate_array<index_int>(_c<tiler_type::ndim()>, [&](auto d) -> index_int {
+    auto tile_origin = generate_array<index_int>(tiler_type::ndim(), [&](auto d) -> index_int {
         if constexpr(d < 2)
             return 0;
         else

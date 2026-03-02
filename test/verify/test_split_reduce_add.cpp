@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,32 +26,30 @@
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/shape.hpp>
 
-struct test_ck_gemm_softmax_gemm : verify_program<test_ck_gemm_softmax_gemm>
+template <std::size_t N, migraphx::shape::type_t DType>
+struct test_split_reduce_add : verify_program<test_split_reduce_add<N, DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape m1_shape{migraphx::shape::half_type, {1, 12, 256, 256}};
-        migraphx::shape m2_shape{migraphx::shape::half_type, {1, 12, 256, 256}};
-        auto m2_elements = m2_shape.elements();
-        auto a           = mm->add_parameter("1", m1_shape);
-        auto b           = mm->add_parameter("2", m1_shape);
-        auto b1          = mm->add_parameter("3", m1_shape);
-        std::vector<float> eights(m2_elements, 0.125);
-        auto eight = mm->add_literal(migraphx::literal{m2_shape, eights});
-        std::vector<float> zeros(m2_elements, 0);
-        auto zero = mm->add_literal(migraphx::literal{m2_shape, zeros});
-
-        b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
-        auto gemm1   = mm->add_instruction(migraphx::make_op("dot"), a, b);
-        auto scale   = mm->add_instruction(migraphx::make_op("mul"), gemm1, eight);
-        auto bias    = mm->add_instruction(migraphx::make_op("add"), scale, zero);
-        auto softmax = mm->add_instruction(migraphx::make_op("softmax", {{"axis", -1}}), bias);
-        mm->add_instruction(migraphx::make_op("dot"), softmax, b1);
-
+        migraphx::shape s{DType, {N, 32, 20, 16}};
+        migraphx::shape bs{DType, {1, 32, 1, 16}, {1, 1, 1, 32}};
+        auto x = mm->add_parameter("x", s);
+        auto y = mm->add_parameter("y", bs);
+        auto reduce_mean =
+            mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {0, 2}}}), x);
+        auto add = mm->add_instruction(migraphx::make_op("add"), reduce_mean, y);
+        mm->add_return({add});
         return p;
-    }
-    std::string section() const { return "gemm"; }
+    };
+
+    std::string section() const { return "reduce"; }
 };
+
+template struct test_split_reduce_add<14400, migraphx::shape::float_type>;
+template struct test_split_reduce_add<3276, migraphx::shape::float_type>;
+template struct test_split_reduce_add<3277, migraphx::shape::float_type>;

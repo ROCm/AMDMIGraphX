@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -37,7 +37,7 @@ TEST_CASE(pack_fp4)
     auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {2, 2}};
     auto l0 = mm->add_literal(migraphx::literal{s, {-2.f, 3.4f, 3.5f, 0.f}});
-    mm->add_instruction(migraphx::make_op("pack_fp4"), l0);
+    mm->add_instruction(migraphx::make_op("pack_fp4", {{"axis", 1}}), l0);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
     result =
@@ -57,7 +57,7 @@ TEST_CASE(unpack_fp4)
     std::vector<uint8_t> packed_data = {0x5C, 0x06};
     auto lit                         = migraphx::literal{s, packed_data.data()};
     auto l0                          = mm->add_literal(lit);
-    mm->add_instruction(migraphx::make_op("unpack_fp4"), l0);
+    mm->add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 1}}), l0);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
     std::vector<float> results_vector(4);
@@ -75,8 +75,8 @@ TEST_CASE(pack_unpack_fp4)
     auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {2, 2}};
     auto l0       = mm->add_literal(migraphx::literal{s, {-2.f, 3.4f, 3.5f, 0.f}});
-    auto pack_ins = mm->add_instruction(migraphx::make_op("pack_fp4"), l0);
-    mm->add_instruction(migraphx::make_op("unpack_fp4"), pack_ins);
+    auto pack_ins = mm->add_instruction(migraphx::make_op("pack_fp4", {{"axis", 1}}), l0);
+    mm->add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 1}}), pack_ins);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
     std::vector<float> results_vector(4);

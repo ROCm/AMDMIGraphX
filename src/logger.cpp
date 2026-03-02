@@ -24,6 +24,7 @@
 #include "migraphx/functional.hpp"
 #include <migraphx/logger.hpp>
 #include <migraphx/color.hpp>
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <fstream>

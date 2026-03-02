@@ -74,7 +74,7 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
         options.kernel_name    = v.get("kernel", std::string{"channelwise_conv_kernel"});
         options.virtual_inputs = inputs;
 
-        auto out_lens = out_s.lens();
+        const auto& out_lens = out_s.lens();
 
         // Thread block tile dimensions
         std::vector<std::size_t> tile_sizes(num_spatial);

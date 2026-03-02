@@ -280,10 +280,8 @@ MIGRAPHX_PRED_MATCHER(conv_channelwise, instruction_ref ins)
         return false;
     auto x_lens = ins->inputs().front()->get_shape().lens();
     auto c_in   = x_lens[1];
-    auto group  = v.at("group").to<int>();
-    if(group != 1 and group != static_cast<int>(c_in))
-        return false;
-    return true;
+    auto group  = v.at("group").to<std::size_t>();
+    return group == 1 or group == c_in;
 }
 
 struct find_channelwise_convolution

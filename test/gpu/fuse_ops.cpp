@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -419,6 +419,112 @@ TEST_CASE(concat_pointwise_contiguous)
     run_pass(p1);
     migraphx::program p2 = create_fused_program();
     EXPECT(p1 == p2);
+}
+
+TEST_CASE(channelwise_conv_pointwise)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {2, 4, 8, 8}};
+    migraphx::shape sw{migraphx::shape::float_type, {4, 1, 3, 3}};
+    migraphx::shape sout{migraphx::shape::float_type, {2, 4, 6, 6}};
+
+    auto create_program = [=](bool first_arg_conv) {
+        migraphx::program p;
+        auto* mm       = p.get_main_module();
+        auto x         = mm->add_parameter("x", sx);
+        auto w         = mm->add_parameter("w", sw);
+        auto z         = mm->add_parameter("z", sout);
+        auto alloc     = migraphx::make_op("allocate", {{"shape", to_value(sout)}});
+        auto alloc_ins = mm->add_instruction(alloc);
+        auto conv_ins =
+            mm->add_instruction(make_precompile_op("gpu::channelwise_conv"), x, w, alloc_ins);
+        std::vector<migraphx::instruction_ref> pw_inputs = {conv_ins, z};
+        if(not first_arg_conv)
+        {
+            pw_inputs = {z, conv_ins};
+        }
+        auto* pw_add =
+            create_pointwise_module(p, "main:pointwise0", pw_inputs, single_pointwise("add"));
+        auto alloc_ins2 = mm->add_instruction(alloc);
+        pw_inputs.push_back(alloc_ins2);
+        auto add_ins =
+            mm->add_instruction(make_precompile_op("pointwise"), pw_inputs, {pw_add});
+        mm->add_return({add_ins});
+        return p;
+    };
+
+    auto create_fused_program = [=]() {
+        migraphx::program p;
+        auto* mm       = p.get_main_module();
+        auto x         = mm->add_parameter("x", sx);
+        auto w         = mm->add_parameter("w", sw);
+        auto z         = mm->add_parameter("z", sout);
+        auto alloc     = migraphx::make_op("allocate", {{"shape", to_value(sout)}});
+        auto alloc_ins = mm->add_instruction(alloc);
+        auto* pw_add =
+            create_pointwise_module(p, "main:pointwise0", {x, z}, single_pointwise("add"));
+        auto conv_op     = migraphx::make_op("gpu::channelwise_conv");
+        auto pre_comp_op = migraphx::make_op(
+            "gpu::precompile_op",
+            {{"op", migraphx::to_value(conv_op)}, {"output_shape", migraphx::to_value(sout)}});
+        auto fused_ins =
+            mm->add_instruction(pre_comp_op, {x, w, z, alloc_ins}, {pw_add});
+        mm->add_return({fused_ins});
+        return p;
+    };
+
+    {
+        migraphx::program p1 = create_program(true);
+        run_pass(p1);
+        migraphx::program p2 = create_fused_program();
+        EXPECT(p1 == p2);
+    }
+    {
+        // conv is not arg(0), should not fuse
+        migraphx::program p1 = create_program(false);
+        run_pass(p1);
+        EXPECT(p1 == create_program(false));
+    }
+}
+
+TEST_CASE(channelwise_conv_pointwise_already_fused)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {2, 4, 8, 8}};
+    migraphx::shape sw{migraphx::shape::float_type, {4, 1, 3, 3}};
+    migraphx::shape sout{migraphx::shape::float_type, {2, 4, 6, 6}};
+
+    auto create_program = [=]() {
+        migraphx::program p;
+        auto* mm       = p.get_main_module();
+        auto x         = mm->add_parameter("x", sx);
+        auto w         = mm->add_parameter("w", sw);
+        auto z         = mm->add_parameter("z", sout);
+        auto y         = mm->add_parameter("y", sout);
+        auto alloc     = migraphx::make_op("allocate", {{"shape", to_value(sout)}});
+        auto alloc_ins = mm->add_instruction(alloc);
+        // channelwise_conv already has a module (already fused)
+        auto* pw_relu =
+            create_pointwise_module(p, "main:pointwise0", {x}, [](auto* pm, const auto& inputs) {
+                return pm->add_instruction(migraphx::make_op("relu"), inputs[0]);
+            });
+        auto conv_op     = migraphx::make_op("gpu::channelwise_conv");
+        auto pre_comp_op = migraphx::make_op(
+            "gpu::precompile_op",
+            {{"op", migraphx::to_value(conv_op)}, {"output_shape", migraphx::to_value(sout)}});
+        auto conv_ins =
+            mm->add_instruction(pre_comp_op, {x, w, z, alloc_ins}, {pw_relu});
+        auto* pw_add =
+            create_pointwise_module(p, "main:pointwise1", {conv_ins, y}, single_pointwise("add"));
+        auto alloc_ins2 = mm->add_instruction(alloc);
+        auto add_ins    = mm->add_instruction(
+            make_precompile_op("pointwise"), {conv_ins, y, alloc_ins2}, {pw_add});
+        mm->add_return({add_ins});
+        return p;
+    };
+
+    // Should not fuse since channelwise_conv already has a module
+    migraphx::program p1 = create_program();
+    run_pass(p1);
+    EXPECT(p1 == create_program());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

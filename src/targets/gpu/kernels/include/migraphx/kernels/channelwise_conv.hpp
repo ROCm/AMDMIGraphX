@@ -31,8 +31,15 @@
 
 namespace migraphx {
 
-template <class TileLens, index_int NTiles, class Output, class Input, class Weights>
-__device__ void channelwise_conv(TileLens, Output output, Input x, Weights w)
+template <class TileLens,
+          index_int NTiles,
+          class F,
+          class Output,
+          class Input,
+          class Weights,
+          class... Inputs>
+__device__ void
+channelwise_conv(TileLens, F f, Output output, Input x, Weights w, Inputs... inputs)
 {
     auto idx   = make_index();
     auto tiler = make_spatial_tiler<NTiles>(idx, TileLens{}, get_shape_c<Output>{});
@@ -56,7 +63,7 @@ __device__ void channelwise_conv(TileLens, Output output, Input x, Weights w)
             auto k_multi = wregs.get_shape().multi(ki);
             acc += x_ch[out_multi + k_multi] * wregs[k_multi];
         });
-        out_ch[out_pos] = acc;
+        out_ch[out_pos] = f(acc, tiler.slice(inputs)[out_pos]...);
     });
 }
 

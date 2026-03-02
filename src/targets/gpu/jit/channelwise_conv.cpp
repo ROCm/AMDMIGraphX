@@ -25,26 +25,32 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
+#include <migraphx/gpu/compile_gen.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+using namespace migraphx::gpu::gen; // NOLINT
 
 // NOLINTNEXTLINE
 static const char* const channelwise_conv_kernel = R"__migraphx__(
 #include <migraphx/kernels/channelwise_conv.hpp>
 #include <migraphx/kernels/integral_constant.hpp>
 #include <migraphx/kernels/generic_constant.hpp>
+#include <migraphx/kernels/ops.hpp>
 #include <args.hpp>
 
 namespace migraphx {
 
+${preamble}
+
 extern "C" {
 
-MIGRAPHX_GLOBAL void channelwise_conv_kernel(void* x_p, void* w_p, void* y_p)
+MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
-    transform_args(make_tensors(), rotate_last())(x_p, w_p, y_p)([](auto output, auto x, auto w) {
-        channelwise_conv<index_ints<${tile}>, ${ntiles}>(index_ints<${tile}>{}, output, x, w);
+    transform_args(make_tensors(), rotate_last())(${args})([](auto output, auto x, auto w, auto... inputs) {
+        channelwise_conv<index_ints<${tile}>, ${ntiles}>(index_ints<${tile}>{}, ${post}, output, x, w, inputs...);
     });
 }
 
@@ -65,7 +71,7 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
         const auto& out_s      = inputs.back();
         options.inputs         = inputs;
         options.output         = out_s;
-        options.kernel_name    = "channelwise_conv_kernel";
+        options.kernel_name    = v.get("kernel", std::string{"channelwise_conv_kernel"});
         options.virtual_inputs = inputs;
 
         auto out_lens = out_s.lens();
@@ -107,7 +113,13 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
 
         auto src = interpolate_string(
             channelwise_conv_kernel,
-            {{"tile", to_string_range(tile_sizes)}, {"ntiles", std::to_string(noutputs)}});
+            {{"tile", to_string_range(tile_sizes)},
+             {"ntiles", std::to_string(noutputs)},
+             {"kernel", options.kernel_name},
+             {"params", enum_params(inputs.size(), "void * private_p")},
+             {"args", enum_params(inputs.size(), "private_p")},
+             {"post", v.get("post", std::string{"op::id{}"})},
+             {"preamble", v.get("preamble", std::string{})}});
 
         return compile_hip_code_object(ctx, src, options);
     }
@@ -118,6 +130,13 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
         auto v = op.to_value();
         for(const auto& x : solution)
             v.insert(x);
+        if(not ins->module_inputs().empty())
+        {
+            auto* pm      = ins->module_inputs().front();
+            v["preamble"] = generate_pointwise(*pm, "post_channelwise_conv");
+            v["post"]     = "MIGRAPHX_LIFT(post_channelwise_conv)";
+            v["kernel"]   = "channelwise_conv_" + generate_name_from_ops(*pm) + "_kernel";
+        }
         return compile_op(ctx, to_shapes(ins->inputs()), v);
     }
 

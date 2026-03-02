@@ -27,6 +27,7 @@
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/ranges.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -72,9 +73,7 @@ struct reverse_compiler : compiler<reverse_compiler>
 
         auto axes = v.at("axes").to_vector<int64_t>();
         std::vector<std::string> axes_strs;
-        axes_strs.reserve(axes.size());
-        for(auto a : axes)
-            axes_strs.push_back(std::to_string(a));
+        transform(axes, std::back_inserter(axes_strs), [](auto a) { return std::to_string(a); });
 
         auto src = interpolate_string(reverse_kernel, {{"axes", join_strings(axes_strs, ", ")}});
 

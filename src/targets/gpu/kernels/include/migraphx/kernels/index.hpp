@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -268,12 +268,6 @@ struct index
     }
 
     template <class F, class N>
-    __device__ void device_stride(N n, F f) const
-    {
-        for_stride<false>(_c<0>, n, _c<1>, f);
-    }
-
-    template <class F, class N>
     __device__ void global_stride(N n, F f) const
     {
         for_stride<false>(global, n, nglobal(), f);
@@ -336,29 +330,6 @@ struct per_block
     constexpr void local_stride(N n, F f) const
     {
         return idx.local_stride(n, f);
-    }
-};
-
-struct per_device
-{
-    index idx;
-
-    constexpr auto local() const { return idx.global; }
-
-    constexpr auto nlocal() const { return idx.nglobal(); }
-
-    constexpr auto size() const { return _c<1>; }
-
-    template <class N, class F>
-    constexpr void group_stride(N n, F f) const
-    {
-        return idx.device_stride(n, f);
-    }
-
-    template <class N, class F>
-    constexpr void local_stride(N n, F f) const
-    {
-        return idx.global_stride(n, f);
     }
 };
 

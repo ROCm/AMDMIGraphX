@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -516,13 +516,12 @@ struct block
         return reducer<Slicer>{{}, idx, slicer};
     }
 
-    template <class Output, class Schedule = per_device, class F>
+    template <class Output, class F>
     static __device__ void run(F f)
     {
         auto idx                 = make_index();
-        auto schedule            = Schedule{idx};
         constexpr auto nelements = get_shape_c<Output>{}.elements();
-        schedule.local_stride(nelements * idx.nlocal(), [&](auto i) {
+        idx.global_stride(nelements * idx.nlocal(), [&](auto i) {
             const auto out_idx = get_shape_c<Output>{}.multi(i / idx.nlocal());
             f(out_idx, make(idx, [&](auto input) { return reduce_slice<Output>(input, out_idx); }));
         });
@@ -571,13 +570,12 @@ struct block_large
         return reducer<Slicer>{{}, idx, slicer};
     }
 
-    template <class Output, class Schedule = per_device, class F>
+    template <class Output, class F>
     static __device__ void run(F f)
     {
         auto idx                 = make_index();
-        auto schedule            = Schedule{idx};
         constexpr auto nelements = get_shape_c<Output>{}.elements();
-        schedule.local_stride(nelements * idx.nlocal(), [&](auto i) {
+        idx.global_stride(nelements * idx.nlocal(), [&](auto i) {
             const auto out_idx = get_shape_c<Output>{}.multi(i / idx.nlocal());
             f(out_idx, make(idx, [&](auto input) { return reduce_slice<Output>(input, out_idx); }));
         });
@@ -650,13 +648,12 @@ struct subwave
         return reducer<Slicer>{{}, idx, slicer};
     }
 
-    template <class Output, class Schedule = per_device, class F>
+    template <class Output, class F>
     static __device__ void run(F f)
     {
         auto idx                 = make_index();
-        auto schedule            = Schedule{idx};
         constexpr auto nelements = get_shape_c<Output>{}.elements();
-        schedule.local_stride(nelements * idx.nlocal_subwave<SubWaveSize>(), [&](auto i) {
+        idx.global_stride(nelements * idx.nlocal_subwave<SubWaveSize>(), [&](auto i) {
             const auto out_idx = get_shape_c<Output>{}.multi(i / idx.nlocal_subwave<SubWaveSize>());
             f(out_idx, make(idx, [&](auto input) { return reduce_slice<Output>(input, out_idx); }));
         });
@@ -712,13 +709,12 @@ struct lane
         return reducer<Slicer>{{}, idx, slicer};
     }
 
-    template <class Output, class Schedule = per_device, class F>
+    template <class Output, class F>
     static __device__ void run(F f)
     {
         auto idx                 = make_index();
-        auto schedule            = Schedule{idx};
         constexpr auto nelements = get_shape_c<Output>{}.elements();
-        schedule.local_stride(nelements, [&](auto i) {
+        idx.global_stride(nelements, [&](auto i) {
             const auto out_idx = get_shape_c<Output>{}.multi(i);
             f(out_idx, make(idx, [&](auto input) { return reduce_slice<Output>(input, out_idx); }));
         });

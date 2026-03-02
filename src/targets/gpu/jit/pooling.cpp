@@ -177,7 +177,7 @@ struct pooling_compiler : compiler<pooling_compiler>
 
         algorithm algo{};
         algo.group_size = v.get("group_size", 1);
-        auto width = v.get("width", 1);
+        auto width      = v.get("width", 1);
         if(width > 1)
             algo.set_block_algo(ctx, width);
         options.set_launch_params(
@@ -213,13 +213,13 @@ struct pooling_compiler : compiler<pooling_compiler>
         tuning_config tc;
         auto shapes = to_shapes(ins->inputs());
         auto output = shapes.back();
-        auto v = op.to_value();
+        auto v      = op.to_value();
         tc.problem  = value{{"input", to_value(shapes.front())}, {"config", v}};
 
-        auto w = v["lengths"].to_vector<std::size_t>();
-        auto wsize = std::accumulate(w.begin(), w.end(), 1, std::multiplies<std::size_t>());
-        auto faxis = gen::find_fast_axis(output);
-        auto x     = output.lens()[faxis];
+        auto w            = v["lengths"].to_vector<std::size_t>();
+        auto wsize        = std::accumulate(w.begin(), w.end(), 1, std::multiplies<std::size_t>());
+        auto faxis        = gen::find_fast_axis(output);
+        auto x            = output.lens()[faxis];
         auto add_solution = [&](auto group_size, auto width) {
             if(x < group_size)
                 return;

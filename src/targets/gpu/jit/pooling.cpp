@@ -101,7 +101,6 @@ struct pooling_compiler : compiler<pooling_compiler>
             }
             else
             {
-                // block_size  = max_wavefront_size;
                 block_size  = 256;
                 reduce_size = compute_subwave_size(ctx, wsize);
                 name        = "reduce::subwave<" + to_string(reduce_size) + ">";

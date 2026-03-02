@@ -211,10 +211,6 @@ struct pooling_compiler : compiler<pooling_compiler>
                                               const operation& op,
                                               bool exhaustive) const
     {
-        // if(not exhaustive)
-        //     return nullopt;
-        // if(op.name() != "fused_reduce")
-        //     return nullopt;
         tuning_config tc;
         auto shapes = to_shapes(ins->inputs());
         auto output = shapes.back();
@@ -228,11 +224,11 @@ struct pooling_compiler : compiler<pooling_compiler>
         auto add_solution = [&](auto group_size, auto width) {
             if(x < group_size)
                 return;
-            // if((x % group_size) != 0)
-            //     return;
             if(wsize < width)
                 return;
             if(width > ctx.get_current_device().get_wavefront_size())
+                return;
+            if(width > 1 and (wsize / width) > 255)
                 return;
             tc.solutions.push_back({{"group_size", group_size}, {"width", width}});
         };
@@ -284,90 +280,6 @@ struct pooling_compiler : compiler<pooling_compiler>
                 add_solution(16, 16);
             }
         }
-        // Navi
-        // "group_size": 1,             "width": 1
-        // "group_size": 1,             "width": 16
-        // "group_size": 1,             "width": 2
-        // "group_size": 1,             "width": 32
-        // "group_size": 1,             "width": 4
-        // "group_size": 1,             "width": 8
-        // "group_size": 2,             "width": 1
-        // "group_size": 2,             "width": 4
-        // "group_size": 4,             "width": 1
-        // "group_size": 8,             "width": 1
-        // "group_size": 8,             "width": 2
-        // "group_size": 16,             "width": 1
-        // mi300
-        // "group_size": 1,             "width": 1
-        // "group_size": 1,             "width": 16
-        // "group_size": 1,             "width": 2
-        // "group_size": 1,             "width": 4
-        // "group_size": 1,             "width": 8
-        // "group_size": 2,             "width": 1
-        // "group_size": 2,             "width": 16
-        // "group_size": 2,             "width": 2
-        // "group_size": 2,             "width": 4
-        // "group_size": 2,             "width": 8
-        // "group_size": 4,             "width": 1
-        // "group_size": 4,             "width": 2
-        // "group_size": 4,             "width": 4
-        // "group_size": 4,             "width": 8
-        // "group_size": 8,             "width": 1
-        // "group_size": 8,             "width": 8
-        // "group_size": 16,             "width": 1
-        // "group_size": 16,             "width": 16
-        // old:
-        // "group_size": 1,             "width": 1
-        // "group_size": 1,             "width": 16
-        // "group_size": 1,             "width": 2
-        // "group_size": 1,             "width": 4
-        // "group_size": 1,             "width": 8
-        // "group_size": 2,             "width": 1
-        // "group_size": 2,             "width": 16
-        // "group_size": 2,             "width": 2
-        // "group_size": 2,             "width": 4
-        // "group_size": 2,             "width": 8
-        // "group_size": 4,             "width": 1
-        // "group_size": 4,             "width": 2
-        // "group_size": 4,             "width": 4
-        // "group_size": 4,             "width": 8
-        // Extended:
-        // "group_size": 1,             "width": 1
-        // "group_size": 1,             "width": 16
-        // "group_size": 1,             "width": 2
-        // "group_size": 1,             "width": 32
-        // "group_size": 1,             "width": 4
-        // "group_size": 1,             "width": 64
-        // "group_size": 1,             "width": 8
-        // "group_size": 16,             "width": 1
-        // "group_size": 16,             "width": 16
-        // "group_size": 2,             "width": 1
-        // "group_size": 2,             "width": 16
-        // "group_size": 2,             "width": 2
-        // "group_size": 2,             "width": 32
-        // "group_size": 2,             "width": 4
-        // "group_size": 2,             "width": 64
-        // "group_size": 2,             "width": 8
-        // "group_size": 4,             "width": 1
-        // "group_size": 4,             "width": 2
-        // "group_size": 4,             "width": 4
-        // "group_size": 4,             "width": 8
-        // "group_size": 8,             "width": 1
-        // "group_size": 8,             "width": 32
-        // "group_size": 8,             "width": 8
-        // tc.solutions.push_back({{"group_size", 1}});
-        // tc.solutions.push_back({{"group_size", 2}});
-        // tc.solutions.push_back({{"group_size", 3}});
-        // tc.solutions.push_back({{"group_size", 4}});
-        // tc.solutions.push_back({{"group_size", 7}});
-        // tc.solutions.push_back({{"group_size", 8}});
-        // tc.solutions.push_back({{"group_size", 9}});
-        // tc.solutions.push_back({{"group_size", 11}});
-        // tc.solutions.push_back({{"group_size", 16}});
-        // tc.solutions.push_back({{"group_size", 32}});
-        // tc.solutions.push_back({{"group_size", 49}});
-        // tc.solutions.push_back({{"group_size", 64}});
-        // tc.solutions.push_back({{"group_size", 128}});
         return tc;
     }
 };

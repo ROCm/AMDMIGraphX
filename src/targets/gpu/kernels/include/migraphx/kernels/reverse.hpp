@@ -26,6 +26,7 @@
 
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/array.hpp>
+#include <migraphx/kernels/debug.hpp>
 
 namespace migraphx {
 
@@ -40,6 +41,7 @@ __device__ void reverse(Axes axes, Input input, Output output)
         auto in_idx  = out_idx;
         for(auto axis : axes)
         {
+            MIGRAPHX_ASSERT(lens[axis] > 0);
             in_idx[axis] = lens[axis] - 1 - out_idx[axis];
         }
         output[i] = input[in_idx];

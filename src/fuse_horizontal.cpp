@@ -118,9 +118,8 @@ static void apply_horizontal_finder(module& m, const Finder& finder)
 
         std::vector<instruction_ref> group(start, last);
         // Sort by position for consistent ordering
-        std::sort(group.begin(), group.end(), [&](auto a, auto b) {
-            return pos.at(a) < pos.at(b);
-        });
+        std::sort(
+            group.begin(), group.end(), [&](auto a, auto b) { return pos.at(a) < pos.at(b); });
 
         // Check that all outputs are in this module
         for(auto g : group)
@@ -172,8 +171,7 @@ void fuse_horizontal_ops(module& m, Finders&&... finders)
 struct gather_horizontal_fusion
 {
     // Key type for grouping: (emb_dim, idx_type, trailing_idx_dims)
-    using key_type =
-        std::tuple<std::size_t, shape::type_t, std::vector<std::size_t>>;
+    using key_type = std::tuple<std::size_t, shape::type_t, std::vector<std::size_t>>;
 
     std::size_t min_group_size() const { return 4; }
 
@@ -214,9 +212,8 @@ struct gather_horizontal_fusion
         return std::make_tuple(emb_dim, idx_type, std::move(trailing));
     }
 
-    std::vector<instruction_ref> fuse(module& m,
-                                      const std::vector<instruction_ref>& gathers,
-                                      instruction_ref insert_pt) const
+    std::vector<instruction_ref>
+    fuse(module& m, const std::vector<instruction_ref>& gathers, instruction_ref insert_pt) const
     {
         auto idx_type = gathers.front()->inputs().at(1)->get_shape().type();
 
@@ -233,11 +230,9 @@ struct gather_horizontal_fusion
         // to get start (exclusive) offsets.
         std::vector<std::size_t> cum_sizes(gathers.size());
         transform_partial_sum(
-            gathers.begin(),
-            gathers.end(),
-            cum_sizes.begin(),
-            std::plus<>{},
-            [](auto g) { return g->inputs().at(0)->get_shape().lens().front(); });
+            gathers.begin(), gathers.end(), cum_sizes.begin(), std::plus<>{}, [](auto g) {
+                return g->inputs().at(0)->get_shape().lens().front();
+            });
 
         // Exclusive offsets: [0, cum_sizes[0], cum_sizes[1], ...]
         std::vector<std::size_t> emb_offsets(gathers.size());
@@ -257,21 +252,20 @@ struct gather_horizontal_fusion
                 }
                 else
                 {
-                    auto offset_scalar =
-                        m.add_literal(literal{shape{idx_type}, {offset}});
+                    auto offset_scalar    = m.add_literal(literal{shape{idx_type}, {offset}});
                     auto offset_broadcast = m.insert_instruction(
                         insert_pt,
                         make_op("multibroadcast", {{"out_lens", idx->get_shape().lens()}}),
                         offset_scalar);
-                    auto adjusted_idx = m.insert_instruction(
-                        insert_pt, make_op("add"), idx, offset_broadcast);
+                    auto adjusted_idx =
+                        m.insert_instruction(insert_pt, make_op("add"), idx, offset_broadcast);
                     adjusted_idx_inputs.push_back(adjusted_idx);
                 }
             });
 
         // Concatenate adjusted indices
-        auto concat_idx = m.insert_instruction(
-            insert_pt, make_op("concat", {{"axis", 0}}), adjusted_idx_inputs);
+        auto concat_idx =
+            m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), adjusted_idx_inputs);
 
         // Single batched gather
         auto batched_gather = m.insert_instruction(

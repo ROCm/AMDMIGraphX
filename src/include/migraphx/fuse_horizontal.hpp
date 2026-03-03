@@ -49,9 +49,3 @@ struct MIGRAPHX_EXPORT fuse_horizontal
 } // namespace migraphx
 
 #endif // MIGRAPHX_GUARD_MIGRAPHX_FUSE_HORIZONTAL_HPP
-
-
-
-
-
-

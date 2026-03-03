@@ -182,7 +182,7 @@ struct rotary_embedding : op_builder<rotary_embedding>
         auto d       = in_lens.back();
         auto half_d  = d / 2;
         auto dtype   = in->get_shape().type();
-
+        assert((d % 2) == 0);
         auto signs = m.add_literal(migraphx::literal{migraphx::shape{dtype, {2}}, {-1.0f, 1.0f}});
 
         instruction_ref rotated;

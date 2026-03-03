@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 
-#include "migraphx/make_op.hpp"
+#include <migraphx/make_op.hpp>
 #include <onnx_test.hpp>
 
 TEST_CASE(matmulbnb4_fp4_test)

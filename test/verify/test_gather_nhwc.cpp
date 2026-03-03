@@ -20,26 +20,29 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
- *
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_REDUCE_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_REDUCE_HPP
 
-#include <migraphx/config.hpp>
-#include <string>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/literal.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module_pass_manager;
-
-struct MIGRAPHX_EXPORT fuse_pointwise_reduce
+struct test_gather_nhwc : verify_program<test_gather_nhwc>
 {
-    std::size_t split_size = 65280;
-    std::string name() const { return "fuse_pointwise_reduce"; }
-    void apply(module_pass_manager& mpm) const;
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape data_shape{migraphx::shape::float_type, {1, 2, 2, 3}};
+        migraphx::shape indices_shape{migraphx::shape::int32_type, {1}};
+        std::vector<int> indices = {1};
+        auto data                = mm->add_parameter("data", data_shape);
+        auto idx_lit             = mm->add_literal(migraphx::literal{indices_shape, indices});
+        auto transpose           = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), data);
+        auto gather =
+            mm->add_instruction(migraphx::make_op("gather", {{"axis", 1}}), transpose, idx_lit);
+        mm->add_return({gather});
+        return p;
+    }
 };
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_REDUCE_HPP

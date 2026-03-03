@@ -20,26 +20,19 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
- *
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_REDUCE_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_REDUCE_HPP
 
-#include <migraphx/config.hpp>
-#include <string>
+#include <onnx_test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module_pass_manager;
-
-struct MIGRAPHX_EXPORT fuse_pointwise_reduce
+TEST_CASE(const_of_shape_zero_dim_test)
 {
-    std::size_t split_size = 65280;
-    std::string name() const { return "fuse_pointwise_reduce"; }
-    void apply(module_pass_manager& mpm) const;
-};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape ss(migraphx::shape::int64_type, {3});
+    mm->add_literal(migraphx::literal(ss, {2, 0, 4}));
+    auto ret = mm->add_instruction(migraphx::make_op("undefined"));
+    mm->add_return({ret});
 
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_REDUCE_HPP
+    auto prog = read_onnx("const_of_shape_zero_dim_test.onnx");
+    EXPECT(p == prog);
+}

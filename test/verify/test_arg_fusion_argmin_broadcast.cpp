@@ -20,26 +20,29 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
- *
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_REDUCE_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_REDUCE_HPP
 
-#include <migraphx/config.hpp>
-#include <string>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module_pass_manager;
-
-struct MIGRAPHX_EXPORT fuse_pointwise_reduce
+struct test_arg_fusion_argmin_broadcast : verify_program<test_arg_fusion_argmin_broadcast>
 {
-    std::size_t split_size = 65280;
-    std::string name() const { return "fuse_pointwise_reduce"; }
-    void apply(module_pass_manager& mpm) const;
-};
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::float_type, {2, 3, 4}};
+        migraphx::shape bs{migraphx::shape::float_type, {1, 3, 4}};
+        auto x = mm->add_parameter("x", s);
+        auto y = mm->add_parameter("y", bs);
+        auto yb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), y);
+        auto add = mm->add_instruction(migraphx::make_op("add"), x, yb);
+        mm->add_instruction(migraphx::make_op("argmin", {{"axis", 1}}), add);
+        return p;
+    }
 
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_REDUCE_HPP
+    std::string section() const { return "reduce"; }
+};

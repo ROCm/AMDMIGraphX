@@ -510,7 +510,7 @@ TEST_CASE(gather_horiz_no_fusion_dependent)
         auto g1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb1, idx1);
 
         // g2 uses g1's output shape to derive its index (dependency)
-        auto reshape_g1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2}}}), g1);
+        auto reshape_g1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), g1);
         auto g2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb2, reshape_g1);
 
         auto g3 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb3, idx3);

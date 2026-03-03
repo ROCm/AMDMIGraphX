@@ -215,7 +215,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
     {
         if(args.size() > 4)
         {
-            const auto key_pad_lens = args.at(4)->get_shape().lens();
+            const auto key_pad_lens     = args.at(4)->get_shape().lens();
             const auto key_pad_len_size = key_pad_lens.size();
             const auto key_pad_type     = args.at(4)->get_shape().type();
 
@@ -308,7 +308,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
     {
         if(args.size() > 5)
         {
-            const auto bias_lens      = args.at(5)->get_shape().lens();
+            const auto bias_lens = args.at(5)->get_shape().lens();
 
             // attention_bias should be 4D: (batch_size, num_heads, source_sequence_length,
             // target_sequence_length)
@@ -372,7 +372,8 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
                       multi_head_attention_parameters& params) const
     {
         if(args.empty() or args.size() > 8)
-            MIGRAPHX_THROW("MultiHeadAttention: Wrong number of inputs. Maximum 8 inputs supported (query, key, value, "
+            MIGRAPHX_THROW("MultiHeadAttention: Wrong number of inputs. Maximum 8 inputs supported "
+                           "(query, key, value, "
                            "bias, key_padding_mask, attention_bias, past_key, past_value).");
 
         // Order matters here. Most parameters defined by input query, key, value parameters

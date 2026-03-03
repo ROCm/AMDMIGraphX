@@ -34,6 +34,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 /**
  * @brief Horizontal fusion pass for independent gather operations.
  *
+ * Currently supports the following fusion:
  * Identifies groups of independent gather(axis=0) ops that share the same
  * embedding dimension and index layout, then fuses them into a single gather
  * over a concatenated embedding table with offset-adjusted indices.

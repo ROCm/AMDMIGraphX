@@ -30,7 +30,6 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/ranges.hpp>
-#include <migraphx/functional.hpp>
 #include <numeric>
 #include <vector>
 #include <unordered_map>
@@ -57,35 +56,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 // filtering inter-dependent instructions, dispatching to fuse(), and replacing
 // originals with results.
 // ---------------------------------------------------------------------------
-
-/// Move transitive outputs of `src` that are between `src` and `dst`
-/// to just after `dst`, preserving their relative order.
-/// This ensures consumers come after the fused instruction.
-static void move_output_instructions_after(module& m, instruction_ref src, instruction_ref dst)
-{
-    auto d = std::distance(src, dst);
-    std::vector<std::pair<std::size_t, instruction_ref>> instructions;
-    fix([&](auto self, instruction_ref ins) {
-        for(auto output : ins->outputs())
-        {
-            if(not m.has_instruction(output))
-                continue;
-            if(any_of(instructions, [&](const auto& p) { return p.second == output; }))
-                continue;
-            auto i = std::distance(src, output);
-            if(i >= d)
-                continue;
-            instructions.emplace_back(i, output);
-            self(output);
-        }
-    })(src);
-    std::sort(instructions.begin(), instructions.end(), by(std::less<>{}, [](auto&& p) {
-                  return p.first;
-              }));
-    auto loc = std::next(dst);
-    for(auto& [i, ins] : instructions)
-        m.move_instruction(ins, loc);
-}
 
 template <class Finder>
 static void apply_horizontal_finder(module& m, const Finder& finder)
@@ -138,7 +108,7 @@ static void apply_horizontal_finder(module& m, const Finder& finder)
         // Move outputs of the original instructions to after the new instructions
         // so that replace_instruction's validity assertions hold.
         std::for_each(group.begin(), group.end(), [&](auto g) {
-            move_output_instructions_after(m, g, replacements.back());
+            m.move_output_instructions_after(g, replacements.back());
         });
 
         migraphx::for_each(group.begin(), group.end(), replacements.begin(), [&](auto g, auto r) {

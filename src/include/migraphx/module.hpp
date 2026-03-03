@@ -81,12 +81,12 @@ struct MIGRAPHX_EXPORT module
     bool bypass() const;
     void set_bypass(bool b = true);
 
-    /// Number of instructions with debug symbols
+    /// If any instructions in this module have debug symbols
     bool has_debug_symbols() const;
     /// Merge given symbols with instruction's symbols
-    void add_debug_symbols(instruction_ref ins, std::unordered_set<std::string> symbols);
+    void add_debug_symbols(instruction_ref ins, const std::set<std::string>& symbols) const;
     /// Clear all debug symbols from instruction
-    void rm_debug_symbols(instruction_ref ins);
+    void remove_debug_symbols(instruction_ref ins) const;
 
     template <class... Ts, MIGRAPHX_REQUIRES(std::is_same<Ts, instruction_ref>{}...)>
     instruction_ref add_instruction(operation op, Ts... args)
@@ -126,6 +126,19 @@ struct MIGRAPHX_EXPORT module
                                         std::vector<module_ref> module_args) MIGRAPHX_TIDY_CONST;
 
     instruction_ref replace_instruction(instruction_ref ins, instruction_ref rep);
+
+    struct instruction_replacer
+    {
+        instruction_ref ins;
+        operation op;
+        std::vector<instruction_ref> args;
+        std::vector<module_ref> module_args;
+    };
+
+    /// Replaces an array of instructions within the same function to propertly handle debug symbols
+    /// propagation Returns vector of instruction_ref to replaced instructions
+    std::vector<instruction_ref>
+    batch_replace_instruction(const std::vector<instruction_replacer>& replacers);
 
     instruction_ref remove_instruction(instruction_ref ins);
     instruction_ref remove_instructions(instruction_ref first, instruction_ref last);

@@ -612,7 +612,7 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
                 node.name().empty() ? std::string("migx_uid:") + node_name : node.name();
             for(auto ins : added_instructions)
             {
-                mod->add_debug_symbol(ins, debug_symbol);
+                mod->add_debug_symbols(ins, {debug_symbol});
             }
         }
         if(enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))

@@ -62,7 +62,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct pass_with_context : pass
 {
-    pass_with_context(const pass& p, std::shared_ptr<context> pctx = nullptr) : pass(p), ctx(std::move(pctx))
+    pass_with_context(const pass& p, std::shared_ptr<context> pctx = nullptr)
+        : pass(p), ctx(std::move(pctx))
     {
     }
     std::shared_ptr<context> ctx = nullptr;

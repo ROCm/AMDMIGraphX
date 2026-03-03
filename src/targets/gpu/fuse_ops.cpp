@@ -1019,7 +1019,7 @@ struct find_concat_pointwise
     auto matcher() const
     {
         return precompile_name("pointwise")(
-            match::arg(0)(precompile_name("concat").bind("concat")));
+            match::arg(0)(precompile_name("concat").bind("concat"), match::used_once()));
     }
 
     void apply(module& m, const match::matcher_result& r) const

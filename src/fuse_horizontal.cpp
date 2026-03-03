@@ -154,7 +154,7 @@ struct gather_horizontal_fusion
             return false;
 
         // Index must not be scalar
-        if(idx->get_shape().lens().empty())
+        if(idx->get_shape().scalar() or idx->get_shape().lens().empty())
             return false;
 
         return true;

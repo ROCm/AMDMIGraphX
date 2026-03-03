@@ -30,6 +30,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/functional.hpp>
 #include <numeric>
 #include <vector>
 #include <unordered_map>
@@ -62,13 +63,14 @@ static void apply_horizontal_finder(module& m, const Finder& finder)
 {
     // Collect all candidate instructions and build position map
     std::vector<instruction_ref> candidates;
+    copy_if(iterator_for(m), std::back_inserter(candidates), [&](auto ins) {
+        return finder.is_candidate(ins);
+    });
     std::unordered_map<instruction_ref, std::size_t> pos;
     std::size_t p = 0;
     for(auto ins : iterator_for(m))
     {
         pos[ins] = p++;
-        if(finder.is_candidate(ins))
-            candidates.push_back(ins);
     }
 
     auto pred = [&](instruction_ref x, instruction_ref y) {
@@ -83,20 +85,13 @@ static void apply_horizontal_finder(module& m, const Finder& finder)
 
     auto each = [&](auto start, auto last) {
         auto n = std::distance(start, last);
-        if(n < static_cast<std::ptrdiff_t>(finder.min_group_size()))
+        if(n < finder.min_group_size())
             return;
 
         std::vector<instruction_ref> group(start, last);
         // Sort by position for consistent ordering
         std::sort(
             group.begin(), group.end(), [&](auto a, auto b) { return pos.at(a) < pos.at(b); });
-
-        if(not std::all_of(group.begin(), group.end(), [&](auto g) {
-               return std::all_of(g->outputs().begin(), g->outputs().end(), [&](auto out) {
-                   return m.has_instruction(out);
-               });
-           }))
-            return;
 
         auto insert_pt    = std::next(group.back());
         auto replacements = finder.fuse(m, group, insert_pt);
@@ -122,7 +117,7 @@ static void apply_horizontal_finder(module& m, const Finder& finder)
 template <class... Finders>
 void fuse_horizontal_ops(module& m, Finders&&... finders)
 {
-    (apply_horizontal_finder(m, finders), ...);
+    each_args([&](auto&& finder) { apply_horizontal_finder(m, finder); }, finders...);
 }
 
 // ---------------------------------------------------------------------------
@@ -137,9 +132,6 @@ void fuse_horizontal_ops(module& m, Finders&&... finders)
 
 struct gather_horizontal_fusion
 {
-    // Key type for grouping: (emb_dim, idx_type, trailing_idx_dims)
-    using key_type = std::tuple<std::size_t, shape::type_t, std::vector<std::size_t>>;
-
     std::size_t min_group_size() const { return 4; }
 
     bool is_candidate(instruction_ref ins) const
@@ -168,7 +160,7 @@ struct gather_horizontal_fusion
         return true;
     }
 
-    key_type group_key(instruction_ref ins) const
+    auto group_key(instruction_ref ins) const
     {
         auto emb_dim  = ins->inputs().at(0)->get_shape().lens().back();
         auto idx      = ins->inputs().at(1);

@@ -29,7 +29,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/verify.hpp>
 #include <migraphx/load_save.hpp>
-
+#include <filesystem>
 #include <test.hpp>
 
 TEST_CASE(cos_test)
@@ -230,10 +230,10 @@ TEST_CASE(attention_models)
     const std::size_t batch = 2;
     const std::size_t nhead = 4;
 
-    std::vector<size_t> seqlens_q{512, 1024};
-    std::vector<size_t> seqlens_k{512, 1024};
-    std::vector<size_t> hdims_q{32, 64, 96};
-    std::vector<size_t> hdims_v{32, 64, 96};
+    std::vector<size_t> seqlens_q{512, 1024, 2048, 4096};
+    std::vector<size_t> seqlens_k{512, 1024, 2048, 4096};
+    std::vector<size_t> hdims_q{32, 48, 64, 80, 96, 128, 192, 256};
+    std::vector<size_t> hdims_v{32, 48, 64, 80, 96, 128, 192, 256};
 
     for(const auto& seqlen_q : seqlens_q)
     {
@@ -293,9 +293,15 @@ TEST_CASE(attention_models)
                     // gpu_opts.offload_copy    = true;
                     gpu_opts.exhaustive_tune = true;
                     std::stringstream ss;
-                    ss << "saved_models/ck_" << batch << "_" << nhead << "_" << M << "_" << N
+                    ss << "mlir_" << batch << "_" << nhead << "_" << M << "_" << N
                        << "_" << K << "_" << O << ".mxr";
-                    std::string output_filename = ss.str();
+                    std::string check_filename = "saved_models/mlir_models/" + ss.str();
+                    if(std::filesystem::exists(check_filename))
+                    {
+                        std::cout << "Skipping, file already exists: " << check_filename << std::endl;
+                        continue;
+                    }
+                    std::string output_filename = "saved_models/" + ss.str();
                     std::cout << "Compiling " << output_filename << std::endl;
                     auto start_time = std::chrono::high_resolution_clock::now();
                     gpu_p.compile(migraphx::make_target("gpu"), gpu_opts);

@@ -13,7 +13,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 void replace_literals_with_params(program& p)
 {
-    auto* mm = p.get_main_module();
+    auto* mm                = p.get_main_module();
     auto existing_names     = mm->get_parameter_names();
     std::size_t literal_idx = 0;
     for(auto ins : iterator_for(*mm))

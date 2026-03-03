@@ -165,7 +165,7 @@ struct gather_horizontal_fusion
         auto emb_dim  = ins->inputs().at(0)->get_shape().lens().back();
         auto idx      = ins->inputs().at(1);
         auto idx_type = idx->get_shape().type();
-        auto& lens    = idx->get_shape().lens();
+        const auto& lens    = idx->get_shape().lens();
         // Trailing index dims (all except first) — must match for concat on axis 0
         std::vector<std::size_t> trailing(lens.begin() + 1, lens.end());
         return std::make_tuple(emb_dim, idx_type, std::move(trailing));

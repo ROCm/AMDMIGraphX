@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -587,6 +587,55 @@ TEST_CASE(precompile_copy_chained)
     migraphx::program p1 = create_program();
     run_pass(p1);
     migraphx::program p2 = create_expected_program();
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(concat_pointwise_multi_use)
+{
+    migraphx::shape s1 = migraphx::shape::from_permutation(
+        migraphx::shape::float_type, {128, 2, 196, 32}, {0, 2, 1, 3});
+    migraphx::shape s2 = migraphx::shape::from_permutation(
+        migraphx::shape::float_type, {128, 4, 196, 32}, {0, 2, 1, 3});
+    migraphx::shape s3{migraphx::shape::float_type, {128, 4, 196, 32}};
+    auto create_program = [=]() {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto x1  = mm->add_parameter("x1", s1);
+        auto x2  = mm->add_parameter("x2", s1);
+        auto y   = mm->add_parameter("y", s2);
+
+        auto concat_op = migraphx::make_op("concat", {{"axis", 1}});
+        auto concat_precompile_op =
+            migraphx::make_op("gpu::precompile_op", {{"op", migraphx::to_value(concat_op)}});
+        auto x_alloc =
+            mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(s2)}}));
+        auto x         = mm->add_instruction(concat_precompile_op, {x1, x2, x_alloc});
+        auto alloc     = migraphx::make_op("allocate", {{"shape", to_value(s3)}});
+        auto alloc_ins = mm->add_instruction(alloc);
+        auto* pw_add1 =
+            create_pointwise_module(p, "main:pointwise0", {x, y}, single_pointwise("add"));
+
+        auto pw_op       = migraphx::make_op("pointwise");
+        auto pre_comp_op = migraphx::make_op(
+            "gpu::precompile_op",
+            {{"op", migraphx::to_value(pw_op)}, {"output_shape", migraphx::to_value(s3)}});
+        auto add1 = mm->add_instruction(pre_comp_op, {x, y, alloc_ins}, {pw_add1});
+
+        // Second use of concat result
+        auto alloc_ins2 = mm->add_instruction(alloc);
+        auto* pw_add2 =
+            create_pointwise_module(p, "main:pointwise1", {x, y}, single_pointwise("mul"));
+        auto pre_comp_op2 = migraphx::make_op(
+            "gpu::precompile_op",
+            {{"op", migraphx::to_value(pw_op)}, {"output_shape", migraphx::to_value(s3)}});
+        auto mul1 = mm->add_instruction(pre_comp_op2, {x, y, alloc_ins2}, {pw_add2});
+
+        mm->add_return({add1, mul1});
+        return p;
+    };
+    migraphx::program p1 = create_program();
+    migraphx::program p2 = create_program();
+    run_pass(p1);
     EXPECT(p1 == p2);
 }
 

@@ -121,14 +121,12 @@ static void apply_horizontal_finder(module& m, const Finder& finder)
         std::sort(
             group.begin(), group.end(), [&](auto a, auto b) { return pos.at(a) < pos.at(b); });
 
-        // Check that all outputs are in this module
-        for(auto g : group)
-        {
-            if(not std::all_of(g->outputs().begin(), g->outputs().end(), [&](auto out) {
+        if(not std::all_of(group.begin(), group.end(), [&](auto g) {
+               return std::all_of(g->outputs().begin(), g->outputs().end(), [&](auto out) {
                    return m.has_instruction(out);
-               }))
-                return;
-        }
+               });
+           }))
+            return;
 
         auto insert_pt    = std::next(group.back());
         auto replacements = finder.fuse(m, group, insert_pt);
@@ -139,10 +137,9 @@ static void apply_horizontal_finder(module& m, const Finder& finder)
 
         // Move outputs of the original instructions to after the new instructions
         // so that replace_instruction's validity assertions hold.
-        for(auto g : group)
-        {
+        std::for_each(group.begin(), group.end(), [&](auto g) {
             move_output_instructions_after(m, g, replacements.back());
-        }
+        });
 
         migraphx::for_each(group.begin(), group.end(), replacements.begin(), [&](auto g, auto r) {
             m.replace_instruction(g, r);

@@ -128,11 +128,12 @@ struct resize
     std::vector<size_t> sizes;
     // what integer rounding rule to use with Nearest mode.
     std::string nearest_mode{"floor"};
-    // Resizing modes.  1: nearest 2: bilinear/linear 3: cubic
-    // Only "nearest" currently supported.
+    // Resizing modes: "nearest", "linear", "cubic"
     std::string mode{"nearest"};
     // What floating-point conversion rule to use (any resizing mode)
     std::string coordinate_transformation_mode;
+    // Cubic interpolation coefficient (typically -0.5 or -0.75)
+    float cubic_coeff_a{-0.75f};
 
     std::string name() const { return "resize"; }
 
@@ -144,6 +145,59 @@ struct resize
         std::size_t i1; // upper index
         double weight;  // interpolation weight (0.0 to 1.0)
     };
+
+    // Cubic interpolation kernel function (Keys bicubic)
+    static double cubic_kernel(double s, double a)
+    {
+        double abs_s = std::abs(s);
+        if(abs_s < 1.0)
+            return (a + 2.0) * std::pow(abs_s, 3) - (a + 3.0) * std::pow(abs_s, 2) + 1.0;
+        if(abs_s < 2.0)
+            return a * std::pow(abs_s, 3) - 5.0 * a * std::pow(abs_s, 2) + 8.0 * a * abs_s - 4.0 * a;
+        return 0.0;
+    }
+
+    // Cubic interpolation parameters for one dimension (4 neighbors)
+    struct cubic_params
+    {
+        std::array<std::size_t, 4> indices;
+        std::array<double, 4> weights;
+    };
+
+    // Compute cubic interpolation parameters for a single dimension
+    template <class IdxOp>
+    static cubic_params compute_cubic_params_1d(std::size_t in_len,
+                                                std::size_t out_len,
+                                                std::size_t out_idx,
+                                                float scale,
+                                                double cubic_a,
+                                                const IdxOp& idx_op)
+    {
+        cubic_params result{};
+
+        if(in_len == 0)
+        {
+            result.indices = {0, 0, 0, 0};
+            result.weights = {0.0, 0.0, 0.0, 0.0};
+            return result;
+        }
+
+        double coord = idx_op(in_len, out_len, out_idx, scale);
+        auto base    = static_cast<std::ptrdiff_t>(std::floor(coord));
+
+        for(std::size_t i = 0; i < 4; ++i)
+        {
+            std::ptrdiff_t pos = base - 1 + static_cast<std::ptrdiff_t>(i);
+            double t           = coord - static_cast<double>(pos);
+            result.weights[i]  = cubic_kernel(t, cubic_a);
+            // Clamp to valid range
+            result.indices[i] =
+                static_cast<std::size_t>(std::max(std::ptrdiff_t{0},
+                                                  std::min(pos, static_cast<std::ptrdiff_t>(in_len - 1))));
+        }
+
+        return result;
+    }
 
     // Compute interpolation parameters for a single dimension
     template <class IdxOp>
@@ -237,6 +291,55 @@ struct resize
         return acc;
     }
 
+    // Perform N-D cubic interpolation for a single output point
+    // Uses separable bicubic kernel with 4 neighbors per dimension
+    template <class Data, class IdxOp>
+    static double compute_cubic_interp_point(const Data& data,
+                                             const std::vector<std::size_t>& in_lens,
+                                             const std::vector<std::size_t>& out_lens,
+                                             const std::vector<std::size_t>& out_idx_v,
+                                             const std::vector<float>& vec_scale,
+                                             double cubic_a,
+                                             const IdxOp& idx_op)
+    {
+        const std::size_t ndim = out_idx_v.size();
+
+        // Precompute cubic interpolation parameters for each dimension
+        std::vector<cubic_params> params(ndim);
+        for(std::size_t d = 0; d < ndim; d++)
+        {
+            params[d] = compute_cubic_params_1d(
+                in_lens[d], out_lens[d], out_idx_v[d], vec_scale[d], cubic_a, idx_op);
+        }
+
+        // Accumulate over 4^ndim neighbors (4 per dimension for cubic)
+        double acc                  = 0.0;
+        const std::size_t neighbors = (ndim == 0) ? 1 : static_cast<std::size_t>(std::pow(4, ndim));
+        std::vector<std::size_t> in_idx(ndim);
+
+        for(std::size_t combo = 0; combo < neighbors; ++combo)
+        {
+            double w       = 1.0;
+            std::size_t tc = combo;
+            for(std::size_t d = 0; d < ndim; ++d)
+            {
+                std::size_t neighbor_idx = tc % 4;
+                tc /= 4;
+                w *= params[d].weights[neighbor_idx];
+                in_idx[d] = params[d].indices[neighbor_idx];
+            }
+
+            if(std::abs(w) < 1e-10)
+                continue;
+
+            using in_value_t = typename Data::value_type;
+            in_value_t v     = data(in_idx.begin(), in_idx.end());
+            acc += w * static_cast<double>(v);
+        }
+
+        return acc;
+    }
+
     public:
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -245,16 +348,17 @@ struct resize
                     f(self.sizes, "sizes"),
                     f(self.nearest_mode, "nearest_mode"),
                     f(self.mode, "mode"),
-                    f(self.coordinate_transformation_mode, "coordinate_transformation_mode"));
+                    f(self.coordinate_transformation_mode, "coordinate_transformation_mode"),
+                    f(self.cubic_coeff_a, "cubic_coeff_a"));
     }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1, 2);
 
-        // Allow nearest and linear; still reject others
-        if(mode != "nearest" and mode != "linear")
-            MIGRAPHX_THROW("RESIZE: Only 'nearest' and 'linear' modes are supported");
+        // Allow nearest, linear, and cubic modes
+        if(mode != "nearest" and mode != "linear" and mode != "cubic")
+            MIGRAPHX_THROW("RESIZE: Only 'nearest', 'linear', and 'cubic' modes are supported");
 
         // Inputs are X, sizes or scale, ROI and axes not supported.
         if(inputs.size() == 1)
@@ -417,6 +521,24 @@ struct resize
                                                              output_shape.multi(out_idx),
                                                              vec_scale,
                                                              idx_op);
+
+                    using out_value_t = typename decltype(output)::value_type;
+                    output[out_idx]   = static_cast<out_value_t>(acc);
+                });
+            });
+        }
+        else if(mode == "cubic")
+        {
+            // N-D cubic interpolation
+            visit_all(result, args[0])([&](auto output, auto data) {
+                par_for(output_shape.elements(), [&](auto out_idx) {
+                    double acc = compute_cubic_interp_point(data,
+                                                            in_lens,
+                                                            output_shape.lens(),
+                                                            output_shape.multi(out_idx),
+                                                            vec_scale,
+                                                            cubic_coeff_a,
+                                                            idx_op);
 
                     using out_value_t = typename decltype(output)::value_type;
                     output[out_idx]   = static_cast<out_value_t>(acc);

@@ -47,7 +47,7 @@ extern "C" {
 MIGRAPHX_GLOBAL void resize(void* in_data, void* output)
 {
     make_tensors()(in_data, output)([](auto input, auto out) {
-        ${resize_func}<${coord_transform}, ${nearest_op}>(input, out, ${scales});
+        ${resize_func}<${coord_transform}, ${nearest_op}>(input, out, ${scales}${cubic_coeff_arg});
     });
 }
 
@@ -98,8 +98,9 @@ struct resize_compiler : compiler<resize_compiler>
             scales = reorder_dims(scales, permutation);
         }
 
-        // Get mode (nearest or linear)
-        std::string resize_func = "resize_" + v.get("mode", "nearest");
+        // Get mode (nearest, linear, or cubic)
+        std::string mode        = v.get("mode", "nearest");
+        std::string resize_func = "resize_" + mode;
 
         // Get coordinate transformation mode
         std::string coord_transform =
@@ -108,11 +109,20 @@ struct resize_compiler : compiler<resize_compiler>
         // Get nearest mode (only used for nearest interpolation)
         std::string nearest_op = "nearest_" + v.get("nearest_mode", "floor");
 
+        // Handle cubic coefficient (only used for cubic mode)
+        std::string cubic_coeff_arg;
+        if(mode == "cubic")
+        {
+            float cubic_coeff = v.get("cubic_coeff_a", -0.75f);
+            cubic_coeff_arg   = ", " + to_hex_float(cubic_coeff) + "f";
+        }
+
         auto src = interpolate_string(resize_kernel,
                                       {{"coord_transform", coord_transform},
                                        {"nearest_op", nearest_op},
                                        {"scales", scales_to_string(scales)},
-                                       {"resize_func", resize_func}});
+                                       {"resize_func", resize_func},
+                                       {"cubic_coeff_arg", cubic_coeff_arg}});
 
         return compile_hip_code_object(ctx, src, options);
     }

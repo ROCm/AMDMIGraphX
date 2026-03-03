@@ -21,9 +21,9 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "migraphx/errors.hpp"
-#include "migraphx/instruction_ref.hpp"
-#include "migraphx/onnx/onnx_parser.hpp"
+#include <migraphx/errors.hpp>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/onnx/onnx_parser.hpp>
 #include <cstddef>
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/ranges.hpp>

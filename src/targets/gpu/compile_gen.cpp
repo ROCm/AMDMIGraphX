@@ -247,8 +247,8 @@ tile tile::elements(const std::vector<shape>& inputs, std::size_t noutputs)
 
     auto tile_size = dim1 * dim2;
     result.ntiles  = s.elements() / tile_size;
-    // equivalent to dim1 * (dim2 + 1) to avoid bank conflicts
-    auto tile_bytes = (tile_size + dim1) * s.type_size();
+    // equivalent to dim2 * (dim1 + 1) to avoid bank conflicts
+    auto tile_bytes = (tile_size + dim2) * s.type_size();
     if(tile_bytes > 65536)
         return {};
 
@@ -409,6 +409,31 @@ void reduce_op::set(instruction_ref ins, const operation& op)
         set(rop.name(), input, output);
         read = "compose(array_apply(" + read + "), MIGRAPHX_LIFT(make_array))";
     }
+    else if(op.name() == "gpu::arg_reduce")
+    {
+        // extract the inner argmin/argmax operation
+        auto inner_op               = from_value<operation>(op.to_value().at("op"));
+        auto inner_v                = inner_op.to_value();
+        bool select_last            = inner_v.get("select_last_index", false);
+        std::string select_last_str = select_last ? "true" : "false";
+
+        if(inner_op.name() == "argmin")
+        {
+            reduction = "op::argmin<" + select_last_str + ">{}";
+            init      = "make_tuple(highest{}, index_int{0})";
+        }
+        else if(inner_op.name() == "argmax")
+        {
+            reduction = "op::argmax<" + select_last_str + ">{}";
+            init      = "make_tuple(lowest{}, index_int{0})";
+        }
+        else
+        {
+            MIGRAPHX_THROW("Unsupported arg operation");
+        }
+        // read creates tuples from (value, index), cast index to index_int
+        read = "[](auto val, auto idx) { return make_tuple(val, static_cast<index_int>(idx)); }";
+    }
     else
     {
         set(op.name(), ins->inputs().front()->get_shape(), ins->get_shape());
@@ -528,8 +553,13 @@ std::string generate_reduce(module m, const std::string& name)
         {
             const auto& x = names.at(ins->inputs().front());
             auto index    = ins->get_operator().to_value()["index"].to<std::size_t>();
-            return interpolate_string("${x}[${index}]",
-                                      {{"x", x}, {"index", std::to_string(index)}});
+            return interpolate_string("${x}[_c<${index}>]",
+                                          {{"x", x}, {"index", std::to_string(index)}});
+        }
+        if(ins->name() == "gpu::make_indices")
+        {
+            auto size = ins->get_operator().to_value()["size"].to<std::size_t>();
+            return "reduce::make_indices(_c<" + std::to_string(size) + ">)";
         }
         if(ins->name() == "identity")
         {

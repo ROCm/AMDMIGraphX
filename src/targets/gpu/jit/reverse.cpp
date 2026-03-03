@@ -70,7 +70,7 @@ struct reverse_compiler : compiler<reverse_compiler>
         options.kernel_name    = "reverse_kernel";
         options.virtual_inputs = inputs;
 
-        auto axes     = v.at("axes").to_vector<int64_t>();
+        auto axes      = v.at("axes").to_vector<int64_t>();
         auto axes_strs = views::transform(axes, [](auto a) { return std::to_string(a); });
 
         auto src = interpolate_string(reverse_kernel, {{"axes", join_strings(axes_strs, ", ")}});

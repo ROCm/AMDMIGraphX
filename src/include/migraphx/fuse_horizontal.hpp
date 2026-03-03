@@ -32,17 +32,12 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 /**
- * @brief Horizontal fusion pass for GEMMs and pointwise operations.
- * 
- * This pass identifies groups of independent operations with compatible shapes
- * and fuses them into batched operations. This reduces kernel launch overhead
- * and can improve GPU utilization.
- * 
- * For dot operations: Multiple independent dots with the same shape are combined
- * into a single batched GEMM by concatenating inputs along a new batch dimension.
- * 
- * For pointwise operations: Multiple independent operations of the same type
- * and shape are combined similarly.
+ * @brief Horizontal fusion pass for independent gather operations.
+ *
+ * Identifies groups of independent gather(axis=0) ops that share the same
+ * embedding dimension and index layout, then fuses them into a single gather
+ * over a concatenated embedding table with offset-adjusted indices.
+ * The batched result is sliced back to produce the original outputs.
  */
 struct MIGRAPHX_EXPORT fuse_horizontal
 {

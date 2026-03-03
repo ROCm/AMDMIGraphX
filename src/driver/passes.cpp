@@ -54,6 +54,7 @@
 
 #include <migraphx/ranges.hpp>
 #include <unordered_map>
+#include <utility>
 
 namespace migraphx {
 namespace driver {
@@ -61,7 +62,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct pass_with_context : pass
 {
-    pass_with_context(const pass& p, std::shared_ptr<context> pctx = nullptr) : pass(p), ctx(pctx)
+    pass_with_context(const pass& p, std::shared_ptr<context> pctx = nullptr) : pass(p), ctx(std::move(pctx))
     {
     }
     std::shared_ptr<context> ctx = nullptr;
@@ -106,7 +107,7 @@ static std::unordered_map<std::string, pass> create_passes_lookup()
     return result;
 }
 
-std::optional<pass> get_pass(const std::string& name)
+static std::optional<pass> get_pass(const std::string& name)
 {
     static const std::unordered_map<std::string, pass> lookup = create_passes_lookup();
     if(contains(lookup, name))
@@ -115,7 +116,7 @@ std::optional<pass> get_pass(const std::string& name)
     if(fields.size() != 2)
         return std::nullopt;
     auto base_name   = fields[0];
-    auto target_name = fields[1];
+    const auto& target_name = fields[1];
     auto t           = make_target(target_name);
     auto ctx         = std::make_shared<context>(t.get_context());
     auto passes      = t.get_passes(*ctx, {});

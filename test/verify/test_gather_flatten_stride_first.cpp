@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,21 +22,28 @@
  * THE SOFTWARE.
  */
 
-#include <onnx_test.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/literal.hpp>
 
-TEST_CASE(clip_test_op11_max_only)
+struct test_gather_flatten_stride_first : verify_program<test_gather_flatten_stride_first>
 {
-    migraphx::program p;
-    auto* mm     = p.get_main_module();
-    auto max_val = mm->add_literal(0.0f);
-    auto l0      = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3}});
-    mm->add_instruction(migraphx::make_op("undefined"));
-    max_val =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3}}}), max_val);
-    auto r = mm->add_instruction(migraphx::make_op("min"), l0, max_val);
-    mm->add_return({r});
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
 
-    auto prog = read_onnx("clip_test_op11_max_only.onnx");
+        auto x       = mm->add_parameter("X", {migraphx::shape::float_type, {1, 8}});
+        auto reshape = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), x);
 
-    EXPECT(p == prog);
-}
+        migraphx::shape indices_shape{migraphx::shape::int32_type, {1, 4}};
+        std::vector<int32_t> indices = {0, 2, 4, 6};
+        auto indices_literal         = mm->add_literal(migraphx::literal{indices_shape, indices});
+
+        auto gather = mm->add_instruction(migraphx::make_op("gather"), reshape, indices_literal);
+        mm->add_return({gather});
+
+        return p;
+    }
+};

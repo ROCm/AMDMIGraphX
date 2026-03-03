@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -434,6 +434,61 @@ instruction_ref module::move_instructions(instruction_ref src, instruction_ref d
     return src;
 }
 
+void module::move_output_instructions_after(instruction_ref src, instruction_ref dst)
+{
+    auto d = std::distance(src, dst);
+    std::vector<std::pair<std::size_t, instruction_ref>> instructions;
+    // When an output is in a submodule (cross-module reference), resolve it to
+    // the instruction in this module that owns the submodule containing the output.
+    // The map is lazily built on the first cross-module output encountered.
+    std::optional<std::unordered_map<const_module_ref, instruction_ref>> mod_owner_map;
+    auto resolve_output = [&](instruction_ref output) -> instruction_ref {
+        if(this->has_instruction(output))
+            return output;
+        if(not mod_owner_map)
+        {
+            mod_owner_map.emplace();
+            auto r = range(std::next(src), dst);
+            for(auto ins : iterator_for(r))
+            {
+                for(auto* mod : ins->module_inputs())
+                {
+                    (*mod_owner_map)[mod] = ins;
+                    for(auto* smod : mod->get_sub_modules())
+                        (*mod_owner_map)[smod] = ins;
+                }
+            }
+        }
+        auto it = std::find_if(mod_owner_map->begin(), mod_owner_map->end(), [&](const auto& p) {
+            return p.first->has_instruction(output);
+        });
+        if(it != mod_owner_map->end())
+            return it->second;
+        return this->end();
+    };
+    fix([&](auto self, instruction_ref ins) {
+        for(auto output : ins->outputs())
+        {
+            output = resolve_output(output);
+            if(is_end(output, this->end()))
+                continue;
+            if(any_of(instructions, [&](const auto& p) { return p.second == output; }))
+                continue;
+            auto i = std::distance(src, output);
+            if(i >= d)
+                continue;
+            instructions.emplace_back(i, output);
+            self(output);
+        }
+    })(src);
+    std::sort(instructions.begin(), instructions.end(), by(std::less<>{}, [](auto&& p) {
+                  return p.first;
+              }));
+    auto loc = std::next(dst);
+    for(auto [i, ins] : instructions)
+        this->move_instruction(ins, loc);
+}
+
 std::vector<instruction_ref>
 module::add_instructions(const std::vector<instruction_ref>& instructions,
                          std::unordered_map<instruction_ref, instruction_ref>* map_ins,
@@ -717,11 +772,12 @@ std::vector<shape> module::compute_shapes(const std::vector<shape>& inputs,
                                ins->get_shape().type_string() + " but passed " +
                                ins_shapes[ins].type_string());
             }
-            if(options.strict_lens and ins->get_shape().lens() != ins_shapes[ins].lens())
+            if(options.strict_lens and
+               not shape::is_compatible_lens(ins_shapes[ins], ins->get_shape()))
             {
-                MIGRAPHX_THROW(options.name + ": Mismatched lens: expected {" +
-                               to_string_range(ins->get_shape().lens()) + "} but passed {" +
-                               to_string_range(ins_shapes[ins].lens()) + "}");
+                MIGRAPHX_THROW(options.name + ": Mismatched dims: expected " +
+                               to_string(ins->get_shape()) + " but passed " +
+                               to_string(ins_shapes[ins]));
             }
         }
         else if(ins->name() == "@literal")
@@ -779,19 +835,24 @@ instruction_ref module::validate() const
 
 static bool is_borrowed(instruction_ref ins)
 {
-    auto alias = instruction::get_output_alias(ins, true);
-    if(alias == ins)
+    auto aliases = instruction::get_output_alias(ins, true);
+    if(aliases.size() == 1 and aliases.front() == ins)
         return false;
-    lifetime l = alias->get_operator().get_lifetime();
-    if(l == lifetime::borrow)
-        return true;
-    return is_borrowed(alias);
+    return std::any_of(aliases.begin(), aliases.end(), [](instruction_ref alias) {
+        lifetime l = alias->get_operator().get_lifetime();
+        if(l == lifetime::borrow)
+            return true;
+        return is_borrowed(alias);
+    });
 }
 
 static bool is_global(instruction_ref ins)
 {
-    const auto& op = instruction::get_output_alias(ins)->get_operator();
-    return op.name() == "@param" or op.get_lifetime() == lifetime::global;
+    auto aliases = instruction::get_output_alias(ins);
+    return std::any_of(aliases.begin(), aliases.end(), [](instruction_ref alias) {
+        const auto& op = alias->get_operator();
+        return op.name() == "@param" or op.get_lifetime() == lifetime::global;
+    });
 }
 
 static bool is_dangling(instruction_ref ins) { return not is_global(ins) and is_borrowed(ins); }
@@ -1320,7 +1381,7 @@ module::print_py(std::ostream& os,
             if(ins->name() == "@literal")
             {
                 os << mname << ".add_literal(";
-                if(ins->get_shape().elements() < 10)
+                if(ins->get_shape().elements() < 1024)
                 {
                     os << "migraphx.create_argument(";
                     print_py_shape(os, ins->get_shape());

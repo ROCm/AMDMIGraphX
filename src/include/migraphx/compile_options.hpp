@@ -30,6 +30,38 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+struct mlir_ops_options
+{
+#ifdef _WIN32
+#if defined(MIGRAPHX_USE_MIOPEN) && MIGRAPHX_USE_MIOPEN == 0
+    bool convolution           = true;
+    bool convolution_backwards = true;
+    bool fused_convolution     = true;
+#else
+    bool convolution           = false;
+    bool convolution_backwards = false;
+    bool fused_convolution     = false;
+#endif
+#if defined(MIGRAPHX_USE_HIPBLASLT) && MIGRAPHX_USE_HIPBLASLT == 0
+    bool attention = true;
+    bool dot       = true;
+    bool fused_dot = true;
+#else
+    bool attention = false;
+    bool dot       = false;
+    bool fused_dot = false;
+#endif
+
+#else
+    bool convolution           = false;
+    bool convolution_backwards = false;
+    bool fused_convolution     = false;
+    bool attention             = false;
+    bool dot                   = false;
+    bool fused_dot             = false;
+#endif
+};
+
 struct compile_options
 {
     /**
@@ -40,6 +72,8 @@ struct compile_options
 
     bool fast_math       = true;
     bool exhaustive_tune = false;
+
+    mlir_ops_options mlir_ops{};
 
     tracer trace{};
 };

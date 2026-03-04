@@ -39,19 +39,25 @@ namespace op {
 
 struct dynamic_range : op_name<dynamic_range>
 {
-    static constexpr std::size_t max_range_elements = 16 * 1024 * 1024;
+    std::size_t max_output = std::numeric_limits<int>::max();
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.max_output, "max_output"));
+    }
+
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(3);
         check_shapes{inputs, *this}.has(3).same_type();
         const auto& type = inputs.at(0).type();
         // The output shape is 1D with unknown size if we don't evaluate.
-        return shape{type, {shape::dynamic_dimension{0, max_range_elements}}};
+        return shape{type, {shape::dynamic_dimension{0, max_output}}};
     }
-
     argument compute(const dyn_output&, std::vector<argument> args) const
     {
-        argument result;
+        size_t num_elements = 0;
         visit_all(args[0], args[1], args[2])([&](auto start, auto limit, auto delta) {
             auto start_val = start.front();
             auto limit_val = limit.front();
@@ -60,19 +66,22 @@ struct dynamic_range : op_name<dynamic_range>
             // number_of_elements = max( ceil( (limit - start) / delta ), 0 )
             double num_elements_d = std::ceil(static_cast<double>(limit_val - start_val) /
                                               static_cast<double>(delta_val));
-            size_t num_elements   = num_elements_d > 0 ? static_cast<size_t>(num_elements_d) : 0;
-
-            result = argument{shape{args[0].get_shape().type(), {num_elements}}};
-
-            using value_type = decltype(start_val);
-            std::vector<value_type> output_data(num_elements);
-            for(size_t i = 0; i < num_elements; ++i)
-            {
-                output_data[i] = start_val + (static_cast<value_type>(i) * delta_val);
-            }
-
-            result.fill(output_data.begin(), output_data.end());
+            num_elements          = static_cast<size_t>(std::max(0.0, num_elements_d));
         });
+
+        argument result{shape{args[0].get_shape().type(), {num_elements}}};
+
+        visit_all(args[0], args[2], result)(
+            [&](auto start, auto delta, auto output) {
+                auto start_val = start.front();
+                auto delta_val = delta.front();
+
+                for(size_t i = 0; i < num_elements; ++i)
+                {
+                    output[i] = start_val + (static_cast<decltype(start_val)>(i) * delta_val);
+                }
+            });
+
         return result;
     }
 };

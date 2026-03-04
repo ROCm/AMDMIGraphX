@@ -343,10 +343,12 @@ instruction_ref module::insert_instruction(instruction_ref ins,
 }
 
 /**
- * Traverse inputs of `ins` and gather instructions that output only to `ins` (would become deadcode
- * without `ins`).
+ * Traverse inputs of `ins` and gather instructions that output only to `ins`.
+ * This splice is the total possibility of instructions that could be spliced by a
+ * replace_instruction.
  **/
-static std::unordered_set<instruction_ref> gather_splice(const_module_ref m, instruction_ref ins)
+static std::unordered_set<instruction_ref> gather_max_splice(const_module_ref m,
+                                                             instruction_ref ins)
 {
     std::unordered_set<instruction_ref> result = {ins};
     fix<void>([&](auto self, const std::vector<instruction_ref>& inputs) {
@@ -368,6 +370,37 @@ static std::unordered_set<instruction_ref> gather_splice(const_module_ref m, ins
     return result;
 }
 
+void propagate_debug_symbols(const_module_ref m,
+                             instruction_ref ins,
+                             const std::unordered_set<instruction_ref> old_max_splice)
+{
+    std::unordered_set<instruction_ref> new_max_splice = gather_max_splice(m, ins);
+    // Remove instructions from new_max_splice that are also in old_max_splice to get the actual
+    // new_splice set notation: {new_max_splice} - {old_max_splice}
+    std::unordered_set<instruction_ref> new_splice;
+    std::copy_if(
+        new_max_splice.cbegin(),
+        new_max_splice.cend(),
+        std::inserter(new_splice, new_splice.begin()),
+        [&old_max_splice](auto new_ins) { return (not contains(old_max_splice, new_ins)); });
+    // Vice versa process as new_splice
+    std::unordered_set<instruction_ref> old_splice;
+    std::copy_if(
+        old_max_splice.cbegin(),
+        old_max_splice.cend(),
+        std::inserter(old_splice, old_splice.begin()),
+        [&new_max_splice](auto old_ins) { return (not contains(new_max_splice, old_ins)); });
+    std::set<std::string> symbols;
+    for(auto old_ins : old_splice)
+    {
+        copy(old_ins->get_debug_symbols(), std::inserter(symbols, symbols.begin()));
+    }
+    for(auto new_ins : new_splice)
+    {
+        m->add_debug_symbols(new_ins, symbols);
+    }
+}
+
 instruction_ref module::replace_instruction(instruction_ref ins,
                                             const operation& op,
                                             std::vector<instruction_ref> args) MIGRAPHX_TIDY_CONST
@@ -377,24 +410,15 @@ instruction_ref module::replace_instruction(instruction_ref ins,
     assert(not starts_with(op.name(), "@"));
 
     shape r = compute_shape(op, args);
-    std::unordered_set<instruction_ref> old_splice;
+    std::unordered_set<instruction_ref> old_max_splice;
     if(has_debug_symbols())
     {
-        old_splice = gather_splice(this, ins);
+        old_max_splice = gather_max_splice(this, ins);
     }
     instruction::replace(ins, op, r, std::move(args));
     if(has_debug_symbols())
     {
-        std::unordered_set<instruction_ref> new_splice = gather_splice(this, ins);
-        std::set<std::string> symbols;
-        for(auto old_ins : old_splice)
-        {
-            copy(old_ins->get_debug_symbols(), std::inserter(symbols, symbols.begin()));
-        }
-        for(auto new_ins : new_splice)
-        {
-            this->add_debug_symbols(new_ins, symbols);
-        }
+        propagate_debug_symbols(this, ins, old_max_splice);
     }
     assert(ins->valid(begin()));
     return ins;
@@ -409,45 +433,18 @@ instruction_ref module::replace_instruction(instruction_ref ins,
     assert(has_instruction(ins));
     assert(not starts_with(op.name(), "@"));
     auto out_shape = compute_shape(op, args, module_args);
-    std::unordered_set<instruction_ref> old_splice;
+    std::unordered_set<instruction_ref> old_max_splice;
     if(has_debug_symbols())
     {
-        old_splice = gather_splice(this, ins);
+        old_max_splice = gather_max_splice(this, ins);
     }
     instruction::replace(ins, op, out_shape, std::move(args), std::move(module_args));
     if(has_debug_symbols())
     {
-        std::unordered_set<instruction_ref> new_splice = gather_splice(this, ins);
-        std::set<std::string> symbols;
-        for(auto old_ins : old_splice)
-        {
-            copy(old_ins->get_debug_symbols(), std::inserter(symbols, symbols.begin()));
-        }
-        for(auto new_ins : new_splice)
-        {
-            this->add_debug_symbols(new_ins, symbols);
-        }
+        propagate_debug_symbols(this, ins, old_max_splice);
     }
     assert(ins->valid(begin()));
     return ins;
-}
-
-static void propagate_debug_symbols(const_module_ref m, instruction_ref ins, instruction_ref rep)
-{
-    if(m->has_debug_symbols())
-    {
-        auto old_splice = gather_splice(m, ins);
-        auto new_splice = gather_splice(m, rep);
-        std::set<std::string> symbols;
-        for(auto old_ins : old_splice)
-        {
-            copy(old_ins->get_debug_symbols(), std::inserter(symbols, symbols.begin()));
-        }
-        for(auto new_ins : new_splice)
-        {
-            m->add_debug_symbols(new_ins, symbols);
-        }
-    }
 }
 
 instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref rep)
@@ -469,7 +466,11 @@ instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref
         return rep;
     }
 
-    propagate_debug_symbols(this, ins, rep);
+    if(has_debug_symbols())
+    {
+        auto old_max_splice = gather_max_splice(this, ins);
+        propagate_debug_symbols(this, rep, old_max_splice);
+    }
     // Make a copy of outputs which can be changed when calling replace_argument
     auto outputs = ins->outputs();
     for(auto out : outputs)
@@ -497,34 +498,52 @@ std::vector<instruction_ref>
 module::batch_replace_instruction(const std::vector<instruction_replacer>& replacers)
 {
     std::vector<instruction_ref> ret;
-    std::set<std::string> symbols;
+    std::unordered_set<instruction_ref> old_max_splices;
     if(has_debug_symbols())
     {
-        // gather all previous debug symbols from splices
+        // gather all previous debug symbols from max splices
         for(const auto& replacer : replacers)
         {
-            std::unordered_set<instruction_ref> old_splice = gather_splice(this, replacer.ins);
-            for(auto old_ins : old_splice)
-            {
-                copy(old_ins->get_debug_symbols(), std::inserter(symbols, symbols.begin()));
-            }
+            old_max_splices.merge(gather_max_splice(this, replacer.ins));
         }
     }
 
+    std::unordered_set<instruction_ref> new_max_splices;
     for(const auto& replacer : replacers)
     {
         auto out_shape = compute_shape(replacer.op, replacer.args, replacer.module_args);
         instruction::replace(
             replacer.ins, replacer.op, out_shape, replacer.args, replacer.module_args);
+        ret.push_back(replacer.ins);
         if(has_debug_symbols())
         {
-            std::unordered_set<instruction_ref> new_splice = gather_splice(this, replacer.ins);
-            for(auto new_ins : new_splice)
-            {
-                this->add_debug_symbols(new_ins, symbols);
-            }
+            new_max_splices.merge(gather_max_splice(this, replacer.ins));
         }
-        ret.push_back(replacer.ins);
+    }
+    if(has_debug_symbols())
+    {
+        std::unordered_set<instruction_ref> new_splices;
+        std::copy_if(
+            new_max_splices.cbegin(),
+            new_max_splices.cend(),
+            std::inserter(new_splices, new_splices.begin()),
+            [&old_max_splices](auto new_ins) { return (not contains(old_max_splices, new_ins)); });
+        // Vice versa process as new_splice for the symbols
+        std::unordered_set<instruction_ref> old_splices;
+        std::copy_if(
+            old_max_splices.cbegin(),
+            old_max_splices.cend(),
+            std::inserter(old_splices, old_splices.begin()),
+            [&new_max_splices](auto old_ins) { return (not contains(new_max_splices, old_ins)); });
+        std::set<std::string> symbols;
+        for(auto old_ins : old_splices)
+        {
+            copy(old_ins->get_debug_symbols(), std::inserter(symbols, symbols.begin()));
+        }
+        for(auto new_ins : new_splices)
+        {
+            add_debug_symbols(new_ins, symbols);
+        }
     }
     return ret;
 }

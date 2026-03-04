@@ -87,10 +87,6 @@ TEST_CASE(pw_double_add)
     EXPECT(to_string(p1) == to_string(p2));
 }
 
-// Diamond pattern: add1 feeds into both add2 and add3, which then feed
-// into add4. All four are fused into one pointwise op. Verifies that
-// symbols from every instruction in the diamond appear on the fused result.
-//
 //  Before:                       After:
 //
 //    x   y                        x   y
@@ -140,6 +136,50 @@ TEST_CASE(pw_used_twice_fused)
         mm->add_return({fadd});
     }
     EXPECT(to_string(p1.sort()) == to_string(p2.sort()));
+}
+
+// To check that the debug symbols don't propagate above the fusion
+TEST_CASE(gemm_pw)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape s2{migraphx::shape::float_type, {3, 3}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s1);
+        auto y    = mm->add_parameter("y", s1);
+        auto z    = mm->add_parameter("z", s1);
+        auto a    = mm->add_literal(migraphx::generate_literal(s2, 0));
+        auto gemm = mm->add_instruction(migraphx::make_op("dot"), x, a);
+        mm->add_debug_symbols(gemm, {"gemm1"});
+        auto add1 = mm->add_instruction(migraphx::make_op("add"), gemm, y);
+        mm->add_debug_symbols(add1, {"add1"});
+        auto add2 = mm->add_instruction(migraphx::make_op("add"), add1, z);
+        mm->add_debug_symbols(add2, {"add2"});
+        mm->add_return({add2});
+    }
+    migraphx::run_passes(p1, {migraphx::fuse_pointwise{}, migraphx::dead_code_elimination{}});
+
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s1);
+        auto y    = mm->add_parameter("y", s1);
+        auto z    = mm->add_parameter("z", s1);
+        auto a    = mm->add_literal(migraphx::generate_literal(s2, 0));
+        auto gemm = mm->add_instruction(migraphx::make_op("dot"), x, a);
+        mm->add_debug_symbols(gemm, {"gemm1"});
+        auto fadd =
+            add_pointwise(p2, "main:pointwise0", {x, y, z}, [=](auto* pm, const auto& inputs) {
+                auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+                return pm->add_instruction(migraphx::make_op("add"), add1, inputs[2]);
+            });
+        mm->add_debug_symbols(fadd, {"add1", "add2"});
+        mm->add_return({fadd});
+    }
+    // BUG straight equality is not working even though both call migraphx::to_string
+    // EXPECT(p1 == p2);
+    EXPECT(to_string(p1) == to_string(p2));
 }
 
 // Horizontal fusion of two dot ops sharing the same input via

@@ -182,6 +182,7 @@ struct miopen_apply
             else if(has_compiler_for(it->name()))
             {
                 check_shape(s, insert_precompile_op(it));
+                check_shape(s, insert_dynamic_code_object_op(it));
             }
             else if(attrs.contains("target"))
             {
@@ -240,6 +241,20 @@ struct miopen_apply
             ins,
             make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
             refs,
+            ins->module_inputs());
+    }
+
+    instruction_ref insert_dynamic_code_object_op(instruction_ref ins) const
+    {
+        assert(ins->get_operator().name() == "gpu::precompile_op");
+
+        if(not ins->get_shape().dynamic())
+            return ins;
+
+        return mod->replace_instruction(
+            ins,
+            make_op("gpu::dynamic_code_object_op", {{"pre_op", to_value(ins->get_operator())}}),
+            ins->inputs(),
             ins->module_inputs());
     }
 
@@ -337,7 +352,8 @@ struct miopen_apply
     static bool use_miopen_pooling(instruction_ref ins)
     {
         if(enabled(MIGRAPHX_DISABLE_MIOPEN_POOLING{}) or
-           not contains({shape::float_type, shape::half_type}, ins->get_shape().type()))
+           not contains({shape::float_type, shape::half_type}, ins->get_shape().type()) or
+           ins->get_shape().dynamic())
             return false;
         auto&& op   = ins->get_operator();
         auto op_val = op.to_value();
@@ -358,15 +374,19 @@ struct miopen_apply
     {
         apply_map.emplace("pooling", [=](instruction_ref ins) {
             if(not use_miopen_pooling(ins))
-                return insert_precompile_op(ins);
+            {
+                auto preop = insert_precompile_op(ins);
+                return insert_dynamic_code_object_op(preop);
+            }
 #if MIGRAPHX_USE_MIOPEN
             auto output                       = insert_allocation(ins, ins->get_shape());
             std::vector<instruction_ref> refs = ins->inputs();
             auto&& op                         = ins->get_operator();
             refs.push_back(output);
             return mod->replace_instruction(ins, make_op("gpu::pooling", op.to_value()), refs);
-#else 
-            return insert_precompile_op(ins);
+#else
+            auto preop = insert_precompile_op(ins);
+            return insert_dynamic_code_object_op(preop);
 #endif
         });
     }

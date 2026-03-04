@@ -535,6 +535,6 @@ TEST_CASE(debug_symbols_in_print)
     EXPECT(str.find("# sym_a, sym_b #") != std::string::npos);
 }
 
-//TODO make tests that directly call module::replace_instruction
+// TODO make tests that directly call module::replace_instruction
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

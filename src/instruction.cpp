@@ -484,7 +484,7 @@ void instruction::debug_print() const
     }
     if(not this->inputs().empty())
         std::cout << ")";
-    std::cout << " -> " << this->get_shape(); 
+    std::cout << " -> " << this->get_shape();
 
     // print debug symbols if they exist
     if(not debug_symbols.empty())

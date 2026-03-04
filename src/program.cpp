@@ -685,7 +685,7 @@ static std::string get_migraphx_version()
 program file version is for the data structure or format of the MXR file. Version should be bumped
 if any changes occur to the format of the MXR file.
 */
-const int program_file_version = 7;
+const int program_file_version = 8;
 
 value program::to_value() const
 {
@@ -711,6 +711,7 @@ value program::to_value() const
                 if(ins->name() == "@literal")
                     node["literal"] = migraphx::to_value(ins->get_literal());
                 node["operator"] = ins->get_operator().to_value();
+                node["debug_symbols"] = ins->get_debug_symbols();
                 std::vector<std::string> inputs;
                 std::transform(ins->inputs().begin(),
                                ins->inputs().end(),
@@ -756,6 +757,7 @@ static void mod_from_val(module_ref mod,
         auto name       = node.at("name").to<std::string>();
         auto fields     = node.at("operator");
         auto normalized = node.at("normalized").to<bool>();
+        auto debug_symbols = node.at("debug_symbols").to<std::set<std::string>>();
 
         if(name == "@param")
         {
@@ -808,6 +810,7 @@ static void mod_from_val(module_ref mod,
                 output = mod->insert_instruction(mod->end(), op, inputs, module_inputs);
             }
         }
+        output->add_debug_symbols(debug_symbols);
         output->set_normalized(normalized);
         instructions[node.at("output").to<std::string>()] = output;
     }

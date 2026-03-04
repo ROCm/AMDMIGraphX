@@ -514,7 +514,7 @@ module::batch_replace_instruction(const std::vector<instruction_replacer>& repla
             // Remove ins from old_max_splice to prevent it being in both old_max_splice and
             // new_max_slice
             ms.erase(replacer.ins);
-            old_max_splices.merge(ms);
+            old_max_splices.insert(ms.begin(), ms.end());
         }
     }
 
@@ -532,7 +532,8 @@ module::batch_replace_instruction(const std::vector<instruction_replacer>& repla
             // add symbols from replacer.ins here because we removed replacer.ins from
             // old_max_splice
             symbols.insert(ds.begin(), ds.end());
-            new_max_splices.merge(gather_max_splice(this, replacer.ins));
+            auto ms = gather_max_splice(this, replacer.ins);
+            new_max_splices.insert(ms.begin(), ms.end());
         }
     }
     if(has_debug_symbols())

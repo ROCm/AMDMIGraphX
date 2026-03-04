@@ -82,9 +82,7 @@ TEST_CASE(pw_double_add)
         mm->add_debug_symbols(fadd, {"add1", "add2"});
         mm->add_return({fadd});
     }
-    // BUG straight equality is not working even though both call migraphx::to_string
-    // EXPECT(p1 == p2);
-    EXPECT(to_string(p1) == to_string(p2));
+    EXPECT(p1 == p2);
 }
 
 //  Before:                       After:
@@ -135,7 +133,7 @@ TEST_CASE(pw_used_twice_fused)
         mm->add_debug_symbols(fadd, {"onnx:add1", "onnx:add2", "onnx:add3", "onnx:add4"});
         mm->add_return({fadd});
     }
-    EXPECT(to_string(p1.sort()) == to_string(p2.sort()));
+    EXPECT(p1.sort() == p2.sort());
 }
 
 // To check that the debug symbols don't propagate above the fusion
@@ -177,8 +175,7 @@ TEST_CASE(gemm_add_add)
         mm->add_debug_symbols(fadd, {"add1", "add2"});
         mm->add_return({fadd});
     }
-    // BUG straight equality is not working even though both call migraphx::to_string
-    EXPECT(to_string(p1) == to_string(p2));
+    EXPECT(p1 == p2);
 }
 
 // Horizontal fusion of two dot ops sharing the same input via
@@ -237,7 +234,7 @@ TEST_CASE(horiz_fusion_dot)
         m2.add_debug_symbols(sum, {"sum"});
         m2.add_return({sum});
     }
-    EXPECT(to_string(m1.sort()) == to_string(m2.sort()));
+    EXPECT(m1.sort() == m2.sort());
 }
 
 // Tests symbol propagation through add reassociation in simplify_algebra
@@ -285,7 +282,7 @@ TEST_CASE(simplify_add_debug_symbols)
         m2.add_debug_symbols(sum3, {"onnx:add0", "onnx:add1", "onnx:add2"});
         m2.add_instruction(pass_op{}, sum3);
     }
-    EXPECT(to_string(m1.sort()) == to_string(m2.sort()));
+    EXPECT(m1.sort() == m2.sort());
 }
 
 // Tests the replace_instruction(ins, rep) overload via find_unit_ops which
@@ -324,7 +321,7 @@ TEST_CASE(replace_with_insref_debug_symbols)
         m2.add_debug_symbols(relu_x, {"onnx:add", "onnx:relu"});
         m2.add_return({relu_x});
     }
-    EXPECT(to_string(m1.sort()) == to_string(m2.sort()));
+    EXPECT(m1.sort() == m2.sort());
 }
 
 // Tests that debug_symbols propagate through the dead-code chain.
@@ -366,7 +363,7 @@ TEST_CASE(gather_replace_chain_debug_symbols)
         m2.add_debug_symbols(mul_r, {"onnx:add", "onnx:relu"});
         m2.add_instruction(pass_op{}, mul_r);
     }
-    EXPECT(to_string(m1.sort()) == to_string(m2.sort()));
+    EXPECT(m1.sort() == m2.sort());
 }
 
 // Tests the distributive law transform in simplify_algebra (find_mul_add):
@@ -411,7 +408,7 @@ TEST_CASE(simplify_mul_add_debug_symbols)
         m2.add_debug_symbols(sum, {"onnx:add", "onnx:mul"});
         m2.add_instruction(pass_op{}, sum);
     }
-    EXPECT(to_string(m1.sort()) == to_string(m2.sort()));
+    EXPECT(m1.sort() == m2.sort());
 }
 
 // Tests symbol propagation through find_div_const in simplify_algebra:
@@ -455,7 +452,7 @@ TEST_CASE(simplify_div_const_debug_symbols)
         m2.add_debug_symbols(mul_r, {"onnx:div"});
         m2.add_instruction(pass_op{}, mul_r);
     }
-    EXPECT(to_string(m1.sort()) == to_string(m2.sort()));
+    EXPECT(m1.sort() == m2.sort());
 }
 
 // Three sequential adds fused into a single pointwise op via fuse_pointwise.
@@ -512,7 +509,7 @@ TEST_CASE(pw_triple_add_fused)
         mm->add_debug_symbols(fadd, {"onnx:add1", "onnx:add2", "onnx:add3"});
         mm->add_return({fadd});
     }
-    EXPECT(to_string(p1) == to_string(p2));
+    EXPECT(p1 == p2);
 }
 
 // Verifies that debug symbols appear in the module's printed/serialized

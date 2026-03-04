@@ -237,8 +237,9 @@ decltype(auto) make_lhs_expression(T&& lhs, Operator);
 #define TEST_EXPR_UNARY_OPERATOR(op, name) \
     auto operator op() const { return make_lhs_expression(lhs, name{}); /* NOLINT */ }
 
-//DEBUG
-template<class T> struct TD;
+// DEBUG
+template <class T>
+struct TD;
 
 template <class T, class U, class Operator>
 struct expression
@@ -248,21 +249,17 @@ struct expression
 
     friend std::ostream& operator<<(std::ostream& s, const expression& self)
     {
-        //DEBUG
-        //s << __PRETTY_FUNCTION__ << std::endl;
+        // DEBUG
+        // s << __PRETTY_FUNCTION__ << std::endl;
         print_stream(s, self.lhs);
         s << " " << Operator::as_string() << " ";
         print_stream(s, self.rhs);
         return s;
     }
 
-    friend decltype(auto) get_value(const expression& e) {
-        return e.value();
-    }
+    friend decltype(auto) get_value(const expression& e) { return e.value(); }
 
-    decltype(auto) value() const {
-        return Operator::call(get_value(lhs), get_value(rhs));
-    };
+    decltype(auto) value() const { return Operator::call(get_value(lhs), get_value(rhs)); };
 
     TEST_FOREACH_UNARY_OPERATORS(TEST_EXPR_UNARY_OPERATOR)
     TEST_FOREACH_BINARY_OPERATORS(TEST_EXPR_BINARY_OPERATOR)
@@ -271,21 +268,21 @@ struct expression
 template <class T, class U, class Operator>
 decltype(auto) make_expression(T&& lhs, U&& rhs, Operator)
 {
-    //rvalue references to pass by value
+    // rvalue references to pass by value
     return expression<std::decay_t<decltype(lhs)>, std::decay_t<decltype(rhs)>, Operator>{lhs, rhs};
 }
 
 template <class T>
 decltype(auto) make_lhs_expression(T&& lhs)
 {
-    //rvalue references to pass by value
+    // rvalue references to pass by value
     return lhs_expression<std::decay_t<decltype(lhs)>>{lhs};
 }
 
 template <class T, class Operator>
 decltype(auto) make_lhs_expression(T&& lhs, Operator)
 {
-    //rvalue references to pass by value
+    // rvalue references to pass by value
     return lhs_expression<std::decay_t<decltype(lhs)>, Operator>{lhs};
 }
 

@@ -344,11 +344,9 @@ instruction_ref module::insert_instruction(instruction_ref ins,
 
 /**
  * Traverse inputs of `ins` and gather instructions that output only to `ins`.
- * This splice is the total possibility of instructions that could be spliced by a
- * replace_instruction.
+ * This splice is the total possibility of instructions that could be spliced by a replace_instruction.
  **/
-static std::unordered_set<instruction_ref> gather_max_splice(const_module_ref m,
-                                                             instruction_ref ins)
+static std::unordered_set<instruction_ref> gather_max_splice(const_module_ref m, instruction_ref ins)
 {
     std::unordered_set<instruction_ref> result = {ins};
     fix<void>([&](auto self, const std::vector<instruction_ref>& inputs) {
@@ -370,27 +368,25 @@ static std::unordered_set<instruction_ref> gather_max_splice(const_module_ref m,
     return result;
 }
 
-void propagate_debug_symbols(const_module_ref m,
-                             instruction_ref ins,
-                             const std::unordered_set<instruction_ref> old_max_splice)
+void propagate_debug_symbols(const_module_ref m, instruction_ref ins, std::unordered_set<instruction_ref> old_max_splice)
 {
+    // Remove ins from old_max_splice, if it is there. To prevent it being in both old_max_splice and new_max_slice.
+    old_max_splice.erase(ins);
     std::unordered_set<instruction_ref> new_max_splice = gather_max_splice(m, ins);
-    // Remove instructions from new_max_splice that are also in old_max_splice to get the actual
-    // new_splice set notation: {new_max_splice} - {old_max_splice}
-    std::unordered_set<instruction_ref> new_splice;
-    std::copy_if(
-        new_max_splice.cbegin(),
-        new_max_splice.cend(),
-        std::inserter(new_splice, new_splice.begin()),
-        [&old_max_splice](auto new_ins) { return (not contains(old_max_splice, new_ins)); });
-    // Vice versa process as new_splice
+    // Remove instructions from old_max_splice that are also in new_max_splice to get the actual old_splice
+    // set notation: old_splice = {old_max_splice} - {new_max_splice}
     std::unordered_set<instruction_ref> old_splice;
-    std::copy_if(
-        old_max_splice.cbegin(),
-        old_max_splice.cend(),
-        std::inserter(old_splice, old_splice.begin()),
-        [&new_max_splice](auto old_ins) { return (not contains(new_max_splice, old_ins)); });
-    std::set<std::string> symbols;
+    std::copy_if(old_max_splice.cbegin(),
+                 old_max_splice.cend(),
+                 std::inserter(old_splice, old_splice.begin()),
+                 [&new_max_splice](auto old_ins){ return (not contains(new_max_splice, old_ins)); });
+    // Vice versa process
+    std::unordered_set<instruction_ref> new_splice;
+    std::copy_if(new_max_splice.cbegin(),
+                 new_max_splice.cend(),
+                 std::inserter(new_splice, new_splice.begin()),
+                 [&old_max_splice](auto new_ins){ return (not contains(old_max_splice, new_ins)); });
+    std::set<std::string> symbols = ins->get_debug_symbols();
     for(auto old_ins : old_splice)
     {
         copy(old_ins->get_debug_symbols(), std::inserter(symbols, symbols.begin()));
@@ -418,7 +414,7 @@ instruction_ref module::replace_instruction(instruction_ref ins,
     instruction::replace(ins, op, r, std::move(args));
     if(has_debug_symbols())
     {
-        propagate_debug_symbols(this, ins, old_max_splice);
+        propagate_debug_symbols(this, ins, std::move(old_max_splice));
     }
     assert(ins->valid(begin()));
     return ins;
@@ -441,7 +437,7 @@ instruction_ref module::replace_instruction(instruction_ref ins,
     instruction::replace(ins, op, out_shape, std::move(args), std::move(module_args));
     if(has_debug_symbols())
     {
-        propagate_debug_symbols(this, ins, old_max_splice);
+        propagate_debug_symbols(this, ins, std::move(old_max_splice));
     }
     assert(ins->valid(begin()));
     return ins;
@@ -465,11 +461,13 @@ instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref
     {
         return rep;
     }
-
+    
     if(has_debug_symbols())
     {
         auto old_max_splice = gather_max_splice(this, ins);
-        propagate_debug_symbols(this, rep, old_max_splice);
+        // Remove rep incase it shows up in old_max_splice
+        old_max_splice.erase(rep);
+        propagate_debug_symbols(this, rep, std::move(old_max_splice));
     }
     // Make a copy of outputs which can be changed when calling replace_argument
     auto outputs = ins->outputs();
@@ -504,10 +502,14 @@ module::batch_replace_instruction(const std::vector<instruction_replacer>& repla
         // gather all previous debug symbols from max splices
         for(const auto& replacer : replacers)
         {
-            old_max_splices.merge(gather_max_splice(this, replacer.ins));
+            auto ms = gather_max_splice(this, replacer.ins);
+            // Remove ins from old_max_splice to prevent it being in both old_max_splice and new_max_slice
+            ms.erase(replacer.ins);
+            old_max_splices.merge(ms);
         }
     }
 
+    std::set<std::string> symbols;
     std::unordered_set<instruction_ref> new_max_splices;
     for(const auto& replacer : replacers)
     {
@@ -517,25 +519,24 @@ module::batch_replace_instruction(const std::vector<instruction_replacer>& repla
         ret.push_back(replacer.ins);
         if(has_debug_symbols())
         {
+            auto ds = replacer.ins->get_debug_symbols();
+            // add symbols from replacer.ins here because we removed replacer.ins from old_max_splice
+            symbols.insert(ds.begin(), ds.end());
             new_max_splices.merge(gather_max_splice(this, replacer.ins));
         }
     }
     if(has_debug_symbols())
     {
         std::unordered_set<instruction_ref> new_splices;
-        std::copy_if(
-            new_max_splices.cbegin(),
-            new_max_splices.cend(),
-            std::inserter(new_splices, new_splices.begin()),
-            [&old_max_splices](auto new_ins) { return (not contains(old_max_splices, new_ins)); });
-        // Vice versa process as new_splice for the symbols
+        std::copy_if(new_max_splices.cbegin(),
+                     new_max_splices.cend(),
+                     std::inserter(new_splices, new_splices.begin()),
+                     [&old_max_splices](auto new_ins){ return (not contains(old_max_splices, new_ins)); });
         std::unordered_set<instruction_ref> old_splices;
-        std::copy_if(
-            old_max_splices.cbegin(),
-            old_max_splices.cend(),
-            std::inserter(old_splices, old_splices.begin()),
-            [&new_max_splices](auto old_ins) { return (not contains(new_max_splices, old_ins)); });
-        std::set<std::string> symbols;
+        std::copy_if(old_max_splices.cbegin(),
+                     old_max_splices.cend(),
+                     std::inserter(old_splices, old_splices.begin()),
+                     [&new_max_splices](auto old_ins){ return (not contains(new_max_splices, old_ins)); });
         for(auto old_ins : old_splices)
         {
             copy(old_ins->get_debug_symbols(), std::inserter(symbols, symbols.begin()));

@@ -139,7 +139,7 @@ TEST_CASE(pw_used_twice_fused)
 }
 
 // To check that the debug symbols don't propagate above the fusion
-TEST_CASE(gemm_pw)
+TEST_CASE(gemm_add_add)
 {
     migraphx::shape s1{migraphx::shape::float_type, {2, 3}};
     migraphx::shape s2{migraphx::shape::float_type, {3, 3}};
@@ -170,7 +170,7 @@ TEST_CASE(gemm_pw)
         auto gemm = mm->add_instruction(migraphx::make_op("dot"), x, a);
         mm->add_debug_symbols(gemm, {"gemm1"});
         auto fadd =
-            add_pointwise(p2, "main:pointwise0", {x, y, z}, [=](auto* pm, const auto& inputs) {
+            add_pointwise(p2, "main:pointwise0", {gemm, y, z}, [=](auto* pm, const auto& inputs) {
                 auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
                 return pm->add_instruction(migraphx::make_op("add"), add1, inputs[2]);
             });
@@ -178,7 +178,6 @@ TEST_CASE(gemm_pw)
         mm->add_return({fadd});
     }
     // BUG straight equality is not working even though both call migraphx::to_string
-    // EXPECT(p1 == p2);
     EXPECT(to_string(p1) == to_string(p2));
 }
 
@@ -297,11 +296,9 @@ TEST_CASE(simplify_add_debug_symbols)
 //    x     0                       x
 //    |     |                       |
 //  relu   bcast                  relu  {add, relu}
-//  {relu} (0.0)                    |
-//     \   /                       pass
+//  {relu} (0.0)
+//     \   /
 //     add  {add}
-//      |
-//     pass
 //
 TEST_CASE(replace_with_insref_debug_symbols)
 {
@@ -316,7 +313,7 @@ TEST_CASE(replace_with_insref_debug_symbols)
         m1.add_debug_symbols(relu_x, {"onnx:relu"});
         auto add_r = m1.add_instruction(migraphx::make_op("add"), relu_x, bcast);
         m1.add_debug_symbols(add_r, {"onnx:add"});
-        m1.add_instruction(pass_op{}, add_r);
+        m1.add_return({add_r});
     }
     migraphx::run_passes(m1, {migraphx::simplify_algebra{}, migraphx::dead_code_elimination{}});
 
@@ -325,7 +322,7 @@ TEST_CASE(replace_with_insref_debug_symbols)
         auto x      = m2.add_parameter("x", {migraphx::shape::float_type, {2, 3}});
         auto relu_x = m2.add_instruction(migraphx::make_op("relu"), x);
         m2.add_debug_symbols(relu_x, {"onnx:add", "onnx:relu"});
-        m2.add_instruction(pass_op{}, relu_x);
+        m2.add_return({relu_x});
     }
     EXPECT(to_string(m1.sort()) == to_string(m2.sort()));
 }
@@ -537,5 +534,7 @@ TEST_CASE(debug_symbols_in_print)
     auto str = migraphx::to_string(m);
     EXPECT(str.find("# sym_a, sym_b #") != std::string::npos);
 }
+
+//TODO make tests that directly call module::replace_instruction
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -484,7 +484,14 @@ void instruction::debug_print() const
     }
     if(not this->inputs().empty())
         std::cout << ")";
-    std::cout << " -> " << this->get_shape() << std::endl;
+    std::cout << " -> " << this->get_shape(); 
+
+    // print debug symbols if they exist
+    if(not debug_symbols.empty())
+    {
+        std::cout << " # " << join_strings(debug_symbols, ", ") << " #";
+    }
+    std::cout << std::endl;
 }
 
 std::vector<instruction_ref> instruction::get_output_alias(instruction_ref ins, bool shallow)

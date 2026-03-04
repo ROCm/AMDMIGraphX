@@ -26,9 +26,9 @@
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/dfor.hpp>
 #include <migraphx/par_for.hpp>
+#include <algorithm>
 #include <numeric>
 #include <vector>
-
 
 #if MIGRAPHX_USE_EIGEN
 #include <Eigen/Core>
@@ -65,148 +65,105 @@ template <class T, class U>
 #if MIGRAPHX_USE_EIGEN
 
 using eigen_row_major = Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
-using eigen_col_major = Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>;
 using eigen_stride    = Eigen::Stride<Eigen::Dynamic, Eigen::Dynamic>;
 
-template <class T>
-auto make_eigen_map(T* ptr, const shape& s)
+struct batch_slicer
 {
-    auto dim_0     = s.ndim() - 2;
-    auto dim_1     = s.ndim() - 1;
-    auto rows      = static_cast<Eigen::Index>(s.lens()[dim_0]);
-    auto cols      = static_cast<Eigen::Index>(s.lens()[dim_1]);
-    auto rowstride = static_cast<Eigen::Index>(s.strides()[dim_0]);
-    auto colstride = static_cast<Eigen::Index>(s.strides()[dim_1]);
+    batch_slicer(const shape& mat_shape)
+    {
+        auto n_batch_dims = mat_shape.ndim() - 2;
+        inner_shape = shape{mat_shape.type(),
+                            {mat_shape.lens().end() - 2, mat_shape.lens().end()},
+                            {mat_shape.strides().end() - 2, mat_shape.strides().end()}};
+        if(n_batch_dims > 0)
+        {
+            outer_shape = shape{mat_shape.type(),
+                                {mat_shape.lens().begin(), mat_shape.lens().begin() + n_batch_dims},
+                                {mat_shape.strides().begin(), mat_shape.strides().begin() + n_batch_dims}};
+        }
+    }
+
+    template <class T>
+    tensor_view<T> extract(tensor_view<T> view, std::size_t batch) const
+    {
+        std::size_t offset = 0;
+        if(not outer_shape.lens().empty())
+            offset = outer_shape.index(batch);
+        return make_view(inner_shape, view.data() + offset);
+    }
+
+    std::size_t num_batches() const
+    {
+        if(outer_shape.lens().empty())
+            return 1;
+        return outer_shape.elements();
+    }
+
+    shape inner_shape;
+    shape outer_shape;
+};
+
+template <class T>
+auto make_eigen_map(tensor_view<T> view)
+{
+    const auto& s = view.get_shape();
+    auto dim_0    = s.ndim() - 2;
+    auto dim_1    = s.ndim() - 1;
+    Eigen::Index rows      = s.lens()[dim_0];
+    Eigen::Index cols      = s.lens()[dim_1];
+    Eigen::Index rowstride = s.strides()[dim_0];
+    Eigen::Index colstride = s.strides()[dim_1];
     return Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>,
                       Eigen::Unaligned,
-                      eigen_stride>{ptr, rows, cols, eigen_stride{rowstride, colstride}};
-}
-
-bool is_mat_layout_supported(const shape& s)
-{
-    if(s.ndim() < 2)
-        return false;
-    auto dim_0 = s.ndim() - 2;
-    auto dim_1 = s.ndim() - 1;
-    return s.strides()[dim_1] == 1 or s.strides()[dim_0] == 1;
-}
-
-shape make_batch_shape(const shape& s, std::size_t n_batch_dims)
-{
-    return {s.type(),
-            {s.lens().begin(), s.lens().begin() + n_batch_dims},
-            {s.strides().begin(), s.strides().begin() + n_batch_dims}};
-}
-
-template <class T, class U>
-void copy_2d(T* dst,
-             std::size_t dst_row_stride,
-             std::size_t dst_col_stride,
-             const U* src,
-             std::size_t src_row_stride,
-             std::size_t src_col_stride,
-             std::size_t rows,
-             std::size_t cols)
-{
-    shape mat_shape{shape::float_type, {rows, cols}};
-    shape_for_each(mat_shape, [&](const auto& idx) {
-        auto i = idx[0];
-        auto j = idx[1];
-        dst[i * dst_row_stride + j * dst_col_stride] =
-            static_cast<T>(src[i * src_row_stride + j * src_col_stride]);
-    });
+                      eigen_stride>{view.data(), rows, cols, eigen_stride{rowstride, colstride}};
 }
 
 template <class T>
-constexpr bool is_eigen_native_type()
+void eigen_multiply(tensor_view<T> cmat, tensor_view<T> amat, tensor_view<T> bmat)
 {
-    return std::is_same<T, float>{} or std::is_same<T, double>{};
+    batch_slicer slicer(cmat.get_shape());
+    batch_slicer a_slicer(amat.get_shape());
+    batch_slicer b_slicer(bmat.get_shape());
+
+    for(std::size_t batch = 0; batch < slicer.num_batches(); batch++)
+    {
+        auto a_slice = a_slicer.extract(amat, batch);
+        auto b_slice = b_slicer.extract(bmat, batch);
+        auto c_slice = slicer.extract(cmat, batch);
+
+        auto a = make_eigen_map(a_slice);
+        auto b = make_eigen_map(b_slice);
+        auto c = make_eigen_map(c_slice);
+        c.noalias() = a * b;
+    }
 }
 
 template <class T, class U>
 void gemm_eigen(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat)
 {
-    std::size_t n_dims = cmat.get_shape().ndim();
-    std::size_t dim_0  = n_dims - 2;
-    std::size_t dim_1  = n_dims - 1;
-
-    auto m_size = amat.get_shape().lens()[dim_0];
-    auto k_size = amat.get_shape().lens()[dim_1];
-    auto n_size = bmat.get_shape().lens()[dim_1];
-
-    const auto& clens = cmat.get_shape().lens();
-    auto num_batches =
-        std::accumulate(clens.begin(), clens.begin() + dim_0, std::size_t{1}, std::multiplies<>{});
-
-    auto a_batch = make_batch_shape(amat.get_shape(), dim_0);
-    auto b_batch = make_batch_shape(bmat.get_shape(), dim_0);
-    auto c_batch = make_batch_shape(cmat.get_shape(), dim_0);
-
-    if constexpr(is_eigen_native_type<U>() and std::is_same<T, U>{})
+    if constexpr(std::is_same<T, U>{} and (std::is_same<T, float>{} or std::is_same<T, double>{}))
     {
-        if(is_mat_layout_supported(amat.get_shape()) and
-           is_mat_layout_supported(bmat.get_shape()) and is_mat_layout_supported(cmat.get_shape()))
-        {
-            for(std::size_t batch = 0; batch < num_batches; batch++)
-            {
-                auto a = make_eigen_map(amat.data() + a_batch.index(batch), amat.get_shape());
-                auto b = make_eigen_map(bmat.data() + b_batch.index(batch), bmat.get_shape());
-                auto c = make_eigen_map(cmat.data() + c_batch.index(batch), cmat.get_shape());
-                c.noalias() = a * b;
-            }
-            return;
-        }
+        eigen_multiply(cmat, amat, bmat);
     }
-
-    const auto row_col_strides = [&](const auto& mat) {
-        const auto& strides = mat.get_shape().strides();
-        return std::pair{strides[dim_0], strides[dim_1]};
-    };
-
-    const auto [a_row_stride, a_col_stride] = row_col_strides(amat);
-    const auto [b_row_stride, b_col_stride] = row_col_strides(bmat);
-    const auto [c_row_stride, c_col_stride] = row_col_strides(cmat);
-
-    std::vector<float> a_buf(m_size * k_size);
-    std::vector<float> b_buf(k_size * n_size);
-    std::vector<float> c_buf(m_size * n_size);
-
-    auto mi = static_cast<Eigen::Index>(m_size);
-    auto ki = static_cast<Eigen::Index>(k_size);
-    auto ni = static_cast<Eigen::Index>(n_size);
-
-    for(std::size_t batch = 0; batch < num_batches; batch++)
+    else
     {
-        copy_2d(a_buf.data(),
-                k_size,
-                std::size_t{1},
-                amat.data() + a_batch.index(batch),
-                a_row_stride,
-                a_col_stride,
-                m_size,
-                k_size);
-        copy_2d(b_buf.data(),
-                n_size,
-                std::size_t{1},
-                bmat.data() + b_batch.index(batch),
-                b_row_stride,
-                b_col_stride,
-                k_size,
-                n_size);
+        std::vector<float> a_buf(amat.get_shape().elements());
+        std::copy(amat.begin(), amat.end(), a_buf.begin());
+        auto amat_flat = make_view(
+            amat.get_shape().as_standard().with_type(shape::float_type), a_buf.data());
 
-        Eigen::Map<eigen_row_major> a(a_buf.data(), mi, ki);
-        Eigen::Map<eigen_row_major> b(b_buf.data(), ki, ni);
-        Eigen::Map<eigen_row_major> c(c_buf.data(), mi, ni);
-        c.noalias() = a * b;
+        std::vector<float> b_buf(bmat.get_shape().elements());
+        std::copy(bmat.begin(), bmat.end(), b_buf.begin());
+        auto bmat_flat = make_view(
+            bmat.get_shape().as_standard().with_type(shape::float_type), b_buf.data());
 
-        copy_2d(cmat.data() + c_batch.index(batch),
-                c_row_stride,
-                c_col_stride,
-                c_buf.data(),
-                n_size,
-                std::size_t{1},
-                m_size,
-                n_size);
+        std::vector<float> c_buf(cmat.get_shape().elements(), 0.0f);
+        auto c_shape_std = cmat.get_shape().as_standard().with_type(shape::float_type);
+        auto cmat_flat   = make_view(c_shape_std, c_buf.data());
+
+        eigen_multiply(cmat_flat, amat_flat, bmat_flat);
+
+        std::copy(c_buf.begin(), c_buf.end(), cmat.begin());
     }
 }
 
@@ -239,7 +196,6 @@ void gemm(const argument& c_arg, const argument& a_arg, const argument& b_arg)
     gemm_ref(
         c_arg, a_arg, b_arg, [](auto cmat, auto amat, auto bmat) { gemm_naive(cmat, amat, bmat); });
 #endif
-
 }
 
 } // namespace MIGRAPHX_INLINE_NS

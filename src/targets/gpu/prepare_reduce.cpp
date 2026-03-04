@@ -64,9 +64,7 @@ struct arg_reduce
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.op, "op"));
-    }
+    { return pack(f(self.op, "op")); }
 
     std::string name() const { return "gpu::arg_reduce"; }
 
@@ -85,16 +83,12 @@ struct make_indices
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.size, "size"));
-    }
+    { return pack(f(self.size, "size")); }
 
     std::string name() const { return "gpu::make_indices"; }
 
     shape compute_shape(const std::vector<shape>&) const
-    {
-        return shape{shape::uint32_type, {size}};
-    }
+    { return shape{shape::uint32_type, {size}}; }
 };
 MIGRAPHX_REGISTER_OP(make_indices);
 

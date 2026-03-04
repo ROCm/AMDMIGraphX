@@ -31,9 +31,7 @@
 #include <test.hpp>
 
 static void run_pass(migraphx::module& m)
-{
-    migraphx::run_passes(m, {migraphx::gpu::prepare_reduce{}, migraphx::dead_code_elimination{}});
-}
+{ migraphx::run_passes(m, {migraphx::gpu::prepare_reduce{}, migraphx::dead_code_elimination{}}); }
 
 // Helper to add the arg_reduce pattern: make_indices -> arg_reduce -> get_tuple_elem
 static migraphx::instruction_ref add_arg_reduce(migraphx::module& m,

@@ -102,21 +102,15 @@ struct dynamic_code_object_op
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.pre_op, "pre_op"));
-    }
+    { return pack(f(self.pre_op, "pre_op")); }
 
     std::string name() const { return "gpu::dynamic_code_object_op"; }
 
     shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>& mods) const
-    {
-        return pre_op.compute_shape(inputs, mods);
-    }
+    { return pre_op.compute_shape(inputs, mods); }
 
     std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
-    {
-        return {shapes.size() - 1};
-    }
+    { return {shapes.size() - 1}; }
     std::unordered_map<std::string, argument> build_param_map(const std::vector<argument>& args,
                                                               const_module_ref mod) const
     {

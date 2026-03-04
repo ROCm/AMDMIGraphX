@@ -131,6 +131,8 @@ struct MIGRAPHX_EXPORT module
     instruction_ref move_instruction(instruction_ref src, instruction_ref dst);
     instruction_ref move_instructions(instruction_ref src, instruction_ref dst);
 
+    void move_output_instructions_after(instruction_ref src, instruction_ref dst);
+
     std::vector<instruction_ref>
     add_instructions(const std::vector<instruction_ref>& instructions,
                      std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
@@ -326,6 +328,12 @@ struct MIGRAPHX_EXPORT module
     void annotate(std::ostream& os, std::function<void(instruction_ref)> a) const;
 
     std::vector<module_ref> get_sub_modules(bool shallow = false) const;
+
+    /* Creates a new module with the same instructions but with different input parameter shapes.
+     Returns the new module by value without modifying the original.
+    */
+    module with_static_shapes(const std::unordered_map<std::string, shape>& input_shapes);
+
     /* sorts the module in topological order aka reverse-post order (RPO) DFS order
        it takes last instruction or @return as the root and walks back the graph and moves inputs
        of the each instruction such that it appears before the instruction itself.

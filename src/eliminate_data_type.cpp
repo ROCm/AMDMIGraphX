@@ -99,7 +99,9 @@ static void insert_convert_to_supported_type(module& m,
 
 void eliminate_data_type::apply(module& m) const
 {
-    static const std::vector<std::string> skip_op_names = {"convert",
+    static const std::vector<std::string> skip_op_names = {"addressof",
+                                                           "convert",
+                                                           "deref",
                                                            "get_tuple_elem",
                                                            "if",
                                                            "loop",

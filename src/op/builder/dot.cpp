@@ -1,5 +1,4 @@
-/*
- * The MIT License (MIT)
+/* The MIT License (MIT)
  *
  * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
@@ -22,24 +21,48 @@
  * THE SOFTWARE.
  */
 
-#include <migraphx/onnx/quantize_dequantize_linear.hpp>
-#include <migraphx/op/builder/quantize_dequantize_linear.hpp>
+#include <migraphx/op/builder/op_builder.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/op/builder/broadcast_dimensions.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace onnx {
+namespace op {
+namespace builder {
 
-std::vector<instruction_ref>
-transform_quantize_dequantize_linear_inputs(const onnx_parser::node_info& info,
-                                            const std::string& onnx_name,
-                                            int block_size,
-                                            int axis,
-                                            std::vector<instruction_ref> args)
+namespace detail {
+static std::vector<instruction_ref>
+insert(module& m, const std::string& name, const std::vector<instruction_ref>& args)
 {
-    return op::builder::transform_quantize_dequantize_linear_inputs(
-        info, onnx_name, block_size, axis, std::move(args));
-}
+    auto a0  = args[0];
+    auto a1  = args[1];
+    auto ba0 = args.size() > 2 ? args[2] : a0;
+    auto ba1 = args.size() > 3 ? args[3] : a1;
 
-} // namespace onnx
+    op::builder::broadcast_dimensions(m, a0, a1, ba0, ba1);
+    return {m.add_instruction(make_op(name), ba0, ba1)};
+}
+} // namespace detail
+
+struct dot : op_builder<dot>
+{
+    std::vector<instruction_ref>
+    insert(module& m, instruction_ref /*ins*/, const std::vector<instruction_ref>& args) const
+    {
+        return detail::insert(m, name(), args);
+    }
+};
+
+struct quant_dot : op_builder<quant_dot>
+{
+    std::vector<instruction_ref>
+    insert(module& m, instruction_ref /*ins*/, const std::vector<instruction_ref>& args) const
+    {
+        return detail::insert(m, name(), args);
+    }
+};
+
+} // namespace builder
+} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

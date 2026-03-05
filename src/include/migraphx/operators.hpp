@@ -71,6 +71,7 @@
 #include <migraphx/op/identity.hpp>
 #include <migraphx/op/if_op.hpp>
 #include <migraphx/op/im2col.hpp>
+#include <migraphx/op/insert_slice.hpp>
 #include <migraphx/op/isnan.hpp>
 #include <migraphx/op/leaky_relu.hpp>
 #include <migraphx/op/less.hpp>

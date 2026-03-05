@@ -631,13 +631,6 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
         {
             mod->debug_print(added_instructions);
         }
-
-        output_num = std::min<std::size_t>(output_num, result.size());
-        std::transform(node.output().begin(),
-                       node.output().begin() + output_num,
-                       result.begin(),
-                       std::inserter(instructions, instructions.end()),
-                       [](auto&& x, auto&& y) { return std::make_pair(x, y); });
     }
 
     // Find instructions corresponding to the output

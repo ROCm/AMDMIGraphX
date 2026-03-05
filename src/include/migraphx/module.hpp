@@ -374,7 +374,6 @@ struct MIGRAPHX_EXPORT module
     friend bool operator!=(const module& x, const module& y) { return not(x == y); }
 
     friend struct program;
-    friend struct scoped_debug_symbols;
 
     private:
     void set_name(const std::string& name);
@@ -383,8 +382,6 @@ struct MIGRAPHX_EXPORT module
                             const module& pmod,
                             instruction_ref ins,
                             ins_dep_map& deps) const;
-    void propagate_replace_debug_symbols(instruction_ref rep_ins,
-                                         const std::set<std::string>& debug_symbols);
 
     std::unique_ptr<module_impl> impl;
 };

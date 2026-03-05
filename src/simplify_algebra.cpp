@@ -1708,8 +1708,6 @@ struct find_conv_dot_horiz_fusion
             int64_t offset = 0;
             for(auto arg : range(start, last))
             {
-                auto outputs = arg->outputs();
-
                 int64_t len = arg->get_shape().lens()[axis];
                 auto slice_op = make_op(
                     "slice", {{"axes", {axis}}, {"starts", {offset}}, {"ends", {offset + len}}});

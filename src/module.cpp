@@ -160,6 +160,8 @@ bool module::has_debug_symbols() const { return impl->num_ins_with_debug_symbols
 
 void module::add_debug_symbols(instruction_ref ins, const std::set<std::string>& symbols) const
 {
+    if(symbols.empty())
+        return;
     if(ins->get_debug_symbols().empty())
     {
         impl->num_ins_with_debug_symbols++;
@@ -231,7 +233,7 @@ void module::assign(const module& m)
                 copy_ins = add_instruction(ins->get_operator(), copy_inputs, module_args);
             }
         }
-
+        copy_ins->add_debug_symbols(ins->get_debug_symbols());
         ins_map[ins] = copy_ins;
     }
 }

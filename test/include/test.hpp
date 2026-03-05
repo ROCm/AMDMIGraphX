@@ -237,10 +237,6 @@ decltype(auto) make_lhs_expression(T&& lhs, Operator);
 #define TEST_EXPR_UNARY_OPERATOR(op, name) \
     auto operator op() const { return make_lhs_expression(lhs, name{}); /* NOLINT */ }
 
-// DEBUG
-template <class T>
-struct TD;
-
 template <class T, class U, class Operator>
 struct expression
 {
@@ -249,8 +245,6 @@ struct expression
 
     friend std::ostream& operator<<(std::ostream& s, const expression& self)
     {
-        // DEBUG
-        // s << __PRETTY_FUNCTION__ << std::endl;
         print_stream(s, self.lhs);
         s << " " << Operator::as_string() << " ";
         print_stream(s, self.rhs);
@@ -290,7 +284,7 @@ template <class T, class Operator>
 struct lhs_expression
 {
     T lhs;
-    explicit lhs_expression(T e) : lhs(std::move(e)) {}
+    explicit lhs_expression(const T& e) : lhs(e) {}
 
     friend std::ostream& operator<<(std::ostream& s, const lhs_expression& self)
     {

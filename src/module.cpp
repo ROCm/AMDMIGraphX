@@ -371,9 +371,9 @@ static std::unordered_set<instruction_ref> gather_max_splice(const_module_ref m,
     return result;
 }
 
-void propagate_debug_symbols(const_module_ref m,
-                             instruction_ref ins,
-                             std::unordered_set<instruction_ref> old_max_splice)
+static void propagate_debug_symbols(const_module_ref m,
+                                    instruction_ref ins,
+                                    std::unordered_set<instruction_ref> old_max_splice)
 {
     // Remove ins from old_max_splice, if it is there. To prevent it being in both old_max_splice
     // and new_max_slice.

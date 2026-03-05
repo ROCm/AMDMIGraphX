@@ -1043,10 +1043,10 @@ void program::perf_report(
     os << percentile_90_time << "ms, " << percentile_95_time << "ms, " << percentile_99_time
        << "ms)" << std::endl;
     os << "Total instructions time: " << total_instruction_time << "ms" << std::endl;
-    os << "Overhead time: " << overhead_time << "ms"
-       << ", " << calculate_overhead_time << "ms" << std::endl;
-    os << "Overhead: " << std::round(overhead_percent) << "%"
-       << ", " << std::round(calculate_overhead_percent) << "%" << std::endl;
+    os << "Overhead time: " << overhead_time << "ms" << ", " << calculate_overhead_time << "ms"
+       << std::endl;
+    os << "Overhead: " << std::round(overhead_percent) << "%" << ", "
+       << std::round(calculate_overhead_percent) << "%" << std::endl;
 }
 
 void program::debug_print() const { std::cout << *this << std::endl; }
@@ -1371,7 +1371,9 @@ program& program::sort()
 }
 
 bool operator==(const program& x, const program& y)
-{ return migraphx::to_string(x) == migraphx::to_string(y); }
+{
+    return migraphx::to_string(x) == migraphx::to_string(y);
+}
 
 std::ostream& operator<<(std::ostream& os, const program& p)
 {

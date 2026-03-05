@@ -57,9 +57,9 @@ TEST_CASE(pw_double_add)
     migraphx::program p1;
     {
         auto* mm                       = p1.get_main_module();
-        auto x = mm->add_parameter("x", s);
-        auto y = mm->add_parameter("y", s);
-        auto z = mm->add_parameter("z", s);
+        auto x                         = mm->add_parameter("x", s);
+        auto y                         = mm->add_parameter("y", s);
+        auto z                         = mm->add_parameter("z", s);
         migraphx::instruction_ref add1 = mm->add_instruction(migraphx::make_op("add"), x, y);
         mm->add_debug_symbols(add1, {"add1"});
         migraphx::instruction_ref add2 = mm->add_instruction(migraphx::make_op("add"), add1, z);
@@ -71,9 +71,9 @@ TEST_CASE(pw_double_add)
     migraphx::program p2;
     {
         auto* mm = p2.get_main_module();
-        auto x = mm->add_parameter("x", s);
-        auto y = mm->add_parameter("y", s);
-        auto z = mm->add_parameter("z", s);
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto z   = mm->add_parameter("z", s);
         auto fadd =
             add_pointwise(p2, "main:pointwise0", {x, y, z}, [=](auto* pm, const auto& inputs) {
                 auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
@@ -490,10 +490,10 @@ TEST_CASE(pw_triple_add_fused)
     migraphx::program p2;
     {
         auto* mm = p2.get_main_module();
-        auto x = mm->add_parameter("x", s);
-        auto y = mm->add_parameter("y", s);
-        auto z = mm->add_parameter("z", s);
-        auto w = mm->add_parameter("w", s);
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto z   = mm->add_parameter("z", s);
+        auto w   = mm->add_parameter("w", s);
         auto fadd =
             add_pointwise(p2, "main:pointwise0", {x, y, z, w}, [=](auto* pm, const auto& inputs) {
                 auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);

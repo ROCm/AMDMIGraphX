@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -125,7 +125,6 @@ struct miopen_apply
         add_reshape_lazy_op();
         add_concat_past_present_op();
         add_scan_slice_op();
-        add_dynamic_range_op();
     }
 
     void copy_params() const
@@ -477,26 +476,6 @@ struct miopen_apply
     void add_convolution_backwards_op()
     {
         apply_map.emplace("convolution_backwards", [=](instruction_ref ins) {
-            auto s      = ins->get_shape();
-            auto output = insert_allocation(ins, s);
-            std::vector<instruction_ref> cpu_inputs;
-            auto inputs = ins->inputs();
-            std::transform(
-                inputs.begin(), inputs.end(), std::back_inserter(cpu_inputs), [&](auto in) {
-                    return mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), in);
-                });
-            cpu_inputs.front() =
-                mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs);
-            auto cpu_out = mod->insert_instruction(ins, ins->get_operator(), cpu_inputs);
-            auto gpu_out =
-                mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), cpu_out, output);
-            return mod->replace_instruction(ins, gpu_out);
-        });
-    }
-
-    void add_dynamic_range_op()
-    {
-        apply_map.emplace("dynamic_range", [=](instruction_ref ins) {
             auto s      = ins->get_shape();
             auto output = insert_allocation(ins, s);
             std::vector<instruction_ref> cpu_inputs;

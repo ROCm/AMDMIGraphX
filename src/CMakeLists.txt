@@ -129,7 +129,6 @@ add_library(migraphx
     rewrite_low_precision.cpp
     rewrite_pooling.cpp
     rewrite_quantization.cpp
-    rewrite_rnn.cpp
     rewrite_topk.cpp
     schedule.cpp
     serialize.cpp
@@ -219,7 +218,6 @@ register_migraphx_ops(
     gqa_rotary_embedding
     greater
     group
-    gru
     identity
     if_op
     im2col
@@ -237,7 +235,6 @@ register_migraphx_ops(
     logsoftmax
     loop
     lrn
-    lstm
     max
     min
     mod
@@ -276,9 +273,6 @@ register_migraphx_ops(
     reshape_lazy
     resize
     reverse
-    rnn
-    rnn_last_cell_output
-    rnn_last_hs_output
     rnn_var_sl_last_output
     roialign
     rsqrt

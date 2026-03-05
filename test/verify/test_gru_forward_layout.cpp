@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,6 +30,7 @@
 #include <migraphx/serialize.hpp>
 
 #include <migraphx/op/common.hpp>
+#include <migraphx/op/builder/insert.hpp>
 
 struct test_gru_forward_layout : verify_program<test_gru_forward_layout>
 {
@@ -40,7 +41,6 @@ struct test_gru_forward_layout : verify_program<test_gru_forward_layout>
         std::size_t hidden_size = 5;
         std::size_t input_size  = 8;
         std::size_t num_dirct   = 1;
-        float clip              = 0.0f;
 
         migraphx::program p;
         auto* mm = p.get_main_module();
@@ -63,25 +63,18 @@ struct test_gru_forward_layout : verify_program<test_gru_forward_layout>
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
 
-        auto hs = mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
-                                                                      migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
-        auto lho = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
+        auto results = migraphx::op::builder::add(
+            "gru",
+            *mm,
+            {seq, w, r, bias, und, ih},
+            {{"actv_func",
+              migraphx::to_value({migraphx::make_op("sigmoid"), migraphx::make_op("tanh")})},
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
-        hs  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), hs);
-        lho = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), lho);
+        auto hs  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}),
+                                      results.at(0));
+        auto lho = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}),
+                                       results.at(1));
         mm->add_return({lho, hs});
 
         return p;

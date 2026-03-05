@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,6 +24,7 @@
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/onnx/map_activation_functions.hpp>
 #include <migraphx/op/common.hpp>
+#include <migraphx/op/builder/insert.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
@@ -167,18 +168,14 @@ struct parse_gru : op_parser<parse_gru>
             gru_transpose_inputs(info, args);
         }
 
-        // first output for concatenation of hidden states
-        auto hidden_states =
-            info.add_instruction(make_op("gru",
-                                         {{"hidden_size", hidden_size},
-                                          {"actv_func", to_value(vec_actv_funcs)},
-                                          {"direction", dirct},
-                                          {"clip", clip},
-                                          {"linear_before_reset", linear_before_reset}}),
-                                 args);
-
-        // second output for last gru output
-        auto last_output = info.add_instruction(make_op("rnn_last_hs_output"), hidden_states);
+        auto results       = op::builder::add("gru",
+                                        *info.mod,
+                                        args,
+                                              {{"actv_func", to_value(vec_actv_funcs)},
+                                               {"direction", dirct},
+                                               {"linear_before_reset", linear_before_reset}});
+        auto hidden_states = results.at(0);
+        auto last_output   = results.at(1);
 
         if(layout != 0)
         {

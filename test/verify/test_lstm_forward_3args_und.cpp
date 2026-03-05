@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,6 +30,7 @@
 #include <migraphx/serialize.hpp>
 
 #include <migraphx/op/common.hpp>
+#include <migraphx/op/builder/insert.hpp>
 
 struct test_lstm_forward_3args_und : verify_program<test_lstm_forward_3args_und>
 {
@@ -40,7 +41,6 @@ struct test_lstm_forward_3args_und : verify_program<test_lstm_forward_3args_und>
         std::size_t hidden_size = 5;
         std::size_t input_size  = 8;
         std::size_t num_dirct   = 1;
-        float clip              = 0.0f;
 
         migraphx::program p;
         auto* mm = p.get_main_module();
@@ -53,24 +53,15 @@ struct test_lstm_forward_3args_und : verify_program<test_lstm_forward_3args_und>
         auto w   = mm->add_parameter("w", w_shape);
         auto r   = mm->add_parameter("r", r_shape);
         auto und = mm->add_instruction(migraphx::make_op("undefined"));
-        mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
-                                                                      migraphx::make_op("tanh"),
-                                                                      migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            und,
-            und,
-            und,
-            und,
-            und);
+        migraphx::op::builder::add(
+            "lstm",
+            *mm,
+            {seq, w, r, und, und, und, und, und},
+            {{"actv_func",
+              migraphx::to_value({migraphx::make_op("sigmoid"),
+                                  migraphx::make_op("tanh"),
+                                  migraphx::make_op("tanh")})},
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)}});
 
         return p;
     }

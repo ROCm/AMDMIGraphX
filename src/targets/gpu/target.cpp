@@ -52,7 +52,6 @@
 #include <migraphx/rewrite_reduce.hpp>
 #include <migraphx/rewrite_resize.hpp>
 #include <migraphx/rewrite_quantization.hpp>
-#include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/rewrite_topk.hpp>
 #include <migraphx/schedule.hpp>
 #include <migraphx/simplify_dyn_ops.hpp>
@@ -113,8 +112,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         enable_pass(not gpu::gfx_has_fp8ocp_intrinsics() and gpu::gfx_has_fp8fnuz_intrinsics(), dead_code_elimination{}),
         simplify_qdq{.use_mx_quant=gpu::gfx_has_mx_intrinsics()},
         enable_pass(not mlir_enabled(), rewrite_quantization{}),
-        dead_code_elimination{},
-        rewrite_rnn{},
         dead_code_elimination{},
         eliminate_data_type_for_gpu{},
         rewrite_resize{.affine_only = true},

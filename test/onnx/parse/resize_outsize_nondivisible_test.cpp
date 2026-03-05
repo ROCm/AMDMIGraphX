@@ -24,29 +24,33 @@
 
 #include <onnx_test.hpp>
 
-TEST_CASE(resize_downsample_linear_test)
+TEST_CASE(resize_outsize_nondivisible_test)
 {
+    // Resize with int64 sizes where sizes/input produces non-integer scales.
+    // Input [1,1,3,3] -> output [1,1,5,5], scale = 5/3.
+    // float(5/3)*3 truncates to 4, not 5 due to rounding, so the parser
+    // must emit 'sizes' attribute to preserve exact output dimensions.
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    std::vector<float> ds = {1.0f, 1.0f, 0.6f, 0.5f};
-    migraphx::shape ss{migraphx::shape::float_type, {4}};
-    mm->add_literal(migraphx::literal{ss, ds});
+    std::vector<int64_t> out_len = {1, 1, 5, 5};
+    migraphx::shape so{migraphx::shape::int64_type, {4}};
+    mm->add_literal(migraphx::literal(so, out_len));
 
-    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 4}};
-    auto x = mm->add_parameter("X", sx);
+    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 3, 3}};
+    auto inx = mm->add_parameter("X", sx);
 
     mm->add_instruction(migraphx::make_op("undefined"));
 
     auto r =
         mm->add_instruction(migraphx::make_op("resize",
-                                              {{"scales", {1.0f, 1.0f, 0.6f, 0.5f}},
-                                               {"mode", "linear"},
-                                               {"coordinate_transformation_mode", "half_pixel"}}),
-                            x);
+                                              {{"sizes", {1, 1, 5, 5}},
+                                               {"nearest_mode", "floor"},
+                                               {"coordinate_transformation_mode", "asymmetric"}}),
+                            inx);
     mm->add_return({r});
 
-    auto prog = read_onnx("resize_downsample_linear_test.onnx");
+    auto prog = read_onnx("resize_outsize_nondivisible_test.onnx");
 
     EXPECT(p == prog);
 }

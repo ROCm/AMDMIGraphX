@@ -71,16 +71,15 @@ struct dynamic_range : op_name<dynamic_range>
 
         argument result{shape{args[0].get_shape().type(), {num_elements}}};
 
-        visit_all(args[0], args[2], result)(
-            [&](auto start, auto delta, auto output) {
-                auto start_val = start.front();
-                auto delta_val = delta.front();
+        visit_all(args[0], args[2], result)([&](auto start, auto delta, auto output) {
+            auto start_val = start.front();
+            auto delta_val = delta.front();
 
-                for(size_t i = 0; i < num_elements; ++i)
-                {
-                    output[i] = start_val + (static_cast<decltype(start_val)>(i) * delta_val);
-                }
-            });
+            for(size_t i = 0; i < num_elements; ++i)
+            {
+                output[i] = start_val + (static_cast<decltype(start_val)>(i) * delta_val);
+            }
+        });
 
         return result;
     }

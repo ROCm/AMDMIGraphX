@@ -176,6 +176,7 @@ add_library(migraphx_gpu
     hipblaslt.cpp
     hip_gemm_impl.cpp
     hsa_chiplet.cpp
+    hip_graph.cpp
     kernel.cpp
     lowering.cpp
     logsoftmax.cpp

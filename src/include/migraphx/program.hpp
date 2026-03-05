@@ -39,6 +39,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/execution_environment.hpp>
 #include <algorithm>
+#include <functional>
 #include <iostream>
 
 namespace migraphx {
@@ -161,6 +162,17 @@ struct MIGRAPHX_EXPORT program
     void remove_module(const std::string& name);
     void rename_module(const std::string& old_name, const std::string& new_name);
     void remove_unused_modules();
+
+    /// Type for a function that wraps eval with graph capture/replay.
+    /// It receives the normal eval function and returns the result.
+    using graph_eval_function =
+        std::function<std::vector<argument>(const std::function<std::vector<argument>()>&)>;
+
+    /// Install a graph eval wrapper (e.g. HIP Graph capture/replay)
+    void set_graph_eval(graph_eval_function fn) const;
+
+    /// Check if a graph eval wrapper is installed
+    bool has_graph_eval() const;
 
     private:
     void assign(const program& p);

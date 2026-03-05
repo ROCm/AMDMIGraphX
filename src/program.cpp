@@ -77,6 +77,8 @@ struct program_impl
     std::unordered_map<std::string, module> modules;
     std::vector<context> contexts;
     std::vector<target> targets;
+    // Optional graph eval wrapper (e.g. HIP Graph capture/replay)
+    mutable program::graph_eval_function graph_eval_fn;
 };
 
 program::program() : impl(std::make_unique<program_impl>()) { this->create_module("main"); }
@@ -655,7 +657,15 @@ std::vector<argument> program::eval(const parameter_map& params,
     }
     else
     {
-        ret = generic_eval(*this, contexts, params, [&](auto&&, auto f) { return f(); });
+        if(impl->graph_eval_fn)
+        {
+            ret = impl->graph_eval_fn(
+                [&] { return generic_eval(*this, contexts, params, [&](auto&&, auto f) { return f(); }); });
+        }
+        else
+        {
+            ret = generic_eval(*this, contexts, params, [&](auto&&, auto f) { return f(); });
+        }
     }
 
     if(exec_env.async)
@@ -672,6 +682,10 @@ void program::finish() const
     for(const auto& ctx : this->impl->contexts)
         ctx.finish();
 }
+
+void program::set_graph_eval(graph_eval_function fn) const { impl->graph_eval_fn = std::move(fn); }
+
+bool program::has_graph_eval() const { return static_cast<bool>(impl->graph_eval_fn); }
 
 static std::string get_migraphx_version()
 {

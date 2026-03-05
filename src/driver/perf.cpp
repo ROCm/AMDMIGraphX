@@ -31,6 +31,7 @@
 #include <migraphx/time.hpp>
 #ifdef HAVE_GPU
 #include <migraphx/gpu/hip.hpp>
+#include <migraphx/gpu/hip_graph.hpp>
 #endif
 
 namespace migraphx {
@@ -142,6 +143,9 @@ bool is_offload_copy_set(const program& p)
 
 double time_run(const program& p, const parameter_map& m, int n)
 {
+#ifdef HAVE_GPU
+    gpu::enable_hip_graph(const_cast<program&>(p));
+#endif
     // Run once without timing
     p.eval(m);
     p.finish();

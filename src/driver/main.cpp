@@ -47,6 +47,10 @@
 #include <migraphx/env.hpp>
 #include <migraphx/logger.hpp>
 
+#ifdef HAVE_GPU
+#include <migraphx/gpu/hip_graph.hpp>
+#endif
+
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
@@ -867,6 +871,9 @@ struct run_cmd : command<run_cmd>
     void run()
     {
         auto p = c.compile();
+#ifdef HAVE_GPU
+        gpu::enable_hip_graph(p);
+#endif
         std::cout << "Allocating params ... " << std::endl;
         auto m = c.params(p);
         p.eval(m);
@@ -913,6 +920,9 @@ struct perf : command<perf>
     void run()
     {
         auto p = c.compile();
+#ifdef HAVE_GPU
+        gpu::enable_hip_graph(p);
+#endif
         std::cout << "Allocating params ... " << std::endl;
         auto m = c.params(p);
         std::cout << "Running performance report ... " << std::endl;

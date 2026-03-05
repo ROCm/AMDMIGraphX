@@ -42,6 +42,8 @@
 #include <migraphx/gpu/hsa_chiplet.hpp>
 #include <unordered_map>
 #include <memory>
+#include <vector>
+#include <iostream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -49,6 +51,7 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NULL_STREAM)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_NSTREAMS)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_HIP_GRAPH)
 
 using hip_event_ptr = MIGRAPHX_MANAGE_PTR(hipEvent_t, hipEventDestroy);
 
@@ -90,6 +93,11 @@ struct hip_device
 
         hipStream_t get()
         {
+            // When an external (caller-provided) stream is active, use it
+            // so all GPU work lands on a single compute queue.
+            if(using_external_stream_)
+                return external_stream_;
+
             if(not enabled(MIGRAPHX_ENABLE_NULL_STREAM{}))
             {
                 setup();
@@ -99,6 +107,28 @@ struct hip_device
                 return s.get();
             }
             return nullptr;
+        }
+
+        /// Temporarily redirect all GPU work to an external stream.
+        void set_external_stream(hipStream_t es)
+        {
+            external_stream_       = es;
+            using_external_stream_ = true;
+#if MIGRAPHX_USE_ROCBLAS
+            if(rbhandle != nullptr)
+                rocblas_set_stream(rbhandle.get(), es);
+#endif
+        }
+
+        /// Restore the internal stream.
+        void clear_external_stream()
+        {
+            using_external_stream_ = false;
+            external_stream_       = nullptr;
+#if MIGRAPHX_USE_ROCBLAS
+            if(rbhandle != nullptr)
+                rocblas_set_stream(rbhandle.get(), get());
+#endif
         }
 
 #if MIGRAPHX_USE_MIOPEN
@@ -173,6 +203,8 @@ struct hip_device
         private:
         std::size_t id           = 0;
         shared<hip_stream_ptr> s = nullptr;
+        hipStream_t external_stream_       = nullptr;
+        bool using_external_stream_        = false;
 #if MIGRAPHX_USE_MIOPEN
         shared<miopen_handle> mihandle = nullptr;
 #endif
@@ -336,20 +368,34 @@ struct context
 
     void wait_for(any_ptr queue)
     {
-        auto status = hipEventRecord(begin_event.get(), queue.get<hipStream_t>());
-        if(status != hipSuccess)
-            MIGRAPHX_THROW("Failed to record: " + hip_error(status));
-
-        get_stream().wait(begin_event.get());
+        if(hip_graph_enabled())
+        {
+            // Single-stream redirect for graph capture
+            get_stream().set_external_stream(queue.get<hipStream_t>());
+        }
+        else
+        {
+            auto status = hipEventRecord(begin_event.get(), queue.get<hipStream_t>());
+            if(status != hipSuccess)
+                MIGRAPHX_THROW("Failed to record: " + hip_error(status));
+            get_stream().wait(begin_event.get());
+        }
     }
 
     void finish_on(any_ptr queue)
     {
-        get_stream().record(finish_event.get());
-
-        auto status = hipStreamWaitEvent(queue.get<hipStream_t>(), finish_event.get(), 0);
-        if(status != hipSuccess)
-            MIGRAPHX_THROW("Failed to wait on event: " + hip_error(status));
+        if(hip_graph_enabled())
+        {
+            (void)queue;
+            get_stream().clear_external_stream();
+        }
+        else
+        {
+            get_stream().record(finish_event.get());
+            auto status = hipStreamWaitEvent(queue.get<hipStream_t>(), finish_event.get(), 0);
+            if(status != hipSuccess)
+                MIGRAPHX_THROW("Failed to wait on event: " + hip_error(status));
+        }
     }
 
     any_ptr get_queue() { return get_stream().get(); }
@@ -380,6 +426,85 @@ struct context
         pc->auto_save = true;
     }
 
+    // ---- HIP Graph capture/replay API ----
+
+    bool hip_graph_enabled() const { return enabled(MIGRAPHX_ENABLE_HIP_GRAPH{}); }
+
+    bool has_graph() const { return graph_exec_ptr != nullptr; }
+
+    void begin_graph_capture()
+    {
+        // Use Relaxed mode: only async operations on the captured stream are
+        // recorded; other HIP API calls (hipSetDevice, hipModuleLoadData, etc.)
+        // are allowed and proceed normally.
+        auto status =
+            hipStreamBeginCapture(get_stream().get(), hipStreamCaptureModeRelaxed);
+        if(status != hipSuccess)
+            MIGRAPHX_THROW("hipStreamBeginCapture failed: " + hip_error(status));
+        graph_capturing = true;
+    }
+
+    void end_graph_capture()
+    {
+        hipGraph_t graph = nullptr;
+        auto status      = hipStreamEndCapture(get_stream().get(), &graph);
+        if(status != hipSuccess || graph == nullptr)
+            MIGRAPHX_THROW("hipStreamEndCapture failed: " + hip_error(status));
+        graph_capturing = false;
+
+        // Query and print graph structure for diagnostics
+        std::size_t num_nodes = 0;
+        hipGraphGetNodes(graph, nullptr, &num_nodes);
+        std::cerr << "[HIP Graph] Captured graph has " << num_nodes << " node(s)." << std::endl;
+        if(num_nodes > 0)
+        {
+            std::vector<hipGraphNode_t> nodes(num_nodes);
+            hipGraphGetNodes(graph, nodes.data(), &num_nodes);
+            for(std::size_t i = 0; i < num_nodes; i++)
+            {
+                hipGraphNodeType ntype;
+                hipGraphNodeGetType(nodes[i], &ntype);
+                const char* type_name = "unknown";
+                switch(ntype)
+                {
+                case hipGraphNodeTypeKernel: type_name = "Kernel"; break;
+                case hipGraphNodeTypeMemcpy: type_name = "Memcpy"; break;
+                case hipGraphNodeTypeMemset: type_name = "Memset"; break;
+                case hipGraphNodeTypeHost:   type_name = "Host";   break;
+                case hipGraphNodeTypeGraph:  type_name = "ChildGraph"; break;
+                case hipGraphNodeTypeEmpty:  type_name = "Empty";  break;
+                default: break;
+                }
+                std::cerr << "[HIP Graph]   Node " << i << ": " << type_name << std::endl;
+            }
+        }
+
+        hipGraphExec_t exec = nullptr;
+        status              = hipGraphInstantiate(&exec, graph, nullptr, nullptr, 0);
+        hipGraphDestroy(graph);
+        if(status != hipSuccess || exec == nullptr)
+            MIGRAPHX_THROW("hipGraphInstantiate failed: " + hip_error(status));
+
+        graph_exec_ptr = std::shared_ptr<std::remove_pointer<hipGraphExec_t>::type>(
+            exec, [](hipGraphExec_t e) { hipGraphExecDestroy(e); });
+    }
+
+    void launch_graph()
+    {
+        assert(graph_exec_ptr != nullptr);
+        auto status = hipGraphLaunch(graph_exec_ptr.get(), get_stream().get());
+        if(status != hipSuccess)
+            MIGRAPHX_THROW("hipGraphLaunch failed: " + hip_error(status));
+    }
+
+    void reset_graph()
+    {
+        graph_exec_ptr.reset();
+        graph_capturing = false;
+    }
+
+    bool is_capturing() const { return graph_capturing; }
+
     private:
     // TODO: Make this a vector to support multiple devices
     std::shared_ptr<hip_device> current_device;
@@ -393,6 +518,9 @@ struct context
     shared<hip_event_ptr> begin_event           = nullptr;
     shared<hip_event_ptr> finish_event          = nullptr;
     std::shared_ptr<auto_save_problem_cache> pc = nullptr;
+    // HIP Graph state (shared_ptr for safe copying via type erasure)
+    std::shared_ptr<std::remove_pointer<hipGraphExec_t>::type> graph_exec_ptr = nullptr;
+    bool graph_capturing                                                      = false;
 };
 
 inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }

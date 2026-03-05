@@ -28,6 +28,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/iterator.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <bitset>
 #include <queue>
 
@@ -589,15 +590,11 @@ static auto track_visits(instruction_ref start, instruction_ref end, F f)
     }
     else
     {
-        std::unordered_set<instruction_ref> visited;
-        visited.reserve(n);
-        auto stop = [&](auto ins) {
-            if(not visited.insert(ins).second)
-                return true;
-            if(std::distance(ins, end) > n)
-                return true;
-            return false;
-        };
+        auto instructions     = range(start, std::next(end));
+        auto instruction_refs = iterator_for(instructions);
+        std::unordered_set<instruction_ref> in_range(instruction_refs.begin(),
+                                                     instruction_refs.end());
+        auto stop = [&](auto ins) { return in_range.erase(ins) == 0; };
         return f(stop);
     }
 }

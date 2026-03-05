@@ -613,7 +613,11 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
                        result.begin(),
                        std::inserter(instructions, instructions.end()),
                        [](auto&& x, auto&& y) { return std::make_pair(x, y); });
-        auto added_instructions = get_added_instructions(args, result);
+        std::vector<instruction_ref> added_instructions;
+        if(this->use_debug_symbols or enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
+        {
+            added_instructions = get_added_instructions(args, result);
+        }
         if(this->use_debug_symbols)
         {
             std::string debug_symbol =

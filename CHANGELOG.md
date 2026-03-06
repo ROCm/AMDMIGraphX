@@ -18,6 +18,7 @@ Full documentation for MIGraphX is available at
 
 ### Changed
 
+* Converted `nonzero` operator from device implementation to JIT compilation (#4653).
 * Converted `reverse` operator from device implementation to JIT compilation (#4645).
 * Refactored instruction output alias to return a vector of aliases (#4540).
 * Changed parsing of ONNX ops like ConstantOfShape to insert undefined if expected shape has 0 elements (#4567).

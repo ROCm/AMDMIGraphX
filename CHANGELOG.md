@@ -9,12 +9,14 @@ Full documentation for MIGraphX is available at
 
 * Added a dedicated logger for MIGraphX.
 * [Linux] Use HSA API to query number of chiplets for architectures where this is applicable (ex. gfx90a).
+* Added GPU JIT `Resize` kernel (#4553)
 
 ### Changed
 
 * Refactored instruction output alias to return a vector of aliases (#4540).
 * Changed parsing of ONNX ops like ConstantOfShape to insert undefined if expected shape has 0 elements (#4567).
 * Updated the ONNX clip operator to support opset 13 (#4518).
+* Updated `argmin` and `argmax` ops to be implemented as reduction ops, so they now have JIT support and can fuse (#4620).
 
 ### Resolved issues
 
@@ -27,6 +29,7 @@ Full documentation for MIGraphX is available at
 ### Optimized
 
 * Added a new pass to replace convolution with constant broadcast input with a reduced GEMM which improves model compilation time (#4621).
+* Implemented JIT compilation for `logsoftmax` by decomposing it into fusible operations (`log`, `exp`, `reduce_max`, `reduce_sum`), enabling kernel fusion. (#4630).
 
 ### Removed
 
@@ -45,6 +48,7 @@ Full documentation for MIGraphX is available at
 * Added Torch-MIGraphX installation instructions.
 * Added Operator Builders with supporting documentation.
 * Added index range check to the Gather operator.
+* Added `log(exp(x)) → x` and `log(a/b) → log(a) - log(b)` algebraic simplifications (#4630).
 
 
 ### Changed

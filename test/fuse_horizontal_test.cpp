@@ -61,9 +61,8 @@ TEST_CASE(gather_horiz_fusion_basic)
         auto g4 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb4, idx4);
 
         // Combine all outputs so every gather stays live through DCE
-        auto c = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
-                                    std::vector<migraphx::instruction_ref>{g1, g2, g3, g4});
-        m1.add_instruction(pass_op{}, c);
+        m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                           std::vector<migraphx::instruction_ref>{g1, g2, g3, g4});
     }
     run_pass(m1);
 
@@ -132,9 +131,8 @@ TEST_CASE(gather_horiz_fusion_basic)
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {6}}, {"ends", {8}}}), bg);
 
         // Same concat combiner as m1 (now referencing slices instead of gathers)
-        auto c = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
-                                    std::vector<migraphx::instruction_ref>{s1, s2, s3, s4});
-        m2.add_instruction(pass_op{}, c);
+        m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                           std::vector<migraphx::instruction_ref>{s1, s2, s3, s4});
     }
     EXPECT(m1 == m2);
 }
@@ -159,9 +157,8 @@ TEST_CASE(gather_horiz_no_fusion_below_threshold)
         auto g2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb2, idx2);
         auto g3 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb3, idx3);
 
-        auto c = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
-                                    std::vector<migraphx::instruction_ref>{g1, g2, g3});
-        m1.add_instruction(pass_op{}, c);
+        m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                           std::vector<migraphx::instruction_ref>{g1, g2, g3});
     }
     auto m2 = m1;
     run_pass(m1);
@@ -188,9 +185,8 @@ TEST_CASE(gather_horiz_no_fusion_non_constant_embedding)
         auto g3 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb3, idx3);
         auto g4 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb4, idx4);
 
-        auto c = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
-                                    std::vector<migraphx::instruction_ref>{g1, g2, g3, g4});
-        m1.add_instruction(pass_op{}, c);
+        m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                           std::vector<migraphx::instruction_ref>{g1, g2, g3, g4});
     }
     auto m2 = m1;
     run_pass(m1);
@@ -222,9 +218,8 @@ TEST_CASE(gather_horiz_no_fusion_wrong_axis)
         auto g3 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), emb3, idx3);
         auto g4 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), emb4, idx4);
 
-        auto c = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
-                                    std::vector<migraphx::instruction_ref>{g1, g2, g3, g4});
-        m1.add_instruction(pass_op{}, c);
+        m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                           std::vector<migraphx::instruction_ref>{g1, g2, g3, g4});
     }
     auto m2 = m1;
     run_pass(m1);
@@ -258,9 +253,8 @@ TEST_CASE(gather_horiz_no_fusion_different_emb_dims)
         auto g4 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb4, idx4);
 
         // concat on axis=1 since first dims match (2) but second dims differ
-        auto c = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}),
-                                    std::vector<migraphx::instruction_ref>{g1, g2, g3, g4});
-        m1.add_instruction(pass_op{}, c);
+        m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}),
+                           std::vector<migraphx::instruction_ref>{g1, g2, g3, g4});
     }
     auto m2 = m1;
     run_pass(m1);
@@ -292,9 +286,8 @@ TEST_CASE(gather_horiz_no_fusion_3d_embedding)
         auto g3 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb3, idx3);
         auto g4 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb4, idx4);
 
-        auto c = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
-                                    std::vector<migraphx::instruction_ref>{g1, g2, g3, g4});
-        m1.add_instruction(pass_op{}, c);
+        m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                           std::vector<migraphx::instruction_ref>{g1, g2, g3, g4});
     }
     auto m2 = m1;
     run_pass(m1);
@@ -330,9 +323,8 @@ TEST_CASE(gather_horiz_fusion_interleaved_consumers)
         auto g3 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb3, idx3);
         auto g4 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb4, idx4);
 
-        auto c = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
-                                    std::vector<migraphx::instruction_ref>{relu1, g2, g3, g4});
-        m1.add_instruction(pass_op{}, c);
+        m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                           std::vector<migraphx::instruction_ref>{relu1, g2, g3, g4});
     }
     run_pass(m1);
 
@@ -394,9 +386,8 @@ TEST_CASE(gather_horiz_fusion_interleaved_consumers)
         // relu was on g1, now on s1 — moved after slices
         auto relu1 = m2.add_instruction(migraphx::make_op("relu"), s1);
 
-        auto c = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
-                                    std::vector<migraphx::instruction_ref>{relu1, s2, s3, s4});
-        m2.add_instruction(pass_op{}, c);
+        m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                           std::vector<migraphx::instruction_ref>{relu1, s2, s3, s4});
     }
     EXPECT(m1 == m2);
 }
@@ -422,9 +413,8 @@ TEST_CASE(gather_horiz_fusion_shared_index)
         auto g3 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb3, idx);
         auto g4 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb4, idx);
 
-        auto c = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
-                                    std::vector<migraphx::instruction_ref>{g1, g2, g3, g4});
-        m1.add_instruction(pass_op{}, c);
+        m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                           std::vector<migraphx::instruction_ref>{g1, g2, g3, g4});
     }
     run_pass(m1);
 
@@ -480,9 +470,8 @@ TEST_CASE(gather_horiz_fusion_shared_index)
         auto s4 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {6}}, {"ends", {8}}}), bg);
 
-        auto c = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
-                                    std::vector<migraphx::instruction_ref>{s1, s2, s3, s4});
-        m2.add_instruction(pass_op{}, c);
+        m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                           std::vector<migraphx::instruction_ref>{s1, s2, s3, s4});
     }
     EXPECT(m1 == m2);
 }
@@ -516,9 +505,8 @@ TEST_CASE(gather_horiz_no_fusion_dependent)
         auto g3 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb3, idx3);
         auto g4 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb4, idx4);
 
-        auto c = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
-                                    std::vector<migraphx::instruction_ref>{g1, g2, g3, g4});
-        m1.add_instruction(pass_op{}, c);
+        m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                           std::vector<migraphx::instruction_ref>{g1, g2, g3, g4});
     }
     auto m2 = m1;
     run_pass(m1);

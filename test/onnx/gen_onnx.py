@@ -13376,6 +13376,32 @@ def resize_outsize_test():
 
 
 @onnx_test()
+def resize_outsize_nondivisible_test():
+    # Resize with int64 sizes where sizes/input_dims produces non-integer scales.
+    # For input [1,1,3,3] -> output [1,1,5,5], scale = 5/3 ~ 1.6667.
+    # float(5/3)*3 truncates to 4, not 5, so the parser must use 'sizes' attribute.
+    out_lens = np.array([1, 1, 5, 5], dtype=np.int64)
+    out_lens_tensor = helper.make_tensor(name='out_lens',
+                                         data_type=TensorProto.INT64,
+                                         dims=out_lens.shape,
+                                         vals=out_lens.flatten().astype(
+                                             np.int64))
+
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 3, 3])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 5, 5])
+
+    node = onnx.helper.make_node(
+        'Resize',
+        inputs=['X', '', '', 'out_lens'],
+        outputs=['Y'],
+        coordinate_transformation_mode='asymmetric',
+        mode='nearest',
+        nearest_mode='floor')
+
+    return ([node], [X], [Y], [out_lens_tensor])
+
+
+@onnx_test()
 def resize_upsample_linear_ac_test():
     scales = np.array([1.0, 1.0, 2.0, 2.0], dtype=np.float32)
     scales_tensor = helper.make_tensor(name='scales',

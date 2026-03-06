@@ -121,6 +121,7 @@ add_library(migraphx
     register_target.cpp
     replace_allocate.cpp
     rewrite_reduce.cpp
+    rewrite_resize.cpp
     rewrite_dot.cpp
     simplify_qdq.cpp
     split_reduce.cpp

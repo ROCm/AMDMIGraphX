@@ -510,7 +510,7 @@ instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref
 }
 
 std::vector<instruction_ref>
-module::batch_replace_instruction(const std::vector<instruction_replacer>& replacers)
+module::batch_replace_instruction(const std::vector<instruction_replacer>& replacers) MIGRAPHX_TIDY_CONST
 {
     impl->changed.notify();
     std::vector<instruction_ref> ret;

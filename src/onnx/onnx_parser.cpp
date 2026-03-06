@@ -327,15 +327,18 @@ get_added_instructions(const std::vector<instruction_ref>& args,
 {
     // Print instructions added by the parser not in args
     std::vector<instruction_ref> added_instructions;
+    // Set for checking added_instructions faster
+    std::unordered_set<instruction_ref> visit_set;
     fix([&](auto self, const auto& r) {
         for(auto ins : r)
         {
             if(contains(args, ins))
                 continue;
-            if(contains(added_instructions, ins))
+            if(contains(visit_set, ins))
                 continue;
             self(ins->inputs());
             added_instructions.push_back(ins);
+            visit_set.insert(ins);
         }
     })(result);
     return added_instructions;

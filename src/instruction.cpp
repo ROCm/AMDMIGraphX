@@ -28,7 +28,6 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/iterator.hpp>
-#include <migraphx/env.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <bitset>

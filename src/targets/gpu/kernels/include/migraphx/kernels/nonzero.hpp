@@ -36,10 +36,10 @@ namespace migraphx {
 template <index_int BlockSize, class Input, class Output>
 __device__ void nonzero(Input input, Output output)
 {
-    auto idx                      = make_index();
-    const auto in_shape           = input.get_shape();
-    const index_int elem_num      = in_shape.elements();
-    const index_int out_elem_num  = output.get_shape().elements();
+    auto idx                     = make_index();
+    const auto in_shape          = input.get_shape();
+    const index_int elem_num     = in_shape.elements();
+    const index_int out_elem_num = output.get_shape().elements();
 
     // Fill all output to 0 first
     idx.local_stride(out_elem_num, [&](auto j) { output[j] = 0; });

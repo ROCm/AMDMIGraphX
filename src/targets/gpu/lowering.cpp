@@ -95,7 +95,6 @@ struct miopen_apply
         add_extend_op("argmax");
         add_extend_op("argmin");
         add_extend_op("fixed_pad");
-        add_extend_op("logsoftmax");
         add_extend_op("multinomial");
         add_extend_op("nonzero");
         add_extend_op("prefix_scan_sum");

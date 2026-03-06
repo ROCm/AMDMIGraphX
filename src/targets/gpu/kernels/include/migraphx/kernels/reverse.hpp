@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,26 +21,32 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_REVERSE_HPP
-#define MIGRAPHX_GUARD_RTGLIB_DEVICE_REVERSE_HPP
+#ifndef MIGRAPHX_GUARD_KERNELS_REVERSE_HPP
+#define MIGRAPHX_GUARD_KERNELS_REVERSE_HPP
 
-#include <migraphx/argument.hpp>
-#include <migraphx/gpu/device/config.hpp>
-#include <hip/hip_runtime_api.h>
+#include <migraphx/kernels/index.hpp>
+#include <migraphx/kernels/array.hpp>
+#include <migraphx/kernels/debug.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace device {
 
-argument MIGRAPHX_DEVICE_EXPORT reverse(hipStream_t stream,
-                                        argument result,
-                                        argument arg1,
-                                        const std::vector<int64_t>& axes);
+template <class Axes, class Input, class Output>
+__device__ void reverse(Axes axes, Input input, Output output)
+{
+    auto ind  = make_index();
+    auto lens = input.get_shape().lens;
 
-} // namespace device
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
+    ind.global_stride(output.get_shape().elements(), [&](auto i) {
+        auto out_idx = output.get_shape().multi(i);
+        auto in_idx  = out_idx;
+        for(auto axis : axes)
+        {
+            MIGRAPHX_ASSERT(lens[axis] > 0);
+            in_idx[axis] = lens[axis] - 1 - out_idx[axis];
+        }
+        output[i] = input[in_idx];
+    });
+}
+
 } // namespace migraphx
-
 #endif

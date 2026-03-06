@@ -153,7 +153,8 @@ struct resize
         if(abs_s < 1.0)
             return (a + 2.0) * std::pow(abs_s, 3) - (a + 3.0) * std::pow(abs_s, 2) + 1.0;
         if(abs_s < 2.0)
-            return a * std::pow(abs_s, 3) - 5.0 * a * std::pow(abs_s, 2) + 8.0 * a * abs_s - 4.0 * a;
+            return a * std::pow(abs_s, 3) - 5.0 * a * std::pow(abs_s, 2) + 8.0 * a * abs_s -
+                   4.0 * a;
         return 0.0;
     }
 
@@ -191,9 +192,8 @@ struct resize
             double t           = coord - static_cast<double>(pos);
             result.weights[i]  = cubic_kernel(t, cubic_a);
             // Clamp to valid range
-            result.indices[i] =
-                static_cast<std::size_t>(std::max(std::ptrdiff_t{0},
-                                                  std::min(pos, static_cast<std::ptrdiff_t>(in_len - 1))));
+            result.indices[i] = static_cast<std::size_t>(std::max(
+                std::ptrdiff_t{0}, std::min(pos, static_cast<std::ptrdiff_t>(in_len - 1))));
         }
 
         return result;

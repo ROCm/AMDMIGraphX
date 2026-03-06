@@ -38,13 +38,13 @@ TEST_CASE(resize_upsample_cubic_test)
 
     mm->add_instruction(migraphx::make_op("undefined"));
 
-    auto r = mm->add_instruction(
-        migraphx::make_op("resize",
-                          {{"scales", {1.0f, 1.0f, 2.0f, 2.0f}},
-                           {"mode", "cubic"},
-                           {"coordinate_transformation_mode", "half_pixel"},
-                           {"cubic_coeff_a", -0.75f}}),
-        x);
+    auto r =
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"scales", {1.0f, 1.0f, 2.0f, 2.0f}},
+                                               {"mode", "cubic"},
+                                               {"coordinate_transformation_mode", "half_pixel"},
+                                               {"cubic_coeff_a", -0.75f}}),
+                            x);
     mm->add_return({r});
 
     auto prog = read_onnx("resize_upsample_cubic_test.onnx");

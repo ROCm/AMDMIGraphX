@@ -185,8 +185,8 @@ compute_interp_params_1d(index_int in_len, index_int out_len, index_int out_idx,
 
 // Compute cubic interpolation parameters for a single dimension
 template <class CoordOp>
-MIGRAPHX_DEVICE_CONSTEXPR cubic_params
-compute_cubic_params_1d(index_int in_len, index_int out_len, index_int out_idx, float scale, float cubic_a)
+MIGRAPHX_DEVICE_CONSTEXPR cubic_params compute_cubic_params_1d(
+    index_int in_len, index_int out_len, index_int out_idx, float scale, float cubic_a)
 {
     cubic_params result{};
 
@@ -203,12 +203,12 @@ compute_cubic_params_1d(index_int in_len, index_int out_len, index_int out_idx, 
 
     for(diff_int i = 0; i < 4; ++i)
     {
-        diff_int pos       = base_i - 1 + i;
-        float t            = coord - float(pos);
-        result.weights[i]  = cubic_kernel(t, cubic_a);
+        diff_int pos      = base_i - 1 + i;
+        float t           = coord - float(pos);
+        result.weights[i] = cubic_kernel(t, cubic_a);
         // Clamp to valid range [0, in_len-1]
-        result.indices[i] = static_cast<index_int>(
-            max(diff_int{0}, min(pos, static_cast<diff_int>(in_len - 1))));
+        result.indices[i] =
+            static_cast<index_int>(max(diff_int{0}, min(pos, static_cast<diff_int>(in_len - 1))));
     }
 
     return result;
@@ -339,8 +339,8 @@ __device__ void resize_cubic(Input input, Output output, Scales scales, float cu
 
         for(index_int combo = 0; combo < total_combos; ++combo)
         {
-            float w          = 1.0f;
-            index_int tc     = combo;
+            float w      = 1.0f;
+            index_int tc = combo;
 
             for(index_int i = 0; i < active_count; ++i)
             {

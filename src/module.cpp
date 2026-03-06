@@ -234,7 +234,7 @@ void module::assign(const module& m)
                 copy_ins = add_instruction(ins->get_operator(), copy_inputs, module_args);
             }
         }
-        copy_ins->add_debug_symbols(ins->get_debug_symbols());
+        add_debug_symbols(copy_ins, ins->get_debug_symbols());
         ins_map[ins] = copy_ins;
     }
 }
@@ -512,6 +512,7 @@ instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref
 std::vector<instruction_ref>
 module::batch_replace_instruction(const std::vector<instruction_replacer>& replacers)
 {
+    impl->changed.notify();
     std::vector<instruction_ref> ret;
     std::unordered_set<instruction_ref> old_max_splices;
     if(has_debug_symbols())
@@ -531,6 +532,8 @@ module::batch_replace_instruction(const std::vector<instruction_replacer>& repla
     std::unordered_set<instruction_ref> new_max_splices;
     for(const auto& replacer : replacers)
     {
+        assert(has_instruction(replacer.ins));
+        assert(not starts_with(replacer.op.name(), "@"));
         auto out_shape = compute_shape(replacer.op, replacer.args, replacer.module_args);
         instruction::replace(
             replacer.ins, replacer.op, out_shape, replacer.args, replacer.module_args);

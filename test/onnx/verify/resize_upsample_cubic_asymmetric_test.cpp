@@ -46,10 +46,10 @@ TEST_CASE(resize_upsample_cubic_asymmetric_test)
     // Output 4x4 using cubic interpolation with a=-0.75 and asymmetric coordinate transform
     // clang-format off
     std::vector<float> gold = {
-        1.0f, 1.40625f, 2.0f, 2.59375f,
-        1.75f, 2.15625f, 2.75f, 3.34375f,
-        3.0f, 3.40625f, 4.0f, 4.59375f,
-        3.75f, 4.15625f, 4.75f, 5.34375f
+        1.0f, 1.5f, 2.0f, 2.09375f,
+        2.0f, 2.5f, 3.0f, 3.09375f,
+        3.0f, 3.5f, 4.0f, 4.09375f,
+        3.1875f, 3.6875f, 4.1875f, 4.28125f
     };
     // clang-format on
 

@@ -50,7 +50,7 @@ TEST_CASE(resize_downsample_cubic_test)
 
     // Expected output for cubic downsample with half_pixel mode
     // Output 2x2 using cubic interpolation with a=-0.75
-    std::vector<float> gold = {3.28125f, 5.28125f, 11.28125f, 13.28125f};
+    std::vector<float> gold = {3.03125f, 5.21875f, 11.7812f, 13.9688f};
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

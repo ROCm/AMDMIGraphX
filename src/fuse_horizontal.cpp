@@ -115,7 +115,7 @@ static void apply_horizontal_finder(module& m, const Finder& finder)
 }
 
 template <class... Finders>
-void fuse_horizontal_ops(module& m, Finders&&... finders)
+static void fuse_horizontal_ops(module& m, Finders&&... finders)
 {
     each_args([&](auto&& finder) { apply_horizontal_finder(m, finder); }, finders...);
 }

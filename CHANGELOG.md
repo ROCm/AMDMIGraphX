@@ -9,7 +9,8 @@ Full documentation for MIGraphX is available at
 
 * Added a dedicated logger for MIGraphX.
 * [Linux] Use HSA API to query number of chiplets for architectures where this is applicable (ex. gfx90a).
-* Added GPU JIT `Resize` kernel (#4553)
+* Added a fuse_horizontal pass which batches independent cross embedding gather instructions (#4599).
+* Added GPU JIT `Resize` kernel (#4553).
 
 ### Changed
 

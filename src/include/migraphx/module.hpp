@@ -81,6 +81,9 @@ struct MIGRAPHX_EXPORT module
     bool bypass() const;
     void set_bypass(bool b = true);
 
+    std::string get_tag() const;
+    void set_tag(const std::string& tag);
+
     template <class... Ts, MIGRAPHX_REQUIRES(std::is_same<Ts, instruction_ref>{}...)>
     instruction_ref add_instruction(operation op, Ts... args)
     {

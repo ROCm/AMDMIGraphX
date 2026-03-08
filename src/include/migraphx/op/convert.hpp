@@ -79,6 +79,11 @@ struct convert : unary<convert>
                     y = as(std::min(std::max(static_cast<double>(x), static_cast<double>(as.min())),
                                     static_cast<double>(as.max())));
                 }
+                // If inf or -inf, use value as is instead of clamping to min/max
+                else if(std::isinf(static_cast<double>(x)))
+                {
+                    y = as(x);
+                }
                 else
                 {
                     // clamp overflowing/underflowing values to min()/max() instead of +/-infinity

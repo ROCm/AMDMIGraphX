@@ -36,6 +36,20 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
 {
     std::vector<op_desc> operators() const { return {{"GroupQueryAttention"}}; }
 
+    static instruction_ref insert_rotary(module& m,
+                                         bool interleaved,
+                                         std::size_t sequence_length,
+                                         std::vector<instruction_ref> args)
+    {
+        // GQA position semantics: prefill starts from 0, decode uses seqlens_k
+        auto& pos_ids = args.at(1);
+        if(sequence_length > 1)
+        {
+            pos_ids = m.add_literal(literal{shape{pos_ids->get_shape().type(), {1}}, {0}});
+        }
+        return op::builder::add("rotary_embedding", m, args, {{"interleaved", interleaved}}).at(0);
+    }
+
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,
                                        const onnx_parser& parser,
                                        const onnx_parser::node_info& info,
@@ -130,11 +144,10 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
 
         if(do_rotary)
         {
-            qk = op::builder::add("rotary_embedding",
-                                  *info.mod,
-                                  {qk, args.at(5), args.at(7), args.at(8)},
-                                  {{"interleaved", rotary_interleaved}})
-                     .at(0);
+            qk = insert_rotary(*info.mod,
+                               rotary_interleaved,
+                               sequence_length,
+                               {qk, args.at(5), args.at(7), args.at(8)});
         }
 
         auto q = info.add_instruction(

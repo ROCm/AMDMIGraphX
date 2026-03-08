@@ -86,7 +86,7 @@ struct MIGRAPHX_EXPORT instruction
 
     const operation& get_operator() const;
 
-    std::string name() const;
+    const std::string& name() const;
 
     const std::vector<instruction_ref>& inputs() const;
 
@@ -184,6 +184,7 @@ struct MIGRAPHX_EXPORT instruction
     void replace(const shape& r);
 
     operation op;
+    std::string op_name;
     shape result{};
     std::vector<instruction_ref> output;
     std::vector<instruction_ref> arguments;

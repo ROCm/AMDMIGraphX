@@ -182,6 +182,10 @@ struct find_nested_shape_transforms
         };
         return names;
     }
+    static bool pre_check(instruction_ref ins)
+    {
+        return shape_transform_ops().count(ins->name()) > 0;
+    }
     auto matcher() const
     {
         auto shape_transform = match::name(shape_transform_ops());
@@ -230,6 +234,11 @@ struct find_op_shape_transform_op
 {
     bool enable = true;
 
+    static bool pre_check(instruction_ref ins)
+    {
+        return matches_op(ins);
+    }
+
     static const auto& shape_transform_ops()
     {
         static const std::unordered_set<std::string> names = {
@@ -276,7 +285,11 @@ struct find_op_shape_transform_op
         return is_reduce(ins) or ins->get_operator().attributes().contains("pointwise");
     }
 
-    static bool is_reduce(instruction_ref ins) { return starts_with(ins->name(), "reduce_"); }
+    static bool is_reduce(instruction_ref ins)
+    {
+        return starts_with(ins->name(), "reduce_") or ins->name() == "argmin" or
+               ins->name() == "argmax";
+    }
 
     template <class F>
     static instruction_ref find_input_if(instruction_ref start, instruction_ref last, F f)
@@ -306,7 +319,20 @@ struct find_op_shape_transform_op
     {
         if(is_reduce(ins))
         {
-            auto v       = ins->get_operator().to_value();
+            auto v = ins->get_operator().to_value();
+            // handle argmin/argmax
+            if(v.contains("axis"))
+            {
+                auto axis_val        = v.at("axis").to<int64_t>();
+                auto ndim            = ins->inputs().front()->get_shape().ndim();
+                auto op_axis         = axis_val < 0 ? axis_val + ndim : axis_val;
+                const auto& new_axes = am.at(op_axis);
+                // is_valid ensures single axis mapping for argmin/argmax
+                assert(new_axes.size() == 1);
+                v["axis"] = new_axes.front();
+                return m.insert_instruction(
+                    ins, make_op(ins->name(), v), inputs, ins->module_inputs());
+            }
             auto op_axes = v.at("axes").to_vector<std::size_t>();
             std::vector<int64_t> axes;
             for(auto axis : op_axes)
@@ -338,8 +364,24 @@ struct find_op_shape_transform_op
     {
         if(is_reduce(ins))
         {
-            auto v       = ins->get_operator().to_value();
-            auto op_axes = v.at("axes").to_vector<std::size_t>();
+            auto v = ins->get_operator().to_value();
+            std::vector<std::size_t> op_axes;
+            // handle argmin/argmax
+            if(v.contains("axis"))
+            {
+                auto axis_val = v.at("axis").to<int64_t>();
+                auto ndim     = ins->inputs().front()->get_shape().ndim();
+                auto axis     = axis_val < 0 ? axis_val + ndim : axis_val;
+                op_axes       = {static_cast<std::size_t>(axis)};
+                // argmin/argmax only support single axis
+                auto axes_map = desc.common_axes_map_from_src();
+                if(axis < axes_map.size() and axes_map[axis].size() != 1)
+                    return false;
+            }
+            else
+            {
+                op_axes = v.at("axes").to_vector<std::size_t>();
+            }
             std::sort(op_axes.begin(), op_axes.end());
             auto broadcasted_axes = desc.find_broadcasted_axes();
             return equal(op_axes, broadcasted_axes);
@@ -504,7 +546,10 @@ struct find_slice_shape_transforms
         };
         return names;
     }
-
+    static bool pre_check(instruction_ref ins)
+    {
+        return shape_transform_ops().count(ins->name()) > 0;
+    }
     auto matcher() const
     {
         auto reshapes = match::name(shape_transform_ops());
@@ -572,24 +617,32 @@ struct find_slice_shape_transforms
 
 struct find_nop_reshapes
 {
+    static const auto& nop_names()
+    {
+        static const std::unordered_set<std::string> names = [] {
+            auto s = reshaper_names();
+            s.insert("as_shape");
+            s.insert("broadcast");
+            s.insert("concat");
+            s.insert("convert");
+            s.insert("multibroadcast");
+            s.insert("pad");
+            s.insert("slice");
+            s.insert("step");
+            s.insert("transpose");
+            s.insert("reduce_mean");
+            s.insert("reduce_max");
+            s.insert("reduce_min");
+            s.insert("reduce_sum");
+            s.insert("reduce_prod");
+            return s;
+        }();
+        return names;
+    }
+    static bool pre_check(instruction_ref ins) { return nop_names().count(ins->name()) > 0; }
     auto matcher() const
     {
-        auto reshapes = reshaper_names();
-        reshapes.insert("as_shape");
-        reshapes.insert("broadcast");
-        reshapes.insert("concat");
-        reshapes.insert("convert");
-        reshapes.insert("multibroadcast");
-        reshapes.insert("pad");
-        reshapes.insert("slice");
-        reshapes.insert("step");
-        reshapes.insert("transpose");
-        reshapes.insert("reduce_mean");
-        reshapes.insert("reduce_max");
-        reshapes.insert("reduce_min");
-        reshapes.insert("reduce_sum");
-        reshapes.insert("reduce_prod");
-        return match::name(reshapes)(match::same_shape(match::arg(0)));
+        return match::name(nop_names())(match::same_shape(match::arg(0)));
     }
 
     void apply(module& m, const match::matcher_result& mr) const
@@ -601,6 +654,7 @@ struct find_nop_reshapes
 
 struct find_nested_slice
 {
+    static constexpr auto op_name = "slice";
     auto matcher() const { return match::name("slice")(match::arg(0)(match::name("slice"))); }
 
     using axes_map = std::map<std::size_t, std::pair<std::size_t, std::size_t>>;
@@ -685,6 +739,7 @@ struct find_nested_slice
  */
 struct find_concat_multibroadcasts
 {
+    static constexpr auto op_name = "concat";
     auto matcher() const
     {
         return match::name("concat")(
@@ -767,6 +822,7 @@ struct find_concat_multibroadcasts
 
 struct find_concat_slice
 {
+    static constexpr auto op_name = "concat";
     auto matcher() const
     {
         return match::name("concat")(match::any_of[match::outputs()](match::name("slice")));
@@ -839,6 +895,7 @@ struct find_concat_slice
 
 struct find_concat_transpose
 {
+    static constexpr auto op_name = "concat";
     auto matcher() const
     {
         return match::name("concat")(match::all_of[match::inputs()](match::name("transpose")));
@@ -884,6 +941,7 @@ struct find_concat_transpose
 
 struct find_concat_reshape
 {
+    static constexpr auto op_name = "concat";
     auto matcher() const
     {
         return match::name("concat")(match::all_of[match::inputs()](
@@ -952,6 +1010,7 @@ struct find_concat_reshape
 
 struct find_nested_concat
 {
+    static constexpr auto op_name = "concat";
     auto matcher() const
     {
         return match::name("concat")(match::any_of[match::inputs()](match::name("concat")));
@@ -983,6 +1042,7 @@ struct find_nested_concat
 
 struct find_gather
 {
+    static constexpr auto op_name = "gather";
     struct arithmetic_segment
     {
         int64_t base      = 0;
@@ -1291,6 +1351,7 @@ struct find_gather
 
 struct find_gather_scalar
 {
+    static constexpr auto op_name = "gather";
     auto matcher() const
     {
         auto scalar_indices =
@@ -1320,6 +1381,10 @@ struct find_gather_scalar
 
 struct find_reshape_cont
 {
+    static bool pre_check(instruction_ref ins)
+    {
+        return ins->get_operator().attributes().get("pointwise", false);
+    }
     auto matcher() const
     {
         auto contiguous = match::skip(match::name("contiguous"))(
@@ -1384,6 +1449,10 @@ struct find_unary_shape_transforms
             "multibroadcast",
         };
         return names;
+    }
+    static bool pre_check(instruction_ref ins)
+    {
+        return ins->get_operator().attributes().get("pointwise", false);
     }
     auto matcher() const
     {
@@ -1479,6 +1548,12 @@ struct find_unary_shape_transforms
 
 struct find_slice_transpose
 {
+    static bool pre_check(instruction_ref ins)
+    {
+        return std::any_of(ins->outputs().begin(), ins->outputs().end(), [](auto out) {
+            return out->name() == "slice";
+        });
+    }
     auto matcher() const
     {
         auto transpose = match::output(match::name("transpose"));
@@ -1542,6 +1617,7 @@ struct find_slice_transpose
 
 struct find_transpose_slice
 {
+    static constexpr auto op_name = "transpose";
     auto matcher() const
     {
         return match::name("transpose")(match::all_of[match::outputs()](match::name("slice")));
@@ -1634,6 +1710,7 @@ struct find_transpose_slice
 
 struct find_reshape_dot
 {
+    static constexpr auto op_name = "dot";
     auto matcher() const
     {
         auto rsp   = match::name("reshape").bind("rsp");
@@ -1744,6 +1821,10 @@ struct find_reshape_dot
 // const folding simplifications
 struct find_mul_add_shape_op_dot
 {
+    static bool pre_check(instruction_ref ins)
+    {
+        return contains({"transpose", "convert"}, ins->name());
+    }
     auto matcher() const
     {
         auto shape_ops             = match::name("transpose", "convert");
@@ -1772,6 +1853,7 @@ struct find_mul_add_shape_op_dot
 
 struct find_flatten
 {
+    static constexpr auto op_name = "flatten";
     auto matcher() const { return match::name("flatten"); }
 
     void apply(module& m, const match::matcher_result& r) const

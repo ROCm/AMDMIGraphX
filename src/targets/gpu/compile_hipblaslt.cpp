@@ -40,6 +40,13 @@ static size_t compile(migraphx::context& ctx, operation& op, instruction_ref ins
     return v.get<std::size_t>("workspace", 0);
 }
 
+static value make_problem(instruction_ref ins)
+{
+    auto input_shapes = to_shapes(ins->inputs());
+    input_shapes.push_back(ins->get_shape());
+    return to_value(input_shapes);
+}
+
 void compile_hipblaslt::apply(module& m) const
 {
     assert(ctx);
@@ -50,23 +57,34 @@ void compile_hipblaslt::apply(module& m) const
         auto op     = any_cast<hipblaslt_op>(ins->get_operator()).op;
         auto inputs = ins->inputs();
 
-        std::size_t ws = hipblaslt_workspace_size;
+        auto problem       = make_problem(ins);
+        std::size_t ws     = hipblaslt_workspace_size;
 
         auto alloc = m.insert_instruction(
             ins, make_op("allocate", {{"shape", to_value(shape{shape::uint8_type, {ws}})}}));
         inputs.insert(std::prev(inputs.end()), alloc);
         m.replace_instruction(ins, op, inputs);
 
-        // Calculate workspace size
-        ws               = compile(*ctx, op, ins);
+        auto& gpu_ctx  = any_cast<migraphx::gpu::context>(*ctx);
+        auto cached_ws = gpu_ctx.get_problem_cache().get("hipblaslt_workspace", problem);
+        if(cached_ws.has_value())
+        {
+            ws = cached_ws->to<std::size_t>();
+        }
+        else
+        {
+            ws = compile(*ctx, op, ins);
+            gpu_ctx.get_problem_cache().insert("hipblaslt_workspace", problem, ws);
+        }
+
         auto alloc_after = m.insert_instruction(
             ins, make_op("allocate", {{"shape", to_value(shape{shape::uint8_type, {ws}})}}));
 
-        // Replace the workspace size with actual worksapce size needed.
+        // Replace the workspace size with actual workspace size needed.
         auto it = std::find(inputs.begin(), inputs.end(), alloc);
         if(it != inputs.end())
         {
-            *it = alloc_after; // Replace `alloc` with `alloc_after`
+            *it = alloc_after;
         }
         m.replace_instruction(ins, op, inputs);
     }

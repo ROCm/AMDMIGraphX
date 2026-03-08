@@ -28,6 +28,7 @@
 #include <migraphx/match/gelu_erf.hpp>
 #include <migraphx/match/gelu_tanh.hpp>
 #include <migraphx/common.hpp>
+#include <migraphx/iterator_for.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -94,8 +95,27 @@ struct find_tanh_fast_gelu
     }
 };
 
+static bool has_gelu_ops(const module& m, bool fast_math)
+{
+    bool has_tanh = false;
+    bool has_erf  = false;
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() == "tanh")
+            has_tanh = true;
+        if(ins->name() == "erf")
+            has_erf = true;
+    }
+    if(fast_math)
+        return has_tanh or has_erf;
+    return has_tanh;
+}
+
 void rewrite_gelu::apply(module& m) const
 {
+    if(not has_gelu_ops(m, fast_math))
+        return;
+
     if(fast_math)
     {
         match::find_matches(m, find_gelu_erf{});

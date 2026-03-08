@@ -109,6 +109,7 @@ static bool concat_const_foldable(Iterator start, Iterator last, std::size_t iax
 // conv(x, w) * a => conv(x, a * w)
 struct find_mul_conv
 {
+    static constexpr auto op_name = "mul";
     auto matcher() const
     {
         return match::name("mul")(
@@ -161,6 +162,7 @@ struct find_mul_conv
 
 struct find_mul_slice_conv
 {
+    static constexpr auto op_name = "mul";
     static auto conv()
     {
         return match::name("convolution")(
@@ -253,6 +255,7 @@ struct find_mul_slice_conv
 
 struct find_mul_dot
 {
+    static constexpr auto op_name = "mul";
     auto matcher() const
     {
         auto constant            = match::is_constant(not_from_int4());
@@ -321,6 +324,7 @@ e.g. slice(gemm(a, b)) --> gemm(slice(a), slice(b))
 */
 struct find_dot_slice
 {
+    static constexpr auto op_name = "slice";
     auto matcher() const
     {
         return match::name("slice")(
@@ -399,6 +403,7 @@ struct find_dot_slice
 
 struct find_dot_mul
 {
+    static constexpr auto op_name = "dot";
     auto matcher() const
     {
         auto const_broadcast = match::name("broadcast", "multibroadcast")(match::is_constant());
@@ -469,6 +474,7 @@ struct find_dot_mul
 // when the add comes after.
 struct find_mul_add
 {
+    static constexpr auto op_name = "mul";
     auto matcher() const
     {
         return match::name("mul")(match::either_arg(0, 1)(
@@ -497,6 +503,7 @@ struct find_mul_add
 
 struct find_dot_add
 {
+    static constexpr auto op_name = "dot";
     auto matcher() const
     {
         return match::name("dot")(match::either_arg(0, 1)(
@@ -533,6 +540,7 @@ struct find_dot_add
 
 struct find_conv_add
 {
+    static constexpr auto op_name = "convolution";
     auto matcher() const
     {
         auto add = match::name("add")(
@@ -559,6 +567,7 @@ struct find_conv_add
 
 struct find_add_lit_broadcast
 {
+    static constexpr auto op_name = "add";
     auto matcher() const
     {
         return match::name("add")(
@@ -579,6 +588,7 @@ struct find_add_lit_broadcast
 
 struct find_double_add_lit_broadcast
 {
+    static constexpr auto op_name = "add";
     auto matcher() const
     {
         return match::name("add")(
@@ -619,6 +629,10 @@ struct find_double_add_lit_broadcast
 /// axes, and then broadcast that result.
 struct find_inner_broadcast
 {
+    static bool pre_check(instruction_ref ins)
+    {
+        return ins->get_operator().attributes().get("pointwise", false);
+    }
     auto matcher() const { return pointwise(match::all_of[match::inputs()](match::broadcast())); }
 
     static auto get_non_broadcast_input(instruction_ref ins)
@@ -847,6 +861,7 @@ struct find_inner_broadcast
 
 struct find_dot_broadcast
 {
+    static constexpr auto op_name = "dot";
     auto matcher() const
     {
         return match::name("dot")(match::all_of[match::inputs()](match::broadcast()));
@@ -918,6 +933,7 @@ struct find_dot_broadcast
 
 struct find_concat_op
 {
+    static constexpr auto op_name = "concat";
     auto matcher() const
     {
         return match::name("concat")(match::any_of[match::inputs()](
@@ -1046,6 +1062,7 @@ struct find_concat_op
 
 struct find_concat_conv
 {
+    static constexpr auto op_name = "concat";
     auto matcher() const
     {
         return match::name("concat")(
@@ -1157,6 +1174,12 @@ static std::vector<instruction_ref> get_splits(instruction_ref ins)
 
 struct find_splits
 {
+    static bool pre_check(instruction_ref ins)
+    {
+        return std::any_of(ins->outputs().begin(), ins->outputs().end(), [](auto out) {
+            return out->name() == "slice";
+        });
+    }
     auto matcher() const
     {
         // match instruction with outputs of pointwise fusion, pointwise op with 1 or 2 args, or
@@ -1471,6 +1494,12 @@ struct find_splits
  */
 struct find_split_concat
 {
+    static bool pre_check(instruction_ref ins)
+    {
+        return std::any_of(ins->outputs().begin(), ins->outputs().end(), [](auto out) {
+            return out->name() == "slice";
+        });
+    }
     auto matcher() const
     {
         auto concat = match::all_of[match::outputs()](match::name("concat"));
@@ -1555,6 +1584,7 @@ static bool axis_shape_equal(const shape& x, const shape& y, std::size_t axis)
 
 struct find_add_convs
 {
+    static constexpr auto op_name = "add";
     auto matcher() const
     {
         return match::name("add")(
@@ -1650,6 +1680,7 @@ MIGRAPHX_PRED_MATCHER(horiz_conv_dot, instruction_ref ins)
 
 struct find_conv_dot_horiz_fusion
 {
+    static bool pre_check(instruction_ref ins) { return ins->outputs().size() >= 2; }
     auto matcher() const { return horiz_conv_dot(); }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -1726,6 +1757,7 @@ struct find_conv_dot_horiz_fusion
 
 struct find_div_const
 {
+    static constexpr auto op_name = "div";
     auto matcher() const
     {
         return match::name("div")(match::arg(1)(match::is_constant().bind("c")));
@@ -1749,6 +1781,10 @@ struct find_div_const
 
 struct find_unit_ops
 {
+    static bool pre_check(instruction_ref ins)
+    {
+        return contains({"mul", "div", "add", "sub"}, ins->name());
+    }
     auto matcher() const
     {
         auto mul_1 = match::name("mul")(
@@ -1773,6 +1809,10 @@ struct find_unit_ops
 
 struct find_neg_unit_ops
 {
+    static bool pre_check(instruction_ref ins)
+    {
+        return contains({"mul", "div", "sub"}, ins->name());
+    }
     auto matcher() const
     {
         auto mul_neg_1 = match::name("mul")(
@@ -1801,6 +1841,10 @@ struct eliminate_zero_point
         static std::unordered_set<std::string> qdq_names = {"quantizelinear", "dequantizelinear"};
         return qdq_names;
     }
+    static bool pre_check(instruction_ref ins)
+    {
+        return contains({"quantizelinear", "dequantizelinear"}, ins->name());
+    }
     auto matcher() const
     {
         return match::name(get_qlinear_ops_names())(match::arg(0)(match::any().bind("x")),
@@ -1826,6 +1870,10 @@ struct eliminate_zero_point
 
 struct find_zero_ops
 {
+    static bool pre_check(instruction_ref ins)
+    {
+        return contains({"mul", "div"}, ins->name());
+    }
     auto matcher() const
     {
         auto mul_zero = match::name("mul")(
@@ -1848,6 +1896,7 @@ struct find_zero_ops
 
 struct find_sub_const
 {
+    static constexpr auto op_name = "sub";
     auto matcher() const
     {
         return match::name("sub")(match::arg(1)(match::is_constant().bind("c")));
@@ -1868,6 +1917,7 @@ struct find_sub_const
 
 struct find_rsqrt
 {
+    static constexpr auto op_name = "recip";
     auto matcher() const
     {
         auto bind_x = match::args(match::any().bind("x"));
@@ -1886,6 +1936,7 @@ struct find_rsqrt
 // log(exp(x)) -> x
 struct find_log_exp
 {
+    static constexpr auto op_name = "log";
     auto matcher() const
     {
         auto bind_x = match::args(match::any().bind("x"));
@@ -1904,6 +1955,7 @@ struct find_log_exp
 // log(x / y) -> log(x) - log(y)
 struct find_log_div
 {
+    static constexpr auto op_name = "log";
     auto matcher() const
     {
         auto exp            = match::name("exp");
@@ -1938,6 +1990,7 @@ static bool same_ops(const std::vector<instruction_ref>& vec_ins)
 
 struct find_split_reshape
 {
+    static constexpr auto op_name = "reshape";
     auto matcher() const
     {
         auto slice_bind_slice = match::arg(0)(match::name("slice").bind("slice"));
@@ -2106,6 +2159,7 @@ struct find_split_reshape
 
 struct find_split_transpose
 {
+    static constexpr auto op_name = "transpose";
     auto matcher() const
     {
         return match::name("transpose")(match::arg(0)(match::name("slice").bind("slice")))
@@ -2172,6 +2226,7 @@ struct find_split_transpose
 //   multibroadcast result to the original output shape
 struct find_conv_broadcast_input
 {
+    static constexpr auto op_name = "convolution";
     auto matcher() const
     {
         return match::name("convolution")(match::args(

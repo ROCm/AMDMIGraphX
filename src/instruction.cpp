@@ -42,7 +42,7 @@ static auto equal_to(const T& x)
 }
 
 instruction::instruction(operation o, shape r, std::vector<instruction_ref> args)
-    : op(std::move(o)), result(std::move(r)), arguments(std::move(args))
+    : op(std::move(o)), op_name(op.name()), result(std::move(r)), arguments(std::move(args))
 {
 }
 
@@ -51,6 +51,7 @@ instruction::instruction(operation o,
                          std::vector<instruction_ref> args,
                          std::vector<module_ref> modules)
     : op(std::move(o)),
+      op_name(op.name()),
       result(std::move(r)),
       arguments(std::move(args)),
       module_args(std::move(modules))
@@ -58,7 +59,7 @@ instruction::instruction(operation o,
 }
 
 instruction::instruction(literal l)
-    : op(builtin::literal{}), result(l.get_shape()), lit(std::move(l))
+    : op(builtin::literal{}), op_name(op.name()), result(l.get_shape()), lit(std::move(l))
 {
 }
 
@@ -108,6 +109,7 @@ void instruction::replace(operation o)
 {
     normalized = false;
     op         = std::move(o);
+    op_name    = op.name();
     recompute_shape();
 }
 
@@ -181,7 +183,7 @@ const literal& instruction::get_literal() const
 
 const operation& instruction::get_operator() const { return op; }
 
-std::string instruction::name() const { return op.name(); }
+const std::string& instruction::name() const { return op_name; }
 
 const std::vector<instruction_ref>& instruction::inputs() const { return arguments; }
 
@@ -263,6 +265,7 @@ void instruction::replace(operation o, const shape& r, std::vector<instruction_r
 {
     normalized = false;
     op         = std::move(o);
+    op_name    = op.name();
     replace(r);
     replace(std::move(args));
 }
@@ -272,7 +275,8 @@ void instruction::replace(operation o,
                           std::vector<instruction_ref> args,
                           std::vector<module_ref> mdl_args)
 {
-    op = std::move(o);
+    op      = std::move(o);
+    op_name = op.name();
     replace(r);
     replace(std::move(args), std::move(mdl_args));
 }

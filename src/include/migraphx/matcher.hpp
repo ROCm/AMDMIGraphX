@@ -429,6 +429,43 @@ auto get_matcher(const Finder& f)
     }
 }
 
+template <class T, class = void>
+struct has_op_name : std::false_type
+{
+};
+
+template <class T>
+struct has_op_name<T, std::void_t<decltype(T::op_name)>> : std::true_type
+{
+};
+
+template <class T, class = void>
+struct has_pre_check : std::false_type
+{
+};
+
+template <class T>
+struct has_pre_check<T, std::void_t<decltype(T::pre_check(std::declval<instruction_ref>()))>>
+    : std::true_type
+{
+};
+
+template <class Finder>
+bool quick_reject(Finder&, instruction_ref ins)
+{
+    if constexpr(has_op_name<Finder>{})
+    {
+        if(ins->name() != Finder::op_name)
+            return true;
+    }
+    if constexpr(has_pre_check<Finder>{})
+    {
+        if(not Finder::pre_check(ins))
+            return true;
+    }
+    return false;
+}
+
 template <class Finder>
 auto make_match_runner_with_trace(source_location location, Finder& f)
 {
@@ -443,6 +480,8 @@ auto make_match_runner_with_trace(source_location location, Finder& f)
          contains(std::string{location.function_name()}, trace_filter) or
          contains(finder_name, trace_filter));
     return [=, &f](auto& mod, instruction_ref ins) -> bool {
+        if(quick_reject(f, ins))
+            return false;
         using microseconds = std::chrono::duration<double, std::micro>;
         if(trace > 1 and trace_enabled)
             std::cout << "Running matcher: " << finder_name << std::endl;
@@ -509,6 +548,8 @@ auto make_match_runner(Finder& f)
 {
     auto m = get_matcher(f);
     return [=, &f](auto& mod, instruction_ref ins) -> bool {
+        if(quick_reject(f, ins))
+            return false;
         match::matcher_result r = match::match_instruction(get_module(mod), ins, m);
         if(r.result == get_module(mod).end())
             return false;

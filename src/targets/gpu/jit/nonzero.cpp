@@ -67,8 +67,8 @@ struct nonzero_compiler : compiler<nonzero_compiler>
         // and requires all threads to synchronize, so we can't allow
         // tuning overrides, for now
         constexpr std::size_t block_size = 256;
-        options.global = block_size;
-        options.local  = block_size;
+        options.global                   = block_size;
+        options.local                    = block_size;
 
         auto src = interpolate_string(nonzero_kernel, {{"block_size", std::to_string(block_size)}});
 

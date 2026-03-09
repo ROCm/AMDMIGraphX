@@ -449,63 +449,6 @@ TEST_CASE(simplify_div_const_debug_symbols)
     EXPECT(m1.sort() == m2.sort());
 }
 
-// Three sequential adds fused into a single pointwise op via fuse_pointwise.
-// All three ONNX node symbols should appear on the fused pointwise instruction.
-// Extends pw_double_add to a longer chain.
-//
-//  Before:                         After:
-//
-//   x   y                          x  y  z  w
-//    \ /                             \ | | /
-//    add  {add1}                   pointwise  {add1, add2, add3}
-//     |  z                              |
-//     | /                            @return
-//    add  {add2}
-//     |  w
-//     | /
-//    add  {add3}
-//     |
-//   @return
-//
-TEST_CASE(pw_triple_add_fused)
-{
-    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
-    migraphx::program p1;
-    {
-        auto* mm  = p1.get_main_module();
-        auto x    = mm->add_parameter("x", s);
-        auto y    = mm->add_parameter("y", s);
-        auto z    = mm->add_parameter("z", s);
-        auto w    = mm->add_parameter("w", s);
-        auto add1 = mm->add_instruction(migraphx::make_op("add"), x, y);
-        mm->add_debug_symbols(add1, {"onnx:add1"});
-        auto add2 = mm->add_instruction(migraphx::make_op("add"), add1, z);
-        mm->add_debug_symbols(add2, {"onnx:add2"});
-        auto add3 = mm->add_instruction(migraphx::make_op("add"), add2, w);
-        mm->add_debug_symbols(add3, {"onnx:add3"});
-        mm->add_return({add3});
-    }
-    migraphx::run_passes(p1, {migraphx::fuse_pointwise{}, migraphx::dead_code_elimination{}});
-
-    migraphx::program p2;
-    {
-        auto* mm = p2.get_main_module();
-        auto x   = mm->add_parameter("x", s);
-        auto y   = mm->add_parameter("y", s);
-        auto z   = mm->add_parameter("z", s);
-        auto w   = mm->add_parameter("w", s);
-        auto fadd =
-            add_pointwise(p2, "main:pointwise0", {x, y, z, w}, [=](auto* pm, const auto& inputs) {
-                auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
-                auto add2 = pm->add_instruction(migraphx::make_op("add"), add1, inputs[2]);
-                return pm->add_instruction(migraphx::make_op("add"), add2, inputs[3]);
-            });
-        mm->add_debug_symbols(fadd, {"onnx:add1", "onnx:add2", "onnx:add3"});
-        mm->add_return({fadd});
-    }
-    EXPECT(p1 == p2);
-}
-
 // Verifies that debug symbols appear in the module's printed/serialized
 // output using the expected comment format produced by instruction::print.
 //

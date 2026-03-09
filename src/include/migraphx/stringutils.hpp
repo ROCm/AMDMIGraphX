@@ -71,8 +71,7 @@ inline bool ends_with(const std::string& value, const std::string& suffix)
 }
 
 template <class Strings>
-inline std::string join_strings(const typename std::remove_reference<Strings>::type& strings,
-                                const std::string& delim)
+inline std::string join_strings(const Strings& strings, const std::string& delim)
 {
     auto it = strings.begin();
     if(it == strings.end())

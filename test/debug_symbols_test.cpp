@@ -688,4 +688,97 @@ TEST_CASE(batch_replace_multi_merges_symbols)
     EXPECT(results[1]->get_debug_symbols() == expected);
 }
 
+// -----------------------------------------------------------------------
+// module::remove_debug_symbols tests
+// -----------------------------------------------------------------------
+
+TEST_CASE(remove_single_symbol)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m;
+    auto x   = m.add_parameter("x", s);
+    auto y   = m.add_parameter("y", s);
+    auto add = m.add_instruction(migraphx::make_op("add"), x, y);
+    m.add_debug_symbols(add, {"sym_a", "sym_b"});
+    m.add_return({add});
+
+    EXPECT(m.has_debug_symbols());
+    m.remove_debug_symbols(add);
+
+    EXPECT(add->get_debug_symbols().empty());
+    EXPECT(not m.has_debug_symbols());
+}
+
+TEST_CASE(remove_noop_no_symbols)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m;
+    auto x   = m.add_parameter("x", s);
+    auto y   = m.add_parameter("y", s);
+    auto add = m.add_instruction(migraphx::make_op("add"), x, y);
+    m.add_return({add});
+
+    EXPECT(not m.has_debug_symbols());
+    m.remove_debug_symbols(add);
+
+    EXPECT(add->get_debug_symbols().empty());
+    EXPECT(not m.has_debug_symbols());
+}
+
+TEST_CASE(remove_one_of_two)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m;
+    auto x    = m.add_parameter("x", s);
+    auto y    = m.add_parameter("y", s);
+    auto add1 = m.add_instruction(migraphx::make_op("add"), x, y);
+    m.add_debug_symbols(add1, {"sym_add1"});
+    auto add2 = m.add_instruction(migraphx::make_op("add"), add1, y);
+    m.add_debug_symbols(add2, {"sym_add2"});
+    m.add_return({add2});
+
+    EXPECT(m.has_debug_symbols());
+    m.remove_debug_symbols(add1);
+
+    EXPECT(add1->get_debug_symbols().empty());
+    EXPECT(add2->get_debug_symbols() == std::set<std::string>{"sym_add2"});
+    EXPECT(m.has_debug_symbols());
+}
+
+TEST_CASE(remove_then_re_add)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m;
+    auto x   = m.add_parameter("x", s);
+    auto y   = m.add_parameter("y", s);
+    auto add = m.add_instruction(migraphx::make_op("add"), x, y);
+    m.add_debug_symbols(add, {"old_sym"});
+    m.add_return({add});
+
+    m.remove_debug_symbols(add);
+    EXPECT(add->get_debug_symbols().empty());
+    EXPECT(not m.has_debug_symbols());
+
+    m.add_debug_symbols(add, {"new_sym"});
+    EXPECT(add->get_debug_symbols() == std::set<std::string>{"new_sym"});
+    EXPECT(m.has_debug_symbols());
+}
+
+TEST_CASE(remove_idempotent)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m;
+    auto x   = m.add_parameter("x", s);
+    auto y   = m.add_parameter("y", s);
+    auto add = m.add_instruction(migraphx::make_op("add"), x, y);
+    m.add_debug_symbols(add, {"sym"});
+    m.add_return({add});
+
+    m.remove_debug_symbols(add);
+    m.remove_debug_symbols(add);
+
+    EXPECT(add->get_debug_symbols().empty());
+    EXPECT(not m.has_debug_symbols());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

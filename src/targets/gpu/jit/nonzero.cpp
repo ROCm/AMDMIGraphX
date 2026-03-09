@@ -55,7 +55,7 @@ struct nonzero_compiler : compiler<nonzero_compiler>
 {
     std::vector<std::string> names() const { return {"nonzero"}; }
 
-    operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
+    operation compile_op(context& ctx, const std::vector<shape>& inputs, const value&) const
     {
         hip_compile_options options;
         options.inputs         = inputs;
@@ -63,8 +63,12 @@ struct nonzero_compiler : compiler<nonzero_compiler>
         options.virtual_inputs = inputs;
         options.kernel_name    = "nonzero_kernel";
 
-        const std::size_t block_size = 256;
-        options.set_launch_params(v, block_size, block_size);
+        // The block_scan algorithm uses shared memory sized to block_size
+        // and requires all threads to synchronize, so we can't allow
+        // tuning overrides, for now
+        constexpr std::size_t block_size = 256;
+        options.global = block_size;
+        options.local  = block_size;
 
         auto src = interpolate_string(nonzero_kernel, {{"block_size", std::to_string(block_size)}});
 

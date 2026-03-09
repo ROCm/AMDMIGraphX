@@ -36,8 +36,8 @@ pip3 install -r requirements-dev.txt
 export PATH="/opt/cmake/bin:$PATH"
 export CXXFLAGS="-D__HIP_PLATFORM_AMD__=1 -w"
 echo "ONNX Runtime log..."
-git log -1
-./build.sh --config Release  --cmake_extra_defines CMAKE_HIP_COMPILER=/opt/rocm/llvm/bin/clang++ --update --build --build_wheel --parallel --cmake_extra_defines ONNXRUNTIME_VERSION=$(cat ./VERSION_NUMBER) --skip_tests --rocm_home /opt/rocm --use_migraphx --migraphx_home /opt/rocm --rocm_version=`cat /opt/rocm/.info/version-dev` --allow_running_as_root
+git log -1 --oneline
+./build.sh --config Release  --cmake_extra_defines CMAKE_HIP_COMPILER=/opt/rocm/llvm/bin/clang++ --update --build --build_wheel --parallel --cmake_extra_defines ONNXRUNTIME_VERSION=$(cat ./VERSION_NUMBER) --skip_tests --rocm_home /opt/rocm --use_migraphx --migraphx_home /opt/rocm --rocm_version=`cat /opt/rocm/.info/version-dev` --allow_running_as_root --enable_pybind
 
 cd build/Linux/Release
 #Add test launcher for onnxrt tests

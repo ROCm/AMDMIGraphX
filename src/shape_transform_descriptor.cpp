@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,6 +32,7 @@
 #include <migraphx/common_dims.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/transform_view.hpp>
 #include <map>
 #include <unordered_set>
 #include <deque>
@@ -109,6 +110,14 @@ static std::vector<dimension::sub> get_all_subdimensions(const std::vector<dimen
     return result;
 }
 
+template <class Vector>
+static std::vector<dimension::sub*> get_pointer_subdimensions(Vector& v)
+{
+    std::vector<dimension::sub*> result;
+    for_each_subdimension(v, [&](dimension::sub& s) { result.push_back(&s); });
+    return result;
+}
+
 template <class Dimensions, class Range, class F>
 static void for_each_subdimension(Dimensions&& dimensions, Range&& r, F f)
 {
@@ -126,6 +135,15 @@ static void for_each_subdimension(Dimensions&& dimensions, Range&& r, F f)
     }
 }
 
+static void set_origin_axis(dimension::sub& s, const std::vector<std::size_t>& axis)
+{
+    assert(s.axis.empty() or s.hidden_axis.empty());
+    if(s.has_hidden_axis())
+        s.hidden_axis = axis;
+    else
+        s.axis = axis;
+}
+
 // Group all axes into a map with a key of the axis and the value is vector of
 // all subdimensions that have that axis.
 template <class Dimensions>
@@ -140,6 +158,45 @@ static std::map<std::size_t, std::vector<dimension::sub*>> group_axes(Dimensions
         axes_map[s.origin_axis().front()].push_back(&s);
     });
     return axes_map;
+}
+
+// Renumber all axes while preserving the order of the axes
+static void renumber_axes(std::map<std::size_t, std::vector<dimension::sub*>>& axes_map)
+{
+    for(auto&& p : axes_map)
+    {
+        const auto& axis = p.first;
+        auto& subs       = p.second;
+        if(subs.size() == 1)
+        {
+            set_origin_axis(*subs[0], {axis});
+        }
+        else
+        {
+            std::sort(subs.begin(), subs.end(), by(std::less<>{}, [](const dimension::sub* s) {
+                          return s->origin_axis();
+                      }));
+            for(std::size_t i : range(subs.size()))
+                set_origin_axis(*subs[i], {axis, i});
+        }
+    }
+}
+static void renumber_axes(std::vector<dimension>& dimensions)
+{
+    auto axes_map = group_axes(dimensions);
+    renumber_axes(axes_map);
+}
+
+static void remove_empty_sub_dims(std::vector<dimension::sub>& subdimensions)
+{
+    subdimensions.erase(std::remove_if(subdimensions.begin(),
+                                       subdimensions.end(),
+                                       [&](const dimension::sub& d) {
+                                           return d.len == 1 and d.origin_axis().empty();
+                                       }),
+                        subdimensions.end());
+    if(subdimensions.empty())
+        subdimensions.push_back({1, {}});
 }
 
 static std::size_t len(const std::vector<dimension::sub*>& subs)
@@ -185,11 +242,512 @@ shape_transform_descriptor shape_transform_descriptor::create(const std::vector<
     return result;
 }
 
+static bool is_broadcast_only(const std::vector<dimension>& src_dims,
+                              const std::vector<dimension>& dst_dims)
+{
+    return std::equal(src_dims.begin(),
+                      src_dims.end(),
+                      dst_dims.begin(),
+                      dst_dims.end(),
+                      [](const auto& src_dim, const auto& dst_dim) {
+                          if(src_dim.subdimensions.size() != dst_dim.subdimensions.size())
+                              return false;
+                          auto match_sub_dim = [](const dimension::sub& src_sub,
+                                                  const dimension::sub& dst_sub) {
+                              if(src_sub.len == 1)
+                                  return true;
+                              return src_sub.len == dst_sub.len;
+                          };
+                          auto [src_it, dst_it] = std::mismatch(src_dim.subdimensions.begin(),
+                                                                src_dim.subdimensions.end(),
+                                                                dst_dim.subdimensions.begin(),
+                                                                dst_dim.subdimensions.end(),
+                                                                match_sub_dim);
+                          if(src_it == src_dim.subdimensions.end())
+                              return true;
+                          // One mismatch is fine as long as the dimension is still the same size
+                          if(src_dim.len() != dst_dim.len())
+                              return false;
+                          return std::equal(std::next(src_it),
+                                            src_dim.subdimensions.end(),
+                                            std::next(dst_it),
+                                            dst_dim.subdimensions.end(),
+                                            match_sub_dim);
+                      });
+}
+
+template <class Dimensions, class Predicate>
+static auto find_subdimension_with_dimension(Dimensions& dims, Predicate pred)
+    -> std::pair<decltype(&dims[0]), decltype(&dims[0].subdimensions.front())>
+{
+    for(auto& dim : dims)
+    {
+        auto it = std::find_if(dim.subdimensions.begin(), dim.subdimensions.end(), pred);
+        if(it != dim.subdimensions.end())
+            return {&dim, &(*it)};
+    }
+    return {nullptr, nullptr};
+}
+
+// Class to handle axes rebase adjustment for ambiguous reshape transformations
+//
+// This class solves an ambiguity problem that arises when shape_transform_descriptor
+// records reshape operations involving dimensions of size 1. When reshaping with 1 dims,
+// there are multiple valid ways to split/assign axes, and the descriptor may not match
+// the expected layout when rebasing.
+//
+// Why this is needed:
+// When shape_transform_descriptor reshapes from [4, 1, 4] to [4, 1, 1, 4], it could record:
+// - Option 1: [4:0], [1:1x0], [1:1x1], [4:2] (axis 1 split into two)
+// - Option 2: [4:0], [1:1], [1:2,0], [4:2,1] (axis 2 split, with 1 inserted)
+// Both are valid, but when rebasing, we need to adjust to match the expected dimensions.
+// A similar issue occurs when squeezing 1 dims - the axis assignment becomes ambiguous.
+//
+// The adjustment process:
+// - Identifies "shortage" axes (target dim > current subdimensions)
+// - Finds "excess" axes or unassigned broadcast dimensions
+// - Redistributes subdimensions to resolve the ambiguity
+// - Uses hidden_axis to track broadcast dimensions for proper placement
+struct rebase_ambiguity_resolver
+{
+    using axes_map_t = std::map<std::size_t, std::vector<dimension::sub*>>;
+
+    // Structure to bundle axis-related information for cleaner parameter passing
+    struct axis_info
+    {
+        std::size_t saxis;    // The shortage axis that needs subdimensions
+        std::size_t excess;   // The amount of excess subdimensions available
+        std::size_t base_dim; // The base dimension size
+        std::size_t axis;     // The current axis being processed
+    };
+
+    rebase_ambiguity_resolver(shape_transform_descriptor& d, const std::vector<std::size_t>& ds)
+        : desc(&d), dims(&ds)
+    {
+    }
+
+    // Main entry point that orchestrates the axes adjustment process
+    // Returns the axes mapping that can be used for rebase
+    auto resolve()
+    {
+        std::vector<std::pair<dimension::sub, std::size_t>> subs_to_insert;
+        {
+            axes_map_t axes_map = group_axes(desc->dimensions);
+
+            find_shortage_axes(axes_map);
+
+            if(shortage_axes.empty())
+                return axes_map;
+
+            if(try_trivial_direct_mapping())
+                return regroup_axes();
+
+            process_axis_groups(axes_map, subs_to_insert);
+
+            if(shortage_axes.size() == initial_shortage_count)
+                return axes_map;
+        }
+        insert_moved_axes(subs_to_insert);
+
+        swap_closer_axes();
+
+        sort_hidden_axes_groups();
+        sort_moved_axes_groups();
+
+        return regroup_axes();
+    }
+
+    private:
+    template <class T, class U>
+    static auto check_div(T x, U y) -> decltype(x / y)
+    {
+        if(y == 0)
+            return 0;
+        if((x % y) != 0)
+            return 0;
+        return x / y;
+    }
+
+    axes_map_t regroup_axes()
+    {
+        axes_map_t result = group_axes(desc->dimensions);
+        renumber_axes(result);
+        return result;
+    }
+
+    // Identifies axes where the target dimension is larger than current subdimensions
+    // These are "shortage" axes that need subdimensions due to ambiguous axis assignment
+    void find_shortage_axes(const axes_map_t& axes_map)
+    {
+        for(const auto& [axis, subs] : axes_map)
+        {
+            assert(axis < dims->size());
+            auto dim      = (*dims)[axis];
+            auto shortage = check_div(dim, len(subs));
+            if(shortage < 2)
+                continue;
+            shortage_axes.emplace(shortage, axis);
+        }
+        initial_shortage_count = shortage_axes.size();
+    }
+
+    bool try_trivial_direct_mapping()
+    {
+        if(desc->lens() != *dims)
+            return false;
+        if(not std::all_of(
+               desc->dimensions.begin(), desc->dimensions.end(), [&](const dimension& d) {
+                   if(d.subdimensions.empty())
+                       return false;
+                   if(d.len() == 1)
+                       return true;
+                   if(std::any_of(d.subdimensions.begin(),
+                                  d.subdimensions.end(),
+                                  [&](const dimension::sub& s) {
+                                      if(s.origin_axis().empty())
+                                          return false;
+                                      if(s.origin_axis().size() != 1)
+                                          return true;
+                                      if(s.len == 1)
+                                          return false;
+                                      if(s.has_hidden_axis())
+                                          return false;
+                                      return ((*dims)[s.origin_axis().front()] != s.len);
+                                  }))
+                       return false;
+                   if(d.subdimensions.size() == 1)
+                       return true;
+                   auto n1dims = std::count_if(d.subdimensions.begin(),
+                                               d.subdimensions.end(),
+                                               [](const dimension::sub& s) { return s.len == 1; });
+                   return n1dims + 1 == d.subdimensions.size();
+               }))
+            return false;
+        std::vector<std::size_t> axes;
+        for_each_subdimension(desc->dimensions, [&](auto& s) {
+            if(s.origin_axis().empty())
+                return;
+            axes.push_back(s.origin_axis().front());
+        });
+        // TODO: Handle permutations
+        if(not std::is_sorted(axes.begin(), axes.end()))
+            return false;
+        for(std::size_t i : range(desc->dimensions.size()))
+        {
+            auto& dim = desc->dimensions[i];
+            if(dim.subdimensions.empty())
+                continue;
+            auto sub = std::find_if(dim.subdimensions.begin(),
+                                    dim.subdimensions.end(),
+                                    [&](const dimension::sub& s) { return s.len != 1; });
+            if(sub == dim.subdimensions.end())
+                sub = dim.subdimensions.begin();
+            sub->expose();
+            sub->axis = {i};
+
+            auto remove_axis = [](dimension::sub& s) {
+                s.axis.clear();
+                s.hidden_axis.clear();
+                s.len = 1;
+            };
+            std::for_each(dim.subdimensions.begin(), sub, remove_axis);
+            std::for_each(std::next(sub), dim.subdimensions.end(), remove_axis);
+        }
+        shortage_axes.clear();
+        return true;
+    }
+
+    // Processes each axis group to resolve ambiguous axis assignments
+    // This is the core logic that fixes mismatches from reshape ambiguity
+    //
+    // The process for each axis group:
+    // 1. Calculate if there's excess (more subdimensions than needed)
+    // 2. Find a matching shortage axis that needs exactly that excess
+    // 3. Try to swap (for broadcast dimensions) or move subdimensions
+    void process_axis_groups(const axes_map_t& axes_map,
+                             std::vector<std::pair<dimension::sub, std::size_t>>& subs_to_insert)
+    {
+        for_each_axis_group(axes_map,
+                            [&](std::size_t axis,
+                                const std::vector<dimension::sub*>& subs,
+                                std::size_t excess,
+                                std::size_t base_dim) {
+                                auto saxes = shortage_axes.equal_range(excess);
+                                if(saxes.first == saxes.second)
+                                    return;
+
+                                auto saxis_it =
+                                    find_nearest_shortage_axis(saxes.first, saxes.second, axis);
+
+                                axis_info info{saxis_it->second, excess, base_dim, axis};
+
+                                // Try to swap an axis
+                                if(try_swap_axis(subs, info))
+                                {
+                                    shortage_axes.erase(saxis_it);
+                                    return;
+                                }
+
+                                if(subs.size() != 1)
+                                    return;
+
+                                // Move the shortage to the excess dim
+                                if(move_shortage_to_excess(subs, info, subs_to_insert))
+                                {
+                                    shortage_axes.erase(saxis_it);
+                                }
+                            });
+    }
+
+    // Helper that iterates over axis groups that have excess subdimensions
+    // Calls the provided function for each axis with excess
+    //
+    // Two types of excess are handled:
+    // 1. Regular axes with more subdimensions than needed
+    // 2. "No-axis" subdimensions (from broadcasts) that can be assigned to any axis
+    template <class F>
+    void for_each_axis_group(const axes_map_t& axes_map, F f)
+    {
+        for(const auto& [axis, subs] : axes_map)
+        {
+            assert(axis < dims->size());
+            auto dim    = (*dims)[axis];
+            auto excess = check_div(len(subs), dim);
+            if(excess < 2)
+                continue;
+            f(axis, subs, excess, dim);
+        }
+        // Look at dims with no axis
+        for_each_subdimension(desc->dimensions, [&](auto& s) {
+            if(not s.origin_axis().empty())
+                return;
+            auto excess = s.len;
+            if(excess < 2)
+                return;
+            f(dims->size(), std::vector<dimension::sub*>{&s}, excess, 1);
+        });
+    }
+
+    // Finds the shortage axis that is closest to the current axis
+    // This helps maintain locality - we prefer to move subdimensions between nearby axes
+    //
+    // Example:
+    // - Current axis: 2
+    // - Shortage axes: {0->3, 1->4, 5->3} (axis->shortage pairs)
+    // - Returns iterator to axis 1 (distance = |1-2| = 1)
+    template <class Iterator>
+    Iterator find_nearest_shortage_axis(Iterator first, Iterator last, std::size_t axis)
+    {
+        return std::min_element(first, last, by(std::less<>{}, [&](const auto& p) {
+                                    std::int64_t a1 = p.second;
+                                    std::int64_t a2 = axis;
+                                    return std::abs(a1 - a2);
+                                }));
+    }
+
+    // Attempts to reassign broadcast dimensions to resolve reshape ambiguity
+    // Used when broadcast dims (originally dimension 1) need proper axis assignment
+    //
+    // This resolves cases where reshape with dimension 1 created ambiguous axis assignments
+    bool try_swap_axis(const std::vector<dimension::sub*>& subs, const axis_info& info)
+    {
+        auto it = std::find_if(subs.begin(), subs.end(), [&](dimension::sub* sub) {
+            if(not sub->has_hidden_axis() and not sub->origin_axis().empty())
+                return false;
+            return sub->len == info.excess;
+        });
+        if(it != subs.end())
+        {
+            auto* sub        = *it;
+            sub->hidden_axis = {info.saxis, last_axis_split};
+            return true;
+        }
+        return false;
+    }
+
+    // Moves subdimensions to resolve ambiguity from reshape operations with dimension 1
+    // This physically relocates subdimensions when the ambiguous assignment needs correction.
+    // The subdimension is pushed to subs_to_insert first because inserting here will
+    // invalidate the references to the subdimensions.
+    //
+    // This fixes cases where reshape ambiguity left dimension 1s in wrong positions
+    bool
+    move_shortage_to_excess(const std::vector<dimension::sub*>& subs,
+                            const axis_info& info,
+                            std::vector<std::pair<dimension::sub, std::size_t>>& subs_to_insert)
+    {
+        auto dim_pair =
+            find_subdimension_with_dimension(desc->dimensions, [&](const dimension::sub& s) {
+                if(s.axis.size() != 1)
+                    return false;
+                return s.axis.front() == info.saxis;
+            });
+        if(dim_pair.first == nullptr)
+            return false;
+        auto* dim = dim_pair.first;
+        auto* sub = dim_pair.second;
+        assert(sub != nullptr);
+        if(sub->len != 1)
+            return false;
+        if(dim->subdimensions.size() == 1)
+            return false;
+        subs_to_insert.push_back({dimension::sub{info.excess, {}, {info.saxis}}, info.axis});
+        sub->axis.clear();
+        subs.front()->len = info.base_dim;
+        return true;
+    }
+
+    // Inserts the subdimensions that were marked for movement
+    // These subdimensions are inserted at their new positions
+    //
+    // Example:
+    // - Sub [3:,{1}] needs to be inserted at position after axis 0
+    // - Finds the dimension containing axis 0 subdimensions
+    // - Inserts after the last subdimension with axis 0
+    void
+    insert_moved_axes(const std::vector<std::pair<dimension::sub, std::size_t>>& subs_to_insert)
+    {
+        for(const auto& [sub, pos_axis] : subs_to_insert)
+        {
+            // Inline insert_single_axis
+            auto equal_to_pos_axis = [&, lpos_axis = pos_axis](const dimension::sub& s) {
+                if(s.origin_axis().empty())
+                    return false;
+                return s.origin_axis().front() == lpos_axis;
+            };
+            auto dim_pair = find_subdimension_with_dimension(desc->dimensions, equal_to_pos_axis);
+            assert(dim_pair.first != nullptr);
+            auto* dim = dim_pair.first;
+            auto it   = std::find_if(
+                dim->subdimensions.begin(), dim->subdimensions.end(), equal_to_pos_axis);
+            assert(it != dim->subdimensions.end());
+            dim->subdimensions.insert(std::next(it), sub);
+            moved_axes.insert(sub.origin_axis().front());
+        }
+    }
+
+    static bool has_hidden_axis(const dimension::sub* s) { return s->has_hidden_axis(); }
+
+    static const std::vector<std::size_t>& get_hidden_axis(const dimension::sub* s)
+    {
+        return s->hidden_axis;
+    }
+
+    // Optimizes the placement of hidden axes to group related dimensions
+    // This helps clean up after resolving reshape ambiguities with dimension 1s
+    //
+    // This ensures the final axis assignment is clean and predictable
+    void swap_closer_axes()
+    {
+        auto subs = get_pointer_subdimensions(desc->dimensions);
+
+        group_find(subs.begin(), subs.end(), &has_hidden_axis, [](auto start, auto last) {
+            if(std::distance(start, last) < 2)
+                return;
+
+            adjacent_for_each(start, last, [&](dimension::sub* s1, dimension::sub* s2) {
+                if(s1->hidden_axis.empty())
+                    return;
+                if(s2->hidden_axis.empty())
+                    return;
+                assert(s1->axis.empty());
+                assert(s2->axis.empty());
+
+                auto it = min_element_if(
+                    start,
+                    last,
+                    [&](const dimension::sub* s) {
+                        // Valid if same len as s2 and hidden_axis greater than s1
+                        return s->len == s2->len and s->hidden_axis > s1->hidden_axis;
+                    },
+                    by(std::less<>{}, &get_hidden_axis));
+
+                if(it == last)
+                    return;
+
+                auto* next_sub = *it;
+                assert(s1->hidden_axis < next_sub->hidden_axis);
+                if(next_sub->hidden_axis.empty())
+                    return;
+                if(next_sub == s2)
+                    return;
+                if(next_sub->len != s2->len)
+                    return;
+                std::swap(*s2, *next_sub);
+            });
+        });
+    }
+
+    static auto get_hidden_axis_group(const dimension::sub* s)
+    {
+        if(s->hidden_axis.empty())
+            return std::numeric_limits<std::size_t>::max();
+        return s->hidden_axis.front();
+    }
+
+    template <class Pred>
+    static auto sort_group_if(Pred pred)
+    {
+        return [=](auto start, auto last) {
+            if(std::distance(start, last) < 2)
+                return;
+            if(not pred(*start))
+                return;
+            auto r    = range(start, last);
+            auto axes = views::transform(r, [](MIGRAPHX_CPPCHECK_CONST dimension::sub* s) -> auto& {
+                return s->hidden_axis;
+            });
+            std::sort(axes.begin(), axes.end());
+        };
+    }
+
+    auto get_is_moved_axis()
+    {
+        return [this](const dimension::sub* s) {
+            if(s->origin_axis().empty())
+                return false;
+            return contains(moved_axes, s->origin_axis().front());
+        };
+    }
+
+    // Sorts groups of hidden axes to to reduce transposition.
+    void sort_hidden_axes_groups()
+    {
+        auto subs = get_pointer_subdimensions(desc->dimensions);
+        group_unique(subs.begin(),
+                     subs.end(),
+                     sort_group_if([](dimension::sub* s) { return not s->hidden_axis.empty(); }),
+                     by(std::equal_to<>{}, &get_hidden_axis_group));
+    }
+
+    // If subdimensions are moved together then sort to reduce transposition.
+    void sort_moved_axes_groups()
+    {
+        for(auto& d : desc->dimensions)
+        {
+            auto asubs = views::transform(d.subdimensions, [](dimension::sub& s) { return &s; });
+            group_unique(asubs.begin(),
+                         asubs.end(),
+                         sort_group_if(get_is_moved_axis()),
+                         by(std::equal_to<>{}, get_is_moved_axis()));
+        }
+    }
+
+    shape_transform_descriptor* desc;
+    const std::vector<std::size_t>* dims;
+    std::multimap<std::size_t, std::size_t> shortage_axes;
+    std::size_t initial_shortage_count = 0;
+    std::unordered_set<std::size_t> moved_axes;
+
+    static const std::size_t last_axis_split = std::numeric_limits<std::size_t>::max();
+};
+
 shape_transform_descriptor shape_transform_descriptor::rebase(const std::vector<std::size_t>& dims,
                                                               bool broadcast) const
 {
     auto result   = *this;
-    for(auto& [axis, subs] : group_axes(result.dimensions))
+    auto axes_map = rebase_ambiguity_resolver{result, dims}.resolve();
+    for(auto& [axis, subs] : axes_map)
     {
         assert(axis < dims.size());
         auto dim       = dims[axis];
@@ -231,8 +789,10 @@ shape_transform_descriptor shape_transform_descriptor::rebase(const std::vector<
         else
             return {};
     }
-    // TODO: Only simplify if the subs was changed
-    result.simplify();
+    for(auto& dim : result.dimensions)
+        remove_empty_sub_dims(dim.subdimensions);
+    if(broadcast and not is_broadcast_only(dimensions, result.dimensions))
+        return {};
 
     return result;
 }
@@ -435,6 +995,8 @@ static void remove_1_sub_dims(std::vector<dimension::sub>& subdimensions)
                                        subdimensions.end(),
                                        [&](const dimension::sub& d) { return d.len == 1; }),
                         subdimensions.end());
+    if(subdimensions.empty())
+        subdimensions.push_back({1, {}});
 }
 
 void dimension::simplify()
@@ -472,7 +1034,7 @@ void dimension::simplify()
 // to the subdimension found and an optional iterator to the previous
 // subdimension if available.
 template <class Predicate>
-static auto find_subdimension(shape_transform_descriptor& td, Predicate p)
+static auto find_subdimension_with_prev(shape_transform_descriptor& td, Predicate p)
 {
     dimension* prev_dim = nullptr;
     for(auto& d : td.dimensions)
@@ -527,14 +1089,6 @@ static void set_broadcast_dim(dimension& d, std::size_t axis)
         assert(d.subdimensions.front().hidden_axis.empty());
         d.subdimensions.front().hidden_axis = {axis};
     }
-}
-
-static void set_origin_axis(dimension::sub& s, const std::vector<std::size_t>& axis)
-{
-    if(s.has_hidden_axis())
-        s.hidden_axis = axis;
-    else
-        s.axis = axis;
 }
 
 // If an axis is split and some dimensions are hidden and others are not, then
@@ -646,32 +1200,6 @@ static void remove_scalar_axis(std::vector<dimension>& dimensions)
     }
 }
 
-// Renumber all axes while preserving the order of the axes
-static void renumber_axes(std::map<std::size_t, std::vector<dimension::sub*>>& axes_map)
-{
-    for(auto&& p : axes_map)
-    {
-        const auto& axis = p.first;
-        auto& subs       = p.second;
-        if(subs.size() == 1)
-        {
-            set_origin_axis(*subs[0], {axis});
-        }
-        else
-        {
-            std::sort(subs.begin(), subs.end(), by(std::less<>{}, [](const dimension::sub* s) {
-                          return s->origin_axis();
-                      }));
-            for(std::size_t i : range(subs.size()))
-                set_origin_axis(*subs[i], {axis, i});
-        }
-    }
-}
-static void renumber_axes(std::vector<dimension>& dimensions)
-{
-    auto axes_map = group_axes(dimensions);
-    renumber_axes(axes_map);
-}
 static void collapse_1_dims(std::vector<dimension>& dimensions)
 {
     // Find a dimension that ends with a subdimension of 1 with a single axis,
@@ -806,7 +1334,7 @@ void shape_transform_descriptor::simplify()
         // search for, so instead try to insert the axis at the end.
         if(next_axis == rank)
         {
-            auto [sub, it, prev] = find_subdimension(
+            auto [sub, it, prev] = find_subdimension_with_prev(
                 *this, [&](const dimension::sub& s) { return s.origin_axis() == last_axis; });
             // Check if we can insert it at the end
             auto bdims = broadcast_dims_map.find(rank);
@@ -835,7 +1363,7 @@ void shape_transform_descriptor::simplify()
         {
             // Search for the subdimension that has the next axis and try to
             // insert the axis before it will be in order.
-            auto [sub, it, prev] = find_subdimension(*this, [&](const dimension::sub& s) {
+            auto [sub, it, prev] = find_subdimension_with_prev(*this, [&](const dimension::sub& s) {
                 if(s.origin_axis().empty())
                     return false;
                 if(s.origin_axis().front() != next_axis)
@@ -1082,46 +1610,55 @@ static std::vector<int64_t> find_permutation(const std::vector<dimension::sub>& 
 // are generated from the subdimensions and steps 4-5 are generated with the
 // dimensions.
 std::vector<operation>
-shape_transform_descriptor::generate(const std::vector<std::size_t>& input_dims) const
+shape_transform_descriptor::generate(const std::vector<std::size_t>& input_dims,
+                                     bool no_broadcast) const
 {
     operation_list result;
     std::vector<dimension> new_dims =
         input_dims.empty() ? dimensions : this->rebase(input_dims).dimensions;
-    // Need broadcast
-    if(std::any_of(new_dims.begin(), new_dims.end(), &is_broadcast_dim))
+    assert(input_dims.empty() or not new_dims.empty());
+    if(no_broadcast)
     {
-        std::vector<std::size_t> out_lens;
-        std::transform(new_dims.begin(),
-                       new_dims.end(),
-                       std::back_inserter(out_lens),
-                       [](const dimension& d) { return d.len(); });
-        auto startb     = std::find_if_not(new_dims.begin(), new_dims.end(), &has_no_axes);
-        auto trailb     = std::find_if_not(startb, new_dims.end(), &has_axes);
-        auto axis       = std::distance(new_dims.begin(), startb);
-        auto extra_dims = axis + std::distance(trailb, new_dims.end());
-        // Use broadcast instead of multibroadcast
-        if(std::all_of(trailb, new_dims.end(), &has_no_axes) and extra_dims > 0 and
-           axis < new_dims.size())
-        {
-            result.push_back(make_op("broadcast", {{"axis", axis}, {"out_lens", out_lens}}));
-            new_dims.erase(trailb, new_dims.end());
-            new_dims.erase(new_dims.begin(), new_dims.begin() + axis);
-        }
-        else
-        {
-            result.push_back(make_op("multibroadcast", {{"out_lens", out_lens}}));
-        }
+        for_each_subdimension(new_dims, &flatten_broadcasted_dim);
     }
-    // If all the dimensions have no axes then there isnt anthing else to do
-    // so just clear the new_dims
-    if(std::all_of(new_dims.begin(), new_dims.end(), &has_no_axes))
-        new_dims.clear();
-    // Flatten broadcasted dimensions
-    for(auto& d : new_dims)
+    else
     {
-        if(d.subdimensions.size() != 1)
-            continue;
-        flatten_broadcasted_dim(d.subdimensions.front());
+        // Need broadcast
+        if(std::any_of(new_dims.begin(), new_dims.end(), &is_broadcast_dim))
+        {
+            std::vector<std::size_t> out_lens;
+            std::transform(new_dims.begin(),
+                           new_dims.end(),
+                           std::back_inserter(out_lens),
+                           [](const dimension& d) { return d.len(); });
+            auto startb     = std::find_if_not(new_dims.begin(), new_dims.end(), &has_no_axes);
+            auto trailb     = std::find_if_not(startb, new_dims.end(), &has_axes);
+            auto axis       = std::distance(new_dims.begin(), startb);
+            auto extra_dims = axis + std::distance(trailb, new_dims.end());
+            // Use broadcast instead of multibroadcast
+            if(std::all_of(trailb, new_dims.end(), &has_no_axes) and extra_dims > 0 and
+               axis < new_dims.size())
+            {
+                result.push_back(make_op("broadcast", {{"axis", axis}, {"out_lens", out_lens}}));
+                new_dims.erase(trailb, new_dims.end());
+                new_dims.erase(new_dims.begin(), new_dims.begin() + axis);
+            }
+            else
+            {
+                result.push_back(make_op("multibroadcast", {{"out_lens", out_lens}}));
+            }
+        }
+        // If all the dimensions have no axes then there isnt anthing else to do
+        // so just clear the new_dims
+        if(std::all_of(new_dims.begin(), new_dims.end(), &has_no_axes))
+            new_dims.clear();
+        // Flatten broadcasted dimensions
+        for(auto& d : new_dims)
+        {
+            if(d.subdimensions.size() != 1)
+                continue;
+            flatten_broadcasted_dim(d.subdimensions.front());
+        }
     }
     // Need squeeze reshape
     if(std::any_of(new_dims.begin(), new_dims.end(), [](const dimension& d) {
@@ -1341,6 +1878,28 @@ std::vector<std::vector<std::size_t>> shape_transform_descriptor::common_axes_ma
     return result;
 }
 
+std::vector<std::size_t> shape_transform_descriptor::get_dst_axes_from_src(std::size_t axis) const
+{
+    std::vector<std::size_t> result;
+    for(auto i : range(dimensions.size()))
+    {
+        const auto& d = dimensions[i];
+        auto it       = std::find_if(d.subdimensions.begin(), d.subdimensions.end(), [&](auto& s) {
+            if(s.axis.empty())
+                return false;
+            return s.axis.front() == axis;
+        });
+        if(it == d.subdimensions.end())
+            continue;
+        // If it maps to a subdimension then exit as there isn't a clear mapping
+        if(d.len() != it->len)
+            return {};
+        result.push_back(i);
+    }
+    // TODO: Put it in the correct order if there is multiple axes
+    return result;
+}
+
 bool shape_transform_descriptor::empty() const { return dimensions.empty(); }
 
 std::vector<std::size_t> shape_transform_descriptor::lens() const
@@ -1397,6 +1956,7 @@ std::size_t shape_transform_descriptor::common_rank() const
 
 const std::vector<std::size_t>& shape_transform_descriptor::dimension::sub::origin_axis() const
 {
+    assert(axis.empty() or hidden_axis.empty());
     return axis.empty() ? hidden_axis : axis;
 }
 bool shape_transform_descriptor::dimension::sub::has_hidden_axis() const
@@ -1406,6 +1966,7 @@ bool shape_transform_descriptor::dimension::sub::has_hidden_axis() const
 
 void shape_transform_descriptor::dimension::sub::add_split_axis(std::size_t i)
 {
+    assert(axis.empty() or hidden_axis.empty());
     if(not axis.empty())
         axis.push_back(i);
     if(not hidden_axis.empty())
@@ -1414,6 +1975,7 @@ void shape_transform_descriptor::dimension::sub::add_split_axis(std::size_t i)
 
 void shape_transform_descriptor::dimension::sub::expose()
 {
+    assert(axis.empty() or hidden_axis.empty());
     if(has_hidden_axis())
     {
         axis = hidden_axis;
@@ -1423,6 +1985,7 @@ void shape_transform_descriptor::dimension::sub::expose()
 
 void shape_transform_descriptor::dimension::sub::hide()
 {
+    assert(axis.empty() or hidden_axis.empty());
     if(not has_hidden_axis())
     {
         hidden_axis = axis;
@@ -1476,6 +2039,200 @@ std::vector<operation> optimize_shape_transforms(const std::vector<std::size_t>&
     if(sd.empty())
         return ops;
     return sd.generate();
+}
+
+// Replace broadcasted dimensions with size 1, and set the stride to the previous stride
+static shape unbroadcast(const shape& s)
+{
+    std::vector<std::size_t> lens    = s.lens();
+    std::vector<std::size_t> strides = s.strides();
+    auto stride_it                   = std::find_if(
+        s.strides().begin(), s.strides().end(), [](auto stride) { return stride != 0; });
+    std::size_t prev_stride = stride_it == s.strides().end() ? 1 : *stride_it;
+    for(std::size_t i = 0; i < lens.size(); ++i)
+    {
+        if(strides[i] == 0)
+        {
+            lens[i]    = 1;
+            strides[i] = prev_stride;
+        }
+        else
+        {
+            prev_stride = strides[i];
+        }
+    }
+    return {s.type(), lens, strides};
+}
+
+static std::size_t adjust_strided_shape(shape& s, std::size_t n)
+{
+    auto lens    = s.lens();
+    auto strides = s.strides();
+
+    // Insert a dim of 1 so it can be used to handle steps
+    if(std::none_of(strides.begin(), strides.end(), [](auto stride) { return stride == 1; }) and
+       std::any_of(strides.begin(), strides.end(), [](auto stride) { return stride != 0; }))
+    {
+        lens.push_back(1);
+        strides.push_back(1);
+    }
+
+    auto last_axis      = std::max_element(strides.begin(), strides.end()) - strides.begin();
+    auto total_elements = std::max<std::size_t>(1, strides[last_axis] * lens[last_axis]);
+    // Add a dim of 1 to the front so it can handle extra elements
+    auto extra = n / total_elements;
+    if(extra > 1)
+    {
+        strides.insert(strides.begin(), total_elements);
+        lens.insert(lens.begin(), 1);
+    }
+    s = shape(s.type(), lens, strides);
+    return std::max<std::size_t>(1, extra);
+}
+
+template <class Range>
+static std::vector<std::size_t> select_mask(const std::vector<std::size_t>& slice_mask,
+                                            const Range& r)
+{
+    std::vector<std::size_t> result;
+    std::transform(slice_mask.begin(),
+                   slice_mask.end(),
+                   r.begin(),
+                   join_back_inserter(result),
+                   [](std::size_t mask, std::size_t n) -> std::vector<std::size_t> {
+                       if(mask == 0)
+                           return {};
+                       return {n};
+                   });
+    return result;
+}
+
+// Generate the shape transforms for strided view
+optional<std::vector<operation>>
+generate_shape_transforms_for(shape s, const std::vector<std::size_t>& idims, std::int64_t offset)
+{
+    std::vector<operation> result;
+    if(s.lens().empty())
+        return std::nullopt;
+    std::size_t ielements =
+        std::accumulate(idims.begin(), idims.end(), std::size_t(1), std::multiplies<>());
+    auto extra = adjust_strided_shape(s, ielements);
+    // TODO: Improve handling of multiple dimensions, for now just reshape to 1 dimension
+    if(idims.size() != 1)
+    {
+        result.push_back(make_op("reshape", {{"dims", {ielements}}}));
+        auto ops = generate_shape_transforms_for(s, {ielements}, offset);
+        if(not ops)
+            return std::nullopt;
+        result.insert(result.end(), ops->begin(), ops->end());
+        return result;
+    }
+    auto pre_broadcast = unbroadcast(s);
+    auto perm          = find_permutation(pre_broadcast);
+    auto iperm         = invert_permutation(perm);
+    auto pre_transpose = reorder_shape(pre_broadcast, perm);
+
+    std::vector<std::size_t> start_lens;
+    std::adjacent_difference(pre_transpose.strides().begin(),
+                             pre_transpose.strides().end(),
+                             std::back_inserter(start_lens),
+                             [](auto y, auto x) -> std::size_t {
+                                 assert(x >= y);
+                                 assert(y != 0);
+                                 if((x % y) != 0)
+                                     return 0;
+                                 return x / y;
+                             });
+    if(std::any_of(start_lens.begin(), start_lens.end(), [](auto len) { return len == 0; }))
+        return std::nullopt;
+    start_lens.front() = extra > 1 ? extra : pre_transpose.lens().front();
+
+    std::size_t nelements =
+        std::accumulate(start_lens.begin(), start_lens.end(), std::size_t(1), std::multiplies<>());
+
+    if(nelements < pre_transpose.elements() * extra)
+        return std::nullopt;
+
+    std::vector<std::size_t> start_mask(start_lens.size(), 0);
+    if(offset != 0)
+    {
+        shape start_shape{shape::float_type, start_lens};
+        auto idx = start_shape.multi(offset);
+
+        std::vector<std::size_t> overhead;
+        std::transform(start_lens.begin(),
+                       start_lens.end(),
+                       pre_transpose.lens().begin(),
+                       std::back_inserter(overhead),
+                       [](auto start_len, auto len) { return start_len - len; });
+        if(std::equal(
+               idx.begin(), idx.end(), overhead.begin(), overhead.end(), [](auto i, auto over) {
+                   return i <= over;
+               }))
+        {
+            start_mask = reorder_dims(idx, iperm);
+            offset     = 0;
+        }
+    }
+
+    std::vector<std::size_t> pre_slice_mask;
+    std::transform(start_lens.begin(),
+                   start_lens.end(),
+                   pre_transpose.lens().begin(),
+                   std::back_inserter(pre_slice_mask),
+                   [](auto start_len, auto len) -> std::size_t {
+                       if(start_len == len)
+                           return 0;
+                       return len;
+                   });
+    auto slice_mask = reorder_dims(pre_slice_mask, iperm);
+
+    std::vector<std::size_t> blens = reorder_dims(start_lens, iperm);
+    std::transform(s.lens().begin(),
+                   s.lens().end(),
+                   blens.begin(),
+                   blens.begin(),
+                   [](auto len, auto blen) -> std::size_t {
+                       if(blen == 1)
+                           return len;
+                       return blen;
+                   });
+
+    std::vector<operation> ops;
+    ops.push_back(make_op("multibroadcast", {{"out_lens", blens}}));
+    ops.push_back(make_op("transpose", {{"permutation", invert_permutation(perm)}}));
+    ops.push_back(make_op("reshape", {{"dims", start_lens}}));
+    std::reverse(ops.begin(), ops.end());
+
+    auto desc = shape_transform_descriptor::create({nelements}, ops);
+
+    auto end = offset + nelements;
+    if(offset != 0 or nelements != ielements)
+    {
+
+        // If the end is out of bounds broadcast it to pad it
+        if(end > ielements)
+        {
+            result.push_back(make_op("broadcast", {{"axis", 1}, {"out_lens", {2, ielements}}}));
+            result.push_back(make_op("reshape", {{"dims", {2 * ielements}}}));
+        }
+        result.push_back(make_op("slice", {{"axes", {0}}, {"starts", {offset}}, {"ends", {end}}}));
+    }
+
+    auto opt_ops = desc.generate();
+    result.insert(result.end(), opt_ops.begin(), opt_ops.end());
+
+    std::vector<std::size_t> axes = select_mask(slice_mask, range(slice_mask.size()));
+
+    if(not axes.empty())
+    {
+        std::vector<std::size_t> starts = select_mask(slice_mask, start_mask);
+        std::vector<std::size_t> ends   = select_mask(slice_mask, s.lens());
+        std::transform(ends.begin(), ends.end(), starts.begin(), ends.begin(), std::plus<>{});
+
+        result.push_back(make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}));
+    }
+    return result;
 }
 
 } // namespace MIGRAPHX_INLINE_NS

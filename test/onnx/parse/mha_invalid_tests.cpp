@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -87,4 +87,39 @@ TEST_CASE(multi_head_attention_invalid_cross_key_test)
 TEST_CASE(multi_head_attention_invalid_cross_value_test)
 {
     EXPECT(test::throws([&] { read_onnx("mha_invalid_cross_value_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_bias_input_shape)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_bias_shape_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_bias_dimensions)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_bias_dimensions_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_key_pad_dims_shape)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_key_pad_dimensions_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_key_pad_size_shape)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_key_pad_shape_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_key_pad_size2_shape)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_key_pad_shape2_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_key_pad_size3_shape)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_key_pad_shape3_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_key_pad_shape_type)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_key_pad_type_test.onnx"); }));
 }

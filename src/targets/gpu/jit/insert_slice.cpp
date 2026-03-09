@@ -35,7 +35,7 @@ namespace gpu {
 
 using namespace migraphx::gpu::gen; // NOLINT
 
-static const char* const insert_slice_kernel = R"__migraphx__(
+static const char* const insert_slice_static_kernel = R"__migraphx__(
 #include <migraphx/kernels/insert_slice.hpp>
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/array.hpp>
@@ -60,18 +60,42 @@ MIGRAPHX_GLOBAL void insert_slice_kernel(void* input0_p, void* input1_p, void* o
 
 )__migraphx__";
 
+// Kernel for dynamic offsets: (source, dest, offsets_tensor, output).
+static const char* const insert_slice_dynamic_offsets_kernel = R"__migraphx__(
+#include <migraphx/kernels/insert_slice.hpp>
+#include <migraphx/kernels/index.hpp>
+#include <migraphx/kernels/array.hpp>
+#include <args.hpp>
+
+namespace migraphx {
+
+extern "C" {
+MIGRAPHX_GLOBAL void insert_slice_kernel(void* input0_p, void* input1_p, void* input2_p, void* output_p)
+{
+    auto idx     = make_index();
+    auto strides = index_ints<${strides}>{};
+    make_tensors()(input0_p, input1_p, input2_p, output_p)([&](auto source, auto dest, auto offsets_tensor, auto output) {
+        insert_slice<_rank_, index_ints<${strides}>, _deref_dest_>(
+            idx, offsets_tensor, strides, source, dest, output);
+    });
+}
+}
+
+} // namespace migraphx
+
+)__migraphx__";
+
 struct insert_slice_compiler : compiler<insert_slice_compiler>
 {
     std::vector<std::string> names() const { return {"insert_slice"}; }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
-        // insert_slice has (source, dest) or (source, dest, offsets, ...). Code object adds output last.
-        if(inputs.size() < 2)
-            MIGRAPHX_THROW("insert_slice: expected at least 2 inputs (source, dest)");
-        // Support only static offsets/strides (no dynamic inputs) for now
-        if(inputs.size() > 2)
-            MIGRAPHX_THROW("insert_slice: dynamic offsets/sizes/strides not yet supported on GPU");
+        // After lowering: 3 args = (source, dest, output), 4 args = (source, dest, offsets, output)
+        if(inputs.size() < 3)
+            MIGRAPHX_THROW("insert_slice: expected at least 3 inputs (source, dest, output)");
+        if(inputs.size() > 4)
+            MIGRAPHX_THROW("insert_slice: dynamic sizes/strides as inputs not yet supported on GPU");
 
         auto rank = inputs[0].ndim();
         std::vector<std::size_t> static_offsets;
@@ -88,25 +112,38 @@ struct insert_slice_compiler : compiler<insert_slice_compiler>
             static_strides.resize(rank, 1);
 
         hip_compile_options options;
-        const auto& out_s = inputs.back();
+        const auto& out_s = inputs[1]; // output shape = destination shape
         options.set_launch_params(v, compute_global_for(ctx, out_s.elements()));
-        options.inputs        = inputs;
-        options.output        = out_s;
-        options.kernel_name   = "insert_slice_kernel";
+        options.inputs         = inputs;
+        options.output         = out_s;
+        options.kernel_name    = "insert_slice_kernel";
         options.virtual_inputs = inputs;
 
-        std::string offsets_str = to_string_range(static_offsets);
         std::string strides_str = to_string_range(static_strides);
-        std::string src         = interpolate_string(
-            insert_slice_kernel,
+
+        if(inputs.size() == 3)
+        {
+            // Static offsets: (source, dest, output)
+            std::string offsets_str = to_string_range(static_offsets);
+            std::string src         = interpolate_string(
+                insert_slice_static_kernel,
+                {{"rank", std::to_string(rank)},
+                 {"offsets", offsets_str},
+                 {"strides", strides_str},
+                 {"deref_dest", deref_dest ? "true" : "false"}});
+            replace_string_inplace(src, "_rank_", std::to_string(rank));
+            replace_string_inplace(src, "_deref_dest_", deref_dest ? "true" : "false");
+            return compile_hip_code_object(ctx, src, options);
+        }
+
+        // inputs.size() == 4: source, dest, offsets (dynamic), output
+        std::string src = interpolate_string(
+            insert_slice_dynamic_offsets_kernel,
             {{"rank", std::to_string(rank)},
-             {"offsets", offsets_str},
              {"strides", strides_str},
              {"deref_dest", deref_dest ? "true" : "false"}});
-        // Replace _rank_ and _deref_dest_ (same token used in template)
         replace_string_inplace(src, "_rank_", std::to_string(rank));
         replace_string_inplace(src, "_deref_dest_", deref_dest ? "true" : "false");
-
         return compile_hip_code_object(ctx, src, options);
     }
 

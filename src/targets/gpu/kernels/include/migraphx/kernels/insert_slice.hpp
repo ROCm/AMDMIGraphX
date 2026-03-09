@@ -47,14 +47,12 @@ __device__ void insert_slice(const index& idx,
 {
     auto output_shape = output.get_shape();
     auto src_shape    = source.get_shape();
-    auto dest_shape   = dest.get_shape();
 
     constexpr auto out_elements = decltype(output_shape.elements()){};
     constexpr auto src_elements = decltype(src_shape.elements()){};
 
     // Phase 1: copy destination to output
     idx.global_stride(out_elements, [&](auto i) { output[i] = dest[i]; });
-
     // Phase 2: scatter source into output at dest_idx = src_idx * strides + offsets
     idx.global_stride(src_elements, [&](auto i) {
         auto src_idx  = src_shape.multi(i);
@@ -63,9 +61,52 @@ __device__ void insert_slice(const index& idx,
 
         if constexpr(DerefDest)
         {
-            using src_type = typename std::remove_cv_t<typename Source::type>;
-            auto addr     = static_cast<uintptr_t>(output[dest_idx]);
-            auto* ptr     = reinterpret_cast<src_type*>(addr);
+            using value_type = remove_cv_t<remove_reference_t<decltype(source[0])>>;
+            auto addr = static_cast<uintptr_t>(output[dest_idx]);
+            auto ptr = reinterpret_cast<value_type*>(addr);
+            *ptr          = source[src_idx];
+        }
+        else
+        {
+            output[dest_idx] = source[src_idx];
+        }
+    });
+}
+
+// Variant with offsets read from a 1D tensor (runtime offsets) instead of compile-time constants.
+template <index_int Rank,
+          class Strides,
+          bool DerefDest,
+          class OffsetsTensor,
+          class Source,
+          class Dest,
+          class Output>
+__device__ void insert_slice(const index& idx,
+                            const OffsetsTensor& offsets_tensor,
+                            const Strides& strides,
+                            const Source& source,
+                            const Dest& dest,
+                            Output& output)
+{
+    auto output_shape = output.get_shape();
+    auto src_shape    = source.get_shape();
+
+    constexpr auto out_elements = decltype(output_shape.elements()){};
+    constexpr auto src_elements = decltype(src_shape.elements()){};
+
+    idx.global_stride(out_elements, [&](auto i) { output[i] = dest[i]; });
+
+    idx.global_stride(src_elements, [&](auto i) {
+        auto src_idx = src_shape.multi(i);
+        array<index_int, Rank> dest_idx;
+        for(index_int j = 0; j < Rank; j++)
+            dest_idx[j] = static_cast<index_int>(src_idx[j] * strides[j] + offsets_tensor[j]);
+
+        if constexpr(DerefDest)
+        {
+            using value_type = remove_cv_t<remove_reference_t<decltype(source[0])>>;
+            auto addr = static_cast<uintptr_t>(output[dest_idx]);
+            auto ptr = reinterpret_cast<value_type*>(addr);
             *ptr          = source[src_idx];
         }
         else

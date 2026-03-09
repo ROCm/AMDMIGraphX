@@ -40,7 +40,9 @@ struct addressof : unary<addressof>
         return input.with_type(shape::uint64_type);
     }
 
-    std::string point_op() const { return "${function:addressof}(${0})"; }
+    // Not pointwise: the output depends on storage addresses, not element values.
+    // Compiled as a dedicated GPU kernel (see jit/addressof.cpp).
+    value attributes() const { return {{"fillcolor", "#CD5C5C"}}; }
 
     auto apply() const
     {

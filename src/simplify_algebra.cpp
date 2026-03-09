@@ -2217,11 +2217,7 @@ struct find_conv_broadcast_input
         bool has_padding =
             std::any_of(padding.begin(), padding.end(), [](auto p) { return p != 0; });
 
-        if(not has_padding)
-        {
-            apply_dot_broadcast(m, ins, x_ins, w_ins, out_lens, x_shape, n, oc, ic, ndim);
-        }
-        else
+        if(has_padding)
         {
             auto stride = conv_val["stride"].to_vector<std::size_t>();
             if(std::any_of(stride.begin(), stride.end(), [](auto s) { return s != 1; }))
@@ -2231,6 +2227,10 @@ struct find_conv_broadcast_input
                 return;
             apply_small_conv(
                 m, ins, x_ins, w_ins, bcast_ins, out_lens, w_shape, padding, num_spatial);
+        }
+        else
+        {
+            apply_dot_broadcast(m, ins, x_ins, w_ins, out_lens, x_shape, n, oc, ic, ndim);
         }
     }
 
@@ -2299,7 +2299,7 @@ struct find_conv_broadcast_input
             auto p_end        = padding[i + num_spatial];
             auto full_dim     = out_lens[i + 2];
             auto interior_len = full_dim - p_start - p_end;
-            auto axis         = static_cast<int64_t>(i + 2);
+            auto axis         = i + 2;
 
             if(interior_len <= 1)
                 continue;

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,33 +21,32 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/logsoftmax.hpp>
-#include <migraphx/gpu/device/logsoftmax.hpp>
-#include <migraphx/op/logsoftmax.hpp>
-#include <migraphx/manage_ptr.hpp>
-#include <migraphx/gpu/miopen.hpp>
-#include <migraphx/tune_axis.hpp>
-#include <utility>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-shape hip_logsoftmax::compute_shape(const std::vector<shape>& inputs) const
+// Nearest mode with ceil rounding
+template <migraphx::shape::type_t DType>
+struct test_resize_nearest_ceil : verify_program<test_resize_nearest_ceil<DType>>
 {
-    check_shapes{inputs, *this}.has(2).standard();
-    return op.normalize_compute_shape({inputs.at(0)});
-}
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
 
-argument
-hip_logsoftmax::compute(context& ctx, const shape&, const std::vector<argument>& args) const
-{
-    auto n_dim      = args.front().get_shape().lens().size();
-    auto tuned_axis = tune_axis(n_dim, op.axis, op.name());
-    device::logsoftmax(ctx.get_stream().get(), args.back(), args.front(), tuned_axis);
-    return args.back();
-}
+        migraphx::shape sx{DType, {1, 1, 2, 4}};
+        auto x = mm->add_parameter("X", sx);
 
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"scales", {1.0f, 1.0f, 0.6f, 0.6f}},
+                                               {"nearest_mode", "ceil"},
+                                               {"coordinate_transformation_mode", "asymmetric"}}),
+                            x);
+        return p;
+    }
+};
+
+template struct test_resize_nearest_ceil<migraphx::shape::float_type>;
+template struct test_resize_nearest_ceil<migraphx::shape::half_type>;

@@ -1047,6 +1047,8 @@ struct find_gather
         {
             for(auto it = start; it != last;)
             {
+                if(static_cast<std::size_t>(std::distance(it, last)) < n)
+                    return it;
                 auto [seg, next_it] = find(it, it + n);
                 if(next_it != it + n)
                     return next_it;

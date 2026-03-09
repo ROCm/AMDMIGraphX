@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -162,6 +162,7 @@ struct MIGRAPHX_EXPORT shape
 
     static bool is_integral(type_t t);
     static bool is_compatible(const shape& actual, const shape& expected);
+    static bool is_compatible_lens(const shape& actual, const shape& expected);
 
     static bool is_unsigned(type_t t);
     static bool is_computable(type_t t);
@@ -290,6 +291,20 @@ struct MIGRAPHX_EXPORT shape
     /// pointers
     void multi_copy(std::size_t idx, std::size_t* start, const std::size_t* end) const;
 
+    /// Map element index to multi-dimensional index and return them as an
+    /// array of size N. If the rank is smaller then N, the remaining
+    /// dimensions will be set to 0. If the rank is larger than N, an
+    /// exception will be thrown.
+    template <std::size_t N>
+    std::array<std::size_t, N> multi(std::size_t idx) const
+    {
+        std::array<std::size_t, N> result{};
+        if(N < this->ndim())
+            MIGRAPHX_THROW("SHAPE: multi() called with array size less than number of dimensions");
+        this->multi_copy(idx, result.data(), result.data() + this->ndim());
+        return result;
+    }
+
     /// Check if a multi-dimensional index is within bounds for the shape.
     bool multi_within_bounds(std::vector<std::size_t> multi) const;
 
@@ -358,6 +373,8 @@ struct MIGRAPHX_EXPORT shape
     MIGRAPHX_EXPORT friend bool operator==(const shape& x, const shape& y);
     MIGRAPHX_EXPORT friend bool operator!=(const shape& x, const shape& y);
     MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const shape& x);
+
+    static bool same_lens(const shape& x, const shape& y);
 
     template <class T>
     struct as
@@ -468,6 +485,8 @@ struct MIGRAPHX_EXPORT shape
      * Will clip to the maximum of size_t if overflows for dynamic shapes.
      */
     std::size_t element_space() const;
+
+    void debug_print() const;
 
     private:
     shape(std::shared_ptr<shape_impl> pimpl);

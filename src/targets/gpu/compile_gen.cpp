@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -252,6 +252,13 @@ tile tile::elements(const std::vector<shape>& inputs, std::size_t noutputs)
     result.outer[result.axis] /= dim1;
     result.outer.back() /= dim2;
 
+    auto tile_size = dim1 * dim2;
+    result.ntiles  = s.elements() / tile_size;
+    // equivalent to dim2 * (dim1 + 1) to avoid bank conflicts
+    auto tile_bytes = (tile_size + dim2) * s.type_size();
+    if(tile_bytes > 65536)
+        return {};
+
     result.block_size = std::min<std::size_t>(256, integer_divide_ceil(tile_size / 4, 64) * 64);
     return result;
 }
@@ -409,6 +416,31 @@ void reduce_op::set(instruction_ref ins, const operation& op)
         set(rop.name(), input, output);
         read = "compose(array_apply(" + read + "), MIGRAPHX_LIFT(make_array))";
     }
+    else if(op.name() == "gpu::arg_reduce")
+    {
+        // extract the inner argmin/argmax operation
+        auto inner_op               = from_value<operation>(op.to_value().at("op"));
+        auto inner_v                = inner_op.to_value();
+        bool select_last            = inner_v.get("select_last_index", false);
+        std::string select_last_str = select_last ? "true" : "false";
+
+        if(inner_op.name() == "argmin")
+        {
+            reduction = "op::argmin<" + select_last_str + ">{}";
+            init      = "make_tuple(highest{}, index_int{0})";
+        }
+        else if(inner_op.name() == "argmax")
+        {
+            reduction = "op::argmax<" + select_last_str + ">{}";
+            init      = "make_tuple(lowest{}, index_int{0})";
+        }
+        else
+        {
+            MIGRAPHX_THROW("Unsupported arg operation");
+        }
+        // read creates tuples from (value, index), cast index to index_int
+        read = "[](auto val, auto idx) { return make_tuple(val, static_cast<index_int>(idx)); }";
+    }
     else
     {
         set(op.name(), ins->inputs().front()->get_shape(), ins->get_shape());
@@ -451,6 +483,17 @@ static void preload_params(module& m)
     }
 }
 
+static std::vector<std::size_t> get_rlens(const module& m)
+{
+    auto reduce = std::find_if(
+        m.begin(), m.end(), [&](const auto& ins) { return contains(ins.name(), "reduce"); });
+    if(reduce == m.end())
+        MIGRAPHX_THROW("Missing reduce operator");
+    if(reduce->get_shape().type() == shape::tuple_type)
+        return reduce->get_shape().sub_shapes().front().lens();
+    return reduce->get_shape().lens();
+}
+
 std::string generate_reduce(module m, const std::string& name)
 {
     preload_params(m);
@@ -459,11 +502,7 @@ std::string generate_reduce(module m, const std::string& name)
     cpp_generator g;
     g.always_return_tuple();
     auto param_shapes = m.get_parameter_shapes();
-    auto max_shape =
-        std::max_element(param_shapes.begin(),
-                         param_shapes.end(),
-                         by(std::less<>{}, [](const auto& p) { return p.second.elements(); }));
-    auto ilens    = max_shape->second.lens();
+    auto rlens        = get_rlens(m);
     std::size_t i = 0;
     auto f        = g.generate_module(m, [&](instruction_ref ins, const auto& names) {
         if(contains(ins->name(), "reduce"))
@@ -480,7 +519,7 @@ std::string generate_reduce(module m, const std::string& name)
                          ins->inputs().end(),
                          std::back_inserter(tensors),
                          [&](auto input) {
-                             return input->get_shape().lens() == ilens and
+                             return input->get_shape().lens() != rlens and
                                     not input->get_shape().broadcasted();
                          });
             auto inner_names = names;
@@ -521,8 +560,13 @@ std::string generate_reduce(module m, const std::string& name)
         {
             const auto& x = names.at(ins->inputs().front());
             auto index    = ins->get_operator().to_value()["index"].to<std::size_t>();
-            return interpolate_string("${x}[${index}]",
-                                      {{"x", x}, {"index", std::to_string(index)}});
+            return interpolate_string("${x}[_c<${index}>]",
+                                          {{"x", x}, {"index", std::to_string(index)}});
+        }
+        if(ins->name() == "gpu::make_indices")
+        {
+            auto size = ins->get_operator().to_value()["size"].to<std::size_t>();
+            return "reduce::make_indices(_c<" + std::to_string(size) + ">)";
         }
         if(ins->name() == "identity")
         {

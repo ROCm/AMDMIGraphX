@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -48,6 +48,7 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_EXTRA_MLIR);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_ENABLED);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_GEG_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MLIR);
 /**
@@ -143,6 +144,23 @@ bool mlir_attention_enabled(context* ctx)
 #endif
 }
 
+bool mlir_flash_decoding_enabled()
+{
+#ifdef MIGRAPHX_MLIR
+    if(not mlir_enabled())
+        return false;
+
+    // Check if explicitly enabled via environment variable
+    if(enabled(MIGRAPHX_FLASH_DECODING_ENABLED{}))
+        return true;
+
+    return false;
+#else
+    // Without MLIR, only enable if explicitly requested via env var
+    return enabled(MIGRAPHX_FLASH_DECODING_ENABLED{});
+#endif
+}
+
 #ifdef MIGRAPHX_MLIR
 
 struct mlir_op
@@ -159,7 +177,7 @@ struct mlir_op
     // Check if the shape can be created from a transpose/broadcast/slice
     static bool is_mlir_compatible(const shape& s)
     {
-        if(s.standard() or s.packed() or s.scalar() or s.ndim() == 1)
+        if(s.standard() or s.packed() or s.scalar() or s.ndim() == 1 or s.dynamic())
             return true;
         auto ns = reorder_shape(s, find_permutation(s));
         std::vector<std::size_t> stride_ratios;
@@ -184,7 +202,7 @@ struct mlir_op
     shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>& mods) const
     {
         module_ref mod = mods[0];
-        check_shapes{inputs, *this}.has_at_least(1);
+        check_shapes{inputs, *this, true}.has_at_least(1);
         if(mods.size() != 1)
             MIGRAPHX_THROW("should have one submodule.");
 
@@ -301,6 +319,8 @@ auto is_mlir_dot(mlir_mode mode)
             return false;
         if(ins->name() != "dot" and ins->name() != "quant_dot")
             return false;
+        if(ins->get_shape().dynamic())
+            return true;
         // dot operation where (FP8 * FP8 = FP8) is not available in MLIR. rocBLAS/hipBLASLt should
         // have the support for it.
         if(contains(fp8_types{}.get(), ins->get_shape().type()))
@@ -337,6 +357,8 @@ auto is_mlir_conv(mlir_mode mode)
             return false;
         if(ins->name() != "convolution" and ins->name() != "quant_convolution")
             return false;
+        if(ins->get_shape().dynamic())
+            return true;
         auto input = ins->inputs().front()->get_shape();
         value v    = ins->get_operator().to_value();
         auto group = v.at("group").to<int>();
@@ -463,22 +485,23 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
     }
     const std::initializer_list<std::string> any_type_ops = {"@literal", "@param", "@return"};
     const std::initializer_list<std::string> no_bool_ops  = {
-        "convolution",
-        "quant_convolution",
-        "dot",
-        "quant_dot",
+        "abs",
         "add",
         "clip",
+        "convolution",
+        "dequantizelinear",
+        "div",
+        "dot",
+        "leaky_relu",
+        "mul",
+        "neg",
+        "pow",
+        "quant_convolution",
+        "quant_dot",
+        "quantizelinear",
         "relu",
         "sub",
-        "mul",
-        "div",
-        "pow",
         "where",
-        "quantizelinear",
-        "dequantizelinear",
-        "abs",
-        "neg",
     };
     const std::initializer_list<std::string> fp_only_ops = {
         "ceil",
@@ -551,6 +574,8 @@ bool is_pointwise_op_supported_by_mlir_for_input(const instruction& i)
 {
     return is_pointwise_op_supported_by_mlir(i);
 }
+
+bool is_reduce(const instruction& ins) { return contains(ins.name(), "reduce"); }
 
 MIGRAPHX_PRED_MATCHER(mlir_split_reduce, instruction_ref ins)
 {
@@ -680,7 +705,7 @@ struct find_mlir_split_reduce
  * Fuses rocMLIR compatible dot or conv op -> reshapes -> pointwise
  * into a mlir_op with submodule.
  */
-struct find_mlir_fused_ops
+struct find_mlir_fused_ops : match::supports_dynamic_shapes
 {
     mlir_mode conv_mode = mlir_mode::none;
     mlir_mode dot_mode  = mlir_mode::none;
@@ -956,7 +981,7 @@ struct find_mlir_fused_geg_ops
 };
 
 template <auto Matcher>
-struct find_mlir_standalone_op
+struct find_mlir_standalone_op : match::supports_dynamic_shapes
 {
     mlir_mode mode       = mlir_mode::none;
     std::size_t* counter = nullptr;

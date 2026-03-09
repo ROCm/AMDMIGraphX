@@ -3,6 +3,38 @@
 Full documentation for MIGraphX is available at
 [https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/](https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/).
 
+## Develop
+
+### Added
+
+* Added a dedicated logger for MIGraphX.
+* [Linux] Use HSA API to query number of chiplets for architectures where this is applicable (ex. gfx90a).
+* Added a fuse_horizontal pass which batches independent cross embedding gather instructions (#4599).
+* Added GPU JIT `Resize` kernel (#4553).
+
+### Changed
+
+* Converted `reverse` operator from device implementation to JIT compilation (#4645).
+* Refactored instruction output alias to return a vector of aliases (#4540).
+* Changed parsing of ONNX ops like ConstantOfShape to insert undefined if expected shape has 0 elements (#4567).
+* Updated the ONNX clip operator to support opset 13 (#4518).
+* Updated `argmin` and `argmax` ops to be implemented as reduction ops, so they now have JIT support and can fuse (#4620).
+
+### Resolved issues
+
+* Fixed a bug with operators `pack_fp4`, `unpack_fp4`, and the `fuse_mlir` pass handling non-standard input shapes (#4560).
+* Fixed an issue in `propagate_precision` pass where precision could be incorrectly propagated across type boundaries (e.g., from integral to floating-point) (#4603).
+* Fixed an issue with clip operator when using fp16 input type on opset 6 (#4518). 
+* Fixed an issue with `reshape_lazy`'s shape computation that was leading to invalid reshapes (#4594).
+* Fixed `eliminate_pad` pass bug that was removing nonzero `pad` instructions (#4600).
+
+### Optimized
+
+* Added a new pass to replace convolution with constant broadcast input with a reduced GEMM which improves model compilation time (#4621).
+* Implemented JIT compilation for `logsoftmax` by decomposing it into fusible operations (`log`, `exp`, `reduce_max`, `reduce_sum`), enabling kernel fusion. (#4630).
+
+### Removed
+
 ## MIGraphX 2.15 for ROCm 7.2.0
 
 ### Added
@@ -18,6 +50,7 @@ Full documentation for MIGraphX is available at
 * Added Torch-MIGraphX installation instructions.
 * Added Operator Builders with supporting documentation.
 * Added index range check to the Gather operator.
+* Added `log(exp(x)) → x` and `log(a/b) → log(a) - log(b)` algebraic simplifications (#4630).
 
 
 ### Changed
@@ -35,6 +68,7 @@ Full documentation for MIGraphX is available at
 
 ### Resolved issues
 
+* Fixed an issue in `propagate_precision` pass where precision could be incorrectly propagated across type category boundaries (e.g., from integral to floating-point types).
 * Quiet nrvo and noreturn warnings (#4429).
 * Fixed `pointwise: Wrong number of arguments` error when quantizing certain models to `int8` (#4398).
 * TopK exception bugfix (#4329).

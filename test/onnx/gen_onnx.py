@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -31,7 +31,7 @@ from onnx import TensorProto
 from onnx.numpy_helper import from_array
 
 
-def onnx_test(external_data=False):
+def onnx_test(external_data=False, opset_version=None):
     def create_onnx_test(op_test):
         def run_test():
             op_info = op_test()
@@ -44,8 +44,17 @@ def onnx_test(external_data=False):
             else:
                 graph_def = helper.make_graph(op_info[0], op_test.__name__,
                                               op_info[1], op_info[2])
-            model_def = helper.make_model(graph_def,
-                                          producer_name=op_test.__name__)
+            
+            # Create model with optional opset version
+            if opset_version is not None:
+                opset_imports = [helper.make_opsetid("", opset_version)]
+                model_def = helper.make_model(graph_def,
+                                              producer_name=op_test.__name__,
+                                              opset_imports=opset_imports)
+            else:
+                model_def = helper.make_model(graph_def,
+                                              producer_name=op_test.__name__)
+            
             onnx.save_model(model_def,
                             '{}.onnx'.format(op_test.__name__),
                             save_as_external_data=external_data,
@@ -1243,7 +1252,7 @@ def celu_zero_alpha_test():
     return ([node], [x], [y])
 
 
-@onnx_test()
+@onnx_test(opset_version=6)
 def clip_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
@@ -1257,63 +1266,16 @@ def clip_test():
     return ([node], [x], [y])
 
 
-@onnx_test()
-def clip_test_op11():
-    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
-    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
-
-    min_val = helper.make_tensor('min', TensorProto.FLOAT, [], [0.0])
-    max_val = helper.make_tensor('max', TensorProto.FLOAT, [], [6.0])
+@onnx_test(opset_version=6)
+def clip_fp16_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT16, [3])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT16, [3])
 
     node = onnx.helper.make_node('Clip',
-                                 inputs=['0', 'min', 'max'],
-                                 outputs=['1'])
-
-    return ([node], [x], [y], [min_val, max_val])
-
-
-@onnx_test()
-def clip_test_op11_max_only():
-    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
-    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
-
-    max_val = helper.make_tensor('max', TensorProto.FLOAT, [], [0.0])
-
-    node = onnx.helper.make_node('Clip',
-                                 inputs=['0', '', 'max'],
-                                 outputs=['1'])
-
-    return ([node], [x], [y], [max_val])
-
-
-@onnx_test()
-def clip_test_op11_min_only():
-    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
-    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
-
-    min_val = helper.make_tensor('min', TensorProto.FLOAT, [], [0.0])
-
-    node = onnx.helper.make_node('Clip', inputs=['0', 'min'], outputs=['1'])
-
-    return ([node], [x], [y], [min_val])
-
-
-@onnx_test()
-def clip_test_op11_no_args():
-    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
-    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
-
-    node = onnx.helper.make_node('Clip', inputs=['0'], outputs=['1'])
-
-    return ([node], [x], [y])
-
-
-@onnx_test()
-def clip_test_op11_no_args1():
-    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
-    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
-
-    node = onnx.helper.make_node('Clip', inputs=['0', '', ''], outputs=['1'])
+                                 inputs=['0'],
+                                 outputs=['1'],
+                                 max=6.0,
+                                 min=0.0)
 
     return ([node], [x], [y])
 
@@ -1359,6 +1321,67 @@ def clip_dyn_min_only_test():
     node = onnx.helper.make_node('Clip', inputs=['0', 'min'], outputs=['1'])
 
     return ([node], [x], [y], [min_val])
+
+
+@onnx_test(opset_version=13)
+def clip_test_op13():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
+
+    min_val = helper.make_tensor('min', TensorProto.FLOAT, [], [0.0])
+    max_val = helper.make_tensor('max', TensorProto.FLOAT, [], [6.0])
+
+    node = onnx.helper.make_node('Clip',
+                                 inputs=['0', 'min', 'max'],
+                                 outputs=['1'])
+
+    return ([node], [x], [y], [min_val, max_val])
+
+
+@onnx_test(opset_version=13)
+def clip_test_op13_max_only():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
+
+    max_val = helper.make_tensor('max', TensorProto.FLOAT, [], [0.0])
+
+    node = onnx.helper.make_node('Clip',
+                                 inputs=['0', '', 'max'],
+                                 outputs=['1'])
+
+    return ([node], [x], [y], [max_val])
+
+
+@onnx_test(opset_version=13)
+def clip_test_op13_min_only():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
+
+    min_val = helper.make_tensor('min', TensorProto.FLOAT, [], [0.0])
+
+    node = onnx.helper.make_node('Clip', inputs=['min', '0'], outputs=['1'])
+
+    return ([node], [x], [y], [min_val])
+
+
+@onnx_test(opset_version=13)
+def clip_test_op13_no_args():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
+
+    node = onnx.helper.make_node('Clip', inputs=['0'], outputs=['1'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test(opset_version=13)
+def clip_test_op13_no_args1():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
+
+    node = onnx.helper.make_node('Clip', inputs=['0', '', ''], outputs=['1'])
+
+    return ([node], [x], [y])
 
 
 @onnx_test()
@@ -1746,6 +1769,34 @@ def const_of_shape_dyn_int64_test():
                                  value=tensor_val)
 
     return ([node], [output_dims], [y])
+
+
+@onnx_test()
+def const_of_shape_zero_dim_test():
+    tensor_val = onnx.helper.make_tensor('value', onnx.TensorProto.INT64, [1],
+                                         [10])
+    # Shape with a zero dimension - results in 0 elements output
+    shape_val = np.array([2, 0, 4]).astype(np.int64)
+    shape_ts = helper.make_tensor(name='shape_tensor',
+                                  data_type=TensorProto.INT64,
+                                  dims=shape_val.shape,
+                                  vals=shape_val.flatten().astype(np.int64))
+    shape_const = helper.make_node(
+        'Constant',
+        inputs=[],
+        outputs=['shape'],
+        value=shape_ts,
+    )
+    y = helper.make_tensor_value_info('y', TensorProto.INT64, [2, 0, 4])
+
+    node = onnx.helper.make_node(
+        'ConstantOfShape',
+        inputs=['shape'],
+        outputs=['y'],
+        value=tensor_val,
+    )
+
+    return ([shape_const, node], [], [y])
 
 
 @onnx_test()
@@ -4997,6 +5048,25 @@ def gridsample_512x512_test():
 def gridsample_half_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [1, 1, 4, 4])
     grid = helper.make_tensor_value_info('grid', TensorProto.FLOAT,
+                                         [1, 6, 6, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [1, 1, 6, 6])
+
+    node = onnx.helper.make_node(
+        "GridSample",
+        inputs=["x", "grid"],
+        outputs=["y"],
+        mode="linear",
+        padding_mode="zeros",
+        align_corners=0,
+    )
+
+    return ([node], [x, grid], [y])
+
+
+@onnx_test()
+def gridsample_half_grid_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [1, 1, 4, 4])
+    grid = helper.make_tensor_value_info('grid', TensorProto.FLOAT16,
                                          [1, 6, 6, 2])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [1, 1, 6, 6])
 
@@ -10999,6 +11069,54 @@ def pad_reflect_test():
 
 
 @onnx_test()
+def pad_reflect_2l2r_test():
+    h = 4
+    w = 4
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [h, w])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [h, w+2+2])
+
+    sizes = np.array([0, 2, 0, 2])
+    pad_tensor = helper.make_tensor(name='pad_size',
+                                    data_type=TensorProto.INT32,
+                                    dims=sizes.shape,
+                                    vals=sizes.astype(int))
+    arg_pad = onnx.helper.make_node('Constant',
+                                    inputs=[],
+                                    outputs=['arg_pad'],
+                                    value=pad_tensor)
+
+    node = onnx.helper.make_node('Pad',
+                                 mode='reflect',
+                                 inputs=['0', 'arg_pad'],
+                                 outputs=['1'])
+
+    return ([arg_pad, node], [x], [y])
+
+
+@onnx_test()
+def pad_reflect_3l2r_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 2])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2, 7])
+
+    sizes = np.array([0, 3, 0, 2])
+    pad_tensor = helper.make_tensor(name='pad_size',
+                                    data_type=TensorProto.INT32,
+                                    dims=sizes.shape,
+                                    vals=sizes.astype(int))
+    arg_pad = onnx.helper.make_node('Constant',
+                                    inputs=[],
+                                    outputs=['arg_pad'],
+                                    value=pad_tensor)
+
+    node = onnx.helper.make_node('Pad',
+                                 mode='reflect',
+                                 inputs=['0', 'arg_pad'],
+                                 outputs=['1'])
+
+    return ([arg_pad, node], [x], [y])
+
+
+@onnx_test()
 def pad_reflect_with_axes_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 2])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2, 5])
@@ -13253,6 +13371,32 @@ def resize_outsize_test():
         coordinate_transformation_mode='tf_half_pixel_for_nn',
         mode='nearest',
         nearest_mode='round_prefer_floor')
+
+    return ([node], [X], [Y], [out_lens_tensor])
+
+
+@onnx_test()
+def resize_outsize_nondivisible_test():
+    # Resize with int64 sizes where sizes/input_dims produces non-integer scales.
+    # For input [1,1,3,3] -> output [1,1,5,5], scale = 5/3 ~ 1.6667.
+    # float(5/3)*3 truncates to 4, not 5, so the parser must use 'sizes' attribute.
+    out_lens = np.array([1, 1, 5, 5], dtype=np.int64)
+    out_lens_tensor = helper.make_tensor(name='out_lens',
+                                         data_type=TensorProto.INT64,
+                                         dims=out_lens.shape,
+                                         vals=out_lens.flatten().astype(
+                                             np.int64))
+
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 3, 3])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 5, 5])
+
+    node = onnx.helper.make_node(
+        'Resize',
+        inputs=['X', '', '', 'out_lens'],
+        outputs=['Y'],
+        coordinate_transformation_mode='asymmetric',
+        mode='nearest',
+        nearest_mode='floor')
 
     return ([node], [X], [Y], [out_lens_tensor])
 

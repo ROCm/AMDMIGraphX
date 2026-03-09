@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -54,6 +54,7 @@ add_library(migraphx
     autocast_fp8.cpp
     auto_contiguous.cpp
     base64.cpp
+    color.cpp
     common.cpp
     common_dims.cpp
     compile_src.cpp
@@ -77,6 +78,7 @@ add_library(migraphx
     fp8_ocp_to_fnuz.cpp
     fuse_attention.cpp
     fuse_concat.cpp
+    fuse_horizontal.cpp
     fuse_pointwise.cpp
     fuse_pointwise_reduce.cpp
     fuse_reduce.cpp
@@ -89,6 +91,7 @@ add_library(migraphx
     layout_convolution.cpp
     lexing.cpp
     load_save.cpp
+    logger.cpp
     make_op.cpp
     memory_coloring.cpp
     module.cpp
@@ -118,6 +121,7 @@ add_library(migraphx
     register_target.cpp
     replace_allocate.cpp
     rewrite_reduce.cpp
+    rewrite_resize.cpp
     rewrite_dot.cpp
     simplify_qdq.cpp
     split_reduce.cpp

@@ -27,6 +27,7 @@ Full documentation for MIGraphX is available at
 * Fixed an issue with clip operator when using fp16 input type on opset 6 (#4518). 
 * Fixed an issue with `reshape_lazy`'s shape computation that was leading to invalid reshapes (#4594).
 * Fixed `eliminate_pad` pass bug that was removing nonzero `pad` instructions (#4600).
+* Fixed a bug with `find_conv_broadcast_input` pass in `simplify_algebra` that caused artifacts to appear around image borders (#4657).
 
 ### Optimized
 

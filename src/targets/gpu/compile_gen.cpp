@@ -241,7 +241,6 @@ tile tile::elements(const std::vector<shape>& inputs, std::size_t noutputs)
         return {};
 
     result.ntiles = s.elements() / tile_size;
-
     result.inner = s.lens();
     std::fill(result.inner.begin(), result.inner.end(), 1);
     result.inner[result.axis] = dim1;
@@ -250,13 +249,6 @@ tile tile::elements(const std::vector<shape>& inputs, std::size_t noutputs)
     result.outer = s.lens();
     result.outer[result.axis] /= dim1;
     result.outer.back() /= dim2;
-
-    auto tile_size = dim1 * dim2;
-    result.ntiles  = s.elements() / tile_size;
-    // equivalent to dim2 * (dim1 + 1) to avoid bank conflicts
-    auto tile_bytes = (tile_size + dim2) * s.type_size();
-    if(tile_bytes > 65536)
-        return {};
 
     result.block_size = std::min<std::size_t>(256, integer_divide_ceil(tile_size / 4, 64) * 64);
     return result;

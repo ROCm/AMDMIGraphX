@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -71,17 +71,16 @@ inline bool ends_with(const std::string& value, const std::string& suffix)
 }
 
 template <class Strings>
-inline std::string join_strings(const Strings& strings, const std::string& delim)
+inline std::string join_strings(Strings strings, const std::string& delim)
 {
     auto it = strings.begin();
     if(it == strings.end())
         return "";
 
     auto nit = std::next(it);
-    return std::accumulate(
-        nit, strings.end(), *it, [&](const std::string& x, const std::string& y) {
-            return x + delim + y;
-        });
+    return std::accumulate(nit, strings.end(), *it, [&](std::string x, std::string y) {
+        return std::move(x) + delim + std::move(y);
+    });
 }
 
 inline std::vector<std::string> split_string(const std::string& s, char delim)
@@ -222,15 +221,6 @@ inline auto to_string(const T& x)
 {
     std::stringstream ss;
     ss << x;
-    return ss.str();
-}
-
-template <class T>
-inline auto to_hex_float(const T& x)
-    -> decltype((std::declval<std::stringstream>() << x), std::string{})
-{
-    std::stringstream ss;
-    ss << std::hexfloat << x;
     return ss.str();
 }
 

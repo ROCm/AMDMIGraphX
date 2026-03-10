@@ -4808,9 +4808,9 @@ TEST_CASE(conv_broadcast_input_padded)
         auto x     = m1.add_parameter("x", xs);
         auto bcast = m1.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 3, 8, 8}}}), x);
-        auto w    = m1.add_literal(migraphx::generate_literal(ws, 1));
-        auto conv = m1.add_instruction(
-            migraphx::make_op("convolution", {{"padding", {1, 1}}}), bcast, w);
+        auto w = m1.add_literal(migraphx::generate_literal(ws, 1));
+        auto conv =
+            m1.add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1}}}), bcast, w);
         m1.add_instruction(pass_op{}, conv);
     }
     run_pass(m1);

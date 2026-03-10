@@ -2230,7 +2230,7 @@ struct find_conv_broadcast_input
                 std::vector<std::size_t> asym(2 * num_spatial);
                 for(std::size_t i = 0; i < num_spatial; i++)
                 {
-                    asym[i]              = padding[i];
+                    asym[i]               = padding[i];
                     asym[i + num_spatial] = padding[i];
                 }
                 padding = std::move(asym);

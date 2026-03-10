@@ -303,9 +303,9 @@ std::size_t find_fast_axis(const std::vector<shape>& inputs)
     return it - permutation.begin();
 }
 
-std::string make_transformer_args(std::vector<std::string> transformers)
+std::string make_transformer_args(const std::vector<std::string>& transformers)
 {
-    return join_strings(std::move(transformers), ", ");
+    return join_strings(transformers, ", ");
 }
 
 static void generate_pointwise(cpp_generator& gg,

@@ -136,7 +136,23 @@ TEST_CASE(pw_used_twice_fused)
     EXPECT(p1.sort() == p2.sort());
 }
 
-// To check that the debug symbols don't propagate above the fusion
+// Debug symbols should not propagate above the fusion boundary.
+// The gemm (dot) keeps its own symbol; only the fused adds merge.
+//
+//  Before:                          After:
+//
+//   x   a                            x    a
+//    \ /                              \ /
+//    dot  {gemm1}                    dot  {gemm1}
+//     |  y                          /
+//     | /                      gemm  y    z
+//    add  {add1}                  \  |  /
+//     |  z                      pointwise  {add1, add2}
+//     | /                            |
+//    add  {add2}                  @return
+//     |
+//   @return
+//
 TEST_CASE(gemm_add_add)
 {
     migraphx::shape s1{migraphx::shape::float_type, {2, 3}};

@@ -736,6 +736,15 @@ value program::to_value() const
             names);
         mod_val["nodes"] = nodes;
 
+        const auto& sym_table = mod->symbol_table();
+        if(not sym_table.empty())
+        {
+            value sym_val = value::object{};
+            for(const auto& p : sym_table)
+                sym_val[p.first] = migraphx::to_value(p.second);
+            mod_val["symbol_table"] = sym_val;
+        }
+
         module_vals[mod->name()] = mod_val;
     }
 
@@ -810,6 +819,15 @@ static void mod_from_val(module_ref mod,
         }
         output->set_normalized(normalized);
         instructions[node.at("output").to<std::string>()] = output;
+    }
+
+    if(module_val.contains("symbol_table"))
+    {
+        for(const auto& sym : module_val.at("symbol_table"))
+        {
+            mod->add_symbol(sym.get_key(),
+                            migraphx::from_value<shape::dynamic_dimension>(sym.without_key()));
+        }
     }
 }
 
@@ -1379,6 +1397,15 @@ std::ostream& operator<<(std::ostream& os, const program& p)
     for(auto& mod : vec_modules)
     {
         os << "module: \"" << mod->name() << "\"" << std::endl;
+        const auto& sym_table = mod->symbol_table();
+        if(not sym_table.empty())
+        {
+            os << "symbols:" << std::endl;
+            for(const auto& [name, dd] : sym_table)
+            {
+                os << "  " << name << " = " << dd << std::endl;
+            }
+        }
         names = mod->print(
             [&](auto ins, const auto& ins_names) {
                 instruction::print(os, ins, ins_names);

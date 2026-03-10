@@ -349,6 +349,11 @@ struct MIGRAPHX_EXPORT module
     void repeat_while_changes(std::size_t n, const std::function<void()>& f);
     void hoist_external_inputs(instruction_ref start_ins, instruction_ref end_ins);
 
+    void add_symbol(const std::string& name, shape::dynamic_dimension range);
+    bool has_symbol(const std::string& name) const;
+    const shape::dynamic_dimension& get_symbol_range(const std::string& name) const;
+    const std::unordered_map<std::string, shape::dynamic_dimension>& symbol_table() const;
+
     MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const module& m);
     MIGRAPHX_EXPORT friend bool operator==(const module& x, const module& y);
     friend bool operator!=(const module& x, const module& y) { return not(x == y); }

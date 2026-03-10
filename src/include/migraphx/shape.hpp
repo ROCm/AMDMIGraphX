@@ -46,6 +46,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct value;
 struct shape_impl;
+struct symbolic_dim;
 
 struct MIGRAPHX_EXPORT shape
 {
@@ -178,6 +179,8 @@ struct MIGRAPHX_EXPORT shape
 
     shape(type_t t, std::vector<dynamic_dimension> dims);
 
+    shape(type_t t, std::vector<symbolic_dim> syms);
+
     // Construct a dynamic shape from vectors of mins, maxes, and optimals.
     // optimals_list is a vector of optimals that corresponds to each min and max.
     shape(type_t t,
@@ -244,6 +247,9 @@ struct MIGRAPHX_EXPORT shape
     std::size_t type_size() const;
 
     const std::vector<dynamic_dimension>& dyn_dims() const;
+
+    bool symbolic() const;
+    const std::vector<symbolic_dim>& sym_dims() const;
 
     /*!
      * Minimum lengths for dynamic shape.

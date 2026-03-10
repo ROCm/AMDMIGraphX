@@ -62,6 +62,7 @@ struct module_impl
     uint32_t nparams = 0;
     bool bypass      = false; // used for skipping compiler passes
     bit_signal<64> changed{};
+    std::unordered_map<std::string, shape::dynamic_dimension> symbol_table;
 
     bool contains(instruction_ref ins) const
     {
@@ -1736,10 +1737,42 @@ void module::hoist_external_inputs(instruction_ref start_ins, instruction_ref en
     assert(this->validate() == this->end());
 }
 
+void module::add_symbol(const std::string& name, shape::dynamic_dimension range)
+{
+    impl->symbol_table[name] = std::move(range);
+}
+
+bool module::has_symbol(const std::string& name) const
+{
+    return impl->symbol_table.count(name) > 0;
+}
+
+const shape::dynamic_dimension& module::get_symbol_range(const std::string& name) const
+{
+    auto it = impl->symbol_table.find(name);
+    if(it == impl->symbol_table.end())
+        MIGRAPHX_THROW("Symbol not found: " + name);
+    return it->second;
+}
+
+const std::unordered_map<std::string, shape::dynamic_dimension>& module::symbol_table() const
+{
+    return impl->symbol_table;
+}
+
 bool operator==(const module& x, const module& y) { return to_string(x) == to_string(y); }
 
 std::ostream& operator<<(std::ostream& os, const module& m)
 {
+    const auto& sym_table = m.symbol_table();
+    if(not sym_table.empty())
+    {
+        os << "symbols:" << std::endl;
+        for(const auto& [name, dd] : sym_table)
+        {
+            os << "  " << name << " = " << dd << std::endl;
+        }
+    }
     m.print([&](auto ins, const auto& ins_names) {
         instruction::print(os, ins, ins_names);
         os << std::endl;

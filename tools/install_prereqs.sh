@@ -63,7 +63,8 @@ else
     hipcc \
     rocm-cmake \
     rocm-llvm-dev \
-    libtbb-dev
+    libtbb-dev \
+    libgmp-dev
 fi
 
 

@@ -15,48 +15,38 @@
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_REVERSE_HPP
-#define MIGRAPHX_GUARD_RTGLIB_REVERSE_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_FUSE_HORIZONTAL_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_FUSE_HORIZONTAL_HPP
 
-#include <migraphx/argument.hpp>
-#include <migraphx/reflect.hpp>
-#include <migraphx/op/reverse.hpp>
-#include <migraphx/gpu/context.hpp>
+#include <migraphx/config.hpp>
+#include <migraphx/pass_manager.hpp>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
 
-struct context;
-
-struct hip_reverse
+/**
+ * @brief Horizontal fusion pass for independent gather operations.
+ *
+ * Currently supports the following fusion:
+ * Identifies groups of independent gather(axis=0) ops that share the same
+ * embedding dimension and index layout, then fuses them into a single gather
+ * over a concatenated embedding table with offset-adjusted indices.
+ * The batched result is sliced back to produce the original outputs.
+ */
+struct MIGRAPHX_EXPORT fuse_horizontal
 {
-    op::reverse op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op, f);
-    }
-
-    std::string name() const { return "gpu::reverse"; }
-    shape compute_shape(std::vector<shape> inputs) const;
-    argument
-    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
-    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
-    {
-        return {shapes.size() - 1};
-    }
+    std::string name() const { return "fuse_horizontal"; }
+    void apply(module_pass_manager& mpm) const;
 };
 
-} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-#endif
+#endif // MIGRAPHX_GUARD_MIGRAPHX_FUSE_HORIZONTAL_HPP

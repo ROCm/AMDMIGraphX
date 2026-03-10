@@ -4799,6 +4799,62 @@ TEST_CASE(conv_multibroadcast_input)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(conv_broadcast_input_padded)
+{
+    migraphx::shape xs{migraphx::shape::float_type, {3}};
+    migraphx::shape ws{migraphx::shape::float_type, {4, 3, 3, 3}};
+    migraphx::module m1;
+    {
+        auto x     = m1.add_parameter("x", xs);
+        auto bcast = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 3, 8, 8}}}), x);
+        auto w    = m1.add_literal(migraphx::generate_literal(ws, 1));
+        auto conv = m1.add_instruction(
+            migraphx::make_op("convolution", {{"padding", {1, 1}}}), bcast, w);
+        m1.add_instruction(pass_op{}, conv);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", xs);
+        auto w = m2.add_literal(migraphx::generate_literal(ws, 1));
+
+        auto small_bcast = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 3, 3, 3}}}), x);
+        auto small_conv = m2.add_instruction(
+            migraphx::make_op("convolution", {{"padding", {1, 1}}}), small_bcast, w);
+
+        auto h_start = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {1}}}),
+            small_conv);
+        auto h_center = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {1}}, {"ends", {2}}}),
+            small_conv);
+        auto h_center_broad = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 6, 3}}}), h_center);
+        auto h_end = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {2}}, {"ends", {3}}}),
+            small_conv);
+        auto h_concat = m2.add_instruction(
+            migraphx::make_op("concat", {{"axis", 2}}), h_start, h_center_broad, h_end);
+
+        auto w_start = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {1}}}), h_concat);
+        auto w_center = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {3}}, {"starts", {1}}, {"ends", {2}}}), h_concat);
+        auto w_center_broad = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 8, 6}}}), w_center);
+        auto w_end = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {3}}, {"starts", {2}}, {"ends", {3}}}), h_concat);
+        auto w_concat = m2.add_instruction(
+            migraphx::make_op("concat", {{"axis", 3}}), w_start, w_center_broad, w_end);
+
+        m2.add_instruction(pass_op{}, w_concat);
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(conv_broadcast_input_group)
 {
     migraphx::shape xs{migraphx::shape::float_type, {64}};

@@ -2225,6 +2225,16 @@ struct find_conv_broadcast_input
             auto dilation = conv_val["dilation"].to_vector<std::size_t>();
             if(std::any_of(dilation.begin(), dilation.end(), [](auto d) { return d != 1; }))
                 return;
+            if(padding.size() == num_spatial)
+            {
+                std::vector<std::size_t> asym(2 * num_spatial);
+                for(std::size_t i = 0; i < num_spatial; i++)
+                {
+                    asym[i]              = padding[i];
+                    asym[i + num_spatial] = padding[i];
+                }
+                padding = std::move(asym);
+            }
             apply_small_conv(
                 m, ins, x_ins, w_ins, bcast_ins, out_lens, w_shape, padding, num_spatial);
         }

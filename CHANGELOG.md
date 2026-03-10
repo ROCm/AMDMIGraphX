@@ -9,11 +9,16 @@ Full documentation for MIGraphX is available at
 
 * Added a dedicated logger for MIGraphX.
 * [Linux] Use HSA API to query number of chiplets for architectures where this is applicable (ex. gfx90a).
+* Added a fuse_horizontal pass which batches independent cross embedding gather instructions (#4599).
+* Added GPU JIT `Resize` kernel (#4553).
 
 ### Changed
 
+* Converted `reverse` operator from device implementation to JIT compilation (#4645).
 * Refactored instruction output alias to return a vector of aliases (#4540).
+* Changed parsing of ONNX ops like ConstantOfShape to insert undefined if expected shape has 0 elements (#4567).
 * Updated the ONNX clip operator to support opset 13 (#4518).
+* Updated `argmin` and `argmax` ops to be implemented as reduction ops, so they now have JIT support and can fuse (#4620).
 
 ### Resolved issues
 
@@ -21,9 +26,13 @@ Full documentation for MIGraphX is available at
 * Fixed an issue in `propagate_precision` pass where precision could be incorrectly propagated across type boundaries (e.g., from integral to floating-point) (#4603).
 * Fixed an issue with clip operator when using fp16 input type on opset 6 (#4518). 
 * Fixed an issue with `reshape_lazy`'s shape computation that was leading to invalid reshapes (#4594).
+* Fixed `eliminate_pad` pass bug that was removing nonzero `pad` instructions (#4600).
 
 ### Optimized
 * Added optimized fusion for local_window mode of GQA operator
+
+* Added a new pass to replace convolution with constant broadcast input with a reduced GEMM which improves model compilation time (#4621).
+* Implemented JIT compilation for `logsoftmax` by decomposing it into fusible operations (`log`, `exp`, `reduce_max`, `reduce_sum`), enabling kernel fusion. (#4630).
 
 ### Removed
 
@@ -42,6 +51,7 @@ Full documentation for MIGraphX is available at
 * Added Torch-MIGraphX installation instructions.
 * Added Operator Builders with supporting documentation.
 * Added index range check to the Gather operator.
+* Added `log(exp(x)) → x` and `log(a/b) → log(a) - log(b)` algebraic simplifications (#4630).
 
 
 ### Changed

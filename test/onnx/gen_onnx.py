@@ -1772,6 +1772,34 @@ def const_of_shape_dyn_int64_test():
 
 
 @onnx_test()
+def const_of_shape_zero_dim_test():
+    tensor_val = onnx.helper.make_tensor('value', onnx.TensorProto.INT64, [1],
+                                         [10])
+    # Shape with a zero dimension - results in 0 elements output
+    shape_val = np.array([2, 0, 4]).astype(np.int64)
+    shape_ts = helper.make_tensor(name='shape_tensor',
+                                  data_type=TensorProto.INT64,
+                                  dims=shape_val.shape,
+                                  vals=shape_val.flatten().astype(np.int64))
+    shape_const = helper.make_node(
+        'Constant',
+        inputs=[],
+        outputs=['shape'],
+        value=shape_ts,
+    )
+    y = helper.make_tensor_value_info('y', TensorProto.INT64, [2, 0, 4])
+
+    node = onnx.helper.make_node(
+        'ConstantOfShape',
+        inputs=['shape'],
+        outputs=['y'],
+        value=tensor_val,
+    )
+
+    return ([shape_const, node], [], [y])
+
+
+@onnx_test()
 def conv_1d_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 5])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 3])
@@ -13343,6 +13371,32 @@ def resize_outsize_test():
         coordinate_transformation_mode='tf_half_pixel_for_nn',
         mode='nearest',
         nearest_mode='round_prefer_floor')
+
+    return ([node], [X], [Y], [out_lens_tensor])
+
+
+@onnx_test()
+def resize_outsize_nondivisible_test():
+    # Resize with int64 sizes where sizes/input_dims produces non-integer scales.
+    # For input [1,1,3,3] -> output [1,1,5,5], scale = 5/3 ~ 1.6667.
+    # float(5/3)*3 truncates to 4, not 5, so the parser must use 'sizes' attribute.
+    out_lens = np.array([1, 1, 5, 5], dtype=np.int64)
+    out_lens_tensor = helper.make_tensor(name='out_lens',
+                                         data_type=TensorProto.INT64,
+                                         dims=out_lens.shape,
+                                         vals=out_lens.flatten().astype(
+                                             np.int64))
+
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 3, 3])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 5, 5])
+
+    node = onnx.helper.make_node(
+        'Resize',
+        inputs=['X', '', '', 'out_lens'],
+        outputs=['Y'],
+        coordinate_transformation_mode='asymmetric',
+        mode='nearest',
+        nearest_mode='floor')
 
     return ([node], [X], [Y], [out_lens_tensor])
 

@@ -28,6 +28,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/iterator.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <bitset>
 #include <queue>
 
@@ -331,7 +332,8 @@ void instruction::replace_mod_argument(module_ref old, module_ref new_mod)
 
 bool instruction::is_undefined() const
 {
-    if(op.name() == "undefined" or (op.name() == "@literal" and this->get_literal().empty()))
+    if(op.name() == "undefined" or
+       (op.name() == "@literal" and this->get_literal().get_shape().elements() == 0))
     {
         return true;
     }
@@ -342,7 +344,8 @@ bool instruction::is_undefined() const
     else
     {
         return std::all_of(this->inputs().begin(), this->inputs().end(), [](auto arg) {
-            return arg->is_undefined();
+            return all_of(instruction::get_output_alias(arg),
+                          [](auto alias) { return alias->is_undefined(); });
         });
     }
 }
@@ -587,15 +590,11 @@ static auto track_visits(instruction_ref start, instruction_ref end, F f)
     }
     else
     {
-        std::unordered_set<instruction_ref> visited;
-        visited.reserve(n);
-        auto stop = [&](auto ins) {
-            if(not visited.insert(ins).second)
-                return true;
-            if(std::distance(ins, end) > n)
-                return true;
-            return false;
-        };
+        auto instructions     = range(start, std::next(end));
+        auto instruction_refs = iterator_for(instructions);
+        std::unordered_set<instruction_ref> in_range(instruction_refs.begin(),
+                                                     instruction_refs.end());
+        auto stop = [&](auto ins) { return in_range.erase(ins) == 0; };
         return f(stop);
     }
 }

@@ -248,7 +248,9 @@ struct find_attention
         // Remove evaluable constants from the output list.
         auto all_outputs = find_outputs(attn_inss);
         std::vector<instruction_ref> required_outputs;
-        std::copy_if(all_outputs.begin(), all_outputs.end(), std::back_inserter(required_outputs),
+        std::copy_if(all_outputs.begin(),
+                     all_outputs.end(),
+                     std::back_inserter(required_outputs),
                      [](auto i) { return not i->can_eval(); });
 
         assert(not required_outputs.empty());

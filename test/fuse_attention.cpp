@@ -235,17 +235,12 @@ TEST_CASE(gemm_pw_softmax_gemm)
         std::vector<float> eights(s1_elements, 0.125);
         std::vector<float> tens(s1_elements, 10);
         auto group = add_group(
-            p2,
-            "attn0",
-            "attention",
-            {a, b, select, b1},
-            [=](auto* gm, const auto& inputs) {
+            p2, "attn0", "attention", {a, b, select, b1}, [=](auto* gm, const auto& inputs) {
                 auto eight = gm->add_literal(migraphx::literal{s1, eights});
                 auto ten   = gm->add_literal(migraphx::literal{s1, tens});
                 auto gemm1 = gm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
                 auto mul   = gm->add_instruction(migraphx::make_op("mul"), gemm1, eight);
-                auto where =
-                    gm->add_instruction(migraphx::make_op("where"), inputs[2], mul, ten);
+                auto where = gm->add_instruction(migraphx::make_op("where"), inputs[2], mul, ten);
                 auto rmax =
                     gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), where);
                 rmax = gm->add_instruction(
@@ -359,8 +354,8 @@ TEST_CASE(gemm_multi_use_pw_softmax_gemm)
         scale = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s3.lens()}}),
                                     scale);
 
-        auto group = add_group(
-            p2, "attn0", "attention", {x, where}, [=](auto* gm, const auto& inputs) {
+        auto group =
+            add_group(p2, "attn0", "attention", {x, where}, [=](auto* gm, const auto& inputs) {
                 auto c1_lit = gm->add_literal(migraphx::literal(s2, c1_vec));
                 auto gemm1  = gm->add_instruction(migraphx::make_op("dot"), inputs[0], c1_lit);
                 auto add    = gm->add_instruction(migraphx::make_op("add"), gemm1, inputs[1]);
@@ -452,17 +447,12 @@ TEST_CASE(gemm_pw_softmax_lse_gemm)
         std::vector<float> eights(s1_elements, 0.125);
         std::vector<float> tens(s1_elements, 10);
         auto group = add_group(
-            p2,
-            "attn0",
-            "attention",
-            {a, b, select, b1},
-            [=](auto* gm, const auto& inputs) {
+            p2, "attn0", "attention", {a, b, select, b1}, [=](auto* gm, const auto& inputs) {
                 auto eight = gm->add_literal(migraphx::literal{s1, eights});
                 auto ten   = gm->add_literal(migraphx::literal{s1, tens});
                 auto gemm1 = gm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
                 auto mul   = gm->add_instruction(migraphx::make_op("mul"), gemm1, eight);
-                auto where =
-                    gm->add_instruction(migraphx::make_op("where"), inputs[2], mul, ten);
+                auto where = gm->add_instruction(migraphx::make_op("where"), inputs[2], mul, ten);
                 auto rmax =
                     gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), where);
                 auto rmax_mb = gm->add_instruction(

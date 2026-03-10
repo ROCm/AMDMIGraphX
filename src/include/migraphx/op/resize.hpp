@@ -184,7 +184,7 @@ struct resize
         }
 
         double coord = idx_op(in_len, out_len, out_idx, scale);
-        auto base    = static_cast<std::ptrdiff_t>(std::floor(coord));
+        auto base    = std::floor(coord);
 
         for(std::size_t i = 0; i < 4; ++i)
         {

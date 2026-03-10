@@ -685,7 +685,7 @@ static std::string get_migraphx_version()
 program file version is for the data structure or format of the MXR file. Version should be bumped
 if any changes occur to the format of the MXR file.
 */
-const int program_file_version = 7;
+const int program_file_version = 8;
 
 value program::to_value() const
 {
@@ -730,12 +730,11 @@ value program::to_value() const
                                    [&](auto mod_ref) { return mod_ref->name(); });
                     node["module_inputs"] = module_inputs;
                 }
-
+                nodes["debug_symbols"] = migraphx::to_value(ins->get_debug_symbols());
                 nodes.push_back(node);
             },
             names);
         mod_val["nodes"] = nodes;
-
         module_vals[mod->name()] = mod_val;
     }
 
@@ -809,6 +808,7 @@ static void mod_from_val(module_ref mod,
             }
         }
         output->set_normalized(normalized);
+        output->add_debug_symbols(node.at("debug_symbols").to<std::set<std::string>>());
         instructions[node.at("output").to<std::string>()] = output;
     }
 }

@@ -26,20 +26,13 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-TEST_CASE(resize_downsample_cubic_test)
+TEST_CASE(resize_upsample_cubic_coeff_half_test)
 {
-    migraphx::program p = read_onnx("resize_downsample_cubic_test.onnx");
+    migraphx::program p = read_onnx("resize_upsample_cubic_coeff_half_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
-    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 4, 4}};
-    // clang-format off
-    std::vector<float> dx = {
-        1.0f, 2.0f, 3.0f, 4.0f,
-        5.0f, 6.0f, 7.0f, 8.0f,
-        9.0f, 10.0f, 11.0f, 12.0f,
-        13.0f, 14.0f, 15.0f, 16.0f
-    };
-    // clang-format on
+    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
+    std::vector<float> dx = {1.0f, 2.0f, 3.0f, 4.0f};
 
     migraphx::parameter_map pp;
     pp["X"] = migraphx::argument(sx, dx.data());
@@ -48,19 +41,17 @@ TEST_CASE(resize_downsample_cubic_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    // Expected output for cubic downsample with half_pixel mode
-    // Output 2x2 using cubic interpolation with a=-0.75
-    // Used the following to validate and setting scale height and width
-    // sH, sW
-    //
-    //   PyTorch reference (align_corners=False, antialias=False)
-    //   x_t = torch.randn(N, C, H, W, dtype=torch.float32)
-    //   y_ref = F.interpolate(
-    //   x_t, scale_factor=(sH, sW), mode="bicubic",
-    //   align_corners=False, antialias=False)
-    //
-    //
-    std::vector<float> gold = {3.03125f, 5.21875f, 11.7812f, 13.9688f};
+    // Expected output for cubic interpolation with a=-0.5 (Catmull-Rom) and half_pixel mode
+    // Input 2x2: [[1, 2], [3, 4]], Output 4x4
+    // Symmetry property: out[r][c] + out[3-r][3-c] = 5.0 for all (r,c)
+    // clang-format off
+    std::vector<float> gold = {
+        0.7890625f,  1.0625f,     1.65625f,    1.9296875f,
+        1.3359375f,  1.609375f,   2.203125f,   2.4765625f,
+        2.5234375f,  2.796875f,   3.390625f,   3.6640625f,
+        3.0703125f,  3.34375f,    3.9375f,     4.2109375f
+    };
+    // clang-format on
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

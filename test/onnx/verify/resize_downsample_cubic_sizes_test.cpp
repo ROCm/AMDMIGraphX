@@ -26,9 +26,9 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-TEST_CASE(resize_downsample_cubic_test)
+TEST_CASE(resize_downsample_cubic_sizes_test)
 {
-    migraphx::program p = read_onnx("resize_downsample_cubic_test.onnx");
+    migraphx::program p = read_onnx("resize_downsample_cubic_sizes_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 4, 4}};
@@ -48,19 +48,9 @@ TEST_CASE(resize_downsample_cubic_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    // Expected output for cubic downsample with half_pixel mode
-    // Output 2x2 using cubic interpolation with a=-0.75
-    // Used the following to validate and setting scale height and width
-    // sH, sW
-    //
-    //   PyTorch reference (align_corners=False, antialias=False)
-    //   x_t = torch.randn(N, C, H, W, dtype=torch.float32)
-    //   y_ref = F.interpolate(
-    //   x_t, scale_factor=(sH, sW), mode="bicubic",
-    //   align_corners=False, antialias=False)
-    //
-    //
-    std::vector<float> gold = {3.03125f, 5.21875f, 11.7812f, 13.9688f};
+    // Same expected output as the scales-based resize_downsample_cubic_test
+    // half_pixel mode, cubic a=-0.75, 4x4 -> 2x2, using sizes input instead of scales
+    std::vector<float> gold = {3.03125f, 5.21875f, 11.78125f, 13.96875f};
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

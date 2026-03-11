@@ -2227,11 +2227,24 @@ struct find_conv_broadcast_input
 
         auto dot_result = m.insert_instruction(ins, make_op("dot"), x_2d, w_t);
 
-        auto dot_1d = m.insert_instruction(
-            ins, make_op("squeeze", {{"axes", std::vector<int64_t>{0}}}), dot_result);
+        if(n == 1)
+        {
+            auto dot_1d = m.insert_instruction(
+                ins, make_op("squeeze", {{"axes", std::vector<int64_t>{0}}}), dot_result);
 
-        m.replace_instruction(
-            ins, make_op("broadcast", {{"axis", 1}, {"out_lens", out_lens}}), dot_1d);
+            m.replace_instruction(
+                ins, make_op("broadcast", {{"axis", 1}, {"out_lens", out_lens}}), dot_1d);
+        }
+        else
+        {
+            std::vector<int64_t> unsqueeze_axes(out_lens.size() - 2);
+            std::iota(unsqueeze_axes.begin(), unsqueeze_axes.end(), 2);
+            auto dot_unsqueezed = m.insert_instruction(
+                ins, make_op("unsqueeze", {{"axes", unsqueeze_axes}}), dot_result);
+
+            m.replace_instruction(
+                ins, make_op("multibroadcast", {{"out_lens", out_lens}}), dot_unsqueezed);
+        }
     }
 };
 

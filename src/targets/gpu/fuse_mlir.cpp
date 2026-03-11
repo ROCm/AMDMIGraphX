@@ -1581,9 +1581,9 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     {
         match::find_matches(
             mpm,
-            find_mlir_split_reduce{.conv_mode    = get_mode("fused_convolution", mlir_mode::fast),
-                                   .dot_mode     = get_mode("fused_dot", mlir_mode::fast),
-                                   .device_name  = device_name});
+            find_mlir_split_reduce{.conv_mode   = get_mode("fused_convolution", mlir_mode::fast),
+                                   .dot_mode    = get_mode("fused_dot", mlir_mode::fast),
+                                   .device_name = device_name});
     }
 
     match::find_matches(mpm, find_pointwise_mlir{});

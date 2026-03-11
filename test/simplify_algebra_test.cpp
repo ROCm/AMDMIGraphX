@@ -4948,7 +4948,7 @@ TEST_CASE(simplify_log_div_negative)
 
 TEST_CASE(conv_broadcast_input_batch_size_gt_1)
 {
-    migraphx::shape xs{migraphx::shape::float_type, {2, 64}};
+    migraphx::shape xs{migraphx::shape::float_type, {2, 64, 1, 1}};
     migraphx::shape ws{migraphx::shape::float_type, {64, 64, 3, 3}};
     migraphx::module m1;
     {
@@ -4969,7 +4969,8 @@ TEST_CASE(conv_broadcast_input_batch_size_gt_1)
         auto w2d = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {64, 64}}}), wr);
         auto wt =
             m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), w2d);
-        auto dr         = m2.add_instruction(migraphx::make_op("dot"), x, wt);
+        auto x2d = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 64}}}), x);
+        auto dr  = m2.add_instruction(migraphx::make_op("dot"), x2d, wt);
         auto unsqueezed = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2, 3}}}), dr);
         auto r          = m2.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {2, 64, 2, 2}}}), unsqueezed);

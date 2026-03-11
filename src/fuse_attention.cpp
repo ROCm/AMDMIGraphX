@@ -775,7 +775,7 @@ struct find_kv_cache_attention
         auto attn_scores       = match::any_of(scale, gemm1);
         auto causal_mask =
             match::name("where")(match::arg(0)(broadcasted_const), match::arg(2)(attn_scores));
-        auto conv_grtr = match::name("convert")(match::arg(0)(match::name("greater")));
+        auto conv_grtr         = match::name("convert")(match::arg(0)(match::name("greater")));
         auto local_window_comp = match::skip(match::name(skip_set))(conv_grtr);
         auto local_window_mask =
             match::name("where")(match::arg(0)(match::any_of(local_window_comp, broadcasted_const)),

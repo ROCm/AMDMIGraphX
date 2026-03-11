@@ -35,6 +35,7 @@ Full documentation for MIGraphX is available at
 * Implemented JIT compilation for `logsoftmax` by decomposing it into fusible operations (`log`, `exp`, `reduce_max`, `reduce_sum`), enabling kernel fusion. (#4630).
 
 ### Removed
+* Removed legacy device implementations for `argmin` and `argmax` in favor of the JIT implementations recently added (#4658).
 
 ## MIGraphX 2.15 for ROCm 7.2.0
 

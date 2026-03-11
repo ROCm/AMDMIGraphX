@@ -255,7 +255,7 @@ struct find_mul_dot
 {
     auto matcher() const
     {
-        auto constant            = match::is_constant(not_from_int4());
+        auto constant = match::is_constant(not_from_int4());
         auto is_dot_const_inputs =
             match::name("dot")(match::any_of[match::inputs()](constant), match::used_once());
         return match::name("mul")(match::either_arg(0, 1)(
@@ -792,7 +792,7 @@ struct find_inner_broadcast
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins               = r.result;
+        auto ins = r.result;
         if(ins->get_operator().name() == "layout")
             return;
         const auto& broadcasts = ins->inputs();

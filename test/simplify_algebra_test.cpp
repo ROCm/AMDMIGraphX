@@ -1768,7 +1768,7 @@ TEST_CASE(simplify_zero_mult_const)
     migraphx::module m2;
     {
         auto x            = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto zero = m2.add_literal(0);
+        auto zero         = m2.add_literal(0);
         auto reshape_zero = m2.add_instruction(
             migraphx::make_op("reshape", {{"dims", x->get_shape().lens()}}), zero);
         m2.add_return({reshape_zero});
@@ -1791,7 +1791,7 @@ TEST_CASE(simplify_zero_mult_const2)
     migraphx::module m2;
     {
         auto x            = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto zero = m2.add_literal(0);
+        auto zero         = m2.add_literal(0);
         auto reshape_zero = m2.add_instruction(
             migraphx::make_op("reshape", {{"dims", x->get_shape().lens()}}), zero);
         m2.add_return({reshape_zero});
@@ -1921,7 +1921,7 @@ TEST_CASE(simplify_zero_div_const)
 
     migraphx::module m2;
     {
-        auto zero = m2.add_literal(0);
+        auto zero        = m2.add_literal(0);
         auto x           = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
         auto reshape_ins = m2.add_instruction(
             migraphx::make_op("reshape", {{"dims", x->get_shape().lens()}}), zero);
@@ -4971,8 +4971,9 @@ TEST_CASE(conv_broadcast_input_batch_size_gt_1)
             m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), w2d);
         auto x2d = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 64}}}), x);
         auto dr  = m2.add_instruction(migraphx::make_op("dot"), x2d, wt);
-        auto unsqueezed = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2, 3}}}), dr);
-        auto r          = m2.add_instruction(
+        auto unsqueezed =
+            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2, 3}}}), dr);
+        auto r = m2.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {2, 64, 2, 2}}}), unsqueezed);
         m2.add_instruction(pass_op{}, r);
     }

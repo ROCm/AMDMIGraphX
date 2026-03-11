@@ -110,33 +110,28 @@ struct compile_plan
     }
     template <class Vector>
     void insert_compiles(Vector& compiles,
-                         std::vector<value> solutions,
+                         value solution,
                          std::size_t i,
                          bool cache_solution = false)
     {
         compiles.emplace_back([=] {
-            std::any_of(solutions.begin(), solutions.end(), [&](const auto& solution) {
-                try
-                {
-                    results[i] = compiled_result{compile(*ctx, ins, preop, solution), ins};
-                    if(cache_solution)
-                        cached_solution = solution;
-                    return true;
-                }
-                catch(const std::exception& e)
-                {
-                    const auto trace_level = value_of(MIGRAPHX_TRACE_BENCHMARKING{});
-                    if(trace_level > 0)
-                        std::cerr << "Exception in " + preop.name() + ": " + e.what() << std::endl;
-                    results[i] = nullopt;
-                    return false;
-                }
-                catch(...)
-                {
-                    results[i] = nullopt;
-                    return false;
-                }
-            });
+            try
+            {
+                results[i] = compiled_result{compile(*ctx, ins, preop, solution), ins};
+                if(cache_solution)
+                    cached_solution = solution;
+            }
+            catch(const std::exception& e)
+            {
+                const auto trace_level = value_of(MIGRAPHX_TRACE_BENCHMARKING{});
+                if(trace_level > 0)
+                    std::cerr << "Exception in " + preop.name() + ": " + e.what() << std::endl;
+                results[i] = nullopt;
+            }
+            catch(...)
+            {
+                results[i] = nullopt;
+            }
         });
     }
 
@@ -153,7 +148,7 @@ struct compile_plan
                 if(solution.is_null())
                     return;
                 results.resize(1);
-                insert_compiles(compiles, {solution}, 0);
+                insert_compiles(compiles, solution, 0);
             }
             else
             {
@@ -165,14 +160,14 @@ struct compile_plan
                 if(enabled(MIGRAPHX_SKIP_BENCHMARKING{}))
                 {
                     results.resize(1);
-                    insert_compiles(compiles, solutions, 0, true);
+                    insert_compiles(compiles, solutions.front(), 0, true);
                 }
                 else
                 {
                     results.resize(solutions.size());
                     for(auto i : range(solutions.size()))
                     {
-                        insert_compiles(compiles, {solutions[i]}, i);
+                        insert_compiles(compiles, solutions[i], i);
                     }
                 }
             }
@@ -180,7 +175,7 @@ struct compile_plan
         else
         {
             results.resize(1);
-            insert_compiles(compiles, {value{}}, 0);
+            insert_compiles(compiles, value{}, 0);
         }
     }
     std::string problem_string() const

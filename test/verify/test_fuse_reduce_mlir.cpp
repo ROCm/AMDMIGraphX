@@ -44,8 +44,7 @@ struct test_fuse_reduce_mlir : verify_program<test_fuse_reduce_mlir<DType>>
         auto conv = mm->add_instruction(
             migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}), x, w);
         auto xx = mm->add_instruction(migraphx::make_op("mul"), conv, conv);
-        auto r1 =
-            mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3}}}), conv);
+        auto r1 = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3}}}), conv);
         auto r2 = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3}}}), xx);
         mm->add_return({r1, r2});
         return p;

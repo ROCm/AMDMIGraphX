@@ -120,27 +120,11 @@ ADD docs/sphinx/requirements.txt /doc-requirements.txt
 RUN pip3 install -r /doc-requirements.txt
 
 # Install latest ccache version
-#RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake
-#RUN cget -p $PREFIX install ccache@v4.1 -DENABLE_TESTING=OFF
-RUN cget -p /opt/cmake install kitware/cmake@v3.28.0
+RUN cget -p /opt/cmake install kitware/cmake@v3.28.3
+RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake
+RUN cget -p $PREFIX install ccache@v4.1 -DENABLE_TESTING=OFF
 # Install a newer version of doxygen because the one that comes with ubuntu is broken
 RUN cget -p $PREFIX install doxygen@Release_1_14_0
-
-COPY ./test/onnx/.onnxrt-commit /
-
-ARG ONNXRUNTIME_REPO=https://github.com/Microsoft/onnxruntime
-ARG ONNXRUNTIME_BRANCH=main
-ARG ONNXRUNTIME_COMMIT
-
-RUN git clone --single-branch --branch ${ONNXRUNTIME_BRANCH} --recursive ${ONNXRUNTIME_REPO} onnxruntime && \
-    cd onnxruntime && \
-    if [ -z "$ONNXRUNTIME_COMMIT" ] ; then git checkout $(cat /.onnxrt-commit) ; else git checkout ${ONNXRUNTIME_COMMIT} ; fi && \
-    /bin/sh /onnxruntime/dockerfiles/scripts/install_common_deps.sh
-
-
-ADD tools/build_and_test_onnxrt.sh /onnxruntime/build_and_test_onnxrt.sh
-ADD tools/pai_test_launcher.sh /onnxruntime/tools/ci_build/github/pai/pai_test_launcher.sh
-ADD tools/pai_provider_test_launcher.sh /onnxruntime/tools/ci_build/github/pai/pai_provider_test_launcher.sh
 
 ENV MIOPEN_FIND_DB_PATH=/tmp/miopen/find-db
 ENV MIOPEN_USER_DB_PATH=/tmp/miopen/user-db

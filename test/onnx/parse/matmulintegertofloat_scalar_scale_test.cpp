@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -37,17 +37,12 @@ TEST_CASE(matmulintegertofloat_scalar_scale_test)
     auto sq_scale_x0 =
         mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), scale_x0);
 
-    auto sq_scale_x1 =
-        mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), scale_x1);
-
-    sq_scale_x1 = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), sq_scale_x1);
-
     auto bc_scale_x0 = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", x0->get_shape().lens()}}), sq_scale_x0);
     auto r0 = mm->add_instruction(migraphx::make_op("dequantizelinear"), x0, bc_scale_x0);
 
     auto bc_scale_x1 = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", x1->get_shape().lens()}}), sq_scale_x1);
+        migraphx::make_op("multibroadcast", {{"out_lens", x1->get_shape().lens()}}), scale_x1);
 
     auto r1 = mm->add_instruction(migraphx::make_op("dequantizelinear"), x1, bc_scale_x1);
     mm->add_instruction(migraphx::make_op("dot"), r0, r1);

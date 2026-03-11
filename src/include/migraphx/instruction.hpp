@@ -51,6 +51,8 @@ MIGRAPHX_EXPORT bool reaches(instruction_ref start, instruction_ref end);
 
 MIGRAPHX_EXPORT bool reaches(instruction_ref start, instruction_ref end, const_module_ref m);
 
+MIGRAPHX_EXPORT bool reaches(const std::unordered_set<instruction_ref>& starts, instruction_ref end, const_module_ref m);
+
 MIGRAPHX_EXPORT bool is_interdependent(const std::vector<instruction_ref>& instructions,
                                        const_module_ref m,
                                        instruction_ref root);

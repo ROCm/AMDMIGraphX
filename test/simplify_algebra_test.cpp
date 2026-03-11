@@ -4963,10 +4963,6 @@ TEST_CASE(conv_broadcast_input_batch_size_gt_1)
 
     migraphx::module m2;
     {
-        auto x   = m2.add_parameter("x", s);
-        auto exp = m2.add_instruction(migraphx::make_op("exp"), x);
-        auto sum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), exp);
-        m2.add_return({x, sum});
         auto x   = m2.add_parameter("x", xs);
         auto w   = m2.add_literal(migraphx::generate_literal(ws, 1));
         auto wr  = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3}}}), w);

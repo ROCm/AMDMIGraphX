@@ -38,10 +38,14 @@
 #include <migraphx/instruction.hpp>
 
 #include <migraphx/algorithm.hpp>
+#include <migraphx/env.hpp>
 #include <unordered_set>
+#include <iostream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DEBUG_SIMPLIFY_ALGEBRA)
 
 static auto lit_broadcast()
 {
@@ -2235,42 +2239,76 @@ struct find_conv_broadcast_input
     }
 };
 
+template <class T>
+struct debug_matcher
+{
+    const char* name;
+    T impl;
+    bool trace;
+
+    auto matcher() const { return impl.matcher(); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        if(trace)
+            std::cerr << "[simplify_algebra] " << name << ": match found at @"
+                      << r.result->name() << std::endl;
+        impl.apply(m, r);
+        if(trace)
+            std::cerr << "[simplify_algebra] " << name << ": apply done" << std::endl;
+    }
+};
+
+template <class T>
+debug_matcher<T> make_debug_matcher(const char* name, T impl, bool trace)
+{
+    return {name, std::move(impl), trace};
+}
+
 void simplify_algebra::apply(module& m) const
 {
-    // Run simplifications multiple times
+    const bool trace = enabled(MIGRAPHX_DEBUG_SIMPLIFY_ALGEBRA{});
+    int pass         = 0;
     m.repeat_while_changes(8, [&] {
-        match::find_matches(m,
-                            find_conv_broadcast_input{},
-                            find_inner_broadcast{},
-                            find_dot_broadcast{},
-                            find_double_add_lit_broadcast{},
-                            find_add_lit_broadcast{},
-                            find_add_convs{},
-                            find_conv_dot_horiz_fusion{},
-                            find_mul_conv{},
-                            find_mul_slice_conv{},
-                            find_mul_dot{},
-                            find_dot_slice{},
-                            find_dot_mul{},
-                            find_mul_add{},
-                            find_unit_ops{},
-                            find_neg_unit_ops{},
-                            eliminate_zero_point{},
-                            find_zero_ops{},
-                            find_dot_add{},
-                            find_conv_add{},
-                            find_div_const{},
-                            find_sub_const{},
-                            find_rsqrt{},
-                            find_log_exp{},
-                            find_log_div{},
-                            find_concat_conv{},
-                            find_concat_op{},
-                            find_split_concat{},
-                            find_splits{},
-                            find_split_reshape{},
-                            find_split_transpose{});
+        if(trace)
+            std::cerr << "[simplify_algebra] === Starting pass " << pass << " ===" << std::endl;
+        match::find_matches(
+            m,
+            make_debug_matcher("find_conv_broadcast_input", find_conv_broadcast_input{}, trace),
+            make_debug_matcher("find_inner_broadcast", find_inner_broadcast{}, trace),
+            make_debug_matcher("find_dot_broadcast", find_dot_broadcast{}, trace),
+            make_debug_matcher("find_double_add_lit_broadcast", find_double_add_lit_broadcast{}, trace),
+            make_debug_matcher("find_add_lit_broadcast", find_add_lit_broadcast{}, trace),
+            make_debug_matcher("find_add_convs", find_add_convs{}, trace),
+            make_debug_matcher("find_conv_dot_horiz_fusion", find_conv_dot_horiz_fusion{}, trace),
+            make_debug_matcher("find_mul_conv", find_mul_conv{}, trace),
+            make_debug_matcher("find_mul_slice_conv", find_mul_slice_conv{}, trace),
+            make_debug_matcher("find_mul_dot", find_mul_dot{}, trace),
+            make_debug_matcher("find_dot_slice", find_dot_slice{}, trace),
+            make_debug_matcher("find_dot_mul", find_dot_mul{}, trace),
+            make_debug_matcher("find_mul_add", find_mul_add{}, trace),
+            make_debug_matcher("find_unit_ops", find_unit_ops{}, trace),
+            make_debug_matcher("find_neg_unit_ops", find_neg_unit_ops{}, trace),
+            make_debug_matcher("eliminate_zero_point", eliminate_zero_point{}, trace),
+            make_debug_matcher("find_zero_ops", find_zero_ops{}, trace),
+            make_debug_matcher("find_dot_add", find_dot_add{}, trace),
+            make_debug_matcher("find_conv_add", find_conv_add{}, trace),
+            make_debug_matcher("find_div_const", find_div_const{}, trace),
+            make_debug_matcher("find_sub_const", find_sub_const{}, trace),
+            make_debug_matcher("find_rsqrt", find_rsqrt{}, trace),
+            make_debug_matcher("find_log_exp", find_log_exp{}, trace),
+            make_debug_matcher("find_log_div", find_log_div{}, trace),
+            make_debug_matcher("find_concat_conv", find_concat_conv{}, trace),
+            make_debug_matcher("find_concat_op", find_concat_op{}, trace),
+            make_debug_matcher("find_split_concat", find_split_concat{}, trace),
+            make_debug_matcher("find_splits", find_splits{}, trace),
+            make_debug_matcher("find_split_reshape", find_split_reshape{}, trace),
+            make_debug_matcher("find_split_transpose", find_split_transpose{}, trace));
+        if(trace)
+            std::cerr << "[simplify_algebra] === Pass " << pass << " done, running DCE ==="
+                      << std::endl;
         dead_code_elimination{}.apply(m);
+        pass++;
     });
 }
 

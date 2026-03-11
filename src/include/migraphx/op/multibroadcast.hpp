@@ -94,7 +94,12 @@ struct multibroadcast
         {
             // 2+ inputs
             if(std::any_of(
-                   inputs.cbegin(), inputs.cend(), [](auto input) { return input.dynamic(); }))
+                   inputs.cbegin(), inputs.cend(), [](auto input) { return input.symbolic(); }))
+            {
+                return compute_common_sym_shape(inputs);
+            }
+            else if(std::any_of(
+                        inputs.cbegin(), inputs.cend(), [](auto input) { return input.dynamic(); }))
             {
                 if(not output_dyn_dims.empty())
                 {
@@ -104,8 +109,7 @@ struct multibroadcast
             }
             else
             {
-                // output_lens will not be set for 2+ input version
-                auto bcast_lens    = compute_common_lens(inputs);
+                auto bcast_lens = compute_common_lens(inputs);
                 return make_bcast_shape(s0, bcast_lens);
             }
         }

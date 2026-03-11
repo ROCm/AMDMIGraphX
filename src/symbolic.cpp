@@ -141,6 +141,22 @@ symbolic_dim operator*(const symbolic_dim& x, const symbolic_dim& y)
     return result;
 }
 
+symbolic_dim& symbolic_dim::operator/=(const symbolic_dim& x)
+{
+    expr = expr / x.expr;
+    min  = (x.max == 0) ? 0 : min / x.max;
+    max  = (x.min == 0) ? std::numeric_limits<std::size_t>::max() : max / x.min;
+    optimals.clear();
+    return *this;
+}
+
+symbolic_dim operator/(const symbolic_dim& x, const symbolic_dim& y)
+{
+    auto result = x;
+    result /= y;
+    return result;
+}
+
 // symbolic_dim + size_t
 symbolic_dim& symbolic_dim::operator+=(const std::size_t& x)
 {
@@ -236,6 +252,47 @@ void migraphx_from_value(const value& v, symbolic_dim& sd)
     sd.min        = from_value<std::size_t>(v.at("min"));
     sd.max        = from_value<std::size_t>(v.at("max"));
     sd.optimals   = from_value<std::set<std::size_t>>(v.at("optimals"));
+}
+
+// symbolic_stride
+
+symbolic_stride::symbolic_stride(std::size_t value)
+    : expr(SymEngine::integer(value))
+{
+}
+
+symbolic_stride::symbolic_stride(SymEngine::Expression e) : expr(std::move(e)) {}
+
+symbolic_stride::symbolic_stride(const symbolic_dim& sd) : expr(sd.expr) {}
+
+std::string symbolic_stride::to_string() const
+{
+    std::stringstream ss;
+    ss << expr;
+    return ss.str();
+}
+
+bool operator==(const symbolic_stride& x, const symbolic_stride& y)
+{
+    return x.expr == y.expr;
+}
+
+bool operator!=(const symbolic_stride& x, const symbolic_stride& y) { return not(x == y); }
+
+std::ostream& operator<<(std::ostream& os, const symbolic_stride& x)
+{
+    os << x.to_string();
+    return os;
+}
+
+void migraphx_to_value(value& v, const symbolic_stride& ss)
+{
+    v = migraphx::to_value(ss.to_string());
+}
+
+void migraphx_from_value(const value& v, symbolic_stride& ss)
+{
+    ss.expr = SymEngine::Expression(v.get_string());
 }
 
 } // namespace MIGRAPHX_INLINE_NS

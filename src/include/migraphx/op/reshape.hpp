@@ -66,6 +66,12 @@ struct reshape
 
     std::string name() const { return "reshape"; }
 
+    shape sym_compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(1);
+        return inputs.front().with_sym_dims_reshaped(this->dims);
+    }
+
     // Assumes that the shape from the `dims` attribute will be valid at run-time.
     // Makes no checks for the validity of the `dims` attribute for the given input shape.
     shape dyn_1arg_compute_shape(shape s0) const
@@ -181,7 +187,11 @@ struct reshape
         const auto& s0 = inputs.front();
         if(inputs.size() == 1)
         {
-            if(s0.dynamic())
+            if(s0.symbolic())
+            {
+                return sym_compute_shape(inputs);
+            }
+            else if(s0.dynamic())
             {
                 return dyn_1arg_compute_shape(s0);
             }

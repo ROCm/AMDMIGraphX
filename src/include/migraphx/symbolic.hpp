@@ -72,9 +72,11 @@ struct MIGRAPHX_EXPORT symbolic_dim
     symbolic_dim& operator+=(const symbolic_dim& x);
     symbolic_dim& operator-=(const symbolic_dim& x);
     symbolic_dim& operator*=(const symbolic_dim& x);
+    symbolic_dim& operator/=(const symbolic_dim& x);
     MIGRAPHX_EXPORT friend symbolic_dim operator+(const symbolic_dim& x, const symbolic_dim& y);
     MIGRAPHX_EXPORT friend symbolic_dim operator-(const symbolic_dim& x, const symbolic_dim& y);
     MIGRAPHX_EXPORT friend symbolic_dim operator*(const symbolic_dim& x, const symbolic_dim& y);
+    MIGRAPHX_EXPORT friend symbolic_dim operator/(const symbolic_dim& x, const symbolic_dim& y);
 
     symbolic_dim& operator+=(const std::size_t& x);
     symbolic_dim& operator-=(const std::size_t& x);
@@ -92,6 +94,25 @@ struct MIGRAPHX_EXPORT symbolic_dim
 
 MIGRAPHX_EXPORT void migraphx_to_value(value& v, const symbolic_dim& sd);
 MIGRAPHX_EXPORT void migraphx_from_value(const value& v, symbolic_dim& sd);
+
+struct MIGRAPHX_EXPORT symbolic_stride
+{
+    SymEngine::Expression expr = SymEngine::Expression(0);
+
+    symbolic_stride() = default;
+    symbolic_stride(std::size_t value);
+    symbolic_stride(SymEngine::Expression e);
+    symbolic_stride(const symbolic_dim& sd);
+
+    std::string to_string() const;
+
+    MIGRAPHX_EXPORT friend bool operator==(const symbolic_stride& x, const symbolic_stride& y);
+    MIGRAPHX_EXPORT friend bool operator!=(const symbolic_stride& x, const symbolic_stride& y);
+    MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const symbolic_stride& x);
+};
+
+MIGRAPHX_EXPORT void migraphx_to_value(value& v, const symbolic_stride& ss);
+MIGRAPHX_EXPORT void migraphx_from_value(const value& v, symbolic_stride& ss);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

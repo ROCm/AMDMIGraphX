@@ -28,6 +28,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/symbolic.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -104,6 +105,70 @@ std::vector<shape::dynamic_dimension> compute_common_dyn_dims(const std::vector<
         ret_shape = shape{ret_shape.type(), compute_broadcasted_dyn_dims(ret_shape, s)};
     });
     return ret_shape.dyn_dims();
+}
+
+static std::vector<symbolic_dim>
+compute_broadcasted_sym_lens(std::vector<symbolic_dim> s0, std::vector<symbolic_dim> s1)
+{
+    if(s0.size() > s1.size())
+        std::swap(s0, s1);
+    auto offset = s1.size() - s0.size();
+    std::vector<symbolic_dim> out(s1);
+    std::transform(s0.cbegin(),
+                   s0.cend(),
+                   s1.cbegin() + offset,
+                   out.begin() + offset,
+                   [&](const auto& a, const auto& b) -> symbolic_dim {
+                       if(a == b or (b.is_fixed() and b.min == 1))
+                       {
+                           return a;
+                       }
+                       else if(a.is_fixed() and a.min == 1)
+                       {
+                           return b;
+                       }
+                       else
+                       {
+                           auto intersect = a.intersection(b);
+                           if(intersect.has_value())
+                               return intersect.value();
+                           MIGRAPHX_THROW("COMPUTE_BROADCASTED_LENS: symbolic shapes mismatch!");
+                       }
+                   });
+    return out;
+}
+
+static shape
+make_sym_bcast_shape(const shape& input_shape, const std::vector<symbolic_dim>& bcast_lens)
+{
+    auto sym_input            = input_shape.to_symbolic();
+    const auto& input_syms    = sym_input.sym_lens();
+    const auto& input_strides = sym_input.sym_strides();
+    auto offset               = bcast_lens.size() - sym_input.ndim();
+    std::vector<symbolic_dim> out_lens(bcast_lens);
+    std::vector<symbolic_stride> out_strides(bcast_lens.size());
+    for(std::ptrdiff_t i : reverse(range(sym_input.ndim())))
+    {
+        if(bcast_lens.at(i + offset) == input_syms[i])
+        {
+            out_strides.at(i + offset) = input_strides[i];
+        }
+    }
+    return shape::from_symbolic(input_shape.type(), std::move(out_lens), std::move(out_strides));
+}
+
+shape compute_common_sym_shape(const std::vector<shape>& shapes)
+{
+    assert(not shapes.empty());
+    assert(std::any_of(
+        shapes.cbegin(), shapes.cend(), [](const auto& s) { return s.symbolic(); }));
+    auto to_syms = [](const shape& s) { return s.to_symbolic().sym_lens(); };
+    auto bcast_lens = transform_accumulate(shapes.begin() + 1,
+                                           shapes.end(),
+                                           to_syms(shapes.front()),
+                                           &compute_broadcasted_sym_lens,
+                                           to_syms);
+    return make_sym_bcast_shape(shapes.front(), bcast_lens);
 }
 
 std::vector<std::size_t> compute_common_lens(const std::vector<shape>& shapes)

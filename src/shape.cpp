@@ -82,10 +82,21 @@ struct shape_impl
     }
 
     shape_impl(shape::type_t t, std::vector<symbolic_dim> syms)
-        : m_type(t), m_sym_dims(std::move(syms))
+        : m_type(t), m_sym_lens(std::move(syms))
     {
-        m_dyn_dims.reserve(m_sym_dims.size());
-        for(const auto& sd : m_sym_dims)
+        m_dyn_dims.reserve(m_sym_lens.size());
+        for(const auto& sd : m_sym_lens)
+            m_dyn_dims.push_back(sd.to_dynamic_dimension());
+        calculate_sym_strides();
+    }
+
+    shape_impl(shape::type_t t,
+               std::vector<symbolic_dim> syms,
+               std::vector<symbolic_stride> strides)
+        : m_type(t), m_sym_lens(std::move(syms)), m_sym_strides(std::move(strides))
+    {
+        m_dyn_dims.reserve(m_sym_lens.size());
+        for(const auto& sd : m_sym_lens)
             m_dyn_dims.push_back(sd.to_dynamic_dimension());
     }
 
@@ -121,7 +132,21 @@ struct shape_impl
     bool m_standard                    = false;
 
     std::vector<shape::dynamic_dimension> m_dyn_dims = {};
-    std::vector<symbolic_dim> m_sym_dims             = {};
+    std::vector<symbolic_dim> m_sym_lens             = {};
+    std::vector<symbolic_stride> m_sym_strides       = {};
+
+    void calculate_sym_strides()
+    {
+        m_sym_strides.clear();
+        m_sym_strides.resize(m_sym_lens.size());
+        if(m_sym_strides.empty())
+            return;
+        m_sym_strides.back() = symbolic_stride(std::size_t{1});
+        std::partial_sum(m_sym_lens.rbegin(),
+                         m_sym_lens.rend() - 1,
+                         m_sym_strides.rbegin() + 1,
+                         std::multiplies<symbolic_dim>());
+    }
 
     void calculate_strides()
     {
@@ -372,6 +397,13 @@ shape::shape(type_t t, std::vector<shape::dynamic_dimension> dims)
 shape::shape(type_t t, std::vector<symbolic_dim> syms)
     : impl(std::make_shared<shape_impl>(t, std::move(syms)))
 {
+}
+
+shape shape::from_symbolic(type_t t,
+                           std::vector<symbolic_dim> syms,
+                           std::vector<symbolic_stride> strs)
+{
+    return shape(std::make_shared<shape_impl>(t, std::move(syms), std::move(strs)));
 }
 
 shape::shape(type_t t,
@@ -656,6 +688,21 @@ shape shape::to_dynamic() const
     return {type(), lens(), lens(), {}};
 }
 
+shape shape::to_symbolic() const
+{
+    if(this->symbolic())
+        return *this;
+    std::vector<symbolic_dim> syms;
+    syms.reserve(ndim());
+    for(auto len : lens())
+        syms.emplace_back(len);
+    std::vector<symbolic_stride> strs;
+    strs.reserve(ndim());
+    for(auto s : strides())
+        strs.emplace_back(s);
+    return shape::from_symbolic(type(), std::move(syms), std::move(strs));
+}
+
 shape shape::to_static(std::size_t x) const
 {
     if(not sub_shapes().empty())
@@ -708,9 +755,63 @@ const std::vector<shape::dynamic_dimension>& shape::dyn_dims() const
     return impl->m_dyn_dims;
 }
 
-bool shape::symbolic() const { return not impl->m_sym_dims.empty(); }
+bool shape::symbolic() const { return not impl->m_sym_lens.empty(); }
 
-const std::vector<symbolic_dim>& shape::sym_dims() const { return impl->m_sym_dims; }
+const std::vector<symbolic_dim>& shape::sym_lens() const { return impl->m_sym_lens; }
+
+const std::vector<symbolic_stride>& shape::sym_strides() const { return impl->m_sym_strides; }
+
+shape shape::with_sym_dims_permuted(const std::vector<int64_t>& perm) const
+{
+    if(not symbolic())
+        MIGRAPHX_THROW("SHAPE: with_sym_dims_permuted called on non-symbolic shape");
+
+    const auto& sl = sym_lens();
+    const auto& ss = sym_strides();
+    std::vector<symbolic_dim> out_lens(perm.size());
+    std::vector<symbolic_stride> out_strides(perm.size());
+    std::transform(
+        perm.begin(), perm.end(), out_lens.begin(), [&](auto d) { return sl[d]; });
+    std::transform(
+        perm.begin(), perm.end(), out_strides.begin(), [&](auto d) { return ss[d]; });
+    return shape::from_symbolic(this->type(), std::move(out_lens), std::move(out_strides));
+}
+
+shape shape::with_sym_dims_reshaped(const std::vector<int64_t>& dims) const
+{
+    if(not symbolic())
+        MIGRAPHX_THROW("SHAPE: with_sym_dims_reshaped called on non-symbolic shape");
+
+    const auto& isyms = sym_lens();
+    std::vector<symbolic_dim> rdims(dims.size());
+
+    for(std::size_t i = 0; i < dims.size(); i++)
+    {
+        if(dims[i] == 0)
+            rdims[i] = isyms[i];
+        else if(dims[i] == -1)
+            rdims[i] = symbolic_dim(std::size_t{1});
+        else
+            rdims[i] = symbolic_dim(static_cast<std::size_t>(dims[i]));
+    }
+
+    auto n_neg_dims = std::count(dims.begin(), dims.end(), -1);
+    if(n_neg_dims > 0)
+    {
+        auto total_elements = std::accumulate(
+            isyms.begin(), isyms.end(), symbolic_dim(std::size_t{1}), std::multiplies<>{});
+        auto known_elements = std::accumulate(
+            rdims.begin(), rdims.end(), symbolic_dim(std::size_t{1}), std::multiplies<>{});
+        auto missing_dim = total_elements / known_elements;
+        for(std::size_t i = 0; i < rdims.size(); i++)
+        {
+            if(dims[i] == -1)
+                rdims[i] = missing_dim;
+        }
+    }
+
+    return {this->type(), rdims};
+}
 
 std::vector<std::size_t> shape::min_lens() const
 {
@@ -846,7 +947,8 @@ std::ostream& operator<<(std::ostream& os, const shape& x)
         if(x.symbolic())
         {
             os << x.type_string() << ", ";
-            os << "{" << to_string_range(x.sym_dims()) << "}";
+            os << "{" << to_string_range(x.sym_lens()) << "}, ";
+            os << "{" << to_string_range(x.sym_strides()) << "}";
         }
         else if(x.dynamic())
         {
@@ -928,9 +1030,15 @@ void migraphx_to_value(value& v, const shape& s)
         result["dynamic_dimensions"] = {};
     }
     if(s.symbolic())
-        result["symbolic_dimensions"] = migraphx::to_value(s.sym_dims());
+    {
+        result["symbolic_dimensions"] = migraphx::to_value(s.sym_lens());
+        result["symbolic_strides"]    = migraphx::to_value(s.sym_strides());
+    }
     else
+    {
         result["symbolic_dimensions"] = {};
+        result["symbolic_strides"]    = {};
+    }
     v = result;
 }
 
@@ -966,7 +1074,22 @@ void migraphx_from_value(const value& v, shape& s)
                     v_sd.begin(), v_sd.end(), sym_dims.begin(), [](const migraphx::value& x) {
                         return from_value<symbolic_dim>(x);
                     });
-                s = shape{shape::parse_type(t), sym_dims};
+                if(v.contains("symbolic_strides") and not v.at("symbolic_strides").empty())
+                {
+                    auto v_ss = v.at("symbolic_strides");
+                    std::vector<symbolic_stride> sym_strides(v_ss.size());
+                    std::transform(v_ss.begin(),
+                                   v_ss.end(),
+                                   sym_strides.begin(),
+                                   [](const migraphx::value& x) {
+                                       return from_value<symbolic_stride>(x);
+                                   });
+                    s = shape::from_symbolic(shape::parse_type(t), std::move(sym_dims), std::move(sym_strides));
+                }
+                else
+                {
+                    s = shape{shape::parse_type(t), sym_dims};
+                }
             }
             else
             {

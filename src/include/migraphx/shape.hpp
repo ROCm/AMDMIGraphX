@@ -47,6 +47,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct value;
 struct shape_impl;
 struct symbolic_dim;
+struct symbolic_stride;
 
 struct MIGRAPHX_EXPORT shape
 {
@@ -181,6 +182,10 @@ struct MIGRAPHX_EXPORT shape
 
     shape(type_t t, std::vector<symbolic_dim> syms);
 
+    static shape from_symbolic(type_t t,
+                               std::vector<symbolic_dim> syms,
+                               std::vector<symbolic_stride> strs);
+
     // Construct a dynamic shape from vectors of mins, maxes, and optimals.
     // optimals_list is a vector of optimals that corresponds to each min and max.
     shape(type_t t,
@@ -249,7 +254,11 @@ struct MIGRAPHX_EXPORT shape
     const std::vector<dynamic_dimension>& dyn_dims() const;
 
     bool symbolic() const;
-    const std::vector<symbolic_dim>& sym_dims() const;
+    const std::vector<symbolic_dim>& sym_lens() const;
+    const std::vector<symbolic_stride>& sym_strides() const;
+
+    shape with_sym_dims_permuted(const std::vector<int64_t>& perm) const;
+    shape with_sym_dims_reshaped(const std::vector<int64_t>& rdims) const;
 
     /*!
      * Minimum lengths for dynamic shape.
@@ -359,12 +368,17 @@ struct MIGRAPHX_EXPORT shape
     // convert the shape to an equivalent dynamic shape with empty optimals
     shape to_dynamic() const;
 
+    // convert the shape to an equivalent symbolic shape with fixed symbolic dims
+    shape to_symbolic() const;
+
     // convert the shape to a static one setting any non-fixed dynamic_dimensions to x
     shape to_static(std::size_t x) const;
 
     MIGRAPHX_EXPORT friend bool operator==(const shape& x, const shape& y);
     MIGRAPHX_EXPORT friend bool operator!=(const shape& x, const shape& y);
     MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const shape& x);
+    MIGRAPHX_EXPORT friend void migraphx_to_value(value& v, const shape& s);
+    MIGRAPHX_EXPORT friend void migraphx_from_value(const value& v, shape& s);
 
     static bool same_lens(const shape& x, const shape& y);
 

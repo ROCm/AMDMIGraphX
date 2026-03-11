@@ -29,6 +29,7 @@ Full documentation for MIGraphX is available at
 * Fixed `eliminate_pad` pass bug that was removing nonzero `pad` instructions (#4600).
 
 ### Optimized
+* Optimized fusion for local_window mode of GQA operator (#4617).
 
 * Added a new pass to replace convolution with constant broadcast input with a reduced GEMM which improves model compilation time (#4621).
 * Implemented JIT compilation for `logsoftmax` by decomposing it into fusible operations (`log`, `exp`, `reduce_max`, `reduce_sum`), enabling kernel fusion. (#4630).

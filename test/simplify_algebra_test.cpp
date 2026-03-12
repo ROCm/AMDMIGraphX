@@ -4758,9 +4758,10 @@ TEST_CASE(conv_broadcast_input)
             m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), w2d);
         auto x2d = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), x);
         auto dr  = m2.add_instruction(migraphx::make_op("dot"), x2d, wt);
-        auto d1  = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), dr);
-        auto r   = m2.add_instruction(
-            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 64, 2, 2}}}), d1);
+        auto unsqueezed =
+            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2, 3}}}), dr);
+        auto r = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 64, 2, 2}}}), unsqueezed);
         m2.add_instruction(pass_op{}, r);
     }
     EXPECT(m1.sort() == m2.sort());
@@ -4791,9 +4792,10 @@ TEST_CASE(conv_multibroadcast_input)
             m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), w2d);
         auto x2d = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 64}}}), x);
         auto dr  = m2.add_instruction(migraphx::make_op("dot"), x2d, wt);
-        auto d1  = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), dr);
-        auto r   = m2.add_instruction(
-            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 64, 2, 2}}}), d1);
+        auto unsqueezed =
+            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2, 3}}}), dr);
+        auto r = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 64, 2, 2}}}), unsqueezed);
         m2.add_instruction(pass_op{}, r);
     }
     EXPECT(m1.sort() == m2.sort());

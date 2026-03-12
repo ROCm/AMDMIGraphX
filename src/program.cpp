@@ -730,7 +730,10 @@ value program::to_value() const
                                    [&](auto mod_ref) { return mod_ref->name(); });
                     node["module_inputs"] = module_inputs;
                 }
-                nodes["debug_symbols"] = migraphx::to_value(ins->get_debug_symbols());
+                if(not ins->get_debug_symbols().empty())
+                {
+                    nodes["debug_symbols"] = migraphx::to_value(ins->get_debug_symbols());
+                }
                 nodes.push_back(node);
             },
             names);
@@ -808,7 +811,10 @@ static void mod_from_val(module_ref mod,
             }
         }
         output->set_normalized(normalized);
-        output->add_debug_symbols(node.at("debug_symbols").to<std::set<std::string>>());
+        if(node.contains("debug_symbols"))
+        {
+            output->add_debug_symbols(node.at("debug_symbols").to<std::set<std::string>>());
+        }
         instructions[node.at("output").to<std::string>()] = output;
     }
 }

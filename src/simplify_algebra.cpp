@@ -255,7 +255,7 @@ struct find_mul_dot
 {
     auto matcher() const
     {
-        auto constant            = match::is_constant(not_from_int4());
+        auto constant = match::is_constant(not_from_int4());
         auto is_dot_const_inputs =
             match::name("dot")(match::any_of[match::inputs()](constant), match::used_once());
         return match::name("mul")(match::either_arg(0, 1)(
@@ -792,7 +792,7 @@ struct find_inner_broadcast
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins               = r.result;
+        auto ins = r.result;
         if(ins->get_operator().name() == "layout")
             return;
         const auto& broadcasts = ins->inputs();
@@ -2178,14 +2178,21 @@ struct find_conv_broadcast_input
         else
             x_2d = m.insert_instruction(
                 ins, make_op("reshape", {{"dims", std::vector<std::size_t>{n, ic}}}), x_ins);
-
         auto dot_result = m.insert_instruction(ins, make_op("dot"), x_2d, w_t);
-
-        auto dot_1d = m.insert_instruction(
-            ins, make_op("squeeze", {{"axes", std::vector<int64_t>{0}}}), dot_result);
-
-        m.replace_instruction(
-            ins, make_op("broadcast", {{"axis", 1}, {"out_lens", out_lens}}), dot_1d);
+        if(n == 1)
+        {
+            auto dot_1d = m.insert_instruction(
+                ins, make_op("squeeze", {{"axes", std::vector<int64_t>{0}}}), dot_result);
+            m.replace_instruction(
+                ins, make_op("broadcast", {{"axis", 1}, {"out_lens", out_lens}}), dot_1d);
+        }
+        else
+        {
+            auto dot_unsqueezed = m.insert_instruction(
+                ins, make_op("unsqueeze", {{"axes", spatial_axes}}), dot_result);
+            m.replace_instruction(
+                ins, make_op("multibroadcast", {{"out_lens", out_lens}}), dot_unsqueezed);
+        }
     }
 };
 

@@ -154,8 +154,6 @@ endif()
 add_library(migraphx_gpu
     analyze_streams.cpp
     allocation_model.cpp
-    argmax.cpp
-    argmin.cpp
     code_object_op.cpp
     compile_ops.cpp
     compile_gen.cpp
@@ -213,8 +211,6 @@ function(register_migraphx_gpu_ops PREFIX)
 endfunction()
 
 register_migraphx_gpu_ops(hip_
-    argmax
-    argmin
     fixed_pad
     loop
     multinomial

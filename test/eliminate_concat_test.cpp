@@ -664,8 +664,8 @@ TEST_CASE(input_used_in_other_input)
         auto s1   = m1.add_instruction(simple_op{}, a1);
         auto mul1 = m1.add_instruction(migraphx::make_op("mul"), s1, s1);
         auto a3   = m1.add_instruction(make_allocate(2, 6));
-        auto c1   = m1.add_instruction(
-            migraphx::make_op("test::concat", {{"axis", 1}}), s1, mul1, a3);
+        auto c1 =
+            m1.add_instruction(migraphx::make_op("test::concat", {{"axis", 1}}), s1, mul1, a3);
         m1.add_return({c1});
     }
     run_pass(m1, {.op_non_packed_output = {"simple_op"}});

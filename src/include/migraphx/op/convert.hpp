@@ -65,7 +65,9 @@ struct convert : unary<convert>
     {
         auto type = target_type;
         return [type](auto x) {
-            auto y = x;
+            // Needs to be double and not auto, otherwise casting inf/-inf to int32_t will cause
+            // overflow/underflow
+            double y = x;
             shape::visit(type, [&](auto as) {
                 // clamping value between target_type's max and min doesn't work for NaNs,
                 if(std::isnan(static_cast<double>(x)))
@@ -80,7 +82,7 @@ struct convert : unary<convert>
                                     static_cast<double>(as.max())));
                 }
                 // If inf or -inf, use value as is instead of clamping to min/max
-                else if(std::isinf(static_cast<double>(x)))
+                else if(not shape::is_integral(type) and std::isinf(static_cast<double>(x)))
                 {
                     y = as(x);
                 }

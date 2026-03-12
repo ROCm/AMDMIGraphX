@@ -2234,10 +2234,8 @@ struct find_conv_broadcast_input
         }
         else
         {
-            std::vector<int64_t> unsqueeze_axes(out_lens.size() - 2);
-            std::iota(unsqueeze_axes.begin(), unsqueeze_axes.end(), 2);
             auto dot_unsqueezed = m.insert_instruction(
-                ins, make_op("unsqueeze", {{"axes", unsqueeze_axes}}), dot_result);
+                ins, make_op("unsqueeze", {{"axes", spatial_axes}}), dot_result);
             m.replace_instruction(
                 ins, make_op("multibroadcast", {{"out_lens", out_lens}}), dot_unsqueezed);
         }

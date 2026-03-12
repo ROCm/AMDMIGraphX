@@ -262,8 +262,10 @@ struct compile_plan
         config = get_tuning_config(*ctx, ins, preop, exhaustive);
     }
     template <class Vector>
-    void
-    insert_compiles(Vector& compiles, const value& solution, std::size_t i, bool cache_solution = false)
+    void insert_compiles(Vector& compiles,
+                         const value& solution,
+                         std::size_t i,
+                         bool cache_solution = false)
     {
         compiles.emplace_back([=] {
             try

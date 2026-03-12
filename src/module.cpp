@@ -411,19 +411,6 @@ static std::unordered_set<instruction_ref> deduce_min_splice(const_module_ref m,
             min_splice.insert(ins);
             continue;
         }
-        
-       //for(auto intersect : splice_intersection)
-       //{
-       //    if(std::distance(m->begin(), ins) < std::distance(m->begin(), intersect))
-       //    {
-       //        continue;
-       //    }
-       //    if(reaches(intersect, ins, m))
-       //    {
-       //        min_splice.insert(ins);
-       //        continue;
-       //    }
-       //}
     }
     return min_splice;
 }
@@ -608,64 +595,6 @@ std::vector<instruction_ref> module::batch_replace_instruction(
         {
             add_debug_symbols(new_ins, symbols);
         }
-
-        //std::cout << "old_max_splice: {\n";
-        //for(auto s : old_max_splices)
-        //{
-        //    s->debug_print();
-        //}
-        //std::cout << "}" << std::endl;
-        //std::cout << "new_max_splice: {\n";
-        //for(auto s : new_max_splices)
-        //{
-        //    s->debug_print();
-        //}
-        //std::cout << "}" << std::endl;
-        //std::cout << "splice intersection: {\n";
-        //for(auto s : splice_intersection)
-        //{
-        //    s->debug_print();
-        //}
-        //std::cout << "}" << std::endl;
-        //std::cout << "old splice: {";
-        //for(auto s : old_splice)
-        //{
-        //    s->debug_print();
-        //}
-        //std::cout << "}" << std::endl;
-        //std::cout << "old symbols: {";
-        //for(auto s : symbols)
-        //{
-        //    std::cout << s << ", ";
-        //}
-        //std::cout << "}" << std::endl;
-        //std::cout << "new_splice:\n";
-        //for(auto s : new_splice)
-        //{
-        //    s->debug_print();
-        //}
-        //std::cout << std::endl;
-
-        //std::unordered_set<instruction_ref> new_splices;
-        //std::copy_if(
-        //    new_max_splices.cbegin(),
-        //    new_max_splices.cend(),
-        //    std::inserter(new_splices, new_splices.begin()),
-        //    [&old_max_splices](auto new_ins) { return (not contains(old_max_splices, new_ins)); });
-        //std::unordered_set<instruction_ref> old_splices;
-        //std::copy_if(
-        //    old_max_splices.cbegin(),
-        //    old_max_splices.cend(),
-        //    std::inserter(old_splices, old_splices.begin()),
-        //    [&new_max_splices](auto old_ins) { return (not contains(new_max_splices, old_ins)); });
-        //for(auto old_ins : old_splices)
-        //{
-        //    copy(old_ins->get_debug_symbols(), std::inserter(symbols, symbols.begin()));
-        //}
-        //for(auto new_ins : new_splices)
-        //{
-        //    add_debug_symbols(new_ins, symbols);
-        //}
     }
     return ret;
 }

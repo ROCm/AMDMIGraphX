@@ -632,21 +632,6 @@ template <class T, class F>
 static auto track_visits(const_module_ref m, const T& starts, instruction_ref end, F f)
 {
     const std::size_t small = 16;
-    // TODO optimize this loop
-    //instruction_ref first_start = *starts.begin();
-    //std::size_t max_distance = std::distance(first_start, end);
-    //instruction_ref farthest_start = first_start;
-
-    //for(instruction_ref start : starts)
-    //{
-    //    std::size_t dist = std::distance(start, end);
-    //    if(dist > max_distance)
-    //    {
-    //        max_distance = dist;
-    //        farthest_start = start;
-    //    }
-    //}
-
     // Find starts instruction with maximum distance from end
     auto to_visit = starts;
     instruction_ref ins = end;

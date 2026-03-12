@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,6 +31,7 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/gpu/mlir.hpp>
+#include <migraphx/gpu/prepare_mlir.hpp>
 #include <mlir-c/Dialect/RockEnums.h>
 #include <numeric>
 #include <ostream>
@@ -314,6 +315,11 @@ struct mlir_program
 
     MlirType make_type(shape::type_t t) const
     {
+        // non-computable type is not visit-able
+        if(t == shape::fp4x2_type)
+        {
+            return mlirFloat4E2M1FNTypeGet(ctx.get());
+        }
         MlirType result;
         shape::visit(t, [&](auto as) {
             if(as.type_enum() == shape::float_type)
@@ -363,8 +369,8 @@ struct mlir_program
     std::vector<MlirType> make_mlir_shapeds(const Range& r)
     {
         std::vector<MlirType> result;
-        std::transform(r.begin(), r.end(), std::back_inserter(result), [&](const auto& s) {
-            return make_mlir_shaped(s);
+        std::transform(r.begin(), r.end(), std::back_inserter(result), [&](const auto& i) {
+            return make_mlir_shaped(i);
         });
         return result;
     }
@@ -503,6 +509,17 @@ struct mlir_program
         {
         }
 
+        void set_operand_segment_sizes(const std::vector<int>& sizes)
+        {
+            MlirAttribute segment_sizes_attr =
+                mlirDenseI32ArrayGet(prog->ctx.get(), sizes.size(), sizes.data());
+            MlirNamedAttribute named_attr = mlirNamedAttributeGet(
+                mlirIdentifierGet(prog->ctx.get(),
+                                  mlirStringRefCreateFromCString("operandSegmentSizes")),
+                segment_sizes_attr);
+            mlirOperationStateAddAttributes(&op_state, 1, &named_attr);
+        }
+
         mlir_operation_state& add_attributes(const std::vector<named_attribute_t>& named_attrs)
         {
             auto attributes = prog->name_attributes(named_attrs);
@@ -602,26 +619,28 @@ struct mlir_program
     {
         auto names = m.get_parameter_names();
         std::sort(names.begin(), names.end());
-        std::vector<shape> inputs;
-        std::transform(names.begin(),
-                       names.end(),
-                       std::back_inserter(inputs),
-                       [&](const std::string& name) { return m.get_parameter_shape(name); });
+        std::vector<shape> input_shapes;
+        std::transform(
+            names.begin(),
+            names.end(),
+            std::back_inserter(input_shapes),
+            [&](const std::string& name) { return get_shape_for_mlir(m.get_parameter(name)); });
         std::vector<shape> outputs = m.get_output_shapes();
 
-        std::vector<MlirLocation> arg_locs(inputs.size(), location);
-        auto body_inputs   = make_mlir_shapeds(inputs);
+        std::vector<MlirLocation> arg_locs(input_shapes.size(), location);
+        auto body_inputs   = make_mlir_shapeds(input_shapes);
         mlir_region region = mlirRegionCreate();
         mlir_block fbody = mlirBlockCreate(body_inputs.size(), body_inputs.data(), arg_locs.data());
         MlirBlock result = fbody.get();
         mlirRegionAppendOwnedBlock(region.get(), fbody.release());
 
         auto ops = create_operation_state("func.func");
-        ops.add_attributes({{"function_type", make_function_type(inputs, outputs)},
+        ops.add_attributes({{"function_type", make_function_type(input_shapes, outputs)},
                             {"sym_name", sym_name},
                             {"kernel", std::string("mixr")},
                             {"arch", target_arch},
-                            {"num_cu", num_cu}});
+                            {"num_cu", num_cu},
+                            {"num_chiplets", num_chiplets}});
         if(enabled(MIGRAPHX_MLIR_ENABLE_SPLITK{}))
         {
             ops.add_attributes({{"enable_splitk_for_tuning", mlirUnitAttrGet(ctx.get())}});
@@ -647,6 +666,8 @@ struct mlir_program
             return "migraphx.literal";
         if(ins->name() == "unpack_int4")
             return "migraphx.unpack";
+        if(ins->name() == "convolution_backwards")
+            return "migraphx.backwards_data_convolution";
         if(is_reshape(ins->name()))
             return "migraphx.reshape";
         return "migraphx." + ins->name();
@@ -662,7 +683,7 @@ struct mlir_program
         if(is_reshape(op.name()))
             v = {{"dims", ins->get_shape().lens()}};
 
-        if(op.name() == "convolution" or op.name() == "quant_convolution")
+        if(contains({"convolution", "quant_convolution", "convolution_backwards"}, op.name()))
         {
             // Adjust symetrical padding
             if(v.at("padding").size() == v.at("stride").size())
@@ -678,14 +699,56 @@ struct mlir_program
         return v;
     }
 
-    static shape get_shape(instruction_ref ins)
+    static bool input_is_unpack_fp4(instruction_ref ins)
     {
+        auto aliases = instruction::get_output_alias(ins);
+        return std::any_of(aliases.begin(), aliases.end(), [](instruction_ref alias) {
+            if(alias->name() == "reshape")
+            {
+                return input_is_unpack_fp4(alias->inputs().front());
+            }
+            if(alias->name() == "unpack_fp4")
+            {
+                return true;
+            }
+            return false;
+        });
+    }
+
+    static shape make_fp4_unpacked_shape(shape s)
+    {
+        auto new_lens    = s.lens();
+        auto new_strides = s.strides();
+        int fast_axis =
+            std::min_element(s.strides().cbegin(), s.strides().cend()) - s.strides().cbegin();
+        new_lens[fast_axis] *= 2;
+        for(auto i : range(new_strides.size()))
+        {
+            if(i != fast_axis)
+            {
+                new_strides.at(i) *= 2;
+            }
+        }
+        return {shape::fp4x2_type, new_lens, new_strides};
+    }
+
+    static shape get_shape_for_mlir(instruction_ref ins)
+    {
+        shape ret = ins->get_shape();
         if(ins->name() == "@return")
         {
             assert(ins->inputs().size() == 1);
-            return ins->inputs().front()->get_shape();
+            ret = ins->inputs().front()->get_shape();
         }
-        return ins->get_shape();
+        else if(input_is_unpack_fp4(ins))
+        {
+            ret = ret.with_type(shape::fp4x2_type);
+        }
+        else if(ins->get_shape().type() == shape::fp4x2_type)
+        {
+            ret = make_fp4_unpacked_shape(ret);
+        }
+        return ret;
     }
 
     static std::string get_symbol_name(const module& m)
@@ -714,7 +777,7 @@ struct mlir_program
         {
             if(ins->name() == "@param")
                 continue;
-            if(ins->name() == "contiguous")
+            if(contains({"contiguous", "unpack_fp4"}, ins->name()))
             {
                 ins_map[ins] = ins_map[ins->inputs().at(0)];
                 continue;
@@ -722,15 +785,16 @@ struct mlir_program
             auto name = get_name(ins);
             auto ops  = create_operation_state(name);
             ops.add_attribute_value(get_operator_value(ins));
+
+            // handles single output
             if(ins->name() != "@return")
-                ops.add_results({get_shape(ins)});
+                ops.add_results({get_shape_for_mlir(ins)});
 
             if(ins->name() == "@literal")
             {
                 literal r = ins->get_literal();
-                auto sh   = ins->get_shape();
 
-                MlirType shaped_type = make_mlir_shaped(sh);
+                MlirType shaped_type = make_mlir_shaped(ins->get_shape());
                 MlirType tensor_type = rocmlirMIXRShapedTypeAsTensor(shaped_type);
                 MlirAttribute mlir_value_attr =
                     mlirDenseElementsAttrRawBufferGet(tensor_type, r.get_shape().bytes(), r.data());
@@ -746,9 +810,25 @@ struct mlir_program
             std::vector<MlirValue> inputs;
             transform(
                 ins->inputs(), std::back_inserter(inputs), [&](auto i) { return ins_map.at(i); });
+            if(ins->name() == "quant_dot")
+            {
+                if(ins->inputs().size() == 4)
+                {
+                    // Specify operand segment sizes BEFORE creating the operation so MLIR sees it.
+                    // Use the canonical MLIR attribute name 'operandSegmentSizes'.
+                    const std::vector<int> seg_sizes = {1, 1, 1, 1};
+                    ops.set_operand_segment_sizes(seg_sizes);
+                }
+                else if(ins->inputs().size() == 2)
+                {
+                    const std::vector<int> seg_sizes = {1, 1, 0, 0};
+                    ops.set_operand_segment_sizes(seg_sizes);
+                }
+            }
             ops.add_operands(inputs);
 
             auto outputs = insert(fbody, std::move(ops));
+
             if(ins->name() != "@return")
             {
                 assert(outputs.size() == 1);
@@ -823,6 +903,7 @@ struct mlir_program
         const auto& device = migraphx_ctx.get_current_device();
         target_arch        = device.get_device_name();
         num_cu             = device.get_cu_count();
+        num_chiplets       = device.get_chiplet_count();
     }
 
     std::pair<std::size_t, std::size_t> get_launch_params() const
@@ -991,61 +1072,16 @@ struct mlir_program
     std::deque<std::string> strings{};
     std::string target_arch = "";
     std::size_t num_cu      = 0;
+    std::size_t num_chiplets = 0;
     std::string sym_name;
 };
 
-bool is_reduce(const instruction& ins) { return contains(ins.name(), "reduce"); }
-
-static void rewrite_reduce(module& m)
-{
-    for(auto i : iterator_for(m))
-    {
-        if(is_reduce(*i))
-        {
-            auto reduce_op      = i->get_operator().to_value();
-            auto reduce_op_name = i->get_operator().name();
-            auto reduce_axes    = reduce_op["axes"].to_vector<size_t>();
-            auto reduce_lens    = i->get_shape().lens();
-            auto in_shape       = i->inputs().front()->get_shape();
-            const auto& in_lens = in_shape.lens();
-            assert(in_shape.standard());
-            assert(reduce_lens.size() == in_lens.size());
-            assert(std::adjacent_find(
-                       reduce_axes.begin(), reduce_axes.end(), [](auto axis_1, auto axis_2) {
-                           return axis_2 - axis_1 > 1;
-                       }) == reduce_axes.end());
-
-            std::vector<int64_t> new_rsp_dims;
-            std::vector<int64_t> new_reduce_axes;
-            for(const auto axis : range(in_shape.ndim()))
-            {
-                if(reduce_lens[axis] == in_lens[axis])
-                {
-                    new_rsp_dims.push_back(in_lens[axis]);
-                }
-                else if(new_reduce_axes.empty())
-                {
-                    assert(reduce_lens[axis] == 1);
-                    new_rsp_dims.push_back(-1);
-                    new_reduce_axes.push_back(axis);
-                }
-            }
-            auto rsp_ins = m.insert_instruction(
-                i, migraphx::make_op("reshape", {{"dims", new_rsp_dims}}), i->inputs().front());
-            auto collapsed_reduce = m.insert_instruction(
-                i, migraphx::make_op(reduce_op_name, {{"axes", new_reduce_axes}}), rsp_ins);
-            auto rsp_back = m.insert_instruction(
-                i, migraphx::make_op("reshape", {{"dims", reduce_lens}}), collapsed_reduce);
-            m.replace_instruction(i, rsp_back);
-        }
-    }
-    migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
-}
+static void prepare(module& m) { run_passes(m, {prepare_mlir{}}); }
 
 bool is_module_fusible(const module& m, const context& migraphx_ctx, const value& solution)
 {
     auto mm = m;
-    rewrite_reduce(mm);
+    prepare(mm);
     mlir_program mp;
     mp.set_gpu_properties(migraphx_ctx);
     mp.parse(mm);
@@ -1053,7 +1089,7 @@ bool is_module_fusible(const module& m, const context& migraphx_ctx, const value
     return mlirIsModuleFusible(mp.mmodule.get(), make_mlir_string_ref(*solution.if_string()));
 }
 
-static void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
+void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
 {
     auto names = m.get_parameter_names();
     std::sort(names.begin(), names.end());
@@ -1095,7 +1131,7 @@ std::string dump_mlir(module m, const std::vector<shape>& inputs)
     {
         adjust_param_shapes(m, inputs);
     }
-    rewrite_reduce(m);
+    prepare(m);
     mlir_program mp;
     mp.parse(*mr);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
@@ -1104,8 +1140,9 @@ std::string dump_mlir(module m, const std::vector<shape>& inputs)
 
 static void abbreviate_symbol_names(std::string& n)
 {
-    static const std::map<std::string, std::string> abbrs = {
+    static const std::vector<std::pair<std::string, std::string>> abbrs = {
         {"reduce_max_reshape_sub_exp_reshape_reduce_sum_reshape_div", "softmax"},
+        {"reduce_max_sub_exp_reduce_sum_div", "softmax"},
         {"reshape", "rsp"},
         {"transpose", "trp"},
         {"slice", "slc"}};
@@ -1130,17 +1167,18 @@ static std::string compute_dump_name(const module& m, const std::string& ext)
 
     // On most commonly used file systems, the max file name size is 255 characters
     const int max_file_length = 255;
-    auto cnt                  = "_" + std::to_string(dump_counter()++);
     std::string fname         = sym_names + shape_str;
     replace_string_inplace(fname, ", ", "_");
     replace_string_inplace(fname, ":", "s");
 
-    if(fname.length() + cnt.length() + ext.length() > max_file_length)
+    if(fname.length() + ext.length() > max_file_length)
     {
+        auto cnt    = "_" + std::to_string(dump_counter()++);
         auto cutoff = max_file_length - ext.length() - cnt.length();
         fname.resize(cutoff);
+        fname += cnt;
     }
-    fname += cnt + ext;
+    fname += ext;
 
     return fname;
 }
@@ -1154,7 +1192,7 @@ void dump_mlir_to_file(module m, const std::vector<shape>& inputs, const fs::pat
     {
         adjust_param_shapes(m, inputs);
     }
-    rewrite_reduce(m);
+    prepare(m);
 
     auto name = compute_dump_name(m, ".mlir");
     auto f    = location / name;
@@ -1177,7 +1215,7 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
                               const value& solution)
 {
     adjust_param_shapes(m, in_shapes);
-    rewrite_reduce(m);
+    prepare(m);
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
 
     static std::mutex mutex;
@@ -1197,6 +1235,7 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
         const std::lock_guard<std::mutex> lock(mutex);
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
+
     auto co = mp.compile(solution);
 
     co.expected_inputs = in_shapes;
@@ -1257,12 +1296,17 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
                                      bool exhaustive)
 {
     adjust_param_shapes(m, inputs);
-    rewrite_reduce(m);
+    prepare(m);
     mlir_program mp;
     mp.set_gpu_properties(migraphx_ctx);
     mp.parse(m);
-    auto tc          = mp.get_tuning_config(exhaustive);
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
+    if(trace)
+    {
+        auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
+        std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
+    }
+    auto tc = mp.get_tuning_config(exhaustive);
     static std::mutex mutex;
     if(trace)
     {

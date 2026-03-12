@@ -30,6 +30,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/time.hpp>
 #include <type_traits>
+#include <thread>
 
 using microseconds = std::chrono::duration<double, std::micro>;
 

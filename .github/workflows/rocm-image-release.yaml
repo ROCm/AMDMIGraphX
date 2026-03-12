@@ -35,7 +35,7 @@ jobs:
   release:
     uses: ROCm/migraphx-benchmark/.github/workflows/rocm-release.yml@main
     with:
-      rocm_release: ${{ github.event.inputs.rocm_release || '6.4.2' }}
+      rocm_release: ${{ github.event.inputs.rocm_release || '7.1.1' }}
       benchmark-utils_repo: ${{ github.event.inputs.benchmark-utils_repo || 'ROCm/migraphx-benchmark-utils' }}
       base_image: ${{ github.event.inputs.base_image || 'rocm/dev-ubuntu-22.04' }}
       docker_image: ${{ github.event.inputs.docker_image || 'rocm-migraphx' }}

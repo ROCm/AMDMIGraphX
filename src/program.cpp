@@ -40,6 +40,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/marker.hpp>
 #include <migraphx/supported_segments.hpp>
+#include <migraphx/pmr/unordered_map.hpp>
 #include <migraphx/graphviz.hpp>
 
 #include <iostream>
@@ -462,30 +463,33 @@ static bool is_compatible_shape(const shape& actual, const shape& expected)
 template <class F>
 static std::vector<argument> generic_eval(const module* mod,
                                           std::vector<context>& ctx,
-                                          std::unordered_map<std::string, argument> params,
-                                          std::unordered_map<instruction_ref, argument> results,
+                                          const std::unordered_map<std::string, argument>& params,
+                                          pmr::unordered_map<instruction_ref, argument>& results,
                                           F trace)
 {
     assert(mod->validate() == mod->end());
-    results.reserve(mod->size() * 2);
     std::vector<argument> values;
     values.reserve(16);
     for(auto ins : iterator_for(*mod))
     {
-        assert(results.find(ins) == results.end());
+        assert(mod->name() != "main" or results.find(ins) == results.end());
+#ifndef NDEBUG
+        results.emplace(ins, argument{});
+#endif
         const auto& name = ins->name();
         if(name == "@literal")
         {
-            results.emplace(ins, trace(ins, [&] { return ins->get_literal().get_argument(); }));
+            results.insert_or_assign(ins,
+                                     trace(ins, [&] { return ins->get_literal().get_argument(); }));
         }
         else if(name == "@param")
         {
-            results.emplace(
+            results.insert_or_assign(
                 ins, trace(ins, [&] {
                     auto param_name = any_cast<builtin::param>(ins->get_operator()).parameter;
                     if(not contains(params, param_name))
                         MIGRAPHX_THROW("Parameter not found: " + param_name);
-                    auto param = params[param_name];
+                    auto param = params.at(param_name);
                     // TODO: may want to check correct number of dimensions and/or was within bounds
                     if(not ins->get_shape().any_of_dynamic() and
                        param.get_shape() != ins->get_shape())
@@ -499,7 +503,8 @@ static std::vector<argument> generic_eval(const module* mod,
         }
         else if(name == "@outline")
         {
-            results.emplace(ins, trace(ins, [&] { return argument{ins->get_shape(), nullptr}; }));
+            results.insert_or_assign(
+                ins, trace(ins, [&] { return argument{ins->get_shape(), nullptr}; }));
         }
         else if(name == "@return")
         {
@@ -528,7 +533,7 @@ static std::vector<argument> generic_eval(const module* mod,
                 return generic_eval(smod, ctx, inputs, results, trace);
             };
 
-            results.emplace(
+            results.insert_or_assign(
                 ins, trace(ins, [&] {
                     auto op = ins->normalized_operator();
                     if(op.is_context_free())
@@ -548,21 +553,40 @@ static std::vector<argument> generic_eval(const module* mod,
 template <class F>
 static std::vector<argument> generic_eval(const program& p,
                                           std::vector<context>& ctx,
-                                          std::unordered_map<std::string, argument> params,
+                                          const std::unordered_map<std::string, argument>& params,
                                           F trace)
 {
     const module* mm = p.get_main_module();
-    return generic_eval(mm, ctx, std::move(params), {}, trace);
+#if MIGRAPHX_HAS_PMR
+    std::size_t n = p.total_instructions();
+    std::vector<char> buffer(n * (sizeof(instruction_ref) + sizeof(argument)) * 4);
+    std::pmr::monotonic_buffer_resource bres(
+        buffer.data(), buffer.size(), std::pmr::null_memory_resource());
+    pmr::unordered_map<instruction_ref, argument> results(&bres);
+    results.reserve(n);
+#else
+    pmr::unordered_map<instruction_ref, argument> results;
+#endif
+    return generic_eval(mm, ctx, params, results, trace);
+}
+
+std::size_t program::total_instructions() const
+{
+    return transform_accumulate(impl->modules.begin(),
+                                impl->modules.end(),
+                                std::size_t{0},
+                                std::plus<>{},
+                                [](const auto& p) { return p.second.size(); });
 }
 
 std::vector<argument> program::eval_with_context(std::vector<context>& ctx,
-                                                 parameter_map params) const
+                                                 const parameter_map& params) const
 {
-    const module* mm = this->get_main_module();
-    return generic_eval(mm, ctx, std::move(params), {}, [](auto&&, auto f) { return f(); });
+    return generic_eval(*this, ctx, params, [](auto&&, auto f) { return f(); });
 }
 
-std::vector<argument> program::eval(parameter_map params, execution_environment exec_env) const
+std::vector<argument> program::eval(const parameter_map& params,
+                                    execution_environment exec_env) const
 {
     auto& contexts = this->impl->contexts;
 
@@ -584,7 +608,7 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
             instruction::print(ss, x, ins_names);
             ins_out[x] = ss.str();
         });
-        ret = generic_eval(*this, contexts, std::move(params), [&](instruction_ref ins, auto f) {
+        ret = generic_eval(*this, contexts, params, [&](instruction_ref ins, auto f) {
             const auto& ctx = contexts[ins->get_target_id()];
             ctx.finish();
             std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
@@ -631,7 +655,7 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
     }
     else
     {
-        ret = generic_eval(*this, contexts, std::move(params), [&](auto&&, auto f) { return f(); });
+        ret = generic_eval(*this, contexts, params, [&](auto&&, auto f) { return f(); });
     }
 
     if(exec_env.async)
@@ -1155,10 +1179,10 @@ void program::print_cpp(std::ostream& os) const
     }
 }
 
-void program::dry_run(std::unordered_map<std::string, argument> params) const
+void program::dry_run(const parameter_map& params) const
 {
     auto& ctx = this->impl->contexts;
-    generic_eval(*this, ctx, std::move(params), [](auto ins, auto&&...) {
+    generic_eval(*this, ctx, params, [](auto ins, auto&&...) {
         return argument{ins->get_shape(), nullptr};
     });
 }

@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -54,6 +54,7 @@ add_library(migraphx
     autocast_fp8.cpp
     auto_contiguous.cpp
     base64.cpp
+    color.cpp
     common.cpp
     common_dims.cpp
     compile_src.cpp
@@ -77,6 +78,7 @@ add_library(migraphx
     fp8_ocp_to_fnuz.cpp
     fuse_attention.cpp
     fuse_concat.cpp
+    fuse_horizontal.cpp
     fuse_pointwise.cpp
     fuse_pointwise_reduce.cpp
     fuse_reduce.cpp
@@ -89,6 +91,7 @@ add_library(migraphx
     layout_convolution.cpp
     lexing.cpp
     load_save.cpp
+    logger.cpp
     make_op.cpp
     memory_coloring.cpp
     module.cpp
@@ -118,6 +121,7 @@ add_library(migraphx
     register_target.cpp
     replace_allocate.cpp
     rewrite_reduce.cpp
+    rewrite_resize.cpp
     rewrite_dot.cpp
     simplify_qdq.cpp
     split_reduce.cpp
@@ -190,6 +194,7 @@ register_migraphx_ops(
     ceil
     clip
     concat
+    concat_past_present
     contiguous
     convert
     convolution
@@ -205,14 +210,15 @@ register_migraphx_ops(
     erf
     exp
     fill
+    fixed_pad
     flatten
     floor
     fmod
     gather
     gathernd
     get_tuple_elem
+    gqa_rotary_embedding
     greater
-    group_query_attention
     group
     gru
     identity
@@ -358,13 +364,19 @@ target_link_libraries(migraphx PRIVATE nlohmann_json::nlohmann_json)
 find_package(SQLite3 REQUIRED)
 target_link_libraries(migraphx PRIVATE SQLite::SQLite3)
 
-find_package(msgpackc-cxx QUIET)
-if(NOT msgpackc-cxx_FOUND)
-    find_package(msgpack REQUIRED)
+# See: https://github.com/msgpack/msgpack-c/wiki/Q%26A#how-to-support-both-msgpack-c-c-version-5x-and-6x-
+# Prefer 6.x (msgpack-cxx)
+find_package(msgpack-cxx)
+if(msgpack-cxx_FOUND)
+    message(STATUS "Found msgpack-cxx (>=6.x)")
+else()
+    find_package(msgpackc-cxx REQUIRED NAMES msgpackc-cxx msgpack)
+    message(STATUS "Found msgpackc-cxx (<=5.x)")
+    add_library(msgpack-cxx ALIAS msgpackc-cxx)
 endif()
-target_link_libraries(migraphx PRIVATE msgpackc-cxx)
+target_link_libraries(migraphx PRIVATE msgpack-cxx)
 # Make this available to the tests
-target_link_libraries(migraphx INTERFACE $<BUILD_INTERFACE:msgpackc-cxx>)
+target_link_libraries(migraphx INTERFACE $<BUILD_INTERFACE:msgpack-cxx>)
 
 add_library(migraphx_all_targets INTERFACE)
 

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -73,10 +73,15 @@ inline migraphx::program read_onnx(const std::string& name,
     return prog;
 }
 
-inline migraphx::program optimize_onnx(const std::string& name, bool run_passes = false)
+inline migraphx::program
+optimize_onnx(const std::string& name,
+              bool run_passes = false,
+              std::unordered_map<std::string, std::vector<migraphx::shape::dynamic_dimension>>
+                  map_dyn_input_dims = {})
 {
     migraphx::onnx_options options;
     options.skip_unknown_operators = true;
+    options.map_dyn_input_dims     = std::move(map_dyn_input_dims);
     auto prog                      = read_onnx(name, options);
     auto* mm                       = prog.get_main_module();
     if(run_passes)

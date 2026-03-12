@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_AMDMIGRAPHX_KERNELS_ALGORITHM_HPP
 
 #include <migraphx/kernels/debug.hpp>
+#include <migraphx/kernels/types.hpp>
 
 namespace migraphx {
 
@@ -62,6 +63,13 @@ struct greater
     }
 };
 
+template <class Iterator, class T>
+constexpr void fill(Iterator first, Iterator last, const T& value)
+{
+    for(; first != last; ++first)
+        *first = value;
+}
+
 template <class InputIt, class T, class BinaryOperation>
 constexpr T accumulate(InputIt first, InputIt last, T init, BinaryOperation op)
 {
@@ -94,6 +102,26 @@ constexpr OutputIt copy_if(InputIt first, InputIt last, OutputIt d_first, UnaryP
         }
     }
     return d_first;
+}
+
+template <class Iterator, class Predicate>
+constexpr diff_int count_if(Iterator first, Iterator last, Predicate p)
+{
+    diff_int ret = 0;
+    for(; first != last; ++first)
+        if(p(*first))
+            ++ret;
+    return ret;
+}
+
+template <class Iterator, class OutputIterator, class UnaryOp>
+constexpr OutputIterator
+transform(Iterator first1, Iterator last1, OutputIterator out, UnaryOp unary_op)
+{
+    for(; first1 != last1; ++out, ++first1)
+        *out = unary_op(*first1);
+
+    return out;
 }
 
 template <class Iterator, class Compare>
@@ -281,6 +309,7 @@ constexpr Iterator upper_bound(Iterator first, Iterator last, const T& value, Co
 
     while(count > 0)
     {
+        // NOLINTNEXTLINE(readability-qualified-auto)
         auto it   = first;
         auto step = count / 2;
         it += step;

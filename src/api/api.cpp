@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -38,6 +38,7 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/convert_to_json.hpp>
+#include <migraphx/source_location.hpp>
 #include <array>
 #include <algorithm>
 #include <cstdarg>
@@ -54,7 +55,8 @@ extern "C" MIGRAPHX_C_EXPORT void migraphx_test_private_disable_exception_catch(
 #endif
 
 template <class F>
-migraphx_status try_(F f, bool output = true) // NOLINT
+migraphx_status
+try_(F f, bool output = true, source_location llc = source_location::current()) // NOLINT
 {
 #ifdef MIGRAPHX_BUILD_TESTING
     if(disable_exception_catch)
@@ -71,7 +73,7 @@ migraphx_status try_(F f, bool output = true) // NOLINT
         catch(const migraphx::exception& ex)
         {
             if(output)
-                std::cerr << "MIGraphX Error: " << ex.what() << std::endl;
+                std::cerr << llc.function_name() << ": Error: " << ex.what() << std::endl;
             if(ex.error > 0)
                 return migraphx_status(ex.error);
             else
@@ -80,7 +82,7 @@ migraphx_status try_(F f, bool output = true) // NOLINT
         catch(const std::exception& ex)
         {
             if(output)
-                std::cerr << "MIGraphX Error: " << ex.what() << std::endl;
+                std::cerr << llc.function_name() << ": Error: " << ex.what() << std::endl;
             return migraphx_status_unknown_error;
         }
         catch(...)
@@ -287,6 +289,13 @@ static void quantize_fp8_wrap(program& prog, const target& t, quantize_fp8_optio
     migraphx::quantize_fp8(prog, t, options.calibration);
 }
 
+static size_t get_onnx_operators_size() { return migraphx::get_onnx_operators().size(); }
+
+static char* get_onnx_operator_name_at_index(std::size_t index)
+{
+    return const_cast<char*>(get_onnx_operators().at(index).c_str()); // NOLINT
+}
+
 #ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wformat-nonliteral"
@@ -368,19 +377,9 @@ struct custom_operation
         return op.compute(std::move(ctx), std::move(output_shape), std::move(inputs));
     }
 
-    std::ptrdiff_t output_alias(std::vector<shape> inputs) const
+    std::vector<std::size_t> output_alias(std::vector<shape> inputs) const
     {
-        auto alias_vec = op.output_alias(std::move(inputs));
-        // TODO: For now, only support one output alias
-        if(alias_vec.empty())
-        {
-            return -1;
-        }
-        if(alias_vec.size() > 1)
-        {
-            MIGRAPHX_THROW("Currently, CustomOps in MIGraphX only supports one output_alias");
-        }
-        return alias_vec.front();
+        return op.output_alias(std::move(inputs));
     }
 
     bool runs_on_offload_target() const { return op.runs_on_offload_target(); }
@@ -2411,6 +2410,19 @@ extern "C" migraphx_status migraphx_quantize_fp8(migraphx_program_t prog,
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
         migraphx::quantize_fp8_wrap((prog->object), (target->object), (options->object));
     });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_get_onnx_operator_name_at_index(char** out, size_t index)
+{
+    auto api_error_result =
+        migraphx::try_([&] { *out = migraphx::get_onnx_operator_name_at_index((index)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_get_onnx_operators_size(size_t* out)
+{
+    auto api_error_result = migraphx::try_([&] { *out = migraphx::get_onnx_operators_size(); });
     return api_error_result;
 }
 

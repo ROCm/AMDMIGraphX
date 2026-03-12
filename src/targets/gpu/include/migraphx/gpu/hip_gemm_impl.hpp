@@ -27,6 +27,7 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <chrono>
 
 // Set this environment variable to "true" to perform GEMM tuning even when the
 // --exhaustive-tune option isn't set.  Can be used to skip slow convolution tuning.

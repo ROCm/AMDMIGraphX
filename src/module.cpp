@@ -421,7 +421,7 @@ deduce_min_splice(const_module_ref m,
 
 static void propagate_debug_symbols(const_module_ref m,
                                     instruction_ref ins,
-                                    std::unordered_set<instruction_ref> old_max_splice)
+                                    const std::unordered_set<instruction_ref>& old_max_splice)
 {
     std::unordered_set<instruction_ref> new_max_splice = gather_max_splice(m, ins);
 

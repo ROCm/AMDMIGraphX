@@ -263,7 +263,7 @@ struct compile_plan
     }
     template <class Vector>
     void
-    insert_compiles(Vector& compiles, value solution, std::size_t i, bool cache_solution = false)
+    insert_compiles(Vector& compiles, const value& solution, std::size_t i, bool cache_solution = false)
     {
         compiles.emplace_back([=] {
             try

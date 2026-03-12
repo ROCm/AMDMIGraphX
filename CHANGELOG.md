@@ -33,6 +33,7 @@ Full documentation for MIGraphX is available at
 
 * Added a new pass to replace convolution with constant broadcast input with a reduced GEMM which improves model compilation time (#4621).
 * Implemented JIT compilation for `logsoftmax` by decomposing it into fusible operations (`log`, `exp`, `reduce_max`, `reduce_sum`), enabling kernel fusion. (#4630).
+* Add early return for find_conv_dot_horiz_fusion matcher based on operator output size < 2 (#4662)
 
 ### Removed
 * Removed legacy device implementations for `argmin` and `argmax` in favor of the JIT implementations recently added (#4658).

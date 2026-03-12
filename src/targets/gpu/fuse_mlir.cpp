@@ -566,11 +566,7 @@ std::set<shape::type_t> get_supported_mlir_reduce_types(const std::string& devic
     using type_t = shape::type_t;
     std::set<type_t> types;
 
-    if(starts_with(device_name, "gfx12"))
-    {
-        types = {type_t::float_type, type_t::half_type, type_t::bf16_type};
-    }
-    else if(starts_with(device_name, "gfx950"))
+    if(starts_with(device_name, "gfx12") or starts_with(device_name, "gfx950"))
     {
         types = {type_t::float_type, type_t::half_type, type_t::bf16_type};
     }

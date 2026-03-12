@@ -2234,7 +2234,7 @@ struct find_conv_broadcast_input
 
 void simplify_algebra::apply(module& m) const
 {
-    // Run simplifications multiple times1
+    // Run simplifications multiple times
     m.repeat_while_changes(8, [&] {
         match::find_matches(m,
                             find_conv_broadcast_input{},

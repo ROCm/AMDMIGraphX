@@ -32,6 +32,7 @@ Full documentation for MIGraphX is available at
 
 * Added a new pass to replace convolution with constant broadcast input with a reduced GEMM which improves model compilation time (#4621).
 * Implemented JIT compilation for `logsoftmax` by decomposing it into fusible operations (`log`, `exp`, `reduce_max`, `reduce_sum`), enabling kernel fusion. (#4630).
+* Added early return to avoid unessicary fill operation if tile sizes out of range (#4514).
 
 ### Removed
 

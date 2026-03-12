@@ -1033,8 +1033,8 @@ struct find_concat_op
         };
         auto pred = [](auto i, auto j) {
             return i->get_operator() == j->get_operator() and
-                   i->inputs().size() == i->inputs().size() and
-                   i->outputs().size() == i->outputs().size();
+                   i->inputs().size() == j->inputs().size() and
+                   i->outputs().size() == j->outputs().size();
         };
         group_unique(ins->inputs().begin(), ins->inputs().end(), update_args, pred);
         if(args.size() == 1)

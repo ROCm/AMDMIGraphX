@@ -616,7 +616,7 @@ static auto track_visits(instruction_ref start, instruction_ref end, F f)
     else
     {
         // Make a hashmap of instructions between start and end.
-        // Stop condition is instruction not in the hashmap or 
+        // Stop condition is instruction not in the hashmap or
         // same instruction already visited.
         auto instructions     = range(start, std::next(end));
         auto instruction_refs = iterator_for(instructions);
@@ -633,9 +633,9 @@ static auto track_visits(const_module_ref m, const T& starts, instruction_ref en
 {
     const std::size_t small = 16;
     // Find starts instruction with maximum distance from end
-    auto to_visit = starts;
-    instruction_ref ins = end;
-    std::size_t dist = 0;
+    auto to_visit            = starts;
+    instruction_ref ins      = end;
+    std::size_t dist         = 0;
     std::size_t max_distance = 0;
     instruction_ref farthest_start;
     bool cond = (ins != m->begin());
@@ -645,7 +645,7 @@ static auto track_visits(const_module_ref m, const T& starts, instruction_ref en
             cond = false;
         if(contains(to_visit, ins))
         {
-            max_distance = dist;
+            max_distance   = dist;
             farthest_start = ins;
             to_visit.erase(ins);
         }
@@ -750,7 +750,9 @@ static bool reaches(const T& starts, instruction_ref end, const_module_ref m, P 
     });
 }
 
-bool reaches(const std::unordered_set<instruction_ref>& starts, instruction_ref end, const_module_ref m)
+bool reaches(const std::unordered_set<instruction_ref>& starts,
+             instruction_ref end,
+             const_module_ref m)
 {
     return reaches(starts, end, m, [](auto) { return false; });
 }

@@ -224,7 +224,8 @@ struct loader
         ap(is_nhwc, {"--nchw"}, ap.help("Treat tensorflow format as nchw"), ap.set_value(false));
         ap(use_debug_symbols,
            {"--debug-symbols"},
-           ap.help("Parse ONNX node names into MIGX instructions and propagate them as debug symbols."),
+           ap.help(
+               "Parse ONNX node names into MIGX instructions and propagate them as debug symbols."),
            ap.set_value(true));
         ap(trim, {"--trim", "-t"}, ap.help("Trim instructions from the end"));
         ap(trim_size, {"--trim-size", "-s"}, ap.help("Number of instructions in the trim model"));

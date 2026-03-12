@@ -737,7 +737,7 @@ value program::to_value() const
                 nodes.push_back(node);
             },
             names);
-        mod_val["nodes"] = nodes;
+        mod_val["nodes"]         = nodes;
         module_vals[mod->name()] = mod_val;
     }
 

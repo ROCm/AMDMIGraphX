@@ -382,13 +382,17 @@ static std::unordered_set<instruction_ref> gather_max_splice(const_module_ref m,
     return result;
 }
 
-static std::unordered_set<instruction_ref> deduce_min_splice(const_module_ref m, const std::unordered_set<instruction_ref>& max_splice, const std::unordered_set<instruction_ref>& splice_intersection)
+static std::unordered_set<instruction_ref>
+deduce_min_splice(const_module_ref m,
+                  const std::unordered_set<instruction_ref>& max_splice,
+                  const std::unordered_set<instruction_ref>& splice_intersection)
 {
     std::unordered_set<instruction_ref> min_splice;
     if(splice_intersection.empty())
         return min_splice;
 
-    // make min_splice by going through max_splice instructions that come from the splice_intersection
+    // make min_splice by going through max_splice instructions that come from the
+    // splice_intersection
     for(auto ins : max_splice)
     {
         if(contains(splice_intersection, ins))
@@ -399,9 +403,9 @@ static std::unordered_set<instruction_ref> deduce_min_splice(const_module_ref m,
         // If ins is before all instructions in splice_intersection no need to check.
         auto start_to_ins     = range(m->begin(), std::next(ins));
         auto instruction_refs = iterator_for(start_to_ins);
-        if(std::none_of(instruction_refs.begin(),
-                    instruction_refs.end(),
-                    [&](instruction_ref x){return contains(splice_intersection, x);}))
+        if(std::none_of(instruction_refs.begin(), instruction_refs.end(), [&](instruction_ref x) {
+               return contains(splice_intersection, x);
+           }))
         {
             continue;
         }
@@ -423,18 +427,20 @@ static void propagate_debug_symbols(const_module_ref m,
 
     // Find the common instructions between old_max_splice and new_max_splice.
     // {old_max_splice} ∩ {new_max_splice}
-    // This is like calculating the lowest common ancestor 
+    // This is like calculating the lowest common ancestor
     std::unordered_set<instruction_ref> splice_intersection;
-    std::copy_if(
-        old_max_splice.cbegin(),
-        old_max_splice.cend(),
-        std::inserter(splice_intersection, splice_intersection.begin()),
-        [&new_max_splice](auto old_ins) { return contains(new_max_splice, old_ins); });
+    std::copy_if(old_max_splice.cbegin(),
+                 old_max_splice.cend(),
+                 std::inserter(splice_intersection, splice_intersection.begin()),
+                 [&new_max_splice](auto old_ins) { return contains(new_max_splice, old_ins); });
     splice_intersection.erase(ins);
 
-    // Remove instructions from old_max_splice that are the intersection or output to the intersection
-    std::unordered_set<instruction_ref> old_splice = deduce_min_splice(m, old_max_splice, splice_intersection);
-    std::unordered_set<instruction_ref> new_splice = deduce_min_splice(m, new_max_splice, splice_intersection);
+    // Remove instructions from old_max_splice that are the intersection or output to the
+    // intersection
+    std::unordered_set<instruction_ref> old_splice =
+        deduce_min_splice(m, old_max_splice, splice_intersection);
+    std::unordered_set<instruction_ref> new_splice =
+        deduce_min_splice(m, new_max_splice, splice_intersection);
 
     std::set<std::string> symbols;
     for(auto old_ins : old_splice)
@@ -583,9 +589,12 @@ std::vector<instruction_ref> module::batch_replace_instruction(
         {
             splice_intersection.erase(replacer.ins);
         }
-        // Remove instructions from old_max_splice that are the intersection or output to the intersection
-        std::unordered_set<instruction_ref> old_splice = deduce_min_splice(this, old_max_splices, splice_intersection);
-        std::unordered_set<instruction_ref> new_splice = deduce_min_splice(this, new_max_splices, splice_intersection);
+        // Remove instructions from old_max_splice that are the intersection or output to the
+        // intersection
+        std::unordered_set<instruction_ref> old_splice =
+            deduce_min_splice(this, old_max_splices, splice_intersection);
+        std::unordered_set<instruction_ref> new_splice =
+            deduce_min_splice(this, new_max_splices, splice_intersection);
         std::set<std::string> symbols;
         for(auto old_ins : old_splice)
         {

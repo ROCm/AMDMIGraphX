@@ -33,9 +33,11 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/fuse_reduce.hpp>
 
 #include <test.hpp>
 #include <pointwise.hpp>
+#include <reduce.hpp>
 
 // Two adds fused into a single pointwise op via fuse_pointwise.
 // Both symbols should appear on the fused pointwise instruction.
@@ -251,6 +253,59 @@ TEST_CASE(horiz_fusion_dot)
         m2.add_return({sum});
     }
     EXPECT(m1.sort() == m2.sort());
+}
+
+// Goes through the find_pointwise_reduce matcher.
+// Making sure that the debug symbols are getting from the minimum splice of the old instructions.
+TEST_CASE(pointwise_reduce_debug_symbols)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto z    = mm->add_parameter("z", s);
+        auto curr = mm->add_instruction(migraphx::make_op("add"), x, y);
+        mm->add_debug_symbols(curr, {"add0"});
+        curr = mm->add_instruction(migraphx::make_op("relu"), curr);
+        mm->add_debug_symbols(curr, {"relu0"});
+        auto add  = add_pointwise(p1, "main:pointwise0", {curr, z}, single_pointwise("add"));
+        mm->add_debug_symbols(add, {"pointwise"});
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), add);
+        mm->add_debug_symbols(rsum, {"reduce_sum"});
+        curr = mm->add_instruction(migraphx::make_op("relu"), rsum);
+        mm->add_debug_symbols(curr, {"relu1"});
+        mm->add_return({curr});
+    }
+    migraphx::run_passes(p1, {migraphx::fuse_reduce{}, migraphx::dead_code_elimination{}});
+
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto z    = mm->add_parameter("z", s);
+        auto curr = mm->add_instruction(migraphx::make_op("add"), x, y);
+        mm->add_debug_symbols(curr, {"add0"});
+        curr = mm->add_instruction(migraphx::make_op("relu"), curr);
+        mm->add_debug_symbols(curr, {"relu0"});
+        auto rsum = add_reduce(
+            p2,
+            "main:pointwise0:main:reduce_sum0",
+            {curr, z},
+            {1},
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto add =
+                    add_pointwise(p2, rm, "main:pointwise0", inputs, single_pointwise("add"));
+                return rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), add);
+            });
+        mm->add_debug_symbols(rsum, {"pointwise", "reduce_sum"});
+        curr = mm->add_instruction(migraphx::make_op("relu"), rsum);
+        mm->add_debug_symbols(curr, {"relu1"});
+        mm->add_return({curr});
+    }
+    EXPECT(p1 == p2);
 }
 
 // Tests symbol propagation through add reassociation in simplify_algebra

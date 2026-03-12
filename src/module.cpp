@@ -389,7 +389,6 @@ static std::unordered_set<instruction_ref> deduce_min_splice(const_module_ref m,
         return min_splice;
 
     // make min_splice by going through max_splice instructions that come from the splice_intersection
-    // TODO reduce DFS calls by making another version of reaches that checks set of starting instructions
     for(auto ins : max_splice)
     {
         if(contains(splice_intersection, ins))
@@ -397,35 +396,34 @@ static std::unordered_set<instruction_ref> deduce_min_splice(const_module_ref m,
             continue;
         }
 
-        //// If ins before max_splice no need to check.
-        //// Check up through instruction linked_list from ins for splice_intersection instructions.
-        //auto start_to_ins     = range(m->begin(), std::next(ins));
-        //auto instruction_refs = iterator_for(start_to_ins);
-        //if(std::any_of(instruction_refs.begin(),
-        //            instruction_refs.end(),
-        //            [&](instruction_ref i){return contains(splice_intersection, i);}))
-        //{
-        //    continue;
-        //}
+        // If ins is before all instructions in splice_intersection no need to check.
+        auto start_to_ins     = range(m->begin(), std::next(ins));
+        auto instruction_refs = iterator_for(start_to_ins);
+        if(std::none_of(instruction_refs.begin(),
+                    instruction_refs.end(),
+                    [&](instruction_ref x){return contains(splice_intersection, x);}))
+        {
+            continue;
+        }
 
-        //if(reaches(splice_intersection, ins, m))
-        //{
-        //    min_splice.insert(ins);
-        //    continue;
-        //}
+        if(reaches(splice_intersection, ins, m))
+        {
+            min_splice.insert(ins);
+            continue;
+        }
         
-       for(auto intersect : splice_intersection)
-       {
-           if(std::distance(m->begin(), ins) < std::distance(m->begin(), intersect))
-           {
-               continue;
-           }
-           if(reaches(intersect, ins, m))
-           {
-               min_splice.insert(ins);
-               continue;
-           }
-       }
+       //for(auto intersect : splice_intersection)
+       //{
+       //    if(std::distance(m->begin(), ins) < std::distance(m->begin(), intersect))
+       //    {
+       //        continue;
+       //    }
+       //    if(reaches(intersect, ins, m))
+       //    {
+       //        min_splice.insert(ins);
+       //        continue;
+       //    }
+       //}
     }
     return min_splice;
 }

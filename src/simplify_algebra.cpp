@@ -1636,7 +1636,7 @@ struct find_add_convs
 MIGRAPHX_PRED_MATCHER(horiz_conv_dot, instruction_ref ins)
 {
     // early return if there are less than 2 outputs
-    if (ins->outputs().size() < 2)
+    if(ins->outputs().size() < 2)
     {
         return false;
     }

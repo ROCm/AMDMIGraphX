@@ -238,10 +238,10 @@ template <class T, class Operator>
 lhs_expression<T, Operator> make_lhs_expression(T&& lhs, Operator);
 
 // NOLINTNEXTLINE
-#define TEST_EXPR_BINARY_OPERATOR(op, name)                                                   \
-    template <class V>                                                                        \
-    friend auto operator op(self_t lhs2, V&& rhs2) /* NOLINT */                               \
-    {                                                                                         \
+#define TEST_EXPR_BINARY_OPERATOR(op, name)                                                  \
+    template <class V>                                                                       \
+    friend auto operator op(self_t lhs2, V&& rhs2) /* NOLINT */                              \
+    {                                                                                        \
         return make_expression(std::move(lhs2), std::forward<V>(rhs2), name{}); /* NOLINT */ \
     }
 

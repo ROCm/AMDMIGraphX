@@ -1635,6 +1635,12 @@ struct find_add_convs
 
 MIGRAPHX_PRED_MATCHER(horiz_conv_dot, instruction_ref ins)
 {
+    // early return if there are less than 2 outputs
+    if(ins->outputs().size() < 2)
+    {
+        return false;
+    }
+
     // checking size to prevent matching block quantized quant_dot for now
     auto pred = [&](auto name) {
         return [=](auto i) {
@@ -2224,14 +2230,11 @@ struct find_conv_broadcast_input
         else
             x_2d = m.insert_instruction(
                 ins, make_op("reshape", {{"dims", std::vector<std::size_t>{n, ic}}}), x_ins);
-
         auto dot_result = m.insert_instruction(ins, make_op("dot"), x_2d, w_t);
-
-        auto dot_1d = m.insert_instruction(
-            ins, make_op("squeeze", {{"axes", std::vector<int64_t>{0}}}), dot_result);
-
+        auto dot_unsqueezed =
+            m.insert_instruction(ins, make_op("unsqueeze", {{"axes", spatial_axes}}), dot_result);
         m.replace_instruction(
-            ins, make_op("broadcast", {{"axis", 1}, {"out_lens", out_lens}}), dot_1d);
+            ins, make_op("multibroadcast", {{"out_lens", out_lens}}), dot_unsqueezed);
     }
 };
 

@@ -32,11 +32,11 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/gpu/mlir.hpp>
 #include <migraphx/gpu/prepare_mlir.hpp>
-#include <mlir-c/Dialect/RockEnums.h>
 #include <numeric>
 #include <ostream>
 
 #ifdef MIGRAPHX_MLIR
+#include <mlir-c/Dialect/RockEnums.h>
 #include <mlir-c/IR.h>
 #include <mlir-c/BuiltinAttributes.h>
 #include <mlir-c/BuiltinTypes.h>
@@ -1355,6 +1355,27 @@ std::string dump_mlir(module m, const std::vector<shape>& inputs)
     return {};
 }
 
+void dump_mlir_to_file(module m, const std::vector<shape>& inputs, const fs::path& location)
+{
+    use(m);
+    use(inputs);
+    use(location);
+}
+
+bool is_module_fusible(const module& m, const context& migraphx_ctx, const value& solution)
+{
+    use(m);
+    use(migraphx_ctx);
+    use(solution);
+    return false;
+}
+
+void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
+{
+    use(m);
+    use(inputs);
+}
+
 // Disabling clang-tidy warning on non-real useage.
 // NOLINTBEGIN(performance-unnecessary-value-param)
 mlir_code_object compile_mlir(const context&, module, const std::vector<shape>&, const value&)
@@ -1374,6 +1395,13 @@ insert_mlir(module& m, instruction_ref, code_object_op co, const std::vector<ins
 tuning_config get_tuning_config_mlir(const context&, module, const std::vector<shape>&, bool)
 {
     return {};
+}
+
+void dump_mlir_to_mxr(module m, const std::vector<instruction_ref>& inputs, const fs::path& location)
+{
+    use(m);
+    use(inputs);
+    use(location);
 }
 // NOLINTEND(performance-unnecessary-value-param)
 

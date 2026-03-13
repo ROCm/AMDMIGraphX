@@ -90,7 +90,6 @@ struct test_fill_literal : verify_program<test_fill_literal<DType>>
 template struct test_fill_literal<migraphx::shape::float_type>;
 template struct test_fill_literal<migraphx::shape::int32_type>;
 
-
 struct test_fill_single_element : verify_program<test_fill_single_element>
 {
     migraphx::program create_program() const

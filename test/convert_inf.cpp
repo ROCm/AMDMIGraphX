@@ -34,8 +34,7 @@ static migraphx::argument eval_convert(float x, migraphx::shape::type_t target)
 {
     migraphx::module m;
     auto lit = m.add_literal(x);
-    auto cvt = m.add_instruction(
-        migraphx::make_op("convert", {{"target_type", target}}), lit);
+    auto cvt = m.add_instruction(migraphx::make_op("convert", {{"target_type", target}}), lit);
     return cvt->eval();
 }
 
@@ -54,81 +53,81 @@ static bool is_neg_inf(T x)
 // float -> float should preserve infinity
 TEST_CASE(float_inf_to_half)
 {
-    EXPECT(is_pos_inf(eval_convert(std::numeric_limits<float>::infinity(),
-                                   migraphx::shape::half_type).at<migraphx::half>()));
+    EXPECT(
+        is_pos_inf(eval_convert(std::numeric_limits<float>::infinity(), migraphx::shape::half_type)
+                       .at<migraphx::half>()));
 }
 
 TEST_CASE(float_ninf_to_half)
 {
-    EXPECT(is_neg_inf(eval_convert(-std::numeric_limits<float>::infinity(),
-                                   migraphx::shape::half_type).at<migraphx::half>()));
+    EXPECT(
+        is_neg_inf(eval_convert(-std::numeric_limits<float>::infinity(), migraphx::shape::half_type)
+                       .at<migraphx::half>()));
 }
 
 TEST_CASE(float_inf_to_bf16)
 {
-    EXPECT(is_pos_inf(eval_convert(std::numeric_limits<float>::infinity(),
-                                   migraphx::shape::bf16_type).at<migraphx::bf16>()));
+    EXPECT(
+        is_pos_inf(eval_convert(std::numeric_limits<float>::infinity(), migraphx::shape::bf16_type)
+                       .at<migraphx::bf16>()));
 }
 
 TEST_CASE(float_ninf_to_bf16)
 {
-    EXPECT(is_neg_inf(eval_convert(-std::numeric_limits<float>::infinity(),
-                                   migraphx::shape::bf16_type).at<migraphx::bf16>()));
+    EXPECT(
+        is_neg_inf(eval_convert(-std::numeric_limits<float>::infinity(), migraphx::shape::bf16_type)
+                       .at<migraphx::bf16>()));
 }
 
 TEST_CASE(double_inf_to_float)
 {
-    EXPECT(is_pos_inf(eval_convert(std::numeric_limits<double>::infinity(),
-                                   migraphx::shape::float_type).at<float>()));
+    EXPECT(is_pos_inf(
+        eval_convert(std::numeric_limits<double>::infinity(), migraphx::shape::float_type)
+            .at<float>()));
 }
 
 TEST_CASE(double_ninf_to_float)
 {
-    EXPECT(is_neg_inf(eval_convert(-std::numeric_limits<double>::infinity(),
-                                   migraphx::shape::float_type).at<float>()));
+    EXPECT(is_neg_inf(
+        eval_convert(-std::numeric_limits<double>::infinity(), migraphx::shape::float_type)
+            .at<float>()));
 }
 
 // float -> int should clamp to min/max
 TEST_CASE(float_inf_to_int32)
 {
-    EXPECT(eval_convert(std::numeric_limits<float>::infinity(),
-                        migraphx::shape::int32_type).at<int32_t>() ==
-           std::numeric_limits<int32_t>::max());
+    EXPECT(eval_convert(std::numeric_limits<float>::infinity(), migraphx::shape::int32_type)
+               .at<int32_t>() == std::numeric_limits<int32_t>::max());
 }
 
 TEST_CASE(float_ninf_to_int32)
 {
-    EXPECT(eval_convert(-std::numeric_limits<float>::infinity(),
-                        migraphx::shape::int32_type).at<int32_t>() ==
-           std::numeric_limits<int32_t>::min());
+    EXPECT(eval_convert(-std::numeric_limits<float>::infinity(), migraphx::shape::int32_type)
+               .at<int32_t>() == std::numeric_limits<int32_t>::min());
 }
 
 TEST_CASE(float_inf_to_int64)
 {
-    EXPECT(eval_convert(std::numeric_limits<float>::infinity(),
-                        migraphx::shape::int64_type).at<int64_t>() ==
-           std::numeric_limits<int64_t>::max());
+    EXPECT(eval_convert(std::numeric_limits<float>::infinity(), migraphx::shape::int64_type)
+               .at<int64_t>() == std::numeric_limits<int64_t>::max());
 }
 
 TEST_CASE(float_ninf_to_int64)
 {
-    EXPECT(eval_convert(-std::numeric_limits<float>::infinity(),
-                        migraphx::shape::int64_type).at<int64_t>() ==
-           std::numeric_limits<int64_t>::min());
+    EXPECT(eval_convert(-std::numeric_limits<float>::infinity(), migraphx::shape::int64_type)
+               .at<int64_t>() == std::numeric_limits<int64_t>::min());
 }
 
 TEST_CASE(double_inf_to_int64)
 {
-    EXPECT(eval_convert(std::numeric_limits<double>::infinity(),
-                        migraphx::shape::int64_type).at<int64_t>() ==
-           std::numeric_limits<int64_t>::max());
+    EXPECT(eval_convert(std::numeric_limits<double>::infinity(), migraphx::shape::int64_type)
+               .at<int64_t>() == std::numeric_limits<int64_t>::max());
 }
 
 TEST_CASE(double_ninf_to_int64)
 {
-    EXPECT(eval_convert(-std::numeric_limits<double>::infinity(),
-                        migraphx::shape::int64_type).at<int64_t>() ==
-           std::numeric_limits<int64_t>::min());
+    EXPECT(eval_convert(-std::numeric_limits<double>::infinity(), migraphx::shape::int64_type)
+               .at<int64_t>() == std::numeric_limits<int64_t>::min());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

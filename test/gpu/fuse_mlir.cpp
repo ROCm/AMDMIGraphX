@@ -319,6 +319,56 @@ TEST_CASE(conv_broadcast_mul)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(conv_prelu)
+{
+    migraphx::shape is{migraphx::shape::float_type, {1, 3, 16, 16}};
+    migraphx::shape ws{migraphx::shape::float_type, {4, 3, 3, 3}};
+    migraphx::shape ss{migraphx::shape::float_type, {4}};
+    migraphx::shape os{migraphx::shape::float_type, {1, 4, 16, 16}};
+    migraphx::program p1;
+    {
+        auto* mm    = p1.get_main_module();
+        auto x      = mm->add_parameter("x", is);
+        auto w      = mm->add_parameter("w", ws);
+        auto slope  = mm->add_parameter("slope", ss);
+        auto conv   = mm->add_instruction(migraphx::make_op("convolution",
+                                                          {{"padding", {1, 1}},
+                                                           {"stride", {1, 1}},
+                                                           {"dilation", {1, 1}}}),
+                                         x,
+                                         w);
+        auto bcast = mm->add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", os.lens()}}), slope);
+        auto act = add_pointwise(p1, "main:pointwise0", {conv, bcast}, single_pointwise("prelu"));
+        mm->add_return({act});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto x     = mm->add_parameter("x", is);
+        auto w     = mm->add_parameter("w", ws);
+        auto slope = mm->add_parameter("slope", ss);
+        auto fused =
+            add_mlir(p2, "mlir_main:pointwise0", {x, w, slope}, [=](auto* pm, const auto& inputs) {
+                auto conv = pm->add_instruction(migraphx::make_op("convolution",
+                                                                  {{"padding", {1, 1}},
+                                                                   {"stride", {1, 1}},
+                                                                   {"dilation", {1, 1}}}),
+                                                inputs[0],
+                                                inputs[1]);
+                auto bcast = pm->add_instruction(
+                    migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", os.lens()}}),
+                    inputs[2]);
+                auto act = pm->add_instruction(migraphx::make_op("prelu"), conv, bcast);
+                return std::make_tuple(conv->get_operator(), act);
+            });
+        mm->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 TEST_CASE(multi_use_dot_trans_add_pooling_sub)
 {
     migraphx::shape s1{migraphx::shape::float_type, {1, 1, 4, 5}};

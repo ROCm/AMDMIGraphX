@@ -601,12 +601,11 @@ TEST_CASE(expression_chained)
 
 struct noncopyable
 {
-    int data = 42;
+    int data      = 42;
     noncopyable() = default;
-    explicit noncopyable(int x) : data(x)
-    {}
+    explicit noncopyable(int x) : data(x) {}
 
-    noncopyable(const noncopyable&) = delete;
+    noncopyable(const noncopyable&)            = delete;
     noncopyable& operator=(const noncopyable&) = delete;
 
     friend bool operator==(const noncopyable& x, const noncopyable& y) { return x.data == y.data; }
@@ -629,18 +628,17 @@ TEST_CASE(capure_noncopyable)
 
 struct move_only
 {
-    int data = 42;
+    int data    = 42;
     move_only() = default;
-    explicit move_only(int x) : data(x)
-    {}
+    explicit move_only(int x) : data(x) {}
 
     move_only(move_only&& rhs)
     {
-        data       = rhs.data;
-        rhs.data   = 0; // Invalidate source
+        data     = rhs.data;
+        rhs.data = 0; // Invalidate source
     }
 
-    move_only(const move_only&) = delete;
+    move_only(const move_only&)            = delete;
     move_only& operator=(const move_only&) = delete;
 
     friend bool operator==(const move_only& x, const move_only& y) { return x.data == y.data; }

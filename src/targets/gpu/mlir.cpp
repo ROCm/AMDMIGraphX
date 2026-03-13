@@ -883,8 +883,8 @@ struct mlir_program
     {
         // 1st pipeline to call
         run_high_level_pipeline();
-        std::string tuning_cfg_path = string_value_of(MIGRAPHX_MLIR_TUNING_CFG{});
-        if(not tuning_cfg_path.empty())
+        std::string tuning_db_path = string_value_of(MIGRAPHX_MLIR_TUNING_DB::value());
+        if(not tuning_db_path.empty())
             get_module_tuned();
         if(not solution.is_null())
             set_tuning(solution);
@@ -1003,7 +1003,7 @@ struct mlir_program
     {
         mlir_tuning_table tuning_table{mlirRockTuningTableCreate()};
         bool found_table           = false;
-        std::string tuning_db_path = string_value_of(MIGRAPHX_MLIR_TUNING_DB{});
+        std::string tuning_db_path = string_value_of(MIGRAPHX_MLIR_TUNING_DB::value());
         if(not tuning_db_path.empty())
         {
             std::ifstream tuning_db_tsv(tuning_db_path);

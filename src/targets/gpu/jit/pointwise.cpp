@@ -80,10 +80,14 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         options.kernel_name    = v.get("kernel", "kernel");
         auto noutputs = options.inputs.size() - inputs.size() + 1;
         auto t                 = tile::elements(options.virtual_inputs, noutputs);
+        auto nelements         = options.inputs.front().elements() / vec.size;
+        auto pointwise_block_limit =
+            std::min<std::size_t>(256, ctx.get_current_device().get_wavefront_size() * 4);
+        auto block_size = compute_block_size(ctx, nelements, pointwise_block_limit);
         // auto t = tile{};
         if(t.ntiles == 0)
             options.set_launch_params(
-                v, compute_global_for(ctx, options.inputs.front().elements() / vec.size, 256));
+                v, compute_global_for(ctx, nelements, 256), block_size);
         else
             options.set_launch_params(
                 v, compute_global_for(ctx, t.ntiles * t.block_size, 256), t.block_size);

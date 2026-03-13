@@ -352,6 +352,21 @@ TEST_CASE(compile_pointwise)
     EXPECT(result == output_literal.get_argument());
 }
 
+TEST_CASE(compile_pointwise_launch_bounds)
+{
+    migraphx::shape input{migraphx::shape::float_type, {1024}};
+
+    migraphx::gpu::context ctx;
+    auto co = migraphx::gpu::compile_op(
+        "pointwise", ctx, {input, input}, {{"lambda", "[](auto x) { return make_tuple(x + 1); }"}});
+
+    const auto co_value = co.to_value();
+    const auto expected_local = std::min<std::size_t>(
+        256, ctx.get_current_device().get_wavefront_size() * 4);
+    EXPECT(co_value.at("local").to<std::size_t>() == expected_local);
+    EXPECT(co_value.at("global").to<std::size_t>() % co_value.at("local").to<std::size_t>() == 0);
+}
+
 TEST_CASE(compile_math)
 {
     std::vector<std::string> math_invoke = {

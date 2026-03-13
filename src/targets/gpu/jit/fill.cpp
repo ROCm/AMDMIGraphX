@@ -63,7 +63,7 @@ struct fill_compiler : compiler<fill_compiler>
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value&) const
     {
         hip_compile_options options;
-        const auto& out_s      = inputs.back();
+        const auto& out_s = inputs.back();
         options.set_launch_params({}, compute_global_for(ctx, out_s.elements()));
         options.inputs         = inputs;
         options.output         = out_s;

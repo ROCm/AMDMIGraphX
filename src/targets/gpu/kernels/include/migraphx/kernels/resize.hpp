@@ -331,7 +331,7 @@ __device__ void resize_cubic(Input input, Output output, Scales scales, float cu
         index_int total_combos = 1;
         for(index_int i = 0; i < active_count; ++i)
         {
-            total_combos = total_combos << 2;
+            total_combos <<= 2; // multiply by 4
         }
 
         float acc = 0.0f;
@@ -345,7 +345,7 @@ __device__ void resize_cubic(Input input, Output output, Scales scales, float cu
             {
                 index_int d            = active_dims[i];
                 index_int neighbor_idx = tc % 4;
-                tc /= 4;
+                tc >>= 2; // divide by 4
                 w *= params[d].weights[neighbor_idx];
                 in_multi[d] = params[d].indices[neighbor_idx];
             }

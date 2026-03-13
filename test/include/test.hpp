@@ -245,7 +245,7 @@ lhs_expression<T, Operator> make_lhs_expression(T&& lhs, Operator);
         return make_expression(*this, std::forward<V>(rhs2), name{}); /* NOLINT */            \
     }                                                                                         \
     template <class V>                                                                        \
-    auto operator op(V&& rhs2)&&                                                              \
+    auto operator op(V&& rhs2) &&                                                             \
     {                                                                                         \
         return make_expression(std::move(*this), std::forward<V>(rhs2), name{}); /* NOLINT */ \
     }

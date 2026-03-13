@@ -186,14 +186,14 @@ struct resize
         double coord = idx_op(in_len, out_len, out_idx, scale);
         auto base    = std::floor(coord);
 
-        for(std::size_t i = 0; i < 4; ++i)
+        for(std::ptrdiff_t i = 0; i < 4; ++i)
         {
-            std::ptrdiff_t pos = base - 1 + static_cast<std::ptrdiff_t>(i);
-            double t           = coord - static_cast<double>(pos);
+            std::ptrdiff_t pos = base - 1 + i;
+            double t           = coord - pos;
             result.weights[i]  = cubic_kernel(t, cubic_a);
             // Clamp to valid range
-            result.indices[i] = static_cast<std::size_t>(std::max(
-                std::ptrdiff_t{0}, std::min(pos, static_cast<std::ptrdiff_t>(in_len - 1))));
+            result.indices[i] =
+                std::max(std::ptrdiff_t{0}, std::min(pos, static_cast<std::ptrdiff_t>(in_len - 1)));
         }
 
         return result;
@@ -314,7 +314,7 @@ struct resize
 
         // Accumulate over 4^ndim neighbors (4 per dimension for cubic)
         double acc                  = 0.0;
-        const std::size_t neighbors = (ndim == 0) ? 1 : static_cast<std::size_t>(std::pow(4, ndim));
+        const std::size_t neighbors = std::max<std::size_t>(1, std::pow(4, ndim));
         std::vector<std::size_t> in_idx(ndim);
 
         for(std::size_t combo = 0; combo < neighbors; ++combo)
@@ -324,7 +324,7 @@ struct resize
             for(std::size_t d = 0; d < ndim; ++d)
             {
                 std::size_t neighbor_idx = tc % 4;
-                tc /= 4;
+                tc >>= 2;
                 w *= params[d].weights[neighbor_idx];
                 in_idx[d] = params[d].indices[neighbor_idx];
             }
@@ -333,7 +333,7 @@ struct resize
                 continue;
 
             auto v = data(in_idx.begin(), in_idx.end());
-            acc   += w * static_cast<double>(v);
+            acc += w * v;
         }
 
         return acc;
@@ -521,8 +521,7 @@ struct resize
                                                              vec_scale,
                                                              idx_op);
 
-                    using out_value_t = typename decltype(output)::value_type;
-                    output[out_idx]   = static_cast<out_value_t>(acc);
+                    output[out_idx] = acc;
                 });
             });
         }
@@ -539,8 +538,7 @@ struct resize
                                                             cubic_coeff_a,
                                                             idx_op);
 
-                    using out_value_t = typename decltype(output)::value_type;
-                    output[out_idx]   = static_cast<out_value_t>(acc);
+                    output[out_idx] = acc;
                 });
             });
         }

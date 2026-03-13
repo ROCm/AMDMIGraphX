@@ -32,9 +32,11 @@
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/quant_convolution.hpp>
 #include <migraphx/op/convolution_backwards.hpp>
-#include <unordered_map>
 #include <migraphx/reflect.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/value.hpp>
+#include <mutex>
+#include <unordered_map>
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
@@ -53,6 +55,64 @@ inline shape reshape_if_1d(const shape& input)
     return new_shape;
 }
 #if MIGRAPHX_USE_MIOPEN
+struct miopen_convolution_solution_cache_entry
+{
+    shape workspace_shape = {};
+#ifdef MIGRAPHX_HAS_FIND_2_API
+    value::binary solution_object = {};
+#else
+    miopenConvFwdAlgorithm_t algo{};
+    uint64_t solution_id = 0;
+#endif
+};
+
+struct miopen_convolution_solution_cache
+{
+    std::mutex mutex;
+    std::unordered_map<value, miopen_convolution_solution_cache_entry> cache = {};
+};
+
+inline miopen_convolution_solution_cache& get_miopen_convolution_solution_cache()
+{
+    static miopen_convolution_solution_cache result;
+    return result;
+}
+
+template <class Op>
+inline value make_miopen_convolution_cache_key(const Op& op,
+                                               const context& ctx,
+                                               const shape& output_shape,
+                                               const std::vector<shape>& inputs)
+{
+    value key;
+    key["op"]         = to_value(op);
+    key["output"]     = to_value(output_shape);
+    key["inputs"]     = to_value(inputs);
+    key["gfx"]        = ctx.get_current_device().get_gfx_name();
+    key["exhaustive"] = ctx.get_exhaustive_tune_flag();
+    return key;
+}
+
+inline bool load_cached_miopen_convolution_solution(
+    const value& key, miopen_convolution_solution_cache_entry& result)
+{
+    auto& cache = get_miopen_convolution_solution_cache();
+    std::lock_guard<std::mutex> lock(cache.mutex);
+    const auto it = cache.cache.find(key);
+    if(it == cache.cache.end())
+        return false;
+    result = it->second;
+    return true;
+}
+
+inline void insert_miopen_convolution_solution_cache(
+    const value& key, const miopen_convolution_solution_cache_entry& result)
+{
+    auto& cache = get_miopen_convolution_solution_cache();
+    std::lock_guard<std::mutex> lock(cache.mutex);
+    cache.cache[key] = result;
+}
+
 template <class Op>
 struct miopen_convolution
 {
@@ -163,6 +223,7 @@ struct miopen_convolution
         auto x_desc = make_tensor(reshape_if_1d(inputs[0]));
         auto w_desc = make_tensor(reshape_if_1d(inputs[1]));
         auto y_desc = make_tensor(reshape_if_1d(output_shape));
+        const auto cache_key = make_miopen_convolution_cache_key(op, ctx, output_shape, inputs);
 
         auto* miopen_stream_handle = ctx.get_stream().get_miopen();
         std::size_t workspace_size = 0;
@@ -176,6 +237,19 @@ struct miopen_convolution
             MIGRAPHX_THROW("MIOpen" + op.name() + " : Failed to get forward workspace size");
 
         workspace_shape = shape{shape::int8_type, {workspace_size}};
+
+        miopen_convolution_solution_cache_entry cache_result;
+        if(load_cached_miopen_convolution_solution(cache_key, cache_result))
+        {
+#ifdef MIGRAPHX_HAS_FIND_2_API
+            solution_ptr   = nullptr;
+            solution_object = cache_result.solution_object;
+#else
+            algo        = cache_result.algo;
+            solution_id = cache_result.solution_id;
+#endif
+            return cache_result.workspace_shape;
+        }
 
         const auto& x_shape = inputs[0];
         const auto& w_shape = inputs[1];
@@ -233,7 +307,10 @@ struct miopen_convolution
             if(status != miopenStatusSuccess)
                 MIGRAPHX_THROW("MIOpen" + op.name() + ": Saving solution failed");
             solution_object = value::binary{solution_binary.data(), solution_size};
-            return shape{shape::int8_type, {workspace_size}};
+            workspace_shape = shape{shape::int8_type, {workspace_size}};
+            insert_miopen_convolution_solution_cache(
+                cache_key, miopen_convolution_solution_cache_entry{workspace_shape, solution_object});
+            return workspace_shape;
         }
 #else
         auto x         = to_gpu(generate_argument(x_shape, seed++, random_mode::random));
@@ -285,7 +362,10 @@ struct miopen_convolution
 
         solution_id = solutions.front().solution_id;
 
-        return shape{shape::int8_type, {perf.memory}};
+        workspace_shape = shape{shape::int8_type, {perf.memory}};
+        insert_miopen_convolution_solution_cache(
+            cache_key, miopen_convolution_solution_cache_entry{workspace_shape, algo, solution_id});
+        return workspace_shape;
 #endif
     }
 

@@ -735,7 +735,7 @@ Advanced settings
     - Takes a positive integer.
 
   * - | ``MIGRAPHX_SKIP_BENCHMARKING``
-      | When set, skips benchmarking of MIGraphX and rocMLIR kernel tuning configurations and compiles with the first available solution.
+      | When set, skips MIGraphX and rocMLIR kernel benchmarking and compiles with the first available solution.
       
     - | ``1``: Skip benchmarking.
       | ``0``: Returns to default behavior.

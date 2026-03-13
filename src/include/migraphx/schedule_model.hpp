@@ -48,6 +48,8 @@ struct schedule_model
 {
     /// Get the number of concurrent instruction allowed
     std::size_t concurrency() const;
+    /// Get the minimum accumulated weight required to split a partition
+    std::size_t split_threshold() const;
     /// Schedule a concurrent instruction
     void sched(module& m, instruction_ref ins, std::size_t n) const;
     // Insert necessary waits before an instruction
@@ -67,6 +69,8 @@ struct MIGRAPHX_EXPORT schedule_model
 {
     //
     std::size_t concurrency() const;
+    //
+    std::size_t split_threshold() const;
     //
     void sched(module& m, instruction_ref ins, std::size_t n) const;
     //
@@ -99,6 +103,7 @@ struct schedule_model
     template <class PrivateDetailTypeErasedT>
     using private_te_constraints_impl =
         decltype(std::declval<PrivateDetailTypeErasedT>().concurrency(),
+                 std::declval<PrivateDetailTypeErasedT>().split_threshold(),
                  std::declval<PrivateDetailTypeErasedT>().sched(std::declval<module&>(),
                                                                 std::declval<instruction_ref>(),
                                                                 std::declval<std::size_t>()),
@@ -191,6 +196,12 @@ struct schedule_model
         return (*this).private_detail_te_get_handle().concurrency();
     }
 
+    std::size_t split_threshold() const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().split_threshold();
+    }
+
     void sched(module& m, instruction_ref ins, std::size_t n) const
     {
         assert((*this).private_detail_te_handle_mem_var);
@@ -230,6 +241,7 @@ struct schedule_model
         virtual const std::type_info& type() const                                = 0;
 
         virtual std::size_t concurrency() const                                        = 0;
+        virtual std::size_t split_threshold() const                                    = 0;
         virtual void sched(module& m, instruction_ref ins, std::size_t n) const        = 0;
         virtual void wait(module& m, instruction_ref ins, std::size_t wait_id) const   = 0;
         virtual void record(module& m, instruction_ref ins, std::size_t wait_id) const = 0;
@@ -265,6 +277,11 @@ struct schedule_model
         const std::type_info& type() const override { return typeid(private_detail_te_value); }
 
         std::size_t concurrency() const override { return private_detail_te_value.concurrency(); }
+
+        std::size_t split_threshold() const override
+        {
+            return private_detail_te_value.split_threshold();
+        }
 
         void sched(module& m, instruction_ref ins, std::size_t n) const override
         {

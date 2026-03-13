@@ -135,7 +135,9 @@ struct schedule_model_test
     std::shared_ptr<instruction_map> ins2stream = std::make_shared<instruction_map>();
     std::shared_ptr<int_map> wait2stream        = std::make_shared<int_map>();
     std::shared_ptr<wait_map> ins2wait_for      = std::make_shared<wait_map>();
+    std::size_t min_partition_threshold        = 2;
     std::size_t concurrency() const { return 4; }
+    std::size_t split_threshold() const { return min_partition_threshold; }
     void sched(migraphx::module&, migraphx::instruction_ref ins, std::size_t n) const
     {
         (*ins2stream)[ins] = n;
@@ -1003,6 +1005,43 @@ TEST_CASE(unused_param_test)
 
     EXPECT(t.has_stream(z) == false);
     EXPECT(t.has_stream(r) == false);
+}
+
+TEST_CASE(split_threshold_test)
+{
+    auto count_waits = [](migraphx::module& m) {
+        return std::count_if(m.begin(), m.end(), [](const auto& ins) { return ins.name() == "wait_event"; });
+    };
+
+    auto add_graph = [](migraphx::module& m) {
+        migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+
+        auto x         = m.add_parameter("x", s);
+        auto critical1 = m.add_instruction(unary_op{}, x);
+        auto critical2 = m.add_instruction(unary_op{}, critical1);
+        auto critical3 = m.add_instruction(unary_op{}, critical2);
+        auto side      = m.add_instruction(unary_op{}, x);
+        auto output    = m.add_instruction(nary_op{"merge"}, critical3, side);
+        m.add_return({output});
+        return std::make_pair(side, output);
+    };
+
+    migraphx::module m_default;
+    const auto output_default = add_graph(m_default).second;
+
+    scheduler default_scheduler{};
+    default_scheduler.run_pass(m_default);
+    EXPECT(count_waits(m_default) == 1);
+    EXPECT(not get_wait_for(output_default).empty());
+
+    migraphx::module m_threshold;
+    const auto output_threshold = add_graph(m_threshold).second;
+
+    scheduler threshold_scheduler{};
+    threshold_scheduler.model.min_partition_threshold = 4;
+    threshold_scheduler.run_pass(m_threshold);
+    EXPECT(count_waits(m_threshold) == 0);
+    EXPECT(get_wait_for(output_threshold).empty());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

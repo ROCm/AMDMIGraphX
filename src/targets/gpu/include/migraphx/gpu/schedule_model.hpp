@@ -40,6 +40,7 @@ struct schedule_model
 {
     std::size_t streams = 0;
     std::size_t concurrency() const;
+    std::size_t split_threshold() const;
     void sched(module& m, instruction_ref ins, std::size_t n) const;
     void wait(module& m, instruction_ref ins, std::size_t wait_id) const;
     void record(module& m, instruction_ref ins, std::size_t wait_id) const;

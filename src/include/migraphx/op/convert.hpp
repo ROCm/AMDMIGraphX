@@ -61,33 +61,29 @@ struct convert : unary<convert>
         return "${function:convert}<" + shape::cpp_type(target_type) + ">(${0})";
     }
 
-    auto apply() const
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        auto type = target_type;
-        return [type](auto x) {
-            auto y = x;
-            shape::visit(type, [&](auto as) {
-                // clamping value between target_type's max and min doesn't work for NaNs,
-                if(std::isnan(static_cast<double>(x)))
-                {
-                    y = as.nan();
-                }
-                else if(shape::is_integral(type) and std::is_floating_point_v<decltype(x)>)
-                {
-                    // for the floating point to integer conversion, clamp first and then convert to
-                    // avoid undefined behaviour
-                    y = as(std::min(std::max(static_cast<double>(x), static_cast<double>(as.min())),
-                                    static_cast<double>(as.max())));
-                }
-                else
-                {
-                    // clamp overflowing/underflowing values to min()/max() instead of +/-infinity
-                    // during downcasting
-                    y = std::min(std::max(as(x), as.min()), as.max());
-                }
+        argument result{dyn_out.computed_shape};
+        result.visit([&](auto output) {
+            args[0].visit([&](auto input) {
+                using T = typename decltype(output)::value_type;
+                shape::as<T> as{};
+                par_transform(
+                    input.begin(), input.end(), output.begin(), [as](auto x) -> T {
+                        auto dx = static_cast<double>(x);
+                        if(std::isnan(dx))
+                            return as.nan();
+                        if(not as.is_integral() and std::isinf(dx))
+                            return as(x);
+                        if(dx >= static_cast<double>(as.max()))
+                            return as.max();
+                        if(dx <= static_cast<double>(as.min()))
+                            return as.min();
+                        return as(dx);
+                    });
             });
-            return y;
-        };
+        });
+        return result;
     }
 
     convert(shape::type_t t) : target_type{t} {}

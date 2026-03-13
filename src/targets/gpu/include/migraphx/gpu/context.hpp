@@ -50,6 +50,47 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NULL_STREAM)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_NSTREAMS)
 
+inline std::size_t recommend_stream_count_for_compute_units(std::size_t cu_count)
+{
+    if(cu_count >= 96)
+        return 4;
+    if(cu_count >= 64)
+        return 3;
+    if(cu_count >= 32)
+        return 2;
+    return 1;
+}
+
+inline std::size_t recommend_stream_count(std::size_t device_id)
+{
+    if(enabled(MIGRAPHX_ENABLE_NULL_STREAM{}))
+        return 1;
+
+    hipDeviceProp_t device_props{};
+    auto status = hipGetDeviceProperties(&device_props, device_id);
+    if(status != hipSuccess)
+        return 1;
+
+    return recommend_stream_count_for_compute_units(
+        static_cast<std::size_t>(device_props.multiProcessorCount));
+}
+
+inline std::size_t resolve_stream_count(std::size_t device_id, std::size_t requested = 0)
+{
+    if(requested > 0)
+        return requested;
+
+    const auto env_streams = env(MIGRAPHX_NSTREAMS::value());
+    if(not env_streams.empty())
+    {
+        const auto parsed = std::stoul(env_streams.front());
+        if(parsed > 0)
+            return parsed;
+    }
+
+    return recommend_stream_count(device_id);
+}
+
 using hip_event_ptr = MIGRAPHX_MANAGE_PTR(hipEvent_t, hipEventDestroy);
 
 struct hip_device
@@ -248,8 +289,8 @@ struct context
                 this->save();
         }
     };
-    context(std::size_t device_id = 0, std::size_t n = value_of(MIGRAPHX_NSTREAMS{}, 1))
-        : current_device(std::make_shared<hip_device>(device_id, n)),
+    context(std::size_t device_id = 0, std::size_t n = 0)
+        : current_device(std::make_shared<hip_device>(device_id, resolve_stream_count(device_id, n))),
           begin_event(create_event()),
           finish_event(create_event()),
           pc(std::make_shared<auto_save_problem_cache>())

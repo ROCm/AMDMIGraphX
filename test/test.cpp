@@ -654,12 +654,12 @@ struct move_only
 TEST_CASE(capure_move_only)
 {
     auto expr_equal = test::capture{}->*move_only{2} == move_only{2};
-    EXPECT(expr_equal.value());
-    EXPECT(test::as_string(expr_equal) == "move_only(2) == move_only(2)");
+    CHECK(expr_equal.value());
+    CHECK(test::as_string(expr_equal) == "move_only(2) == move_only(2)");
 
     auto expr_not_equal = test::capture{}->*move_only{2} != move_only{3};
-    EXPECT(expr_not_equal.value());
-    EXPECT(test::as_string(expr_not_equal) == "move_only(2) != move_only(3)");
+    CHECK(expr_not_equal.value());
+    CHECK(test::as_string(expr_not_equal) == "move_only(2) != move_only(3)");
 }
 
 // Edge cases for glob_match

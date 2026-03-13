@@ -125,8 +125,7 @@ void eigen_multiply(tensor_view<T> cmat, tensor_view<T> amat, tensor_view<T> bma
     batch_slicer a_slicer(amat.get_shape());
     batch_slicer b_slicer(bmat.get_shape());
 
-    for(std::size_t batch = 0; batch < slicer.num_batches(); batch++)
-    {
+    par_for(slicer.num_batches(), [&](auto batch) {
         auto a_slice = a_slicer.extract(amat, batch);
         auto b_slice = b_slicer.extract(bmat, batch);
         auto c_slice = slicer.extract(cmat, batch);
@@ -135,7 +134,7 @@ void eigen_multiply(tensor_view<T> cmat, tensor_view<T> amat, tensor_view<T> bma
         auto b = make_eigen_map(b_slice);
         auto c = make_eigen_map(c_slice);
         c.noalias() = a * b;
-    }
+    });
 }
 
 template <class T, class U>
@@ -170,19 +169,11 @@ void gemm_eigen(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat)
 #endif
 
 template <class Visitor>
-void gemm_ref(const argument& c_arg, const argument& a_arg, const argument& b_arg, Visitor v)
+void gemm_ref_visit(const argument& c_arg, const argument& a_arg, const argument& b_arg, Visitor v)
 {
-    if(c_arg.get_shape().type() == a_arg.get_shape().type())
-    {
-        visit_all(c_arg, a_arg, b_arg)(
-            [&](auto cmat, auto amat, auto bmat) { v(cmat, amat, bmat); });
-    }
-    else
-    {
-        c_arg.visit([&](auto cmat) {
-            visit_all(a_arg, b_arg)([&](auto amat, auto bmat) { v(cmat, amat, bmat); });
-        });
-    }
+    c_arg.visit([&](auto cmat) {
+        visit_all(a_arg, b_arg)([&](auto amat, auto bmat) { v(cmat, amat, bmat); });
+    });
 }
 
 } // namespace
@@ -190,10 +181,10 @@ void gemm_ref(const argument& c_arg, const argument& a_arg, const argument& b_ar
 void gemm(const argument& c_arg, const argument& a_arg, const argument& b_arg)
 {
 #if MIGRAPHX_USE_EIGEN
-    gemm_ref(
+    gemm_ref_visit(
         c_arg, a_arg, b_arg, [](auto cmat, auto amat, auto bmat) { gemm_eigen(cmat, amat, bmat); });
 #else
-    gemm_ref(
+    gemm_ref_visit(
         c_arg, a_arg, b_arg, [](auto cmat, auto amat, auto bmat) { gemm_naive(cmat, amat, bmat); });
 #endif
 }

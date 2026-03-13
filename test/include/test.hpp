@@ -240,7 +240,12 @@ lhs_expression<T, Operator> make_lhs_expression(T&& lhs, Operator);
 // NOLINTNEXTLINE
 #define TEST_EXPR_BINARY_OPERATOR(op, name)                                                   \
     template <class V>                                                                        \
-    auto operator op(V&& rhs2) const                                                          \
+    auto operator op(V&& rhs2) const&                                                         \
+    {                                                                                         \
+        return make_expression(*this, std::forward<V>(rhs2), name{}); /* NOLINT */            \
+    }                                                                                         \
+    template <class V>                                                                        \
+    auto operator op(V&& rhs2)&&                                                              \
     {                                                                                         \
         return make_expression(std::move(*this), std::forward<V>(rhs2), name{}); /* NOLINT */ \
     }
@@ -295,7 +300,7 @@ template <class T, class Operator>
 struct lhs_expression
 {
     T lhs;
-    explicit lhs_expression(T e) : lhs(std::move(e)) {}
+    explicit lhs_expression(T e) : lhs(static_cast<T&&>(e)) {}
 
     friend std::ostream& operator<<(std::ostream& s, const lhs_expression& self)
     {
@@ -373,9 +378,9 @@ auto make_function(const std::string& name, F f)
 struct capture
 {
     template <class T>
-    auto operator->*(const T& x) const
+    auto operator->*(T&& x) const
     {
-        return make_lhs_expression(x);
+        return make_lhs_expression(std::forward<T>(x));
     }
 
     template <class T, class Operator>

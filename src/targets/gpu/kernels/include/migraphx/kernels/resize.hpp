@@ -332,7 +332,7 @@ __device__ void resize_cubic(Input input, Output output, Scales scales, float cu
         index_int total_combos = 1;
         for(index_int i = 0; i < active_count; ++i)
         {
-            total_combos *= 4;
+            total_combos = total_combos << 2;
         }
 
         float acc = 0.0f;

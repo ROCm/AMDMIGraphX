@@ -41,15 +41,13 @@ static migraphx::argument cast_inf(float x, migraphx::shape::type_t target)
 template <class T>
 static bool is_neg_inf(T x)
 {
-    auto d = static_cast<double>(x);
-    return std::isinf(d) and d < 0;
+    return std::isinf(x) and x < 0;
 }
 
 template <class T>
 static bool is_pos_inf(T x)
 {
-    auto d = static_cast<double>(x);
-    return std::isinf(d) and d > 0;
+    return std::isinf(x) and x > 0;
 }
 
 TEST_CASE(float_inf_to_half)

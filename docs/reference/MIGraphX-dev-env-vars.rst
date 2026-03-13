@@ -25,9 +25,12 @@ Model performance tunable variables change the compilation behavior of a model. 
       | Forces the model to use the NHWC layout.
       
     - | ``1``: Forces the use of the NHWC layout.
-      | ``0``: Returns to default behavior.
+      | ``0``: Disables the automatic NHWC policy and keeps convolution layout transforms off.
 
-      | Default: The use of the NHWC layout isn't forced.
+      | Default: NHWC is enabled automatically on ``gfx942+``, ``gfx95x``, ``gfx11x``, and
+      | ``gfx12x`` targets, while older targets keep the legacy NCHW behavior.
+      |
+      | Note: Group convolutions still remain in NCHW for performance.
 
   * - | ``MIGRAPHX_DISABLE_MLIR``
       | When set, the rocMLIR library won't be used.
@@ -708,7 +711,16 @@ Advanced settings
       | Sets the number of HIP streams to use in the GPU. 
       
     - | Takes a positive integer.
-      | Default: one stream will be used.
+      | Set to ``0`` to use the adaptive default.
+      | Default: adaptive stream count based on GPU size.
+      |
+      | Current defaults:
+      | ``1`` stream for GPUs with fewer than 32 compute units
+      | ``2`` streams for GPUs with 32 to 63 compute units
+      | ``3`` streams for GPUs with 64 to 95 compute units
+      | ``4`` streams for GPUs with 96 or more compute units
+      |
+      | Note: when ``MIGRAPHX_ENABLE_NULL_STREAM=1`` is set, the adaptive default falls back to ``1`` stream.
 
   * - | ``MIGRAPHX_TRACE_BENCHMARKING``
       | Sets the verbosity of benchmarking traces. 

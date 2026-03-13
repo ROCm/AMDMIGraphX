@@ -30,12 +30,30 @@
 #include <hip/hip_runtime_api.h>
 
 #include <iostream>
+#include <string_view>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
+
+namespace {
+
+std::string normalize_gfx_name(std::string_view gfx_name)
+{
+    return trim(split_string(std::string{gfx_name}, ':').front());
+}
+
+bool gfx_is_mi3xx_or_newer(std::string_view gfx_name)
+{
+    const auto device_name = normalize_gfx_name(gfx_name);
+    const bool is_gfx94    = starts_with(device_name, "gfx94") and device_name >= "gfx942";
+    const bool is_gfx95    = starts_with(device_name, "gfx95") and device_name >= "gfx950";
+    return is_gfx94 or is_gfx95;
+}
+
+} // namespace
 
 int get_device_id()
 {
@@ -53,6 +71,12 @@ std::string get_device_name()
     if(status != hipSuccess)
         MIGRAPHX_THROW("Failed to get device properties");
     return props.gcnArchName;
+}
+
+bool gfx_is_navi(std::string_view gfx_name)
+{
+    const auto device_name = normalize_gfx_name(gfx_name);
+    return starts_with(device_name, "gfx11") or starts_with(device_name, "gfx12");
 }
 
 bool gfx_has_fp8fnuz_intrinsics()
@@ -80,6 +104,20 @@ bool gfx_has_mx_intrinsics()
     const auto device_name = trim(split_string(get_device_name(), ':').front());
     return starts_with(device_name, "gfx9") and device_name >= "gfx950";
 }
+
+bool gfx_prefers_nhwc_layout(std::string_view gfx_name)
+{
+    return gfx_is_navi(gfx_name) or gfx_is_mi3xx_or_newer(gfx_name);
+}
+
+bool gfx_prefers_nhwc_layout() { return gfx_prefers_nhwc_layout(get_device_name()); }
+
+bool gfx_prefers_mlir_attention(std::string_view gfx_name)
+{
+    return gfx_is_mi3xx_or_newer(gfx_name);
+}
+
+bool gfx_prefers_mlir_attention() { return gfx_prefers_mlir_attention(get_device_name()); }
 
 #if MIGRAPHX_USE_HIPBLASLT
 // Archs that support hipBLASLt but are defaulted to use rocBLAS.

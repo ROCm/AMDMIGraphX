@@ -135,11 +135,12 @@ bool mlir_attention_enabled(context* ctx)
         return false;
     if(specific_op<rejected>("attention"))
         return false;
-    // Enable attention by default for mi300
-    if(ctx != nullptr and starts_with(ctx->get_current_device().get_gfx_name(), "gfx94"))
+    // Enable attention by default for MI300-class and newer data center accelerators.
+    if(ctx != nullptr and gfx_prefers_mlir_attention(ctx->get_current_device().get_gfx_name()))
         return true;
     return specific_op<requested>("attention");
 #else
+    (void)ctx;
     return false;
 #endif
 }
@@ -1501,7 +1502,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
 #ifdef MIGRAPHX_MLIR
     std::size_t counter     = 0;
     const auto& device_name = ctx == nullptr ? "" : ctx->get_current_device().get_gfx_name();
-    const bool is_navi = starts_with(device_name, "gfx11") or starts_with(device_name, "gfx12");
+    const bool is_navi       = gfx_is_navi(device_name);
 
     auto get_mode = [&](std::string_view option, mlir_mode m1, mlir_mode m2 = mlir_mode::fast) {
         if(specific_op<rejected>(option))

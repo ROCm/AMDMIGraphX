@@ -153,7 +153,19 @@ struct miopen_apply
             // output with copy output
             for(const auto& in : inputs)
             {
-                auto p_output = mod->insert_instruction(ret, make_op("hip::copy_from_gpu"), in);
+                instruction_ref p_output = in;
+                // If a CPU fallback result was already copied back to the GPU solely
+                // to satisfy the internal GPU pipeline, reuse the host value for the
+                // final return instead of bouncing it back to the CPU.
+                if(in->name() == "hip::copy_to_gpu")
+                {
+                    p_output = in->inputs().front();
+                }
+                else
+                {
+                    p_output =
+                        mod->insert_instruction(ret, make_op("hip::copy_from_gpu"), in);
+                }
                 instruction::replace_argument(ret, in, p_output);
             }
         }

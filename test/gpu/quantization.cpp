@@ -125,6 +125,63 @@ TEST_CASE(int8_quantization)
     }
 }
 
+TEST_CASE(int8_quantization_conv_chain)
+{
+    auto create_program = [] {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape sx{migraphx::shape::float_type, {1, 3, 16, 16}};
+        auto x = mm->add_parameter("x", sx);
+        auto w1 = mm->add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {4, 3, 3, 3}}));
+        auto conv1 = mm->add_instruction(
+            migraphx::make_op("convolution",
+                              {{"padding", {1, 1}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
+            x,
+            w1);
+        auto slope = mm->add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {4}}));
+        auto bcast = mm->add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", conv1->get_shape().lens()}}),
+            slope);
+        auto act = mm->add_instruction(migraphx::make_op("prelu"), conv1, bcast);
+        auto w2 = mm->add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {4, 4, 3, 3}}));
+        mm->add_instruction(
+            migraphx::make_op("convolution",
+                              {{"padding", {1, 1}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
+            act,
+            w2);
+        return p;
+    };
+
+    migraphx::program p = create_program();
+    migraphx::parameter_map m;
+    m["x"] = migraphx::generate_argument({migraphx::shape::float_type, {1, 3, 16, 16}});
+
+    std::vector<migraphx::parameter_map> cali_data;
+    cali_data.push_back(m);
+
+    migraphx::target gpu_t = migraphx::make_target("gpu");
+    migraphx::quantize_int8(p, gpu_t, cali_data);
+    p.compile(gpu_t);
+
+    migraphx::parameter_map gpu_inputs;
+    for(const auto& x : p.get_parameter_shapes())
+    {
+        if(m.count(x.first) > 0)
+        {
+            gpu_inputs[x.first] = gpu_t.copy_to(m[x.first]);
+        }
+        else
+        {
+            gpu_inputs[x.first] = gpu_t.allocate(x.second);
+        }
+    }
+    auto result = gpu_t.copy_from(p.eval(gpu_inputs).back());
+    EXPECT(result.get_shape().lens() == std::vector<std::size_t>({1, 4, 16, 16}));
+}
+
 TEST_CASE(fp8_quantization)
 {
     if(migraphx::gpu::gfx_has_fp8fnuz_intrinsics() or migraphx::gpu::gfx_has_fp8ocp_intrinsics())

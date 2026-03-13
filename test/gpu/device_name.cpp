@@ -27,6 +27,7 @@
 TEST_CASE(gfx_is_navi_detects_client_arches)
 {
     EXPECT(migraphx::gpu::gfx_is_navi("gfx1100"));
+    EXPECT(migraphx::gpu::gfx_is_navi("gfx1100:sramecc+:xnack-"));
     EXPECT(migraphx::gpu::gfx_is_navi("gfx1201"));
     EXPECT(not migraphx::gpu::gfx_is_navi("gfx942"));
     EXPECT(not migraphx::gpu::gfx_is_navi("gfx1030"));
@@ -36,6 +37,7 @@ TEST_CASE(gfx_prefers_nhwc_layout_modern_arches)
 {
     EXPECT(migraphx::gpu::gfx_prefers_nhwc_layout("gfx1100"));
     EXPECT(migraphx::gpu::gfx_prefers_nhwc_layout("gfx1200"));
+    EXPECT(migraphx::gpu::gfx_prefers_nhwc_layout("gfx942:sramecc+:xnack-"));
     EXPECT(migraphx::gpu::gfx_prefers_nhwc_layout("gfx942"));
     EXPECT(migraphx::gpu::gfx_prefers_nhwc_layout("gfx950"));
     EXPECT(not migraphx::gpu::gfx_prefers_nhwc_layout("gfx1030"));

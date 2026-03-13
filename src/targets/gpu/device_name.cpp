@@ -30,7 +30,9 @@
 #include <hip/hip_runtime_api.h>
 
 #include <iostream>
+#include <mutex>
 #include <string_view>
+#include <unordered_map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -53,6 +55,60 @@ bool gfx_is_mi3xx_or_newer(std::string_view gfx_name)
     return is_gfx94 or is_gfx95;
 }
 
+struct cached_device_info
+{
+    std::string gcn_arch_name{};
+    std::string normalized_gfx_name{};
+    bool is_navi                 = false;
+    bool is_mi3xx_or_newer       = false;
+    bool has_fp8fnuz_intrinsics  = false;
+    bool has_fp8ocp_intrinsics   = false;
+    bool has_bf16_intrinsics     = false;
+    bool has_mx_intrinsics       = false;
+    bool supports_hipblaslt      = false;
+};
+
+cached_device_info read_device_info(int device_id)
+{
+    hipDeviceProp_t props{};
+    auto status = hipGetDeviceProperties(&props, device_id);
+    if(status != hipSuccess)
+        MIGRAPHX_THROW("Failed to get device properties");
+
+    cached_device_info info;
+    info.gcn_arch_name       = props.gcnArchName;
+    info.normalized_gfx_name = normalize_gfx_name(info.gcn_arch_name);
+    info.is_navi             = starts_with(info.normalized_gfx_name, "gfx11") or
+                   starts_with(info.normalized_gfx_name, "gfx12");
+    info.is_mi3xx_or_newer   = gfx_is_mi3xx_or_newer(info.normalized_gfx_name);
+    info.has_fp8fnuz_intrinsics = starts_with(info.normalized_gfx_name, "gfx94");
+    info.has_fp8ocp_intrinsics  = (starts_with(info.normalized_gfx_name, "gfx12") and
+                                  info.normalized_gfx_name >= "gfx1200") or
+                                 (starts_with(info.normalized_gfx_name, "gfx9") and
+                                  info.normalized_gfx_name >= "gfx950");
+    info.has_bf16_intrinsics    = not(starts_with(info.normalized_gfx_name, "gfx1030"));
+    info.has_mx_intrinsics      = starts_with(info.normalized_gfx_name, "gfx9") and
+                             info.normalized_gfx_name >= "gfx950";
+    info.supports_hipblaslt =
+        info.normalized_gfx_name == "gfx90a" or info.is_mi3xx_or_newer or
+        starts_with(info.normalized_gfx_name, "gfx110") or
+        starts_with(info.normalized_gfx_name, "gfx120");
+    return info;
+}
+
+const cached_device_info& get_cached_device_info()
+{
+    static std::mutex cache_mutex;
+    static std::unordered_map<int, cached_device_info> cache;
+
+    const auto device_id = get_device_id();
+    std::lock_guard<std::mutex> lock(cache_mutex);
+    auto it = cache.find(device_id);
+    if(it == cache.end())
+        it = cache.emplace(device_id, read_device_info(device_id)).first;
+    return it->second;
+}
+
 } // namespace
 
 int get_device_id()
@@ -66,11 +122,7 @@ int get_device_id()
 
 std::string get_device_name()
 {
-    hipDeviceProp_t props{};
-    auto status = hipGetDeviceProperties(&props, get_device_id());
-    if(status != hipSuccess)
-        MIGRAPHX_THROW("Failed to get device properties");
-    return props.gcnArchName;
+    return get_cached_device_info().gcn_arch_name;
 }
 
 bool gfx_is_navi(std::string_view gfx_name)
@@ -81,28 +133,22 @@ bool gfx_is_navi(std::string_view gfx_name)
 
 bool gfx_has_fp8fnuz_intrinsics()
 {
-    const auto device_name = trim(split_string(get_device_name(), ':').front());
-    return (starts_with(device_name, "gfx94"));
+    return get_cached_device_info().has_fp8fnuz_intrinsics;
 }
 
 bool gfx_has_fp8ocp_intrinsics()
 {
-    const auto device_name = trim(split_string(get_device_name(), ':').front());
-    bool is_navi_with_fp8ocp = starts_with(device_name, "gfx12") and device_name >= "gfx1200";
-    bool is_mi_with_fp8ocp   = starts_with(device_name, "gfx9") and device_name >= "gfx950";
-    return (is_navi_with_fp8ocp or is_mi_with_fp8ocp);
+    return get_cached_device_info().has_fp8ocp_intrinsics;
 }
 
 bool gfx_has_bf16_intrinsics()
 {
-    const auto device_name = trim(split_string(get_device_name(), ':').front());
-    return not(starts_with(device_name, "gfx1030"));
+    return get_cached_device_info().has_bf16_intrinsics;
 }
 
 bool gfx_has_mx_intrinsics()
 {
-    const auto device_name = trim(split_string(get_device_name(), ':').front());
-    return starts_with(device_name, "gfx9") and device_name >= "gfx950";
+    return get_cached_device_info().has_mx_intrinsics;
 }
 
 bool gfx_prefers_nhwc_layout(std::string_view gfx_name)
@@ -110,24 +156,28 @@ bool gfx_prefers_nhwc_layout(std::string_view gfx_name)
     return gfx_is_navi(gfx_name) or gfx_is_mi3xx_or_newer(gfx_name);
 }
 
-bool gfx_prefers_nhwc_layout() { return gfx_prefers_nhwc_layout(get_device_name()); }
+bool gfx_prefers_nhwc_layout()
+{
+    const auto& info = get_cached_device_info();
+    return info.is_navi or info.is_mi3xx_or_newer;
+}
 
 bool gfx_prefers_mlir_attention(std::string_view gfx_name)
 {
     return gfx_is_mi3xx_or_newer(gfx_name);
 }
 
-bool gfx_prefers_mlir_attention() { return gfx_prefers_mlir_attention(get_device_name()); }
+bool gfx_prefers_mlir_attention() { return get_cached_device_info().is_mi3xx_or_newer; }
 
 #if MIGRAPHX_USE_HIPBLASLT
 // Archs that support hipBLASLt but are defaulted to use rocBLAS.
 bool gfx_default_rocblas()
 {
-    const auto device_name = trim(split_string(get_device_name(), ':').front());
+    const auto& info = get_cached_device_info();
     // Default to rocBLAS for gfx90a.
     return ((string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "hipblaslt")
                 ? false
-                : (device_name == "gfx90a"));
+                : (info.normalized_gfx_name == "gfx90a"));
 }
 #endif
 
@@ -136,12 +186,7 @@ bool hipblaslt_supported()
 #if !MIGRAPHX_USE_HIPBLASLT
     return false;
 #else
-    const auto device_name = trim(split_string(get_device_name(), ':').front());
-    // hipblaslt is supported for MI200 and above, and Navi3x and above.
-    return (device_name == "gfx90a" or
-            (starts_with(device_name, "gfx94") and device_name >= "gfx942") or
-            (starts_with(device_name, "gfx95") and device_name >= "gfx950") or
-            starts_with(device_name, "gfx110") or starts_with(device_name, "gfx120"));
+    return get_cached_device_info().supports_hipblaslt;
 #endif
 }
 

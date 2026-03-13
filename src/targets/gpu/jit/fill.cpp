@@ -41,7 +41,7 @@ extern "C" {
 
 MIGRAPHX_GLOBAL void fill_kernel(void* value_ptr, void* data_ptr, void* output_ptr) 
 {
-    make_tensors()(value_ptr, data_ptr, output_ptr)([](auto value, auto, auto output) {
+    make_tensors()(value_ptr, data_ptr, output_ptr)([](auto value, auto /*data*/, auto output) {
         auto idx = make_index();
         auto v = value[0];
         idx.global_stride(output.get_shape().elements(), [&](auto i) {
@@ -60,11 +60,11 @@ struct fill_compiler : compiler<fill_compiler>
 {
     std::vector<std::string> names() const { return {"fill"}; }
 
-    operation compile_op(context& ctx, const std::vector<shape>& inputs, const value&) const
+    operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
         const auto& out_s = inputs.back();
-        options.set_launch_params({}, compute_global_for(ctx, out_s.elements()));
+        options.set_launch_params(v, compute_global_for(ctx, out_s.elements()));
         options.inputs         = inputs;
         options.output         = out_s;
         options.kernel_name    = "fill_kernel";

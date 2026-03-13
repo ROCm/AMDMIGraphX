@@ -41,9 +41,15 @@ TEST_CASE(resize_upsample_cubic_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    // Expected output for cubic interpolation with half_pixel mode
-    // Input 2x2:  [[1, 2], [3, 4]]
-    // Output 4x4 using cubic interpolation with a=-0.75 and half_pixel coordinate transform
+    // Cubic interpolation, half_pixel mode, a=-0.75, scales [1,1,2,2]
+    //
+    // PyTorch reference:
+    //   import torch; import torch.nn.functional as F
+    //   x = torch.tensor([[[[1., 2.], [3., 4.]]]])
+    //   y = F.interpolate(x, scale_factor=(2, 2), mode="bicubic",
+    //                     align_corners=False, antialias=False)
+    //   print(y)
+    //
     // clang-format off
     std::vector<float> gold = {
         0.68359375f, 1.01562500f, 1.56250000f, 1.89453125f,

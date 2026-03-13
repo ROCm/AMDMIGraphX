@@ -48,19 +48,16 @@ TEST_CASE(resize_downsample_cubic_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    // Expected output for cubic downsample with half_pixel mode
-    // Output 2x2 using cubic interpolation with a=-0.75
-    // Used the following to validate and setting scale height and width
-    // sH, sW
+    // Cubic interpolation, half_pixel mode, a=-0.75, scales [1,1,0.5,0.5]
     //
-    //   PyTorch reference (align_corners=False, antialias=False)
-    //   x_t = torch.randn(N, C, H, W, dtype=torch.float32)
-    //   y_ref = F.interpolate(
-    //   x_t, scale_factor=(sH, sW), mode="bicubic",
-    //   align_corners=False, antialias=False)
+    // PyTorch reference:
+    //   import torch; import torch.nn.functional as F
+    //   x = torch.arange(1, 17, dtype=torch.float32).reshape(1, 1, 4, 4)
+    //   y = F.interpolate(x, scale_factor=(0.5, 0.5), mode="bicubic",
+    //                     align_corners=False, antialias=False)
+    //   print(y)
     //
-    //
-    std::vector<float> gold = {3.03125f, 5.21875f, 11.7812f, 13.9688f};
+    std::vector<float> gold = {3.03125f, 5.21875f, 11.78125f, 13.96875f};
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

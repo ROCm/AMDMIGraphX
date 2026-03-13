@@ -41,9 +41,16 @@ TEST_CASE(resize_upsample_cubic_asymmetric_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    // Expected output for cubic interpolation with asymmetric mode
-    // Input 2x2:  [[1, 2], [3, 4]]
-    // Output 4x4 using cubic interpolation with a=-0.75 and asymmetric coordinate transform
+    // Cubic interpolation, asymmetric mode, a=-0.75, scales [1,1,2,2]
+    // (PyTorch F.interpolate does not support asymmetric mode; use ONNX reference)
+    //
+    // ONNX reference:
+    //   import numpy as np; import onnx
+    //   from onnx.reference import ReferenceEvaluator
+    //   model = onnx.load("resize_upsample_cubic_asymmetric_test.onnx")
+    //   x = np.array([[[[1., 2.], [3., 4.]]]], dtype=np.float32)
+    //   print(ReferenceEvaluator(model).run(None, {"X": x})[0])
+    //
     // clang-format off
     std::vector<float> gold = {
         1.0f, 1.5f, 2.0f, 2.09375f,

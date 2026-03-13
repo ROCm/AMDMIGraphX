@@ -41,8 +41,16 @@ TEST_CASE(resize_upsample_cubic_sizes_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    // Same expected output as the scales-based resize_upsample_cubic_test
-    // half_pixel mode, cubic a=-0.75, 2x2 -> 4x4, using sizes input instead of scales
+    // Cubic interpolation, half_pixel mode, a=-0.75, sizes [1,1,4,4]
+    // Same result as the scales-based resize_upsample_cubic_test
+    //
+    // PyTorch reference:
+    //   import torch; import torch.nn.functional as F
+    //   x = torch.tensor([[[[1., 2.], [3., 4.]]]])
+    //   y = F.interpolate(x, size=(4, 4), mode="bicubic",
+    //                     align_corners=False, antialias=False)
+    //   print(y)
+    //
     // clang-format off
     std::vector<float> gold = {
         0.68359375f, 1.01562500f, 1.56250000f, 1.89453125f,

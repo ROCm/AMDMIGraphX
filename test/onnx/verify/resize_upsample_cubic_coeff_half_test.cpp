@@ -41,9 +41,16 @@ TEST_CASE(resize_upsample_cubic_coeff_half_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    // Expected output for cubic interpolation with a=-0.5 (Catmull-Rom) and half_pixel mode
-    // Input 2x2: [[1, 2], [3, 4]], Output 4x4
-    // Symmetry property: out[r][c] + out[3-r][3-c] = 5.0 for all (r,c)
+    // Cubic interpolation, half_pixel mode, a=-0.5 (Catmull-Rom), scales [1,1,2,2]
+    // (PyTorch F.interpolate hardcodes a=-0.75; use ONNX reference for a=-0.5)
+    //
+    // ONNX reference:
+    //   import numpy as np; import onnx
+    //   from onnx.reference import ReferenceEvaluator
+    //   model = onnx.load("resize_upsample_cubic_coeff_half_test.onnx")
+    //   x = np.array([[[[1., 2.], [3., 4.]]]], dtype=np.float32)
+    //   print(ReferenceEvaluator(model).run(None, {"X": x})[0])
+    //
     // clang-format off
     std::vector<float> gold = {
         0.7890625f,  1.0625f,     1.65625f,    1.9296875f,

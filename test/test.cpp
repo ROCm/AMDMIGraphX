@@ -97,10 +97,7 @@ TEST_CASE(as_string_bool)
     EXPECT(test::as_string(false) == "false");
 }
 
-TEST_CASE(as_string_nullptr)
-{
-    EXPECT(test::as_string(nullptr) == "nullptr");
-}
+TEST_CASE(as_string_nullptr) { EXPECT(test::as_string(nullptr) == "nullptr"); }
 
 TEST_CASE(as_string_vector)
 {
@@ -140,10 +137,10 @@ TEST_CASE(as_string_optional_empty)
 
 TEST_CASE(as_string_pointer)
 {
-    int x      = 0;
-    int* p     = &x;
-    auto s     = test::as_string(p);
-    auto sn    = test::as_string(static_cast<int*>(nullptr));
+    int x   = 0;
+    int* p  = &x;
+    auto s  = test::as_string(p);
+    auto sn = test::as_string(static_cast<int*>(nullptr));
     // Non-null pointer should produce some output (hex address)
     EXPECT(not s.empty());
     // Null pointer prints as 0
@@ -155,41 +152,41 @@ TEST_CASE(as_string_pointer)
 // variables to avoid dangling references when storing expressions.
 TEST_CASE(capture_equal)
 {
-    int a = 1;
-    int b = 1;
+    int a     = 1;
+    int b     = 1;
     auto expr = test::capture{}->*a == b;
     EXPECT(expr.value());
 }
 
 TEST_CASE(capture_not_equal)
 {
-    int a = 1;
-    int b = 2;
+    int a     = 1;
+    int b     = 2;
     auto expr = test::capture{}->*a != b;
     EXPECT(expr.value());
 }
 
 TEST_CASE(capture_less_than)
 {
-    int a = 1;
-    int b = 2;
+    int a     = 1;
+    int b     = 2;
     auto expr = test::capture{}->*a < b;
     EXPECT(expr.value());
 }
 
 TEST_CASE(capture_greater_than)
 {
-    int a = 3;
-    int b = 2;
+    int a     = 3;
+    int b     = 2;
     auto expr = test::capture{}->*a > b;
     EXPECT(expr.value());
 }
 
 TEST_CASE(capture_less_than_equal)
 {
-    int a = 2;
-    int b = 2;
-    int c = 1;
+    int a      = 2;
+    int b      = 2;
+    int c      = 1;
     auto expr1 = test::capture{}->*a <= b;
     auto expr2 = test::capture{}->*c <= b;
     EXPECT(expr1.value());
@@ -198,9 +195,9 @@ TEST_CASE(capture_less_than_equal)
 
 TEST_CASE(capture_greater_than_equal)
 {
-    int a = 2;
-    int b = 2;
-    int c = 3;
+    int a      = 2;
+    int b      = 2;
+    int c      = 3;
     auto expr1 = test::capture{}->*a >= b;
     auto expr2 = test::capture{}->*c >= b;
     EXPECT(expr1.value());
@@ -246,7 +243,7 @@ TEST_CASE(expression_to_string)
     // Use the EXPECT macro's stringification to verify expression printing.
     // The expression template uses references so we verify via as_string on
     // simpler constructs that don't store intermediate temporaries.
-    int a = 42;
+    int a    = 42;
     auto lhs = test::capture{}->*a;
     EXPECT(test::as_string(lhs) == "42");
     EXPECT(test::as_string(not lhs) == "not 42");
@@ -275,7 +272,7 @@ TEST_CASE(lhs_bitwise_operators)
 
 TEST_CASE(chained_comparison)
 {
-    int a = 3;
+    int a     = 3;
     auto expr = (test::capture{}->*a + 2) == 5;
     EXPECT(expr.value());
 }
@@ -359,9 +356,8 @@ TEST_CASE(generic_parse_basic)
 TEST_CASE(generic_parse_no_flags)
 {
     std::vector<std::string> args = {"arg1", "arg2"};
-    auto result = test::generic_parse(args, [](const std::string&) -> std::vector<std::string> {
-        return {};
-    });
+    auto result                   = test::generic_parse(
+        args, [](const std::string&) -> std::vector<std::string> { return {}; });
     EXPECT(result.count("") > 0);
     EXPECT(result.at("").size() == 2);
     EXPECT(result.at("")[0] == "arg1");
@@ -557,7 +553,7 @@ TEST_CASE(make_function_to_string)
 // Tests for CHECK macro (non-fatal)
 TEST_CASE(check_macro_passes)
 {
-    auto saved   = test::failures().load();
+    auto saved       = test::failures().load();
     test::failures() = 0;
     CHECK(1 == 1);
     EXPECT(test::failures().load() == 0);
@@ -566,7 +562,7 @@ TEST_CASE(check_macro_passes)
 
 TEST_CASE(check_macro_failure_increments)
 {
-    auto saved   = test::failures().load();
+    auto saved       = test::failures().load();
     test::failures() = 0;
     CHECK(1 == 2);
     EXPECT(test::failures().load() == 1);
@@ -629,8 +625,8 @@ TEST_CASE(nop_call)
 // Tests for expression value propagation
 TEST_CASE(expression_false_value)
 {
-    int a = 1;
-    int b = 2;
+    int a     = 1;
+    int b     = 2;
     auto expr = test::capture{}->*a == b;
     EXPECT(not expr.value());
 }

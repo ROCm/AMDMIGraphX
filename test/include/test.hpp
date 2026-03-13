@@ -117,7 +117,7 @@ struct nop
 {
     static std::string as_string() { return ""; }
     template <class T>
-    static auto call(T&& x)
+    static decltype(auto) call(T&& x)
     {
         return static_cast<T&&>(x);
     }

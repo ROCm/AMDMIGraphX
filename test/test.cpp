@@ -148,132 +148,96 @@ TEST_CASE(as_string_pointer)
 }
 
 // Tests for expression templates / capture
-// Note: The expression template system stores references, so we use local
-// variables to avoid dangling references when storing expressions.
 TEST_CASE(capture_equal)
 {
-    int a     = 1;
-    int b     = 1;
-    auto expr = test::capture{}->*a == b;
+    auto expr = test::capture{}->*1 == 1;
     EXPECT(expr.value());
 }
 
 TEST_CASE(capture_not_equal)
 {
-    int a     = 1;
-    int b     = 2;
-    auto expr = test::capture{}->*a != b;
+    auto expr = test::capture{}->*1 != 2;
     EXPECT(expr.value());
 }
 
 TEST_CASE(capture_less_than)
 {
-    int a     = 1;
-    int b     = 2;
-    auto expr = test::capture{}->*a < b;
+    auto expr = test::capture{}->*1 < 2;
     EXPECT(expr.value());
 }
 
 TEST_CASE(capture_greater_than)
 {
-    int a     = 3;
-    int b     = 2;
-    auto expr = test::capture{}->*a > b;
+    auto expr = test::capture{}->*3 > 2;
     EXPECT(expr.value());
 }
 
 TEST_CASE(capture_less_than_equal)
 {
-    int a      = 2;
-    int b      = 2;
-    int c      = 1;
-    auto expr1 = test::capture{}->*a <= b;
-    auto expr2 = test::capture{}->*c <= b;
+    auto expr1 = test::capture{}->*2 <= 2;
+    auto expr2 = test::capture{}->*1 <= 2;
     EXPECT(expr1.value());
     EXPECT(expr2.value());
 }
 
 TEST_CASE(capture_greater_than_equal)
 {
-    int a      = 2;
-    int b      = 2;
-    int c      = 3;
-    auto expr1 = test::capture{}->*a >= b;
-    auto expr2 = test::capture{}->*c >= b;
+    auto expr1 = test::capture{}->*2 >= 2;
+    auto expr2 = test::capture{}->*3 >= 2;
     EXPECT(expr1.value());
     EXPECT(expr2.value());
 }
 
 TEST_CASE(capture_and_op)
 {
-    bool t = true;
-    bool f = false;
-    // Use EXPECT directly since expression templates store references
-    // to temporaries that cannot outlive a single statement
-    EXPECT(t and t);
-    EXPECT(not(t and f));
-    EXPECT(not(f and t));
-    EXPECT(not(f and f));
+    auto expr1 = test::capture{}->*true and true;
+    EXPECT(expr1.value());
+    auto expr2 = test::capture{}->*true and false;
+    EXPECT(not expr2.value());
 }
 
 TEST_CASE(capture_or_op)
 {
-    bool t = true;
-    bool f = false;
-    EXPECT(t or t);
-    EXPECT(t or f);
-    EXPECT(f or t);
-    EXPECT(not(f or f));
+    auto expr1 = test::capture{}->*false or true;
+    EXPECT(expr1.value());
+    auto expr2 = test::capture{}->*false or false;
+    EXPECT(not expr2.value());
 }
 
 TEST_CASE(capture_not_op)
 {
-    bool f = false;
-    bool t = true;
-    // not operator on lhs_expression only stores a reference to the
-    // underlying value, so storing in a variable is safe
-    auto expr = not(test::capture{}->*f);
-    EXPECT(expr.value());
-    auto expr2 = not(test::capture{}->*t);
+    auto expr1 = not(test::capture{}->*false);
+    EXPECT(expr1.value());
+    auto expr2 = not(test::capture{}->*true);
     EXPECT(not expr2.value());
 }
 
 TEST_CASE(expression_to_string)
 {
-    // Use the EXPECT macro's stringification to verify expression printing.
-    // The expression template uses references so we verify via as_string on
-    // simpler constructs that don't store intermediate temporaries.
-    int a    = 42;
-    auto lhs = test::capture{}->*a;
-    EXPECT(test::as_string(lhs) == "42");
-    EXPECT(test::as_string(not lhs) == "not 42");
+    EXPECT(test::as_string(test::capture{}->*1 == 2) == "1 == 2");
+    EXPECT(test::as_string(test::capture{}->*3 != 4) == "3 != 4");
+    EXPECT(test::as_string(test::capture{}->*42) == "42");
 }
 
 TEST_CASE(lhs_arithmetic_operators)
 {
-    int a = 3;
-    int b = 10;
-    int c = 4;
-    EXPECT((test::capture{}->*a + 2).value() == 5);
-    EXPECT((test::capture{}->*b - 3).value() == 7);
-    EXPECT((test::capture{}->*c * 5).value() == 20);
-    EXPECT((test::capture{}->*b / 2).value() == 5);
-    EXPECT((test::capture{}->*b % 3).value() == 1);
+    EXPECT((test::capture{}->*3 + 2).value() == 5);
+    EXPECT((test::capture{}->*10 - 3).value() == 7);
+    EXPECT((test::capture{}->*4 * 5).value() == 20);
+    EXPECT((test::capture{}->*10 / 2).value() == 5);
+    EXPECT((test::capture{}->*10 % 3).value() == 1);
 }
 
 TEST_CASE(lhs_bitwise_operators)
 {
-    int a = 0xFF;
-    int b = 0xF0;
-    EXPECT((test::capture{}->*a & 0x0F).value() == 0x0F);
-    EXPECT((test::capture{}->*b | 0x0F).value() == 0xFF);
-    EXPECT((test::capture{}->*a ^ 0x0F).value() == 0xF0);
+    EXPECT((test::capture{}->*0xFF & 0x0F).value() == 0x0F);
+    EXPECT((test::capture{}->*0xF0 | 0x0F).value() == 0xFF);
+    EXPECT((test::capture{}->*0xFF ^ 0x0F).value() == 0xF0);
 }
 
 TEST_CASE(chained_comparison)
 {
-    int a     = 3;
-    auto expr = (test::capture{}->*a + 2) == 5;
+    auto expr = (test::capture{}->*3 + 2) == 5;
     EXPECT(expr.value());
 }
 
@@ -625,20 +589,79 @@ TEST_CASE(nop_call)
 // Tests for expression value propagation
 TEST_CASE(expression_false_value)
 {
-    int a     = 1;
-    int b     = 2;
-    auto expr = test::capture{}->*a == b;
+    auto expr = test::capture{}->*1 == 2;
     EXPECT(not expr.value());
 }
 
 TEST_CASE(expression_chained)
 {
-    int a = 1;
-    int b = 1;
-    // Binary expressions with `and` store references to temporaries,
-    // so they must be used inline via EXPECT
-    EXPECT((a == b) and (2 == 2));
-    EXPECT(not((a != b) and (2 == 2)));
+    auto expr = (test::capture{}->*1 == 1) and (2 == 2);
+    EXPECT(expr.value());
+}
+
+struct noncopyable
+{
+    int data = 42;
+    noncopyable() = default;
+    explicit noncopyable(int x) : data(x)
+    {}
+
+    noncopyable(const noncopyable&) = delete;
+    noncopyable& operator=(const noncopyable&) = delete;
+
+    friend bool operator==(const noncopyable& x, const noncopyable& y) { return x.data == y.data; }
+    friend bool operator!=(const noncopyable& x, const noncopyable& y) { return not(x == y); }
+
+    friend std::ostream& operator<<(std::ostream& os, const noncopyable& nc)
+    {
+        os << "noncopyable(" << nc.data << ")";
+        return os;
+    }
+};
+
+TEST_CASE(capure_noncopyable)
+{
+    noncopyable nc;
+    auto expr = test::capture{}->*nc == nc;
+    EXPECT(expr.value());
+    EXPECT(test::as_string(expr) == "noncopyable(42) == noncopyable(42)");
+}
+
+struct move_only
+{
+    int data = 42;
+    move_only() = default;
+    explicit move_only(int x) : data(x)
+    {}
+
+    move_only(move_only&& rhs)
+    {
+        data       = rhs.data;
+        rhs.data   = 0; // Invalidate source
+    }
+
+    move_only(const move_only&) = delete;
+    move_only& operator=(const move_only&) = delete;
+
+    friend bool operator==(const move_only& x, const move_only& y) { return x.data == y.data; }
+    friend bool operator!=(const move_only& x, const move_only& y) { return not(x == y); }
+
+    friend std::ostream& operator<<(std::ostream& os, const move_only& nc)
+    {
+        os << "move_only(" << nc.data << ")";
+        return os;
+    }
+};
+
+TEST_CASE(capure_move_only)
+{
+    auto expr_equal = test::capture{}->*move_only{2} == move_only{2};
+    EXPECT(expr_equal.value());
+    EXPECT(test::as_string(expr_equal) == "move_only(2) == move_only(2)");
+
+    auto expr_not_equal = test::capture{}->*move_only{2} != move_only{3};
+    EXPECT(expr_not_equal.value());
+    EXPECT(test::as_string(expr_not_equal) == "move_only(2) != move_only(3)");
 }
 
 // Edge cases for glob_match

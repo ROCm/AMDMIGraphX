@@ -33,6 +33,7 @@
 #include <migraphx/fp8_ocp_to_fnuz.hpp>
 #include <migraphx/fuse_attention.hpp>
 #include <migraphx/fuse_concat.hpp>
+#include <migraphx/rewrite_rotary_embedding.hpp>
 #include <migraphx/fuse_horizontal.hpp>
 #include <migraphx/fuse_pointwise_reduce.hpp>
 #include <migraphx/inline_module.hpp>
@@ -117,6 +118,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         rewrite_rnn{},
         dead_code_elimination{},
+        rewrite_rotary_embedding{},
+        dead_code_elimination{},
         eliminate_data_type_for_gpu{.disable_64bit = options.fast_math},
         rewrite_resize{.affine_only = true},
         dead_code_elimination{},
@@ -135,6 +138,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         fuse_horizontal{},
         dead_code_elimination{},
+        
         prefuse_ops{},
         dead_code_elimination{},
         dead_code_elimination{},

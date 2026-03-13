@@ -55,6 +55,18 @@ struct rank<0>
 {
 };
 
+template <class T>
+struct rrr
+{
+    using type = T;
+};
+
+template <class T>
+struct rrr<T&&>
+{
+    using type = T;
+};
+
 // clang-format off
 // NOLINTNEXTLINE
 #define TEST_FOREACH_BINARY_OPERATORS(m) \
@@ -230,7 +242,7 @@ lhs_expression<T, Operator> make_lhs_expression(T&& lhs, Operator);
     template <class V>                                                             \
     auto operator op(V&& rhs2) const                                               \
     {                                                                              \
-        return make_expression(*this, std::forward<V>(rhs2), name{}); /* NOLINT */ \
+        return make_expression(std::move(*this), std::forward<V>(rhs2), name{}); /* NOLINT */ \
     }
 
 // NOLINTNEXTLINE

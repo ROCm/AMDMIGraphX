@@ -332,9 +332,8 @@ struct resize
             if(std::abs(w) < 1e-10)
                 continue;
 
-            using in_value_t = typename Data::value_type;
-            in_value_t v     = data(in_idx.begin(), in_idx.end());
-            acc += w * static_cast<double>(v);
+            auto v = data(in_idx.begin(), in_idx.end());
+            acc   += w * static_cast<double>(v);
         }
 
         return acc;

@@ -26,6 +26,7 @@
 
 #include <migraphx/gpu/config.hpp>
 #include <string>
+#include <string_view>
 
 struct hipDeviceProp_t;
 
@@ -37,6 +38,8 @@ MIGRAPHX_GPU_EXPORT std::string get_device_name();
 
 MIGRAPHX_GPU_EXPORT int get_device_id();
 
+MIGRAPHX_GPU_EXPORT bool gfx_is_navi(std::string_view gfx_name);
+
 MIGRAPHX_GPU_EXPORT bool gfx_has_fp8fnuz_intrinsics();
 
 MIGRAPHX_GPU_EXPORT bool gfx_has_fp8ocp_intrinsics();
@@ -46,6 +49,14 @@ MIGRAPHX_GPU_EXPORT bool gfx_has_bf16_intrinsics();
 MIGRAPHX_GPU_EXPORT bool gfx_has_mx_intrinsics();
 
 MIGRAPHX_GPU_EXPORT bool gfx_has_fp8fnuz_support();
+
+MIGRAPHX_GPU_EXPORT bool gfx_prefers_nhwc_layout(std::string_view gfx_name);
+
+MIGRAPHX_GPU_EXPORT bool gfx_prefers_nhwc_layout();
+
+MIGRAPHX_GPU_EXPORT bool gfx_prefers_mlir_attention(std::string_view gfx_name);
+
+MIGRAPHX_GPU_EXPORT bool gfx_prefers_mlir_attention();
 
 #if MIGRAPHX_USE_HIPBLASLT
 MIGRAPHX_GPU_EXPORT bool gfx_default_rocblas();

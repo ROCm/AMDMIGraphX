@@ -27,9 +27,13 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/fileutils.hpp>
+#include <migraphx/hash.hpp>
 #include <cassert>
 #include <iostream>
 #include <deque>
+#include <future>
+#include <mutex>
+#include <unordered_map>
 
 #ifdef MIGRAPHX_USE_HIPRTC
 #include <hip/hiprtc.h>
@@ -57,9 +61,137 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_ASM);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_SRC);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_HIP_FLAGS);
 
+namespace {
+struct cached_src_file
+{
+    std::string path    = {};
+    std::string content = {};
+};
+
+bool operator==(const cached_src_file& x, const cached_src_file& y)
+{
+    return x.path == y.path and x.content == y.content;
+}
+
+struct hip_compile_cache_key
+{
+    std::string mode              = {};
+    std::vector<cached_src_file> srcs = {};
+    std::vector<std::string> flags    = {};
+};
+
+bool operator==(const hip_compile_cache_key& x, const hip_compile_cache_key& y)
+{
+    return x.mode == y.mode and x.srcs == y.srcs and x.flags == y.flags;
+}
+
+struct hip_compile_cache_key_hash
+{
+    std::size_t operator()(const hip_compile_cache_key& key) const
+    {
+        std::size_t seed = hash_value(key.mode);
+        for(const auto& src : key.srcs)
+        {
+            hash_combine(seed, src.path);
+            hash_combine(seed, src.content);
+        }
+        for(const auto& flag : key.flags)
+        {
+            hash_combine(seed, flag);
+        }
+        return seed;
+    }
+};
+
+using hip_compile_cache_entry = std::shared_future<std::vector<std::vector<char>>>;
+
+struct hip_compile_cache
+{
+    template <class F>
+    std::vector<std::vector<char>> get_or_compile(hip_compile_cache_key key, F compile)
+    {
+        std::shared_ptr<std::promise<std::vector<std::vector<char>>>> promise;
+        hip_compile_cache_entry future;
+        bool should_compile = false;
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            auto it = cache.find(key);
+            if(it == cache.end())
+            {
+                promise        = std::make_shared<std::promise<std::vector<std::vector<char>>>>();
+                future         = promise->get_future().share();
+                it             = cache.emplace(key, future).first;
+                should_compile = true;
+            }
+            future = it->second;
+        }
+
+        if(should_compile)
+        {
+            try
+            {
+                promise->set_value(compile());
+            }
+            catch(...)
+            {
+                promise->set_exception(std::current_exception());
+                std::lock_guard<std::mutex> lock(mutex);
+                auto it = cache.find(key);
+                if(it != cache.end())
+                    cache.erase(it);
+            }
+        }
+
+        return future.get();
+    }
+
+    std::mutex mutex;
+    std::unordered_map<hip_compile_cache_key, hip_compile_cache_entry, hip_compile_cache_key_hash>
+        cache = {};
+};
+
+std::vector<std::string> make_hiprtc_options(const std::vector<std::string>& params,
+                                             const std::string& arch)
+{
+    auto options = params;
+    options.push_back("-DMIGRAPHX_USE_HIPRTC=1");
+    if(enabled(MIGRAPHX_GPU_DEBUG{}))
+        options.push_back("-DMIGRAPHX_DEBUG");
+    if(std::none_of(options.begin(), options.end(), [](const std::string& s) {
+           return starts_with(s, "--std=") or starts_with(s, "-std=");
+       }))
+        options.push_back("-std=c++17");
+    options.push_back("-fno-gpu-rdc");
+    options.push_back("-O" + string_value_of(MIGRAPHX_GPU_OPTIMIZE{}, "3"));
+    options.push_back("-Wno-cuda-compat");
+    options.push_back("--offload-arch=" + arch);
+    auto extra_flags = split_string(string_value_of(MIGRAPHX_GPU_HIP_FLAGS{}, ""), ' ');
+    options.insert(options.end(), extra_flags.begin(), extra_flags.end());
+    return options;
+}
+
+hip_compile_cache_key make_hip_compile_cache_key(const std::string& mode,
+                                                 const std::vector<src_file>& srcs,
+                                                 std::vector<std::string> flags)
+{
+    hip_compile_cache_key key;
+    key.mode = mode;
+    key.srcs.reserve(srcs.size());
+    std::transform(srcs.begin(), srcs.end(), std::back_inserter(key.srcs), [](const src_file& src) {
+        return cached_src_file{src.path.string(), std::string(src.content)};
+    });
+    key.flags = std::move(flags);
+    return key;
+}
+
+hip_compile_cache& get_hip_compile_cache()
+{
+    static hip_compile_cache result;
+    return result;
+}
+
 #ifdef MIGRAPHX_USE_HIPRTC
 
-namespace {
 std::string hiprtc_error(hiprtcResult err, const std::string& msg)
 {
     return "hiprtc: " + (hiprtcGetErrorString(err) + (": " + msg));
@@ -205,22 +337,7 @@ std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_sr
                                                            bool quiet)
 {
     hiprtc_program prog(std::move(srcs));
-    auto options = params;
-    options.push_back("-DMIGRAPHX_USE_HIPRTC=1");
-    if(enabled(MIGRAPHX_GPU_DEBUG{}))
-        options.push_back("-DMIGRAPHX_DEBUG");
-    if(std::none_of(options.begin(), options.end(), [](const std::string& s) {
-           return starts_with(s, "--std=") or starts_with(s, "-std=");
-       }))
-        options.push_back("-std=c++17");
-    options.push_back("-fno-gpu-rdc");
-    options.push_back("-O" + string_value_of(MIGRAPHX_GPU_OPTIMIZE{}, "3"));
-    options.push_back("-Wno-cuda-compat");
-    options.push_back("--offload-arch=" + arch);
-    std::vector<std::string> extra_flags =
-        split_string(string_value_of(MIGRAPHX_GPU_HIP_FLAGS{}, ""), ' ');
-    options.insert(options.end(), extra_flags.begin(), extra_flags.end());
-
+    auto options = make_hiprtc_options(params, arch);
     prog.compile(options, quiet);
 
     return {prog.get_code_obj()};
@@ -255,21 +372,25 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
 
     if(found)
     {
+        auto options = make_hiprtc_options(params, arch);
+        auto key     = make_hip_compile_cache_key("hiprtc", srcs, options);
         value v;
         v["srcs"]   = to_value(hsrcs);
         v["params"] = to_value(params);
         v["arch"]   = to_value(arch);
         v["quiet"]  = quiet;
 
-        tmp_dir td{};
-        auto out = td.path / "output";
+        return get_hip_compile_cache().get_or_compile(std::move(key), [&] {
+            tmp_dir td{};
+            auto out = td.path / "output";
 
-        process(driver, {quote_string(out.string())}).write([&](auto writer) {
-            to_msgpack(v, std::move(writer));
+            process(driver, {quote_string(out.string())}).write([&](auto writer) {
+                to_msgpack(v, std::move(writer));
+            });
+            if(fs::exists(out))
+                return std::vector<std::vector<char>>{read_buffer(out)};
+            MIGRAPHX_THROW("hiprtc compilation failed!");
         });
-        if(fs::exists(out))
-            return {read_buffer(out)};
-        MIGRAPHX_THROW("hiprtc compilation failed!");
     }
     return compile_hip_src_with_hiprtc(std::move(hsrcs), params, arch, quiet);
 }
@@ -364,7 +485,14 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         std::cout << assemble(compiler).compile(srcs).data() << std::endl;
     }
 
-    return {compiler.compile(srcs)};
+    auto key = make_hip_compile_cache_key("hip-clang", srcs, compiler.flags);
+    key.flags.push_back("compiler=" + compiler.compiler.string());
+    if(not compiler.launcher.empty())
+        key.flags.push_back("launcher=" + compiler.launcher.string());
+
+    return get_hip_compile_cache().get_or_compile(std::move(key),
+                                                  [&] { return std::vector<std::vector<char>>{
+                                                             compiler.compile(srcs)}; });
 }
 
 #endif // MIGRAPHX_USE_HIPRTC

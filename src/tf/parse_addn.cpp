@@ -43,7 +43,7 @@ struct parse_addn : op_parser<parse_addn>
         if(args.size() == 1)
             return args[0];
 
-        if(args.size() < 5) // using heuristic when args exceed over 5 elements
+        if(args.size() < 5) // using chain addition when args are less than 5 elements
         {
             instruction_ref sum = args[0];
             for(auto i = 1; i < args.size(); i++)

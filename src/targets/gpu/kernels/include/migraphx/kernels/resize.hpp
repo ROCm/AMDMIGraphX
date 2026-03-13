@@ -199,7 +199,7 @@ MIGRAPHX_DEVICE_CONSTEXPR cubic_params compute_cubic_params_1d(
 
     float coord = CoordOp{}(in_len, out_len, out_idx, scale);
     // Use signed arithmetic to avoid underflow when base is 0 and we compute base-1
-    diff_int base_i = static_cast<diff_int>(migraphx::floor(coord));
+    diff_int base_i = migraphx::floor(coord);
 
     for(diff_int i = 0; i < 4; ++i)
     {
@@ -208,7 +208,7 @@ MIGRAPHX_DEVICE_CONSTEXPR cubic_params compute_cubic_params_1d(
         result.weights[i] = cubic_kernel(t, cubic_a);
         // Clamp to valid range [0, in_len-1]
         result.indices[i] =
-            static_cast<index_int>(max(diff_int{0}, min(pos, static_cast<diff_int>(in_len - 1))));
+            max(diff_int{0}, min(pos, static_cast<diff_int>(in_len - 1)));
     }
 
     return result;

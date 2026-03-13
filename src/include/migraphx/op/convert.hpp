@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -65,9 +65,7 @@ struct convert : unary<convert>
     {
         auto type = target_type;
         return [type](auto x) {
-            // Needs to be double and not auto, otherwise casting inf/-inf to int32_t will cause
-            // overflow/underflow
-            double y = x;
+            auto y = x;
             shape::visit(type, [&](auto as) {
                 // clamping value between target_type's max and min doesn't work for NaNs,
                 if(std::isnan(static_cast<double>(x)))
@@ -80,11 +78,6 @@ struct convert : unary<convert>
                     // avoid undefined behaviour
                     y = as(std::min(std::max(static_cast<double>(x), static_cast<double>(as.min())),
                                     static_cast<double>(as.max())));
-                }
-                // If inf or -inf, use value as is instead of clamping to min/max
-                else if(not shape::is_integral(type) and std::isinf(static_cast<double>(x)))
-                {
-                    y = as(x);
                 }
                 else
                 {

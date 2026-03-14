@@ -325,7 +325,7 @@ struct resize
             for(std::size_t d = 0; d < ndim; ++d)
             {
                 std::size_t neighbor_idx = tc % 4;
-                tc >>= 2;
+                tc >>= 2ULL;
                 w *= params[d].weights[neighbor_idx];
                 in_idx[d] = params[d].indices[neighbor_idx];
             }

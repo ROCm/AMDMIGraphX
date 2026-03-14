@@ -23,276 +23,204 @@
  */
 
 #include <migraphx/symbolic.hpp>
-#include <migraphx/serialize.hpp>
+#include <migraphx/shape.hpp>
 #include <migraphx/value.hpp>
+#include <migraphx/serialize.hpp>
 
+#include <symengine/expression.h>
+#include <symengine/integer.h>
+#include <symengine/symbol.h>
 #include <symengine/visitor.h>
+#include <symengine/parser.h>
 
 #include <sstream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-symbolic_dim::symbolic_dim(std::size_t value)
-    : expr(SymEngine::integer(value)), min(value), max(value)
+// ---------------------------------------------------------------------------
+// symbolic_expr pimpl
+// ---------------------------------------------------------------------------
+
+struct symbolic_expr::impl
+{
+    SymEngine::Expression expr;
+
+    impl() : expr(0) {}
+    explicit impl(SymEngine::Expression e) : expr(std::move(e)) {}
+};
+
+symbolic_expr::symbolic_expr() = default;
+
+symbolic_expr::symbolic_expr(std::shared_ptr<const impl> pi) : p(std::move(pi)) {}
+
+symbolic_expr::symbolic_expr(std::size_t n)
+    : p(std::make_shared<impl>(SymEngine::Expression(SymEngine::integer(n))))
 {
 }
 
-symbolic_dim::symbolic_dim(const std::string& name,
-                           std::size_t min_val,
-                           std::size_t max_val,
-                           std::set<std::size_t> opt)
-    : expr(SymEngine::symbol(name)), min(min_val), max(max_val), optimals(std::move(opt))
+symbolic_expr::symbolic_expr(const std::string& s)
 {
+    if(s.empty())
+        return;
+    p = std::make_shared<impl>(SymEngine::Expression(SymEngine::parse(s)));
 }
 
-symbolic_dim::symbolic_dim(SymEngine::Expression e,
-                           std::size_t min_val,
-                           std::size_t max_val,
-                           std::set<std::size_t> opt)
-    : expr(std::move(e)), min(min_val), max(max_val), optimals(std::move(opt))
-{
-}
+bool symbolic_expr::empty() const { return p == nullptr; }
 
-symbolic_dim::symbolic_dim(const shape::dynamic_dimension& dd)
-    : expr(SymEngine::integer(dd.is_fixed() ? dd.min : 0)),
-      min(dd.min),
-      max(dd.max),
-      optimals(dd.optimals)
+std::string symbolic_expr::to_string() const
 {
-}
-
-bool symbolic_dim::is_fixed() const { return min == max; }
-
-std::string symbolic_dim::to_string() const
-{
+    if(empty())
+        return {};
     std::stringstream ss;
-    ss << expr;
+    ss << p->expr;
     return ss.str();
 }
 
-shape::dynamic_dimension symbolic_dim::to_dynamic_dimension() const
+symbolic_expr operator+(const symbolic_expr& a, const symbolic_expr& b)
 {
-    return shape::dynamic_dimension{min, max, optimals};
+    if(a.empty() and b.empty())
+        return {};
+    auto ea = a.p ? a.p->expr : SymEngine::Expression(0);
+    auto eb = b.p ? b.p->expr : SymEngine::Expression(0);
+    return {std::make_shared<symbolic_expr::impl>(ea + eb)};
 }
 
-std::optional<symbolic_dim> symbolic_dim::intersection(const symbolic_dim& other) const
+symbolic_expr operator-(const symbolic_expr& a, const symbolic_expr& b)
 {
-    auto left  = std::max(this->min, other.min);
-    auto right = std::min(this->max, other.max);
-    if(left <= right)
-    {
-        auto result_expr = (not this->is_fixed()) ? this->expr : other.expr;
-        return symbolic_dim{result_expr, left, right};
-    }
-    return std::nullopt;
+    if(a.empty() and b.empty())
+        return {};
+    auto ea = a.p ? a.p->expr : SymEngine::Expression(0);
+    auto eb = b.p ? b.p->expr : SymEngine::Expression(0);
+    return {std::make_shared<symbolic_expr::impl>(ea - eb)};
 }
 
-// symbolic_dim + symbolic_dim
-symbolic_dim& symbolic_dim::operator+=(const symbolic_dim& x)
+symbolic_expr operator*(const symbolic_expr& a, const symbolic_expr& b)
 {
-    expr = expr + x.expr;
-    min  = min + x.min;
-    max  = (max > std::numeric_limits<std::size_t>::max() - x.max)
-               ? std::numeric_limits<std::size_t>::max()
-               : max + x.max;
+    if(a.empty() and b.empty())
+        return {};
+    auto ea = a.p ? a.p->expr : SymEngine::Expression(0);
+    auto eb = b.p ? b.p->expr : SymEngine::Expression(0);
+    return {std::make_shared<symbolic_expr::impl>(ea * eb)};
+}
+
+symbolic_expr operator/(const symbolic_expr& a, const symbolic_expr& b)
+{
+    if(a.empty() and b.empty())
+        return {};
+    auto ea = a.p ? a.p->expr : SymEngine::Expression(0);
+    auto eb = b.p ? b.p->expr : SymEngine::Expression(0);
+    return {std::make_shared<symbolic_expr::impl>(ea / eb)};
+}
+
+bool operator==(const symbolic_expr& a, const symbolic_expr& b)
+{
+    if(a.empty() and b.empty())
+        return true;
+    if(a.empty() != b.empty())
+        return false;
+    return SymEngine::eq(*a.p->expr.get_basic(), *b.p->expr.get_basic());
+}
+
+bool operator!=(const symbolic_expr& a, const symbolic_expr& b) { return not(a == b); }
+
+std::ostream& operator<<(std::ostream& os, const symbolic_expr& e)
+{
+    if(not e.empty())
+        os << e.p->expr;
+    return os;
+}
+
+void migraphx_to_value(value& v, const symbolic_expr& e)
+{
+    v = migraphx::to_value(e.to_string());
+}
+
+void migraphx_from_value(const value& v, symbolic_expr& e)
+{
+    auto s = v.get_string();
+    if(s.empty())
+        e = symbolic_expr{};
+    else
+        e = symbolic_expr(s);
+}
+
+// ---------------------------------------------------------------------------
+// dynamic_dimension dd-to-dd arithmetic
+// ---------------------------------------------------------------------------
+
+using dd = shape::dynamic_dimension;
+
+dd& dd::operator+=(const dd& x)
+{
+    auto e = sym.value_or(symbolic_expr(min)) + x.sym.value_or(symbolic_expr(x.min));
+    min    = min + x.min;
+    max    = (max > std::numeric_limits<std::size_t>::max() - x.max)
+                 ? std::numeric_limits<std::size_t>::max()
+                 : max + x.max;
     optimals.clear();
+    sym = (sym or x.sym) ? optional<symbolic_expr>(e) : nullopt;
     return *this;
 }
 
-symbolic_dim& symbolic_dim::operator-=(const symbolic_dim& x)
+dd& dd::operator-=(const dd& x)
 {
-    expr = expr - x.expr;
-    min  = (min > x.max) ? min - x.max : 0;
-    max  = (max > x.min) ? max - x.min : 0;
+    auto e = sym.value_or(symbolic_expr(min)) - x.sym.value_or(symbolic_expr(x.min));
+    min    = (min > x.max) ? min - x.max : 0;
+    max    = (max > x.min) ? max - x.min : 0;
     optimals.clear();
+    sym = (sym or x.sym) ? optional<symbolic_expr>(e) : nullopt;
     return *this;
 }
 
-symbolic_dim& symbolic_dim::operator*=(const symbolic_dim& x)
+dd& dd::operator*=(const dd& x)
 {
-    expr = expr * x.expr;
-    min  = min * x.min;
-    max  = (max > std::numeric_limits<std::size_t>::max() / (x.max == 0 ? 1 : x.max))
-               ? std::numeric_limits<std::size_t>::max()
-               : max * x.max;
+    auto e = sym.value_or(symbolic_expr(min)) * x.sym.value_or(symbolic_expr(x.min));
+    min    = min * x.min;
+    max    = (max > std::numeric_limits<std::size_t>::max() / (x.max == 0 ? 1 : x.max))
+                 ? std::numeric_limits<std::size_t>::max()
+                 : max * x.max;
     optimals.clear();
+    sym = (sym or x.sym) ? optional<symbolic_expr>(e) : nullopt;
     return *this;
 }
 
-symbolic_dim operator+(const symbolic_dim& x, const symbolic_dim& y)
+dd& dd::operator/=(const dd& x)
+{
+    auto e = sym.value_or(symbolic_expr(min)) / x.sym.value_or(symbolic_expr(x.min));
+    min    = (x.max == 0) ? 0 : min / x.max;
+    max    = (x.min == 0) ? std::numeric_limits<std::size_t>::max() : max / x.min;
+    optimals.clear();
+    sym = (sym or x.sym) ? optional<symbolic_expr>(e) : nullopt;
+    return *this;
+}
+
+dd operator+(const dd& x, const dd& y)
 {
     auto result = x;
     result += y;
     return result;
 }
 
-symbolic_dim operator-(const symbolic_dim& x, const symbolic_dim& y)
+dd operator-(const dd& x, const dd& y)
 {
     auto result = x;
     result -= y;
     return result;
 }
 
-symbolic_dim operator*(const symbolic_dim& x, const symbolic_dim& y)
+dd operator*(const dd& x, const dd& y)
 {
     auto result = x;
     result *= y;
     return result;
 }
 
-symbolic_dim& symbolic_dim::operator/=(const symbolic_dim& x)
-{
-    expr = expr / x.expr;
-    min  = (x.max == 0) ? 0 : min / x.max;
-    max  = (x.min == 0) ? std::numeric_limits<std::size_t>::max() : max / x.min;
-    optimals.clear();
-    return *this;
-}
-
-symbolic_dim operator/(const symbolic_dim& x, const symbolic_dim& y)
+dd operator/(const dd& x, const dd& y)
 {
     auto result = x;
     result /= y;
     return result;
-}
-
-// symbolic_dim + size_t
-symbolic_dim& symbolic_dim::operator+=(const std::size_t& x)
-{
-    expr = expr + SymEngine::Expression(SymEngine::integer(x));
-    min += x;
-    max = (max > std::numeric_limits<std::size_t>::max() - x)
-              ? std::numeric_limits<std::size_t>::max()
-              : max + x;
-    optimals.clear();
-    return *this;
-}
-
-symbolic_dim& symbolic_dim::operator-=(const std::size_t& x)
-{
-    expr = expr - SymEngine::Expression(SymEngine::integer(x));
-    min  = (min > x) ? min - x : 0;
-    max  = (max > x) ? max - x : 0;
-    optimals.clear();
-    return *this;
-}
-
-symbolic_dim& symbolic_dim::operator*=(const std::size_t& x)
-{
-    expr = expr * SymEngine::Expression(SymEngine::integer(x));
-    min *= x;
-    max = (x != 0 and max > std::numeric_limits<std::size_t>::max() / x)
-              ? std::numeric_limits<std::size_t>::max()
-              : max * x;
-    optimals.clear();
-    return *this;
-}
-
-symbolic_dim operator+(const symbolic_dim& x, const std::size_t& y)
-{
-    auto result = x;
-    result += y;
-    return result;
-}
-
-symbolic_dim operator+(const std::size_t& x, const symbolic_dim& y)
-{
-    return y + x;
-}
-
-symbolic_dim operator-(const symbolic_dim& x, const std::size_t& y)
-{
-    auto result = x;
-    result -= y;
-    return result;
-}
-
-symbolic_dim operator*(const symbolic_dim& x, const std::size_t& y)
-{
-    auto result = x;
-    result *= y;
-    return result;
-}
-
-symbolic_dim operator*(const std::size_t& x, const symbolic_dim& y)
-{
-    return y * x;
-}
-
-bool operator==(const symbolic_dim& x, const symbolic_dim& y)
-{
-    return x.expr == y.expr and x.min == y.min and x.max == y.max;
-}
-
-bool operator!=(const symbolic_dim& x, const symbolic_dim& y) { return not(x == y); }
-
-std::ostream& operator<<(std::ostream& os, const symbolic_dim& x)
-{
-    os << x.to_string();
-    if(not x.is_fixed())
-        os << "[" << x.min << ".." << x.max << "]";
-    return os;
-}
-
-void migraphx_to_value(value& v, const symbolic_dim& sd)
-{
-    value result   = value::object{};
-    result["expr"] = migraphx::to_value(sd.to_string());
-    result["min"]  = migraphx::to_value(sd.min);
-    result["max"]  = migraphx::to_value(sd.max);
-    result["optimals"] = migraphx::to_value(sd.optimals);
-    v = result;
-}
-
-void migraphx_from_value(const value& v, symbolic_dim& sd)
-{
-    auto expr_str = v.at("expr").get_string();
-    sd.expr       = SymEngine::Expression(expr_str);
-    sd.min        = from_value<std::size_t>(v.at("min"));
-    sd.max        = from_value<std::size_t>(v.at("max"));
-    sd.optimals   = from_value<std::set<std::size_t>>(v.at("optimals"));
-}
-
-// symbolic_stride
-
-symbolic_stride::symbolic_stride(std::size_t value)
-    : expr(SymEngine::integer(value))
-{
-}
-
-symbolic_stride::symbolic_stride(SymEngine::Expression e) : expr(std::move(e)) {}
-
-symbolic_stride::symbolic_stride(const symbolic_dim& sd) : expr(sd.expr) {}
-
-std::string symbolic_stride::to_string() const
-{
-    std::stringstream ss;
-    ss << expr;
-    return ss.str();
-}
-
-bool operator==(const symbolic_stride& x, const symbolic_stride& y)
-{
-    return x.expr == y.expr;
-}
-
-bool operator!=(const symbolic_stride& x, const symbolic_stride& y) { return not(x == y); }
-
-std::ostream& operator<<(std::ostream& os, const symbolic_stride& x)
-{
-    os << x.to_string();
-    return os;
-}
-
-void migraphx_to_value(value& v, const symbolic_stride& ss)
-{
-    v = migraphx::to_value(ss.to_string());
-}
-
-void migraphx_from_value(const value& v, symbolic_stride& ss)
-{
-    ss.expr = SymEngine::Expression(v.get_string());
 }
 
 } // namespace MIGRAPHX_INLINE_NS

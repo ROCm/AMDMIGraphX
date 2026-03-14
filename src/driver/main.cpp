@@ -187,6 +187,7 @@ struct loader
     bool optimize               = false;
     bool mlir                   = false;
     bool skip_unknown_operators = false;
+    bool sym_shapes             = false;
     bool brief                  = false;
     bool verbose                = false;
     std::string output_type;
@@ -219,6 +220,10 @@ struct loader
         ap(skip_unknown_operators,
            {"--skip-unknown-operators"},
            ap.help("Skip unknown operators when parsing and continue to parse."),
+           ap.set_value(true));
+        ap(sym_shapes,
+           {"--sym-shapes"},
+           ap.help("Use symbolic shapes for dynamic dimensions."),
            ap.set_value(true));
         ap(is_nhwc, {"--nchw"}, ap.help("Treat tensorflow format as nchw"), ap.set_value(false));
         ap(trim, {"--trim", "-t"}, ap.help("Trim instructions from the end"));
@@ -403,6 +408,7 @@ struct loader
             options.default_dyn_dim_value = from_value<migraphx::shape::dynamic_dimension>(v);
         }
         options.skip_unknown_operators = skip_unknown_operators;
+        options.use_symbolic_shapes    = sym_shapes;
         options.print_program_on_error = true;
         options.map_input_dims         = map_input_dims;
         options.map_dyn_input_dims     = map_dyn_input_dims;

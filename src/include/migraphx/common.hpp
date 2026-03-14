@@ -107,11 +107,10 @@ MIGRAPHX_EXPORT
 std::vector<shape::dynamic_dimension> compute_common_dyn_dims(const std::vector<shape>& shapes);
 
 /**
- * @brief Compute the common (broadcasted) symbolic shape of a list of symbolic shapes.
- * Falls back to dynamic_dimension broadcasting if no inputs are symbolic.
+ * @brief Compute the common (broadcasted) dynamic shape with strides.
  */
 MIGRAPHX_EXPORT
-shape compute_common_sym_shape(const std::vector<shape>& shapes);
+shape compute_common_dyn_shape(const std::vector<shape>& shapes);
 
 /**
  * @brief  Creates and adds instructions to convert input arguments to common shapes and types

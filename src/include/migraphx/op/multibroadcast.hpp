@@ -94,18 +94,13 @@ struct multibroadcast
         {
             // 2+ inputs
             if(std::any_of(
-                   inputs.cbegin(), inputs.cend(), [](auto input) { return input.symbolic(); }))
-            {
-                return compute_common_sym_shape(inputs);
-            }
-            else if(std::any_of(
-                        inputs.cbegin(), inputs.cend(), [](auto input) { return input.dynamic(); }))
+                   inputs.cbegin(), inputs.cend(), [](auto input) { return input.dynamic(); }))
             {
                 if(not output_dyn_dims.empty())
                 {
                     return {t, output_dyn_dims};
                 }
-                return {t, compute_common_dyn_dims(inputs)};
+                return compute_common_dyn_shape(inputs);
             }
             else
             {

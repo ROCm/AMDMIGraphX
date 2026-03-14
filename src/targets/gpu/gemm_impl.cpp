@@ -92,8 +92,8 @@ void blas_shape(const shape& in_shape)
     if(s.lens().size() < 3)
         return;
     shape batch_shape{s.type(),
-                      {s.lens().begin(), s.lens().end() - 2},
-                      {s.strides().begin(), s.strides().end() - 2}};
+                      std::vector<std::size_t>(s.lens().begin(), s.lens().end() - 2),
+                      std::vector<std::size_t>(s.strides().begin(), s.strides().end() - 2)};
     auto batch_shapes = reduce_dims({batch_shape});
     if(batch_shapes.front().lens().size() != 1)
         MIGRAPHX_THROW("GPU_GEMM: Batch dimension is not collapsible");

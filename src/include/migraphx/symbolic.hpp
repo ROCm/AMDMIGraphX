@@ -25,94 +25,47 @@
 #define MIGRAPHX_GUARD_MIGRAPHLIB_SYMBOLIC_HPP
 
 #include <cstddef>
-#include <optional>
+#include <memory>
 #include <ostream>
-#include <set>
 #include <string>
-#include <vector>
-
-#include <symengine/expression.h>
-#include <symengine/integer.h>
-#include <symengine/symbol.h>
 
 #include <migraphx/config.hpp>
-#include <migraphx/shape.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct value;
 
-struct MIGRAPHX_EXPORT symbolic_dim
+struct MIGRAPHX_EXPORT symbolic_expr
 {
-    SymEngine::Expression expr = SymEngine::Expression(0);
-    std::size_t min            = 0;
-    std::size_t max            = 0;
-    std::set<std::size_t> optimals{};
+    symbolic_expr();
+    explicit symbolic_expr(std::size_t n);
+    explicit symbolic_expr(const std::string& s);
 
-    symbolic_dim() = default;
-
-    symbolic_dim(std::size_t value);
-
-    symbolic_dim(const std::string& name, std::size_t min_val, std::size_t max_val,
-                 std::set<std::size_t> opt = {});
-
-    symbolic_dim(SymEngine::Expression e, std::size_t min_val, std::size_t max_val,
-                 std::set<std::size_t> opt = {});
-
-    explicit symbolic_dim(const shape::dynamic_dimension& dd);
-
-    bool is_fixed() const;
+    bool empty() const;
     std::string to_string() const;
 
-    shape::dynamic_dimension to_dynamic_dimension() const;
+    MIGRAPHX_EXPORT friend symbolic_expr operator+(const symbolic_expr& a,
+                                                   const symbolic_expr& b);
+    MIGRAPHX_EXPORT friend symbolic_expr operator-(const symbolic_expr& a,
+                                                   const symbolic_expr& b);
+    MIGRAPHX_EXPORT friend symbolic_expr operator*(const symbolic_expr& a,
+                                                   const symbolic_expr& b);
+    MIGRAPHX_EXPORT friend symbolic_expr operator/(const symbolic_expr& a,
+                                                   const symbolic_expr& b);
+    MIGRAPHX_EXPORT friend bool operator==(const symbolic_expr& a, const symbolic_expr& b);
+    MIGRAPHX_EXPORT friend bool operator!=(const symbolic_expr& a, const symbolic_expr& b);
+    MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const symbolic_expr& e);
 
-    std::optional<symbolic_dim> intersection(const symbolic_dim& other) const;
+    struct impl;
 
-    symbolic_dim& operator+=(const symbolic_dim& x);
-    symbolic_dim& operator-=(const symbolic_dim& x);
-    symbolic_dim& operator*=(const symbolic_dim& x);
-    symbolic_dim& operator/=(const symbolic_dim& x);
-    MIGRAPHX_EXPORT friend symbolic_dim operator+(const symbolic_dim& x, const symbolic_dim& y);
-    MIGRAPHX_EXPORT friend symbolic_dim operator-(const symbolic_dim& x, const symbolic_dim& y);
-    MIGRAPHX_EXPORT friend symbolic_dim operator*(const symbolic_dim& x, const symbolic_dim& y);
-    MIGRAPHX_EXPORT friend symbolic_dim operator/(const symbolic_dim& x, const symbolic_dim& y);
-
-    symbolic_dim& operator+=(const std::size_t& x);
-    symbolic_dim& operator-=(const std::size_t& x);
-    symbolic_dim& operator*=(const std::size_t& x);
-    MIGRAPHX_EXPORT friend symbolic_dim operator+(const symbolic_dim& x, const std::size_t& y);
-    MIGRAPHX_EXPORT friend symbolic_dim operator+(const std::size_t& x, const symbolic_dim& y);
-    MIGRAPHX_EXPORT friend symbolic_dim operator-(const symbolic_dim& x, const std::size_t& y);
-    MIGRAPHX_EXPORT friend symbolic_dim operator*(const symbolic_dim& x, const std::size_t& y);
-    MIGRAPHX_EXPORT friend symbolic_dim operator*(const std::size_t& x, const symbolic_dim& y);
-
-    MIGRAPHX_EXPORT friend bool operator==(const symbolic_dim& x, const symbolic_dim& y);
-    MIGRAPHX_EXPORT friend bool operator!=(const symbolic_dim& x, const symbolic_dim& y);
-    MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const symbolic_dim& x);
+    private:
+    symbolic_expr(std::shared_ptr<const impl> pi);
+    std::shared_ptr<const impl> p;
 };
 
-MIGRAPHX_EXPORT void migraphx_to_value(value& v, const symbolic_dim& sd);
-MIGRAPHX_EXPORT void migraphx_from_value(const value& v, symbolic_dim& sd);
-
-struct MIGRAPHX_EXPORT symbolic_stride
-{
-    SymEngine::Expression expr = SymEngine::Expression(0);
-
-    symbolic_stride() = default;
-    symbolic_stride(std::size_t value);
-    symbolic_stride(SymEngine::Expression e);
-    symbolic_stride(const symbolic_dim& sd);
-
-    std::string to_string() const;
-
-    MIGRAPHX_EXPORT friend bool operator==(const symbolic_stride& x, const symbolic_stride& y);
-    MIGRAPHX_EXPORT friend bool operator!=(const symbolic_stride& x, const symbolic_stride& y);
-    MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const symbolic_stride& x);
-};
-
-MIGRAPHX_EXPORT void migraphx_to_value(value& v, const symbolic_stride& ss);
-MIGRAPHX_EXPORT void migraphx_from_value(const value& v, symbolic_stride& ss);
+MIGRAPHX_EXPORT void migraphx_to_value(value& v, const symbolic_expr& e);
+MIGRAPHX_EXPORT void migraphx_from_value(const value& v, symbolic_expr& e);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

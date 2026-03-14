@@ -39,6 +39,7 @@
 #include <migraphx/bf16.hpp>
 #include <migraphx/float8.hpp>
 #include <migraphx/serialize.hpp>
+#include <migraphx/symbolic.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
@@ -46,8 +47,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct value;
 struct shape_impl;
-struct symbolic_dim;
-struct symbolic_stride;
 
 struct MIGRAPHX_EXPORT shape
 {
@@ -101,19 +100,33 @@ struct MIGRAPHX_EXPORT shape
         std::size_t min = 0;
         std::size_t max = 0;
         std::set<std::size_t> optimals{};
+        optional<symbolic_expr> sym;
+
+        dynamic_dimension() = default;
+        dynamic_dimension(std::size_t min_v, std::size_t max_v)
+            : min(min_v), max(max_v) {}
+        dynamic_dimension(std::size_t min_v, std::size_t max_v, std::set<std::size_t> opt)
+            : min(min_v), max(max_v), optimals(std::move(opt)) {}
+        dynamic_dimension(std::size_t min_v, std::size_t max_v, std::set<std::size_t> opt, optional<symbolic_expr> s)
+            : min(min_v), max(max_v), optimals(std::move(opt)), sym(std::move(s)) {}
 
         template <class Self, class F>
         static auto reflect(Self& self, F f)
         {
-            return pack(f(self.min, "min"), f(self.max, "max"), f(self.optimals, "optimals"));
+            return pack(
+                f(self.min, "min"),
+                f(self.max, "max"),
+                f(self.optimals, "optimals"),
+                f(self.sym, "sym"));
         }
 
         bool is_fixed() const;
+        bool is_symbolic() const { return sym.has_value(); }
         bool has_optimal() const;
 
         /**
          * Return a dynamic_dimension with the intersection of two dynamic_dimension ranges if
-         * possible.
+         * possible. Preserves the symbolic expression only when the result is still dynamic.
          */
         std::optional<dynamic_dimension> intersection(const dynamic_dimension& other) const
         {
@@ -121,7 +134,14 @@ struct MIGRAPHX_EXPORT shape
             auto right = std::min(this->max, other.max);
             if(left <= right)
             {
-                return dynamic_dimension{left, right};
+                optional<symbolic_expr> s;
+                if(left != right)
+                {
+                    s = (this->sym.has_value() and not this->is_fixed())
+                            ? this->sym
+                            : other.sym;
+                }
+                return dynamic_dimension{left, right, {}, s};
             }
             return nullopt;
         }
@@ -153,6 +173,20 @@ struct MIGRAPHX_EXPORT shape
                                                            const std::size_t& y);
         MIGRAPHX_EXPORT friend dynamic_dimension operator*(const std::size_t& x,
                                                            const dynamic_dimension& y);
+
+        // dd-to-dd arithmetic (defined in symbolic.cpp)
+        dynamic_dimension& operator+=(const dynamic_dimension& x);
+        dynamic_dimension& operator-=(const dynamic_dimension& x);
+        dynamic_dimension& operator*=(const dynamic_dimension& x);
+        dynamic_dimension& operator/=(const dynamic_dimension& x);
+        MIGRAPHX_EXPORT friend dynamic_dimension operator+(const dynamic_dimension& x,
+                                                           const dynamic_dimension& y);
+        MIGRAPHX_EXPORT friend dynamic_dimension operator-(const dynamic_dimension& x,
+                                                           const dynamic_dimension& y);
+        MIGRAPHX_EXPORT friend dynamic_dimension operator*(const dynamic_dimension& x,
+                                                           const dynamic_dimension& y);
+        MIGRAPHX_EXPORT friend dynamic_dimension operator/(const dynamic_dimension& x,
+                                                           const dynamic_dimension& y);
     };
 
     static std::string to_sizes_string(const std::vector<shape>& shapes);
@@ -180,11 +214,7 @@ struct MIGRAPHX_EXPORT shape
 
     shape(type_t t, std::vector<dynamic_dimension> dims);
 
-    shape(type_t t, std::vector<symbolic_dim> syms);
-
-    static shape from_symbolic(type_t t,
-                               std::vector<symbolic_dim> syms,
-                               std::vector<symbolic_stride> strs);
+    shape(type_t t, std::vector<dynamic_dimension> dims, std::vector<symbolic_expr> dstrides);
 
     // Construct a dynamic shape from vectors of mins, maxes, and optimals.
     // optimals_list is a vector of optimals that corresponds to each min and max.
@@ -254,11 +284,7 @@ struct MIGRAPHX_EXPORT shape
     const std::vector<dynamic_dimension>& dyn_dims() const;
 
     bool symbolic() const;
-    const std::vector<symbolic_dim>& sym_lens() const;
-    const std::vector<symbolic_stride>& sym_strides() const;
-
-    shape with_sym_dims_permuted(const std::vector<int64_t>& perm) const;
-    shape with_sym_dims_reshaped(const std::vector<int64_t>& rdims) const;
+    const std::vector<symbolic_expr>& dyn_strides() const;
 
     /*!
      * Minimum lengths for dynamic shape.
@@ -365,11 +391,8 @@ struct MIGRAPHX_EXPORT shape
 
     shape with_type(type_t t) const;
 
-    // convert the shape to an equivalent dynamic shape with empty optimals
+    // convert the shape to an equivalent dynamic shape with constant symbolic strides
     shape to_dynamic() const;
-
-    // convert the shape to an equivalent symbolic shape with fixed symbolic dims
-    shape to_symbolic() const;
 
     // convert the shape to a static one setting any non-fixed dynamic_dimensions to x
     shape to_static(std::size_t x) const;

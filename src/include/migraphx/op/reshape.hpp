@@ -66,76 +66,40 @@ struct reshape
 
     std::string name() const { return "reshape"; }
 
-    shape sym_compute_shape(std::vector<shape> inputs) const
-    {
-        check_shapes{inputs, *this}.has(1);
-        return inputs.front().with_sym_dims_reshaped(this->dims);
-    }
-
-    // Assumes that the shape from the `dims` attribute will be valid at run-time.
-    // Makes no checks for the validity of the `dims` attribute for the given input shape.
     shape dyn_1arg_compute_shape(shape s0) const
     {
-        auto input_dyn_dims = s0.dyn_dims();
-        const auto neg_dim_num =
-            std::distance(this->dims.begin(), std::find(this->dims.begin(), this->dims.end(), -1));
-        const bool has_negative_dim_attr = neg_dim_num < dims.size();
-        // construct output dynamic shape from dims attribute
-        std::vector<shape::dynamic_dimension> output_dyn_dims(dims.size());
-        // NOTE: input_dyn_dims.size() may not equal dims.size()
+        const auto& input_dyn_dims = s0.dyn_dims();
+        std::vector<shape::dynamic_dimension> rdims(dims.size());
+
         for(std::size_t i = 0; i < dims.size(); ++i)
         {
-            auto d = dims.at(i);
-            if(d == 0)
-            {
-                output_dyn_dims.at(i) = input_dyn_dims.at(i);
-            }
-            else if(d == -1)
-            {
-                output_dyn_dims.at(i) = {1, 1};
-            }
+            if(dims[i] == 0)
+                rdims[i] = input_dyn_dims.at(i);
+            else if(dims[i] == -1)
+                rdims[i] = shape::dynamic_dimension{1, 1};
             else
             {
-                std::size_t u_dim     = d;
-                output_dyn_dims.at(i) = {u_dim, u_dim};
+                auto v = static_cast<std::size_t>(dims[i]);
+                rdims[i] = shape::dynamic_dimension{v, v};
             }
         }
 
-        if(has_negative_dim_attr)
+        auto n_neg_dims = std::count(dims.begin(), dims.end(), -1);
+        if(n_neg_dims > 0)
         {
-            // comparing the -1 dimension against the other dimensions
-
-            // accumulate the minimum and maximum elements in the dimensions before the -1 dimension
-            std::size_t min_cur_elements = 1;
-            std::size_t max_cur_elements = 1;
-            for(const auto& dd : output_dyn_dims)
+            auto total_elements = std::accumulate(
+                input_dyn_dims.begin(), input_dyn_dims.end(), shape::dynamic_dimension{1, 1}, std::multiplies<>{});
+            auto known_elements = std::accumulate(
+                rdims.begin(), rdims.end(), shape::dynamic_dimension{1, 1}, std::multiplies<>{});
+            auto missing_dim = total_elements / known_elements;
+            for(std::size_t i = 0; i < rdims.size(); i++)
             {
-                min_cur_elements = mul_sat(min_cur_elements, dd.min);
-                max_cur_elements = mul_sat(max_cur_elements, dd.max);
+                if(dims[i] == -1)
+                    rdims[i] = missing_dim;
             }
-            // accumulate the elements in the input dimensions
-            std::size_t min_input_elements = 1;
-            std::size_t max_input_elements = 1;
-            for(const auto& dd : input_dyn_dims)
-            {
-                min_input_elements = mul_sat(min_input_elements, dd.min);
-                max_input_elements = mul_sat(max_input_elements, dd.max);
-            }
-
-            // maximum dimensions should never accumulate to zero
-            assert(max_cur_elements != 0);
-
-            std::size_t max_int = std::numeric_limits<std::size_t>::max();
-            // handle 0 dimension value (keep unknown lower bound)
-            std::size_t min_dim =
-                (min_cur_elements == 0) ? 0 : min_input_elements / min_cur_elements;
-            // handle maximum dimension value (keep unknown upper bound)
-            std::size_t max_dim =
-                (max_cur_elements == max_int) ? max_int : max_input_elements / max_cur_elements;
-            shape::dynamic_dimension x_dd   = {min_dim, max_dim};
-            output_dyn_dims.at(neg_dim_num) = x_dd;
         }
-        return {s0.type(), output_dyn_dims};
+
+        return {s0.type(), rdims};
     }
 
     shape static_compute_shape(std::vector<shape> inputs, std::size_t n_neg_dims) const
@@ -187,11 +151,7 @@ struct reshape
         const auto& s0 = inputs.front();
         if(inputs.size() == 1)
         {
-            if(s0.symbolic())
-            {
-                return sym_compute_shape(inputs);
-            }
-            else if(s0.dynamic())
+            if(s0.dynamic())
             {
                 return dyn_1arg_compute_shape(s0);
             }

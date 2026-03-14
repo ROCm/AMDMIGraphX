@@ -71,6 +71,7 @@ static program parse_onnx_from(const onnx_options& options, Ts&&... xs)
     parser.max_loop_iterations    = options.max_loop_iterations;
     parser.limit_max_iterations   = options.limit_max_iterations;
     parser.use_dyn_output         = options.use_dyn_output;
+    parser.use_symbolic_shapes    = options.use_symbolic_shapes;
 
     if(options.print_program_on_error)
     {

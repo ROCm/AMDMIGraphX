@@ -63,17 +63,22 @@ struct transpose
             MIGRAPHX_THROW("TRANSPOSE: Invalid permutation");
         }
 
-        if(input.symbolic())
+        if(input.dynamic())
         {
-            return input.with_sym_dims_permuted(dims);
-        }
-        else if(input.dynamic())
-        {
-            std::vector<shape::dynamic_dimension> output_dyn_dims(input.ndim());
-            std::transform(dims.cbegin(), dims.cend(), output_dyn_dims.begin(), [&](auto dim) {
-                return input.dyn_dims()[dim];
-            });
-            return {input.type(), output_dyn_dims};
+            const auto& dd = input.dyn_dims();
+            std::vector<shape::dynamic_dimension> out_dims(input.ndim());
+            std::transform(
+                dims.cbegin(), dims.cend(), out_dims.begin(), [&](auto d) { return dd[d]; });
+            const auto& ds = input.dyn_strides();
+            if(not ds.empty())
+            {
+                std::vector<symbolic_expr> out_strides(input.ndim());
+                std::transform(dims.cbegin(), dims.cend(), out_strides.begin(), [&](auto d) {
+                    return ds[d];
+                });
+                return {input.type(), std::move(out_dims), std::move(out_strides)};
+            }
+            return {input.type(), out_dims};
         }
         else
         {

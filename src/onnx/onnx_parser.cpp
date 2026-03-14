@@ -37,8 +37,7 @@
 #include <migraphx/op/unknown.hpp>
 #include <migraphx/float8.hpp>
 #include <migraphx/env.hpp>
-#include <migraphx/symbolic.hpp>
-#include <onnx.pb.h>
+ #include <onnx.pb.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -61,21 +60,6 @@ static shape shape_from_dyn_dims(shape::type_t shape_type,
     return {shape_type, dyn_dims};
 }
 
-static shape shape_from_sym_dims(shape::type_t shape_type,
-                                 const std::vector<symbolic_dim>& sym_dims)
-{
-    if(std::all_of(
-           sym_dims.begin(), sym_dims.end(), [](const auto& sd) { return sd.is_fixed(); }))
-    {
-        std::vector<std::size_t> dims;
-        std::transform(sym_dims.cbegin(),
-                       sym_dims.cend(),
-                       std::back_inserter(dims),
-                       [](const auto& sd) { return sd.max; });
-        return {shape_type, dims};
-    }
-    return {shape_type, sym_dims};
-}
 
 static onnx_parser::attribute_map get_attributes(const onnx::NodeProto& node)
 {
@@ -450,42 +434,22 @@ parse_inputs(const onnx_parser& parser,
             else if(parser.map_dyn_input_dims.count(name) > 0)
             {
                 shape::type_t shape_type = get_type(input.type().tensor_type().elem_type());
-                const auto& dyn_dims     = parser.map_dyn_input_dims.at(name);
+                auto dyn_dims      = parser.map_dyn_input_dims.at(name);
                 auto&& tensor_dims = input.type().tensor_type().shape().dim();
 
-                bool has_dim_params =
-                    std::any_of(tensor_dims.begin(), tensor_dims.end(), [](auto&& d) {
-                        return d.has_dim_param() and not d.dim_param().empty();
-                    });
-
-                if(has_dim_params)
+                if(parser.use_symbolic_shapes)
                 {
-                    std::vector<symbolic_dim> sym_dims;
-                    sym_dims.reserve(dyn_dims.size());
                     for(std::size_t i = 0; i < dyn_dims.size(); ++i)
                     {
-                        const auto& dd = dyn_dims[i];
                         if(i < static_cast<std::size_t>(tensor_dims.size()) and
                            tensor_dims[static_cast<int>(i)].has_dim_param() and
                            not tensor_dims[static_cast<int>(i)].dim_param().empty())
                         {
-                            sym_dims.emplace_back(
-                                tensor_dims[static_cast<int>(i)].dim_param(),
-                                dd.min,
-                                dd.max,
-                                dd.optimals);
-                        }
-                        else
-                        {
-                            sym_dims.emplace_back(dd);
+                            dyn_dims[i].sym = symbolic_expr(tensor_dims[static_cast<int>(i)].dim_param());
                         }
                     }
-                    s = shape_from_sym_dims(shape_type, sym_dims);
                 }
-                else
-                {
-                    s = shape_from_dyn_dims(shape_type, dyn_dims);
-                }
+                s = shape_from_dyn_dims(shape_type, dyn_dims);
             }
             else
             {
@@ -651,7 +615,8 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
     std::unordered_map<std::string, instruction_ref> mod_insts =
         parse_intializer(*this, mod, graph);
 
-    populate_symbol_table(*this, mod, graph);
+    if(use_symbolic_shapes)
+        populate_symbol_table(*this, mod, graph);
     mod_insts = parse_inputs(*this, mod, graph, mod_insts);
 
     std::copy(mod_insts.begin(), mod_insts.end(), std::inserter(instructions, instructions.end()));
@@ -908,66 +873,41 @@ shape onnx_parser::parse_type(const onnx::TypeProto& t) const
     shape::type_t shape_type = get_type(t.tensor_type().elem_type());
     auto&& tensor_dims       = t.tensor_type().shape().dim();
 
-    bool has_dim_params = std::any_of(tensor_dims.begin(), tensor_dims.end(), [](auto&& d) {
-        return d.has_dim_param() and not d.dim_param().empty();
-    });
-
-    if(has_dim_params)
-    {
-        std::vector<symbolic_dim> sym_dims;
-        std::transform(
-            tensor_dims.begin(),
-            tensor_dims.end(),
-            std::back_inserter(sym_dims),
-            [&](auto&& d) -> symbolic_dim {
-                if(d.has_dim_param())
+    std::vector<shape::dynamic_dimension> dyn_dims;
+    std::transform(
+        tensor_dims.begin(),
+        tensor_dims.end(),
+        std::back_inserter(dyn_dims),
+        [&](auto&& d) -> shape::dynamic_dimension {
+            if(use_symbolic_shapes and d.has_dim_param())
+            {
+                const auto& name = d.dim_param();
+                if(not name.empty())
                 {
-                    const auto& name = d.dim_param();
-                    if(not name.empty())
+                    if(contains(dim_params, name))
                     {
-                        if(contains(dim_params, name))
-                        {
-                            auto& dd = dim_params.at(name);
-                            return symbolic_dim(name, dd.min, dd.max, dd.optimals);
-                        }
-                        return symbolic_dim(name,
-                                            default_dyn_dim_value.min,
-                                            default_dyn_dim_value.max,
-                                            default_dyn_dim_value.optimals);
+                        auto& dd = dim_params.at(name);
+                        return {dd.min, dd.max, dd.optimals, symbolic_expr(name)};
                     }
+                    return {default_dyn_dim_value.min,
+                            default_dyn_dim_value.max,
+                            default_dyn_dim_value.optimals,
+                            symbolic_expr(name)};
                 }
-                if(d.has_dim_value())
-                {
-                    if(static_cast<int>(d.dim_value()) <= 0)
-                        return symbolic_dim(default_dyn_dim_value);
-                    return symbolic_dim(static_cast<std::size_t>(d.dim_value()));
-                }
-                return symbolic_dim(default_dyn_dim_value);
-            });
+            }
+            if(d.has_dim_value())
+            {
+                if(static_cast<int>(d.dim_value()) <= 0)
+                    return default_dyn_dim_value;
+                auto v = static_cast<std::size_t>(d.dim_value());
+                return {v, v};
+            }
+            return default_dyn_dim_value;
+        });
 
-        if(sym_dims.empty())
-            return {shape_type};
-        return shape_from_sym_dims(shape_type, sym_dims);
-    }
-
-    std::vector<shape::dynamic_dimension> dynamic_dims;
-    std::transform(tensor_dims.begin(),
-                   tensor_dims.end(),
-                   std::back_inserter(dynamic_dims),
-                   [&](auto&& d) -> shape::dynamic_dimension {
-                       if(d.has_dim_value())
-                       {
-                           if(static_cast<int>(d.dim_value()) <= 0)
-                               return default_dyn_dim_value;
-                           std::size_t tmp = d.dim_value();
-                           return {tmp, tmp};
-                       }
-                       return default_dyn_dim_value;
-                   });
-
-    if(dynamic_dims.empty())
+    if(dyn_dims.empty())
         return {shape_type};
-    return shape_from_dyn_dims(shape_type, dynamic_dims);
+    return shape_from_dyn_dims(shape_type, dyn_dims);
 }
 
 shape onnx_parser::parse_type(const onnx::TypeProto& t,

@@ -331,10 +331,7 @@ __device__ void resize_cubic(Input input, Output output, Scales scales, float cu
         // Number of combinations: 4^active_count
         // For efficiency, limit to reasonable number of active dimensions
         index_int total_combos = 1;
-        for(index_int i = 0; i < active_count; ++i)
-        {
-            total_combos <<= 2; // multiply by 4
-        }
+        total_combos <<= 2 * active_count;
 
         float acc = 0.0f;
 

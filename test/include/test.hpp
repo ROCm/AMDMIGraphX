@@ -246,8 +246,11 @@ lhs_expression<T, Operator> make_lhs_expression(T&& lhs, Operator);
     }
 
 // NOLINTNEXTLINE
-#define TEST_EXPR_UNARY_OPERATOR(op, name) \
-    auto operator op() const { return make_lhs_expression(lhs, name{}); /* NOLINT */ }
+#define TEST_EXPR_UNARY_OPERATOR(op, name)                                                          \
+    friend auto operator op(self_t self) /* NOLINT */                                                \
+    {                                                                                               \
+        return make_lhs_expression(static_cast<decltype(self.lhs)&&>(self.lhs), name{}); /* NOLINT */ \
+    }
 
 template <class T, class U, class Operator>
 struct expression

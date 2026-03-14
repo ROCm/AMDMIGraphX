@@ -96,7 +96,7 @@ cached_device_info read_device_info(int device_id)
     return info;
 }
 
-const cached_device_info& get_cached_device_info()
+cached_device_info get_cached_device_info()
 {
     static std::mutex cache_mutex;
     static std::unordered_map<int, cached_device_info> cache;
@@ -158,7 +158,7 @@ bool gfx_prefers_nhwc_layout(std::string_view gfx_name)
 
 bool gfx_prefers_nhwc_layout()
 {
-    const auto& info = get_cached_device_info();
+    const auto info = get_cached_device_info();
     return info.is_navi or info.is_mi3xx_or_newer;
 }
 
@@ -173,7 +173,7 @@ bool gfx_prefers_mlir_attention() { return get_cached_device_info().is_mi3xx_or_
 // Archs that support hipBLASLt but are defaulted to use rocBLAS.
 bool gfx_default_rocblas()
 {
-    const auto& info = get_cached_device_info();
+    const auto info = get_cached_device_info();
     // Default to rocBLAS for gfx90a.
     return ((string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "hipblaslt")
                 ? false

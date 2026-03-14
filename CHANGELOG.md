@@ -19,6 +19,7 @@ Full documentation for MIGraphX is available at
 * Changed parsing of ONNX ops like ConstantOfShape to insert undefined if expected shape has 0 elements (#4567).
 * Updated the ONNX clip operator to support opset 13 (#4518).
 * Updated `argmin` and `argmax` ops to be implemented as reduction ops, so they now have JIT support and can fuse (#4620).
+* Updated GPU stream-count, NHWC layout, and MLIR attention defaults to adapt to the detected architecture (#4668).
 
 ### Resolved issues
 
@@ -34,6 +35,7 @@ Full documentation for MIGraphX is available at
 * Added a new pass to replace convolution with constant broadcast input with a reduced GEMM which improves model compilation time (#4621).
 * Implemented JIT compilation for `logsoftmax` by decomposing it into fusible operations (`log`, `exp`, `reduce_max`, `reduce_sum`), enabling kernel fusion. (#4630).
 * Added early return for `find_conv_dot_horiz_fusion` matcher based on if operator output size is less than two (#4662).
+* Cached repeated HIP compilation and MIOpen solution lookups, and tuned GPU stream partitioning and pointwise launch bounds (#4668).
 
 ### Removed
 * Removed legacy device implementations for `argmin` and `argmax` in favor of the JIT implementations recently added (#4658).

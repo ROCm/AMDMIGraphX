@@ -149,12 +149,13 @@ struct resize
     // Cubic interpolation kernel function (Keys bicubic)
     static double cubic_kernel(double s, double a)
     {
-        double abs_s = std::abs(s);
+        double abs_s  = std::abs(s);
+        double abs_s2 = abs_s * abs_s;
+        double abs_s3 = abs_s2 * abs_s;
         if(abs_s < 1.0)
-            return (a + 2.0) * std::pow(abs_s, 3) - (a + 3.0) * std::pow(abs_s, 2) + 1.0;
+            return (a + 2.0) * abs_s3 - (a + 3.0) * abs_s2 + 1.0;
         if(abs_s < 2.0)
-            return a * std::pow(abs_s, 3) - 5.0 * a * std::pow(abs_s, 2) + 8.0 * a * abs_s -
-                   4.0 * a;
+            return a * abs_s3 - 5.0 * a * abs_s2 + 8.0 * a * abs_s - 4.0 * a;
         return 0.0;
     }
 

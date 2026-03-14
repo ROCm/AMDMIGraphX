@@ -208,8 +208,7 @@ MIGRAPHX_DEVICE_CONSTEXPR cubic_params compute_cubic_params_1d(
         float t           = coord - float(pos);
         result.weights[i] = cubic_kernel(t, cubic_a);
         // Clamp to valid range [0, in_len-1]
-        result.indices[i] =
-            max(diff_int{0}, min(pos, static_cast<diff_int>(in_len - 1)));
+        result.indices[i] = max(diff_int{0}, min(pos, static_cast<diff_int>(in_len - 1)));
     }
 
     return result;
@@ -303,15 +302,13 @@ __device__ void resize_cubic(Input input, Output output, Scales scales, float cu
         }
 
         // Count dimensions that need interpolation (scale != 1.0)
-        auto active_count = count_if(scales.begin(), scales.end(), 
-            [](auto scale) { return scale != 1.0f; });
+        auto active_count =
+            count_if(scales.begin(), scales.end(), [](auto scale) { return scale != 1.0f; });
         MIGRAPHX_ASSERT(active_count < 32);
 
         array<index_int, ndim> active_dims{};
         auto r = range(ndim);
-        copy_if(r.begin(), r.end(), active_dims.begin(), [&](auto d) { 
-            return scales[d] != 1.0f; 
-        });
+        copy_if(r.begin(), r.end(), active_dims.begin(), [&](auto d) { return scales[d] != 1.0f; });
 
         // Initialize in_multi: for non-interpolated dimensions, use output index directly
         // (since input and output sizes are the same for those dimensions)
@@ -338,8 +335,8 @@ __device__ void resize_cubic(Input input, Output output, Scales scales, float cu
 
         for(index_int combo = 0; combo < total_combos; ++combo)
         {
-            float w              = 1.0f;
-            auto combo_multi     = combo_lens.multi(combo);
+            float w          = 1.0f;
+            auto combo_multi = combo_lens.multi(combo);
 
             for(index_int i = 0; i < active_count; ++i)
             {

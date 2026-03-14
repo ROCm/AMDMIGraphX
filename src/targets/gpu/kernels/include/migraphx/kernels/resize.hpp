@@ -328,23 +328,23 @@ __device__ void resize_cubic(Input input, Output output, Scales scales, float cu
             }
         }
 
-        // Number of combinations: 4^active_count
-        // For efficiency, limit to reasonable number of active dimensions
-        index_int total_combos = 1;
-        total_combos <<= 2 * active_count;
+        // Build combo shape: 4 for interpolated dims, 1 otherwise
+        array<index_int, ndim> combo_lens{};
+        for(index_int d = 0; d < ndim; ++d)
+            combo_lens[d] = (scales[d] != 1.0f) ? 4 : 1;
 
-        float acc = 0.0f;
+        index_int total_combos = combo_lens.product();
+        float acc              = 0.0f;
 
         for(index_int combo = 0; combo < total_combos; ++combo)
         {
-            float w      = 1.0f;
-            index_int tc = combo;
+            float w              = 1.0f;
+            auto combo_multi     = combo_lens.multi(combo);
 
             for(index_int i = 0; i < active_count; ++i)
             {
                 index_int d            = active_dims[i];
-                index_int neighbor_idx = tc % 4;
-                tc >>= 2; // divide by 4
+                index_int neighbor_idx = combo_multi[d];
                 w *= params[d].weights[neighbor_idx];
                 in_multi[d] = params[d].indices[neighbor_idx];
             }

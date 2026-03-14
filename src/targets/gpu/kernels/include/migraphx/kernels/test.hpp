@@ -144,18 +144,20 @@ template <class T, class Operator>
 constexpr lhs_expression<T, Operator> make_lhs_expression(T&& lhs, Operator);
 
 // NOLINTNEXTLINE
-#define TEST_EXPR_BINARY_OPERATOR(op, name)                                                          \
-    template <class V>                                                                               \
-    friend constexpr auto operator op(self_t lhs2, V&& rhs2) /* NOLINT */                            \
-    {                                                                                                \
-        return make_expression(static_cast<self_t&&>(lhs2), static_cast<V&&>(rhs2), name{}); /* NOLINT */ \
+#define TEST_EXPR_BINARY_OPERATOR(op, name)                                            \
+    template <class V>                                                                 \
+    friend constexpr auto operator op(self_t lhs2, V&& rhs2) /* NOLINT */              \
+    {                                                                                  \
+        return make_expression(                                                        \
+            static_cast<self_t&&>(lhs2), static_cast<V&&>(rhs2), name{}); /* NOLINT */ \
     }
 
 // NOLINTNEXTLINE
-#define TEST_EXPR_UNARY_OPERATOR(op, name)                                                              \
-    friend constexpr auto operator op(self_t self) /* NOLINT */                                          \
-    {                                                                                                   \
-        return make_lhs_expression(static_cast<decltype(self.lhs)&&>(self.lhs), name{}); /* NOLINT */   \
+#define TEST_EXPR_UNARY_OPERATOR(op, name)                                      \
+    friend constexpr auto operator op(self_t self) /* NOLINT */                 \
+    {                                                                           \
+        return make_lhs_expression(static_cast<decltype(self.lhs)&&>(self.lhs), \
+                                   name{}); /* NOLINT */                        \
     }
 
 template <class T, class U, class Operator>

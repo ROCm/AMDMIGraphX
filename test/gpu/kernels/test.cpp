@@ -97,52 +97,28 @@ TEST_CASE(expression_false_value)
 }
 
 // Test lhs arithmetic: addition
-TEST_CASE(lhs_arithmetic_add)
-{
-    EXPECT((capture{}->*3 + 2).value() == 5);
-}
+TEST_CASE(lhs_arithmetic_add) { EXPECT((capture{}->*3 + 2).value() == 5); }
 
 // Test lhs arithmetic: subtraction
-TEST_CASE(lhs_arithmetic_sub)
-{
-    EXPECT((capture{}->*5 - 3).value() == 2);
-}
+TEST_CASE(lhs_arithmetic_sub) { EXPECT((capture{}->*5 - 3).value() == 2); }
 
 // Test lhs arithmetic: multiplication
-TEST_CASE(lhs_arithmetic_mul)
-{
-    EXPECT((capture{}->*3 * 4).value() == 12);
-}
+TEST_CASE(lhs_arithmetic_mul) { EXPECT((capture{}->*3 * 4).value() == 12); }
 
 // Test lhs arithmetic: division
-TEST_CASE(lhs_arithmetic_div)
-{
-    EXPECT((capture{}->*12 / 4).value() == 3);
-}
+TEST_CASE(lhs_arithmetic_div) { EXPECT((capture{}->*12 / 4).value() == 3); }
 
 // Test lhs arithmetic: modulo
-TEST_CASE(lhs_arithmetic_mod)
-{
-    EXPECT((capture{}->*7 % 3).value() == 1);
-}
+TEST_CASE(lhs_arithmetic_mod) { EXPECT((capture{}->*7 % 3).value() == 1); }
 
 // Test lhs bitwise: and
-TEST_CASE(lhs_bitwise_and)
-{
-    EXPECT((capture{}->*0xF & 0x3).value() == 0x3);
-}
+TEST_CASE(lhs_bitwise_and) { EXPECT((capture{}->*0xF & 0x3).value() == 0x3); }
 
 // Test lhs bitwise: or
-TEST_CASE(lhs_bitwise_or)
-{
-    EXPECT((capture{}->*0x1 | 0x2).value() == 0x3);
-}
+TEST_CASE(lhs_bitwise_or) { EXPECT((capture{}->*0x1 | 0x2).value() == 0x3); }
 
 // Test lhs bitwise: xor
-TEST_CASE(lhs_bitwise_xor)
-{
-    EXPECT((capture{}->*0xF ^ 0x3).value() == 0xC);
-}
+TEST_CASE(lhs_bitwise_xor) { EXPECT((capture{}->*0xF ^ 0x3).value() == 0xC); }
 
 // Test chained comparison
 TEST_CASE(chained_comparison)
@@ -211,10 +187,7 @@ TEST_CASE(operator_greater_than_equal_call)
 }
 
 // Test nop call
-TEST_CASE(nop_call)
-{
-    EXPECT(migraphx::test::nop::call(42) == 42);
-}
+TEST_CASE(nop_call) { EXPECT(migraphx::test::nop::call(42) == 42); }
 
 // Test nop as_string is empty
 TEST_CASE(nop_as_string_empty)
@@ -233,8 +206,8 @@ TEST_CASE(check_macro_passes)
 // Test capture with variables (not just temporaries)
 TEST_CASE(capture_with_variables)
 {
-    int x = 10;
-    int y = 20;
+    int x     = 10;
+    int y     = 20;
     auto expr = capture{}->*x < y;
     EXPECT(expr.value());
 }
@@ -249,10 +222,7 @@ TEST_CASE(expression_chained)
 }
 
 // Test capture preserves value for non-trivial arithmetic
-TEST_CASE(capture_complex_arithmetic)
-{
-    EXPECT((capture{}->*100 / 10 % 3).value() == 1);
-}
+TEST_CASE(capture_complex_arithmetic) { EXPECT((capture{}->*100 / 10 % 3).value() == 1); }
 
 // Test and_op operator object
 TEST_CASE(operator_and_op_call)

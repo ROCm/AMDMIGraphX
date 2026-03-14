@@ -618,7 +618,7 @@ struct noncopyable
     }
 };
 
-TEST_CASE(capure_noncopyable)
+TEST_CASE(capture_noncopyable)
 {
     noncopyable nc;
     auto expr = test::capture{}->*nc == nc;
@@ -651,7 +651,7 @@ struct move_only
     }
 };
 
-TEST_CASE(capure_move_only)
+TEST_CASE(capture_move_only)
 {
     auto expr_equal = test::capture{}->*move_only{2} == move_only{2};
     CHECK(expr_equal.value());

@@ -32,6 +32,7 @@
 #include <migraphx/kernels/tensor_view.hpp>
 #include <migraphx/kernels/bit.hpp>
 #include <migraphx/kernels/algorithm.hpp>
+#include <migraphx/kernels/ranges.hpp>
 
 namespace migraphx {
 
@@ -303,7 +304,8 @@ __device__ void resize_cubic(Input input, Output output, Scales scales, float cu
 
         // Count dimensions that need interpolation (scale != 1.0)
         auto active_count = count_if(scales.begin(), scales.end(), 
-            [&](auto scale) { return scale != 1.0f; });
+            [](auto scale) { return scale != 1.0f; });
+        MIGRAPHX_ASSERT(active_count < 32);
 
         array<index_int, ndim> active_dims{};
         auto r = range(ndim);

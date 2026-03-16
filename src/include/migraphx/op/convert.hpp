@@ -70,17 +70,17 @@ struct convert : unary<convert>
                 shape::as<output_type> as{};
                 par_transform(
                     input.begin(), input.end(), output.begin(), [as](auto x) -> output_type {
-                    auto dx = static_cast<double>(x);
-                    if(std::isnan(dx))
-                        return as.nan();
-                    if(not as.is_integral() and std::isinf(dx))
-                        return as(x);
-                    if(dx >= static_cast<double>(as.max()))
-                        return as.max();
-                    if(dx <= static_cast<double>(as.min()))
-                        return as.min();
-                    return as(dx);
-                });
+                        auto dx = static_cast<double>(x);
+                        if(std::isnan(dx))
+                            return as.nan();
+                        if(not as.is_integral() and std::isinf(dx))
+                            return as(x);
+                        if(dx >= static_cast<double>(as.max()))
+                            return as.max();
+                        if(dx <= static_cast<double>(as.min()))
+                            return as.min();
+                        return as(dx);
+                    });
             });
         });
         return result;

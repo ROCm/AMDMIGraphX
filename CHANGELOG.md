@@ -11,7 +11,7 @@ Full documentation for MIGraphX is available at
 * [Linux] Use HSA API to query number of chiplets for architectures where this is applicable (ex. gfx90a).
 * Added a fuse_horizontal pass which batches independent cross embedding gather instructions (#4599).
 * Added GPU JIT `Resize` kernel (#4553).
-* Added JIT compiler for `fill` operation (#4666). 
+* Added JIT compiler for `fill` operation (#4666).
 
 ### Changed
 
@@ -25,7 +25,7 @@ Full documentation for MIGraphX is available at
 
 * Fixed a bug with operators `pack_fp4`, `unpack_fp4`, and the `fuse_mlir` pass handling non-standard input shapes (#4560).
 * Fixed an issue in `propagate_precision` pass where precision could be incorrectly propagated across type boundaries (e.g., from integral to floating-point) (#4603).
-* Fixed an issue with clip operator when using fp16 input type on opset 6 (#4518). 
+* Fixed an issue with clip operator when using fp16 input type on opset 6 (#4518).
 * Fixed an issue with `reshape_lazy`'s shape computation that was leading to invalid reshapes (#4594).
 * Fixed `eliminate_pad` pass bug that was removing nonzero `pad` instructions (#4600).
 

@@ -66,9 +66,10 @@ struct convert : unary<convert>
         argument result{dyn_out.computed_shape};
         result.visit([&](auto output) {
             args[0].visit([&](auto input) {
-                using T = typename decltype(output)::value_type;
-                shape::as<T> as{};
-                par_transform(input.begin(), input.end(), output.begin(), [as](auto x) -> T {
+                using output_type = typename decltype(output)::value_type;
+                shape::as<output_type> as{};
+                par_transform(
+                    input.begin(), input.end(), output.begin(), [as](auto x) -> output_type {
                     auto dx = static_cast<double>(x);
                     if(std::isnan(dx))
                         return as.nan();

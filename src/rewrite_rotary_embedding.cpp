@@ -43,8 +43,8 @@ struct find_rotary_embedding
         auto neg = match::name("neg")(match::arg(0)(match::name("slice")(match::arg(0)(input)).bind("slice1"))).bind("neg");
         auto slice = match::name("slice")(match::arg(0)(input)).bind("slice0");
         auto concat = match::name("concat")(match::arg(0)(neg), match::arg(1)(slice));
-        auto mul_sin = match::name("mul")(match::arg(0)(concat), match::arg(1)(match::is_constant().bind("sin")));
-        auto mul_cos = match::name("mul")(match::arg(0)(input), match::arg(1)(match::is_constant())).bind("mul_cos");
+        auto mul_sin = match::name("mul")(match::either_arg(0, 1)(concat, match::is_constant().bind("sin")));
+        auto mul_cos = match::name("mul")(match::either_arg(0, 1)(input, match::is_constant())).bind("mul_cos");
         return match::name("add")(match::either_arg(0, 1)(mul_sin, mul_cos));
     }
 
@@ -77,7 +77,7 @@ struct find_rotary_embedding
 
         auto concat = mpm.get_module().insert_instruction(ins, make_op("concat", {{"axis", axis}}), slice1, slice0);
         auto mul_sin = mpm.get_module().insert_instruction(ins, make_op("mul"), signs, sin);
-        mul_sin = mpm.get_module().insert_instruction(ins, make_op("mul"), mul_sin, concat);
+        mul_sin = mpm.get_module().insert_instruction(ins, make_op("mul"), concat, mul_sin);
         auto add = mpm.get_module().insert_instruction(ins, make_op("add"), mul_cos, mul_sin);
         mpm.get_module().replace_instruction(ins, add);
     }
@@ -89,6 +89,7 @@ void rewrite_rotary_embedding::apply(module_pass_manager& mpm) const
 {
     match::find_matches(mpm, find_rotary_embedding{});
     mpm.run_pass(dead_code_elimination{});
+    mpm.get_module().debug_print();
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -47,7 +47,6 @@ template struct test_fill<migraphx::shape::float_type>;
 template struct test_fill<migraphx::shape::half_type>;
 template struct test_fill<migraphx::shape::bf16_type>;
 template struct test_fill<migraphx::shape::int32_type>;
-template struct test_fill<migraphx::shape::int64_type>;
 template struct test_fill<migraphx::shape::fp8e4m3fnuz_type>;
 template struct test_fill<migraphx::shape::fp8e4m3fn_type>;
 

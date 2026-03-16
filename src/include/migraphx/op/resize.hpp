@@ -315,17 +315,16 @@ struct resize
 
         // Accumulate over 4^ndim neighbors (4 per dimension for cubic)
         double acc                  = 0.0;
-        const std::size_t neighbors = std::max<std::size_t>(1, std::pow(4, ndim));
+        shape combo_shape{shape::uint32_type, std::vector<std::size_t>(ndim, 4)};
         std::vector<std::size_t> in_idx(ndim);
 
-        for(std::size_t combo = 0; combo < neighbors; ++combo)
+        for(std::size_t combo = 0; combo < combo_shape.elements(); ++combo)
         {
-            double w       = 1.0;
-            std::size_t tc = combo;
+            double w         = 1.0;
+            auto combo_multi = combo_shape.multi(combo);
             for(std::size_t d = 0; d < ndim; ++d)
             {
-                std::size_t neighbor_idx = tc % 4;
-                tc >>= 2ULL;
+                std::size_t neighbor_idx = combo_multi[d];
                 w *= params[d].weights[neighbor_idx];
                 in_idx[d] = params[d].indices[neighbor_idx];
             }

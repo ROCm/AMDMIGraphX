@@ -366,47 +366,6 @@ parse_intializer(const onnx_parser& parser, module* mod, const onnx::GraphProto&
     return mod_insts;
 }
 
-static void populate_symbol_table(const onnx_parser& parser,
-                                  module* mod,
-                                  const onnx::GraphProto& graph)
-{
-    for(auto&& input : graph.input())
-    {
-        if(not input.has_type() or not input.type().has_tensor_type() or
-           not input.type().tensor_type().has_shape())
-            continue;
-
-        const auto& input_name = input.name();
-        auto&& tensor_dims     = input.type().tensor_type().shape().dim();
-        for(int i = 0; i < tensor_dims.size(); ++i)
-        {
-            auto&& d = tensor_dims[i];
-            if(not d.has_dim_param())
-                continue;
-            const auto& name = d.dim_param();
-            if(name.empty() or mod->has_symbol(name))
-                continue;
-
-            shape::dynamic_dimension dd;
-            if(contains(parser.dim_params, name))
-            {
-                dd = parser.dim_params.at(name);
-            }
-            else if(contains(parser.map_dyn_input_dims, input_name) and
-                    i < parser.map_dyn_input_dims.at(input_name).size())
-            {
-                dd = parser.map_dyn_input_dims.at(input_name)[i];
-            }
-            else
-            {
-                dd = parser.default_dyn_dim_value;
-            }
-            if(not dd.is_fixed())
-                mod->add_symbol(name, dd);
-        }
-    }
-}
-
 static std::unordered_map<std::string, instruction_ref>
 parse_inputs(const onnx_parser& parser,
              module* mod,
@@ -615,8 +574,6 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
     std::unordered_map<std::string, instruction_ref> mod_insts =
         parse_intializer(*this, mod, graph);
 
-    if(use_symbolic_shapes)
-        populate_symbol_table(*this, mod, graph);
     mod_insts = parse_inputs(*this, mod, graph, mod_insts);
 
     std::copy(mod_insts.begin(), mod_insts.end(), std::inserter(instructions, instructions.end()));

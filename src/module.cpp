@@ -592,6 +592,17 @@ instruction_ref module::insert_literal(instruction_ref ins, literal l)
 instruction_ref module::insert_parameter(instruction_ref ins, std::string name, shape s)
 {
     assert(get_parameter_shape(name) == shape{});
+    if(s.dynamic())
+    {
+        for(const auto& dd : s.dyn_dims())
+        {
+            if(not dd.is_symbolic() or dd.is_fixed())
+                continue;
+            auto sym_name = dd.sym->to_string();
+            if(not has_symbol(sym_name))
+                add_symbol(sym_name, shape::dynamic_dimension{dd.min, dd.max, dd.optimals});
+        }
+    }
     impl->insert(ins, {builtin::param{std::move(name), impl->nparams}, std::move(s), {}});
     impl->nparams++;
     return std::prev(ins);

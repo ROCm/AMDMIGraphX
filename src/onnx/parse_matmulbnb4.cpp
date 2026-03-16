@@ -124,7 +124,7 @@ struct parse_matmulbnb4 : op_parser<parse_matmulbnb4>
                                       int quant_type,
                                       const std::vector<instruction_ref>& args) const
     {
-        auto unpacked_b = unpack_bnb4_data(info, n, k, args[1]);
+        auto unpacked_b      = unpack_bnb4_data(info, n, k, args[1]);
         auto prepared_absmax = prepare_blockwise_absmax(info, n, k, block_size, args[2]);
 
         return apply_bnb4_dequantization(info, unpacked_b, prepared_absmax, quant_type);
@@ -134,7 +134,7 @@ struct parse_matmulbnb4 : op_parser<parse_matmulbnb4>
     unpack_bnb4_data(onnx_parser::node_info& info, int n, int k, instruction_ref b) const
     {
         auto unpacked = info.add_instruction(make_op("unpack_int4"), b);
-        unpacked = info.add_instruction(make_op("reshape", {{"dims", {n, k}}}), unpacked);
+        unpacked      = info.add_instruction(make_op("reshape", {{"dims", {n, k}}}), unpacked);
 
         return unpacked;
     }
@@ -201,7 +201,7 @@ struct parse_matmulbnb4 : op_parser<parse_matmulbnb4>
         }
         else
         {
-            auto lut = info.add_literal(migraphx::literal{
+            auto lut     = info.add_literal(migraphx::literal{
                 migraphx::shape{migraphx::shape::float_type, {16}}, nf4_lookup_table});
             auto indices = info.add_instruction(
                 make_op("convert", {{"target_type", migraphx::shape::int64_type}}), quantized_data);

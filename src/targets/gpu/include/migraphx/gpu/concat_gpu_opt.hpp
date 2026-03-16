@@ -51,7 +51,8 @@ struct concat_gpu_optimization
     }
     bool supports_non_packed_input(instruction_ref ins, std::size_t axis) const
     {
-        if(is_context_free(ins->get_operator()) or contains({"gpu::precompile_op", "gpu::contiguous", "hip::copy"}, ins->name()))
+        if(is_context_free(ins->get_operator()) or
+           contains({"gpu::precompile_op", "gpu::contiguous", "hip::copy"}, ins->name()))
             return true;
         if(ins->name() == "gpu::hipblaslt_op" or contains(ins->name(), "gemm"))
             return axis < ins->get_shape().ndim() - 2;

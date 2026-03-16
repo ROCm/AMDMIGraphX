@@ -63,10 +63,16 @@ struct concat_optimization
         virtual('allocate', returns = 'std::string', const = True),
         virtual(
             'get_concat', returns = 'optional<op::concat>', op = 'const operation&', const = True),
-        virtual(
-            'supports_non_packed_output', ins = 'instruction_ref', axis = 'std::size_t', returns = 'bool', const = True),
-        virtual(
-            'supports_non_packed_input', ins = 'instruction_ref', axis = 'std::size_t', returns = 'bool', const = True),
+        virtual('supports_non_packed_output',
+                ins     = 'instruction_ref',
+                axis    = 'std::size_t',
+                returns = 'bool',
+                const   = True),
+        virtual('supports_non_packed_input',
+                ins     = 'instruction_ref',
+                axis    = 'std::size_t',
+                returns = 'bool',
+                const   = True),
         virtual('allocation', returns = 'allocation_model', const = True))
 %>
 

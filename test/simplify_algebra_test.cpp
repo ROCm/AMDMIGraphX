@@ -1768,7 +1768,7 @@ TEST_CASE(simplify_zero_mult_const)
     migraphx::module m2;
     {
         auto x            = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto zero = m2.add_literal(0);
+        auto zero         = m2.add_literal(0);
         auto reshape_zero = m2.add_instruction(
             migraphx::make_op("reshape", {{"dims", x->get_shape().lens()}}), zero);
         m2.add_return({reshape_zero});
@@ -1791,7 +1791,7 @@ TEST_CASE(simplify_zero_mult_const2)
     migraphx::module m2;
     {
         auto x            = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto zero = m2.add_literal(0);
+        auto zero         = m2.add_literal(0);
         auto reshape_zero = m2.add_instruction(
             migraphx::make_op("reshape", {{"dims", x->get_shape().lens()}}), zero);
         m2.add_return({reshape_zero});
@@ -1921,7 +1921,7 @@ TEST_CASE(simplify_zero_div_const)
 
     migraphx::module m2;
     {
-        auto zero = m2.add_literal(0);
+        auto zero        = m2.add_literal(0);
         auto x           = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
         auto reshape_ins = m2.add_instruction(
             migraphx::make_op("reshape", {{"dims", x->get_shape().lens()}}), zero);
@@ -4758,10 +4758,9 @@ TEST_CASE(conv_broadcast_input)
             m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), w2d);
         auto x2d = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), x);
         auto dr  = m2.add_instruction(migraphx::make_op("dot"), x2d, wt);
-        auto unsqueezed =
-            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2, 3}}}), dr);
-        auto r = m2.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {1, 64, 2, 2}}}), unsqueezed);
+        auto dr4 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2, 3}}}), dr);
+        auto r   = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 64, 2, 2}}}), dr4);
         m2.add_instruction(pass_op{}, r);
     }
     EXPECT(m1.sort() == m2.sort());
@@ -4792,10 +4791,9 @@ TEST_CASE(conv_multibroadcast_input)
             m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), w2d);
         auto x2d = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 64}}}), x);
         auto dr  = m2.add_instruction(migraphx::make_op("dot"), x2d, wt);
-        auto unsqueezed =
-            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2, 3}}}), dr);
-        auto r = m2.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {1, 64, 2, 2}}}), unsqueezed);
+        auto dr4 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2, 3}}}), dr);
+        auto r   = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 64, 2, 2}}}), dr4);
         m2.add_instruction(pass_op{}, r);
     }
     EXPECT(m1.sort() == m2.sort());
@@ -4827,32 +4825,19 @@ TEST_CASE(conv_broadcast_input_padded)
         auto small_conv = m2.add_instruction(
             migraphx::make_op("convolution", {{"padding", {1, 1}}}), small_bcast, w);
 
-        auto h_start = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {1}}}),
-            small_conv);
-        auto h_center = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {1}}, {"ends", {2}}}),
-            small_conv);
-        auto h_center_broad = m2.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 6, 3}}}), h_center);
-        auto h_end = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {2}}, {"ends", {3}}}),
-            small_conv);
-        auto h_concat = m2.add_instruction(
-            migraphx::make_op("concat", {{"axis", 2}}), h_start, h_center_broad, h_end);
+        auto h_idx =
+            m2.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int32_type, {8}},
+                                             std::vector<int32_t>{0, 1, 1, 1, 1, 1, 1, 2}});
+        auto h_gathered =
+            m2.add_instruction(migraphx::make_op("gather", {{"axis", 2}}), small_conv, h_idx);
 
-        auto w_start = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {1}}}), h_concat);
-        auto w_center = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {3}}, {"starts", {1}}, {"ends", {2}}}), h_concat);
-        auto w_center_broad = m2.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 8, 6}}}), w_center);
-        auto w_end = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {3}}, {"starts", {2}}, {"ends", {3}}}), h_concat);
-        auto w_concat = m2.add_instruction(
-            migraphx::make_op("concat", {{"axis", 3}}), w_start, w_center_broad, w_end);
+        auto w_idx =
+            m2.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int32_type, {8}},
+                                             std::vector<int32_t>{0, 1, 1, 1, 1, 1, 1, 2}});
+        auto w_gathered =
+            m2.add_instruction(migraphx::make_op("gather", {{"axis", 3}}), h_gathered, w_idx);
 
-        m2.add_instruction(pass_op{}, w_concat);
+        m2.add_instruction(pass_op{}, w_gathered);
     }
     EXPECT(m1.sort() == m2.sort());
 }

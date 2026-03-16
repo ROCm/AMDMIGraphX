@@ -2295,10 +2295,10 @@ struct find_conv_broadcast_input
                                  const std::vector<std::size_t>& padding,
                                  std::size_t num_spatial)
     {
+        auto small_lens = w_shape.lens();
         auto bcast_lens = bcast_ins->get_shape().lens();
-        std::vector<std::size_t> small_lens(bcast_lens.begin(), bcast_lens.begin() + 2);
-        for(std::size_t i = 0; i < num_spatial; i++)
-            small_lens.push_back(w_shape.lens()[i + 2]);
+        small_lens[0]   = bcast_lens[0];
+        small_lens[1]   = bcast_lens[1];
 
         auto bcast_val        = bcast_ins->get_operator().to_value();
         bcast_val["out_lens"] = small_lens;
@@ -2318,45 +2318,13 @@ struct find_conv_broadcast_input
             if(interior_len <= 1)
                 continue;
 
-            std::vector<instruction_ref> pieces;
+            std::vector<int32_t> indices(full_dim, static_cast<int32_t>(p_start));
+            std::iota(indices.begin(), indices.begin() + p_start, 0);
+            std::iota(indices.end() - p_end, indices.end(), static_cast<int32_t>(p_start + 1));
 
-            if(p_start > 0)
-            {
-                pieces.push_back(
-                    m.insert_instruction(ins,
-                                         make_op("slice",
-                                                 {{"axes", {axis}},
-                                                  {"starts", {int64_t{0}}},
-                                                  {"ends", {static_cast<int64_t>(p_start)}}}),
-                                         current));
-            }
-
-            auto center =
-                m.insert_instruction(ins,
-                                     make_op("slice",
-                                             {{"axes", {axis}},
-                                              {"starts", {static_cast<int64_t>(p_start)}},
-                                              {"ends", {static_cast<int64_t>(p_start + 1)}}}),
-                                     current);
-
-            auto center_lens   = center->get_shape().lens();
-            center_lens[i + 2] = interior_len;
-            auto center_broad  = m.insert_instruction(
-                ins, make_op("multibroadcast", {{"out_lens", center_lens}}), center);
-            pieces.push_back(center_broad);
-
-            if(p_end > 0)
-            {
-                pieces.push_back(m.insert_instruction(
-                    ins,
-                    make_op("slice",
-                            {{"axes", {axis}},
-                             {"starts", {static_cast<int64_t>(p_start + 1)}},
-                             {"ends", {static_cast<int64_t>(p_start + 1 + p_end)}}}),
-                    current));
-            }
-
-            current = m.insert_instruction(ins, make_op("concat", {{"axis", axis}}), pieces);
+            auto idx =
+                m.insert_literal(ins, literal{shape{shape::int32_type, {full_dim}}, indices});
+            current = m.insert_instruction(ins, make_op("gather", {{"axis", axis}}), current, idx);
         }
 
         m.replace_instruction(ins, current);

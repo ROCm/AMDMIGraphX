@@ -231,7 +231,7 @@ __device__ void pooling_reduce(Output output, F f)
             array<type, GroupSize> result;
             auto glens   = transform_i(output_shape.lens, [](auto len, auto i) {
                 if(i == get_shape_c<Output>{}.lens.size() - 1)
-                    return len / GroupSize;
+                    return (len + GroupSize - 1) / GroupSize;
                 else
                     return len;
             });

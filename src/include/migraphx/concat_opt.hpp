@@ -51,7 +51,8 @@ struct concat_optimization
     /// Return the target-independent concat operator
     optional<op::concat> get_concat(const operation& op) const;
     allocation_model allocation() const;
-    bool supports_non_packed_output(instruction_ref ins) const;
+    bool supports_non_packed_output(instruction_ref ins, std::size_t axis) const;
+    bool supports_non_packed_input(instruction_ref ins, std::size_t axis) const;
 };
 
 #else
@@ -66,7 +67,9 @@ struct MIGRAPHX_EXPORT concat_optimization
     //
     optional<op::concat> get_concat(const operation& op) const;
     //
-    bool supports_non_packed_output(instruction_ref ins) const;
+    bool supports_non_packed_output(instruction_ref ins, std::size_t axis) const;
+    //
+    bool supports_non_packed_input(instruction_ref ins, std::size_t axis) const;
     //
     allocation_model allocation() const;
 };
@@ -96,7 +99,9 @@ struct concat_optimization
                  std::declval<PrivateDetailTypeErasedT>().get_concat(
                      std::declval<const operation&>()),
                  std::declval<PrivateDetailTypeErasedT>().supports_non_packed_output(
-                     std::declval<instruction_ref>()),
+                     std::declval<instruction_ref>(), std::declval<std::size_t>()),
+                 std::declval<PrivateDetailTypeErasedT>().supports_non_packed_input(
+                     std::declval<instruction_ref>(), std::declval<std::size_t>()),
                  std::declval<PrivateDetailTypeErasedT>().allocation(),
                  void());
 
@@ -186,10 +191,16 @@ struct concat_optimization
         return (*this).private_detail_te_get_handle().get_concat(op);
     }
 
-    bool supports_non_packed_output(instruction_ref ins) const
+    bool supports_non_packed_output(instruction_ref ins, std::size_t axis) const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().supports_non_packed_output(ins);
+        return (*this).private_detail_te_get_handle().supports_non_packed_output(ins, axis);
+    }
+
+    bool supports_non_packed_input(instruction_ref ins, std::size_t axis) const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().supports_non_packed_input(ins, axis);
     }
 
     allocation_model allocation() const
@@ -212,10 +223,11 @@ struct concat_optimization
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual std::string allocate() const                               = 0;
-        virtual optional<op::concat> get_concat(const operation& op) const = 0;
-        virtual bool supports_non_packed_output(instruction_ref ins) const = 0;
-        virtual allocation_model allocation() const                        = 0;
+        virtual std::string allocate() const                                                 = 0;
+        virtual optional<op::concat> get_concat(const operation& op) const                   = 0;
+        virtual bool supports_non_packed_output(instruction_ref ins, std::size_t axis) const = 0;
+        virtual bool supports_non_packed_input(instruction_ref ins, std::size_t axis) const  = 0;
+        virtual allocation_model allocation() const                                          = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -254,10 +266,16 @@ struct concat_optimization
             return private_detail_te_value.get_concat(op);
         }
 
-        bool supports_non_packed_output(instruction_ref ins) const override
+        bool supports_non_packed_output(instruction_ref ins, std::size_t axis) const override
         {
 
-            return private_detail_te_value.supports_non_packed_output(ins);
+            return private_detail_te_value.supports_non_packed_output(ins, axis);
+        }
+
+        bool supports_non_packed_input(instruction_ref ins, std::size_t axis) const override
+        {
+
+            return private_detail_te_value.supports_non_packed_input(ins, axis);
         }
 
         allocation_model allocation() const override

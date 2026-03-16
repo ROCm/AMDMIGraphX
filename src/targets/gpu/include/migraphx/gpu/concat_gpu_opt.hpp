@@ -45,9 +45,14 @@ struct concat_gpu_optimization
             return any_cast<migraphx::op::concat>(r);
         return nullopt;
     }
-    bool supports_non_packed_output(instruction_ref ins) const
+    bool supports_non_packed_output(instruction_ref ins, std::size_t) const
     {
         return ins->name() == "gpu::precompile_op";
+    }
+    bool supports_non_packed_input(instruction_ref ins, std::size_t) const
+    {
+        return true;
+        // return ins->name() == "gpu::precompile_op";
     }
     gpu_allocation_model allocation() const { return gpu_allocation_model{}; }
 };

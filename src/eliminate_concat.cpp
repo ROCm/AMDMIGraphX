@@ -145,14 +145,25 @@ void eliminate_concat::apply(module& m) const
         auto ncopies     = std::count_if(
             ins->inputs().begin(), std::prev(ins->inputs().end()), [&](instruction_ref input) {
                 if(co.need_copy(input))
-                {
                     return true;
-                }
                 if(is_packed(input, axis))
                     return false;
-                return not concat_opt.supports_non_packed_output(input);
+                return not concat_opt.supports_non_packed_output(input, axis);
             });
         if(ncopies > 1)
+            continue;
+        // If the other consumers cant support non-packed inputs
+        if(std::any_of(ins->inputs().begin(), std::prev(ins->inputs().end()), [&](instruction_ref input) {
+                if(input->outputs().size() < 2)
+                    return false;
+               if(is_packed(input, axis))
+                   return false;
+               return std::any_of(input->outputs().begin(), input->outputs().end(), [&](instruction_ref output) {
+                    if(output == ins)
+                        return false;
+                    return not concat_opt.supports_non_packed_input(output, axis);
+                    });
+           }))
             continue;
         co.replace_concat(ins, axis);
     }

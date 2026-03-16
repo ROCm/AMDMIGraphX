@@ -51,7 +51,8 @@ struct concat_optimization
     /// Return the target-independent concat operator
     optional<op::concat> get_concat(const operation& op) const;
     allocation_model allocation() const;
-    bool supports_non_packed_output(instruction_ref ins) const;
+    bool supports_non_packed_output(instruction_ref ins, std::size_t axis) const;
+    bool supports_non_packed_input(instruction_ref ins, std::size_t axis) const;
 };
 
 #else
@@ -63,7 +64,9 @@ struct concat_optimization
         virtual(
             'get_concat', returns = 'optional<op::concat>', op = 'const operation&', const = True),
         virtual(
-            'supports_non_packed_output', ins = 'instruction_ref', returns = 'bool', const = True),
+            'supports_non_packed_output', ins = 'instruction_ref', axis = 'std::size_t', returns = 'bool', const = True),
+        virtual(
+            'supports_non_packed_input', ins = 'instruction_ref', axis = 'std::size_t', returns = 'bool', const = True),
         virtual('allocation', returns = 'allocation_model', const = True))
 %>
 

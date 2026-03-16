@@ -160,11 +160,15 @@ struct concat_test_optimization
         return migraphx::any_cast<test_concat>(op).op;
     }
 
-    bool supports_non_packed_output(migraphx::instruction_ref ins) const
+    bool supports_non_packed_output(migraphx::instruction_ref ins, std::size_t) const
     {
         if(migraphx::contains(op_non_packed_output, "*"))
             return true;
         return migraphx::contains(op_non_packed_output, ins->name());
+    }
+    bool supports_non_packed_input(migraphx::instruction_ref ins, std::size_t) const
+    {
+        return ins->name() != "pass_standard";
     }
 
     test_allocation_model allocation() const { return test_allocation_model{}; }

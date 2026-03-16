@@ -326,9 +326,7 @@ __device__ void resize_cubic(Input input, Output output, Scales scales, float cu
         }
 
         // Build combo shape: 4 for interpolated dims, 1 otherwise
-        array<index_int, ndim> combo_lens{};
-        for(index_int d = 0; d < ndim; ++d)
-            combo_lens[d] = (scales[d] != 1.0f) ? 4 : 1;
+        array<index_int, ndim> combo_lens = array_transform(scales)([](auto scale) { return scale == 1.0f ? 1 : 4; });
 
         index_int total_combos = combo_lens.product();
         float acc              = 0.0f;

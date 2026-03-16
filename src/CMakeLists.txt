@@ -79,6 +79,7 @@ add_library(migraphx
     fuse_attention.cpp
     fuse_concat.cpp
     fuse_horizontal.cpp
+    rewrite_rotary_embedding.cpp
     fuse_pointwise.cpp
     fuse_pointwise_reduce.cpp
     fuse_reduce.cpp

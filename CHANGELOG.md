@@ -29,12 +29,15 @@ Full documentation for MIGraphX is available at
 * Fixed `eliminate_pad` pass bug that was removing nonzero `pad` instructions (#4600).
 
 ### Optimized
+* Optimized fusion for local_window mode of GQA operator (#4617).
 
 * Added a new pass to replace convolution with constant broadcast input with a reduced GEMM which improves model compilation time (#4621).
 * Implemented JIT compilation for `logsoftmax` by decomposing it into fusible operations (`log`, `exp`, `reduce_max`, `reduce_sum`), enabling kernel fusion. (#4630).
 * Improved `find_attention` to move evaluable constant inputs inside the operator, allowing rocMLIR to detect causal masks. (#4660)
+* Added early return for `find_conv_dot_horiz_fusion` matcher based on if operator output size is less than two (#4662).
 
 ### Removed
+* Removed legacy device implementations for `argmin` and `argmax` in favor of the JIT implementations recently added (#4658).
 
 ## MIGraphX 2.15 for ROCm 7.2.0
 

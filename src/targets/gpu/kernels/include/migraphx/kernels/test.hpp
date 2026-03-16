@@ -92,7 +92,7 @@ struct nop
 {
     static constexpr const char* as_string() { return ""; }
     template <class T>
-    static constexpr decltype(auto) call(T&& x)
+    static constexpr T call(T&& x)
     {
         return static_cast<T&&>(x);
     }
@@ -254,12 +254,6 @@ struct capture
     constexpr auto operator->*(T&& x) const
     {
         return make_lhs_expression(static_cast<T&&>(x));
-    }
-
-    template <class T, class Operator>
-    constexpr auto operator->*(const lhs_expression<T, Operator>& x) const
-    {
-        return x;
     }
 };
 

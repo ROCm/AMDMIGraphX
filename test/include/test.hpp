@@ -117,7 +117,7 @@ struct nop
 {
     static std::string as_string() { return ""; }
     template <class T>
-    static decltype(auto) call(T&& x)
+    static T call(T&& x)
     {
         return static_cast<T&&>(x);
     }
@@ -382,12 +382,6 @@ struct capture
     auto operator->*(T&& x) const
     {
         return make_lhs_expression(std::forward<T>(x));
-    }
-
-    template <class T, class Operator>
-    auto operator->*(const lhs_expression<T, Operator>& x) const
-    {
-        return x;
     }
 };
 

@@ -302,6 +302,12 @@ TEST_CASE(within_abs_negative)
     EXPECT(result.value());
 }
 
+TEST_CASE(within_abs_chained_and)
+{
+    EXPECT(test::within_abs(0.0, 0.0) and test::within_abs(0.5, 0.5) and
+           test::within_abs(1.0, 1.0) and test::within_abs(1.5, 1.5));
+}
+
 // Tests for generic_parse
 TEST_CASE(generic_parse_basic)
 {
@@ -660,6 +666,13 @@ TEST_CASE(capure_move_only)
     auto expr_not_equal = test::capture{}->*move_only{2} != move_only{3};
     CHECK(expr_not_equal.value());
     CHECK(test::as_string(expr_not_equal) == "move_only(2) != move_only(3)");
+}
+
+// Test chaining lhs_expressions with and through capture
+TEST_CASE(capture_chained_and)
+{
+    EXPECT((test::capture{}->*1 == 1) and (test::capture{}->*2 == 2) and (test::capture{}->*3 == 3) and
+           (test::capture{}->*4 == 4));
 }
 
 // Edge cases for glob_match

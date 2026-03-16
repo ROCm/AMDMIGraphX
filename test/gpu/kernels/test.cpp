@@ -330,3 +330,10 @@ TEST_CASE(capture_move_only)
     auto expr = capture{}->*move_only{42} == move_only{42};
     EXPECT(expr.value());
 }
+
+// Test chaining lhs_expressions with and through capture
+TEST_CASE(capture_chained_and)
+{
+    EXPECT((capture{}->*1 == 1) and (capture{}->*2 == 2) and (capture{}->*3 == 3) and
+           (capture{}->*4 == 4));
+}

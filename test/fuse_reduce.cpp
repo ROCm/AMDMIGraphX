@@ -1608,4 +1608,190 @@ TEST_CASE(argmax_reshape_pointwise)
     EXPECT(p1.sort() == p2.sort());
 }
 
+static void run_multi_out_pass(migraphx::program& p)
+{
+    migraphx::run_passes(
+        p, {migraphx::fuse_reduce{.enable_multi_output = true}, migraphx::dead_code_elimination{}});
+}
+
+TEST_CASE(multi_output_same_reduce)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", s);
+        auto rsum1 = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        auto rsum2 = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        mm->add_return({rsum1, rsum2});
+    }
+    run_multi_out_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        // CSE deduplicates the two identical reduce_sum ops in the submodule
+        auto fused =
+            add_reduce(p2,
+                       "main:reduce_sum0:main:reduce_sum1",
+                       {x},
+                       {1},
+                       [&](auto* rm, const auto& inputs, const auto& axes) {
+                           auto r0 = rm->add_instruction(
+                               migraphx::make_op("reduce_sum", {{"axes", axes}}), inputs[0]);
+                           return std::vector<migraphx::instruction_ref>{r0, r0};
+                       });
+        auto gte0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
+        auto gte1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
+        mm->add_return({gte0, gte1});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(multi_output_different_reduce_ops)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        auto rmax = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), x);
+        mm->add_return({rsum, rmax});
+    }
+    run_multi_out_pass(p1);
+    // Same axes → same fused_reduce operator → fused into multi-output
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto fused =
+            add_reduce(p2,
+                       "main:reduce_sum0:main:reduce_max1",
+                       {x},
+                       {1},
+                       [&](auto* rm, const auto& inputs, const auto& axes) {
+                           auto r0 = rm->add_instruction(
+                               migraphx::make_op("reduce_sum", {{"axes", axes}}), inputs[0]);
+                           auto r1 = rm->add_instruction(
+                               migraphx::make_op("reduce_max", {{"axes", axes}}), inputs[0]);
+                           return std::vector<migraphx::instruction_ref>{r0, r1};
+                       });
+        auto gte0 =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
+        auto gte1 =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
+        mm->add_return({gte0, gte1});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(multi_output_with_pointwise)
+{
+    // Test merging two fused_reduces where one has pointwise already fused inside
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto rsum1 =
+            add_reduce(p1, "reduce0", {x}, {1}, single_reduce("reduce_sum"));
+        auto rsum2 = add_reduce(
+            p1, "reduce1", {x}, {1}, [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto sqr = add_pointwise(p1, rm, "pw", inputs, squared());
+                return rm->add_instruction(
+                    migraphx::make_op("reduce_sum", {{"axes", axes}}), sqr);
+            });
+        mm->add_return({rsum1, rsum2});
+    }
+    run_multi_out_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto fused =
+            add_reduce(p2,
+                       "reduce0:reduce1",
+                       {x},
+                       {1},
+                       [&](auto* rm, const auto& inputs, const auto& axes) {
+                           auto r0 = rm->add_instruction(
+                               migraphx::make_op("reduce_sum", {{"axes", axes}}), inputs[0]);
+                           auto sqr = add_pointwise(p2, rm, "pw", inputs, squared());
+                           auto r1  = rm->add_instruction(
+                               migraphx::make_op("reduce_sum", {{"axes", axes}}), sqr);
+                           return std::vector<migraphx::instruction_ref>{r0, r1};
+                       });
+        auto gte0 =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
+        auto gte1 =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
+        mm->add_return({gte0, gte1});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(multi_output_different_axes_no_fusion)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3, 4}};
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", s);
+        auto rsum1 = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        auto rsum2 = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), x);
+        mm->add_return({rsum1, rsum2});
+    }
+    run_multi_out_pass(p1);
+    // Different axes should NOT be fused
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto x     = mm->add_parameter("x", s);
+        auto rsum1 = add_reduce(p2, "main:reduce_sum0", {x}, {1}, single_reduce("reduce_sum"));
+        auto rsum2 = add_reduce(p2, "main:reduce_sum1", {x}, {2}, single_reduce("reduce_sum"));
+        mm->add_return({rsum1, rsum2});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(multi_output_three_reduces)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", s);
+        auto rsum1 = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        auto rsum2 = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        auto rsum3 = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        mm->add_return({rsum1, rsum2, rsum3});
+    }
+    run_multi_out_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        // CSE deduplicates all three identical reduce_sum ops
+        auto fused =
+            add_reduce(p2,
+                       "main:reduce_sum0:main:reduce_sum1:main:reduce_sum2",
+                       {x},
+                       {1},
+                       [&](auto* rm, const auto& inputs, const auto& axes) {
+                           auto r0 = rm->add_instruction(
+                               migraphx::make_op("reduce_sum", {{"axes", axes}}), inputs[0]);
+                           return std::vector<migraphx::instruction_ref>{r0, r0, r0};
+                       });
+        auto gte0 =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
+        auto gte1 =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
+        auto gte2 =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 2}}), fused);
+        mm->add_return({gte0, gte1, gte2});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

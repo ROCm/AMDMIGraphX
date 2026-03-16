@@ -220,10 +220,10 @@ template <class T, class Operator = nop>
 struct lhs_expression;
 
 template <class T>
-decltype(auto) make_lhs_expression(T&& lhs);
+lhs_expression<T> make_lhs_expression(T&& lhs);
 
 template <class T, class Operator>
-decltype(auto) make_lhs_expression(T&& lhs, Operator);
+lhs_expression<T, Operator> make_lhs_expression(T&& lhs, Operator);
 
 // NOLINTNEXTLINE
 #define TEST_EXPR_BINARY_OPERATOR(op, name)                                        \
@@ -259,32 +259,31 @@ struct expression
     TEST_FOREACH_BINARY_OPERATORS(TEST_EXPR_BINARY_OPERATOR)
 };
 
+// TODO: Remove rvalue references
 template <class T, class U, class Operator>
-decltype(auto) make_expression(T&& lhs, U&& rhs, Operator)
+expression<T, U, Operator> make_expression(T&& lhs, U&& rhs, Operator)
 {
-    // rvalue references to pass by value
-    return expression<std::decay_t<decltype(lhs)>, std::decay_t<decltype(rhs)>, Operator>{lhs, rhs};
+    return {std::forward<T>(lhs), std::forward<U>(rhs)};
 }
 
+// TODO: Remove rvalue reference
 template <class T>
-decltype(auto) make_lhs_expression(T&& lhs)
+lhs_expression<T> make_lhs_expression(T&& lhs)
 {
-    // rvalue references to pass by value
-    return lhs_expression<std::decay_t<decltype(lhs)>>{lhs};
+    return lhs_expression<T>{std::forward<T>(lhs)};
 }
 
 template <class T, class Operator>
-decltype(auto) make_lhs_expression(T&& lhs, Operator)
+lhs_expression<T, Operator> make_lhs_expression(T&& lhs, Operator)
 {
-    // rvalue references to pass by value
-    return lhs_expression<std::decay_t<decltype(lhs)>, Operator>{lhs};
+    return lhs_expression<T, Operator>{std::forward<T>(lhs)};
 }
 
 template <class T, class Operator>
 struct lhs_expression
 {
     T lhs;
-    explicit lhs_expression(const T& e) : lhs(e) {}
+    explicit lhs_expression(T e) : lhs(std::move(e)) {}
 
     friend std::ostream& operator<<(std::ostream& s, const lhs_expression& self)
     {

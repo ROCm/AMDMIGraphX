@@ -671,8 +671,8 @@ TEST_CASE(capure_move_only)
 // Test chaining lhs_expressions with and through capture
 TEST_CASE(capture_chained_and)
 {
-    EXPECT((test::capture{}->*1 == 1) and (test::capture{}->*2 == 2) and (test::capture{}->*3 == 3) and
-           (test::capture{}->*4 == 4));
+    EXPECT((test::capture{}->*1 == 1) and (test::capture{}->*2 == 2) and
+           (test::capture{}->*3 == 3) and (test::capture{}->*4 == 4));
 }
 
 // Edge cases for glob_match

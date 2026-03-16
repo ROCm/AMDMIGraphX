@@ -220,8 +220,19 @@ struct pooling_compiler : compiler<pooling_compiler>
         auto wsize        = std::accumulate(w.begin(), w.end(), 1, std::multiplies<std::size_t>());
         auto faxis        = gen::find_fast_axis(output);
         auto x            = output.lens()[faxis];
+
+        const auto& mode_v = v.at("mode");
+        std::string mode =
+            mode_v.is_string() ? mode_v.get_string() : to_string(mode_v.to<op::pooling_mode>());
+        bool count_include_pad = v.get("count_include_pad", false);
+        bool average_no_pad    = (mode == "average" and not count_include_pad);
+
         auto add_solution = [&](auto group_size, auto width) {
             if(x < group_size)
+                return;
+            if(group_size > 1 and (x % group_size) != 0)
+                return;
+            if(average_no_pad and width > 1)
                 return;
             if(wsize < width)
                 return;

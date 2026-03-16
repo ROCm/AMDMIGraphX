@@ -203,8 +203,10 @@ __device__ void pooling_reduce(Output output, F f)
 {
     if constexpr(GroupSize < 2)
     {
-        Algo::template run<decltype(output)>(
-            [&](auto out_idx, auto r) { r.outer([&] { output[out_idx] = f(out_idx, r); }); });
+        Algo::template run<decltype(output)>([&](auto out_idx, auto r) {
+            auto result = f(out_idx, r);
+            r.outer([&] { output[out_idx] = result; });
+        });
     }
     else
     {
@@ -215,9 +217,10 @@ __device__ void pooling_reduce(Output output, F f)
             Algo::template run<decltype(goutput)>([&](auto out_idx, auto r) {
                 auto i = out_idx;
                 i.back() *= GroupSize;
-                auto result = vec_generate<GroupSize>([&](auto) {
-                    i.back()++;
-                    return f(i, r);
+                auto result = vec_generate<GroupSize>([&](auto k) {
+                    auto idx = i;
+                    idx.back() += k;
+                    return f(idx, r);
                 });
                 r.outer([&] { goutput[out_idx] = result; });
             });

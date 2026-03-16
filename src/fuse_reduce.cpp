@@ -297,14 +297,13 @@ merge_reduces(module_pass_manager& mpm, instruction_ref input, instruction_ref o
                 continue;
             auto v = inp_out->get_operator().to_value();
             auto i = v.at("index").to<std::size_t>();
-            m.replace_instruction(
-                inp_out, make_op("get_tuple_elem", {{"index", i}}), fins);
+            m.replace_instruction(inp_out, make_op("get_tuple_elem", {{"index", i}}), fins);
         }
     }
     else
     {
-        auto elem = m.insert_instruction(
-            std::next(fins), make_op("get_tuple_elem", {{"index", 0}}), fins);
+        auto elem =
+            m.insert_instruction(std::next(fins), make_op("get_tuple_elem", {{"index", 0}}), fins);
         m.replace_instruction(input, elem);
     }
 
@@ -344,24 +343,23 @@ static void try_multi_output_merge(module_pass_manager& mpm, instruction_ref red
     candidates.push_back(reduce);
     for(auto inp : reduce->inputs())
     {
-        std::copy_if(
-            inp->outputs().begin(),
-            inp->outputs().end(),
-            std::back_inserter(candidates),
-            [&](instruction_ref output) {
-                if(output == reduce)
-                    return false;
-                if(output->name() != "fused_reduce")
-                    return false;
-                if(not m.has_instruction(output))
-                    return false;
-                if(output->get_operator() != reduce->get_operator())
-                    return false;
-                if(output->outputs().empty())
-                    return false;
-                return std::find(candidates.begin(), candidates.end(), output) ==
-                       candidates.end();
-            });
+        std::copy_if(inp->outputs().begin(),
+                     inp->outputs().end(),
+                     std::back_inserter(candidates),
+                     [&](instruction_ref output) {
+                         if(output == reduce)
+                             return false;
+                         if(output->name() != "fused_reduce")
+                             return false;
+                         if(not m.has_instruction(output))
+                             return false;
+                         if(output->get_operator() != reduce->get_operator())
+                             return false;
+                         if(output->outputs().empty())
+                             return false;
+                         return std::find(candidates.begin(), candidates.end(), output) ==
+                                candidates.end();
+                     });
     }
 
     if(candidates.size() < 2)
@@ -385,11 +383,10 @@ static void try_multi_output_merge(module_pass_manager& mpm, instruction_ref red
         return;
 
     // Iteratively merge all independent reduces
-    (void)std::accumulate(
-        independent.begin() + 1,
-        independent.end(),
-        independent.front(),
-        [&](auto prev, auto next) { return merge_reduces(mpm, prev, next); });
+    (void)std::accumulate(independent.begin() + 1,
+                          independent.end(),
+                          independent.front(),
+                          [&](auto prev, auto next) { return merge_reduces(mpm, prev, next); });
 }
 
 namespace {
@@ -503,8 +500,7 @@ struct find_reduce_reduce
             if(contains(r.instructions, "broadcast"))
             {
                 auto broadcast = r.instructions["broadcast"];
-                auto axes =
-                    reduce1->get_operator().to_value().at("axes").to_vector<std::size_t>();
+                auto axes = reduce1->get_operator().to_value().at("axes").to_vector<std::size_t>();
                 if(not is_valid_broadcast(broadcast, axes))
                 {
                     if(multi_output)

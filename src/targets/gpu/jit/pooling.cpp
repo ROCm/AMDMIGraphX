@@ -180,14 +180,12 @@ struct pooling_compiler : compiler<pooling_compiler>
         auto width      = v.get("width", 1);
         if(width > 1)
             algo.set_block_algo(ctx, width);
-        auto fast_dim         = out_s.lens()[gen::find_fast_axis(out_s)];
-        auto other_elements   = out_s.elements() / fast_dim;
-        auto grouped_elements = other_elements *
-                                ((fast_dim + algo.group_size - 1) / algo.group_size);
+        auto fast_dim       = out_s.lens()[gen::find_fast_axis(out_s)];
+        auto other_elements = out_s.elements() / fast_dim;
+        auto grouped_elements =
+            other_elements * ((fast_dim + algo.group_size - 1) / algo.group_size);
         options.set_launch_params(
-            v,
-            compute_global_for(ctx, grouped_elements * algo.reduce_size, 256),
-            algo.block_size);
+            v, compute_global_for(ctx, grouped_elements * algo.reduce_size, 256), algo.block_size);
         normalize(options.virtual_inputs, padding, stride, window);
         auto src = interpolate_string(pooling_kernel,
                                       {{"op", op + "{}"},

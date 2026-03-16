@@ -89,7 +89,6 @@ void rewrite_rotary_embedding::apply(module_pass_manager& mpm) const
 {
     match::find_matches(mpm, find_rotary_embedding{});
     mpm.run_pass(dead_code_elimination{});
-    mpm.get_module().debug_print();
 }
 
 } // namespace MIGRAPHX_INLINE_NS

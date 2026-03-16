@@ -2289,8 +2289,8 @@ void simplify_algebra::apply(module& m) const
                             find_split_concat{},
                             find_splits{},
                             find_split_reshape{},
-                            find_split_transpose{}/* ,
-                            find_pow2{} */);
+                            find_split_transpose{},
+                            find_pow2{});
         dead_code_elimination{}.apply(m);
     });
 }

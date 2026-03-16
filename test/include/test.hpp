@@ -55,17 +55,6 @@ struct rank<0>
 {
 };
 
-template <class T>
-struct rrr
-{
-    using type = T;
-};
-
-template <class T>
-struct rrr<T&&>
-{
-    using type = T;
-};
 
 // clang-format off
 // NOLINTNEXTLINE

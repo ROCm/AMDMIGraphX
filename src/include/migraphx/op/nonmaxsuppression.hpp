@@ -131,46 +131,12 @@ struct nonmaxsuppression
             }
         };
 
-        if(use_dyn_output)
+        bool needs_dyn_output =
+            use_dyn_output or inputs.at(0).dynamic() or inputs.at(1).dynamic();
+
+        if(needs_dyn_output)
         {
-            if(inputs.at(0).dynamic())
-            {
-                // both boxes and scores should be dynamic
-                // check dynamic dimensions are consistent
-                const auto boxes_dims  = inputs.at(0).dyn_dims();
-                const auto scores_dims = inputs.at(1).dyn_dims();
-                if(boxes_dims.at(1) != scores_dims.at(2))
-                {
-                    MIGRAPHX_THROW("NonMaxSuppression: dynamic spatial dimension mismatch between "
-                                   "boxes and scores input");
-                }
-                if(boxes_dims.at(0) != scores_dims.at(0))
-                {
-                    MIGRAPHX_THROW("NonMaxSuppression: dynamic number of batches mismatch between "
-                                   "boxes and scores input");
-                }
-            }
-            else if(inputs.at(1).dynamic())
-            {
-                // scores has dynamic shape, boxes fixed shape
-                // check that it is only a dynamic number of classes
-                const auto scores_dims = inputs.at(1).dyn_dims();
-                const auto boxes_lens  = inputs.at(0).lens();
-                if(not scores_dims.at(0).is_fixed() or scores_dims.at(0).max != boxes_lens.at(0))
-                {
-                    MIGRAPHX_THROW("NonMaxSuppression: scores dynamic num_classes; num_batches not "
-                                   "fixed or mismatched");
-                }
-                if(not scores_dims.at(2).is_fixed() or scores_dims.at(2).max != boxes_lens.at(1))
-                {
-                    MIGRAPHX_THROW("NonMaxSuppression: scores dynamic num_classes; "
-                                   "spatial_dimension not fixed or mismatches");
-                }
-            }
-            else
-            {
-                fixed_shape_error_check();
-            }
+
             std::vector<shape::dynamic_dimension> out_lens = {};
             out_lens.push_back({0, max_num_boxes});
             out_lens.push_back({3, 3});
@@ -178,11 +144,7 @@ struct nonmaxsuppression
         }
         else
         {
-            if(inputs.at(0).dynamic() or inputs.at(1).dynamic())
-            {
-                MIGRAPHX_THROW(
-                    "NonMaxSuppression: dynamic input shape with use_dyn_output set to false");
-            }
+
             fixed_shape_error_check();
             std::vector<std::size_t> out_lens = {max_num_boxes, 3};
             return {shape::int64_type, out_lens};
@@ -326,6 +288,13 @@ struct nonmaxsuppression
         const auto num_batches = lens[0];
         const auto num_classes = lens[1];
         const auto num_boxes   = lens[2];
+        // Runtime validation per ONNX spec: spatial_dimension must match
+        // between boxes (dim 1) and scores (dim 2).
+        if(boxes.get_shape().lens()[1] != num_boxes)
+        {
+            MIGRAPHX_THROW("NonMaxSuppression: runtime spatial dimension mismatch "
+                           "between boxes and scores input");
+        }
         // boxes of a class with NMS applied [score, index]
         std::vector<int64_t> selected_indices;
         // iterate over batches and classes

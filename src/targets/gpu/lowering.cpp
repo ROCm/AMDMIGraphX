@@ -121,6 +121,7 @@ struct miopen_apply
         add_reshape_lazy_op();
         add_concat_past_present_op();
         add_scan_slice_op();
+        add_slice_op();
     }
 
     void copy_params() const
@@ -568,6 +569,32 @@ struct miopen_apply
             inputs[1]    = mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_idx);
             return mod->replace_instruction(
                 ins, mod->insert_instruction(ins, ins->get_operator(), inputs));
+        });
+    }
+    void add_slice_op()
+    {
+        apply_map.emplace("slice", [=](instruction_ref ins) {
+            auto inputs = ins->inputs();
+            if(inputs.size() > 1)
+            {
+                std::vector<instruction_ref> cpu_inputs;
+                // Copy only the small runtime metadata inputs (starts/ends/axes) to CPU.
+                // inputs[0] (data) stays on GPU since slice creates an aliased view into it.
+                for(std::size_t i = 1; i < inputs.size(); ++i)
+                {
+                    cpu_inputs.push_back(
+                        mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs[i]));
+                }
+                cpu_inputs.front() =
+                    mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs);
+                for(std::size_t i = 1; i < inputs.size(); ++i)
+                {
+                    inputs[i] = cpu_inputs[i - 1];
+                }
+                return mod->replace_instruction(
+                    ins, mod->insert_instruction(ins, ins->get_operator(), inputs));
+            }
+            return ins;
         });
     }
 };

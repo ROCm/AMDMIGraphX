@@ -18245,15 +18245,11 @@ def scan_arg_count_mismatch_test():
 
 @onnx_test()
 def matmulbnb4_fp4_test():
-    # Basic test with FP4 quantization
-    # Input A: [2, 8], B is 4-bit quantized [8, 4] (packed), absmax scales
     N = 4
     K = 8
     block_size = 16
-    quant_type = 0  # FP4
-    
-    # B is packed 4-bit: (N * K + 1) / 2 = (4 * 8 + 1) / 2 = 16
-    # absmax: (N * K + block_size - 1) / block_size = (32 + 15) / 16 = 2
+    quant_type = 0
+
     A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [2, K])
     B = helper.make_tensor_value_info('B', TensorProto.UINT8, [16])
     absmax = helper.make_tensor_value_info('absmax', TensorProto.FLOAT, [2])
@@ -18274,14 +18270,11 @@ def matmulbnb4_fp4_test():
 
 @onnx_test()
 def matmulbnb4_nf4_test():
-    # Test with NF4 quantization
     N = 8
     K = 16
     block_size = 16
-    quant_type = 1  # NF4
-    
-    # B is packed: (8 * 16 + 1) / 2 = 64
-    # absmax: (128 + 15) / 16 = 8
+    quant_type = 1
+
     A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [3, K])
     B = helper.make_tensor_value_info('B', TensorProto.UINT8, [64])
     absmax = helper.make_tensor_value_info('absmax', TensorProto.FLOAT, [8])
@@ -18302,14 +18295,11 @@ def matmulbnb4_nf4_test():
 
 @onnx_test()
 def matmulbnb4_block32_test():
-    # Test with block_size = 32
     N = 16
     K = 32
     block_size = 32
-    quant_type = 0  # FP4
-    
-    # B is packed: (16 * 32 + 1) / 2 = 256
-    # absmax: (512 + 31) / 32 = 16
+    quant_type = 0
+
     A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [1, K])
     B = helper.make_tensor_value_info('B', TensorProto.UINT8, [256])
     absmax = helper.make_tensor_value_info('absmax', TensorProto.FLOAT, [16])
@@ -18330,14 +18320,11 @@ def matmulbnb4_block32_test():
 
 @onnx_test()
 def matmulbnb4_large_test():
-    # Test with larger dimensions
     N = 64
     K = 128
     block_size = 64
-    quant_type = 1  # NF4
-    
-    # B is packed: (64 * 128 + 1) / 2 = 4096
-    # absmax: (8192 + 63) / 64 = 128
+    quant_type = 1
+
     A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [4, K])
     B = helper.make_tensor_value_info('B', TensorProto.UINT8, [4096])
     absmax = helper.make_tensor_value_info('absmax', TensorProto.FLOAT, [128])
@@ -18358,12 +18345,11 @@ def matmulbnb4_large_test():
 
 @onnx_test()
 def matmulbnb4_invalid_quant_type_test():
-    # Error: invalid quant_type (must be 0 or 1)
     N = 4
     K = 8
     block_size = 16
-    quant_type = 2  # Invalid!
-    
+    quant_type = 2
+
     A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [2, K])
     B = helper.make_tensor_value_info('B', TensorProto.UINT8, [16])
     absmax = helper.make_tensor_value_info('absmax', TensorProto.FLOAT, [2])
@@ -18384,12 +18370,11 @@ def matmulbnb4_invalid_quant_type_test():
 
 @onnx_test()
 def matmulbnb4_invalid_block_size_test():
-    # Error: block_size must be >= 16 and power of 2
     N = 4
     K = 8
-    block_size = 12  # Not power of 2!
+    block_size = 12
     quant_type = 0
-    
+
     A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [2, K])
     B = helper.make_tensor_value_info('B', TensorProto.UINT8, [16])
     absmax = helper.make_tensor_value_info('absmax', TensorProto.FLOAT, [2])
@@ -18410,12 +18395,11 @@ def matmulbnb4_invalid_block_size_test():
 
 @onnx_test()
 def matmulbnb4_invalid_block_size_small_test():
-    # Error: block_size must be >= 16
     N = 4
     K = 8
-    block_size = 8  # Too small!
+    block_size = 8
     quant_type = 0
-    
+
     A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [2, K])
     B = helper.make_tensor_value_info('B', TensorProto.UINT8, [16])
     absmax = helper.make_tensor_value_info('absmax', TensorProto.FLOAT, [2])
@@ -18436,19 +18420,18 @@ def matmulbnb4_invalid_block_size_small_test():
 
 @onnx_test()
 def matmulbnb4_wrong_input_count_test():
-    # Error: requires exactly 3 inputs
     N = 4
     K = 8
     block_size = 16
     quant_type = 0
-    
+
     A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [2, K])
     B = helper.make_tensor_value_info('B', TensorProto.UINT8, [16])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [2, N])
 
     node = onnx.helper.make_node(
         'MatMulBnb4',
-        inputs=['A', 'B'],  # Missing absmax!
+        inputs=['A', 'B'],
         outputs=['Y'],
         N=N,
         K=K,
@@ -18461,13 +18444,12 @@ def matmulbnb4_wrong_input_count_test():
 
 @onnx_test()
 def matmulbnb4_wrong_a_dims_test():
-    # Error: Input A must have at least 2 dimensions
     N = 4
     K = 8
     block_size = 16
     quant_type = 0
-    
-    A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [K])  # 1D!
+
+    A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [K])
     B = helper.make_tensor_value_info('B', TensorProto.UINT8, [16])
     absmax = helper.make_tensor_value_info('absmax', TensorProto.FLOAT, [2])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [N])
@@ -18487,13 +18469,12 @@ def matmulbnb4_wrong_a_dims_test():
 
 @onnx_test()
 def matmulbnb4_wrong_a_inner_dim_test():
-    # Error: Input A inner dimension must match K
     N = 4
     K = 8
     block_size = 16
     quant_type = 0
-    
-    A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [2, 10])  # Wrong K!
+
+    A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [2, 10])
     B = helper.make_tensor_value_info('B', TensorProto.UINT8, [16])
     absmax = helper.make_tensor_value_info('absmax', TensorProto.FLOAT, [2])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [2, N])
@@ -18513,14 +18494,13 @@ def matmulbnb4_wrong_a_inner_dim_test():
 
 @onnx_test()
 def matmulbnb4_wrong_b_dims_test():
-    # Error: Input B dimensions don't match expected
     N = 4
     K = 8
     block_size = 16
     quant_type = 0
-    
+
     A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [2, K])
-    B = helper.make_tensor_value_info('B', TensorProto.UINT8, [20])  # Wrong size!
+    B = helper.make_tensor_value_info('B', TensorProto.UINT8, [20])
     absmax = helper.make_tensor_value_info('absmax', TensorProto.FLOAT, [2])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [2, N])
 
@@ -18539,15 +18519,14 @@ def matmulbnb4_wrong_b_dims_test():
 
 @onnx_test()
 def matmulbnb4_wrong_absmax_dims_test():
-    # Error: Input absmax dimensions don't match expected
     N = 4
     K = 8
     block_size = 16
     quant_type = 0
-    
+
     A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [2, K])
     B = helper.make_tensor_value_info('B', TensorProto.UINT8, [16])
-    absmax = helper.make_tensor_value_info('absmax', TensorProto.FLOAT, [5])  # Wrong size!
+    absmax = helper.make_tensor_value_info('absmax', TensorProto.FLOAT, [5])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [2, N])
 
     node = onnx.helper.make_node(
@@ -18565,11 +18544,10 @@ def matmulbnb4_wrong_absmax_dims_test():
 
 @onnx_test()
 def matmulbnb4_missing_n_attr_test():
-    # Error: Missing required attribute N
     K = 8
     block_size = 16
     quant_type = 0
-    
+
     A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [2, K])
     B = helper.make_tensor_value_info('B', TensorProto.UINT8, [16])
     absmax = helper.make_tensor_value_info('absmax', TensorProto.FLOAT, [2])
@@ -18579,7 +18557,6 @@ def matmulbnb4_missing_n_attr_test():
         'MatMulBnb4',
         inputs=['A', 'B', 'absmax'],
         outputs=['Y'],
-        # N is missing!
         K=K,
         block_size=block_size,
         quant_type=quant_type

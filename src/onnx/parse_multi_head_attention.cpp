@@ -313,16 +313,20 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
 
             // attention_bias shape: (batch_size, num_heads, sequence_length, total_sequence_length)
             if(attn_bias_lens[0] != params.batch_size)
-                MIGRAPHX_THROW("MultiHeadAttention: attention_bias first dimension must be batch_size");
+                MIGRAPHX_THROW(
+                    "MultiHeadAttention: attention_bias first dimension must be batch_size");
 
             if(attn_bias_lens[1] != params.num_heads)
-                MIGRAPHX_THROW("MultiHeadAttention: attention_bias second dimension must be num_heads");
+                MIGRAPHX_THROW(
+                    "MultiHeadAttention: attention_bias second dimension must be num_heads");
 
             if(attn_bias_lens[2] != params.q_sequence_length)
-                MIGRAPHX_THROW("MultiHeadAttention: attention_bias third dimension must be sequence_length");
+                MIGRAPHX_THROW(
+                    "MultiHeadAttention: attention_bias third dimension must be sequence_length");
 
             if(attn_bias_lens[3] != params.kv_sequence_length)
-                MIGRAPHX_THROW("MultiHeadAttention: attention_bias fourth dimension must be total_sequence_length");
+                MIGRAPHX_THROW("MultiHeadAttention: attention_bias fourth dimension must be "
+                               "total_sequence_length");
         }
     }
 
@@ -330,8 +334,9 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
                       multi_head_attention_parameters& params) const
     {
         if(args.empty() or args.size() > 6)
-            MIGRAPHX_THROW("MultiHeadAttention: Wrong number of inputs. Only 'query', 'key', "
-                           "'value', bias, key_padding_mask and attention_bias inputs are supported.");
+            MIGRAPHX_THROW(
+                "MultiHeadAttention: Wrong number of inputs. Only 'query', 'key', "
+                "'value', bias, key_padding_mask and attention_bias inputs are supported.");
 
         // Order matters here. Most parameters defined by input query, key, value parameters
         // This must be used first to extract hidden size, batch, etc
@@ -683,11 +688,11 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
             result = info.add_common_op("add", result, attn_mask.value());
         }
 
-        result      = info.add_common_op("mul", result, scale_literal);
-        result      = info.add_instruction(make_op("softmax", {{"axis", -1}}), result);
-        result      = info.add_instruction(make_op("dot"), result, value);
-        result      = info.add_instruction(make_op("transpose", {{"permutation", perm}}), result);
-        result      = info.add_instruction(
+        result = info.add_common_op("mul", result, scale_literal);
+        result = info.add_instruction(make_op("softmax", {{"axis", -1}}), result);
+        result = info.add_instruction(make_op("dot"), result, value);
+        result = info.add_instruction(make_op("transpose", {{"permutation", perm}}), result);
+        result = info.add_instruction(
             make_op(
                 "reshape",
                 {{"dims", {params.batch_size, params.q_sequence_length, params.hidden_size_v}}}),

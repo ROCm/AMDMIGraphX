@@ -68,21 +68,29 @@ static eliminate_data_type for_device_functions()
     return eliminate_data_type{unsupported_types, shape::float_type, device_functions};
 }
 
-static eliminate_data_type for_fp8fnuz()
+static eliminate_data_type for_fp8fnuz(const std::string& dev_name)
 {
     std::set<std::string> unsupported_ops = {};
 
-    // disable dot & quant_dot if no hipblaslt
-    if(not hipblaslt_supported())
+    if(not dev_name.empty())
+    {
+        if(not hipblaslt_supported(dev_name))
+        {
+            unsupported_ops.insert("dot");
+            unsupported_ops.insert("quant_dot");
+        }
+    }
+    else if(not hipblaslt_supported())
     {
         unsupported_ops.insert("dot");
         unsupported_ops.insert("quant_dot");
     }
 
-    // MIOpen doesn't have support for fp8 pooling yet.
     insert_miopen_pooling(unsupported_ops);
 
-    if(not gpu::gfx_has_fp8fnuz_intrinsics())
+    bool has_fnuz = dev_name.empty() ? gpu::gfx_has_fp8fnuz_intrinsics()
+                                     : gpu::gfx_has_fp8fnuz_intrinsics(dev_name);
+    if(not has_fnuz)
     {
         insert_gemm_conv(unsupported_ops);
     }
@@ -90,21 +98,29 @@ static eliminate_data_type for_fp8fnuz()
         {shape::fp8e4m3fnuz_type, shape::fp8e5m2fnuz_type}, shape::float_type, unsupported_ops};
 }
 
-static eliminate_data_type for_fp8ocp()
+static eliminate_data_type for_fp8ocp(const std::string& dev_name)
 {
     std::set<std::string> unsupported_ops = {};
 
-    // disable dot & quant_dot if no hipblaslt
-    if(not hipblaslt_supported())
+    if(not dev_name.empty())
+    {
+        if(not hipblaslt_supported(dev_name))
+        {
+            unsupported_ops.insert("dot");
+            unsupported_ops.insert("quant_dot");
+        }
+    }
+    else if(not hipblaslt_supported())
     {
         unsupported_ops.insert("dot");
         unsupported_ops.insert("quant_dot");
     }
 
-    // MIOpen doesn't have support for fp8 pooling yet.
     insert_miopen_pooling(unsupported_ops);
 
-    if(not gpu::gfx_has_fp8ocp_intrinsics())
+    bool has_ocp = dev_name.empty() ? gpu::gfx_has_fp8ocp_intrinsics()
+                                    : gpu::gfx_has_fp8ocp_intrinsics(dev_name);
+    if(not has_ocp)
     {
         insert_gemm_conv(unsupported_ops);
     }
@@ -133,7 +149,9 @@ void eliminate_data_type_for_gpu::apply(module_pass_manager& mpm) const
 {
     std::set<shape::type_t> unsupported_floats;
     // No BF-16 Support on Navi21
-    if(not gpu::gfx_has_bf16_intrinsics())
+    bool has_bf16 = device_name.empty() ? gpu::gfx_has_bf16_intrinsics()
+                                        : gpu::gfx_has_bf16_intrinsics(device_name);
+    if(not has_bf16)
     {
         unsupported_floats.insert(shape::bf16_type);
     }
@@ -158,8 +176,8 @@ void eliminate_data_type_for_gpu::apply(module_pass_manager& mpm) const
 
     mpm.run_pass(for_device_functions());
 
-    mpm.run_pass(for_fp8fnuz());
-    mpm.run_pass(for_fp8ocp());
+    mpm.run_pass(for_fp8fnuz(device_name));
+    mpm.run_pass(for_fp8ocp(device_name));
 
     mpm.run_pass(for_gemm_conv());
 }

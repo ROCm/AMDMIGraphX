@@ -36,6 +36,7 @@ namespace gpu {
 struct MIGRAPHX_GPU_EXPORT eliminate_data_type_for_gpu
 {
     bool disable_64bit = false;
+    std::string device_name{};
     std::string name() const { return "gpu::eliminate_data_type_for_gpu"; }
     void apply(module_pass_manager& mpm) const;
 };

@@ -117,11 +117,17 @@ make_dyn_bcast_shape(const shape& input_shape, const std::vector<dd>& bcast_dims
     const auto& input_dims    = dyn_input.dyn_dims();
     const auto& input_strides = dyn_input.dyn_strides();
     auto offset               = bcast_dims.size() - dyn_input.ndim();
+
+    if(input_strides.empty())
+    {
+        return shape(input_shape.type(), bcast_dims);
+    }
+
     std::vector<dd> out_dims(bcast_dims);
     std::vector<symbolic_expr> out_strides(bcast_dims.size(), symbolic_expr(std::size_t{0}));
     for(std::ptrdiff_t i : reverse(range(dyn_input.ndim())))
     {
-        if(bcast_dims.at(i + offset) == input_dims[i])
+        if(bcast_dims.at(i + offset) == input_dims[i] or input_dims[i].min > 1)
         {
             out_strides.at(i + offset) = input_strides[i];
         }

@@ -159,10 +159,11 @@ struct MIGRAPHX_EXPORT shape
         MIGRAPHX_EXPORT friend bool operator!=(const dynamic_dimension& x, const std::size_t& y);
         MIGRAPHX_EXPORT friend bool operator!=(const std::size_t& x, const dynamic_dimension& y);
 
-        // add, subtract, multiply fixed std::size_t dimension
+        // add, subtract, multiply, divide fixed std::size_t dimension
         dynamic_dimension& operator+=(const std::size_t& x);
         dynamic_dimension& operator-=(const std::size_t& x);
         dynamic_dimension& operator*=(const std::size_t& x);
+        dynamic_dimension& operator/=(const std::size_t& x);
         MIGRAPHX_EXPORT friend dynamic_dimension operator+(const dynamic_dimension& x,
                                                            const std::size_t& y);
         MIGRAPHX_EXPORT friend dynamic_dimension operator+(const std::size_t& x,
@@ -173,6 +174,8 @@ struct MIGRAPHX_EXPORT shape
                                                            const std::size_t& y);
         MIGRAPHX_EXPORT friend dynamic_dimension operator*(const std::size_t& x,
                                                            const dynamic_dimension& y);
+        MIGRAPHX_EXPORT friend dynamic_dimension operator/(const dynamic_dimension& x,
+                                                           const std::size_t& y);
 
         // dd-to-dd arithmetic (defined in symbolic.cpp)
         dynamic_dimension& operator+=(const dynamic_dimension& x);
@@ -396,6 +399,7 @@ struct MIGRAPHX_EXPORT shape
 
     // convert the shape to a static one setting any non-fixed dynamic_dimensions to x
     shape to_static(std::size_t x) const;
+    shape to_static(const std::map<std::string, std::size_t>& symbol_map) const;
 
     MIGRAPHX_EXPORT friend bool operator==(const shape& x, const shape& y);
     MIGRAPHX_EXPORT friend bool operator!=(const shape& x, const shape& y);

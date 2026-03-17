@@ -28,7 +28,9 @@
 #include <migraphx/serialize.hpp>
 
 #include <symengine/expression.h>
+#include <symengine/functions.h>
 #include <symengine/integer.h>
+#include <symengine/rational.h>
 #include <symengine/symbol.h>
 #include <symengine/visitor.h>
 #include <symengine/parser.h>
@@ -77,6 +79,27 @@ std::string symbolic_expr::to_string() const
     return ss.str();
 }
 
+std::size_t symbolic_expr::eval(const std::map<std::string, std::size_t>& symbol_map) const
+{
+    if(empty())
+        return 0;
+    SymEngine::map_basic_basic subs_map;
+    for(const auto& kv : symbol_map)
+        subs_map[SymEngine::symbol(kv.first)] = SymEngine::integer(kv.second);
+    auto result = p->expr.get_basic()->subs(subs_map);
+    if(SymEngine::is_a<SymEngine::Integer>(*result))
+        return static_cast<std::size_t>(
+            SymEngine::rcp_dynamic_cast<const SymEngine::Integer>(result)->as_uint());
+    if(SymEngine::is_a<SymEngine::Rational>(*result))
+    {
+        auto rat = SymEngine::rcp_dynamic_cast<const SymEngine::Rational>(result);
+        // floor division to match integer dimension arithmetic
+        auto q = SymEngine::quotient(*rat->get_num(), *rat->get_den());
+        return static_cast<std::size_t>(q->as_uint());
+    }
+    MIGRAPHX_THROW("symbolic_expr::eval: result is not numeric after substitution");
+}
+
 symbolic_expr operator+(const symbolic_expr& a, const symbolic_expr& b)
 {
     if(a.empty() and b.empty())
@@ -110,7 +133,17 @@ symbolic_expr operator/(const symbolic_expr& a, const symbolic_expr& b)
         return {};
     auto ea = a.p ? a.p->expr : SymEngine::Expression(0);
     auto eb = b.p ? b.p->expr : SymEngine::Expression(0);
-    return {std::make_shared<symbolic_expr::impl>(ea / eb)};
+    auto result = ea / eb;
+    // Wrap in floor() for integer division semantics, but only when the
+    // divisor could produce a non-integer result. SymEngine doesn't know
+    // our symbols are integers, so floor(H) != H symbolically.
+    if(not SymEngine::is_a<SymEngine::Integer>(*eb.get_basic()) or
+       not SymEngine::rcp_dynamic_cast<const SymEngine::Integer>(eb.get_basic())
+                ->is_one())
+    {
+        result = SymEngine::Expression(SymEngine::floor(result.get_basic()));
+    }
+    return {std::make_shared<symbolic_expr::impl>(result)};
 }
 
 bool operator==(const symbolic_expr& a, const symbolic_expr& b)
@@ -158,7 +191,19 @@ dd& dd::operator+=(const dd& x)
     max    = (max > std::numeric_limits<std::size_t>::max() - x.max)
                  ? std::numeric_limits<std::size_t>::max()
                  : max + x.max;
-    optimals.clear();
+    if(x.is_fixed())
+    {
+        std::set<std::size_t> new_optimals;
+        std::transform(optimals.begin(),
+                       optimals.end(),
+                       std::inserter(new_optimals, new_optimals.begin()),
+                       [&](auto o) { return o + x.min; });
+        optimals = new_optimals;
+    }
+    else
+    {
+        optimals.clear();
+    }
     sym = (sym or x.sym) ? optional<symbolic_expr>(e) : nullopt;
     return *this;
 }
@@ -168,7 +213,19 @@ dd& dd::operator-=(const dd& x)
     auto e = sym.value_or(symbolic_expr(min)) - x.sym.value_or(symbolic_expr(x.min));
     min    = (min > x.max) ? min - x.max : 0;
     max    = (max > x.min) ? max - x.min : 0;
-    optimals.clear();
+    if(x.is_fixed())
+    {
+        std::set<std::size_t> new_optimals;
+        std::transform(optimals.begin(),
+                       optimals.end(),
+                       std::inserter(new_optimals, new_optimals.begin()),
+                       [&](auto o) { return (o > x.min) ? o - x.min : 0; });
+        optimals = new_optimals;
+    }
+    else
+    {
+        optimals.clear();
+    }
     sym = (sym or x.sym) ? optional<symbolic_expr>(e) : nullopt;
     return *this;
 }
@@ -180,7 +237,19 @@ dd& dd::operator*=(const dd& x)
     max    = (max > std::numeric_limits<std::size_t>::max() / (x.max == 0 ? 1 : x.max))
                  ? std::numeric_limits<std::size_t>::max()
                  : max * x.max;
-    optimals.clear();
+    if(x.is_fixed())
+    {
+        std::set<std::size_t> new_optimals;
+        std::transform(optimals.begin(),
+                       optimals.end(),
+                       std::inserter(new_optimals, new_optimals.begin()),
+                       [&](auto o) { return o * x.min; });
+        optimals = new_optimals;
+    }
+    else
+    {
+        optimals.clear();
+    }
     sym = (sym or x.sym) ? optional<symbolic_expr>(e) : nullopt;
     return *this;
 }
@@ -190,7 +259,19 @@ dd& dd::operator/=(const dd& x)
     auto e = sym.value_or(symbolic_expr(min)) / x.sym.value_or(symbolic_expr(x.min));
     min    = (x.max == 0) ? 0 : min / x.max;
     max    = (x.min == 0) ? std::numeric_limits<std::size_t>::max() : max / x.min;
-    optimals.clear();
+    if(x.is_fixed())
+    {
+        std::set<std::size_t> new_optimals;
+        std::transform(optimals.begin(),
+                       optimals.end(),
+                       std::inserter(new_optimals, new_optimals.begin()),
+                       [&](auto o) { return (x.min == 0) ? std::size_t{0} : o / x.min; });
+        optimals = new_optimals;
+    }
+    else
+    {
+        optimals.clear();
+    }
     sym = (sym or x.sym) ? optional<symbolic_expr>(e) : nullopt;
     return *this;
 }

@@ -33,6 +33,9 @@
 
 #include "test.hpp"
 
+using dd = migraphx::shape::dynamic_dimension;
+using se = migraphx::symbolic_expr;
+
 template <class... Ts>
 static void expect_shape(const migraphx::shape& expected, const migraphx::operation& op, Ts... xs)
 {
@@ -439,6 +442,68 @@ TEST_CASE(conv_dyn_img_weights)
                                    {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
                  input_dyn_shape,
                  weights_shape);
+}
+
+TEST_CASE(conv_sym_batch)
+{
+
+    migraphx::shape input{migraphx::shape::float_type,
+                          {dd{1, 8, {}, se("N")}, dd{3, 3}, dd{5, 5}, dd{5, 5}}};
+    migraphx::shape weights{migraphx::shape::float_type, {1, 3, 3, 3}};
+    migraphx::shape expected{migraphx::shape::float_type,
+                             {dd{1, 8, {}, se("N")}, dd{1, 1}, dd{3, 3}, dd{3, 3}}};
+    expect_shape(expected,
+                 migraphx::make_op("convolution",
+                                   {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
+                 input,
+                 weights);
+}
+
+TEST_CASE(conv_sym_img)
+{
+    migraphx::shape input{
+        migraphx::shape::float_type,
+        {dd{1, 1}, dd{3, 3}, dd{5, 20, {10, 15}, se("H")}, dd{5, 20, {10, 15}, se("W")}}};
+    migraphx::shape weights{migraphx::shape::float_type, {1, 3, 3, 3}};
+    auto H = se("H"), W = se("W");
+    migraphx::shape expected{
+        migraphx::shape::float_type,
+        {dd{1, 1}, dd{1, 1}, dd{3, 18, {8, 13}, H - 2}, dd{3, 18, {8, 13}, W - 2}}};
+    auto conv_op = migraphx::make_op("convolution",
+                                     {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}});
+    expect_shape(expected, conv_op, input, weights);
+
+    std::map<std::string, std::size_t> sym_map = {{"H", 12}, {"W", 8}};
+    migraphx::shape static_input{migraphx::shape::float_type, {1, 3, 12, 8}};
+    migraphx::shape static_out = conv_op.compute_shape({static_input, weights});
+    EXPECT(expected.to_static(sym_map) == static_out);
+}
+
+TEST_CASE(conv_sym_img_pad_stride)
+{
+    migraphx::shape input{
+        migraphx::shape::float_type,
+        {dd{1, 8, {}, se("N")}, dd{3, 3}, dd{10, 50, {20, 30}, se("H")}, dd{10, 50, {20, 30}, se("W")}}};
+    migraphx::shape weights{migraphx::shape::float_type, {16, 3, 5, 5}};
+    // H: ((H + 2*2 - 5) / 2) + 1 = (H - 1)/2 + 1
+    //   min=(10-1)/2+1=5, max=(50-1)/2+1=25, opt={(20-1)/2+1=10, (30-1)/2+1=15}
+    // W: ((W + 2*1 - 5) / 3) + 1 = (W - 3)/3 + 1
+    //   min=(10-3)/3+1=3, max=(50-3)/3+1=16, opt={(20-3)/3+1=6, (30-3)/3+1=10}
+    auto H = se("H"), W = se("W");
+    migraphx::shape expected{
+        migraphx::shape::float_type,
+        {dd{1, 8, {}, se("N")},
+         dd{16, 16},
+         dd{5, 25, {10, 15}, (H - 1) / 2 + 1},
+         dd{3, 16, {6, 10}, (W - 3) / 3 + 1}}};
+    auto conv_op = migraphx::make_op("convolution",
+                                      {{"padding", {2, 1}}, {"stride", {2, 3}}, {"dilation", {1, 1}}});
+    expect_shape(expected, conv_op, input, weights);
+
+    std::map<std::string, std::size_t> sym_map = {{"N", 4}, {"H", 26}, {"W", 26}};
+    migraphx::shape static_input{migraphx::shape::float_type, {4, 3, 26, 26}};
+    migraphx::shape static_out = conv_op.compute_shape({static_input, weights});
+    EXPECT(expected.to_static(sym_map) == static_out);
 }
 
 TEST_CASE(conv_attr_shape_mismatch)
@@ -929,6 +994,45 @@ TEST_CASE(dot_dyn_test_outer_mismatch)
     migraphx::shape s_m1{migraphx::shape::float_type, {{1, 4}, {1, 4}, {5, 5}}};
     migraphx::shape s_m2{migraphx::shape::float_type, {{5, 8}, {5, 5}, {6, 8, {8}}}};
     throws_shape(migraphx::make_op("dot"), s_m1, s_m2);
+}
+
+TEST_CASE(dot_sym_batch)
+{
+    migraphx::shape a{migraphx::shape::float_type,
+                      {dd{1, 8, {}, se("N")}, dd{4, 4}, dd{3, 3}}};
+    migraphx::shape b{migraphx::shape::float_type,
+                      {dd{1, 8, {}, se("N")}, dd{3, 3}, dd{5, 5}}};
+    migraphx::shape expected{migraphx::shape::float_type,
+                             {dd{1, 8, {}, se("N")}, dd{4, 4}, dd{5, 5}}};
+    auto dot_op = migraphx::make_op("dot");
+    expect_shape(expected, dot_op, a, b);
+
+    auto sym_out = dot_op.compute_shape({a, b});
+    std::map<std::string, std::size_t> sym_map = {{"N", 4}};
+    migraphx::shape sa{migraphx::shape::float_type, {4, 4, 3}};
+    migraphx::shape sb{migraphx::shape::float_type, {4, 3, 5}};
+    auto static_out = dot_op.compute_shape({sa, sb});
+    EXPECT(sym_out.to_static(sym_map) == static_out);
+}
+
+TEST_CASE(dot_sym_all)
+{
+    // A is [N, M, K], B is [N, K, P] → output is [N, M, P]
+    migraphx::shape a{migraphx::shape::float_type,
+                      {dd{1, 8, {}, se("N")}, dd{2, 16, {}, se("M")}, dd{3, 12, {}, se("K")}}};
+    migraphx::shape b{migraphx::shape::float_type,
+                      {dd{1, 8, {}, se("N")}, dd{3, 12, {}, se("K")}, dd{4, 20, {}, se("P")}}};
+    migraphx::shape expected{migraphx::shape::float_type,
+                             {dd{1, 8, {}, se("N")}, dd{2, 16, {}, se("M")}, dd{4, 20, {}, se("P")}}};
+    auto dot_op = migraphx::make_op("dot");
+    expect_shape(expected, dot_op, a, b);
+
+    auto sym_out = dot_op.compute_shape({a, b});
+    std::map<std::string, std::size_t> sym_map = {{"N", 2}, {"M", 8}, {"K", 6}, {"P", 10}};
+    migraphx::shape sa{migraphx::shape::float_type, {2, 8, 6}};
+    migraphx::shape sb{migraphx::shape::float_type, {2, 6, 10}};
+    auto static_out = dot_op.compute_shape({sa, sb});
+    EXPECT(sym_out.to_static(sym_map) == static_out);
 }
 
 TEST_CASE(broadcast_for_dot_static)
@@ -2250,6 +2354,84 @@ TEST_CASE(multibroadcast_3in_dyn_dyn)
     expect_shape(expected_shape, migraphx::make_op("multibroadcast"), c_shape, a_shape, b_shape);
 }
 
+TEST_CASE(multibroadcast_sym_static)
+{
+
+    migraphx::shape a{migraphx::shape::float_type,
+                      {dd{1, 8, {}, se("N")}, dd{4, 4}, dd{3, 3}}};
+    migraphx::shape b{migraphx::shape::float_type, {3}};
+    migraphx::shape expected{migraphx::shape::float_type,
+                             {dd{1, 8, {}, se("N")}, dd{4, 4}, dd{3, 3}}};
+    expect_shape(expected, migraphx::make_op("multibroadcast"), a, b);
+}
+
+TEST_CASE(multibroadcast_sym_sym)
+{
+    auto N = se("N");
+    // a: {N, 1, 3} with strides {3, 3, 1} → dim 1 broadcast from 1, stride becomes 0
+    migraphx::shape a{migraphx::shape::float_type,
+                      {dd{1, 8, {}, N}, dd{1, 1}, dd{3, 3}}};
+    migraphx::shape b{migraphx::shape::float_type,
+                      {dd{1, 8, {}, N}, dd{4, 4}, dd{3, 3}}};
+    migraphx::shape expected{migraphx::shape::float_type,
+                             {dd{1, 8, {}, N}, dd{4, 4}, dd{3, 3}},
+                             {se(3), se(0), se(1)}};
+    expect_shape(expected, migraphx::make_op("multibroadcast"), a, b);
+}
+
+// Symbolic dim [2..10] intersected with range-only [4..8] → [4..8] keeping symbol
+TEST_CASE(multibroadcast_sym_intersect)
+{
+    migraphx::shape a{migraphx::shape::float_type,
+                      {dd{2, 10, {}, se("N")}, dd{4, 4}, dd{3, 3}}};
+    migraphx::shape b{migraphx::shape::float_type,
+                      {dd{4, 8}, dd{4, 4}, dd{3, 3}}};
+    migraphx::shape expected{migraphx::shape::float_type,
+                             {dd{4, 8, {}, se("N")}, dd{4, 4}, dd{3, 3}}};
+    auto bcast_op = migraphx::make_op("multibroadcast");
+    expect_shape(expected, bcast_op, a, b);
+}
+
+// Mixed: broadcast-from-1, intersection, and exact-match in one shape
+TEST_CASE(multibroadcast_sym_mixed)
+{
+    auto N = se("N");
+    // a: {1, N, 3} with strides {3*N, 3, 1} → dim 0 broadcast from 1, stride becomes 0
+    migraphx::shape a{migraphx::shape::float_type,
+                      {dd{1, 1}, dd{2, 10, {}, N}, dd{3, 3}}};
+    migraphx::shape b{migraphx::shape::float_type,
+                      {dd{4, 4}, dd{4, 8}, dd{1, 1}}};
+    // dim 0: a is 1, broadcast to b → {4,4}
+    // dim 1: intersect [2..10] ∩ [4..8] → [4..8] with symbol N
+    // dim 2: b is 1, broadcast to a → {3,3}
+    migraphx::shape expected{migraphx::shape::float_type,
+                             {dd{4, 4}, dd{4, 8, {}, N}, dd{3, 3}},
+                             {se(0), se(3), se(1)}};
+    auto bcast_op = migraphx::make_op("multibroadcast");
+    expect_shape(expected, bcast_op, a, b);
+
+    auto sym_out = bcast_op.compute_shape({a, b});
+    std::map<std::string, std::size_t> sym_map = {{"N", 5}};
+    migraphx::shape sa{migraphx::shape::float_type, {1, 5, 3}};
+    migraphx::shape sb{migraphx::shape::float_type, {4, 5, 1}};
+    auto static_out = bcast_op.compute_shape({sa, sb});
+    EXPECT(sym_out.to_static(sym_map) == static_out);
+}
+
+// Both inputs have different symbols with overlapping ranges
+TEST_CASE(multibroadcast_sym_both_intersect)
+{
+    migraphx::shape a{migraphx::shape::float_type,
+                      {dd{2, 10, {}, se("N")}, dd{3, 3}}};
+    migraphx::shape b{migraphx::shape::float_type,
+                      {dd{4, 8, {}, se("M")}, dd{3, 3}}};
+    // intersect [2..10] ∩ [4..8] → [4..8], keeps first operand's symbol (N)
+    migraphx::shape expected{migraphx::shape::float_type,
+                             {dd{4, 8, {}, se("N")}, dd{3, 3}}};
+    auto bcast_op = migraphx::make_op("multibroadcast");
+    expect_shape(expected, bcast_op, a, b);
+}
+
 TEST_CASE(multinomial_bool_type)
 {
     migraphx::shape s1{migraphx::shape::float_type, {1, 2}};
@@ -2897,7 +3079,7 @@ TEST_CASE(pooling_dyn_shape3)
 {
     migraphx::shape input{migraphx::shape::float_type,
                           {{4, 4}, {3, 3}, {4, 12, {8}}, {4, 12, {8}}}};
-    migraphx::shape output{migraphx::shape::float_type, {{4, 4}, {3, 3}, {2, 4}, {2, 4}}};
+    migraphx::shape output{migraphx::shape::float_type, {{4, 4}, {3, 3}, {2, 4, {3}}, {2, 4, {3}}}};
     expect_shape(output,
                  migraphx::make_op("pooling",
                                    {{"mode", migraphx::op::pooling_mode::max},
@@ -2912,7 +3094,7 @@ TEST_CASE(pooling_dyn_shape4)
 {
     migraphx::shape input{migraphx::shape::float_type,
                           {{4, 4}, {3, 3}, {4, 12, {8}}, {4, 12, {8}}}};
-    migraphx::shape output{migraphx::shape::float_type, {{4, 4}, {3, 3}, {3, 6}, {3, 6}}};
+    migraphx::shape output{migraphx::shape::float_type, {{4, 4}, {3, 3}, {3, 6, {4}}, {3, 6, {4}}}};
     expect_shape(output,
                  migraphx::make_op("pooling",
                                    {{"mode", migraphx::op::pooling_mode::max},
@@ -2922,6 +3104,82 @@ TEST_CASE(pooling_dyn_shape4)
                                     {"dilations", {1, 1}},
                                     {"ceil_mode", true}}),
                  input);
+}
+
+TEST_CASE(pooling_sym_batch)
+{
+    migraphx::shape input{migraphx::shape::float_type,
+                          {dd{1, 8, {}, se("N")}, dd{3, 3}, dd{10, 10}, dd{10, 10}}};
+    migraphx::shape expected{migraphx::shape::float_type,
+                             {dd{1, 8, {}, se("N")}, dd{3, 3}, dd{4, 4}, dd{4, 4}}};
+    auto pool_op = migraphx::make_op("pooling",
+                                     {{"mode", migraphx::op::pooling_mode::max},
+                                      {"padding", {0, 0}},
+                                      {"stride", {2, 2}},
+                                      {"lengths", {3, 3}},
+                                      {"dilations", {1, 1}}});
+    expect_shape(expected, pool_op, input);
+
+    auto sym_out = pool_op.compute_shape({input});
+    std::map<std::string, std::size_t> sym_map = {{"N", 4}};
+    migraphx::shape static_input{migraphx::shape::float_type, {4, 3, 10, 10}};
+    auto static_out = pool_op.compute_shape({static_input});
+    EXPECT(sym_out.to_static(sym_map) == static_out);
+}
+
+TEST_CASE(pooling_sym_img)
+{
+    migraphx::shape input{migraphx::shape::float_type,
+                          {dd{1, 1}, dd{3, 3}, dd{5, 20, {10, 15}, se("H")}, dd{5, 20, {10, 15}, se("W")}}};
+    auto H = se("H"), W = se("W");
+    migraphx::shape expected{
+        migraphx::shape::float_type,
+        {dd{1, 1}, dd{3, 3}, dd{3, 18, {8, 13}, H - 2}, dd{3, 18, {8, 13}, W - 2}}};
+    auto pool_op = migraphx::make_op("pooling",
+                                     {{"mode", migraphx::op::pooling_mode::average},
+                                      {"padding", {0, 0}},
+                                      {"stride", {1, 1}},
+                                      {"lengths", {3, 3}},
+                                      {"dilations", {1, 1}}});
+    expect_shape(expected, pool_op, input);
+
+    auto sym_out = pool_op.compute_shape({input});
+    std::map<std::string, std::size_t> sym_map = {{"H", 12}, {"W", 8}};
+    migraphx::shape static_input{migraphx::shape::float_type, {1, 3, 12, 8}};
+    auto static_out = pool_op.compute_shape({static_input});
+    EXPECT(sym_out.to_static(sym_map) == static_out);
+}
+
+TEST_CASE(pooling_sym_img_pad_dilation)
+{
+    // padding={1,2}, stride={2,3}, lengths={3,3}, dilations={2,1}
+    // H: dilated_length=1+2*(3-1)=5, result=((H+2-5)/2)+1 = (H-3)/2+1
+    //   min=(10-3)/2+1=4, max=(50-3)/2+1=24, opt={(20-3)/2+1=9, (30-3)/2+1=14}
+    // W: dilated_length=1+1*(3-1)=3, result=((W+4-3)/3)+1 = (W+1)/3+1
+    //   min=(10+1)/3+1=4, max=(50+1)/3+1=18, opt={(20+1)/3+1=8, (30+1)/3+1=11}
+    migraphx::shape input{
+        migraphx::shape::float_type,
+        {dd{1, 8, {}, se("N")}, dd{3, 3}, dd{10, 50, {20, 30}, se("H")}, dd{10, 50, {20, 30}, se("W")}}};
+    auto H = se("H"), W = se("W");
+    migraphx::shape expected{
+        migraphx::shape::float_type,
+        {dd{1, 8, {}, se("N")},
+         dd{3, 3},
+         dd{4, 24, {9, 14}, (H - 3) / 2 + 1},
+         dd{4, 18, {8, 11}, (W + 1) / 3 + 1}}};
+    auto pool_op = migraphx::make_op("pooling",
+                                     {{"mode", migraphx::op::pooling_mode::max},
+                                      {"padding", {1, 2}},
+                                      {"stride", {2, 3}},
+                                      {"lengths", {3, 3}},
+                                      {"dilations", {2, 1}}});
+    expect_shape(expected, pool_op, input);
+
+    auto sym_out = pool_op.compute_shape({input});
+    std::map<std::string, std::size_t> sym_map = {{"N", 4}, {"H", 26}, {"W", 26}};
+    migraphx::shape static_input{migraphx::shape::float_type, {4, 3, 26, 26}};
+    auto static_out = pool_op.compute_shape({static_input});
+    EXPECT(sym_out.to_static(sym_map) == static_out);
 }
 
 TEST_CASE(prefix_scan_sum)
@@ -5228,6 +5486,48 @@ TEST_CASE(transpose_axes_error)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 2}};
     throws_shape(migraphx::make_op("transpose", {{"permutation", {1}}}), input);
+}
+
+TEST_CASE(transpose_sym)
+{
+    auto N = se("N");
+    // input packed strides: {12, 4, 1}
+    // permutation {0, 2, 1} → strides: {12, 1, 4}
+    migraphx::shape input{migraphx::shape::float_type,
+                          {dd{1, 8, {}, N}, dd{3, 3}, dd{4, 4}}};
+    migraphx::shape expected{migraphx::shape::float_type,
+                             {dd{1, 8, {}, N}, dd{4, 4}, dd{3, 3}},
+                             {se(12), se(1), se(4)}};
+    auto op = migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}});
+    expect_shape(expected, op, input);
+
+    auto sym_out = op.compute_shape({input});
+    std::map<std::string, std::size_t> sym_map = {{"N", 4}};
+    migraphx::shape static_input{migraphx::shape::float_type, {4, 3, 4}};
+    auto static_out = op.compute_shape({static_input});
+    EXPECT(sym_out.to_static(sym_map) == static_out);
+}
+
+TEST_CASE(transpose_sym_4d)
+{
+    auto N = se("N"), C = se("C"), H = se("H"), W = se("W");
+    // input packed strides: {C*H*W, H*W, W, 1}
+    // permutation {2, 0, 3, 1} → strides: {W, C*H*W, 1, H*W}
+    migraphx::shape input{
+        migraphx::shape::float_type,
+        {dd{1, 8, {}, N}, dd{3, 12, {}, C}, dd{10, 50, {20, 30}, H}, dd{10, 50, {20, 30}, W}}};
+    migraphx::shape expected{
+        migraphx::shape::float_type,
+        {dd{10, 50, {20, 30}, H}, dd{1, 8, {}, N}, dd{10, 50, {20, 30}, W}, dd{3, 12, {}, C}},
+        {W, C * H * W, se(1), H * W}};
+    auto op = migraphx::make_op("transpose", {{"permutation", {2, 0, 3, 1}}});
+    expect_shape(expected, op, input);
+
+    auto sym_out = op.compute_shape({input});
+    std::map<std::string, std::size_t> sym_map = {{"N", 2}, {"C", 6}, {"H", 20}, {"W", 30}};
+    migraphx::shape static_input{migraphx::shape::float_type, {2, 6, 20, 30}};
+    auto static_out = op.compute_shape({static_input});
+    EXPECT(sym_out.to_static(sym_map) == static_out);
 }
 
 TEST_CASE(step_test)

@@ -142,37 +142,33 @@ struct pooling
         return 1 + dilation * (dim - 1);
     }
 
-    std::vector<std::size_t> calc_spatial_dim_out(const std::vector<std::size_t>& input_lens,
-                                                  std::size_t kdims) const
+    // ((x + padding - dilated_length) / stride) + 1
+    // Works for both std::size_t (static) and dynamic_dimension (dynamic/symbolic)
+    template <class T>
+    std::vector<T> calc_spatial_dim_out(const std::vector<T>& input_dims,
+                                        std::size_t num_kdims) const
     {
-        std::vector<std::size_t> output_lens{};
-        for(size_t i = 0; i < kdims; ++i)
+        std::vector<T> ret;
+        for(size_t i = 0; i < num_kdims; ++i)
         {
             std::size_t padding_factor = 2 * padding[i];
-            if(padding.size() == 2 * kdims)
-                padding_factor = padding[i] + padding[i + kdims];
+            if(padding.size() == 2 * num_kdims)
+                padding_factor = padding[i] + padding[i + num_kdims];
+
             std::size_t dilated_length = dilate_dim(lengths[i], dilations[i]);
-            std::size_t dim_size;
-            if(input_lens[i + 2] + padding_factor < dilated_length)
-            {
-                if(padding_mode == default_)
-                    MIGRAPHX_THROW("POOLING: not enough padding for the given kernel size");
-                // lengths can be legitimately larger only if we're doing auto padding
-                // with a dynamic shape, in which case given padding is ignored.  Set a dummy value.
-                dim_size = 2;
-            }
+
+            auto dim_size = input_dims[i + 2] + padding_factor;
+            dim_size -= dilated_length;
+
+            T result;
+            if(ceil_mode)
+                result = (dim_size + (stride[i] - 1)) / stride[i];
             else
-            {
-                dim_size = input_lens[i + 2] + padding_factor - dilated_length;
-            }
-            std::size_t len =
-                (ceil_mode)
-                    ? dim_size / stride[i] +
-                          static_cast<std::size_t>((dim_size % stride[i] != 0)) // ceil uint divide
-                    : dim_size / stride[i];                                     // floor divide
-            output_lens.push_back(len + 1);
+                result = dim_size / stride[i];
+            result += std::size_t{1};
+            ret.push_back(result);
         }
-        return output_lens;
+        return ret;
     }
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
@@ -203,36 +199,28 @@ struct pooling
             }
             else if(padding_mode != default_)
             {
-                const size_t num_spatial_dims = inputs[0].ndim() - 2;
-                const shape& x_shape          = inputs[0];
-                // same as convolution::dynamic_compute_shape()
-
-                for(std::size_t i = 0; i < num_spatial_dims; ++i)
+                for(std::size_t i = 0; i < kdims; ++i)
                 {
+                    auto s    = stride[i];
+                    auto x_dd = input_dyn_dims[i + 2];
+                    // ceil_div(x, s) = (x + s - 1) / s
+                    auto result = (x_dd + (s - 1)) / shape::dynamic_dimension{s, s};
                     auto ceil_div = [](std::size_t x, std::size_t y) { return (x + y - 1) / y; };
-                    auto s        = stride[i];
-
-                    auto x = x_shape.dyn_dims()[i + 2];
                     std::set<std::size_t> optimals{};
-                    std::transform(x.optimals.begin(),
-                                   x.optimals.end(),
+                    std::transform(x_dd.optimals.begin(),
+                                   x_dd.optimals.end(),
                                    std::inserter(optimals, optimals.begin()),
                                    [&](auto o) { return ceil_div(o, s); });
-                    output_dyn_dims.push_back(
-                        shape::dynamic_dimension{ceil_div(x.min, s), ceil_div(x.max, s), optimals});
+                    result.optimals = optimals;
+                    output_dyn_dims.push_back(result);
                 }
                 return {input.type(), output_dyn_dims};
             }
             else
             {
-                // does not compute optimals
-                auto min_spatial_dims = calc_spatial_dim_out(input.min_lens(), kdims);
-                auto max_spatial_dims = calc_spatial_dim_out(input.max_lens(), kdims);
-                for(size_t i = 0; i < kdims; ++i)
-                {
-                    output_dyn_dims.push_back(
-                        shape::dynamic_dimension{min_spatial_dims[i], max_spatial_dims[i], {}});
-                }
+                auto spatial_dyn_dims = calc_spatial_dim_out(input_dyn_dims, kdims);
+                output_dyn_dims.insert(
+                    output_dyn_dims.end(), spatial_dyn_dims.begin(), spatial_dyn_dims.end());
                 return {input.type(), output_dyn_dims};
             }
         }

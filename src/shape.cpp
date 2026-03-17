@@ -709,6 +709,41 @@ shape shape::to_static(std::size_t x) const
     return {type(), static_lens};
 }
 
+shape shape::to_static(const std::map<std::string, std::size_t>& symbol_map) const
+{
+    if(not sub_shapes().empty())
+    {
+        std::vector<shape> subs;
+        std::transform(sub_shapes().cbegin(),
+                       sub_shapes().cend(),
+                       std::back_inserter(subs),
+                       [&](auto s) { return s.to_static(symbol_map); });
+        return shape(subs);
+    }
+    if(not this->dynamic())
+        return *this;
+    std::vector<std::size_t> static_lens(this->ndim());
+    std::transform(this->dyn_dims().cbegin(),
+                   this->dyn_dims().cend(),
+                   static_lens.begin(),
+                   [&](const auto& dd) -> std::size_t {
+                       if(dd.is_fixed())
+                           return dd.min;
+                       if(dd.sym)
+                           return dd.sym->eval(symbol_map);
+                       MIGRAPHX_THROW("to_static: non-fixed dimension has no symbolic expression");
+                   });
+    const auto& ds = this->dyn_strides();
+    if(ds.empty())
+        return {type(), static_lens};
+    std::vector<std::size_t> static_strides(ds.size());
+    std::transform(ds.cbegin(),
+                   ds.cend(),
+                   static_strides.begin(),
+                   [&](const auto& s) { return s.eval(symbol_map); });
+    return {type(), static_lens, static_strides};
+}
+
 std::size_t shape::element_space() const { return impl->element_space(); }
 
 std::string shape::type_string() const { return name(this->type()); }
@@ -814,6 +849,21 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator*=(const std::size_t
     return *this;
 }
 
+shape::dynamic_dimension& shape::dynamic_dimension::operator/=(const std::size_t& x)
+{
+    if(is_symbolic())
+        sym = *sym / symbolic_expr(x);
+    this->min = (x == 0) ? 0 : this->min / x;
+    this->max = (x == 0) ? std::numeric_limits<std::size_t>::max() : this->max / x;
+    std::set<std::size_t> new_optimals;
+    std::transform(this->optimals.begin(),
+                   this->optimals.end(),
+                   std::inserter(new_optimals, new_optimals.begin()),
+                   [&x](const auto& opt) { return (x == 0) ? std::size_t{0} : opt / x; });
+    this->optimals = new_optimals;
+    return *this;
+}
+
 bool operator==(const shape::dynamic_dimension& x, const shape::dynamic_dimension& y)
 {
     if(not(x.sym == y.sym))
@@ -876,12 +926,19 @@ shape::dynamic_dimension operator*(const std::size_t& x, const shape::dynamic_di
     return y * x;
 }
 
+shape::dynamic_dimension operator/(const shape::dynamic_dimension& x, const std::size_t& y)
+{
+    auto dd = x;
+    return dd /= y;
+}
+
 bool operator==(const shape& x, const shape& y)
 {
     if(x.dynamic() and y.dynamic())
     {
-        return x.impl == y.impl or (x.type() == y.type() and x.dyn_dims() == y.dyn_dims() and
-                                    x.sub_shapes() == y.sub_shapes());
+        return x.impl == y.impl or
+               (x.type() == y.type() and x.dyn_dims() == y.dyn_dims() and
+                x.dyn_strides() == y.dyn_strides() and x.sub_shapes() == y.sub_shapes());
     }
     return x.impl == y.impl or
            (x.dynamic() == y.dynamic() and x.type() == y.type() and x.lens() == y.lens() and

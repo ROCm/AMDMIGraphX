@@ -226,7 +226,6 @@ template <class T>
 expected(const T&) -> expected<T>;
 #endif
 
-
 struct tolerance
 {
     double rms_tol = 0.001;

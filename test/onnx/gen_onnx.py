@@ -10328,16 +10328,18 @@ def mha_attention_bias_test():
     query = helper.make_tensor_value_info("q", TensorProto.FLOAT, [1, 2, 4])
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 2, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 2, 4])
+    bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [1, 2])
     attention_bias = helper.make_tensor_value_info("attention_bias", TensorProto.FLOAT, [1, 2, 2, 2])
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 2, 4])
 
     node = helper.make_node('MultiHeadAttention',
-                            inputs=['q', 'k', 'v', '', '', 'attention_bias'],
+                            inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias'],
                             outputs=['out'],
                             num_heads=2,
                             domain='com.microsoft')
 
-    return ([node], [query, key, value, attention_bias], [out])
+    return ([node], [query, key, value, bias, key_padding_mask, attention_bias], [out])
 
 
 @onnx_test()
@@ -10346,16 +10348,17 @@ def mha_bias_attention_bias_test():
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 2, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 2, 4])
     bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [1, 2])
     attention_bias = helper.make_tensor_value_info("attention_bias", TensorProto.FLOAT, [1, 2, 2, 2])
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 2, 4])
 
     node = helper.make_node('MultiHeadAttention',
-                            inputs=['q', 'k', 'v', 'bias', '', 'attention_bias'],
+                            inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias'],
                             outputs=['out'],
                             num_heads=2,
                             domain='com.microsoft')
 
-    return ([node], [query, key, value, bias, attention_bias], [out])
+    return ([node], [query, key, value, bias, key_padding_mask, attention_bias], [out])
 
 
 @onnx_test()
@@ -10363,16 +10366,18 @@ def mha_attention_bias_batch2_test():
     query = helper.make_tensor_value_info("q", TensorProto.FLOAT, [2, 3, 4])
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [2, 3, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [2, 3, 4])
+    bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [2, 3])
     attention_bias = helper.make_tensor_value_info("attention_bias", TensorProto.FLOAT, [2, 2, 3, 3])
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [2, 3, 4])
 
     node = helper.make_node('MultiHeadAttention',
-                            inputs=['q', 'k', 'v', '', '', 'attention_bias'],
+                            inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias'],
                             outputs=['out'],
                             num_heads=2,
                             domain='com.microsoft')
 
-    return ([node], [query, key, value, attention_bias], [out])
+    return ([node], [query, key, value, bias, key_padding_mask, attention_bias], [out])
 
 
 @onnx_test()
@@ -10380,16 +10385,18 @@ def mha_invalid_attention_bias_not_4d_test():
     query = helper.make_tensor_value_info("q", TensorProto.FLOAT, [1, 2, 4])
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 2, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 2, 4])
+    bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [1, 2])
     attention_bias = helper.make_tensor_value_info("attention_bias", TensorProto.FLOAT, [2, 2, 2])
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 2, 4])
 
     node = helper.make_node('MultiHeadAttention',
-                            inputs=['q', 'k', 'v', '', '', 'attention_bias'],
+                            inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias'],
                             outputs=['out'],
                             num_heads=2,
                             domain='com.microsoft')
 
-    return ([node], [query, key, value, attention_bias], [out])
+    return ([node], [query, key, value, bias, key_padding_mask, attention_bias], [out])
 
 
 @onnx_test()
@@ -10397,16 +10404,18 @@ def mha_invalid_attention_bias_batch_test():
     query = helper.make_tensor_value_info("q", TensorProto.FLOAT, [1, 2, 4])
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 2, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 2, 4])
+    bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [1, 2])
     attention_bias = helper.make_tensor_value_info("attention_bias", TensorProto.FLOAT, [2, 2, 2, 2])
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 2, 4])
 
     node = helper.make_node('MultiHeadAttention',
-                            inputs=['q', 'k', 'v', '', '', 'attention_bias'],
+                            inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias'],
                             outputs=['out'],
                             num_heads=2,
                             domain='com.microsoft')
 
-    return ([node], [query, key, value, attention_bias], [out])
+    return ([node], [query, key, value, bias, key_padding_mask, attention_bias], [out])
 
 
 @onnx_test()
@@ -10414,16 +10423,18 @@ def mha_invalid_attention_bias_num_heads_test():
     query = helper.make_tensor_value_info("q", TensorProto.FLOAT, [1, 2, 4])
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 2, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 2, 4])
+    bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [1, 2])
     attention_bias = helper.make_tensor_value_info("attention_bias", TensorProto.FLOAT, [1, 4, 2, 2])
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 2, 4])
 
     node = helper.make_node('MultiHeadAttention',
-                            inputs=['q', 'k', 'v', '', '', 'attention_bias'],
+                            inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias'],
                             outputs=['out'],
                             num_heads=2,
                             domain='com.microsoft')
 
-    return ([node], [query, key, value, attention_bias], [out])
+    return ([node], [query, key, value, bias, key_padding_mask, attention_bias], [out])
 
 
 @onnx_test()
@@ -10431,16 +10442,18 @@ def mha_invalid_attention_bias_seq_len_test():
     query = helper.make_tensor_value_info("q", TensorProto.FLOAT, [1, 2, 4])
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 2, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 2, 4])
+    bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [1, 2])
     attention_bias = helper.make_tensor_value_info("attention_bias", TensorProto.FLOAT, [1, 2, 3, 2])
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 2, 4])
 
     node = helper.make_node('MultiHeadAttention',
-                            inputs=['q', 'k', 'v', '', '', 'attention_bias'],
+                            inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias'],
                             outputs=['out'],
                             num_heads=2,
                             domain='com.microsoft')
 
-    return ([node], [query, key, value, attention_bias], [out])
+    return ([node], [query, key, value, bias, key_padding_mask, attention_bias], [out])
 
 
 @onnx_test()
@@ -10448,16 +10461,18 @@ def mha_invalid_attention_bias_kv_seq_len_test():
     query = helper.make_tensor_value_info("q", TensorProto.FLOAT, [1, 2, 4])
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 2, 4])
     value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 2, 4])
+    bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [1, 2])
     attention_bias = helper.make_tensor_value_info("attention_bias", TensorProto.FLOAT, [1, 2, 2, 3])
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 2, 4])
 
     node = helper.make_node('MultiHeadAttention',
-                            inputs=['q', 'k', 'v', '', '', 'attention_bias'],
+                            inputs=['q', 'k', 'v', 'bias', 'key_padding_mask', 'attention_bias'],
                             outputs=['out'],
                             num_heads=2,
                             domain='com.microsoft')
 
-    return ([node], [query, key, value, attention_bias], [out])
+    return ([node], [query, key, value, bias, key_padding_mask, attention_bias], [out])
 
 
 @onnx_test()

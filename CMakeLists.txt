@@ -334,6 +334,9 @@ rocm_enable_cppcheck(
         MIGRAPHX_HAS_EXECUTORS=0
         CPPCHECK=1
         MIGRAPHX_USE_MIOPEN=1
+        MIGRAPHX_NGLOBAL=1024
+        MIGRAPHX_NLOCAL=256
+        MIGRAPHX_WAVEFRONTSIZE=64
         BUILD_DEV=
         __device__=
         __host__=

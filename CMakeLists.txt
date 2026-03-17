@@ -329,6 +329,10 @@ rocm_enable_cppcheck(
         ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/gpu/device/include
         ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/gpu/kernels/include
         ${CMAKE_CURRENT_SOURCE_DIR}/test/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/api/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/onnx/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/op/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/tf/include
     DEFINE
         MIGRAPHX_MLIR=1
         MIGRAPHX_HAS_EXECUTORS=0

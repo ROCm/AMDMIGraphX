@@ -930,6 +930,7 @@ inline void run(int argc, const char* argv[])
                  __FILE__,                  \
                  __LINE__,                  \
                  &test::fail)
+
 // NOLINTNEXTLINE
 #define STATUS(...) EXPECT((__VA_ARGS__) == 0)
 

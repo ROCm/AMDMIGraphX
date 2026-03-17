@@ -230,9 +230,9 @@ TEST_CASE(lhs_arithmetic_operators)
 
 TEST_CASE(lhs_bitwise_operators)
 {
-    EXPECT((test::capture{}->*0xFF & 0x0F).value() == 0x0F);
-    EXPECT((test::capture{}->*0xF0 | 0x0F).value() == 0xFF);
-    EXPECT((test::capture{}->*0xFF ^ 0x0F).value() == 0xF0);
+    EXPECT((test::capture{}->*0xFFu & 0x0Fu).value() == 0x0Fu);
+    EXPECT((test::capture{}->*0xF0u | 0x0Fu).value() == 0xFFu);
+    EXPECT((test::capture{}->*0xFFu ^ 0x0Fu).value() == 0xF0u);
 }
 
 TEST_CASE(chained_comparison)

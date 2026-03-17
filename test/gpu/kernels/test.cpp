@@ -112,13 +112,13 @@ TEST_CASE(lhs_arithmetic_div) { EXPECT((capture{}->*12 / 4).value() == 3); }
 TEST_CASE(lhs_arithmetic_mod) { EXPECT((capture{}->*7 % 3).value() == 1); }
 
 // Test lhs bitwise: and
-TEST_CASE(lhs_bitwise_and) { EXPECT((capture{}->*0xF & 0x3).value() == 0x3); }
+TEST_CASE(lhs_bitwise_and) { EXPECT((capture{}->*0xFu & 0x3u).value() == 0x3); }
 
 // Test lhs bitwise: or
-TEST_CASE(lhs_bitwise_or) { EXPECT((capture{}->*0x1 | 0x2).value() == 0x3); }
+TEST_CASE(lhs_bitwise_or) { EXPECT((capture{}->*0x1u | 0x2u).value() == 0x3); }
 
 // Test lhs bitwise: xor
-TEST_CASE(lhs_bitwise_xor) { EXPECT((capture{}->*0xF ^ 0x3).value() == 0xC); }
+TEST_CASE(lhs_bitwise_xor) { EXPECT((capture{}->*0xFu ^ 0x3u).value() == 0xC); }
 
 // Test chained comparison
 TEST_CASE(chained_comparison)
@@ -199,7 +199,7 @@ TEST_CASE(nop_as_string_empty)
 // Test CHECK macro passes without incrementing failures
 TEST_CASE(check_macro_passes)
 {
-    // cppcheck-suppress knownConditionTrueFalse
+    // cppcheck-suppress duplicateExpression
     CHECK(1 == 1);
 }
 

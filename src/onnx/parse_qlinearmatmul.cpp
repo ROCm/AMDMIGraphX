@@ -137,18 +137,6 @@ struct parse_qlinearmatmul : op_parser<parse_qlinearmatmul>
         if(dim_a != dim_b or *lens_a.rbegin() != *(lens_b.rbegin() + 1) or
            not std::equal(lens_a.rbegin() + 2, lens_a.rend(), lens_b.rbegin() + 2, lens_b.rend()))
             MIGRAPHX_THROW("QLINEARMATMUL: mismatched input dimensions");
-
-        if(migraphx::any_of({args[1], args[2]},
-                            [](auto arg) { return not arg->get_shape().scalar(); }))
-            MIGRAPHX_THROW("QLINEARMATMUL: unsupported row/column quantization");
-
-        const auto& in_scale_b   = args[4];
-        const auto& in_zero_pt_b = args[5];
-        size_t dim_scale_b       = in_scale_b->get_shape().lens().size();
-        size_t dim_zero_pt_b     = in_zero_pt_b->get_shape().lens().size();
-
-        if((dim_scale_b > 1) or (dim_zero_pt_b > 1))
-            MIGRAPHX_THROW("QLINEARMATMUL: unsupported row/column quantization");
     }
 
     instruction_ref parse(const op_desc& /* opd */,
@@ -162,7 +150,8 @@ struct parse_qlinearmatmul : op_parser<parse_qlinearmatmul>
         const auto& in_a         = args[0];
         const auto& in_scale_a   = args[1];
         const auto& in_zero_pt_a = args[2];
-        auto dquant_a = bcast_qdq_instr("dequantizelinear", in_a, in_scale_a, in_zero_pt_a, info);
+        auto dquant_a            = bcast_qdq_instr(
+            "dequantizelinear", in_a, in_scale_a, in_zero_pt_a, info, in_a->get_shape().ndim() - 2);
 
         // B
         const auto& in_b         = args[3];

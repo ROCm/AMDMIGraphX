@@ -40,18 +40,18 @@ instruction_ref bcast_qdq_instr(const std::string& op_name,
 {
     auto in_lens = x_in->get_shape().lens();
 
-    // prep 1: broadcast scale. it can come as a scalar or a 1-D tensor.
+    // prep 1: broadcast scale. it can come as a scalar or a N-D tensor.
     instruction_ref bcast_scale;
-    if(arg_fscale->get_shape().elements() > 1)
+    if(arg_fscale->get_shape().ndim() == 1 and arg_fscale->get_shape().elements() > 1)
         bcast_scale = info.add_instruction(
             migraphx::make_op("broadcast", {{"axis", axis}, {"out_lens", in_lens}}), arg_fscale);
     else
         bcast_scale = info.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", in_lens}}), arg_fscale);
 
-    // prep 2: broadcast zero point. it can come as a scalar or a 1-D tensor.
+    // prep 2: broadcast zero point. it can come as a scalar or a N-D tensor.
     instruction_ref bcast_zero_pt;
-    if(arg_z_pt->get_shape().elements() > 1)
+    if(arg_z_pt->get_shape().ndim() == 1 and arg_z_pt->get_shape().elements() > 1)
         bcast_zero_pt = info.add_instruction(
             migraphx::make_op("broadcast", {{"axis", axis}, {"out_lens", in_lens}}), arg_z_pt);
     else

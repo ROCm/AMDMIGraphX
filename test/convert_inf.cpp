@@ -103,7 +103,7 @@ TEST_CASE(float_inf_to_int32)
 TEST_CASE(float_ninf_to_int32)
 {
     EXPECT(eval_convert(-std::numeric_limits<float>::infinity(), migraphx::shape::int32_type)
-               .at<int32_t>() == std::numeric_limits<int32_t>::min());
+               .at<int32_t>() == std::numeric_limits<int32_t>::lowest());
 }
 
 TEST_CASE(float_inf_to_int64)
@@ -115,7 +115,7 @@ TEST_CASE(float_inf_to_int64)
 TEST_CASE(float_ninf_to_int64)
 {
     EXPECT(eval_convert(-std::numeric_limits<float>::infinity(), migraphx::shape::int64_type)
-               .at<int64_t>() == std::numeric_limits<int64_t>::min());
+               .at<int64_t>() == std::numeric_limits<int64_t>::lowest());
 }
 
 TEST_CASE(double_inf_to_int64)
@@ -127,7 +127,7 @@ TEST_CASE(double_inf_to_int64)
 TEST_CASE(double_ninf_to_int64)
 {
     EXPECT(eval_convert(-std::numeric_limits<double>::infinity(), migraphx::shape::int64_type)
-               .at<int64_t>() == std::numeric_limits<int64_t>::min());
+               .at<int64_t>() == std::numeric_limits<int64_t>::lowest());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

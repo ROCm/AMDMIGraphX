@@ -55,7 +55,6 @@ struct rank<0>
 {
 };
 
-
 // clang-format off
 // NOLINTNEXTLINE
 #define TEST_FOREACH_BINARY_OPERATORS(m) \

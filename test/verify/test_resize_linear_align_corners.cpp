@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,32 +21,33 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/shape.hpp>
-#include <migraphx/argument.hpp>
-#include <migraphx/gpu/device/argmax.hpp>
-#include <migraphx/gpu/device/tensor.hpp>
-#include <migraphx/gpu/device/launch.hpp>
-#include <migraphx/gpu/device/types.hpp>
-#include <migraphx/gpu/device/arg_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace device {
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-void argmax(hipStream_t stream,
-            const argument& result,
-            const argument& arg,
-            int64_t axis,
-            bool select_last_index)
+// Linear mode with align_corners
+template <migraphx::shape::type_t DType>
+struct test_resize_linear_align_corners : verify_program<test_resize_linear_align_corners<DType>>
 {
-    if(select_last_index)
-        arg_op(argmax_op_last_index{}, stream, result, arg, axis);
-    else
-        arg_op(argmax_op_first_index{}, stream, result, arg, axis);
-}
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
 
-} // namespace device
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+        migraphx::shape sx{DType, {1, 1, 2, 2}};
+        auto x = mm->add_parameter("X", sx);
+
+        mm->add_instruction(
+            migraphx::make_op("resize",
+                              {{"scales", {1.0f, 1.0f, 2.0f, 2.0f}},
+                               {"mode", "linear"},
+                               {"coordinate_transformation_mode", "align_corners"}}),
+            x);
+        return p;
+    }
+};
+
+template struct test_resize_linear_align_corners<migraphx::shape::float_type>;
+template struct test_resize_linear_align_corners<migraphx::shape::half_type>;

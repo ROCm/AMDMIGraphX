@@ -198,7 +198,7 @@ TEST_CASE(matmulbnb4_fp4_1d_input_test)
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dequantized);
 
     auto a_unsqueezed = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), a);
-    auto dot = mm->add_instruction(migraphx::make_op("dot"), a_unsqueezed, dequantized);
+    auto dot          = mm->add_instruction(migraphx::make_op("dot"), a_unsqueezed, dequantized);
     mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), dot);
 
     auto prog = optimize_onnx("matmulbnb4_fp4_1d_input_test.onnx");

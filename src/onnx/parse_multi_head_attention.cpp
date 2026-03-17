@@ -285,29 +285,60 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
             auto bias      = args.at(3);
             auto bias_lens = bias->get_shape().lens();
 
-            if(bias_lens.size() != 1)
-                MIGRAPHX_THROW("MultiHeadAttention: Bias must be 1D shape");
+            if(bias_lens.size() == 1)
+            {
+                if(bias_lens[0] != params.hidden_size_v + (2 * params.hidden_size))
+                    MIGRAPHX_THROW(
+                        "MultiheadAttention: 1D Bias must be of size hidden_size + hidden_size "
+                        "+ v_hidden_size");
+                params.qkv_biased = true;
+            }
+            else
+            {
+                // For other bias shapes, skip bias processing but don't throw error
+                params.qkv_biased = false;
+            }
+        }
+    }
 
-            if(bias_lens[0] != params.hidden_size_v + (2 * params.hidden_size))
-                MIGRAPHX_THROW("MultiheadAttention: Bias must be of size hidden_size + hidden_size "
-                               "+ v_hidden_size");
+    void check_attention_bias(const std::vector<instruction_ref>& args,
+                              const multi_head_attention_parameters& params) const
+    {
+        if(args.size() > 5)
+        {
+            const auto attn_bias_lens = args.at(5)->get_shape().lens();
 
-            params.qkv_biased = true;
+            if(attn_bias_lens.size() != 4)
+                MIGRAPHX_THROW("MultiHeadAttention: attention_bias must be 4D shape");
+
+            // attention_bias shape: (batch_size, num_heads, sequence_length, total_sequence_length)
+            if(attn_bias_lens[0] != params.batch_size)
+                MIGRAPHX_THROW("MultiHeadAttention: attention_bias first dimension must be batch_size");
+
+            if(attn_bias_lens[1] != params.num_heads)
+                MIGRAPHX_THROW("MultiHeadAttention: attention_bias second dimension must be num_heads");
+
+            if(attn_bias_lens[2] != params.q_sequence_length)
+                MIGRAPHX_THROW("MultiHeadAttention: attention_bias third dimension must be sequence_length");
+
+            if(attn_bias_lens[3] != params.kv_sequence_length)
+                MIGRAPHX_THROW("MultiHeadAttention: attention_bias fourth dimension must be total_sequence_length");
         }
     }
 
     void check_inputs(const std::vector<instruction_ref>& args,
                       multi_head_attention_parameters& params) const
     {
-        if(args.empty() or args.size() > 5)
-            MIGRAPHX_THROW("MultiHeadAttention: Wrong number of inputs. Only 'query', 'key' and "
-                           "'value', bias and key_padding_mask inputs are supported.");
+        if(args.empty() or args.size() > 6)
+            MIGRAPHX_THROW("MultiHeadAttention: Wrong number of inputs. Only 'query', 'key', "
+                           "'value', bias, key_padding_mask and attention_bias inputs are supported.");
 
         // Order matters here. Most parameters defined by input query, key, value parameters
         // This must be used first to extract hidden size, batch, etc
         check_query_dim(args, params);
         check_bias(args, params);
         check_key_padding_mask(args, params);
+        check_attention_bias(args, params);
     }
 
     std::tuple<instruction_ref, instruction_ref, instruction_ref>
@@ -623,6 +654,12 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         if(args.size() > 4)
             attn_mask = create_input_mask(info, args.at(4), query->get_shape(), params);
 
+        std::optional<instruction_ref> attn_bias;
+        if(args.size() > 5)
+        {
+            attn_bias = args.at(5);
+        }
+
         float scale = 1 / std::sqrt(params.head_size);
         if(contains(info.attributes, "scale"))
             scale = parser.parse_value(info.attributes.at("scale")).at<float>();
@@ -635,7 +672,12 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
 
         auto result = info.add_instruction(make_op("dot"), query, key_transposed);
 
-        // Must apply mask only before scaling
+        if(attn_bias.has_value())
+        {
+            result = info.add_common_op("add", result, attn_bias.value());
+        }
+
+        // Apply attention mask
         if(attn_mask.has_value())
         {
             result = info.add_common_op("add", result, attn_mask.value());

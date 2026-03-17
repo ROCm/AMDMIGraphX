@@ -94,11 +94,6 @@ TEST_CASE(multi_head_attention_invalid_bias_input_shape)
     EXPECT(test::throws([&] { read_onnx("mha_invalid_bias_shape_test.onnx"); }));
 }
 
-TEST_CASE(multi_head_attention_invalid_bias_dimensions)
-{
-    EXPECT(test::throws([&] { read_onnx("mha_invalid_bias_dimensions_test.onnx"); }));
-}
-
 TEST_CASE(multi_head_attention_invalid_key_pad_dims_shape)
 {
     EXPECT(test::throws([&] { read_onnx("mha_invalid_key_pad_dimensions_test.onnx"); }));
@@ -122,4 +117,29 @@ TEST_CASE(multi_head_attention_invalid_key_pad_size3_shape)
 TEST_CASE(multi_head_attention_invalid_key_pad_shape_type)
 {
     EXPECT(test::throws([&] { read_onnx("mha_invalid_key_pad_type_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_attention_bias_not_4d_test)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_attention_bias_not_4d_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_attention_bias_batch_test)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_attention_bias_batch_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_attention_bias_num_heads_test)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_attention_bias_num_heads_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_attention_bias_seq_len_test)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_attention_bias_seq_len_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_attention_bias_kv_seq_len_test)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_attention_bias_kv_seq_len_test.onnx"); }));
 }

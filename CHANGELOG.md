@@ -11,6 +11,7 @@ Full documentation for MIGraphX is available at
 * [Linux] Use HSA API to query number of chiplets for architectures where this is applicable (ex. gfx90a).
 * Added a fuse_horizontal pass which batches independent cross embedding gather instructions (#4599).
 * Added GPU JIT `Resize` kernel (#4553).
+* Added environment variable `MIGRAPHX_SKIP_BENCHMARKING` which when enabled, skips tuning of MIGraphX and rocMLIR kernels (#4628).
 
 ### Changed
 

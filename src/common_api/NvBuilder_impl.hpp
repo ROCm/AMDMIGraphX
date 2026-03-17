@@ -41,6 +41,7 @@ namespace nvinfer1
     private:
         IPluginRegistry* mPluginRegistry;
         std::unique_ptr<INetworkDefinition> mNetworkDefinition;
+        std::unique_ptr<IBuilderConfig> mBuilderConfig;
     };
 
 }  // ns:nvinfer1

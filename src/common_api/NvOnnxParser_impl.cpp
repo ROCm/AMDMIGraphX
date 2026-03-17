@@ -1,3 +1,5 @@
+#include <migraphx/onnx.hpp>
+
 #include "NvOnnxParser_impl.hpp"
 
 namespace nvonnxparser

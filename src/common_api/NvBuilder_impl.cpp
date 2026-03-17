@@ -3,6 +3,7 @@
 
 #include "NvBuilder_impl.hpp"
 #include "NetworkDefinition_impl.hpp"
+#include "NvBuilderConfig_impl.hpp"
 
 namespace nvinfer1
 {
@@ -51,7 +52,8 @@ void NvBuilder_impl::setGpuAllocator(IGpuAllocator* allocator) noexcept
 nvinfer1::IBuilderConfig* NvBuilder_impl::createBuilderConfig() noexcept
 {
     // TODO! implement
-    return nullptr;
+    mBuilderConfig = std::make_unique<NvBuilderConfig_impl>();
+    return mBuilderConfig.get();
 }
 
 nvinfer1::INetworkDefinition* NvBuilder_impl::createNetworkV2(NetworkDefinitionCreationFlags flags) noexcept

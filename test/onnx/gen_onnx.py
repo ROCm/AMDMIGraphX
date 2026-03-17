@@ -18344,6 +18344,81 @@ def matmulbnb4_large_test():
 
 
 @onnx_test()
+def matmulbnb4_fp4_non_aligned_test():
+    N = 5
+    K = 7
+    block_size = 16
+    quant_type = 0
+
+    A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [2, K])
+    B = helper.make_tensor_value_info('B', TensorProto.UINT8, [18])
+    absmax = helper.make_tensor_value_info('absmax', TensorProto.FLOAT, [3])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [2, N])
+
+    node = onnx.helper.make_node(
+        'MatMulBnb4',
+        inputs=['A', 'B', 'absmax'],
+        outputs=['Y'],
+        N=N,
+        K=K,
+        block_size=block_size,
+        quant_type=quant_type
+    )
+
+    return ([node], [A, B, absmax], [Y])
+
+
+@onnx_test()
+def matmulbnb4_fp4_1d_input_test():
+    N = 4
+    K = 8
+    block_size = 16
+    quant_type = 0
+
+    A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [K])
+    B = helper.make_tensor_value_info('B', TensorProto.UINT8, [16])
+    absmax = helper.make_tensor_value_info('absmax', TensorProto.FLOAT, [2])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [N])
+
+    node = onnx.helper.make_node(
+        'MatMulBnb4',
+        inputs=['A', 'B', 'absmax'],
+        outputs=['Y'],
+        N=N,
+        K=K,
+        block_size=block_size,
+        quant_type=quant_type
+    )
+
+    return ([node], [A, B, absmax], [Y])
+
+
+@onnx_test()
+def matmulbnb4_fp4_3d_input_test():
+    N = 4
+    K = 8
+    block_size = 16
+    quant_type = 0
+
+    A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [2, 3, K])
+    B = helper.make_tensor_value_info('B', TensorProto.UINT8, [16])
+    absmax = helper.make_tensor_value_info('absmax', TensorProto.FLOAT, [2])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [2, 3, N])
+
+    node = onnx.helper.make_node(
+        'MatMulBnb4',
+        inputs=['A', 'B', 'absmax'],
+        outputs=['Y'],
+        N=N,
+        K=K,
+        block_size=block_size,
+        quant_type=quant_type
+    )
+
+    return ([node], [A, B, absmax], [Y])
+
+
+@onnx_test()
 def matmulbnb4_invalid_quant_type_test():
     N = 4
     K = 8

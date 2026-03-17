@@ -67,19 +67,18 @@ struct convert : unary<convert>
         result.visit([&](auto output) {
             args[0].visit([&](auto input) {
                 using output_type = typename decltype(output)::value_type;
-                shape::as<output_type> as{};
                 par_transform(
-                    input.begin(), input.end(), output.begin(), [as](auto x) -> output_type {
-                        auto dx = static_cast<double>(x);
+                    input.begin(), input.end(), output.begin(), [](auto x) -> output_type {
+                        double dx = x;
                         if(std::isnan(dx))
-                            return as.nan();
-                        if(not as.is_integral() and std::isinf(dx))
-                            return as(x);
-                        if(dx >= static_cast<double>(as.max()))
-                            return as.max();
-                        if(dx <= static_cast<double>(as.min()))
-                            return as.min();
-                        return as(dx);
+                            return std::numeric_limits<output_type>::quiet_NaN();
+                        if(not std::is_integral<output_type>{} and std::isinf(dx))
+                            return output_type(x);
+                        if(dx >= std::numeric_limits<output_type>::max())
+                            return std::numeric_limits<output_type>::max();
+                        if(dx <= std::numeric_limits<output_type>::lowest())
+                            return std::numeric_limits<output_type>::lowest();
+                        return output_type(dx);
                     });
             });
         });

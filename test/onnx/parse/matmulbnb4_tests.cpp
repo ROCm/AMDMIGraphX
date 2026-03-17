@@ -124,35 +124,32 @@ TEST_CASE(matmulbnb4_nf4_test)
     EXPECT(p == prog);
 }
 
-TEST_CASE(matmulbnb4_fp4_non_aligned_test)
+TEST_CASE(matmulbnb4_fp4_block32_test)
 {
     migraphx::program p;
     auto* mm    = p.get_main_module();
-    auto a      = mm->add_parameter("A", migraphx::shape{migraphx::shape::float_type, {2, 7}});
-    auto b      = mm->add_parameter("B", migraphx::shape{migraphx::shape::uint8_type, {18}});
-    auto absmax = mm->add_parameter("absmax", migraphx::shape{migraphx::shape::float_type, {3}});
+    auto a      = mm->add_parameter("A", migraphx::shape{migraphx::shape::float_type, {3, 16}});
+    auto b      = mm->add_parameter("B", migraphx::shape{migraphx::shape::uint8_type, {32}});
+    auto absmax = mm->add_parameter("absmax", migraphx::shape{migraphx::shape::float_type, {2}});
 
     auto unpacked_b = mm->add_instruction(migraphx::make_op("unpack_int4"), b);
-    unpacked_b = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {5, 7}}}), unpacked_b);
+    unpacked_b = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4, 16}}}), unpacked_b);
 
     auto expanded_absmax =
         mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), absmax);
     expanded_absmax = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {3, 16}}}), expanded_absmax);
+        migraphx::make_op("multibroadcast", {{"out_lens", {2, 32}}}), expanded_absmax);
     expanded_absmax =
-        mm->add_instruction(migraphx::make_op("reshape", {{"dims", {48}}}), expanded_absmax);
-    expanded_absmax = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {35}}}),
-        expanded_absmax);
+        mm->add_instruction(migraphx::make_op("reshape", {{"dims", {64}}}), expanded_absmax);
     expanded_absmax =
-        mm->add_instruction(migraphx::make_op("reshape", {{"dims", {5, 7}}}), expanded_absmax);
+        mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4, 16}}}), expanded_absmax);
 
     auto float_data = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), unpacked_b);
     auto scale_factor =
         mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {8.0f}});
     auto scale_factor_bc = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {5, 7}}}), scale_factor);
+        migraphx::make_op("multibroadcast", {{"out_lens", {4, 16}}}), scale_factor);
     auto scaled_data = mm->add_instruction(migraphx::make_op("div"), float_data, scale_factor_bc);
     auto dequantized = mm->add_instruction(migraphx::make_op("mul"), scaled_data, expanded_absmax);
 
@@ -161,7 +158,7 @@ TEST_CASE(matmulbnb4_fp4_non_aligned_test)
 
     mm->add_instruction(migraphx::make_op("dot"), a, dequantized);
 
-    auto prog = optimize_onnx("matmulbnb4_fp4_non_aligned_test.onnx");
+    auto prog = optimize_onnx("matmulbnb4_block32_test.onnx");
 
     p.sort();
     prog.sort();
@@ -244,7 +241,7 @@ TEST_CASE(matmulbnb4_fp4_3d_input_test)
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dequantized);
 
     auto dequantized_bc = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 8}}}), dequantized);
+        migraphx::make_op("multibroadcast", {{"out_lens", {2, 8, 4}}}), dequantized);
 
     mm->add_instruction(migraphx::make_op("dot"), a, dequantized_bc);
 

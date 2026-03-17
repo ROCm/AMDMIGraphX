@@ -66,9 +66,9 @@ struct parse_matmulbnb4 : op_parser<parse_matmulbnb4>
             MIGRAPHX_THROW("MatMulBnb4: requires exactly 3 inputs (A, B, absmax)");
         }
 
-        if(args[0]->get_shape().ndim() < 2)
+        if(args[0]->get_shape().ndim() < 1)
         {
-            MIGRAPHX_THROW("MatMulBnb4: Input A must have at least 2 dimensions");
+            MIGRAPHX_THROW("MatMulBnb4: Input A must have at least 1 dimension");
         }
 
         auto a_inner_dim = args[0]->get_shape().lens().back();

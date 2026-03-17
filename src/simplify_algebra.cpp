@@ -2177,7 +2177,7 @@ struct find_split_transpose
 // Zero padding: reduce_sum + dot + broadcast.
 //
 // Non-zero padding (stride=1, dilation=1): run a minimal kernel-sized convolution,
-// then reconstruct the full output via slice/broadcast/concat.
+// then reconstruct the full output.
 struct find_conv_broadcast_input
 {
     auto matcher() const
@@ -2309,13 +2309,15 @@ struct find_conv_broadcast_input
         instruction_ref current = small_conv;
         for(std::size_t i = 0; i < num_spatial; i++)
         {
-            auto p_start      = padding[i];
-            auto p_end        = padding[i + num_spatial];
-            auto full_dim     = out_lens[i + 2];
-            auto interior_len = full_dim - p_start - p_end;
-            auto axis         = i + 2;
+            auto p_start  = padding[i];
+            auto p_end    = padding[i + num_spatial];
+            auto full_dim = out_lens[i + 2];
+            auto axis     = i + 2;
 
-            if(interior_len <= 1)
+            if(full_dim <= p_start + p_end)
+                continue;
+            auto interior_len = full_dim - p_start - p_end;
+            if(interior_len == 1)
                 continue;
 
             std::vector<int32_t> indices(full_dim, static_cast<int32_t>(p_start));

@@ -255,11 +255,11 @@ struct pooling_compiler : compiler<pooling_compiler>
                 add_solution(1, 4);
                 add_solution(1, 8);
                 add_solution(2, 1);
+                add_solution(2, 2);
                 add_solution(2, 4);
                 add_solution(4, 1);
+                add_solution(4, 2);
                 add_solution(8, 1);
-                add_solution(8, 2);
-                add_solution(16, 1);
             }
             else
             {

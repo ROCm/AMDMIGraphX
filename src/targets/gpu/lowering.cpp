@@ -92,14 +92,10 @@ struct miopen_apply
 #endif
         offload_copy = (mod == mpm->get_root_module()) ? pass->offload_copy : false;
 
-        add_extend_op("argmax");
-        add_extend_op("argmin");
         add_extend_op("fixed_pad");
-        add_extend_op("logsoftmax");
         add_extend_op("multinomial");
         add_extend_op("nonzero");
         add_extend_op("prefix_scan_sum");
-        add_extend_op("reverse");
         add_extend_op("rnn_var_sl_last_output");
         add_extend_op("rnn_var_sl_shift_output");
         add_extend_op("rnn_var_sl_shift_sequence");

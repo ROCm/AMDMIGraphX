@@ -639,8 +639,7 @@ struct move_only
     move_only() = default;
     explicit move_only(int x) : data(x) {}
 
-    move_only(move_only&& rhs) noexcept 
-    : data(rhs.data)
+    move_only(move_only&& rhs) noexcept : data(rhs.data)
     {
         rhs.data = 0; // Invalidate source
     }

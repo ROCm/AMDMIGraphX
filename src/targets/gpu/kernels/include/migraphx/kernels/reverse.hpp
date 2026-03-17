@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,30 +21,32 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/argmin.hpp>
-#include <migraphx/gpu/device/argmin.hpp>
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/tune_axis.hpp>
+#ifndef MIGRAPHX_GUARD_KERNELS_REVERSE_HPP
+#define MIGRAPHX_GUARD_KERNELS_REVERSE_HPP
+
+#include <migraphx/kernels/index.hpp>
+#include <migraphx/kernels/array.hpp>
+#include <migraphx/kernels/debug.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
 
-shape hip_argmin::compute_shape(const std::vector<shape>& inputs) const
+template <class Axes, class Input, class Output>
+__device__ void reverse(Axes axes, Input input, Output output)
 {
-    check_shapes{inputs, *this}.has(2);
-    return op.normalize_compute_shape({inputs.at(0)});
+    auto ind  = make_index();
+    auto lens = input.get_shape().lens;
+
+    ind.global_stride(output.get_shape().elements(), [&](auto i) {
+        auto out_idx = output.get_shape().multi(i);
+        auto in_idx  = out_idx;
+        for(auto axis : axes)
+        {
+            MIGRAPHX_ASSERT(lens[axis] > 0);
+            in_idx[axis] = lens[axis] - 1 - out_idx[axis];
+        }
+        output[i] = input[in_idx];
+    });
 }
 
-argument hip_argmin::compute(context& ctx, const shape&, const std::vector<argument>& args) const
-{
-    auto n_dim         = args.front().get_shape().lens().size();
-    int64_t tuned_axis = tune_axis(n_dim, op.axis, op.name());
-    device::argmin(
-        ctx.get_stream().get(), args.back(), args.front(), tuned_axis, op.select_last_index);
-    return args.back();
-}
-
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+#endif

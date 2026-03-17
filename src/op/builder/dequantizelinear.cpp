@@ -1,7 +1,6 @@
-/*
- * The MIT License (MIT)
+/* The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,26 +20,37 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_LOGSOFTMAX_HPP
-#define MIGRAPHX_GUARD_RTGLIB_DEVICE_LOGSOFTMAX_HPP
 
-#include <migraphx/argument.hpp>
-#include <migraphx/gpu/device/config.hpp>
-#include <hip/hip_runtime_api.h>
+#include <migraphx/op/builder/op_builder.hpp>
+#include <migraphx/op/builder/quantize_dequantize_linear.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace device {
+namespace op {
+namespace builder {
 
-void MIGRAPHX_DEVICE_EXPORT logsoftmax(hipStream_t stream,
-                                       const argument& result,
-                                       const argument& arg,
-                                       int64_t axis);
+struct dequantizelinear : op_builder<dequantizelinear>
+{
+    int axis       = 1;
+    int block_size = 0;
 
-} // namespace device
-} // namespace gpu
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.axis, "axis"), f(self.block_size, "block_size"));
+    }
+
+    std::vector<instruction_ref>
+    insert(module& m, instruction_ref /*ins*/, const std::vector<instruction_ref>& args) const
+    {
+        auto args_new =
+            transform_quantize_dequantize_linear_inputs(m, name(), block_size, axis, args);
+
+        return {m.add_instruction(make_op(name()), args_new)};
+    }
+};
+
+} // namespace builder
+} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

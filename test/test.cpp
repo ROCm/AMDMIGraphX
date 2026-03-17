@@ -82,6 +82,30 @@ TEST_CASE(globbing)
     EXPECT(not glob_match("test_foo", "test.foo"));
 }
 
+// Edge cases for glob_match
+TEST_CASE(globbing_edge_cases)
+{
+    // Empty strings
+    EXPECT(glob_match("", ""));
+    EXPECT(not glob_match("a", ""));
+    EXPECT(not glob_match("", "a"));
+    EXPECT(glob_match("", "*"));
+    EXPECT(not glob_match("", "?"));
+
+    // Only wildcards
+    EXPECT(glob_match("anything", "*"));
+    EXPECT(glob_match("a", "?"));
+    EXPECT(not glob_match("ab", "?"));
+    EXPECT(glob_match("ab", "??"));
+
+    // Star at beginning/end
+    EXPECT(glob_match("hello", "*hello"));
+    EXPECT(glob_match("hello", "hello*"));
+    EXPECT(glob_match("hello", "*hello*"));
+    EXPECT(glob_match("hello_world", "hello*world"));
+    EXPECT(not glob_match("hello_world", "hello*xyz"));
+}
+
 // Tests for as_string / print_stream
 TEST_CASE(as_string_basic_types)
 {
@@ -674,30 +698,6 @@ TEST_CASE(capture_chained_and)
 {
     EXPECT((test::capture{}->*1 == 1) and (test::capture{}->*2 == 2) and
            (test::capture{}->*3 == 3) and (test::capture{}->*4 == 4));
-}
-
-// Edge cases for glob_match
-TEST_CASE(globbing_edge_cases)
-{
-    // Empty strings
-    EXPECT(glob_match("", ""));
-    EXPECT(not glob_match("a", ""));
-    EXPECT(not glob_match("", "a"));
-    EXPECT(glob_match("", "*"));
-    EXPECT(not glob_match("", "?"));
-
-    // Only wildcards
-    EXPECT(glob_match("anything", "*"));
-    EXPECT(glob_match("a", "?"));
-    EXPECT(not glob_match("ab", "?"));
-    EXPECT(glob_match("ab", "??"));
-
-    // Star at beginning/end
-    EXPECT(glob_match("hello", "*hello"));
-    EXPECT(glob_match("hello", "hello*"));
-    EXPECT(glob_match("hello", "*hello*"));
-    EXPECT(glob_match("hello_world", "hello*world"));
-    EXPECT(not glob_match("hello_world", "hello*xyz"));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

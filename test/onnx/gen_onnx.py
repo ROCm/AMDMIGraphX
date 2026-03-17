@@ -18295,15 +18295,16 @@ def matmulbnb4_nf4_test():
 
 @onnx_test()
 def matmulbnb4_block32_test():
-    N = 16
-    K = 32
+    N = 4
+    K = 16
     block_size = 32
     quant_type = 0
 
-    A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [1, K])
-    B = helper.make_tensor_value_info('B', TensorProto.UINT8, [256])
-    absmax = helper.make_tensor_value_info('absmax', TensorProto.FLOAT, [16])
-    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, N])
+    A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [3, K])
+    B = helper.make_tensor_value_info('B', TensorProto.UINT8, [N * K // 2])
+    absmax = helper.make_tensor_value_info('absmax', TensorProto.FLOAT,
+                                           [N * K // block_size])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [3, N])
 
     node = onnx.helper.make_node(
         'MatMulBnb4',
@@ -18524,7 +18525,7 @@ def matmulbnb4_wrong_a_dims_test():
     block_size = 16
     quant_type = 0
 
-    A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [K])
+    A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [])
     B = helper.make_tensor_value_info('B', TensorProto.UINT8, [16])
     absmax = helper.make_tensor_value_info('absmax', TensorProto.FLOAT, [2])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [N])

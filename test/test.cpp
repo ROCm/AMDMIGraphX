@@ -602,7 +602,7 @@ TEST_CASE(expression_false_value)
 TEST_CASE(expression_chained)
 {
     // cppcheck-suppress duplicateExpression
-    auto expr = (test::capture{}->*1 == 1) and (2 == 2);
+    auto expr = (test::capture{}->*1 == 1) and (2 == 2); // NOLINT(misc-redundant-expression)
     EXPECT(expr.value());
 }
 
@@ -639,9 +639,9 @@ struct move_only
     move_only() = default;
     explicit move_only(int x) : data(x) {}
 
-    move_only(move_only&& rhs)
+    move_only(move_only&& rhs) noexcept 
+    : data(rhs.data)
     {
-        data     = rhs.data;
         rhs.data = 0; // Invalidate source
     }
 

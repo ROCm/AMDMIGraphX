@@ -347,6 +347,7 @@ rocm_enable_cppcheck(
         HAS_HALF_V1
         TYPE_ERASED_DECLARATION
         NDEBUG
+        MIGRAPHX_GUARD_TEST_TEST_HPP
 )
 
 include(ROCMCreatePackage)

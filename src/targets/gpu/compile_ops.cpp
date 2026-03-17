@@ -305,8 +305,7 @@ struct compile_plan
                                    problem_string() + "\n\n" + print_modules());
                 if(enabled(MIGRAPHX_SKIP_BENCHMARKING{}))
                 {
-                    ctx->get_problem_cache().insert(
-                        preop.name(), problem, solutions.front());
+                    ctx->get_problem_cache().insert(preop.name(), problem, solutions.front());
                     results.resize(1);
                     insert_compiles(compiles, solutions.front(), 0);
                 }

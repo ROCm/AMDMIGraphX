@@ -4982,4 +4982,42 @@ TEST_CASE(conv_broadcast_input_batch_size_gt_1)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(pow2_to_mul)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 3, 9}};
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", s);
+        std::vector<float> data(s.elements(), 2.0f);
+        auto y   = m1.add_literal(migraphx::literal{s, data});
+        auto pow = m1.add_instruction(migraphx::make_op("pow"), x, y);
+        m1.add_return({pow});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x   = m2.add_parameter("x", s);
+        auto mul = m2.add_instruction(migraphx::make_op("mul"), x, x);
+        m2.add_return({mul});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(pow3)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 3, 9}};
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", s);
+        std::vector<float> data(s.elements(), 3.0f);
+        auto y   = m1.add_literal(migraphx::literal{s, data});
+        auto pow = m1.add_instruction(migraphx::make_op("pow"), x, y);
+        m1.add_return({pow});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

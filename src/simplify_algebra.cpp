@@ -2238,6 +2238,23 @@ struct find_conv_broadcast_input
     }
 };
 
+struct find_pow2
+{
+    auto matcher() const
+    {
+        return match::name("pow")(match::arg(0)(match::any().bind("x")),
+                                  match::arg(1)(match::has_value(2.0f, 0, 1)));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+        auto x_ins = r.instructions["x"];
+        auto mul = m.insert_instruction(ins, make_op("mul"), x_ins, x_ins);
+        m.replace_instruction(ins, mul);
+    }
+};
+
 void simplify_algebra::apply(module& m) const
 {
     // Run simplifications multiple times
@@ -2272,7 +2289,9 @@ void simplify_algebra::apply(module& m) const
                             find_split_concat{},
                             find_splits{},
                             find_split_reshape{},
-                            find_split_transpose{});
+                            find_split_transpose{},
+                            find_pow2{});
+                            
         dead_code_elimination{}.apply(m);
     });
 }

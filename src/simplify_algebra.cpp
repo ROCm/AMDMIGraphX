@@ -255,7 +255,7 @@ struct find_mul_dot
 {
     auto matcher() const
     {
-        auto constant            = match::is_constant(not_from_int4());
+        auto constant = match::is_constant(not_from_int4());
         auto is_dot_const_inputs =
             match::name("dot")(match::any_of[match::inputs()](constant), match::used_once());
         return match::name("mul")(match::either_arg(0, 1)(
@@ -792,7 +792,7 @@ struct find_inner_broadcast
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins               = r.result;
+        auto ins = r.result;
         if(ins->get_operator().name() == "layout")
             return;
         const auto& broadcasts = ins->inputs();
@@ -2248,9 +2248,9 @@ struct find_pow2
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins = r.result;
+        auto ins   = r.result;
         auto x_ins = r.instructions["x"];
-        auto mul = m.insert_instruction(ins, make_op("mul"), x_ins, x_ins);
+        auto mul   = m.insert_instruction(ins, make_op("mul"), x_ins, x_ins);
         m.replace_instruction(ins, mul);
     }
 };
@@ -2291,7 +2291,7 @@ void simplify_algebra::apply(module& m) const
                             find_split_reshape{},
                             find_split_transpose{},
                             find_pow2{});
-                            
+
         dead_code_elimination{}.apply(m);
     });
 }

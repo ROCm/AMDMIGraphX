@@ -1768,7 +1768,7 @@ TEST_CASE(simplify_zero_mult_const)
     migraphx::module m2;
     {
         auto x            = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto zero = m2.add_literal(0);
+        auto zero         = m2.add_literal(0);
         auto reshape_zero = m2.add_instruction(
             migraphx::make_op("reshape", {{"dims", x->get_shape().lens()}}), zero);
         m2.add_return({reshape_zero});
@@ -1791,7 +1791,7 @@ TEST_CASE(simplify_zero_mult_const2)
     migraphx::module m2;
     {
         auto x            = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto zero = m2.add_literal(0);
+        auto zero         = m2.add_literal(0);
         auto reshape_zero = m2.add_instruction(
             migraphx::make_op("reshape", {{"dims", x->get_shape().lens()}}), zero);
         m2.add_return({reshape_zero});
@@ -1921,7 +1921,7 @@ TEST_CASE(simplify_zero_div_const)
 
     migraphx::module m2;
     {
-        auto zero = m2.add_literal(0);
+        auto zero        = m2.add_literal(0);
         auto x           = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
         auto reshape_ins = m2.add_instruction(
             migraphx::make_op("reshape", {{"dims", x->get_shape().lens()}}), zero);
@@ -4987,7 +4987,7 @@ TEST_CASE(pow2_to_mul)
     migraphx::shape s{migraphx::shape::float_type, {1, 3, 9}};
     migraphx::module m1;
     {
-        auto x   = m1.add_parameter("x", s);
+        auto x = m1.add_parameter("x", s);
         std::vector<float> data(s.elements(), 2.0f);
         auto y   = m1.add_literal(migraphx::literal{s, data});
         auto pow = m1.add_instruction(migraphx::make_op("pow"), x, y);
@@ -5008,7 +5008,7 @@ TEST_CASE(pow3)
     migraphx::shape s{migraphx::shape::float_type, {1, 3, 9}};
     migraphx::module m1;
     {
-        auto x   = m1.add_parameter("x", s);
+        auto x = m1.add_parameter("x", s);
         std::vector<float> data(s.elements(), 3.0f);
         auto y   = m1.add_literal(migraphx::literal{s, data});
         auto pow = m1.add_instruction(migraphx::make_op("pow"), x, y);

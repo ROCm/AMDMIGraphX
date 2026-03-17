@@ -2308,7 +2308,6 @@ struct find_conv_broadcast_input
         auto small_conv = m.insert_instruction(ins, ins->get_operator(), small_bcast, w_ins);
 
         instruction_ref current = small_conv;
-        auto ndim = out_lens.size();
         for(std::size_t i = 0; i < num_spatial; i++)
         {
             auto p_start  = padding[i];
@@ -2328,8 +2327,7 @@ struct find_conv_broadcast_input
             {
                 pieces.push_back(m.insert_instruction(
                     ins,
-                    make_op("slice",
-                            {{"axes", {axis}}, {"starts", {0}}, {"ends", {p_start}}}),
+                    make_op("slice", {{"axes", {axis}}, {"starts", {0}}, {"ends", {p_start}}}),
                     current));
             }
 
@@ -2338,24 +2336,22 @@ struct find_conv_broadcast_input
                 make_op("slice",
                         {{"axes", {axis}}, {"starts", {p_start}}, {"ends", {p_start + 1}}}),
                 current);
-            auto center_lens   = center->get_shape().lens();
-            center_lens[axis]  = interior_len;
+            auto center_lens  = center->get_shape().lens();
+            center_lens[axis] = interior_len;
             pieces.push_back(m.insert_instruction(
                 ins, make_op("multibroadcast", {{"out_lens", center_lens}}), center));
 
             if(p_end > 0)
             {
-                pieces.push_back(m.insert_instruction(
-                    ins,
-                    make_op("slice",
-                            {{"axes", {axis}},
-                             {"starts", {p_start + 1}},
-                             {"ends", {p_start + 1 + p_end}}}),
-                    current));
+                pieces.push_back(m.insert_instruction(ins,
+                                                      make_op("slice",
+                                                              {{"axes", {axis}},
+                                                               {"starts", {p_start + 1}},
+                                                               {"ends", {p_start + 1 + p_end}}}),
+                                                      current));
             }
 
-            current = m.insert_instruction(
-                ins, make_op("concat", {{"axis", axis}}), pieces);
+            current = m.insert_instruction(ins, make_op("concat", {{"axis", axis}}), pieces);
         }
 
         m.replace_instruction(ins, current);

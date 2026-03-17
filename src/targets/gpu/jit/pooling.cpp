@@ -236,7 +236,7 @@ struct pooling_compiler : compiler<pooling_compiler>
         };
         if(exhaustive)
         {
-            for(auto group_size : {1, 2, 4, 8, 16, 32, 64, 128})
+            for(auto group_size : {1, 2, 4, 8, 16})
             {
                 for(auto width : {1, 2, 4, 8, 16, 32, 64})
                 {
@@ -265,21 +265,23 @@ struct pooling_compiler : compiler<pooling_compiler>
             {
                 add_solution(1, 16);
                 add_solution(1, 2);
+                add_solution(1, 32);
                 add_solution(1, 4);
+                add_solution(1, 64);
                 add_solution(1, 8);
                 add_solution(2, 1);
                 add_solution(2, 16);
                 add_solution(2, 2);
+                add_solution(2, 32);
                 add_solution(2, 4);
+                add_solution(2, 64);
                 add_solution(2, 8);
                 add_solution(4, 1);
                 add_solution(4, 2);
                 add_solution(4, 4);
                 add_solution(4, 8);
-                add_solution(8, 1);
-                add_solution(8, 8);
-                add_solution(16, 1);
-                add_solution(16, 16);
+                add_solution(8, 2);
+                add_solution(8, 4);
             }
         }
         return tc;

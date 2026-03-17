@@ -601,6 +601,7 @@ TEST_CASE(expression_false_value)
 
 TEST_CASE(expression_chained)
 {
+    // cppcheck-suppress duplicateExpression
     auto expr = (test::capture{}->*1 == 1) and (2 == 2);
     EXPECT(expr.value());
 }

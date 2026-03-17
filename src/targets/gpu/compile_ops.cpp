@@ -256,23 +256,17 @@ struct compile_plan
     module_ref mod;
     optional<tuning_config> config                 = nullopt;
     std::vector<optional<compiled_result>> results = {};
-    optional<value> cached_solution                = nullopt;
     void update_config(bool exhaustive)
     {
         config = get_tuning_config(*ctx, ins, preop, exhaustive);
     }
     template <class Vector>
-    void insert_compiles(Vector& compiles,
-                         const value& solution,
-                         std::size_t i,
-                         bool cache_solution = false)
+    void insert_compiles(Vector& compiles, const value& solution, std::size_t i)
     {
         compiles.emplace_back([=] {
             try
             {
                 results[i] = compiled_result{compile(*ctx, ins, preop, solution), ins};
-                if(cache_solution)
-                    cached_solution = solution;
             }
             catch(const std::exception& e)
             {
@@ -309,14 +303,16 @@ struct compile_plan
                 if(solutions.empty())
                     MIGRAPHX_THROW("No solutions provided for " + preop.name() + " with " +
                                    problem_string() + "\n\n" + print_modules());
-                ctx->get_problem_cache().mark(preop.name(), problem);
                 if(enabled(MIGRAPHX_SKIP_BENCHMARKING{}))
                 {
+                    ctx->get_problem_cache().insert(
+                        preop.name(), problem, solutions.front());
                     results.resize(1);
-                    insert_compiles(compiles, solutions.front(), 0, true);
+                    insert_compiles(compiles, solutions.front(), 0);
                 }
                 else
                 {
+                    ctx->get_problem_cache().mark(preop.name(), problem);
                     results.resize(solutions.size());
                     for(auto i : range(solutions.size()))
                     {
@@ -466,22 +462,8 @@ struct compile_plan
 
     void replace(module& m) const
     {
-        if(enabled(MIGRAPHX_SKIP_BENCHMARKING{}))
-        {
-            assert(results.size() == 1);
-            if(not results.front().has_value())
-                MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
-                               problem_string() + "\n\n" + print_modules());
-            const auto& cr = *results.front();
-            cr.replace.replace(m, cr.ins);
-            if(config.has_value() and cached_solution.has_value())
-                ctx->get_problem_cache().insert(preop.name(), config->problem, *cached_solution);
-        }
-        else
-        {
-            const auto& cr = benchmark();
-            cr.replace.replace(m, cr.ins);
-        }
+        const auto& cr = benchmark();
+        cr.replace.replace(m, cr.ins);
     }
 };
 

@@ -76,7 +76,7 @@ void test_memchr_usage()
 void test_strcat_usage()
 {
     char dest[20] = "hello";
-    const char src[]    = " world";
+    const char src[] = " world";
     // cppcheck-suppress migraphx-useStlAlgorithms
     strcat(dest, src);
 }
@@ -84,7 +84,7 @@ void test_strcat_usage()
 void test_strncat_usage()
 {
     char dest[20] = "hello";
-    const char src[]    = " world";
+    const char src[] = " world";
     // cppcheck-suppress migraphx-useStlAlgorithms
     strncat(dest, src, 3);
 }

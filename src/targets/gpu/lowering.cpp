@@ -92,7 +92,6 @@ struct miopen_apply
 #endif
         offload_copy = (mod == mpm->get_root_module()) ? pass->offload_copy : false;
 
-        add_extend_op("fixed_pad");
         add_extend_op("multinomial");
         add_extend_op("nonzero");
         add_extend_op("prefix_scan_sum");

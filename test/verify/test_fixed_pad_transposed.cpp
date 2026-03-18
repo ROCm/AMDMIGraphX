@@ -27,19 +27,17 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-template <migraphx::shape::type_t DType>
-struct test_fixed_pad : verify_program<test_fixed_pad<DType>>
+struct test_fixed_pad_transposed : verify_program<test_fixed_pad_transposed>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape s{DType, {2, 3, 4}};
-        auto x = mm->add_parameter("x", s);
-        mm->add_instruction(migraphx::make_op("fixed_pad"), x);
+        migraphx::shape s{migraphx::shape::float_type, {2, 3, 4}};
+        auto x         = mm->add_parameter("x", s);
+        auto transpose = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), x);
+        mm->add_instruction(migraphx::make_op("fixed_pad"), transpose);
         return p;
     }
 };
-
-template struct test_fixed_pad<migraphx::shape::float_type>;
-template struct test_fixed_pad<migraphx::shape::half_type>;

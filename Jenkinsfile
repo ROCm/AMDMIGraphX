@@ -7,7 +7,11 @@ DOCKER_IMAGE_ORT = 'rocm/migraphx-ci-jenkins-ubuntu-ort'
 def ciTestCacheEnabled() {
     def cache = env.MIGRAPHX_CI_TEST_SUCCESS_CACHE?.trim()
     def force = env.MIGRAPHX_CI_FORCE_TESTS?.trim()?.toLowerCase()
-    return cache && force != 'true' && force != '1'
+    def enabled = cache && force != 'true' && force != '1'
+    // #region agent log
+    echo "[MIGRAPHX_CI_SKIP_TRACE] ciTestCacheEnabled: MIGRAPHX_CI_TEST_SUCCESS_CACHE=${cache ? '(set,len=' + cache.length() + ')' : '(empty)'}, MIGRAPHX_CI_FORCE_TESTS=${force ?: '(empty)'}, enabled=${enabled}"
+    // #endregion
+    return enabled
 }
 
 def safeJobNameForCache() {
@@ -152,20 +156,48 @@ def rocmtest = { Map conf = [:], Closure body ->
             sh 'printenv'
             checkout scm
             gitCommit = sh(returnStdout: true, script: 'git rev-parse HEAD').trim()
+            // #region agent log
+            echo "[MIGRAPHX_CI_SKIP_TRACE] setup ${variant}: stageCacheId=${stageCacheId ?: '(null)'}, cacheImageTag=${cacheImageTag ?: '(null)'}, IMAGE_TAG=${env.IMAGE_TAG ?: '(null)'}, gitCommit=${gitCommit}"
+            // #endregion
 
-            if (stageCacheId && ciTestCacheEnabled()) {
+            if (!stageCacheId) {
+                // #region agent log
+                echo "[MIGRAPHX_CI_SKIP_TRACE] setup ${variant}: no stageCacheId — skip-cache logic not used for this rocmtest"
+                // #endregion
+            } else if (!ciTestCacheEnabled()) {
+                // #region agent log
+                echo "[MIGRAPHX_CI_SKIP_TRACE] setup ${variant}: cache disabled (unset MIGRAPHX_CI_TEST_SUCCESS_CACHE or FORCE_TESTS) — will run full tests"
+                // #endregion
+            } else {
+                // #region agent log
+                echo "[MIGRAPHX_CI_SKIP_TRACE] setup ${variant}: cache is ON — checking marker on agent filesystem"
+                // #endregion
                 markerPath = successMarkerPath(gitCommit, cacheImageTag, stageCacheId)
                 env.MIGRAPHX_CI_MARKER_PATH = markerPath
                 env.MIGRAPHX_CI_DEB_CACHE = debCachePath(gitCommit, env.IMAGE_TAG)
+                // #region agent log
+                echo "[MIGRAPHX_CI_SKIP_TRACE] setup ${variant}: markerPath=${markerPath}"
+                echo "[MIGRAPHX_CI_SKIP_TRACE] setup ${variant}: debCachePath=${env.MIGRAPHX_CI_DEB_CACHE}"
+                // #endregion
                 skipTests = sh(returnStatus: true, script: 'test -f "$MIGRAPHX_CI_MARKER_PATH"') == 0
+                // #region agent log
+                echo "[MIGRAPHX_CI_SKIP_TRACE] setup ${variant}: marker file exists=${skipTests}"
+                // #endregion
                 if (skipTests && stageCacheId == 'hip_clang_release') {
                     def debOk = sh(returnStatus: true, script: 'for f in "$MIGRAPHX_CI_DEB_CACHE"/*.deb; do test -f "$f" && exit 0; done; exit 1') == 0
+                    // #region agent log
+                    echo "[MIGRAPHX_CI_SKIP_TRACE] setup ${variant}: HIP deb cache has .deb files=${debOk}"
+                    // #endregion
                     if (!debOk) {
                         echo 'HIP Clang Release: marker exists but cached .deb missing; running full build'
                         skipTests = false
                     }
                 }
             }
+
+            // #region agent log
+            echo "[MIGRAPHX_CI_SKIP_TRACE] setup ${variant}: final skipTests=${skipTests}"
+            // #endregion
 
             if (skipTests) {
                 echo "Skipping tests for ${stageCacheId} (cached success, commit ${gitCommit})"
@@ -189,6 +221,9 @@ def rocmtest = { Map conf = [:], Closure body ->
         }
 
         stage("build ${variant}") {
+            // #region agent log
+            echo "[MIGRAPHX_CI_SKIP_TRACE] build ${variant}: branch=${skipTests && stageCacheId == 'hip_clang_release' ? 'hip_skip_stash' : skipTests ? 'skip_no_docker' : 'full_run'}"
+            // #endregion
             if (skipTests && stageCacheId == 'hip_clang_release') {
                 stash includes: 'build/*.deb', name: 'migraphx-package'
                 echo 'HIP Clang Release: stashed restored .deb for downstream ONNX stage'
@@ -207,6 +242,13 @@ def rocmtest = { Map conf = [:], Closure body ->
                         sh 'mkdir -p "$MIGRAPHX_CI_DEB_CACHE" && cp build/*.deb "$MIGRAPHX_CI_DEB_CACHE"/'
                     }
                     sh 'mkdir -p "$(dirname "$MIGRAPHX_CI_MARKER_PATH")" && touch "$MIGRAPHX_CI_MARKER_PATH" && echo "BUILD_URL=${BUILD_URL}" >> "$MIGRAPHX_CI_MARKER_PATH"'
+                    // #region agent log
+                    echo "[MIGRAPHX_CI_SKIP_TRACE] build ${variant}: wrote success marker and (if HIP) cached .deb"
+                    // #endregion
+                } else {
+                    // #region agent log
+                    echo "[MIGRAPHX_CI_SKIP_TRACE] build ${variant}: full run finished but NOT writing marker (stageCacheId=${stageCacheId ?: 'null'} or cache disabled)"
+                    // #endregion
                 }
             }
         }

@@ -163,7 +163,7 @@ struct parse_qlinearmatmul : op_parser<parse_qlinearmatmul>
         const auto& in_scale_b   = args[4];
         const auto& in_zero_pt_b = args[5];
 
-        auto dquant_b            = bcast_qdq_instr(
+        auto dquant_b = bcast_qdq_instr(
             "dequantizelinear", in_b, in_scale_b, in_zero_pt_b, info, in_b->get_shape().ndim() - 1);
 
         bool is_a_prepended = false;

@@ -63,8 +63,8 @@ int test_negative_case3(int x)
 {
     // Should not trigger: different variable returned
     int result = x * 2;
-    // cppcheck-suppress unreadVariable
     result     = result + 1;
+    (void)result;
     return 0;
 }
 

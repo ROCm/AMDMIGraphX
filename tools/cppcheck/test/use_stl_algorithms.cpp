@@ -27,8 +27,7 @@
 
 void test_memcpy_usage()
 {
-    // cppcheck-suppress constVariable
-    char src[] = "hello";
+    const char src[] = "hello";
     char dest[10];
     // cppcheck-suppress migraphx-useStlAlgorithms
     memcpy(dest, src, 5);
@@ -36,8 +35,7 @@ void test_memcpy_usage()
 
 void test_strcpy_usage()
 {
-    // cppcheck-suppress constVariable
-    char src[] = "hello";
+    const char src[] = "hello";
     char dest[10];
     // cppcheck-suppress migraphx-useStlAlgorithms
     strcpy(dest, src);
@@ -45,8 +43,7 @@ void test_strcpy_usage()
 
 void test_strncpy_usage()
 {
-    // cppcheck-suppress constVariable
-    char src[] = "hello";
+    const char src[] = "hello";
     char dest[10];
     // cppcheck-suppress migraphx-useStlAlgorithms
     strncpy(dest, src, 5);
@@ -61,10 +58,8 @@ void test_memset_usage()
 
 void test_memcmp_usage()
 {
-    // cppcheck-suppress constVariable
-    char src[]    = "hello";
-    // cppcheck-suppress constVariable
-    char dest[10] = "hello";
+    const char src[]    = "hello";
+    const char dest[10] = "hello";
     // cppcheck-suppress migraphx-useStlAlgorithms
     int result = memcmp(src, dest, 5);
     (void)result; // Suppress unused variable warning
@@ -81,8 +76,7 @@ void test_memchr_usage()
 void test_strcat_usage()
 {
     char dest[20] = "hello";
-    // cppcheck-suppress constVariable
-    char src[]    = " world";
+    const char src[]    = " world";
     // cppcheck-suppress migraphx-useStlAlgorithms
     strcat(dest, src);
 }
@@ -90,8 +84,7 @@ void test_strcat_usage()
 void test_strncat_usage()
 {
     char dest[20] = "hello";
-    // cppcheck-suppress constVariable
-    char src[]    = " world";
+    const char src[]    = " world";
     // cppcheck-suppress migraphx-useStlAlgorithms
     strncat(dest, src, 3);
 }
@@ -108,8 +101,7 @@ void test_arithmetic_should_not_trigger()
 void test_array_access_should_not_trigger()
 {
     // Should not trigger: direct array access
-    // cppcheck-suppress constVariable
-    char arr[] = "hello";
-    char c     = arr[0];
+    const char arr[] = "hello";
+    char c           = arr[0];
     (void)c; // Suppress unused variable warning
 }

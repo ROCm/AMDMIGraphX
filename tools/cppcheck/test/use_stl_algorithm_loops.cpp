@@ -28,54 +28,53 @@
 
 // Test for useStlAlgorithm rules from rules.xml (for loop patterns)
 
-void test_for_loop_std_fill_pattern()
+int test_for_loop_std_fill_pattern()
 {
     int arr[10];
     // cppcheck-suppress useStlAlgorithm
     for(int i = 0; i < 10; i++)
     {
-        // cppcheck-suppress unreadVariable
         arr[i] = 5;
     }
+    return arr[0];
 }
 
-void test_for_loop_std_generate_pattern()
+int test_for_loop_std_generate_pattern()
 {
     int arr[10];
     // cppcheck-suppress useStlAlgorithm
     for(int i = 0; i < 10; i++)
     {
-        // cppcheck-suppress unreadVariable
         arr[i] = rand();
     }
+    return arr[0];
 }
 
-void test_for_loop_std_transform_unary_pattern()
+int test_for_loop_std_transform_unary_pattern()
 {
     int arr[10];
-    // cppcheck-suppress constVariable
-    int other_arr[10] = {1, -2, 3, -4, 5, -6, 7, -8, 9, -10};
+    const int other_arr[10] = {1, -2, 3, -4, 5, -6, 7, -8, 9, -10};
     // cppcheck-suppress useStlAlgorithm
     for(int i = 0; i < 10; i++)
     {
-        // cppcheck-suppress unreadVariable
         arr[i] = abs(other_arr[i]);
     }
+    return arr[0];
 }
 
-void test_for_loop_std_transform_binary_pattern()
+int test_for_loop_std_transform_binary_pattern()
 {
-    int arr[10]       = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-    // cppcheck-suppress constVariable
-    int other_arr[10] = {2, 1, 4, 3, 6, 5, 8, 7, 10, 9};
+    int arr[10]             = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+    const int other_arr[10] = {2, 1, 4, 3, 6, 5, 8, 7, 10, 9};
     // cppcheck-suppress useStlAlgorithm
     for(int i = 0; i < 10; i++)
     {
         arr[i] = std::max(other_arr[i], arr[i]);
     }
+    return arr[0];
 }
 
-void test_complex_loop_should_not_trigger()
+int test_complex_loop_should_not_trigger()
 {
     // Should not trigger: complex logic
     int arr[10];
@@ -83,39 +82,37 @@ void test_complex_loop_should_not_trigger()
     {
         if(i % 2 == 0)
         {
-            // cppcheck-suppress unreadVariable
             arr[i] = 5;
         }
         else
         {
-            // cppcheck-suppress unreadVariable
             arr[i] = 10;
         }
     }
+    return arr[0];
 }
 
-void test_multiple_operations_should_not_trigger()
+int test_multiple_operations_should_not_trigger()
 {
     // Should not trigger: multiple operations
     int arr[10];
     int other_arr[10] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
     for(int i = 0; i < 10; i++)
     {
-        // cppcheck-suppress unreadVariable
         arr[i]       = other_arr[i];
         other_arr[i] = 0;
     }
+    return arr[0];
 }
 
-void test_complex_pattern_should_not_trigger()
+int test_complex_pattern_should_not_trigger()
 {
     // Should not trigger: not a simple pattern
-    int arr[10]       = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-    // cppcheck-suppress constVariable
-    int other_arr[10] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+    int arr[10]             = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+    const int other_arr[10] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
     for(int i = 1; i < 10; i++)
     {
-        // cppcheck-suppress unreadVariable
         arr[i] = arr[i - 1] + other_arr[i];
     }
+    return arr[0];
 }

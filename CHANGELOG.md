@@ -28,6 +28,7 @@ Full documentation for MIGraphX is available at
 * Fixed an issue with clip operator when using fp16 input type on opset 6 (#4518). 
 * Fixed an issue with `reshape_lazy`'s shape computation that was leading to invalid reshapes (#4594).
 * Fixed `eliminate_pad` pass bug that was removing nonzero `pad` instructions (#4600).
+* Fixed an issue with `convert` output overflowing when converting inf/-inf to integral types (#4669).
 
 ### Optimized
 * Optimized fusion for local_window mode of GQA operator (#4617).

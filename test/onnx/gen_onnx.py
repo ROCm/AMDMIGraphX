@@ -12426,17 +12426,17 @@ def qlinearconv_perchannel_weightbias_test():
 
     out_channels = 64
     wt_data = np.random.randint(-128, 127, size=(out_channels, 3, 7, 7)).astype(np.int8)
-    wt = numpy_helper.from_array(wt_data, 'W')
+    wt = from_array(wt_data, 'W')
     sc_wt_data = np.random.uniform(0.0001, 0.01, size=(out_channels,)).astype(np.float32)
-    sc_wt = numpy_helper.from_array(sc_wt_data, 'W_scale')
+    sc_wt = from_array(sc_wt_data, 'W_scale')
     zero_pt_wt_data = np.zeros((out_channels,), dtype=np.int8)
-    zero_pt_wt = numpy_helper.from_array(zero_pt_wt_data, 'W_zero_point')
+    zero_pt_wt = from_array(zero_pt_wt_data, 'W_zero_point')
 
     sc_y = helper.make_tensor('Y_scale', TensorProto.FLOAT, [], [0.0312])
     zero_pt_y = helper.make_tensor('Y_zero_point', TensorProto.UINT8, [], [128])
 
     bias_data = np.random.randint(-10000, 10000, size=(out_channels,)).astype(np.int32)
-    bias = numpy_helper.from_array(bias_data, 'B')
+    bias = from_array(bias_data, 'B')
 
     out = helper.make_tensor_value_info('Y', TensorProto.UINT8, [1, 64, 112, 112])
 

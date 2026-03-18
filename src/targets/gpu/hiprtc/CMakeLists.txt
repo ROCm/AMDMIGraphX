@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -34,6 +34,10 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_SIMULATE_ID MATCHES "
     target_link_options(migraphx-hiprtc-driver PRIVATE -Xlinker /stack:${STACK_SIZE})
 endif()
 target_link_libraries(migraphx-hiprtc-driver PRIVATE migraphx_gpu)
+add_version_resource(
+    TARGET migraphx-hiprtc-driver
+    DESCRIPTION "MIGraphX HIP RTC Driver - Runtime Compilation Driver"
+)
 add_dependencies(migraphx_all_targets migraphx-hiprtc-driver)
 rocm_install_targets(
     TARGETS migraphx-hiprtc-driver

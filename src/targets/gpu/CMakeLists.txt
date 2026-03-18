@@ -106,6 +106,10 @@ endif()
 
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
 rocm_set_soversion(migraphx_device ${MIGRAPHX_SO_VERSION})
+add_version_resource(
+    TARGET migraphx_device
+    DESCRIPTION "MIGraphX Device Library - GPU Device Operations"
+)
 rocm_clang_tidy_check(migraphx_device)
 target_link_libraries(migraphx_device PUBLIC migraphx)
 target_link_libraries(migraphx_device PRIVATE compile_for_gpu)
@@ -159,8 +163,6 @@ endif()
 add_library(migraphx_gpu
     analyze_streams.cpp
     allocation_model.cpp
-    argmax.cpp
-    argmin.cpp
     code_object_op.cpp
     compile_ops.cpp
     compile_gen.cpp
@@ -183,7 +185,6 @@ add_library(migraphx_gpu
     hsa_chiplet.cpp
     kernel.cpp
     lowering.cpp
-    logsoftmax.cpp
     loop.cpp
     lrn.cpp
     mlir.cpp
@@ -197,7 +198,6 @@ add_library(migraphx_gpu
     perfdb.cpp
     pooling.cpp
     problem_cache.cpp
-    reverse.cpp
     rnn_variable_seq_lens.cpp
     rocblas.cpp
     schedule_model.cpp
@@ -220,15 +220,11 @@ function(register_migraphx_gpu_ops PREFIX)
 endfunction()
 
 register_migraphx_gpu_ops(hip_
-    argmax
-    argmin
     fixed_pad
-    logsoftmax
     loop
     multinomial
     nonzero
     prefix_scan_sum
-    reverse
     topk
 )
 if (MIGRAPHX_USE_MIOPEN)
@@ -265,6 +261,10 @@ if (MIGRAPHX_USE_MIOPEN)
         INCLUDES migraphx/gpu/context.hpp)
 endif()
 rocm_set_soversion(migraphx_gpu ${MIGRAPHX_SO_VERSION})
+add_version_resource(
+    TARGET migraphx_gpu
+    DESCRIPTION "MIGraphX GPU Target - AMD GPU Acceleration"
+)
 rocm_clang_tidy_check(migraphx_gpu)
 
 set(MIGRAPHX_ENABLE_MLIR ON CACHE BOOL "")

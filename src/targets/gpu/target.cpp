@@ -34,6 +34,7 @@
 #include <migraphx/fp8_ocp_to_fnuz.hpp>
 #include <migraphx/fuse_attention.hpp>
 #include <migraphx/fuse_concat.hpp>
+#include <migraphx/fuse_horizontal.hpp>
 #include <migraphx/fuse_pointwise_reduce.hpp>
 #include <migraphx/inline_module.hpp>
 #include <migraphx/insert_pad.hpp>
@@ -51,6 +52,7 @@
 #include <migraphx/rewrite_low_precision.hpp>
 #include <migraphx/rewrite_pooling.hpp>
 #include <migraphx/rewrite_reduce.hpp>
+#include <migraphx/rewrite_resize.hpp>
 #include <migraphx/rewrite_quantization.hpp>
 #include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/rewrite_topk.hpp>
@@ -107,6 +109,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 
     if (compile_mode == compile_modes::MAX || compile_mode == compile_modes::BALANCED)
     {
+<<<<<<< HEAD
         // clang-format off
         return
         {
@@ -301,6 +304,105 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
                 eliminate_identity{}
         };
     }
+=======
+        enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), split_single_dyn_dim{}),
+        dead_code_elimination{},
+        simplify_dyn_ops{},
+        dead_code_elimination{},
+        normalize_ops{},
+        dead_code_elimination{},
+        eliminate_identity{},
+        dead_code_elimination{},
+        enable_pass(not gpu::gfx_has_fp8ocp_intrinsics() and gpu::gfx_has_fp8fnuz_intrinsics(), fp8_ocp_to_fnuz{}),
+        enable_pass(not gpu::gfx_has_fp8ocp_intrinsics() and gpu::gfx_has_fp8fnuz_intrinsics(), dead_code_elimination{}),
+        simplify_qdq{.use_mx_quant=gpu::gfx_has_mx_intrinsics()},
+        enable_pass(not mlir_enabled(), rewrite_quantization{}),
+        dead_code_elimination{},
+        rewrite_rnn{},
+        dead_code_elimination{},
+        eliminate_data_type_for_gpu{.disable_64bit = options.fast_math},
+        rewrite_resize{.affine_only = true},
+        dead_code_elimination{},
+        simplify_reshapes{.enable_gather_rewrite = true},
+        eliminate_identity{},
+        eliminate_pad{},
+        dead_code_elimination{},
+        insert_pad{{"convolution"}},
+        dead_code_elimination{},
+        inline_module{},
+        enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), rewrite_pooling{.rewrite_lrn = (not MIGRAPHX_USE_MIOPEN or enabled(MIGRAPHX_REWRITE_LRN{}))}),
+        dead_code_elimination{},
+        rewrite_gelu{options.fast_math},
+        optimize_module{},
+        layout_convolution{.channels_last = enabled(MIGRAPHX_ENABLE_NHWC{})},
+        dead_code_elimination{},
+        fuse_horizontal{},
+        dead_code_elimination{},
+        prefuse_ops{},
+        dead_code_elimination{},
+        dead_code_elimination{},
+        rewrite_reduce{},
+        rewrite_topk{},
+        rewrite_low_precision{},
+        enable_pass(enabled(MIGRAPHX_ENABLE_REWRITE_DOT{}), rewrite_dot{}),
+        dead_code_elimination{},
+        propagate_precision{},
+        dead_code_elimination{},
+        simplify_reshapes{.enable_op_shape_transform_op=true},
+        dead_code_elimination{},
+        enable_pass(mlir_enabled(), fuse_attention{.attn_enabled = mlir_attention_enabled(&ctx),
+                                                   .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
+        dead_code_elimination{},
+        optimize_module{},
+        enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_pointwise_reduce{}),
+        dead_code_elimination{},
+#ifndef _WIN32
+        enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),
+#endif
+        dead_code_elimination{},
+        enable_pass(mlir_enabled() and disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_mlir{&ctx}),
+        dead_code_elimination{},
+        fuse_concat{},
+        dead_code_elimination{},
+        auto_contiguous{},
+        dead_code_elimination{},
+        lowering{&ctx, options.offload_copy},
+        eliminate_contiguous{"gpu::contiguous"},
+        dead_code_elimination{},
+        eliminate_concat{concat_gpu_optimization{}},
+        dead_code_elimination{},
+#if MIGRAPHX_USE_MIOPEN
+        compile_miopen{&gctx},
+        dead_code_elimination{},
+#endif
+        fuse_ops{&ctx, options.fast_math},
+        dead_code_elimination{},
+#if MIGRAPHX_USE_HIPBLASLT
+        compile_hipblaslt{&gctx},
+        dead_code_elimination{},
+#endif
+        replace_allocate{gpu_allocation_model{}, options.offload_copy},
+        dead_code_elimination{},
+        adjust_allocation{gpu_allocation_model{}},
+        dead_code_elimination{},
+        compile_ops{&ctx, options.exhaustive_tune},
+        dead_code_elimination{},
+        promote_literals{},
+        dead_code_elimination{},
+        write_literals{},
+        schedule{gpu::schedule_model{ctx.get_current_device().nstreams()}, not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{})},
+        memory_coloring{"hip::allocate"},
+        sync_device{},
+        preallocate_param{"scratch", gpu_allocation_model{}},
+        dead_code_elimination{},
+        eliminate_allocation{"hip::allocate"},
+        check_context<context>{},
+        normalize_ops{},
+        dead_code_elimination{},
+        eliminate_identity{}
+    };
+    // clang-format on
+>>>>>>> uai-develop
 }
 
 std::string target::name() const { return "gpu"; }

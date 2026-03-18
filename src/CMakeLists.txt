@@ -79,6 +79,7 @@ add_library(migraphx
     fp8_ocp_to_fnuz.cpp
     fuse_attention.cpp
     fuse_concat.cpp
+    fuse_horizontal.cpp
     fuse_pointwise.cpp
     fuse_pointwise_reduce.cpp
     fuse_reduce.cpp
@@ -121,6 +122,7 @@ add_library(migraphx
     register_target.cpp
     replace_allocate.cpp
     rewrite_reduce.cpp
+    rewrite_resize.cpp
     rewrite_dot.cpp
     simplify_qdq.cpp
     split_reduce.cpp
@@ -167,12 +169,18 @@ rocm_install_targets(
     ${CMAKE_CURRENT_BINARY_DIR}/include
 )
 
+
 rocm_set_soversion(migraphx ${MIGRAPHX_SO_VERSION})
 function(register_migraphx_ops)
     foreach(OP ${ARGN})
         register_op(migraphx HEADER migraphx/op/${OP}.hpp OPERATORS op::${OP})
     endforeach()
 endfunction()
+
+add_version_resource(
+    TARGET migraphx
+    DESCRIPTION "MIGraphX Core Library - AMD Graph Optimization Engine"
+)
 register_migraphx_ops(
     abs
     acosh

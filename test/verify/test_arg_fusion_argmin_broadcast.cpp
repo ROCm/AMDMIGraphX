@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,27 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_ARGMIN_HPP
-#define MIGRAPHX_GUARD_RTGLIB_DEVICE_ARGMIN_HPP
 
-#include <migraphx/argument.hpp>
-#include <migraphx/gpu/device/config.hpp>
-#include <hip/hip_runtime_api.h>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace device {
+struct test_arg_fusion_argmin_broadcast : verify_program<test_arg_fusion_argmin_broadcast>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::float_type, {2, 3, 4}};
+        migraphx::shape bs{migraphx::shape::float_type, {1, 3, 4}};
+        auto x = mm->add_parameter("x", s);
+        auto y = mm->add_parameter("y", bs);
+        auto yb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), y);
+        auto add = mm->add_instruction(migraphx::make_op("add"), x, yb);
+        mm->add_instruction(migraphx::make_op("argmin", {{"axis", 1}}), add);
+        return p;
+    }
 
-void MIGRAPHX_DEVICE_EXPORT argmin(hipStream_t stream,
-                                   const argument& result,
-                                   const argument& arg,
-                                   int64_t axis,
-                                   bool select_last_index);
-
-} // namespace device
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+    std::string section() const { return "reduce"; }
+};

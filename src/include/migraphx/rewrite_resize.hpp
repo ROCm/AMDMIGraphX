@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,30 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/argmax.hpp>
-#include <migraphx/gpu/device/argmax.hpp>
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/tune_axis.hpp>
+#ifndef MIGRAPHX_GUARD_RTGLIB_REWRITE_RESIZE_HPP
+#define MIGRAPHX_GUARD_RTGLIB_REWRITE_RESIZE_HPP
+
+#include <string>
+#include <migraphx/config.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
 
-shape hip_argmax::compute_shape(const std::vector<shape>& inputs) const
+struct module;
+
+/**
+ * Rewrite resize operations to use gather-based implementation
+ * for nearest and linear interpolation modes when shapes are static.
+ */
+struct MIGRAPHX_EXPORT rewrite_resize
 {
-    check_shapes{inputs, *this}.has(2);
-    return op.normalize_compute_shape({inputs.at(0)});
-}
+    bool affine_only = false;
+    std::string name() const { return "rewrite_resize"; }
+    void apply(module& m) const;
+};
 
-argument hip_argmax::compute(context& ctx, const shape&, const std::vector<argument>& args) const
-{
-    auto n_dim         = args.front().get_shape().lens().size();
-    int64_t tuned_axis = tune_axis(n_dim, op.axis, op.name());
-    device::argmax(
-        ctx.get_stream().get(), args.back(), args.front(), tuned_axis, op.select_last_index);
-    return args.back();
-}
-
-} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+
+#endif

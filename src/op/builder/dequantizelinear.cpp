@@ -1,7 +1,6 @@
-/*
- * The MIT License (MIT)
+/* The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,33 +20,37 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/logsoftmax.hpp>
-#include <migraphx/gpu/device/logsoftmax.hpp>
-#include <migraphx/op/logsoftmax.hpp>
-#include <migraphx/manage_ptr.hpp>
-#include <migraphx/gpu/miopen.hpp>
-#include <migraphx/tune_axis.hpp>
-#include <utility>
+
+#include <migraphx/op/builder/op_builder.hpp>
+#include <migraphx/op/builder/quantize_dequantize_linear.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
+namespace op {
+namespace builder {
 
-shape hip_logsoftmax::compute_shape(const std::vector<shape>& inputs) const
+struct dequantizelinear : op_builder<dequantizelinear>
 {
-    check_shapes{inputs, *this}.has(2).standard();
-    return op.normalize_compute_shape({inputs.at(0)});
-}
+    int axis       = 1;
+    int block_size = 0;
 
-argument
-hip_logsoftmax::compute(context& ctx, const shape&, const std::vector<argument>& args) const
-{
-    auto n_dim      = args.front().get_shape().lens().size();
-    auto tuned_axis = tune_axis(n_dim, op.axis, op.name());
-    device::logsoftmax(ctx.get_stream().get(), args.back(), args.front(), tuned_axis);
-    return args.back();
-}
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.axis, "axis"), f(self.block_size, "block_size"));
+    }
 
-} // namespace gpu
+    std::vector<instruction_ref>
+    insert(module& m, instruction_ref /*ins*/, const std::vector<instruction_ref>& args) const
+    {
+        auto args_new =
+            transform_quantize_dequantize_linear_inputs(m, name(), block_size, axis, args);
+
+        return {m.add_instruction(make_op(name()), args_new)};
+    }
+};
+
+} // namespace builder
+} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -113,8 +113,7 @@ class pipe
         if(CreatePipe(&m_read, &m_write, &attrs, 0) == FALSE)
             throw GetLastError();
 
-        // cppcheck-suppress knownConditionTrueFalse
-        if(dir == direction::output)
+        if constexpr(dir == direction::output)
         {
             // Do not inherit the read handle for the output pipe
             if(SetHandleInformation(m_read, HANDLE_FLAG_INHERIT, 0) == 0)

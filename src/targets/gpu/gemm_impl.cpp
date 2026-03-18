@@ -22,10 +22,12 @@
  * THE SOFTWARE.
  */
 
+#include <migraphx/gpu/gemm_impl.hpp>
+#if MIGRAPHX_USE_ROCBLAS
 #include <rocblas/internal/rocblas-types.h>
 #include <rocblas/rocblas.h>
 #include <migraphx/gpu/rocblas.hpp>
-#include <migraphx/gpu/gemm_impl.hpp>
+#endif
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/time.hpp>

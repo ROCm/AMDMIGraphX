@@ -22,7 +22,7 @@ rocm_clang_tidy_check(commonapi)
 
 find_package(hiprtc REQUIRED)
 # target_compile_definitions(commonapi PRIVATE -DMIGRAPHX_USE_HIPRTC=1)
-target_link_libraries(commonapi PUBLIC hiprtc::hiprtc)
+target_link_libraries(commonapi PUBLIC hiprtc::hiprtc migraphx_onnx)
 
 install(TARGETS commonapi LIBRARY DESTINATION lib)
 install(DIRECTORY ../include/migraphx/common_api DESTINATION include/migraphx)

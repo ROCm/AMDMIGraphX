@@ -25,7 +25,9 @@ bool NvOnnxParser_impl::parse(void const* serialized_onnx_model, size_t serializ
 bool NvOnnxParser_impl::parseFromFile(const char* onnxModelFile, int verbosity) noexcept 
 {
     // TODO! implement
-    return false;
+    auto p = migraphx::parse_onnx(onnxModelFile);
+
+    return true;
 }
 
 TRT_DEPRECATED bool NvOnnxParser_impl::supportsModel(void const* serialized_onnx_model, size_t serialized_onnx_model_size,

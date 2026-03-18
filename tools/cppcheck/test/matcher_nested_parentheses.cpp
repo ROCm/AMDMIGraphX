@@ -109,7 +109,6 @@ struct test_bind_exception
     // The bind exception requires bind to be immediately before nested parens
     auto matcher() const { return bind((((match::name("mul"))))); }
 
-
     match::matcher_t bind(match::matcher_t m) const { return m; }
 };
 

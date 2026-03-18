@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -15,38 +15,38 @@
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/shape.hpp>
-#include <migraphx/argument.hpp>
-#include <migraphx/gpu/device/argmin.hpp>
-#include <migraphx/gpu/device/tensor.hpp>
-#include <migraphx/gpu/device/launch.hpp>
-#include <migraphx/gpu/device/types.hpp>
-#include <migraphx/gpu/device/arg_op.hpp>
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_FUSE_HORIZONTAL_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_FUSE_HORIZONTAL_HPP
+
+#include <migraphx/config.hpp>
+#include <migraphx/pass_manager.hpp>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace device {
 
-void argmin(hipStream_t stream,
-            const argument& result,
-            const argument& arg,
-            int64_t axis,
-            bool select_last_index)
+/**
+ * @brief Horizontal fusion pass for independent gather operations.
+ *
+ * Currently supports the following fusion:
+ * Identifies groups of independent gather(axis=0) ops that share the same
+ * embedding dimension and index layout, then fuses them into a single gather
+ * over a concatenated embedding table with offset-adjusted indices.
+ * The batched result is sliced back to produce the original outputs.
+ */
+struct MIGRAPHX_EXPORT fuse_horizontal
 {
-    if(select_last_index)
-        arg_op(argmin_op_last_index{}, stream, result, arg, axis);
-    else
-        arg_op(argmin_op_first_index{}, stream, result, arg, axis);
-}
+    std::string name() const { return "fuse_horizontal"; }
+    void apply(module_pass_manager& mpm) const;
+};
 
-} // namespace device
-} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+
+#endif // MIGRAPHX_GUARD_MIGRAPHX_FUSE_HORIZONTAL_HPP

@@ -56,6 +56,7 @@ namespace nvinfer1
     BuilderFlags NvBuilderConfig_impl::getFlags() const noexcept
     {
         // TODO! implement
+        return 0;
     }
 
     void NvBuilderConfig_impl::clearFlag(BuilderFlag builderFlag) noexcept
@@ -82,6 +83,7 @@ namespace nvinfer1
     DeviceType NvBuilderConfig_impl::getDeviceType(ILayer const* layer) const noexcept
     {
         // TODO! implement
+        return DeviceType::kGPU;
     }
 
     bool NvBuilderConfig_impl::isDeviceTypeSet(ILayer const* layer) const noexcept
@@ -120,6 +122,7 @@ namespace nvinfer1
     DeviceType NvBuilderConfig_impl::getDefaultDeviceType() const noexcept
     {
         // TODO! implement
+        return DeviceType::kGPU;
     }
 
     void NvBuilderConfig_impl::reset() noexcept
@@ -157,6 +160,7 @@ namespace nvinfer1
     ProfilingVerbosity NvBuilderConfig_impl::getProfilingVerbosity() const noexcept
     {
         // TODO! implement
+        return ProfilingVerbosity::kDEFAULT;
     }
 
     void NvBuilderConfig_impl::setAlgorithmSelector(IAlgorithmSelector* selector) noexcept
@@ -190,6 +194,7 @@ namespace nvinfer1
     QuantizationFlags NvBuilderConfig_impl::getQuantizationFlags() const noexcept
     {
         // TODO! implement
+        return 0;
     }
 
     void NvBuilderConfig_impl::clearQuantizationFlag(QuantizationFlag flag) noexcept
@@ -217,6 +222,7 @@ namespace nvinfer1
     TacticSources NvBuilderConfig_impl::getTacticSources() const noexcept
     {
         // TODO! implement
+        return TacticSource::kCUBLAS;
     }
 
     nvinfer1::ITimingCache* NvBuilderConfig_impl::createTimingCache(void const* blob, std::size_t size) const noexcept
@@ -245,6 +251,7 @@ namespace nvinfer1
     std::size_t NvBuilderConfig_impl::getMemoryPoolLimit(MemoryPoolType pool) const noexcept
     {
         // TODO! implement
+        return 0;
     }
 
     void NvBuilderConfig_impl::setPreviewFeature(PreviewFeature feature, bool enable) noexcept
@@ -277,6 +284,7 @@ namespace nvinfer1
     HardwareCompatibilityLevel NvBuilderConfig_impl::getHardwareCompatibilityLevel() const noexcept
     {
         // TODO! implement
+        return HardwareCompatibilityLevel::kNONE;
     }
 
     void NvBuilderConfig_impl::setPluginsToSerialize(char const* const* paths, int32_t nbPaths) noexcept
@@ -326,6 +334,7 @@ namespace nvinfer1
     RuntimePlatform NvBuilderConfig_impl::getRuntimePlatform() const noexcept
     {
         // TODO! implement
+        return RuntimePlatform::kSAME_AS_BUILD;
     }
 
     void NvBuilderConfig_impl::setMaxNbTactics(int32_t maxTactics) noexcept
@@ -348,6 +357,7 @@ namespace nvinfer1
     TilingOptimizationLevel NvBuilderConfig_impl::getTilingOptimizationLevel() const noexcept
     {
         // TODO! implement
+        return TilingOptimizationLevel::kNONE;
     }
 
     bool NvBuilderConfig_impl::setL2LimitForTiling(int64_t size) noexcept

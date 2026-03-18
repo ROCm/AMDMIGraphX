@@ -39,7 +39,7 @@ namespace migraphx {
 
 extern "C" {
 
-MIGRAPHX_GLOBAL void fill_kernel(void* value_ptr, void* data_ptr) 
+MIGRAPHX_GLOBAL void fill_kernel(void* value_ptr, void* data_ptr)
 {
     make_tensors()(value_ptr, data_ptr)([](auto value, auto data) {
         auto idx = make_index();

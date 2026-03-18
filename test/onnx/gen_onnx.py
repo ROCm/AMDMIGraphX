@@ -1,29 +1,29 @@
 #####################################################################################
-# The MIT License (MIT)
+#The MIT License(MIT)
 #
-# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+#Copyright(c) 2015 - 2026 Advanced Micro Devices, Inc.All rights reserved.
 #
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
+#Permission is hereby granted, free of charge, to any person obtaining a copy
+#of this software and associated documentation files(the "Software"), to deal
+#in the Software without restriction, including without limitation the rights
+#to use, copy, modify, merge, publish, distribute, sublicense, and/ or sell
+#copies of the Software, and to permit persons to whom the Software is
+#furnished to do so, subject to the following conditions:
 #
-# The above copyright notice and this permission notice shall be included in
-# all copies or substantial portions of the Software.
+#The above copyright notice and this permission notice shall be included in
+#all copies or substantial portions of the Software.
 #
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-# THE SOFTWARE.
+#THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+#IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+#FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.IN NO EVENT SHALL THE
+#AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+#LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+#OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+#THE SOFTWARE.
 #####################################################################################
-# This script generates onnx files for MIGraphX onnx operator tests.
-# To generate an individual onnx file, you can use the following
-# command: python3 -c "import gen_onnx; gen_onnx.{test_name}_test()"
+#This script generates onnx files for MIGraphX onnx operator tests.
+#To generate an individual onnx file, you can use the following
+#command : python3 - c "import gen_onnx; gen_onnx.{test_name}_test()"
 import numpy as np
 import onnx
 from onnx import helper
@@ -45,8 +45,8 @@ def onnx_test(external_data=False, opset_version=None):
             else:
                 graph_def = helper.make_graph(op_info[0], op_test.__name__,
                                               op_info[1], op_info[2])
-            
-            # Create model with optional opset version
+
+#Create model with optional opset version
             if opset_version is not None:
                 opset_imports = [helper.make_opsetid("", opset_version)]
                 model_def = helper.make_model(graph_def,
@@ -127,7 +127,7 @@ def add_fp16_test():
         [node],
         [x, y],
         [z],
-        # '0' -> 1.5, '1' -> 2.5
+#'0'->1.5, '1'->2.5
         [
             onnx.helper.make_tensor('0', TensorProto.FLOAT16, [1], [15872]),
             onnx.helper.make_tensor('1', TensorProto.FLOAT16, [1], [16640])
@@ -323,46 +323,45 @@ def attention_test(
         dtype=TensorProto.FLOAT,
         test_type=TensorProto.INT32):
 
-    # (Batch_size, sequence_lenth, input_hidden_size)
+#(Batch_size, sequence_lenth, input_hidden_size)
     x = helper.make_tensor_value_info('input', dtype, x_dims)
     input_list = [x]
     input_name_list = ['input']
 
-
-    # Needed for output vector dims
+#Needed for output vector dims
     batch = x_dims[0]
     seq_len = x_dims[1]
 
     v_hidden_size = int(0)
 
     if len(weight_dims) > 0:
-        # (input_hidden_size, hidden_size + hidden_size, v_hidden_size)
+#(input_hidden_size, hidden_size + hidden_size, v_hidden_size)
         weights = helper.make_tensor_value_info('weights', dtype, weight_dims)
         input_name_list.append('weights')
         input_list.append(weights)
-        # default is to assume that q, k ,v sizes are the same unless otherwise stated
+#default is to assume that q, k, v sizes are the same unless otherwise stated
         v_hidden_size = int(weight_dims[1] / 3)
 
-    # (Batch_size, sequence_lenth, v_hidden_size)
+#(Batch_size, sequence_lenth, v_hidden_size)
     y = helper.make_tensor_value_info('y', dtype,
                                       [batch, seq_len, v_hidden_size])
     output_list = [y]
     output_name_list = ['y']
 
-    # Additional arguments/options to adjust attention block
+#Additional arguments / options to adjust attention block
 
     if len(bias_dims) > 0:
-        # Bias shape should be (hidden_size + hiddeN_size + v_hidden_size)
+#Bias shape should be(hidden_size + hiddeN_size + v_hidden_size)
         bias = helper.make_tensor_value_info('bias', dtype, bias_dims)
         input_name_list.append('bias')
         input_list.append(bias)
 
     if len(mask_dims) > 0:
-        # allowable shapes
-        # (batch_size, 1, max_sequence_length, max_sequence_length)
-        # (batch_size, total_sequence_length)
-        # (batch_size, sequence_length, total_sequence_length)
-        # (batch_size) or (2*batch_size) or (3* batch_size + 2)
+#allowable shapes
+#(batch_size, 1, max_sequence_length, max_sequence_length)
+#(batch_size, total_sequence_length)
+#(batch_size, sequence_length, total_sequence_length)
+#(batch_size) or(2 * batch_size) or(3 * batch_size + 2)
         mask_index = helper.make_tensor_value_info('mask_index',
                                                    test_type,
                                                    mask_dims)
@@ -370,27 +369,27 @@ def attention_test(
         input_list.append(mask_index)
 
     if len(past_dims) > 0:
-        # (2, batch_size, num_heads, past_sequence_length, head_size)
-        # (2, batch_size, num_heads, max_seq_length, head_size) when past/present share buffer
+#(2, batch_size, num_heads, past_sequence_length, head_size)
+#(2, batch_size, num_heads, max_seq_length, head_size) when past / present share buffer
         past = helper.make_tensor_value_info('past', dtype, past_dims)
         input_name_list.append('past')
         input_list.append(past)
 
     if len(attention_bias_dims) > 0:
-        # (batch_size, or 1, num_heads or 1, sequence_length, total_sequence_length)
+#(batch_size, or 1, num_heads or 1, sequence_length, total_sequence_length)
         attention_bias = helper.make_tensor_value_info('attention_bias', dtype,
                                                        attention_bias_dims)
         input_name_list.append('attention_bias')
         input_list.append(attention_bias)
 
     if len(past_sequence_length_dims) > 0:
-        # (batch_size, or 1, num_heads or 1, sequence_length, total_sequence_length)
+#(batch_size, or 1, num_heads or 1, sequence_length, total_sequence_length)
         past_sequence_length = helper.make_tensor_value_info('past_seqence_length', test_type,
                                                        past_sequence_length_dims)
         input_name_list.append('past_sequence_length')
         input_list.append(past_sequence_length)
- 
-    # Additional output vector
+
+#Additional output vector
     if present_dims:
         output_name_list.append('present')
         output_list.append('present')
@@ -400,9 +399,9 @@ def attention_test(
         inputs=input_name_list,
         outputs=output_name_list,
         domain="com.microsoft")
-    
-    # Append attributes based on input to this function. Parser should assume defaults
-    # This is the only attribute that's required others are not
+
+#Append attributes based on input to this function.Parser should assume defaults
+#This is the only attribute that's required others are not
     if num_heads is not None:
         node.attribute.append(onnx.helper.make_attribute("num_heads", num_heads))
 
@@ -684,7 +683,7 @@ def attention_double_head_bias_asym_mask_filter_val_test():
 
 @onnx_test()
 def attention_double_head_bias_mask_past_test():
-# Should error out because we only support shared buffer modes
+#Should error out because we only support shared buffer modes
     return attention_test([2, 2, 4], [4, 12], 
                            bias_dims=[12],
                            mask_dims=[2, 2],
@@ -1776,7 +1775,7 @@ def const_of_shape_dyn_int64_test():
 def const_of_shape_zero_dim_test():
     tensor_val = onnx.helper.make_tensor('value', onnx.TensorProto.INT64, [1],
                                          [10])
-    # Shape with a zero dimension - results in 0 elements output
+#Shape with a zero dimension - results in 0 elements output
     shape_val = np.array([2, 0, 4]).astype(np.int64)
     shape_ts = helper.make_tensor(name='shape_tensor',
                                   data_type=TensorProto.INT64,
@@ -4558,15 +4557,14 @@ def gelu_default_half_test():
 
     return ([node], [x], [y])
 
+#@onnx_test()
+#def gelu_default_bf16_test():
+#x = helper.make_tensor_value_info('x', TensorProto.BFLOAT16, [ 3, 3 ])
+#y = helper.make_tensor_value_info('y', TensorProto.BFLOAT16, [ 3, 3 ])
 
-# @onnx_test()
-# def gelu_default_bf16_test():
-#     x = helper.make_tensor_value_info('x', TensorProto.BFLOAT16, [3, 3])
-#     y = helper.make_tensor_value_info('y', TensorProto.BFLOAT16, [3, 3])
+#node = onnx.helper.make_node("Gelu", inputs = ["x"], outputs = ["y"])
 
-#     node = onnx.helper.make_node("Gelu", inputs=["x"], outputs=["y"])
-
-#     return ([node], [x], [y])
+#return ([node], [x], [y])
 
 
 @onnx_test()
@@ -7619,7 +7617,7 @@ def instance_norm_type_mismatch_test():
 
 @onnx_test()
 def instance_norm_dyn_batch_test():
-    # the batch size is a dynamic dimension
+#the batch size is a dynamic dimension
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, 2, 3, 3])
     scale = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2])
     bias = helper.make_tensor_value_info('2', TensorProto.FLOAT, [2])
@@ -7634,7 +7632,7 @@ def instance_norm_dyn_batch_test():
 
 @onnx_test()
 def instance_norm_dyn_batch_half_test():
-    # the batch size is a dynamic dimension
+#the batch size is a dynamic dimension
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT16,
                                       [None, 2, 3, 3])
     scale = helper.make_tensor_value_info('1', TensorProto.FLOAT16, [2])
@@ -7651,7 +7649,7 @@ def instance_norm_dyn_batch_half_test():
 
 @onnx_test()
 def instance_norm_dyn_batch_bf16_test():
-    # the batch size is a dynamic dimension
+#the batch size is a dynamic dimension
     x = helper.make_tensor_value_info('0', TensorProto.BFLOAT16,
                                       [None, 2, 3, 3])
     scale = helper.make_tensor_value_info('1', TensorProto.BFLOAT16, [2])
@@ -7756,7 +7754,7 @@ def instance_norm_val_3d_test():
 
 @onnx_test()
 def int4_const_identity_qdq_test():
-    # Graph for int4, with an identity opr + QDQ
+#Graph for int4, with an identity opr + QDQ
     zp_values = np.array([0, 0, 0, 0])
     x_t = helper.make_tensor(name='i_x',
                              data_type=TensorProto.INT4,
@@ -7788,7 +7786,7 @@ def int4_const_identity_qdq_test():
         outputs=['q_y'],
     )
 
-    #dequantizer uses same scale values as the quantizer:
+#dequantizer uses same scale values as the quantizer:
     dq_node = onnx.helper.make_node(
         'DequantizeLinear',
         inputs=['q_y', 'sc_q', 'i_y_zp'],
@@ -7818,7 +7816,7 @@ def int4_const_identity_qdq_test():
 
 @onnx_test()
 def int4_const_identity_block_sz_1_qdq_test():
-    # Graph for int4, with an identity opr + QDQ. Quantization Block size = 1
+#Graph for int4, with an identity opr + QDQ.Quantization Block size = 1
     zp_values = np.array([[0, 0, 0, 0], [0, 0, 0, 0]])
     x_t = helper.make_tensor(name='i_x',
                              data_type=TensorProto.INT4,
@@ -7849,7 +7847,7 @@ def int4_const_identity_block_sz_1_qdq_test():
         outputs=['q_y'],
     )
 
-    # dequantizer uses same scale values as the quantizer:
+#dequantizer uses same scale values as the quantizer:
     dq_node = onnx.helper.make_node(
         'DequantizeLinear',
         inputs=['q_y', 'sc_q', 'i_y_zp'],
@@ -7879,7 +7877,7 @@ def int4_const_identity_block_sz_1_qdq_test():
 
 @onnx_test()
 def int4_const_identity_block_sz_2_qdq_test():
-    # Graph for int4, with an identity opr + QDQ. Quantization Block size = 2
+#Graph for int4, with an identity opr + QDQ.Quantization Block size = 2
     zp_values = np.array([[0, 0], [0, 0]])
     x_t = helper.make_tensor(name='i_x',
                              data_type=TensorProto.INT4,
@@ -7910,7 +7908,7 @@ def int4_const_identity_block_sz_2_qdq_test():
         outputs=['q_y'],
     )
 
-    # dequantizer uses same scale values as the quantizer:
+#dequantizer uses same scale values as the quantizer:
     dq_node = onnx.helper.make_node(
         'DequantizeLinear',
         inputs=['q_y', 'sc_q', 'i_y_zp'],
@@ -8141,7 +8139,7 @@ def make_layer_norm(shape,
                                  inputs=['x', 'scale', 'bias'],
                                  outputs=['y'])
 
-    # Attributes
+#Attributes
     node.attribute.append(onnx.helper.make_attribute("axis", axis))
 
     if stash_type is not None:
@@ -9857,16 +9855,15 @@ def mod_test_half():
 
     return ([node], [a, b], [y])
 
+#@onnx_test()
+#def mod_test_bf16():
+#a = helper.make_tensor_value_info('0', TensorProto.BFLOAT16, [ 3, 3, 3 ])
+#b = helper.make_tensor_value_info('1', TensorProto.BFLOAT16, [ 3, 3, 3 ])
+#y = helper.make_tensor_value_info('2', TensorProto.BFLOAT16, [ 3, 3, 3 ])
 
-# @onnx_test()
-# def mod_test_bf16():
-#     a = helper.make_tensor_value_info('0', TensorProto.BFLOAT16, [3, 3, 3])
-#     b = helper.make_tensor_value_info('1', TensorProto.BFLOAT16, [3, 3, 3])
-#     y = helper.make_tensor_value_info('2', TensorProto.BFLOAT16, [3, 3, 3])
+#node = onnx.helper.make_node('Mod', inputs = [ '0', '1' ], outputs = ['2'])
 
-#     node = onnx.helper.make_node('Mod', inputs=['0', '1'], outputs=['2'])
-
-#     return ([node], [a, b], [y])
+#return ([node], [ a, b ], [y])
 
 
 @onnx_test()
@@ -10950,7 +10947,7 @@ def multinomial_dyn_test():
 
 @onnx_test()
 def multinomial_autoseed_dyn_test():
-    # If seed attribute is not given, device should auto generate one at runtime
+#If seed attribute is not given, device should auto generate one at runtime
     sample_size = 12
     input = helper.make_tensor_value_info("input", TensorProto.FLOAT,
                                           [None, 10])
@@ -12309,7 +12306,7 @@ def qlinearconcat_3d_test():
 
 @onnx_test()
 def qlinearconv_test():
-    # https://xadupre.github.io/draft/onnx/onnx_doc_folder/onnx__QLinearConv.html
+#https: // xadupre.github.io/draft/onnx/onnx_doc_folder/onnx__QLinearConv.html
     x = helper.make_tensor_value_info('X', TensorProto.UINT8, [1, 1, 7, 7])
     sc_x = helper.make_tensor('1', TensorProto.FLOAT, [], [0.00369204697])
     zero_pt_x = helper.make_tensor('2', TensorProto.UINT8, [], [132])
@@ -12334,7 +12331,7 @@ def qlinearconv_test():
 
 @onnx_test()
 def qlinearconv_pad_1_test():
-    # https://xadupre.github.io/draft/onnx/onnx_doc_folder/onnx__Conv.html
+#https: // xadupre.github.io/draft/onnx/onnx_doc_folder/onnx__Conv.html
     x = helper.make_tensor_value_info('X', TensorProto.UINT8, [1, 1, 5, 5])
     sc_x = helper.make_tensor('1', TensorProto.FLOAT, [],
                               [0.09411764705882353])
@@ -12362,7 +12359,7 @@ def qlinearconv_pad_1_test():
 
 @onnx_test()
 def qlinearconv_pad_0_test():
-    # https://xadupre.github.io/draft/onnx/onnx_doc_folder/onnx__Conv.html
+#https: // xadupre.github.io/draft/onnx/onnx_doc_folder/onnx__Conv.html
     x = helper.make_tensor_value_info('X', TensorProto.UINT8, [1, 1, 5, 5])
     sc_x = helper.make_tensor('1', TensorProto.FLOAT, [],
                               [0.09411764705882353])
@@ -12390,7 +12387,7 @@ def qlinearconv_pad_0_test():
 
 @onnx_test()
 def qlinearconv_scale_1D_test():
-    # https://xadupre.github.io/draft/onnx/onnx_doc_folder/onnx__Conv.html
+#https: // xadupre.github.io/draft/onnx/onnx_doc_folder/onnx__Conv.html
     x = helper.make_tensor_value_info('X', TensorProto.UINT8, [1, 1, 5, 5])
     sc_x = helper.make_tensor('1', TensorProto.FLOAT, [],
                               [0.09411764705882353])
@@ -13709,7 +13706,7 @@ def resize_downsample_f_test():
 
 @onnx_test()
 def resize_downsample_f_dyn_test():
-    # scales is a compile-time input
+#scales is a compile - time input
     scales = np.array([1.0, 1.0, 0.601, 0.601], dtype=np.float32)
     scale_tensor = helper.make_tensor(name='scales',
                                       data_type=TensorProto.FLOAT,
@@ -13731,7 +13728,7 @@ def resize_downsample_f_dyn_test():
 
 @onnx_test()
 def resize_downsample_f_dyn2_test():
-    # output shape is an input
+#output shape is an input
     sizes = np.array([2, 1, 3, 5], dtype=np.int64)
     sizes_tensor = helper.make_tensor(name='sizes',
                                       data_type=TensorProto.INT64,
@@ -13753,7 +13750,7 @@ def resize_downsample_f_dyn2_test():
 
 @onnx_test()
 def resize_downsample_f_dyn3_test():
-    # scales is a runtime input
+#scales is a runtime input
     scalesX = helper.make_tensor_value_info('scales', TensorProto.FLOAT, [4])
 
     X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [None, 1, 5, 9])
@@ -13771,7 +13768,7 @@ def resize_downsample_f_dyn3_test():
 
 @onnx_test()
 def resize_downsample_f_ref_test():
-    #  Same as resize_downsample_f_dyn_test but with static input
+#Same as resize_downsample_f_dyn_test but with static input
     scales = np.array([1.0, 1.0, 0.601, 0.601], dtype=np.float32)
     scale_tensor = helper.make_tensor(name='scales',
                                       data_type=TensorProto.FLOAT,
@@ -13793,7 +13790,7 @@ def resize_downsample_f_ref_test():
 
 @onnx_test()
 def resize_downsample_f_ref2_test():
-    # output shape is an input
+#output shape is an input
     sizes = np.array([2, 1, 3, 5], dtype=np.int64)
     sizes_tensor = helper.make_tensor(name='sizes',
                                       data_type=TensorProto.INT64,
@@ -13857,7 +13854,7 @@ def resize_upsample_f_dyn_test():
 
 @onnx_test()
 def resize_no_scale_test():
-    # node has no scales or shapes input
+#node has no scales or shapes input
     scales = np.array([1.0, 1.0, 1.601, 1.601], dtype=np.float32)
     scale_tensor = helper.make_tensor(name='scales',
                                       data_type=TensorProto.FLOAT,
@@ -13934,7 +13931,7 @@ def resize_downsample_linear_half_test():
 
 @onnx_test()
 def resize_linear_non_const_test():
-    # scales is a runtime input
+#scales is a runtime input
     scalesX = helper.make_tensor_value_info('scales', TensorProto.FLOAT, [4])
 
     X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 2, 4])
@@ -13976,7 +13973,7 @@ def resize_nonstd_input_test():
 
 @onnx_test()
 def resize_outsize_test():
-    # Takes output sizes as an input, with scales as a null placeholder
+#Takes output sizes as an input, with scales as a null placeholder
     out_lens = np.array([1, 1, 4, 6], dtype=np.int64)
     out_lens_tensor = helper.make_tensor(name='out_lens',
                                          data_type=TensorProto.INT64,
@@ -14000,9 +13997,9 @@ def resize_outsize_test():
 
 @onnx_test()
 def resize_outsize_nondivisible_test():
-    # Resize with int64 sizes where sizes/input_dims produces non-integer scales.
-    # For input [1,1,3,3] -> output [1,1,5,5], scale = 5/3 ~ 1.6667.
-    # float(5/3)*3 truncates to 4, not 5, so the parser must use 'sizes' attribute.
+#Resize with int64 sizes where sizes / input_dims produces non - integer scales.
+#For input[1, 1, 3, 3]->output[1, 1, 5, 5], scale = 5 / 3 ~1.6667.
+#float(5 / 3) * 3 truncates to 4, not 5, so the parser must use 'sizes' attribute.
     out_lens = np.array([1, 1, 5, 5], dtype=np.int64)
     out_lens_tensor = helper.make_tensor(name='out_lens',
                                          data_type=TensorProto.INT64,
@@ -14292,7 +14289,7 @@ def resize_invalid_mode_test():
 
 @onnx_test()
 def resize_roi_skip_test():
-    # special testcase for resize op with roi value but skip it
+#special testcase for resize op with roi value but skip it
 
     scales = np.array([1.0, 1.0, 2.0, 2.0], dtype=np.float32)
     roi = np.array([1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8], dtype=np.float32)
@@ -14338,9 +14335,9 @@ def resize_with_same_inout_shapes_test():
 
 @onnx_test()
 def resize_nhwc_test():
-    # Test resize with NHWC layout (non-standard shape)
-    # Original NCHW shape: [1, 3, 2, 2] 
-    # Transposed to NHWC: [1, 2, 2, 3]
+#Test resize with NHWC layout(non - standard shape)
+#Original NCHW shape : [1, 3, 2, 2]
+#Transposed to NHWC : [1, 2, 2, 3]
     scales = np.array([1.0, 2.0, 2.0, 1.0], dtype=np.float32)
     scale_tensor = helper.make_tensor(name='scales',
                                       data_type=TensorProto.FLOAT,
@@ -14350,20 +14347,20 @@ def resize_nhwc_test():
     X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 3, 2, 2])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 3, 4, 4])
 
-    # Transpose NCHW to NHWC
+#Transpose NCHW to NHWC
     trn1 = onnx.helper.make_node('Transpose',
                                  inputs=['X'],
                                  outputs=['TX'],
                                  perm=[0, 2, 3, 1])
 
-    # Resize in NHWC format
+#Resize in NHWC format
     resize = onnx.helper.make_node('Resize',
                                    inputs=['TX', '', 'scales'],
                                    outputs=['TY'],
                                    coordinate_transformation_mode='asymmetric',
                                    mode='linear')
 
-    # Transpose back NHWC to NCHW
+#Transpose back NHWC to NCHW
     trn2 = onnx.helper.make_node('Transpose',
                                  inputs=['TY'],
                                  outputs=['Y'],
@@ -15337,7 +15334,7 @@ def shape_end_less_start_error():
 @onnx_test()
 def shape_gather_test():
     values = np.array([1])
-    # value = helper.make_tensor_value_info('value', TensorProto.INT32, [1])
+#value     = helper.make_tensor_value_info('value', TensorProto.INT32, [1])
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [7, 3, 10])
     z = helper.make_tensor_value_info('z', TensorProto.FLOAT, [1])
 
@@ -16036,8 +16033,8 @@ def slice_dyn_test():
 
 @onnx_test
 def slice_step_dyn_test():
-    # A slice command with non - default steps will have a "Step"
-    # instruction added in parsing.
+#A slice command with non - default steps will have a "Step"
+#instruction added in parsing.
     step = np.array([2, 1])
     step_tensor = helper.make_tensor(name="step",
                                      data_type=TensorProto.INT32,
@@ -16091,8 +16088,8 @@ def slice_step_dyn_test():
 
 @onnx_test
 def slice_reverse_dyn_test():
-    # A slice command with negative step on any axis will have
-    # a "Reverse" instruction added in parsing.
+#A slice command with negative step on any axis will have
+#a "Reverse" instruction added in parsing.
 
     step = np.array([-1, 1])
     step_tensor = helper.make_tensor(name="step",
@@ -18729,7 +18726,7 @@ def where_dyn_test():
 
 @onnx_test()
 def where_mixed_test():
-    # mixture of static and dynamic input shapes is not supported
+#mixture of static and dynamic input shapes is not supported
     c = helper.make_tensor_value_info('c', TensorProto.BOOL, [None, 2, 2])
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None, 2, 2])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 2, 2])
@@ -19520,6 +19517,42 @@ def qlinearmatmul_2D_perchannel_test():
     zero_pt_c = helper.make_tensor('C_zero_point', TensorProto.UINT8, [], [65])
 
     c = helper.make_tensor_value_info('C', TensorProto.UINT8, [1, 1000])
+
+    node = onnx.helper.make_node(
+        'QLinearMatMul',
+        inputs=[
+            'A', 'A_scale', 'A_zero_point', 'B', 'B_scale', 'B_zero_point',
+            'C_scale', 'C_zero_point'
+        ],
+        outputs=['C'],
+    )
+    return ([node], [a], [c],
+            [sc_a, zero_pt_a, b, sc_b, zero_pt_b, sc_c, zero_pt_c])
+
+
+@onnx_test()
+def qlinearmatmul_N_D_perchannel_test():
+    np.random.seed(123)
+
+    a = helper.make_tensor_value_info('A', TensorProto.UINT8, [2, 3, 4])
+
+    sc_a_data = (np.random.rand(2, 3, 1) * 0.01 + 0.005).astype(np.float32)
+    sc_a = from_array(sc_a_data, 'A_scale')
+    zp_a_data = np.random.randint(100, 150, (2, 3, 1)).astype(np.uint8)
+    zero_pt_a = from_array(zp_a_data, 'A_zero_point')
+
+    b_data = np.random.randint(0, 256, (2, 4, 5)).astype(np.uint8)
+    b = from_array(b_data, 'B')
+
+    sc_b_data = (np.random.rand(2, 1, 5) * 0.01 + 0.005).astype(np.float32)
+    sc_b = from_array(sc_b_data, 'B_scale')
+    zp_b_data = np.random.randint(100, 150, (2, 1, 5)).astype(np.uint8)
+    zero_pt_b = from_array(zp_b_data, 'B_zero_point')
+
+    sc_c = helper.make_tensor('C_scale', TensorProto.FLOAT, [], [0.1])
+    zero_pt_c = helper.make_tensor('C_zero_point', TensorProto.UINT8, [], [128])
+
+    c = helper.make_tensor_value_info('C', TensorProto.UINT8, [2, 3, 5])
 
     node = onnx.helper.make_node(
         'QLinearMatMul',

@@ -1,15 +1,17 @@
-// Optional: set MIGRAPHX_CI_TEST_SUCCESS_CACHE to a directory (shared NFS recommended across
-// agents) to skip stages that already passed for the same commit + Docker image tag.
+// Test success cache lives under ${WORKSPACE}/.migraphx-ci-test-success-cache (same commit + image tag skips).
 // Set MIGRAPHX_CI_FORCE_TESTS=true to always run all tests.
 DOCKER_IMAGE = 'rocm/migraphx-ci-jenkins-ubuntu'
 DOCKER_IMAGE_ORT = 'rocm/migraphx-ci-jenkins-ubuntu-ort'
 
+def testSuccessCacheBase() {
+    return "${env.WORKSPACE}/.migraphx-ci-test-success-cache"
+}
+
 def ciTestCacheEnabled() {
-    def cache = env.MIGRAPHX_CI_TEST_SUCCESS_CACHE?.trim()
     def force = env.MIGRAPHX_CI_FORCE_TESTS?.trim()?.toLowerCase()
-    def enabled = cache && force != 'true' && force != '1'
+    def enabled = force != 'true' && force != '1'
     // #region agent log
-    echo "[MIGRAPHX_CI_SKIP_TRACE] ciTestCacheEnabled: MIGRAPHX_CI_TEST_SUCCESS_CACHE=${cache ? '(set,len=' + cache.length() + ')' : '(empty)'}, MIGRAPHX_CI_FORCE_TESTS=${force ?: '(empty)'}, enabled=${enabled}"
+    echo "[MIGRAPHX_CI_SKIP_TRACE] ciTestCacheEnabled: cacheBase=${testSuccessCacheBase()}, MIGRAPHX_CI_FORCE_TESTS=${force ?: '(empty)'}, enabled=${enabled}"
     // #endregion
     return enabled
 }
@@ -19,13 +21,13 @@ def safeJobNameForCache() {
 }
 
 def successMarkerPath(String gitCommit, String imageTag, String stageId) {
-    def base = env.MIGRAPHX_CI_TEST_SUCCESS_CACHE.trim()
+    def base = testSuccessCacheBase()
     def job = safeJobNameForCache()
     return "${base}/${job}/${gitCommit}/${imageTag}/${stageId}.ok"
 }
 
 def debCachePath(String gitCommit, String imageTag) {
-    def base = env.MIGRAPHX_CI_TEST_SUCCESS_CACHE.trim()
+    def base = testSuccessCacheBase()
     def job = safeJobNameForCache()
     return "${base}/${job}/debs/${gitCommit}/${imageTag}"
 }
@@ -166,7 +168,7 @@ def rocmtest = { Map conf = [:], Closure body ->
                 // #endregion
             } else if (!ciTestCacheEnabled()) {
                 // #region agent log
-                echo "[MIGRAPHX_CI_SKIP_TRACE] setup ${variant}: cache disabled (unset MIGRAPHX_CI_TEST_SUCCESS_CACHE or FORCE_TESTS) — will run full tests"
+                echo "[MIGRAPHX_CI_SKIP_TRACE] setup ${variant}: cache disabled (MIGRAPHX_CI_FORCE_TESTS) — will run full tests"
                 // #endregion
             } else {
                 // #region agent log

@@ -34,9 +34,9 @@ struct test_fixed_pad_transposed : verify_program<test_fixed_pad_transposed>
         migraphx::program p;
         auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::float_type, {2, 3, 4}};
-        auto x         = mm->add_parameter("x", s);
-        auto transpose = mm->add_instruction(
-            migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), x);
+        auto x = mm->add_parameter("x", s);
+        auto transpose =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), x);
         mm->add_instruction(migraphx::make_op("fixed_pad"), transpose);
         return p;
     }

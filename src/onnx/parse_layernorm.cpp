@@ -142,16 +142,15 @@ struct parse_layernorm : op_parser<parse_layernorm>
     static instruction_ref stage_two_calculation(const onnx_parser::node_info& info,
                                                  const instruction_ref& x,
                                                  const instruction_ref& scale,
-                                                 const instruction_ref& bias,
+                                                 const std::optional<instruction_ref>& bias,
                                                  const instruction_ref& result,
-                                                 const int64_t& kdims,
-                                                 bool skip_bias)
+                                                 const int64_t& kdims)
     {
         auto x_shape                = x->get_shape();
         auto x_rank                 = x_shape.ndim();
         auto skipped_axes           = x_rank - kdims;
         instruction_ref scale_bcast = scale;
-        instruction_ref bias_bcast  = bias;
+        std::optional<instruction_ref> bias_bcast = bias;
         if(skipped_axes > 0)
         {
             auto x_dims = x_shape.lens();
@@ -161,20 +160,20 @@ struct parse_layernorm : op_parser<parse_layernorm>
                     make_op("broadcast", {{"axis", skipped_axes}, {"out_lens", x_dims}}), scale);
             }
 
-            if(not skip_bias)
+            if(bias.has_value() and bias.value()->get_shape().ndim() == 1)
             {
-                if(bias->get_shape().ndim() == 1)
-                {
-                    bias_bcast = info.add_instruction(
-                        make_op("broadcast", {{"axis", skipped_axes}, {"out_lens", x_dims}}), bias);
-                }
+                bias_bcast = info.add_instruction(
+                    make_op("broadcast", {{"axis", skipped_axes}, {"out_lens", x_dims}}),
+                    bias.value());
             }
         }
         auto scaled = info.add_common_op("mul", result, scale_bcast);
-        return skip_bias ? scaled : info.add_common_op("add", scaled, bias_bcast);
+        if(not bias_bcast.has_value())
+            return scaled;
+        return info.add_common_op("add", scaled, bias_bcast.value());
     }
 
-    std::tuple<instruction_ref, instruction_ref, instruction_ref, bool>
+    std::tuple<instruction_ref, instruction_ref, std::optional<instruction_ref>>
     handle_inputs(const std::vector<instruction_ref>& args, const int64_t& axis) const
     {
         if(args.size() < 2 or args.size() > 3)
@@ -187,14 +186,13 @@ struct parse_layernorm : op_parser<parse_layernorm>
         auto scale = args.at(1);
         is_type_valid(scale->get_shape().type(), "scale");
 
-        bool skip_bias = args.size() == 2;
-        instruction_ref bias{};
-        if(not skip_bias)
+        std::optional<instruction_ref> bias;
+        if(args.size() > 2)
         {
             bias = args.at(2);
-            is_type_valid(bias->get_shape().type(), "bias");
+            is_type_valid(bias.value()->get_shape().type(), "bias");
         }
-        return {x, scale, bias, skip_bias};
+        return {x, scale, bias};
     }
 
     std::tuple<int64_t, float, bool> handle_attributes(const onnx_parser& parser,
@@ -214,7 +212,7 @@ struct parse_layernorm : op_parser<parse_layernorm>
     {
         auto [axis, epsilon, stash_type] = handle_attributes(parser, info);
 
-        auto [x, scale, bias, skip_bias] = handle_inputs(args, axis);
+        auto [x, scale, bias] = handle_inputs(args, axis);
 
         auto x_rank = x->get_shape().ndim();
         // axis can be negative
@@ -223,7 +221,7 @@ struct parse_layernorm : op_parser<parse_layernorm>
 
         auto [result, mean, rsqrt] =
             stage_one_calculation(info, x, epsilon, axis, kdims, stash_type);
-        auto y = stage_two_calculation(info, x, scale, bias, result, kdims, skip_bias);
+        auto y = stage_two_calculation(info, x, scale, bias, result, kdims);
 
         return {y, mean, rsqrt};
     }

@@ -160,7 +160,7 @@ namespace nvinfer1
     ProfilingVerbosity NvBuilderConfig_impl::getProfilingVerbosity() const noexcept
     {
         // TODO! implement
-        return ProfilingVerbosity::kDEFAULT;
+        return ProfilingVerbosity::kLAYER_NAMES_ONLY;
     }
 
     void NvBuilderConfig_impl::setAlgorithmSelector(IAlgorithmSelector* selector) noexcept
@@ -222,7 +222,7 @@ namespace nvinfer1
     TacticSources NvBuilderConfig_impl::getTacticSources() const noexcept
     {
         // TODO! implement
-        return TacticSource::kCUBLAS;
+        return 0;
     }
 
     nvinfer1::ITimingCache* NvBuilderConfig_impl::createTimingCache(void const* blob, std::size_t size) const noexcept

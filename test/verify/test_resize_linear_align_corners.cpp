@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,27 +21,33 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_ARGMIN_HPP
-#define MIGRAPHX_GUARD_RTGLIB_DEVICE_ARGMIN_HPP
 
-#include <migraphx/argument.hpp>
-#include <migraphx/gpu/device/config.hpp>
-#include <hip/hip_runtime_api.h>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace device {
+// Linear mode with align_corners
+template <migraphx::shape::type_t DType>
+struct test_resize_linear_align_corners : verify_program<test_resize_linear_align_corners<DType>>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
 
-void MIGRAPHX_DEVICE_EXPORT argmin(hipStream_t stream,
-                                   const argument& result,
-                                   const argument& arg,
-                                   int64_t axis,
-                                   bool select_last_index);
+        migraphx::shape sx{DType, {1, 1, 2, 2}};
+        auto x = mm->add_parameter("X", sx);
 
-} // namespace device
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+        mm->add_instruction(
+            migraphx::make_op("resize",
+                              {{"scales", {1.0f, 1.0f, 2.0f, 2.0f}},
+                               {"mode", "linear"},
+                               {"coordinate_transformation_mode", "align_corners"}}),
+            x);
+        return p;
+    }
+};
 
-#endif
+template struct test_resize_linear_align_corners<migraphx::shape::float_type>;
+template struct test_resize_linear_align_corners<migraphx::shape::half_type>;

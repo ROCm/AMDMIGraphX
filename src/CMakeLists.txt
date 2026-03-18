@@ -78,6 +78,7 @@ add_library(migraphx
     fp8_ocp_to_fnuz.cpp
     fuse_attention.cpp
     fuse_concat.cpp
+    fuse_horizontal.cpp
     fuse_pointwise.cpp
     fuse_pointwise_reduce.cpp
     fuse_reduce.cpp
@@ -120,6 +121,7 @@ add_library(migraphx
     register_target.cpp
     replace_allocate.cpp
     rewrite_reduce.cpp
+    rewrite_resize.cpp
     rewrite_dot.cpp
     simplify_qdq.cpp
     split_reduce.cpp

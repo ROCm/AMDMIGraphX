@@ -54,7 +54,7 @@ TEST_CASE(host_same_buffer_copy)
     std::vector<float> a_vec(ss.elements(), -1);
     std::vector<float> b_vec(ss.elements(), 2);
     pp["a"] = migraphx::argument(ss, a_vec.data());
-    pp["b"] = migraphx::argument(ss, b_vec.data());
+    pp["b"]                = migraphx::argument(ss, b_vec.data());
     migraphx::target gpu_t = migraphx::make_target("gpu");
     migraphx::compile_options options;
     options.offload_copy = true;

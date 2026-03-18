@@ -67,7 +67,8 @@ void test_break_not_last()
 {
     for(int i = 0; i < 10; i++)
     {
-        break;
+        if(i > 5)
+            break;
         int x = 5;
         (void)x;
     }
@@ -93,6 +94,7 @@ void test_break_not_last_complex()
     while(true)
     {
         int x = 1;
+        // cppcheck-suppress knownConditionTrueFalse
         if(x > 0)
             break;
         int y = 2;

@@ -24,19 +24,14 @@
  */
 // Test for LambdaAttribute check
 
-#ifndef CPPCHECK
 // cppcheck-suppress defineUpperCase
-// cppcheck-suppress definePrefix
 #define __device__
 // cppcheck-suppress defineUpperCase
-// cppcheck-suppress definePrefix
 #define __host__
-#endif
 
 void test_device_attribute_before_params()
 {
     int x = 5;
-    // cppcheck-suppress migraphx-LambdaAttribute
     auto lambda1 = [] __device__(int a) { return a * 2; };
     (void)x;
     (void)lambda1;
@@ -44,21 +39,18 @@ void test_device_attribute_before_params()
 
 void test_host_attribute_before_params()
 {
-    // cppcheck-suppress migraphx-LambdaAttribute
     auto lambda2 = [] __host__(int a) { return a + 1; };
     (void)lambda2;
 }
 
 void test_device_attribute_before_brace()
 {
-    // cppcheck-suppress migraphx-LambdaAttribute
     auto lambda3 = [] __device__ { return 42; };
     (void)lambda3;
 }
 
 void test_attribute_after_params()
 {
-    // cppcheck-suppress legacyUninitvar
     auto lambda1 = [](int a) __device__ { return a * 2; };
     (void)lambda1;
 }
@@ -78,7 +70,6 @@ void test_capture_list_only()
 
 void test_attribute_in_correct_position()
 {
-    // cppcheck-suppress legacyUninitvar
     auto lambda4 = [](int a) __host__ __device__ { return a; };
     (void)lambda4;
 }

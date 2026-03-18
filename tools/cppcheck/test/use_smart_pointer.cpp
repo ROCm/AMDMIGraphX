@@ -30,10 +30,12 @@ void test_positive_cases()
 {
     // Should trigger: new usage without smart pointer
     // cppcheck-suppress migraphx-UseSmartPointer
+    // cppcheck-suppress unusedAllocatedMemory
     int* ptr1 = new int(5);
 
     // Should trigger: new array
     // cppcheck-suppress migraphx-UseSmartPointer
+    // cppcheck-suppress unusedAllocatedMemory
     int* ptr2 = new int[10];
 
     // Should trigger: new with class
@@ -45,6 +47,7 @@ void test_positive_cases()
     {
     };
     // cppcheck-suppress migraphx-UseSmartPointer
+    // cppcheck-suppress unusedAllocatedMemory
     MyClass* obj_ptr = new MyClass();
 
     // Clean up to avoid memory leaks
@@ -62,6 +65,7 @@ void test_negative_cases()
 
     // Should not trigger: stack allocation
     int local_var = 5;
+    // cppcheck-suppress unassignedVariable
     int array[10];
     (void)local_var; // Use variables to avoid warnings
     (void)array;
@@ -70,8 +74,10 @@ void test_negative_cases()
     // void func(int* ptr);
 
     // Should not trigger: member variables
+    // cppcheck-suppress noConstructor
     class TestClass
     {
+        // cppcheck-suppress unusedStructMember
         int* member_ptr; // This might be managed elsewhere
     };
 

@@ -28,6 +28,7 @@ bool test_redundant_if_return_boolean_1()
 {
     bool condition = true;
     // cppcheck-suppress migraphx-RedundantIfStatement
+    // cppcheck-suppress knownConditionTrueFalse
     if(condition)
     {
         return true;
@@ -42,6 +43,7 @@ bool test_redundant_if_return_boolean_2()
 {
     bool condition = false;
     // cppcheck-suppress migraphx-RedundantIfStatement
+    // cppcheck-suppress knownConditionTrueFalse
     if(condition)
     {
         return false;

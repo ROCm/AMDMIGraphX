@@ -41,7 +41,7 @@ void test_redundant_ternary_false_true(bool condition)
 void test_redundant_ternary_both_true(bool condition)
 {
     // cppcheck-suppress migraphx-RedundantConditionalOperator
-    // cppcheck-suppress duplicateValueTernary
+    // cppcheck-suppress duplicateExpressionTernary
     bool result3 = condition ? true : true;
     (void)result3; // Use variable to avoid warning
 }
@@ -49,7 +49,7 @@ void test_redundant_ternary_both_true(bool condition)
 void test_redundant_ternary_both_false(bool condition)
 {
     // cppcheck-suppress migraphx-RedundantConditionalOperator
-    // cppcheck-suppress duplicateValueTernary
+    // cppcheck-suppress duplicateExpressionTernary
     bool result4 = condition ? false : false;
     (void)result4; // Use variable to avoid warning
 }

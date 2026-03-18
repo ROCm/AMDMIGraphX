@@ -26,6 +26,7 @@
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/reduce_dims.hpp>
+#include <migraphx/permutation.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -34,7 +35,7 @@ namespace gpu {
 // NOLINTNEXTLINE
 static const char* const fixed_pad_kernel = R"__migraphx__(
 #include <migraphx/kernels/index.hpp>
-#include <migraphx/kernels/algorithm.hpp>
+#include <migraphx/kernels/functional.hpp>
 #include <args.hpp>
 
 namespace migraphx {
@@ -111,7 +112,7 @@ struct fixed_pad_compiler : compiler<fixed_pad_compiler>
             use_standard_kernel   = std::equal(istart, ilens.end(), ostart, olens.end());
         }
 
-        options.virtual_inputs = reduce_dims(inputs);
+        options.virtual_inputs = reduce_dims(normalize_permutation(inputs));
         options.set_launch_params(v, compute_global_for(ctx, output_shape.elements()));
 
         const char* src = use_standard_kernel ? fixed_pad_standard_kernel : fixed_pad_kernel;

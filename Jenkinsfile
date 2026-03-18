@@ -1,5 +1,30 @@
+// Optional: set MIGRAPHX_CI_TEST_SUCCESS_CACHE to a directory (shared NFS recommended across
+// agents) to skip stages that already passed for the same commit + Docker image tag.
+// Set MIGRAPHX_CI_FORCE_TESTS=true to always run all tests.
 DOCKER_IMAGE = 'rocm/migraphx-ci-jenkins-ubuntu'
 DOCKER_IMAGE_ORT = 'rocm/migraphx-ci-jenkins-ubuntu-ort'
+
+def ciTestCacheEnabled() {
+    def cache = env.MIGRAPHX_CI_TEST_SUCCESS_CACHE?.trim()
+    def force = env.MIGRAPHX_CI_FORCE_TESTS?.trim()?.toLowerCase()
+    return cache && force != 'true' && force != '1'
+}
+
+def safeJobNameForCache() {
+    return env.JOB_NAME.replaceAll('/', '_')
+}
+
+def successMarkerPath(String gitCommit, String imageTag, String stageId) {
+    def base = env.MIGRAPHX_CI_TEST_SUCCESS_CACHE.trim()
+    def job = safeJobNameForCache()
+    return "${base}/${job}/${gitCommit}/${imageTag}/${stageId}.ok"
+}
+
+def debCachePath(String gitCommit, String imageTag) {
+    def base = env.MIGRAPHX_CI_TEST_SUCCESS_CACHE.trim()
+    def job = safeJobNameForCache()
+    return "${base}/${job}/debs/${gitCommit}/${imageTag}"
+}
 
 def getgputargets() {
     targets="gfx906;gfx908;gfx90a;gfx1030;gfx1100;gfx1101;gfx1201"
@@ -106,6 +131,8 @@ def cmake_build = { bconf ->
 def rocmtest = { Map conf = [:], Closure body ->
     def variant = conf.get("variant", env.STAGE_NAME)
     def setup = conf.get("setup", {})
+    def stageCacheId = conf.get("stageCacheId", null)
+    def cacheImageTag = conf.get("cacheImageTag", env.IMAGE_TAG)
 
     def docker_args = conf.get("docker_args", "")
     def image = conf.get("image", DOCKER_IMAGE)
@@ -114,29 +141,72 @@ def rocmtest = { Map conf = [:], Closure body ->
     env.CCACHE_COMPRESSLEVEL = 7
     env.CCACHE_DIR = ccache
     env.HSA_ENABLE_SDMA = 0
+
+    def skipTests = false
+    def markerPath = ''
+    def gitCommit = ''
+
     gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX') {
-        def docker_opts
+        def docker_opts = ''
         stage("setup ${variant}") {
             sh 'printenv'
             checkout scm
-            setup()
+            gitCommit = sh(returnStdout: true, script: 'git rev-parse HEAD').trim()
 
-            def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3').trim()
-            def render_id = sh(returnStdout: true, script: 'getent group render | cut -d: -f3').trim()
-            docker_opts = "--device=/dev/kfd --device=/dev/dri --cap-add SYS_PTRACE -v=${env.WORKSPACE}/../:/workspaces:rw,z"
-            docker_opts = docker_opts + " --group-add=${video_id} --group-add=${render_id} "
-            echo "Docker flags: ${docker_opts}"
+            if (stageCacheId && ciTestCacheEnabled()) {
+                markerPath = successMarkerPath(gitCommit, cacheImageTag, stageCacheId)
+                env.MIGRAPHX_CI_MARKER_PATH = markerPath
+                env.MIGRAPHX_CI_DEB_CACHE = debCachePath(gitCommit, env.IMAGE_TAG)
+                skipTests = sh(returnStatus: true, script: 'test -f "$MIGRAPHX_CI_MARKER_PATH"') == 0
+                if (skipTests && stageCacheId == 'hip_clang_release') {
+                    def debOk = sh(returnStatus: true, script: 'for f in "$MIGRAPHX_CI_DEB_CACHE"/*.deb; do test -f "$f" && exit 0; done; exit 1') == 0
+                    if (!debOk) {
+                        echo 'HIP Clang Release: marker exists but cached .deb missing; running full build'
+                        skipTests = false
+                    }
+                }
+            }
 
-            withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
-                sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
-                sh "docker pull ${image}:${imageTag}"
+            if (skipTests) {
+                echo "Skipping tests for ${stageCacheId} (cached success, commit ${gitCommit})"
+                if (stageCacheId == 'hip_clang_release') {
+                    sh 'mkdir -p build && cp "$MIGRAPHX_CI_DEB_CACHE"/*.deb build/'
+                }
+            } else {
+                setup()
+
+                def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3').trim()
+                def render_id = sh(returnStdout: true, script: 'getent group render | cut -d: -f3').trim()
+                docker_opts = "--device=/dev/kfd --device=/dev/dri --cap-add SYS_PTRACE -v=${env.WORKSPACE}/../:/workspaces:rw,z"
+                docker_opts = docker_opts + " --group-add=${video_id} --group-add=${render_id} "
+                echo "Docker flags: ${docker_opts}"
+
+                withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
+                    sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
+                    sh "docker pull ${image}:${imageTag}"
+                }
             }
         }
 
         stage("build ${variant}") {
-            withDockerContainer(image: "${image}:${imageTag}", args: docker_opts + docker_args) {
-                timeout(time: 4, unit: 'HOURS') {
-                    body()
+            if (skipTests && stageCacheId == 'hip_clang_release') {
+                stash includes: 'build/*.deb', name: 'migraphx-package'
+                echo 'HIP Clang Release: stashed restored .deb for downstream ONNX stage'
+            } else if (skipTests) {
+                echo "Skipping docker build/test for ${stageCacheId} (cached success)"
+            } else {
+                withDockerContainer(image: "${image}:${imageTag}", args: docker_opts + docker_args) {
+                    timeout(time: 4, unit: 'HOURS') {
+                        body()
+                    }
+                }
+                if (stageCacheId && ciTestCacheEnabled()) {
+                    env.MIGRAPHX_CI_MARKER_PATH = successMarkerPath(gitCommit, cacheImageTag, stageCacheId)
+                    if (stageCacheId == 'hip_clang_release') {
+                        env.MIGRAPHX_CI_DEB_CACHE = debCachePath(gitCommit, env.IMAGE_TAG)
+                        sh 'mkdir -p "$MIGRAPHX_CI_DEB_CACHE" && cp build/*.deb "$MIGRAPHX_CI_DEB_CACHE"/'
+                    }
+                    sh 'mkdir -p "$(dirname "$MIGRAPHX_CI_MARKER_PATH")" && touch "$MIGRAPHX_CI_MARKER_PATH" && echo "BUILD_URL=${BUILD_URL}" >> "$MIGRAPHX_CI_MARKER_PATH"'
                 }
             }
         }
@@ -218,7 +288,7 @@ pipeline {
                     }
                     steps {
                         script {
-                            rocmtest([:]) {
+                            rocmtest(stageCacheId: 'all_targets_release') {
                                 cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_ENABLE_GPU=On -DMIGRAPHX_ENABLE_CPU=On -DMIGRAPHX_ENABLE_FPGA=On -DGPU_TARGETS='${getgputargets()}'")
                             }
                         }
@@ -231,7 +301,7 @@ pipeline {
                     }
                     steps {
                         script {
-                            rocmtest([:]) {
+                            rocmtest(stageCacheId: 'clang_asan') {
                                 def sanitizers = "undefined,address"
                                 def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
                                 cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'", compiler: '/usr/bin/clang++-17')
@@ -246,7 +316,7 @@ pipeline {
                     }
                     steps {
                         script {
-                            rocmtest([:]) {
+                            rocmtest(stageCacheId: 'clang_libstdcxx_debug') {
                                 def sanitizers = "undefined"
                                 def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers} -D_GLIBCXX_DEBUG"
                                 cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'", compiler: '/usr/bin/clang++-17')
@@ -261,7 +331,7 @@ pipeline {
                     }
                     steps {
                         script {
-                            rocmtest([:]) {
+                            rocmtest(stageCacheId: 'hip_clang_release') {
                                 cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getgputargets()}'")
                                 stash includes: 'build/*.deb', name: 'migraphx-package'
                             }
@@ -275,7 +345,7 @@ pipeline {
                     }
                     steps {
                         script {
-                            rocmtest([:]) {
+                            rocmtest(stageCacheId: 'hip_clang_release_navi32') {
                                 cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getnavi3xtargets()}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On")
                             }
                         }
@@ -288,7 +358,7 @@ pipeline {
                     }
                     steps {
                         script {
-                            rocmtest([:]) {
+                            rocmtest(stageCacheId: 'hip_clang_release_navi4x') {
                                 cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getnavi4xtargets()}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On")
                             }
                         }
@@ -305,7 +375,7 @@ pipeline {
                     }
                     steps {
                         script {
-                            rocmtest([:]) {
+                            rocmtest(stageCacheId: 'hip_rtc_debug') {
                                 def sanitizers = "undefined"
                                 def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
                                 cmake_build(flags: "-DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang -DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DMIGRAPHX_USE_HIPRTC=On -DGPU_TARGETS='${getgputargets()}'", gpu_debug: '1')
@@ -332,7 +402,7 @@ pipeline {
                     }
                     steps {
                         script {
-                            rocmtest([:]) {
+                            rocmtest(stageCacheId: 'mlir_debug') {
                                 // Note: the -fno-sanitize= is copied from upstream LLVM_UBSAN_FLAGS.
                                 def sanitizers = "undefined"
                                 def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
@@ -396,7 +466,7 @@ pipeline {
                     }
                     steps {
                         script {
-                            rocmtest(setup: setuppackage, docker_args: '-u root', image: DOCKER_IMAGE_ORT, imageTag: env.IMAGE_TAG_ORT) {
+                            rocmtest(setup: setuppackage, docker_args: '-u root', image: DOCKER_IMAGE_ORT, imageTag: env.IMAGE_TAG_ORT, stageCacheId: 'onnx_runtime_tests', cacheImageTag: env.IMAGE_TAG_ORT) {
                                 sh '''
                                     apt install half
                                     #ls -lR

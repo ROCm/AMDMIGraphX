@@ -113,9 +113,14 @@ struct nonmaxsuppression
     {
         // requires at least 2 inputs
         check_shapes{{inputs.at(0), inputs.at(1)}, *this, true}.only_dims(3).same_ndims();
-        auto boxes_max_lens = inputs.at(0).max_lens();
-        // num batches * num boxes
-        const auto max_num_boxes = boxes_max_lens.at(0) * boxes_max_lens.at(1);
+        auto max_batches           = inputs.at(0).max_lens().at(0);
+        auto max_classes           = inputs.at(1).max_lens().at(1);
+        auto max_spatial_dimension = inputs.at(0).max_lens().at(1);
+        // Per ONNX spec, output is [num_selected_indices, 3] where each row is
+        // [batch_index, class_index, box_index].  The maximum possible
+        // num_selected_indices = num_batches * num_classes * spatial_dimension.
+        const auto max_num_boxes =
+            max_batches * max_classes * max_spatial_dimension;
 
         auto fixed_shape_error_check = [&]() {
             auto lens = inputs.front().lens();
@@ -136,7 +141,6 @@ struct nonmaxsuppression
 
         if(needs_dyn_output)
         {
-
             std::vector<shape::dynamic_dimension> out_lens = {};
             out_lens.push_back({0, max_num_boxes});
             out_lens.push_back({3, 3});
@@ -144,7 +148,6 @@ struct nonmaxsuppression
         }
         else
         {
-
             fixed_shape_error_check();
             std::vector<std::size_t> out_lens = {max_num_boxes, 3};
             return {shape::int64_type, out_lens};
@@ -295,6 +298,11 @@ struct nonmaxsuppression
             MIGRAPHX_THROW("NonMaxSuppression: runtime spatial dimension mismatch "
                            "between boxes and scores input");
         }
+        if(boxes.get_shape().lens()[0] != num_batches)
+        {
+            MIGRAPHX_THROW("NonMaxSuppression: runtime batch dimension mismatch "
+                           "between boxes and scores input");
+        }
         // boxes of a class with NMS applied [score, index]
         std::vector<int64_t> selected_indices;
         // iterate over batches and classes
@@ -367,7 +375,7 @@ struct nonmaxsuppression
                                            score_threshold);
             });
         });
-        if(use_dyn_output)
+        if(output_shape.dynamic())
         {
             return result.reshape({output_shape.type(), {num_selected, 3}});
         }

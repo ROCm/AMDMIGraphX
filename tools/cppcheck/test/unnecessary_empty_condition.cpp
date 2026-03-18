@@ -61,7 +61,7 @@ void test_positive_cases()
 
 void test_different_containers_should_not_trigger()
 {
-    std::vector<int> container = {1, 2, 3, 4, 5};
+    std::vector<int> container       = {1, 2, 3, 4, 5};
     std::vector<int> other_container = {6, 7, 8};
     // cppcheck-suppress knownConditionTrueFalse
     if(not container.empty())

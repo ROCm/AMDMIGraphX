@@ -111,7 +111,7 @@ struct parse_reversesequence : op_parser<parse_reversesequence>
                                         input);
         };
 
-        assert(batch_size > 1);
+        assert(batch_size > 0);
         for(int b = 0; b < batch_size; ++b)
         {
             instruction_ref s0;

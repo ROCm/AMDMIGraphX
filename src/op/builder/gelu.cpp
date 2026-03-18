@@ -37,12 +37,6 @@ struct gelu_quick : op_builder<gelu_quick>
 {
     float alpha = 1.0f;
 
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.alpha, "alpha"));
-    }
-
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
     {

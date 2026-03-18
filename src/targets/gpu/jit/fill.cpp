@@ -39,13 +39,13 @@ namespace migraphx {
 
 extern "C" {
 
-MIGRAPHX_GLOBAL void fill_kernel(void* value_ptr, void* data_ptr, void* output_ptr) 
+MIGRAPHX_GLOBAL void fill_kernel(void* value_ptr, void* data_ptr) 
 {
-    make_tensors()(value_ptr, data_ptr, output_ptr)([](auto value, auto /*data*/, auto output) {
+    make_tensors()(value_ptr, data_ptr)([](auto value, auto data) {
         auto idx = make_index();
         auto v = value[0];
-        idx.global_stride(output.get_shape().elements(), [&](auto i) {
-            output[i] = v;
+        idx.global_stride(data.get_shape().elements(), [&](auto i) {
+            data[i] = v;
         });
     });
 }

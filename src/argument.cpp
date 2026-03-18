@@ -89,6 +89,7 @@ void argument::assign_buffer(std::function<char*()> d)
         data_t result;
         if(ss.sub_shapes().empty())
         {
+            // cppcheck-suppress variableScope
             auto n = offsets[i];
             result = {[d, n]() mutable { return d() + n; }};
             i++;

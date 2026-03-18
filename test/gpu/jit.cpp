@@ -444,7 +444,6 @@ int main() {}
 
 TEST_CASE(assert_type_min_max)
 {
-    std::vector<std::string> data_types;
     migraphx::gpu::hip_compile_options options;
     migraphx::gpu::context ctx;
     for(auto&& t : migraphx::shape::types())

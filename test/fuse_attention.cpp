@@ -633,7 +633,6 @@ TEST_CASE(flash_decoding_3d)
 
         // New shapes for flash decoding
         std::vector<size_t> q_prime_shape = {1, num_splits, 256, 256};
-        std::vector<size_t> k_prime_shape = {1, num_splits, 256, 128};
         std::vector<size_t> v_prime_shape = {1, num_splits, 128, 256};
 
         auto a_unsqueeze =
@@ -759,7 +758,6 @@ TEST_CASE(flash_decoding_3d_rectangular)
 
         // New shapes for flash decoding - 240 split into 2x120
         std::vector<size_t> q_prime_shape = {1, num_splits, 240, 256};
-        std::vector<size_t> k_prime_shape = {1, num_splits, 256, 120};
         std::vector<size_t> v_prime_shape = {1, num_splits, 120, 256};
 
         auto a_transpose =
@@ -884,7 +882,6 @@ TEST_CASE(flash_decoding_3d_padding)
 
         // Padding 241 -> 242, split into 2x121
         std::vector<size_t> q_prime_shape = {1, num_splits, 242, 256};
-        std::vector<size_t> k_prime_shape = {1, num_splits, 256, 121};
         std::vector<size_t> v_prime_shape = {1, num_splits, 121, 256};
 
         // Q: [1, 256, 241] -> transpose -> [1, 241, 256] -> pad -> [1, 242, 256]
@@ -1195,7 +1192,6 @@ TEST_CASE(flash_decoding_3d_auto_split_large_sequence)
 
         // New shapes for flash decoding with calculated splits
         std::vector<size_t> q_prime_shape = {1, expected_splits, 512, 512};
-        std::vector<size_t> k_prime_shape = {1, expected_splits, 512, 32}; // 512/16 = 32
         std::vector<size_t> v_prime_shape = {1, expected_splits, 32, 512};
 
         auto a_unsqueeze =

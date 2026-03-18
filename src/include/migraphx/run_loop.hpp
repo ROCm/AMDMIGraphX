@@ -47,7 +47,6 @@ argument run_loop(const LoopModel& model,
                   const std::function<std::vector<argument>(
                       module_ref&, const std::unordered_map<std::string, argument>&)>& run)
 {
-    std::vector<std::vector<argument>> results;
     // process argu lists
     auto iter_num = args.at(0).at<int64_t>();
     auto cond     = args.at(1).at<bool>();

@@ -38,8 +38,7 @@ inline migraphx::program read_onnx(const std::string& name,
                   << std::endl;
         std::abort();
     }
-    auto prog = migraphx::parse_onnx_buffer(std::string{onnx_files.at(name)}, options);
-    return prog;
+    return migraphx::parse_onnx_buffer(std::string{onnx_files.at(name)}, options);
 }
 
 #endif // MIGRAPHX_GUARD_INCLUDE_READ_ONNX_HPP

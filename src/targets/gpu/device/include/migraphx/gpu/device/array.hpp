@@ -165,8 +165,10 @@ struct hip_array
             // Reset overflow
             overflow = 0;
             // Compute overflow using while loop instead of mod
+            // cppcheck-suppress arrayIndexOutOfBounds
             while(z >= d[i])
             {
+                // cppcheck-suppress arrayIndexOutOfBounds
                 z -= d[i];
                 overflow += 1;
             }

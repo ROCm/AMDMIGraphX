@@ -63,6 +63,7 @@ struct any_ptr
             MIGRAPHX_THROW("any_ptr: type mismatch: " + std::string{name} + " != " + get_name<T>());
         else if(name != get_name<T>())
             MIGRAPHX_THROW("any_ptr: type mismatch: " + std::string{name} + " != " + get_name<T>());
+        // cppcheck-suppress CastAddressToIntegerAtReturn
         return reinterpret_cast<T>(ptr);
     }
     void* unsafe_get() const { return ptr; }

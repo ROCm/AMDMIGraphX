@@ -383,6 +383,7 @@ const value& value::operator[](std::size_t i) const
     assert(i < this->size());
     return *(begin() + i);
 }
+// cppcheck-suppress returnTempReference
 value& value::operator[](const std::string& pkey) { return *emplace(pkey, nullptr).first; }
 
 void value::clear() { get_array_throw(x).clear(); }

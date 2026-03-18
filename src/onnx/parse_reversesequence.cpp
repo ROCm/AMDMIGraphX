@@ -101,7 +101,7 @@ struct parse_reversesequence : op_parser<parse_reversesequence>
             MIGRAPHX_THROW("REVERSESEQUENCE: sequence_lens has incorrect shape");
         }
 
-        instruction_ref ret;
+        instruction_ref ret{};
 
         auto add_slice = [&info, &input, batch_axis, time_axis](int b, int t_start, int t_end) {
             return info.add_instruction(make_op("slice",

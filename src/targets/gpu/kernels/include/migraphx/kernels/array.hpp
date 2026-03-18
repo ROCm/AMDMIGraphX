@@ -298,8 +298,10 @@ struct array
             // Reset overflow
             overflow = 0;
             // Compute overflow using while loop instead of mod
+            // cppcheck-suppress arrayIndexOutOfBounds
             while(z >= d[i])
             {
+                // cppcheck-suppress arrayIndexOutOfBounds
                 z -= d[i];
                 overflow += 1;
             }
@@ -316,7 +318,9 @@ struct array
         index_int tidx = idx;
         for(diff_int is = result.size() - 1; is > 0; is--)
         {
+            // cppcheck-suppress arrayIndexOutOfBounds
             result[is] = tidx % d[is];
+            // cppcheck-suppress arrayIndexOutOfBounds
             tidx       = tidx / d[is];
         }
         result[0] = tidx;

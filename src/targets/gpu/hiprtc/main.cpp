@@ -72,7 +72,6 @@ int main(int argc, char const* argv[])
                   << std::endl;
         std::exit(0);
     }
-    std::string output_name = argv[1];
     bool quiet              = false;
     try
     {
@@ -86,7 +85,7 @@ int main(int argc, char const* argv[])
                                                        v.at("arch").to<std::string>(),
                                                        quiet);
         if(not out.empty())
-            migraphx::write_buffer(output_name, out.front());
+            migraphx::write_buffer(argv[1], out.front());
     }
     catch(const std::exception& err)
     {

@@ -82,7 +82,7 @@ std::string convert_to_json(const std::string& str)
     auto tokens = json_tokenize(str);
     std::stringstream ss;
 
-    for(auto& token : tokens)
+    for(const auto& token : tokens)
     {
         std::string s(token);
         if(starts_with(s, "#") or starts_with(s, "//"))

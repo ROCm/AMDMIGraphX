@@ -1362,7 +1362,7 @@ program& program::sort()
         current_mod->sort();
         mqueue.pop();
         auto child_mods = current_mod->get_sub_modules(true);
-        for(auto& sub_mod : child_mods)
+        for(const auto& sub_mod : child_mods)
         {
             mqueue.push(sub_mod);
         }

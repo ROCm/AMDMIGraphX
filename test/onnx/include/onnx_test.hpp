@@ -69,8 +69,7 @@ inline migraphx::program read_onnx(const std::string& name,
         std::cerr << "ONNX model file: " << name << " not found, aborting the test." << std::endl;
         std::abort();
     }
-    auto prog = migraphx::parse_onnx_buffer(std::string{onnx_files.at(name)}, options);
-    return prog;
+    return migraphx::parse_onnx_buffer(std::string{onnx_files.at(name)}, options);
 }
 
 inline migraphx::program

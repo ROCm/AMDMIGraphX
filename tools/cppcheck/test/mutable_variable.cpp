@@ -23,6 +23,7 @@
  *
  */
 // Test for MutableVariable check
+// cppcheck-suppress-file unusedStructMember
 
 void test_mutable_public_member()
 {
@@ -30,7 +31,7 @@ void test_mutable_public_member()
     {
         public:
         // cppcheck-suppress migraphx-MutableVariable
-        // cppcheck-suppress unusedStructMember
+
         mutable int x;
     };
 }
@@ -41,7 +42,7 @@ void test_mutable_flag()
     {
         public:
         // cppcheck-suppress migraphx-MutableVariable
-        // cppcheck-suppress unusedStructMember
+
         mutable bool flag;
     };
 }

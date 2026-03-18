@@ -23,10 +23,9 @@
  *
  */
 // Test for LambdaAttribute check
+// cppcheck-suppress-file defineUpperCase
 
-// cppcheck-suppress defineUpperCase
 #define __device__
-// cppcheck-suppress defineUpperCase
 #define __host__
 
 void test_device_attribute_before_params()

@@ -23,12 +23,12 @@
  *
  */
 // Test for StrlenEmptyString rule from rules.xml
+// cppcheck-suppress-file knownConditionTrueFalse
 #include <cstring>
 
 void test_strlen_greater_than_zero(const char* str)
 {
     // cppcheck-suppress StrlenEmptyString
-    // cppcheck-suppress knownConditionTrueFalse
     if(strlen(str) > 0)
     {
         (void)0; // String is not empty
@@ -38,7 +38,6 @@ void test_strlen_greater_than_zero(const char* str)
 void test_strlen_empty_string_check(const char* str)
 {
     // cppcheck-suppress StrlenEmptyString
-    // cppcheck-suppress knownConditionTrueFalse
     if(strlen(str) > 0)
     {
         (void)0; // String is not empty
@@ -49,7 +48,6 @@ void test_strlen_negated_condition(const char* str)
 {
     // cppcheck-suppress StrlenEmptyString
     // cppcheck-suppress UseNamedLogicOperator
-    // cppcheck-suppress knownConditionTrueFalse
     if(!strlen(str))
     {
         (void)0; // String is empty
@@ -59,7 +57,6 @@ void test_strlen_negated_condition(const char* str)
 void test_strlen_specific_length_should_not_trigger(const char* str)
 {
     // Should not trigger: checking actual length, not emptiness
-    // cppcheck-suppress knownConditionTrueFalse
     if(strlen(str) == 5)
     {
         (void)0; // String has specific length
@@ -85,7 +82,6 @@ void test_direct_empty_check_should_not_trigger(const char* str)
 void test_strcmp_should_not_trigger(const char* str)
 {
     // Should not trigger: comparing strings, not checking emptiness
-    // cppcheck-suppress knownConditionTrueFalse
     if(strcmp(str, "hello") == 0)
     {
         (void)0; // Strings are equal

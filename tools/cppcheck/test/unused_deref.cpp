@@ -23,13 +23,13 @@
  *
  */
 // Test for UnusedDeref rule from rules.xml
+// cppcheck-suppress-file clarifyStatement
 
 void test_redundant_deref_with_increment()
 {
     int x = 5;
     // cppcheck-suppress UnusedDeref
     int* ptr = &x;
-    // cppcheck-suppress clarifyStatement
     *ptr++;
 }
 
@@ -38,7 +38,6 @@ void test_redundant_deref_with_decrement()
     int x = 5;
     // cppcheck-suppress UnusedDeref
     int* ptr = &x;
-    // cppcheck-suppress clarifyStatement
     *ptr--;
 }
 
@@ -47,7 +46,6 @@ void test_redundant_deref_with_increment_variant()
     int x = 5;
     // cppcheck-suppress UnusedDeref
     int* ptr = &x;
-    // cppcheck-suppress clarifyStatement
     *ptr++;
 }
 

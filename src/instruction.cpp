@@ -627,56 +627,6 @@ static auto track_visits(instruction_ref start, instruction_ref end, F f)
     }
 }
 
-// Version of track visits that works on an array of starting instructions
-template <class T, class F>
-static auto track_visits(const_module_ref m, const T& starts, instruction_ref end, F f)
-{
-    const std::size_t small = 16;
-    // Find starts instruction with maximum distance from end
-    auto to_visit            = starts;
-    instruction_ref ins      = end;
-    std::size_t dist         = 0;
-    std::size_t max_distance = 0;
-    instruction_ref farthest_start;
-    bool cond = (ins != m->begin());
-    while(cond)
-    {
-        if(to_visit.empty() or ins == m->begin())
-            cond = false;
-        if(contains(to_visit, ins))
-        {
-            max_distance   = dist;
-            farthest_start = ins;
-            to_visit.erase(ins);
-        }
-        ins = std::prev(ins);
-        dist++;
-    }
-    if(max_distance < small)
-    {
-        std::bitset<small> visited;
-        auto stop = [&](auto ins) {
-            auto i = std::distance(ins, end);
-            if(i > max_distance)
-                return true;
-            if(visited.test(i))
-                return true;
-            visited.set(i);
-            return false;
-        };
-        return f(stop);
-    }
-    else
-    {
-        auto instructions     = range(farthest_start, std::next(end));
-        auto instruction_refs = iterator_for(instructions);
-        std::unordered_set<instruction_ref> in_range(instruction_refs.begin(),
-                                                     instruction_refs.end());
-        auto stop = [&](auto ins) { return in_range.erase(ins) == 0; };
-        return f(stop);
-    }
-}
-
 // DFS through inputs of `end` to find `start`.
 // `start` must be positioned before `end`.
 bool reaches(instruction_ref start, instruction_ref end)
@@ -721,40 +671,6 @@ static bool reaches(instruction_ref start, instruction_ref end, const_module_ref
 bool reaches(instruction_ref start, instruction_ref end, const_module_ref m)
 {
     return reaches(start, end, m, [](auto) { return false; });
-}
-
-// Version of reaches with an array of starting instructions
-template <class T, class P>
-static bool reaches(const T& starts, instruction_ref end, const_module_ref m, P predicate)
-{
-    if(contains(starts, end))
-        return true;
-    if(not m->has_instruction(end))
-        return false;
-    for(auto start : starts)
-    {
-        if(not m->has_instruction(start))
-            return false;
-    }
-
-    return track_visits(m, starts, end, [&](auto stop) {
-        return fix<bool>([&](auto self, auto ins) -> bool {
-            if(not m->has_instruction(ins))
-                return false;
-            if(contains(starts, ins) or predicate(ins))
-                return true;
-            if(stop(ins))
-                return false;
-            return std::any_of(ins->inputs().begin(), ins->inputs().end(), self);
-        })(end);
-    });
-}
-
-bool reaches(const std::unordered_set<instruction_ref>& starts,
-             instruction_ref end,
-             const_module_ref m)
-{
-    return reaches(starts, end, m, [](auto) { return false; });
 }
 
 bool is_interdependent(const std::vector<instruction_ref>& instructions,

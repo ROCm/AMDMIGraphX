@@ -28,14 +28,14 @@
 #include <migraphx/make_op.hpp>
 
 template <migraphx::shape::type_t DType>
-struct test_fill : verify_program<test_fill<DType>>
+struct test_fill_large : verify_program<test_fill_large<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
         migraphx::shape scalar_shape{DType, {1}, {0}};
-        migraphx::shape data_shape{DType, {3, 4, 4}};
+        migraphx::shape data_shape{DType, {64, 128, 128}};
         auto value = mm->add_parameter("value", scalar_shape);
         auto data  = mm->add_parameter("data", data_shape);
         mm->add_instruction(migraphx::make_op("fill"), value, data);
@@ -43,9 +43,6 @@ struct test_fill : verify_program<test_fill<DType>>
     }
 };
 
-template struct test_fill<migraphx::shape::float_type>;
-template struct test_fill<migraphx::shape::half_type>;
-template struct test_fill<migraphx::shape::bf16_type>;
-template struct test_fill<migraphx::shape::int32_type>;
-template struct test_fill<migraphx::shape::fp8e4m3fnuz_type>;
-template struct test_fill<migraphx::shape::fp8e4m3fn_type>;
+template struct test_fill_large<migraphx::shape::float_type>;
+template struct test_fill_large<migraphx::shape::half_type>;
+template struct test_fill_large<migraphx::shape::bf16_type>;

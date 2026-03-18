@@ -27,25 +27,17 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-template <migraphx::shape::type_t DType>
-struct test_fill : verify_program<test_fill<DType>>
+struct test_fill_1d : verify_program<test_fill_1d>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape scalar_shape{DType, {1}, {0}};
-        migraphx::shape data_shape{DType, {3, 4, 4}};
+        migraphx::shape scalar_shape{migraphx::shape::float_type, {1}, {0}};
+        migraphx::shape data_shape{migraphx::shape::float_type, {256}};
         auto value = mm->add_parameter("value", scalar_shape);
         auto data  = mm->add_parameter("data", data_shape);
         mm->add_instruction(migraphx::make_op("fill"), value, data);
         return p;
     }
 };
-
-template struct test_fill<migraphx::shape::float_type>;
-template struct test_fill<migraphx::shape::half_type>;
-template struct test_fill<migraphx::shape::bf16_type>;
-template struct test_fill<migraphx::shape::int32_type>;
-template struct test_fill<migraphx::shape::fp8e4m3fnuz_type>;
-template struct test_fill<migraphx::shape::fp8e4m3fn_type>;

@@ -82,7 +82,6 @@ auto lit_broadcast() { return match::any_of(match::is_constant(), match::name("b
 struct test_deep_nesting
 {
     // Should trigger: 4 levels - name(either_arg(name(args(is_constant()))))
-
     auto matcher() const
     {
         return match::name("mul")(
@@ -94,7 +93,6 @@ struct test_deep_nesting
 struct test_five_levels
 {
     // Should trigger: 5 levels - name(either_arg(name(args(name(used_once())))))
-
     auto matcher() const
     {
         return match::name("mul")(match::either_arg(0, 1)(
@@ -115,7 +113,6 @@ struct test_bind_exception
 struct test_shallow_nesting
 {
     // Should not trigger: only 2 levels - name(args())
-
     auto matcher() const
     {
         return match::name("add")(match::args(match::any(), match::is_constant()));
@@ -125,14 +122,12 @@ struct test_shallow_nesting
 struct test_three_levels
 {
     // Should not trigger: only 3 consecutive closing parens - name(args(name()))
-
     auto matcher() const { return match::name("dot")(match::args(match::name("slice"))); }
 };
 
 struct test_not_matcher_function
 {
     // Should not trigger: not a matcher() function
-
     auto find_pattern() const
     {
         return match::name("mul")(
@@ -143,7 +138,6 @@ struct test_not_matcher_function
 struct test_non_const_matcher
 {
     // Should not trigger: matcher must be const
-
     auto matcher()
     {
         return match::name("mul")(

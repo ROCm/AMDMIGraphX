@@ -34,7 +34,6 @@ void test_positive_cases()
 
     // Should trigger: unnecessary empty check before range-based for
     // cppcheck-suppress migraphx-UnnecessaryEmptyCondition
-
     if(not container.empty())
     {
         for(auto item : container)
@@ -48,7 +47,6 @@ void test_positive_cases()
     // Should trigger: another case with different variable name
     std::vector<std::string> items = {"a", "b", "c"};
     // cppcheck-suppress migraphx-UnnecessaryEmptyCondition
-
     if(not items.empty())
     {
         for(const auto& item : items)

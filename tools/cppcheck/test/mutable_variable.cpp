@@ -31,7 +31,6 @@ void test_mutable_public_member()
     {
         public:
         // cppcheck-suppress migraphx-MutableVariable
-
         mutable int x;
     };
 }
@@ -42,7 +41,6 @@ void test_mutable_flag()
     {
         public:
         // cppcheck-suppress migraphx-MutableVariable
-
         mutable bool flag;
     };
 }

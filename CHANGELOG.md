@@ -7,6 +7,7 @@ Full documentation for MIGraphX is available at
 
 ### Added
 
+* Added `auto_pad` attribute support for the ONNX `ConvTranspose` operator, supporting `SAME_UPPER`, `SAME_LOWER`, and `VALID` padding modes for static shapes (#4638).
 * Added a dedicated logger for MIGraphX.
 * [Linux] Use HSA API to query number of chiplets for architectures where this is applicable (ex. gfx90a).
 * Added a fuse_horizontal pass which batches independent cross embedding gather instructions (#4599).
@@ -34,6 +35,7 @@ Full documentation for MIGraphX is available at
 
 * Added a new pass to replace convolution with constant broadcast input with a reduced GEMM which improves model compilation time (#4621).
 * Implemented JIT compilation for `logsoftmax` by decomposing it into fusible operations (`log`, `exp`, `reduce_max`, `reduce_sum`), enabling kernel fusion. (#4630).
+* Improved `find_attention` to move evaluable constant inputs inside the operator, allowing rocMLIR to detect causal masks. (#4660)
 * Added early return for `find_conv_dot_horiz_fusion` matcher based on if operator output size is less than two (#4662).
 * Add matcher to simplify_algebra to find and replace pow(x, 2) with mul(x, x) (#4681)
 

@@ -166,6 +166,21 @@ struct find_attention
     {
         auto attn_inss = find_instructions_between(gemm1, gemm2, &m);
 
+        // Pull in evaluable constants so MLIR can detect causal masks.
+        auto expand = fix([&](auto self, auto ins) {
+            for(auto input : ins->inputs())
+            {
+                if(not contains(attn_inss, input) and input->can_eval())
+                {
+                    attn_inss.insert(input);
+                    self(input);
+                }
+            }
+        });
+        auto starts = attn_inss;
+        for(auto ins : starts)
+            expand(ins);
+
         std::vector<instruction_ref> sorted_inss(attn_inss.begin(), attn_inss.end());
         std::sort(
             sorted_inss.begin(), sorted_inss.end(), [&](instruction_ref x, instruction_ref y) {
@@ -228,8 +243,14 @@ struct find_attention
         std::unordered_map<instruction_ref, instruction_ref> map_mm_to_mattn;
         m_attn.fuse(attn_inss, &map_mm_to_mattn);
 
-        // Define outputs based on instructions that are used elsewhere in the graph
-        auto required_outputs = find_outputs(attn_inss);
+        // Define outputs based on instructions that are used elsewhere in the graph.
+        // Remove evaluable constants from the output list.
+        auto all_outputs = find_outputs(attn_inss);
+        std::vector<instruction_ref> required_outputs;
+        std::copy_if(all_outputs.begin(),
+                     all_outputs.end(),
+                     std::back_inserter(required_outputs),
+                     [](auto i) { return not i->can_eval(); });
 
         assert(not required_outputs.empty());
 

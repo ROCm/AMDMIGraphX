@@ -228,24 +228,19 @@ TEST_CASE(gemm_pw_softmax_gemm)
         auto b      = mm->add_parameter("2", s1);
         auto b1     = mm->add_parameter("3", s1);
         auto select = mm->add_parameter("4", s2);
-        std::vector<float> eights(s1_elements, 0.125);
-        std::vector<float> tens(s1_elements, 10);
-        auto eight = mm->add_literal(migraphx::literal{s1, eights});
-        auto ten   = mm->add_literal(migraphx::literal{s1, tens});
         b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
         b1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}),
                                  b1);
 
+        std::vector<float> eights(s1_elements, 0.125);
+        std::vector<float> tens(s1_elements, 10);
         auto group = add_group(
-            p2,
-            "attn0",
-            "attention",
-            {a, b, eight, select, ten, b1},
-            [=](auto* gm, const auto& inputs) {
+            p2, "attn0", "attention", {a, b, select, b1}, [=](auto* gm, const auto& inputs) {
+                auto eight = gm->add_literal(migraphx::literal{s1, eights});
+                auto ten   = gm->add_literal(migraphx::literal{s1, tens});
                 auto gemm1 = gm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
-                auto mul   = gm->add_instruction(migraphx::make_op("mul"), gemm1, inputs[2]);
-                auto where =
-                    gm->add_instruction(migraphx::make_op("where"), inputs[3], mul, inputs[4]);
+                auto mul   = gm->add_instruction(migraphx::make_op("mul"), gemm1, eight);
+                auto where = gm->add_instruction(migraphx::make_op("where"), inputs[2], mul, ten);
                 auto rmax =
                     gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), where);
                 rmax = gm->add_instruction(
@@ -257,7 +252,86 @@ TEST_CASE(gemm_pw_softmax_gemm)
                 rsum = gm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsum);
                 auto div   = gm->add_instruction(migraphx::make_op("div"), exp, rsum);
-                auto gemm2 = gm->add_instruction(migraphx::make_op("dot"), div, inputs[5]);
+                auto gemm2 = gm->add_instruction(migraphx::make_op("dot"), div, inputs[3]);
+                return std::vector<migraphx::instruction_ref>{gemm2};
+            });
+        mm->add_return({group});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(gemm_causal_mask_softmax_gemm)
+{
+    migraphx::shape s1{migraphx::shape::half_type, {1, 12, 256, 256}};
+    migraphx::shape s2{migraphx::shape::bool_type, {1, 12, 256, 256}};
+
+    migraphx::program p1;
+    {
+        auto* mm    = p1.get_main_module();
+        auto a      = mm->add_parameter("1", s1);
+        auto b      = mm->add_parameter("2", s1);
+        auto b1     = mm->add_parameter("3", s1);
+        auto mask   = mm->add_parameter("4", s2);
+        auto ninf   = mm->add_literal(-std::numeric_limits<float>::infinity());
+        auto ninf_h = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), ninf);
+        b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
+        b1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}),
+                                 b1);
+        auto gemm1   = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto ninf_bc = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), ninf_h);
+        auto where = mm->add_instruction(migraphx::make_op("where"), mask, gemm1, ninf_bc);
+        auto rmax  = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), where);
+        rmax = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}),
+                                   rmax);
+        auto sub  = mm->add_instruction(migraphx::make_op("sub"), where, rmax);
+        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        rsum = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}),
+                                   rsum);
+        auto div   = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
+        auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, b1);
+        mm->add_return({gemm2});
+
+        ninf_h->eval().visit(
+            [&](auto v) { EXPECT(std::isinf(static_cast<float>(v[0])) and v[0] < 0); });
+    }
+    run_pass(p1, {.attn_enabled = true});
+
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto a    = mm->add_parameter("1", s1);
+        auto b    = mm->add_parameter("2", s1);
+        auto b1   = mm->add_parameter("3", s1);
+        auto mask = mm->add_parameter("4", s2);
+        b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
+        b1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}),
+                                 b1);
+        auto group = add_group(
+            p2, "attn0", "attention", {a, b, mask, b1}, [=](auto* gm, const auto& inputs) {
+                auto ninf   = gm->add_literal(-std::numeric_limits<float>::infinity());
+                auto ninf_h = gm->add_instruction(
+                    migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}),
+                    ninf);
+                auto ninf_bc = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), ninf_h);
+                auto gemm1 = gm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto where =
+                    gm->add_instruction(migraphx::make_op("where"), inputs[2], gemm1, ninf_bc);
+                auto rmax =
+                    gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), where);
+                rmax = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rmax);
+                auto sub = gm->add_instruction(migraphx::make_op("sub"), where, rmax);
+                auto exp = gm->add_instruction(migraphx::make_op("exp"), sub);
+                auto rsum =
+                    gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+                rsum = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsum);
+                auto div   = gm->add_instruction(migraphx::make_op("div"), exp, rsum);
+                auto gemm2 = gm->add_instruction(migraphx::make_op("dot"), div, inputs[3]);
                 return std::vector<migraphx::instruction_ref>{gemm2};
             });
         mm->add_return({group});
@@ -589,8 +663,6 @@ TEST_CASE(gemm_multi_use_pw_softmax_gemm)
 
         std::vector<float> c1_vec(s1_elements, 0.125);
         std::vector<float> c2_vec(s1_elements, 10);
-        auto c1       = mm->add_literal(migraphx::literal(s2, c1_vec));
-        auto c2       = mm->add_literal(migraphx::literal(s1, c2_vec));
         auto ten      = mm->add_literal(migraphx::literal(10.0f));
         auto zero     = mm->add_literal(migraphx::literal(0.0f));
         auto zero_int = mm->add_literal(migraphx::literal(0));
@@ -616,11 +688,15 @@ TEST_CASE(gemm_multi_use_pw_softmax_gemm)
         scale = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s3.lens()}}),
                                     scale);
 
-        auto group = add_group(
-            p2, "attn0", "attention", {x, c1, where, scale, c2}, [=](auto* gm, const auto& inputs) {
-                auto gemm1 = gm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
-                auto add   = gm->add_instruction(migraphx::make_op("add"), gemm1, inputs[2]);
-                auto mul   = gm->add_instruction(migraphx::make_op("mul"), add, inputs[3]);
+        auto group =
+            add_group(p2, "attn0", "attention", {x, where}, [=](auto* gm, const auto& inputs) {
+                auto c1_lit = gm->add_literal(migraphx::literal(s2, c1_vec));
+                auto gemm1  = gm->add_instruction(migraphx::make_op("dot"), inputs[0], c1_lit);
+                auto add    = gm->add_instruction(migraphx::make_op("add"), gemm1, inputs[1]);
+                auto sc_lit = gm->add_literal(migraphx::literal(0.25f));
+                auto sc_bc  = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s3.lens()}}), sc_lit);
+                auto mul = gm->add_instruction(migraphx::make_op("mul"), add, sc_bc);
                 auto rmax =
                     gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), mul);
                 rmax = gm->add_instruction(
@@ -631,8 +707,9 @@ TEST_CASE(gemm_multi_use_pw_softmax_gemm)
                     gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
                 rsum = gm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", s3.lens()}}), rsum);
-                auto div   = gm->add_instruction(migraphx::make_op("div"), exp, rsum);
-                auto gemm2 = gm->add_instruction(migraphx::make_op("dot"), div, inputs[4]);
+                auto div    = gm->add_instruction(migraphx::make_op("div"), exp, rsum);
+                auto c2_lit = gm->add_literal(migraphx::literal(s1, c2_vec));
+                auto gemm2  = gm->add_instruction(migraphx::make_op("dot"), div, c2_lit);
                 return std::vector<migraphx::instruction_ref>{gemm2};
             });
         mm->add_return({group, zero, eq, scale});
@@ -695,26 +772,21 @@ TEST_CASE(gemm_pw_softmax_lse_gemm)
         auto b      = mm->add_parameter("2", s1);
         auto b1     = mm->add_parameter("3", s1);
         auto select = mm->add_parameter("4", s2);
-        std::vector<float> eights(s1_elements, 0.125);
-        std::vector<float> tens(s1_elements, 10);
         std::vector<float> log2s(s3_elements, 1.44238);
-        auto eight = mm->add_literal(migraphx::literal{s1, eights});
-        auto ten   = mm->add_literal(migraphx::literal{s1, tens});
-        auto log2  = mm->add_literal(migraphx::literal{s3, log2s});
+        auto log2 = mm->add_literal(migraphx::literal{s3, log2s});
         b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
         b1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}),
                                  b1);
 
+        std::vector<float> eights(s1_elements, 0.125);
+        std::vector<float> tens(s1_elements, 10);
         auto group = add_group(
-            p2,
-            "attn0",
-            "attention",
-            {a, b, eight, select, ten, b1},
-            [=](auto* gm, const auto& inputs) {
+            p2, "attn0", "attention", {a, b, select, b1}, [=](auto* gm, const auto& inputs) {
+                auto eight = gm->add_literal(migraphx::literal{s1, eights});
+                auto ten   = gm->add_literal(migraphx::literal{s1, tens});
                 auto gemm1 = gm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
-                auto mul   = gm->add_instruction(migraphx::make_op("mul"), gemm1, inputs[2]);
-                auto where =
-                    gm->add_instruction(migraphx::make_op("where"), inputs[3], mul, inputs[4]);
+                auto mul   = gm->add_instruction(migraphx::make_op("mul"), gemm1, eight);
+                auto where = gm->add_instruction(migraphx::make_op("where"), inputs[2], mul, ten);
                 auto rmax =
                     gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), where);
                 auto rmax_mb = gm->add_instruction(
@@ -726,7 +798,7 @@ TEST_CASE(gemm_pw_softmax_lse_gemm)
                 auto rsum_mb = gm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsum);
                 auto div   = gm->add_instruction(migraphx::make_op("div"), exp, rsum_mb);
-                auto gemm2 = gm->add_instruction(migraphx::make_op("dot"), div, inputs[5]);
+                auto gemm2 = gm->add_instruction(migraphx::make_op("dot"), div, inputs[3]);
                 auto log   = gm->add_instruction(migraphx::make_op("log"), rsum);
                 auto add   = gm->add_instruction(migraphx::make_op("add"), log, rmax);
                 return std::vector<migraphx::instruction_ref>{gemm2, add};

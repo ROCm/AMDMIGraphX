@@ -21,30 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_ELIMINATE_CONCAT_HPP
-#define MIGRAPHX_GUARD_RTGLIB_ELIMINATE_CONCAT_HPP
 
-#include <string>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/concat_opt.hpp>
-#include <migraphx/config.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module;
-
-/**
- * Remove concat operators by having each operator write to different chunk of memory.
- */
-struct MIGRAPHX_EXPORT eliminate_concat
+struct test_dot_gather_concat : verify_program<test_dot_gather_concat>
 {
-    concat_optimization concat_opt;
-    std::string name() const { return "eliminate_concat"; }
-    void apply(module& m) const;
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape indices_shape{migraphx::shape::int32_type, {2, 4}};
+        std::vector<int> indices_data{3, 2, 1, 0, 0, 1, 2, 3};
+        auto indices = mm->add_literal(migraphx::literal{indices_shape, indices_data});
+        auto x1      = mm->add_parameter("x1", {migraphx::shape::float_type, {4, 8}});
+        auto x2      = mm->add_parameter("x2", {migraphx::shape::float_type, {2, 4, 16}});
+        auto x3      = mm->add_parameter("x3", {migraphx::shape::float_type, {2, 16, 8}});
+        auto gather  = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), x1, indices);
+        auto dot     = mm->add_instruction(migraphx::make_op("dot"), x2, x3);
+        auto concat  = mm->add_instruction(migraphx::make_op("concat", {{"axis", 2}}), dot, gather);
+        mm->add_return({concat});
+        return p;
+    }
 };
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif

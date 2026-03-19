@@ -248,7 +248,8 @@ __device__ void pooling_reduce(Output output, F f)
             Algo::template run<decltype(goutput)>([&](auto out_idx, auto r) {
                 each_group<GroupSize>(out_idx, [&](auto idx, auto k) { result[k] = f(idx, r); });
                 r.outer([&] {
-                    write_grouped_output<GroupSize>(output, out_idx, [&](auto k) { return result[k]; });
+                    write_grouped_output<GroupSize>(
+                        output, out_idx, [&](auto k) { return result[k]; });
                 });
             });
         }

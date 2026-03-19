@@ -7,6 +7,7 @@ Full documentation for MIGraphX is available at
 
 ### Added
 
+* Added `auto_pad` attribute support for the ONNX `ConvTranspose` operator, supporting `SAME_UPPER`, `SAME_LOWER`, and `VALID` padding modes for static shapes (#4638).
 * Added a dedicated logger for MIGraphX.
 * [Linux] Use HSA API to query number of chiplets for architectures where this is applicable (ex. gfx90a).
 * Added a fuse_horizontal pass which batches independent cross embedding gather instructions (#4599).

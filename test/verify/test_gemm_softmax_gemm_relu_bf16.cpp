@@ -57,8 +57,7 @@ struct test_gemm_softmax_gemm_relu_bf16 : verify_program<test_gemm_softmax_gemm_
         if constexpr(Config == bias::with or Config == bias::with_standard_shape)
         {
             auto bias_shape = m1_shape;
-            // cppcheck-suppress knownConditionTrueFalse
-            if(Config != bias::with_standard_shape)
+            if constexpr(Config != bias::with_standard_shape)
             {
                 bias_shape = migraphx::shape::from_permutation(
                     bias_shape.type(), bias_shape.lens(), {0, 1, 3, 2});

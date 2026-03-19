@@ -27,6 +27,7 @@
 #include <migraphx/onnx/checks.hpp>
 #include <migraphx/instruction.hpp>
 #include <numeric>
+#include <functional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

@@ -208,7 +208,7 @@ struct parse_layernorm : op_parser<parse_layernorm>
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,
                                        const onnx_parser& parser,
                                        const onnx_parser::node_info& info,
-                                       std::vector<instruction_ref> args) const
+                                       const std::vector<instruction_ref>& args) const
     {
         auto [axis, epsilon, stash_type] = handle_attributes(parser, info);
 

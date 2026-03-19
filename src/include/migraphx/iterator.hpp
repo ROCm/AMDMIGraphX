@@ -191,7 +191,7 @@ struct iterator_operators
     }
 
     template <class U>
-    friend constexpr auto operator-=(T& lhs, const U& rhs) -> decltype(lhs += -rhs)
+    friend constexpr auto operator-=(T& lhs, U rhs) -> decltype(lhs += -rhs)
     {
         return lhs += -rhs;
     }

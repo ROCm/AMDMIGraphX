@@ -78,9 +78,9 @@ struct einsum : op_builder<einsum>
 
         instruction_ref cur_op;
         std::optional<instruction_ref> last_op;
-        assert(args.size() > 0);
+        assert(args.size() > 0); // NOLINT(readability-container-size-empty)
         // Perform a left fold on the inputs
-        for(auto arg_idx = 0; arg_idx < args.size(); ++arg_idx)
+        for(std::size_t arg_idx = 0; arg_idx < args.size(); ++arg_idx)
         {
             cur_op      = args[arg_idx];
             cur_pair[1] = map_mat[arg_idx];

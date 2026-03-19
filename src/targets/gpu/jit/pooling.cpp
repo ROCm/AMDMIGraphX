@@ -218,10 +218,10 @@ struct pooling_compiler : compiler<pooling_compiler>
         auto v             = op.to_value();
         tc.problem         = value{{"input", to_value(shapes.front())}, {"config", v}};
 
-        auto w            = v["lengths"].to_vector<std::size_t>();
-        auto wsize        = std::accumulate(w.begin(), w.end(), 1, std::multiplies<std::size_t>());
-        auto faxis        = gen::find_fast_axis(output);
-        auto x            = output.lens()[faxis];
+        auto w     = v["lengths"].to_vector<std::size_t>();
+        auto wsize = std::accumulate(w.begin(), w.end(), 1, std::multiplies<std::size_t>());
+        auto faxis = gen::find_fast_axis(output);
+        auto x     = output.lens()[faxis];
 
         auto add_solution = [&](auto group_size, auto width) {
             if(x < group_size)

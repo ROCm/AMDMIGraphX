@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 #####################################################################################
 project(migraphx-doc)
-find_package(ROCM REQUIRED)
+find_package(ROCmCMakeBuildTools REQUIRED)
 
 include(ROCMSphinxDoc)
 rocm_add_sphinx_doc(

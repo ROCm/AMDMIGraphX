@@ -289,6 +289,7 @@ rocm_enable_cppcheck(
         assertWithSideEffect
         returnByReference
         throwInEntryPoint
+        redundantCopyLocalConst
         unmatchedSuppression
         unusedFunction
         ctuPointerArith

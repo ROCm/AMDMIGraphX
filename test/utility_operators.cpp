@@ -252,6 +252,367 @@ TEST_CASE(compare_template1)
     EXPECT_TOTALLY_ORDERED(y, z);
 }
 
+struct custom_addable : migraphx::arithmetic<custom_addable>,
+                       migraphx::equality_comparable<custom_addable>
+{
+    int x;
+
+    constexpr explicit custom_addable(int px) : x(px) {}
+
+    constexpr auto operator+=(const custom_addable& rhs)
+    {
+        x += rhs.x;
+        return *this;
+    }
+
+    constexpr auto operator+=(int rhs)
+    {
+        x += rhs;
+        return *this;
+    }
+
+    template <class T>
+    constexpr auto operator+=(const T& rhs) -> decltype(static_cast<void>(rhs.x), *this)
+    {
+        x += rhs.x;
+        return *this;
+    }
+
+    constexpr bool operator==(const custom_addable& rhs) const { return x == rhs.x; }
+
+    constexpr bool operator==(int rhs) const { return x == rhs; }
+
+    template <class Stream>
+    friend Stream& operator<<(Stream& os, const custom_addable& self)
+    {
+        return os << self.x;
+    }
+};
+
+struct custom_addable_subtractable : migraphx::arithmetic<custom_addable_subtractable>,
+                                    migraphx::equality_comparable<custom_addable_subtractable>
+{
+    int x;
+
+    constexpr explicit custom_addable_subtractable(int px) : x(px) {}
+
+    constexpr auto operator+=(const custom_addable_subtractable& rhs)
+    {
+        x += rhs.x;
+        return *this;
+    }
+
+    constexpr auto operator+=(int rhs)
+    {
+        x += rhs;
+        return *this;
+    }
+
+    constexpr auto operator-=(const custom_addable_subtractable& rhs)
+    {
+        x -= rhs.x;
+        return *this;
+    }
+
+    constexpr auto operator-=(int rhs)
+    {
+        x -= rhs;
+        return *this;
+    }
+
+    constexpr bool operator==(const custom_addable_subtractable& rhs) const
+    {
+        return x == rhs.x;
+    }
+
+    constexpr bool operator==(int rhs) const { return x == rhs; }
+
+    template <class Stream>
+    friend Stream& operator<<(Stream& os, const custom_addable_subtractable& self)
+    {
+        return os << self.x;
+    }
+};
+
+struct custom_all_arithmetic : migraphx::arithmetic<custom_all_arithmetic>,
+                               migraphx::equality_comparable<custom_all_arithmetic>
+{
+    int x;
+
+    constexpr explicit custom_all_arithmetic(int px) : x(px) {}
+
+    constexpr auto operator+=(const custom_all_arithmetic& rhs)
+    {
+        x += rhs.x;
+        return *this;
+    }
+
+    constexpr auto operator+=(int rhs)
+    {
+        x += rhs;
+        return *this;
+    }
+
+    constexpr auto operator-=(const custom_all_arithmetic& rhs)
+    {
+        x -= rhs.x;
+        return *this;
+    }
+
+    constexpr auto operator-=(int rhs)
+    {
+        x -= rhs;
+        return *this;
+    }
+
+    constexpr auto operator*=(const custom_all_arithmetic& rhs)
+    {
+        x *= rhs.x;
+        return *this;
+    }
+
+    constexpr auto operator*=(int rhs)
+    {
+        x *= rhs;
+        return *this;
+    }
+
+    constexpr auto operator/=(const custom_all_arithmetic& rhs)
+    {
+        x /= rhs.x;
+        return *this;
+    }
+
+    constexpr auto operator/=(int rhs)
+    {
+        x /= rhs;
+        return *this;
+    }
+
+    constexpr auto operator%=(const custom_all_arithmetic& rhs)
+    {
+        x %= rhs.x;
+        return *this;
+    }
+
+    constexpr auto operator%=(int rhs)
+    {
+        x %= rhs;
+        return *this;
+    }
+
+    template <class T>
+    constexpr auto operator+=(const T& rhs) -> decltype(static_cast<void>(rhs.x), *this)
+    {
+        x += rhs.x;
+        return *this;
+    }
+
+    template <class T>
+    constexpr auto operator-=(const T& rhs) -> decltype(static_cast<void>(rhs.x), *this)
+    {
+        x -= rhs.x;
+        return *this;
+    }
+
+    template <class T>
+    constexpr auto operator*=(const T& rhs) -> decltype(static_cast<void>(rhs.x), *this)
+    {
+        x *= rhs.x;
+        return *this;
+    }
+
+    template <class T>
+    constexpr auto operator/=(const T& rhs) -> decltype(static_cast<void>(rhs.x), *this)
+    {
+        x /= rhs.x;
+        return *this;
+    }
+
+    template <class T>
+    constexpr auto operator%=(const T& rhs) -> decltype(static_cast<void>(rhs.x), *this)
+    {
+        x %= rhs.x;
+        return *this;
+    }
+
+    constexpr bool operator==(const custom_all_arithmetic& rhs) const { return x == rhs.x; }
+
+    constexpr bool operator==(int rhs) const { return x == rhs; }
+
+    template <class Stream>
+    friend Stream& operator<<(Stream& os, const custom_all_arithmetic& self)
+    {
+        return os << self.x;
+    }
+};
+
+struct custom_all_arithmetic_adl : migraphx::arithmetic<custom_all_arithmetic_adl>,
+                                  migraphx::equality_comparable<custom_all_arithmetic_adl>
+{
+    int x;
+
+    constexpr explicit custom_all_arithmetic_adl(int px) : x(px) {}
+
+    friend constexpr custom_all_arithmetic_adl& operator+=(custom_all_arithmetic_adl& lhs,
+                                                           const custom_all_arithmetic_adl& rhs)
+    {
+        lhs.x += rhs.x;
+        return lhs;
+    }
+
+    template <class T, MIGRAPHX_REQUIRES(not std::is_same<T, custom_all_arithmetic_adl>{})>
+    friend constexpr auto operator+=(custom_all_arithmetic_adl& lhs, const T& rhs)
+        -> decltype(std::declval<int&>() += rhs, lhs)
+    {
+        lhs.x += rhs;
+        return lhs;
+    }
+
+    friend constexpr custom_all_arithmetic_adl& operator-=(custom_all_arithmetic_adl& lhs,
+                                                           const custom_all_arithmetic_adl& rhs)
+    {
+        lhs.x -= rhs.x;
+        return lhs;
+    }
+
+    template <class T, MIGRAPHX_REQUIRES(not std::is_same<T, custom_all_arithmetic_adl>{})>
+    friend constexpr auto operator-=(custom_all_arithmetic_adl& lhs, const T& rhs)
+        -> decltype(std::declval<int&>() -= rhs, lhs)
+    {
+        lhs.x -= rhs;
+        return lhs;
+    }
+
+    friend constexpr custom_all_arithmetic_adl& operator*=(custom_all_arithmetic_adl& lhs,
+                                                           const custom_all_arithmetic_adl& rhs)
+    {
+        lhs.x *= rhs.x;
+        return lhs;
+    }
+
+    template <class T, MIGRAPHX_REQUIRES(not std::is_same<T, custom_all_arithmetic_adl>{})>
+    friend constexpr auto operator*=(custom_all_arithmetic_adl& lhs, const T& rhs)
+        -> decltype(std::declval<int&>() *= rhs, lhs)
+    {
+        lhs.x *= rhs;
+        return lhs;
+    }
+
+    friend constexpr custom_all_arithmetic_adl& operator/=(custom_all_arithmetic_adl& lhs,
+                                                           const custom_all_arithmetic_adl& rhs)
+    {
+        lhs.x /= rhs.x;
+        return lhs;
+    }
+
+    template <class T, MIGRAPHX_REQUIRES(not std::is_same<T, custom_all_arithmetic_adl>{})>
+    friend constexpr auto operator/=(custom_all_arithmetic_adl& lhs, const T& rhs)
+        -> decltype(std::declval<int&>() /= rhs, lhs)
+    {
+        lhs.x /= rhs;
+        return lhs;
+    }
+
+    friend constexpr custom_all_arithmetic_adl& operator%=(custom_all_arithmetic_adl& lhs,
+                                                           const custom_all_arithmetic_adl& rhs)
+    {
+        lhs.x %= rhs.x;
+        return lhs;
+    }
+
+    template <class T, MIGRAPHX_REQUIRES(not std::is_same<T, custom_all_arithmetic_adl>{})>
+    friend constexpr auto operator%=(custom_all_arithmetic_adl& lhs, const T& rhs)
+        -> decltype(std::declval<int&>() %= rhs, lhs)
+    {
+        lhs.x %= rhs;
+        return lhs;
+    }
+
+    friend constexpr bool operator==(const custom_all_arithmetic_adl& lhs,
+                                     const custom_all_arithmetic_adl& rhs)
+    {
+        return lhs.x == rhs.x;
+    }
+
+    template <class T, MIGRAPHX_REQUIRES(not std::is_same<T, custom_all_arithmetic_adl>{})>
+    friend constexpr auto operator==(const custom_all_arithmetic_adl& lhs, const T& rhs)
+        -> decltype(std::declval<int>() == rhs)
+    {
+        return lhs.x == rhs;
+    }
+
+    template <class Stream>
+    friend Stream& operator<<(Stream& os, const custom_all_arithmetic_adl& self)
+    {
+        return os << self.x;
+    }
+};
+
+template <class T>
+struct custom_arithmetic_template : migraphx::arithmetic<custom_arithmetic_template<T>>,
+                                    migraphx::equality_comparable<custom_arithmetic_template<T>>
+{
+    T x;
+
+    constexpr explicit custom_arithmetic_template(T px) : x(px) {}
+
+    constexpr auto operator+=(const custom_arithmetic_template& rhs)
+    {
+        x += rhs.x;
+        return *this;
+    }
+
+    template <class U>
+    constexpr auto operator+=(const custom_arithmetic_template<U>& rhs)
+    {
+        x += rhs.x;
+        return *this;
+    }
+
+    constexpr auto operator-=(const custom_arithmetic_template& rhs)
+    {
+        x -= rhs.x;
+        return *this;
+    }
+
+    template <class U>
+    constexpr auto operator-=(const custom_arithmetic_template<U>& rhs)
+    {
+        x -= rhs.x;
+        return *this;
+    }
+
+    constexpr auto operator*=(const custom_arithmetic_template& rhs)
+    {
+        x *= rhs.x;
+        return *this;
+    }
+
+    template <class U>
+    constexpr auto operator*=(const custom_arithmetic_template<U>& rhs)
+    {
+        x *= rhs.x;
+        return *this;
+    }
+
+    constexpr bool operator==(const custom_arithmetic_template& rhs) const { return x == rhs.x; }
+
+    template <class U>
+    constexpr auto operator==(const custom_arithmetic_template<U>& rhs) const
+    {
+        return x == rhs.x;
+    }
+
+    constexpr bool operator<(const custom_arithmetic_template& rhs) const { return x < rhs.x; }
+
+    template <class Stream>
+    friend Stream& operator<<(Stream& os, const custom_arithmetic_template& self)
+    {
+        return os << self.x;
+    }
+};
+
 template <class T>
 struct custom_compare_template2 : migraphx::totally_ordered<custom_compare_template2<T>>
 {
@@ -297,6 +658,292 @@ TEST_CASE(compare_template2)
     EXPECT_TOTALLY_ORDERED(x, y);
     EXPECT_TOTALLY_ORDERED(x, z);
     EXPECT_TOTALLY_ORDERED(y, z);
+}
+
+TEST_CASE(arithmetic_addable_same_type)
+{
+    custom_addable a{3};
+    custom_addable b{5};
+    EXPECT(a + b == custom_addable{8});
+    EXPECT(b + a == custom_addable{8});
+    EXPECT(a + a == custom_addable{6});
+}
+
+TEST_CASE(arithmetic_addable_mixed)
+{
+    custom_addable a{3};
+    EXPECT(a + 2 == custom_addable{5});
+    EXPECT(2 + a == custom_addable{5});
+    EXPECT(a + 0 == custom_addable{3});
+    EXPECT(0 + a == custom_addable{3});
+    EXPECT(a + 10 == custom_addable{13});
+    EXPECT(10 + a == custom_addable{13});
+}
+
+TEST_CASE(arithmetic_addable_does_not_modify)
+{
+    custom_addable a{3};
+    custom_addable b{5};
+    auto c = a + b;
+    EXPECT(a == custom_addable{3});
+    EXPECT(b == custom_addable{5});
+    EXPECT(c == custom_addable{8});
+    auto d = a + 1;
+    EXPECT(a == custom_addable{3});
+    EXPECT(d == custom_addable{4});
+    auto e = 1 + a;
+    EXPECT(a == custom_addable{3});
+    EXPECT(e == custom_addable{4});
+}
+
+TEST_CASE(arithmetic_addable_subtractable_add)
+{
+    custom_addable_subtractable a{10};
+    custom_addable_subtractable b{3};
+    EXPECT(a + b == custom_addable_subtractable{13});
+    EXPECT(a + 5 == custom_addable_subtractable{15});
+    EXPECT(5 + a == custom_addable_subtractable{15});
+}
+
+TEST_CASE(arithmetic_addable_subtractable_sub)
+{
+    custom_addable_subtractable a{10};
+    custom_addable_subtractable b{3};
+    EXPECT(a - b == custom_addable_subtractable{7});
+    EXPECT(a - 4 == custom_addable_subtractable{6});
+    EXPECT(b - a == custom_addable_subtractable{-7});
+    EXPECT(b - 5 == custom_addable_subtractable{-2});
+}
+
+TEST_CASE(arithmetic_addable_subtractable_does_not_modify)
+{
+    custom_addable_subtractable a{10};
+    custom_addable_subtractable b{3};
+    auto c = a - b;
+    EXPECT(a == custom_addable_subtractable{10});
+    EXPECT(b == custom_addable_subtractable{3});
+    EXPECT(c == custom_addable_subtractable{7});
+}
+
+TEST_CASE(arithmetic_all_add)
+{
+    custom_all_arithmetic a{7};
+    custom_all_arithmetic b{3};
+    EXPECT(a + b == custom_all_arithmetic{10});
+    EXPECT(a + 2 == custom_all_arithmetic{9});
+    EXPECT(2 + a == custom_all_arithmetic{9});
+}
+
+TEST_CASE(arithmetic_all_sub)
+{
+    custom_all_arithmetic a{7};
+    custom_all_arithmetic b{3};
+    EXPECT(a - b == custom_all_arithmetic{4});
+    EXPECT(a - 2 == custom_all_arithmetic{5});
+}
+
+TEST_CASE(arithmetic_all_mul)
+{
+    custom_all_arithmetic a{7};
+    custom_all_arithmetic b{3};
+    EXPECT(a * b == custom_all_arithmetic{21});
+    EXPECT(a * 2 == custom_all_arithmetic{14});
+    EXPECT(2 * a == custom_all_arithmetic{14});
+}
+
+TEST_CASE(arithmetic_all_div)
+{
+    custom_all_arithmetic a{12};
+    custom_all_arithmetic b{3};
+    EXPECT(a / b == custom_all_arithmetic{4});
+    EXPECT(a / 4 == custom_all_arithmetic{3});
+    EXPECT(a / 2 == custom_all_arithmetic{6});
+}
+
+TEST_CASE(arithmetic_all_mod)
+{
+    custom_all_arithmetic a{10};
+    custom_all_arithmetic b{3};
+    EXPECT(a % b == custom_all_arithmetic{1});
+    EXPECT(a % 4 == custom_all_arithmetic{2});
+    EXPECT(a % 7 == custom_all_arithmetic{3});
+}
+
+TEST_CASE(arithmetic_all_does_not_modify)
+{
+    custom_all_arithmetic a{12};
+    custom_all_arithmetic b{5};
+    auto c1 = a + b;
+    auto c2 = a - b;
+    auto c3 = a * b;
+    auto c4 = a / b;
+    auto c5 = a % b;
+    EXPECT(a == custom_all_arithmetic{12});
+    EXPECT(b == custom_all_arithmetic{5});
+    EXPECT(c1 == custom_all_arithmetic{17});
+    EXPECT(c2 == custom_all_arithmetic{7});
+    EXPECT(c3 == custom_all_arithmetic{60});
+    EXPECT(c4 == custom_all_arithmetic{2});
+    EXPECT(c5 == custom_all_arithmetic{2});
+}
+
+TEST_CASE(arithmetic_all_chain)
+{
+    custom_all_arithmetic a{2};
+    custom_all_arithmetic b{3};
+    custom_all_arithmetic c{4};
+    EXPECT(a + b + c == custom_all_arithmetic{9});
+    EXPECT(a * b + c == custom_all_arithmetic{10});
+    EXPECT((a + b) * c == custom_all_arithmetic{20});
+}
+
+TEST_CASE(arithmetic_template_same_type)
+{
+    custom_arithmetic_template<int> a{3};
+    custom_arithmetic_template<int> b{5};
+    EXPECT(a + b == custom_arithmetic_template<int>{8});
+    EXPECT(a - b == custom_arithmetic_template<int>{-2});
+    EXPECT(a * b == custom_arithmetic_template<int>{15});
+}
+
+TEST_CASE(arithmetic_template_cross_type)
+{
+    custom_arithmetic_template<int> a{3};
+    custom_arithmetic_template<short> b{5};
+    EXPECT(a + b == custom_arithmetic_template<int>{8});
+    EXPECT(b + a == custom_arithmetic_template<short>{8});
+    EXPECT(a - b == custom_arithmetic_template<int>{-2});
+    EXPECT(a * b == custom_arithmetic_template<int>{15});
+}
+
+TEST_CASE(arithmetic_template_does_not_modify)
+{
+    custom_arithmetic_template<int> a{4};
+    custom_arithmetic_template<int> b{2};
+    auto c = a + b;
+    EXPECT(a == custom_arithmetic_template<int>{4});
+    EXPECT(b == custom_arithmetic_template<int>{2});
+    EXPECT(c == custom_arithmetic_template<int>{6});
+}
+
+TEST_CASE(arithmetic_adl_add)
+{
+    custom_all_arithmetic_adl a{7};
+    custom_all_arithmetic_adl b{3};
+    EXPECT(a + b == custom_all_arithmetic_adl{10});
+    EXPECT(a + 2 == custom_all_arithmetic_adl{9});
+    EXPECT(2 + a == custom_all_arithmetic_adl{9});
+}
+
+TEST_CASE(arithmetic_adl_sub)
+{
+    custom_all_arithmetic_adl a{7};
+    custom_all_arithmetic_adl b{3};
+    EXPECT(a - b == custom_all_arithmetic_adl{4});
+    EXPECT(a - 2 == custom_all_arithmetic_adl{5});
+}
+
+TEST_CASE(arithmetic_adl_mul)
+{
+    custom_all_arithmetic_adl a{7};
+    custom_all_arithmetic_adl b{3};
+    EXPECT(a * b == custom_all_arithmetic_adl{21});
+    EXPECT(a * 2 == custom_all_arithmetic_adl{14});
+    EXPECT(2 * a == custom_all_arithmetic_adl{14});
+}
+
+TEST_CASE(arithmetic_adl_div)
+{
+    custom_all_arithmetic_adl a{12};
+    custom_all_arithmetic_adl b{3};
+    EXPECT(a / b == custom_all_arithmetic_adl{4});
+    EXPECT(a / 4 == custom_all_arithmetic_adl{3});
+}
+
+TEST_CASE(arithmetic_adl_mod)
+{
+    custom_all_arithmetic_adl a{10};
+    custom_all_arithmetic_adl b{3};
+    EXPECT(a % b == custom_all_arithmetic_adl{1});
+    EXPECT(a % 4 == custom_all_arithmetic_adl{2});
+}
+
+TEST_CASE(arithmetic_adl_does_not_modify)
+{
+    custom_all_arithmetic_adl a{12};
+    custom_all_arithmetic_adl b{5};
+    auto c1 = a + b;
+    auto c2 = a - b;
+    auto c3 = a * b;
+    auto c4 = a / b;
+    auto c5 = a % b;
+    EXPECT(a == custom_all_arithmetic_adl{12});
+    EXPECT(b == custom_all_arithmetic_adl{5});
+    EXPECT(c1 == custom_all_arithmetic_adl{17});
+    EXPECT(c2 == custom_all_arithmetic_adl{7});
+    EXPECT(c3 == custom_all_arithmetic_adl{60});
+    EXPECT(c4 == custom_all_arithmetic_adl{2});
+    EXPECT(c5 == custom_all_arithmetic_adl{2});
+}
+
+TEST_CASE(arithmetic_adl_chain)
+{
+    custom_all_arithmetic_adl a{2};
+    custom_all_arithmetic_adl b{3};
+    custom_all_arithmetic_adl c{4};
+    EXPECT(a + b + c == custom_all_arithmetic_adl{9});
+    EXPECT(a * b + c == custom_all_arithmetic_adl{10});
+    EXPECT((a + b) * c == custom_all_arithmetic_adl{20});
+}
+
+TEST_CASE(arithmetic_cross_class_add)
+{
+    custom_all_arithmetic a{1};
+    custom_addable b{2};
+    EXPECT(a + b == custom_all_arithmetic{3});
+    EXPECT(b + a == custom_addable{3});
+}
+
+TEST_CASE(arithmetic_cross_class_sub)
+{
+    custom_all_arithmetic a{10};
+    custom_addable b{3};
+    EXPECT(a - b == custom_all_arithmetic{7});
+}
+
+TEST_CASE(arithmetic_cross_class_mul)
+{
+    custom_all_arithmetic a{4};
+    custom_addable b{3};
+    EXPECT(a * b == custom_all_arithmetic{12});
+}
+
+TEST_CASE(arithmetic_cross_class_div)
+{
+    custom_all_arithmetic a{12};
+    custom_addable b{3};
+    EXPECT(a / b == custom_all_arithmetic{4});
+}
+
+TEST_CASE(arithmetic_cross_class_mod)
+{
+    custom_all_arithmetic a{10};
+    custom_addable b{3};
+    EXPECT(a % b == custom_all_arithmetic{1});
+}
+
+TEST_CASE(arithmetic_cross_class_does_not_modify)
+{
+    custom_all_arithmetic a{10};
+    custom_addable b{3};
+    auto c = a + b;
+    EXPECT(a == custom_all_arithmetic{10});
+    EXPECT(b == custom_addable{3});
+    EXPECT(c == custom_all_arithmetic{13});
+    auto d = b + a;
+    EXPECT(a == custom_all_arithmetic{10});
+    EXPECT(b == custom_addable{3});
+    EXPECT(d == custom_addable{13});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

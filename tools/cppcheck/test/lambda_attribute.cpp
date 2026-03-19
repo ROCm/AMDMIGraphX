@@ -30,7 +30,7 @@
 
 void test_device_attribute_before_params()
 {
-    int x        = 5;
+    int x = 5;
     // cppcheck-suppress migraphx-LambdaAttribute
     auto lambda1 = [] __device__(int a) { return a * 2; };
     (void)x;

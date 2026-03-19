@@ -21,41 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_ARGMAX_HPP
-#define MIGRAPHX_GUARD_RTGLIB_ARGMAX_HPP
 
-#include <migraphx/argument.hpp>
-#include <migraphx/reflect.hpp>
-#include <migraphx/op/argmax.hpp>
-#include <migraphx/gpu/device/argmax.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-
-struct context;
-
-struct hip_argmax
+struct test_dot_gather_concat : verify_program<test_dot_gather_concat>
 {
-    op::argmax op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
+    migraphx::program create_program() const
     {
-        return migraphx::reflect(self.op, f);
-    }
-
-    std::string name() const { return "gpu::argmax"; }
-    shape compute_shape(const std::vector<shape>& inputs) const;
-    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const;
-    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
-    {
-        return {shapes.size() - 1};
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape indices_shape{migraphx::shape::int32_type, {2, 4}};
+        std::vector<int> indices_data{3, 2, 1, 0, 0, 1, 2, 3};
+        auto indices = mm->add_literal(migraphx::literal{indices_shape, indices_data});
+        auto x1      = mm->add_parameter("x1", {migraphx::shape::float_type, {4, 8}});
+        auto x2      = mm->add_parameter("x2", {migraphx::shape::float_type, {2, 4, 16}});
+        auto x3      = mm->add_parameter("x3", {migraphx::shape::float_type, {2, 16, 8}});
+        auto gather  = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), x1, indices);
+        auto dot     = mm->add_instruction(migraphx::make_op("dot"), x2, x3);
+        auto concat  = mm->add_instruction(migraphx::make_op("concat", {{"axis", 2}}), dot, gather);
+        mm->add_return({concat});
+        return p;
     }
 };
-
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif

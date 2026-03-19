@@ -272,7 +272,7 @@ struct custom_addable : migraphx::arithmetic<custom_addable>,
     }
 
     template <class T>
-    constexpr auto operator+=(const T& rhs) -> decltype(static_cast<void>(rhs.x), *this)
+    constexpr auto operator+=(const T& rhs) -> decltype(rhs.x, *this)
     {
         x += rhs.x;
         return *this;
@@ -399,35 +399,35 @@ struct custom_all_arithmetic : migraphx::arithmetic<custom_all_arithmetic>,
     }
 
     template <class T>
-    constexpr auto operator+=(const T& rhs) -> decltype(static_cast<void>(rhs.x), *this)
+    constexpr auto operator+=(const T& rhs) -> decltype(rhs.x, *this)
     {
         x += rhs.x;
         return *this;
     }
 
     template <class T>
-    constexpr auto operator-=(const T& rhs) -> decltype(static_cast<void>(rhs.x), *this)
+    constexpr auto operator-=(const T& rhs) -> decltype(rhs.x, *this)
     {
         x -= rhs.x;
         return *this;
     }
 
     template <class T>
-    constexpr auto operator*=(const T& rhs) -> decltype(static_cast<void>(rhs.x), *this)
+    constexpr auto operator*=(const T& rhs) -> decltype(rhs.x, *this)
     {
         x *= rhs.x;
         return *this;
     }
 
     template <class T>
-    constexpr auto operator/=(const T& rhs) -> decltype(static_cast<void>(rhs.x), *this)
+    constexpr auto operator/=(const T& rhs) -> decltype(rhs.x, *this)
     {
         x /= rhs.x;
         return *this;
     }
 
     template <class T>
-    constexpr auto operator%=(const T& rhs) -> decltype(static_cast<void>(rhs.x), *this)
+    constexpr auto operator%=(const T& rhs) -> decltype(rhs.x, *this)
     {
         x %= rhs.x;
         return *this;

@@ -333,15 +333,21 @@ __device__ void resize_cubic(Input input, Output output, Scales scales, float cu
 
         for(index_int combo = 0; combo < total_combos; ++combo)
         {
-            float w          = 1.0f;
             auto combo_multi = combo_lens.multi(combo);
 
+            // 2. Compute the combined weight as a product of per-dimension weights
+            float w = inner_product(
+                active_dims.begin(), active_dims.begin() + active_count,
+                active_dims.begin(),
+                1.0f,
+                [](float a, float b) { return a * b; },
+                [&](index_int d, index_int) { return params[d].weights[combo_multi[d]]; });
+
+            // 3. Set in_multi for each active dimension from the neighbor indices
             for(index_int i = 0; i < active_count; ++i)
             {
-                index_int d            = active_dims[i];
-                index_int neighbor_idx = combo_multi[d];
-                w *= params[d].weights[neighbor_idx];
-                in_multi[d] = params[d].indices[neighbor_idx];
+                index_int d = active_dims[i];
+                in_multi[d] = params[d].indices[combo_multi[d]];
             }
 
             if(migraphx::abs(w) > 1e-10f)

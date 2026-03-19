@@ -26,6 +26,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/make_op.hpp>
 #include "test.hpp"
+#include "rob.hpp"
 
 TEST_CASE(check_undefined)
 {
@@ -605,6 +606,35 @@ TEST_CASE(find_instructions_between_complex)
     EXPECT(result.count(y) == 0);
     EXPECT(result.count(z) == 0);
     EXPECT(result.count(add2) == 0);
+}
+
+// Verify that replacing a @literal instruction clears the literal data.
+// This ensures host memory from parsed weights is freed after compilation
+// replaces @literal with gpu_literal via instruction::replace().
+MIGRAPHX_ROB(access_ins_lit, migraphx::literal, migraphx::instruction, lit)
+
+TEST_CASE(check_replace_clears_literal)
+{
+    migraphx::module m;
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    std::vector<float> data = {1, 2, 3, 4, 5, 6};
+
+    auto lit = m.add_literal(migraphx::literal(s, data));
+
+    // Before replacement: literal data is present
+    EXPECT(lit->name() == "@literal");
+    EXPECT(not access_ins_lit(*lit).empty());
+
+    // Replace @literal with a non-literal op via module API
+    auto input = m.add_parameter("x", s);
+    m.replace_instruction(lit, migraphx::make_op("abs"), input);
+
+    // After replacement: no longer @literal
+    EXPECT(lit->name() == "abs");
+
+    // After replacement: literal data should be cleared
+    EXPECT(lit->name() == "abs");
+    EXPECT(access_ins_lit(*lit).empty());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

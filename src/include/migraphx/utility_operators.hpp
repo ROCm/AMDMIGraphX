@@ -141,8 +141,8 @@ struct arithmetic : detail::arithmetic_base
     struct private_ops
     {
         template <class T, class U, MIGRAPHX_REQUIRES(std::is_same<T, X>{})>
-        static constexpr auto add(T x, const U& y)
-            -> typename std::decay<decltype(void(x += y), x)>::type
+        static constexpr auto add(T x, const U& y) ->
+            typename std::decay<decltype(void(x += y), x)>::type
         {
             x += y;
             return x;
@@ -152,24 +152,24 @@ struct arithmetic : detail::arithmetic_base
                   class U,
                   MIGRAPHX_REQUIRES(std::is_same<T, X>{} and
                                     not std::is_base_of<detail::arithmetic_base, U>{})>
-        static constexpr auto add_commute(T x, const U& y)
-            -> typename std::decay<decltype(void(x += y), x)>::type
+        static constexpr auto add_commute(T x, const U& y) ->
+            typename std::decay<decltype(void(x += y), x)>::type
         {
             x += y;
             return x;
         }
 
         template <class T, class U, MIGRAPHX_REQUIRES(std::is_same<T, X>{})>
-        static constexpr auto sub(T x, const U& y)
-            -> typename std::decay<decltype(void(x -= y), x)>::type
+        static constexpr auto sub(T x, const U& y) ->
+            typename std::decay<decltype(void(x -= y), x)>::type
         {
             x -= y;
             return x;
         }
 
         template <class T, class U, MIGRAPHX_REQUIRES(std::is_same<T, X>{})>
-        static constexpr auto mul(T x, const U& y)
-            -> typename std::decay<decltype(void(x *= y), x)>::type
+        static constexpr auto mul(T x, const U& y) ->
+            typename std::decay<decltype(void(x *= y), x)>::type
         {
             x *= y;
             return x;
@@ -179,24 +179,24 @@ struct arithmetic : detail::arithmetic_base
                   class U,
                   MIGRAPHX_REQUIRES(std::is_same<T, X>{} and
                                     not std::is_base_of<detail::arithmetic_base, U>{})>
-        static constexpr auto mul_commute(T x, const U& y)
-            -> typename std::decay<decltype(void(x *= y), x)>::type
+        static constexpr auto mul_commute(T x, const U& y) ->
+            typename std::decay<decltype(void(x *= y), x)>::type
         {
             x *= y;
             return x;
         }
 
         template <class T, class U, MIGRAPHX_REQUIRES(std::is_same<T, X>{})>
-        static constexpr auto div(T x, const U& y)
-            -> typename std::decay<decltype(void(x /= y), x)>::type
+        static constexpr auto div(T x, const U& y) ->
+            typename std::decay<decltype(void(x /= y), x)>::type
         {
             x /= y;
             return x;
         }
 
         template <class T, class U, MIGRAPHX_REQUIRES(std::is_same<T, X>{})>
-        static constexpr auto mod(T x, const U& y)
-            -> typename std::decay<decltype(void(x %= y), x)>::type
+        static constexpr auto mod(T x, const U& y) ->
+            typename std::decay<decltype(void(x %= y), x)>::type
         {
             x %= y;
             return x;

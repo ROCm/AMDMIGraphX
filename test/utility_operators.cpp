@@ -253,7 +253,7 @@ TEST_CASE(compare_template1)
 }
 
 struct custom_addable : migraphx::arithmetic<custom_addable>,
-                       migraphx::equality_comparable<custom_addable>
+                        migraphx::equality_comparable<custom_addable>
 {
     int x;
 
@@ -290,7 +290,7 @@ struct custom_addable : migraphx::arithmetic<custom_addable>,
 };
 
 struct custom_addable_subtractable : migraphx::arithmetic<custom_addable_subtractable>,
-                                    migraphx::equality_comparable<custom_addable_subtractable>
+                                     migraphx::equality_comparable<custom_addable_subtractable>
 {
     int x;
 
@@ -320,10 +320,7 @@ struct custom_addable_subtractable : migraphx::arithmetic<custom_addable_subtrac
         return *this;
     }
 
-    constexpr bool operator==(const custom_addable_subtractable& rhs) const
-    {
-        return x == rhs.x;
-    }
+    constexpr bool operator==(const custom_addable_subtractable& rhs) const { return x == rhs.x; }
 
     constexpr bool operator==(int rhs) const { return x == rhs; }
 
@@ -448,7 +445,7 @@ struct custom_all_arithmetic : migraphx::arithmetic<custom_all_arithmetic>,
 };
 
 struct custom_all_arithmetic_adl : migraphx::arithmetic<custom_all_arithmetic_adl>,
-                                  migraphx::equality_comparable<custom_all_arithmetic_adl>
+                                   migraphx::equality_comparable<custom_all_arithmetic_adl>
 {
     int x;
 

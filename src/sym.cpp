@@ -50,6 +50,53 @@ value value_max(const value& a, const value& b)
     return value_invoke_common([](auto x, auto y) { return x > y ? x : y; }, a, b);
 }
 
+interval operator+(interval a, interval b)
+{
+    auto f = [](auto x, auto y) { return x + y; };
+    return {value_invoke_common(f, a.min, b.min), value_invoke_common(f, a.max, b.max)};
+}
+
+interval operator-(interval a, interval b)
+{
+    auto f = [](auto x, auto y) { return x - y; };
+    return {value_invoke_common(f, a.min, b.max), value_invoke_common(f, a.max, b.min)};
+}
+
+interval operator*(interval a, interval b)
+{
+    auto f  = [](auto x, auto y) { return x * y; };
+    auto p1 = value_invoke_common(f, a.min, b.min);
+    auto p2 = value_invoke_common(f, a.min, b.max);
+    auto p3 = value_invoke_common(f, a.max, b.min);
+    auto p4 = value_invoke_common(f, a.max, b.max);
+    return {value_min(value_min(p1, p2), value_min(p3, p4)),
+            value_max(value_max(p1, p2), value_max(p3, p4))};
+}
+
+interval operator/(interval a, interval b)
+{
+    auto f  = [](auto x, auto y) { return x / y; };
+    auto p1 = value_invoke_common(f, a.min, b.min);
+    auto p2 = value_invoke_common(f, a.min, b.max);
+    auto p3 = value_invoke_common(f, a.max, b.min);
+    auto p4 = value_invoke_common(f, a.max, b.max);
+    return {value_min(value_min(p1, p2), value_min(p3, p4)),
+            value_max(value_max(p1, p2), value_max(p3, p4))};
+}
+
+interval operator-(interval a)
+{
+    auto f = [](auto x) { return -x; };
+    return {value_invoke_common(f, a.max), value_invoke_common(f, a.min)};
+}
+
+bool operator==(const interval& a, const interval& b)
+{
+    return a.min == b.min and a.max == b.max;
+}
+
+bool operator!=(const interval& a, const interval& b) { return not(a == b); }
+
 expr var(std::string name) { return expr(variable_node{std::move(name), {}}); }
 
 expr var(std::string name, interval constraint)

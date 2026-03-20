@@ -81,52 +81,13 @@ struct interval
     value min = int64_t{0};
     value max = int64_t{0};
 
-    friend interval operator+(interval a, interval b)
-    {
-        auto f = [](auto x, auto y) { return x + y; };
-        return {value_invoke_common(f, a.min, b.min), value_invoke_common(f, a.max, b.max)};
-    }
-
-    friend interval operator-(interval a, interval b)
-    {
-        auto f = [](auto x, auto y) { return x - y; };
-        return {value_invoke_common(f, a.min, b.max), value_invoke_common(f, a.max, b.min)};
-    }
-
-    friend interval operator*(interval a, interval b)
-    {
-        auto f  = [](auto x, auto y) { return x * y; };
-        auto p1 = value_invoke_common(f, a.min, b.min);
-        auto p2 = value_invoke_common(f, a.min, b.max);
-        auto p3 = value_invoke_common(f, a.max, b.min);
-        auto p4 = value_invoke_common(f, a.max, b.max);
-        return {value_min(value_min(p1, p2), value_min(p3, p4)),
-                value_max(value_max(p1, p2), value_max(p3, p4))};
-    }
-
-    friend interval operator/(interval a, interval b)
-    {
-        auto f  = [](auto x, auto y) { return x / y; };
-        auto p1 = value_invoke_common(f, a.min, b.min);
-        auto p2 = value_invoke_common(f, a.min, b.max);
-        auto p3 = value_invoke_common(f, a.max, b.min);
-        auto p4 = value_invoke_common(f, a.max, b.max);
-        return {value_min(value_min(p1, p2), value_min(p3, p4)),
-                value_max(value_max(p1, p2), value_max(p3, p4))};
-    }
-
-    friend interval operator-(interval a)
-    {
-        auto f = [](auto x) { return -x; };
-        return {value_invoke_common(f, a.max), value_invoke_common(f, a.min)};
-    }
-
-    friend bool operator==(const interval& a, const interval& b)
-    {
-        return a.min == b.min and a.max == b.max;
-    }
-
-    friend bool operator!=(const interval& a, const interval& b) { return not(a == b); }
+    friend interval operator+(interval a, interval b);
+    friend interval operator-(interval a, interval b);
+    friend interval operator*(interval a, interval b);
+    friend interval operator/(interval a, interval b);
+    friend interval operator-(interval a);
+    friend bool operator==(const interval& a, const interval& b);
+    friend bool operator!=(const interval& a, const interval& b);
 };
 
 struct op_def

@@ -39,7 +39,7 @@ TEST_CASE(mha_bias_key_padding_mask_attention_bias_test)
     migraphx::shape attn_bias_s{migraphx::shape::float_type, {1, 2, 2, 2}};
 
     std::vector<float> query = {1, 2, 3, 4, 5, 6, 7, 8};
-    std::vector<float> key = {1, 2, 3, 4, 5, 6, 7, 8};
+    std::vector<float> key   = {1, 2, 3, 4, 5, 6, 7, 8};
     std::vector<float> value = {1, 2, 3, 4, 5, 6, 7, 8};
     std::vector<float> bias_data(12, 0);
     std::vector<int32_t> mask_data = {1, 1};

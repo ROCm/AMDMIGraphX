@@ -179,6 +179,15 @@ struct arithmetic
         return x;
     }
 
+    template <class U, class T>
+    friend constexpr auto operator+(const U& x, const T& y)
+        -> decltype(void(private_ops::add1(std::declval<X&>(), y)), X{x})
+    {
+        X temp{x};
+        private_ops::add1(temp, y);
+        return temp;
+    }
+
     friend constexpr auto operator-(X x, const X& y)
     {
         private_ops::sub1(x, y);
@@ -191,6 +200,15 @@ struct arithmetic
     {
         private_ops::sub2(x, y);
         return x;
+    }
+
+    template <class U, class T>
+    friend constexpr auto operator-(const U& x, const T& y)
+        -> decltype(void(private_ops::sub1(std::declval<X&>(), y)), X{x})
+    {
+        X temp{x};
+        private_ops::sub1(temp, y);
+        return temp;
     }
 
     friend constexpr auto operator*(X x, const X& y)
@@ -207,6 +225,15 @@ struct arithmetic
         return x;
     }
 
+    template <class U, class T>
+    friend constexpr auto operator*(const U& x, const T& y)
+        -> decltype(void(private_ops::mul1(std::declval<X&>(), y)), X{x})
+    {
+        X temp{x};
+        private_ops::mul1(temp, y);
+        return temp;
+    }
+
     friend constexpr auto operator/(X x, const X& y)
     {
         private_ops::div1(x, y);
@@ -221,6 +248,15 @@ struct arithmetic
         return x;
     }
 
+    template <class U, class T>
+    friend constexpr auto operator/(const U& x, const T& y)
+        -> decltype(void(private_ops::div1(std::declval<X&>(), y)), X{x})
+    {
+        X temp{x};
+        private_ops::div1(temp, y);
+        return temp;
+    }
+
     friend constexpr auto operator%(X x, const X& y)
     {
         private_ops::mod1(x, y);
@@ -233,6 +269,15 @@ struct arithmetic
     {
         private_ops::mod2(x, y);
         return x;
+    }
+
+    template <class U, class T>
+    friend constexpr auto operator%(const U& x, const T& y)
+        -> decltype(void(private_ops::mod1(std::declval<X&>(), y)), X{x})
+    {
+        X temp{x};
+        private_ops::mod1(temp, y);
+        return temp;
     }
 };
 

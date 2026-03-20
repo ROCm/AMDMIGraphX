@@ -670,8 +670,11 @@ TEST_CASE(arithmetic_addable_mixed)
 {
     custom_addable a{3};
     EXPECT(a + 2 == custom_addable{5});
+    EXPECT(2 + a == custom_addable{5});
     EXPECT(a + 0 == custom_addable{3});
+    EXPECT(0 + a == custom_addable{3});
     EXPECT(a + 10 == custom_addable{13});
+    EXPECT(10 + a == custom_addable{13});
 }
 
 TEST_CASE(arithmetic_addable_does_not_modify)
@@ -685,6 +688,9 @@ TEST_CASE(arithmetic_addable_does_not_modify)
     auto d = a + 1;
     EXPECT(a == custom_addable{3});
     EXPECT(d == custom_addable{4});
+    auto e = 1 + a;
+    EXPECT(a == custom_addable{3});
+    EXPECT(e == custom_addable{4});
 }
 
 TEST_CASE(arithmetic_addable_subtractable_add)
@@ -693,6 +699,7 @@ TEST_CASE(arithmetic_addable_subtractable_add)
     custom_addable_subtractable b{3};
     EXPECT(a + b == custom_addable_subtractable{13});
     EXPECT(a + 5 == custom_addable_subtractable{15});
+    EXPECT(5 + a == custom_addable_subtractable{15});
 }
 
 TEST_CASE(arithmetic_addable_subtractable_sub)
@@ -721,6 +728,7 @@ TEST_CASE(arithmetic_all_add)
     custom_all_arithmetic b{3};
     EXPECT(a + b == custom_all_arithmetic{10});
     EXPECT(a + 2 == custom_all_arithmetic{9});
+    EXPECT(2 + a == custom_all_arithmetic{9});
 }
 
 TEST_CASE(arithmetic_all_sub)
@@ -729,6 +737,7 @@ TEST_CASE(arithmetic_all_sub)
     custom_all_arithmetic b{3};
     EXPECT(a - b == custom_all_arithmetic{4});
     EXPECT(a - 2 == custom_all_arithmetic{5});
+    EXPECT(10 - a == custom_all_arithmetic{3});
 }
 
 TEST_CASE(arithmetic_all_mul)
@@ -737,6 +746,7 @@ TEST_CASE(arithmetic_all_mul)
     custom_all_arithmetic b{3};
     EXPECT(a * b == custom_all_arithmetic{21});
     EXPECT(a * 2 == custom_all_arithmetic{14});
+    EXPECT(2 * a == custom_all_arithmetic{14});
 }
 
 TEST_CASE(arithmetic_all_div)
@@ -746,6 +756,7 @@ TEST_CASE(arithmetic_all_div)
     EXPECT(a / b == custom_all_arithmetic{4});
     EXPECT(a / 4 == custom_all_arithmetic{3});
     EXPECT(a / 2 == custom_all_arithmetic{6});
+    EXPECT(20 / b == custom_all_arithmetic{6});
 }
 
 TEST_CASE(arithmetic_all_mod)
@@ -755,6 +766,7 @@ TEST_CASE(arithmetic_all_mod)
     EXPECT(a % b == custom_all_arithmetic{1});
     EXPECT(a % 4 == custom_all_arithmetic{2});
     EXPECT(a % 7 == custom_all_arithmetic{3});
+    EXPECT(17 % b == custom_all_arithmetic{2});
 }
 
 TEST_CASE(arithmetic_all_does_not_modify)
@@ -820,6 +832,7 @@ TEST_CASE(arithmetic_adl_add)
     custom_all_arithmetic_adl b{3};
     EXPECT(a + b == custom_all_arithmetic_adl{10});
     EXPECT(a + 2 == custom_all_arithmetic_adl{9});
+    EXPECT(2 + a == custom_all_arithmetic_adl{9});
 }
 
 TEST_CASE(arithmetic_adl_sub)
@@ -828,6 +841,7 @@ TEST_CASE(arithmetic_adl_sub)
     custom_all_arithmetic_adl b{3};
     EXPECT(a - b == custom_all_arithmetic_adl{4});
     EXPECT(a - 2 == custom_all_arithmetic_adl{5});
+    EXPECT(10 - a == custom_all_arithmetic_adl{3});
 }
 
 TEST_CASE(arithmetic_adl_mul)
@@ -836,6 +850,7 @@ TEST_CASE(arithmetic_adl_mul)
     custom_all_arithmetic_adl b{3};
     EXPECT(a * b == custom_all_arithmetic_adl{21});
     EXPECT(a * 2 == custom_all_arithmetic_adl{14});
+    EXPECT(2 * a == custom_all_arithmetic_adl{14});
 }
 
 TEST_CASE(arithmetic_adl_div)
@@ -844,6 +859,7 @@ TEST_CASE(arithmetic_adl_div)
     custom_all_arithmetic_adl b{3};
     EXPECT(a / b == custom_all_arithmetic_adl{4});
     EXPECT(a / 4 == custom_all_arithmetic_adl{3});
+    EXPECT(20 / b == custom_all_arithmetic_adl{6});
 }
 
 TEST_CASE(arithmetic_adl_mod)
@@ -852,6 +868,7 @@ TEST_CASE(arithmetic_adl_mod)
     custom_all_arithmetic_adl b{3};
     EXPECT(a % b == custom_all_arithmetic_adl{1});
     EXPECT(a % 4 == custom_all_arithmetic_adl{2});
+    EXPECT(17 % b == custom_all_arithmetic_adl{2});
 }
 
 TEST_CASE(arithmetic_adl_does_not_modify)

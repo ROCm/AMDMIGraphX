@@ -165,8 +165,9 @@ class MIGRAPHX_EXPORT expr
 
     template <class Node>
     explicit expr(Node node, std::vector<expr> children = {})
-     : pimpl(make_impl(node_variant{std::move(node)}, std::move(children)))
-     {}
+        : pimpl(make_impl(node_variant{std::move(node)}, std::move(children)))
+    {
+    }
 
     value eval(const std::unordered_map<std::string, value>& vars) const;
     interval eval_interval(const std::unordered_map<std::string, interval>& vars) const;

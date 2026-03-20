@@ -949,4 +949,380 @@ TEST_CASE(arithmetic_cross_class_does_not_modify)
     EXPECT(d == custom_addable{13});
 }
 
+struct custom_bitwise_and_or : migraphx::bitwise<custom_bitwise_and_or>,
+                               migraphx::equality_comparable<custom_bitwise_and_or>
+{
+    int x;
+
+    constexpr explicit custom_bitwise_and_or(int px) : x(px) {}
+
+    constexpr auto operator&=(const custom_bitwise_and_or& rhs)
+    {
+        x &= rhs.x;
+        return *this;
+    }
+
+    constexpr auto operator&=(int rhs)
+    {
+        x &= rhs;
+        return *this;
+    }
+
+    constexpr auto operator|=(const custom_bitwise_and_or& rhs)
+    {
+        x |= rhs.x;
+        return *this;
+    }
+
+    constexpr auto operator|=(int rhs)
+    {
+        x |= rhs;
+        return *this;
+    }
+
+    constexpr bool operator==(const custom_bitwise_and_or& rhs) const { return x == rhs.x; }
+
+    constexpr bool operator==(int rhs) const { return x == rhs; }
+
+    template <class Stream>
+    friend Stream& operator<<(Stream& os, const custom_bitwise_and_or& self)
+    {
+        return os << self.x;
+    }
+};
+
+struct custom_all_bitwise : migraphx::bitwise<custom_all_bitwise>,
+                            migraphx::equality_comparable<custom_all_bitwise>
+{
+    int x;
+
+    constexpr explicit custom_all_bitwise(int px) : x(px) {}
+
+    constexpr auto operator&=(const custom_all_bitwise& rhs)
+    {
+        x &= rhs.x;
+        return *this;
+    }
+
+    constexpr auto operator&=(int rhs)
+    {
+        x &= rhs;
+        return *this;
+    }
+
+    constexpr auto operator|=(const custom_all_bitwise& rhs)
+    {
+        x |= rhs.x;
+        return *this;
+    }
+
+    constexpr auto operator|=(int rhs)
+    {
+        x |= rhs;
+        return *this;
+    }
+
+    constexpr auto operator^=(const custom_all_bitwise& rhs)
+    {
+        x ^= rhs.x;
+        return *this;
+    }
+
+    constexpr auto operator^=(int rhs)
+    {
+        x ^= rhs;
+        return *this;
+    }
+
+    constexpr auto operator<<=(const custom_all_bitwise& rhs)
+    {
+        x <<= rhs.x;
+        return *this;
+    }
+
+    constexpr auto operator<<=(int rhs)
+    {
+        x <<= rhs;
+        return *this;
+    }
+
+    constexpr auto operator>>=(const custom_all_bitwise& rhs)
+    {
+        x >>= rhs.x;
+        return *this;
+    }
+
+    constexpr auto operator>>=(int rhs)
+    {
+        x >>= rhs;
+        return *this;
+    }
+
+    constexpr bool operator==(const custom_all_bitwise& rhs) const { return x == rhs.x; }
+
+    constexpr bool operator==(int rhs) const { return x == rhs; }
+
+    template <class Stream>
+    friend Stream& operator<<(Stream& os, const custom_all_bitwise& self)
+    {
+        return os << self.x;
+    }
+};
+
+struct custom_all_bitwise_adl : migraphx::bitwise<custom_all_bitwise_adl>,
+                                migraphx::equality_comparable<custom_all_bitwise_adl>
+{
+    int x;
+
+    constexpr explicit custom_all_bitwise_adl(int px) : x(px) {}
+
+    friend constexpr custom_all_bitwise_adl& operator&=(custom_all_bitwise_adl& lhs,
+                                                        const custom_all_bitwise_adl& rhs)
+    {
+        lhs.x &= rhs.x;
+        return lhs;
+    }
+
+    template <class T, MIGRAPHX_REQUIRES(not std::is_same<T, custom_all_bitwise_adl>{})>
+    friend constexpr auto operator&=(custom_all_bitwise_adl& lhs, const T& rhs)
+        -> decltype(std::declval<int&>() &= rhs, lhs)
+    {
+        lhs.x &= rhs;
+        return lhs;
+    }
+
+    friend constexpr custom_all_bitwise_adl& operator|=(custom_all_bitwise_adl& lhs,
+                                                        const custom_all_bitwise_adl& rhs)
+    {
+        lhs.x |= rhs.x;
+        return lhs;
+    }
+
+    template <class T, MIGRAPHX_REQUIRES(not std::is_same<T, custom_all_bitwise_adl>{})>
+    friend constexpr auto operator|=(custom_all_bitwise_adl& lhs, const T& rhs)
+        -> decltype(std::declval<int&>() |= rhs, lhs)
+    {
+        lhs.x |= rhs;
+        return lhs;
+    }
+
+    friend constexpr custom_all_bitwise_adl& operator^=(custom_all_bitwise_adl& lhs,
+                                                        const custom_all_bitwise_adl& rhs)
+    {
+        lhs.x ^= rhs.x;
+        return lhs;
+    }
+
+    template <class T, MIGRAPHX_REQUIRES(not std::is_same<T, custom_all_bitwise_adl>{})>
+    friend constexpr auto operator^=(custom_all_bitwise_adl& lhs, const T& rhs)
+        -> decltype(std::declval<int&>() ^= rhs, lhs)
+    {
+        lhs.x ^= rhs;
+        return lhs;
+    }
+
+    friend constexpr custom_all_bitwise_adl& operator<<=(custom_all_bitwise_adl& lhs,
+                                                         const custom_all_bitwise_adl& rhs)
+    {
+        lhs.x <<= rhs.x;
+        return lhs;
+    }
+
+    template <class T, MIGRAPHX_REQUIRES(not std::is_same<T, custom_all_bitwise_adl>{})>
+    friend constexpr auto operator<<=(custom_all_bitwise_adl& lhs, const T& rhs)
+        -> decltype(std::declval<int&>() <<= rhs, lhs)
+    {
+        lhs.x <<= rhs;
+        return lhs;
+    }
+
+    friend constexpr custom_all_bitwise_adl& operator>>=(custom_all_bitwise_adl& lhs,
+                                                         const custom_all_bitwise_adl& rhs)
+    {
+        lhs.x >>= rhs.x;
+        return lhs;
+    }
+
+    template <class T, MIGRAPHX_REQUIRES(not std::is_same<T, custom_all_bitwise_adl>{})>
+    friend constexpr auto operator>>=(custom_all_bitwise_adl& lhs, const T& rhs)
+        -> decltype(std::declval<int&>() >>= rhs, lhs)
+    {
+        lhs.x >>= rhs;
+        return lhs;
+    }
+
+    friend constexpr bool operator==(const custom_all_bitwise_adl& lhs,
+                                     const custom_all_bitwise_adl& rhs)
+    {
+        return lhs.x == rhs.x;
+    }
+
+    template <class T, MIGRAPHX_REQUIRES(not std::is_same<T, custom_all_bitwise_adl>{})>
+    friend constexpr auto operator==(const custom_all_bitwise_adl& lhs, const T& rhs)
+        -> decltype(std::declval<int>() == rhs)
+    {
+        return lhs.x == rhs;
+    }
+
+    template <class Stream>
+    friend Stream& operator<<(Stream& os, const custom_all_bitwise_adl& self)
+    {
+        return os << self.x;
+    }
+};
+
+TEST_CASE(bitwise_and_or_same_type)
+{
+    custom_bitwise_and_or a{0b1100};
+    custom_bitwise_and_or b{0b1010};
+    EXPECT((a & b) == custom_bitwise_and_or{0b1000});
+    EXPECT((a | b) == custom_bitwise_and_or{0b1110});
+}
+
+TEST_CASE(bitwise_and_or_mixed)
+{
+    custom_bitwise_and_or a{0b1100};
+    EXPECT((a & 0b1010) == custom_bitwise_and_or{0b1000});
+    EXPECT((0b1010 & a) == custom_bitwise_and_or{0b1000});
+    EXPECT((a | 0b0011) == custom_bitwise_and_or{0b1111});
+    EXPECT((0b0011 | a) == custom_bitwise_and_or{0b1111});
+}
+
+TEST_CASE(bitwise_and_or_does_not_modify)
+{
+    custom_bitwise_and_or a{0b1100};
+    custom_bitwise_and_or b{0b1010};
+    auto c = a & b;
+    EXPECT(a == custom_bitwise_and_or{0b1100});
+    EXPECT(b == custom_bitwise_and_or{0b1010});
+    EXPECT(c == custom_bitwise_and_or{0b1000});
+}
+
+TEST_CASE(bitwise_all_and)
+{
+    custom_all_bitwise a{0b1100};
+    custom_all_bitwise b{0b1010};
+    EXPECT((a & b) == custom_all_bitwise{0b1000});
+    EXPECT((a & 0b1010) == custom_all_bitwise{0b1000});
+    EXPECT((0b1010 & a) == custom_all_bitwise{0b1000});
+}
+
+TEST_CASE(bitwise_all_or)
+{
+    custom_all_bitwise a{0b1100};
+    custom_all_bitwise b{0b0011};
+    EXPECT((a | b) == custom_all_bitwise{0b1111});
+    EXPECT((a | 0b0011) == custom_all_bitwise{0b1111});
+    EXPECT((0b0011 | a) == custom_all_bitwise{0b1111});
+}
+
+TEST_CASE(bitwise_all_xor)
+{
+    custom_all_bitwise a{0b1100};
+    custom_all_bitwise b{0b1010};
+    EXPECT((a ^ b) == custom_all_bitwise{0b0110});
+    EXPECT((a ^ 0b1010) == custom_all_bitwise{0b0110});
+    EXPECT((0b1010 ^ a) == custom_all_bitwise{0b0110});
+}
+
+TEST_CASE(bitwise_all_shl)
+{
+    custom_all_bitwise a{0b0011};
+    custom_all_bitwise b{2};
+    EXPECT((a << b) == custom_all_bitwise{0b1100});
+    EXPECT((a << 2) == custom_all_bitwise{0b1100});
+    EXPECT((1 << b) == custom_all_bitwise{4});
+}
+
+TEST_CASE(bitwise_all_shr)
+{
+    custom_all_bitwise a{0b1100};
+    custom_all_bitwise b{2};
+    EXPECT((a >> b) == custom_all_bitwise{0b0011});
+    EXPECT((a >> 2) == custom_all_bitwise{0b0011});
+    EXPECT((16 >> b) == custom_all_bitwise{4});
+}
+
+TEST_CASE(bitwise_all_does_not_modify)
+{
+    custom_all_bitwise a{0b1100};
+    custom_all_bitwise b{0b1010};
+    auto c1 = a & b;
+    auto c2 = a | b;
+    auto c3 = a ^ b;
+    EXPECT(a == custom_all_bitwise{0b1100});
+    EXPECT(b == custom_all_bitwise{0b1010});
+    EXPECT(c1 == custom_all_bitwise{0b1000});
+    EXPECT(c2 == custom_all_bitwise{0b1110});
+    EXPECT(c3 == custom_all_bitwise{0b0110});
+}
+
+TEST_CASE(bitwise_all_chain)
+{
+    custom_all_bitwise a{0b1100};
+    custom_all_bitwise b{0b1010};
+    custom_all_bitwise c{0b0110};
+    EXPECT((a & b | c) == custom_all_bitwise{0b1110});
+    EXPECT(((a | b) ^ c) == custom_all_bitwise{0b1000});
+}
+
+TEST_CASE(bitwise_adl_and)
+{
+    custom_all_bitwise_adl a{0b1100};
+    custom_all_bitwise_adl b{0b1010};
+    EXPECT((a & b) == custom_all_bitwise_adl{0b1000});
+    EXPECT((a & 0b1010) == custom_all_bitwise_adl{0b1000});
+    EXPECT((0b1010 & a) == custom_all_bitwise_adl{0b1000});
+}
+
+TEST_CASE(bitwise_adl_or)
+{
+    custom_all_bitwise_adl a{0b1100};
+    custom_all_bitwise_adl b{0b0011};
+    EXPECT((a | b) == custom_all_bitwise_adl{0b1111});
+    EXPECT((a | 0b0011) == custom_all_bitwise_adl{0b1111});
+    EXPECT((0b0011 | a) == custom_all_bitwise_adl{0b1111});
+}
+
+TEST_CASE(bitwise_adl_xor)
+{
+    custom_all_bitwise_adl a{0b1100};
+    custom_all_bitwise_adl b{0b1010};
+    EXPECT((a ^ b) == custom_all_bitwise_adl{0b0110});
+    EXPECT((a ^ 0b1010) == custom_all_bitwise_adl{0b0110});
+    EXPECT((0b1010 ^ a) == custom_all_bitwise_adl{0b0110});
+}
+
+TEST_CASE(bitwise_adl_shl)
+{
+    custom_all_bitwise_adl a{0b0011};
+    custom_all_bitwise_adl b{2};
+    EXPECT((a << b) == custom_all_bitwise_adl{0b1100});
+    EXPECT((a << 2) == custom_all_bitwise_adl{0b1100});
+    EXPECT((1 << b) == custom_all_bitwise_adl{4});
+}
+
+TEST_CASE(bitwise_adl_shr)
+{
+    custom_all_bitwise_adl a{0b1100};
+    custom_all_bitwise_adl b{2};
+    EXPECT((a >> b) == custom_all_bitwise_adl{0b0011});
+    EXPECT((a >> 2) == custom_all_bitwise_adl{0b0011});
+    EXPECT((16 >> b) == custom_all_bitwise_adl{4});
+}
+
+TEST_CASE(bitwise_adl_does_not_modify)
+{
+    custom_all_bitwise_adl a{0b1100};
+    custom_all_bitwise_adl b{0b1010};
+    auto c1 = a & b;
+    auto c2 = a | b;
+    auto c3 = a ^ b;
+    EXPECT(a == custom_all_bitwise_adl{0b1100});
+    EXPECT(b == custom_all_bitwise_adl{0b1010});
+    EXPECT(c1 == custom_all_bitwise_adl{0b1000});
+    EXPECT(c2 == custom_all_bitwise_adl{0b1110});
+    EXPECT(c3 == custom_all_bitwise_adl{0b0110});
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

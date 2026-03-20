@@ -281,6 +281,158 @@ struct arithmetic
     }
 };
 
+template <class X>
+struct bitwise
+{
+    struct private_ops
+    {
+        template <class U, MIGRAPHX_REQUIRES(std::is_same<U, X>{})>
+        static constexpr auto and1(U& x, const X& y) MIGRAPHX_RETURNS(x &= y);
+
+        template <class T, class U, MIGRAPHX_REQUIRES(std::is_same<T, X>{})>
+        static constexpr auto and2(T& x, const U& y) MIGRAPHX_RETURNS(x &= y);
+
+        template <class U, MIGRAPHX_REQUIRES(std::is_same<U, X>{})>
+        static constexpr auto or1(U& x, const X& y) MIGRAPHX_RETURNS(x |= y);
+
+        template <class T, class U, MIGRAPHX_REQUIRES(std::is_same<T, X>{})>
+        static constexpr auto or2(T& x, const U& y) MIGRAPHX_RETURNS(x |= y);
+
+        template <class U, MIGRAPHX_REQUIRES(std::is_same<U, X>{})>
+        static constexpr auto xor1(U& x, const X& y) MIGRAPHX_RETURNS(x ^= y);
+
+        template <class T, class U, MIGRAPHX_REQUIRES(std::is_same<T, X>{})>
+        static constexpr auto xor2(T& x, const U& y) MIGRAPHX_RETURNS(x ^= y);
+
+        template <class U, MIGRAPHX_REQUIRES(std::is_same<U, X>{})>
+        static constexpr auto shl1(U& x, const X& y) MIGRAPHX_RETURNS(x <<= y);
+
+        template <class T, class U, MIGRAPHX_REQUIRES(std::is_same<T, X>{})>
+        static constexpr auto shl2(T& x, const U& y) MIGRAPHX_RETURNS(x <<= y);
+
+        template <class U, MIGRAPHX_REQUIRES(std::is_same<U, X>{})>
+        static constexpr auto shr1(U& x, const X& y) MIGRAPHX_RETURNS(x >>= y);
+
+        template <class T, class U, MIGRAPHX_REQUIRES(std::is_same<T, X>{})>
+        static constexpr auto shr2(T& x, const U& y) MIGRAPHX_RETURNS(x >>= y);
+    };
+
+    friend constexpr auto operator&(X x, const X& y)
+    {
+        private_ops::and1(x, y);
+        return x;
+    }
+
+    template <class T, class U>
+    friend constexpr auto operator&(T x, const U& y)
+        -> std::decay_t<decltype(private_ops::and2(x, y), x)>
+    {
+        private_ops::and2(x, y);
+        return x;
+    }
+
+    template <class U, class T>
+    friend constexpr auto operator&(const U& x, const T& y)
+        -> decltype(void(private_ops::and1(std::declval<X&>(), y)), X{x})
+    {
+        X temp{x};
+        private_ops::and1(temp, y);
+        return temp;
+    }
+
+    friend constexpr auto operator|(X x, const X& y)
+    {
+        private_ops::or1(x, y);
+        return x;
+    }
+
+    template <class T, class U>
+    friend constexpr auto operator|(T x, const U& y)
+        -> std::decay_t<decltype(private_ops::or2(x, y), x)>
+    {
+        private_ops::or2(x, y);
+        return x;
+    }
+
+    template <class U, class T>
+    friend constexpr auto operator|(const U& x, const T& y)
+        -> decltype(void(private_ops::or1(std::declval<X&>(), y)), X{x})
+    {
+        X temp{x};
+        private_ops::or1(temp, y);
+        return temp;
+    }
+
+    friend constexpr auto operator^(X x, const X& y)
+    {
+        private_ops::xor1(x, y);
+        return x;
+    }
+
+    template <class T, class U>
+    friend constexpr auto operator^(T x, const U& y)
+        -> std::decay_t<decltype(private_ops::xor2(x, y), x)>
+    {
+        private_ops::xor2(x, y);
+        return x;
+    }
+
+    template <class U, class T>
+    friend constexpr auto operator^(const U& x, const T& y)
+        -> decltype(void(private_ops::xor1(std::declval<X&>(), y)), X{x})
+    {
+        X temp{x};
+        private_ops::xor1(temp, y);
+        return temp;
+    }
+
+    friend constexpr auto operator<<(X x, const X& y)
+    {
+        private_ops::shl1(x, y);
+        return x;
+    }
+
+    template <class T, class U>
+    friend constexpr auto operator<<(T x, const U& y)
+        -> std::decay_t<decltype(private_ops::shl2(x, y), x)>
+    {
+        private_ops::shl2(x, y);
+        return x;
+    }
+
+    template <class U, class T>
+    friend constexpr auto operator<<(const U& x, const T& y)
+        -> decltype(void(private_ops::shl1(std::declval<X&>(), y)), X{x})
+    {
+        X temp{x};
+        private_ops::shl1(temp, y);
+        return temp;
+    }
+
+    friend constexpr auto operator>>(X x, const X& y)
+    {
+        private_ops::shr1(x, y);
+        return x;
+    }
+
+    template <class T, class U>
+    friend constexpr auto operator>>(T x, const U& y)
+        -> std::decay_t<decltype(private_ops::shr2(x, y), x)>
+    {
+        private_ops::shr2(x, y);
+        return x;
+    }
+
+    template <class U, class T>
+    friend constexpr auto operator>>(const U& x, const T& y)
+        -> decltype(void(private_ops::shr1(std::declval<X&>(), y)), X{x})
+    {
+        X temp{x};
+        private_ops::shr1(temp, y);
+        return temp;
+    }
+};
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_MIGRAPHX_UTILITY_OPERATORS_HPP

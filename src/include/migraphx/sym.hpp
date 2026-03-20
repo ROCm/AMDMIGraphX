@@ -104,10 +104,7 @@ struct op_def
 struct literal_node
 {
     value val;
-    friend bool operator==(const literal_node& a, const literal_node& b)
-    {
-        return a.val == b.val;
-    }
+    friend bool operator==(const literal_node& a, const literal_node& b) { return a.val == b.val; }
     friend bool operator!=(const literal_node& a, const literal_node& b) { return not(a == b); }
 };
 
@@ -119,10 +116,7 @@ struct variable_node
     {
         return a.name == b.name and a.constraints == b.constraints;
     }
-    friend bool operator!=(const variable_node& a, const variable_node& b)
-    {
-        return not(a == b);
-    }
+    friend bool operator!=(const variable_node& a, const variable_node& b) { return not(a == b); }
 };
 
 struct op_node

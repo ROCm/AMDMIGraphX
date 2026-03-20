@@ -23,6 +23,7 @@
  *
  */
 // Test for StrlenEmptyString rule from rules.xml
+// cppcheck-suppress-file knownConditionTrueFalse
 #include <cstring>
 
 void test_strlen_greater_than_zero(const char* str)

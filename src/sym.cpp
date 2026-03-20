@@ -94,6 +94,22 @@ bool operator==(const interval& a, const interval& b) { return a.min == b.min an
 
 bool operator!=(const interval& a, const interval& b) { return not(a == b); }
 
+namespace {
+bool value_less(const value& a, const value& b)
+{
+    auto f = [](auto x, auto y) -> int64_t { return x < y ? 1 : 0; };
+    return std::get<int64_t>(value_invoke_common(f, a, b)) != 0;
+}
+} // namespace
+
+bool operator<(interval a, interval b) { return value_less(a.max, b.min); }
+
+bool operator<=(interval a, interval b) { return not value_less(b.min, a.max); }
+
+bool operator>(interval a, interval b) { return value_less(b.max, a.min); }
+
+bool operator>=(interval a, interval b) { return not value_less(a.min, b.max); }
+
 expr var(std::string name) { return expr(variable_node{std::move(name), {}}); }
 
 expr var(std::string name, interval constraint)
@@ -132,6 +148,17 @@ expr operator-(expr e)
 {
     return call("neg", [](auto x) { return -x; })(std::move(e));
 }
+
+bool operator==(const expr& a, const expr& b)
+{
+    if(a.pimpl == b.pimpl)
+        return true;
+    if(not a.pimpl or not b.pimpl)
+        return false;
+    return a.pimpl->node == b.pimpl->node and a.pimpl->children == b.pimpl->children;
+}
+
+bool operator!=(const expr& a, const expr& b) { return not(a == b); }
 
 expr sqrt(expr e)
 {

@@ -268,6 +268,169 @@ TEST_CASE(constraint_overridden_by_map)
     EXPECT(result == (interval{int64_t{5}, int64_t{10}}));
 }
 
+// ---- Interval comparison tests ----
+
+TEST_CASE(interval_less_true)
+{
+    // [1,3] < [5,7] → true (a.max < b.min)
+    interval a{int64_t{1}, int64_t{3}};
+    interval b{int64_t{5}, int64_t{7}};
+    EXPECT(a < b);
+}
+
+TEST_CASE(interval_less_false)
+{
+    // [5,7] < [1,3] → false
+    interval a{int64_t{5}, int64_t{7}};
+    interval b{int64_t{1}, int64_t{3}};
+    EXPECT(not(a < b));
+}
+
+TEST_CASE(interval_less_overlapping)
+{
+    // [1,5] < [3,7] → false (not all values satisfy)
+    interval a{int64_t{1}, int64_t{5}};
+    interval b{int64_t{3}, int64_t{7}};
+    EXPECT(not(a < b));
+}
+
+TEST_CASE(interval_less_equal_endpoint)
+{
+    // [1,5] < [5,10] → false (a.max == b.min, not strictly less)
+    interval a{int64_t{1}, int64_t{5}};
+    interval b{int64_t{5}, int64_t{10}};
+    EXPECT(not(a < b));
+}
+
+TEST_CASE(interval_leq_true)
+{
+    // [1,3] <= [3,5] → true (a.max <= b.min)
+    interval a{int64_t{1}, int64_t{3}};
+    interval b{int64_t{3}, int64_t{5}};
+    EXPECT(a <= b);
+}
+
+TEST_CASE(interval_leq_false)
+{
+    // [5,7] <= [1,3] → false
+    interval a{int64_t{5}, int64_t{7}};
+    interval b{int64_t{1}, int64_t{3}};
+    EXPECT(not(a <= b));
+}
+
+TEST_CASE(interval_leq_overlapping)
+{
+    // [1,5] <= [3,4] → false (not all values satisfy)
+    interval a{int64_t{1}, int64_t{5}};
+    interval b{int64_t{3}, int64_t{4}};
+    EXPECT(not(a <= b));
+}
+
+TEST_CASE(interval_greater_true)
+{
+    // [5,7] > [1,3] → true (a.min > b.max)
+    interval a{int64_t{5}, int64_t{7}};
+    interval b{int64_t{1}, int64_t{3}};
+    EXPECT(a > b);
+}
+
+TEST_CASE(interval_greater_false)
+{
+    // [1,3] > [5,7] → false
+    interval a{int64_t{1}, int64_t{3}};
+    interval b{int64_t{5}, int64_t{7}};
+    EXPECT(not(a > b));
+}
+
+TEST_CASE(interval_geq_true)
+{
+    // [3,5] >= [1,3] → true (a.min >= b.max)
+    interval a{int64_t{3}, int64_t{5}};
+    interval b{int64_t{1}, int64_t{3}};
+    EXPECT(a >= b);
+}
+
+TEST_CASE(interval_geq_false)
+{
+    // [1,3] >= [5,7] → false
+    interval a{int64_t{1}, int64_t{3}};
+    interval b{int64_t{5}, int64_t{7}};
+    EXPECT(not(a >= b));
+}
+
+TEST_CASE(interval_geq_overlapping)
+{
+    // [1,5] >= [3,7] → false (not all values satisfy)
+    interval a{int64_t{1}, int64_t{5}};
+    interval b{int64_t{3}, int64_t{7}};
+    EXPECT(not(a >= b));
+}
+
+// ---- Expr structural equality tests ----
+
+TEST_CASE(expr_equal_literals)
+{
+    EXPECT(lit(42) == lit(42));
+    EXPECT(lit(3.14) == lit(3.14));
+}
+
+TEST_CASE(expr_different_literals)
+{
+    EXPECT(lit(1) != lit(2));
+    EXPECT(lit(1) != lit(1.0));
+}
+
+TEST_CASE(expr_equal_variables)
+{
+    EXPECT(var("x") == var("x"));
+}
+
+TEST_CASE(expr_different_variables)
+{
+    EXPECT(var("x") != var("y"));
+}
+
+TEST_CASE(expr_variable_constraint_equality)
+{
+    auto c = interval{int64_t{0}, int64_t{10}};
+    EXPECT(var("x", c) == var("x", c));
+    EXPECT(var("x") != var("x", c));
+}
+
+TEST_CASE(expr_equal_compound)
+{
+    auto x = var("x");
+    EXPECT(x + lit(1) == x + lit(1));
+    EXPECT(x * lit(2) == x * lit(2));
+}
+
+TEST_CASE(expr_different_compound)
+{
+    auto x = var("x");
+    EXPECT(x + lit(1) != x + lit(2));
+    EXPECT(x + lit(1) != x * lit(1));
+}
+
+TEST_CASE(expr_shared_subexpr_identity)
+{
+    auto x   = var("x");
+    auto sub = x + lit(1);
+    EXPECT(sub == sub);
+}
+
+TEST_CASE(expr_default_constructed_equal)
+{
+    expr a;
+    expr b;
+    EXPECT(a == b);
+}
+
+TEST_CASE(expr_default_not_equal_to_lit)
+{
+    expr a;
+    EXPECT(a != lit(0));
+}
+
 TEST_CASE(custom_call_eval)
 {
     auto square = call("square", [](auto x) { return x * x; });

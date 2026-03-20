@@ -86,6 +86,10 @@ struct interval
     friend interval operator*(interval a, interval b);
     friend interval operator/(interval a, interval b);
     friend interval operator-(interval a);
+    friend bool operator<(interval a, interval b);
+    friend bool operator<=(interval a, interval b);
+    friend bool operator>(interval a, interval b);
+    friend bool operator>=(interval a, interval b);
     friend bool operator==(const interval& a, const interval& b);
     friend bool operator!=(const interval& a, const interval& b);
 };
@@ -100,17 +104,32 @@ struct op_def
 struct literal_node
 {
     value val;
+    friend bool operator==(const literal_node& a, const literal_node& b)
+    {
+        return a.val == b.val;
+    }
+    friend bool operator!=(const literal_node& a, const literal_node& b) { return not(a == b); }
 };
 
 struct variable_node
 {
     std::string name;
     std::vector<interval> constraints;
+    friend bool operator==(const variable_node& a, const variable_node& b)
+    {
+        return a.name == b.name and a.constraints == b.constraints;
+    }
+    friend bool operator!=(const variable_node& a, const variable_node& b)
+    {
+        return not(a == b);
+    }
 };
 
 struct op_node
 {
     const op_def* op;
+    friend bool operator==(const op_node& a, const op_node& b) { return a.op == b.op; }
+    friend bool operator!=(const op_node& a, const op_node& b) { return not(a == b); }
 };
 
 using node_variant = std::variant<literal_node, variable_node, op_node>;
@@ -138,6 +157,8 @@ class MIGRAPHX_EXPORT expr
     friend expr operator*(expr ex, expr ey);
     friend expr operator/(expr ex, expr ey);
     friend expr operator-(expr e);
+    friend bool operator==(const expr& a, const expr& b);
+    friend bool operator!=(const expr& a, const expr& b);
 };
 
 template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>

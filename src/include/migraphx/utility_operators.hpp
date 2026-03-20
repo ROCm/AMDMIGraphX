@@ -131,51 +131,43 @@ struct totally_ordered : equality_comparable<X>, less_than_comparable<X>
 
 // NOLINTNEXTLINE
 #define MIGRAPHX_VISIT_UTIL_OPS_ARITHMETIC(m) \
-    m(+, +=, add)                             \
-    m(-, -=, sub)                             \
-    m(*, *=, mul)                             \
-    m(/, /=, div)                             \
-    m(%, %=, mod)
+    m(+, +=, add) m(-, -=, sub) m(*, *=, mul) m(/, /=, div) m(%, %=, mod)
 
 // NOLINTNEXTLINE
 #define MIGRAPHX_VISIT_UTIL_OPS_BITWISE(m) \
-    m(&, &=, band)                         \
-    m(|, |=, bor)                          \
-    m(^, ^=, bxor)                         \
-    m(<<, <<=, shl)                        \
-    m(>>, >>=, shr)
+    m(&, &=, band) m(|, |=, bor) m(^, ^=, bxor) m(<<, <<=, shl) m(>>, >>=, shr)
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_UTIL_PRIVATE_OP(op, assign_op, name)                                  \
-    template <class U, MIGRAPHX_REQUIRES(std::is_same<U, X>{})>                        \
-    static constexpr auto name##1(U& x, const X& y) MIGRAPHX_RETURNS(x assign_op y);  \
-                                                                                       \
-    template <class T, class U, MIGRAPHX_REQUIRES(std::is_same<T, X>{})>               \
-    static constexpr auto name##2(T& x, const U& y) MIGRAPHX_RETURNS(x assign_op y);
+#define MIGRAPHX_UTIL_PRIVATE_OP(op, assign_op, name)                                 \
+    template <class U, MIGRAPHX_REQUIRES(std::is_same<U, X>{})>                       \
+    static constexpr auto name##1(U & x, const X& y) MIGRAPHX_RETURNS(x assign_op y); \
+                                                                                      \
+    template <class T, class U, MIGRAPHX_REQUIRES(std::is_same<T, X>{})>              \
+    static constexpr auto name##2(T & x, const U& y) MIGRAPHX_RETURNS(x assign_op y);
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_UTIL_OP(op, assign_op, name)                                                    \
-    friend constexpr auto operator op(X x, const X& y)                                           \
-    {                                                                                             \
-        private_ops::name##1(x, y);                                                               \
-        return x;                                                                                 \
-    }                                                                                             \
-                                                                                                  \
-    template <class T, class U>                                                                   \
-    friend constexpr auto operator op(T x, const U& y)                                           \
-        -> std::decay_t<decltype(private_ops::name##2(x, y), x)>                                 \
-    {                                                                                             \
-        private_ops::name##2(x, y);                                                               \
-        return x;                                                                                 \
-    }                                                                                             \
-                                                                                                  \
-    template <class U, class T>                                                                   \
-    friend constexpr auto operator op(const U& x, const T& y)                                    \
-        -> decltype(void(private_ops::name##1(std::declval<X&>(), y)), X{x})                     \
-    {                                                                                             \
-        X temp{x};                                                                                \
-        private_ops::name##1(temp, y);                                                            \
-        return temp;                                                                              \
+#define MIGRAPHX_UTIL_OP(op, assign_op, name)                               \
+    friend constexpr auto operator op(X x, const X& y)                      \
+    {                                                                       \
+        private_ops::name##1(x, y);                                         \
+        return x;                                                           \
+    }                                                                       \
+                                                                            \
+    template <class T, class U>                                             \
+    friend constexpr auto operator op(T x, const U& y)                      \
+        ->std::decay_t<decltype(private_ops::name##2(x, y), x)>             \
+    {                                                                       \
+        private_ops::name##2(x, y);                                         \
+        return x;                                                           \
+    }                                                                       \
+                                                                            \
+    template <class U, class T>                                             \
+    friend constexpr auto operator op(const U& x, const T& y)               \
+        ->decltype(void(private_ops::name##1(std::declval<X&>(), y)), X{x}) \
+    {                                                                       \
+        X temp{x};                                                          \
+        private_ops::name##1(temp, y);                                      \
+        return temp;                                                        \
     }
 
 template <class X>

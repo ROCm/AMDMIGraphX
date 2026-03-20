@@ -155,9 +155,9 @@ TEST_CASE(arg_double_literal)
 
 TEST_CASE(shared_subexpr)
 {
-    auto x    = var("x");
-    auto sub  = x + lit(1);
-    auto e    = sub * sub;
+    auto x      = var("x");
+    auto sub    = x + lit(1);
+    auto e      = sub * sub;
     auto result = e.eval({{"x", int64_t{4}}});
     EXPECT(result == value{int64_t{25}});
 }
@@ -191,9 +191,8 @@ TEST_CASE(add_interval)
     auto y = var("y");
     auto e = x + y;
     // [1,3] + [2,4] = [3,7]
-    auto result =
-        e.eval_interval({{"x", interval{int64_t{1}, int64_t{3}}},
-                         {"y", interval{int64_t{2}, int64_t{4}}}});
+    auto result = e.eval_interval(
+        {{"x", interval{int64_t{1}, int64_t{3}}}, {"y", interval{int64_t{2}, int64_t{4}}}});
     EXPECT(result == (interval{int64_t{3}, int64_t{7}}));
 }
 
@@ -203,9 +202,8 @@ TEST_CASE(sub_interval)
     auto y = var("y");
     auto e = x - y;
     // [5,10] - [1,3] = [5-3, 10-1] = [2, 9]
-    auto result =
-        e.eval_interval({{"x", interval{int64_t{5}, int64_t{10}}},
-                         {"y", interval{int64_t{1}, int64_t{3}}}});
+    auto result = e.eval_interval(
+        {{"x", interval{int64_t{5}, int64_t{10}}}, {"y", interval{int64_t{1}, int64_t{3}}}});
     EXPECT(result == (interval{int64_t{2}, int64_t{9}}));
 }
 
@@ -215,9 +213,8 @@ TEST_CASE(mul_interval_positive)
     auto y = var("y");
     auto e = x * y;
     // [2,3] * [4,5]: products = {8,10,12,15}, min=8, max=15
-    auto result =
-        e.eval_interval({{"x", interval{int64_t{2}, int64_t{3}}},
-                         {"y", interval{int64_t{4}, int64_t{5}}}});
+    auto result = e.eval_interval(
+        {{"x", interval{int64_t{2}, int64_t{3}}}, {"y", interval{int64_t{4}, int64_t{5}}}});
     EXPECT(result == (interval{int64_t{8}, int64_t{15}}));
 }
 
@@ -227,9 +224,8 @@ TEST_CASE(mul_interval_mixed_sign)
     auto y = var("y");
     auto e = x * y;
     // [-2,3] * [1,4]: products = {-2,-8,3,12}, min=-8, max=12
-    auto result =
-        e.eval_interval({{"x", interval{int64_t{-2}, int64_t{3}}},
-                         {"y", interval{int64_t{1}, int64_t{4}}}});
+    auto result = e.eval_interval(
+        {{"x", interval{int64_t{-2}, int64_t{3}}}, {"y", interval{int64_t{1}, int64_t{4}}}});
     EXPECT(result == (interval{int64_t{-8}, int64_t{12}}));
 }
 

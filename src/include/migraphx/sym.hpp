@@ -271,14 +271,11 @@ inline expr operator-(expr e)
 
 inline expr sqrt(expr e)
 {
-    return call(
-        "sqrt",
-        MIGRAPHX_LIFT(std::sqrt),
-        [](interval x) -> interval {
-            auto lo = std::sqrt(std::max(0.0, to<double>(x.min)));
-            auto hi = std::sqrt(std::max(0.0, to<double>(x.max)));
-            return {lo, hi};
-        })(std::move(e));
+    return call("sqrt", MIGRAPHX_LIFT(std::sqrt), [](interval x) -> interval {
+        auto lo = std::sqrt(std::max(0.0, to<double>(x.min)));
+        auto hi = std::sqrt(std::max(0.0, to<double>(x.max)));
+        return {lo, hi};
+    })(std::move(e));
 }
 
 } // namespace sym

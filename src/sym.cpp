@@ -29,6 +29,75 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace sym {
 
+struct expr::impl
+{
+    node_variant node;
+    std::vector<expr> children;
+};
+
+std::shared_ptr<const expr::impl> expr::make_impl(node_variant node, std::vector<expr> children)
+{
+    return std::make_shared<const impl>(impl{std::move(node), std::move(children)});
+}
+
+value value_min(const value& a, const value& b)
+{
+    return value_invoke_common([](auto x, auto y) { return x < y ? x : y; }, a, b);
+}
+
+value value_max(const value& a, const value& b)
+{
+    return value_invoke_common([](auto x, auto y) { return x > y ? x : y; }, a, b);
+}
+
+expr var(std::string name) { return expr(variable_node{std::move(name), {}}); }
+
+expr var(std::string name, interval constraint)
+{
+    return expr(variable_node{std::move(name), {std::move(constraint)}});
+}
+
+expr arg(expr x) { return x; }
+
+expr call_op(const op_def* op, std::vector<expr> args)
+{
+    return expr(op_node{op}, std::move(args));
+}
+
+expr operator+(expr ex, expr ey)
+{
+    return call("+", [](auto x, auto y) { return x + y; })(std::move(ex), std::move(ey));
+}
+
+expr operator-(expr ex, expr ey)
+{
+    return call("-", [](auto x, auto y) { return x - y; })(std::move(ex), std::move(ey));
+}
+
+expr operator*(expr ex, expr ey)
+{
+    return call("*", [](auto x, auto y) { return x * y; })(std::move(ex), std::move(ey));
+}
+
+expr operator/(expr ex, expr ey)
+{
+    return call("/", [](auto x, auto y) { return x / y; })(std::move(ex), std::move(ey));
+}
+
+expr operator-(expr e)
+{
+    return call("neg", [](auto x) { return -x; })(std::move(e));
+}
+
+expr sqrt(expr e)
+{
+    return call("sqrt", MIGRAPHX_LIFT(std::sqrt), [](interval x) -> interval {
+        auto lo = std::sqrt(std::max(0.0, to<double>(x.min)));
+        auto hi = std::sqrt(std::max(0.0, to<double>(x.max)));
+        return {lo, hi};
+    })(std::move(e));
+}
+
 value expr::eval(const std::unordered_map<std::string, value>& vars) const
 {
     if(auto* n = std::get_if<literal_node>(&pimpl->node))

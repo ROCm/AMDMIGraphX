@@ -35,6 +35,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/functional.hpp>
+#include <migraphx/requires.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -62,15 +63,8 @@ value value_invoke_common(F f, const Ts&... xs)
     return f(to<double>(xs)...);
 }
 
-inline value value_min(const value& a, const value& b)
-{
-    return value_invoke_common([](auto x, auto y) { return x < y ? x : y; }, a, b);
-}
-
-inline value value_max(const value& a, const value& b)
-{
-    return value_invoke_common([](auto x, auto y) { return x > y ? x : y; }, a, b);
-}
+value value_min(const value& a, const value& b);
+value value_max(const value& a, const value& b);
 
 template <std::size_t N, class F>
 auto unpack_container(F f)
@@ -164,60 +158,50 @@ class MIGRAPHX_EXPORT expr
 {
     struct impl;
     std::shared_ptr<const impl> pimpl;
+    static std::shared_ptr<const impl> make_impl(node_variant node, std::vector<expr> children);
 
     public:
     expr() = default;
 
     template <class Node>
-    explicit expr(Node node, std::vector<expr> children = {});
+    explicit expr(Node node, std::vector<expr> children = {})
+     : pimpl(make_impl(node_variant{std::move(node)}, std::move(children)))
+     {}
 
     value eval(const std::unordered_map<std::string, value>& vars) const;
     interval eval_interval(const std::unordered_map<std::string, interval>& vars) const;
+
+    friend expr operator+(expr ex, expr ey);
+    friend expr operator-(expr ex, expr ey);
+    friend expr operator*(expr ex, expr ey);
+    friend expr operator/(expr ex, expr ey);
+    friend expr operator-(expr e);
 };
 
-struct expr::impl
+template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>
+expr lit(T v)
 {
-    node_variant node;
-    std::vector<expr> children;
-};
-
-template <class Node>
-expr::expr(Node node, std::vector<expr> children)
-    : pimpl(std::make_shared<impl>(impl{node_variant{std::move(node)}, std::move(children)}))
-{
-}
-
-template <class T>
-auto lit(T v) -> std::enable_if_t<std::is_arithmetic_v<T>, expr>
-{
-    if constexpr(std::is_integral_v<T>)
+    if constexpr(std::is_integral<T>{})
         return expr(literal_node{value{static_cast<int64_t>(v)}});
     else
         return expr(literal_node{value{static_cast<double>(v)}});
 }
 
-inline expr var(std::string name) { return expr(variable_node{std::move(name), {}}); }
+expr var(std::string name);
+expr var(std::string name, interval constraint);
 
-inline expr var(std::string name, interval constraint)
+expr arg(expr x);
+
+template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>
+expr arg(T x)
 {
-    return expr(variable_node{std::move(name), {std::move(constraint)}});
-}
-
-inline expr arg(expr x) { return x; }
-
-template <class T>
-auto arg(T x) -> std::enable_if_t<std::is_arithmetic_v<T>, expr>
-{
-    if constexpr(std::is_integral_v<T>)
+    if constexpr(std::is_integral<T>{})
         return lit(static_cast<int64_t>(x));
     else
         return lit(static_cast<double>(x));
 }
 
-inline expr call_op(const op_def* op, std::vector<expr> args)
-{
-    return expr(op_node{op}, std::move(args));
-}
+expr call_op(const op_def* op, std::vector<expr> args);
 
 template <class Eval, class EvalInterval>
 expr call_op(std::string name, Eval eval, EvalInterval eval_interval, std::vector<expr> args)
@@ -244,39 +228,7 @@ auto call(std::string name, Eval eval)
     return call(name, eval, eval);
 }
 
-inline expr operator+(expr ex, expr ey)
-{
-    return call("+", [](auto x, auto y) { return x + y; })(std::move(ex), std::move(ey));
-}
-
-inline expr operator-(expr ex, expr ey)
-{
-    return call("-", [](auto x, auto y) { return x - y; })(std::move(ex), std::move(ey));
-}
-
-inline expr operator*(expr ex, expr ey)
-{
-    return call("*", [](auto x, auto y) { return x * y; })(std::move(ex), std::move(ey));
-}
-
-inline expr operator/(expr ex, expr ey)
-{
-    return call("/", [](auto x, auto y) { return x / y; })(std::move(ex), std::move(ey));
-}
-
-inline expr operator-(expr e)
-{
-    return call("neg", [](auto x) { return -x; })(std::move(e));
-}
-
-inline expr sqrt(expr e)
-{
-    return call("sqrt", MIGRAPHX_LIFT(std::sqrt), [](interval x) -> interval {
-        auto lo = std::sqrt(std::max(0.0, to<double>(x.min)));
-        auto hi = std::sqrt(std::max(0.0, to<double>(x.max)));
-        return {lo, hi};
-    })(std::move(e));
-}
+expr sqrt(expr e);
 
 } // namespace sym
 } // namespace MIGRAPHX_INLINE_NS

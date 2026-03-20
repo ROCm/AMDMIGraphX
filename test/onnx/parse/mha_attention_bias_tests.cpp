@@ -47,3 +47,15 @@ TEST_CASE(mha_bias_dimensions_test)
     auto prog = read_onnx("mha_bias_dimensions_test.onnx");
     EXPECT(bool{prog.get_output_shapes().size() == 1});
 }
+
+TEST_CASE(mha_bias_key_padding_mask_verify_test)
+{
+    auto prog = read_onnx("mha_bias_key_padding_mask_verify_test.onnx");
+    EXPECT(bool{prog.get_output_shapes().size() == 1});
+}
+
+TEST_CASE(mha_kv_packed_bias_key_padding_mask_test)
+{
+    auto prog = read_onnx("mha_kv_packed_bias_key_padding_mask_test.onnx");
+    EXPECT(bool{prog.get_output_shapes().size() == 1});
+}

@@ -9969,6 +9969,24 @@ def mha_bias_asym_mask_2d_scale_test():
 
 
 @onnx_test()
+def mha_bias_key_padding_mask_verify_test():
+    query = helper.make_tensor_value_info("q", TensorProto.FLOAT, [1, 2, 4])
+    key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 2, 4])
+    value = helper.make_tensor_value_info("v", TensorProto.FLOAT, [1, 2, 4])
+    bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [1, 2])
+    out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 2, 4])
+
+    node = helper.make_node('MultiHeadAttention',
+                            inputs=['q', 'k', 'v', 'bias', 'key_padding_mask'],
+                            outputs=['out'],
+                            num_heads=2,
+                            domain='com.microsoft')
+
+    return ([node], [query, key, value, bias, key_padding_mask], [out])
+
+
+@onnx_test()
 def mha_cross_attention_test():
     query = helper.make_tensor_value_info("q", TensorProto.FLOAT, [1, 2, 4])
     key = helper.make_tensor_value_info("k", TensorProto.FLOAT, [1, 2, 2, 2])
@@ -9999,6 +10017,24 @@ def mha_kv_packed_test():
                             domain='com.microsoft')
 
     return ([node], [query, kv], [out])
+
+
+@onnx_test()
+def mha_kv_packed_bias_key_padding_mask_test():
+    query = helper.make_tensor_value_info("q", TensorProto.FLOAT, [1, 2, 4])
+    kv = helper.make_tensor_value_info("kv", TensorProto.FLOAT,
+                                       [1, 2, 2, 2, 2])
+    bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [12])
+    key_padding_mask = helper.make_tensor_value_info("key_padding_mask", TensorProto.INT32, [1, 2])
+    out = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1, 2, 4])
+
+    node = helper.make_node('MultiHeadAttention',
+                            inputs=['q', 'kv', 'bias', 'key_padding_mask'],
+                            outputs=['out'],
+                            num_heads=2,
+                            domain='com.microsoft')
+
+    return ([node], [query, kv, bias, key_padding_mask], [out])
 
 
 @onnx_test()

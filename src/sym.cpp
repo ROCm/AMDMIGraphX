@@ -90,10 +90,7 @@ interval operator-(interval a)
     return {value_invoke_common(f, a.max), value_invoke_common(f, a.min)};
 }
 
-bool operator==(const interval& a, const interval& b)
-{
-    return a.min == b.min and a.max == b.max;
-}
+bool operator==(const interval& a, const interval& b) { return a.min == b.min and a.max == b.max; }
 
 bool operator!=(const interval& a, const interval& b) { return not(a == b); }
 

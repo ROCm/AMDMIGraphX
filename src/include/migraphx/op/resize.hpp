@@ -314,7 +314,7 @@ struct resize
         }
 
         // Accumulate over 4^ndim neighbors (4 per dimension for cubic)
-        double acc                  = 0.0;
+        double acc = 0.0;
         shape combo_shape{shape::uint32_type, std::vector<std::size_t>(ndim, 4)};
         std::vector<std::size_t> in_idx(ndim);
 

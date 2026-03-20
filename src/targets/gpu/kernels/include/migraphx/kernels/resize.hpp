@@ -326,7 +326,8 @@ __device__ void resize_cubic(Input input, Output output, Scales scales, float cu
         }
 
         // Build combo shape: 4 for interpolated dims, 1 otherwise
-        auto combo_lens = array_transform(scales)([](auto scale) -> index_int { return scale == 1.0f ? 1 : 4; });
+        auto combo_lens =
+            array_transform(scales)([](auto scale) -> index_int { return scale == 1.0f ? 1 : 4; });
 
         index_int total_combos = combo_lens.product();
         float acc              = 0.0f;
@@ -337,7 +338,8 @@ __device__ void resize_cubic(Input input, Output output, Scales scales, float cu
 
             // 2. Compute the combined weight as a product of per-dimension weights
             float w = inner_product(
-                active_dims.begin(), active_dims.begin() + active_count,
+                active_dims.begin(),
+                active_dims.begin() + active_count,
                 active_dims.begin(),
                 1.0f,
                 [](float a, float b) { return a * b; },

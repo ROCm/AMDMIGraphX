@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2025-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -20,31 +20,41 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_ELIMINATE_CONCAT_HPP
-#define MIGRAPHX_GUARD_RTGLIB_ELIMINATE_CONCAT_HPP
+#include "transform.hpp"
 
-#include <string>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/concat_opt.hpp>
-#include <migraphx/config.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/module.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/pass_manager.hpp>
 
 namespace migraphx {
+namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module;
-
-/**
- * Remove concat operators by having each operator write to different chunk of memory.
- */
-struct MIGRAPHX_EXPORT eliminate_concat
+void replace_literals_with_params(program& p)
 {
-    concat_optimization concat_opt;
-    std::string name() const { return "eliminate_concat"; }
-    void apply(module& m) const;
-};
+    auto* mm                = p.get_main_module();
+    auto existing_names     = mm->get_parameter_names();
+    std::size_t literal_idx = 0;
+    for(auto ins : iterator_for(*mm))
+    {
+        if(ins->name() != "@literal")
+            continue;
+        std::string pname;
+        do
+        {
+            pname = "literal:" + std::to_string(literal_idx++);
+        } while(contains(existing_names, pname));
+        existing_names.push_back(pname);
+        mm->replace_instruction(ins, mm->insert_parameter(ins, pname, ins->get_shape()));
+    }
+    run_passes(*p.get_main_module(), {migraphx::dead_code_elimination{}});
+}
 
 } // namespace MIGRAPHX_INLINE_NS
+} // namespace driver
 } // namespace migraphx
-
-#endif

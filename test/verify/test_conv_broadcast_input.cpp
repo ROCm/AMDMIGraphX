@@ -21,30 +21,25 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_ELIMINATE_CONCAT_HPP
-#define MIGRAPHX_GUARD_RTGLIB_ELIMINATE_CONCAT_HPP
 
-#include <string>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/concat_opt.hpp>
-#include <migraphx/config.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module;
-
-/**
- * Remove concat operators by having each operator write to different chunk of memory.
- */
-struct MIGRAPHX_EXPORT eliminate_concat
+struct test_conv_broadcast_input : verify_program<test_conv_broadcast_input>
 {
-    concat_optimization concat_opt;
-    std::string name() const { return "eliminate_concat"; }
-    void apply(module& m) const;
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm   = p.get_main_module();
+        auto bias  = mm->add_parameter("b", migraphx::shape{migraphx::shape::float_type, {3}});
+        auto bcast = mm->add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 3, 8, 8}}}), bias);
+        auto w = mm->add_literal(migraphx::generate_literal(
+            migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}}, 1));
+        mm->add_instruction(migraphx::make_op("convolution"), bcast, w);
+        return p;
+    }
+    std::string section() const { return "conv"; }
 };
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif

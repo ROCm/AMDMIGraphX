@@ -366,6 +366,50 @@ TEST_CASE(interval_geq_overlapping)
     EXPECT(not(a >= b));
 }
 
+// ---- Interval compound assignment tests ----
+
+TEST_CASE(interval_plus_assign)
+{
+    // [1,3] += [2,4] = [3,7]
+    interval a{int64_t{1}, int64_t{3}};
+    a += interval{int64_t{2}, int64_t{4}};
+    EXPECT(a == (interval{int64_t{3}, int64_t{7}}));
+}
+
+TEST_CASE(interval_minus_assign)
+{
+    // [5,10] -= [1,3] = [2,9]
+    interval a{int64_t{5}, int64_t{10}};
+    a -= interval{int64_t{1}, int64_t{3}};
+    EXPECT(a == (interval{int64_t{2}, int64_t{9}}));
+}
+
+TEST_CASE(interval_times_assign)
+{
+    // [2,3] *= [4,5] = [8,15]
+    interval a{int64_t{2}, int64_t{3}};
+    a *= interval{int64_t{4}, int64_t{5}};
+    EXPECT(a == (interval{int64_t{8}, int64_t{15}}));
+}
+
+TEST_CASE(interval_div_assign)
+{
+    // [10.0,20.0] /= [2.0,5.0] = [2.0,10.0]
+    interval a{2.0, 10.0};
+    a /= interval{1.0, 5.0};
+    EXPECT(a == (interval{0.4, 10.0}));
+}
+
+TEST_CASE(interval_compound_assign_no_alias)
+{
+    interval a{int64_t{1}, int64_t{3}};
+    interval b = a;
+    a += interval{int64_t{10}, int64_t{10}};
+    // b unchanged
+    EXPECT(b == (interval{int64_t{1}, int64_t{3}}));
+    EXPECT(a == (interval{int64_t{11}, int64_t{13}}));
+}
+
 // ---- Expr structural equality tests ----
 
 TEST_CASE(expr_equal_literals)
@@ -423,6 +467,93 @@ TEST_CASE(expr_default_not_equal_to_lit)
 {
     expr a;
     EXPECT(a != lit(0));
+}
+
+// ---- Compound assignment tests ----
+
+TEST_CASE(plus_assign_eval)
+{
+    auto e = lit(3);
+    e += lit(4);
+    EXPECT(e.eval({}) == value{int64_t{7}});
+}
+
+TEST_CASE(minus_assign_eval)
+{
+    auto e = lit(10);
+    e -= lit(3);
+    EXPECT(e.eval({}) == value{int64_t{7}});
+}
+
+TEST_CASE(times_assign_eval)
+{
+    auto e = lit(6);
+    e *= lit(7);
+    EXPECT(e.eval({}) == value{int64_t{42}});
+}
+
+TEST_CASE(div_assign_eval)
+{
+    auto e = lit(10.0);
+    e /= lit(4.0);
+    EXPECT(e.eval({}) == value{2.5});
+}
+
+TEST_CASE(plus_assign_variable)
+{
+    auto e = var("x");
+    e += lit(5);
+    EXPECT(e.eval({{"x", int64_t{3}}}) == value{int64_t{8}});
+}
+
+TEST_CASE(compound_assign_chain)
+{
+    auto e = var("x");
+    e += lit(1);
+    e *= lit(2);
+    // (x + 1) * 2 with x=4 → 10
+    EXPECT(e.eval({{"x", int64_t{4}}}) == value{int64_t{10}});
+}
+
+TEST_CASE(plus_assign_cow)
+{
+    auto a = lit(3);
+    auto b = a;
+    EXPECT(a == b);
+    b += lit(1);
+    // b is now (3 + 1), a is still 3
+    EXPECT(a != b);
+    EXPECT(a.eval({}) == value{int64_t{3}});
+    EXPECT(b.eval({}) == value{int64_t{4}});
+}
+
+TEST_CASE(times_assign_cow)
+{
+    auto x = var("x");
+    auto a = x + lit(1);
+    auto b = a;
+    EXPECT(a == b);
+    b *= lit(2);
+    // b is now (x+1)*2, a is still x+1
+    EXPECT(a != b);
+    EXPECT(a.eval({{"x", int64_t{5}}}) == value{int64_t{6}});
+    EXPECT(b.eval({{"x", int64_t{5}}}) == value{int64_t{12}});
+}
+
+TEST_CASE(compound_assign_cow_shared)
+{
+    auto x   = var("x");
+    auto sub = x + lit(1);
+    auto a   = sub;
+    auto b   = sub;
+    a += lit(10);
+    b *= lit(10);
+    // a = (x+1)+10, b = (x+1)*10
+    EXPECT(a != b);
+    EXPECT(a.eval({{"x", int64_t{2}}}) == value{int64_t{13}});
+    EXPECT(b.eval({{"x", int64_t{2}}}) == value{int64_t{30}});
+    // original sub unchanged
+    EXPECT(sub.eval({{"x", int64_t{2}}}) == value{int64_t{3}});
 }
 
 TEST_CASE(custom_call_eval)

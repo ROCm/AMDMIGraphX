@@ -81,6 +81,11 @@ struct interval
     value min = int64_t{0};
     value max = int64_t{0};
 
+    interval& operator+=(interval b) { return *this = *this + b; }
+    interval& operator-=(interval b) { return *this = *this - b; }
+    interval& operator*=(interval b) { return *this = *this * b; }
+    interval& operator/=(interval b) { return *this = *this / b; }
+
     friend interval operator+(interval a, interval b);
     friend interval operator-(interval a, interval b);
     friend interval operator*(interval a, interval b);
@@ -145,6 +150,11 @@ class MIGRAPHX_EXPORT expr
 
     value eval(const std::unordered_map<std::string, value>& vars) const;
     interval eval_interval(const std::unordered_map<std::string, interval>& vars) const;
+
+    expr& operator+=(expr ey) { return *this = *this + std::move(ey); }
+    expr& operator-=(expr ey) { return *this = *this - std::move(ey); }
+    expr& operator*=(expr ey) { return *this = *this * std::move(ey); }
+    expr& operator/=(expr ey) { return *this = *this / std::move(ey); }
 
     friend expr operator+(expr ex, expr ey);
     friend expr operator-(expr ex, expr ey);

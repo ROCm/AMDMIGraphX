@@ -66,14 +66,14 @@ struct winograd_compiler : compiler<winograd_compiler>
         auto in_lens = inputs[0].lens();
         auto w_lens  = inputs[1].lens();
 
-        std::size_t batch       = in_lens[0];
-        std::size_t channels    = in_lens[1];
-        std::size_t height      = in_lens[2];
-        std::size_t width       = in_lens[3];
-        std::size_t filters     = w_lens[0];
-        int group               = v.at("group").to<int>();
-        bool pretransformed     = v.get("pretransformed", false);
-        std::size_t cpg         = channels / group;
+        std::size_t batch    = in_lens[0];
+        std::size_t channels = in_lens[1];
+        std::size_t height   = in_lens[2];
+        std::size_t width    = in_lens[3];
+        std::size_t filters  = w_lens[0];
+        int group            = v.at("group").to<int>();
+        bool pretransformed  = v.get("pretransformed", false);
+        std::size_t cpg      = channels / group;
 
         // F(2x2, 3x3)
         std::size_t tiles_h     = (height + 1) / 2;
@@ -178,16 +178,14 @@ struct winograd_compiler : compiler<winograd_compiler>
                     continue;
                 std::size_t tpw = 4 * bs / kpw;
                 // Check LDS fits
-                std::size_t max_chunk =
-                    65536 / (16 * (tpw + kpw) * sizeof(float));
+                std::size_t max_chunk = 65536 / (16 * (tpw + kpw) * sizeof(float));
                 if(max_chunk == 0)
                     continue;
                 std::size_t cc = std::min(max_chunk, cpg);
                 if(cc == 0)
                     continue;
 
-                tc.solutions.push_back(
-                    {{"block_size", bs}, {"k_per_wg", kpw}});
+                tc.solutions.push_back({{"block_size", bs}, {"k_per_wg", kpw}});
             }
         }
 

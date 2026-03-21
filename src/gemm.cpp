@@ -72,14 +72,15 @@ struct batch_slicer
     batch_slicer(const shape& mat_shape)
     {
         auto n_batch_dims = mat_shape.ndim() - 2;
-        inner_shape = shape{mat_shape.type(),
-                            {mat_shape.lens().end() - 2, mat_shape.lens().end()},
-                            {mat_shape.strides().end() - 2, mat_shape.strides().end()}};
+        inner_shape       = shape{mat_shape.type(),
+                                  {mat_shape.lens().end() - 2, mat_shape.lens().end()},
+                                  {mat_shape.strides().end() - 2, mat_shape.strides().end()}};
         if(n_batch_dims > 0)
         {
-            outer_shape = shape{mat_shape.type(),
-                                {mat_shape.lens().begin(), mat_shape.lens().begin() + n_batch_dims},
-                                {mat_shape.strides().begin(), mat_shape.strides().begin() + n_batch_dims}};
+            outer_shape =
+                shape{mat_shape.type(),
+                      {mat_shape.lens().begin(), mat_shape.lens().begin() + n_batch_dims},
+                      {mat_shape.strides().begin(), mat_shape.strides().begin() + n_batch_dims}};
         }
     }
 
@@ -106,9 +107,9 @@ struct batch_slicer
 template <class T>
 auto make_eigen_map(tensor_view<T> view)
 {
-    const auto& s = view.get_shape();
-    auto dim_0    = s.ndim() - 2;
-    auto dim_1    = s.ndim() - 1;
+    const auto& s          = view.get_shape();
+    auto dim_0             = s.ndim() - 2;
+    auto dim_1             = s.ndim() - 1;
     Eigen::Index rows      = s.lens()[dim_0];
     Eigen::Index cols      = s.lens()[dim_1];
     Eigen::Index rowstride = s.strides()[dim_0];
@@ -130,9 +131,9 @@ void eigen_multiply(tensor_view<T> cmat, tensor_view<T> amat, tensor_view<T> bma
         auto b_slice = b_slicer.extract(bmat, batch);
         auto c_slice = slicer.extract(cmat, batch);
 
-        auto a = make_eigen_map(a_slice);
-        auto b = make_eigen_map(b_slice);
-        auto c = make_eigen_map(c_slice);
+        auto a      = make_eigen_map(a_slice);
+        auto b      = make_eigen_map(b_slice);
+        auto c      = make_eigen_map(c_slice);
         c.noalias() = a * b;
     });
 }
@@ -148,13 +149,13 @@ void gemm_eigen(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat)
     {
         std::vector<float> a_buf(amat.get_shape().elements());
         std::copy(amat.begin(), amat.end(), a_buf.begin());
-        auto amat_flat = make_view(
-            amat.get_shape().as_standard().with_type(shape::float_type), a_buf.data());
+        auto amat_flat =
+            make_view(amat.get_shape().as_standard().with_type(shape::float_type), a_buf.data());
 
         std::vector<float> b_buf(bmat.get_shape().elements());
         std::copy(bmat.begin(), bmat.end(), b_buf.begin());
-        auto bmat_flat = make_view(
-            bmat.get_shape().as_standard().with_type(shape::float_type), b_buf.data());
+        auto bmat_flat =
+            make_view(bmat.get_shape().as_standard().with_type(shape::float_type), b_buf.data());
 
         std::vector<float> c_buf(cmat.get_shape().elements(), 0.0f);
         auto c_shape_std = cmat.get_shape().as_standard().with_type(shape::float_type);

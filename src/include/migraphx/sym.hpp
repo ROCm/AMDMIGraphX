@@ -97,6 +97,18 @@ struct interval
     friend bool operator>=(interval a, interval b);
     friend bool operator==(const interval& a, const interval& b);
     friend bool operator!=(const interval& a, const interval& b);
+    friend interval sin(interval x);
+    friend interval cos(interval x);
+    friend interval tan(interval x);
+    friend interval exp(interval x);
+    friend interval log(interval x);
+    friend interval sqrt(interval x);
+    friend interval abs(interval x);
+    friend interval floor(interval x);
+    friend interval ceil(interval x);
+    friend interval pow(interval x, interval y);
+    friend interval min(interval x, interval y);
+    friend interval max(interval x, interval y);
 };
 
 struct op_def
@@ -215,7 +227,18 @@ auto call(std::string name, Eval eval)
     return call(name, eval, eval);
 }
 
+expr sin(expr e);
+expr cos(expr e);
+expr tan(expr e);
+expr exp(expr e);
+expr log(expr e);
 expr sqrt(expr e);
+expr abs(expr e);
+expr floor(expr e);
+expr ceil(expr e);
+expr pow(expr x, expr y);
+expr min(expr x, expr y);
+expr max(expr x, expr y);
 
 } // namespace sym
 } // namespace MIGRAPHX_INLINE_NS

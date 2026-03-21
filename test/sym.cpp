@@ -29,7 +29,18 @@ using migraphx::sym::call;
 using migraphx::sym::expr;
 using migraphx::sym::interval;
 using migraphx::sym::lit;
+using migraphx::sym::abs;
+using migraphx::sym::ceil;
+using migraphx::sym::cos;
+using migraphx::sym::exp;
+using migraphx::sym::floor;
+using migraphx::sym::log;
+using migraphx::sym::max;
+using migraphx::sym::min;
+using migraphx::sym::pow;
+using migraphx::sym::sin;
 using migraphx::sym::sqrt;
+using migraphx::sym::tan;
 using migraphx::sym::value;
 using migraphx::sym::var;
 
@@ -573,6 +584,237 @@ TEST_CASE(custom_call_interval)
     // [2,3] squared: interval*interval = [2,3]*[2,3], products={4,6,6,9}, min=4, max=9
     auto result = e.eval_interval({{"x", interval{int64_t{2}, int64_t{3}}}});
     EXPECT(result == (interval{int64_t{4}, int64_t{9}}));
+}
+
+// ---- Math function eval tests ----
+
+TEST_CASE(sin_eval)
+{
+    EXPECT(sin(lit(0.0)).eval({}) == value{0.0});
+}
+
+TEST_CASE(cos_eval)
+{
+    EXPECT(cos(lit(0.0)).eval({}) == value{1.0});
+}
+
+TEST_CASE(tan_eval)
+{
+    EXPECT(tan(lit(0.0)).eval({}) == value{0.0});
+}
+
+TEST_CASE(exp_eval)
+{
+    EXPECT(exp(lit(0.0)).eval({}) == value{1.0});
+}
+
+TEST_CASE(exp_eval_one)
+{
+    EXPECT(exp(lit(1.0)).eval({}) == value{std::exp(1.0)});
+}
+
+TEST_CASE(log_eval)
+{
+    EXPECT(log(lit(1.0)).eval({}) == value{0.0});
+}
+
+TEST_CASE(sqrt_eval_refactored)
+{
+    EXPECT(sqrt(lit(4.0)).eval({}) == value{2.0});
+}
+
+TEST_CASE(abs_int_eval)
+{
+    EXPECT(abs(lit(-5)).eval({}) == value{int64_t{5}});
+    EXPECT(abs(lit(3)).eval({}) == value{int64_t{3}});
+}
+
+TEST_CASE(abs_double_eval)
+{
+    EXPECT(abs(lit(-2.5)).eval({}) == value{2.5});
+}
+
+TEST_CASE(floor_eval)
+{
+    EXPECT(floor(lit(2.7)).eval({}) == value{2.0});
+    EXPECT(floor(lit(-2.3)).eval({}) == value{-3.0});
+}
+
+TEST_CASE(ceil_eval)
+{
+    EXPECT(ceil(lit(2.3)).eval({}) == value{3.0});
+    EXPECT(ceil(lit(-2.7)).eval({}) == value{-2.0});
+}
+
+TEST_CASE(pow_eval)
+{
+    EXPECT(pow(lit(2.0), lit(3.0)).eval({}) == value{8.0});
+}
+
+TEST_CASE(min_eval)
+{
+    EXPECT(min(lit(3), lit(5)).eval({}) == value{int64_t{3}});
+    EXPECT(min(lit(7), lit(2)).eval({}) == value{int64_t{2}});
+}
+
+TEST_CASE(max_eval)
+{
+    EXPECT(max(lit(3), lit(5)).eval({}) == value{int64_t{5}});
+    EXPECT(max(lit(7), lit(2)).eval({}) == value{int64_t{7}});
+}
+
+TEST_CASE(math_with_variable)
+{
+    auto x = var("x");
+    EXPECT(sin(x).eval({{"x", 0.0}}) == value{0.0});
+    EXPECT(abs(x).eval({{"x", int64_t{-7}}}) == value{int64_t{7}});
+}
+
+// ---- Interval math function tests ----
+
+TEST_CASE(sin_interval_contains_max)
+{
+    // sin over [0, π]: reaches max 1.0 at π/2
+    const double pi = std::acos(-1.0);
+    auto result     = sin(interval{0.0, pi});
+    EXPECT(result == (interval{0.0, 1.0}));
+}
+
+TEST_CASE(sin_interval_full_period)
+{
+    const double pi = std::acos(-1.0);
+    auto result     = sin(interval{0.0, 2.0 * pi});
+    EXPECT(result == (interval{-1.0, 1.0}));
+}
+
+TEST_CASE(cos_interval_contains_min)
+{
+    // cos over [0, π]: reaches min -1.0 at π
+    const double pi = std::acos(-1.0);
+    auto result     = cos(interval{0.0, pi});
+    EXPECT(result == (interval{-1.0, 1.0}));
+}
+
+TEST_CASE(cos_interval_monotone)
+{
+    // cos over [0, 1]: monotonically decreasing
+    auto result = cos(interval{0.0, 1.0});
+    EXPECT(result == (interval{std::cos(1.0), 1.0}));
+}
+
+TEST_CASE(tan_interval_point)
+{
+    auto result = tan(interval{0.0, 0.0});
+    EXPECT(result == (interval{0.0, 0.0}));
+}
+
+TEST_CASE(exp_interval)
+{
+    auto result = exp(interval{0.0, 1.0});
+    EXPECT(result == (interval{1.0, std::exp(1.0)}));
+}
+
+TEST_CASE(log_interval)
+{
+    auto result = log(interval{1.0, std::exp(1.0)});
+    EXPECT(result == (interval{0.0, 1.0}));
+}
+
+TEST_CASE(sqrt_interval_refactored)
+{
+    auto result = sqrt(interval{4.0, 9.0});
+    EXPECT(result == (interval{2.0, 3.0}));
+}
+
+TEST_CASE(abs_interval_positive)
+{
+    auto result = abs(interval{int64_t{2}, int64_t{5}});
+    EXPECT(result == (interval{int64_t{2}, int64_t{5}}));
+}
+
+TEST_CASE(abs_interval_negative)
+{
+    auto result = abs(interval{int64_t{-5}, int64_t{-2}});
+    EXPECT(result == (interval{int64_t{2}, int64_t{5}}));
+}
+
+TEST_CASE(abs_interval_mixed)
+{
+    auto result = abs(interval{int64_t{-3}, int64_t{5}});
+    EXPECT(result == (interval{int64_t{0}, int64_t{5}}));
+}
+
+TEST_CASE(abs_interval_mixed_larger_neg)
+{
+    auto result = abs(interval{int64_t{-7}, int64_t{2}});
+    EXPECT(result == (interval{int64_t{0}, int64_t{7}}));
+}
+
+TEST_CASE(floor_interval)
+{
+    auto result = floor(interval{1.2, 3.8});
+    EXPECT(result == (interval{1.0, 3.0}));
+}
+
+TEST_CASE(ceil_interval)
+{
+    auto result = ceil(interval{1.2, 3.8});
+    EXPECT(result == (interval{2.0, 4.0}));
+}
+
+TEST_CASE(pow_interval)
+{
+    // [2,3]^[2,2] = [4,9]
+    auto result = pow(interval{2.0, 3.0}, interval{2.0, 2.0});
+    EXPECT(result == (interval{4.0, 9.0}));
+}
+
+TEST_CASE(min_interval)
+{
+    auto result = min(interval{int64_t{1}, int64_t{5}}, interval{int64_t{3}, int64_t{7}});
+    EXPECT(result == (interval{int64_t{1}, int64_t{5}}));
+}
+
+TEST_CASE(max_interval)
+{
+    auto result = max(interval{int64_t{1}, int64_t{5}}, interval{int64_t{3}, int64_t{7}});
+    EXPECT(result == (interval{int64_t{3}, int64_t{7}}));
+}
+
+// ---- Expr math function interval eval tests ----
+
+TEST_CASE(expr_abs_interval)
+{
+    auto x      = var("x");
+    auto result = abs(x).eval_interval({{"x", interval{int64_t{-3}, int64_t{5}}}});
+    EXPECT(result == (interval{int64_t{0}, int64_t{5}}));
+}
+
+TEST_CASE(expr_min_interval)
+{
+    auto x = var("x");
+    auto y = var("y");
+    auto result =
+        min(x, y).eval_interval(
+            {{"x", interval{int64_t{1}, int64_t{5}}}, {"y", interval{int64_t{3}, int64_t{7}}}});
+    EXPECT(result == (interval{int64_t{1}, int64_t{5}}));
+}
+
+TEST_CASE(expr_max_interval)
+{
+    auto x = var("x");
+    auto y = var("y");
+    auto result =
+        max(x, y).eval_interval(
+            {{"x", interval{int64_t{1}, int64_t{5}}}, {"y", interval{int64_t{3}, int64_t{7}}}});
+    EXPECT(result == (interval{int64_t{3}, int64_t{7}}));
+}
+
+TEST_CASE(expr_exp_interval)
+{
+    auto x      = var("x");
+    auto result = exp(x).eval_interval({{"x", interval{0.0, 1.0}}});
+    EXPECT(result == (interval{1.0, std::exp(1.0)}));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

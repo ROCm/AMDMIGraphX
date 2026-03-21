@@ -240,23 +240,27 @@ struct find_gemm_softmax_gemm
 
 struct pre_winograd_conv
 {
-    int group = 1;
+    int group            = 1;
+    bool pretransformed  = false;
+    // K stored for compute_shape when weights are pretransformed (flat shape)
+    std::size_t num_filters = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.group, "group"));
+        return pack(f(self.group, "group"),
+                    f(self.pretransformed, "pretransformed"),
+                    f(self.num_filters, "num_filters"));
     }
 
     std::string name() const { return "gpu::pre_winograd_conv"; }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(2).same_type();
+        check_shapes{inputs, *this}.has(2);
         auto in_lens = inputs[0].lens();
-        auto w_lens  = inputs[1].lens();
-        // For 3x3 conv, stride 1, padding 1: output spatial = input spatial
-        return inputs[0].with_lens({in_lens[0], w_lens[0], in_lens[2], in_lens[3]});
+        auto k       = pretransformed ? num_filters : inputs[1].lens()[0];
+        return inputs[0].with_lens({in_lens[0], k, in_lens[2], in_lens[3]});
     }
 };
 MIGRAPHX_REGISTER_OP(pre_winograd_conv);
@@ -296,6 +300,19 @@ auto is_winograd_eligible()
         if(not in_shape.standard() or not w_shape.standard())
             return false;
 
+        // Winograd only wins on compute-heavy problems where the 2.25x
+        // arithmetic reduction outweighs transform+barrier overhead.
+        // Heuristic: need large C*K relative to spatial size.
+        auto c = in_shape.lens()[1];
+        auto k = w_shape.lens()[0];
+        auto h = in_shape.lens()[2];
+        auto w = in_shape.lens()[3];
+        // Require minimum channel/filter counts and small-enough spatial dims
+        if(c < 128 or k < 128)
+            return false;
+        if(h > 28 or w > 28)
+            return false;
+
         return true;
     });
 }
@@ -304,12 +321,65 @@ struct find_winograd_conv
 {
     auto matcher() const { return match::name("convolution")(is_winograd_eligible()); }
 
+    // Winograd F(2x2,3x3) filter transform G * g * G^T on CPU
+    static literal transform_filters_cpu(const argument& w_arg, std::size_t k, std::size_t cpg)
+    {
+        std::vector<float> result(k * cpg * 16);
+        const auto* w_data = reinterpret_cast<const float*>(w_arg.data());
+        for(std::size_t i = 0; i < k * cpg; i++)
+        {
+            const float* g = w_data + i * 9;
+            float* u       = result.data() + i * 16;
+            // G column transform (3→4)
+            float t[12];
+            for(int j = 0; j < 3; j++)
+            {
+                float g0 = g[j], g1 = g[3 + j], g2 = g[6 + j];
+                float s = (g0 + g2) * 0.5f, d = g1 * 0.5f;
+                t[j] = g0; t[3 + j] = s + d; t[6 + j] = s - d; t[9 + j] = g2;
+            }
+            // G^T row transform (3→4)
+            for(int r = 0; r < 4; r++)
+            {
+                float t0 = t[r * 3], t1 = t[r * 3 + 1], t2 = t[r * 3 + 2];
+                float s = (t0 + t2) * 0.5f, dd = t1 * 0.5f;
+                u[r * 4] = t0; u[r * 4 + 1] = s + dd;
+                u[r * 4 + 2] = s - dd; u[r * 4 + 3] = t2;
+            }
+        }
+        shape out_shape{shape::float_type, {k * cpg * 16}};
+        return literal{out_shape, result};
+    }
+
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins  = r.result;
-        auto v    = ins->get_operator().to_value();
-        int group = v.at("group").to<int>();
-        m.replace_instruction(ins, pre_winograd_conv{group}, ins->inputs());
+        auto ins        = r.result;
+        auto v          = ins->get_operator().to_value();
+        int group       = v.at("group").to<int>();
+        auto weight_ins = ins->inputs()[1];
+        auto w_shape    = weight_ins->get_shape();
+        auto k          = w_shape.lens()[0];
+        auto cpg        = w_shape.lens()[1];
+
+        if(weight_ins->can_eval())
+        {
+            // Precompute filter transform at compile time
+            auto w_arg      = weight_ins->eval();
+            auto xformed_lit = transform_filters_cpu(w_arg, k, cpg);
+            auto lit_ins     = m.add_literal(xformed_lit);
+            m.replace_instruction(
+                ins,
+                pre_winograd_conv{group, true, k},
+                ins->inputs()[0],
+                lit_ins);
+        }
+        else
+        {
+            m.replace_instruction(
+                ins,
+                pre_winograd_conv{group, false, k},
+                ins->inputs());
+        }
     }
 };
 

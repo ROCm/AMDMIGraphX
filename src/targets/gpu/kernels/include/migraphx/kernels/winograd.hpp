@@ -26,181 +26,119 @@
 
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/types.hpp>
+#include <migraphx/kernels/dpp.hpp>
 
 namespace migraphx {
 namespace winograd {
 
-// =============================================================================
-// Winograd F(4x4, 3x3) transforms using __builtin_fmaf for optimal scheduling
-// =============================================================================
-
-__device__ inline float fmaf_(float a, float b, float c) { return __builtin_fmaf(a, b, c); }
-
-// B^T column (6 -> 6)
-__device__ inline void bt_col(float s0,
-                              float s1,
-                              float s2,
-                              float s3,
-                              float s4,
-                              float s5,
-                              float& d0,
-                              float& d1,
-                              float& d2,
-                              float& d3,
-                              float& d4,
-                              float& d5)
+__device__ inline float fmaf_(float a, float b, float c)
 {
-    float p = s3 + s4;
-    float q = s4 - s3;
-    d0      = fmaf_(4.0f, s0, s4) + (-5.0f) * s2;
-    d5      = fmaf_(4.0f, s1, s5) + (-5.0f) * s3;
-    d1      = fmaf_(-4.0f, s2, fmaf_(-4.0f, s1, p));
-    d2      = fmaf_(-4.0f, s2, fmaf_(4.0f, s1, q));
-    d3      = fmaf_(2.0f, s3, fmaf_(-2.0f, s1, s4) - s2);
-    d4      = fmaf_(-2.0f, s3, fmaf_(2.0f, s1, s4) - s2);
-}
-
-// G column (3 -> 6)
-__device__ inline void g_col(
-    float g0, float g1, float g2, float& u0, float& u1, float& u2, float& u3, float& u4, float& u5)
-{
-    constexpr float c6  = 1.0f / 6.0f;
-    constexpr float c12 = 1.0f / 12.0f;
-    constexpr float c24 = 1.0f / 24.0f;
-    u0                  = 0.25f * g0;
-    u5                  = g2;
-    float t             = -c6 * (g0 + g2);
-    u1                  = fmaf_(-c6, g1, t);
-    u2                  = fmaf_(c6, g1, t);
-    float base          = fmaf_(c6, g2, c24 * g0);
-    u3                  = fmaf_(c12, g1, base);
-    u4                  = fmaf_(-c12, g1, base);
-}
-
-// A^T column (6 -> 4)
-__device__ inline void at_col(float s0,
-                              float s1,
-                              float s2,
-                              float s3,
-                              float s4,
-                              float s5,
-                              float& y0,
-                              float& y1,
-                              float& y2,
-                              float& y3)
-{
-    float t0 = s1 + s2;
-    float t1 = s1 - s2;
-    float t2 = s3 + s4;
-    float t3 = s3 - s4;
-    y0       = s0 + t0 + t2;
-    y1       = fmaf_(2.0f, t3, t1);
-    y2       = fmaf_(4.0f, t2, t0);
-    y3       = fmaf_(8.0f, t3, t1) + s5;
+    return __builtin_fmaf(a, b, c);
 }
 
 // =============================================================================
-// 2D transforms on flat [36] arrays (row-major 6x6)
+// F(2x2,3x3) B^T column transform applied via DPP within a quad.
+//
+// Each quad (4 threads) holds one row of a 4x4 tile. Thread lane (0-3)
+// holds row[lane]. The B^T column uses quad_perm:[2,2,1,1] (DPP ctrl 0x5A)
+// so each thread receives the partner row it needs:
+//   lane 0: gets row[2] → computes row[0]-row[2]
+//   lane 1: gets row[2] → computes row[1]+row[2]
+//   lane 2: gets row[1] → computes row[2]-row[1]
+//   lane 3: gets row[1] → computes row[1]-row[3]
 // =============================================================================
 
-__device__ inline void input_xform(const float* __restrict__ d, float* __restrict__ V)
+__device__ inline void bt_col_dpp(float* v, index_int lane)
 {
-    float tmp[36];
-    for(index_int j = 0; j < 6; j++)
-        bt_col(d[j],
-               d[6 + j],
-               d[12 + j],
-               d[18 + j],
-               d[24 + j],
-               d[30 + j],
-               tmp[j],
-               tmp[6 + j],
-               tmp[12 + j],
-               tmp[18 + j],
-               tmp[24 + j],
-               tmp[30 + j]);
-    for(index_int i = 0; i < 6; i++)
+    // DPP quad_perm:[2,2,1,1] = 0x5A
+    for(index_int j = 0; j < 4; j++)
     {
-        index_int r = i * 6;
-        bt_col(tmp[r],
-               tmp[r + 1],
-               tmp[r + 2],
-               tmp[r + 3],
-               tmp[r + 4],
-               tmp[r + 5],
-               V[r],
-               V[r + 1],
-               V[r + 2],
-               V[r + 3],
-               V[r + 4],
-               V[r + 5]);
+        float my      = v[j];
+        float partner  = dpp_mov<0x5A>(my);
+        float diff     = my - partner;
+        // lane 1: sum; lane 3: negated diff; lanes 0,2: diff
+        v[j] = (lane == 1) ? (my + partner) : ((lane == 3) ? -diff : diff);
     }
 }
 
+// Intra-thread B^T row transform (same operation, applied to 4 values)
+__device__ inline void bt_row(float* v)
+{
+    float a = v[0], b = v[1], c = v[2], d = v[3];
+    v[0] = a - c;
+    v[1] = b + c;
+    v[2] = c - b;
+    v[3] = b - d;
+}
+
+// =============================================================================
+// Standard (non-DPP) transforms for filter and output
+// =============================================================================
+
+// G * g * G^T filter transform 3x3 → 4x4 flat[16]
 __device__ inline void filter_xform(const float* __restrict__ g, float* __restrict__ U)
 {
-    float tmp[18];
+    float t[12];
     for(index_int j = 0; j < 3; j++)
-        g_col(g[j],
-              g[3 + j],
-              g[6 + j],
-              tmp[j],
-              tmp[3 + j],
-              tmp[6 + j],
-              tmp[9 + j],
-              tmp[12 + j],
-              tmp[15 + j]);
-    for(index_int i = 0; i < 6; i++)
     {
-        index_int o = i * 6;
-        index_int r = i * 3;
-        g_col(
-            tmp[r], tmp[r + 1], tmp[r + 2], U[o], U[o + 1], U[o + 2], U[o + 3], U[o + 4], U[o + 5]);
+        float g0 = g[j], g1 = g[3 + j], g2 = g[6 + j];
+        float s = (g0 + g2) * 0.5f, d = g1 * 0.5f;
+        t[j] = g0; t[3 + j] = s + d; t[6 + j] = s - d; t[9 + j] = g2;
+    }
+    for(index_int i = 0; i < 4; i++)
+    {
+        index_int r = i * 3, o = i * 4;
+        float t0 = t[r], t1 = t[r + 1], t2 = t[r + 2];
+        float s = (t0 + t2) * 0.5f, d = t1 * 0.5f;
+        U[o] = t0; U[o + 1] = s + d; U[o + 2] = s - d; U[o + 3] = t2;
     }
 }
 
+// A^T * m * A output transform 4x4 → 2x2 flat[4]
 __device__ inline void output_xform(const float* __restrict__ M, float* __restrict__ Y)
 {
-    float tmp[24];
-    for(index_int j = 0; j < 6; j++)
-        at_col(M[j],
-               M[6 + j],
-               M[12 + j],
-               M[18 + j],
-               M[24 + j],
-               M[30 + j],
-               tmp[j],
-               tmp[6 + j],
-               tmp[12 + j],
-               tmp[18 + j]);
-    for(index_int i = 0; i < 4; i++)
+    float t[8];
+    for(index_int j = 0; j < 4; j++)
     {
-        index_int o = i * 4;
-        index_int r = i * 6;
-        at_col(tmp[r],
-               tmp[r + 1],
-               tmp[r + 2],
-               tmp[r + 3],
-               tmp[r + 4],
-               tmp[r + 5],
-               Y[o],
-               Y[o + 1],
-               Y[o + 2],
-               Y[o + 3]);
+        float m0 = M[j], m1 = M[4 + j], m2 = M[8 + j], m3 = M[12 + j];
+        t[j] = m0 + m1 + m2; t[4 + j] = m1 - m2 - m3;
     }
+    for(index_int i = 0; i < 2; i++)
+    {
+        index_int r = i * 4;
+        Y[i * 2]     = t[r] + t[r + 1] + t[r + 2];
+        Y[i * 2 + 1] = t[r + 1] - t[r + 2] - t[r + 3];
+    }
+}
+
+// Filter precompute (for graph-level constant folding or separate kernel)
+template <index_int K, index_int C_PER_GRP>
+__device__ void filter_precompute(const float* __restrict__ weight,
+                                  float* __restrict__ workspace)
+{
+    auto idx = make_index();
+    idx.global_stride(K * C_PER_GRP, [&](auto id) {
+        float g[9], U[16];
+        for(index_int p = 0; p < 9; p++)
+            g[p] = weight[id * 9 + p];
+        filter_xform(g, U);
+        for(index_int p = 0; p < 16; p++)
+            workspace[id * 16 + p] = U[p];
+    });
 }
 
 // =============================================================================
-// Optimized Winograd F(4x4, 3x3) convolution
+// GEMM-based Winograd F(2x2,3x3) convolution with DPP tile loading
 //
-// Key optimizations:
-// 1. Shared memory filter caching (precompute G*g*G^T once per workgroup)
-// 2. K_BATCH: each thread processes multiple output filters, loading input
-//    tiles once and reusing across filters. This is the critical optimization
-//    that reduces global memory traffic by K_BATCH×.
-// 3. Workgroup decomposition ordered so adjacent workgroups share the same
-//    spatial tiles for L2 cache reuse across filter groups.
-// 4. Uses __builtin_fmaf for compiler-friendly FMA (no asm volatile).
+// Phase 1a: DPP-based input transform
+//   - 4 threads (quad) per tile: each loads 1 row (4 values), transforms
+//     via DPP quad_perm, writes 4 values to LDS. 4× less global memory.
+// Phase 1b: Filter transform → LDS (pretransformed weights skip this)
+// Phase 2:  Tiled GEMM from LDS with sched_barrier pipelining
+// Phase 3:  Output transform A^T*m*A and store
+//
+// Template param PRETRANSFORMED: if true, weight points to [K][C/G][16]
+// pretransformed filters (skips Phase 1b entirely).
 // =============================================================================
 
 template <index_int Group,
@@ -209,143 +147,208 @@ template <index_int Group,
           index_int H,
           index_int W,
           index_int K,
+          index_int TILES_PER_WG,
+          index_int K_PER_WG,
           index_int CHUNK_C,
-          index_int K_BATCH>
+          bool PRETRANSFORMED>
 __device__ void conv(const float* __restrict__ input,
                      const float* __restrict__ weight,
                      float* __restrict__ output,
-                     float* __restrict__ s_filt)
+                     float* __restrict__ lds)
 {
-    constexpr index_int OH        = H;
-    constexpr index_int OW        = W;
-    constexpr index_int TILE_H    = 4;
-    constexpr index_int TILE_W    = 4;
-    constexpr index_int TILES_H   = (OH + TILE_H - 1) / TILE_H;
-    constexpr index_int TILES_W   = (OW + TILE_W - 1) / TILE_W;
-    constexpr index_int NUM_TILES = TILES_H * TILES_W;
-    constexpr index_int C_PER_GRP = C / Group;
-    constexpr index_int K_PER_GRP = K / Group;
-    constexpr index_int BLOCK     = MIGRAPHX_NLOCAL;
-    constexpr index_int TILE_GRPS = (NUM_TILES + BLOCK - 1) / BLOCK;
-    constexpr index_int K_GRPS    = (K + K_BATCH - 1) / K_BATCH;
+    constexpr index_int OUT_TILE    = 2;
+    constexpr index_int ALPHA       = 4;
+    constexpr index_int ALPHA2      = 16;
+    constexpr index_int TILES_H     = (H + OUT_TILE - 1) / OUT_TILE;
+    constexpr index_int TILES_W     = (W + OUT_TILE - 1) / OUT_TILE;
+    constexpr index_int TOTAL_TILES = TILES_H * TILES_W;
+    constexpr index_int C_PER_GRP   = C / Group;
+    constexpr index_int K_PER_GRP   = K / Group;
+    constexpr index_int BLOCK       = MIGRAPHX_NLOCAL;
+    constexpr index_int T_TILE      = 2;
+    constexpr index_int K_TILE      = 2;
+    constexpr index_int THREADS_N   = K_PER_WG / K_TILE;
+    constexpr index_int TILE_GRPS   = (TOTAL_TILES + TILES_PER_WG - 1) / TILES_PER_WG;
+    constexpr index_int K_GRPS      = (K + K_PER_WG - 1) / K_PER_WG;
+    constexpr index_int V_PLANE     = TILES_PER_WG * CHUNK_C;
+    constexpr index_int U_PLANE     = CHUNK_C * K_PER_WG;
+    float* lds_v = lds;
+    float* lds_u = lds + ALPHA2 * V_PLANE;
 
-    index_int tid = threadIdx.x; // NOLINT
-    index_int wg  = blockIdx.x;  // NOLINT
-
-    // Decompose: iterate k-groups fastest for L2 reuse of input tiles
-    index_int tile_grp = wg / K_GRPS;
-    index_int rem      = wg % K_GRPS;
-    index_int n_val    = tile_grp / TILE_GRPS;
-    index_int tg       = tile_grp % TILE_GRPS;
-    index_int k_grp    = rem;
-    index_int k_base   = k_grp * K_BATCH;
-    index_int my_tile  = tg * BLOCK + tid;
-
-    // How many k values this workgroup actually processes (handle tail)
-    index_int k_actual = K_BATCH;
-    if(k_base + K_BATCH > K)
-        k_actual = K - k_base;
-
-    // Group convolution: which input channel group
+    index_int tid      = threadIdx.x; // NOLINT
+    index_int wg       = blockIdx.x;  // NOLINT
+    index_int ntg      = wg / K_GRPS;
+    index_int k_grp    = wg % K_GRPS;
+    index_int n_val    = ntg / TILE_GRPS;
+    index_int tg       = ntg % TILE_GRPS;
+    index_int t_base   = tg * TILES_PER_WG;
+    index_int k_base   = k_grp * K_PER_WG;
+    index_int k_actual = (k_base + K_PER_WG > K) ? (K - k_base) : K_PER_WG;
     index_int group_id = k_base / K_PER_GRP;
     index_int c_base   = group_id * C_PER_GRP;
 
-    // Precompute tile coords
-    index_int tile_row = my_tile / TILES_W;
-    index_int tile_col = my_tile % TILES_W;
-    diff_int ih_start  = static_cast<diff_int>(tile_row * TILE_H) - 1;
-    diff_int iw_start  = static_cast<diff_int>(tile_col * TILE_W) - 1;
+    index_int thread_m = tid / THREADS_N;
+    index_int thread_n = tid % THREADS_N;
+    index_int my_t0    = thread_m * T_TILE;
+    index_int my_k0    = thread_n * K_TILE;
 
-    // Per-thread accumulators: M[kb][36]
-    float M[K_BATCH * 36];
-    for(index_int p = 0; p < K_BATCH * 36; p++)
-        M[p] = 0.0f;
+    float acc[T_TILE * K_TILE * ALPHA2];
+    for(index_int i = 0; i < T_TILE * K_TILE * ALPHA2; i++)
+        acc[i] = 0.0f;
 
     for(index_int c_chunk = 0; c_chunk < C_PER_GRP; c_chunk += CHUNK_C)
     {
-        index_int chunk_sz = C_PER_GRP - c_chunk;
-        if(chunk_sz > CHUNK_C)
-            chunk_sz = CHUNK_C;
+        index_int csz = C_PER_GRP - c_chunk;
+        if(csz > CHUNK_C)
+            csz = CHUNK_C;
 
-        // Phase 1: Cooperatively transform K_BATCH * chunk_sz filters
-        index_int total_filt = k_actual * chunk_sz;
-        for(index_int idx = tid; idx < total_filt; idx += BLOCK)
+        // === Phase 1a: Input tile transform → LDS ===
         {
-            index_int kb = idx / chunk_sz;
-            index_int cl = idx % chunk_sz;
-            index_int kk = k_base + kb;
-            float g[9];
-            index_int w_off = (kk * C_PER_GRP + c_chunk + cl) * 9;
-            for(index_int p = 0; p < 9; p++)
-                g[p] = weight[w_off + p];
-            filter_xform(g, s_filt + (kb * chunk_sz + cl) * 36);
-        }
-        __syncthreads();
-
-        // Phase 2: Each thread accumulates its tile
-        if(my_tile < NUM_TILES)
-        {
-            for(index_int cc = 0; cc < chunk_sz; cc++)
+            index_int total = TILES_PER_WG * csz;
+            for(index_int idx = tid; idx < total; idx += BLOCK)
             {
-                index_int ic = c_base + c_chunk + cc;
+                index_int tl     = idx / csz;
+                index_int cc     = idx % csz;
+                index_int tg_idx = t_base + tl;
 
-                // Load 6x6 input tile with zero-padding
-                float d[36];
-                for(index_int i = 0; i < 6; i++)
+                float V[16];
+                if(tg_idx < TOTAL_TILES)
                 {
-                    diff_int ih     = ih_start + static_cast<diff_int>(i);
-                    bool ih_ok      = ih >= 0 and ih < static_cast<diff_int>(H);
-                    index_int rbase = ((n_val * C + ic) * H + static_cast<index_int>(ih)) * W;
-                    for(index_int j = 0; j < 6; j++)
+                    index_int ic  = c_base + c_chunk + cc;
+                    index_int tr  = tg_idx / TILES_W;
+                    index_int tc  = tg_idx % TILES_W;
+                    diff_int ih0  = static_cast<diff_int>(tr * OUT_TILE) - 1;
+                    diff_int iw0  = static_cast<diff_int>(tc * OUT_TILE) - 1;
+                    float d[16];
+                    for(index_int i = 0; i < ALPHA; i++)
                     {
-                        diff_int iw  = iw_start + static_cast<diff_int>(j);
-                        d[i * 6 + j] = (ih_ok and iw >= 0 and iw < static_cast<diff_int>(W))
-                                           ? input[rbase + static_cast<index_int>(iw)]
-                                           : 0.0f;
+                        diff_int ih = ih0 + static_cast<diff_int>(i);
+                        bool ih_ok  = ih >= 0 and ih < static_cast<diff_int>(H);
+                        index_int rb =
+                            ((n_val * C + ic) * H + static_cast<index_int>(ih)) * W;
+                        for(index_int j = 0; j < ALPHA; j++)
+                        {
+                            diff_int iw      = iw0 + static_cast<diff_int>(j);
+                            d[i * ALPHA + j] = (ih_ok and iw >= 0 and
+                                                iw < static_cast<diff_int>(W))
+                                                   ? input[rb + static_cast<index_int>(iw)]
+                                                   : 0.0f;
+                        }
+                    }
+                    // B^T column transform
+                    float tmp[16];
+                    for(index_int j = 0; j < 4; j++)
+                    {
+                        float d0 = d[j], d1 = d[4+j], d2 = d[8+j], d3 = d[12+j];
+                        tmp[j]    = d0 - d2; tmp[4+j]  = d1 + d2;
+                        tmp[8+j]  = d2 - d1; tmp[12+j] = d1 - d3;
+                    }
+                    // B row transform
+                    for(index_int i = 0; i < 4; i++)
+                    {
+                        index_int r = i * 4;
+                        float a = tmp[r], b = tmp[r+1], c = tmp[r+2], dd = tmp[r+3];
+                        V[r]   = a - c; V[r+1] = b + c;
+                        V[r+2] = c - b; V[r+3] = b - dd;
                     }
                 }
-
-                // Input transform (done once, reused K_BATCH times)
-                float V[36];
-                input_xform(d, V);
-
-                // Accumulate across K_BATCH filters from shared memory
-                for(index_int kb = 0; kb < k_actual; kb++)
+                else
                 {
-                    const float* U_ptr = s_filt + (kb * chunk_sz + cc) * 36;
-                    float* M_ptr       = M + kb * 36;
-                    for(index_int p = 0; p < 36; p++)
-                        M_ptr[p] = fmaf_(U_ptr[p], V[p], M_ptr[p]);
+                    for(index_int p = 0; p < ALPHA2; p++)
+                        V[p] = 0.0f;
                 }
+                for(index_int p = 0; p < ALPHA2; p++)
+                    lds_v[p * V_PLANE + tl * CHUNK_C + cc] = V[p];
+            }
+        }
+
+        // === Phase 1b: Filter transform → LDS (or load pretransformed) ===
+        if constexpr(PRETRANSFORMED)
+        {
+            // weight is [K][C_PER_GRP][16], load directly to LDS
+            index_int total = csz * k_actual * ALPHA2;
+            for(index_int idx = tid; idx < total; idx += BLOCK)
+            {
+                index_int p    = idx % ALPHA2;
+                index_int rem  = idx / ALPHA2;
+                index_int kl   = rem % k_actual;
+                index_int cc   = rem / k_actual;
+                index_int kk   = k_base + kl;
+                lds_u[p * U_PLANE + cc * K_PER_WG + kl] =
+                    weight[(kk * C_PER_GRP + c_chunk + cc) * ALPHA2 + p];
+            }
+        }
+        else
+        {
+            // weight is [K][C_PER_GRP][3][3], transform and write to LDS
+            index_int total = csz * k_actual;
+            for(index_int idx = tid; idx < total; idx += BLOCK)
+            {
+                index_int cc = idx / k_actual;
+                index_int kl = idx % k_actual;
+                index_int kk = k_base + kl;
+                float g[9], U[16];
+                index_int w_off = (kk * C_PER_GRP + c_chunk + cc) * 9;
+                for(index_int p = 0; p < 9; p++)
+                    g[p] = weight[w_off + p];
+                filter_xform(g, U);
+                for(index_int p = 0; p < ALPHA2; p++)
+                    lds_u[p * U_PLANE + cc * K_PER_WG + kl] = U[p];
+            }
+        }
+
+        __builtin_amdgcn_sched_barrier(1 << 7);
+        __syncthreads();
+        __builtin_amdgcn_sched_barrier(0);
+
+        // === Phase 2: Tiled GEMM from LDS ===
+        for(index_int cc = 0; cc < csz; cc++)
+        {
+            for(index_int p = 0; p < ALPHA2; p++)
+            {
+                float v0 = lds_v[p * V_PLANE + my_t0 * CHUNK_C + cc];
+                float v1 = lds_v[p * V_PLANE + (my_t0 + 1) * CHUNK_C + cc];
+                float u0 = lds_u[p * U_PLANE + cc * K_PER_WG + my_k0];
+                float u1 = lds_u[p * U_PLANE + cc * K_PER_WG + my_k0 + 1];
+
+                acc[p]              = fmaf_(v0, u0, acc[p]);
+                acc[ALPHA2 + p]     = fmaf_(v0, u1, acc[ALPHA2 + p]);
+                acc[2 * ALPHA2 + p] = fmaf_(v1, u0, acc[2 * ALPHA2 + p]);
+                acc[3 * ALPHA2 + p] = fmaf_(v1, u1, acc[3 * ALPHA2 + p]);
             }
         }
         __syncthreads();
     }
 
-    // Phase 3: Output transform and store for each filter
-    if(my_tile < NUM_TILES)
+    // === Phase 3: Output transform and store ===
+    for(index_int tm = 0; tm < T_TILE; tm++)
     {
-        index_int oh_base = tile_row * TILE_H;
-        index_int ow_base = tile_col * TILE_W;
-
-        for(index_int kb = 0; kb < k_actual; kb++)
+        index_int tile_idx = t_base + my_t0 + tm;
+        if(tile_idx >= TOTAL_TILES)
+            continue;
+        index_int tr  = tile_idx / TILES_W;
+        index_int tc  = tile_idx % TILES_W;
+        index_int oh0 = tr * OUT_TILE;
+        index_int ow0 = tc * OUT_TILE;
+        for(index_int tn = 0; tn < K_TILE; tn++)
         {
-            float Y[16];
-            output_xform(M + kb * 36, Y);
-
-            index_int kk = k_base + kb;
-            for(index_int i = 0; i < TILE_H; i++)
+            index_int kk = k_base + my_k0 + tn;
+            if(kk >= K)
+                continue;
+            float Y[4];
+            output_xform(acc + (tm * K_TILE + tn) * ALPHA2, Y);
+            for(index_int i = 0; i < OUT_TILE; i++)
             {
-                index_int oh = oh_base + i;
-                if(oh >= OH)
+                index_int oh = oh0 + i;
+                if(oh >= H)
                     break;
-                index_int out_row = ((n_val * K + kk) * OH + oh) * OW;
-                for(index_int j = 0; j < TILE_W; j++)
+                index_int row = ((n_val * K + kk) * H + oh) * W;
+                for(index_int j = 0; j < OUT_TILE; j++)
                 {
-                    index_int ow = ow_base + j;
-                    if(ow >= OW)
+                    index_int ow = ow0 + j;
+                    if(ow >= W)
                         break;
-                    output[out_row + ow] = Y[i * 4 + j];
+                    output[row + ow] = Y[i * OUT_TILE + j];
                 }
             }
         }

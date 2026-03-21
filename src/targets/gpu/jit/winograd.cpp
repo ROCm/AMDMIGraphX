@@ -41,13 +41,14 @@ extern "C" {
 
 MIGRAPHX_GLOBAL void winograd_kernel(void* input_ptr, void* weight_ptr, void* output_ptr)
 {
-    __shared__ float s_filt[${k_batch} * ${chunk_c} * 36];
-    const auto* input  = static_cast<const float*>(input_ptr);
-    const auto* weight = static_cast<const float*>(weight_ptr);
-    auto* output       = static_cast<float*>(output_ptr);
+    __shared__ float lds[${lds_floats}];
     winograd::conv<${group}, ${batch}, ${channels}, ${height}, ${width},
-                   ${filters}, ${chunk_c}, ${k_batch}>(
-        input, weight, output, s_filt);
+                   ${filters}, ${tiles_per_wg}, ${k_per_wg}, ${chunk_c},
+                   ${pretransformed}>(
+        static_cast<const float*>(input_ptr),
+        static_cast<const float*>(weight_ptr),
+        static_cast<float*>(output_ptr),
+        lds);
 }
 
 }
@@ -62,76 +63,63 @@ struct winograd_compiler : compiler<winograd_compiler>
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
-        const auto& in_shape  = inputs[0];
-        const auto& w_shape   = inputs[1];
-        const auto& out_shape = inputs.back();
+        auto in_lens = inputs[0].lens();
+        auto w_lens  = inputs[1].lens();
 
-        auto in_lens = in_shape.lens();
-        auto w_lens  = w_shape.lens();
+        std::size_t batch   = in_lens[0];
+        std::size_t channels = in_lens[1];
+        std::size_t height  = in_lens[2];
+        std::size_t width   = in_lens[3];
+        std::size_t filters = w_lens[0];
+        int group           = v.at("group").to<int>();
+        bool pretransformed = v.get("pretransformed", false);
+        std::size_t cpg     = channels / group;
 
-        std::size_t batch       = in_lens[0];
-        std::size_t channels    = in_lens[1];
-        std::size_t height      = in_lens[2];
-        std::size_t width       = in_lens[3];
-        std::size_t filters     = w_lens[0];
-        int group               = v.at("group").to<int>();
-        std::size_t c_per_group = channels / group;
+        std::size_t tiles_h     = (height + 1) / 2;
+        std::size_t tiles_w     = (width + 1) / 2;
+        std::size_t total_tiles = tiles_h * tiles_w;
 
-        std::size_t tiles_h   = (height + 3) / 4;
-        std::size_t tiles_w   = (width + 3) / 4;
-        std::size_t num_tiles = tiles_h * tiles_w;
+        // Tune block size: smaller blocks = more WGs for small spatial sizes
+        std::size_t block_size = (total_tiles <= 64) ? 128 : 256;
 
-        // =====================================================================
-        // Tuning parameters
-        // =====================================================================
-
-        // K_BATCH: output filters per thread. More = less memory traffic but
-        // more VGPRs. Budget: K_BATCH*36 + ~60 overhead must fit in 256 VGPRs.
-        // K_BATCH=4 → 204 VGPRs (1 wave), K_BATCH=2 → 132 VGPRs (2 waves).
-        // For memory-bound workloads (large spatial), prefer K_BATCH=4.
-        // For small spatial (few tiles), prefer K_BATCH=2 for occupancy.
-        std::size_t k_batch = 4;
-        if(num_tiles <= 64)
-            k_batch = 2;
-        if(k_batch > filters)
-            k_batch = filters;
-        // Ensure k_batch divides filters evenly, or find largest that does
-        while(k_batch > 1 and filters % k_batch != 0)
-            k_batch--;
-
-        // CHUNK_C: channels per shared memory batch.
-        // Shared memory = k_batch * chunk_c * 36 * 4 bytes. Cap at 32KB.
-        std::size_t max_smem = 32768;
-        std::size_t chunk_c  = max_smem / (k_batch * 36 * sizeof(float));
-        if(chunk_c > c_per_group)
-            chunk_c = c_per_group;
+        std::size_t k_per_wg = std::min(filters, std::size_t{32});
+        k_per_wg             = (k_per_wg / 2) * 2;
+        if(k_per_wg == 0)
+            k_per_wg = 2;
+        // T_TILE=2, K_TILE=2 → tiles_per_wg*k_per_wg = 4*block_size
+        std::size_t tiles_per_wg = 4 * block_size / k_per_wg;
+        std::size_t max_lds      = 65536;
+        std::size_t chunk_c =
+            max_lds / (16 * (tiles_per_wg + k_per_wg) * sizeof(float));
+        chunk_c = std::min(chunk_c, cpg);
         if(chunk_c == 0)
             chunk_c = 1;
+        std::size_t lds_floats =
+            16 * (tiles_per_wg * chunk_c + chunk_c * k_per_wg);
 
-        // =====================================================================
-        // Launch parameters
-        // =====================================================================
-        std::size_t block_size  = 256;
-        std::size_t k_groups    = (filters + k_batch - 1) / k_batch;
-        std::size_t tile_groups = (num_tiles + block_size - 1) / block_size;
+        std::size_t tile_groups = (total_tiles + tiles_per_wg - 1) / tiles_per_wg;
+        std::size_t k_groups    = (filters + k_per_wg - 1) / k_per_wg;
         std::size_t total_wgs   = batch * tile_groups * k_groups;
-        std::size_t global      = total_wgs * block_size;
 
         hip_compile_options options;
         options.inputs      = inputs;
-        options.output      = out_shape;
+        options.output      = inputs.back();
         options.kernel_name = "winograd_kernel";
-        options.set_launch_params(v, global, block_size);
+        options.set_launch_params(v, total_wgs * block_size, block_size);
 
-        auto src = interpolate_string(winograd_kernel,
-                                      {{"batch", to_string(batch)},
-                                       {"channels", to_string(channels)},
-                                       {"height", to_string(height)},
-                                       {"width", to_string(width)},
-                                       {"filters", to_string(filters)},
-                                       {"group", to_string(group)},
-                                       {"chunk_c", to_string(chunk_c)},
-                                       {"k_batch", to_string(k_batch)}});
+        auto src = interpolate_string(
+            winograd_kernel,
+            {{"group", to_string(group)},
+             {"batch", to_string(batch)},
+             {"channels", to_string(channels)},
+             {"height", to_string(height)},
+             {"width", to_string(width)},
+             {"filters", to_string(filters)},
+             {"tiles_per_wg", to_string(tiles_per_wg)},
+             {"k_per_wg", to_string(k_per_wg)},
+             {"chunk_c", to_string(chunk_c)},
+             {"lds_floats", to_string(lds_floats)},
+             {"pretransformed", pretransformed ? "true" : "false"}});
 
         return compile_hip_code_object(ctx, src, options);
     }

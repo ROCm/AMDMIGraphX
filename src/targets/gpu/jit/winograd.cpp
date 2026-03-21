@@ -66,14 +66,14 @@ struct winograd_compiler : compiler<winograd_compiler>
         auto in_lens = inputs[0].lens();
         auto w_lens  = inputs[1].lens();
 
-        std::size_t batch   = in_lens[0];
+        std::size_t batch    = in_lens[0];
         std::size_t channels = in_lens[1];
-        std::size_t height  = in_lens[2];
-        std::size_t width   = in_lens[3];
-        std::size_t filters = w_lens[0];
-        int group           = v.at("group").to<int>();
-        bool pretransformed = v.get("pretransformed", false);
-        std::size_t cpg     = channels / group;
+        std::size_t height   = in_lens[2];
+        std::size_t width    = in_lens[3];
+        std::size_t filters  = w_lens[0];
+        int group            = v.at("group").to<int>();
+        bool pretransformed  = v.get("pretransformed", false);
+        std::size_t cpg      = channels / group;
 
         std::size_t tiles_h     = (height + 1) / 2;
         std::size_t tiles_w     = (width + 1) / 2;
@@ -89,13 +89,11 @@ struct winograd_compiler : compiler<winograd_compiler>
         // T_TILE=2, K_TILE=2 → tiles_per_wg*k_per_wg = 4*block_size
         std::size_t tiles_per_wg = 4 * block_size / k_per_wg;
         std::size_t max_lds      = 65536;
-        std::size_t chunk_c =
-            max_lds / (16 * (tiles_per_wg + k_per_wg) * sizeof(float));
-        chunk_c = std::min(chunk_c, cpg);
+        std::size_t chunk_c      = max_lds / (16 * (tiles_per_wg + k_per_wg) * sizeof(float));
+        chunk_c                  = std::min(chunk_c, cpg);
         if(chunk_c == 0)
             chunk_c = 1;
-        std::size_t lds_floats =
-            16 * (tiles_per_wg * chunk_c + chunk_c * k_per_wg);
+        std::size_t lds_floats = 16 * (tiles_per_wg * chunk_c + chunk_c * k_per_wg);
 
         std::size_t tile_groups = (total_tiles + tiles_per_wg - 1) / tiles_per_wg;
         std::size_t k_groups    = (filters + k_per_wg - 1) / k_per_wg;
@@ -107,19 +105,18 @@ struct winograd_compiler : compiler<winograd_compiler>
         options.kernel_name = "winograd_kernel";
         options.set_launch_params(v, total_wgs * block_size, block_size);
 
-        auto src = interpolate_string(
-            winograd_kernel,
-            {{"group", to_string(group)},
-             {"batch", to_string(batch)},
-             {"channels", to_string(channels)},
-             {"height", to_string(height)},
-             {"width", to_string(width)},
-             {"filters", to_string(filters)},
-             {"tiles_per_wg", to_string(tiles_per_wg)},
-             {"k_per_wg", to_string(k_per_wg)},
-             {"chunk_c", to_string(chunk_c)},
-             {"lds_floats", to_string(lds_floats)},
-             {"pretransformed", pretransformed ? "true" : "false"}});
+        auto src = interpolate_string(winograd_kernel,
+                                      {{"group", to_string(group)},
+                                       {"batch", to_string(batch)},
+                                       {"channels", to_string(channels)},
+                                       {"height", to_string(height)},
+                                       {"width", to_string(width)},
+                                       {"filters", to_string(filters)},
+                                       {"tiles_per_wg", to_string(tiles_per_wg)},
+                                       {"k_per_wg", to_string(k_per_wg)},
+                                       {"chunk_c", to_string(chunk_c)},
+                                       {"lds_floats", to_string(lds_floats)},
+                                       {"pretransformed", pretransformed ? "true" : "false"}});
 
         return compile_hip_code_object(ctx, src, options);
     }

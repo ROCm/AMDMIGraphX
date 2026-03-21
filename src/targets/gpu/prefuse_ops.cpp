@@ -240,8 +240,8 @@ struct find_gemm_softmax_gemm
 
 struct pre_winograd_conv
 {
-    int group            = 1;
-    bool pretransformed  = false;
+    int group           = 1;
+    bool pretransformed = false;
     // K stored for compute_shape when weights are pretransformed (flat shape)
     std::size_t num_filters = 0;
 
@@ -336,15 +336,20 @@ struct find_winograd_conv
             {
                 float g0 = g[j], g1 = g[3 + j], g2 = g[6 + j];
                 float s = (g0 + g2) * 0.5f, d = g1 * 0.5f;
-                t[j] = g0; t[3 + j] = s + d; t[6 + j] = s - d; t[9 + j] = g2;
+                t[j]     = g0;
+                t[3 + j] = s + d;
+                t[6 + j] = s - d;
+                t[9 + j] = g2;
             }
             // G^T row transform (3→4)
             for(int r = 0; r < 4; r++)
             {
                 float t0 = t[r * 3], t1 = t[r * 3 + 1], t2 = t[r * 3 + 2];
                 float s = (t0 + t2) * 0.5f, dd = t1 * 0.5f;
-                u[r * 4] = t0; u[r * 4 + 1] = s + dd;
-                u[r * 4 + 2] = s - dd; u[r * 4 + 3] = t2;
+                u[r * 4]     = t0;
+                u[r * 4 + 1] = s + dd;
+                u[r * 4 + 2] = s - dd;
+                u[r * 4 + 3] = t2;
             }
         }
         shape out_shape{shape::float_type, {k * cpg * 16}};
@@ -364,21 +369,15 @@ struct find_winograd_conv
         if(weight_ins->can_eval())
         {
             // Precompute filter transform at compile time
-            auto w_arg      = weight_ins->eval();
+            auto w_arg       = weight_ins->eval();
             auto xformed_lit = transform_filters_cpu(w_arg, k, cpg);
             auto lit_ins     = m.add_literal(xformed_lit);
             m.replace_instruction(
-                ins,
-                pre_winograd_conv{group, true, k},
-                ins->inputs()[0],
-                lit_ins);
+                ins, pre_winograd_conv{group, true, k}, ins->inputs()[0], lit_ins);
         }
         else
         {
-            m.replace_instruction(
-                ins,
-                pre_winograd_conv{group, false, k},
-                ins->inputs());
+            m.replace_instruction(ins, pre_winograd_conv{group, false, k}, ins->inputs());
         }
     }
 };

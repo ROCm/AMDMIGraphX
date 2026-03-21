@@ -31,10 +31,7 @@
 namespace migraphx {
 namespace winograd {
 
-__device__ inline float fmaf_(float a, float b, float c)
-{
-    return __builtin_fmaf(a, b, c);
-}
+__device__ inline float fmaf_(float a, float b, float c) { return __builtin_fmaf(a, b, c); }
 
 // =============================================================================
 // F(2x2,3x3) B^T column transform applied via DPP within a quad.
@@ -54,8 +51,8 @@ __device__ inline void bt_col_dpp(float* v, index_int lane)
     for(index_int j = 0; j < 4; j++)
     {
         float my      = v[j];
-        float partner  = dpp_mov<0x5A>(my);
-        float diff     = my - partner;
+        float partner = dpp_mov<0x5A>(my);
+        float diff    = my - partner;
         // lane 1: sum; lane 3: negated diff; lanes 0,2: diff
         v[j] = (lane == 1) ? (my + partner) : ((lane == 3) ? -diff : diff);
     }
@@ -83,14 +80,20 @@ __device__ inline void filter_xform(const float* __restrict__ g, float* __restri
     {
         float g0 = g[j], g1 = g[3 + j], g2 = g[6 + j];
         float s = (g0 + g2) * 0.5f, d = g1 * 0.5f;
-        t[j] = g0; t[3 + j] = s + d; t[6 + j] = s - d; t[9 + j] = g2;
+        t[j]     = g0;
+        t[3 + j] = s + d;
+        t[6 + j] = s - d;
+        t[9 + j] = g2;
     }
     for(index_int i = 0; i < 4; i++)
     {
         index_int r = i * 3, o = i * 4;
         float t0 = t[r], t1 = t[r + 1], t2 = t[r + 2];
         float s = (t0 + t2) * 0.5f, d = t1 * 0.5f;
-        U[o] = t0; U[o + 1] = s + d; U[o + 2] = s - d; U[o + 3] = t2;
+        U[o]     = t0;
+        U[o + 1] = s + d;
+        U[o + 2] = s - d;
+        U[o + 3] = t2;
     }
 }
 
@@ -101,11 +104,12 @@ __device__ inline void output_xform(const float* __restrict__ M, float* __restri
     for(index_int j = 0; j < 4; j++)
     {
         float m0 = M[j], m1 = M[4 + j], m2 = M[8 + j], m3 = M[12 + j];
-        t[j] = m0 + m1 + m2; t[4 + j] = m1 - m2 - m3;
+        t[j]     = m0 + m1 + m2;
+        t[4 + j] = m1 - m2 - m3;
     }
     for(index_int i = 0; i < 2; i++)
     {
-        index_int r = i * 4;
+        index_int r  = i * 4;
         Y[i * 2]     = t[r] + t[r + 1] + t[r + 2];
         Y[i * 2 + 1] = t[r + 1] - t[r + 2] - t[r + 3];
     }
@@ -113,8 +117,7 @@ __device__ inline void output_xform(const float* __restrict__ M, float* __restri
 
 // Filter precompute (for graph-level constant folding or separate kernel)
 template <index_int K, index_int C_PER_GRP>
-__device__ void filter_precompute(const float* __restrict__ weight,
-                                  float* __restrict__ workspace)
+__device__ void filter_precompute(const float* __restrict__ weight, float* __restrict__ workspace)
 {
     auto idx = make_index();
     idx.global_stride(K * C_PER_GRP, [&](auto id) {
@@ -172,8 +175,8 @@ __device__ void conv(const float* __restrict__ input,
     constexpr index_int K_GRPS      = (K + K_PER_WG - 1) / K_PER_WG;
     constexpr index_int V_PLANE     = TILES_PER_WG * CHUNK_C;
     constexpr index_int U_PLANE     = CHUNK_C * K_PER_WG;
-    float* lds_v = lds;
-    float* lds_u = lds + ALPHA2 * V_PLANE;
+    float* lds_v                    = lds;
+    float* lds_u                    = lds + ALPHA2 * V_PLANE;
 
     index_int tid      = threadIdx.x; // NOLINT
     index_int wg       = blockIdx.x;  // NOLINT
@@ -214,23 +217,21 @@ __device__ void conv(const float* __restrict__ input,
                 float V[16];
                 if(tg_idx < TOTAL_TILES)
                 {
-                    index_int ic  = c_base + c_chunk + cc;
-                    index_int tr  = tg_idx / TILES_W;
-                    index_int tc  = tg_idx % TILES_W;
-                    diff_int ih0  = static_cast<diff_int>(tr * OUT_TILE) - 1;
-                    diff_int iw0  = static_cast<diff_int>(tc * OUT_TILE) - 1;
+                    index_int ic = c_base + c_chunk + cc;
+                    index_int tr = tg_idx / TILES_W;
+                    index_int tc = tg_idx % TILES_W;
+                    diff_int ih0 = static_cast<diff_int>(tr * OUT_TILE) - 1;
+                    diff_int iw0 = static_cast<diff_int>(tc * OUT_TILE) - 1;
                     float d[16];
                     for(index_int i = 0; i < ALPHA; i++)
                     {
-                        diff_int ih = ih0 + static_cast<diff_int>(i);
-                        bool ih_ok  = ih >= 0 and ih < static_cast<diff_int>(H);
-                        index_int rb =
-                            ((n_val * C + ic) * H + static_cast<index_int>(ih)) * W;
+                        diff_int ih  = ih0 + static_cast<diff_int>(i);
+                        bool ih_ok   = ih >= 0 and ih < static_cast<diff_int>(H);
+                        index_int rb = ((n_val * C + ic) * H + static_cast<index_int>(ih)) * W;
                         for(index_int j = 0; j < ALPHA; j++)
                         {
                             diff_int iw      = iw0 + static_cast<diff_int>(j);
-                            d[i * ALPHA + j] = (ih_ok and iw >= 0 and
-                                                iw < static_cast<diff_int>(W))
+                            d[i * ALPHA + j] = (ih_ok and iw >= 0 and iw < static_cast<diff_int>(W))
                                                    ? input[rb + static_cast<index_int>(iw)]
                                                    : 0.0f;
                         }
@@ -239,17 +240,21 @@ __device__ void conv(const float* __restrict__ input,
                     float tmp[16];
                     for(index_int j = 0; j < 4; j++)
                     {
-                        float d0 = d[j], d1 = d[4+j], d2 = d[8+j], d3 = d[12+j];
-                        tmp[j]    = d0 - d2; tmp[4+j]  = d1 + d2;
-                        tmp[8+j]  = d2 - d1; tmp[12+j] = d1 - d3;
+                        float d0 = d[j], d1 = d[4 + j], d2 = d[8 + j], d3 = d[12 + j];
+                        tmp[j]      = d0 - d2;
+                        tmp[4 + j]  = d1 + d2;
+                        tmp[8 + j]  = d2 - d1;
+                        tmp[12 + j] = d1 - d3;
                     }
                     // B row transform
                     for(index_int i = 0; i < 4; i++)
                     {
                         index_int r = i * 4;
-                        float a = tmp[r], b = tmp[r+1], c = tmp[r+2], dd = tmp[r+3];
-                        V[r]   = a - c; V[r+1] = b + c;
-                        V[r+2] = c - b; V[r+3] = b - dd;
+                        float a = tmp[r], b = tmp[r + 1], c = tmp[r + 2], dd = tmp[r + 3];
+                        V[r]     = a - c;
+                        V[r + 1] = b + c;
+                        V[r + 2] = c - b;
+                        V[r + 3] = b - dd;
                     }
                 }
                 else
@@ -269,11 +274,11 @@ __device__ void conv(const float* __restrict__ input,
             index_int total = csz * k_actual * ALPHA2;
             for(index_int idx = tid; idx < total; idx += BLOCK)
             {
-                index_int p    = idx % ALPHA2;
-                index_int rem  = idx / ALPHA2;
-                index_int kl   = rem % k_actual;
-                index_int cc   = rem / k_actual;
-                index_int kk   = k_base + kl;
+                index_int p   = idx % ALPHA2;
+                index_int rem = idx / ALPHA2;
+                index_int kl  = rem % k_actual;
+                index_int cc  = rem / k_actual;
+                index_int kk  = k_base + kl;
                 lds_u[p * U_PLANE + cc * K_PER_WG + kl] =
                     weight[(kk * C_PER_GRP + c_chunk + cc) * ALPHA2 + p];
             }

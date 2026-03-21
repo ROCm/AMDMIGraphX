@@ -7,15 +7,21 @@ Full documentation for MIGraphX is available at
 
 ### Added
 
+* Added `auto_pad` attribute support for the ONNX `ConvTranspose` operator, supporting `SAME_UPPER`, `SAME_LOWER`, and `VALID` padding modes for static shapes (#4638).
 * Added a dedicated logger for MIGraphX.
 * [Linux] Use HSA API to query number of chiplets for architectures where this is applicable (ex. gfx90a).
 * Added Eigen third party headers for ref GEMMs (#4631). 
+* Added a fuse_horizontal pass which batches independent cross embedding gather instructions (#4599).
+* Added GPU JIT `Resize` kernel (#4553).
+* Added Cubic resize jit kernel (#4652).
 
 ### Changed
 
+* Converted `reverse` operator from device implementation to JIT compilation (#4645).
 * Refactored instruction output alias to return a vector of aliases (#4540).
 * Changed parsing of ONNX ops like ConstantOfShape to insert undefined if expected shape has 0 elements (#4567).
 * Updated the ONNX clip operator to support opset 13 (#4518).
+* Updated `argmin` and `argmax` ops to be implemented as reduction ops, so they now have JIT support and can fuse (#4620).
 
 ### Resolved issues
 
@@ -24,12 +30,19 @@ Full documentation for MIGraphX is available at
 * Fixed an issue with clip operator when using fp16 input type on opset 6 (#4518). 
 * Fixed an issue with `reshape_lazy`'s shape computation that was leading to invalid reshapes (#4594).
 * Fixed `eliminate_pad` pass bug that was removing nonzero `pad` instructions (#4600).
+* Fixed an issue with `convert` output overflowing when converting inf/-inf to integral types (#4669).
 
 ### Optimized
+* Optimized fusion for local_window mode of GQA operator (#4617).
 
 * Added a new pass to replace convolution with constant broadcast input with a reduced GEMM which improves model compilation time (#4621).
+* Implemented JIT compilation for `logsoftmax` by decomposing it into fusible operations (`log`, `exp`, `reduce_max`, `reduce_sum`), enabling kernel fusion. (#4630).
+* Improved `find_attention` to move evaluable constant inputs inside the operator, allowing rocMLIR to detect causal masks. (#4660)
+* Added early return for `find_conv_dot_horiz_fusion` matcher based on if operator output size is less than two (#4662).
+* Add matcher to simplify_algebra to find and replace pow(x, 2) with mul(x, x) (#4681)
 
 ### Removed
+* Removed legacy device implementations for `argmin` and `argmax` in favor of the JIT implementations recently added (#4658).
 
 ## MIGraphX 2.15 for ROCm 7.2.0
 
@@ -46,6 +59,7 @@ Full documentation for MIGraphX is available at
 * Added Torch-MIGraphX installation instructions.
 * Added Operator Builders with supporting documentation.
 * Added index range check to the Gather operator.
+* Added `log(exp(x)) → x` and `log(a/b) → log(a) - log(b)` algebraic simplifications (#4630).
 
 
 ### Changed

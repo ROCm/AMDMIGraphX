@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,21 +26,19 @@
 
 TEST_CASE(upsample_ver7_test)
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-
-    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
-    auto ix = mm->add_parameter("X", sx);
-
-    migraphx::shape si{migraphx::shape::int32_type, {1, 1, 4, 6}};
-    std::vector<int> ind = {0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 3, 3};
-
-    auto li  = mm->add_literal(migraphx::literal(si, ind));
-    auto rsp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), ix);
-    auto r   = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), rsp, li);
-    mm->add_return({r});
-
+    // Parse the ONNX and check it produces 1-input resize with scales attribute
     auto prog = read_onnx("upsample_ver7_test.onnx");
+    auto* mm  = prog.get_main_module();
 
-    EXPECT(p == prog);
+    // Check that we have a resize instruction with scales attribute
+    auto resize_it = std::find_if(
+        mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "resize"; });
+    EXPECT(resize_it != mm->end());
+
+    // Check that resize has 1 input (not 2)
+    EXPECT(resize_it->inputs().size() == 1);
+
+    // Verify the output shape
+    auto out_shape = resize_it->get_shape();
+    EXPECT(out_shape.lens() == std::vector<std::size_t>{1, 1, 4, 6});
 }

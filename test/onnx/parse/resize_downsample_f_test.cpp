@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,7 +27,8 @@
 TEST_CASE(resize_downsample_f_test)
 {
     migraphx::program p;
-    auto* mm              = p.get_main_module();
+    auto* mm = p.get_main_module();
+
     std::vector<float> ds = {1.0f, 1.0f, 0.6f, 0.6f};
     migraphx::shape ss{migraphx::shape::float_type, {4}};
     mm->add_literal(migraphx::literal{ss, ds});
@@ -37,12 +38,12 @@ TEST_CASE(resize_downsample_f_test)
 
     mm->add_instruction(migraphx::make_op("undefined"));
 
-    migraphx::shape si{migraphx::shape::int32_type, {1, 1, 1, 2}};
-    std::vector<int> ind = {0, 3};
-    auto li              = mm->add_literal(migraphx::literal(si, ind));
-
-    auto lrsp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), inx);
-    auto r    = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
+    auto r = mm->add_instruction(
+        migraphx::make_op("resize",
+                          {{"scales", {1.0f, 1.0f, 0.6f, 0.6f}},
+                           {"nearest_mode", "floor"},
+                           {"coordinate_transformation_mode", "align_corners"}}),
+        inx);
     mm->add_return({r});
 
     auto prog = read_onnx("resize_downsample_f_test.onnx");

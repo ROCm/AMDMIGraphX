@@ -166,8 +166,9 @@ struct miopen_convolution
 
         auto* miopen_stream_handle = ctx.get_stream().get_miopen();
         std::size_t workspace_size = 73156608;
-        auto status = miopenStatusSuccess;
-        // auto status                = miopenConvolutionForwardGetWorkSpaceSize(miopen_stream_handle,
+        auto status                = miopenStatusSuccess;
+        // auto status                =
+        // miopenConvolutionForwardGetWorkSpaceSize(miopen_stream_handle,
         //                                                        w_desc.get(),
         //                                                        x_desc.get(),
         //                                                        cd.get(),

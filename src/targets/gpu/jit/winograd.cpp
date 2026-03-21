@@ -66,14 +66,17 @@ struct winograd_compiler : compiler<winograd_compiler>
         auto in_lens = inputs[0].lens();
         auto w_lens  = inputs[1].lens();
 
-        std::size_t batch    = in_lens[0];
-        std::size_t channels = in_lens[1];
-        std::size_t height   = in_lens[2];
-        std::size_t width    = in_lens[3];
-        std::size_t filters  = w_lens[0];
-        int group            = v.at("group").to<int>();
-        bool pretransformed  = v.get("pretransformed", false);
-        std::size_t cpg      = channels / group;
+        std::size_t batch       = in_lens[0];
+        std::size_t channels    = in_lens[1];
+        std::size_t height      = in_lens[2];
+        std::size_t width       = in_lens[3];
+        int group               = v.at("group").to<int>();
+        bool pretransformed     = v.get("pretransformed", false);
+        std::size_t cpg         = channels / group;
+        // When pretransformed, weight shape is flat {K*cpg*16}, so read K from op
+        std::size_t filters     = pretransformed
+                                      ? v.at("num_filters").to<std::size_t>()
+                                      : w_lens[0];
 
         // F(2x2, 3x3)
         std::size_t tiles_h     = (height + 1) / 2;

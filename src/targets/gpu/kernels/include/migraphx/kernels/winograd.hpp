@@ -270,17 +270,16 @@ __device__ void conv(const float* __restrict__ input,
         // === Phase 1b: Filter transform → LDS (or load pretransformed) ===
         if constexpr(PRETRANSFORMED)
         {
-            // weight is [K][C_PER_GRP][16], load directly to LDS
-            index_int total = csz * k_actual * ALPHA2;
+            // weight is [K][C_PER_GRP][16], load one (cc,kl) pair per iteration
+            index_int total = csz * k_actual;
             for(index_int idx = tid; idx < total; idx += BLOCK)
             {
-                index_int p   = idx % ALPHA2;
-                index_int rem = idx / ALPHA2;
-                index_int kl  = rem % k_actual;
-                index_int cc  = rem / k_actual;
-                index_int kk  = k_base + kl;
-                lds_u[p * U_PLANE + cc * K_PER_WG + kl] =
-                    weight[(kk * C_PER_GRP + c_chunk + cc) * ALPHA2 + p];
+                index_int cc = idx / k_actual;
+                index_int kl = idx % k_actual;
+                index_int kk = k_base + kl;
+                index_int src = (kk * C_PER_GRP + c_chunk + cc) * ALPHA2;
+                for(index_int p = 0; p < ALPHA2; p++)
+                    lds_u[p * U_PLANE + cc * K_PER_WG + kl] = weight[src + p];
             }
         }
         else

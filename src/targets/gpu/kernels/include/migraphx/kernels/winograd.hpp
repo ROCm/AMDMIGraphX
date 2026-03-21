@@ -326,8 +326,7 @@ __device__ void conv(const float* __restrict__ input,
                 for(index_int tm = 0; tm < T_TILE; tm++)
                     for(index_int tn = 0; tn < K_TILE; tn++)
                         acc[(tm * K_TILE + tn) * ALPHA2 + p] =
-                            fmaf_(v[tm], u[tn],
-                                  acc[(tm * K_TILE + tn) * ALPHA2 + p]);
+                            fmaf_(v[tm], u[tn], acc[(tm * K_TILE + tn) * ALPHA2 + p]);
             }
         }
         __builtin_amdgcn_s_setprio(0); // Back to normal

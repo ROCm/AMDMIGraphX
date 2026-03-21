@@ -84,8 +84,8 @@ struct winograd_compiler : compiler<winograd_compiler>
         // Read tuning parameters from solution, with heuristic defaults
         std::size_t block_size =
             v.get("block_size", (total_tiles <= 64) ? std::size_t{128} : std::size_t{256});
-        std::size_t t_tile = v.get("t_tile", std::size_t{2});
-        std::size_t k_tile = v.get("k_tile", std::size_t{2});
+        std::size_t t_tile   = v.get("t_tile", std::size_t{2});
+        std::size_t k_tile   = v.get("k_tile", std::size_t{2});
         std::size_t k_per_wg = v.get("k_per_wg", std::min(filters, std::size_t{32}));
         k_per_wg             = (k_per_wg / k_tile) * k_tile;
         if(k_per_wg == 0)
@@ -140,8 +140,7 @@ struct winograd_compiler : compiler<winograd_compiler>
         if(not solution.empty())
         {
             // Copy solution keys into v
-            for(const auto& key :
-                {"block_size", "k_per_wg", "t_tile", "k_tile"})
+            for(const auto& key : {"block_size", "k_per_wg", "t_tile", "k_tile"})
             {
                 if(solution.contains(key))
                     v[key] = solution.at(key);
@@ -195,8 +194,7 @@ struct winograd_compiler : compiler<winograd_compiler>
                         std::size_t tpw = tt * kt * bs / kpw;
                         if(tpw < tt)
                             continue;
-                        std::size_t max_chunk =
-                            65536 / (16 * (tpw + kpw) * sizeof(float));
+                        std::size_t max_chunk = 65536 / (16 * (tpw + kpw) * sizeof(float));
                         if(max_chunk == 0)
                             continue;
                         std::size_t cc = std::min(max_chunk, cpg);

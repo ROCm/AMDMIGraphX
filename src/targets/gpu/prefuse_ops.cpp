@@ -300,6 +300,7 @@ auto is_winograd_eligible()
         if(not in_shape.standard() or not w_shape.standard())
             return false;
 
+#if 0
         // Winograd only wins on compute-heavy problems where the 2.25x
         // arithmetic reduction outweighs transform+barrier overhead.
         // Heuristic: need large C*K relative to spatial size.
@@ -312,6 +313,7 @@ auto is_winograd_eligible()
             return false;
         if(h > 28 or w > 28)
             return false;
+#endif
 
         return true;
     });

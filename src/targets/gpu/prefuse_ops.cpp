@@ -41,6 +41,7 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_LAYERNORM_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MLIR);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_WINOGRAD);
 
 namespace {
 
@@ -237,6 +238,81 @@ struct find_gemm_softmax_gemm
     }
 };
 
+struct pre_winograd_conv
+{
+    int group = 1;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.group, "group"));
+    }
+
+    std::string name() const { return "gpu::pre_winograd_conv"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(2).same_type();
+        auto in_lens = inputs[0].lens();
+        auto w_lens  = inputs[1].lens();
+        // For 3x3 conv, stride 1, padding 1: output spatial = input spatial
+        return inputs[0].with_lens({in_lens[0], w_lens[0], in_lens[2], in_lens[3]});
+    }
+};
+MIGRAPHX_REGISTER_OP(pre_winograd_conv);
+
+auto is_winograd_eligible()
+{
+    return match::make_basic_pred_matcher([](instruction_ref ins) {
+        if(ins->get_shape().dynamic())
+            return false;
+        if(ins->get_shape().type() != shape::float_type)
+            return false;
+
+        auto v        = ins->get_operator().to_value();
+        auto padding  = v.at("padding").to_vector<std::size_t>();
+        auto stride   = v.at("stride").to_vector<std::size_t>();
+        auto dilation = v.at("dilation").to_vector<std::size_t>();
+
+        if(stride != std::vector<std::size_t>{1, 1})
+            return false;
+        if(dilation != std::vector<std::size_t>{1, 1})
+            return false;
+        if(padding != std::vector<std::size_t>{1, 1, 1, 1})
+            return false;
+
+        auto inputs = ins->inputs();
+        if(inputs.size() != 2)
+            return false;
+        auto in_shape = inputs[0]->get_shape();
+        auto w_shape  = inputs[1]->get_shape();
+        // Must be 4D NCHW
+        if(in_shape.ndim() != 4 or w_shape.ndim() != 4)
+            return false;
+        // Must be 3x3 kernel
+        if(w_shape.lens()[2] != 3 or w_shape.lens()[3] != 3)
+            return false;
+        // Both inputs must be standard (packed NCHW) layout
+        if(not in_shape.standard() or not w_shape.standard())
+            return false;
+
+        return true;
+    });
+}
+
+struct find_winograd_conv
+{
+    auto matcher() const { return match::name("convolution")(is_winograd_eligible()); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins  = r.result;
+        auto v    = ins->get_operator().to_value();
+        int group = v.at("group").to<int>();
+        m.replace_instruction(ins, pre_winograd_conv{group}, ins->inputs());
+    }
+};
+
 void inline_group_sub_module(module_pass_manager& mpm)
 {
     auto& m = mpm.get_module();
@@ -255,6 +331,11 @@ void inline_group_sub_module(module_pass_manager& mpm)
 
 void prefuse_ops::apply(module_pass_manager& mpm) const
 {
+    if(enabled(MIGRAPHX_ENABLE_WINOGRAD{}))
+    {
+        match::find_matches(mpm.get_module(), find_winograd_conv{});
+        mpm.run_pass(dead_code_elimination{});
+    }
     if(enabled(MIGRAPHX_ENABLE_LAYERNORM_FUSION{}))
     {
         match::find_matches(mpm.get_module(), find_layernorm{});

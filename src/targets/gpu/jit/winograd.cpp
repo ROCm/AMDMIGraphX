@@ -44,7 +44,7 @@ MIGRAPHX_GLOBAL void winograd_kernel(void* input_ptr, void* weight_ptr, void* ou
     __shared__ float lds[${lds_floats}];
     winograd::conv<${group}, ${batch}, ${channels}, ${height}, ${width},
                    ${filters}, ${tiles_per_wg}, ${k_per_wg}, ${chunk_c},
-                   ${pretransformed}>(
+                   ${pretransformed}, ${t_tile}, ${k_tile}>(
         static_cast<const float*>(input_ptr),
         static_cast<const float*>(weight_ptr),
         static_cast<float*>(output_ptr),
@@ -84,13 +84,15 @@ struct winograd_compiler : compiler<winograd_compiler>
         // Read tuning parameters from solution, with heuristic defaults
         std::size_t block_size =
             v.get("block_size", (total_tiles <= 64) ? std::size_t{128} : std::size_t{256});
+        std::size_t t_tile = v.get("t_tile", std::size_t{2});
+        std::size_t k_tile = v.get("k_tile", std::size_t{2});
         std::size_t k_per_wg = v.get("k_per_wg", std::min(filters, std::size_t{32}));
-        k_per_wg             = (k_per_wg / 2) * 2;
+        k_per_wg             = (k_per_wg / k_tile) * k_tile;
         if(k_per_wg == 0)
-            k_per_wg = 2;
+            k_per_wg = k_tile;
 
-        // T_TILE=2, K_TILE=2 → tiles_per_wg*k_per_wg = 4*block_size
-        std::size_t tiles_per_wg = 4 * block_size / k_per_wg;
+        // tiles_per_wg*k_per_wg = t_tile*k_tile*block_size
+        std::size_t tiles_per_wg = t_tile * k_tile * block_size / k_per_wg;
 
         // CHUNK_C: max channels per LDS batch (64KB LDS limit)
         std::size_t max_lds = 65536;
@@ -122,7 +124,9 @@ struct winograd_compiler : compiler<winograd_compiler>
                                        {"k_per_wg", to_string(k_per_wg)},
                                        {"chunk_c", to_string(chunk_c)},
                                        {"lds_floats", to_string(lds_floats)},
-                                       {"pretransformed", pretransformed ? "true" : "false"}});
+                                       {"pretransformed", pretransformed ? "true" : "false"},
+                                       {"t_tile", to_string(t_tile)},
+                                       {"k_tile", to_string(k_tile)}});
 
         return compile_hip_code_object(ctx, src, options);
     }
@@ -136,10 +140,12 @@ struct winograd_compiler : compiler<winograd_compiler>
         if(not solution.empty())
         {
             // Copy solution keys into v
-            if(solution.contains("block_size"))
-                v["block_size"] = solution.at("block_size");
-            if(solution.contains("k_per_wg"))
-                v["k_per_wg"] = solution.at("k_per_wg");
+            for(const auto& key :
+                {"block_size", "k_per_wg", "t_tile", "k_tile"})
+            {
+                if(solution.contains(key))
+                    v[key] = solution.at(key);
+            }
         }
         return compile_op(ctx, to_shapes(ins->inputs()), v);
     }
@@ -168,25 +174,41 @@ struct winograd_compiler : compiler<winograd_compiler>
         tuning_config tc;
         tc.problem = to_value(shapes);
 
-        // Generate candidate combinations of (block_size, k_per_wg)
-        for(std::size_t bs : {64, 128, 256})
+        // Generate candidate combinations of (block_size, k_per_wg, t_tile, k_tile)
+        // Larger tiles = better FMA:LDS ratio but more registers.
+        // v30 MIOpen uses 8x8 on GFX11 (4:1 ratio), 4x8 on GFX9 (2.67:1).
+        for(std::size_t tt : {2, 4})
         {
-            for(std::size_t kpw : {4, 8, 16, 32})
+            for(std::size_t kt : {2, 4})
             {
-                if(kpw > filters)
+                // Skip 4x4 tile: 256 accumulators = too many VGPRs for most GPUs
+                if(tt == 4 and kt == 4)
                     continue;
-                if(filters % kpw != 0)
-                    continue;
-                std::size_t tpw = 4 * bs / kpw;
-                // Check LDS fits
-                std::size_t max_chunk = 65536 / (16 * (tpw + kpw) * sizeof(float));
-                if(max_chunk == 0)
-                    continue;
-                std::size_t cc = std::min(max_chunk, cpg);
-                if(cc == 0)
-                    continue;
+                for(std::size_t bs : {64, 128, 256})
+                {
+                    for(std::size_t kpw : {4, 8, 16, 32})
+                    {
+                        if(kpw > filters or kpw % kt != 0)
+                            continue;
+                        if(filters % kpw != 0)
+                            continue;
+                        std::size_t tpw = tt * kt * bs / kpw;
+                        if(tpw < tt)
+                            continue;
+                        std::size_t max_chunk =
+                            65536 / (16 * (tpw + kpw) * sizeof(float));
+                        if(max_chunk == 0)
+                            continue;
+                        std::size_t cc = std::min(max_chunk, cpg);
+                        if(cc == 0)
+                            continue;
 
-                tc.solutions.push_back({{"block_size", bs}, {"k_per_wg", kpw}});
+                        tc.solutions.push_back({{"block_size", bs},
+                                                {"k_per_wg", kpw},
+                                                {"t_tile", tt},
+                                                {"k_tile", kt}});
+                    }
+                }
             }
         }
 

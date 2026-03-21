@@ -153,7 +153,9 @@ template <index_int Group,
           index_int TILES_PER_WG,
           index_int K_PER_WG,
           index_int CHUNK_C,
-          bool PRETRANSFORMED>
+          bool PRETRANSFORMED,
+          index_int T_TILE = 2,
+          index_int K_TILE = 2>
 __device__ void conv(const float* __restrict__ input,
                      const float* __restrict__ weight,
                      float* __restrict__ output,
@@ -168,8 +170,6 @@ __device__ void conv(const float* __restrict__ input,
     constexpr index_int C_PER_GRP   = C / Group;
     constexpr index_int K_PER_GRP   = K / Group;
     constexpr index_int BLOCK       = MIGRAPHX_NLOCAL;
-    constexpr index_int T_TILE      = 2;
-    constexpr index_int K_TILE      = 2;
     constexpr index_int THREADS_N   = K_PER_WG / K_TILE;
     constexpr index_int TILE_GRPS   = (TOTAL_TILES + TILES_PER_WG - 1) / TILES_PER_WG;
     constexpr index_int K_GRPS      = (K + K_PER_WG - 1) / K_PER_WG;
@@ -306,21 +306,31 @@ __device__ void conv(const float* __restrict__ input,
         __builtin_amdgcn_sched_barrier(0);
 
         // === Phase 2: Tiled GEMM from LDS ===
+        // T_TILE×K_TILE outer product per LDS read pair.
+        // FMA:LDS ratio = T_TILE*K_TILE : (T_TILE+K_TILE).
+        // Larger tiles = better ratio (v30 uses 8×8 for 4:1).
+        __builtin_amdgcn_s_setprio(1); // High priority for compute
         for(index_int cc = 0; cc < csz; cc++)
         {
             for(index_int p = 0; p < ALPHA2; p++)
             {
-                float v0 = lds_v[p * V_PLANE + my_t0 * CHUNK_C + cc];
-                float v1 = lds_v[p * V_PLANE + (my_t0 + 1) * CHUNK_C + cc];
-                float u0 = lds_u[p * U_PLANE + cc * K_PER_WG + my_k0];
-                float u1 = lds_u[p * U_PLANE + cc * K_PER_WG + my_k0 + 1];
+                // Load T_TILE V values and K_TILE U values
+                float v[T_TILE];
+                for(index_int tm = 0; tm < T_TILE; tm++)
+                    v[tm] = lds_v[p * V_PLANE + (my_t0 + tm) * CHUNK_C + cc];
+                float u[K_TILE];
+                for(index_int tn = 0; tn < K_TILE; tn++)
+                    u[tn] = lds_u[p * U_PLANE + cc * K_PER_WG + my_k0 + tn];
 
-                acc[p]              = fmaf_(v0, u0, acc[p]);
-                acc[ALPHA2 + p]     = fmaf_(v0, u1, acc[ALPHA2 + p]);
-                acc[2 * ALPHA2 + p] = fmaf_(v1, u0, acc[2 * ALPHA2 + p]);
-                acc[3 * ALPHA2 + p] = fmaf_(v1, u1, acc[3 * ALPHA2 + p]);
+                // Outer product: T_TILE×K_TILE FMAs
+                for(index_int tm = 0; tm < T_TILE; tm++)
+                    for(index_int tn = 0; tn < K_TILE; tn++)
+                        acc[(tm * K_TILE + tn) * ALPHA2 + p] =
+                            fmaf_(v[tm], u[tn],
+                                  acc[(tm * K_TILE + tn) * ALPHA2 + p]);
             }
         }
+        __builtin_amdgcn_s_setprio(0); // Back to normal
         __syncthreads();
     }
 

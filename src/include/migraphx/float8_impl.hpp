@@ -121,7 +121,7 @@ constexpr uint8_t cast_to_f8(T f_x, bool stoch = false, uint32_t rng = 0)
         return NegativeZeroNan ? 0 : 0x80; // For FNUZ types neg zero is just positive zero
     }
 
-    /* First need to check if it is normal or denorm as there is a difference of implict 1
+    /* First need to check if it is normal or denorm as there is a difference of implicit 1
     Then need to adjust the exponent to align with the F8 exponent, in the meanwhile, shift
     The mantissa. Then for stochastic rounding, add rng to mantissa and truncate. And for
     RNE, no need to add rng. Then probably need to check whether there is carry and adjust
@@ -157,7 +157,7 @@ constexpr uint8_t cast_to_f8(T f_x, bool stoch = false, uint32_t rng = 0)
         {
             /* This is the case where fp32/fp16 is normal but it is in f8 denormal range.
             For example fp8 FNUZ mode, denormal exponent is -7, but if the fp32/fp16
-            actual exponent is -7, it is actually larger due to the implict 1,
+            actual exponent is -7, it is actually larger due to the implicit 1,
             Therefore it needs to be adjust to -6 and mantissa shift right by 1.
             So for fp32/fp16, exponent -8 is the cut point to convert to fp8 FNUZ */
             exponent_diff = f8_denormal_act_exponent - act_exponent;
@@ -186,7 +186,7 @@ constexpr uint8_t cast_to_f8(T f_x, bool stoch = false, uint32_t rng = 0)
     else if(exponent_diff == -1)
         mantissa <<= -exponent_diff;
     bool implicit_one = mantissa & (1 << mfmt);
-    // if there is no implict 1, it  means the f8 is denormal and need to adjust to denorm exponent
+    // if there is no implicit 1, it means the f8 is denormal and need to adjust to denorm exponent
     f8_exponent =
         (act_exponent + exponent_diff) /*actual f8 exponent*/ + f8_bias - (implicit_one ? 0 : 1);
 

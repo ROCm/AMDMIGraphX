@@ -325,7 +325,7 @@ def disabled_tests_onnx_1_8_0(backend_test):
 def disabled_tests_onnx_1_9_0(backend_test):
     # fails
     # from OnnxBackendPyTorchConvertedModelTest
-    # MaxPool dialtion is partially supported on GPU by a workaround
+    # MaxPool dilation is partially supported on GPU by a workaround
     # But these tests require too large allocations to work properly
     backend_test.exclude(r'test_MaxPool1d_stride_padding_dilation_cpu')
     backend_test.exclude(r'test_MaxPool2d_stride_padding_dilation_cpu')

@@ -55,7 +55,7 @@ TEST_CASE(add_two_literals)
     // compile the program on the reference device
     p.compile(migraphx::make_target("ref"));
 
-    // evaulate the program and retreive the result
+    // evaluate the program and retrieve the result
     auto result = p.eval({}).back();
     std::cout << "add_two_literals: 1 + 2 = " << result << "\n";
     EXPECT(result.at<int>() == 3);

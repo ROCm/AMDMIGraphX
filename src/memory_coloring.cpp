@@ -180,7 +180,7 @@ struct allocation_segment
         std::size_t n = 1 + (ins->get_shape().bytes() - 1) / alignment;
         assert(n > 0);
         std::size_t start = 0;
-        // Insert at end if it cant fit at the begining
+        // Insert at end if it cant fit at the beginning
         if(segments.empty() or segments.begin()->first <= n)
         {
             auto it = find_gap(segments, n);

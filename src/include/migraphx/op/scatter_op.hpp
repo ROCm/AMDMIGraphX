@@ -47,7 +47,7 @@ template <typename Derived>
 struct scatter_op : op_name<Derived>
 {
     int64_t axis = 0;
-    // skip scattering indicies that are out of bounds
+    // skip scattering indices that are out of bounds
     bool skip_out_of_bounds = false;
 
     template <class Self, class F>

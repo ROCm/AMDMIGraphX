@@ -709,7 +709,7 @@ struct parse_attention : op_parser<parse_attention>
         // each attention head
 
         if(attention.padding_mode() == mask_pad::raw)
-        { // Raw Mask - 0 means mask, 1 means pass through. Apply mask_filter_val to mask indicies
+        { // Raw Mask - 0 means mask, 1 means pass through. Apply mask_filter_val to mask indices
           // and zero otherwise
             // Need to generate from 2 dims or 3 dim cases
             return generate_raw_mask_per_batch(info, attention);

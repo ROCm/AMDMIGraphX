@@ -361,7 +361,7 @@ struct loader
                 {
                     auto dyn_dim = parse_dyn_dims_json(x);
                     if(dyn_dim.size() != 1)
-                        MIGRAPHX_THROW("dim_param must only specifiy one dimension");
+                        MIGRAPHX_THROW("dim_param must only specify one dimension");
                     map_dim_params[name] = dyn_dim.front();
                 }
             }

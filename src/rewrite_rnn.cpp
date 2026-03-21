@@ -727,7 +727,7 @@ std::vector<operation> rewrite_rnn::gru_actv_funcs(instruction_ref ins) const
     auto gru_op = any_cast<op::gru>(ins->get_operator());
     // before rewrite the gru operator, need to ensure
     // we have 4 actv funcs, even though a user does not
-    // specifiy any actv func. If less than 4, use the
+    // specify any actv func. If less than 4, use the
     // algorithm in parse_gru to make 4 actv functions
     if(gru_op.direction == op::rnn_direction::bidirectional)
     {
@@ -1206,7 +1206,7 @@ std::vector<operation> rewrite_rnn::lstm_actv_funcs(instruction_ref ins) const
     auto lstm_op = any_cast<op::lstm>(ins->get_operator());
     // before rewrite the lstm operator, need to ensure
     // we have 6 actv funcs, even though a user does not
-    // specifiy any actv func. If less than 46, use the
+    // specify any actv func. If less than 6, use the
     // algorithm in parse_lstm to make 6 actv functions
     const auto& actv_funcs     = lstm_op.actv_funcs;
     std::size_t num_actv_funcs = actv_funcs.size();

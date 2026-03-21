@@ -101,7 +101,7 @@ MIGRAPHX_EXPORT
 std::vector<std::size_t> compute_common_lens(const std::vector<shape>& shapes);
 
 /**
- * @ brief Compute the common (broadcasted) dynamic dimensions of a list of dynamic shapes
+ * @brief Compute the common (broadcasted) dynamic dimensions of a list of dynamic shapes
  */
 MIGRAPHX_EXPORT
 std::vector<shape::dynamic_dimension> compute_common_dyn_dims(const std::vector<shape>& shapes);

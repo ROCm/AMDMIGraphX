@@ -269,7 +269,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
     instruction_ref handle_index_selection(const onnx_parser::node_info& info,
                                            const instruction_ref labels) const
     {
-        // Pick out the coordinates from the inputs to gerneate the proper indicies to gather
+        // Pick out the coordinates from the inputs to generate the proper indices to gather
         // what will be operated on later.
 
         // Use label indices to select weights
@@ -457,9 +457,9 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
                                            weights);
         weights = info.add_instruction(migraphx::make_op("gathernd"), weights, gathernd_indicies);
 
-        // Do pointwise operators on the final set of indicies and scores we care about rather than
+        // Do pointwise operators on the final set of indices and scores we care about rather than
         // before so that we're not doing a bunch of pointwise on items that aren't part of the loss
-        // calulation.
+        // calculation.
         auto log_sm_scores = scores;
         if(is_softmaxcrossentropy)
         {

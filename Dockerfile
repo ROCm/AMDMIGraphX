@@ -1,4 +1,4 @@
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 
 ARG PREFIX=/usr/local
 
@@ -69,10 +69,15 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+# Set up Python virtual environment
+ENV VIRTUAL_ENV=/opt/venv
+RUN python3 -m venv $VIRTUAL_ENV
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
 # Install pytorch
-RUN pip3 install https://repo.radeon.com/rocm/manylinux/rocm-rel-7.1.1/torch-2.8.0%2Brocm7.1.1.lw.gitcba8b9d2-cp310-cp310-linux_x86_64.whl\
-                 https://repo.radeon.com/rocm/manylinux/rocm-rel-7.1.1/torchvision-0.24.0%2Brocm7.1.1.gitb919bd0c-cp310-cp310-linux_x86_64.whl\
-                 https://repo.radeon.com/rocm/manylinux/rocm-rel-7.1.1/triton-3.4.0%2Brocm7.1.1.git0cace8d2-cp310-cp310-linux_x86_64.whl
+RUN pip3 install https://repo.radeon.com/rocm/manylinux/rocm-rel-7.1.1/torch-2.8.0%2Brocm7.1.1.lw.gitcba8b9d2-cp312-cp312-linux_x86_64.whl\
+                 https://repo.radeon.com/rocm/manylinux/rocm-rel-7.1.1/torchvision-0.24.0%2Brocm7.1.1.gitb919bd0c-cp312-cp312-linux_x86_64.whl\
+                 https://repo.radeon.com/rocm/manylinux/rocm-rel-7.1.1/triton-3.4.0%2Brocm7.1.1.git0cace8d2-cp312-cp312-linux_x86_64.whl
 
 # add this for roctracer dependancies
 RUN pip3 install CppHeaderParser

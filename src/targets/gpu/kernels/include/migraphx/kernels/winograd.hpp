@@ -274,9 +274,9 @@ __device__ void conv(const float* __restrict__ input,
             index_int total = csz * k_actual;
             for(index_int idx = tid; idx < total; idx += BLOCK)
             {
-                index_int cc = idx / k_actual;
-                index_int kl = idx % k_actual;
-                index_int kk = k_base + kl;
+                index_int cc  = idx / k_actual;
+                index_int kl  = idx % k_actual;
+                index_int kk  = k_base + kl;
                 index_int src = (kk * C_PER_GRP + c_chunk + cc) * ALPHA2;
                 for(index_int p = 0; p < ALPHA2; p++)
                     lds_u[p * U_PLANE + cc * K_PER_WG + kl] = weight[src + p];

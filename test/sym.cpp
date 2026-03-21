@@ -24,16 +24,16 @@
 #include <migraphx/sym.hpp>
 #include <test.hpp>
 
+using migraphx::sym::abs;
 using migraphx::sym::arg;
 using migraphx::sym::call;
-using migraphx::sym::expr;
-using migraphx::sym::interval;
-using migraphx::sym::lit;
-using migraphx::sym::abs;
 using migraphx::sym::ceil;
 using migraphx::sym::cos;
 using migraphx::sym::exp;
+using migraphx::sym::expr;
 using migraphx::sym::floor;
+using migraphx::sym::interval;
+using migraphx::sym::lit;
 using migraphx::sym::log;
 using migraphx::sym::max;
 using migraphx::sym::min;
@@ -588,40 +588,19 @@ TEST_CASE(custom_call_interval)
 
 // ---- Math function eval tests ----
 
-TEST_CASE(sin_eval)
-{
-    EXPECT(sin(lit(0.0)).eval({}) == value{0.0});
-}
+TEST_CASE(sin_eval) { EXPECT(sin(lit(0.0)).eval({}) == value{0.0}); }
 
-TEST_CASE(cos_eval)
-{
-    EXPECT(cos(lit(0.0)).eval({}) == value{1.0});
-}
+TEST_CASE(cos_eval) { EXPECT(cos(lit(0.0)).eval({}) == value{1.0}); }
 
-TEST_CASE(tan_eval)
-{
-    EXPECT(tan(lit(0.0)).eval({}) == value{0.0});
-}
+TEST_CASE(tan_eval) { EXPECT(tan(lit(0.0)).eval({}) == value{0.0}); }
 
-TEST_CASE(exp_eval)
-{
-    EXPECT(exp(lit(0.0)).eval({}) == value{1.0});
-}
+TEST_CASE(exp_eval) { EXPECT(exp(lit(0.0)).eval({}) == value{1.0}); }
 
-TEST_CASE(exp_eval_one)
-{
-    EXPECT(exp(lit(1.0)).eval({}) == value{std::exp(1.0)});
-}
+TEST_CASE(exp_eval_one) { EXPECT(exp(lit(1.0)).eval({}) == value{std::exp(1.0)}); }
 
-TEST_CASE(log_eval)
-{
-    EXPECT(log(lit(1.0)).eval({}) == value{0.0});
-}
+TEST_CASE(log_eval) { EXPECT(log(lit(1.0)).eval({}) == value{0.0}); }
 
-TEST_CASE(sqrt_eval_refactored)
-{
-    EXPECT(sqrt(lit(4.0)).eval({}) == value{2.0});
-}
+TEST_CASE(sqrt_eval_refactored) { EXPECT(sqrt(lit(4.0)).eval({}) == value{2.0}); }
 
 TEST_CASE(abs_int_eval)
 {
@@ -629,10 +608,7 @@ TEST_CASE(abs_int_eval)
     EXPECT(abs(lit(3)).eval({}) == value{int64_t{3}});
 }
 
-TEST_CASE(abs_double_eval)
-{
-    EXPECT(abs(lit(-2.5)).eval({}) == value{2.5});
-}
+TEST_CASE(abs_double_eval) { EXPECT(abs(lit(-2.5)).eval({}) == value{2.5}); }
 
 TEST_CASE(floor_eval)
 {
@@ -646,10 +622,7 @@ TEST_CASE(ceil_eval)
     EXPECT(ceil(lit(-2.7)).eval({}) == value{-2.0});
 }
 
-TEST_CASE(pow_eval)
-{
-    EXPECT(pow(lit(2.0), lit(3.0)).eval({}) == value{8.0});
-}
+TEST_CASE(pow_eval) { EXPECT(pow(lit(2.0), lit(3.0)).eval({}) == value{8.0}); }
 
 TEST_CASE(min_eval)
 {
@@ -792,21 +765,19 @@ TEST_CASE(expr_abs_interval)
 
 TEST_CASE(expr_min_interval)
 {
-    auto x = var("x");
-    auto y = var("y");
-    auto result =
-        min(x, y).eval_interval(
-            {{"x", interval{int64_t{1}, int64_t{5}}}, {"y", interval{int64_t{3}, int64_t{7}}}});
+    auto x      = var("x");
+    auto y      = var("y");
+    auto result = min(x, y).eval_interval(
+        {{"x", interval{int64_t{1}, int64_t{5}}}, {"y", interval{int64_t{3}, int64_t{7}}}});
     EXPECT(result == (interval{int64_t{1}, int64_t{5}}));
 }
 
 TEST_CASE(expr_max_interval)
 {
-    auto x = var("x");
-    auto y = var("y");
-    auto result =
-        max(x, y).eval_interval(
-            {{"x", interval{int64_t{1}, int64_t{5}}}, {"y", interval{int64_t{3}, int64_t{7}}}});
+    auto x      = var("x");
+    auto y      = var("y");
+    auto result = max(x, y).eval_interval(
+        {{"x", interval{int64_t{1}, int64_t{5}}}, {"y", interval{int64_t{3}, int64_t{7}}}});
     EXPECT(result == (interval{int64_t{3}, int64_t{7}}));
 }
 

@@ -112,8 +112,8 @@ bool operator>=(interval a, interval b) { return not value_less(a.min, b.max); }
 
 interval sin(interval x)
 {
-    double lo = to<double>(x.min);
-    double hi = to<double>(x.max);
+    double lo       = to<double>(x.min);
+    double hi       = to<double>(x.max);
     const double pi = std::acos(-1.0);
     if(hi - lo >= 2.0 * pi)
         return {-1.0, 1.0};
@@ -121,7 +121,7 @@ interval sin(interval x)
     double shi  = std::sin(hi);
     double rmin = std::min(slo, shi);
     double rmax = std::max(slo, shi);
-    double k = std::ceil((lo - pi / 2.0) / (2.0 * pi));
+    double k    = std::ceil((lo - pi / 2.0) / (2.0 * pi));
     if(pi / 2.0 + k * 2.0 * pi <= hi)
         rmax = 1.0;
     k = std::ceil((lo + pi / 2.0) / (2.0 * pi));
@@ -132,8 +132,8 @@ interval sin(interval x)
 
 interval cos(interval x)
 {
-    double lo = to<double>(x.min);
-    double hi = to<double>(x.max);
+    double lo       = to<double>(x.min);
+    double hi       = to<double>(x.max);
     const double pi = std::acos(-1.0);
     if(hi - lo >= 2.0 * pi)
         return {-1.0, 1.0};
@@ -141,7 +141,7 @@ interval cos(interval x)
     double chi  = std::cos(hi);
     double rmin = std::min(clo, chi);
     double rmax = std::max(clo, chi);
-    double k = std::ceil(lo / (2.0 * pi));
+    double k    = std::ceil(lo / (2.0 * pi));
     if(k * 2.0 * pi <= hi)
         rmax = 1.0;
     k = std::ceil((lo - pi) / (2.0 * pi));
@@ -150,20 +150,11 @@ interval cos(interval x)
     return {rmin, rmax};
 }
 
-interval tan(interval x)
-{
-    return {std::tan(to<double>(x.min)), std::tan(to<double>(x.max))};
-}
+interval tan(interval x) { return {std::tan(to<double>(x.min)), std::tan(to<double>(x.max))}; }
 
-interval exp(interval x)
-{
-    return {std::exp(to<double>(x.min)), std::exp(to<double>(x.max))};
-}
+interval exp(interval x) { return {std::exp(to<double>(x.min)), std::exp(to<double>(x.max))}; }
 
-interval log(interval x)
-{
-    return {std::log(to<double>(x.min)), std::log(to<double>(x.max))};
-}
+interval log(interval x) { return {std::log(to<double>(x.min)), std::log(to<double>(x.max))}; }
 
 interval sqrt(interval x)
 {
@@ -189,10 +180,7 @@ interval floor(interval x)
     return {std::floor(to<double>(x.min)), std::floor(to<double>(x.max))};
 }
 
-interval ceil(interval x)
-{
-    return {std::ceil(to<double>(x.min)), std::ceil(to<double>(x.max))};
-}
+interval ceil(interval x) { return {std::ceil(to<double>(x.min)), std::ceil(to<double>(x.max))}; }
 
 interval pow(interval x, interval y)
 {
@@ -205,15 +193,9 @@ interval pow(interval x, interval y)
             value_max(value_max(p1, p2), value_max(p3, p4))};
 }
 
-interval min(interval x, interval y)
-{
-    return {value_min(x.min, y.min), value_min(x.max, y.max)};
-}
+interval min(interval x, interval y) { return {value_min(x.min, y.min), value_min(x.max, y.max)}; }
 
-interval max(interval x, interval y)
-{
-    return {value_max(x.min, y.min), value_max(x.max, y.max)};
-}
+interval max(interval x, interval y) { return {value_max(x.min, y.min), value_max(x.max, y.max)}; }
 
 expr var(std::string name) { return expr(variable_node{std::move(name), {}}); }
 
@@ -292,8 +274,7 @@ expr log(expr e)
 
 expr sqrt(expr e)
 {
-    return call("sqrt", MIGRAPHX_LIFT(std::sqrt), [](interval x) { return sqrt(x); })(
-        std::move(e));
+    return call("sqrt", MIGRAPHX_LIFT(std::sqrt), [](interval x) { return sqrt(x); })(std::move(e));
 }
 
 expr abs(expr e)
@@ -311,14 +292,12 @@ expr floor(expr e)
 
 expr ceil(expr e)
 {
-    return call("ceil", MIGRAPHX_LIFT(std::ceil), [](interval x) { return ceil(x); })(
-        std::move(e));
+    return call("ceil", MIGRAPHX_LIFT(std::ceil), [](interval x) { return ceil(x); })(std::move(e));
 }
 
 expr pow(expr x, expr y)
 {
-    return call(
-        "pow", MIGRAPHX_LIFT(std::pow), [](interval a, interval b) { return pow(a, b); })(
+    return call("pow", MIGRAPHX_LIFT(std::pow), [](interval a, interval b) { return pow(a, b); })(
         std::move(x), std::move(y));
 }
 

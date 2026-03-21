@@ -170,12 +170,10 @@ struct rewrite_reshapes
             auto reshape_input = [&](const auto& ins_to_insert, const auto& gdesc) {
                 return [&](auto input) {
                     auto gops  = gdesc.generate(input->get_shape().lens());
-                    auto start = input;
-                    for(const auto& op : gops)
-                    {
-                        start = mpm.get_module().insert_instruction(ins_to_insert, op, start);
-                    }
-                    return start;
+                    return std::accumulate(
+                        gops.begin(), gops.end(), input, [&](auto start, const auto& op) {
+                            return mpm.get_module().insert_instruction(ins_to_insert, op, start);
+                        });
                 };
             };
             auto x_inputs = x_ins->inputs();
@@ -223,6 +221,7 @@ struct rewrite_reshapes
 
     void apply(module_pass_manager& mpm) const
     {
+        // cppcheck-suppress knownConditionTrueFalse
         if(T::name() == "pointwise")
         {
             match::find_matches(mpm, find_op_reshape_op{"pointwise", T::name()});

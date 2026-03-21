@@ -287,7 +287,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
             // Trying to replicate torch arrange() here.
             std::vector<int64_t> vect_of_lit(len_val);
             std::iota(vect_of_lit.begin(), vect_of_lit.end(), 0);
-            auto batch_dim_indicies =
+            auto batch_dim_indices =
                 info.add_literal(migraphx::shape(label_shape.type(), {len_val}), vect_of_lit);
 
             // This is supposed to do unsq_dims = [:a] + [a + 1:]
@@ -298,13 +298,13 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
             unsq_dims.erase(it);
 
             auto batch_dim_index_unsq = info.add_instruction(
-                migraphx::make_op("unsqueeze", {{"axes", unsq_dims}}), batch_dim_indicies);
+                migraphx::make_op("unsqueeze", {{"axes", unsq_dims}}), batch_dim_indices);
 
-            auto batch_dim_indicies_bc = info.add_instruction(
+            auto batch_dim_indices_bc = info.add_instruction(
                 migraphx::make_op("multibroadcast",
                                   {{"out_lens", labels_unsq->get_shape().lens()}}),
                 batch_dim_index_unsq);
-            coordinate_index_literals.push_back(batch_dim_indicies_bc);
+            coordinate_index_literals.push_back(batch_dim_indices_bc);
         }
 
         coordinate_index_literals.push_back(labels_unsq);
@@ -433,7 +433,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         }
 
         // Index selection before loss calculation completed
-        auto gathernd_indicies = handle_index_selection(info, labels);
+        auto gathernd_indices = handle_index_selection(info, labels);
 
         std::vector<int64_t> perm(class_size, 0);
         if(is_k_dim)
@@ -444,7 +444,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
                                           scores);
         }
 
-        scores = info.add_instruction(migraphx::make_op("gathernd"), scores, gathernd_indicies);
+        scores = info.add_instruction(migraphx::make_op("gathernd"), scores, gathernd_indices);
 
         std::vector<int64_t> axis_list(ndims - 1, 0);
         std::iota((axis_list.begin() + 1), axis_list.end(), 2);
@@ -455,7 +455,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         if(is_k_dim)
             weights = info.add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}),
                                            weights);
-        weights = info.add_instruction(migraphx::make_op("gathernd"), weights, gathernd_indicies);
+        weights = info.add_instruction(migraphx::make_op("gathernd"), weights, gathernd_indices);
 
         // Do pointwise operators on the final set of indices and scores we care about rather than
         // before so that we're not doing a bunch of pointwise on items that aren't part of the loss

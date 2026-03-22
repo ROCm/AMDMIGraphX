@@ -30,7 +30,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void gemm(const argument& c_arg, const argument& a_arg, const argument& b_arg);
+MIGRAPHX_EXPORT void gemm(const argument& c_arg, const argument& a_arg, const argument& b_arg);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -213,9 +213,7 @@ struct winograd_compiler : compiler<winograd_compiler>
             // Find largest k_per_wg ≤ max_kpw that divides K and is a
             // multiple of kt
             auto find_kpw = [&](std::size_t max_kpw, std::size_t kt) -> std::size_t {
-                for(std::size_t kpw = (std::min(max_kpw, filters) / kt) * kt;
-                    kpw >= kt;
-                    kpw -= kt)
+                for(std::size_t kpw = (std::min(max_kpw, filters) / kt) * kt; kpw >= kt; kpw -= kt)
                 {
                     if(filters % kpw == 0)
                         return kpw;

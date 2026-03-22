@@ -299,22 +299,24 @@ auto is_winograd_eligible()
         // Both inputs must be standard (packed NCHW) layout
         if(not in_shape.standard() or not w_shape.standard())
             return false;
-
 #if 0
-        // Winograd only wins on compute-heavy problems where the 2.25x
-        // arithmetic reduction outweighs transform+barrier overhead.
-        // Heuristic: need large C*K relative to spatial size.
-        auto c = in_shape.lens()[1];
-        auto k = w_shape.lens()[0];
-        auto h = in_shape.lens()[2];
-        auto w = in_shape.lens()[3];
-        // Require minimum channel/filter counts and small-enough spatial dims
-        if(c < 128 or k < 128)
+        // Eligibility based on empirical benchmarks across top-20 configs.
+        // Winograd F(2x2,3x3) wins when:
+        //   1. Enough tiles for the LDS-GEMM to amortize overhead (tiles ≥ 49)
+        //   2. Enough compute per tile for arithmetic reduction to matter (C*K ≥ 32K)
+        auto c     = in_shape.lens()[1];
+        auto k     = w_shape.lens()[0];
+        auto h     = in_shape.lens()[2];
+        auto w_dim = in_shape.lens()[3];
+        std::size_t tiles = ((h + 1) / 2) * ((w_dim + 1) / 2);
+        if(tiles < 49)
             return false;
-        if(h > 28 or w > 28)
+        // Too many tiles: Phase 1 tile loading dominates over GEMM savings
+        if(tiles > 512)
+            return false;
+        if(c * k < 32768)
             return false;
 #endif
-
         return true;
     });
 }

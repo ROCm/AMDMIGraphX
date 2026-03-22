@@ -228,28 +228,25 @@ struct winograd_compiler : compiler<winograd_compiler>
 
             // Data-driven configs selected by tools/winograd_select_configs.py
             // from exhaustive tuning across top-20 conv3x3 workloads.
-            // These 6 configs achieve 0% loss vs exhaustive across all
-            // eligible problems tested.
+            // 8 configs achieve 0% avg loss vs exhaustive (76 configs).
+            // Re-derive: python3 tools/winograd_select_configs.py <log> -n 8
 
-            // Config 1: bs=128, kpw=best, 2×2 (best for 512×16×16-class)
-            try_config(128, kpw, 2, kt);
-            // Config 2: bs=256, kpw=best, 4×2 (best for 384×32×32-class)
-            if(kpw % 2 == 0)
-                try_config(256, kpw, 4, 2);
-            // Config 3: bs=64, kpw=8, 2×1 (good for odd K, small spatial)
-            std::size_t kpw1 = find_kpw(8, 1);
-            if(kpw1 > 0)
-                try_config(64, kpw1, 2, 1);
-            // Config 4: bs=128, kpw=best, 2×4 (alternative tile orientation)
             std::size_t kpw4 = find_kpw(32, 4);
+            std::size_t kpw1 = find_kpw(32, 1);
+
+            try_config(256, find_kpw(16, 2), 2, 2);   // large spatial + medium K
+            try_config(128, kpw, 2, 2);                 // small spatial + large K
             if(kpw4 > 0)
-                try_config(128, kpw4, 2, 4);
-            // Config 5: bs=256, kpw=small, 2×1 (high WG count, odd K)
-            std::size_t kpw_small = find_kpw(2, 1);
-            if(kpw_small > 0)
-                try_config(256, kpw_small, 2, 1);
-            // Config 6: bs=64, kpw=best, 2×kt (small BS variant)
-            try_config(64, kpw, 2, kt);
+                try_config(256, find_kpw(32, 4), 2, 4); // high compute-density
+            if(kpw1 > 0)
+                try_config(128, find_kpw(32, 1), 2, 1); // odd K support
+            if(kpw4 > 0)
+                try_config(256, find_kpw(16, 4), 2, 4); // medium K variant
+            if(kpw1 > 0)
+                try_config(256, find_kpw(8, 1), 2, 1);  // more tile parallelism
+            try_config(256, kpw, 4, 2);                  // 4×2 tile (large spatial)
+            if(kpw1 > 0)
+                try_config(64, find_kpw(16, 1), 2, 1);  // small BS for many tiles
         }
 
         if(tc.solutions.empty())

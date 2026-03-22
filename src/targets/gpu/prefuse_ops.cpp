@@ -282,7 +282,8 @@ auto is_winograd_eligible()
             return false;
         if(dilation != std::vector<std::size_t>{1, 1})
             return false;
-        if(padding != std::vector<std::size_t>{1, 1, 1, 1})
+        if(padding != std::vector<std::size_t>{1, 1} and
+           padding != std::vector<std::size_t>{1, 1, 1, 1})
             return false;
 
         auto inputs = ins->inputs();

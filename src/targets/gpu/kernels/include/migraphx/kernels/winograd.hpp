@@ -199,8 +199,8 @@ __device__ void conv(const float* __restrict__ input,
     constexpr index_int INTERIOR_TC_LO = 1;
     constexpr index_int INTERIOR_TC_HI = (W >= 4) ? (W - 3) / 2 : 0;
     // Whether any interior tiles exist at all
-    constexpr bool HAS_INTERIOR = INTERIOR_TR_HI >= INTERIOR_TR_LO and
-                                  INTERIOR_TC_HI >= INTERIOR_TC_LO;
+    constexpr bool HAS_INTERIOR =
+        INTERIOR_TR_HI >= INTERIOR_TR_LO and INTERIOR_TC_HI >= INTERIOR_TC_LO;
 
     index_int thread_m = tid / THREADS_N;
     index_int thread_n = tid % THREADS_N;
@@ -251,10 +251,10 @@ __device__ void conv(const float* __restrict__ input,
                             for(index_int i = 0; i < ALPHA; i++)
                             {
                                 const float* row = &input[base + i * W];
-                                d[i * 4]     = row[0];
-                                d[i * 4 + 1] = row[1];
-                                d[i * 4 + 2] = row[2];
-                                d[i * 4 + 3] = row[3];
+                                d[i * 4]         = row[0];
+                                d[i * 4 + 1]     = row[1];
+                                d[i * 4 + 2]     = row[2];
+                                d[i * 4 + 3]     = row[3];
                             }
                             goto do_xform;
                         }
@@ -262,17 +262,15 @@ __device__ void conv(const float* __restrict__ input,
                     // Border: per-element boundary checks
                     for(index_int i = 0; i < ALPHA; i++)
                     {
-                        diff_int ih = ih0 + static_cast<diff_int>(i);
-                        bool ih_ok  = ih >= 0 and ih < static_cast<diff_int>(H);
-                        index_int rb =
-                            ((n_val * C + ic) * H + static_cast<index_int>(ih)) * W;
+                        diff_int ih  = ih0 + static_cast<diff_int>(i);
+                        bool ih_ok   = ih >= 0 and ih < static_cast<diff_int>(H);
+                        index_int rb = ((n_val * C + ic) * H + static_cast<index_int>(ih)) * W;
                         for(index_int j = 0; j < ALPHA; j++)
                         {
                             diff_int iw  = iw0 + static_cast<diff_int>(j);
-                            d[i * 4 + j] = (ih_ok and iw >= 0 and
-                                             iw < static_cast<diff_int>(W))
-                                                ? input[rb + static_cast<index_int>(iw)]
-                                                : 0.0f;
+                            d[i * 4 + j] = (ih_ok and iw >= 0 and iw < static_cast<diff_int>(W))
+                                               ? input[rb + static_cast<index_int>(iw)]
+                                               : 0.0f;
                         }
                     }
                 do_xform:

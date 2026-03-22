@@ -190,6 +190,18 @@ __device__ void conv(const float* __restrict__ input,
     index_int group_id = k_base / K_PER_GRP;
     index_int c_base   = group_id * C_PER_GRP;
 
+    // Precompute interior tile range: tiles whose 4×4 input window is fully
+    // in-bounds (no padding). Row tr is interior when tr*2-1>=0 and tr*2+2<H,
+    // i.e. tr in [1, (H-3)/2]. Same for columns.
+    // We store the first/last LOCAL tile index that is fully interior.
+    constexpr index_int INTERIOR_TR_LO = 1;
+    constexpr index_int INTERIOR_TR_HI = (H >= 4) ? (H - 3) / 2 : 0;
+    constexpr index_int INTERIOR_TC_LO = 1;
+    constexpr index_int INTERIOR_TC_HI = (W >= 4) ? (W - 3) / 2 : 0;
+    // Whether any interior tiles exist at all
+    constexpr bool HAS_INTERIOR = INTERIOR_TR_HI >= INTERIOR_TR_LO and
+                                  INTERIOR_TC_HI >= INTERIOR_TC_LO;
+
     index_int thread_m = tid / THREADS_N;
     index_int thread_n = tid % THREADS_N;
     index_int my_t0    = thread_m * T_TILE;
@@ -206,9 +218,9 @@ __device__ void conv(const float* __restrict__ input,
             csz = CHUNK_C;
 
         // === Phase 1a: Input tile transform → LDS ===
-        // Uses float4 vectorized loads for interior tiles (no padding needed),
-        // cutting load instructions 4× vs scalar. Border tiles use scalar
-        // loads with boundary checks.
+        // Interior tiles (no padding) use branchless row-pointer loads so the
+        // compiler can emit vectorized global_load_dwordx4. Border tiles fall
+        // back to per-element boundary checks.
         {
             index_int total = TILES_PER_WG * csz;
             for(index_int idx = tid; idx < total; idx += BLOCK)
@@ -227,46 +239,45 @@ __device__ void conv(const float* __restrict__ input,
                     diff_int iw0 = static_cast<diff_int>(tc * OUT_TILE) - 1;
                     float d[16];
 
-                    // Interior tile: all 4 rows fully in-bounds → float4 loads
-                    bool interior = ih0 >= 0 and (ih0 + 3) < static_cast<diff_int>(H) and
-                                    iw0 >= 0 and (iw0 + 3) < static_cast<diff_int>(W);
-                    if(interior)
+                    if constexpr(HAS_INTERIOR)
                     {
-                        index_int base = (n_val * C + ic) * H * W +
-                                         static_cast<index_int>(ih0) * W +
-                                         static_cast<index_int>(iw0);
-                        // 4 vectorized loads (one per row, 128 bits each)
-                        for(index_int i = 0; i < ALPHA; i++)
+                        if(tr >= INTERIOR_TR_LO and tr <= INTERIOR_TR_HI and
+                           tc >= INTERIOR_TC_LO and tc <= INTERIOR_TC_HI)
                         {
-                            const float* row = &input[base + i * W];
-                            d[i * 4]         = row[0];
-                            d[i * 4 + 1]     = row[1];
-                            d[i * 4 + 2]     = row[2];
-                            d[i * 4 + 3]     = row[3];
-                        }
-                    }
-                    else
-                    {
-                        // Border tile: scalar loads with boundary checks
-                        for(index_int i = 0; i < ALPHA; i++)
-                        {
-                            diff_int ih  = ih0 + static_cast<diff_int>(i);
-                            bool ih_ok   = ih >= 0 and ih < static_cast<diff_int>(H);
-                            index_int rb = ((n_val * C + ic) * H + static_cast<index_int>(ih)) * W;
-                            for(index_int j = 0; j < ALPHA; j++)
+                            // Interior: no bounds checks needed
+                            index_int base = (n_val * C + ic) * H * W +
+                                             static_cast<index_int>(ih0) * W +
+                                             static_cast<index_int>(iw0);
+                            for(index_int i = 0; i < ALPHA; i++)
                             {
-                                diff_int iw  = iw0 + static_cast<diff_int>(j);
-                                d[i * 4 + j] = (ih_ok and iw >= 0 and iw < static_cast<diff_int>(W))
-                                                   ? input[rb + static_cast<index_int>(iw)]
-                                                   : 0.0f;
+                                const float* row = &input[base + i * W];
+                                d[i * 4]     = row[0];
+                                d[i * 4 + 1] = row[1];
+                                d[i * 4 + 2] = row[2];
+                                d[i * 4 + 3] = row[3];
                             }
+                            goto do_xform;
                         }
                     }
-
-                    // Ensure all loads are issued before transform
-                    __builtin_amdgcn_sched_barrier(1 << 4); // VMEM read barrier
-
-                    // B^T * d * B transform (only adds/subs)
+                    // Border: per-element boundary checks
+                    for(index_int i = 0; i < ALPHA; i++)
+                    {
+                        diff_int ih = ih0 + static_cast<diff_int>(i);
+                        bool ih_ok  = ih >= 0 and ih < static_cast<diff_int>(H);
+                        index_int rb =
+                            ((n_val * C + ic) * H + static_cast<index_int>(ih)) * W;
+                        for(index_int j = 0; j < ALPHA; j++)
+                        {
+                            diff_int iw  = iw0 + static_cast<diff_int>(j);
+                            d[i * 4 + j] = (ih_ok and iw >= 0 and
+                                             iw < static_cast<diff_int>(W))
+                                                ? input[rb + static_cast<index_int>(iw)]
+                                                : 0.0f;
+                        }
+                    }
+                do_xform:
+                    __builtin_amdgcn_sched_barrier(1 << 4);
+                    // B^T * d * B transform
                     float tmp[16];
                     for(index_int j = 0; j < 4; j++)
                     {

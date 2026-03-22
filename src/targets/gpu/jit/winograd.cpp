@@ -234,8 +234,8 @@ struct winograd_compiler : compiler<winograd_compiler>
             std::size_t kpw4 = find_kpw(32, 4);
             std::size_t kpw1 = find_kpw(32, 1);
 
-            try_config(256, find_kpw(16, 2), 2, 2);   // large spatial + medium K
-            try_config(128, kpw, 2, 2);                 // small spatial + large K
+            try_config(256, find_kpw(16, 2), 2, 2); // large spatial + medium K
+            try_config(128, kpw, 2, 2);             // small spatial + large K
             if(kpw4 > 0)
                 try_config(256, find_kpw(32, 4), 2, 4); // high compute-density
             if(kpw1 > 0)
@@ -243,10 +243,10 @@ struct winograd_compiler : compiler<winograd_compiler>
             if(kpw4 > 0)
                 try_config(256, find_kpw(16, 4), 2, 4); // medium K variant
             if(kpw1 > 0)
-                try_config(256, find_kpw(8, 1), 2, 1);  // more tile parallelism
-            try_config(256, kpw, 4, 2);                  // 4×2 tile (large spatial)
+                try_config(256, find_kpw(8, 1), 2, 1); // more tile parallelism
+            try_config(256, kpw, 4, 2);                // 4×2 tile (large spatial)
             if(kpw1 > 0)
-                try_config(64, find_kpw(16, 1), 2, 1);  // small BS for many tiles
+                try_config(64, find_kpw(16, 1), 2, 1); // small BS for many tiles
         }
 
         if(tc.solutions.empty())

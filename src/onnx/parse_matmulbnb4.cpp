@@ -46,20 +46,8 @@ struct parse_matmulbnb4 : op_parser<parse_matmulbnb4>
     {
         const size_t n          = parse_attribute(parser, info, "N");
         const size_t k          = parse_attribute(parser, info, "K");
-        const size_t block_size = parse_attribute(parser, info, "block_size");
-        const size_t quant_type = parse_attribute(parser, info, "quant_type");
-
-        if(quant_type != 0 and quant_type != 1)
-        {
-            MIGRAPHX_THROW("MatMulBnb4: quant_type must be 0 (FP4) or 1 (NF4), actual value: " +
-                           std::to_string(quant_type));
-        }
-
-        if(block_size < 16 or (block_size & (block_size - 1)) != 0)
-        {
-            MIGRAPHX_THROW("MatMulBnb4: block_size must be a power of 2 and >= 16, actual value: " +
-                           std::to_string(block_size));
-        }
+        const size_t block_size = get_block_size(parser, info);
+        const size_t quant_type = get_quant_type(parser, info);
 
         if(args.size() < 3)
         {
@@ -71,10 +59,10 @@ struct parse_matmulbnb4 : op_parser<parse_matmulbnb4>
             MIGRAPHX_THROW("MatMulBnb4: Input A must have at least 1 dimension");
         }
 
-        auto a_inner_dim = args[0]->get_shape().lens().back();
-        if(a_inner_dim != k)
+        if(args[0]->get_shape().lens().back() != k)
         {
-            MIGRAPHX_THROW("MatMulBnb4: Input A inner dimension (" + std::to_string(a_inner_dim) +
+            MIGRAPHX_THROW("MatMulBnb4: Input A inner dimension (" + 
+                           std::to_string(args[0]->get_shape().lens().back()) +
                            ") must match attribute K (" + std::to_string(k) + ")");
         }
 
@@ -115,6 +103,32 @@ struct parse_matmulbnb4 : op_parser<parse_matmulbnb4>
         }
 
         return parser.parse_value(info.attributes[attribute_name]).at<int>();
+    }
+
+    size_t get_quant_type(const onnx_parser& parser, onnx_parser::node_info& info) const
+    {
+        const size_t quant_type = parse_attribute(parser, info, "quant_type");
+        
+        if(quant_type != 0 and quant_type != 1)
+        {
+            MIGRAPHX_THROW("MatMulBnb4: quant_type must be 0 (FP4) or 1 (NF4), actual value: " +
+                           std::to_string(quant_type));
+        }
+        
+        return quant_type;
+    }
+
+    size_t get_block_size(const onnx_parser& parser, onnx_parser::node_info& info) const
+    {
+        const size_t block_size = parse_attribute(parser, info, "block_size");
+        
+        if(block_size < 16 or (block_size & (block_size - 1)) != 0)
+        {
+            MIGRAPHX_THROW("MatMulBnb4: block_size must be a power of 2 and >= 16, actual value: " +
+                           std::to_string(block_size));
+        }
+        
+        return block_size;
     }
 
     instruction_ref dequantize_b_bnb4(onnx_parser::node_info& info,

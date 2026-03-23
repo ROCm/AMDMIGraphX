@@ -54,36 +54,10 @@ struct parse_matmulbnb4 : op_parser<parse_matmulbnb4>
             MIGRAPHX_THROW("MatMulBnb4: requires exactly 3 inputs (A, B, absmax)");
         }
 
-        if(args[0]->get_shape().ndim() < 1)
-        {
-            MIGRAPHX_THROW("MatMulBnb4: Input A must have at least 1 dimension");
-        }
-
-        if(args[0]->get_shape().lens().back() != k)
-        {
-            MIGRAPHX_THROW("MatMulBnb4: Input A inner dimension (" + 
-                           std::to_string(args[0]->get_shape().lens().back()) +
-                           ") must match attribute K (" + std::to_string(k) + ")");
-        }
-
-        const size_t expected_b_elements      = (n * k + 1) / 2;
-        const size_t expected_absmax_elements = (n * k + block_size - 1) / block_size;
-
-        std::vector<size_t> expected_b_lens{expected_b_elements};
-        if(args[1]->get_shape().lens() != expected_b_lens)
-        {
-            MIGRAPHX_THROW("MatMulBnb4: Input B does not match expected dims: " +
-                           to_string_range(expected_b_lens) +
-                           ". Actual dims: " + to_string_range(args[1]->get_shape().lens()));
-        }
-
-        std::vector<size_t> expected_absmax_lens{expected_absmax_elements};
-        if(args[2]->get_shape().lens() != expected_absmax_lens)
-        {
-            MIGRAPHX_THROW("MatMulBnb4: Input absmax does not match expected dims: " +
-                           to_string_range(expected_absmax_lens) +
-                           ". Actual dims: " + to_string_range(args[2]->get_shape().lens()));
-        }
+        check_a(args[0]);
+        check_k(args[0], k);
+        check_b(args[1], n, k);
+        check_absmax(args[2], n, k, block_size);
 
         auto dequantized_b = dequantize_b_bnb4(info, n, k, block_size, quant_type, args);
         dequantized_b =
@@ -129,6 +103,50 @@ struct parse_matmulbnb4 : op_parser<parse_matmulbnb4>
         }
         
         return block_size;
+    }
+
+    void check_a(instruction_ref a) const
+    {
+        if(a->get_shape().ndim() < 1)
+        {
+            MIGRAPHX_THROW("MatMulBnb4: Input A must have at least 1 dimension");
+        }
+    }
+
+    void check_k(instruction_ref a, size_t k) const
+    {
+        if(a->get_shape().lens().back() != k)
+        {
+            MIGRAPHX_THROW("MatMulBnb4: Input A inner dimension (" + 
+                           std::to_string(a->get_shape().lens().back()) +
+                           ") must match attribute K (" + std::to_string(k) + ")");
+        }
+    }
+
+    void check_b(instruction_ref b, size_t n, size_t k) const
+    {
+        const size_t expected_b_elements = (n * k + 1) / 2;
+        std::vector<size_t> expected_b_lens{expected_b_elements};
+        
+        if(b->get_shape().lens() != expected_b_lens)
+        {
+            MIGRAPHX_THROW("MatMulBnb4: Input B does not match expected dims: " +
+                           to_string_range(expected_b_lens) +
+                           ". Actual dims: " + to_string_range(b->get_shape().lens()));
+        }
+    }
+
+    void check_absmax(instruction_ref absmax, size_t n, size_t k, size_t block_size) const
+    {
+        const size_t expected_absmax_elements = (n * k + block_size - 1) / block_size;
+        std::vector<size_t> expected_absmax_lens{expected_absmax_elements};
+        
+        if(absmax->get_shape().lens() != expected_absmax_lens)
+        {
+            MIGRAPHX_THROW("MatMulBnb4: Input absmax does not match expected dims: " +
+                           to_string_range(expected_absmax_lens) +
+                           ". Actual dims: " + to_string_range(absmax->get_shape().lens()));
+        }
     }
 
     instruction_ref dequantize_b_bnb4(onnx_parser::node_info& info,
@@ -183,23 +201,6 @@ struct parse_matmulbnb4 : op_parser<parse_matmulbnb4>
                                               instruction_ref absmax,
                                               int quant_type) const
     {
-        std::vector<float> nf4_lookup_table = {-1.0f,
-                                               -0.6961928009986877f,
-                                               -0.5250730514526367f,
-                                               -0.39491748809814453f,
-                                               -0.28444138169288635f,
-                                               -0.18477343022823334f,
-                                               -0.09105003625154495f,
-                                               0.0f,
-                                               0.07958029955625534f,
-                                               0.16093020141124725f,
-                                               0.24611230194568634f,
-                                               0.33791524171829224f,
-                                               0.44070982933044434f,
-                                               0.5626170039176941f,
-                                               0.7229568362236023f,
-                                               1.0f};
-
         if(quant_type == 0)
         {
             auto float_data = info.add_instruction(
@@ -215,6 +216,23 @@ struct parse_matmulbnb4 : op_parser<parse_matmulbnb4>
         }
         else
         {
+            std::vector<float> nf4_lookup_table = {-1.0f,
+                                                   -0.6961928009986877f,
+                                                   -0.5250730514526367f,
+                                                   -0.39491748809814453f,
+                                                   -0.28444138169288635f,
+                                                   -0.18477343022823334f,
+                                                   -0.09105003625154495f,
+                                                   0.0f,
+                                                   0.07958029955625534f,
+                                                   0.16093020141124725f,
+                                                   0.24611230194568634f,
+                                                   0.33791524171829224f,
+                                                   0.44070982933044434f,
+                                                   0.5626170039176941f,
+                                                   0.7229568362236023f,
+                                                   1.0f};
+            
             auto lut     = info.add_literal(migraphx::literal{
                 migraphx::shape{migraphx::shape::float_type, {16}}, nf4_lookup_table});
             auto indices = info.add_instruction(

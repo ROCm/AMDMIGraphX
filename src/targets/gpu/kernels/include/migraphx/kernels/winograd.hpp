@@ -27,316 +27,319 @@
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/types.hpp>
 #include <migraphx/kernels/dpp.hpp>
+#include <migraphx/kernels/array.hpp>
+#include <migraphx/kernels/functional.hpp>
+#include <migraphx/kernels/tensor_view.hpp>
 
 namespace migraphx {
 namespace winograd {
 
-__device__ inline float fmaf_(float a, float b, float c) { return __builtin_fmaf(a, b, c); }
+// Winograd F(2x2,3x3) constants
+constexpr auto Alpha   = _c<4>;
+constexpr auto Alpha2  = _c<16>;
+constexpr auto OutTile = _c<2>;
+
+// 2D tile shape for 4x4 Winograd domain
+inline constexpr auto tile_shape() { return make_shape(index_ints<4, 4>{}); }
 
 // =============================================================================
-// F(2x2,3x3) B^T column transform applied via DPP within a quad.
-//
-// Each quad (4 threads) holds one row of a 4x4 tile. Thread lane (0-3)
-// holds row[lane]. The B^T column uses quad_perm:[2,2,1,1] (DPP ctrl 0x5A)
-// so each thread receives the partner row it needs:
-//   lane 0: gets row[2] → computes row[0]-row[2]
-//   lane 1: gets row[2] → computes row[1]+row[2]
-//   lane 2: gets row[1] → computes row[2]-row[1]
-//   lane 3: gets row[1] → computes row[1]-row[3]
+// Transforms — generic over element type T
+// Return arrays by value, use generate_array to avoid zero-init overhead.
 // =============================================================================
 
-__device__ inline void bt_col_dpp(float* v, index_int lane)
+template <class T>
+__device__ auto input_xform(const array<T, 16>& d) -> array<T, 16>
 {
-    // DPP quad_perm:[2,2,1,1] = 0x5A
-    for(index_int j = 0; j < 4; j++)
-    {
-        float my      = v[j];
-        float partner = dpp_mov<0x5A>(my);
-        float diff    = my - partner;
-        // lane 1: sum; lane 3: negated diff; lanes 0,2: diff
-        v[j] = (lane == 1) ? (my + partner) : ((lane == 3) ? -diff : diff);
-    }
+    constexpr auto ts = tile_shape();
+    auto tmp = generate_array<T>(_c<16>, [&](auto el) {
+        constexpr auto j   = el % Alpha;
+        constexpr auto row = el / Alpha;
+        auto d0 = d[ts.index({_c<0>, j})];
+        auto d1 = d[ts.index({_c<1>, j})];
+        auto d2 = d[ts.index({_c<2>, j})];
+        auto d3 = d[ts.index({_c<3>, j})];
+        if constexpr(row == 0)
+            return d0 - d2;
+        else if constexpr(row == 1)
+            return d1 + d2;
+        else if constexpr(row == 2)
+            return d2 - d1;
+        else
+            return d1 - d3;
+    });
+    return generate_array<T>(_c<16>, [&](auto el) {
+        constexpr auto col = el % Alpha;
+        constexpr auto row = el / Alpha;
+        auto a  = tmp[ts.index({row, _c<0>})];
+        auto b  = tmp[ts.index({row, _c<1>})];
+        auto c  = tmp[ts.index({row, _c<2>})];
+        auto dd = tmp[ts.index({row, _c<3>})];
+        if constexpr(col == 0)
+            return a - c;
+        else if constexpr(col == 1)
+            return b + c;
+        else if constexpr(col == 2)
+            return c - b;
+        else
+            return b - dd;
+    });
 }
 
-// Intra-thread B^T row transform (same operation, applied to 4 values)
-__device__ inline void bt_row(float* v)
+template <class T>
+__device__ auto filter_xform(const array<T, 9>& g) -> array<T, 16>
 {
-    float a = v[0], b = v[1], c = v[2], d = v[3];
-    v[0] = a - c;
-    v[1] = b + c;
-    v[2] = c - b;
-    v[3] = b - d;
+    constexpr auto gs = make_shape(index_ints<4, 3>{});
+    auto tmp = generate_array<T>(_c<12>, [&](auto el) {
+        constexpr auto j   = el % _c<3>;
+        constexpr auto row = el / _c<3>;
+        auto g0 = g[j];
+        auto g1 = g[_c<3> + j];
+        auto g2 = g[_c<6> + j];
+        auto s  = (g0 + g2) * T(0.5);
+        auto d  = g1 * T(0.5);
+        if constexpr(row == 0)
+            return g0;
+        else if constexpr(row == 1)
+            return s + d;
+        else if constexpr(row == 2)
+            return s - d;
+        else
+            return g2;
+    });
+    return generate_array<T>(_c<16>, [&](auto el) {
+        constexpr auto col = el % Alpha;
+        constexpr auto row = el / Alpha;
+        auto t0 = tmp[gs.index({row, _c<0>})];
+        auto t1 = tmp[gs.index({row, _c<1>})];
+        auto t2 = tmp[gs.index({row, _c<2>})];
+        auto s  = (t0 + t2) * T(0.5);
+        auto d  = t1 * T(0.5);
+        if constexpr(col == 0)
+            return t0;
+        else if constexpr(col == 1)
+            return s + d;
+        else if constexpr(col == 2)
+            return s - d;
+        else
+            return t2;
+    });
 }
 
-// =============================================================================
-// Standard (non-DPP) transforms for filter and output
-// =============================================================================
-
-// G * g * G^T filter transform 3x3 → 4x4 flat[16]
-__device__ inline void filter_xform(const float* __restrict__ g, float* __restrict__ U)
+template <class T>
+__device__ auto output_xform(const array<T, 16>& M) -> array<T, 4>
 {
-    float t[12];
-    for(index_int j = 0; j < 3; j++)
-    {
-        float g0 = g[j], g1 = g[3 + j], g2 = g[6 + j];
-        float s = (g0 + g2) * 0.5f, d = g1 * 0.5f;
-        t[j]     = g0;
-        t[3 + j] = s + d;
-        t[6 + j] = s - d;
-        t[9 + j] = g2;
-    }
-    for(index_int i = 0; i < 4; i++)
-    {
-        index_int r = i * 3, o = i * 4;
-        float t0 = t[r], t1 = t[r + 1], t2 = t[r + 2];
-        float s = (t0 + t2) * 0.5f, d = t1 * 0.5f;
-        U[o]     = t0;
-        U[o + 1] = s + d;
-        U[o + 2] = s - d;
-        U[o + 3] = t2;
-    }
+    constexpr auto ts = tile_shape();
+    auto tmp = generate_array<T>(_c<8>, [&](auto el) {
+        constexpr auto j   = el % Alpha;
+        constexpr auto row = el / Alpha;
+        auto m0 = M[ts.index({_c<0>, j})];
+        auto m1 = M[ts.index({_c<1>, j})];
+        auto m2 = M[ts.index({_c<2>, j})];
+        auto m3 = M[ts.index({_c<3>, j})];
+        if constexpr(row == 0)
+            return m0 + m1 + m2;
+        else
+            return m1 - m2 - m3;
+    });
+    constexpr auto ts2 = make_shape(index_ints<2, 4>{});
+    return generate_array<T>(_c<4>, [&](auto el) {
+        constexpr auto col = el % OutTile;
+        constexpr auto row = el / OutTile;
+        auto a = tmp[ts2.index({row, _c<0>})];
+        auto b = tmp[ts2.index({row, _c<1>})];
+        auto c = tmp[ts2.index({row, _c<2>})];
+        auto d = tmp[ts2.index({row, _c<3>})];
+        if constexpr(col == 0)
+            return a + b + c;
+        else
+            return b - c - d;
+    });
 }
 
-// A^T * m * A output transform 4x4 → 2x2 flat[4]
-__device__ inline void output_xform(const float* __restrict__ M, float* __restrict__ Y)
+// Filter precompute kernel (graph-level constant folding)
+template <class Input, class Output>
+__device__ void filter_precompute(Input weight, Output workspace)
 {
-    float t[8];
-    for(index_int j = 0; j < 4; j++)
-    {
-        float m0 = M[j], m1 = M[4 + j], m2 = M[8 + j], m3 = M[12 + j];
-        t[j]     = m0 + m1 + m2;
-        t[4 + j] = m1 - m2 - m3;
-    }
-    for(index_int i = 0; i < 2; i++)
-    {
-        index_int r  = i * 4;
-        Y[i * 2]     = t[r] + t[r + 1] + t[r + 2];
-        Y[i * 2 + 1] = t[r + 1] - t[r + 2] - t[r + 3];
-    }
-}
+    using T    = typename Input::type;
+    auto total = weight.get_shape().lens[0] * weight.get_shape().lens[1];
 
-// Filter precompute (for graph-level constant folding or separate kernel)
-template <index_int K, index_int C_PER_GRP>
-__device__ void filter_precompute(const float* __restrict__ weight, float* __restrict__ workspace)
-{
-    auto idx = make_index();
-    idx.global_stride(K * C_PER_GRP, [&](auto id) {
-        float g[9], U[16];
-        for(index_int p = 0; p < 9; p++)
-            g[p] = weight[id * 9 + p];
-        filter_xform(g, U);
-        for(index_int p = 0; p < 16; p++)
-            workspace[id * 16 + p] = U[p];
+    make_index().global_stride(total, [&](auto id) {
+        auto g = generate_array<T>(_c<9>, [&](auto p) { return weight[id * 9 + p]; });
+        auto U = filter_xform(g);
+        repeat_c<Alpha2>([&](auto p) { workspace[id * Alpha2 + p] = U[p]; });
     });
 }
 
 // =============================================================================
-// GEMM-based Winograd F(2x2,3x3) convolution with DPP tile loading
+// GEMM-based Winograd F(2x2,3x3) convolution
 //
-// Phase 1a: DPP-based input transform
-//   - 4 threads (quad) per tile: each loads 1 row (4 values), transforms
-//     via DPP quad_perm, writes 4 values to LDS. 4× less global memory.
-// Phase 1b: Filter transform → LDS (pretransformed weights skip this)
-// Phase 2:  Tiled GEMM from LDS with sched_barrier pipelining
-// Phase 3:  Output transform A^T*m*A and store
-//
-// Template param PRETRANSFORMED: if true, weight points to [K][C/G][16]
-// pretransformed filters (skips Phase 1b entirely).
+// Template parameters (CamelCase):
+//   GroupCount, TilesPerWg, KPerWg, ChunkC  — workgroup tiling
+//   Pretransformed — weight layout flag
+//   TTile, KTile   — per-thread GEMM outer product tile
 // =============================================================================
 
-template <index_int Group,
-          index_int N,
-          index_int C,
-          index_int H,
-          index_int W,
-          index_int K,
-          index_int TILES_PER_WG,
-          index_int K_PER_WG,
-          index_int CHUNK_C,
-          bool PRETRANSFORMED,
-          index_int T_TILE = 2,
-          index_int K_TILE = 2>
-__device__ void conv(const float* __restrict__ input,
-                     const float* __restrict__ weight,
-                     float* __restrict__ output,
-                     float* __restrict__ lds)
+template <index_int GroupCount,
+          index_int TilesPerWg,
+          index_int KPerWg,
+          index_int ChunkC,
+          bool Pretransformed,
+          index_int TTile = 2,
+          index_int KTile = 2,
+          class Input,
+          class Weight,
+          class Output,
+          class LDS>
+__device__ void conv(Input input, Weight weight, Output output, LDS& lds_buf)
 {
-    constexpr index_int OUT_TILE    = 2;
-    constexpr index_int ALPHA       = 4;
-    constexpr index_int ALPHA2      = 16;
-    constexpr index_int TILES_H     = (H + OUT_TILE - 1) / OUT_TILE;
-    constexpr index_int TILES_W     = (W + OUT_TILE - 1) / OUT_TILE;
-    constexpr index_int TOTAL_TILES = TILES_H * TILES_W;
-    constexpr index_int C_PER_GRP   = C / Group;
-    constexpr index_int K_PER_GRP   = K / Group;
-    constexpr index_int BLOCK       = MIGRAPHX_NLOCAL;
-    constexpr index_int THREADS_N   = K_PER_WG / K_TILE;
-    constexpr index_int TILE_GRPS   = (TOTAL_TILES + TILES_PER_WG - 1) / TILES_PER_WG;
-    constexpr index_int K_GRPS      = (K + K_PER_WG - 1) / K_PER_WG;
-    constexpr index_int V_PLANE     = TILES_PER_WG * CHUNK_C;
-    constexpr index_int U_PLANE     = CHUNK_C * K_PER_WG;
-    float* lds_v                    = lds;
-    float* lds_u                    = lds + ALPHA2 * V_PLANE;
+    using T = typename Input::type;
 
-    index_int tid      = threadIdx.x; // NOLINT
-    index_int wg       = blockIdx.x;  // NOLINT
-    index_int ntg      = wg / K_GRPS;
-    index_int k_grp    = wg % K_GRPS;
-    index_int n_val    = ntg / TILE_GRPS;
-    index_int tg       = ntg % TILE_GRPS;
-    index_int t_base   = tg * TILES_PER_WG;
-    index_int k_base   = k_grp * K_PER_WG;
-    index_int k_actual = (k_base + K_PER_WG > K) ? (K - k_base) : K_PER_WG;
-    index_int group_id = k_base / K_PER_GRP;
-    index_int c_base   = group_id * C_PER_GRP;
+    // Compile-time dimensions from tensor_view shape types
+    constexpr auto in_lens   = typename Input::shape_type{}.lens;
+    constexpr auto channels  = _c<in_lens[1]>;
+    constexpr auto height    = _c<in_lens[2]>;
+    constexpr auto width     = _c<in_lens[3]>;
+    constexpr auto n_filters = _c<typename Output::shape_type{}.lens[1]>;
 
-    // Precompute interior tile range: tiles whose 4×4 input window is fully
-    // in-bounds (no padding). Row tr is interior when tr*2-1>=0 and tr*2+2<H,
-    // i.e. tr in [1, (H-3)/2]. Same for columns.
-    // We store the first/last LOCAL tile index that is fully interior.
-    constexpr index_int INTERIOR_TR_LO = 1;
-    constexpr index_int INTERIOR_TR_HI = (H >= 4) ? (H - 3) / 2 : 0;
-    constexpr index_int INTERIOR_TC_LO = 1;
-    constexpr index_int INTERIOR_TC_HI = (W >= 4) ? (W - 3) / 2 : 0;
-    // Whether any interior tiles exist at all
-    constexpr bool HAS_INTERIOR =
-        INTERIOR_TR_HI >= INTERIOR_TR_LO and INTERIOR_TC_HI >= INTERIOR_TC_LO;
+    constexpr auto ThreadsN   = _c<KPerWg / KTile>;
+    constexpr auto TilesH     = (height + OutTile - _c<1>) / OutTile;
+    constexpr auto TilesW     = (width + OutTile - _c<1>) / OutTile;
+    constexpr auto TotalTiles = TilesH * TilesW;
+    constexpr auto CPerGrp    = channels / _c<GroupCount>;
+    constexpr auto KPerGrp    = n_filters / _c<GroupCount>;
+    constexpr auto TileGrps   = (TotalTiles + _c<TilesPerWg> - _c<1>) / _c<TilesPerWg>;
+    constexpr auto KGrps      = (n_filters + _c<KPerWg> - _c<1>) / _c<KPerWg>;
+    constexpr auto VPlane     = _c<TilesPerWg * ChunkC>;
 
-    index_int thread_m = tid / THREADS_N;
-    index_int thread_n = tid % THREADS_N;
-    index_int my_t0    = thread_m * T_TILE;
-    index_int my_k0    = thread_n * K_TILE;
+    // Interior tile range (compile-time)
+    constexpr auto IntTrLo    = _c<1>;
+    constexpr auto IntTrHi    = (height >= _c<4>) ? (height - _c<3>) / OutTile : _c<0>;
+    constexpr auto IntTcLo    = _c<1>;
+    constexpr auto IntTcHi    = (width >= _c<4>) ? (width - _c<3>) / OutTile : _c<0>;
+    constexpr auto HasInterior = bool_constant<(IntTrHi >= IntTrLo and IntTcHi >= IntTcLo)>{};
 
-    float acc[T_TILE * K_TILE * ALPHA2];
-    for(index_int i = 0; i < T_TILE * K_TILE * ALPHA2; i++)
-        acc[i] = 0.0f;
+    // LDS as 2D tensor_views: V[pos, tile*chunk+cc], U[pos, cc*kpw+kl]
+    constexpr auto v_lds_shape = make_shape(index_ints<Alpha2, TilesPerWg * ChunkC>{});
+    constexpr auto u_lds_shape = make_shape(index_ints<Alpha2, ChunkC * KPerWg>{});
+    auto lds_v = make_tensor_view(lds_buf.data(), v_lds_shape);
+    auto lds_u = make_tensor_view(lds_buf.data() + Alpha2 * VPlane, u_lds_shape);
 
-    for(index_int c_chunk = 0; c_chunk < C_PER_GRP; c_chunk += CHUNK_C)
+    // Workgroup decomposition
+    auto idx     = make_index();
+    auto tid     = idx.local;
+    auto wg      = idx.group;
+    auto ntg     = wg / KGrps;
+    auto k_grp   = wg % KGrps;
+    auto n_val   = ntg / TileGrps;
+    auto tg      = ntg % TileGrps;
+    auto t_base  = tg * _c<TilesPerWg>;
+    auto k_base  = k_grp * _c<KPerWg>;
+    auto k_actual =
+        (k_base + _c<KPerWg> > n_filters) ? (n_filters - k_base) : index_int{KPerWg};
+    auto group_id = k_base / KPerGrp;
+    auto c_base   = group_id * CPerGrp;
+
+    auto thread_m = tid / ThreadsN;
+    auto thread_n = tid % ThreadsN;
+    auto my_t0    = thread_m * _c<TTile>;
+    auto my_k0    = thread_n * _c<KTile>;
+
+    // Accumulators: zero-initialized
+    array<T, TTile * KTile * Alpha2> acc{};
+
+    for(index_int c_chunk = 0; c_chunk < CPerGrp; c_chunk += ChunkC)
     {
-        index_int csz = C_PER_GRP - c_chunk;
-        if(csz > CHUNK_C)
-            csz = CHUNK_C;
+        index_int csz = CPerGrp - c_chunk;
+        if(csz > ChunkC)
+            csz = ChunkC;
 
-        // === Phase 1a: Input tile transform → LDS ===
-        // Interior tiles (no padding) use branchless row-pointer loads so the
-        // compiler can emit vectorized global_load_dwordx4. Border tiles fall
-        // back to per-element boundary checks.
+        // === Phase 1a: Input tile B^T*d*B transform → LDS ===
         {
-            index_int total = TILES_PER_WG * csz;
-            for(index_int idx = tid; idx < total; idx += BLOCK)
-            {
-                index_int tl     = idx / csz;
-                index_int cc     = idx % csz;
-                index_int tg_idx = t_base + tl;
+            index_int total = _c<TilesPerWg> * csz;
+            idx.local_stride(total, [&](auto i) {
+                auto tl     = i / csz;
+                auto cc     = i % csz;
+                auto tg_idx = t_base + tl;
 
-                float V[16];
-                if(tg_idx < TOTAL_TILES)
+                array<T, 16> V{};
+                if(tg_idx < TotalTiles)
                 {
-                    index_int ic = c_base + c_chunk + cc;
-                    index_int tr = tg_idx / TILES_W;
-                    index_int tc = tg_idx % TILES_W;
-                    diff_int ih0 = static_cast<diff_int>(tr * OUT_TILE) - 1;
-                    diff_int iw0 = static_cast<diff_int>(tc * OUT_TILE) - 1;
-                    float d[16];
+                    auto ic  = c_base + c_chunk + cc;
+                    auto tr  = tg_idx / TilesW;
+                    auto tc  = tg_idx % TilesW;
+                    auto ih0 = static_cast<diff_int>(tr * OutTile) - 1;
+                    auto iw0 = static_cast<diff_int>(tc * OutTile) - 1;
 
-                    if constexpr(HAS_INTERIOR)
-                    {
-                        if(tr >= INTERIOR_TR_LO and tr <= INTERIOR_TR_HI and
-                           tc >= INTERIOR_TC_LO and tc <= INTERIOR_TC_HI)
+                    auto load_tile = [&]() {
+                        if constexpr(HasInterior)
                         {
-                            // Interior: no bounds checks needed
-                            index_int base = (n_val * C + ic) * H * W +
-                                             static_cast<index_int>(ih0) * W +
-                                             static_cast<index_int>(iw0);
-                            for(index_int i = 0; i < ALPHA; i++)
+                            if(tr >= IntTrLo and tr <= IntTrHi and
+                               tc >= IntTcLo and tc <= IntTcHi)
                             {
-                                const float* row = &input[base + i * W];
-                                d[i * 4]         = row[0];
-                                d[i * 4 + 1]     = row[1];
-                                d[i * 4 + 2]     = row[2];
-                                d[i * 4 + 3]     = row[3];
+                                auto base =
+                                    ((n_val * channels + ic) * height +
+                                     static_cast<index_int>(ih0)) *
+                                        width +
+                                    static_cast<index_int>(iw0);
+                                return generate_array<T>(_c<16>, [&](auto el) {
+                                    return input[base + el / Alpha * width + el % Alpha];
+                                });
                             }
-                            goto do_xform;
                         }
-                    }
-                    // Border: per-element boundary checks
-                    for(index_int i = 0; i < ALPHA; i++)
-                    {
-                        diff_int ih  = ih0 + static_cast<diff_int>(i);
-                        bool ih_ok   = ih >= 0 and ih < static_cast<diff_int>(H);
-                        index_int rb = ((n_val * C + ic) * H + static_cast<index_int>(ih)) * W;
-                        for(index_int j = 0; j < ALPHA; j++)
-                        {
-                            diff_int iw  = iw0 + static_cast<diff_int>(j);
-                            d[i * 4 + j] = (ih_ok and iw >= 0 and iw < static_cast<diff_int>(W))
-                                               ? input[rb + static_cast<index_int>(iw)]
-                                               : 0.0f;
-                        }
-                    }
-                do_xform:
+                        return generate_array<T>(_c<16>, [&](auto el) {
+                            auto ih = ih0 + static_cast<diff_int>(el / Alpha);
+                            auto ih_ok =
+                                ih >= 0 and ih < static_cast<diff_int>(height);
+                            auto rb = ((n_val * channels + ic) * height +
+                                       static_cast<index_int>(ih)) *
+                                      width;
+                            auto iw = iw0 + static_cast<diff_int>(el % Alpha);
+                            return (ih_ok and iw >= 0 and
+                                    iw < static_cast<diff_int>(width))
+                                       ? input[rb + static_cast<index_int>(iw)]
+                                       : T(0);
+                        });
+                    };
+
                     __builtin_amdgcn_sched_barrier(1 << 4);
-                    // B^T * d * B transform
-                    float tmp[16];
-                    for(index_int j = 0; j < 4; j++)
-                    {
-                        float d0 = d[j], d1 = d[4 + j], d2 = d[8 + j], d3 = d[12 + j];
-                        tmp[j]      = d0 - d2;
-                        tmp[4 + j]  = d1 + d2;
-                        tmp[8 + j]  = d2 - d1;
-                        tmp[12 + j] = d1 - d3;
-                    }
-                    for(index_int i = 0; i < 4; i++)
-                    {
-                        index_int r = i * 4;
-                        float a = tmp[r], b = tmp[r + 1], c2 = tmp[r + 2], dd = tmp[r + 3];
-                        V[r]     = a - c2;
-                        V[r + 1] = b + c2;
-                        V[r + 2] = c2 - b;
-                        V[r + 3] = b - dd;
-                    }
+                    V = input_xform(load_tile());
                 }
-                else
-                {
-                    for(index_int p = 0; p < ALPHA2; p++)
-                        V[p] = 0.0f;
-                }
-                for(index_int p = 0; p < ALPHA2; p++)
-                    lds_v[p * V_PLANE + tl * CHUNK_C + cc] = V[p];
-            }
+                repeat_c<Alpha2>([&](auto p) {
+                    lds_v[make_array<index_int>(p, tl * _c<ChunkC> + cc)] = V[p];
+                });
+            });
         }
 
-        // === Phase 1b: Filter transform → LDS (or load pretransformed) ===
-        if constexpr(PRETRANSFORMED)
+        // === Phase 1b: Filter transform → LDS ===
+        if constexpr(Pretransformed)
         {
-            // weight is [K][C_PER_GRP][16], load one (cc,kl) pair per iteration
             index_int total = csz * k_actual;
-            for(index_int idx = tid; idx < total; idx += BLOCK)
-            {
-                index_int cc  = idx / k_actual;
-                index_int kl  = idx % k_actual;
-                index_int kk  = k_base + kl;
-                index_int src = (kk * C_PER_GRP + c_chunk + cc) * ALPHA2;
-                for(index_int p = 0; p < ALPHA2; p++)
-                    lds_u[p * U_PLANE + cc * K_PER_WG + kl] = weight[src + p];
-            }
+            idx.local_stride(total, [&](auto i) {
+                auto cc  = i / k_actual;
+                auto kl  = i % k_actual;
+                auto kk  = k_base + kl;
+                auto src = (kk * CPerGrp + c_chunk + cc) * Alpha2;
+                repeat_c<Alpha2>([&](auto p) {
+                    lds_u[make_array<index_int>(p, cc * _c<KPerWg> + kl)] = weight[src + p];
+                });
+            });
         }
         else
         {
-            // weight is [K][C_PER_GRP][3][3], transform and write to LDS
             index_int total = csz * k_actual;
-            for(index_int idx = tid; idx < total; idx += BLOCK)
-            {
-                index_int cc = idx / k_actual;
-                index_int kl = idx % k_actual;
-                index_int kk = k_base + kl;
-                float g[9], U[16];
-                index_int w_off = (kk * C_PER_GRP + c_chunk + cc) * 9;
-                for(index_int p = 0; p < 9; p++)
-                    g[p] = weight[w_off + p];
-                filter_xform(g, U);
-                for(index_int p = 0; p < ALPHA2; p++)
-                    lds_u[p * U_PLANE + cc * K_PER_WG + kl] = U[p];
-            }
+            idx.local_stride(total, [&](auto i) {
+                auto cc    = i / k_actual;
+                auto kl    = i % k_actual;
+                auto kk    = k_base + kl;
+                auto w_off = (kk * CPerGrp + c_chunk + cc) * _c<9>;
+                auto g     = generate_array<T>(_c<9>, [&](auto p) {
+                    return weight[w_off + p];
+                });
+                auto U = filter_xform(g);
+                repeat_c<Alpha2>([&](auto p) {
+                    lds_u[make_array<index_int>(p, cc * _c<KPerWg> + kl)] = U[p];
+                });
+            });
         }
 
         __builtin_amdgcn_sched_barrier(1 << 7);
@@ -344,66 +347,61 @@ __device__ void conv(const float* __restrict__ input,
         __builtin_amdgcn_sched_barrier(0);
 
         // === Phase 2: Tiled GEMM from LDS ===
-        // T_TILE×K_TILE outer product per LDS read pair.
-        // FMA:LDS ratio = T_TILE*K_TILE : (T_TILE+K_TILE).
-        // Larger tiles = better ratio (v30 uses 8×8 for 4:1).
-        __builtin_amdgcn_s_setprio(1); // High priority for compute
+        __builtin_amdgcn_s_setprio(1);
         for(index_int cc = 0; cc < csz; cc++)
         {
-            for(index_int p = 0; p < ALPHA2; p++)
-            {
-                // Load T_TILE V values and K_TILE U values
-                float v[T_TILE];
-                for(index_int tm = 0; tm < T_TILE; tm++)
-                    v[tm] = lds_v[p * V_PLANE + (my_t0 + tm) * CHUNK_C + cc];
-                float u[K_TILE];
-                for(index_int tn = 0; tn < K_TILE; tn++)
-                    u[tn] = lds_u[p * U_PLANE + cc * K_PER_WG + my_k0 + tn];
-
-                // Outer product: T_TILE×K_TILE FMAs
-                for(index_int tm = 0; tm < T_TILE; tm++)
-                    for(index_int tn = 0; tn < K_TILE; tn++)
-                        acc[(tm * K_TILE + tn) * ALPHA2 + p] =
-                            fmaf_(v[tm], u[tn], acc[(tm * K_TILE + tn) * ALPHA2 + p]);
-            }
+            repeat_c<Alpha2>([&](auto p) {
+                auto v = generate_array<T>(_c<TTile>, [&](auto tm) {
+                    return lds_v[make_array<index_int>(p, (my_t0 + tm) * _c<ChunkC> + cc)];
+                });
+                auto u = generate_array<T>(_c<KTile>, [&](auto tn) {
+                    return lds_u[make_array<index_int>(p, cc * _c<KPerWg> + my_k0 + tn)];
+                });
+                repeat_c<TTile>([&](auto tm) {
+                    repeat_c<KTile>([&](auto tn) {
+                        acc[(tm * _c<KTile> + tn) * Alpha2 + p] =
+                            __builtin_fmaf(v[tm], u[tn],
+                                           acc[(tm * _c<KTile> + tn) * Alpha2 + p]);
+                    });
+                });
+            });
         }
-        __builtin_amdgcn_s_setprio(0); // Back to normal
+        __builtin_amdgcn_s_setprio(0);
         __syncthreads();
     }
 
     // === Phase 3: Output transform and store ===
-    for(index_int tm = 0; tm < T_TILE; tm++)
-    {
-        index_int tile_idx = t_base + my_t0 + tm;
-        if(tile_idx >= TOTAL_TILES)
-            continue;
-        index_int tr  = tile_idx / TILES_W;
-        index_int tc  = tile_idx % TILES_W;
-        index_int oh0 = tr * OUT_TILE;
-        index_int ow0 = tc * OUT_TILE;
-        for(index_int tn = 0; tn < K_TILE; tn++)
-        {
-            index_int kk = k_base + my_k0 + tn;
-            if(kk >= K)
-                continue;
-            float Y[4];
-            output_xform(acc + (tm * K_TILE + tn) * ALPHA2, Y);
-            for(index_int i = 0; i < OUT_TILE; i++)
-            {
-                index_int oh = oh0 + i;
-                if(oh >= H)
-                    break;
-                index_int row = ((n_val * K + kk) * H + oh) * W;
-                for(index_int j = 0; j < OUT_TILE; j++)
-                {
-                    index_int ow = ow0 + j;
-                    if(ow >= W)
-                        break;
-                    output[row + ow] = Y[i * OUT_TILE + j];
-                }
-            }
-        }
-    }
+    repeat_c<TTile>([&](auto tm) {
+        auto tile_idx = t_base + my_t0 + tm;
+        if(tile_idx >= TotalTiles)
+            return;
+        auto tr  = tile_idx / TilesW;
+        auto tc  = tile_idx % TilesW;
+        auto oh0 = tr * OutTile;
+        auto ow0 = tc * OutTile;
+        repeat_c<KTile>([&](auto tn) {
+            auto kk = k_base + my_k0 + tn;
+            if(kk >= n_filters)
+                return;
+            auto M = generate_array<T>(_c<16>, [&](auto p) {
+                return acc[(tm * _c<KTile> + tn) * Alpha2 + p];
+            });
+            auto Y = output_xform(M);
+            repeat_c<OutTile>([&](auto oi) {
+                auto oh = oh0 + oi;
+                if(oh >= height)
+                    return;
+                auto row =
+                    ((n_val * n_filters + kk) * height + oh) * width;
+                repeat_c<OutTile>([&](auto oj) {
+                    auto ow = ow0 + oj;
+                    if(ow >= width)
+                        return;
+                    output[row + ow] = Y[oi * OutTile + oj];
+                });
+            });
+        });
+    });
 }
 
 } // namespace winograd

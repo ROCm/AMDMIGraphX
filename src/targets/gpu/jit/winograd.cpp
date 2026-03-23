@@ -35,22 +35,22 @@ namespace gpu {
 // NOLINTNEXTLINE
 static const char* const winograd_kernel = R"__migraphx__(
 #include <migraphx/kernels/winograd.hpp>
-#include <migraphx/kernels/index.hpp>
+#include <migraphx/kernels/uninitialized_buffer.hpp>
+#include <args.hpp>
 
 namespace migraphx {
 
 extern "C" {
 
-MIGRAPHX_GLOBAL void winograd_kernel(void* input_ptr, void* weight_ptr, void* output_ptr)
+MIGRAPHX_GLOBAL void winograd_kernel(void* p0, void* p1, void* p2)
 {
-    __shared__ float lds[${lds_floats}];
-    winograd::conv<${group}, ${batch}, ${channels}, ${height}, ${width},
-                   ${filters}, ${tiles_per_wg}, ${k_per_wg}, ${chunk_c},
-                   ${pretransformed}, ${t_tile}, ${k_tile}>(
-        static_cast<const float*>(input_ptr),
-        static_cast<const float*>(weight_ptr),
-        static_cast<float*>(output_ptr),
-        lds);
+    using namespace migraphx; // NOLINT
+    __shared__ uninitialized_buffer<float, ${lds_floats}> lds;
+    make_tensors()(p0, p1, p2)([&](auto input, auto weight, auto output) {
+        winograd::conv<${group}, ${tiles_per_wg}, ${k_per_wg}, ${chunk_c},
+                       ${pretransformed}, ${t_tile}, ${k_tile}>(
+            input, weight, output, lds);
+    });
 }
 
 }
@@ -117,11 +117,6 @@ struct winograd_compiler : compiler<winograd_compiler>
 
         auto src = interpolate_string(winograd_kernel,
                                       {{"group", to_string(group)},
-                                       {"batch", to_string(batch)},
-                                       {"channels", to_string(channels)},
-                                       {"height", to_string(height)},
-                                       {"width", to_string(width)},
-                                       {"filters", to_string(filters)},
                                        {"tiles_per_wg", to_string(tiles_per_wg)},
                                        {"k_per_wg", to_string(k_per_wg)},
                                        {"chunk_c", to_string(chunk_c)},

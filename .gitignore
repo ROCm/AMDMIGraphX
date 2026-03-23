@@ -55,17 +55,10 @@ _toc.yml
 # Directories to ignore (do not add trailing '/'s, they skip symlinks).
 #==============================================================================#
 # Nested build directory
-build/
+/build*
 
 # Downloaded models
 test/onnx/models
-
-# Python virtual env
-venv_rbuild/
-
-# ONNX test generated files
-test/onnx/load_save_arg.msgpack
-test/onnx/migraphx_api_load_save_argument.msgpack
 
 # VS2017 and VSCode config files.
 .vscode
@@ -82,6 +75,11 @@ docs/doxygen/xml/
 docs/_doxygen
 docs/html
 /_readthedocs
+
+# JetBrains config directories (ignoring symlinks)
+.idea/
+cmake-build*/
+build*/
 
 # Recommended location to install rbuild dependencies from README.md
 depend*/

@@ -33,7 +33,7 @@ Full documentation for MIGraphX is available at
 
 ### Optimized
 * Optimized fusion for local_window mode of GQA operator (#4617).
-* Remove extra assignments and inserts of op names in find_nop_reshapes(#4696).
+* Removed extra assignments and inserts of op names in find_nop_reshapes(#4696).
 
 * Added a new pass to replace convolution with constant broadcast input with a reduced GEMM which improves model compilation time (#4621).
 * Implemented JIT compilation for `logsoftmax` by decomposing it into fusible operations (`log`, `exp`, `reduce_max`, `reduce_sum`), enabling kernel fusion. (#4630).

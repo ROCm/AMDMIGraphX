@@ -42,6 +42,7 @@ using migraphx::sym::sin;
 using migraphx::sym::sqrt;
 using migraphx::sym::tan;
 using migraphx::sym::value;
+using migraphx::sym::to_string;
 using migraphx::sym::var;
 
 // ---- Value evaluation tests ----
@@ -786,6 +787,91 @@ TEST_CASE(expr_exp_interval)
     auto x      = var("x");
     auto result = exp(x).eval_interval({{"x", interval{0.0, 1.0}}});
     EXPECT(result == (interval{1.0, std::exp(1.0)}));
+}
+
+// ---- to_string tests ----
+
+TEST_CASE(to_string_literal_int)
+{
+    EXPECT(lit(42).to_string() == "42");
+    EXPECT(lit(-7).to_string() == "-7");
+}
+
+TEST_CASE(to_string_literal_double)
+{
+    EXPECT(lit(3.14).to_string() == "3.14");
+    EXPECT(lit(0.0).to_string() == "0");
+}
+
+TEST_CASE(to_string_variable) { EXPECT(var("x").to_string() == "x"); }
+
+TEST_CASE(to_string_add)
+{
+    auto x = var("x");
+    EXPECT((x + lit(3)).to_string() == "(x + 3)");
+}
+
+TEST_CASE(to_string_sub)
+{
+    auto x = var("x");
+    EXPECT((x - lit(1)).to_string() == "(x - 1)");
+}
+
+TEST_CASE(to_string_mul)
+{
+    auto x = var("x");
+    EXPECT((x * lit(2)).to_string() == "(x * 2)");
+}
+
+TEST_CASE(to_string_div)
+{
+    auto x = var("x");
+    EXPECT((x / lit(4)).to_string() == "(x / 4)");
+}
+
+TEST_CASE(to_string_neg)
+{
+    auto x = var("x");
+    EXPECT((-x).to_string() == "(-x)");
+}
+
+TEST_CASE(to_string_nested)
+{
+    auto x = var("x");
+    auto y = var("y");
+    auto e = (x + lit(1)) * (y - lit(2));
+    EXPECT(e.to_string() == "((x + 1) * (y - 2))");
+}
+
+TEST_CASE(to_string_function)
+{
+    auto x = var("x");
+    EXPECT(sin(x).to_string() == "sin(x)");
+    EXPECT(sqrt(x).to_string() == "sqrt(x)");
+    EXPECT(abs(x).to_string() == "abs(x)");
+}
+
+TEST_CASE(to_string_function_two_arg)
+{
+    auto x = var("x");
+    auto y = var("y");
+    EXPECT(pow(x, y).to_string() == "pow(x, y)");
+    EXPECT(min(x, y).to_string() == "min(x, y)");
+    EXPECT(max(x, y).to_string() == "max(x, y)");
+}
+
+TEST_CASE(to_string_composed)
+{
+    auto x = var("x");
+    auto e = sin(x * lit(2)) + lit(1);
+    EXPECT(e.to_string() == "(sin((x * 2)) + 1)");
+}
+
+TEST_CASE(free_to_string)
+{
+    auto x = var("x");
+    EXPECT(to_string(x + lit(1)) == "(x + 1)");
+    EXPECT(to_string(sin(x)) == "sin(x)");
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

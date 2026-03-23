@@ -162,6 +162,7 @@ class MIGRAPHX_EXPORT expr
 
     value eval(const std::unordered_map<std::string, value>& vars) const;
     interval eval_interval(const std::unordered_map<std::string, interval>& vars) const;
+    std::string to_string() const;
 
     expr& operator+=(expr ey) { return *this = *this + std::move(ey); }
     expr& operator-=(expr ey) { return *this = *this - std::move(ey); }
@@ -226,6 +227,8 @@ auto call(std::string name, Eval eval)
 {
     return call(name, eval, eval);
 }
+
+std::string to_string(const expr& e);
 
 expr sin(expr e);
 expr cos(expr e);

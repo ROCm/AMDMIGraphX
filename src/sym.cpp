@@ -24,6 +24,7 @@
 #include <migraphx/sym.hpp>
 #include <algorithm>
 #include <iterator>
+#include <sstream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -355,6 +356,49 @@ interval expr::eval_interval(const std::unordered_map<std::string, interval>& va
                    [&](const expr& child) { return child.eval_interval(vars); });
     return n->op->eval_interval(args);
 }
+
+namespace {
+std::string value_to_string(const value& v)
+{
+    return std::visit(
+        [](auto x) -> std::string {
+            std::ostringstream ss;
+            ss << x;
+            return ss.str();
+        },
+        v);
+}
+
+bool is_infix_op(const std::string& name)
+{
+    return name == "+" or name == "-" or name == "*" or name == "/";
+}
+} // namespace
+
+std::string expr::to_string() const
+{
+    if(auto* n = std::get_if<literal_node>(&pimpl->node))
+        return value_to_string(n->val);
+    if(auto* n = std::get_if<variable_node>(&pimpl->node))
+        return n->name;
+    auto* n = std::get_if<op_node>(&pimpl->node);
+    if(n->op->name == "neg" and pimpl->children.size() == 1)
+        return "(-" + pimpl->children[0].to_string() + ")";
+    if(is_infix_op(n->op->name) and pimpl->children.size() == 2)
+        return "(" + pimpl->children[0].to_string() + " " + n->op->name + " " +
+               pimpl->children[1].to_string() + ")";
+    std::string result = n->op->name + "(";
+    for(std::size_t i = 0; i < pimpl->children.size(); ++i)
+    {
+        if(i > 0)
+            result += ", ";
+        result += pimpl->children[i].to_string();
+    }
+    result += ")";
+    return result;
+}
+
+std::string to_string(const expr& e) { return e.to_string(); }
 
 } // namespace sym
 } // namespace MIGRAPHX_INLINE_NS

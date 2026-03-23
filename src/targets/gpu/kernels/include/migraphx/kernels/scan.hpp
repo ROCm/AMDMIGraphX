@@ -76,29 +76,29 @@ __device__ T block_scan(index idx, T& value, Op op, T init)
 {
     MIGRAPHX_ASSERT(idx.nlocal() == BlockSize);
 
-    constexpr index_int WaveSize = MIGRAPHX_WAVEFRONTSIZE;
-    constexpr index_int NumWaves = (BlockSize + WaveSize - 1) / WaveSize;
+    constexpr index_int wave_size = MIGRAPHX_WAVEFRONTSIZE;
+    constexpr index_int num_waves = (BlockSize + wave_size - 1) / wave_size;
 
-    __shared__ T wave_prefixes[NumWaves];
+    __shared__ T wave_prefixes[num_waves];
 
     // scan within wave
-    wave_scan<WaveSize>(value, op);
+    wave_scan<wave_size>(value, op);
 
     // last valid lane of each wave writes its result to shared memory
-    const index_int wave_id = idx.local / WaveSize;
-    const index_int lane_id = idx.local % WaveSize;
-    const bool is_last_wave = (wave_id == NumWaves - 1);
-    // for partial waves, the last active lane is (BlockSize - 1) % WaveSize
-    const index_int last_lane = is_last_wave ? ((BlockSize - 1) % WaveSize) : (WaveSize - 1);
+    const index_int wave_id = idx.local / wave_size;
+    const index_int lane_id = idx.local % wave_size;
+    const bool is_last_wave = (wave_id == num_waves - 1);
+    // for partial waves, the last active lane is (BlockSize - 1) % wave_size
+    const index_int last_lane = is_last_wave ? ((BlockSize - 1) % wave_size) : (wave_size - 1);
     if(lane_id == last_lane)
         wave_prefixes[wave_id] = value;
     __syncthreads();
 
     // the first wave scans the wave prefixes
-    if(idx.local < NumWaves)
+    if(idx.local < num_waves)
     {
         T prefix = wave_prefixes[idx.local];
-        wave_scan<WaveSize>(prefix, op);
+        wave_scan<wave_size>(prefix, op);
         wave_prefixes[idx.local] = prefix;
     }
     __syncthreads();
@@ -111,7 +111,7 @@ __device__ T block_scan(index idx, T& value, Op op, T init)
     value = op(init, value);
 
     // return block total, init + sum of all inputs
-    return op(init, wave_prefixes[NumWaves - 1]);
+    return op(init, wave_prefixes[num_waves - 1]);
 }
 
 template <index_int N,
@@ -147,7 +147,7 @@ __device__ void block_scan(index idx, Op op, T init, index_int n, Input input, O
 template <class F>
 constexpr auto reverse_scan(index_int n, F f)
 {
-    return [=](auto i, auto&&... xs) { return f(n - i - 1, static_cast<decltype(xs)&&>(xs)...); };
+    return [=](auto i, auto&&... xs) { return f(n - i - 1, xs...); };
 }
 
 } // namespace migraphx

@@ -152,7 +152,7 @@ static const auto& reshaper_names()
         "reshape",
         "contiguous",
         "squeeze",
-        "unsqueeze"
+        "unsqueeze",
         "as_shape",
         "broadcast",
         "concat",

@@ -56,14 +56,6 @@ _toc.yml
 #==============================================================================#
 # Nested build directory
 build/
-debug_docker_build/
-docker_build/
-
-# Cursor files
-.cursor/
-
-# Ctags files
-.ctagsignore
 
 # Downloaded models
 test/onnx/models

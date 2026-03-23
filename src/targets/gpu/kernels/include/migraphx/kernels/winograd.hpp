@@ -51,13 +51,13 @@ template <class T>
 __device__ auto input_xform(const array<T, 16>& d) -> array<T, 16>
 {
     constexpr auto ts = tile_shape();
-    auto tmp = generate_array<T>(_c<16>, [&](auto el) {
+    auto tmp          = generate_array<T>(_c<16>, [&](auto el) {
         constexpr auto j   = el % Alpha;
         constexpr auto row = el / Alpha;
-        auto d0 = d[ts.index({_c<0>, j})];
-        auto d1 = d[ts.index({_c<1>, j})];
-        auto d2 = d[ts.index({_c<2>, j})];
-        auto d3 = d[ts.index({_c<3>, j})];
+        auto d0            = d[ts.index({_c<0>, j})];
+        auto d1            = d[ts.index({_c<1>, j})];
+        auto d2            = d[ts.index({_c<2>, j})];
+        auto d3            = d[ts.index({_c<3>, j})];
         if constexpr(row == 0)
             return d0 - d2;
         else if constexpr(row == 1)
@@ -70,10 +70,10 @@ __device__ auto input_xform(const array<T, 16>& d) -> array<T, 16>
     return generate_array<T>(_c<16>, [&](auto el) {
         constexpr auto col = el % Alpha;
         constexpr auto row = el / Alpha;
-        auto a  = tmp[ts.index({row, _c<0>})];
-        auto b  = tmp[ts.index({row, _c<1>})];
-        auto c  = tmp[ts.index({row, _c<2>})];
-        auto dd = tmp[ts.index({row, _c<3>})];
+        auto a             = tmp[ts.index({row, _c<0>})];
+        auto b             = tmp[ts.index({row, _c<1>})];
+        auto c             = tmp[ts.index({row, _c<2>})];
+        auto dd            = tmp[ts.index({row, _c<3>})];
         if constexpr(col == 0)
             return a - c;
         else if constexpr(col == 1)
@@ -89,14 +89,14 @@ template <class T>
 __device__ auto filter_xform(const array<T, 9>& g) -> array<T, 16>
 {
     constexpr auto gs = make_shape(index_ints<4, 3>{});
-    auto tmp = generate_array<T>(_c<12>, [&](auto el) {
+    auto tmp          = generate_array<T>(_c<12>, [&](auto el) {
         constexpr auto j   = el % _c<3>;
         constexpr auto row = el / _c<3>;
-        auto g0 = g[j];
-        auto g1 = g[_c<3> + j];
-        auto g2 = g[_c<6> + j];
-        auto s  = (g0 + g2) * T(0.5);
-        auto d  = g1 * T(0.5);
+        auto g0            = g[j];
+        auto g1            = g[_c<3> + j];
+        auto g2            = g[_c<6> + j];
+        auto s             = (g0 + g2) * T(0.5);
+        auto d             = g1 * T(0.5);
         if constexpr(row == 0)
             return g0;
         else if constexpr(row == 1)
@@ -109,11 +109,11 @@ __device__ auto filter_xform(const array<T, 9>& g) -> array<T, 16>
     return generate_array<T>(_c<16>, [&](auto el) {
         constexpr auto col = el % Alpha;
         constexpr auto row = el / Alpha;
-        auto t0 = tmp[gs.index({row, _c<0>})];
-        auto t1 = tmp[gs.index({row, _c<1>})];
-        auto t2 = tmp[gs.index({row, _c<2>})];
-        auto s  = (t0 + t2) * T(0.5);
-        auto d  = t1 * T(0.5);
+        auto t0            = tmp[gs.index({row, _c<0>})];
+        auto t1            = tmp[gs.index({row, _c<1>})];
+        auto t2            = tmp[gs.index({row, _c<2>})];
+        auto s             = (t0 + t2) * T(0.5);
+        auto d             = t1 * T(0.5);
         if constexpr(col == 0)
             return t0;
         else if constexpr(col == 1)
@@ -128,14 +128,14 @@ __device__ auto filter_xform(const array<T, 9>& g) -> array<T, 16>
 template <class T>
 __device__ auto output_xform(const array<T, 16>& M) -> array<T, 4>
 {
-    constexpr auto ts = tile_shape();
-    auto tmp = generate_array<T>(_c<8>, [&](auto el) {
+    constexpr auto ts  = tile_shape();
+    auto tmp           = generate_array<T>(_c<8>, [&](auto el) {
         constexpr auto j   = el % Alpha;
         constexpr auto row = el / Alpha;
-        auto m0 = M[ts.index({_c<0>, j})];
-        auto m1 = M[ts.index({_c<1>, j})];
-        auto m2 = M[ts.index({_c<2>, j})];
-        auto m3 = M[ts.index({_c<3>, j})];
+        auto m0            = M[ts.index({_c<0>, j})];
+        auto m1            = M[ts.index({_c<1>, j})];
+        auto m2            = M[ts.index({_c<2>, j})];
+        auto m3            = M[ts.index({_c<3>, j})];
         if constexpr(row == 0)
             return m0 + m1 + m2;
         else
@@ -145,10 +145,10 @@ __device__ auto output_xform(const array<T, 16>& M) -> array<T, 4>
     return generate_array<T>(_c<4>, [&](auto el) {
         constexpr auto col = el % OutTile;
         constexpr auto row = el / OutTile;
-        auto a = tmp[ts2.index({row, _c<0>})];
-        auto b = tmp[ts2.index({row, _c<1>})];
-        auto c = tmp[ts2.index({row, _c<2>})];
-        auto d = tmp[ts2.index({row, _c<3>})];
+        auto a             = tmp[ts2.index({row, _c<0>})];
+        auto b             = tmp[ts2.index({row, _c<1>})];
+        auto c             = tmp[ts2.index({row, _c<2>})];
+        auto d             = tmp[ts2.index({row, _c<3>})];
         if constexpr(col == 0)
             return a + b + c;
         else
@@ -212,30 +212,29 @@ __device__ void conv(Input input, Weight weight, Output output, LDS& lds_buf)
     constexpr auto VPlane     = _c<TilesPerWg * ChunkC>;
 
     // Interior tile range (compile-time)
-    constexpr auto IntTrLo    = _c<1>;
-    constexpr auto IntTrHi    = (height >= _c<4>) ? (height - _c<3>) / OutTile : _c<0>;
-    constexpr auto IntTcLo    = _c<1>;
-    constexpr auto IntTcHi    = (width >= _c<4>) ? (width - _c<3>) / OutTile : _c<0>;
+    constexpr auto IntTrLo     = _c<1>;
+    constexpr auto IntTrHi     = (height >= _c<4>) ? (height - _c<3>) / OutTile : _c<0>;
+    constexpr auto IntTcLo     = _c<1>;
+    constexpr auto IntTcHi     = (width >= _c<4>) ? (width - _c<3>) / OutTile : _c<0>;
     constexpr auto HasInterior = bool_constant<(IntTrHi >= IntTrLo and IntTcHi >= IntTcLo)>{};
 
     // LDS as 2D tensor_views: V[pos, tile*chunk+cc], U[pos, cc*kpw+kl]
     constexpr auto v_lds_shape = make_shape(index_ints<Alpha2, TilesPerWg * ChunkC>{});
     constexpr auto u_lds_shape = make_shape(index_ints<Alpha2, ChunkC * KPerWg>{});
-    auto lds_v = make_tensor_view(lds_buf.data(), v_lds_shape);
-    auto lds_u = make_tensor_view(lds_buf.data() + Alpha2 * VPlane, u_lds_shape);
+    auto lds_v                 = make_tensor_view(lds_buf.data(), v_lds_shape);
+    auto lds_u                 = make_tensor_view(lds_buf.data() + Alpha2 * VPlane, u_lds_shape);
 
     // Workgroup decomposition
-    auto idx     = make_index();
-    auto tid     = idx.local;
-    auto wg      = idx.group;
-    auto ntg     = wg / KGrps;
-    auto k_grp   = wg % KGrps;
-    auto n_val   = ntg / TileGrps;
-    auto tg      = ntg % TileGrps;
-    auto t_base  = tg * _c<TilesPerWg>;
-    auto k_base  = k_grp * _c<KPerWg>;
-    auto k_actual =
-        (k_base + _c<KPerWg> > n_filters) ? (n_filters - k_base) : index_int{KPerWg};
+    auto idx      = make_index();
+    auto tid      = idx.local;
+    auto wg       = idx.group;
+    auto ntg      = wg / KGrps;
+    auto k_grp    = wg % KGrps;
+    auto n_val    = ntg / TileGrps;
+    auto tg       = ntg % TileGrps;
+    auto t_base   = tg * _c<TilesPerWg>;
+    auto k_base   = k_grp * _c<KPerWg>;
+    auto k_actual = (k_base + _c<KPerWg> > n_filters) ? (n_filters - k_base) : index_int{KPerWg};
     auto group_id = k_base / KPerGrp;
     auto c_base   = group_id * CPerGrp;
 
@@ -273,29 +272,25 @@ __device__ void conv(Input input, Weight weight, Output output, LDS& lds_buf)
                     auto load_tile = [&]() {
                         if constexpr(HasInterior)
                         {
-                            if(tr >= IntTrLo and tr <= IntTrHi and
-                               tc >= IntTcLo and tc <= IntTcHi)
+                            if(tr >= IntTrLo and tr <= IntTrHi and tc >= IntTcLo and tc <= IntTcHi)
                             {
-                                auto base =
-                                    ((n_val * channels + ic) * height +
-                                     static_cast<index_int>(ih0)) *
-                                        width +
-                                    static_cast<index_int>(iw0);
+                                auto base = ((n_val * channels + ic) * height +
+                                             static_cast<index_int>(ih0)) *
+                                                width +
+                                            static_cast<index_int>(iw0);
                                 return generate_array<T>(_c<16>, [&](auto el) {
                                     return input[base + el / Alpha * width + el % Alpha];
                                 });
                             }
                         }
                         return generate_array<T>(_c<16>, [&](auto el) {
-                            auto ih = ih0 + static_cast<diff_int>(el / Alpha);
-                            auto ih_ok =
-                                ih >= 0 and ih < static_cast<diff_int>(height);
-                            auto rb = ((n_val * channels + ic) * height +
-                                       static_cast<index_int>(ih)) *
-                                      width;
+                            auto ih    = ih0 + static_cast<diff_int>(el / Alpha);
+                            auto ih_ok = ih >= 0 and ih < static_cast<diff_int>(height);
+                            auto rb =
+                                ((n_val * channels + ic) * height + static_cast<index_int>(ih)) *
+                                width;
                             auto iw = iw0 + static_cast<diff_int>(el % Alpha);
-                            return (ih_ok and iw >= 0 and
-                                    iw < static_cast<diff_int>(width))
+                            return (ih_ok and iw >= 0 and iw < static_cast<diff_int>(width))
                                        ? input[rb + static_cast<index_int>(iw)]
                                        : T(0);
                         });
@@ -304,9 +299,8 @@ __device__ void conv(Input input, Weight weight, Output output, LDS& lds_buf)
                     __builtin_amdgcn_sched_barrier(1 << 4);
                     V = input_xform(load_tile());
                 }
-                repeat_c<Alpha2>([&](auto p) {
-                    lds_v[make_array<index_int>(p, tl * _c<ChunkC> + cc)] = V[p];
-                });
+                repeat_c<Alpha2>(
+                    [&](auto p) { lds_v[make_array<index_int>(p, tl * _c<ChunkC> + cc)] = V[p]; });
             });
         }
 
@@ -332,13 +326,10 @@ __device__ void conv(Input input, Weight weight, Output output, LDS& lds_buf)
                 auto kl    = i % k_actual;
                 auto kk    = k_base + kl;
                 auto w_off = (kk * CPerGrp + c_chunk + cc) * _c<9>;
-                auto g     = generate_array<T>(_c<9>, [&](auto p) {
-                    return weight[w_off + p];
-                });
-                auto U = filter_xform(g);
-                repeat_c<Alpha2>([&](auto p) {
-                    lds_u[make_array<index_int>(p, cc * _c<KPerWg> + kl)] = U[p];
-                });
+                auto g     = generate_array<T>(_c<9>, [&](auto p) { return weight[w_off + p]; });
+                auto U     = filter_xform(g);
+                repeat_c<Alpha2>(
+                    [&](auto p) { lds_u[make_array<index_int>(p, cc * _c<KPerWg> + kl)] = U[p]; });
             });
         }
 
@@ -360,8 +351,7 @@ __device__ void conv(Input input, Weight weight, Output output, LDS& lds_buf)
                 repeat_c<TTile>([&](auto tm) {
                     repeat_c<KTile>([&](auto tn) {
                         acc[(tm * _c<KTile> + tn) * Alpha2 + p] =
-                            __builtin_fmaf(v[tm], u[tn],
-                                           acc[(tm * _c<KTile> + tn) * Alpha2 + p]);
+                            __builtin_fmaf(v[tm], u[tn], acc[(tm * _c<KTile> + tn) * Alpha2 + p]);
                     });
                 });
             });
@@ -383,16 +373,14 @@ __device__ void conv(Input input, Weight weight, Output output, LDS& lds_buf)
             auto kk = k_base + my_k0 + tn;
             if(kk >= n_filters)
                 return;
-            auto M = generate_array<T>(_c<16>, [&](auto p) {
-                return acc[(tm * _c<KTile> + tn) * Alpha2 + p];
-            });
+            auto M = generate_array<T>(
+                _c<16>, [&](auto p) { return acc[(tm * _c<KTile> + tn) * Alpha2 + p]; });
             auto Y = output_xform(M);
             repeat_c<OutTile>([&](auto oi) {
                 auto oh = oh0 + oi;
                 if(oh >= height)
                     return;
-                auto row =
-                    ((n_val * n_filters + kk) * height + oh) * width;
+                auto row = ((n_val * n_filters + kk) * height + oh) * width;
                 repeat_c<OutTile>([&](auto oj) {
                     auto ow = ow0 + oj;
                     if(ow >= width)

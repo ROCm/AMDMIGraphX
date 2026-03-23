@@ -31,7 +31,6 @@
 #include <migraphx/generic_float.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/split_factor.hpp>
-#include <queue>
 #include <optional>
 
 namespace migraphx {
@@ -167,6 +166,21 @@ struct find_attention
     {
         auto attn_inss = find_instructions_between(gemm1, gemm2, &m);
 
+        // Pull in evaluable constants so MLIR can detect causal masks.
+        auto expand = fix([&](auto self, auto ins) {
+            for(auto input : ins->inputs())
+            {
+                if(not contains(attn_inss, input) and input->can_eval())
+                {
+                    attn_inss.insert(input);
+                    self(input);
+                }
+            }
+        });
+        auto starts = attn_inss;
+        for(auto ins : starts)
+            expand(ins);
+
         std::vector<instruction_ref> sorted_inss(attn_inss.begin(), attn_inss.end());
         std::sort(
             sorted_inss.begin(), sorted_inss.end(), [&](instruction_ref x, instruction_ref y) {
@@ -229,8 +243,14 @@ struct find_attention
         std::unordered_map<instruction_ref, instruction_ref> map_mm_to_mattn;
         m_attn.fuse(attn_inss, &map_mm_to_mattn);
 
-        // Define outputs based on instructions that are used elsewhere in the graph
-        auto required_outputs = find_outputs(attn_inss);
+        // Define outputs based on instructions that are used elsewhere in the graph.
+        // Remove evaluable constants from the output list.
+        auto all_outputs = find_outputs(attn_inss);
+        std::vector<instruction_ref> required_outputs;
+        std::copy_if(all_outputs.begin(),
+                     all_outputs.end(),
+                     std::back_inserter(required_outputs),
+                     [](auto i) { return not i->can_eval(); });
 
         assert(not required_outputs.empty());
 
@@ -813,10 +833,6 @@ struct find_kv_cache_attention
     std::vector<instruction_ref>
     get_attn_instructions(module& m, instruction_ref start, instruction_ref end) const
     {
-        std::queue<instruction_ref> inputs;
-        std::unordered_set<instruction_ref> inss;
-        inputs.push(end);
-
         static const std::unordered_set<std::string> valid_attn_ops = {"softmax",
                                                                        "broadcast",
                                                                        "dot",
@@ -828,7 +844,6 @@ struct find_kv_cache_attention
                                                                        "reshape",
                                                                        "reduce_sum",
                                                                        "reduce_max",
-                                                                       "broadcast",
                                                                        "multibroadcast",
                                                                        "@literal",
                                                                        "unsqueeze",
@@ -836,23 +851,39 @@ struct find_kv_cache_attention
 
         auto is_valid_attn_op = [&](auto i) {
             return i->get_operator().attributes().get("pointwise", false) or
-                   contains(valid_attn_ops, i->get_operator().name()) or i == start or i == end;
+                   contains(valid_attn_ops, i->get_operator().name());
         };
 
-        while(not inputs.empty())
-        {
-            auto current_inp = inputs.front();
-            inputs.pop();
-
-            if(is_valid_attn_op(current_inp) and inss.insert(current_inp).second and
-               current_inp != start)
+        // Start with instructions on data-dependency paths from start to end.
+        auto inss = find_instructions_between(start, end, &m);
+        // Expand by walking inputs of instructions already in the set.
+        // An input is added when it is a valid attention op and all of
+        // its outputs are already in the set. This pulls in constants,
+        // broadcasts, and side inputs that feed exclusively into the
+        // attention, while excluding ops with external consumers.
+        auto expand = fix([&](auto self, auto ins) {
+            for(auto input : ins->inputs())
             {
-                for(auto i : current_inp->inputs())
+                if(contains(inss, input))
+                    continue;
+                if(not is_valid_attn_op(input))
+                    continue;
+                if(input->can_eval() or std::all_of(input->outputs().begin(),
+                                                    input->outputs().end(),
+                                                    [&](auto o) { return contains(inss, o); }))
                 {
-                    inputs.push(i);
+                    inss.insert(input);
+                    self(input);
                 }
             }
+        });
+        // Copy inss since we will be modifying it
+        auto starts = inss;
+        for(auto ins : starts)
+        {
+            expand(ins);
         }
+
         std::vector<instruction_ref> sorted_inss(inss.begin(), inss.end());
         std::sort(
             sorted_inss.begin(), sorted_inss.end(), [&](instruction_ref x, instruction_ref y) {

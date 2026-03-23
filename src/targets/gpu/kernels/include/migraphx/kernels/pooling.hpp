@@ -198,53 +198,72 @@ constexpr void each_group(OutputIndex out_idx, F f)
     });
 }
 
+template <class Algo, class Output, class F>
+__device__ void pooling_reduce_simple(Output output, F f)
+{
+    Algo::template run<decltype(output)>([&](auto out_idx, auto r) {
+        auto result = f(out_idx, r);
+        r.outer([&] { output[out_idx] = result; });
+    });
+}
+
+template <class Algo, index_int GroupSize, class Output, class F>
+__device__ void pooling_reduce_vectorized(Output output, F f)
+{
+    auto goutput = as_vec<GroupSize>(output, output.get_shape().lens.size() - _c<1>);
+    Algo::template run<decltype(goutput)>([&](auto out_idx, auto r) {
+        auto i = out_idx;
+        i.back() *= GroupSize;
+        auto result = vec_generate<GroupSize>([&](auto k) {
+            auto idx = i;
+            idx.back() += k;
+            return f(idx, r);
+        });
+        r.outer([&] { goutput[out_idx] = result; });
+    });
+}
+
+template <class Algo, index_int GroupSize, class Output, class F>
+__device__ void pooling_reduce_grouped(Output output, F f)
+{
+    constexpr auto output_shape = get_shape_c<Output>{};
+    using type                  = typename Output::type;
+    array<type, GroupSize> result;
+    auto glens   = transform_i(output_shape.lens, [](auto len, auto i) {
+        if(i == get_shape_c<Output>{}.lens.size() - 1)
+            return (len + GroupSize - 1) / GroupSize;
+        else
+            return len;
+    });
+    auto goutput = make_shape(glens);
+    Algo::template run<decltype(goutput)>([&](auto out_idx, auto r) {
+        each_group<GroupSize>(out_idx, [&](auto idx, auto k) { result[k] = f(idx, r); });
+        r.outer([&] {
+            each_group<GroupSize>(out_idx, [&](auto idx, auto k) {
+                if(in_bounds(idx, output.get_shape().lens))
+                    output[idx] = result[k];
+            });
+        });
+    });
+}
+
 template <class Algo, index_int GroupSize, class Output, class F>
 __device__ void pooling_reduce(Output output, F f)
 {
     if constexpr(GroupSize < 2)
     {
-        Algo::template run<decltype(output)>([&](auto out_idx, auto r) {
-            auto result = f(out_idx, r);
-            r.outer([&] { output[out_idx] = result; });
-        });
+        pooling_reduce_simple<Algo>(output, f);
     }
     else
     {
         constexpr auto output_shape = get_shape_c<Output>{};
         if constexpr((output_shape.lens.back() % GroupSize) == 0)
         {
-            auto goutput = as_vec<GroupSize>(output, output.get_shape().lens.size() - _c<1>);
-            Algo::template run<decltype(goutput)>([&](auto out_idx, auto r) {
-                auto i = out_idx;
-                i.back() *= GroupSize;
-                auto result = vec_generate<GroupSize>([&](auto k) {
-                    auto idx = i;
-                    idx.back() += k;
-                    return f(idx, r);
-                });
-                r.outer([&] { goutput[out_idx] = result; });
-            });
+            pooling_reduce_vectorized<Algo, GroupSize>(output, f);
         }
         else
         {
-            using type = typename Output::type;
-            array<type, GroupSize> result;
-            auto glens   = transform_i(output_shape.lens, [](auto len, auto i) {
-                if(i == get_shape_c<Output>{}.lens.size() - 1)
-                    return (len + GroupSize - 1) / GroupSize;
-                else
-                    return len;
-            });
-            auto goutput = make_shape(glens);
-            Algo::template run<decltype(goutput)>([&](auto out_idx, auto r) {
-                each_group<GroupSize>(out_idx, [&](auto idx, auto k) { result[k] = f(idx, r); });
-                r.outer([&] {
-                    each_group<GroupSize>(out_idx, [&](auto idx, auto k) {
-                        if(in_bounds(idx, output.get_shape().lens))
-                            output[idx] = result[k];
-                    });
-                });
-            });
+            pooling_reduce_grouped<Algo, GroupSize>(output, f);
         }
     }
 }

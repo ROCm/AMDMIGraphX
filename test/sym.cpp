@@ -41,8 +41,8 @@ using migraphx::sym::pow;
 using migraphx::sym::sin;
 using migraphx::sym::sqrt;
 using migraphx::sym::tan;
-using migraphx::sym::value;
 using migraphx::sym::to_string;
+using migraphx::sym::value;
 using migraphx::sym::var;
 
 // ---- Value evaluation tests ----

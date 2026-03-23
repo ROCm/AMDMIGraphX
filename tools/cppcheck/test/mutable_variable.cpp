@@ -23,6 +23,7 @@
  *
  */
 // Test for MutableVariable check
+// cppcheck-suppress-file unusedStructMember
 
 void test_mutable_public_member()
 {

@@ -135,13 +135,17 @@ __device__ void block_scan(index idx, Op op, T init, ForStride fs, Input input, 
 template <index_int N, class Op, class T, class Input, class Output>
 __device__ void block_scan(index idx, Op op, T init, index_int n, Input input, Output output)
 {
-    block_scan<N>(
-        idx,
-        op,
-        init,
-        [&](auto f) -> decltype(f(index_int{})) { return idx.local_stride(n, f); },
-        input,
-        output);
+    using type = decltype(input(index_int{}));
+    const index_int num_chunks = (n + N - 1) / N;
+    type x = init;
+    for(index_int chunk = 0; chunk < num_chunks; ++chunk)
+    {
+        index_int i = chunk * N + idx.local;
+        type value = (i < n) ? input(i) : type{};
+        x = block_scan<N>(idx, value, op, x);
+        if(i < n)
+            output(i, value);
+    }
 }
 
 template <class F>

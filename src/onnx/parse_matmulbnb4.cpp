@@ -82,26 +82,26 @@ struct parse_matmulbnb4 : op_parser<parse_matmulbnb4>
     size_t get_quant_type(const onnx_parser& parser, onnx_parser::node_info& info) const
     {
         const size_t quant_type = parse_attribute(parser, info, "quant_type");
-        
+
         if(quant_type != 0 and quant_type != 1)
         {
             MIGRAPHX_THROW("MatMulBnb4: quant_type must be 0 (FP4) or 1 (NF4), actual value: " +
                            std::to_string(quant_type));
         }
-        
+
         return quant_type;
     }
 
     size_t get_block_size(const onnx_parser& parser, onnx_parser::node_info& info) const
     {
         const size_t block_size = parse_attribute(parser, info, "block_size");
-        
+
         if(block_size < 16 or (block_size & (block_size - 1)) != 0)
         {
             MIGRAPHX_THROW("MatMulBnb4: block_size must be a power of 2 and >= 16, actual value: " +
                            std::to_string(block_size));
         }
-        
+
         return block_size;
     }
 
@@ -117,7 +117,7 @@ struct parse_matmulbnb4 : op_parser<parse_matmulbnb4>
     {
         if(a->get_shape().lens().back() != k)
         {
-            MIGRAPHX_THROW("MatMulBnb4: Input A inner dimension (" + 
+            MIGRAPHX_THROW("MatMulBnb4: Input A inner dimension (" +
                            std::to_string(a->get_shape().lens().back()) +
                            ") must match attribute K (" + std::to_string(k) + ")");
         }
@@ -127,7 +127,7 @@ struct parse_matmulbnb4 : op_parser<parse_matmulbnb4>
     {
         const size_t expected_b_elements = (n * k + 1) / 2;
         std::vector<size_t> expected_b_lens{expected_b_elements};
-        
+
         if(b->get_shape().lens() != expected_b_lens)
         {
             MIGRAPHX_THROW("MatMulBnb4: Input B does not match expected dims: " +
@@ -140,7 +140,7 @@ struct parse_matmulbnb4 : op_parser<parse_matmulbnb4>
     {
         const size_t expected_absmax_elements = (n * k + block_size - 1) / block_size;
         std::vector<size_t> expected_absmax_lens{expected_absmax_elements};
-        
+
         if(absmax->get_shape().lens() != expected_absmax_lens)
         {
             MIGRAPHX_THROW("MatMulBnb4: Input absmax does not match expected dims: " +
@@ -232,7 +232,7 @@ struct parse_matmulbnb4 : op_parser<parse_matmulbnb4>
                                                    0.5626170039176941f,
                                                    0.7229568362236023f,
                                                    1.0f};
-            
+
             auto lut     = info.add_literal(migraphx::literal{
                 migraphx::shape{migraphx::shape::float_type, {16}}, nf4_lookup_table});
             auto indices = info.add_instruction(

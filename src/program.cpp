@@ -732,7 +732,7 @@ value program::to_value() const
                 }
                 if(not ins->get_debug_symbols().empty())
                 {
-                    nodes["debug_symbols"] = migraphx::to_value(ins->get_debug_symbols());
+                    node["debug_symbols"] = migraphx::to_value(ins->get_debug_symbols());
                 }
                 nodes.push_back(node);
             },
@@ -813,7 +813,8 @@ static void mod_from_val(module_ref mod,
         output->set_normalized(normalized);
         if(node.contains("debug_symbols"))
         {
-            output->add_debug_symbols(node.at("debug_symbols").to<std::set<std::string>>());
+            output->add_debug_symbols(
+                from_value<std::set<std::string>>(node.at("debug_symbols")));
         }
         instructions[node.at("output").to<std::string>()] = output;
     }

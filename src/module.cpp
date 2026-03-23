@@ -119,7 +119,7 @@ struct module_impl
     {
         changed.notify();
         instruction_set.erase(std::addressof(*pos));
-        if(num_ins_with_debug_symbols > 0)
+        if(num_ins_with_debug_symbols > 0 and not pos->get_debug_symbols().empty())
             --num_ins_with_debug_symbols;
         return instructions.erase(pos);
     }
@@ -127,7 +127,11 @@ struct module_impl
     instruction_ref erase(instruction_ref start, instruction_ref last)
     {
         changed.notify();
-        std::for_each(start, last, [&](auto& ins) { instruction_set.erase(std::addressof(ins)); });
+        std::for_each(start, last, [&](auto& ins) {
+            instruction_set.erase(std::addressof(ins));
+            if(num_ins_with_debug_symbols > 0 and not ins.get_debug_symbols().empty())
+                --num_ins_with_debug_symbols;
+        });
         return instructions.erase(start, last);
     }
 };
@@ -624,10 +628,6 @@ instruction_ref module::remove_instruction(instruction_ref ins)
 {
     assert(has_instruction(ins));
     assert(ins->outputs().empty());
-    if(not ins->get_debug_symbols().empty() and impl->num_ins_with_debug_symbols > 0)
-    {
-        impl->num_ins_with_debug_symbols--;
-    }
     ins->clear_arguments();
     return impl->erase(ins);
 }
@@ -638,13 +638,7 @@ instruction_ref module::remove_instructions(instruction_ref first, instruction_r
         return first;
     // TODO: Check every element
     assert(has_instruction(first));
-    std::for_each(first, last, [&](instruction& ins) {
-        if(not ins.get_debug_symbols().empty() and impl->num_ins_with_debug_symbols > 0)
-        {
-            impl->num_ins_with_debug_symbols--;
-        }
-        ins.clear_arguments();
-    });
+    std::for_each(first, last, [&](instruction& ins) { ins.clear_arguments(); });
     assert(std::all_of(first, last, [&](const instruction& ins) { return ins.outputs().empty(); }));
     return impl->erase(first, last);
 }

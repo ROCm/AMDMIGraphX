@@ -27,6 +27,7 @@
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/types.hpp>
 #include <migraphx/kernels/type_traits.hpp>
+#include <migraphx/kernels/dpp.hpp>
 
 namespace migraphx {
 
@@ -41,10 +42,77 @@ struct id
     }
 };
 
+template <unsigned int Offset, unsigned int WaveSize, class T, class Op>
+__device__ void wave_scan_step(T& output, Op op, unsigned int lane_id)
+{
+    if constexpr(Offset < WaveSize)
+    {
+        T value = readlane_up<Offset, WaveSize>(output);
+        if(lane_id >= Offset)
+            output = op(value, output);
+        wave_scan_step<Offset * 2, WaveSize>(output, op, lane_id);
+    }
+}
+
 template <class ForStride>
 __device__ __host__ auto deduce_for_stride(ForStride fs) -> decltype(fs(id{}));
 
 } // namespace detail
+
+// Wave-level inclusive scan using shuffle operations
+// Performs an inclusive prefix scan within a wave using __shfl_up intrinsics
+// This is O(log WaveSize) with no shared memory required
+template <unsigned int WaveSize, class T, class Op>
+__device__ void wave_scan(T& output, Op op)
+{
+    const unsigned int lane_id = __lane_id() % WaveSize;
+    detail::wave_scan_step<1, WaveSize>(output, op, lane_id);
+}
+
+// Block-level inclusive scan using hierarchical wave scans
+// Uses wave_scan for scanning within waves, then combines wave results
+template <index_int BlockSize, class T, class Op>
+__device__ T block_scan(index idx, T& value, Op op, T init)
+{
+    MIGRAPHX_ASSERT(idx.nlocal() == BlockSize);
+
+    constexpr index_int WaveSize = MIGRAPHX_WAVEFRONTSIZE;
+    constexpr index_int NumWaves = (BlockSize + WaveSize - 1) / WaveSize;
+
+    __shared__ T wave_prefixes[NumWaves];
+
+    // scan within wave
+    wave_scan<WaveSize>(value, op);
+
+    // last valid lane of each wave writes its result to shared memory
+    const index_int wave_id = idx.local / WaveSize;
+    const index_int lane_id = idx.local % WaveSize;
+    const bool is_last_wave = (wave_id == NumWaves - 1);
+    // for partial waves, the last active lane is (BlockSize - 1) % WaveSize
+    const index_int last_lane = is_last_wave ? ((BlockSize - 1) % WaveSize) : (WaveSize - 1);
+    if(lane_id == last_lane)
+        wave_prefixes[wave_id] = value;
+    __syncthreads();
+
+    // the first wave scans the wave prefixes
+    if(idx.local < NumWaves)
+    {
+        T prefix = wave_prefixes[idx.local];
+        wave_scan<WaveSize>(prefix, op);
+        wave_prefixes[idx.local] = prefix;
+    }
+    __syncthreads();
+
+    // add wave prefix to each thread's result, except wave 0
+    if(wave_id > 0)
+        value = op(wave_prefixes[wave_id - 1], value);
+
+    // include init value
+    value = op(init, value);
+
+    // return block total, init + sum of all inputs
+    return op(init, wave_prefixes[NumWaves - 1]);
+}
 
 template <index_int N,
           class Op,
@@ -56,32 +124,11 @@ template <index_int N,
 __device__ void block_scan(index idx, Op op, T init, ForStride fs, Input input, Output output)
 {
     using type = decltype(input(detail::deduce_for_stride(fs)));
-    __shared__ type buffer[2][N];
     type x = init;
     fs([&](auto i) {
-        index_int iout = 0;
-        index_int iin  = 1;
-        if(idx.local == 0)
-            buffer[iout][idx.local] = op(input(i), x);
-        else
-            buffer[iout][idx.local] = input(i);
-        __syncthreads();
-        for(index_int s = 1; s < idx.nlocal(); s *= 2)
-        {
-            iout = 1 - iout;
-            iin  = 1 - iin;
-            if(idx.local >= s)
-            {
-                buffer[iout][idx.local] = op(buffer[iin][idx.local], buffer[iin][idx.local - s]);
-            }
-            else
-            {
-                buffer[iout][idx.local] = buffer[iin][idx.local];
-            }
-            __syncthreads();
-        }
-        x = buffer[iout][idx.nlocal() - 1];
-        output(i, buffer[iout][idx.local]);
+        type value = input(i);
+        x = block_scan<N>(idx, value, op, x);
+        output(i, value);
     });
 }
 

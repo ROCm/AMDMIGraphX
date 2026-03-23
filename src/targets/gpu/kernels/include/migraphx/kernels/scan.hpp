@@ -124,10 +124,10 @@ template <index_int N,
 __device__ void block_scan(index idx, Op op, T init, ForStride fs, Input input, Output output)
 {
     using type = decltype(input(detail::deduce_for_stride(fs)));
-    type x = init;
+    type x     = init;
     fs([&](auto i) {
         type value = input(i);
-        x = block_scan<N>(idx, value, op, x);
+        x          = block_scan<N>(idx, value, op, x);
         output(i, value);
     });
 }

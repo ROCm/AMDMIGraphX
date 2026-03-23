@@ -270,6 +270,7 @@ def main():
 
     if use_onnx:
         sess_op = ort.SessionOptions()
+        sess_op.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_BASIC
 
         if args.ort_logging:
             sess_op.log_verbosity_level = 0

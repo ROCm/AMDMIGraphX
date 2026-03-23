@@ -268,32 +268,25 @@ __device__ void conv(Input input, Weight weight, Output output, LDS& lds_buf)
                     auto load_tile = [&]() {
                         if constexpr(HasInterior)
                         {
-                            if(tr >= IntTrLo and tr <= IntTrHi and
-                               tc >= IntTcLo and tc <= IntTcHi)
+                            if(tr >= IntTrLo and tr <= IntTrHi and tc >= IntTcLo and tc <= IntTcHi)
                             {
-                                auto base =
-                                    ((n_val * channels + ic) * height +
-                                     static_cast<index_int>(ih0)) *
-                                        width +
-                                    static_cast<index_int>(iw0);
+                                auto base = ((n_val * channels + ic) * height +
+                                             static_cast<index_int>(ih0)) *
+                                                width +
+                                            static_cast<index_int>(iw0);
                                 return generate_array<T>(_c<16>, [&](auto el) {
-                                    return input[base +
-                                                 el / Alpha * width +
-                                                 el % Alpha];
+                                    return input[base + el / Alpha * width + el % Alpha];
                                 });
                             }
                         }
                         return generate_array<T>(_c<16>, [&](auto el) {
                             auto ih    = ih0 + static_cast<diff_int>(el / Alpha);
-                            auto ih_ok = ih >= 0 and
-                                         ih < static_cast<diff_int>(height);
+                            auto ih_ok = ih >= 0 and ih < static_cast<diff_int>(height);
                             auto rb =
-                                ((n_val * channels + ic) * height +
-                                 static_cast<index_int>(ih)) *
+                                ((n_val * channels + ic) * height + static_cast<index_int>(ih)) *
                                 width;
                             auto iw = iw0 + static_cast<diff_int>(el % Alpha);
-                            return (ih_ok and iw >= 0 and
-                                    iw < static_cast<diff_int>(width))
+                            return (ih_ok and iw >= 0 and iw < static_cast<diff_int>(width))
                                        ? input[rb + static_cast<index_int>(iw)]
                                        : T(0);
                         });
@@ -302,9 +295,8 @@ __device__ void conv(Input input, Weight weight, Output output, LDS& lds_buf)
                     __builtin_amdgcn_sched_barrier(1 << 4);
                     V = input_xform(load_tile());
                 }
-                repeat_c<Alpha2>([&](auto p) {
-                    lds_v[make_array<index_int>(p, tl * _c<ChunkC> + cc)] = V[p];
-                });
+                repeat_c<Alpha2>(
+                    [&](auto p) { lds_v[make_array<index_int>(p, tl * _c<ChunkC> + cc)] = V[p]; });
             });
         }
 
@@ -317,8 +309,7 @@ __device__ void conv(Input input, Weight weight, Output output, LDS& lds_buf)
                 auto kk  = k_base + kl;
                 auto src = (kk * CPerGrp + c_chunk + cc) * Alpha2;
                 repeat_c<Alpha2>([&](auto p) {
-                    lds_u[make_array<index_int>(p, cc * _c<KPerWg> + kl)] =
-                        weight[src + p];
+                    lds_u[make_array<index_int>(p, cc * _c<KPerWg> + kl)] = weight[src + p];
                 });
             });
         }
@@ -329,13 +320,10 @@ __device__ void conv(Input input, Weight weight, Output output, LDS& lds_buf)
                 auto kl    = i % _c<KPerWg>;
                 auto kk    = k_base + kl;
                 auto w_off = (kk * CPerGrp + c_chunk + cc) * _c<9>;
-                auto g     = generate_array<T>(_c<9>, [&](auto p) {
-                    return weight[w_off + p];
-                });
-                auto U = filter_xform(g);
-                repeat_c<Alpha2>([&](auto p) {
-                    lds_u[make_array<index_int>(p, cc * _c<KPerWg> + kl)] = U[p];
-                });
+                auto g     = generate_array<T>(_c<9>, [&](auto p) { return weight[w_off + p]; });
+                auto U     = filter_xform(g);
+                repeat_c<Alpha2>(
+                    [&](auto p) { lds_u[make_array<index_int>(p, cc * _c<KPerWg> + kl)] = U[p]; });
             });
         }
 
@@ -349,20 +337,15 @@ __device__ void conv(Input input, Weight weight, Output output, LDS& lds_buf)
         {
             repeat_c<Alpha2>([&](auto p) {
                 auto v = generate_array<T>(_c<TTile>, [&](auto tm) {
-                    return lds_v[make_array<index_int>(
-                        p, (my_t0 + tm) * _c<ChunkC> + cc)];
+                    return lds_v[make_array<index_int>(p, (my_t0 + tm) * _c<ChunkC> + cc)];
                 });
                 auto u = generate_array<T>(_c<KTile>, [&](auto tn) {
-                    return lds_u[make_array<index_int>(
-                        p, cc * _c<KPerWg> + my_k0 + tn)];
+                    return lds_u[make_array<index_int>(p, cc * _c<KPerWg> + my_k0 + tn)];
                 });
                 repeat_c<TTile>([&](auto tm) {
                     repeat_c<KTile>([&](auto tn) {
                         acc[(tm * _c<KTile> + tn) * Alpha2 + p] =
-                            __builtin_fmaf(
-                                v[tm],
-                                u[tn],
-                                acc[(tm * _c<KTile> + tn) * Alpha2 + p]);
+                            __builtin_fmaf(v[tm], u[tn], acc[(tm * _c<KTile> + tn) * Alpha2 + p]);
                     });
                 });
             });

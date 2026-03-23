@@ -101,6 +101,21 @@ __device__ T readlane(T& x, unsigned int src_lane)
     return dpp_op(x, [&](auto i) { return __shfl(i, src_lane, MIGRAPHX_WAVEFRONTSIZE); });
 }
 
+// offset is known at compile time
+template <unsigned int Offset, unsigned int Width, class T>
+__device__ T readlane_up(T& x)
+{
+    static_assert(is_power_of_2(Width), "Width must be a power of 2");
+    return dpp_op(x, [](auto i) { return __shfl_up(i, Offset, Width); });
+}
+
+// offset is not known until runtime
+template <class T>
+__device__ T readlane_up(T& x, unsigned int offset)
+{
+    return dpp_op(x, [&](auto i) { return __shfl_up(i, offset, MIGRAPHX_WAVEFRONTSIZE); });
+}
+
 template <unsigned int XorMask, class T>
 __device__ T readlane_xor(T& x)
 {

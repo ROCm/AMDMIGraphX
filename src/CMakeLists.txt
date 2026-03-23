@@ -248,6 +248,7 @@ register_migraphx_ops(
     nearbyint
     neg
     nonmaxsuppression
+    dynamic_range
     nonzero
     onehot
     outline
@@ -264,7 +265,6 @@ register_migraphx_ops(
     quantizelinear
     random_uniform
     random_seed
-    dynamic_range
     recip
     reduce_all
     reduce_any

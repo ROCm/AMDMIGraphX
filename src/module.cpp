@@ -425,8 +425,8 @@ deduce_min_splice(std::vector<instruction_ref> ends,
 static void propagate_debug_symbols(const_module_ref m,
                                     instruction_ref ins,
                                     instruction_ref rep,
-                                    std::unordered_set<instruction_ref> new_max_splice,
-                                    std::unordered_set<instruction_ref> old_max_splice)
+                                    const std::unordered_set<instruction_ref>& new_max_splice,
+                                    const std::unordered_set<instruction_ref>& old_max_splice)
 {
     // TODO: can get common ancestors within gather_max_splice as an optimization
     // Find the common instructions between old_max_splice and new_max_splice.
@@ -556,7 +556,7 @@ instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref
 }
 
 std::vector<instruction_ref> module::batch_replace_instruction(
-    const std::vector<instruction_replacer>& replacers) MIGRAPHX_TIDY_CONST
+    const std::vector<instruction_replacement>& replacers) MIGRAPHX_TIDY_CONST
 {
     impl->changed.notify();
     std::vector<instruction_ref> ret;

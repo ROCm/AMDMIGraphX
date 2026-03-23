@@ -129,7 +129,7 @@ struct MIGRAPHX_EXPORT module
 
     instruction_ref replace_instruction(instruction_ref ins, instruction_ref rep);
 
-    struct instruction_replacer
+    struct instruction_replacement
     {
         instruction_ref ins;
         operation op;
@@ -140,7 +140,7 @@ struct MIGRAPHX_EXPORT module
     /// Replaces an array of instructions within the same function to properly handle debug symbols
     /// propagation. Returns vector of instruction_ref to replaced instructions.
     std::vector<instruction_ref> batch_replace_instruction(
-        const std::vector<instruction_replacer>& replacers) MIGRAPHX_TIDY_CONST;
+        const std::vector<instruction_replacement>& replacers) MIGRAPHX_TIDY_CONST;
 
     instruction_ref remove_instruction(instruction_ref ins);
     instruction_ref remove_instructions(instruction_ref first, instruction_ref last);

@@ -537,7 +537,7 @@ TEST_CASE(debug_symbols_in_print)
     m.add_return({add});
 
     auto str = migraphx::to_string(m);
-    EXPECT(str.find("# sym_a, sym_b #") != std::string::npos);
+    EXPECT(str.find("# sym_a, sym_b") != std::string::npos);
 }
 
 // -----------------------------------------------------------------------

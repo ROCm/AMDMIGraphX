@@ -1704,14 +1704,14 @@ struct find_conv_dot_horiz_fusion
             auto concat =
                 m.insert_instruction(input, make_op("concat", {{"axis", concat_axis}}), args);
             auto fused     = m.insert_instruction(std::next(input), op, input, concat);
-            std::vector<module::instruction_replacer> replacers;
+            std::vector<module::instruction_replacement> replacers;
             int64_t offset = 0;
             for(auto arg : range(start, last))
             {
                 int64_t len = arg->get_shape().lens()[axis];
                 auto slice_op = make_op(
                     "slice", {{"axes", {axis}}, {"starts", {offset}}, {"ends", {offset + len}}});
-                replacers.push_back(module::instruction_replacer{arg, slice_op, {fused}, {}});
+                replacers.push_back(module::instruction_replacement{arg, slice_op, {fused}, {}});
                 offset += len;
             }
             m.batch_replace_instruction(replacers);

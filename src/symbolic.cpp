@@ -566,10 +566,10 @@ static int64_t eval_direct(const expr_ptr& e,
     }
 }
 
-static std::size_t evaluate(const expr_ptr& e,
-                            const std::map<std::string, std::size_t>& symbol_map)
+static int64_t evaluate(const expr_ptr& e,
+                        const std::map<std::string, std::size_t>& symbol_map)
 {
-    return static_cast<std::size_t>(eval_direct(e, symbol_map));
+    return eval_direct(e, symbol_map);
 }
 
 // ===================================================================
@@ -838,7 +838,9 @@ std::size_t symbolic_expr::eval(const std::map<std::string, std::size_t>& symbol
 {
     if(empty())
         return 0;
-    return evaluate(p->node, symbol_map);
+    auto v = evaluate(p->node, symbol_map);
+    assert(v >= 0 && "symbolic dimension evaluated to negative value");
+    return static_cast<std::size_t>(v);
 }
 
 symbolic_expr symbolic_expr::subs(const std::map<std::string, std::size_t>& symbol_map) const

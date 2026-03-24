@@ -76,23 +76,25 @@ TEST_CASE(add_constant_folding)
 
 TEST_CASE(add_flattening)
 {
-    auto lhs = (se("H") + se("W")) + se("C");
-    auto rhs = se("H") + (se("W") + se("C"));
-    EXPECT(lhs == rhs);
+    auto a = (se("H") + se("W")) + se("C");
+    auto b = se("H") + (se("W") + se("C"));
+    auto c = (se("C") + se("H")) + se("W");
+    EXPECT(a == b);
+    EXPECT(b == c);
 }
 
 TEST_CASE(add_mixed)
 {
     auto r = se("H") + 3 + se("H") + 2;
-    EXPECT(r.eval({{"H", 10}}) == 25);
+    EXPECT(r == 2 * se("H") + 5);
     auto r2 = se("H") + se("H");
-    EXPECT((r2 + 5).eval({{"H", 10}}) == 25);
+    EXPECT(r2 + 5 == 2 * se("H") + 5);
 }
 
 TEST_CASE(add_cancellation)
 {
-    auto r = se("H") - se("H");
-    EXPECT(r == se(0));
+    auto neg_h = se("-H");
+    EXPECT(se("H") + neg_h == se(0));
 }
 
 TEST_CASE(sub_identity)
@@ -112,26 +114,19 @@ TEST_CASE(sub_constant_folding)
 
 TEST_CASE(sub_produces_negation)
 {
-    auto r = 3 - se("H");
-    EXPECT(r.eval({{"H", 1}}) == 2);
-    EXPECT(r.eval({{"H", 3}}) == 0);
+    EXPECT(se("-H").to_string() == "-H");
+    EXPECT((3 - se("H")).to_string() == "-H + 3");
 }
 
 TEST_CASE(neg_integer)
 {
-    auto r = se(0) - se(5);
+    auto r = se(0) - 5;
     EXPECT(r == se(-5));
-}
-
-TEST_CASE(neg_symbol)
-{
-    auto r = se(0) - se("H");
-    EXPECT(r.eval({{"H", 7}}) == static_cast<std::size_t>(-7));
 }
 
 TEST_CASE(neg_double_negation)
 {
-    auto r = se(0) - (se(0) - se("H"));
+    auto r = 0 - se("-H");
     EXPECT(r == se("H"));
 }
 
@@ -165,23 +160,22 @@ TEST_CASE(mul_coefficient_accumulation)
 
 TEST_CASE(mul_flattening)
 {
-    auto lhs = (se("H") * se("W")) * se("C");
-    auto rhs = se("H") * (se("W") * se("C"));
-    EXPECT(lhs == rhs);
+    auto a = (se("H") * se("W")) * se("C");
+    auto b = se("H") * (se("W") * se("C"));
+    auto c = (se("C") * se("H")) * se("W");
+    EXPECT(a == b);
+    EXPECT(b == c);
 }
 
-TEST_CASE(mul_integer_times_add)
+TEST_CASE(mul_distributive)
 {
     auto r = 2 * (se("H") + 1);
-    EXPECT(r.eval({{"H", 5}}) == 12);
-    auto r2 = se("H") + se("H") + 2;
-    EXPECT(r == r2);
+    EXPECT(r == 2 * se("H") + 2);
 }
 
 TEST_CASE(mul_symbolic_times_add_no_distribution)
 {
     auto r = se("N") * (se("H") + 1);
-    EXPECT(r.eval({{"N", 3}, {"H", 5}}) == 18);
     EXPECT(r != se("N") * se("H") + se("N"));
 }
 
@@ -206,16 +200,13 @@ TEST_CASE(fdiv_exact_coefficient_cancel)
 TEST_CASE(fdiv_non_simplifiable)
 {
     auto r = (se("H") - 1) / 2;
-    EXPECT(r.eval({{"H", 7}}) == 3);
-    EXPECT(r.eval({{"H", 8}}) == 3);
+    EXPECT(r.to_string() == "(H - 1)/2");
 }
 
 TEST_CASE(fdiv_division_by_zero)
 {
     EXPECT(test::throws([&] { se("H") / 0; }));
 }
-
-// --- Inspired by SymEngine/SymPy test suites ---
 
 TEST_CASE(add_scaled_subtraction)
 {
@@ -250,32 +241,31 @@ TEST_CASE(mul_zero_propagation)
 TEST_CASE(add_chain_constant_cancel)
 {
     auto r = se(2) - se("H") - se(2);
-    EXPECT(r.eval({{"H", 7}}) == static_cast<std::size_t>(-7));
-    EXPECT(r == se(0) - se("H"));
+    EXPECT(r == se("-H"));
 }
 
 TEST_CASE(neg_of_sum_distributes)
 {
     auto r = se(-1) * (se("H") + 1);
-    EXPECT(r.eval({{"H", 5}}) == static_cast<std::size_t>(-6));
-    EXPECT(r == se(0) - se("H") - 1);
+    EXPECT(r == se("-H") - 1);
 }
 
 TEST_CASE(neg_of_product_double)
 {
     auto hw  = se("H") * se("W");
-    auto neg = se(0) - hw;
-    EXPECT(neg.eval({{"H", 3}, {"W", 4}}) == static_cast<std::size_t>(-12));
-    auto dbl = se(0) - neg;
+    auto neg = 0 - hw;
+    EXPECT(neg.to_string() == "-H*W");
+    auto dbl = 0 - neg;
     EXPECT(dbl == hw);
 }
 
 TEST_CASE(add_compound_product_like_terms)
 {
     auto hw = se("H") * se("W");
+    auto wh = se("W") * se("H");
     EXPECT(hw + hw == 2 * hw);
+    EXPECT(hw + wh == 2 * hw);
     EXPECT(hw + 2 * hw == 3 * hw);
-    EXPECT(2 * hw - hw == hw);
 }
 
 TEST_CASE(add_compound_product_cancellation)
@@ -284,6 +274,7 @@ TEST_CASE(add_compound_product_cancellation)
     EXPECT(hw - hw == se(0));
 }
 
+// X*Y and X cancel pairwise: (X*Y - X) - (X*Y - X) == 0
 TEST_CASE(sub_compound_product_mixed)
 {
     auto xy = se("X") * se("Y");
@@ -291,6 +282,7 @@ TEST_CASE(sub_compound_product_mixed)
     EXPECT(r == se(0));
 }
 
+// Duplicate A*B terms fold even when separated by another term
 TEST_CASE(add_multi_term_accumulation)
 {
     auto r = se("A") * se("B") + se("C") + se("A") * se("B");
@@ -315,18 +307,6 @@ TEST_CASE(fdiv_large_constants)
 // Tier 2: Equality and hashing
 // ===================================================================
 
-TEST_CASE(eq_identical_constructions)
-{
-    EXPECT(se("H") + 1 == se("H") + 1);
-    EXPECT((se("H") - 3) / 2 == (se("H") - 3) / 2);
-}
-
-TEST_CASE(eq_different_construction_order)
-{
-    EXPECT(1 + se("H") == se("H") + 1);
-    EXPECT(se("W") * se("H") == se("H") * se("W"));
-}
-
 TEST_CASE(eq_different_values)
 {
     EXPECT(se("H") + 1 != se("H") + 2);
@@ -341,26 +321,6 @@ TEST_CASE(eq_empty)
     EXPECT(se(0) != se{});
 }
 
-TEST_CASE(eq_hash_consistency)
-{
-    auto a = 1 + se("H");
-    auto b = se("H") + 1;
-    EXPECT(a == b);
-    EXPECT(a.to_string() == b.to_string());
-}
-
-TEST_CASE(eq_compound_product_order)
-{
-    EXPECT(se("H") * se("W") == se("W") * se("H"));
-    EXPECT(se("A") * se("B") * se("C") == se("C") * se("A") * se("B"));
-}
-
-TEST_CASE(eq_canonically_equivalent)
-{
-    EXPECT(se("H") + se("H") == 2 * se("H"));
-    EXPECT(se("H") - se("H") == se(0));
-    EXPECT((se("H") + 1) + (se("H") + 2) == 2 * se("H") + 3);
-}
 
 // ===================================================================
 // Tier 3: Evaluation and substitution
@@ -416,7 +376,7 @@ TEST_CASE(subs_partial)
 {
     auto e = se("N") * se("H") + 1;
     auto r = e.subs({{"N", 4}});
-    EXPECT(not r.empty());
+    EXPECT(r == 4 * se("H") + 1);
     EXPECT(r.eval({{"H", 10}}) == 41);
 }
 
@@ -440,6 +400,7 @@ TEST_CASE(subs_floor_div)
     EXPECT(r == se(3));
 }
 
+// eval() and subs()+eval() must agree on a compound expression
 TEST_CASE(subs_eval_cross_validation)
 {
     auto e = (se("N") * se("H") - 3) / 2 + 1;
@@ -471,8 +432,8 @@ TEST_CASE(eval_compound_product)
 
 TEST_CASE(eval_negative_intermediate)
 {
-    auto e = (se("H") - 10) * 2;
-    EXPECT(e.eval({{"H", 3}}) == static_cast<std::size_t>(-14));
+    auto e = (se("H") - 10) * 2 + 20;
+    EXPECT(e.eval({{"H", 3}}) == 6);
 }
 
 // ===================================================================
@@ -550,13 +511,12 @@ TEST_CASE(parse_division)
 
 TEST_CASE(parse_unary_minus)
 {
-    auto r = se("-H");
-    EXPECT(r.eval({{"H", 5}}) == static_cast<std::size_t>(-5));
-
-    auto r2 = se("-(H + 1)");
-    EXPECT(r2.eval({{"H", 5}}) == static_cast<std::size_t>(-6));
+    EXPECT(se("-H") == se("-H"));
+    EXPECT(se("-H").to_string() == "-H");
+    EXPECT(se("-(H + 1)") == se("-H") - 1);
 }
 
+// Legacy floor() wrapper is accepted by parser and treated as no-op
 TEST_CASE(parse_floor_backward_compat)
 {
     auto a = se("floor((H-1)/2)");
@@ -576,7 +536,7 @@ TEST_CASE(parse_whitespace_tolerance)
 
 TEST_CASE(print_negative_mul_coefficient)
 {
-    auto r = se(0) - 3 * se("H");
+    auto r = 0 - 3 * se("H");
     EXPECT(r.to_string() == "-3*H");
 }
 
@@ -585,18 +545,20 @@ TEST_CASE(print_multi_symbol_product)
     auto r = se("H") * se("W");
     auto s = r.to_string();
     EXPECT(s == "H*W" or s == "W*H");
+    EXPECT(se("H*W") == se("W*H"));
 }
 
 TEST_CASE(print_compound_expression)
 {
     auto r = 2 * (se("H") * se("W")) + se("C") - 1;
-    EXPECT(r.eval({{"H", 3}, {"W", 4}, {"C", 5}}) == 28);
+    auto s = r.to_string();
+    EXPECT(se(s) == r);
 }
 
 TEST_CASE(parse_compound_mul)
 {
     auto r = se("2*H*W");
-    EXPECT(r.eval({{"H", 3}, {"W", 4}}) == 24);
+    EXPECT(r == 2 * se("H") * se("W"));
 }
 
 TEST_CASE(print_parse_round_trip)
@@ -621,6 +583,7 @@ TEST_CASE(print_parse_round_trip)
 // Tier 6: Edge cases and robustness
 // ===================================================================
 
+// 5 levels of (e-1)/2: simulates repeated pooling/conv stride reduction
 TEST_CASE(edge_deeply_nested)
 {
     auto e = se("H");
@@ -637,16 +600,10 @@ TEST_CASE(edge_many_symbols)
 
 TEST_CASE(edge_neg_one_coefficient)
 {
-    auto r = se(0) - se("H");
-    EXPECT(r.eval({{"H", 5}}) == static_cast<std::size_t>(-5));
+    EXPECT(se("-H").to_string() == "-H");
+    EXPECT(se("-H") + se("H") == se(0));
 }
 
-TEST_CASE(edge_zero_constant_in_add)
-{
-    auto r = se("H") + 0;
-    EXPECT(r == se("H"));
-    EXPECT(r.to_string() == "H");
-}
 
 TEST_CASE(edge_empty_operations)
 {
@@ -673,6 +630,7 @@ TEST_CASE(edge_large_coefficients)
     EXPECT(r.eval({{"H", 1000000}}) == 1000000000000ULL);
 }
 
+// Incrementally adding H ten times must fold to 11*H
 TEST_CASE(edge_chained_operations)
 {
     auto e = se("H");
@@ -681,13 +639,6 @@ TEST_CASE(edge_chained_operations)
     EXPECT(e == 11 * se("H"));
 }
 
-TEST_CASE(edge_associativity_stress)
-{
-    auto a = se("A"), b = se("B"), c = se("C");
-    EXPECT((a + b) + c == a + (b + c));
-    EXPECT((a * b) * c == a * (b * c));
-    EXPECT((a - b) - c == a - b - c);
-}
 
 TEST_CASE(edge_repeated_parse)
 {

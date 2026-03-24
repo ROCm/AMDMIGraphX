@@ -70,9 +70,7 @@ struct replace_shape_order
     std::size_t location(instruction_ref x) const { return std::distance(start, x); }
 
     bool operator()(instruction_ref x, instruction_ref y) const
-    {
-        return location(x) > location(y);
-    }
+    { return location(x) > location(y); }
 };
 
 void instruction::replace(const shape& r)
@@ -125,9 +123,7 @@ void instruction::clear_arguments()
 }
 
 bool operator==(const instruction& i, instruction_ref ref)
-{
-    return std::addressof(i) == std::addressof(*ref);
-}
+{ return std::addressof(i) == std::addressof(*ref); }
 
 bool instruction::valid(instruction_ref start, bool check_order) const
 {
@@ -282,7 +278,7 @@ void instruction::replace(operation o,
                           std::vector<module_ref> mdl_args)
 {
     lit = literal{};
-    op = std::move(o);
+    op  = std::move(o);
     replace(r);
     replace(std::move(args), std::move(mdl_args));
 }
@@ -522,9 +518,7 @@ void instruction::set_normalized(bool value) { normalized = value; }
 bool instruction::is_normalized() const { return normalized; }
 
 bool instruction::need_normalization() const
-{
-    return this->get_operator().need_normalization() and not normalized;
-}
+{ return this->get_operator().need_normalization() and not normalized; }
 
 operation instruction::normalized_operator() const
 {
@@ -550,9 +544,7 @@ std::vector<shape> to_shapes(const std::vector<instruction_ref>& args)
 }
 
 shape compute_shape(const operation& op, const std::vector<instruction_ref>& args)
-{
-    return op.compute_shape(to_shapes(args));
-}
+{ return op.compute_shape(to_shapes(args)); }
 
 shape compute_shape(const operation& op,
                     const std::vector<instruction_ref>& args,
@@ -583,14 +575,10 @@ std::vector<shape> try_compute_shape(const operation& op, const std::vector<shap
 }
 
 migraphx::instruction* as_address(const std::list<instruction>::iterator& ins) noexcept
-{
-    return iterator_address(ins);
-}
+{ return iterator_address(ins); }
 
 const migraphx::instruction* as_address(const std::list<instruction>::const_iterator& ins) noexcept
-{
-    return iterator_address(ins);
-}
+{ return iterator_address(ins); }
 
 template <class F>
 static auto track_visits(instruction_ref start, instruction_ref end, F f)

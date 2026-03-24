@@ -57,10 +57,7 @@ TEST_CASE(add_identity)
     EXPECT(0 + se("H") == se("H"));
 }
 
-TEST_CASE(add_commutativity)
-{
-    EXPECT(se("H") + se("W") == se("W") + se("H"));
-}
+TEST_CASE(add_commutativity) { EXPECT(se("H") + se("W") == se("W") + se("H")); }
 
 TEST_CASE(add_like_term_folding)
 {
@@ -97,20 +94,11 @@ TEST_CASE(add_cancellation)
     EXPECT(se("H") + neg_h == se(0));
 }
 
-TEST_CASE(sub_identity)
-{
-    EXPECT(se("H") - 0 == se("H"));
-}
+TEST_CASE(sub_identity) { EXPECT(se("H") - 0 == se("H")); }
 
-TEST_CASE(sub_self)
-{
-    EXPECT(se("H") - se("H") == se(0));
-}
+TEST_CASE(sub_self) { EXPECT(se("H") - se("H") == se(0)); }
 
-TEST_CASE(sub_constant_folding)
-{
-    EXPECT(se(10) - se(3) == se(7));
-}
+TEST_CASE(sub_constant_folding) { EXPECT(se(10) - se(3) == se(7)); }
 
 TEST_CASE(sub_produces_negation)
 {
@@ -142,15 +130,9 @@ TEST_CASE(mul_zero)
     EXPECT(0 * se("H") == se(0));
 }
 
-TEST_CASE(mul_constant_folding)
-{
-    EXPECT(se(3) * se(7) == se(21));
-}
+TEST_CASE(mul_constant_folding) { EXPECT(se(3) * se(7) == se(21)); }
 
-TEST_CASE(mul_commutativity)
-{
-    EXPECT(se("B") * se("A") == se("A") * se("B"));
-}
+TEST_CASE(mul_commutativity) { EXPECT(se("B") * se("A") == se("A") * se("B")); }
 
 TEST_CASE(mul_coefficient_accumulation)
 {
@@ -179,10 +161,7 @@ TEST_CASE(mul_symbolic_times_add_no_distribution)
     EXPECT(r != se("N") * se("H") + se("N"));
 }
 
-TEST_CASE(fdiv_identity)
-{
-    EXPECT(se("H") / 1 == se("H"));
-}
+TEST_CASE(fdiv_identity) { EXPECT(se("H") / 1 == se("H")); }
 
 TEST_CASE(fdiv_constant_folding)
 {
@@ -221,10 +200,7 @@ TEST_CASE(add_of_two_adds)
     EXPECT(r == 2 * se("H") + 3);
 }
 
-TEST_CASE(sub_strip_constant)
-{
-    EXPECT((se("H") + 1) - se("H") == se(1));
-}
+TEST_CASE(sub_strip_constant) { EXPECT((se("H") + 1) - se("H") == se(1)); }
 
 TEST_CASE(sub_of_two_adds)
 {
@@ -285,7 +261,7 @@ TEST_CASE(sub_compound_product_mixed)
 // Duplicate A*B terms fold even when separated by another term
 TEST_CASE(add_multi_term_accumulation)
 {
-    auto r = se("A") * se("B") + se("C") + se("A") * se("B");
+    auto r        = se("A") * se("B") + se("C") + se("A") * se("B");
     auto expected = 2 * (se("A") * se("B")) + se("C");
     EXPECT(r == expected);
 }
@@ -320,7 +296,6 @@ TEST_CASE(eq_empty)
     EXPECT(se{} != se(0));
     EXPECT(se(0) != se{});
 }
-
 
 // ===================================================================
 // Tier 3: Evaluation and substitution
@@ -403,10 +378,10 @@ TEST_CASE(subs_floor_div)
 // eval() and subs()+eval() must agree on a compound expression
 TEST_CASE(subs_eval_cross_validation)
 {
-    auto e = (se("N") * se("H") - 3) / 2 + 1;
+    auto e                               = (se("N") * se("H") - 3) / 2 + 1;
     std::map<std::string, std::size_t> m = {{"N", 4}, {"H", 26}};
-    auto via_eval = e.eval(m);
-    auto via_subs = e.subs(m).eval({});
+    auto via_eval                        = e.eval(m);
+    auto via_subs                        = e.subs(m).eval({});
     EXPECT(via_eval == via_subs);
 }
 
@@ -604,7 +579,6 @@ TEST_CASE(edge_neg_one_coefficient)
     EXPECT(se("-H") + se("H") == se(0));
 }
 
-
 TEST_CASE(edge_empty_operations)
 {
     se empty;
@@ -638,7 +612,6 @@ TEST_CASE(edge_chained_operations)
         e = e + se("H");
     EXPECT(e == 11 * se("H"));
 }
-
 
 TEST_CASE(edge_repeated_parse)
 {

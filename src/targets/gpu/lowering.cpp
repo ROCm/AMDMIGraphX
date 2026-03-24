@@ -94,7 +94,6 @@ struct miopen_apply
 
         add_extend_op("fixed_pad");
         add_extend_op("multinomial");
-        add_extend_op("prefix_scan_sum");
         add_extend_op("rnn_var_sl_last_output");
         add_extend_op("rnn_var_sl_shift_output");
         add_extend_op("rnn_var_sl_shift_sequence");

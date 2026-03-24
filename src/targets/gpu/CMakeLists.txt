@@ -213,7 +213,6 @@ register_migraphx_gpu_ops(hip_
     fixed_pad
     loop
     multinomial
-    prefix_scan_sum
     topk
 )
 if (MIGRAPHX_USE_MIOPEN)

@@ -364,9 +364,8 @@ instruction_ref module::insert_instruction(instruction_ref ins,
  * replace_instruction and including the first not solely depenedent instruction.
  * stops : optional set of instructions to stop search on if encoutered.
  **/
-static std::unordered_set<instruction_ref> gather_max_splice(const_module_ref m,
-                                                             instruction_ref ins,
-                                                             std::unordered_set<instruction_ref> stops = {})
+static std::unordered_set<instruction_ref> gather_max_splice(
+    const_module_ref m, instruction_ref ins, std::unordered_set<instruction_ref> stops = {})
 {
     std::unordered_set<instruction_ref> result = {ins};
     fix<void>([&](auto self, const std::vector<instruction_ref>& inputs) {
@@ -377,8 +376,9 @@ static std::unordered_set<instruction_ref> gather_max_splice(const_module_ref m,
             if(contains(result, input))
                 continue;
             result.insert(input);
-            if(contains(stops, input) or any_of(input->outputs(),
-                      [&](instruction_ref output) { return not contains(result, output); }))
+            if(contains(stops, input) or any_of(input->outputs(), [&](instruction_ref output) {
+                   return not contains(result, output);
+               }))
             {
                 // include first instruction that is not solely depenedent or in stops
                 continue;
@@ -402,7 +402,7 @@ deduce_min_splice(std::vector<instruction_ref> ends,
     min_splice.insert(ends.begin(), ends.end());
     if(common_ancestors.empty())
         return min_splice;
-    
+
     // make min_splice by gathering outputs of common_ancestors within the max_splice
     for(auto anc : common_ancestors)
     {
@@ -442,8 +442,10 @@ static void propagate_debug_symbols(const_module_ref m,
                  [&new_max_splice](auto old_ins) { return contains(new_max_splice, old_ins); });
 
     // Deduce the correct (minimum) splice from the max splice and the intersection
-    std::unordered_set<instruction_ref> old_splice = deduce_min_splice({ins}, old_max_splice, common_ancestors);
-    std::unordered_set<instruction_ref> new_splice = deduce_min_splice({rep}, new_max_splice, common_ancestors);
+    std::unordered_set<instruction_ref> old_splice =
+        deduce_min_splice({ins}, old_max_splice, common_ancestors);
+    std::unordered_set<instruction_ref> new_splice =
+        deduce_min_splice({rep}, new_max_splice, common_ancestors);
 
     std::set<std::string> symbols;
     for(auto x : old_splice)
@@ -476,7 +478,8 @@ instruction_ref module::replace_instruction(instruction_ref ins,
         // placeholder identity instruction
         auto id_ins = insert_instruction(ins, make_op("identity"), prev_args);
         std::unordered_set<instruction_ref> old_max_splice = gather_max_splice(this, id_ins);
-        std::unordered_set<instruction_ref> new_max_splice = gather_max_splice(this, ins, old_max_splice);
+        std::unordered_set<instruction_ref> new_max_splice =
+            gather_max_splice(this, ins, old_max_splice);
         propagate_debug_symbols(this, ins, id_ins, new_max_splice, old_max_splice);
     }
     assert(ins->valid(begin()));
@@ -502,7 +505,8 @@ instruction_ref module::replace_instruction(instruction_ref ins,
     {
         auto id_ins = insert_instruction(ins, make_op("identity"), prev_args);
         std::unordered_set<instruction_ref> old_max_splice = gather_max_splice(this, id_ins);
-        std::unordered_set<instruction_ref> new_max_splice = gather_max_splice(this, ins, old_max_splice);
+        std::unordered_set<instruction_ref> new_max_splice =
+            gather_max_splice(this, ins, old_max_splice);
         propagate_debug_symbols(this, ins, id_ins, new_max_splice, old_max_splice);
     }
     assert(ins->valid(begin()));
@@ -531,7 +535,8 @@ instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref
     if(has_debug_symbols())
     {
         std::unordered_set<instruction_ref> new_max_splice = gather_max_splice(this, rep);
-        std::unordered_set<instruction_ref> old_max_splice = gather_max_splice(this, ins, new_max_splice);
+        std::unordered_set<instruction_ref> old_max_splice =
+            gather_max_splice(this, ins, new_max_splice);
         propagate_debug_symbols(this, ins, rep, new_max_splice, old_max_splice);
     }
 
@@ -600,7 +605,10 @@ std::vector<instruction_ref> module::batch_replace_instruction(
             [&new_max_splices](auto old_ins) { return contains(new_max_splices, old_ins); });
 
         std::vector<instruction_ref> ends;
-        std::transform(replacers.begin(), replacers.end(), std::back_inserter(ends), [](const auto& rep){ return rep.ins; });
+        std::transform(replacers.begin(),
+                       replacers.end(),
+                       std::back_inserter(ends),
+                       [](const auto& rep) { return rep.ins; });
 
         std::unordered_set<instruction_ref> old_splice =
             deduce_min_splice({ends}, old_max_splices, common_ancestors);

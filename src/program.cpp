@@ -813,8 +813,7 @@ static void mod_from_val(module_ref mod,
         output->set_normalized(normalized);
         if(node.contains("debug_symbols"))
         {
-            output->add_debug_symbols(
-                from_value<std::set<std::string>>(node.at("debug_symbols")));
+            output->add_debug_symbols(from_value<std::set<std::string>>(node.at("debug_symbols")));
         }
         instructions[node.at("output").to<std::string>()] = output;
     }
@@ -1378,9 +1377,7 @@ program& program::sort()
 }
 
 bool operator==(const program& x, const program& y)
-{
-    return migraphx::to_string(x) == migraphx::to_string(y);
-}
+{ return migraphx::to_string(x) == migraphx::to_string(y); }
 
 std::ostream& operator<<(std::ostream& os, const program& p)
 {

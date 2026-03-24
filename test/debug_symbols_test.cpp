@@ -270,7 +270,7 @@ TEST_CASE(pointwise_reduce_debug_symbols)
         mm->add_debug_symbols(curr, {"add0"});
         curr = mm->add_instruction(migraphx::make_op("relu"), curr);
         mm->add_debug_symbols(curr, {"relu0"});
-        auto add  = add_pointwise(p1, "main:pointwise0", {curr, z}, single_pointwise("add"));
+        auto add = add_pointwise(p1, "main:pointwise0", {curr, z}, single_pointwise("add"));
         mm->add_debug_symbols(add, {"pointwise"});
         auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), add);
         mm->add_debug_symbols(rsum, {"reduce_sum"});

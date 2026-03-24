@@ -2035,9 +2035,9 @@ TEST_CASE(debug_symbols_add_and_remove)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
     migraphx::module m;
-    auto x = m.add_parameter("x", s);
-    auto y = m.add_parameter("y", s);
-    auto z = m.add_parameter("z", s);
+    auto x                         = m.add_parameter("x", s);
+    auto y                         = m.add_parameter("y", s);
+    auto z                         = m.add_parameter("z", s);
     migraphx::instruction_ref add1 = m.add_instruction(migraphx::make_op("add"), x, y);
     migraphx::instruction_ref add2 = m.add_instruction(migraphx::make_op("add"), add1, z);
     m.add_debug_symbols(add2, {"add2"});

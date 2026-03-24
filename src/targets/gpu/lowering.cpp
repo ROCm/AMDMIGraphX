@@ -121,6 +121,7 @@ struct miopen_apply
         add_reshape_lazy_op();
         add_concat_past_present_op();
         add_scan_slice_op();
+        add_fill_op();
     }
 
     void copy_params() const
@@ -568,6 +569,17 @@ struct miopen_apply
             inputs[1]    = mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_idx);
             return mod->replace_instruction(
                 ins, mod->insert_instruction(ins, ins->get_operator(), inputs));
+        });
+    }
+
+    void add_fill_op()
+    {
+        apply_map.emplace("fill", [=](instruction_ref ins) {
+            return mod->replace_instruction(ins,
+                                            make_op("gpu::precompile_op",
+                                                    {{"op", to_value(ins->get_operator())},
+                                                     {"output_shape", to_value(ins->get_shape())}}),
+                                            ins->inputs());
         });
     }
 };

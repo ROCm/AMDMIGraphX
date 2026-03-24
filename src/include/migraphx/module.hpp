@@ -214,7 +214,7 @@ struct MIGRAPHX_EXPORT module
         std::vector<std::size_t> scalar_const_out_lens = {};
     };
 
-    /// Compute a new ouput shape by replacing each parameter with input
+    /// Compute a new output shape by replacing each parameter with input
     /// shapes passed in.
     std::vector<shape> compute_shapes(const std::vector<shape>& inputs,
                                       compute_shapes_options options) const;

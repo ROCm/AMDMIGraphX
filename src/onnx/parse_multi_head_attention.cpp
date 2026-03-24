@@ -787,8 +787,8 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         }
 
         result = info.add_common_op("mul", result, scale_literal);
-        result = info.add_instruction(make_op("softmax", {{"axis", -1}}), result);
-        result = info.add_instruction(make_op("dot"), result, value);
+        auto qk_output = info.add_instruction(make_op("softmax", {{"axis", -1}}), result);
+        result = info.add_instruction(make_op("dot"), qk_output, value);
         result = info.add_instruction(make_op("transpose", {{"permutation", perm}}), result);
         result = info.add_instruction(
             make_op(
@@ -796,12 +796,26 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
                 {{"dims", {params.batch_size, params.q_sequence_length, params.hidden_size_v}}}),
             result);
 
-        // Return outputs: always output, optionally present_key and present_value
+        // Return outputs based on what's available:
+        // Output 0: output (required)
+        // Output 1: present_key (optional - available when past states used)
+        // Output 2: present_value (optional - available when past states used)
+        // Output 3: qk (optional - normalized Q*K^T after softmax)
+        
+        // Always return at least the main output
+        std::vector<instruction_ref> outputs = {result};
+        
+        // Add present_key and present_value if past states were provided
         if(args.size() > 6 and args.size() > 7)
         {
-            return {result, present_key, present_value};
+            outputs.push_back(present_key);
+            outputs.push_back(present_value);
         }
-        return {result};
+        
+        // Note: QK output could be added here if needed
+        // outputs.push_back(qk_output);
+        
+        return outputs;
     }
 };
 

@@ -24,7 +24,7 @@
 cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
 
 if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_BINARY_DIR}")
-    message(FATAL_ERROR "The binary and source directroy cannot be the same")
+    message(FATAL_ERROR "The binary and source directory cannot be the same")
 endif()
 
 # Setup valid strings for build type

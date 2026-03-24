@@ -386,6 +386,10 @@ static std::unordered_set<instruction_ref> gather_max_splice(
             self(input->inputs());
         }
     })(ins->inputs());
+    if(result.size() > 50)
+    {
+        std::cout << "max splice larger than 50 instructions" << std::endl;
+    }
     return result;
 }
 
@@ -473,11 +477,13 @@ instruction_ref module::replace_instruction(instruction_ref ins,
         prev_args = ins->inputs();
     }
     instruction::replace(ins, op, r, std::move(args));
-    if(has_debug_symbols())
+    if(has_debug_symbols() and not prev_args.empty())
     {
         // placeholder identity instruction
         auto id_ins = insert_instruction(ins, make_op("identity"), prev_args);
+        // Get old_max_splice after replacement to get smallest dependent splice
         std::unordered_set<instruction_ref> old_max_splice = gather_max_splice(this, id_ins);
+        // TODO: if there are no common ancestors, this may traverse the majority of the graph
         std::unordered_set<instruction_ref> new_max_splice =
             gather_max_splice(this, ins, old_max_splice);
         propagate_debug_symbols(this, ins, id_ins, new_max_splice, old_max_splice);
@@ -502,7 +508,7 @@ instruction_ref module::replace_instruction(instruction_ref ins,
         prev_args = ins->inputs();
     }
     instruction::replace(ins, op, out_shape, std::move(args), std::move(module_args));
-    if(has_debug_symbols())
+    if(has_debug_symbols() and not prev_args.empty())
     {
         auto id_ins = insert_instruction(ins, make_op("identity"), prev_args);
         std::unordered_set<instruction_ref> old_max_splice = gather_max_splice(this, id_ins);
@@ -589,7 +595,7 @@ std::vector<instruction_ref> module::batch_replace_instruction(
         instruction::replace(
             replacer.ins, replacer.op, out_shape, replacer.args, replacer.module_args);
         ret.push_back(replacer.ins);
-        if(has_debug_symbols())
+        if(has_debug_symbols() and not prev_args.empty())
         {
             auto id_ins = insert_instruction(replacer.ins, make_op("identity"), prev_args);
             id_instructions.push_back(id_ins);

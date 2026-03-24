@@ -38,7 +38,9 @@
 #include <migraphx/tf.hpp>
 #include <migraphx/onnx.hpp>
 #include <migraphx/load_save.hpp>
+#include <migraphx/netron_output.hpp>
 #include <migraphx/register_target.hpp>
+#include <fstream>
 #include <migraphx/json.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/common.hpp>
@@ -567,6 +569,13 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                  return ss.str();
              })
         .def("sort", &migraphx::program::sort)
+        .def("write_netron_output",
+             [](const migraphx::program& p, const std::string& filename) {
+                 std::ofstream os(filename, std::ios::binary);
+                 migraphx::write_netron_output(p, os);
+             },
+             "Write program as ONNX protobuf binary viewable in Netron",
+             py::arg("filename"))
         .def("print", [](const migraphx::program& p) { std::cout << p << std::endl; })
         .def("__eq__", std::equal_to<migraphx::program>{})
         .def("__ne__", std::not_equal_to<migraphx::program>{})

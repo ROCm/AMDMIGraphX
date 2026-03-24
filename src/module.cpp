@@ -386,10 +386,6 @@ static std::unordered_set<instruction_ref> gather_max_splice(
             self(input->inputs());
         }
     })(ins->inputs());
-    if(result.size() > 50)
-    {
-        std::cout << "max splice larger than 50 instructions" << std::endl;
-    }
     return result;
 }
 

@@ -28,6 +28,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/iterator.hpp>
+#include <migraphx/stringutils.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <bitset>
 #include <queue>
@@ -69,9 +70,7 @@ struct replace_shape_order
     std::size_t location(instruction_ref x) const { return std::distance(start, x); }
 
     bool operator()(instruction_ref x, instruction_ref y) const
-    {
-        return location(x) > location(y);
-    }
+    { return location(x) > location(y); }
 };
 
 void instruction::replace(const shape& r)
@@ -124,9 +123,7 @@ void instruction::clear_arguments()
 }
 
 bool operator==(const instruction& i, instruction_ref ref)
-{
-    return std::addressof(i) == std::addressof(*ref);
-}
+{ return std::addressof(i) == std::addressof(*ref); }
 
 bool instruction::valid(instruction_ref start, bool check_order) const
 {
@@ -188,6 +185,13 @@ const std::vector<instruction_ref>& instruction::inputs() const { return argumen
 const std::vector<module_ref>& instruction::module_inputs() const { return module_args; }
 
 const std::vector<instruction_ref>& instruction::outputs() const { return output; }
+
+const std::set<std::string>& instruction::get_debug_symbols() const { return debug_symbols; }
+
+void instruction::add_debug_symbols(const std::set<std::string>& symbols)
+{ debug_symbols.insert(symbols.begin(), symbols.end()); }
+
+void instruction::remove_debug_symbols() { debug_symbols.clear(); }
 
 bool operator==(const instruction& x, const instruction& y)
 {
@@ -274,7 +278,7 @@ void instruction::replace(operation o,
                           std::vector<module_ref> mdl_args)
 {
     lit = literal{};
-    op = std::move(o);
+    op  = std::move(o);
     replace(r);
     replace(std::move(args), std::move(mdl_args));
 }
@@ -442,6 +446,12 @@ void instruction::print(std::ostream& os,
     // print tid
     if(ins->target_id != 0)
         os << ", target_id=" << ins->target_id;
+
+    // print debug symbols if they exist
+    if(not ins->debug_symbols.empty())
+    {
+        os << " # " << join_strings(ins->debug_symbols, ", ");
+    }
 }
 
 static void debug_name(std::ostream& os, const instruction& ins)
@@ -472,7 +482,14 @@ void instruction::debug_print() const
     }
     if(not this->inputs().empty())
         std::cout << ")";
-    std::cout << " -> " << this->get_shape() << std::endl;
+    std::cout << " -> " << this->get_shape();
+
+    // print debug symbols if they exist
+    if(not debug_symbols.empty())
+    {
+        std::cout << " # " << join_strings(debug_symbols, ", ");
+    }
+    std::cout << std::endl;
 }
 
 std::vector<instruction_ref> instruction::get_output_alias(instruction_ref ins, bool shallow)
@@ -501,9 +518,7 @@ void instruction::set_normalized(bool value) { normalized = value; }
 bool instruction::is_normalized() const { return normalized; }
 
 bool instruction::need_normalization() const
-{
-    return this->get_operator().need_normalization() and not normalized;
-}
+{ return this->get_operator().need_normalization() and not normalized; }
 
 operation instruction::normalized_operator() const
 {
@@ -529,9 +544,7 @@ std::vector<shape> to_shapes(const std::vector<instruction_ref>& args)
 }
 
 shape compute_shape(const operation& op, const std::vector<instruction_ref>& args)
-{
-    return op.compute_shape(to_shapes(args));
-}
+{ return op.compute_shape(to_shapes(args)); }
 
 shape compute_shape(const operation& op,
                     const std::vector<instruction_ref>& args,
@@ -562,14 +575,10 @@ std::vector<shape> try_compute_shape(const operation& op, const std::vector<shap
 }
 
 migraphx::instruction* as_address(const std::list<instruction>::iterator& ins) noexcept
-{
-    return iterator_address(ins);
-}
+{ return iterator_address(ins); }
 
 const migraphx::instruction* as_address(const std::list<instruction>::const_iterator& ins) noexcept
-{
-    return iterator_address(ins);
-}
+{ return iterator_address(ins); }
 
 template <class F>
 static auto track_visits(instruction_ref start, instruction_ref end, F f)
@@ -578,6 +587,8 @@ static auto track_visits(instruction_ref start, instruction_ref end, F f)
     std::size_t n           = std::distance(start, end);
     if(n < small)
     {
+        // Stop condition is ins distance to end > N or
+        // same instruction already visited.
         std::bitset<small> visited;
         auto stop = [&](auto ins) {
             auto i = std::distance(ins, end);
@@ -592,6 +603,9 @@ static auto track_visits(instruction_ref start, instruction_ref end, F f)
     }
     else
     {
+        // Make a hashmap of instructions between start and end.
+        // Stop condition is instruction not in the hashmap or
+        // same instruction already visited.
         auto instructions     = range(start, std::next(end));
         auto instruction_refs = iterator_for(instructions);
         std::unordered_set<instruction_ref> in_range(instruction_refs.begin(),

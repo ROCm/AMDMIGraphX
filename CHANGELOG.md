@@ -14,6 +14,7 @@ Full documentation for MIGraphX is available at
 * Added GPU JIT `Resize` kernel (#4553).
 * Added environment variable `MIGRAPHX_SKIP_BENCHMARKING` which when enabled, skips tuning of MIGraphX and rocMLIR kernels (#4628).
 * Added Cubic resize jit kernel (#4652).
+* Added JIT compiler for `fill` operation (#4666).
 
 ### Changed
 
@@ -27,7 +28,7 @@ Full documentation for MIGraphX is available at
 
 * Fixed a bug with operators `pack_fp4`, `unpack_fp4`, and the `fuse_mlir` pass handling non-standard input shapes (#4560).
 * Fixed an issue in `propagate_precision` pass where precision could be incorrectly propagated across type boundaries (e.g., from integral to floating-point) (#4603).
-* Fixed an issue with clip operator when using fp16 input type on opset 6 (#4518). 
+* Fixed an issue with clip operator when using fp16 input type on opset 6 (#4518).
 * Fixed an issue with `reshape_lazy`'s shape computation that was leading to invalid reshapes (#4594).
 * Fixed `eliminate_pad` pass bug that was removing nonzero `pad` instructions (#4600).
 * Fixed an issue with `convert` output overflowing when converting inf/-inf to integral types (#4669).

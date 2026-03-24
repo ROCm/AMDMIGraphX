@@ -24,6 +24,7 @@
 #include <migraphx/sym.hpp>
 #include <algorithm>
 #include <iterator>
+#include <numeric>
 #include <sstream>
 
 namespace migraphx {
@@ -212,9 +213,33 @@ expr call_op(const op_def* op, std::vector<expr> args)
     return expr(op_node{op}, std::move(args));
 }
 
+template <class Eval, class EvalInterval>
+auto call_associative(std::string name, Eval eval, EvalInterval eval_interval)
+{
+    return [=](auto... es) {
+        auto eval1 = [=](const std::vector<value>& args) {
+            return std::accumulate(args.begin()+1, args.end(), args.front(), [=](const value& acc, const value& arg) {
+                return value_invoke_common(eval, acc, arg);
+            });
+        };
+        auto eval_interval1 = [=](const std::vector<interval>& args) {
+            return std::accumulate(args.begin()+1, args.end(), args.front(), [=](const interval& acc, const interval& arg) {
+                return eval_interval(acc, arg);
+            });
+        };
+        return call_op(name, eval1, eval_interval1, {arg(es)...});
+    };
+}
+
+template <class Eval>
+auto call_associative(std::string name, Eval eval)
+{
+    return call_associative(name, eval, eval);
+}
+
 expr operator+(expr ex, expr ey)
 {
-    return call("+", [](auto x, auto y) { return x + y; })(std::move(ex), std::move(ey));
+    return call_associative("+", [](auto x, auto y) { return x + y; })(std::move(ex), std::move(ey));
 }
 
 expr operator-(expr ex, expr ey)
@@ -224,7 +249,7 @@ expr operator-(expr ex, expr ey)
 
 expr operator*(expr ex, expr ey)
 {
-    return call("*", [](auto x, auto y) { return x * y; })(std::move(ex), std::move(ey));
+    return call_associative("*", [](auto x, auto y) { return x * y; })(std::move(ex), std::move(ey));
 }
 
 expr operator/(expr ex, expr ey)
@@ -316,6 +341,16 @@ expr max(expr x, expr y)
         "max",
         [](auto a, auto b) { return a > b ? a : b; },
         [](interval a, interval b) { return max(a, b); })(std::move(x), std::move(y));
+}
+
+std::string expr::name() const
+{
+    if(auto* n = std::get_if<literal_node>(&pimpl->node))
+        return "literal";
+    if(auto* n = std::get_if<variable_node>(&pimpl->node))
+        return "variable";
+    auto* n = std::get_if<op_node>(&pimpl->node);
+    return n->op->name;
 }
 
 value expr::eval(const std::unordered_map<std::string, value>& vars) const

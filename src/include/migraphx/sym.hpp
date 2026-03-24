@@ -160,6 +160,7 @@ class MIGRAPHX_EXPORT expr
     {
     }
 
+    std::string name() const;
     value eval(const std::unordered_map<std::string, value>& vars) const;
     interval eval_interval(const std::unordered_map<std::string, interval>& vars) const;
     std::string to_string() const;

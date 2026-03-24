@@ -160,6 +160,11 @@ std::unordered_map<std::string, shape> program::get_parameter_shapes() const
     return mm->get_parameter_shapes();
 }
 
+int program::get_program_file_version() const
+{
+    return program_file_version;
+}
+
 std::size_t program::size() const { return impl->modules.size(); }
 
 std::vector<shape> program::get_output_shapes() const
@@ -681,16 +686,10 @@ static std::string get_migraphx_version()
     return ss.str();
 }
 
-/*
-program file version is for the data structure or format of the MXR file. Version should be bumped
-if any changes occur to the format of the MXR file.
-*/
-const int program_file_version = 7;
-
 value program::to_value() const
 {
     value result;
-    result["version"]          = program_file_version;
+    result["version"]          = get_program_file_version();
     result["migraphx_version"] = get_migraphx_version();
     result["targets"]          = migraphx::to_value(this->impl->targets);
     result["contexts"]         = migraphx::to_value(this->impl->contexts);

@@ -84,34 +84,29 @@ struct fdiv_data
 
 using expr_data = std::variant<integer_data, symbol_data, add_data, mul_data, fdiv_data>;
 
-constexpr int kind_integer = 0;
-constexpr int kind_symbol  = 1;
-constexpr int kind_add     = 2;
-constexpr int kind_mul     = 3;
-constexpr int kind_fdiv    = 4;
+template <class... Ts>
+struct overloaded : Ts...
+{
+    using Ts::operator()...;
+};
+template <class... Ts>
+overloaded(Ts...) -> overloaded<Ts...>;
 
 struct expr_node
 {
     expr_data data;
     std::size_t cached_hash = 0;
-
-    int kind() const { return static_cast<int>(data.index()); }
 };
 
-static bool is_integer(const expr_ptr& e) { return e->kind() == kind_integer; }
-static bool is_symbol(const expr_ptr& e) { return e->kind() == kind_symbol; }
-static bool is_add(const expr_ptr& e) { return e->kind() == kind_add; }
-static bool is_mul(const expr_ptr& e) { return e->kind() == kind_mul; }
-static bool is_fdiv(const expr_ptr& e) { return e->kind() == kind_fdiv; }
+template <class T>
+static bool holds(const expr_ptr& e)
+{
+    return std::holds_alternative<T>(e->data);
+}
 
 static int64_t get_integer(const expr_ptr& e) { return std::get<integer_data>(e->data).value; }
-static const std::string& get_symbol_name(const expr_ptr& e)
-{
-    return std::get<symbol_data>(e->data).name;
-}
 static const add_data& get_add(const expr_ptr& e) { return std::get<add_data>(e->data); }
 static const mul_data& get_mul(const expr_ptr& e) { return std::get<mul_data>(e->data); }
-static const fdiv_data& get_fdiv(const expr_ptr& e) { return std::get<fdiv_data>(e->data); }
 
 // ===================================================================
 // Section 2: Hash computation
@@ -137,26 +132,23 @@ static std::size_t hash_ordered_map(const Map& m)
 static std::size_t compute_hash(const expr_data& d)
 {
     std::size_t h = std::hash<int>{}(static_cast<int>(d.index()));
-    if(auto* p = std::get_if<integer_data>(&d))
-        return hash_combine(h, std::hash<int64_t>{}(p->value));
-    if(auto* p = std::get_if<symbol_data>(&d))
-        return hash_combine(h, std::hash<std::string>{}(p->name));
-    if(auto* p = std::get_if<add_data>(&d))
-    {
-        h = hash_combine(h, std::hash<int64_t>{}(p->constant));
-        return hash_combine(h, hash_ordered_map(p->terms));
-    }
-    if(auto* p = std::get_if<mul_data>(&d))
-    {
-        h = hash_combine(h, std::hash<int64_t>{}(p->coefficient));
-        return hash_combine(h, hash_ordered_map(p->factors));
-    }
-    if(auto* p = std::get_if<fdiv_data>(&d))
-    {
-        h = hash_combine(h, p->numerator->cached_hash);
-        return hash_combine(h, p->denominator->cached_hash);
-    }
-    return h;
+    return std::visit(
+        overloaded{
+            [&](const integer_data& p) { return hash_combine(h, std::hash<int64_t>{}(p.value)); },
+            [&](const symbol_data& p) { return hash_combine(h, std::hash<std::string>{}(p.name)); },
+            [&](const add_data& p) {
+                return hash_combine(hash_combine(h, std::hash<int64_t>{}(p.constant)),
+                                    hash_ordered_map(p.terms));
+            },
+            [&](const mul_data& p) {
+                return hash_combine(hash_combine(h, std::hash<int64_t>{}(p.coefficient)),
+                                    hash_ordered_map(p.factors));
+            },
+            [&](const fdiv_data& p) {
+                return hash_combine(hash_combine(h, p.numerator->cached_hash),
+                                    p.denominator->cached_hash);
+            }},
+        d);
 }
 
 // ===================================================================
@@ -189,45 +181,38 @@ static int compare_maps(const Map& a, const Map& b)
 
 static int compare_expr(const expr_ptr& a, const expr_ptr& b)
 {
-    if(a->kind() != b->kind())
-        return a->kind() < b->kind() ? -1 : 1;
+    if(a->data.index() != b->data.index())
+        return a->data.index() < b->data.index() ? -1 : 1;
 
-    switch(a->kind())
-    {
-    case kind_integer: {
-        auto va = get_integer(a);
-        auto vb = get_integer(b);
-        return (va < vb) ? -1 : (va > vb) ? 1 : 0;
-    }
-    case kind_symbol: {
-        const auto& na = get_symbol_name(a);
-        const auto& nb = get_symbol_name(b);
-        return na.compare(nb);
-    }
-    case kind_add: {
-        const auto& da = get_add(a);
-        const auto& db = get_add(b);
-        if(da.constant != db.constant)
-            return da.constant < db.constant ? -1 : 1;
-        return compare_maps(da.terms, db.terms);
-    }
-    case kind_mul: {
-        const auto& da = get_mul(a);
-        const auto& db = get_mul(b);
-        if(da.coefficient != db.coefficient)
-            return da.coefficient < db.coefficient ? -1 : 1;
-        return compare_maps(da.factors, db.factors);
-    }
-    case kind_fdiv: {
-        const auto& da = get_fdiv(a);
-        const auto& db = get_fdiv(b);
-        int c          = compare_expr(da.numerator, db.numerator);
-        if(c != 0)
-            return c;
-        return compare_expr(da.denominator, db.denominator);
-    }
-    default: return 0;
-    }
+    return std::visit(
+        overloaded{[&](const integer_data& da) {
+                       const auto& db = std::get<integer_data>(b->data);
+                       return (da.value < db.value) ? -1 : (da.value > db.value) ? 1 : 0;
+                   },
+                   [&](const symbol_data& da) {
+                       const auto& db = std::get<symbol_data>(b->data);
+                       return da.name.compare(db.name);
+                   },
+                   [&](const add_data& da) {
+                       const auto& db = std::get<add_data>(b->data);
+                       if(da.constant != db.constant)
+                           return da.constant < db.constant ? -1 : 1;
+                       return compare_maps(da.terms, db.terms);
+                   },
+                   [&](const mul_data& da) {
+                       const auto& db = std::get<mul_data>(b->data);
+                       if(da.coefficient != db.coefficient)
+                           return da.coefficient < db.coefficient ? -1 : 1;
+                       return compare_maps(da.factors, db.factors);
+                   },
+                   [&](const fdiv_data& da) {
+                       const auto& db = std::get<fdiv_data>(b->data);
+                       int c          = compare_expr(da.numerator, db.numerator);
+                       if(c != 0)
+                           return c;
+                       return compare_expr(da.denominator, db.denominator);
+                   }},
+        a->data);
 }
 
 bool expr_compare::operator()(const expr_ptr& a, const expr_ptr& b) const
@@ -304,20 +289,15 @@ struct add_parts
 
 static add_parts extract_add(const expr_ptr& e)
 {
-    if(is_integer(e))
-        return {get_integer(e), {}};
-    if(is_add(e))
-    {
-        const auto& d = get_add(e);
-        return {d.constant, d.terms};
-    }
-    if(is_mul(e))
-    {
-        const auto& d = get_mul(e);
-        auto base     = build_mul(1, d.factors);
-        return {0, {{base, d.coefficient}}};
-    }
-    return {0, {{e, 1}}};
+    return std::visit(
+        overloaded{[](const integer_data& d) -> add_parts { return {d.value, {}}; },
+                   [](const add_data& d) -> add_parts { return {d.constant, d.terms}; },
+                   [&](const mul_data& d) -> add_parts {
+                       auto base = build_mul(1, d.factors);
+                       return {0, {{base, d.coefficient}}};
+                   },
+                   [&](const auto&) -> add_parts { return {0, {{e, 1}}}; }},
+        e->data);
 }
 
 static expr_ptr build_add(int64_t constant, term_map terms)
@@ -357,22 +337,19 @@ static expr_ptr make_add(const expr_ptr& a, const expr_ptr& b)
 
 static expr_ptr make_neg(const expr_ptr& a)
 {
-    if(is_integer(a))
-        return make_integer(-get_integer(a));
-    if(is_add(a))
-    {
-        const auto& d = get_add(a);
-        term_map negated;
-        for(const auto& [term, coeff] : d.terms)
-            negated[term] = -coeff;
-        return build_add(-d.constant, std::move(negated));
-    }
-    if(is_mul(a))
-    {
-        const auto& d = get_mul(a);
-        return make_node(mul_data{-d.coefficient, d.factors});
-    }
-    return make_mul(make_integer(-1), a);
+    return std::visit(
+        overloaded{[](const integer_data& d) -> expr_ptr { return make_integer(-d.value); },
+                   [](const add_data& d) -> expr_ptr {
+                       term_map negated;
+                       for(const auto& [term, coeff] : d.terms)
+                           negated[term] = -coeff;
+                       return build_add(-d.constant, std::move(negated));
+                   },
+                   [](const mul_data& d) -> expr_ptr {
+                       return make_node(mul_data{-d.coefficient, d.factors});
+                   },
+                   [&](const auto&) -> expr_ptr { return make_mul(make_integer(-1), a); }},
+        a->data);
 }
 
 static expr_ptr make_sub(const expr_ptr& a, const expr_ptr& b) { return make_add(a, make_neg(b)); }
@@ -385,14 +362,11 @@ struct mul_parts
 
 static mul_parts extract_mul(const expr_ptr& e)
 {
-    if(is_integer(e))
-        return {get_integer(e), {}};
-    if(is_mul(e))
-    {
-        const auto& d = get_mul(e);
-        return {d.coefficient, d.factors};
-    }
-    return {1, {{e, 1}}};
+    return std::visit(
+        overloaded{[](const integer_data& d) -> mul_parts { return {d.value, {}}; },
+                   [](const mul_data& d) -> mul_parts { return {d.coefficient, d.factors}; },
+                   [&](const auto&) -> mul_parts { return {1, {{e, 1}}}; }},
+        e->data);
 }
 
 static expr_ptr build_mul(int64_t coefficient, factor_map factors)
@@ -419,8 +393,7 @@ static expr_ptr build_mul(int64_t coefficient, factor_map factors)
 
 static expr_ptr make_mul(const expr_ptr& a, const expr_ptr& b)
 {
-    // Special case: multiplying an integer by an Add → scale the Add
-    if(is_integer(a) and is_add(b))
+    if(holds<integer_data>(a) and holds<add_data>(b))
     {
         int64_t n = get_integer(a);
         if(n == 0)
@@ -433,7 +406,7 @@ static expr_ptr make_mul(const expr_ptr& a, const expr_ptr& b)
             scaled[term] = coeff * n;
         return build_add(d.constant * n, std::move(scaled));
     }
-    if(is_integer(b) and is_add(a))
+    if(holds<integer_data>(b) and holds<add_data>(a))
         return make_mul(b, a);
 
     auto pa = extract_mul(a);
@@ -452,17 +425,16 @@ static expr_ptr make_mul(const expr_ptr& a, const expr_ptr& b)
 
 static expr_ptr make_floor_div(const expr_ptr& a, const expr_ptr& b)
 {
-    if(is_integer(b))
+    if(holds<integer_data>(b))
     {
         int64_t den = get_integer(b);
         if(den == 0)
             MIGRAPHX_THROW("symbolic: division by zero");
         if(den == 1)
             return a;
-        if(is_integer(a))
+        if(holds<integer_data>(a))
             return make_integer(get_integer(a) / den);
-        // Cancel exact coefficient in Mul: (c*factors)/den where c%den==0
-        if(is_mul(a))
+        if(holds<mul_data>(a))
         {
             const auto& d = get_mul(a);
             if(d.coefficient % den == 0)
@@ -481,83 +453,74 @@ static expr_ptr make_floor_div(const expr_ptr& a, const expr_ptr& b)
 // Unbound symbols are left as-is, producing a simplified symbolic expression.
 static expr_ptr substitute(const expr_ptr& e, const std::map<std::string, int64_t>& bindings)
 {
-    switch(e->kind())
-    {
-    case kind_integer: return e;
-    case kind_symbol: {
-        auto it = bindings.find(get_symbol_name(e));
-        if(it != bindings.end())
-            return make_integer(it->second);
-        return e;
-    }
-    case kind_add: {
-        const auto& d   = get_add(e);
-        expr_ptr result = make_integer(d.constant);
-        for(const auto& [term, coeff] : d.terms)
-        {
-            auto st = substitute(term, bindings);
-            result  = make_add(result, make_mul(make_integer(coeff), st));
-        }
-        return result;
-    }
-    case kind_mul: {
-        const auto& d   = get_mul(e);
-        expr_ptr result = make_integer(d.coefficient);
-        for(const auto& [base, exp] : d.factors)
-        {
-            auto sb = substitute(base, bindings);
-            for(int64_t i = 0; i < exp; ++i)
-                result = make_mul(result, sb);
-        }
-        return result;
-    }
-    case kind_fdiv: {
-        const auto& d = get_fdiv(e);
-        auto sn       = substitute(d.numerator, bindings);
-        auto sd       = substitute(d.denominator, bindings);
-        return make_floor_div(sn, sd);
-    }
-    default: return e;
-    }
+    return std::visit(overloaded{[&](const integer_data&) -> expr_ptr { return e; },
+                                 [&](const symbol_data& d) -> expr_ptr {
+                                     auto it = bindings.find(d.name);
+                                     if(it != bindings.end())
+                                         return make_integer(it->second);
+                                     return e;
+                                 },
+                                 [&](const add_data& d) -> expr_ptr {
+                                     expr_ptr result = make_integer(d.constant);
+                                     for(const auto& [term, coeff] : d.terms)
+                                     {
+                                         auto st = substitute(term, bindings);
+                                         result =
+                                             make_add(result, make_mul(make_integer(coeff), st));
+                                     }
+                                     return result;
+                                 },
+                                 [&](const mul_data& d) -> expr_ptr {
+                                     expr_ptr result = make_integer(d.coefficient);
+                                     for(const auto& [base, exp] : d.factors)
+                                     {
+                                         auto sb = substitute(base, bindings);
+                                         for(int64_t i = 0; i < exp; ++i)
+                                             result = make_mul(result, sb);
+                                     }
+                                     return result;
+                                 },
+                                 [&](const fdiv_data& d) -> expr_ptr {
+                                     auto sn = substitute(d.numerator, bindings);
+                                     auto sd = substitute(d.denominator, bindings);
+                                     return make_floor_div(sn, sd);
+                                 }},
+                      e->data);
 }
 
 // Full evaluation: computes integer result directly without allocations.
 // All symbols must be bound; throws if any symbol is unbound.
 static int64_t eval_direct(const expr_ptr& e, const std::map<std::string, std::size_t>& symbol_map)
 {
-    switch(e->kind())
-    {
-    case kind_integer: return get_integer(e);
-    case kind_symbol: {
-        auto it = symbol_map.find(get_symbol_name(e));
-        if(it != symbol_map.end())
-            return static_cast<int64_t>(it->second);
-        MIGRAPHX_THROW("symbolic_expr::eval: unbound symbol '" + get_symbol_name(e) + "'");
-    }
-    case kind_add: {
-        const auto& d = get_add(e);
-        int64_t sum   = d.constant;
-        for(const auto& [term, coeff] : d.terms)
-            sum += coeff * eval_direct(term, symbol_map);
-        return sum;
-    }
-    case kind_mul: {
-        const auto& d = get_mul(e);
-        int64_t prod  = d.coefficient;
-        for(const auto& [base, exp] : d.factors)
-        {
-            int64_t val = eval_direct(base, symbol_map);
-            for(int64_t i = 0; i < exp; ++i)
-                prod *= val;
-        }
-        return prod;
-    }
-    case kind_fdiv: {
-        const auto& d = get_fdiv(e);
-        return eval_direct(d.numerator, symbol_map) / eval_direct(d.denominator, symbol_map);
-    }
-    default: return 0;
-    }
+    return std::visit(overloaded{[](const integer_data& d) -> int64_t { return d.value; },
+                                 [&](const symbol_data& d) -> int64_t {
+                                     auto it = symbol_map.find(d.name);
+                                     if(it != symbol_map.end())
+                                         return static_cast<int64_t>(it->second);
+                                     MIGRAPHX_THROW("symbolic_expr::eval: unbound symbol '" +
+                                                    d.name + "'");
+                                 },
+                                 [&](const add_data& d) -> int64_t {
+                                     int64_t sum = d.constant;
+                                     for(const auto& [term, coeff] : d.terms)
+                                         sum += coeff * eval_direct(term, symbol_map);
+                                     return sum;
+                                 },
+                                 [&](const mul_data& d) -> int64_t {
+                                     int64_t prod = d.coefficient;
+                                     for(const auto& [base, exp] : d.factors)
+                                     {
+                                         int64_t val = eval_direct(base, symbol_map);
+                                         for(int64_t i = 0; i < exp; ++i)
+                                             prod *= val;
+                                     }
+                                     return prod;
+                                 },
+                                 [&](const fdiv_data& d) -> int64_t {
+                                     return eval_direct(d.numerator, symbol_map) /
+                                            eval_direct(d.denominator, symbol_map);
+                                 }},
+                      e->data);
 }
 
 static int64_t evaluate(const expr_ptr& e, const std::map<std::string, std::size_t>& symbol_map)
@@ -580,85 +543,80 @@ static std::string print_expr(const expr_ptr& e, int parent_prec = 0);
 
 static std::string print_expr(const expr_ptr& e, int parent_prec)
 {
-    switch(e->kind())
-    {
-    case kind_integer: return std::to_string(get_integer(e));
-    case kind_symbol: return get_symbol_name(e);
-    case kind_add: {
-        const auto& d = get_add(e);
-        std::ostringstream os;
-        bool first = true;
-        for(const auto& [term, coeff] : d.terms)
-        {
-            if(first)
-            {
-                if(coeff == -1)
-                    os << "-" << print_expr(term, prec_add);
-                else if(coeff == 1)
-                    os << print_expr(term, prec_add);
-                else
-                    os << coeff << "*" << print_expr(term, prec_mul + 1);
-                first = false;
-            }
-            else
-            {
-                if(coeff == 1)
-                    os << " + " << print_expr(term, prec_add);
-                else if(coeff == -1)
-                    os << " - " << print_expr(term, prec_add);
-                else if(coeff > 0)
-                    os << " + " << coeff << "*" << print_expr(term, prec_mul + 1);
-                else
-                    os << " - " << (-coeff) << "*" << print_expr(term, prec_mul + 1);
-            }
-        }
-        if(d.constant > 0)
-            os << " + " << d.constant;
-        else if(d.constant < 0)
-            os << " - " << (-d.constant);
-        std::string s = os.str();
-        if(parent_prec > prec_add)
-            return "(" + s + ")";
-        return s;
-    }
-    case kind_mul: {
-        const auto& d = get_mul(e);
-        std::ostringstream os;
-        bool first = true;
-        if(d.coefficient == -1)
-        {
-            os << "-";
-        }
-        else if(d.coefficient != 1)
-        {
-            os << d.coefficient;
-            first = false;
-        }
-        for(const auto& [base, exp] : d.factors)
-        {
-            if(not first)
-                os << "*";
-            if(exp == 1)
-                os << print_expr(base, prec_mul + 1);
-            else
-                os << print_expr(base, prec_mul + 1) << "**" << exp;
-            first = false;
-        }
-        std::string raw = os.str();
-        if(parent_prec > prec_mul)
-            return "(" + raw + ")";
-        return raw;
-    }
-    case kind_fdiv: {
-        const auto& d = get_fdiv(e);
-        std::string s =
-            print_expr(d.numerator, prec_mul + 1) + "/" + print_expr(d.denominator, prec_mul + 1);
-        if(parent_prec > prec_mul)
-            return "(" + s + ")";
-        return s;
-    }
-    default: return "?";
-    }
+    return std::visit(
+        overloaded{[](const integer_data& d) -> std::string { return std::to_string(d.value); },
+                   [](const symbol_data& d) -> std::string { return d.name; },
+                   [&](const add_data& d) -> std::string {
+                       std::ostringstream os;
+                       bool first = true;
+                       for(const auto& [term, coeff] : d.terms)
+                       {
+                           if(first)
+                           {
+                               if(coeff == -1)
+                                   os << "-" << print_expr(term, prec_add);
+                               else if(coeff == 1)
+                                   os << print_expr(term, prec_add);
+                               else
+                                   os << coeff << "*" << print_expr(term, prec_mul + 1);
+                               first = false;
+                           }
+                           else
+                           {
+                               if(coeff == 1)
+                                   os << " + " << print_expr(term, prec_add);
+                               else if(coeff == -1)
+                                   os << " - " << print_expr(term, prec_add);
+                               else if(coeff > 0)
+                                   os << " + " << coeff << "*" << print_expr(term, prec_mul + 1);
+                               else
+                                   os << " - " << (-coeff) << "*" << print_expr(term, prec_mul + 1);
+                           }
+                       }
+                       if(d.constant > 0)
+                           os << " + " << d.constant;
+                       else if(d.constant < 0)
+                           os << " - " << (-d.constant);
+                       std::string s = os.str();
+                       if(parent_prec > prec_add)
+                           return "(" + s + ")";
+                       return s;
+                   },
+                   [&](const mul_data& d) -> std::string {
+                       std::ostringstream os;
+                       bool first = true;
+                       if(d.coefficient == -1)
+                       {
+                           os << "-";
+                       }
+                       else if(d.coefficient != 1)
+                       {
+                           os << d.coefficient;
+                           first = false;
+                       }
+                       for(const auto& [base, exp] : d.factors)
+                       {
+                           if(not first)
+                               os << "*";
+                           if(exp == 1)
+                               os << print_expr(base, prec_mul + 1);
+                           else
+                               os << print_expr(base, prec_mul + 1) << "**" << exp;
+                           first = false;
+                       }
+                       std::string raw = os.str();
+                       if(parent_prec > prec_mul)
+                           return "(" + raw + ")";
+                       return raw;
+                   },
+                   [&](const fdiv_data& d) -> std::string {
+                       std::string s = print_expr(d.numerator, prec_mul + 1) + "/" +
+                                       print_expr(d.denominator, prec_mul + 1);
+                       if(parent_prec > prec_mul)
+                           return "(" + s + ")";
+                       return s;
+                   }},
+        e->data);
 }
 
 // ===================================================================

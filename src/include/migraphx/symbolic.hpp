@@ -48,14 +48,10 @@ struct MIGRAPHX_EXPORT symbolic_expr
     std::size_t eval(const std::map<std::string, std::size_t>& symbol_map) const;
     symbolic_expr subs(const std::map<std::string, std::size_t>& symbol_map) const;
 
-    MIGRAPHX_EXPORT friend symbolic_expr operator+(const symbolic_expr& a,
-                                                   const symbolic_expr& b);
-    MIGRAPHX_EXPORT friend symbolic_expr operator-(const symbolic_expr& a,
-                                                   const symbolic_expr& b);
-    MIGRAPHX_EXPORT friend symbolic_expr operator*(const symbolic_expr& a,
-                                                   const symbolic_expr& b);
-    MIGRAPHX_EXPORT friend symbolic_expr operator/(const symbolic_expr& a,
-                                                   const symbolic_expr& b);
+    MIGRAPHX_EXPORT friend symbolic_expr operator+(const symbolic_expr& a, const symbolic_expr& b);
+    MIGRAPHX_EXPORT friend symbolic_expr operator-(const symbolic_expr& a, const symbolic_expr& b);
+    MIGRAPHX_EXPORT friend symbolic_expr operator*(const symbolic_expr& a, const symbolic_expr& b);
+    MIGRAPHX_EXPORT friend symbolic_expr operator/(const symbolic_expr& a, const symbolic_expr& b);
     MIGRAPHX_EXPORT friend bool operator==(const symbolic_expr& a, const symbolic_expr& b);
     MIGRAPHX_EXPORT friend bool operator!=(const symbolic_expr& a, const symbolic_expr& b);
     MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const symbolic_expr& e);
@@ -67,14 +63,38 @@ struct MIGRAPHX_EXPORT symbolic_expr
     std::shared_ptr<const impl> p;
 };
 
-inline symbolic_expr operator+(const symbolic_expr& a, std::size_t b) { return a + symbolic_expr(b); }
-inline symbolic_expr operator+(std::size_t a, const symbolic_expr& b) { return symbolic_expr(a) + b; }
-inline symbolic_expr operator-(const symbolic_expr& a, std::size_t b) { return a - symbolic_expr(b); }
-inline symbolic_expr operator-(std::size_t a, const symbolic_expr& b) { return symbolic_expr(a) - b; }
-inline symbolic_expr operator*(const symbolic_expr& a, std::size_t b) { return a * symbolic_expr(b); }
-inline symbolic_expr operator*(std::size_t a, const symbolic_expr& b) { return symbolic_expr(a) * b; }
-inline symbolic_expr operator/(const symbolic_expr& a, std::size_t b) { return a / symbolic_expr(b); }
-inline symbolic_expr operator/(std::size_t a, const symbolic_expr& b) { return symbolic_expr(a) / b; }
+inline symbolic_expr operator+(const symbolic_expr& a, std::size_t b)
+{
+    return a + symbolic_expr(b);
+}
+inline symbolic_expr operator+(std::size_t a, const symbolic_expr& b)
+{
+    return symbolic_expr(a) + b;
+}
+inline symbolic_expr operator-(const symbolic_expr& a, std::size_t b)
+{
+    return a - symbolic_expr(b);
+}
+inline symbolic_expr operator-(std::size_t a, const symbolic_expr& b)
+{
+    return symbolic_expr(a) - b;
+}
+inline symbolic_expr operator*(const symbolic_expr& a, std::size_t b)
+{
+    return a * symbolic_expr(b);
+}
+inline symbolic_expr operator*(std::size_t a, const symbolic_expr& b)
+{
+    return symbolic_expr(a) * b;
+}
+inline symbolic_expr operator/(const symbolic_expr& a, std::size_t b)
+{
+    return a / symbolic_expr(b);
+}
+inline symbolic_expr operator/(std::size_t a, const symbolic_expr& b)
+{
+    return symbolic_expr(a) / b;
+}
 
 MIGRAPHX_EXPORT void migraphx_to_value(value& v, const symbolic_expr& e);
 MIGRAPHX_EXPORT void migraphx_from_value(const value& v, symbolic_expr& e);

@@ -221,7 +221,7 @@ static int compare_expr(const expr_ptr& a, const expr_ptr& b)
     case kind_fdiv: {
         const auto& da = get_fdiv(a);
         const auto& db = get_fdiv(b);
-        int c = compare_expr(da.numerator, db.numerator);
+        int c          = compare_expr(da.numerator, db.numerator);
         if(c != 0)
             return c;
         return compare_expr(da.denominator, db.denominator);
@@ -254,7 +254,7 @@ static bool expr_equal(const expr_ptr& a, const expr_ptr& b)
 
 static expr_ptr make_node(expr_data d)
 {
-    auto n     = std::make_shared<expr_node>();
+    auto n         = std::make_shared<expr_node>();
     n->data        = std::move(d);
     n->cached_hash = compute_hash(n->data);
     return n;
@@ -314,7 +314,7 @@ static add_parts extract_add(const expr_ptr& e)
     if(is_mul(e))
     {
         const auto& d = get_mul(e);
-        auto base = build_mul(1, d.factors);
+        auto base     = build_mul(1, d.factors);
         return {0, {{base, d.coefficient}}};
     }
     return {0, {{e, 1}}};
@@ -375,10 +375,7 @@ static expr_ptr make_neg(const expr_ptr& a)
     return make_mul(make_integer(-1), a);
 }
 
-static expr_ptr make_sub(const expr_ptr& a, const expr_ptr& b)
-{
-    return make_add(a, make_neg(b));
-}
+static expr_ptr make_sub(const expr_ptr& a, const expr_ptr& b) { return make_add(a, make_neg(b)); }
 
 struct mul_parts
 {
@@ -425,7 +422,7 @@ static expr_ptr make_mul(const expr_ptr& a, const expr_ptr& b)
     // Special case: multiplying an integer by an Add → scale the Add
     if(is_integer(a) and is_add(b))
     {
-        int64_t n       = get_integer(a);
+        int64_t n = get_integer(a);
         if(n == 0)
             return make_integer(0);
         if(n == 1)
@@ -482,8 +479,7 @@ static expr_ptr make_floor_div(const expr_ptr& a, const expr_ptr& b)
 
 // Partial substitution: replaces bound symbols with integers and re-canonicalizes.
 // Unbound symbols are left as-is, producing a simplified symbolic expression.
-static expr_ptr substitute(const expr_ptr& e,
-                           const std::map<std::string, int64_t>& bindings)
+static expr_ptr substitute(const expr_ptr& e, const std::map<std::string, int64_t>& bindings)
 {
     switch(e->kind())
     {
@@ -495,7 +491,7 @@ static expr_ptr substitute(const expr_ptr& e,
         return e;
     }
     case kind_add: {
-        const auto& d = get_add(e);
+        const auto& d   = get_add(e);
         expr_ptr result = make_integer(d.constant);
         for(const auto& [term, coeff] : d.terms)
         {
@@ -505,7 +501,7 @@ static expr_ptr substitute(const expr_ptr& e,
         return result;
     }
     case kind_mul: {
-        const auto& d = get_mul(e);
+        const auto& d   = get_mul(e);
         expr_ptr result = make_integer(d.coefficient);
         for(const auto& [base, exp] : d.factors)
         {
@@ -527,8 +523,7 @@ static expr_ptr substitute(const expr_ptr& e,
 
 // Full evaluation: computes integer result directly without allocations.
 // All symbols must be bound; throws if any symbol is unbound.
-static int64_t eval_direct(const expr_ptr& e,
-                           const std::map<std::string, std::size_t>& symbol_map)
+static int64_t eval_direct(const expr_ptr& e, const std::map<std::string, std::size_t>& symbol_map)
 {
     switch(e->kind())
     {
@@ -565,8 +560,7 @@ static int64_t eval_direct(const expr_ptr& e,
     }
 }
 
-static int64_t evaluate(const expr_ptr& e,
-                        const std::map<std::string, std::size_t>& symbol_map)
+static int64_t evaluate(const expr_ptr& e, const std::map<std::string, std::size_t>& symbol_map)
 {
     return eval_direct(e, symbol_map);
 }
@@ -657,8 +651,8 @@ static std::string print_expr(const expr_ptr& e, int parent_prec)
     }
     case kind_fdiv: {
         const auto& d = get_fdiv(e);
-        std::string s = print_expr(d.numerator, prec_mul + 1) + "/" +
-                        print_expr(d.denominator, prec_mul + 1);
+        std::string s =
+            print_expr(d.numerator, prec_mul + 1) + "/" + print_expr(d.denominator, prec_mul + 1);
         if(parent_prec > prec_mul)
             return "(" + s + ")";
         return s;
@@ -907,10 +901,7 @@ std::ostream& operator<<(std::ostream& os, const symbolic_expr& e)
     return os;
 }
 
-void migraphx_to_value(value& v, const symbolic_expr& e)
-{
-    v = migraphx::to_value(e.to_string());
-}
+void migraphx_to_value(value& v, const symbolic_expr& e) { v = migraphx::to_value(e.to_string()); }
 
 void migraphx_from_value(const value& v, symbolic_expr& e)
 {

@@ -138,6 +138,28 @@ void eigen_multiply(tensor_view<T> cmat, tensor_view<T> amat, tensor_view<T> bma
     });
 }
 
+template <class AccType, class T, class U>
+void gemm_eigen_with_copy(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat)
+{
+    std::vector<AccType> a_buf(amat.get_shape().elements());
+    std::copy(amat.begin(), amat.end(), a_buf.begin());
+    auto amat_flat =
+        make_view(amat.get_shape().as_standard().with_type(shape::get_type<AccType>{}), a_buf.data());
+
+    std::vector<AccType> b_buf(bmat.get_shape().elements());
+    std::copy(bmat.begin(), bmat.end(), b_buf.begin());
+    auto bmat_flat =
+        make_view(bmat.get_shape().as_standard().with_type(shape::get_type<AccType>{}), b_buf.data());
+
+    std::vector<AccType> c_buf(cmat.get_shape().elements(), AccType{0});
+    auto c_shape_std = cmat.get_shape().as_standard().with_type(shape::get_type<AccType>{});
+    auto cmat_flat   = make_view(c_shape_std, c_buf.data());
+
+    eigen_multiply(cmat_flat, amat_flat, bmat_flat);
+
+    std::copy(c_buf.begin(), c_buf.end(), cmat.begin());
+}
+
 template <class T, class U>
 void gemm_eigen(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat)
 {
@@ -145,25 +167,13 @@ void gemm_eigen(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat)
     {
         eigen_multiply(cmat, amat, bmat);
     }
+    else if constexpr(std::is_integral<U>{})
+    {
+        gemm_eigen_with_copy<int32_t>(cmat, amat, bmat);
+    }
     else
     {
-        std::vector<float> a_buf(amat.get_shape().elements());
-        std::copy(amat.begin(), amat.end(), a_buf.begin());
-        auto amat_flat =
-            make_view(amat.get_shape().as_standard().with_type(shape::float_type), a_buf.data());
-
-        std::vector<float> b_buf(bmat.get_shape().elements());
-        std::copy(bmat.begin(), bmat.end(), b_buf.begin());
-        auto bmat_flat =
-            make_view(bmat.get_shape().as_standard().with_type(shape::float_type), b_buf.data());
-
-        std::vector<float> c_buf(cmat.get_shape().elements(), 0.0f);
-        auto c_shape_std = cmat.get_shape().as_standard().with_type(shape::float_type);
-        auto cmat_flat   = make_view(c_shape_std, c_buf.data());
-
-        eigen_multiply(cmat_flat, amat_flat, bmat_flat);
-
-        std::copy(c_buf.begin(), c_buf.end(), cmat.begin());
+        gemm_eigen_with_copy<float>(cmat, amat, bmat);
     }
 }
 

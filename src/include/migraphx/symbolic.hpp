@@ -46,6 +46,7 @@ struct MIGRAPHX_EXPORT symbolic_expr
     bool empty() const;
     std::string to_string() const;
     std::size_t eval(const std::map<std::string, std::size_t>& symbol_map) const;
+    symbolic_expr subs(const std::map<std::string, std::size_t>& symbol_map) const;
 
     MIGRAPHX_EXPORT friend symbolic_expr operator+(const symbolic_expr& a,
                                                    const symbolic_expr& b);

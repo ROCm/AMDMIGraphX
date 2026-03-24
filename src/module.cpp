@@ -390,6 +390,7 @@ static std::unordered_set<instruction_ref> gather_max_splice(const_module_ref m,
 }
 
 /**
+ * Figure out the instructions actually being spliced (min splice).
  * end: instruction at end of splice
  */
 static std::unordered_set<instruction_ref>
@@ -422,10 +423,8 @@ deduce_min_splice(std::vector<instruction_ref> ends,
     return min_splice;
 }
 
-/**
- * ins: instruction that was/will be replaced
- * rep: replacing instruction
- */
+// ins: instruction that was/will be replaced
+// rep: replacing instruction
 static void propagate_debug_symbols(const_module_ref m,
                                     instruction_ref ins,
                                     instruction_ref rep,
@@ -559,6 +558,9 @@ instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref
     return rep;
 }
 
+// For replacing multiple instructions within a single matcher.
+// Handles debug symbol propagation by having all old splice debug symbols propagate
+// to the the new splice instructions.
 std::vector<instruction_ref> module::batch_replace_instruction(
     const std::vector<instruction_replacement>& replacers) MIGRAPHX_TIDY_CONST
 {

@@ -348,7 +348,7 @@ target_link_libraries(migraphx PUBLIC Threads::Threads)
 
 if(MIGRAPHX_USE_EIGEN)
     find_package(Eigen3)
-    if(EIGEN3_FOUND)
+    if(TARGET Eigen3::Eigen)
         target_compile_definitions(migraphx PUBLIC MIGRAPHX_USE_EIGEN=1)
         target_compile_definitions(migraphx PRIVATE EIGEN_MPL2_ONLY)
         target_link_libraries(migraphx PRIVATE Eigen3::Eigen)

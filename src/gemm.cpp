@@ -143,13 +143,13 @@ void gemm_eigen_with_copy(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<
 {
     std::vector<AccType> a_buf(amat.get_shape().elements());
     std::copy(amat.begin(), amat.end(), a_buf.begin());
-    auto amat_flat =
-        make_view(amat.get_shape().as_standard().with_type(shape::get_type<AccType>{}), a_buf.data());
+    auto amat_flat = make_view(amat.get_shape().as_standard().with_type(shape::get_type<AccType>{}),
+                               a_buf.data());
 
     std::vector<AccType> b_buf(bmat.get_shape().elements());
     std::copy(bmat.begin(), bmat.end(), b_buf.begin());
-    auto bmat_flat =
-        make_view(bmat.get_shape().as_standard().with_type(shape::get_type<AccType>{}), b_buf.data());
+    auto bmat_flat = make_view(bmat.get_shape().as_standard().with_type(shape::get_type<AccType>{}),
+                               b_buf.data());
 
     std::vector<AccType> c_buf(cmat.get_shape().elements(), AccType{0});
     auto c_shape_std = cmat.get_shape().as_standard().with_type(shape::get_type<AccType>{});

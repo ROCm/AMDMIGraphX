@@ -24,9 +24,6 @@
 
 #include <onnx_test.hpp>
 
-template <class T>
-struct TD;
-
 TEST_CASE(debug_symbols_onnx_names)
 {
     migraphx::program p;

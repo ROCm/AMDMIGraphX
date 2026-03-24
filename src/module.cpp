@@ -361,8 +361,8 @@ instruction_ref module::insert_instruction(instruction_ref ins,
 /**
  * Traverse inputs of `ins` and gather instructions that output only to `ins`.
  * This splice is the total possibility of instructions that could be spliced by a
- * replace_instruction and including the first not solely depenedent instruction.
- * stops : optional set of instructions to stop search on if encoutered.
+ * replace_instruction and including the first not solely dependent instruction.
+ * stops : optional set of instructions to stop search on if encountered.
  **/
 static std::unordered_set<instruction_ref> gather_max_splice(
     const_module_ref m, instruction_ref ins, std::unordered_set<instruction_ref> stops = {})
@@ -481,6 +481,7 @@ instruction_ref module::replace_instruction(instruction_ref ins,
         std::unordered_set<instruction_ref> new_max_splice =
             gather_max_splice(this, ins, old_max_splice);
         propagate_debug_symbols(this, ins, id_ins, new_max_splice, old_max_splice);
+        remove_instruction(id_ins);
     }
     assert(ins->valid(begin()));
     return ins;
@@ -508,6 +509,7 @@ instruction_ref module::replace_instruction(instruction_ref ins,
         std::unordered_set<instruction_ref> new_max_splice =
             gather_max_splice(this, ins, old_max_splice);
         propagate_debug_symbols(this, ins, id_ins, new_max_splice, old_max_splice);
+        remove_instruction(id_ins);
     }
     assert(ins->valid(begin()));
     return ins;
@@ -573,6 +575,7 @@ std::vector<instruction_ref> module::batch_replace_instruction(
     std::vector<instruction_ref> ret;
     std::unordered_set<instruction_ref> old_max_splices;
     std::unordered_set<instruction_ref> new_max_splices;
+    std::vector<instruction_ref> id_instructions;
     for(const auto& replacer : replacers)
     {
         assert(has_instruction(replacer.ins));
@@ -589,6 +592,7 @@ std::vector<instruction_ref> module::batch_replace_instruction(
         if(has_debug_symbols())
         {
             auto id_ins = insert_instruction(replacer.ins, make_op("identity"), prev_args);
+            id_instructions.push_back(id_ins);
             auto old_ms = gather_max_splice(this, id_ins);
             auto new_ms = gather_max_splice(this, replacer.ins, old_ms);
             old_max_splices.insert(old_ms.begin(), old_ms.end());
@@ -611,9 +615,9 @@ std::vector<instruction_ref> module::batch_replace_instruction(
                        [](const auto& rep) { return rep.ins; });
 
         std::unordered_set<instruction_ref> old_splice =
-            deduce_min_splice({ends}, old_max_splices, common_ancestors);
+            deduce_min_splice(ends, old_max_splices, common_ancestors);
         std::unordered_set<instruction_ref> new_splice =
-            deduce_min_splice({ends}, new_max_splices, common_ancestors);
+            deduce_min_splice(ends, new_max_splices, common_ancestors);
 
         // include in-place debug symbols if they're there
         std::set<std::string> symbols;
@@ -629,6 +633,11 @@ std::vector<instruction_ref> module::batch_replace_instruction(
         for(auto new_ins : new_splice)
         {
             add_debug_symbols(new_ins, symbols);
+        }
+        // clean up the identity placeholder instructions
+        for(auto id_ins : id_instructions)
+        {
+            remove_instruction(id_ins);
         }
     }
     return ret;

@@ -218,14 +218,19 @@ auto call_associative(std::string name, Eval eval, EvalInterval eval_interval)
 {
     return [=](auto... es) {
         auto eval1 = [=](const std::vector<value>& args) {
-            return std::accumulate(args.begin()+1, args.end(), args.front(), [=](const value& acc, const value& arg) {
-                return value_invoke_common(eval, acc, arg);
-            });
+            return std::accumulate(args.begin() + 1,
+                                   args.end(),
+                                   args.front(),
+                                   [=](const value& acc, const value& arg) {
+                                       return value_invoke_common(eval, acc, arg);
+                                   });
         };
         auto eval_interval1 = [=](const std::vector<interval>& args) {
-            return std::accumulate(args.begin()+1, args.end(), args.front(), [=](const interval& acc, const interval& arg) {
-                return eval_interval(acc, arg);
-            });
+            return std::accumulate(
+                args.begin() + 1,
+                args.end(),
+                args.front(),
+                [=](const interval& acc, const interval& arg) { return eval_interval(acc, arg); });
         };
         return call_op(name, eval1, eval_interval1, {arg(es)...});
     };
@@ -239,7 +244,8 @@ auto call_associative(std::string name, Eval eval)
 
 expr operator+(expr ex, expr ey)
 {
-    return call_associative("+", [](auto x, auto y) { return x + y; })(std::move(ex), std::move(ey));
+    return call_associative("+", [](auto x, auto y) { return x + y; })(std::move(ex),
+                                                                       std::move(ey));
 }
 
 expr operator-(expr ex, expr ey)
@@ -249,7 +255,8 @@ expr operator-(expr ex, expr ey)
 
 expr operator*(expr ex, expr ey)
 {
-    return call_associative("*", [](auto x, auto y) { return x * y; })(std::move(ex), std::move(ey));
+    return call_associative("*", [](auto x, auto y) { return x * y; })(std::move(ex),
+                                                                       std::move(ey));
 }
 
 expr operator/(expr ex, expr ey)

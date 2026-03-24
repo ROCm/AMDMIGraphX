@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2025-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -20,33 +20,41 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#include <migraphx/shape.hpp>
-#include <migraphx/argument.hpp>
-#include <migraphx/gpu/device/argmin.hpp>
-#include <migraphx/gpu/device/tensor.hpp>
-#include <migraphx/gpu/device/launch.hpp>
-#include <migraphx/gpu/device/types.hpp>
-#include <migraphx/gpu/device/arg_op.hpp>
+#include "transform.hpp"
+
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/module.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/pass_manager.hpp>
 
 namespace migraphx {
+namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace device {
 
-void argmin(hipStream_t stream,
-            const argument& result,
-            const argument& arg,
-            int64_t axis,
-            bool select_last_index)
+void replace_literals_with_params(program& p)
 {
-    if(select_last_index)
-        arg_op(argmin_op_last_index{}, stream, result, arg, axis);
-    else
-        arg_op(argmin_op_first_index{}, stream, result, arg, axis);
+    auto* mm                = p.get_main_module();
+    auto existing_names     = mm->get_parameter_names();
+    std::size_t literal_idx = 0;
+    for(auto ins : iterator_for(*mm))
+    {
+        if(ins->name() != "@literal")
+            continue;
+        std::string pname;
+        do
+        {
+            pname = "literal:" + std::to_string(literal_idx++);
+        } while(contains(existing_names, pname));
+        existing_names.push_back(pname);
+        mm->replace_instruction(ins, mm->insert_parameter(ins, pname, ins->get_shape()));
+    }
+    run_passes(*p.get_main_module(), {migraphx::dead_code_elimination{}});
 }
 
-} // namespace device
-} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
+} // namespace driver
 } // namespace migraphx

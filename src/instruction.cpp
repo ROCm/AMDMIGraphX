@@ -269,6 +269,7 @@ void instruction::replace(instruction_ref ins,
 
 void instruction::replace(operation o, const shape& r, std::vector<instruction_ref> args)
 {
+    lit        = literal{};
     normalized = false;
     op         = std::move(o);
     replace(r);
@@ -280,6 +281,7 @@ void instruction::replace(operation o,
                           std::vector<instruction_ref> args,
                           std::vector<module_ref> mdl_args)
 {
+    lit = literal{};
     op = std::move(o);
     replace(r);
     replace(std::move(args), std::move(mdl_args));

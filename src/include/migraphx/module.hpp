@@ -24,9 +24,6 @@
 #ifndef MIGRAPHX_GUARD_MIGRAPHLIB_MODULE_HPP
 #define MIGRAPHX_GUARD_MIGRAPHLIB_MODULE_HPP
 
-#include <list>
-#include <unordered_set>
-#include <unordered_map>
 #include <migraphx/operation.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/builtin.hpp>
@@ -38,6 +35,10 @@
 #include <migraphx/config.hpp>
 #include <algorithm>
 #include <iostream>
+#include <list>
+#include <set>
+#include <unordered_set>
+#include <unordered_map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

@@ -380,7 +380,7 @@ static std::unordered_set<instruction_ref> gather_max_splice(
                    return not contains(result, output);
                }))
             {
-                // include first instruction that is not solely depenedent or in stops
+                // include first instruction that is not solely dependent or in stops
                 continue;
             }
             self(input->inputs());
@@ -567,7 +567,7 @@ instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref
 
 // For replacing multiple instructions within a single matcher.
 // Handles debug symbol propagation by having all old splice debug symbols propagate
-// to the the new splice instructions.
+// to the new splice instructions.
 std::vector<instruction_ref> module::batch_replace_instruction(
     const std::vector<instruction_replacement>& replacers) MIGRAPHX_TIDY_CONST
 {

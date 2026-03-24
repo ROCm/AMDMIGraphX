@@ -524,7 +524,7 @@ TEST_CASE(simplify_div_const_debug_symbols)
 // output using the expected comment format produced by instruction::print.
 //
 //  Printed output includes:
-//    @2 = add(@0,@1) -> float_type, {2, 3} # sym_a, sym_b #
+//    @2 = add(@0,@1) -> float_type, {2, 3} # sym_a, sym_b
 //
 TEST_CASE(debug_symbols_in_print)
 {

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -85,7 +85,7 @@ TEST_CASE(iota_iterator_increment_decrement)
     migraphx::iota_iterator it{3};
 
     // Pre-increment
-    auto& ref1 = ++it;
+    const auto& ref1 = ++it;
     EXPECT(*it == 4);
     EXPECT(&ref1 == &it); // Check that pre-increment returns reference
 
@@ -95,7 +95,7 @@ TEST_CASE(iota_iterator_increment_decrement)
     EXPECT(*it2 == 4);
 
     // Pre-decrement
-    auto& ref2 = --it;
+    const auto& ref2 = --it;
     EXPECT(*it == 4);
     EXPECT(&ref2 == &it); // Check that pre-decrement returns reference
 
@@ -119,12 +119,12 @@ TEST_CASE(iota_iterator_compound_assignment)
     migraphx::iota_iterator it{5};
 
     // += operator
-    auto& ref1 = it += 3;
+    const auto& ref1 = it += 3;
     EXPECT(*it == 8);
     EXPECT(&ref1 == &it); // Check that += returns reference
 
     // -= operator
-    auto& ref2 = it -= 5;
+    const auto& ref2 = it -= 5;
     EXPECT(*it == 3);
     EXPECT(&ref2 == &it); // Check that -= returns reference
 }

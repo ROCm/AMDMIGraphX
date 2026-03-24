@@ -2613,6 +2613,86 @@ def conv_transpose_dyn_img_test():
 
 
 @onnx_test()
+def conv_transpose_auto_pad_same_upper_symmetric_test():
+    # Test SAME_UPPER with odd kernel (symmetric padding)
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 3, 3])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 1, 3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 3, 3])
+
+    node = onnx.helper.make_node('ConvTranspose',
+                                 inputs=['x', 'w'],
+                                 outputs=['y'],
+                                 auto_pad='SAME_UPPER',
+                                 strides=[1, 1])
+
+    return ([node], [x, w], [y])
+
+
+@onnx_test()
+def conv_transpose_auto_pad_same_upper_asymmetric_test():
+    # Test SAME_UPPER with even kernel (asymmetric padding: left=1, right=2)
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 4, 4])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 1, 4, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 4, 4])
+
+    node = onnx.helper.make_node('ConvTranspose',
+                                 inputs=['x', 'w'],
+                                 outputs=['y'],
+                                 auto_pad='SAME_UPPER',
+                                 strides=[1, 1])
+
+    return ([node], [x, w], [y])
+
+
+@onnx_test()
+def conv_transpose_auto_pad_same_lower_asymmetric_test():
+    # Test SAME_LOWER with even kernel (asymmetric padding: left=2, right=1)
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 4, 4])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 1, 4, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 4, 4])
+
+    node = onnx.helper.make_node('ConvTranspose',
+                                 inputs=['x', 'w'],
+                                 outputs=['y'],
+                                 auto_pad='SAME_LOWER',
+                                 strides=[1, 1])
+
+    return ([node], [x, w], [y])
+
+
+@onnx_test()
+def conv_transpose_auto_pad_valid_test():
+    # Test VALID (no padding)
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 3, 3])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 1, 3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 5, 5])
+
+    node = onnx.helper.make_node('ConvTranspose',
+                                 inputs=['x', 'w'],
+                                 outputs=['y'],
+                                 auto_pad='VALID',
+                                 strides=[1, 1])
+
+    return ([node], [x, w], [y])
+
+
+@onnx_test()
+def conv_transpose_auto_pad_same_upper_stride_test():
+    # Test SAME_UPPER with stride > 1
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 4, 4])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 1, 3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 8, 8])
+
+    node = onnx.helper.make_node('ConvTranspose',
+                                 inputs=['x', 'w'],
+                                 outputs=['y'],
+                                 auto_pad='SAME_UPPER',
+                                 strides=[2, 2])
+
+    return ([node], [x, w], [y])
+
+
+@onnx_test()
 def depthtospace_test():
 
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 8, 5, 5])
@@ -13376,6 +13456,32 @@ def resize_outsize_test():
 
 
 @onnx_test()
+def resize_outsize_nondivisible_test():
+    # Resize with int64 sizes where sizes/input_dims produces non-integer scales.
+    # For input [1,1,3,3] -> output [1,1,5,5], scale = 5/3 ~ 1.6667.
+    # float(5/3)*3 truncates to 4, not 5, so the parser must use 'sizes' attribute.
+    out_lens = np.array([1, 1, 5, 5], dtype=np.int64)
+    out_lens_tensor = helper.make_tensor(name='out_lens',
+                                         data_type=TensorProto.INT64,
+                                         dims=out_lens.shape,
+                                         vals=out_lens.flatten().astype(
+                                             np.int64))
+
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 3, 3])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 5, 5])
+
+    node = onnx.helper.make_node(
+        'Resize',
+        inputs=['X', '', '', 'out_lens'],
+        outputs=['Y'],
+        coordinate_transformation_mode='asymmetric',
+        mode='nearest',
+        nearest_mode='floor')
+
+    return ([node], [X], [Y], [out_lens_tensor])
+
+
+@onnx_test()
 def resize_upsample_linear_ac_test():
     scales = np.array([1.0, 1.0, 2.0, 2.0], dtype=np.float32)
     scales_tensor = helper.make_tensor(name='scales',
@@ -13427,6 +13533,133 @@ def resize_upsample_linear_large_test():
                                  outputs=['Y'],
                                  mode='linear')
     return ([node], [x], [y], [s])
+
+
+@onnx_test()
+def resize_upsample_cubic_test():
+    # Upsample 2x2 to 4x4 using cubic interpolation
+    scales = np.array([1.0, 1.0, 2.0, 2.0], dtype=np.float32)
+    scales_tensor = helper.make_tensor(name='scales',
+                                       data_type=TensorProto.FLOAT,
+                                       dims=scales.shape,
+                                       vals=scales.flatten().astype(np.float32))
+
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 2, 2])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 4, 4])
+
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['X', '', 'scales'],
+                                 outputs=['Y'],
+                                 mode='cubic',
+                                 coordinate_transformation_mode='half_pixel')
+
+    return ([node], [X], [Y], [scales_tensor])
+
+
+@onnx_test()
+def resize_downsample_cubic_test():
+    # Downsample 4x4 to 2x2 using cubic interpolation
+    scales = np.array([1.0, 1.0, 0.5, 0.5], dtype=np.float32)
+    scales_tensor = helper.make_tensor(name='scales',
+                                       data_type=TensorProto.FLOAT,
+                                       dims=scales.shape,
+                                       vals=scales.flatten().astype(np.float32))
+
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 4, 4])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 2, 2])
+
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['X', '', 'scales'],
+                                 outputs=['Y'],
+                                 mode='cubic',
+                                 coordinate_transformation_mode='half_pixel')
+
+    return ([node], [X], [Y], [scales_tensor])
+
+
+@onnx_test()
+def resize_upsample_cubic_asymmetric_test():
+    # Upsample 2x2 to 4x4 using cubic interpolation with asymmetric mode
+    scales = np.array([1.0, 1.0, 2.0, 2.0], dtype=np.float32)
+    scales_tensor = helper.make_tensor(name='scales',
+                                       data_type=TensorProto.FLOAT,
+                                       dims=scales.shape,
+                                       vals=scales.flatten().astype(np.float32))
+
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 2, 2])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 4, 4])
+
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['X', '', 'scales'],
+                                 outputs=['Y'],
+                                 mode='cubic',
+                                 coordinate_transformation_mode='asymmetric')
+
+    return ([node], [X], [Y], [scales_tensor])
+
+
+@onnx_test()
+def resize_upsample_cubic_sizes_test():
+    # Upsample 2x2 to 4x4 using cubic interpolation with sizes input (not scales)
+    sizes = np.array([1, 1, 4, 4], dtype=np.int64)
+    sizes_tensor = helper.make_tensor(name='sizes',
+                                      data_type=TensorProto.INT64,
+                                      dims=sizes.shape,
+                                      vals=sizes.flatten().astype(np.int64))
+
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 2, 2])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 4, 4])
+
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['X', '', '', 'sizes'],
+                                 outputs=['Y'],
+                                 mode='cubic',
+                                 coordinate_transformation_mode='half_pixel')
+
+    return ([node], [X], [Y], [sizes_tensor])
+
+
+@onnx_test()
+def resize_downsample_cubic_sizes_test():
+    # Downsample 4x4 to 2x2 using cubic interpolation with sizes input (not scales)
+    sizes = np.array([1, 1, 2, 2], dtype=np.int64)
+    sizes_tensor = helper.make_tensor(name='sizes',
+                                      data_type=TensorProto.INT64,
+                                      dims=sizes.shape,
+                                      vals=sizes.flatten().astype(np.int64))
+
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 4, 4])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 2, 2])
+
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['X', '', '', 'sizes'],
+                                 outputs=['Y'],
+                                 mode='cubic',
+                                 coordinate_transformation_mode='half_pixel')
+
+    return ([node], [X], [Y], [sizes_tensor])
+
+
+@onnx_test()
+def resize_upsample_cubic_coeff_half_test():
+    # Upsample 2x2 to 4x4 using cubic interpolation with cubic_coeff_a=-0.5
+    scales = np.array([1.0, 1.0, 2.0, 2.0], dtype=np.float32)
+    scales_tensor = helper.make_tensor(name='scales',
+                                       data_type=TensorProto.FLOAT,
+                                       dims=scales.shape,
+                                       vals=scales.flatten().astype(np.float32))
+
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 2, 2])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 4, 4])
+
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['X', '', 'scales'],
+                                 outputs=['Y'],
+                                 mode='cubic',
+                                 coordinate_transformation_mode='half_pixel',
+                                 cubic_coeff_a=-0.5)
+
+    return ([node], [X], [Y], [scales_tensor])
 
 
 @onnx_test()
@@ -13491,6 +13724,28 @@ def resize_aspect_ratio_err_test():
                                  nearest_mode='ceil')
 
     return ([node], [X], [Y], [size_tensor])
+
+
+@onnx_test()
+def resize_invalid_mode_test():
+    # Resize with unsupported mode "quadratic" should fail during parsing
+    scales = np.array([1.0, 1.0, 2.0, 2.0], dtype=np.float32)
+    scales_tensor = helper.make_tensor(name='scales',
+                                       data_type=TensorProto.FLOAT,
+                                       dims=scales.shape,
+                                       vals=scales.flatten().astype(np.float32))
+
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 2, 2])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 4, 4])
+
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['X', '', 'scales'],
+                                 outputs=['Y'],
+                                 mode='quadratic',
+                                 coordinate_transformation_mode='half_pixel')
+
+    return ([node], [X], [Y], [scales_tensor])
+
 
 @onnx_test()
 def resize_roi_skip_test():

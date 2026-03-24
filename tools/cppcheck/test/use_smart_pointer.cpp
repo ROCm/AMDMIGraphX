@@ -22,9 +22,12 @@
  * THE SOFTWARE.
  *
  */
-#include <string>
-
 // Test for UseSmartPointer check
+// cppcheck-suppress-file unusedAllocatedMemory
+// cppcheck-suppress-file unassignedVariable
+// cppcheck-suppress-file noConstructor
+// cppcheck-suppress-file unusedStructMember
+#include <string>
 
 void test_positive_cases()
 {

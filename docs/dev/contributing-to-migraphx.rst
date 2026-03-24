@@ -36,7 +36,7 @@ We start with a snippet of the simple ``add_two_literals()`` function::
     // compile the program on the reference device
     p.compile(migraphx::ref::target{});
 
-    // evaulate the program and retreive the result
+    // evaluate the program and retrieve the result
     auto result = p.eval({}).back();
     std::cout << "add_two_literals: 1 + 2 = " << result << "\n";
 

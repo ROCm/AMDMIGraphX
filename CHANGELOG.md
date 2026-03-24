@@ -13,6 +13,7 @@ Full documentation for MIGraphX is available at
 * Added Eigen third party headers for ref GEMMs (#4631). 
 * Added a fuse_horizontal pass which batches independent cross embedding gather instructions (#4599).
 * Added GPU JIT `Resize` kernel (#4553).
+* Added environment variable `MIGRAPHX_SKIP_BENCHMARKING` which when enabled, skips tuning of MIGraphX and rocMLIR kernels (#4628).
 * Added Cubic resize jit kernel (#4652).
 
 ### Changed
@@ -304,8 +305,8 @@ Full documentation for MIGraphX is available at
 * Support for the Log2 internal operator
 * Support for the GCC 14 compiler
 * The BitwiseAnd, Scan, SoftmaxCrossEntropyLoss, GridSample, and NegativeLogLikelihoodLoss ONNX operators
-* The MatMulNBits, QuantizeLinear/DequantizeLinear, GroupQueryAttention, SkipSimplifiedLayerNormalization, and SimpliedLayerNormalization Microsoft Contrib operators
-* Dymamic batch parameter support to OneHot operator
+* The MatMulNBits, QuantizeLinear/DequantizeLinear, GroupQueryAttention, SkipSimplifiedLayerNormalization, and SimplifiedLayerNormalization Microsoft Contrib operators
+* Dynamic batch parameter support to OneHot operator
 * Split-K as an optional performance improvement
 * Scripts to validate ONNX models from the ONNX Model Zoo
 * GPU Pooling Kernel
@@ -315,7 +316,7 @@ Full documentation for MIGraphX is available at
 * Pointwise fusions with MLIR across reshape operations
 * MIGRAPHX_MLIR_DUMP environment variable to dump MLIR modules to MXRs
 * The 3 option to MIGRAPHX_TRACE_BENCHMARKING to print the MLIR program for improved debug output
-* MIGRAPHX_ENABLE_HIPBLASLT_GEMM environment variable to call hipBlasLt libaries
+* MIGRAPHX_ENABLE_HIPBLASLT_GEMM environment variable to call hipBlasLt libraries
 * MIGRAPHX_VERIFY_DUMP_DIFF to improve the debugging of accuracy issues
 * reduce_any and reduce_all options to the Reduce operation via Torch MIGraphX
 * Examples for RNNT, and ControlNet
@@ -333,7 +334,7 @@ Full documentation for MIGraphX is available at
 ### Removed
 
 * Disabled requirements for MIOpen and rocBlas when running on Windows.
-* Removed inaccuracte warning messages when using exhaustive-tune.
+* Removed inaccurate warning messages when using exhaustive-tune.
 * Remove the hard coded path in MIGRAPHX_CXX_COMPILER allowing the compiler to be installed in different locations.
 
 
@@ -343,7 +344,7 @@ Full documentation for MIGraphX is available at
     * Infrastructure code to enable better Kernel fusions with all supported data types
     * Subsequent model compile time by creating a cache for already performant kernels
     * Use of Attention fusion with models
-    * Performance of the Softmax JIT kernel and of the Pooling opterator
+    * Performance of the Softmax JIT kernel and of the Pooling operator
     * Tuning operations through a new 50ms delay before running the next kernel
     * Performance of several convolution based models through an optimized NHWC layout
     * Performance for the FP8 datatype
@@ -351,7 +352,7 @@ Full documentation for MIGraphX is available at
     * Verification tools
     * Debug prints
     * Documentation, including gpu-driver utility documentation
-    * Summary section of the migrahx-driver perf command
+    * Summary section of the migraphx-driver perf command
 * Reduced model compilation time
 * Reordered some compiler passes to allow for more fusions
 * Preloaded tiles into LDS to improve performance of pointwise transposes
@@ -608,7 +609,7 @@ Full documentation for MIGraphX is available at
 * Fixed compile warnings for shadowing variable names
 * Added missing specialization for the `nullptr` hash function
 
-### Changees
+### Changes
 
 * Bumped version of half library to 5.6.0
 * Bumped CI to support ROCm 5.6

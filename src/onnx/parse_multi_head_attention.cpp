@@ -215,6 +215,10 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
     {
         if(args.size() > 4)
         {
+            // Skip validation if the mask is empty (optional input not provided)
+            if(args.at(4)->get_shape().elements() == 0)
+                return;
+
             const auto key_pad_lens     = args.at(4)->get_shape().lens();
             const auto key_pad_len_size = key_pad_lens.size();
             const auto key_pad_type     = args.at(4)->get_shape().type();
@@ -335,6 +339,10 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
     {
         if(args.size() > 6)
         {
+            // Skip validation if past_key is empty (optional input not provided)
+            if(args.at(6)->get_shape().elements() == 0)
+                return;
+
             const auto past_key_lens = args.at(6)->get_shape().lens();
             if(past_key_lens.size() != 4)
                 MIGRAPHX_THROW("MultiHeadAttention: past_key must be 4D shape");
@@ -352,6 +360,10 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
 
         if(args.size() > 7)
         {
+            // Skip validation if past_value is empty (optional input not provided)
+            if(args.at(7)->get_shape().elements() == 0)
+                return;
+
             const auto past_value_lens = args.at(7)->get_shape().lens();
             if(past_value_lens.size() != 4)
                 MIGRAPHX_THROW("MultiHeadAttention: past_value must be 4D shape");
@@ -379,6 +391,10 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
 
         if(args.size() > 8)
         {
+            // Skip validation if past_sequence_length is empty
+            if(args.at(8)->get_shape().elements() == 0)
+                return;
+
             const auto past_seq_len_type = args.at(8)->get_shape().type();
             if(past_seq_len_type != shape::int32_type)
                 MIGRAPHX_THROW(
@@ -720,36 +736,38 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
             auto past_key   = args[6];
             auto past_value = args[7];
 
-            // concat_past_present requires: {current_state, seqlens_k, past_state}
-            // If past_sequence_length is provided (input 8), use it, otherwise use batch-wise zeros
-            instruction_ref seqlens_k;
-            if(args.size() > 8)
+            // Only use concat_past_present if past states are non-empty
+            if(past_key->get_shape().elements() > 0 and past_value->get_shape().elements() > 0)
             {
-                seqlens_k = args[8];
+                // If past_sequence_length is provided (input 8), use it, otherwise use batch-wise zeros
+                instruction_ref seqlens_k;
+                if(args.size() > 8 and args[8]->get_shape().elements() > 0)
+                {
+                    seqlens_k = args[8];
+                }
+                else
+                {
+                    std::vector<int32_t> zeros(params.batch_size, 0);
+                    seqlens_k = info.add_literal(
+                        migraphx::literal{migraphx::shape{migraphx::shape::int32_type,
+                                                          {static_cast<size_t>(params.batch_size)}},
+                                          zeros});
+                }
+
+                std::vector<instruction_ref> concat_k_inputs{key, seqlens_k, past_key};
+                std::vector<instruction_ref> concat_v_inputs{value, seqlens_k, past_value};
+
+                // Use concat_past_present operator for efficient KV cache concatenation
+                present_key = info.add_instruction(
+                    make_op("concat_past_present", {{"kv_num_heads", params.num_heads}}),
+                    concat_k_inputs);
+                present_value = info.add_instruction(
+                    make_op("concat_past_present", {{"kv_num_heads", params.num_heads}}),
+                    concat_v_inputs);
+
+                key   = present_key;
+                value = present_value;
             }
-            else
-            {
-                // Create a zero tensor for seqlens_k if not provided
-                std::vector<int32_t> zeros(params.batch_size, 0);
-                seqlens_k = info.add_literal(
-                    migraphx::literal{migraphx::shape{migraphx::shape::int32_type,
-                                                      {static_cast<size_t>(params.batch_size)}},
-                                      zeros});
-            }
-
-            std::vector<instruction_ref> concat_k_inputs{key, seqlens_k, past_key};
-            std::vector<instruction_ref> concat_v_inputs{value, seqlens_k, past_value};
-
-            // Use concat_past_present operator for efficient KV cache concatenation
-            present_key = info.add_instruction(
-                make_op("concat_past_present", {{"kv_num_heads", params.num_heads}}),
-                concat_k_inputs);
-            present_value = info.add_instruction(
-                make_op("concat_past_present", {{"kv_num_heads", params.num_heads}}),
-                concat_v_inputs);
-
-            key   = present_key;
-            value = present_value;
         }
 
         // Set attention mask and bias when detected on input
@@ -796,22 +814,16 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
                 {{"dims", {params.batch_size, params.q_sequence_length, params.hidden_size_v}}}),
             result);
 
-        // Return outputs based on what's available:
-        // Output 0: output (required)
-        // Output 1: present_key (optional - available when past states used)
-        // Output 2: present_value (optional - available when past states used)
-        // Output 3: qk (optional - normalized Q*K^T after softmax)
-        
-        // Always return at least the main output
+        // Return outputs based on what's available: present key, present value and qk are optional
         std::vector<instruction_ref> outputs = {result};
-        
+
         // Add present_key and present_value if past states were provided
         if(args.size() > 6 and args.size() > 7)
         {
             outputs.push_back(present_key);
             outputs.push_back(present_value);
         }
-        
+
         // Note: QK output could be added here if needed
         // outputs.push_back(qk_output);
         

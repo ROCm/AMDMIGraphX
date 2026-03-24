@@ -39,6 +39,7 @@ namespace op {
 
 struct dynamic_range : op_name<dynamic_range>
 {
+    // Intentionally capped at int::max to match the maximum tensor size in MIGraphX
     std::size_t max_output = std::numeric_limits<int>::max();
 
     template <class Self, class F>
@@ -49,7 +50,6 @@ struct dynamic_range : op_name<dynamic_range>
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(3);
         check_shapes{inputs, *this}.has(3).same_type();
         const auto& type = inputs.at(0).type();
         // The output shape is 1D with unknown size if we don't evaluate.
@@ -63,12 +63,19 @@ struct dynamic_range : op_name<dynamic_range>
             auto limit_val = limit.front();
             auto delta_val = delta.front();
 
+            if(delta_val == 0)
+                MIGRAPHX_THROW("dynamic_range: delta must be non-zero");
+
             // number_of_elements = max( ceil( (limit - start) / delta ), 0 )
             double num_elements_d = std::ceil(static_cast<double>(limit_val - start_val) /
                                               static_cast<double>(delta_val));
-            num_elements          = static_cast<size_t>(std::max(0.0, num_elements_d));
+            if(not std::isfinite(num_elements_d))
+                MIGRAPHX_THROW("dynamic_range: computed element count is not finite");
+
+            num_elements = static_cast<size_t>(std::max(0.0, num_elements_d));
         });
 
+        num_elements = std::min(num_elements, max_output);
         argument result{shape{args[0].get_shape().type(), {num_elements}}};
 
         visit_all(args[0], args[2], result)([&](auto start, auto delta, auto output) {

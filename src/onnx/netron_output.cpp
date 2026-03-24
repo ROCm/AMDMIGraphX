@@ -229,7 +229,7 @@ void write_netron_output(const program& prog, std::ostream& os)
 {
     onnx::ModelProto model;
     auto prog_value = prog.to_value();
-    model.set_ir_version(6);
+    model.set_ir_version(prog.get_program_file_version());
     model.set_producer_name("AMDMIGraphX");
     model.set_producer_version(prog_value.at("migraphx_version").to<std::string>());
 

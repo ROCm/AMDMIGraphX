@@ -79,7 +79,8 @@ TEST_CASE(netron_output_roundtrip)
     migraphx::write_netron_output(p, os);
     std::string output = os.str();
 
-    // The output should be parseable as a valid ONNX model
+    // The output should be parseable as a valid ONNX model.
+    // Most nodes will be unknown operators however.
     migraphx::onnx_options options;
     options.skip_unknown_operators = true;
     auto p2 = migraphx::parse_onnx_buffer(output.data(), output.size(), options);

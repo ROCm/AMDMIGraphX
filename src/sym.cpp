@@ -288,10 +288,7 @@ expr operator/(expr ex, expr ey)
     return call("/", [](auto x, auto y) { return x / y; })(std::move(ex), std::move(ey));
 }
 
-expr operator-(expr e)
-{
-    return lit(-1) * std::move(e);
-}
+expr operator-(expr e) { return lit(-1) * std::move(e); }
 
 bool operator==(const expr& a, const expr& b)
 {

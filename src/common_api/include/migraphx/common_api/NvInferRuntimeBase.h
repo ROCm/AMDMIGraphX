@@ -70,11 +70,11 @@
 #endif
 #define TRTNOEXCEPT
 //!
-//! \file NvInferRuntimeBase.h
+// file NvInferRuntimeBase.h
 //!
 //! This file contains common definitions, data structures and interfaces shared between the standard and safe runtime.
 //!
-//! \warning Do not directly include this file. Instead include one of:
+// warning Do not directly include this file. Instead include one of:
 //! * NvInferRuntime.h (for the standard runtime)
 //! * NvInferPluginUtils.h (for plugin utilities)
 //!
@@ -101,9 +101,9 @@ extern "C"
 #define NV_TENSORRT_VERSION NV_TENSORRT_VERSION_INT(NV_TENSORRT_MAJOR, NV_TENSORRT_MINOR, NV_TENSORRT_PATCH)
 
 //!
-//! \namespace nvinfer1
+// namespace nvinfer1
 //!
-//! \brief The TensorRT API version 1 namespace.
+// brief The TensorRT API version 1 namespace.
 //!
 namespace nvinfer1
 {
@@ -136,8 +136,8 @@ constexpr int32_t EnumMax() noexcept
 }
 
 //!
-//! \enum DataType
-//! \brief The type of weights and tensors.
+// enum DataType
+// brief The type of weights and tensors.
 //!
 enum class DataType : int32_t
 {
@@ -203,8 +203,8 @@ struct EnumMaxImpl<DataType>
 } // namespace impl
 
 //!
-//! \class Dims
-//! \brief Structure to define the dimensions of a tensor.
+// class Dims
+// brief Structure to define the dimensions of a tensor.
 //!
 //! TensorRT can also return an "invalid dims" structure. This structure is
 //! represented by nbDims == -1 and d[i] == 0 for all i.
@@ -233,9 +233,9 @@ using Dims = Dims64;
 using InterfaceKind = char const*;
 
 //!
-//! \class InterfaceInfo
+// class InterfaceInfo
 //!
-//! \brief Version information associated with a TRT interface
+// brief Version information associated with a TRT interface
 //!
 class InterfaceInfo
 {
@@ -246,9 +246,9 @@ public:
 };
 
 //!
-//! \enum APILanguage
+// enum APILanguage
 //!
-//! \brief Programming language used in the implementation of a TRT interface
+// brief Programming language used in the implementation of a TRT interface
 //!
 enum class APILanguage : int32_t
 {
@@ -268,15 +268,15 @@ struct EnumMaxImpl<APILanguage>
 } // namespace impl
 
 //!
-//! \class IVersionedInterface
+// class IVersionedInterface
 //!
-//! \brief An Interface class for version control.
+// brief An Interface class for version control.
 //!
 class IVersionedInterface
 {
 public:
     //!
-    //! \brief The language used to build the implementation of this Interface.
+    // brief The language used to build the implementation of this Interface.
     //!
     //! Applications must not override this method.
     //!
@@ -286,7 +286,7 @@ public:
     }
 
     //!
-    //! \brief Return version information associated with this interface. Applications must not override this method.
+    // brief Return version information associated with this interface. Applications must not override this method.
     //!
     virtual InterfaceInfo getInterfaceInfo() const noexcept = 0;
 
@@ -301,9 +301,9 @@ protected:
 };
 
 //!
-//! \enum ErrorCode
+// enum ErrorCode
 //!
-//! \brief Error codes that can be returned by TensorRT during execution.
+// brief Error codes that can be returned by TensorRT during execution.
 //!
 enum class ErrorCode : int32_t
 {
@@ -413,7 +413,7 @@ class IErrorRecorder : public IVersionedInterface
 {
 public:
     //!
-    //! \brief Return version information associated with this interface. Applications must not override this method.
+    // brief Return version information associated with this interface. Applications must not override this method.
     //!
     InterfaceInfo getInterfaceInfo() const noexcept override
     {
@@ -421,19 +421,19 @@ public:
     }
 
     //!
-    //! \brief A typedef of a C-style string for reporting error descriptions.
+    // brief A typedef of a C-style string for reporting error descriptions.
     //!
     using ErrorDesc = char const*;
 
     //!
-    //! \brief The length limit for an error description in bytes, excluding the '\0' string terminator.
+    // brief The length limit for an error description in bytes, excluding the '\0' string terminator.
     //!        Only applicable to safe runtime.
     //!        General error recorder implementation can use any size appropriate for the use case.
     //!
     static constexpr size_t kMAX_DESC_LENGTH{127U};
 
     //!
-    //! \brief A typedef of a 32-bit integer for reference counting.
+    // brief A typedef of a 32-bit integer for reference counting.
     //!
     using RefCount = int32_t;
 
@@ -443,7 +443,7 @@ public:
     // Public API used to retrieve information from the error recorder.
 
     //!
-    //! \brief Return the number of errors
+    // brief Return the number of errors
     //!
     //! Determines the number of errors that occurred between the current point in execution
     //! and the last time that the clear() was executed. Due to the possibility of asynchronous
@@ -451,16 +451,16 @@ public:
     //! with the Error Recorder. The value of getNbErrors() must increment by 1 after each reportError()
     //! call until clear() is called, or the maximum number of errors that can be stored is exceeded.
     //!
-    //! \return Returns the number of errors detected, or 0 if there are no errors.
+    // return Returns the number of errors detected, or 0 if there are no errors.
     //!         If the upper bound of errors that can be stored is exceeded, the upper bound value must
     //!         be returned.
     //!
     //! For example, if the error recorder can store up to 16 error descriptions but reportError() has
     //! been called 20 times, getNbErrors() must return 16.
     //!
-    //! \see clear(), hasOverflowed()
+    // see clear(), hasOverflowed()
     //!
-    //! \usage
+    // usage
     //! - Allowed context for the API call
     //!   - Thread-safe: Yes, this method is required to be thread-safe and may be called from multiple threads
     //!                  when multiple execution contexts are used during runtime.
@@ -468,19 +468,19 @@ public:
     virtual int32_t getNbErrors() const noexcept = 0;
 
     //!
-    //! \brief Returns the ErrorCode enumeration.
+    // brief Returns the ErrorCode enumeration.
     //!
-    //! \param errorIdx A 32-bit integer that indexes into the error array.
+    // param errorIdx A 32-bit integer that indexes into the error array.
     //!
     //! The errorIdx specifies what error code from 0 to getNbErrors()-1 that the application
     //! wants to analyze and return the error code enum.
     //!
-    //! \return Returns the enum corresponding to errorIdx if errorIdx is in range (between 0 and getNbErrors()-1).
+    // return Returns the enum corresponding to errorIdx if errorIdx is in range (between 0 and getNbErrors()-1).
     //!         ErrorCode::kUNSPECIFIED_ERROR must be returned if errorIdx is not in range.
     //!
-    //! \see getErrorDesc(), ErrorCode
+    // see getErrorDesc(), ErrorCode
     //!
-    //! \usage
+    // usage
     //! - Allowed context for the API call
     //!   - Thread-safe: Yes, this method is required to be thread-safe and may be called from multiple threads
     //!                  when multiple execution contexts are used during runtime.
@@ -488,9 +488,9 @@ public:
     virtual ErrorCode getErrorCode(int32_t errorIdx) const noexcept = 0;
 
     //!
-    //! \brief Returns a null-terminated C-style string description of the error.
+    // brief Returns a null-terminated C-style string description of the error.
     //!
-    //! \param errorIdx A 32-bit integer that indexes into the error array.
+    // param errorIdx A 32-bit integer that indexes into the error array.
     //!
     //! For the error specified by the idx value, return the string description of the error. The
     //! error string is a null-terminated C-style string. In the safety context there is a
@@ -498,12 +498,12 @@ public:
     //! will be truncated if it exceeds kMAX_DESC_LENGTH bytes.
     //! The format of the string is "<EnumAsStr> - <Description>".
     //!
-    //! \return Returns a string representation of the error along with a description of the error if errorIdx is in
+    // return Returns a string representation of the error along with a description of the error if errorIdx is in
     //!         range (between 0 and getNbErrors()-1). An empty string will be returned if errorIdx is not in range.
     //!
-    //! \see getErrorCode()
+    // see getErrorCode()
     //!
-    //! \usage
+    // usage
     //! - Allowed context for the API call
     //!   - Thread-safe: Yes, this method is required to be thread-safe and may be called from multiple threads
     //!                  when multiple execution contexts are used during runtime.
@@ -511,15 +511,15 @@ public:
     virtual ErrorDesc getErrorDesc(int32_t errorIdx) const noexcept = 0;
 
     //!
-    //! \brief Determine if the error stack has overflowed.
+    // brief Determine if the error stack has overflowed.
     //!
     //! In the case when the number of errors is large, this function is used to query if one or more
     //! errors have been dropped due to lack of storage capacity. This is especially important in the
     //! automotive safety case where the internal error handling mechanisms cannot allocate memory.
     //!
-    //! \return true if errors have been dropped due to overflowing the error stack.
+    // return true if errors have been dropped due to overflowing the error stack.
     //!
-    //! \usage
+    // usage
     //! - Allowed context for the API call
     //!   - Thread-safe: Yes, this method is required to be thread-safe and may be called from multiple threads
     //!                  when multiple execution contexts are used during runtime.
@@ -527,15 +527,15 @@ public:
     virtual bool hasOverflowed() const noexcept = 0;
 
     //!
-    //! \brief Clear the error stack on the error recorder.
+    // brief Clear the error stack on the error recorder.
     //!
     //! Removes all the tracked errors by the error recorder.  The implementation must guarantee that after
     //! this function is called, and as long as no error occurs, the next call to getNbErrors will return
     //! zero and hasOverflowed will return false.
     //!
-    //! \see getNbErrors(), hasOverflowed()
+    // see getNbErrors(), hasOverflowed()
     //!
-    //! \usage
+    // usage
     //! - Allowed context for the API call
     //!   - Thread-safe: Yes, this method is required to be thread-safe and may be called from multiple threads
     //!                  when multiple execution contexts are used during runtime.
@@ -545,10 +545,10 @@ public:
     // API used by TensorRT to report Error information to the application.
 
     //!
-    //! \brief Report an error to the error recorder with the corresponding enum and description.
+    // brief Report an error to the error recorder with the corresponding enum and description.
     //!
-    //! \param val  The error code enum that is being reported.
-    //! \param desc The string description of the error, which will be a NULL-terminated string.
+    // param val  The error code enum that is being reported.
+    // param desc The string description of the error, which will be a NULL-terminated string.
     //!             For safety use cases its length is limited to kMAX_DESC_LENGTH bytes
     //!             (excluding the NULL terminator) and descriptions that exceed this limit will be silently truncated.
     //!
@@ -559,13 +559,13 @@ public:
     //! caller when reportError returns. The implementation must not store the desc pointer in the ErrorRecorder object
     //! or otherwise access the data from desc after reportError returns.
     //!
-    //! \return True if the error is determined to be fatal and processing of the current function must end.
+    // return True if the error is determined to be fatal and processing of the current function must end.
     //!
-    //! \warning If the error recorder's maximum number of storable errors is exceeded, the error description will be
+    // warning If the error recorder's maximum number of storable errors is exceeded, the error description will be
     //!          silently dropped and the value returned by getNbErrors() will not be incremented. However, the return
     //!          value will still signal whether the error must be considered fatal.
     //!
-    //! \usage
+    // usage
     //! - Allowed context for the API call
     //!   - Thread-safe: Yes, this method is required to be thread-safe and may be called from multiple threads
     //!                  when multiple execution contexts are used during runtime.
@@ -573,7 +573,7 @@ public:
     virtual bool reportError(ErrorCode val, ErrorDesc desc) noexcept = 0;
 
     //!
-    //! \brief Increments the refcount for the current ErrorRecorder.
+    // brief Increments the refcount for the current ErrorRecorder.
     //!
     //! Increments the reference count for the object by one and returns the current value.  This reference count allows
     //! the application to know that an object inside of TensorRT has taken a reference to the ErrorRecorder.  TensorRT
@@ -581,9 +581,9 @@ public:
     //! IErrorRecorder::decRefCount() when the reference is released.  It is undefined behavior to destruct the
     //! ErrorRecorder when incRefCount() has been called without a corresponding decRefCount().
     //!
-    //! \return The reference counted value after the increment completes.
+    // return The reference counted value after the increment completes.
     //!
-    //! \usage
+    // usage
     //! - Allowed context for the API call
     //!   - Thread-safe: Yes, this method is required to be thread-safe and may be called from multiple threads
     //!                  when multiple execution contexts are used during runtime.
@@ -591,7 +591,7 @@ public:
     virtual RefCount incRefCount() noexcept = 0;
 
     //!
-    //! \brief Decrements the refcount for the current ErrorRecorder.
+    // brief Decrements the refcount for the current ErrorRecorder.
     //!
     //! Decrements the reference count for the object by one and returns the current value.  This reference count allows
     //! the application to know that an object inside of TensorRT has taken a reference to the ErrorRecorder.  TensorRT
@@ -599,9 +599,9 @@ public:
     //! IErrorRecorder::incRefCount().  It is undefined behavior to destruct the ErrorRecorder when incRefCount() has been
     //! called without a corresponding decRefCount().
     //!
-    //! \return The reference counted value after the decrement completes.
+    // return The reference counted value after the decrement completes.
     //!
-    //! \usage
+    // usage
     //! - Allowed context for the API call
     //!   - Thread-safe: Yes, this method is required to be thread-safe and may be called from multiple threads
     //!                  when multiple execution contexts are used during runtime.
@@ -619,9 +619,9 @@ protected:
 } // namespace v_1_0
 
 //!
-//! \class IErrorRecorder
+// class IErrorRecorder
 //!
-//! \brief Reference counted application-implemented error reporting interface for TensorRT objects.
+// brief Reference counted application-implemented error reporting interface for TensorRT objects.
 //!
 //! The error reporting mechanism is a user-defined object that interacts with the internal state of the object
 //! that it is assigned to in order to determine information about abnormalities in execution. The error recorder
@@ -648,9 +648,9 @@ protected:
 using IErrorRecorder = v_1_0::IErrorRecorder;
 
 //!
-//! \enum TensorIOMode
+// enum TensorIOMode
 //!
-//! \brief Definition of tensor IO Mode.
+// brief Definition of tensor IO Mode.
 //!
 enum class TensorIOMode : int32_t
 {
@@ -677,7 +677,7 @@ struct EnumMaxImpl<TensorIOMode>
 } // namespace nvinfer1
 
 //!
-//! \brief Return the library version number.
+// brief Return the library version number.
 //!
 //! The format is as for TENSORRT_VERSION: (MAJOR * 100 + MINOR) * 100 + PATCH
 //!

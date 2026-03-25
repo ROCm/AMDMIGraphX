@@ -22,7 +22,7 @@
 #include "NvInferRuntimeCommon.h"
 
 //!
-//! \file NvInferPluginUtils.h
+// file NvInferPluginUtils.h
 //!
 //! This is the API for the Nvidia provided TensorRT plugin utilities.
 //! It lists all the parameters utilized by the TensorRT plugins.
@@ -34,9 +34,9 @@ namespace plugin
 {
 
 //!
-//! \struct PriorBoxParameters
+// struct PriorBoxParameters
 //!
-//! \brief The PriorBox plugin layer generates the prior boxes of designated sizes and aspect ratios across all
+// brief The PriorBox plugin layer generates the prior boxes of designated sizes and aspect ratios across all
 //! dimensions (H x W).
 //!
 //! PriorBoxParameters defines a set of parameters for creating the PriorBox plugin layer.
@@ -61,9 +61,9 @@ struct PriorBoxParameters
 };
 
 //!
-//! \struct RPROIParams
+// struct RPROIParams
 //!
-//! \brief RPROIParams is used to create the RPROIPlugin instance.
+// brief RPROIParams is used to create the RPROIPlugin instance.
 //!
 struct RPROIParams
 {
@@ -81,9 +81,9 @@ struct RPROIParams
 };
 
 //!
-//! \struct GridAnchorParameters
+// struct GridAnchorParameters
 //!
-//! \brief The Anchor Generator plugin layer generates the prior boxes of designated sizes and aspect ratios across all dimensions (H x W).
+// brief The Anchor Generator plugin layer generates the prior boxes of designated sizes and aspect ratios across all dimensions (H x W).
 //! GridAnchorParameters defines a set of parameters for creating the plugin layer for all feature maps.
 //!
 struct GridAnchorParameters
@@ -98,11 +98,11 @@ struct GridAnchorParameters
 };
 
 //!
-//! \enum CodeTypeSSD
+// enum CodeTypeSSD
 //!
-//! \brief The type of encoding used for decoding the bounding boxes and loc_data.
+// brief The type of encoding used for decoding the bounding boxes and loc_data.
 //!
-//! \deprecated Deprecated in TensorRT 10.0. DetectionOutput plugin is deprecated.
+// deprecated Deprecated in TensorRT 10.0. DetectionOutput plugin is deprecated.
 //!
 enum class CodeTypeSSD : int32_t
 {
@@ -113,16 +113,16 @@ enum class CodeTypeSSD : int32_t
 };
 
 //!
-//! \struct DetectionOutputParameters
+// struct DetectionOutputParameters
 //!
-//! \brief The DetectionOutput plugin layer generates the detection output
+// brief The DetectionOutput plugin layer generates the detection output
 //! based on location and confidence predictions by doing non maximum suppression.
 //!
 //! This plugin first decodes the bounding boxes based on the anchors generated.
 //! It then performs non_max_suppression on the decoded bounding boxes.
 //! DetectionOutputParameters defines a set of parameters for creating the DetectionOutput plugin layer.
 //!
-//! \deprecated Deprecated in TensorRT 10.0. DetectionOutput plugin is deprecated.
+// deprecated Deprecated in TensorRT 10.0. DetectionOutput plugin is deprecated.
 //!
 struct TRT_DEPRECATED DetectionOutputParameters
 {
@@ -144,7 +144,7 @@ struct TRT_DEPRECATED DetectionOutputParameters
 };
 
 //!
-//! \brief When performing yolo9000, softmaxTree is helping to do softmax on confidence scores,
+// brief When performing yolo9000, softmaxTree is helping to do softmax on confidence scores,
 //! for element to get the precise classification through word-tree structured classification definition.
 //!
 struct softmaxTree
@@ -161,7 +161,7 @@ struct softmaxTree
 };
 
 //!
-//! \brief The Region plugin layer performs region proposal calculation.
+// brief The Region plugin layer performs region proposal calculation.
 //!
 //! Generate 5 bounding boxes per cell (for yolo9000, generate 3 bounding boxes per cell).
 //! For each box, calculating its probabilities of objects detections from 80 pre-defined classifications
@@ -177,10 +177,10 @@ struct RegionParameters
 };
 
 //!
-//! \brief The NMSParameters are used by the BatchedNMSPlugin for performing
+// brief The NMSParameters are used by the BatchedNMSPlugin for performing
 //! the non_max_suppression operation over boxes for object detection networks.
 //!
-//! \deprecated Deprecated in TensorRT 10.0. BatchedNMSPlugin plugin is deprecated.
+// deprecated Deprecated in TensorRT 10.0. BatchedNMSPlugin plugin is deprecated.
 //!
 struct TRT_DEPRECATED NMSParameters
 {

@@ -222,7 +222,7 @@ using TempfileControlFlags = uint32_t;
 using SerializationFlags = uint32_t;
 
 //!
-//! \file NvInferImpl.h
+// file NvInferImpl.h
 //!
 //! This file contains definitions for API methods that cross the shared library boundary. These
 //! methods must not be called directly by applications; they should only be called through the

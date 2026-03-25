@@ -29,7 +29,7 @@
 #include <vector>
 
 //!
-//! \file NvOnnxParser.h
+// file NvOnnxParser.h
 //!
 //! This is the API for the ONNX Parser
 //!
@@ -42,25 +42,25 @@ static constexpr int32_t NV_ONNX_PARSER_VERSION
     = ((NV_ONNX_PARSER_MAJOR * 10000) + (NV_ONNX_PARSER_MINOR * 100) + NV_ONNX_PARSER_PATCH);
 
 //!
-//! \typedef SubGraph_t
+// typedef SubGraph_t
 //!
-//! \brief The data structure containing the parsing capability of
+// brief The data structure containing the parsing capability of
 //! a set of nodes in an ONNX graph.
 //!
 typedef std::pair<std::vector<size_t>, bool> SubGraph_t;
 
 //!
-//! \typedef SubGraphCollection_t
+// typedef SubGraphCollection_t
 //!
-//! \brief The data structure containing all SubGraph_t partitioned
+// brief The data structure containing all SubGraph_t partitioned
 //! out of an ONNX graph.
 //!
 typedef std::vector<SubGraph_t> SubGraphCollection_t;
 
 //!
-//! \namespace nvonnxparser
+// namespace nvonnxparser
 //!
-//! \brief The TensorRT ONNX parser API namespace
+// brief The TensorRT ONNX parser API namespace
 //!
 namespace nvonnxparser
 {
@@ -69,9 +69,9 @@ template <typename T>
 constexpr inline int32_t EnumMax() noexcept;
 
 //!
-//! \enum ErrorCode
+// enum ErrorCode
 //!
-//! \brief The type of error that the parser or refitter may return
+// brief The type of error that the parser or refitter may return
 //!
 enum class ErrorCode : int
 {
@@ -95,7 +95,7 @@ enum class ErrorCode : int
 //!
 //! Maximum number of flags in the ErrorCode enum.
 //!
-//! \see ErrorCode
+// see ErrorCode
 //!
 template <>
 constexpr inline int32_t EnumMax<ErrorCode>() noexcept
@@ -104,10 +104,10 @@ constexpr inline int32_t EnumMax<ErrorCode>() noexcept
 }
 
 //!
-//! \brief Represents one or more OnnxParserFlag values using binary OR
+// brief Represents one or more OnnxParserFlag values using binary OR
 //! operations, e.g., 1U << OnnxParserFlag::kNATIVE_INSTANCENORM
 //!
-//! \see IParser::setFlags() and IParser::getFlags()
+// see IParser::setFlags() and IParser::getFlags()
 //!
 using OnnxParserFlags = uint32_t;
 
@@ -127,7 +127,7 @@ enum class OnnxParserFlag : int32_t
 //!
 //! Maximum number of flags in the OnnxParserFlag enum.
 //!
-//! \see OnnxParserFlag
+// see OnnxParserFlag
 //!
 template <>
 constexpr inline int32_t EnumMax<OnnxParserFlag>() noexcept
@@ -136,9 +136,9 @@ constexpr inline int32_t EnumMax<OnnxParserFlag>() noexcept
 }
 
 //!
-//! \class IParserError
+// class IParserError
 //!
-//! \brief an object containing information about an error
+// brief an object containing information about an error
 //!
 class IParserError
 {
@@ -193,44 +193,44 @@ protected:
 };
 
 //!
-//! \class IParser
+// class IParser
 //!
-//! \brief an object for parsing ONNX models into a TensorRT network definition
+// brief an object for parsing ONNX models into a TensorRT network definition
 //!
-//! \warning If the ONNX model has a graph output with the same name as a graph input,
+// warning If the ONNX model has a graph output with the same name as a graph input,
 //!          the output will be renamed by prepending "__".
 //!
-//! \warning Do not inherit from this class, as doing so will break forward-compatibility of the API and ABI.
+// warning Do not inherit from this class, as doing so will break forward-compatibility of the API and ABI.
 //!
 class IParser
 {
 public:
     //!
-    //! \brief Parse a serialized ONNX model into the TensorRT network.
+    // brief Parse a serialized ONNX model into the TensorRT network.
     //!         This method has very limited diagnostics. If parsing the serialized model
     //!         fails for any reason (e.g. unsupported IR version, unsupported opset, etc.)
     //!         it the user responsibility to intercept and report the error.
     //!         To obtain a better diagnostic, use the parseFromFile method below.
     //!
-    //! \param serialized_onnx_model Pointer to the serialized ONNX model. Can be freed after this function returns.
-    //! \param serialized_onnx_model_size Size of the serialized ONNX model
+    // param serialized_onnx_model Pointer to the serialized ONNX model. Can be freed after this function returns.
+    // param serialized_onnx_model_size Size of the serialized ONNX model
     //!        in bytes
-    //! \param model_path Absolute path to the model file for loading external weights if required
-    //! \return true if the model was parsed successfully
-    //! \see getNbErrors() getError()
+    // param model_path Absolute path to the model file for loading external weights if required
+    // return true if the model was parsed successfully
+    // see getNbErrors() getError()
     //!
     virtual bool parse(
         void const* serialized_onnx_model, size_t serialized_onnx_model_size, const char* model_path = nullptr) noexcept
         = 0;
 
     //!
-    //! \brief Parse an onnx model file, which can be a binary protobuf or a text onnx model
+    // brief Parse an onnx model file, which can be a binary protobuf or a text onnx model
     //!         calls parse method inside.
     //!
-    //! \param onnxModelFile name
-    //! \param verbosity Level
+    // param onnxModelFile name
+    // param verbosity Level
     //!
-    //! \return true if the model was parsed successfully
+    // return true if the model was parsed successfully
     //!
     //!
     virtual bool parseFromFile(const char* onnxModelFile, int verbosity) noexcept = 0;
@@ -238,16 +238,16 @@ public:
     //!
     //! [DEPRECATED] Deprecated in TensorRT 10.1. See supportsModelV2.
     //!
-    //! \brief Check whether TensorRT supports a particular ONNX model.
+    // brief Check whether TensorRT supports a particular ONNX model.
     //!        If the function returns True, one can proceed to engine building
     //!        without having to call \p parse or \p parseFromFile.
     //!
-    //! \param serialized_onnx_model Pointer to the serialized ONNX model. Can be freed after this function returns.
-    //! \param serialized_onnx_model_size Size of the serialized ONNX model
+    // param serialized_onnx_model Pointer to the serialized ONNX model. Can be freed after this function returns.
+    // param serialized_onnx_model_size Size of the serialized ONNX model
     //!        in bytes
-    //! \param sub_graph_collection Container to hold supported subgraphs
-    //! \param model_path Absolute path to the model file for loading external weights if required
-    //! \return true if the model is supported
+    // param sub_graph_collection Container to hold supported subgraphs
+    // param model_path Absolute path to the model file for loading external weights if required
+    // return true if the model is supported
     //!
     TRT_DEPRECATED virtual bool supportsModel(void const* serialized_onnx_model, size_t serialized_onnx_model_size,
         SubGraphCollection_t& sub_graph_collection, const char* model_path = nullptr) noexcept = 0;
@@ -258,11 +258,11 @@ public:
     //!\brief Parse a serialized ONNX model into the TensorRT network
     //! with consideration of user provided weights
     //!
-    //! \param serialized_onnx_model Pointer to the serialized ONNX model. Can be freed after this function returns.
-    //! \param serialized_onnx_model_size Size of the serialized ONNX model
+    // param serialized_onnx_model Pointer to the serialized ONNX model. Can be freed after this function returns.
+    // param serialized_onnx_model_size Size of the serialized ONNX model
     //!        in bytes
-    //! \return true if the model was parsed successfully
-    //! \see getNbErrors() getError()
+    // return true if the model was parsed successfully
+    // see getNbErrors() getError()
     //!
     TRT_DEPRECATED virtual bool parseWithWeightDescriptors(
         void const* serialized_onnx_model, size_t serialized_onnx_model_size) noexcept = 0;
@@ -274,7 +274,7 @@ public:
     //! Note that a result of true does not guarantee that the operator will be
     //! supported in all cases (i.e., this function may return false-positives).
     //!
-    //! \param op_name The name of the ONNX operator to check for support
+    // param op_name The name of the ONNX operator to check for support
     //!
     virtual bool supportsOperator(const char* op_name) const noexcept = 0;
 
@@ -282,28 +282,28 @@ public:
     //!\brief Get the number of errors that occurred during prior calls to
     //!         \p parse
     //!
-    //! \see getError() clearErrors() IParserError
+    // see getError() clearErrors() IParserError
     //!
     virtual int getNbErrors() const noexcept = 0;
 
     //!
     //!\brief Get an error that occurred during prior calls to \p parse
     //!
-    //! \see getNbErrors() clearErrors() IParserError
+    // see getNbErrors() clearErrors() IParserError
     //!
     virtual IParserError const* getError(int index) const noexcept = 0;
 
     //!
     //!\brief Clear errors from prior calls to \p parse
     //!
-    //! \see getNbErrors() getError() IParserError
+    // see getNbErrors() getError() IParserError
     //!
     virtual void clearErrors() noexcept = 0;
 
     virtual ~IParser() noexcept = default;
 
     //!
-    //! \brief Query the plugin libraries needed to implement operations used by the parser in a version-compatible
+    // brief Query the plugin libraries needed to implement operations used by the parser in a version-compatible
     //! engine.
     //!
     //! This provides a list of plugin libraries on the filesystem needed to implement operations
@@ -313,59 +313,59 @@ public:
     //! to the engine, ensure that IPluginRegistry::loadLibrary is used to load these libraries in the
     //! appropriate runtime before deserializing the corresponding engine.
     //!
-    //! \param[out] nbPluginLibs Returns the number of plugin libraries in the array, or -1 if there was an error.
-    //! \return Array of `nbPluginLibs` C-strings describing plugin library paths on the filesystem if nbPluginLibs > 0,
+    // param[out] nbPluginLibs Returns the number of plugin libraries in the array, or -1 if there was an error.
+    // return Array of `nbPluginLibs` C-strings describing plugin library paths on the filesystem if nbPluginLibs > 0,
     //! or nullptr otherwise.  This array is owned by the IParser, and the pointers in the array are only valid until
     //! the next call to parse(), supportsModel(), parseFromFile(), or parseWithWeightDescriptors().
     //!
     virtual char const* const* getUsedVCPluginLibraries(int64_t& nbPluginLibs) const noexcept = 0;
 
     //!
-    //! \brief Set the parser flags.
+    // brief Set the parser flags.
     //!
     //! The flags are listed in the OnnxParserFlag enum.
     //!
-    //! \param OnnxParserFlags The flags used when parsing an ONNX model.
+    // param OnnxParserFlags The flags used when parsing an ONNX model.
     //!
-    //! \note This function will override the previous set flags, rather than bitwise ORing the new flag.
+    // note This function will override the previous set flags, rather than bitwise ORing the new flag.
     //!
-    //! \see getFlags()
+    // see getFlags()
     //!
     virtual void setFlags(OnnxParserFlags onnxParserFlags) noexcept = 0;
 
     //!
-    //! \brief Get the parser flags. Defaults to 0.
+    // brief Get the parser flags. Defaults to 0.
     //!
-    //! \return The parser flags as a bitmask.
+    // return The parser flags as a bitmask.
     //!
-    //! \see setFlags()
+    // see setFlags()
     //!
     virtual OnnxParserFlags getFlags() const noexcept = 0;
 
     //!
-    //! \brief clear a parser flag.
+    // brief clear a parser flag.
     //!
     //! clears the parser flag from the enabled flags.
     //!
-    //! \see setFlags()
+    // see setFlags()
     //!
     virtual void clearFlag(OnnxParserFlag onnxParserFlag) noexcept = 0;
 
     //!
-    //! \brief Set a single parser flag.
+    // brief Set a single parser flag.
     //!
     //! Add the input parser flag to the already enabled flags.
     //!
-    //! \see setFlags()
+    // see setFlags()
     //!
     virtual void setFlag(OnnxParserFlag onnxParserFlag) noexcept = 0;
 
     //!
-    //! \brief Returns true if the parser flag is set
+    // brief Returns true if the parser flag is set
     //!
-    //! \see getFlags()
+    // see getFlags()
     //!
-    //! \return True if flag is set, false if unset.
+    // return True if flag is set, false if unset.
     //!
     virtual bool getFlag(OnnxParserFlag onnxParserFlag) const noexcept = 0;
 
@@ -377,60 +377,60 @@ public:
     //! In the case of multiple nodes sharing the same name this function will return
     //! the output tensors of the first instance of the node in the ONNX graph.
     //!
-    //! \param name The name of the ONNX layer.
+    // param name The name of the ONNX layer.
     //!
-    //! \param i The index of the output. i must be in range [0, layer.num_outputs).
+    // param i The index of the output. i must be in range [0, layer.num_outputs).
     //!
     virtual nvinfer1::ITensor const* getLayerOutputTensor(char const* name, int64_t i) noexcept = 0;
 
     //!
-    //! \brief Check whether TensorRT supports a particular ONNX model.
+    // brief Check whether TensorRT supports a particular ONNX model.
     //!            If the function returns True, one can proceed to engine building
     //!            without having to call \p parse or \p parseFromFile.
     //!            Results can be queried through \p getNbSubgraphs, \p isSubgraphSupported,
     //!            \p getSubgraphNodes.
     //!
-    //! \param serializedOnnxModel Pointer to the serialized ONNX model. Can be freed after this function returns.
-    //! \param serializedOnnxModelSize Size of the serialized ONNX model in bytes
-    //! \param modelPath Absolute path to the model file for loading external weights if required
-    //! \return true if the model is supported
+    // param serializedOnnxModel Pointer to the serialized ONNX model. Can be freed after this function returns.
+    // param serializedOnnxModelSize Size of the serialized ONNX model in bytes
+    // param modelPath Absolute path to the model file for loading external weights if required
+    // return true if the model is supported
     //!
     virtual bool supportsModelV2(
         void const* serializedOnnxModel, size_t serializedOnnxModelSize, char const* modelPath = nullptr) noexcept = 0;
 
     //!
-    //! \brief Get the number of subgraphs. Calling this function before calling \p supportsModelV2 results in undefined
+    // brief Get the number of subgraphs. Calling this function before calling \p supportsModelV2 results in undefined
     //! behavior.
     //!
     //!
-    //! \return Number of subgraphs.
+    // return Number of subgraphs.
     //!
     virtual int64_t getNbSubgraphs() noexcept = 0;
 
     //!
-    //! \brief Returns whether the subgraph is supported. Calling this function before calling \p supportsModelV2
+    // brief Returns whether the subgraph is supported. Calling this function before calling \p supportsModelV2
     //! results in undefined behavior.
     //!
     //!
-    //! \param index Index of the subgraph.
-    //! \return Whether the subgraph is supported.
+    // param index Index of the subgraph.
+    // return Whether the subgraph is supported.
     //!
     virtual bool isSubgraphSupported(int64_t const index) noexcept = 0;
 
     //!
-    //! \brief Get the nodes of the specified subgraph. Calling this function before calling \p supportsModelV2 results
+    // brief Get the nodes of the specified subgraph. Calling this function before calling \p supportsModelV2 results
     //! in undefined behavior.
     //!
     //!
-    //! \param index Index of the subgraph.
-    //! \param subgraphLength Returns the length of the subgraph as reference.
+    // param index Index of the subgraph.
+    // param subgraphLength Returns the length of the subgraph as reference.
     //!
-    //! \return Pointer to the subgraph nodes array. This pointer is owned by the Parser.
+    // return Pointer to the subgraph nodes array. This pointer is owned by the Parser.
     //!
     virtual int64_t* getSubgraphNodes(int64_t const index, int64_t& subgraphLength) noexcept = 0;
 
     //!
-    //! \brief Load a serialized ONNX model into the parser. Unlike the parse(), parseFromFile(), or
+    // brief Load a serialized ONNX model into the parser. Unlike the parse(), parseFromFile(), or
     //! parseWithWeightDescriptors() functions, this function does not immediately convert the model into a TensorRT
     //! INetworkDefinition. Using this function allows users to provide their own initializers for the ONNX model
     //! through the loadInitializer() function.
@@ -439,17 +439,17 @@ public:
     //!
     //! To begin the conversion of the model into a TensorRT INetworkDefinition, use parseModelProto().
     //!
-    //! \param serializedOnnxModel Pointer to the serialized ONNX model. Can be freed after this function returns.
-    //! \param serializedOnnxModelSize Size of the serialized ONNX model in bytes.
-    //! \param modelPath Absolute path to the model file for loading external weights if required.
-    //! \return true if the model was loaded successfully
-    //! \see getNbErrors() getError()
+    // param serializedOnnxModel Pointer to the serialized ONNX model. Can be freed after this function returns.
+    // param serializedOnnxModelSize Size of the serialized ONNX model in bytes.
+    // param modelPath Absolute path to the model file for loading external weights if required.
+    // return true if the model was loaded successfully
+    // see getNbErrors() getError()
     //!
     virtual bool loadModelProto(
         void const* serializedOnnxModel, size_t serializedOnnxModelSize, char const* modelPath = nullptr) noexcept = 0;
 
     //!
-    //! \brief Prompt the ONNX parser to load an initializer with user-provided binary data.
+    // brief Prompt the ONNX parser to load an initializer with user-provided binary data.
     //! The lifetime of the data must exceed the lifetime of the parser.
     //!
     //! All user-provided initializers must be provided prior to calling refitModelProto().
@@ -464,40 +464,40 @@ public:
     //! * The requested initializer was not found in the model.
     //! * The size of the data provided is different from the corresponding initializer in the model.
     //!
-    //! \param name Name of the initializer.
-    //! \param data Binary data containing the values of the initializer.
-    //! \param size Size of the initializer in bytes.
-    //! \return true if the initializer was loaded successfully
-    //! \see loadModelProto()
+    // param name Name of the initializer.
+    // param data Binary data containing the values of the initializer.
+    // param size Size of the initializer in bytes.
+    // return true if the initializer was loaded successfully
+    // see loadModelProto()
     //!
     virtual bool loadInitializer(char const* name, void const* data, size_t size) noexcept = 0;
 
-    //! \brief Begin the parsing and conversion process of the loaded ONNX model into a TensorRT INetworkDefinition.
+    // brief Begin the parsing and conversion process of the loaded ONNX model into a TensorRT INetworkDefinition.
     //!
-    //! \return true if conversion was successful
-    //! \see getNbErrors() getError() loadModelProto() loadModelProtoFromFile()
+    // return true if conversion was successful
+    // see getNbErrors() getError() loadModelProto() loadModelProtoFromFile()
     //!
     virtual bool parseModelProto() noexcept = 0;
 };
 
 //!
-//! \class IParserRefitter
+// class IParserRefitter
 //!
-//! \brief An interface designed to refit weights from an ONNX model.
+// brief An interface designed to refit weights from an ONNX model.
 //!
-//! \warning Do not inherit from this class, as doing so will break forward-compatibility of the API and ABI.
+// warning Do not inherit from this class, as doing so will break forward-compatibility of the API and ABI.
 //!
 class IParserRefitter
 {
 public:
     //!
-    //! \brief Load a serialized ONNX model from memory and perform weight refit.
+    // brief Load a serialized ONNX model from memory and perform weight refit.
     //!
-    //! \param serializedOnnxModel Pointer to the serialized ONNX model
-    //! \param serializedOnnxModelSize Size of the serialized ONNX model
+    // param serializedOnnxModel Pointer to the serialized ONNX model
+    // param serializedOnnxModelSize Size of the serialized ONNX model
     //!        in bytes
-    //! \param modelPath Absolute path to the model file for loading external weights if required
-    //! \return true if all the weights in the engine were refit successfully.
+    // param modelPath Absolute path to the model file for loading external weights if required
+    // return true if all the weights in the engine were refit successfully.
     //!
     //! The serialized ONNX model must be identical to the one used to generate the engine
     //! that will be refit.
@@ -507,11 +507,11 @@ public:
         = 0;
 
     //!
-    //! \brief Load and parse a ONNX model from disk and perform weight refit.
+    // brief Load and parse a ONNX model from disk and perform weight refit.
     //!
-    //! \param onnxModelFile Path to the ONNX model to load from disk.
+    // param onnxModelFile Path to the ONNX model to load from disk.
     //!
-    //! \return true if the model was loaded successfully, and if all the weights in the engine were refit successfully.
+    // return true if the model was loaded successfully, and if all the weights in the engine were refit successfully.
     //!
     //! The provided ONNX model must be identical to the one used to generate the engine
     //! that will be refit.
@@ -521,28 +521,28 @@ public:
     //!
     //!\brief Get the number of errors that occurred during prior calls to \p refitFromBytes or \p refitFromFile
     //!
-    //! \see getError() IParserError
+    // see getError() IParserError
     //!
     virtual int32_t getNbErrors() const noexcept = 0;
 
     //!
     //!\brief Get an error that occurred during prior calls to \p refitFromBytes or \p refitFromFile
     //!
-    //! \see getNbErrors() IParserError
+    // see getNbErrors() IParserError
     //!
     virtual IParserError const* getError(int32_t index) const noexcept = 0;
 
     //!
     //!\brief Clear errors from prior calls to \p refitFromBytes or \p refitFromFile
     //!
-    //! \see getNbErrors() getError() IParserError
+    // see getNbErrors() getError() IParserError
     //!
     virtual void clearErrors() = 0;
 
     virtual ~IParserRefitter() noexcept = default;
 
     //!
-    //! \brief Load a serialized ONNX model into the parser. Unlike the refit(), or refitFromFile()
+    // brief Load a serialized ONNX model into the parser. Unlike the refit(), or refitFromFile()
     //! functions, this function does not immediately begin the refit process. Using this function
     //! allows users to provide their own initializers for the ONNX model through the loadInitializer() function.
     //!
@@ -550,17 +550,17 @@ public:
     //!
     //! To begin the refit process, use refitModelProto().
     //!
-    //! \param serializedOnnxModel Pointer to the serialized ONNX model. Can be freed after this function returns.
-    //! \param serializedOnnxModelSize Size of the serialized ONNX model in bytes.
-    //! \param modelPath Absolute path to the model file for loading external weights if required.
-    //! \return true if the model was loaded successfully
-    //! \see getNbErrors() getError()
+    // param serializedOnnxModel Pointer to the serialized ONNX model. Can be freed after this function returns.
+    // param serializedOnnxModelSize Size of the serialized ONNX model in bytes.
+    // param modelPath Absolute path to the model file for loading external weights if required.
+    // return true if the model was loaded successfully
+    // see getNbErrors() getError()
     //!
     virtual bool loadModelProto(
         void const* serializedOnnxModel, size_t serializedOnnxModelSize, char const* modelPath = nullptr) noexcept = 0;
 
     //!
-    //! \brief Prompt the ONNX refitter to load an initializer with user-provided binary data.
+    // brief Prompt the ONNX refitter to load an initializer with user-provided binary data.
     //! The lifetime of the data must exceed the lifetime of the refitter.
     //!
     //! All user-provided initializers must be provided prior to calling refitModelProto().
@@ -574,18 +574,18 @@ public:
     //! * The requested initializer was not found in the model.
     //! * The size of the data provided is different from the corresponding initializer in the model.
     //!
-    //! \param name Name of the initializer.
-    //! \param data Binary data containing the values of the initializer.
-    //! \param size Size of the initializer in bytes.
-    //! \return true if the initializer was loaded successfully
-    //! \see loadModelProto()
+    // param name Name of the initializer.
+    // param data Binary data containing the values of the initializer.
+    // param size Size of the initializer in bytes.
+    // return true if the initializer was loaded successfully
+    // see loadModelProto()
     //!
     virtual bool loadInitializer(char const* name, void const* data, size_t size) noexcept = 0;
 
-    //! \brief Begin the refit process from the loaded ONNX model.
+    // brief Begin the refit process from the loaded ONNX model.
     //!
-    //! \return true if refit was successful
-    //! \see getNbErrors() getError() loadModelProto()
+    // return true if refit was successful
+    // see getNbErrors() getError() loadModelProto()
     //!
     virtual bool refitModelProto() noexcept = 0;
 };
@@ -604,11 +604,11 @@ namespace
 {
 
 //!
-//! \brief Create a new parser object
+// brief Create a new parser object
 //!
-//! \param network The network definition that the parser will write to
-//! \param logger The logger to use
-//! \return a new parser object or NULL if an error occurred
+// param network The network definition that the parser will write to
+// param logger The logger to use
+// return a new parser object or NULL if an error occurred
 //!
 //! Any input dimensions that are constant should not be changed after parsing,
 //! because correctness of the translation may rely on those constants.
@@ -616,7 +616,7 @@ namespace
 //! TensorRT, to a constant is okay if the constant is consistent with the model.
 //! Each instance of the parser is designed to only parse one ONNX model once.
 //!
-//! \see IParser
+// see IParser
 //!
 inline IParser* createParser(nvinfer1::INetworkDefinition& network, nvinfer1::ILogger& logger) noexcept
 {
@@ -624,13 +624,13 @@ inline IParser* createParser(nvinfer1::INetworkDefinition& network, nvinfer1::IL
 }
 
 //!
-//! \brief Create a new ONNX refitter object
+// brief Create a new ONNX refitter object
 //!
-//! \param refitter The Refitter object used to refit the model
-//! \param logger The logger to use
-//! \return a new ParserRefitter object or NULL if an error occurred
+// param refitter The Refitter object used to refit the model
+// param logger The logger to use
+// return a new ParserRefitter object or NULL if an error occurred
 //!
-//! \see IParserRefitter
+// see IParserRefitter
 //!
 inline IParserRefitter* createParserRefitter(nvinfer1::IRefitter& refitter, nvinfer1::ILogger& logger) noexcept
 {

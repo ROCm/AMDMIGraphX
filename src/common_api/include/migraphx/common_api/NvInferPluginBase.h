@@ -29,9 +29,9 @@ namespace nvinfer1
 {
 
 //!
-//! \enum PluginFieldType
+// enum PluginFieldType
 //!
-//! \brief The possible field types for custom layer.
+// brief The possible field types for custom layer.
 //!
 enum class PluginFieldType : int32_t
 {
@@ -66,9 +66,9 @@ enum class PluginFieldType : int32_t
 };
 
 //!
-//! \class PluginField
+// class PluginField
 //!
-//! \brief Structure containing plugin attribute field names and associated data
+// brief Structure containing plugin attribute field names and associated data
 //! This information can be parsed to decode necessary plugin metadata
 //!
 //!
@@ -95,9 +95,9 @@ public:
 };
 
 //!
-//! \struct PluginFieldCollection
+// struct PluginFieldCollection
 //!
-//! \brief Plugin field collection struct.
+// brief Plugin field collection struct.
 //!
 struct PluginFieldCollection
 {
@@ -108,9 +108,9 @@ struct PluginFieldCollection
 };
 
 //!
-//! \enum TensorRTPhase
+// enum TensorRTPhase
 //!
-//! \brief Indicates a phase of operation of TensorRT
+// brief Indicates a phase of operation of TensorRT
 //!
 enum class TensorRTPhase : int32_t
 {
@@ -121,9 +121,9 @@ enum class TensorRTPhase : int32_t
 };
 
 //!
-//! \enum PluginCapabilityType
+// enum PluginCapabilityType
 //!
-//! \brief Enumerates the different capability types a IPluginV3 object may have
+// brief Enumerates the different capability types a IPluginV3 object may have
 //!
 enum class PluginCapabilityType : int32_t
 {
@@ -145,36 +145,36 @@ class IPluginResource : public IVersionedInterface
 {
 public:
     //!
-    //! \brief Return version information associated with this interface. Applications must not override this method.
+    // brief Return version information associated with this interface. Applications must not override this method.
     //!
     InterfaceInfo getInterfaceInfo() const noexcept override
     {
         return InterfaceInfo{"IPluginResource", 1, 0};
     }
     //!
-    //! \brief Free the underlying resource
+    // brief Free the underlying resource
     //!
     //! This will only be called for IPluginResource objects that were produced from IPluginResource::clone()
     //!
     //! The IPluginResource object on which release() is called must still be in a clone-able state
     //! after release() returns
     //!
-    //! \return 0 for success, else non-zero
-    //! \usage
+    // return 0 for success, else non-zero
+    // usage
     //! - Allowed context for the API call
     //!   - Thread-safe: No; this method is not required to be thread-safe
     //!
     virtual int32_t release() noexcept = 0;
 
     //!
-    //! \brief Clone the resource object
+    // brief Clone the resource object
     //!
-    //! \note Resource initialization (if any) may be skipped for non-cloned objects since only clones will be
+    // note Resource initialization (if any) may be skipped for non-cloned objects since only clones will be
     //! registered by TensorRT
     //!
-    //! \return Pointer to cloned object. nullptr if there was an issue.
+    // return Pointer to cloned object. nullptr if there was an issue.
     //!
-    //! \usage
+    // usage
     //! - Allowed context for the API call
     //!   - Thread-safe: Yes; this method is required to be thread-safe and may be called from multiple threads.
     //!
@@ -206,34 +206,34 @@ class IPluginV3 : public IVersionedInterface
 {
 public:
     //!
-    //! \brief Return version information associated with this interface. Applications must not override this method.
+    // brief Return version information associated with this interface. Applications must not override this method.
     //!
     InterfaceInfo getInterfaceInfo() const noexcept override
     {
         return InterfaceInfo{"PLUGIN", 1, 0};
     }
 
-    //! \brief Return a pointer to plugin object implementing the specified PluginCapabilityType.
+    // brief Return a pointer to plugin object implementing the specified PluginCapabilityType.
     //!
-    //! \note IPluginV3 objects added for the build phase (through addPluginV3()) must return valid objects for
+    // note IPluginV3 objects added for the build phase (through addPluginV3()) must return valid objects for
     //! PluginCapabilityType::kCORE, PluginCapabilityType::kBUILD and PluginCapabilityType::kRUNTIME.
     //!
-    //! \note IPluginV3 objects added for the runtime phase must return valid objects for
+    // note IPluginV3 objects added for the runtime phase must return valid objects for
     //! PluginCapabilityType::kCORE and PluginCapabilityType::kRUNTIME.
     //!
-    //! \see TensorRTPhase
-    //! \see IPluginCreatorV3One::createPlugin()
+    // see TensorRTPhase
+    // see IPluginCreatorV3One::createPlugin()
     //!
     virtual IPluginCapability* getCapabilityInterface(PluginCapabilityType type) noexcept = 0;
 
     //!
-    //! \brief Clone the plugin object. This copies over internal plugin parameters and returns a new plugin object with
+    // brief Clone the plugin object. This copies over internal plugin parameters and returns a new plugin object with
     //! these parameters. The cloned object must be in a fully initialized state.
     //!
-    //! \note The cloned object must return valid objects through getCapabilityInterface() for at least the same
+    // note The cloned object must return valid objects through getCapabilityInterface() for at least the same
     //! PluginCapabilityTypes as the original object.
     //!
-    //! \return A cloned plugin object in an initialized state with the same parameters as the current object.
+    // return A cloned plugin object in an initialized state with the same parameters as the current object.
     //!         nullptr must be returned if the cloning fails.
     //!
     virtual IPluginV3* clone() noexcept = 0;
@@ -241,49 +241,49 @@ public:
 } // namespace v_1_0
 
 //!
-//! \class IPluginResource
+// class IPluginResource
 //!
-//! \brief Interface for plugins to define custom resources that could be shared through the plugin registry
+// brief Interface for plugins to define custom resources that could be shared through the plugin registry
 //!
-//! \see IPluginRegistry::acquirePluginResource
-//! \see IPluginRegistry::releasePluginResource
+// see IPluginRegistry::acquirePluginResource
+// see IPluginRegistry::releasePluginResource
 //!
 using IPluginResource = v_1_0::IPluginResource;
 
 //!
-//! \class IPluginCreatorInterface
+// class IPluginCreatorInterface
 //!
-//! \brief Base class for all plugin creator versions.
+// brief Base class for all plugin creator versions.
 //!
-//! \see IPluginCreator and IPluginRegistry
+// see IPluginCreator and IPluginRegistry
 //!
 using IPluginCreatorInterface = v_1_0::IPluginCreatorInterface;
 
 //!
-//! \class IPluginV3
+// class IPluginV3
 //!
-//! \brief Plugin class for the V3 generation of user-implemented layers.
+// brief Plugin class for the V3 generation of user-implemented layers.
 //!
 //! IPluginV3 acts as a wrapper around the plugin capability interfaces that define the actual behavior of the plugin.
 //!
-//! \see IPluginCapability
-//! \see IPluginCreatorV3One
-//! \see IPluginRegistry
+// see IPluginCapability
+// see IPluginCreatorV3One
+// see IPluginRegistry
 //!
 using IPluginV3 = v_1_0::IPluginV3;
 
 //!
-//! \class IPluginCapability
+// class IPluginCapability
 //!
-//! \brief Base class for plugin capability interfaces
+// brief Base class for plugin capability interfaces
 //!
 //!  IPluginCapability represents a split in TensorRT V3 plugins to sub-objects that expose different types of
 //!  capabilites a plugin may have, as opposed to a single interface which defines all capabilities and behaviors of a
 //!  plugin.
 //!
-//! \warning Do not inherit from this class, as doing so will break forward-compatibility of the API and ABI.
+// warning Do not inherit from this class, as doing so will break forward-compatibility of the API and ABI.
 //!
-//! \see PluginCapabilityType
+// see PluginCapabilityType
 //!
 using IPluginCapability = v_1_0::IPluginCapability;
 } // namespace nvinfer1

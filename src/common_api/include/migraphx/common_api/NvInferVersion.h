@@ -16,7 +16,7 @@
  */
 
 //!
-//! \file NvInferVersion.h
+// file NvInferVersion.h
 //!
 //! Defines the TensorRT version
 //!

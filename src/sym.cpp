@@ -207,8 +207,8 @@ static std::string get_name(const node_variant& nv)
 
 std::shared_ptr<const expr::impl> expr::make_impl(node_variant node, std::vector<expr> children)
 {
-    bool raw = std::any_of(
-        children.begin(), children.end(), [](const expr& e) { return e.is_raw(); });
+    bool raw =
+        std::any_of(children.begin(), children.end(), [](const expr& e) { return e.is_raw(); });
     if(auto* v = std::get_if<variable_node>(&node))
         raw = raw or (not v->name.empty() and v->name[0] == '_');
     return std::make_shared<const impl>(impl{std::move(node), std::move(children), raw});
@@ -269,9 +269,8 @@ static bool is_pvar(const expr& e)
     return v != nullptr and not v->name.empty() and v->name[0] == '_';
 }
 
-static bool match_expr(const expr& pattern,
-                       const expr& e,
-                       std::unordered_map<std::string, expr>& bindings)
+static bool
+match_expr(const expr& pattern, const expr& e, std::unordered_map<std::string, expr>& bindings)
 {
     if(is_pvar(pattern))
     {
@@ -818,10 +817,7 @@ expr simplify_impl(const expr& e, const std::vector<rewrite_rule>& rules)
 
 } // namespace
 
-expr simplify(expr e, std::vector<rewrite_rule> rules)
-{
-    return simplify_impl(e, rules);
-}
+expr simplify(expr e, std::vector<rewrite_rule> rules) { return simplify_impl(e, rules); }
 
 } // namespace sym
 } // namespace MIGRAPHX_INLINE_NS

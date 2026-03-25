@@ -275,10 +275,7 @@ expr operator+(expr ex, expr ey)
                                                                        std::move(ey));
 }
 
-expr operator-(expr ex, expr ey)
-{
-    return ex + (-ey);
-}
+expr operator-(expr ex, expr ey) { return ex + (-ey); }
 
 expr operator*(expr ex, expr ey)
 {

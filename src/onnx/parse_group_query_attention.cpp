@@ -143,36 +143,17 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
                                              rotary_qkv);
 
         std::vector<size_t> static_strides(k->get_shape().ndim(), 1);
-        if(batch_size > 1)
+        slk_slice = info.add_instruction(make_op("multibroadcast", {{"out_lens", {batch_size, 4}}}), slk_slice);
+        auto slk_mask = info.add_literal(literal{shape{slk->get_shape().type(), {4}}, {0, 0, 1, 0}});
+        slk_mask = info.add_instruction(make_op("multibroadcast", {{"out_lens", {batch_size, 4}}}), slk_mask);
+        slk_slice = info.add_instruction(make_op("mul"), slk_mask, slk_slice);
+        if(batch_size == 1)
         {
-            std::vector<instruction_ref> k_slices;
-            std::vector<instruction_ref> v_slices;
-            for(auto i = 0; i < batch_size; i++)
-            {
-                auto slk_slice = info.add_instruction(make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}), slk);
-                auto rotary_k_slice = info.add_instruction(make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}), rotary_k);
-                auto rotary_v_slice = info.add_instruction(make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}), rotary_v);
-                k_slices.push_back(info.add_instruction(make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}), k));
-                v_slices.push_back(info.add_instruction(make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}), v));
-                slk_slice = info.add_instruction(make_op("squeeze"), slk_slice);
-                slk_slice = info.add_instruction(make_op("multibroadcast", {{"out_lens", {4}}}), slk_slice);
-                auto slk_mask = info.add_literal(literal{shape{slk->get_shape().type(), {4}}, {0, 0, 1, 0}});
-                slk_slice = info.add_instruction(make_op("mul"), slk_mask, slk_slice);
-                k_slices[i] = info.add_instruction(make_op("insert_slice", {{"static_strides", static_strides}, {"deref_dest", false}}), {rotary_k_slice, k_slices[i], slk_slice});
-                v_slices[i] = info.add_instruction(make_op("insert_slice", {{"static_strides", static_strides}, {"deref_dest", false}}), {rotary_v_slice, v_slices[i], slk_slice});
-            }
-            k = info.add_instruction(make_op("concat", {{"axis", 0}}), k_slices);
-            v = info.add_instruction(make_op("concat", {{"axis", 0}}), v_slices);
+            slk_slice = info.add_instruction(make_op("squeeze"), slk_slice);
         }
-        else
-        {
-            auto slk_slice = info.add_instruction(make_op("squeeze"), slk);
-            slk_slice = info.add_instruction(make_op("multibroadcast", {{"out_lens", {4}}}), slk_slice);
-            auto slk_mask = info.add_literal(literal{shape{slk->get_shape().type(), {4}}, {0, 0, 1, 0}});
-            slk_slice = info.add_instruction(make_op("mul"), slk_mask, slk_slice);
-            k = info.add_instruction(make_op("insert_slice", {{"static_strides", static_strides}, {"deref_dest", false}}), {rotary_k, k, slk_slice});
-            v = info.add_instruction(make_op("insert_slice", {{"static_strides", static_strides}, {"deref_dest", false}}), {rotary_v, v, slk_slice});
-        }
+        k = info.add_instruction(make_op("insert_slice", {{"static_strides", static_strides}, {"deref_dest", false}}), {rotary_k, k, slk_slice});
+        v = info.add_instruction(make_op("insert_slice", {{"static_strides", static_strides}, {"deref_dest", false}}), {rotary_v, v, slk_slice});
+        
 
         auto k_out = k;
         auto v_out = v;

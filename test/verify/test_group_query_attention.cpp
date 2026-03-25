@@ -111,36 +111,17 @@ static migraphx::program create_gqa_program(const size_t batch_size,
 
     
     std::vector<size_t> static_strides(kv_s.ndim(), 1);
-    if(batch_size > 1)
+    auto slk_slice = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, 4}}}), slk);
+    auto slk_mask = mm->add_literal(migraphx::literal{migraphx::shape{slk_s.type(), {4}}, {0, 0, 1, 0}});
+    slk_mask = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, 4}}}), slk_mask);
+    slk_slice = mm->add_instruction(migraphx::make_op("mul"), slk_mask, slk_slice);
+    if(batch_size == 1)
     {
-        std::vector<migraphx::instruction_ref> k_slices;
-        std::vector<migraphx::instruction_ref> v_slices;
-        for(auto i = 0; i < batch_size; i++)
-        {
-            auto slk_slice = mm->add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}), slk);
-            auto rotary_k_slice = mm->add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}), rotary_k);
-            auto rotary_v_slice = mm->add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}), rotary_v);
-            k_slices.push_back(mm->add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}), k));
-            v_slices.push_back(mm->add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}), v));
-            slk_slice = mm->add_instruction(migraphx::make_op("squeeze"), slk_slice);
-            slk_slice = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4}}}), slk_slice);
-            auto slk_mask = mm->add_literal(migraphx::literal{migraphx::shape{slk_s.type(), {4}}, {0, 0, 1, 0}});
-            slk_slice = mm->add_instruction(migraphx::make_op("mul"), slk_mask, slk_slice);
-            k_slices[i] = mm->add_instruction(migraphx::make_op("insert_slice", {{"static_strides", static_strides}, {"deref_dest", false}}), {rotary_k_slice, k_slices[i], slk_slice});
-            v_slices[i] = mm->add_instruction(migraphx::make_op("insert_slice", {{"static_strides", static_strides}, {"deref_dest", false}}), {rotary_v_slice, v_slices[i], slk_slice});
-        }
-        k = mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), k_slices);
-        v = mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), v_slices);
+        slk_slice = mm->add_instruction(migraphx::make_op("squeeze"), slk_slice);
     }
-    else
-    {
-        auto slk_slice = mm->add_instruction(migraphx::make_op("squeeze"), slk);
-        slk_slice = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4}}}), slk_slice);
-        auto slk_mask = mm->add_literal(migraphx::literal{migraphx::shape{slk_s.type(), {4}}, {0, 0, 1, 0}});
-        slk_slice = mm->add_instruction(migraphx::make_op("mul"), slk_mask, slk_slice);
-        k = mm->add_instruction(migraphx::make_op("insert_slice", {{"static_strides", static_strides}, {"deref_dest", false}}), {rotary_k, k, slk_slice});
-        v = mm->add_instruction(migraphx::make_op("insert_slice", {{"static_strides", static_strides}, {"deref_dest", false}}), {rotary_v, v, slk_slice});
-    }
+    k = mm->add_instruction(migraphx::make_op("insert_slice", {{"static_strides", static_strides}, {"deref_dest", false}}), {rotary_k, k, slk_slice});
+    v = mm->add_instruction(migraphx::make_op("insert_slice", {{"static_strides", static_strides}, {"deref_dest", false}}), {rotary_v, v, slk_slice});
+    
 
     auto k_out = k;
     auto v_out = v;

@@ -67,8 +67,9 @@ __device__ void insert_slice(const index& idx,
     });
 }
 
-// Variant with offsets read from a 1D tensor (runtime offsets) instead of compile-time constants.
+// Variant with offsets read from a tensor: 1D [rank] per-axis, or 2D [batch, rank] (batch = axis 0).
 template <index_int Rank,
+          bool BatchedOffsets,
           class Strides,
           bool DerefDest,
           class OffsetsTensor,
@@ -87,8 +88,9 @@ __device__ void insert_slice(const index& idx,
     idx.global_stride(src_elements, [&](auto i) {
         auto src_idx = src_shape.multi(i);
         array<index_int, Rank> dest_idx;
+        const index_int b  = BatchedOffsets ? src_idx[0] : 0;
         for(index_int j = 0; j < Rank; j++)
-            dest_idx[j] = static_cast<index_int>(src_idx[j] * strides[j] + offsets_tensor[j]);
+            dest_idx[j] = static_cast<index_int>(src_idx[j] * strides[j] + offsets_tensor[(b * Rank) + j]);
 
         if constexpr(DerefDest)
         {

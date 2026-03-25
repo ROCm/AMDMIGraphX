@@ -55,6 +55,36 @@ struct insert_slice
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has_at_least(2);
+        const auto& src  = inputs[0];
+        const auto& dest = inputs[1];
+        const auto rank  = src.ndim();
+        if(inputs.size() > 2)
+        {
+            const auto& off = inputs[2];
+            if(off.ndim() == 1)
+            {
+                if(off.lens().front() != rank)
+                    MIGRAPHX_THROW(
+                        "insert_slice: 1D offsets length must equal rank (per-axis offsets)");
+            }
+            else if(off.ndim() == 2)
+            {
+                if(off.lens()[1] != rank)
+                    MIGRAPHX_THROW(
+                        "insert_slice: batched offsets must be shape [batch, rank] (second dim = rank)");
+                if(off.lens()[0] != src.lens().front())
+                    MIGRAPHX_THROW(
+                        "insert_slice: batched offsets batch must match source first dimension");
+                if(dest.lens().front() != src.lens().front())
+                    MIGRAPHX_THROW(
+                        "insert_slice: batched offsets require matching first dimension on src and dest");
+            }
+            else
+            {
+                MIGRAPHX_THROW(
+                    "insert_slice: offsets tensor must be 1D [rank] or 2D [batch, rank]");
+            }
+        }
         return inputs[1];
     }
 
@@ -70,13 +100,21 @@ struct insert_slice
         std::vector<std::size_t> offsets;
         std::vector<std::size_t> sizes;
         std::vector<std::size_t> strides;
-        if(args.size() > 2)
+        const bool tensor_offsets = args.size() > 2;
+        auto off_shape            = tensor_offsets ? args[2].get_shape() : shape{};
+        const bool batched_offsets =
+            tensor_offsets and off_shape.ndim() == 2;
+        if(tensor_offsets /* and not batched_offsets */)
         {
             args[2].visit([&](auto offs) {
-                std::transform(offs.begin(), offs.end(), std::back_inserter(offsets), [](auto x) { return static_cast<std::size_t>(x); });
+                offsets.clear();
+                std::transform(
+                    offs.begin(), offs.end(), std::back_inserter(offsets), [](auto x) {
+                        return static_cast<std::size_t>(x);
+                    });
             });
         }
-        else
+        else if(not tensor_offsets)
         {
             offsets = static_offsets;
         }
@@ -107,8 +145,9 @@ struct insert_slice
                 par_for(src_shape.elements(), [&](auto i) {
                     auto src_idx = src_shape.multi(i);
                     auto dest_idx = dest_shape.multi(i);
+                    const std::size_t b = batched_offsets ? src_idx[0] : 0;
                     for(auto j = 0; j < rank; j++) {
-                        dest_idx[j] = (src_idx[j] * strides[j]) + offsets[j];
+                        dest_idx[j] = (src_idx[j] * strides[j]) + offsets[(b * rank) + j];
                     }
                     if(deref_dest)
                     {

@@ -75,7 +75,7 @@ MIGRAPHX_GLOBAL void insert_slice_kernel(void* input0_p, void* input1_p, void* i
     auto idx     = make_index();
     auto strides = index_ints<${strides}>{};
     make_tensors()(input0_p, input1_p, input2_p)([&](auto source, auto output, auto offsets_tensor) {
-        insert_slice<_rank_, index_ints<${strides}>, _deref_dest_>(
+        insert_slice<_rank_, _batched_offsets_, index_ints<${strides}>, _deref_dest_>(
             idx, offsets_tensor, strides, source, output);
     });
 }
@@ -113,7 +113,8 @@ struct insert_slice_compiler : compiler<insert_slice_compiler>
 
         hip_compile_options options;
         const auto& out_s = inputs[1]; // in-place output = destination tensor
-        options.set_launch_params(v, compute_global_for(ctx, out_s.elements()));
+        const auto& in_s = inputs[0]; // source tensor
+        options.set_launch_params(v, compute_global_for(ctx, in_s.elements()));
         options.inputs      = inputs;
         options.output      = out_s;
         options.kernel_name = "insert_slice_kernel";
@@ -137,14 +138,16 @@ struct insert_slice_compiler : compiler<insert_slice_compiler>
             return compile_hip_code_object(ctx, src, options);
         }
 
-        // inputs.size() == 3: source, dest, offsets (dynamic)
-        std::string src = interpolate_string(
+        // inputs.size() == 3: source, dest, offsets (1D [rank] or 2D [batch, rank])
+        const bool batched_offsets = inputs[2].ndim() == 2;
+        std::string src            = interpolate_string(
             insert_slice_dynamic_offsets_kernel,
             {{"rank", std::to_string(rank)},
              {"strides", strides_str},
              {"deref_dest", deref_dest ? "true" : "false"}});
         replace_string_inplace(src, "_rank_", std::to_string(rank));
         replace_string_inplace(src, "_deref_dest_", deref_dest ? "true" : "false");
+        replace_string_inplace(src, "_batched_offsets_", batched_offsets ? "true" : "false");
         return compile_hip_code_object(ctx, src, options);
     }
 

@@ -165,3 +165,35 @@ struct test_insert_slice_offsets_input : verify_program<test_insert_slice_offset
 
 template struct test_insert_slice_offsets_input<migraphx::shape::float_type>;
 template struct test_insert_slice_offsets_input<migraphx::shape::half_type>;
+
+// Batched offsets [batch, rank]: row b gives per-axis offsets for batch index b (source axis 0).
+template <migraphx::shape::type_t DType>
+struct test_insert_slice_batched_offsets : verify_program<test_insert_slice_batched_offsets<DType>>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape src_shape{DType, {2, 2}};
+        migraphx::shape dest_shape{DType, {2, 3}};
+        migraphx::shape offsets_shape{migraphx::shape::int64_type, {2, 2}};
+        // batch 0 -> {0,0}, batch 1 -> {0,1}; places 2x2 src blocks at (0,0) and (1,1) corners.
+        std::vector<int64_t> offsets_data = {0, 0, 0, 1};
+
+        auto source = mm->add_parameter("source", src_shape);
+        auto dest   = mm->add_parameter("dest", dest_shape);
+        auto offsets_lit =
+            mm->add_literal(migraphx::literal{offsets_shape, offsets_data});
+
+        mm->add_instruction(
+            migraphx::make_op("insert_slice",
+                             {{"static_strides", {1, 1}}, {"deref_dest", false}}),
+            source,
+            dest,
+            offsets_lit);
+        return p;
+    }
+};
+
+template struct test_insert_slice_batched_offsets<migraphx::shape::float_type>;
+template struct test_insert_slice_batched_offsets<migraphx::shape::half_type>;

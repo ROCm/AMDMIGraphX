@@ -155,6 +155,39 @@ TEST_CASE(insert_slice_deref_dest_half)
     EXPECT(migraphx::verify::verify_rms_range(results_vector, source_data));
 }
 
+TEST_CASE(insert_slice_batched_offsets_input)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    std::vector<float> source_data(4, 1.0f);
+    std::vector<float> dest_data(6, 0.0f);
+    std::vector<int64_t> offsets_data = {0, 0, 0, 1};
+
+    migraphx::shape src_shape{migraphx::shape::float_type, {2, 2}};
+    migraphx::shape dest_shape{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape offsets_shape{migraphx::shape::int64_type, {2, 2}};
+
+    auto source_lit  = mm->add_literal(migraphx::literal{src_shape, source_data});
+    auto dest_lit    = mm->add_literal(migraphx::literal{dest_shape, dest_data});
+    auto offsets_lit = mm->add_literal(migraphx::literal{offsets_shape, offsets_data});
+
+    mm->add_instruction(
+        migraphx::make_op("insert_slice",
+                         {{"static_strides", {1, 1}}, {"deref_dest", false}}),
+        source_lit,
+        dest_lit,
+        offsets_lit);
+
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+
+    std::vector<float> expected = {1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f};
+    std::vector<float> results_vector(6);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, expected));
+}
+
 TEST_CASE(insert_slice_with_strides)
 {
     // Scatter source into output at dest_idx = src_idx * strides + offsets.

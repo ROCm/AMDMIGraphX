@@ -334,68 +334,91 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         }
     }
 
+    void check_past_key(const std::vector<instruction_ref>& args,
+                        const multi_head_attention_parameters& params) const
+    {
+        if(args.size() <= 6)
+            return;
+
+        // Skip validation if past_key is empty (optional input not provided)
+        if(args.at(6)->get_shape().elements() == 0)
+            return;
+
+        const auto past_key_lens = args.at(6)->get_shape().lens();
+        if(past_key_lens.size() != 4)
+            MIGRAPHX_THROW("MultiHeadAttention: past_key must be 4D shape");
+
+        if(past_key_lens[0] != params.batch_size)
+            MIGRAPHX_THROW("MultiHeadAttention: past_key first dimension must be batch_size");
+
+        if(past_key_lens[1] != params.num_heads)
+            MIGRAPHX_THROW("MultiHeadAttention: past_key second dimension must be num_heads");
+
+        if(past_key_lens[3] != params.head_size)
+            MIGRAPHX_THROW("MultiHeadAttention: past_key fourth dimension must be head_size");
+    }
+
+    void check_past_value(const std::vector<instruction_ref>& args,
+                          const multi_head_attention_parameters& params) const
+    {
+        if(args.size() <= 7)
+            return;
+
+        // Skip validation if past_value is empty (optional input not provided)
+        if(args.at(7)->get_shape().elements() == 0)
+            return;
+
+        const auto past_value_lens = args.at(7)->get_shape().lens();
+        if(past_value_lens.size() != 4)
+            MIGRAPHX_THROW("MultiHeadAttention: past_value must be 4D shape");
+
+        if(past_value_lens[0] != params.batch_size)
+            MIGRAPHX_THROW("MultiHeadAttention: past_value first dimension must be batch_size");
+
+        if(past_value_lens[1] != params.num_heads)
+            MIGRAPHX_THROW("MultiHeadAttention: past_value second dimension must be num_heads");
+
+        if(past_value_lens[3] != params.head_size_v)
+            MIGRAPHX_THROW("MultiHeadAttention: past_value fourth dimension must be head_size_v");
+    }
+
+    void check_past_key_value_match(const std::vector<instruction_ref>& args) const
+    {
+        if(args.size() <= 7 or args.size() <= 6)
+            return;
+
+        // Skip if either past_key or past_value is empty
+        if(args.at(6)->get_shape().elements() == 0 or args.at(7)->get_shape().elements() == 0)
+            return;
+
+        const auto past_key_lens   = args.at(6)->get_shape().lens();
+        const auto past_value_lens = args.at(7)->get_shape().lens();
+        if(past_value_lens[2] != past_key_lens[2])
+            MIGRAPHX_THROW("MultiHeadAttention: past_key and past_value must have "
+                           "matching past_sequence_length");
+    }
+
+    void check_past_sequence_length(const std::vector<instruction_ref>& args) const
+    {
+        if(args.size() <= 8)
+            return;
+
+        // Skip validation if past_sequence_length is empty
+        if(args.at(8)->get_shape().elements() == 0)
+            return;
+
+        const auto past_seq_len_type = args.at(8)->get_shape().type();
+        if(past_seq_len_type != shape::int32_type)
+            MIGRAPHX_THROW("MultiHeadAttention: past_sequence_length must be a int32 tensor");
+    }
+
     void check_past_inputs(const std::vector<instruction_ref>& args,
                            const multi_head_attention_parameters& params) const
     {
-        if(args.size() > 6)
-        {
-            // Skip validation if past_key is empty (optional input not provided)
-            if(args.at(6)->get_shape().elements() == 0)
-                return;
-
-            const auto past_key_lens = args.at(6)->get_shape().lens();
-            if(past_key_lens.size() != 4)
-                MIGRAPHX_THROW("MultiHeadAttention: past_key must be 4D shape");
-
-            if(past_key_lens[0] != params.batch_size)
-                MIGRAPHX_THROW("MultiHeadAttention: past_key first dimension must be batch_size");
-
-            if(past_key_lens[1] != params.num_heads)
-                MIGRAPHX_THROW("MultiHeadAttention: past_key second dimension must be num_heads");
-
-            if(past_key_lens[3] != params.head_size)
-                MIGRAPHX_THROW("MultiHeadAttention: past_key fourth dimension must be head_size");
-        }
-
-        if(args.size() > 7)
-        {
-            // Skip validation if past_value is empty (optional input not provided)
-            if(args.at(7)->get_shape().elements() == 0)
-                return;
-
-            const auto past_value_lens = args.at(7)->get_shape().lens();
-            if(past_value_lens.size() != 4)
-                MIGRAPHX_THROW("MultiHeadAttention: past_value must be 4D shape");
-
-            if(past_value_lens[0] != params.batch_size)
-                MIGRAPHX_THROW("MultiHeadAttention: past_value first dimension must be batch_size");
-
-            if(past_value_lens[1] != params.num_heads)
-                MIGRAPHX_THROW("MultiHeadAttention: past_value second dimension must be num_heads");
-
-            if(past_value_lens[3] != params.head_size_v)
-                MIGRAPHX_THROW(
-                    "MultiHeadAttention: past_value fourth dimension must be head_size_v");
-
-            if(args.size() > 6)
-            {
-                const auto past_key_lens = args.at(6)->get_shape().lens();
-                if(past_value_lens[2] != past_key_lens[2])
-                    MIGRAPHX_THROW("MultiHeadAttention: past_key and past_value must have "
-                                   "matching past_sequence_length");
-            }
-        }
-
-        if(args.size() > 8)
-        {
-            // Skip validation if past_sequence_length is empty
-            if(args.at(8)->get_shape().elements() == 0)
-                return;
-
-            const auto past_seq_len_type = args.at(8)->get_shape().type();
-            if(past_seq_len_type != shape::int32_type)
-                MIGRAPHX_THROW("MultiHeadAttention: past_sequence_length must be a int32 tensor");
-        }
+        check_past_key(args, params);
+        check_past_value(args, params);
+        check_past_key_value_match(args);
+        check_past_sequence_length(args);
     }
 
     void check_inputs(const std::vector<instruction_ref>& args,

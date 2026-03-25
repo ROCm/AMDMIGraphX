@@ -24,7 +24,7 @@
 cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
 
 if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_BINARY_DIR}")
-    message(FATAL_ERROR "The binary and source directroy cannot be the same")
+    message(FATAL_ERROR "The binary and source directory cannot be the same")
 endif()
 
 # Setup valid strings for build type
@@ -307,6 +307,11 @@ rocm_enable_cppcheck(
         portability
     SUPPRESS
         ConfigurationNotChecked
+        duplInheritedMember
+        assertWithSideEffect
+        returnByReference
+        throwInEntryPoint
+        redundantCopyLocalConst
         unmatchedSuppression
         unusedFunction
         ctuPointerArith
@@ -330,6 +335,7 @@ rocm_enable_cppcheck(
         migraphx-RedundantLocalVariable:*src/api/api.cpp
         migraphx-UseSmartPointer:*src/api/api.cpp
     FORCE
+    EXHAUSTIVE
     INCONCLUSIVE
     RULE_FILE
         ${CMAKE_CURRENT_SOURCE_DIR}/tools/cppcheck/rules.xml
@@ -346,11 +352,18 @@ rocm_enable_cppcheck(
         ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/gpu/device/include
         ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/gpu/kernels/include
         ${CMAKE_CURRENT_SOURCE_DIR}/test/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/api/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/onnx/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/op/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/tf/include
     DEFINE
         MIGRAPHX_MLIR=1
         MIGRAPHX_HAS_EXECUTORS=0
         CPPCHECK=1
         MIGRAPHX_USE_MIOPEN=1
+        MIGRAPHX_NGLOBAL=1024
+        MIGRAPHX_NLOCAL=256
+        MIGRAPHX_WAVEFRONTSIZE=64
         BUILD_DEV=
         __device__=
         __host__=
@@ -361,6 +374,7 @@ rocm_enable_cppcheck(
         HAS_HALF_V1
         TYPE_ERASED_DECLARATION
         NDEBUG
+        MIGRAPHX_GUARD_TEST_TEST_HPP
 )
 
 include(ROCMCreatePackage)

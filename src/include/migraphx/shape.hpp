@@ -217,12 +217,11 @@ struct MIGRAPHX_EXPORT shape
     // Force all calls of the format `shape( type_t, { size_t compatibles } )` to map to
     // shape(type_t, std::vector<std::size_t> l)
     shape(type_t t, std::initializer_list<std::size_t> d);
+    shape(type_t t, std::initializer_list<std::size_t> l, std::initializer_list<std::size_t> s);
 
     shape(type_t t, std::vector<dynamic_dimension> dims);
 
-    explicit shape(type_t t,
-                   std::vector<dynamic_dimension> dims,
-                   std::vector<symbolic_expr> dstrides);
+    shape(type_t t, std::vector<dynamic_dimension> dims, std::vector<symbolic_expr> dstrides);
 
     // Construct a dynamic shape from vectors of mins, maxes, and optimals.
     // optimals_list is a vector of optimals that corresponds to each min and max.

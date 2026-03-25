@@ -382,6 +382,13 @@ shape::shape(type_t t, std::initializer_list<std::size_t> d)
 {
 }
 
+shape::shape(type_t t, std::initializer_list<std::size_t> l, std::initializer_list<std::size_t> s)
+    : shape::shape(t,
+                   std::vector<std::size_t>{l.begin(), l.end()},
+                   std::vector<std::size_t>{s.begin(), s.end()})
+{
+}
+
 shape::shape(type_t t, std::vector<shape::dynamic_dimension> dims)
     : impl(std::make_shared<shape_impl>(t, std::move(dims)))
 {

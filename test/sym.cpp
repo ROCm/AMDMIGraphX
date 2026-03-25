@@ -907,8 +907,9 @@ TEST_CASE(flatten_add_both)
     auto c = var("c");
     auto d = var("d");
     // (a + b) + (c + d) should flatten to +(a, b, c, d)
-    auto e      = (a + b) + (c + d);
-    auto result = e.eval({{"a", int64_t{1}}, {"b", int64_t{2}}, {"c", int64_t{3}}, {"d", int64_t{4}}});
+    auto e = (a + b) + (c + d);
+    auto result =
+        e.eval({{"a", int64_t{1}}, {"b", int64_t{2}}, {"c", int64_t{3}}, {"d", int64_t{4}}});
     EXPECT(result == value{int64_t{10}});
     EXPECT(e.children().size() == 4);
 }
@@ -946,8 +947,9 @@ TEST_CASE(flatten_nested_add)
     auto c = var("c");
     auto d = var("d");
     // ((a + b) + c) + d should flatten to +(a, b, c, d)
-    auto e      = ((a + b) + c) + d;
-    auto result = e.eval({{"a", int64_t{1}}, {"b", int64_t{2}}, {"c", int64_t{3}}, {"d", int64_t{4}}});
+    auto e = ((a + b) + c) + d;
+    auto result =
+        e.eval({{"a", int64_t{1}}, {"b", int64_t{2}}, {"c", int64_t{3}}, {"d", int64_t{4}}});
     EXPECT(result == value{int64_t{10}});
     EXPECT(e.children().size() == 4);
 }

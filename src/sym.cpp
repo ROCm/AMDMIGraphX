@@ -199,10 +199,7 @@ interval min(interval x, interval y) { return {value_min(x.min, y.min), value_mi
 
 interval max(interval x, interval y) { return {value_max(x.min, y.min), value_max(x.max, y.max)}; }
 
-expr lit(value v)
-{
-    return expr(literal_node{v});
-}
+expr lit(value v) { return expr(literal_node{v}); }
 
 expr var(std::string name) { return expr(variable_node{std::move(name), {}}); }
 
@@ -215,7 +212,8 @@ expr arg(expr x) { return x; }
 
 expr call_op(const op_def* op, std::vector<expr> args)
 {
-    bool is_const = std::all_of(args.begin(), args.end(), [](const expr& e) { return e.name() == "literal"; });
+    bool is_const =
+        std::all_of(args.begin(), args.end(), [](const expr& e) { return e.name() == "literal"; });
     auto e = expr(op_node{op}, std::move(args));
     if(is_const)
         return lit(e.eval({}));

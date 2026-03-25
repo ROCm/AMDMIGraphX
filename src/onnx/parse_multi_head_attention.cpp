@@ -805,13 +805,8 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         }
 
         result = info.add_common_op("mul", result, scale_literal);
-<<<<<<< HEAD
         auto qk_output = info.add_instruction(make_op("softmax", {{"axis", -1}}), result);
         result = info.add_instruction(make_op("dot"), qk_output, value);
-=======
-        result = info.add_instruction(make_op("softmax", {{"axis", -1}}), result);
-        result = info.add_instruction(make_op("dot"), result, value);
->>>>>>> develop
         result = info.add_instruction(make_op("transpose", {{"permutation", perm}}), result);
         result = info.add_instruction(
             make_op(

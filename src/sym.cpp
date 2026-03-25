@@ -220,6 +220,204 @@ expr var(std::string name, interval constraint)
 
 expr arg(expr x) { return x; }
 
+static int node_type_index(const node_variant& nv)
+{
+    if(std::get_if<literal_node>(&nv))
+        return 0;
+    if(std::get_if<variable_node>(&nv))
+        return 1;
+    return 2;
+}
+
+static bool expr_less(const expr& a, const expr& b)
+{
+    int ai = node_type_index(a.node());
+    int bi = node_type_index(b.node());
+    if(ai != bi)
+        return ai < bi;
+    if(auto* la = std::get_if<literal_node>(&a.node()))
+    {
+        auto* lb = std::get_if<literal_node>(&b.node());
+        return la->val < lb->val;
+    }
+    if(auto* va = std::get_if<variable_node>(&a.node()))
+    {
+        auto* vb = std::get_if<variable_node>(&b.node());
+        return va->name < vb->name;
+    }
+    auto* oa = std::get_if<op_node>(&a.node());
+    auto* ob = std::get_if<op_node>(&b.node());
+    if(oa->op->name != ob->op->name)
+        return oa->op->name < ob->op->name;
+    return std::lexicographical_compare(a.children().begin(),
+                                        a.children().end(),
+                                        b.children().begin(),
+                                        b.children().end(),
+                                        expr_less);
+}
+
+static bool is_commutative(const std::string& name) { return name == "+" or name == "*"; }
+
+static bool is_zero(const value& v) { return v == value{int64_t{0}} or v == value{0.0}; }
+
+static bool is_one(const value& v) { return v == value{int64_t{1}} or v == value{1.0}; }
+
+struct term
+{
+    value coeff;
+    std::vector<expr> bases;
+};
+
+static term extract_term(const expr& e)
+{
+    if(e.name() == "literal")
+    {
+        auto* n = std::get_if<literal_node>(&e.node());
+        return {n->val, {}};
+    }
+    if(e.name() == "*")
+    {
+        value coeff{int64_t{1}};
+        std::vector<expr> bases;
+        for(const auto& child : e.children())
+        {
+            if(child.name() == "literal")
+            {
+                auto* n = std::get_if<literal_node>(&child.node());
+                coeff = value_invoke_common([](auto x, auto y) { return x * y; }, coeff, n->val);
+            }
+            else
+            {
+                bases.push_back(child);
+            }
+        }
+        return {coeff, std::move(bases)};
+    }
+    return {value{int64_t{1}}, {e}};
+}
+
+static expr build_term(const term& t)
+{
+    if(t.bases.empty())
+        return lit(t.coeff);
+    expr base_product = t.bases[0];
+    for(std::size_t i = 1; i < t.bases.size(); ++i)
+        base_product = base_product * t.bases[i];
+    if(is_one(t.coeff))
+        return base_product;
+    return lit(t.coeff) * base_product;
+}
+
+static bool bases_less(const std::vector<expr>& a, const std::vector<expr>& b)
+{
+    return std::lexicographical_compare(a.begin(), a.end(), b.begin(), b.end(), expr_less);
+}
+
+static expr normalize_add(const op_def* op, std::vector<expr> args)
+{
+    std::vector<term> terms;
+    terms.reserve(args.size());
+    for(const auto& a : args)
+        terms.push_back(extract_term(a));
+
+    std::stable_sort(
+        terms.begin(), terms.end(), [](const term& a, const term& b) {
+            return bases_less(a.bases, b.bases);
+        });
+
+    std::vector<term> merged;
+    for(const auto& t : terms)
+    {
+        if(not merged.empty() and merged.back().bases == t.bases)
+        {
+            merged.back().coeff = value_invoke_common(
+                [](auto x, auto y) { return x + y; }, merged.back().coeff, t.coeff);
+        }
+        else
+        {
+            merged.push_back(t);
+        }
+    }
+
+    merged.erase(
+        std::remove_if(
+            merged.begin(), merged.end(), [](const term& t) { return is_zero(t.coeff); }),
+        merged.end());
+
+    if(merged.empty())
+        return lit(int64_t{0});
+    if(merged.size() == 1)
+        return build_term(merged[0]);
+
+    std::vector<expr> result_children;
+    result_children.reserve(merged.size());
+    for(const auto& t : merged)
+        result_children.push_back(build_term(t));
+    std::stable_sort(result_children.begin(), result_children.end(), expr_less);
+    return expr(op_node{op}, std::move(result_children));
+}
+
+static expr normalize_mul(const op_def* op, std::vector<expr> args)
+{
+    value coeff{int64_t{1}};
+    std::vector<expr> non_literals;
+    for(auto& a : args)
+    {
+        if(a.name() == "literal")
+        {
+            auto* n = std::get_if<literal_node>(&a.node());
+            coeff = value_invoke_common([](auto x, auto y) { return x * y; }, coeff, n->val);
+        }
+        else
+        {
+            non_literals.push_back(std::move(a));
+        }
+    }
+
+    if(is_zero(coeff))
+        return lit(coeff);
+
+    std::vector<expr> factors;
+    if(not is_one(coeff))
+        factors.push_back(lit(coeff));
+    factors.insert(factors.end(),
+                   std::make_move_iterator(non_literals.begin()),
+                   std::make_move_iterator(non_literals.end()));
+
+    auto it = std::find_if(
+        factors.begin(), factors.end(), [](const expr& e) { return e.name() == "+"; });
+    if(it != factors.end())
+    {
+        auto plus_children = it->children();
+        std::vector<expr> other_factors;
+        for(auto i = factors.begin(); i != factors.end(); ++i)
+        {
+            if(i != it)
+                other_factors.push_back(*i);
+        }
+        std::vector<expr> distributed;
+        distributed.reserve(plus_children.size());
+        for(const auto& pc : plus_children)
+        {
+            expr product = pc;
+            for(const auto& f : other_factors)
+                product = product * f;
+            distributed.push_back(std::move(product));
+        }
+        expr result = distributed[0];
+        for(std::size_t i = 1; i < distributed.size(); ++i)
+            result = result + distributed[i];
+        return result;
+    }
+
+    if(factors.empty())
+        return lit(coeff);
+    if(factors.size() == 1)
+        return factors[0];
+    std::stable_sort(factors.begin(), factors.end(), expr_less);
+    return expr(op_node{op}, std::move(factors));
+}
+
 static expr normalize_expr(const op_def* op, std::vector<expr> args)
 {
     bool is_const =
@@ -229,6 +427,10 @@ static expr normalize_expr(const op_def* op, std::vector<expr> args)
         auto e = expr(op_node{op}, std::move(args));
         return lit(e.eval({}));
     }
+    if(op->name == "+")
+        return normalize_add(op, std::move(args));
+    if(op->name == "*")
+        return normalize_mul(op, std::move(args));
     return expr(op_node{op}, std::move(args));
 }
 

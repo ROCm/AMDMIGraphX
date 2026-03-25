@@ -808,20 +808,22 @@ TEST_CASE(to_string_variable) { EXPECT(var("x").to_string() == "x"); }
 TEST_CASE(to_string_add)
 {
     auto x = var("x");
-    EXPECT((x + lit(3)).to_string() == "(x + 3)");
+    // literals sort before variables
+    EXPECT((x + lit(3)).to_string() == "(3 + x)");
 }
 
 TEST_CASE(to_string_sub)
 {
     auto x = var("x");
-    // x - 1 is rewritten as x + (-1)
-    EXPECT((x - lit(1)).to_string() == "(x + -1)");
+    // x - 1 is rewritten as x + (-1), then sorted: lit before var
+    EXPECT((x - lit(1)).to_string() == "(-1 + x)");
 }
 
 TEST_CASE(to_string_mul)
 {
     auto x = var("x");
-    EXPECT((x * lit(2)).to_string() == "(x * 2)");
+    // literals sort before variables
+    EXPECT((x * lit(2)).to_string() == "(2 * x)");
 }
 
 TEST_CASE(to_string_div)
@@ -842,7 +844,8 @@ TEST_CASE(to_string_nested)
     auto x = var("x");
     auto y = var("y");
     auto e = (x + lit(1)) * (y - lit(2));
-    EXPECT(e.to_string() == "((x + 1) * (y + -2))");
+    // fully expanded: (x+1)*(y-2) = xy - 2x + y - 2
+    EXPECT(e.to_string() == "(-2 + y + (-2 * x) + (x * y))");
 }
 
 TEST_CASE(to_string_function)
@@ -866,13 +869,14 @@ TEST_CASE(to_string_composed)
 {
     auto x = var("x");
     auto e = sin(x * lit(2)) + lit(1);
-    EXPECT(e.to_string() == "(sin((x * 2)) + 1)");
+    // lit(1) sorts before sin(...)
+    EXPECT(e.to_string() == "(1 + sin((2 * x)))");
 }
 
 TEST_CASE(free_to_string)
 {
     auto x = var("x");
-    EXPECT(to_string(x + lit(1)) == "(x + 1)");
+    EXPECT(to_string(x + lit(1)) == "(1 + x)");
     EXPECT(to_string(sin(x)) == "sin(x)");
 }
 
@@ -1058,7 +1062,8 @@ TEST_CASE(flatten_to_string_mixed)
     auto b = var("b");
     auto c = var("c");
     // (a * b) + c: mul is a child of add, should not flatten across ops
-    EXPECT(((a * b) + c).to_string() == "((a * b) + c)");
+    // var c sorts before op (a*b)
+    EXPECT(((a * b) + c).to_string() == "(c + (a * b))");
 }
 
 // ---- Constant folding tests ----
@@ -1148,6 +1153,300 @@ TEST_CASE(const_fold_to_string)
 {
     auto e = lit(3) + lit(4);
     EXPECT(e.to_string() == "7");
+}
+
+// ---- Canonicalization tests ----
+
+TEST_CASE(canonical_add_commutative)
+{
+    auto x = var("x");
+    auto y = var("y");
+    // x + y and y + x should be the same expression
+    EXPECT(x + y == y + x);
+}
+
+TEST_CASE(canonical_mul_commutative)
+{
+    auto x = var("x");
+    auto y = var("y");
+    // x * y and y * x should be the same expression
+    EXPECT(x * y == y * x);
+}
+
+TEST_CASE(canonical_add_three_vars)
+{
+    auto a = var("a");
+    auto b = var("b");
+    auto c = var("c");
+    // all orderings should produce the same expression
+    EXPECT((a + b) + c == (c + a) + b);
+    EXPECT((a + b) + c == (b + c) + a);
+}
+
+TEST_CASE(canonical_mul_three_vars)
+{
+    auto a = var("a");
+    auto b = var("b");
+    auto c = var("c");
+    EXPECT((a * b) * c == (c * a) * b);
+    EXPECT((a * b) * c == (b * c) * a);
+}
+
+TEST_CASE(canonical_add_lit_var_order)
+{
+    auto x = var("x");
+    // lit + var and var + lit should be the same
+    EXPECT(lit(5) + x == x + lit(5));
+}
+
+TEST_CASE(canonical_mul_lit_var_order)
+{
+    auto x = var("x");
+    EXPECT(lit(3) * x == x * lit(3));
+}
+
+TEST_CASE(canonical_div_not_commutative)
+{
+    auto x = var("x");
+    auto y = var("y");
+    // division is not commutative, order should be preserved
+    EXPECT(x / y != y / x);
+}
+
+TEST_CASE(canonical_compound_commutative)
+{
+    auto x = var("x");
+    auto y = var("y");
+    // (x+1) * (y+2) and (y+2) * (x+1) should be the same
+    EXPECT((x + lit(1)) * (y + lit(2)) == (y + lit(2)) * (x + lit(1)));
+}
+
+TEST_CASE(canonical_nested_commutative)
+{
+    auto a = var("a");
+    auto b = var("b");
+    auto c = var("c");
+    // a + b*c and b*c + a should be the same
+    EXPECT(a + b * c == b * c + a);
+}
+
+TEST_CASE(canonical_eval_preserved)
+{
+    auto x = var("x");
+    auto y = var("y");
+    // canonicalization should not change evaluation results
+    auto e1 = x + y;
+    auto e2 = y + x;
+    EXPECT(e1.eval({{"x", int64_t{3}}, {"y", int64_t{7}}}) == value{int64_t{10}});
+    EXPECT(e2.eval({{"x", int64_t{3}}, {"y", int64_t{7}}}) == value{int64_t{10}});
+
+    auto e3 = x * y;
+    auto e4 = y * x;
+    EXPECT(e3.eval({{"x", int64_t{3}}, {"y", int64_t{7}}}) == value{int64_t{21}});
+    EXPECT(e4.eval({{"x", int64_t{3}}, {"y", int64_t{7}}}) == value{int64_t{21}});
+}
+
+TEST_CASE(canonical_interval_preserved)
+{
+    auto x = var("x");
+    auto y = var("y");
+    auto vars = std::unordered_map<std::string, interval>{
+        {"x", interval{int64_t{1}, int64_t{3}}}, {"y", interval{int64_t{4}, int64_t{6}}}};
+    EXPECT((x + y).eval_interval(vars) == (y + x).eval_interval(vars));
+    EXPECT((x * y).eval_interval(vars) == (y * x).eval_interval(vars));
+}
+
+// ---- Algebraic normalization tests ----
+
+TEST_CASE(norm_x_plus_x)
+{
+    auto x = var("x");
+    EXPECT(x + x == lit(2) * x);
+    EXPECT(x + x == x * lit(2));
+}
+
+TEST_CASE(norm_x_plus_2x)
+{
+    auto x = var("x");
+    EXPECT(x + lit(2) * x == lit(3) * x);
+    EXPECT(x + lit(2) * x == x + x + x);
+}
+
+TEST_CASE(norm_3x_minus_x)
+{
+    auto x = var("x");
+    EXPECT(lit(3) * x - x == lit(2) * x);
+}
+
+TEST_CASE(norm_x_minus_x)
+{
+    auto x = var("x");
+    EXPECT(x - x == lit(0));
+}
+
+TEST_CASE(norm_x_times_0)
+{
+    auto x = var("x");
+    EXPECT(x * lit(0) == lit(0));
+    EXPECT(lit(0) * x == lit(0));
+}
+
+TEST_CASE(norm_x_times_1)
+{
+    auto x = var("x");
+    EXPECT(x * lit(1) == x);
+    EXPECT(lit(1) * x == x);
+}
+
+TEST_CASE(norm_x_plus_0)
+{
+    auto x = var("x");
+    EXPECT(x + lit(0) == x);
+    EXPECT(lit(0) + x == x);
+}
+
+TEST_CASE(norm_distribute_simple)
+{
+    auto x = var("x");
+    auto y = var("y");
+    // 2*(x+y) == 2*x + 2*y
+    EXPECT(lit(2) * (x + y) == lit(2) * x + lit(2) * y);
+}
+
+TEST_CASE(norm_foil)
+{
+    auto x = var("x");
+    auto y = var("y");
+    // (x+y)*(x+y) == x*x + 2*x*y + y*y
+    EXPECT((x + y) * (x + y) == x * x + lit(2) * x * y + y * y);
+}
+
+TEST_CASE(norm_foil_eval)
+{
+    auto x = var("x");
+    auto y = var("y");
+    auto lhs = (x + y) * (x + y);
+    auto rhs = x * x + lit(2) * x * y + y * y;
+    auto vars =
+        std::unordered_map<std::string, value>{{"x", int64_t{3}}, {"y", int64_t{4}}};
+    EXPECT(lhs.eval(vars) == value{int64_t{49}});
+    EXPECT(rhs.eval(vars) == value{int64_t{49}});
+}
+
+TEST_CASE(norm_difference_of_squares)
+{
+    auto x = var("x");
+    auto y = var("y");
+    // (x+y)*(x-y) == x*x - y*y
+    EXPECT((x + y) * (x - y) == x * x - y * y);
+}
+
+TEST_CASE(norm_difference_of_squares_eval)
+{
+    auto x = var("x");
+    auto y = var("y");
+    auto lhs = (x + y) * (x - y);
+    auto rhs = x * x - y * y;
+    auto vars =
+        std::unordered_map<std::string, value>{{"x", int64_t{5}}, {"y", int64_t{3}}};
+    EXPECT(lhs.eval(vars) == value{int64_t{16}});
+    EXPECT(rhs.eval(vars) == value{int64_t{16}});
+}
+
+TEST_CASE(norm_triple_product)
+{
+    auto x = var("x");
+    // (x+1)*(x+1)*(x+1) expanded is x^3 + 3x^2 + 3x + 1
+    auto cubed   = (x + lit(1)) * (x + lit(1)) * (x + lit(1));
+    auto expanded = x * x * x + lit(3) * x * x + lit(3) * x + lit(1);
+    EXPECT(cubed == expanded);
+}
+
+TEST_CASE(norm_triple_product_eval)
+{
+    auto x      = var("x");
+    auto cubed  = (x + lit(1)) * (x + lit(1)) * (x + lit(1));
+    auto result = cubed.eval({{"x", int64_t{2}}});
+    EXPECT(result == value{int64_t{27}});
+}
+
+TEST_CASE(norm_collect_multi_var)
+{
+    auto x = var("x");
+    auto y = var("y");
+    // 2*x*y + 3*x*y == 5*x*y
+    EXPECT(lit(2) * x * y + lit(3) * x * y == lit(5) * x * y);
+}
+
+TEST_CASE(norm_collect_mixed)
+{
+    auto x = var("x");
+    auto y = var("y");
+    // x + y + 2*x + 3*y == 3*x + 4*y
+    EXPECT(x + y + lit(2) * x + lit(3) * y == lit(3) * x + lit(4) * y);
+}
+
+TEST_CASE(norm_nested_distribute)
+{
+    auto a = var("a");
+    auto b = var("b");
+    auto c = var("c");
+    // a*(b+c) == a*b + a*c
+    EXPECT(a * (b + c) == a * b + a * c);
+}
+
+TEST_CASE(norm_three_binomial)
+{
+    auto x = var("x");
+    auto y = var("y");
+    auto z = var("z");
+    // (x+y)*(y+z) == x*y + x*z + y*y + y*z
+    EXPECT((x + y) * (y + z) == x * y + x * z + y * y + y * z);
+}
+
+TEST_CASE(norm_subtract_expanded)
+{
+    auto x = var("x");
+    auto y = var("y");
+    // (x+y)*(x+y) - (x*x + y*y) == 2*x*y
+    EXPECT((x + y) * (x + y) - (x * x + y * y) == lit(2) * x * y);
+}
+
+TEST_CASE(norm_negate_sum)
+{
+    auto x = var("x");
+    auto y = var("y");
+    // -(x + y) == -x + -y == -x - y
+    EXPECT(-(x + y) == -x - y);
+}
+
+TEST_CASE(norm_double_negate)
+{
+    auto x = var("x");
+    // -(-x) == x
+    EXPECT(-(-x) == x);
+}
+
+TEST_CASE(norm_coefficient_fold)
+{
+    auto x = var("x");
+    // 2 * 3 * x == 6 * x
+    EXPECT(lit(2) * lit(3) * x == lit(6) * x);
+}
+
+TEST_CASE(norm_constant_add_in_sum)
+{
+    auto x = var("x");
+    // (x + 3) + 5 == x + 8
+    EXPECT(x + lit(3) + lit(5) == x + lit(8));
+}
+
+TEST_CASE(norm_zero_product_sum)
+{
+    auto x = var("x");
+    auto y = var("y");
+    // x*y - x*y == 0
+    EXPECT(x * y - x * y == lit(0));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

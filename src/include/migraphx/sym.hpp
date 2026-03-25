@@ -161,6 +161,7 @@ class MIGRAPHX_EXPORT expr
     }
 
     std::string name() const;
+    bool is_raw() const;
     const node_variant& node() const;
     const std::vector<expr>& children() const;
     value eval(const std::unordered_map<std::string, value>& vars) const;
@@ -247,6 +248,40 @@ expr ceil(expr e);
 expr pow(expr x, expr y);
 expr min(expr x, expr y);
 expr max(expr x, expr y);
+
+// Pattern matching rewrite DSL
+expr pvar(int id);
+
+struct rewrite_rule
+{
+    expr pattern;
+    expr replacement;
+};
+
+inline rewrite_rule operator>>(expr pattern, expr replacement)
+{
+    return {std::move(pattern), std::move(replacement)};
+}
+
+template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>
+rewrite_rule operator>>(expr pattern, T replacement)
+{
+    return {std::move(pattern), lit(replacement)};
+}
+
+expr simplify(expr e, std::vector<rewrite_rule> rules);
+
+struct simplifier
+{
+    expr e;
+    template <class... Rules>
+    expr operator()(Rules... rules) const
+    {
+        return sym::simplify(e, {std::move(rules)...});
+    }
+};
+
+inline simplifier simplify(expr e) { return {std::move(e)}; }
 
 } // namespace sym
 } // namespace MIGRAPHX_INLINE_NS

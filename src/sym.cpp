@@ -192,6 +192,7 @@ struct expr::impl
 {
     node_variant node;
     std::vector<expr> children;
+    bool raw_flag = false;
 };
 
 static std::string get_name(const node_variant& nv)
@@ -206,7 +207,11 @@ static std::string get_name(const node_variant& nv)
 
 std::shared_ptr<const expr::impl> expr::make_impl(node_variant node, std::vector<expr> children)
 {
-    return std::make_shared<const impl>(impl{std::move(node), std::move(children)});
+    bool raw = std::any_of(
+        children.begin(), children.end(), [](const expr& e) { return e.is_raw(); });
+    if(auto* v = std::get_if<variable_node>(&node))
+        raw = raw or (not v->name.empty() and v->name[0] == '_');
+    return std::make_shared<const impl>(impl{std::move(node), std::move(children), raw});
 }
 
 expr lit(value v) { return expr(literal_node{v}); }
@@ -257,6 +262,68 @@ static bool expr_less(const expr& a, const expr& b)
 }
 
 static bool is_commutative(const std::string& name) { return name == "+" or name == "*"; }
+
+static bool is_pvar(const expr& e)
+{
+    auto* v = std::get_if<variable_node>(&e.node());
+    return v != nullptr and not v->name.empty() and v->name[0] == '_';
+}
+
+static bool match_expr(const expr& pattern,
+                       const expr& e,
+                       std::unordered_map<std::string, expr>& bindings)
+{
+    if(is_pvar(pattern))
+    {
+        auto* v = std::get_if<variable_node>(&pattern.node());
+        auto it = bindings.find(v->name);
+        if(it != bindings.end())
+            return it->second == e;
+        bindings.emplace(v->name, e);
+        return true;
+    }
+    if(pattern.node().index() != e.node().index())
+        return false;
+    if(auto* pl = std::get_if<literal_node>(&pattern.node()))
+    {
+        auto* el = std::get_if<literal_node>(&e.node());
+        return pl->val == el->val;
+    }
+    if(auto* pv = std::get_if<variable_node>(&pattern.node()))
+    {
+        auto* ev = std::get_if<variable_node>(&e.node());
+        return pv->name == ev->name and pv->constraints == ev->constraints;
+    }
+    auto* po = std::get_if<op_node>(&pattern.node());
+    auto* eo = std::get_if<op_node>(&e.node());
+    if(po->op->name != eo->op->name)
+        return false;
+    if(pattern.children().size() != e.children().size())
+        return false;
+    for(std::size_t i = 0; i < pattern.children().size(); ++i)
+    {
+        if(not match_expr(pattern.children()[i], e.children()[i], bindings))
+            return false;
+    }
+    return true;
+}
+
+static expr substitute_expr(const expr& tmpl, const std::unordered_map<std::string, expr>& bindings)
+{
+    if(is_pvar(tmpl))
+    {
+        auto* v = std::get_if<variable_node>(&tmpl.node());
+        return bindings.at(v->name);
+    }
+    if(tmpl.children().empty())
+        return tmpl;
+    auto* op_n = std::get_if<op_node>(&tmpl.node());
+    std::vector<expr> new_children;
+    new_children.reserve(tmpl.children().size());
+    for(const auto& child : tmpl.children())
+        new_children.push_back(substitute_expr(child, bindings));
+    return call_op(op_n->op, std::move(new_children));
+}
 
 static bool is_zero(const value& v) { return v == value{int64_t{0}} or v == value{0.0}; }
 
@@ -416,7 +483,7 @@ static expr normalize_mul(const op_def* op, std::vector<expr> args)
     return expr(op_node{op}, std::move(factors));
 }
 
-static expr normalize_expr(const op_def* op, std::vector<expr> args)
+static expr normalize_impl(const op_def* op, std::vector<expr> args)
 {
     bool is_const =
         std::all_of(args.begin(), args.end(), [](const expr& e) { return e.name() == "literal"; });
@@ -432,8 +499,41 @@ static expr normalize_expr(const op_def* op, std::vector<expr> args)
     return expr(op_node{op}, std::move(args));
 }
 
+static const std::vector<rewrite_rule>& get_rewrite_rules()
+{
+    static const std::vector<rewrite_rule> rules = [] {
+        auto _1 = pvar(1);
+        auto _2 = pvar(2);
+        return std::vector<rewrite_rule>{
+            sqrt(_1 * _2) >> sqrt(_1) * sqrt(_2),
+            sqrt(_1 / _2) >> sqrt(_1) / sqrt(_2),
+            log(exp(_1)) >> _1,
+            exp(log(_1)) >> _1,
+        };
+    }();
+    return rules;
+}
+
+static expr apply_rewrite_rules(const expr& e)
+{
+    for(const auto& rule : get_rewrite_rules())
+    {
+        std::unordered_map<std::string, expr> bindings;
+        if(match_expr(rule.pattern, e, bindings))
+            return substitute_expr(rule.replacement, bindings);
+    }
+    return e;
+}
+
+static expr normalize_expr(const op_def* op, std::vector<expr> args)
+{
+    return apply_rewrite_rules(normalize_impl(op, std::move(args)));
+}
+
 expr call_op(const op_def* op, std::vector<expr> args)
 {
+    if(std::any_of(args.begin(), args.end(), [](const expr& e) { return e.is_raw(); }))
+        return expr(op_node{op}, std::move(args));
     return normalize_expr(op, std::move(args));
 }
 
@@ -590,6 +690,8 @@ expr max(expr x, expr y)
 
 std::string expr::name() const { return get_name(pimpl->node); }
 
+bool expr::is_raw() const { return pimpl and pimpl->raw_flag; }
+
 const node_variant& expr::node() const { return pimpl->node; }
 
 const std::vector<expr>& expr::children() const { return pimpl->children; }
@@ -684,6 +786,42 @@ std::string expr::to_string() const
 }
 
 std::string to_string(const expr& e) { return e.to_string(); }
+
+expr pvar(int id) { return var("_" + std::to_string(id)); }
+
+namespace {
+
+expr simplify_impl(const expr& e, const std::vector<rewrite_rule>& rules);
+
+expr apply_rules(const expr& e, const std::vector<rewrite_rule>& rules)
+{
+    for(const auto& rule : rules)
+    {
+        std::unordered_map<std::string, expr> bindings;
+        if(match_expr(rule.pattern, e, bindings))
+            return simplify_impl(substitute_expr(rule.replacement, bindings), rules);
+    }
+    return e;
+}
+
+expr simplify_impl(const expr& e, const std::vector<rewrite_rule>& rules)
+{
+    if(e.children().empty())
+        return apply_rules(e, rules);
+    auto* op_n = std::get_if<op_node>(&e.node());
+    std::vector<expr> new_children;
+    new_children.reserve(e.children().size());
+    for(const auto& child : e.children())
+        new_children.push_back(simplify_impl(child, rules));
+    return apply_rules(call_op(op_n->op, std::move(new_children)), rules);
+}
+
+} // namespace
+
+expr simplify(expr e, std::vector<rewrite_rule> rules)
+{
+    return simplify_impl(e, rules);
+}
 
 } // namespace sym
 } // namespace MIGRAPHX_INLINE_NS

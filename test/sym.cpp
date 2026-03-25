@@ -44,6 +44,9 @@ using migraphx::sym::tan;
 using migraphx::sym::to_string;
 using migraphx::sym::value;
 using migraphx::sym::var;
+using migraphx::sym::pvar;
+using migraphx::sym::rewrite_rule;
+using migraphx::sym::simplify;
 
 // ---- Value evaluation tests ----
 
@@ -1445,6 +1448,229 @@ TEST_CASE(norm_zero_product_sum)
     auto y = var("y");
     // x*y - x*y == 0
     EXPECT(x * y - x * y == lit(0));
+}
+
+// ---- Rewrite DSL tests ----
+
+TEST_CASE(dsl_pvar_match)
+{
+    auto _1 = pvar(1);
+    auto x  = var("x");
+    // sqrt(x) matches sqrt(_1)
+    auto result = simplify(sqrt(x))(
+        sqrt(_1) >> _1);
+    EXPECT(result == x);
+}
+
+TEST_CASE(dsl_consistent_binding)
+{
+    auto _1 = pvar(1);
+    auto x  = var("x");
+    auto y  = var("y");
+    // _1 * _1 matches x*x but not x*y
+    auto rule = _1 * _1 >> _1;
+    EXPECT(simplify(x * x, {rule}) == x);
+    EXPECT(simplify(x * y, {rule}) == x * y);
+}
+
+TEST_CASE(dsl_log_exp)
+{
+    auto _1 = pvar(1);
+    auto x  = var("x");
+    auto result = simplify(log(exp(x)))(
+        log(exp(_1)) >> _1);
+    EXPECT(result == x);
+}
+
+TEST_CASE(dsl_exp_log)
+{
+    auto _1 = pvar(1);
+    auto x  = var("x");
+    auto result = simplify(exp(log(x)))(
+        exp(log(_1)) >> _1);
+    EXPECT(result == x);
+}
+
+TEST_CASE(dsl_sqrt_product)
+{
+    auto _1 = pvar(1);
+    auto _2 = pvar(2);
+    auto a  = var("a");
+    auto b  = var("b");
+    auto result = simplify(sqrt(a * b))(
+        sqrt(_1 * _2) >> sqrt(_1) * sqrt(_2));
+    EXPECT(result == sqrt(a) * sqrt(b));
+}
+
+TEST_CASE(dsl_sqrt_division)
+{
+    auto _1 = pvar(1);
+    auto _2 = pvar(2);
+    auto a  = var("a");
+    auto b  = var("b");
+    auto result = simplify(sqrt(a / b))(
+        sqrt(_1 / _2) >> sqrt(_1) / sqrt(_2));
+    EXPECT(result == sqrt(a) / sqrt(b));
+}
+
+TEST_CASE(dsl_recursive)
+{
+    auto _1 = pvar(1);
+    auto x  = var("x");
+    auto y  = var("y");
+    // Rule applied to subexpressions: log(exp(x)) + log(exp(y))
+    auto e      = log(exp(x)) + log(exp(y));
+    auto result = simplify(e)(log(exp(_1)) >> _1);
+    EXPECT(result == x + y);
+}
+
+TEST_CASE(dsl_multiple_rules)
+{
+    auto _1 = pvar(1);
+    auto _2 = pvar(2);
+    auto x  = var("x");
+    auto y  = var("y");
+    // Chain: pow(x,2) → x*x, then abs(x*x) → x*x (already positive)
+    auto result = simplify(abs(pow(x, y)))(
+        pow(_1, _2) >> _1 * _2,
+        abs(_1 * _2) >> abs(_1) * abs(_2));
+    EXPECT(result == abs(x) * abs(y));
+}
+
+TEST_CASE(dsl_trig_identity)
+{
+    auto _1 = pvar(1);
+    auto x  = var("x");
+    // sin(x)^2 + cos(x)^2 == 1
+    auto e      = sin(x) * sin(x) + cos(x) * cos(x);
+    auto result = simplify(e)(
+        cos(_1) * cos(_1) + sin(_1) * sin(_1) >> lit(1));
+    EXPECT(result == lit(1));
+}
+
+TEST_CASE(dsl_no_match)
+{
+    auto _1 = pvar(1);
+    auto x  = var("x");
+    // Rule doesn't match, expression unchanged
+    auto result = simplify(sin(x))(log(exp(_1)) >> _1);
+    EXPECT(result == sin(x));
+}
+
+TEST_CASE(dsl_literal_pattern)
+{
+    auto _1     = pvar(1);
+    auto x      = var("x");
+    auto result = simplify(pow(x, lit(2)))(
+        pow(_1, lit(2)) >> _1 * _1);
+    EXPECT(result == x * x);
+}
+
+TEST_CASE(dsl_eval_after_simplify)
+{
+    auto _1 = pvar(1);
+    auto _2 = pvar(2);
+    auto x  = var("x");
+    auto y  = var("y");
+    auto e  = sqrt(x * y);
+    auto result = simplify(e)(
+        sqrt(_1 * _2) >> sqrt(_1) * sqrt(_2));
+    // sqrt(4) * sqrt(9) = 2 * 3 = 6
+    EXPECT(result.eval({{"x", 4.0}, {"y", 9.0}}) == value{6.0});
+}
+
+TEST_CASE(dsl_chained_simplify)
+{
+    auto _1 = pvar(1);
+    auto x  = var("x");
+    // exp(log(exp(log(x)))) with repeated rule application
+    auto e      = exp(log(exp(log(x))));
+    auto result = simplify(e)(
+        exp(log(_1)) >> _1,
+        log(exp(_1)) >> _1);
+    EXPECT(result == x);
+}
+
+TEST_CASE(dsl_nested_subexpr)
+{
+    auto _1 = pvar(1);
+    auto _2 = pvar(2);
+    auto a  = var("a");
+    auto b  = var("b");
+    auto c  = var("c");
+    auto d  = var("d");
+    // sqrt(a*b) + sqrt(c*d): rule applied to both subexprs
+    auto e      = sqrt(a * b) + sqrt(c * d);
+    auto result = simplify(e)(
+        sqrt(_1 * _2) >> sqrt(_1) * sqrt(_2));
+    EXPECT(result == sqrt(a) * sqrt(b) + sqrt(c) * sqrt(d));
+}
+
+// ---- Built-in rewrite rule tests ----
+
+TEST_CASE(builtin_sqrt_product)
+{
+    auto a = var("a");
+    auto b = var("b");
+    // sqrt(a*b) automatically rewrites to sqrt(a)*sqrt(b)
+    EXPECT(sqrt(a * b) == sqrt(a) * sqrt(b));
+}
+
+TEST_CASE(builtin_sqrt_division)
+{
+    auto a = var("a");
+    auto b = var("b");
+    // sqrt(a/b) automatically rewrites to sqrt(a)/sqrt(b)
+    EXPECT(sqrt(a / b) == sqrt(a) / sqrt(b));
+}
+
+TEST_CASE(builtin_log_exp)
+{
+    auto x = var("x");
+    // log(exp(x)) automatically simplifies to x
+    EXPECT(log(exp(x)) == x);
+}
+
+TEST_CASE(builtin_exp_log)
+{
+    auto x = var("x");
+    // exp(log(x)) automatically simplifies to x
+    EXPECT(exp(log(x)) == x);
+}
+
+TEST_CASE(builtin_sqrt_product_eval)
+{
+    auto a = var("a");
+    auto b = var("b");
+    // sqrt(a*b) == sqrt(a)*sqrt(b), verify eval
+    auto e = sqrt(a * b);
+    EXPECT(e.eval({{"a", 4.0}, {"b", 9.0}}) == value{6.0});
+}
+
+TEST_CASE(builtin_log_exp_nested)
+{
+    auto x = var("x");
+    auto y = var("y");
+    // log(exp(x)) + log(exp(y)) automatically simplifies to x + y
+    EXPECT(log(exp(x)) + log(exp(y)) == x + y);
+}
+
+TEST_CASE(builtin_raw_no_leak)
+{
+    auto x = var("x");
+    // Ensure raw flag doesn't leak into normal expressions
+    EXPECT(not x.is_raw());
+    EXPECT(not (x + lit(1)).is_raw());
+    EXPECT(not sqrt(x).is_raw());
+}
+
+TEST_CASE(builtin_pvar_is_raw)
+{
+    auto _1 = pvar(1);
+    EXPECT(_1.is_raw());
+    // Expressions built from pvars are raw
+    EXPECT((_1 * pvar(2)).is_raw());
+    EXPECT(sqrt(_1).is_raw());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

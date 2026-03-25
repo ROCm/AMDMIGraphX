@@ -220,7 +220,9 @@ struct MIGRAPHX_EXPORT shape
 
     shape(type_t t, std::vector<dynamic_dimension> dims);
 
-    shape(type_t t, std::vector<dynamic_dimension> dims, std::vector<symbolic_expr> dstrides);
+    explicit shape(type_t t,
+                   std::vector<dynamic_dimension> dims,
+                   std::vector<symbolic_expr> dstrides);
 
     // Construct a dynamic shape from vectors of mins, maxes, and optimals.
     // optimals_list is a vector of optimals that corresponds to each min and max.

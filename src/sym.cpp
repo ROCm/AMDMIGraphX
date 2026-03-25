@@ -31,17 +31,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace sym {
 
-struct expr::impl
-{
-    node_variant node;
-    std::vector<expr> children;
-};
-
-std::shared_ptr<const expr::impl> expr::make_impl(node_variant node, std::vector<expr> children)
-{
-    return std::make_shared<const impl>(impl{std::move(node), std::move(children)});
-}
-
 value value_min(const value& a, const value& b)
 {
     return value_invoke_common([](auto x, auto y) { return x < y ? x : y; }, a, b);
@@ -198,6 +187,27 @@ interval pow(interval x, interval y)
 interval min(interval x, interval y) { return {value_min(x.min, y.min), value_min(x.max, y.max)}; }
 
 interval max(interval x, interval y) { return {value_max(x.min, y.min), value_max(x.max, y.max)}; }
+
+struct expr::impl
+{
+    node_variant node;
+    std::vector<expr> children;
+};
+
+static std::string get_name(const node_variant& nv)
+{
+    if(auto* n = std::get_if<literal_node>(&nv))
+        return "literal";
+    if(auto* n = std::get_if<variable_node>(&nv))
+        return "variable";
+    auto* n = std::get_if<op_node>(&nv);
+    return n->op->name;
+}
+
+std::shared_ptr<const expr::impl> expr::make_impl(node_variant node, std::vector<expr> children)
+{
+    return std::make_shared<const impl>(impl{std::move(node), std::move(children)});
+}
 
 expr lit(value v) { return expr(literal_node{v}); }
 
@@ -373,12 +383,7 @@ expr max(expr x, expr y)
 
 std::string expr::name() const
 {
-    if(auto* n = std::get_if<literal_node>(&pimpl->node))
-        return "literal";
-    if(auto* n = std::get_if<variable_node>(&pimpl->node))
-        return "variable";
-    auto* n = std::get_if<op_node>(&pimpl->node);
-    return n->op->name;
+    return get_name(pimpl->node);
 }
 
 const node_variant& expr::node() const { return pimpl->node; }

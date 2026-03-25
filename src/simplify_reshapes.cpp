@@ -1347,6 +1347,212 @@ struct find_gather_scalar
     }
 };
 
+struct find_gather_slice_concat
+{
+    static constexpr std::size_t min_run = 4;
+
+    auto matcher() const
+    {
+        return match::name("concat")(
+            match::any_of[match::inputs()](match::name("slice")));
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto concat_ins = mr.result;
+        int concat_axis = any_cast<op::concat>(concat_ins->get_operator()).axis;
+        const auto& all_inputs = concat_ins->inputs();
+
+        if(all_inputs.size() < min_run)
+            return;
+
+        instruction_ref gather_ins;
+        int slice_axis = -1;
+        for(const auto& inp : all_inputs)
+        {
+            if(inp->name() != "slice")
+                continue;
+            auto sop = any_cast<op::slice>(inp->get_operator());
+            if(sop.axes.size() != 1 or sop.ends.front() - sop.starts.front() != 1)
+                continue;
+            if(inp->inputs().at(0)->name() != "gather")
+                continue;
+            gather_ins = inp->inputs().at(0);
+            slice_axis = static_cast<int>(sop.axes.front());
+            break;
+        }
+        if(slice_axis < 0)
+            return;
+
+        auto gather_op   = any_cast<op::gather>(gather_ins->get_operator());
+        auto data_ins    = gather_ins->inputs().at(0);
+        auto indices_ins = gather_ins->inputs().at(1);
+
+        const auto& data_lens = data_ins->get_shape().lens();
+        if(data_lens.empty())
+            return;
+
+        int gather_axis = tune_axis(
+            static_cast<int>(data_lens.size()), gather_op.axis, gather_op.name());
+
+        if(slice_axis != gather_axis)
+            return;
+
+        auto indices_ndim = indices_ins->get_shape().ndim();
+        if(concat_axis != gather_axis + static_cast<int>(indices_ndim))
+            return;
+
+        const auto& indices_lens = indices_ins->get_shape().lens();
+        if(indices_lens.empty() or indices_ndim < 2)
+            return;
+
+        std::size_t num_rows = indices_lens.front();
+        std::size_t batch_stride =
+            std::accumulate(indices_lens.begin() + 1, indices_lens.end(),
+                            std::size_t{1}, std::multiplies<>{});
+
+        const std::size_t NOT_SLICE = std::numeric_limits<std::size_t>::max();
+        std::vector<std::size_t> input_rows(all_inputs.size(), NOT_SLICE);
+        std::size_t total_slices = 0;
+
+        for(std::size_t i = 0; i < all_inputs.size(); ++i)
+        {
+            auto inp = all_inputs[i];
+            if(inp->name() != "slice")
+                continue;
+            if(inp->inputs().at(0) != gather_ins)
+                continue;
+            auto sop = any_cast<op::slice>(inp->get_operator());
+            if(sop.axes.size() != 1 or
+               static_cast<int>(sop.axes.front()) != slice_axis)
+                continue;
+            if(sop.ends.front() - sop.starts.front() != 1)
+                continue;
+            auto row = static_cast<std::size_t>(sop.starts.front());
+            if(row >= num_rows)
+                continue;
+            input_rows[i] = row;
+            ++total_slices;
+        }
+
+        if(total_slices < min_run)
+            return;
+
+        struct run_t
+        {
+            std::size_t start_pos;
+            std::size_t len;
+            std::vector<std::size_t> rows;
+        };
+        std::vector<run_t> runs;
+
+        for(std::size_t i = 0; i < all_inputs.size();)
+        {
+            if(input_rows[i] == NOT_SLICE)
+            {
+                ++i;
+                continue;
+            }
+            run_t run;
+            run.start_pos = i;
+            while(i < all_inputs.size() and input_rows[i] != NOT_SLICE)
+            {
+                run.rows.push_back(input_rows[i]);
+                ++i;
+            }
+            run.len = run.rows.size();
+            if(run.len >= min_run)
+                runs.push_back(std::move(run));
+        }
+
+        if(runs.empty())
+            return;
+
+        std::vector<std::int64_t> trans_perm(indices_ndim);
+        std::iota(trans_perm.begin(), trans_perm.end(), 0);
+        std::rotate(trans_perm.begin(), trans_perm.begin() + 1, trans_perm.end());
+
+        std::vector<instruction_ref> new_inputs;
+        std::size_t run_idx = 0;
+
+        for(std::size_t i = 0; i < all_inputs.size();)
+        {
+            if(run_idx < runs.size() and i == runs[run_idx].start_pos)
+            {
+                const auto& run = runs[run_idx];
+                std::size_t n   = run.len;
+
+                std::vector<std::int32_t> perm_values(n);
+                std::transform(run.rows.begin(), run.rows.end(),
+                               perm_values.begin(),
+                               [](std::size_t r) {
+                                   return static_cast<std::int32_t>(r);
+                               });
+                shape perm_shape{shape::int32_type, {n}};
+                auto perm_lit = m.add_literal(
+                    literal{perm_shape, perm_values.begin(), perm_values.end()});
+
+                auto idx_subset = m.insert_instruction(
+                    concat_ins,
+                    make_op("gather", {{"axis", 0}}),
+                    indices_ins,
+                    perm_lit);
+
+                auto idx_transposed = m.insert_instruction(
+                    concat_ins,
+                    make_op("transpose", {{"permutation", trans_perm}}),
+                    idx_subset);
+
+                auto idx_flat = m.insert_instruction(
+                    concat_ins,
+                    make_op("reshape",
+                            {{"dims", {static_cast<std::int64_t>(batch_stride * n)}}}),
+                    idx_transposed);
+
+                auto new_gather = m.insert_instruction(
+                    concat_ins,
+                    make_op("gather", {{"axis", gather_axis}}),
+                    data_ins,
+                    idx_flat);
+
+                auto unit_lens = all_inputs[i]->get_shape().lens();
+                std::vector<std::int64_t> target_dims(unit_lens.begin(),
+                                                      unit_lens.end());
+                target_dims[concat_axis] =
+                    static_cast<std::int64_t>(n * unit_lens[concat_axis]);
+
+                auto reshaped = m.insert_instruction(
+                    concat_ins,
+                    make_op("reshape", {{"dims", target_dims}}),
+                    new_gather);
+
+                new_inputs.push_back(reshaped);
+                i += n;
+                ++run_idx;
+            }
+            else
+            {
+                new_inputs.push_back(all_inputs[i]);
+                ++i;
+            }
+        }
+
+        if(new_inputs.size() >= all_inputs.size())
+            return;
+
+        if(new_inputs.size() == 1)
+        {
+            m.replace_instruction(concat_ins, new_inputs.front());
+        }
+        else
+        {
+            m.replace_instruction(concat_ins,
+                                  make_op("concat", {{"axis", concat_axis}}),
+                                  new_inputs);
+        }
+    }
+};
+
 struct find_reshape_cont
 {
     auto matcher() const
@@ -1818,7 +2024,14 @@ void simplify_reshapes::apply(module& m) const
     match::find_matches(m, find_gather_scalar{});
     dead_code_elimination{}.apply(m);
     if(enable_gather_rewrite)
+    {
         match::find_matches(m, find_gather{});
+    }
+    if(enable_gather_slice_concat)
+    {
+        match::find_matches(m, find_gather_slice_concat{});
+        return;
+    }
     m.repeat_while_changes(depth, [&] {
         match::find_matches(m,
                             find_nop_reshapes{},

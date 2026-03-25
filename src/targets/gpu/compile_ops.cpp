@@ -51,6 +51,8 @@ struct precompile_op
     std::size_t additional_args       = 1;
     bool ignore_modules               = false;
     std::optional<shape> output_shape = nullopt;
+    /// When set, `output_alias` returns this input index instead of the last input (in-place dest).
+    std::optional<std::size_t> output_alias_input = nullopt;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -58,7 +60,8 @@ struct precompile_op
         return pack(f(self.op, "op"),
                     f(self.additional_args, "additional_args"),
                     f(self.ignore_modules, "ignore_modules"),
-                    f(self.output_shape, "output_shape"));
+                    f(self.output_shape, "output_shape"),
+                    f(self.output_alias_input, "output_alias_input"));
     }
 
     std::string name() const { return "gpu::precompile_op"; }
@@ -76,6 +79,8 @@ struct precompile_op
 
     std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
     {
+        if(output_alias_input.has_value())
+            return {output_alias_input.value()};
         return {shapes.size() - 1};
     }
 };
@@ -115,6 +120,8 @@ struct dynamic_code_object_op
 
     std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
     {
+        if(pre_op.name() == "gpu::precompile_op")
+            return any_cast<precompile_op>(pre_op).output_alias(shapes);
         return {shapes.size() - 1};
     }
     std::unordered_map<std::string, argument> build_param_map(const std::vector<argument>& args,

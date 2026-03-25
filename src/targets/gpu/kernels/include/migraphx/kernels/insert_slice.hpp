@@ -36,24 +36,18 @@ template <index_int Rank,
           class Strides,
           bool DerefDest,
           class Source,
-          class Dest,
           class Output>
 __device__ void insert_slice(const index& idx,
                             const Offsets& offsets,
                             const Strides& strides,
                             const Source& source,
-                            const Dest& dest,
                             Output& output)
 {
-    auto output_shape = output.get_shape();
-    auto src_shape    = source.get_shape();
+    auto src_shape = source.get_shape();
 
-    constexpr auto out_elements = decltype(output_shape.elements()){};
     constexpr auto src_elements = decltype(src_shape.elements()){};
 
-    // Phase 1: copy destination to output
-    idx.global_stride(out_elements, [&](auto i) { output[i] = dest[i]; });
-    // Phase 2: scatter source into output at dest_idx = src_idx * strides + offsets
+    // In-place scatter into `output` at dest_idx = src_idx * strides + offsets
     idx.global_stride(src_elements, [&](auto i) {
         auto src_idx  = src_shape.multi(i);
         auto dest_idx = array_transform(src_idx, offsets, strides)(
@@ -79,22 +73,16 @@ template <index_int Rank,
           bool DerefDest,
           class OffsetsTensor,
           class Source,
-          class Dest,
           class Output>
 __device__ void insert_slice(const index& idx,
                             const OffsetsTensor& offsets_tensor,
                             const Strides& strides,
                             const Source& source,
-                            const Dest& dest,
                             Output& output)
 {
-    auto output_shape = output.get_shape();
-    auto src_shape    = source.get_shape();
+    auto src_shape = source.get_shape();
 
-    constexpr auto out_elements = decltype(output_shape.elements()){};
     constexpr auto src_elements = decltype(src_shape.elements()){};
-
-    idx.global_stride(out_elements, [&](auto i) { output[i] = dest[i]; });
 
     idx.global_stride(src_elements, [&](auto i) {
         auto src_idx = src_shape.multi(i);

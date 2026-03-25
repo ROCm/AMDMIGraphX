@@ -290,7 +290,7 @@ expr operator/(expr ex, expr ey)
 
 expr operator-(expr e)
 {
-    return call("neg", [](auto x) { return -x; })(std::move(e));
+    return lit(-1) * std::move(e);
 }
 
 bool operator==(const expr& a, const expr& b)

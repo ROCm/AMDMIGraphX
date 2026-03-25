@@ -833,7 +833,8 @@ TEST_CASE(to_string_div)
 TEST_CASE(to_string_neg)
 {
     auto x = var("x");
-    EXPECT((-x).to_string() == "(-x)");
+    // -x is rewritten as -1 * x
+    EXPECT((-x).to_string() == "(-1 * x)");
 }
 
 TEST_CASE(to_string_nested)

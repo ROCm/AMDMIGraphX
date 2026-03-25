@@ -22,8 +22,6 @@
  * THE SOFTWARE.
  */
 
-#include <migraphx/fuse_pointwise.hpp>
-#include <migraphx/simplify_algebra.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/instruction.hpp>
@@ -33,20 +31,18 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/stringutils.hpp>
-#include <migraphx/fuse_reduce.hpp>
 
 #include <test.hpp>
-#include <pointwise.hpp>
-#include <reduce.hpp>
 
-// Two adds fused into a single pointwise op via fuse_pointwise.
-// Both symbols should appear on the fused pointwise instruction.
+// Two adds replaced by a single pass_op via replace_instruction,
+// emulating what fuse_pointwise does without running the pass.
+// add1 feeds only into add2 (splice chain), so both symbols merge.
 //
 //  Before:                          After:
 //
 //   x   y                           x  y  z
 //    \ /                              \ | /
-//    add  {add1}                   pointwise  {add1, add2}
+//    add  {add1}                    pass  {add1, add2}
 //     |  z                             |
 //     | /                           @return
 //    add  {add2}
@@ -56,42 +52,44 @@
 TEST_CASE(pw_double_add)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
-    migraphx::program p1;
+    migraphx::module m1;
     {
-        auto* mm                       = p1.get_main_module();
-        auto x                         = mm->add_parameter("x", s);
-        auto y                         = mm->add_parameter("y", s);
-        auto z                         = mm->add_parameter("z", s);
-        migraphx::instruction_ref add1 = mm->add_instruction(migraphx::make_op("add"), x, y);
-        mm->add_debug_symbols(add1, {"add1"});
-        migraphx::instruction_ref add2 = mm->add_instruction(migraphx::make_op("add"), add1, z);
-        mm->add_debug_symbols(add2, {"add2"});
-        mm->add_return({add2});
-    }
-    migraphx::run_passes(p1, {migraphx::fuse_pointwise{}, migraphx::dead_code_elimination{}});
+        auto x    = m1.add_parameter("x", s);
+        auto y    = m1.add_parameter("y", s);
+        auto z    = m1.add_parameter("z", s);
+        auto add1 = m1.add_instruction(migraphx::make_op("add"), x, y);
+        m1.add_debug_symbols(add1, {"add1"});
+        auto add2 = m1.add_instruction(migraphx::make_op("add"), add1, z);
+        m1.add_debug_symbols(add2, {"add2"});
+        m1.add_return({add2});
 
-    migraphx::program p2;
-    {
-        auto* mm = p2.get_main_module();
-        auto x   = mm->add_parameter("x", s);
-        auto y   = mm->add_parameter("y", s);
-        auto z   = mm->add_parameter("z", s);
-        auto fadd =
-            add_pointwise(p2, "main:pointwise0", {x, y, z}, [=](auto* pm, const auto& inputs) {
-                auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
-                return pm->add_instruction(migraphx::make_op("add"), add1, inputs[2]);
-            });
-        mm->add_debug_symbols(fadd, {"add1", "add2"});
-        mm->add_return({fadd});
+        m1.replace_instruction(add2, pass_op{}, x, y, z);
     }
-    EXPECT(p1 == p2);
+    migraphx::run_passes(m1, {migraphx::dead_code_elimination{}});
+
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", s);
+        auto y    = m2.add_parameter("y", s);
+        auto z    = m2.add_parameter("z", s);
+        auto fadd = m2.add_instruction(pass_op{}, x, y, z);
+        m2.add_debug_symbols(fadd, {"add1", "add2"});
+        m2.add_return({fadd});
+    }
+    EXPECT(m1 == m2);
 }
 
+// Diamond of four adds replaced by a single pass_op via replace_instruction,
+// emulating what fuse_pointwise does without running the pass.
+// add2 and add3 each feed only into add4 (splice chain), and add1
+// feeds only into add2 and add3 (both in the chain), so all four
+// symbols merge onto the replacement.
+//
 //  Before:                       After:
 //
 //    x   y                        x   y
 //     \ /                          \ /
-//     add1 {add1}               pointwise  {add1, add2, add3, add4}
+//     add1 {add1}               pass  {add1, add2, add3, add4}
 //    / \                            |
 //   x   y                        @return
 //   |   |
@@ -104,42 +102,39 @@ TEST_CASE(pw_double_add)
 TEST_CASE(pw_used_twice_fused)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
-    migraphx::program p1;
+    migraphx::module m1;
     {
-        auto* mm  = p1.get_main_module();
-        auto x    = mm->add_parameter("x", s);
-        auto y    = mm->add_parameter("y", s);
-        auto add1 = mm->add_instruction(migraphx::make_op("add"), x, y);
-        mm->add_debug_symbols(add1, {"onnx:add1"});
-        auto add2 = mm->add_instruction(migraphx::make_op("add"), add1, x);
-        mm->add_debug_symbols(add2, {"onnx:add2"});
-        auto add3 = mm->add_instruction(migraphx::make_op("add"), add1, y);
-        mm->add_debug_symbols(add3, {"onnx:add3"});
-        auto add4 = mm->add_instruction(migraphx::make_op("add"), add2, add3);
-        mm->add_debug_symbols(add4, {"onnx:add4"});
-        mm->add_return({add4});
-    }
-    migraphx::run_passes(p1, {migraphx::fuse_pointwise{}, migraphx::dead_code_elimination{}});
+        auto x    = m1.add_parameter("x", s);
+        auto y    = m1.add_parameter("y", s);
+        auto add1 = m1.add_instruction(migraphx::make_op("add"), x, y);
+        m1.add_debug_symbols(add1, {"onnx:add1"});
+        auto add2 = m1.add_instruction(migraphx::make_op("add"), add1, x);
+        m1.add_debug_symbols(add2, {"onnx:add2"});
+        auto add3 = m1.add_instruction(migraphx::make_op("add"), add1, y);
+        m1.add_debug_symbols(add3, {"onnx:add3"});
+        auto add4 = m1.add_instruction(migraphx::make_op("add"), add2, add3);
+        m1.add_debug_symbols(add4, {"onnx:add4"});
+        m1.add_return({add4});
 
-    migraphx::program p2;
-    {
-        auto* mm  = p2.get_main_module();
-        auto x    = mm->add_parameter("x", s);
-        auto y    = mm->add_parameter("y", s);
-        auto fadd = add_pointwise(p2, "main:pointwise0", {x, y}, [=](auto* pm, const auto& inputs) {
-            auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
-            auto add2 = pm->add_instruction(migraphx::make_op("add"), add1, inputs[0]);
-            auto add3 = pm->add_instruction(migraphx::make_op("add"), add1, inputs[1]);
-            return pm->add_instruction(migraphx::make_op("add"), add2, add3);
-        });
-        mm->add_debug_symbols(fadd, {"onnx:add1", "onnx:add2", "onnx:add3", "onnx:add4"});
-        mm->add_return({fadd});
+        m1.replace_instruction(add4, pass_op{}, x, y);
     }
-    EXPECT(p1.sort() == p2.sort());
+    migraphx::run_passes(m1, {migraphx::dead_code_elimination{}});
+
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", s);
+        auto y    = m2.add_parameter("y", s);
+        auto fadd = m2.add_instruction(pass_op{}, x, y);
+        m2.add_debug_symbols(fadd, {"onnx:add1", "onnx:add2", "onnx:add3", "onnx:add4"});
+        m2.add_return({fadd});
+    }
+    EXPECT(m1 == m2);
 }
 
 // Debug symbols should not propagate above the fusion boundary.
-// The gemm (dot) keeps its own symbol; only the fused adds merge.
+// The dot is a common ancestor in both the old and new splice, so
+// its symbol stays on the dot instruction. Only add1 and add2 (the
+// splice chain between dot and the replacement) merge their symbols.
 //
 //  Before:                          After:
 //
@@ -147,9 +142,9 @@ TEST_CASE(pw_used_twice_fused)
 //    \ /                              \ /
 //    dot  {gemm1}                    dot  {gemm1}
 //     |  y                          /
-//     | /                      gemm  y    z
+//     | /                          /  y    z
 //    add  {add1}                  \  |  /
-//     |  z                      pointwise  {add1, add2}
+//     |  z                       pass  {add1, add2}
 //     | /                            |
 //    add  {add2}                  @return
 //     |
@@ -159,47 +154,45 @@ TEST_CASE(gemm_add_add)
 {
     migraphx::shape s1{migraphx::shape::float_type, {2, 3}};
     migraphx::shape s2{migraphx::shape::float_type, {3, 3}};
-    migraphx::program p1;
+    migraphx::module m1;
     {
-        auto* mm  = p1.get_main_module();
-        auto x    = mm->add_parameter("x", s1);
-        auto y    = mm->add_parameter("y", s1);
-        auto z    = mm->add_parameter("z", s1);
-        auto a    = mm->add_literal(migraphx::generate_literal(s2, 0));
-        auto gemm = mm->add_instruction(migraphx::make_op("dot"), x, a);
-        mm->add_debug_symbols(gemm, {"gemm1"});
-        auto add1 = mm->add_instruction(migraphx::make_op("add"), gemm, y);
-        mm->add_debug_symbols(add1, {"add1"});
-        auto add2 = mm->add_instruction(migraphx::make_op("add"), add1, z);
-        mm->add_debug_symbols(add2, {"add2"});
-        mm->add_return({add2});
-    }
-    migraphx::run_passes(p1, {migraphx::fuse_pointwise{}, migraphx::dead_code_elimination{}});
+        auto x    = m1.add_parameter("x", s1);
+        auto y    = m1.add_parameter("y", s1);
+        auto z    = m1.add_parameter("z", s1);
+        auto a    = m1.add_literal(migraphx::generate_literal(s2, 0));
+        auto gemm = m1.add_instruction(migraphx::make_op("dot"), x, a);
+        m1.add_debug_symbols(gemm, {"gemm1"});
+        auto add1 = m1.add_instruction(migraphx::make_op("add"), gemm, y);
+        m1.add_debug_symbols(add1, {"add1"});
+        auto add2 = m1.add_instruction(migraphx::make_op("add"), add1, z);
+        m1.add_debug_symbols(add2, {"add2"});
+        m1.add_return({add2});
 
-    migraphx::program p2;
-    {
-        auto* mm  = p2.get_main_module();
-        auto x    = mm->add_parameter("x", s1);
-        auto y    = mm->add_parameter("y", s1);
-        auto z    = mm->add_parameter("z", s1);
-        auto a    = mm->add_literal(migraphx::generate_literal(s2, 0));
-        auto gemm = mm->add_instruction(migraphx::make_op("dot"), x, a);
-        mm->add_debug_symbols(gemm, {"gemm1"});
-        auto fadd =
-            add_pointwise(p2, "main:pointwise0", {gemm, y, z}, [=](auto* pm, const auto& inputs) {
-                auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
-                return pm->add_instruction(migraphx::make_op("add"), add1, inputs[2]);
-            });
-        mm->add_debug_symbols(fadd, {"add1", "add2"});
-        mm->add_return({fadd});
+        m1.replace_instruction(add2, pass_op{}, gemm, y, z);
     }
-    EXPECT(p1 == p2);
+    migraphx::run_passes(m1, {migraphx::dead_code_elimination{}});
+
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", s1);
+        auto y    = m2.add_parameter("y", s1);
+        auto z    = m2.add_parameter("z", s1);
+        auto a    = m2.add_literal(migraphx::generate_literal(s2, 0));
+        auto gemm = m2.add_instruction(migraphx::make_op("dot"), x, a);
+        m2.add_debug_symbols(gemm, {"gemm1"});
+        auto fadd = m2.add_instruction(pass_op{}, gemm, y, z);
+        m2.add_debug_symbols(fadd, {"add1", "add2"});
+        m2.add_return({fadd});
+    }
+    EXPECT(m1 == m2);
 }
 
-// Horizontal fusion of two dot ops sharing the same input via
-// simplify_algebra. The two dots are fused into concat + single dot + slices.
-// Each new instruction inherits the symbols of the original dots it derives
-// from (e.g. the concat and fused dot carry both "gemm1" and "gemm2").
+// Horizontal fusion of two dot ops sharing the same input, emulating
+// what simplify_algebra does via insert_instruction + batch_replace_instruction.
+// The first replacement sees fused_dot with a single output (the second
+// dot hasn't been replaced yet), so the new splice chain traverses
+// through fused_dot and concat. All four new instructions receive the
+// merged {gemm1, gemm2} symbols.
 //
 //  Before:                          After:
 //
@@ -210,7 +203,7 @@ TEST_CASE(gemm_add_add)
 //        \     /                     \   |
 //        add {sum}                    dot      {g1, g2}
 //                                   /    \
-//                         slice{g1, g2}  slice{g1, g2}
+//                         slice {g1, g2}  slice {g1, g2}
 //                                  \       /
 //                                   add {sum}
 //
@@ -230,86 +223,105 @@ TEST_CASE(horiz_fusion_dot)
         auto sum = m1.add_instruction(migraphx::make_op("add"), x, y);
         m1.add_debug_symbols(sum, {"sum"});
         m1.add_return({sum});
+
+        auto concat    = m1.insert_instruction(x, migraphx::make_op("concat", {{"axis", 2}}), a, b);
+        auto fused_dot = m1.insert_instruction(x, migraphx::make_op("dot"), input, concat);
+        m1.batch_replace_instruction({
+            {x, migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {2}}}), {fused_dot}, {}},
+            {y, migraphx::make_op("slice", {{"axes", {2}}, {"starts", {2}}, {"ends", {4}}}), {fused_dot}, {}},
+        });
     }
-    migraphx::run_passes(m1, {migraphx::simplify_algebra{}, migraphx::dead_code_elimination{}});
 
     migraphx::module m2;
     {
-        auto input  = m2.add_parameter("input", s);
-        auto a      = m2.add_literal(migraphx::generate_literal(s, 0));
-        auto b      = m2.add_literal(migraphx::generate_literal(s, 1));
+        auto input     = m2.add_parameter("input", s);
+        auto a         = m2.add_literal(migraphx::generate_literal(s, 0));
+        auto b         = m2.add_literal(migraphx::generate_literal(s, 1));
         auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), a, b);
         m2.add_debug_symbols(concat, {"gemm1", "gemm2"});
-        auto dot = m2.add_instruction(migraphx::make_op("dot"), input, concat);
-        m2.add_debug_symbols(dot, {"gemm1", "gemm2"});
-        auto x = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {2}}}), dot);
-        m2.add_debug_symbols(x, {"gemm1", "gemm2"});
-        auto y = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {2}}, {"ends", {4}}}), dot);
-        m2.add_debug_symbols(y, {"gemm1", "gemm2"});
-        auto sum = m2.add_instruction(migraphx::make_op("add"), x, y);
+        auto fused_dot = m2.add_instruction(migraphx::make_op("dot"), input, concat);
+        m2.add_debug_symbols(fused_dot, {"gemm1", "gemm2"});
+        auto sx        = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {2}}}), fused_dot);
+        m2.add_debug_symbols(sx, {"gemm1", "gemm2"});
+        auto sy = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {2}}, {"ends", {4}}}), fused_dot);
+        m2.add_debug_symbols(sy, {"gemm1", "gemm2"});
+        auto sum = m2.add_instruction(migraphx::make_op("add"), sx, sy);
         m2.add_debug_symbols(sum, {"sum"});
         m2.add_return({sum});
     }
-    EXPECT(m1.sort() == m2.sort());
+    EXPECT(m1 == m2);
 }
 
-// Goes through the find_pointwise_reduce matcher.
-// Making sure that the debug symbols are getting from the minimum splice of the old instructions.
-TEST_CASE(pointwise_reduce_debug_symbols)
+// Emulates the find_pointwise_reduce fusion using pass_op + replace_instruction.
+// A pass_op standing in for the pointwise feeds only into a pass_op standing
+// in for the reduce (splice chain), so replace_instruction merges both symbols.
+//
+//  Before:                                        After:
+//
+//   x   y                                          x   y
+//    \ /                                            \ /
+//    add  {add0}                                   add  {add0}
+//     |                                             |
+//    relu  {relu0}                                 relu  {relu0}
+//     |  z                                          |  z
+//     | /                                           | /
+//    pass  {pointwise}                             pass  {pointwise, reduce_sum}
+//     |                                             |
+//    pass  {reduce_sum}                            relu  {relu1}
+//     |                                             |
+//    relu  {relu1}                               @return
+//     |
+//   @return
+//
+TEST_CASE(pointwise_reduce)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
-    migraphx::program p1;
+    migraphx::module m1;
     {
-        auto* mm  = p1.get_main_module();
-        auto x    = mm->add_parameter("x", s);
-        auto y    = mm->add_parameter("y", s);
-        auto z    = mm->add_parameter("z", s);
-        auto curr = mm->add_instruction(migraphx::make_op("add"), x, y);
-        mm->add_debug_symbols(curr, {"add0"});
-        curr = mm->add_instruction(migraphx::make_op("relu"), curr);
-        mm->add_debug_symbols(curr, {"relu0"});
-        auto add = add_pointwise(p1, "main:pointwise0", {curr, z}, single_pointwise("add"));
-        mm->add_debug_symbols(add, {"pointwise"});
-        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), add);
-        mm->add_debug_symbols(rsum, {"reduce_sum"});
-        curr = mm->add_instruction(migraphx::make_op("relu"), rsum);
-        mm->add_debug_symbols(curr, {"relu1"});
-        mm->add_return({curr});
-    }
-    migraphx::run_passes(p1, {migraphx::fuse_reduce{}, migraphx::dead_code_elimination{}});
+        auto x    = m1.add_parameter("x", s);
+        auto y    = m1.add_parameter("y", s);
+        auto z    = m1.add_parameter("z", s);
+        auto curr = m1.add_instruction(migraphx::make_op("add"), x, y);
+        m1.add_debug_symbols(curr, {"add0"});
+        curr = m1.add_instruction(migraphx::make_op("relu"), curr);
+        m1.add_debug_symbols(curr, {"relu0"});
+        auto pw = m1.add_instruction(pass_op{}, curr, z);
+        m1.add_debug_symbols(pw, {"pointwise"});
+        auto rs = m1.add_instruction(pass_op{}, pw);
+        m1.add_debug_symbols(rs, {"reduce_sum"});
+        auto relu1 = m1.add_instruction(migraphx::make_op("relu"), rs);
+        m1.add_debug_symbols(relu1, {"relu1"});
+        m1.add_return({relu1});
 
-    migraphx::program p2;
-    {
-        auto* mm  = p2.get_main_module();
-        auto x    = mm->add_parameter("x", s);
-        auto y    = mm->add_parameter("y", s);
-        auto z    = mm->add_parameter("z", s);
-        auto curr = mm->add_instruction(migraphx::make_op("add"), x, y);
-        mm->add_debug_symbols(curr, {"add0"});
-        curr = mm->add_instruction(migraphx::make_op("relu"), curr);
-        mm->add_debug_symbols(curr, {"relu0"});
-        auto rsum = add_reduce(
-            p2,
-            "main:pointwise0:main:reduce_sum0",
-            {curr, z},
-            {1},
-            [&](auto* rm, const auto& inputs, const auto& axes) {
-                auto add =
-                    add_pointwise(p2, rm, "main:pointwise0", inputs, single_pointwise("add"));
-                return rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), add);
-            });
-        mm->add_debug_symbols(rsum, {"pointwise", "reduce_sum"});
-        curr = mm->add_instruction(migraphx::make_op("relu"), rsum);
-        mm->add_debug_symbols(curr, {"relu1"});
-        mm->add_return({curr});
+        m1.replace_instruction(rs, pass_op{}, curr, z);
     }
-    EXPECT(p1 == p2);
+    migraphx::run_passes(m1, {migraphx::dead_code_elimination{}});
+
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", s);
+        auto y    = m2.add_parameter("y", s);
+        auto z    = m2.add_parameter("z", s);
+        auto curr = m2.add_instruction(migraphx::make_op("add"), x, y);
+        m2.add_debug_symbols(curr, {"add0"});
+        curr = m2.add_instruction(migraphx::make_op("relu"), curr);
+        m2.add_debug_symbols(curr, {"relu0"});
+        auto fused = m2.add_instruction(pass_op{}, curr, z);
+        m2.add_debug_symbols(fused, {"pointwise", "reduce_sum"});
+        auto relu1 = m2.add_instruction(migraphx::make_op("relu"), fused);
+        m2.add_debug_symbols(relu1, {"relu1"});
+        m2.add_return({relu1});
+    }
+    EXPECT(m1 == m2);
 }
 
-// Tests symbol propagation through add reassociation in simplify_algebra
-// (find_double_add_lit_broadcast). Checks add(add(x,1), add(y,2)) -> (add(add(x,y), add(1,2)).
+// Tests symbol propagation through add reassociation, emulating
+// find_double_add_lit_broadcast via insert_instruction + replace_instruction.
+// add(add(x,1), add(y,2)) -> add(add(x,y), add(1,2)).
+// sum1 and sum2 each feed only into sum3 (splice chain), so all three
+// symbols merge onto every instruction in the new splice.
 //
 //  Before:                          After:
 //
@@ -319,7 +331,7 @@ TEST_CASE(pointwise_reduce_debug_symbols)
 //      \     /                              \       /
 //      add0{a0}                             add{a0,a1,a2}
 //
-TEST_CASE(simplify_add_debug_symbols)
+TEST_CASE(simplify_add)
 {
     migraphx::module m1;
     {
@@ -334,8 +346,12 @@ TEST_CASE(simplify_add_debug_symbols)
         auto sum3 = m1.add_instruction(migraphx::make_op("add"), sum1, sum2);
         m1.add_debug_symbols(sum3, {"onnx:add0"});
         m1.add_return({sum3});
+
+        auto sumab = m1.insert_instruction(sum3, migraphx::make_op("add"), one, two);
+        auto sumxy = m1.insert_instruction(sum3, migraphx::make_op("add"), x, y);
+        m1.replace_instruction(sum3, migraphx::make_op("add"), sumxy, sumab);
     }
-    migraphx::run_passes(m1, {migraphx::simplify_algebra{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(m1, {migraphx::dead_code_elimination{}});
 
     migraphx::module m2;
     {
@@ -354,8 +370,10 @@ TEST_CASE(simplify_add_debug_symbols)
     EXPECT(m1.sort() == m2.sort());
 }
 
-// Tests the replace_instruction(ins, rep) overload via find_unit_ops which
-// simplifies add(relu(x), broadcast(0)) to relu(x).
+// Tests the replace_instruction(ins, rep) overload directly, emulating
+// what find_unit_ops does: add(relu(x), broadcast(0)) -> relu(x).
+// replace_instruction(add_r, relu_x) redirects add's outputs to relu,
+// and relu inherits add's {onnx:add} symbol.
 //
 //  Before:                       After:
 //
@@ -366,7 +384,7 @@ TEST_CASE(simplify_add_debug_symbols)
 //     \   /
 //     add  {add}
 //
-TEST_CASE(replace_with_insref_debug_symbols)
+TEST_CASE(replace_with_insref)
 {
     migraphx::module m1;
     {
@@ -380,8 +398,10 @@ TEST_CASE(replace_with_insref_debug_symbols)
         auto add_r = m1.add_instruction(migraphx::make_op("add"), relu_x, bcast);
         m1.add_debug_symbols(add_r, {"onnx:add"});
         m1.add_return({add_r});
+
+        m1.replace_instruction(add_r, relu_x);
     }
-    migraphx::run_passes(m1, {migraphx::simplify_algebra{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(m1, {migraphx::dead_code_elimination{}});
 
     migraphx::module m2;
     {
@@ -406,7 +426,7 @@ TEST_CASE(replace_with_insref_debug_symbols)
 //    |          (relu becomes dead code, removed by DCE)
 //   pass
 //
-TEST_CASE(gather_replace_chain_debug_symbols)
+TEST_CASE(gather_replace_chain)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
     migraphx::module m1;
@@ -435,8 +455,10 @@ TEST_CASE(gather_replace_chain_debug_symbols)
     EXPECT(m1.sort() == m2.sort());
 }
 
-// Tests the distributive law transform in simplify_algebra (find_mul_add):
-// mul(add(3, x), 2) -> add(mul(2, x), mul(2, 3)).
+// Tests the distributive law transform via insert_instruction + replace_instruction,
+// emulating find_mul_add: mul(add(3, x), 2) -> add(mul(2, x), mul(2, 3)).
+// add feeds only into mul (splice chain), so both symbols merge onto
+// every instruction in the new splice.
 //
 //  Before:                           After:
 //
@@ -447,7 +469,7 @@ TEST_CASE(gather_replace_chain_debug_symbols)
 //     | /                                  add{add,mul}
 //    mul  {mul}
 //
-TEST_CASE(simplify_mul_add_debug_symbols)
+TEST_CASE(simplify_mul_add)
 {
     migraphx::module m1;
     {
@@ -459,8 +481,12 @@ TEST_CASE(simplify_mul_add_debug_symbols)
         auto mul = m1.add_instruction(migraphx::make_op("mul"), sum, two);
         m1.add_debug_symbols(mul, {"onnx:mul"});
         m1.add_return({mul});
+
+        auto ax = m1.insert_instruction(mul, migraphx::make_op("mul"), two, x);
+        auto ab = m1.insert_instruction(mul, migraphx::make_op("mul"), two, one);
+        m1.replace_instruction(mul, migraphx::make_op("add"), ax, ab);
     }
-    migraphx::run_passes(m1, {migraphx::simplify_algebra{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(m1, {migraphx::dead_code_elimination{}});
 
     migraphx::module m2;
     {
@@ -478,8 +504,10 @@ TEST_CASE(simplify_mul_add_debug_symbols)
     EXPECT(m1.sort() == m2.sort());
 }
 
-// Tests symbol propagation through find_div_const in simplify_algebra:
-// div(x, c) -> mul(x, recip(c)).
+// Tests symbol propagation through insert_instruction + replace_instruction,
+// emulating find_div_const: div(x, c) -> mul(x, recip(c)).
+// div is the only instruction in the splice chain, so its {onnx:div} symbol
+// propagates to both recip and mul.
 //
 //  Before:                       After:
 //
@@ -490,7 +518,7 @@ TEST_CASE(simplify_mul_add_debug_symbols)
 //                                 \ |
 //                                 mul  {div}
 //
-TEST_CASE(simplify_div_const_debug_symbols)
+TEST_CASE(simplify_div_const)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
     migraphx::module m1;
@@ -502,8 +530,11 @@ TEST_CASE(simplify_div_const_debug_symbols)
         auto div_r = m1.add_instruction(migraphx::make_op("div"), x, c);
         m1.add_debug_symbols(div_r, {"onnx:div"});
         m1.add_return({div_r});
+
+        auto recip = m1.insert_instruction(div_r, migraphx::make_op("recip"), c);
+        m1.replace_instruction(div_r, migraphx::make_op("mul"), x, recip);
     }
-    migraphx::run_passes(m1, {migraphx::simplify_algebra{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(m1, {migraphx::dead_code_elimination{}});
 
     migraphx::module m2;
     {
@@ -539,10 +570,6 @@ TEST_CASE(debug_symbols_in_print)
     auto str = migraphx::to_string(m);
     EXPECT(str.find("# sym_a, sym_b") != std::string::npos);
 }
-
-// -----------------------------------------------------------------------
-// Direct replace_instruction / batch_replace_instruction tests
-// -----------------------------------------------------------------------
 
 // replace_instruction(ins, op, args) -- simple in-place, no splice chain.
 // The replaced instruction retains its own debug symbols.
@@ -757,6 +784,64 @@ TEST_CASE(batch_replace_multi_merges_symbols)
     std::set<std::string> expected{"add1_sym", "add2_sym"};
     EXPECT(results[0]->get_debug_symbols() == expected);
     EXPECT(results[1]->get_debug_symbols() == expected);
+}
+
+// Emulates rewrite_nearest_resize: resize(x) -> gather(reshape(x), indices).
+// resize is the only symbolized instruction in the splice chain, so
+// {onnx:resize} propagates to both reshape and gather. The literal
+// (gather indices) does not receive symbols.
+//
+//  Before:                          After:
+//
+//    x                                x
+//    |                                |
+//  resize {resize}               reshape {resize}   indices
+//                                     \             /
+//                                     gather {resize}
+//
+TEST_CASE(rewrite_resize_debug_symbols)
+{
+    migraphx::shape in_s{migraphx::shape::float_type, {1, 1, 2, 2}};
+    // clang-format off
+    std::vector<int> indices = {0, 0, 1, 1,
+                                0, 0, 1, 1,
+                                2, 2, 3, 3,
+                                2, 2, 3, 3};
+    // clang-format on
+
+    migraphx::module m1;
+    {
+        auto x      = m1.add_parameter("x", in_s);
+        auto resize = m1.add_instruction(
+            migraphx::make_op("resize",
+                              {{"scales", {1.0f, 1.0f, 2.0f, 2.0f}},
+                               {"nearest_mode", "floor"},
+                               {"coordinate_transformation_mode", "asymmetric"}}),
+            x);
+        m1.add_debug_symbols(resize, {"onnx:resize"});
+        m1.add_return({resize});
+
+        auto rsp =
+            m1.insert_instruction(resize, migraphx::make_op("reshape", {{"dims", {4}}}), x);
+        auto ins_ind = m1.add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int32_type, {1, 1, 4, 4}}, indices});
+        m1.replace_instruction(resize, migraphx::make_op("gather", {{"axis", 0}}), rsp, ins_ind);
+    }
+    migraphx::run_passes(m1, {migraphx::dead_code_elimination{}});
+
+    migraphx::module m2;
+    {
+        auto x   = m2.add_parameter("x", in_s);
+        auto rsp = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), x);
+        m2.add_debug_symbols(rsp, {"onnx:resize"});
+        auto ins_ind = m2.add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int32_type, {1, 1, 4, 4}}, indices});
+        auto gather =
+            m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), rsp, ins_ind);
+        m2.add_debug_symbols(gather, {"onnx:resize"});
+        m2.add_return({gather});
+    }
+    EXPECT(m1.sort() == m2.sort());
 }
 
 // -----------------------------------------------------------------------

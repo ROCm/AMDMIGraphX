@@ -381,10 +381,7 @@ expr max(expr x, expr y)
         [](interval a, interval b) { return max(a, b); })(std::move(x), std::move(y));
 }
 
-std::string expr::name() const
-{
-    return get_name(pimpl->node);
-}
+std::string expr::name() const { return get_name(pimpl->node); }
 
 const node_variant& expr::node() const { return pimpl->node; }
 

@@ -874,4 +874,276 @@ TEST_CASE(free_to_string)
     EXPECT(to_string(sin(x)) == "sin(x)");
 }
 
+// ---- Associative flattening tests ----
+
+TEST_CASE(flatten_add_right)
+{
+    auto a = var("a");
+    auto b = var("b");
+    auto c = var("c");
+    // (a + b) + c should flatten to +(a, b, c)
+    auto e      = (a + b) + c;
+    auto result = e.eval({{"a", int64_t{1}}, {"b", int64_t{2}}, {"c", int64_t{3}}});
+    EXPECT(result == value{int64_t{6}});
+    EXPECT(e.children().size() == 3);
+}
+
+TEST_CASE(flatten_add_left)
+{
+    auto a = var("a");
+    auto b = var("b");
+    auto c = var("c");
+    // a + (b + c) should flatten to +(a, b, c)
+    auto e      = a + (b + c);
+    auto result = e.eval({{"a", int64_t{1}}, {"b", int64_t{2}}, {"c", int64_t{3}}});
+    EXPECT(result == value{int64_t{6}});
+    EXPECT(e.children().size() == 3);
+}
+
+TEST_CASE(flatten_add_both)
+{
+    auto a = var("a");
+    auto b = var("b");
+    auto c = var("c");
+    auto d = var("d");
+    // (a + b) + (c + d) should flatten to +(a, b, c, d)
+    auto e      = (a + b) + (c + d);
+    auto result = e.eval({{"a", int64_t{1}}, {"b", int64_t{2}}, {"c", int64_t{3}}, {"d", int64_t{4}}});
+    EXPECT(result == value{int64_t{10}});
+    EXPECT(e.children().size() == 4);
+}
+
+TEST_CASE(flatten_mul_right)
+{
+    auto a = var("a");
+    auto b = var("b");
+    auto c = var("c");
+    // (a * b) * c should flatten to *(a, b, c)
+    auto e      = (a * b) * c;
+    auto result = e.eval({{"a", int64_t{2}}, {"b", int64_t{3}}, {"c", int64_t{4}}});
+    EXPECT(result == value{int64_t{24}});
+    EXPECT(e.children().size() == 3);
+}
+
+TEST_CASE(flatten_mul_both)
+{
+    auto a = var("a");
+    auto b = var("b");
+    auto c = var("c");
+    auto d = var("d");
+    // (a * b) * (c * d) should flatten to *(a, b, c, d)
+    auto e = (a * b) * (c * d);
+    auto result =
+        e.eval({{"a", int64_t{2}}, {"b", int64_t{3}}, {"c", int64_t{4}}, {"d", int64_t{5}}});
+    EXPECT(result == value{int64_t{120}});
+    EXPECT(e.children().size() == 4);
+}
+
+TEST_CASE(flatten_nested_add)
+{
+    auto a = var("a");
+    auto b = var("b");
+    auto c = var("c");
+    auto d = var("d");
+    // ((a + b) + c) + d should flatten to +(a, b, c, d)
+    auto e      = ((a + b) + c) + d;
+    auto result = e.eval({{"a", int64_t{1}}, {"b", int64_t{2}}, {"c", int64_t{3}}, {"d", int64_t{4}}});
+    EXPECT(result == value{int64_t{10}});
+    EXPECT(e.children().size() == 4);
+}
+
+TEST_CASE(no_flatten_sub)
+{
+    auto a = var("a");
+    auto b = var("b");
+    auto c = var("c");
+    // (a - b) - c should NOT flatten (subtraction is not associative in call_associative)
+    auto e      = (a - b) - c;
+    auto result = e.eval({{"a", int64_t{10}}, {"b", int64_t{3}}, {"c", int64_t{2}}});
+    EXPECT(result == value{int64_t{5}});
+    EXPECT(e.children().size() == 2);
+}
+
+TEST_CASE(no_flatten_div)
+{
+    auto a = var("a");
+    auto b = var("b");
+    auto c = var("c");
+    // (a / b) / c should NOT flatten
+    auto e      = (a / b) / c;
+    auto result = e.eval({{"a", 12.0}, {"b", 2.0}, {"c", 3.0}});
+    EXPECT(result == value{2.0});
+    EXPECT(e.children().size() == 2);
+}
+
+TEST_CASE(no_flatten_mixed_ops)
+{
+    auto a = var("a");
+    auto b = var("b");
+    auto c = var("c");
+    // (a * b) + c should NOT flatten mul into add
+    auto e = (a * b) + c;
+    EXPECT(e.children().size() == 2);
+    auto result = e.eval({{"a", int64_t{3}}, {"b", int64_t{4}}, {"c", int64_t{5}}});
+    EXPECT(result == value{int64_t{17}});
+}
+
+TEST_CASE(flatten_add_interval)
+{
+    auto a = var("a");
+    auto b = var("b");
+    auto c = var("c");
+    auto e = (a + b) + c;
+    // [1,2] + [3,4] + [5,6] = [9,12]
+    auto result = e.eval_interval({{"a", interval{int64_t{1}, int64_t{2}}},
+                                   {"b", interval{int64_t{3}, int64_t{4}}},
+                                   {"c", interval{int64_t{5}, int64_t{6}}}});
+    EXPECT(result == (interval{int64_t{9}, int64_t{12}}));
+}
+
+TEST_CASE(flatten_mul_interval)
+{
+    auto a = var("a");
+    auto b = var("b");
+    auto c = var("c");
+    auto e = (a * b) * c;
+    // [1,2] * [3,4] * [1,1] = [3,8] * [1,1] = [3,8]
+    auto result = e.eval_interval({{"a", interval{int64_t{1}, int64_t{2}}},
+                                   {"b", interval{int64_t{3}, int64_t{4}}},
+                                   {"c", interval{int64_t{1}, int64_t{1}}}});
+    EXPECT(result == (interval{int64_t{3}, int64_t{8}}));
+}
+
+TEST_CASE(flatten_to_string_add)
+{
+    auto a = var("a");
+    auto b = var("b");
+    auto c = var("c");
+    EXPECT(((a + b) + c).to_string() == "(a + b + c)");
+}
+
+TEST_CASE(flatten_to_string_add_both)
+{
+    auto a = var("a");
+    auto b = var("b");
+    auto c = var("c");
+    auto d = var("d");
+    EXPECT(((a + b) + (c + d)).to_string() == "(a + b + c + d)");
+}
+
+TEST_CASE(flatten_to_string_mul)
+{
+    auto a = var("a");
+    auto b = var("b");
+    auto c = var("c");
+    EXPECT(((a * b) * c).to_string() == "(a * b * c)");
+}
+
+TEST_CASE(flatten_to_string_nested)
+{
+    auto a = var("a");
+    auto b = var("b");
+    auto c = var("c");
+    auto d = var("d");
+    EXPECT((((a + b) + c) + d).to_string() == "(a + b + c + d)");
+}
+
+TEST_CASE(flatten_to_string_mixed)
+{
+    auto a = var("a");
+    auto b = var("b");
+    auto c = var("c");
+    // (a * b) + c: mul is a child of add, should not flatten across ops
+    EXPECT(((a * b) + c).to_string() == "((a * b) + c)");
+}
+
+// ---- Constant folding tests ----
+
+TEST_CASE(const_fold_add)
+{
+    auto e = lit(3) + lit(4);
+    EXPECT(e.name() == "literal");
+    EXPECT(e.eval({}) == value{int64_t{7}});
+}
+
+TEST_CASE(const_fold_sub)
+{
+    auto e = lit(10) - lit(3);
+    EXPECT(e.name() == "literal");
+    EXPECT(e.eval({}) == value{int64_t{7}});
+}
+
+TEST_CASE(const_fold_mul)
+{
+    auto e = lit(6) * lit(7);
+    EXPECT(e.name() == "literal");
+    EXPECT(e.eval({}) == value{int64_t{42}});
+}
+
+TEST_CASE(const_fold_div)
+{
+    auto e = lit(10.0) / lit(4.0);
+    EXPECT(e.name() == "literal");
+    EXPECT(e.eval({}) == value{2.5});
+}
+
+TEST_CASE(const_fold_neg)
+{
+    auto e = -lit(5);
+    EXPECT(e.name() == "literal");
+    EXPECT(e.eval({}) == value{int64_t{-5}});
+}
+
+TEST_CASE(const_fold_nested)
+{
+    // (3 + 4) * 2 should fold completely to 14
+    auto e = (lit(3) + lit(4)) * lit(2);
+    EXPECT(e.name() == "literal");
+    EXPECT(e.eval({}) == value{int64_t{14}});
+}
+
+TEST_CASE(const_fold_math_functions)
+{
+    EXPECT(sin(lit(0.0)).name() == "literal");
+    EXPECT(cos(lit(0.0)).name() == "literal");
+    EXPECT(sqrt(lit(4.0)).name() == "literal");
+    EXPECT(abs(lit(-5)).name() == "literal");
+    EXPECT(floor(lit(2.7)).name() == "literal");
+    EXPECT(ceil(lit(2.3)).name() == "literal");
+    EXPECT(pow(lit(2.0), lit(3.0)).name() == "literal");
+    EXPECT(min(lit(3), lit(5)).name() == "literal");
+    EXPECT(max(lit(3), lit(5)).name() == "literal");
+}
+
+TEST_CASE(no_const_fold_with_variable)
+{
+    auto x = var("x");
+    auto e = x + lit(3);
+    EXPECT(e.name() != "literal");
+}
+
+TEST_CASE(const_fold_partial)
+{
+    auto x = var("x");
+    // x + (3 + 4): the (3+4) subexpr folds to 7, but x+7 does not fold
+    auto e = x + (lit(3) + lit(4));
+    EXPECT(e.name() != "literal");
+    auto result = e.eval({{"x", int64_t{1}}});
+    EXPECT(result == value{int64_t{8}});
+}
+
+TEST_CASE(const_fold_chain)
+{
+    // lit(1) + lit(2) + lit(3) should flatten then fold to 6
+    auto e = lit(1) + lit(2) + lit(3);
+    EXPECT(e.name() == "literal");
+    EXPECT(e.eval({}) == value{int64_t{6}});
+}
+
+TEST_CASE(const_fold_to_string)
+{
+    auto e = lit(3) + lit(4);
+    EXPECT(e.to_string() == "7");
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

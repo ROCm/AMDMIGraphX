@@ -199,6 +199,11 @@ interval min(interval x, interval y) { return {value_min(x.min, y.min), value_mi
 
 interval max(interval x, interval y) { return {value_max(x.min, y.min), value_max(x.max, y.max)}; }
 
+expr lit(value v)
+{
+    return expr(literal_node{v});
+}
+
 expr var(std::string name) { return expr(variable_node{std::move(name), {}}); }
 
 expr var(std::string name, interval constraint)
@@ -210,8 +215,32 @@ expr arg(expr x) { return x; }
 
 expr call_op(const op_def* op, std::vector<expr> args)
 {
-    return expr(op_node{op}, std::move(args));
+    bool is_const = std::all_of(args.begin(), args.end(), [](const expr& e) { return e.name() == "literal"; });
+    auto e = expr(op_node{op}, std::move(args));
+    if(is_const)
+        return lit(e.eval({}));
+    return e;
 }
+
+namespace {
+std::vector<expr> flatten_args(const std::string& op_name, std::vector<expr> args)
+{
+    std::vector<expr> flat_args;
+    for(auto& a : args)
+    {
+        if(a.name() == op_name)
+        {
+            auto& c = a.children();
+            flat_args.insert(flat_args.end(), c.begin(), c.end());
+        }
+        else
+        {
+            flat_args.push_back(std::move(a));
+        }
+    }
+    return flat_args;
+}
+} // namespace
 
 template <class Eval, class EvalInterval>
 auto call_associative(std::string name, Eval eval, EvalInterval eval_interval)
@@ -232,7 +261,7 @@ auto call_associative(std::string name, Eval eval, EvalInterval eval_interval)
                 args.front(),
                 [=](const interval& acc, const interval& arg) { return eval_interval(acc, arg); });
         };
-        return call_op(name, eval1, eval_interval1, {arg(es)...});
+        return call_op(name, eval1, eval_interval1, flatten_args(name, {arg(es)...}));
     };
 }
 
@@ -360,6 +389,10 @@ std::string expr::name() const
     return n->op->name;
 }
 
+const node_variant& expr::node() const { return pimpl->node; }
+
+const std::vector<expr>& expr::children() const { return pimpl->children; }
+
 value expr::eval(const std::unordered_map<std::string, value>& vars) const
 {
     if(auto* n = std::get_if<literal_node>(&pimpl->node))
@@ -426,9 +459,18 @@ std::string expr::to_string() const
     auto* n = std::get_if<op_node>(&pimpl->node);
     if(n->op->name == "neg" and pimpl->children.size() == 1)
         return "(-" + pimpl->children[0].to_string() + ")";
-    if(is_infix_op(n->op->name) and pimpl->children.size() == 2)
-        return "(" + pimpl->children[0].to_string() + " " + n->op->name + " " +
-               pimpl->children[1].to_string() + ")";
+    if(is_infix_op(n->op->name) and pimpl->children.size() >= 2)
+    {
+        std::string result = "(";
+        for(std::size_t i = 0; i < pimpl->children.size(); ++i)
+        {
+            if(i > 0)
+                result += " " + n->op->name + " ";
+            result += pimpl->children[i].to_string();
+        }
+        result += ")";
+        return result;
+    }
     std::string result = n->op->name + "(";
     for(std::size_t i = 0; i < pimpl->children.size(); ++i)
     {

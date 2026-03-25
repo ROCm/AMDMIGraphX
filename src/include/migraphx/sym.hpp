@@ -161,6 +161,8 @@ class MIGRAPHX_EXPORT expr
     }
 
     std::string name() const;
+    const node_variant& node() const;
+    const std::vector<expr>& children() const;
     value eval(const std::unordered_map<std::string, value>& vars) const;
     interval eval_interval(const std::unordered_map<std::string, interval>& vars) const;
     std::string to_string() const;
@@ -179,13 +181,15 @@ class MIGRAPHX_EXPORT expr
     friend bool operator!=(const expr& a, const expr& b);
 };
 
+expr lit(value v);
+
 template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>
 expr lit(T v)
 {
     if constexpr(std::is_integral<T>{})
-        return expr(literal_node{value{static_cast<int64_t>(v)}});
+        return lit(value{int64_t{v}});
     else
-        return expr(literal_node{value{static_cast<double>(v)}});
+        return lit(value{double{v}});
 }
 
 expr var(std::string name);

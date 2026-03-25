@@ -114,7 +114,7 @@ static const mul_data& get_mul(const expr_ptr& e) { return std::get<mul_data>(e-
 
 static std::size_t hash_combine(std::size_t seed, std::size_t v)
 {
-    return seed ^ (v + 0x9e3779b9 + (seed << 6) + (seed >> 2));
+    return seed ^ (v + 0x9e3779b9u + (seed << 6u) + (seed >> 2u));
 }
 
 template <class Map>
@@ -541,74 +541,80 @@ enum
 
 static std::string print_expr(const expr_ptr& e, int parent_prec = 0);
 
+static std::string print_add(const add_data& d, int parent_prec)
+{
+    std::ostringstream os;
+    bool first = true;
+    for(const auto& [term, coeff] : d.terms)
+    {
+        if(first)
+        {
+            if(coeff == -1)
+                os << "-" << print_expr(term, prec_add);
+            else if(coeff == 1)
+                os << print_expr(term, prec_add);
+            else
+                os << coeff << "*" << print_expr(term, prec_mul + 1);
+            first = false;
+        }
+        else
+        {
+            if(coeff == 1)
+                os << " + " << print_expr(term, prec_add);
+            else if(coeff == -1)
+                os << " - " << print_expr(term, prec_add);
+            else if(coeff > 0)
+                os << " + " << coeff << "*" << print_expr(term, prec_mul + 1);
+            else
+                os << " - " << (-coeff) << "*" << print_expr(term, prec_mul + 1);
+        }
+    }
+    if(d.constant > 0)
+        os << " + " << d.constant;
+    else if(d.constant < 0)
+        os << " - " << (-d.constant);
+    std::string s = os.str();
+    if(parent_prec > prec_add)
+        return "(" + s + ")";
+    return s;
+}
+
+static std::string print_mul(const mul_data& d, int parent_prec)
+{
+    std::ostringstream os;
+    bool first = true;
+    if(d.coefficient == -1)
+    {
+        os << "-";
+    }
+    else if(d.coefficient != 1)
+    {
+        os << d.coefficient;
+        first = false;
+    }
+    for(const auto& [base, exp] : d.factors)
+    {
+        if(not first)
+            os << "*";
+        if(exp == 1)
+            os << print_expr(base, prec_mul + 1);
+        else
+            os << print_expr(base, prec_mul + 1) << "**" << exp;
+        first = false;
+    }
+    std::string raw = os.str();
+    if(parent_prec > prec_mul)
+        return "(" + raw + ")";
+    return raw;
+}
+
 static std::string print_expr(const expr_ptr& e, int parent_prec)
 {
     return std::visit(
         overloaded{[](const integer_data& d) -> std::string { return std::to_string(d.value); },
                    [](const symbol_data& d) -> std::string { return d.name; },
-                   [&](const add_data& d) -> std::string {
-                       std::ostringstream os;
-                       bool first = true;
-                       for(const auto& [term, coeff] : d.terms)
-                       {
-                           if(first)
-                           {
-                               if(coeff == -1)
-                                   os << "-" << print_expr(term, prec_add);
-                               else if(coeff == 1)
-                                   os << print_expr(term, prec_add);
-                               else
-                                   os << coeff << "*" << print_expr(term, prec_mul + 1);
-                               first = false;
-                           }
-                           else
-                           {
-                               if(coeff == 1)
-                                   os << " + " << print_expr(term, prec_add);
-                               else if(coeff == -1)
-                                   os << " - " << print_expr(term, prec_add);
-                               else if(coeff > 0)
-                                   os << " + " << coeff << "*" << print_expr(term, prec_mul + 1);
-                               else
-                                   os << " - " << (-coeff) << "*" << print_expr(term, prec_mul + 1);
-                           }
-                       }
-                       if(d.constant > 0)
-                           os << " + " << d.constant;
-                       else if(d.constant < 0)
-                           os << " - " << (-d.constant);
-                       std::string s = os.str();
-                       if(parent_prec > prec_add)
-                           return "(" + s + ")";
-                       return s;
-                   },
-                   [&](const mul_data& d) -> std::string {
-                       std::ostringstream os;
-                       bool first = true;
-                       if(d.coefficient == -1)
-                       {
-                           os << "-";
-                       }
-                       else if(d.coefficient != 1)
-                       {
-                           os << d.coefficient;
-                           first = false;
-                       }
-                       for(const auto& [base, exp] : d.factors)
-                       {
-                           if(not first)
-                               os << "*";
-                           if(exp == 1)
-                               os << print_expr(base, prec_mul + 1);
-                           else
-                               os << print_expr(base, prec_mul + 1) << "**" << exp;
-                           first = false;
-                       }
-                       std::string raw = os.str();
-                       if(parent_prec > prec_mul)
-                           return "(" + raw + ")";
-                       return raw;
-                   },
+                   [&](const add_data& d) -> std::string { return print_add(d, parent_prec); },
+                   [&](const mul_data& d) -> std::string { return print_mul(d, parent_prec); },
                    [&](const fdiv_data& d) -> std::string {
                        std::string s = print_expr(d.numerator, prec_mul + 1) + "/" +
                                        print_expr(d.denominator, prec_mul + 1);
@@ -625,7 +631,7 @@ static std::string print_expr(const expr_ptr& e, int parent_prec)
 
 static void skip_ws(const char*& p)
 {
-    while(*p and std::isspace(static_cast<unsigned char>(*p)))
+    while(*p != 0 and std::isspace(static_cast<unsigned char>(*p)) != 0)
         ++p;
 }
 
@@ -637,20 +643,20 @@ static expr_ptr parse_primary(const char*& p);
 static expr_ptr parse_primary(const char*& p)
 {
     skip_ws(p);
-    if(std::isdigit(static_cast<unsigned char>(*p)))
+    if(std::isdigit(static_cast<unsigned char>(*p)) != 0)
     {
         int64_t n = 0;
-        while(std::isdigit(static_cast<unsigned char>(*p)))
+        while(std::isdigit(static_cast<unsigned char>(*p)) != 0)
         {
             n = n * 10 + (*p - '0');
             ++p;
         }
         return make_integer(n);
     }
-    if(std::isalpha(static_cast<unsigned char>(*p)) or *p == '_')
+    if(std::isalpha(static_cast<unsigned char>(*p)) != 0 or *p == '_')
     {
         std::string name;
-        while(std::isalnum(static_cast<unsigned char>(*p)) or *p == '_')
+        while(std::isalnum(static_cast<unsigned char>(*p)) != 0 or *p == '_')
         {
             name += *p;
             ++p;
@@ -790,7 +796,7 @@ std::size_t symbolic_expr::eval(const std::map<std::string, std::size_t>& symbol
     if(empty())
         return 0;
     auto v = evaluate(p->node, symbol_map);
-    assert(v >= 0 && "symbolic dimension evaluated to negative value");
+    assert(v >= 0 and "symbolic dimension evaluated to negative value");
     return static_cast<std::size_t>(v);
 }
 
@@ -863,7 +869,7 @@ void migraphx_to_value(value& v, const symbolic_expr& e) { v = migraphx::to_valu
 
 void migraphx_from_value(const value& v, symbolic_expr& e)
 {
-    auto s = v.get_string();
+    const auto& s = v.get_string();
     if(s.empty())
         e = symbolic_expr{};
     else

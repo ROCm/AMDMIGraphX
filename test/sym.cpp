@@ -814,7 +814,8 @@ TEST_CASE(to_string_add)
 TEST_CASE(to_string_sub)
 {
     auto x = var("x");
-    EXPECT((x - lit(1)).to_string() == "(x - 1)");
+    // x - 1 is rewritten as x + (-1)
+    EXPECT((x - lit(1)).to_string() == "(x + -1)");
 }
 
 TEST_CASE(to_string_mul)
@@ -840,7 +841,7 @@ TEST_CASE(to_string_nested)
     auto x = var("x");
     auto y = var("y");
     auto e = (x + lit(1)) * (y - lit(2));
-    EXPECT(e.to_string() == "((x + 1) * (y - 2))");
+    EXPECT(e.to_string() == "((x + 1) * (y + -2))");
 }
 
 TEST_CASE(to_string_function)
@@ -954,16 +955,16 @@ TEST_CASE(flatten_nested_add)
     EXPECT(e.children().size() == 4);
 }
 
-TEST_CASE(no_flatten_sub)
+TEST_CASE(sub_flattens_into_add)
 {
     auto a = var("a");
     auto b = var("b");
     auto c = var("c");
-    // (a - b) - c should NOT flatten (subtraction is not associative in call_associative)
+    // (a - b) - c becomes a + (-b) + (-c), flattened to 3 children
     auto e      = (a - b) - c;
     auto result = e.eval({{"a", int64_t{10}}, {"b", int64_t{3}}, {"c", int64_t{2}}});
     EXPECT(result == value{int64_t{5}});
-    EXPECT(e.children().size() == 2);
+    EXPECT(e.children().size() == 3);
 }
 
 TEST_CASE(no_flatten_div)

@@ -277,7 +277,7 @@ expr operator+(expr ex, expr ey)
 
 expr operator-(expr ex, expr ey)
 {
-    return call("-", [](auto x, auto y) { return x - y; })(std::move(ex), std::move(ey));
+    return ex + (-ey);
 }
 
 expr operator*(expr ex, expr ey)

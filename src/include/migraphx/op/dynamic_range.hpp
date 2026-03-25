@@ -63,7 +63,7 @@ struct dynamic_range : op_name<dynamic_range>
             auto limit_val = limit.front();
             auto delta_val = delta.front();
 
-            if(delta_val == 0)
+            if(not(delta_val > 0 or delta_val < 0))
                 MIGRAPHX_THROW("dynamic_range: delta must be non-zero");
 
             // number_of_elements = max( ceil( (limit - start) / delta ), 0 )

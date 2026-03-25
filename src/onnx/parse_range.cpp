@@ -59,10 +59,12 @@ struct parse_range : op_parser<parse_range>
             auto limit_val = limit.front();
             auto delta_val = delta.front();
 
-            size_t num_elements =
-                ceil(static_cast<double>(limit_val - start_val) / static_cast<double>(delta_val));
+            if(not(delta_val > 0 or delta_val < 0))
+                MIGRAPHX_THROW("PARSE_RANGE: delta must be non-zero");
 
-            assert(num_elements > 0);
+            double num_elements_d =
+                ceil(static_cast<double>(limit_val - start_val) / static_cast<double>(delta_val));
+            size_t num_elements = static_cast<size_t>(std::max(0.0, num_elements_d));
 
             using type = decltype(start_val);
 

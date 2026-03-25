@@ -147,3 +147,31 @@ TEST_CASE(dynamic_range_int)
     std::vector<int32_t> gold = {1, 4, 7};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
+
+TEST_CASE(dynamic_range_float_start_equals_limit)
+{
+    // Start=5, Limit=5, Delta=1 -> [] (empty output)
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {1}, {0}};
+    auto start = mm->add_parameter("start", s);
+    auto limit = mm->add_parameter("limit", s);
+    auto delta = mm->add_parameter("delta", s);
+    mm->add_instruction(migraphx::make_op("dynamic_range"), start, limit, delta);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> start_val = {5.0f};
+    std::vector<float> limit_val = {5.0f};
+    std::vector<float> delta_val = {1.0f};
+
+    migraphx::parameter_map pp;
+    pp["start"] = migraphx::argument(s, start_val.data());
+    pp["limit"] = migraphx::argument(s, limit_val.data());
+    pp["delta"] = migraphx::argument(s, delta_val.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    EXPECT(result_vector.empty());
+}

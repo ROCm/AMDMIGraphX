@@ -564,7 +564,7 @@ public:
 
 protected:
     apiv::VTensor* mImpl;
-    virtual ~ITensor() noexcept = default;
+    virtual ~ITensor() noexcept override = default;
 };
 
 //!
@@ -865,7 +865,7 @@ public:
     }
 
 protected:
-    virtual ~ILayer() noexcept = default;
+    virtual ~ILayer() noexcept override = default;
     apiv::VLayer* mLayer;
 };
 
@@ -1362,7 +1362,7 @@ public:
     using ILayer::setInput;
 
 protected:
-    virtual ~IConvolutionLayer() noexcept = default;
+    virtual ~IConvolutionLayer() noexcept override = default;
     apiv::VConvolutionLayer* mImpl;
 };
 
@@ -1452,7 +1452,7 @@ public:
     }
 
 protected:
-    virtual ~IActivationLayer() noexcept = default;
+    virtual ~IActivationLayer() noexcept override = default;
     apiv::VActivationLayer* mImpl;
 };
 
@@ -1731,7 +1731,7 @@ public:
     }
 
 protected:
-    virtual ~IPoolingLayer() noexcept = default;
+    virtual ~IPoolingLayer() noexcept override = default;
     apiv::VPoolingLayer* mImpl;
 };
 
@@ -1838,7 +1838,7 @@ public:
     }
 
 protected:
-    virtual ~ILRNLayer() noexcept = default;
+    virtual ~ILRNLayer() noexcept override = default;
     apiv::VLRNLayer* mImpl;
 };
 
@@ -2010,7 +2010,7 @@ public:
     }
 
 protected:
-    virtual ~IScaleLayer() noexcept = default;
+    virtual ~IScaleLayer() noexcept override = default;
     apiv::VScaleLayer* mImpl;
 };
 
@@ -2073,7 +2073,7 @@ public:
     }
 
 protected:
-    virtual ~ISoftMaxLayer() noexcept = default;
+    virtual ~ISoftMaxLayer() noexcept override = default;
     apiv::VSoftMaxLayer* mImpl;
 };
 
@@ -2119,7 +2119,7 @@ public:
     }
 
 protected:
-    virtual ~IConcatenationLayer() noexcept = default;
+    virtual ~IConcatenationLayer() noexcept override = default;
     apiv::VConcatenationLayer* mImpl;
 };
 
@@ -2433,7 +2433,7 @@ public:
     }
 
 protected:
-    virtual ~IDeconvolutionLayer() noexcept = default;
+    virtual ~IDeconvolutionLayer() noexcept override = default;
     apiv::VDeconvolutionLayer* mImpl;
 };
 
@@ -2531,7 +2531,7 @@ public:
 
 protected:
     apiv::VElementWiseLayer* mImpl;
-    virtual ~IElementWiseLayer() noexcept = default;
+    virtual ~IElementWiseLayer() noexcept override = default;
 };
 
 //!
@@ -2717,7 +2717,7 @@ public:
 
 protected:
     apiv::VGatherLayer* mImpl;
-    virtual ~IGatherLayer() noexcept = default;
+    virtual ~IGatherLayer() noexcept override = default;
 };
 
 //!
@@ -2746,7 +2746,7 @@ public:
 
 protected:
     apiv::VPluginV2Layer* mImpl;
-    virtual ~IPluginV2Layer() noexcept = default;
+    virtual ~IPluginV2Layer() noexcept override = default;
 };
 
 //!
@@ -2773,7 +2773,7 @@ public:
 
 protected:
     apiv::VPluginV3Layer* mImpl;
-    virtual ~IPluginV3Layer() noexcept = default;
+    virtual ~IPluginV3Layer() noexcept override = default;
 };
 
 //!
@@ -2866,7 +2866,7 @@ public:
 
 protected:
     apiv::VUnaryLayer* mImpl;
-    virtual ~IUnaryLayer() noexcept = default;
+    virtual ~IUnaryLayer() noexcept override = default;
 };
 
 //!
@@ -2979,7 +2979,7 @@ public:
 
 protected:
     apiv::VReduceLayer* mImpl;
-    virtual ~IReduceLayer() noexcept = default;
+    virtual ~IReduceLayer() noexcept override = default;
 };
 
 //!
@@ -3051,7 +3051,7 @@ public:
 
 protected:
     apiv::VPaddingLayer* mImpl;
-    virtual ~IPaddingLayer() noexcept = default;
+    virtual ~IPaddingLayer() noexcept override = default;
 };
 
 //!
@@ -3242,7 +3242,7 @@ public:
 
 protected:
     apiv::VShuffleLayer* mImpl;
-    virtual ~IShuffleLayer() noexcept = default;
+    virtual ~IShuffleLayer() noexcept override = default;
 };
 
 //!
@@ -3504,7 +3504,7 @@ public:
 
 protected:
     apiv::VSliceLayer* mImpl;
-    virtual ~ISliceLayer() noexcept = default;
+    virtual ~ISliceLayer() noexcept override = default;
 };
 
 // class IShapeLayer
@@ -3523,7 +3523,7 @@ class IShapeLayer : public ILayer
 {
 protected:
     apiv::VShapeLayer* mImpl;
-    virtual ~IShapeLayer() noexcept = default;
+    virtual ~IShapeLayer() noexcept override = default;
 };
 
 //!
@@ -3648,7 +3648,7 @@ public:
 
 protected:
     apiv::VTopKLayer* mImpl;
-    virtual ~ITopKLayer() noexcept = default;
+    virtual ~ITopKLayer() noexcept override = default;
 };
 
 //!
@@ -3746,7 +3746,7 @@ public:
 
 protected:
     apiv::VMatrixMultiplyLayer* mImpl;
-    virtual ~IMatrixMultiplyLayer() noexcept = default;
+    virtual ~IMatrixMultiplyLayer() noexcept override = default;
 };
 
 // class INonZero
@@ -3773,7 +3773,7 @@ protected:
 class INonZeroLayer : public ILayer
 {
 protected:
-    virtual ~INonZeroLayer() noexcept = default;
+    virtual ~INonZeroLayer() noexcept override = default;
     apiv::VNonZeroLayer* mImpl;
 };
 
@@ -3795,7 +3795,7 @@ class IRaggedSoftMaxLayer : public ILayer
 {
 protected:
     apiv::VRaggedSoftMaxLayer* mImpl;
-    virtual ~IRaggedSoftMaxLayer() noexcept = default;
+    virtual ~IRaggedSoftMaxLayer() noexcept override = default;
 };
 
 // class IIdentityLayer
@@ -3845,7 +3845,7 @@ class IIdentityLayer : public ILayer
 {
 protected:
     apiv::VIdentityLayer* mImpl;
-    virtual ~IIdentityLayer() noexcept = default;
+    virtual ~IIdentityLayer() noexcept override = default;
 };
 
 // class ICastLayer
@@ -3882,7 +3882,7 @@ public:
 
 protected:
     apiv::VCastLayer* mImpl;
-    virtual ~ICastLayer() noexcept = default;
+    virtual ~ICastLayer() noexcept override = default;
 };
 
 // class IConstantLayer
@@ -3945,7 +3945,7 @@ public:
 
 protected:
     apiv::VConstantLayer* mImpl;
-    virtual ~IConstantLayer() noexcept = default;
+    virtual ~IConstantLayer() noexcept override = default;
 };
 
 //!
@@ -3961,7 +3961,7 @@ class IParametricReLULayer : public ILayer
 {
 protected:
     apiv::VParametricReLULayer* mImpl;
-    virtual ~IParametricReLULayer() noexcept = default;
+    virtual ~IParametricReLULayer() noexcept override = default;
 };
 
 // enum InterpolationMode
@@ -4403,7 +4403,7 @@ public:
     }
 
 protected:
-    virtual ~IResizeLayer() noexcept = default;
+    virtual ~IResizeLayer() noexcept override = default;
     apiv::VResizeLayer* mImpl;
 };
 
@@ -4485,7 +4485,7 @@ public:
     }
 
 protected:
-    virtual ~ILoopBoundaryLayer() noexcept = default;
+    virtual ~ILoopBoundaryLayer() noexcept override = default;
     apiv::VLoopBoundaryLayer* mBoundary;
 };
 
@@ -4508,7 +4508,7 @@ public:
     }
 
 protected:
-    virtual ~IIfConditionalBoundaryLayer() noexcept = default;
+    virtual ~IIfConditionalBoundaryLayer() noexcept override = default;
     apiv::VConditionalBoundaryLayer* mBoundary;
 };
 
@@ -4521,7 +4521,7 @@ class IConditionLayer : public IIfConditionalBoundaryLayer
 {
 public:
 protected:
-    virtual ~IConditionLayer() noexcept = default;
+    virtual ~IConditionLayer() noexcept override = default;
     apiv::VConditionLayer* mImpl;
 };
 
@@ -4538,7 +4538,7 @@ class IIfConditionalOutputLayer : public IIfConditionalBoundaryLayer
 {
 public:
 protected:
-    virtual ~IIfConditionalOutputLayer() noexcept = default;
+    virtual ~IIfConditionalOutputLayer() noexcept override = default;
     apiv::VConditionalOutputLayer* mImpl;
 };
 
@@ -4551,7 +4551,7 @@ class IIfConditionalInputLayer : public IIfConditionalBoundaryLayer
 {
 public:
 protected:
-    virtual ~IIfConditionalInputLayer() noexcept = default;
+    virtual ~IIfConditionalInputLayer() noexcept override = default;
     apiv::VConditionalInputLayer* mImpl;
 };
 
@@ -4652,7 +4652,7 @@ public:
     }
 
 protected:
-    virtual ~IIfConditional() noexcept = default;
+    virtual ~IIfConditional() noexcept override = default;
     apiv::VIfConditional* mImpl;
 };
 
@@ -4687,7 +4687,7 @@ public:
     using ILayer::setInput;
 
 protected:
-    virtual ~IRecurrenceLayer() noexcept = default;
+    virtual ~IRecurrenceLayer() noexcept override = default;
     apiv::VRecurrenceLayer* mImpl;
 };
 
@@ -4769,7 +4769,7 @@ public:
     using ILayer::setInput;
 
 protected:
-    virtual ~ILoopOutputLayer() noexcept = default;
+    virtual ~ILoopOutputLayer() noexcept override = default;
     apiv::VLoopOutputLayer* mImpl;
 };
 
@@ -4796,7 +4796,7 @@ public:
     }
 
 protected:
-    virtual ~ITripLimitLayer() noexcept = default;
+    virtual ~ITripLimitLayer() noexcept override = default;
     apiv::VTripLimitLayer* mImpl;
 };
 
@@ -4854,7 +4854,7 @@ public:
     }
 
 protected:
-    virtual ~IIteratorLayer() noexcept = default;
+    virtual ~IIteratorLayer() noexcept override = default;
     apiv::VIteratorLayer* mImpl;
 };
 
@@ -4955,7 +4955,7 @@ public:
     }
 
 protected:
-    virtual ~ILoop() noexcept = default;
+    virtual ~ILoop() noexcept override = default;
     apiv::VLoop* mImpl;
 };
 
@@ -4974,7 +4974,7 @@ protected:
 class ISelectLayer : public ILayer
 {
 protected:
-    virtual ~ISelectLayer() noexcept = default;
+    virtual ~ISelectLayer() noexcept override = default;
     apiv::VSelectLayer* mImpl;
 };
 
@@ -5020,7 +5020,7 @@ public:
     }
 
 protected:
-    virtual ~IAssertionLayer() noexcept = default;
+    virtual ~IAssertionLayer() noexcept override = default;
 
     apiv::VAssertionLayer* mImpl;
 };
@@ -5372,7 +5372,7 @@ public:
     }
 
 protected:
-    virtual ~IFillLayer() noexcept = default;
+    virtual ~IFillLayer() noexcept override = default;
     apiv::VFillLayer* mImpl;
 };
 
@@ -5506,7 +5506,7 @@ public:
     }
 
 protected:
-    virtual ~IQuantizeLayer() noexcept = default;
+    virtual ~IQuantizeLayer() noexcept override = default;
     apiv::VQuantizeLayer* mImpl;
 };
 
@@ -5634,7 +5634,7 @@ public:
     }
 
 protected:
-    virtual ~IDequantizeLayer() noexcept = default;
+    virtual ~IDequantizeLayer() noexcept override = default;
     apiv::VDequantizeLayer* mImpl;
 };
 
@@ -5774,7 +5774,7 @@ public:
     }
 
 protected:
-    virtual ~IDynamicQuantizeLayer() noexcept = default;
+    virtual ~IDynamicQuantizeLayer() noexcept override = default;
     apiv::VDynamicQuantizeLayer* mImpl;
 };
 
@@ -5840,13 +5840,13 @@ public:
     }
 
 protected:
-    virtual ~IEinsumLayer() noexcept = default;
+    virtual ~IEinsumLayer() noexcept override = default;
     apiv::VEinsumLayer* mImpl;
 };
 
 //!
-// enum ScatterMode
-//!
+    // enum ScatterMode
+    //!
 // brief Control form of IScatterLayer
 //!
 // see IScatterLayer
@@ -5968,7 +5968,7 @@ public:
 
 protected:
     apiv::VScatterLayer* mImpl;
-    virtual ~IScatterLayer() noexcept = default;
+    virtual ~IScatterLayer() noexcept override = default;
 }; // class IScatterLayer
 
 //!
@@ -6020,7 +6020,7 @@ public:
 
 protected:
     apiv::VOneHotLayer* mImpl;
-    virtual ~IOneHotLayer() noexcept = default;
+    virtual ~IOneHotLayer() noexcept override = default;
 };
 
 //!
@@ -6107,7 +6107,7 @@ public:
 
 protected:
     apiv::VGridSampleLayer* mImpl;
-    virtual ~IGridSampleLayer() noexcept = default;
+    virtual ~IGridSampleLayer() noexcept override = default;
 }; // class IGridSampleLayer
 
 //!
@@ -6257,7 +6257,7 @@ public:
 
 protected:
     apiv::VNMSLayer* mImpl;
-    virtual ~INMSLayer() noexcept = default;
+    virtual ~INMSLayer() noexcept override = default;
 }; // class INMSLayer
 
 //!
@@ -6323,7 +6323,7 @@ public:
 
 protected:
     apiv::VReverseSequenceLayer* mImpl;
-    virtual ~IReverseSequenceLayer() noexcept = default;
+    virtual ~IReverseSequenceLayer() noexcept override = default;
 }; // class IReverseSequenceLayer
 
 //!
@@ -6458,7 +6458,7 @@ public:
 
 protected:
     apiv::VNormalizationLayer* mImpl;
-    virtual ~INormalizationLayer() noexcept = default;
+    virtual ~INormalizationLayer() noexcept override = default;
 };
 
 
@@ -6489,7 +6489,7 @@ public:
 
 protected:
     apiv::VSqueezeLayer* mImpl;
-    virtual ~ISqueezeLayer() noexcept = default;
+    virtual ~ISqueezeLayer() noexcept override = default;
 };
 
 //!
@@ -6518,7 +6518,7 @@ public:
 
 protected:
     apiv::VUnsqueezeLayer* mImpl;
-    virtual ~IUnsqueezeLayer() noexcept = default;
+    virtual ~IUnsqueezeLayer() noexcept override = default;
 };
 
 //!
@@ -6659,7 +6659,7 @@ public:
 
 protected:
     apiv::VCumulativeLayer* mImpl;
-    virtual ~ICumulativeLayer() noexcept = default;
+    virtual ~ICumulativeLayer() noexcept override = default;
 };
 
 //!
@@ -6682,7 +6682,7 @@ protected:
 class INetworkDefinition : public INoCopy
 {
 public:
-    virtual ~INetworkDefinition() noexcept = default;
+    virtual ~INetworkDefinition() noexcept override = default;
 
     //!
     // brief Add an input tensor to the network.
@@ -8533,7 +8533,7 @@ public:
     }
 
 protected:
-    virtual ~IAlgorithmIOInfo() noexcept = default;
+    virtual ~IAlgorithmIOInfo() noexcept override = default;
     apiv::VAlgorithmIOInfo* mImpl;
 };
 
@@ -8570,7 +8570,7 @@ public:
     }
 
 protected:
-    virtual ~IAlgorithmVariant() noexcept = default;
+    virtual ~IAlgorithmVariant() noexcept override = default;
     apiv::VAlgorithmVariant* mImpl;
 };
 
@@ -8626,7 +8626,7 @@ public:
     }
 
 protected:
-    virtual ~IAlgorithmContext() noexcept = default;
+    virtual ~IAlgorithmContext() noexcept override = default;
     apiv::VAlgorithmContext* mImpl;
 };
 
@@ -8685,7 +8685,7 @@ public:
     }
 
 protected:
-    virtual ~IAlgorithm() noexcept = default;
+    virtual ~IAlgorithm() noexcept override = default;
     apiv::VAlgorithm* mImpl;
 }; // IAlgorithm
 
@@ -8731,7 +8731,7 @@ public:
     virtual void reportAlgorithms(IAlgorithmContext const* const* algoContexts, IAlgorithm const* const* algoChoices,
         int32_t nbAlgorithms) noexcept = 0;
 
-    virtual ~IAlgorithmSelector() noexcept = default;
+    virtual ~IAlgorithmSelector() noexcept override = default;
 };
 } // namespace v_1_0
 
@@ -9083,7 +9083,7 @@ struct TimingCacheValue
 class ITimingCache : public INoCopy
 {
 public:
-    virtual ~ITimingCache() noexcept = default;
+    virtual ~ITimingCache() noexcept override = default;
 
     //!
     // brief Serialize a timing cache to IHostMemory object.
@@ -9411,7 +9411,7 @@ class IProgressMonitor : public IVersionedInterface
 {
 public:
     IProgressMonitor() = default;
-    virtual ~IProgressMonitor() noexcept = default;
+    virtual ~IProgressMonitor() noexcept override = default;
 
     //!
     // brief Return version information associated with this interface. Applications must not override this method.
@@ -9503,7 +9503,7 @@ using IProgressMonitor = v_1_0::IProgressMonitor;
 class IBuilderConfig : public INoCopy
 {
 public:
-    virtual ~IBuilderConfig() noexcept = default;
+    virtual ~IBuilderConfig() noexcept override = default;
 
     //!
     // brief Set the number of averaging iterations used when timing layers.
@@ -10510,7 +10510,7 @@ constexpr inline int32_t EnumMax<NetworkDefinitionCreationFlag>() noexcept
 class IBuilder : public INoCopy
 {
 public:
-    virtual ~IBuilder() noexcept = default;
+    virtual ~IBuilder() noexcept override = default;
 
     //!
     // brief Determine whether the platform has fast native fp16.

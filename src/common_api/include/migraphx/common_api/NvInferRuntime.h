@@ -142,7 +142,7 @@ public:
 class IHostMemory : public INoCopy
 {
 public:
-    virtual ~IHostMemory() noexcept = default;
+    virtual ~IHostMemory() noexcept override = default;
 
     //! A pointer to the raw data that is owned by the library.
     void* data() const noexcept
@@ -253,7 +253,7 @@ public:
 
 protected:
     apiv::VDimensionExpr* mImpl;
-    virtual ~IDimensionExpr() noexcept = default;
+    virtual ~IDimensionExpr() noexcept override = default;
 
 public:
     //!
@@ -309,7 +309,7 @@ public:
 
 protected:
     apiv::VExprBuilder* mImpl;
-    virtual ~IExprBuilder() noexcept = default;
+    virtual ~IExprBuilder() noexcept override = default;
 
 public:
     //!
@@ -556,7 +556,7 @@ protected:
         return (static_cast<int32_t>(PluginVersion::kV2_DYNAMICEXT) << 24 | (NV_TENSORRT_VERSION & 0xFFFFFF));
     }
 
-    virtual ~IPluginV2DynamicExt() noexcept {}
+    virtual ~IPluginV2DynamicExt() noexcept override {}
 
 private:
     // Following are obsolete base class methods, and must not be implemented or used.
@@ -1865,7 +1865,7 @@ using IGpuAllocator = v_1_0::IGpuAllocator;
 class IRuntime : public INoCopy
 {
 public:
-    virtual ~IRuntime() noexcept = default;
+    virtual ~IRuntime() noexcept override = default;
 
     //!
     // brief Sets the DLA core used by the network. Defaults to -1.
@@ -2193,7 +2193,7 @@ protected:
 class IRefitter : public INoCopy
 {
 public:
-    virtual ~IRefitter() noexcept = default;
+    virtual ~IRefitter() noexcept override = default;
 
     //!
     // brief Specify new weights for a layer of given name.
@@ -2909,7 +2909,7 @@ public:
 
 protected:
     apiv::VOptimizationProfile* mImpl;
-    virtual ~IOptimizationProfile() noexcept = default;
+    virtual ~IOptimizationProfile() noexcept override = default;
 };
 
 //!
@@ -3020,7 +3020,7 @@ constexpr inline int32_t EnumMax<SerializationFlag>() noexcept
 class ISerializationConfig : public INoCopy
 {
 public:
-    virtual ~ISerializationConfig() noexcept = default;
+    virtual ~ISerializationConfig() noexcept override = default;
 
     //!
     // brief Set the serialization flags to turn on for this config.
@@ -3129,7 +3129,7 @@ constexpr inline int32_t EnumMax<ExecutionContextAllocationStrategy>() noexcept
 class IRuntimeConfig : public INoCopy
 {
 public:
-    virtual ~IRuntimeConfig() noexcept = default;
+    virtual ~IRuntimeConfig() noexcept override = default;
 
     //!
     // brief Set the execution context allocation strategy. Default value is kSTATIC.
@@ -3166,7 +3166,7 @@ protected:
 class ICudaEngine : public INoCopy
 {
 public:
-    virtual ~ICudaEngine() noexcept = default;
+    virtual ~ICudaEngine() noexcept override = default;
 
     //!
     // brief Get shape of an input or output tensor.
@@ -4236,7 +4236,7 @@ using IDebugListener = v_1_0::IDebugListener;
 class IExecutionContext : public INoCopy
 {
 public:
-    virtual ~IExecutionContext() noexcept = default;
+    virtual ~IExecutionContext() noexcept override = default;
 
     //!
     // brief Set the debug sync flag.
@@ -5185,7 +5185,7 @@ constexpr inline int32_t EnumMax<LayerInformationFormat>() noexcept
 class IEngineInspector : public INoCopy
 {
 public:
-    virtual ~IEngineInspector() noexcept = default;
+    virtual ~IEngineInspector() noexcept override = default;
 
     //!
     // brief Set an execution context as the inspection source.

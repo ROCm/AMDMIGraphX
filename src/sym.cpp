@@ -220,14 +220,21 @@ expr var(std::string name, interval constraint)
 
 expr arg(expr x) { return x; }
 
-expr call_op(const op_def* op, std::vector<expr> args)
+static expr normalize_expr(const op_def* op, std::vector<expr> args)
 {
     bool is_const =
         std::all_of(args.begin(), args.end(), [](const expr& e) { return e.name() == "literal"; });
-    auto e = expr(op_node{op}, std::move(args));
     if(is_const)
+    {
+        auto e = expr(op_node{op}, std::move(args));
         return lit(e.eval({}));
-    return e;
+    }
+    return expr(op_node{op}, std::move(args));
+}
+
+expr call_op(const op_def* op, std::vector<expr> args)
+{
+    return normalize_expr(op, std::move(args));
 }
 
 namespace {

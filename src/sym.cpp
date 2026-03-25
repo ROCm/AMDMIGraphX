@@ -284,7 +284,7 @@ static term extract_term(const expr& e)
             if(child.name() == "literal")
             {
                 auto* n = std::get_if<literal_node>(&child.node());
-                coeff = value_invoke_common([](auto x, auto y) { return x * y; }, coeff, n->val);
+                coeff   = value_invoke_common([](auto x, auto y) { return x * y; }, coeff, n->val);
             }
             else
             {
@@ -320,10 +320,9 @@ static expr normalize_add(const op_def* op, std::vector<expr> args)
     for(const auto& a : args)
         terms.push_back(extract_term(a));
 
-    std::stable_sort(
-        terms.begin(), terms.end(), [](const term& a, const term& b) {
-            return bases_less(a.bases, b.bases);
-        });
+    std::stable_sort(terms.begin(), terms.end(), [](const term& a, const term& b) {
+        return bases_less(a.bases, b.bases);
+    });
 
     std::vector<term> merged;
     for(const auto& t : terms)
@@ -339,10 +338,9 @@ static expr normalize_add(const op_def* op, std::vector<expr> args)
         }
     }
 
-    merged.erase(
-        std::remove_if(
-            merged.begin(), merged.end(), [](const term& t) { return is_zero(t.coeff); }),
-        merged.end());
+    merged.erase(std::remove_if(
+                     merged.begin(), merged.end(), [](const term& t) { return is_zero(t.coeff); }),
+                 merged.end());
 
     if(merged.empty())
         return lit(int64_t{0});
@@ -366,7 +364,7 @@ static expr normalize_mul(const op_def* op, std::vector<expr> args)
         if(a.name() == "literal")
         {
             auto* n = std::get_if<literal_node>(&a.node());
-            coeff = value_invoke_common([](auto x, auto y) { return x * y; }, coeff, n->val);
+            coeff   = value_invoke_common([](auto x, auto y) { return x * y; }, coeff, n->val);
         }
         else
         {
@@ -384,8 +382,8 @@ static expr normalize_mul(const op_def* op, std::vector<expr> args)
                    std::make_move_iterator(non_literals.begin()),
                    std::make_move_iterator(non_literals.end()));
 
-    auto it = std::find_if(
-        factors.begin(), factors.end(), [](const expr& e) { return e.name() == "+"; });
+    auto it =
+        std::find_if(factors.begin(), factors.end(), [](const expr& e) { return e.name() == "+"; });
     if(it != factors.end())
     {
         auto plus_children = it->children();

@@ -1248,10 +1248,10 @@ TEST_CASE(canonical_eval_preserved)
 
 TEST_CASE(canonical_interval_preserved)
 {
-    auto x = var("x");
-    auto y = var("y");
-    auto vars = std::unordered_map<std::string, interval>{
-        {"x", interval{int64_t{1}, int64_t{3}}}, {"y", interval{int64_t{4}, int64_t{6}}}};
+    auto x    = var("x");
+    auto y    = var("y");
+    auto vars = std::unordered_map<std::string, interval>{{"x", interval{int64_t{1}, int64_t{3}}},
+                                                          {"y", interval{int64_t{4}, int64_t{6}}}};
     EXPECT((x + y).eval_interval(vars) == (y + x).eval_interval(vars));
     EXPECT((x * y).eval_interval(vars) == (y * x).eval_interval(vars));
 }
@@ -1323,12 +1323,11 @@ TEST_CASE(norm_foil)
 
 TEST_CASE(norm_foil_eval)
 {
-    auto x = var("x");
-    auto y = var("y");
-    auto lhs = (x + y) * (x + y);
-    auto rhs = x * x + lit(2) * x * y + y * y;
-    auto vars =
-        std::unordered_map<std::string, value>{{"x", int64_t{3}}, {"y", int64_t{4}}};
+    auto x    = var("x");
+    auto y    = var("y");
+    auto lhs  = (x + y) * (x + y);
+    auto rhs  = x * x + lit(2) * x * y + y * y;
+    auto vars = std::unordered_map<std::string, value>{{"x", int64_t{3}}, {"y", int64_t{4}}};
     EXPECT(lhs.eval(vars) == value{int64_t{49}});
     EXPECT(rhs.eval(vars) == value{int64_t{49}});
 }
@@ -1343,12 +1342,11 @@ TEST_CASE(norm_difference_of_squares)
 
 TEST_CASE(norm_difference_of_squares_eval)
 {
-    auto x = var("x");
-    auto y = var("y");
-    auto lhs = (x + y) * (x - y);
-    auto rhs = x * x - y * y;
-    auto vars =
-        std::unordered_map<std::string, value>{{"x", int64_t{5}}, {"y", int64_t{3}}};
+    auto x    = var("x");
+    auto y    = var("y");
+    auto lhs  = (x + y) * (x - y);
+    auto rhs  = x * x - y * y;
+    auto vars = std::unordered_map<std::string, value>{{"x", int64_t{5}}, {"y", int64_t{3}}};
     EXPECT(lhs.eval(vars) == value{int64_t{16}});
     EXPECT(rhs.eval(vars) == value{int64_t{16}});
 }
@@ -1357,7 +1355,7 @@ TEST_CASE(norm_triple_product)
 {
     auto x = var("x");
     // (x+1)*(x+1)*(x+1) expanded is x^3 + 3x^2 + 3x + 1
-    auto cubed   = (x + lit(1)) * (x + lit(1)) * (x + lit(1));
+    auto cubed    = (x + lit(1)) * (x + lit(1)) * (x + lit(1));
     auto expanded = x * x * x + lit(3) * x * x + lit(3) * x + lit(1);
     EXPECT(cubed == expanded);
 }

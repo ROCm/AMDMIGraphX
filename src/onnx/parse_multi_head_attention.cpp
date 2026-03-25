@@ -348,8 +348,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
                 MIGRAPHX_THROW("MultiHeadAttention: past_key must be 4D shape");
 
             if(past_key_lens[0] != params.batch_size)
-                MIGRAPHX_THROW(
-                    "MultiHeadAttention: past_key first dimension must be batch_size");
+                MIGRAPHX_THROW("MultiHeadAttention: past_key first dimension must be batch_size");
 
             if(past_key_lens[1] != params.num_heads)
                 MIGRAPHX_THROW("MultiHeadAttention: past_key second dimension must be num_heads");
@@ -369,12 +368,10 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
                 MIGRAPHX_THROW("MultiHeadAttention: past_value must be 4D shape");
 
             if(past_value_lens[0] != params.batch_size)
-                MIGRAPHX_THROW(
-                    "MultiHeadAttention: past_value first dimension must be batch_size");
+                MIGRAPHX_THROW("MultiHeadAttention: past_value first dimension must be batch_size");
 
             if(past_value_lens[1] != params.num_heads)
-                MIGRAPHX_THROW(
-                    "MultiHeadAttention: past_value second dimension must be num_heads");
+                MIGRAPHX_THROW("MultiHeadAttention: past_value second dimension must be num_heads");
 
             if(past_value_lens[3] != params.head_size_v)
                 MIGRAPHX_THROW(
@@ -397,8 +394,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
 
             const auto past_seq_len_type = args.at(8)->get_shape().type();
             if(past_seq_len_type != shape::int32_type)
-                MIGRAPHX_THROW(
-                    "MultiHeadAttention: past_sequence_length must be a int32 tensor");
+                MIGRAPHX_THROW("MultiHeadAttention: past_sequence_length must be a int32 tensor");
         }
     }
 
@@ -739,7 +735,8 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
             // Only use concat_past_present if past states are non-empty
             if(past_key->get_shape().elements() > 0 and past_value->get_shape().elements() > 0)
             {
-                // If past_sequence_length is provided (input 8), use it, otherwise use batch-wise zeros
+                // If past_sequence_length is provided (input 8), use it, otherwise use batch-wise
+                // zeros
                 instruction_ref seqlens_k;
                 if(args.size() > 8 and args[8]->get_shape().elements() > 0)
                 {
@@ -804,9 +801,9 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
             result = info.add_common_op("add", result, attn_mask.value());
         }
 
-        result = info.add_common_op("mul", result, scale_literal);
+        result         = info.add_common_op("mul", result, scale_literal);
         auto qk_output = info.add_instruction(make_op("softmax", {{"axis", -1}}), result);
-        result = info.add_instruction(make_op("dot"), qk_output, value);
+        result         = info.add_instruction(make_op("dot"), qk_output, value);
         result = info.add_instruction(make_op("transpose", {{"permutation", perm}}), result);
         result = info.add_instruction(
             make_op(
@@ -826,7 +823,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
 
         // Note: QK output could be added here if needed
         // outputs.push_back(qk_output);
-        
+
         return outputs;
     }
 };

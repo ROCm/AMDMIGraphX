@@ -23,6 +23,7 @@
  */
 
 #include <migraphx/symbolic.hpp>
+#include <migraphx/shape.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/serialize.hpp>
 
@@ -868,6 +869,145 @@ void migraphx_from_value(const value& v, symbolic_expr& e)
         e = symbolic_expr{};
     else
         e = symbolic_expr(s);
+}
+
+// ===================================================================
+// Section 10: dynamic_dimension arithmetic
+// ===================================================================
+
+using dd = shape::dynamic_dimension;
+
+static optional<symbolic_expr> to_expr(const dd& d)
+{
+    if(d.sym.has_value())
+        return d.sym;
+    if(d.is_fixed())
+        return symbolic_expr(d.min);
+    return nullopt;
+}
+
+dd& dd::operator+=(const dd& x)
+{
+    auto lhs = to_expr(*this);
+    auto rhs = to_expr(x);
+    min      = min + x.min;
+    max      = (max > std::numeric_limits<std::size_t>::max() - x.max)
+                   ? std::numeric_limits<std::size_t>::max()
+                   : max + x.max;
+    if(x.is_fixed())
+    {
+        std::set<std::size_t> new_optimals;
+        std::transform(optimals.begin(),
+                       optimals.end(),
+                       std::inserter(new_optimals, new_optimals.begin()),
+                       [&](auto o) { return o + x.min; });
+        optimals = new_optimals;
+    }
+    else
+    {
+        optimals.clear();
+    }
+    sym = (lhs and rhs) ? optional<symbolic_expr>(*lhs + *rhs) : nullopt;
+    return *this;
+}
+
+dd& dd::operator-=(const dd& x)
+{
+    auto lhs = to_expr(*this);
+    auto rhs = to_expr(x);
+    min      = (min > x.max) ? min - x.max : 0;
+    max      = (max > x.min) ? max - x.min : 0;
+    if(x.is_fixed())
+    {
+        std::set<std::size_t> new_optimals;
+        std::transform(optimals.begin(),
+                       optimals.end(),
+                       std::inserter(new_optimals, new_optimals.begin()),
+                       [&](auto o) { return (o > x.min) ? o - x.min : 0; });
+        optimals = new_optimals;
+    }
+    else
+    {
+        optimals.clear();
+    }
+    sym = (lhs and rhs) ? optional<symbolic_expr>(*lhs - *rhs) : nullopt;
+    return *this;
+}
+
+dd& dd::operator*=(const dd& x)
+{
+    auto lhs = to_expr(*this);
+    auto rhs = to_expr(x);
+    min      = min * x.min;
+    max      = (max > std::numeric_limits<std::size_t>::max() / (x.max == 0 ? 1 : x.max))
+                   ? std::numeric_limits<std::size_t>::max()
+                   : max * x.max;
+    if(x.is_fixed())
+    {
+        std::set<std::size_t> new_optimals;
+        std::transform(optimals.begin(),
+                       optimals.end(),
+                       std::inserter(new_optimals, new_optimals.begin()),
+                       [&](auto o) { return o * x.min; });
+        optimals = new_optimals;
+    }
+    else
+    {
+        optimals.clear();
+    }
+    sym = (lhs and rhs) ? optional<symbolic_expr>(*lhs * *rhs) : nullopt;
+    return *this;
+}
+
+dd& dd::operator/=(const dd& x)
+{
+    auto lhs = to_expr(*this);
+    auto rhs = to_expr(x);
+    min      = (x.max == 0) ? 0 : min / x.max;
+    max      = (x.min == 0) ? std::numeric_limits<std::size_t>::max() : max / x.min;
+    if(x.is_fixed())
+    {
+        std::set<std::size_t> new_optimals;
+        std::transform(optimals.begin(),
+                       optimals.end(),
+                       std::inserter(new_optimals, new_optimals.begin()),
+                       [&](auto o) { return (x.min == 0) ? std::size_t{0} : o / x.min; });
+        optimals = new_optimals;
+    }
+    else
+    {
+        optimals.clear();
+    }
+    sym = (lhs and rhs) ? optional<symbolic_expr>(*lhs / *rhs) : nullopt;
+    return *this;
+}
+
+dd operator+(const dd& x, const dd& y)
+{
+    auto result = x;
+    result += y;
+    return result;
+}
+
+dd operator-(const dd& x, const dd& y)
+{
+    auto result = x;
+    result -= y;
+    return result;
+}
+
+dd operator*(const dd& x, const dd& y)
+{
+    auto result = x;
+    result *= y;
+    return result;
+}
+
+dd operator/(const dd& x, const dd& y)
+{
+    auto result = x;
+    result /= y;
+    return result;
 }
 
 } // namespace MIGRAPHX_INLINE_NS

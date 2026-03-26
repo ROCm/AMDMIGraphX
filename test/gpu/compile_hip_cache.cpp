@@ -72,6 +72,7 @@ std::size_t count_occurrences(std::string_view text, std::string_view needle)
     return count;
 }
 
+#ifndef _WIN32
 struct scoped_env_var
 {
     scoped_env_var(const char* env_name, const char* env_value) : name(env_name)
@@ -96,6 +97,7 @@ struct scoped_env_var
     std::string previous_value = {};
     bool had_previous          = false;
 };
+#endif
 
 #ifndef _WIN32
 struct scoped_output_capture

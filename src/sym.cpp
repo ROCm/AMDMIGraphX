@@ -868,9 +868,9 @@ std::ostream& operator<<(std::ostream& os, const expr& e)
 
 expr var(const std::string& name) { return {std::make_shared<expr::impl>(make_symbol(name))}; }
 
-expr lit(std::size_t n)
+expr lit(int64_t n)
 {
-    return {std::make_shared<expr::impl>(make_integer(static_cast<int64_t>(n)))};
+    return {std::make_shared<expr::impl>(make_integer(n))};
 }
 
 expr parse(const std::string& s)

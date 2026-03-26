@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_MIGRAPHLIB_SYM_HPP
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <ostream>
 #include <string>
@@ -62,7 +63,7 @@ struct MIGRAPHX_EXPORT expr
     struct impl;
 
     friend expr var(const std::string& name);
-    friend expr lit(std::size_t n);
+    friend expr lit(int64_t n);
     friend expr parse(const std::string& s);
 
     private:
@@ -71,17 +72,17 @@ struct MIGRAPHX_EXPORT expr
 };
 
 MIGRAPHX_EXPORT expr var(const std::string& name);
-MIGRAPHX_EXPORT expr lit(std::size_t n);
+MIGRAPHX_EXPORT expr lit(int64_t n);
 MIGRAPHX_EXPORT expr parse(const std::string& s);
 
-inline expr operator+(const expr& a, std::size_t b) { return a + lit(b); }
-inline expr operator+(std::size_t a, const expr& b) { return lit(a) + b; }
-inline expr operator-(const expr& a, std::size_t b) { return a - lit(b); }
-inline expr operator-(std::size_t a, const expr& b) { return lit(a) - b; }
-inline expr operator*(const expr& a, std::size_t b) { return a * lit(b); }
-inline expr operator*(std::size_t a, const expr& b) { return lit(a) * b; }
-inline expr operator/(const expr& a, std::size_t b) { return a / lit(b); }
-inline expr operator/(std::size_t a, const expr& b) { return lit(a) / b; }
+inline expr operator+(const expr& a, int64_t b) { return a + lit(b); }
+inline expr operator+(int64_t a, const expr& b) { return lit(a) + b; }
+inline expr operator-(const expr& a, int64_t b) { return a - lit(b); }
+inline expr operator-(int64_t a, const expr& b) { return lit(a) - b; }
+inline expr operator*(const expr& a, int64_t b) { return a * lit(b); }
+inline expr operator*(int64_t a, const expr& b) { return lit(a) * b; }
+inline expr operator/(const expr& a, int64_t b) { return a / lit(b); }
+inline expr operator/(int64_t a, const expr& b) { return lit(a) / b; }
 
 } // namespace sym
 

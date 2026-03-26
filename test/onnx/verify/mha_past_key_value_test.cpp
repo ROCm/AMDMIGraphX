@@ -63,7 +63,7 @@ TEST_CASE(mha_past_key_value_test)
 
     auto results = p.eval(pp);
 
-    auto result = results[0];
+    const auto& result = results[0];
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
@@ -111,7 +111,7 @@ TEST_CASE(mha_past_key_value_seq_len_test)
 
     auto results = p.eval(pp);
 
-    auto result = results[0];
+    const auto& result = results[0];
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
@@ -157,7 +157,7 @@ TEST_CASE(mha_past_key_value_bias_test)
 
     auto results = p.eval(pp);
 
-    auto result = results[0];
+    const auto& result = results[0];
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
@@ -206,7 +206,7 @@ TEST_CASE(mha_past_key_value_bias_seq_len_test)
 
     auto results = p.eval(pp);
 
-    auto result = results[0];
+    const auto& result = results[0];
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 

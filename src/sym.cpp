@@ -346,7 +346,7 @@ static expr_ptr make_neg(const expr_ptr& a)
                        return build_add(-d.constant, std::move(negated));
                    },
                    [](const mul_data& d) -> expr_ptr {
-                       return make_node(mul_data{-d.coefficient, d.factors});
+                       return build_mul(-d.coefficient, d.factors);
                    },
                    [&](const auto&) -> expr_ptr { return make_mul(make_integer(-1), a); }},
         a->data);

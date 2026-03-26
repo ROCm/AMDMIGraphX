@@ -276,6 +276,15 @@ TEST_CASE(neg_of_product_double)
     EXPECT(dbl == hw);
 }
 
+TEST_CASE(neg_of_neg_mul_canonicalizes)
+{
+    auto H   = var("H");
+    auto neg = 0 - H;
+    EXPECT(neg == lit(-1) * H);
+    auto pos = 0 - neg;
+    EXPECT(pos == H);
+}
+
 TEST_CASE(add_compound_product_like_terms)
 {
     auto H = var("H"), W = var("W");

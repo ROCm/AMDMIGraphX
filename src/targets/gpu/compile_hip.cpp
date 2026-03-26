@@ -28,6 +28,7 @@
 #include <migraphx/env.hpp>
 #include <migraphx/fileutils.hpp>
 #include <migraphx/hash.hpp>
+#include <algorithm>
 #include <cassert>
 #include <iostream>
 #include <deque>
@@ -105,6 +106,11 @@ struct hip_compile_cache_key_hash
 
 using hip_compile_cache_entry = std::shared_future<std::vector<std::vector<char>>>;
 
+bool same_future(const hip_compile_cache_entry& x, const hip_compile_cache_entry& y)
+{
+    return not x.owner_before(y) and not y.owner_before(x);
+}
+
 struct hip_compile_cache
 {
     template <class F>
@@ -120,7 +126,7 @@ struct hip_compile_cache
             {
                 promise        = std::make_shared<std::promise<std::vector<std::vector<char>>>>();
                 future         = promise->get_future().share();
-                it             = cache.emplace(key, future).first;
+                it             = cache.emplace(std::move(key), future).first;
                 should_compile = true;
             }
             future = it->second;
@@ -136,7 +142,9 @@ struct hip_compile_cache
             {
                 promise->set_exception(std::current_exception());
                 std::lock_guard<std::mutex> lock(mutex);
-                auto it = cache.find(key);
+                auto it = std::find_if(cache.begin(), cache.end(), [&](const auto& item) {
+                    return same_future(item.second, future);
+                });
                 if(it != cache.end())
                     cache.erase(it);
             }

@@ -104,19 +104,27 @@ struct scoped_output_capture
 {
     explicit scoped_output_capture(const migraphx::fs::path& path)
     {
-        fd = ::open(path.c_str(), O_CREAT | O_TRUNC | O_RDWR, 0600);
-        if(fd < 0)
-            throw std::runtime_error("Failed to open capture file");
+        try
+        {
+            fd = ::open(path.c_str(), O_CREAT | O_TRUNC | O_RDWR, 0600);
+            if(fd < 0)
+                throw std::runtime_error("Failed to open capture file");
 
-        saved_stdout = ::dup(STDOUT_FILENO);
-        saved_stderr = ::dup(STDERR_FILENO);
-        if(saved_stdout < 0 or saved_stderr < 0)
-            throw std::runtime_error("Failed to duplicate stdout/stderr");
+            saved_stdout = ::dup(STDOUT_FILENO);
+            saved_stderr = ::dup(STDERR_FILENO);
+            if(saved_stdout < 0 or saved_stderr < 0)
+                throw std::runtime_error("Failed to duplicate stdout/stderr");
 
-        std::fflush(stdout);
-        std::fflush(stderr);
-        if(::dup2(fd, STDOUT_FILENO) < 0 or ::dup2(fd, STDERR_FILENO) < 0)
-            throw std::runtime_error("Failed to redirect stdout/stderr");
+            std::fflush(stdout);
+            std::fflush(stderr);
+            if(::dup2(fd, STDOUT_FILENO) < 0 or ::dup2(fd, STDERR_FILENO) < 0)
+                throw std::runtime_error("Failed to redirect stdout/stderr");
+        }
+        catch(...)
+        {
+            restore();
+            throw;
+        }
     }
 
     scoped_output_capture(const scoped_output_capture&) = delete;
@@ -144,7 +152,7 @@ struct scoped_output_capture
         restored = true;
     }
 
-    int fd          = -1;
+    int fd           = -1;
     int saved_stdout = -1;
     int saved_stderr = -1;
     bool restored    = false;

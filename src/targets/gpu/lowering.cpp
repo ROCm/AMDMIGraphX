@@ -609,7 +609,7 @@ struct miopen_apply
                     ins, mod->insert_instruction(ins, ins->get_operator(), inputs));
             }
             return ins;
-        }
+        });
     }
 };
 

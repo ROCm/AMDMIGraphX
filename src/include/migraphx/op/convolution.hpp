@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -149,10 +149,10 @@ struct convolution
         {
             for(std::size_t i = 0; i < num_spatial_dims; ++i)
             {
-                auto s        = stride[i];
-                auto x_dd     = x_dyn[i + 2];
-                auto result   = (x_dd + (s - 1)) / shape::dynamic_dimension{s, s};
-                auto ceil_div = [](std::size_t x, std::size_t y) { return (x + y - 1) / y; };
+                auto s           = stride[i];
+                const auto& x_dd = x_dyn[i + 2];
+                auto result      = (x_dd + (s - 1)) / shape::dynamic_dimension{s, s};
+                auto ceil_div    = [](std::size_t x, std::size_t y) { return (x + y - 1) / y; };
                 std::set<std::size_t> optimals{};
                 std::transform(x_dd.optimals.begin(),
                                x_dd.optimals.end(),

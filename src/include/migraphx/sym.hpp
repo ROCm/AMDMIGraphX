@@ -49,7 +49,7 @@ struct MIGRAPHX_EXPORT expr
     std::string to_string() const;
     value to_value() const;
     void from_value(const value& v);
-    std::size_t eval(const std::unordered_map<expr, std::size_t>& symbol_map) const;
+    std::size_t eval_dim(const std::unordered_map<expr, std::size_t>& symbol_map) const;
     expr subs(const std::unordered_map<expr, expr>& symbol_map) const;
 
     MIGRAPHX_EXPORT friend expr operator+(const expr& a, const expr& b);

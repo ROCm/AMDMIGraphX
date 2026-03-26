@@ -349,53 +349,53 @@ TEST_CASE(eq_empty)
 TEST_CASE(eval_simple)
 {
     auto H = var("H");
-    EXPECT(H.eval({{H, 26}}) == 26);
-    EXPECT(lit(42).eval({}) == 42);
+    EXPECT(H.eval_dim({{H, 26}}) == 26);
+    EXPECT(lit(42).eval_dim({}) == 42);
 }
 
 TEST_CASE(eval_arithmetic)
 {
     auto H = var("H");
-    EXPECT((H - 3).eval({{H, 26}}) == 23);
-    EXPECT((H + 5).eval({{H, 10}}) == 15);
-    EXPECT((2 * H).eval({{H, 13}}) == 26);
+    EXPECT((H - 3).eval_dim({{H, 26}}) == 23);
+    EXPECT((H + 5).eval_dim({{H, 10}}) == 15);
+    EXPECT((2 * H).eval_dim({{H, 13}}) == 26);
 }
 
 TEST_CASE(eval_compound)
 {
     auto H = var("H");
     auto e = (H - 3) / 2 + 1;
-    EXPECT(e.eval({{H, 26}}) == 12);
-    EXPECT(e.eval({{H, 27}}) == 13);
+    EXPECT(e.eval_dim({{H, 26}}) == 12);
+    EXPECT(e.eval_dim({{H, 27}}) == 13);
 }
 
 TEST_CASE(eval_multiple_symbols)
 {
     auto N = var("N"), H = var("H");
     auto e = N * H;
-    EXPECT(e.eval({{N, 4}, {H, 26}}) == 104);
+    EXPECT(e.eval_dim({{N, 4}, {H, 26}}) == 104);
 }
 
 TEST_CASE(eval_floor_division)
 {
     auto H = var("H");
     auto e = (H - 1) / 2;
-    EXPECT(e.eval({{H, 7}}) == 3);
-    EXPECT(e.eval({{H, 8}}) == 3);
-    EXPECT(e.eval({{H, 9}}) == 4);
+    EXPECT(e.eval_dim({{H, 7}}) == 3);
+    EXPECT(e.eval_dim({{H, 8}}) == 3);
+    EXPECT(e.eval_dim({{H, 9}}) == 4);
 }
 
 TEST_CASE(eval_unbound_throws)
 {
     auto H = var("H"), W = var("W");
-    EXPECT(test::throws([&] { H.eval({}); }));
-    EXPECT(test::throws([&] { (H + W).eval({{H, 1}}); }));
+    EXPECT(test::throws([&] { H.eval_dim({}); }));
+    EXPECT(test::throws([&] { (H + W).eval_dim({{H, 1}}); }));
 }
 
 TEST_CASE(eval_integer_expr)
 {
-    EXPECT(lit(0).eval({}) == 0);
-    EXPECT(lit(100).eval({}) == 100);
+    EXPECT(lit(0).eval_dim({}) == 0);
+    EXPECT(lit(100).eval_dim({}) == 100);
 }
 
 TEST_CASE(subs_partial)
@@ -404,7 +404,7 @@ TEST_CASE(subs_partial)
     auto e = N * H + 1;
     auto r = e.subs({{N, lit(4)}});
     EXPECT(r == 4 * H + 1);
-    EXPECT(r.eval({{H, 10}}) == 41);
+    EXPECT(r.eval_dim({{H, 10}}) == 41);
 }
 
 TEST_CASE(subs_full)
@@ -436,8 +436,8 @@ TEST_CASE(subs_eval_cross_validation)
     auto e                                       = (N * H - 3) / 2 + 1;
     std::unordered_map<se, std::size_t> eval_map = {{N, 4}, {H, 26}};
     std::unordered_map<se, se> subs_map          = {{N, lit(4)}, {H, lit(26)}};
-    auto via_eval                                = e.eval(eval_map);
-    auto via_subs                                = e.subs(subs_map).eval({});
+    auto via_eval                                = e.eval_dim(eval_map);
+    auto via_subs                                = e.subs(subs_map).eval_dim({});
     EXPECT(via_eval == via_subs);
 }
 
@@ -480,23 +480,23 @@ TEST_CASE(subs_compound_expression)
     // N*H => (W-1)*(2*W+1) = 2*W^2 - W - 1
     // N*H + W - 3 => 2*W^2 - 2*W - 4 + W = 2*W^2 - 2
     // Verify by evaluating with W=5: (W-1)*(2*W+1) + W - 3 = 4*11 + 5 - 3 = 46, 46/2 = 23
-    EXPECT(r.eval({{W, 5}}) == 23);
+    EXPECT(r.eval_dim({{W, 5}}) == 23);
     // Also verify the original expression with direct values agrees
-    EXPECT(e.eval({{N, 4}, {H, 11}, {W, 5}}) == 23);
+    EXPECT(e.eval_dim({{N, 4}, {H, 11}, {W, 5}}) == 23);
 }
 
 TEST_CASE(eval_compound_product)
 {
     auto H = var("H"), W = var("W");
     auto e = H * W + 1;
-    EXPECT(e.eval({{H, 3}, {W, 4}}) == 13);
+    EXPECT(e.eval_dim({{H, 3}, {W, 4}}) == 13);
 }
 
 TEST_CASE(eval_negative_intermediate)
 {
     auto H = var("H");
     auto e = (H - 10) * 2 + 20;
-    EXPECT(e.eval({{H, 3}}) == 6);
+    EXPECT(e.eval_dim({{H, 3}}) == 6);
 }
 
 // ===================================================================
@@ -657,14 +657,14 @@ TEST_CASE(edge_deeply_nested)
     se e   = H;
     for(int i = 0; i < 5; ++i)
         e = (e - 1) / 2;
-    EXPECT(e.eval({{H, 255}}) == 7);
+    EXPECT(e.eval_dim({{H, 255}}) == 7);
 }
 
 TEST_CASE(edge_many_symbols)
 {
     auto A = var("A"), B = var("B"), C = var("C"), D = var("D"), E = var("E");
     auto e = A + B + C + D + E;
-    EXPECT(e.eval({{A, 1}, {B, 2}, {C, 3}, {D, 4}, {E, 5}}) == 15);
+    EXPECT(e.eval_dim({{A, 1}, {B, 2}, {C, 3}, {D, 4}, {E, 5}}) == 15);
 }
 
 TEST_CASE(edge_neg_one_coefficient)
@@ -698,7 +698,7 @@ TEST_CASE(edge_large_coefficients)
 {
     auto H = var("H");
     auto r = 1000000 * H;
-    EXPECT(r.eval({{H, 1000000}}) == 1000000000000ULL);
+    EXPECT(r.eval_dim({{H, 1000000}}) == 1000000000000ULL);
 }
 
 // Incrementally adding H ten times must fold to 11*H

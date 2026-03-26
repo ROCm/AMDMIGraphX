@@ -496,8 +496,8 @@ static int64_t eval_direct(const expr_ptr& e, const binding_map& bindings)
                                      auto it = bindings.find(e);
                                      if(it != bindings.end())
                                          return static_cast<int64_t>(it->second);
-                                     MIGRAPHX_THROW("sym::expr::eval: unbound symbol '" + d.name +
-                                                    "'");
+                                     MIGRAPHX_THROW("sym::expr::eval_dim: unbound symbol '" +
+                                                    d.name + "'");
                                  },
                                  [&](const add_data& d) -> int64_t {
                                      int64_t sum = d.constant;
@@ -782,7 +782,7 @@ std::string expr::to_string() const
     return print_expr(p->node);
 }
 
-std::size_t expr::eval(const std::unordered_map<expr, std::size_t>& symbol_map) const
+std::size_t expr::eval_dim(const std::unordered_map<expr, std::size_t>& symbol_map) const
 {
     if(empty())
         return 0;
@@ -790,7 +790,7 @@ std::size_t expr::eval(const std::unordered_map<expr, std::size_t>& symbol_map) 
     for(const auto& [k, v] : symbol_map)
     {
         if(k.empty() or not holds<symbol_data>(k.p->node))
-            MIGRAPHX_THROW("sym::expr::eval: map key '" + k.to_string() + "' is not a symbol");
+            MIGRAPHX_THROW("sym::expr::eval_dim: map key '" + k.to_string() + "' is not a symbol");
         bindings[k.p->node] = v;
     }
     auto v = eval_direct(p->node, bindings);
@@ -868,10 +868,7 @@ std::ostream& operator<<(std::ostream& os, const expr& e)
 
 expr var(const std::string& name) { return {std::make_shared<expr::impl>(make_symbol(name))}; }
 
-expr lit(int64_t n)
-{
-    return {std::make_shared<expr::impl>(make_integer(n))};
-}
+expr lit(int64_t n) { return {std::make_shared<expr::impl>(make_integer(n))}; }
 
 expr parse(const std::string& s)
 {

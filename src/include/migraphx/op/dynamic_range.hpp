@@ -67,8 +67,10 @@ struct dynamic_range : op_name<dynamic_range>
                 MIGRAPHX_THROW("dynamic_range: delta must be non-zero");
 
             // number_of_elements = max( ceil( (limit - start) / delta ), 0 )
-            double num_elements_d = std::ceil(static_cast<double>(limit_val - start_val) /
-                                              static_cast<double>(delta_val));
+            double start_d        = start_val;
+            double limit_d        = limit_val;
+            double delta_d        = delta_val;
+            double num_elements_d = std::ceil((limit_d - start_d) / delta_d);
             if(not std::isfinite(num_elements_d))
                 MIGRAPHX_THROW("dynamic_range: computed element count is not finite");
 

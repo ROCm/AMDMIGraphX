@@ -310,6 +310,10 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
     {
         if(args.size() > 5)
         {
+            // Skip validation if attention_bias is empty (optional input not provided)
+            if(args.at(5)->get_shape().elements() == 0)
+                return;
+
             const auto attn_bias_lens = args.at(5)->get_shape().lens();
 
             if(attn_bias_lens.size() != 4)
@@ -837,8 +841,9 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         // Return outputs based on what's available: present key, present value and qk are optional
         std::vector<instruction_ref> outputs = {result};
 
-        // Add present_key and present_value if past states were provided
-        if(args.size() > 7)
+        // Add present_key and present_value if past states were provided and non-empty
+        if(args.size() > 7 and args[6]->get_shape().elements() > 0 and
+           args[7]->get_shape().elements() > 0)
         {
             outputs.push_back(present_key);
             outputs.push_back(present_value);

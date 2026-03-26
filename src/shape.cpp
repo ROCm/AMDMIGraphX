@@ -734,7 +734,7 @@ shape shape::to_static(const std::unordered_map<sym::expr, std::size_t>& symbol_
                        if(dd.is_fixed())
                            return dd.min;
                        if(dd.sym_expr)
-                           return dd.sym_expr->eval(symbol_map);
+                           return dd.sym_expr->eval_dim(symbol_map);
                        MIGRAPHX_THROW("to_static: non-fixed dimension has no symbolic expression");
                    });
     const auto& ds = this->dyn_strides();
@@ -742,7 +742,7 @@ shape shape::to_static(const std::unordered_map<sym::expr, std::size_t>& symbol_
         return {type(), static_lens};
     std::vector<std::size_t> static_strides(ds.size());
     std::transform(ds.cbegin(), ds.cend(), static_strides.begin(), [&](const auto& s) {
-        return s.eval(symbol_map);
+        return s.eval_dim(symbol_map);
     });
     return {type(), static_lens, static_strides};
 }

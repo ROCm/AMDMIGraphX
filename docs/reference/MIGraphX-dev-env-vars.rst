@@ -22,7 +22,7 @@ Model performance tunable variables change the compilation behavior of a model. 
     - Values
 
   * - | ``MIGRAPHX_ENABLE_NHWC``
-      | Forces the model to use the NHWC layout.
+      | Controls whether the model uses the NHWC layout (automatic, forced on, or forced off).
 
     - | ``1``: Forces the use of the NHWC layout.
       | ``0``: Disables the automatic NHWC policy and keeps convolution layout transforms off.
@@ -710,7 +710,7 @@ Advanced settings
   * - | ``MIGRAPHX_NSTREAMS``
       | Sets the number of HIP streams to use in the GPU.
 
-    - | Takes a positive integer.
+    - | Takes a non-negative integer.
       | Set to ``0`` to use the adaptive default.
       | Default: adaptive stream count based on GPU size.
       |

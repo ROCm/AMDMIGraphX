@@ -29,11 +29,9 @@
 #include <migraphx/stringutils.hpp>
 #include <hip/hip_runtime_api.h>
 
-#include <iostream>
 #include <mutex>
 #include <string_view>
 #include <unordered_map>
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {

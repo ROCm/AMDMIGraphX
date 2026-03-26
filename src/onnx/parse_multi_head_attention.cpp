@@ -384,7 +384,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
 
     void check_past_key_value_match(const std::vector<instruction_ref>& args) const
     {
-        if(args.size() <= 7 or args.size() <= 6)
+        if(args.size() <= 7)
             return;
 
         // Skip if either past_key or past_value is empty
@@ -750,7 +750,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         // Handle past_key and past_value concatenation using concat_past_present
         instruction_ref present_key;
         instruction_ref present_value;
-        if(args.size() > 6 and args.size() > 7)
+        if(args.size() > 7)
         {
             auto past_key   = args[6];
             auto past_value = args[7];
@@ -838,7 +838,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         std::vector<instruction_ref> outputs = {result};
 
         // Add present_key and present_value if past states were provided
-        if(args.size() > 6 and args.size() > 7)
+        if(args.size() > 7)
         {
             outputs.push_back(present_key);
             outputs.push_back(present_value);

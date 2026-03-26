@@ -245,7 +245,8 @@ TEST_CASE(mlir_tuning_db_used_without_cfg)
 
     auto submodule = create_mlir_submodule(m);
     migraphx::gpu::context ctx;
-    const auto inputs = to_shapes(submodule.get_parameters());
+    auto inputs       = to_shapes(submodule.get_parameters());
+    inputs.push_back(submodule.get_output_shapes().front());
     EXPECT([&] {
         migraphx::gpu::compile_mlir(ctx, submodule, inputs, {});
         return true;

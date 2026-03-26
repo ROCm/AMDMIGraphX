@@ -392,6 +392,12 @@ TEST_CASE(eval_unbound_throws)
     EXPECT(test::throws([&] { (H + W).eval_dim({{H, 1}}); }));
 }
 
+TEST_CASE(eval_division_by_zero_throws)
+{
+    auto H = var("H"), D = var("D");
+    EXPECT(test::throws([&] { (H / D).eval_dim({{H, 10}, {D, 0}}); }));
+}
+
 TEST_CASE(eval_integer_expr)
 {
     EXPECT(lit(0).eval_dim({}) == 0);
@@ -600,6 +606,17 @@ TEST_CASE(parse_whitespace_tolerance)
     EXPECT(parse("H+1") == parse("H + 1"));
 }
 
+TEST_CASE(parse_power_operator)
+{
+    auto H = var("H");
+    EXPECT(parse("H**2") == H * H);
+    EXPECT(parse("H**3") == H * H * H);
+    EXPECT(parse("H**1") == H);
+    EXPECT(parse("H**0") == lit(1));
+    EXPECT(parse("2*H**2 + 1") == 2 * H * H + 1);
+    EXPECT(parse("(2*H)**3 + 5") == 8 * H * H * H + 5);
+}
+
 TEST_CASE(print_negative_mul_coefficient)
 {
     auto r = 0 - 3 * var("H");
@@ -637,6 +654,8 @@ TEST_CASE(print_parse_round_trip)
         (H - 3) / 2 + 1,
         N * C * H * W,
         (H - 1) / 2,
+        H * H,
+        H * H * H,
     };
     for(const auto& e : exprs)
     {

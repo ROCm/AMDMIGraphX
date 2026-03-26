@@ -516,8 +516,10 @@ static int64_t eval_direct(const expr_ptr& e, const binding_map& bindings)
                                      return prod;
                                  },
                                  [&](const fdiv_data& d) -> int64_t {
-                                     return eval_direct(d.numerator, bindings) /
-                                            eval_direct(d.denominator, bindings);
+                                     auto denom = eval_direct(d.denominator, bindings);
+                                     if(denom == 0)
+                                         MIGRAPHX_THROW("sym::expr::eval_dim: division by zero");
+                                     return eval_direct(d.numerator, bindings) / denom;
                                  }},
                       e->data);
 }
@@ -694,21 +696,42 @@ static expr_ptr parse_unary(const char*& p)
     return parse_primary(p);
 }
 
+static expr_ptr parse_power(const char*& p)
+{
+    auto base = parse_unary(p);
+    skip_ws(p);
+    if(*p == '*' and *(p + 1) == '*')
+    {
+        p += 2;
+        auto exp_node = parse_unary(p);
+        if(not holds<integer_data>(exp_node))
+            MIGRAPHX_THROW("symbolic parser: ** exponent must be an integer literal");
+        auto exp = get_integer(exp_node);
+        if(exp < 0)
+            MIGRAPHX_THROW("symbolic parser: ** exponent must be non-negative");
+        expr_ptr result = make_integer(1);
+        for(int64_t i = 0; i < exp; ++i)
+            result = make_mul(result, base);
+        return result;
+    }
+    return base;
+}
+
 static expr_ptr parse_term(const char*& p)
 {
-    auto left = parse_unary(p);
+    auto left = parse_power(p);
     for(;;)
     {
         skip_ws(p);
         if(*p == '*')
         {
             ++p;
-            left = make_mul(left, parse_unary(p));
+            left = make_mul(left, parse_power(p));
         }
         else if(*p == '/')
         {
             ++p;
-            left = make_floor_div(left, parse_unary(p));
+            left = make_floor_div(left, parse_power(p));
         }
         else
             break;

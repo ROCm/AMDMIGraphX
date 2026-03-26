@@ -39,7 +39,7 @@
 #include <migraphx/bf16.hpp>
 #include <migraphx/float8.hpp>
 #include <migraphx/serialize.hpp>
-#include <migraphx/symbolic.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
@@ -100,7 +100,7 @@ struct MIGRAPHX_EXPORT shape
         std::size_t min = 0;
         std::size_t max = 0;
         std::set<std::size_t> optimals{};
-        optional<symbolic_expr> sym;
+        optional<sym::expr> sym_expr;
 
         dynamic_dimension() = default;
         dynamic_dimension(std::size_t min_v, std::size_t max_v) : min(min_v), max(max_v) {}
@@ -111,8 +111,8 @@ struct MIGRAPHX_EXPORT shape
         dynamic_dimension(std::size_t min_v,
                           std::size_t max_v,
                           std::set<std::size_t> opt,
-                          optional<symbolic_expr> s)
-            : min(min_v), max(max_v), optimals(std::move(opt)), sym(std::move(s))
+                          optional<sym::expr> s)
+            : min(min_v), max(max_v), optimals(std::move(opt)), sym_expr(std::move(s))
         {
         }
 
@@ -122,11 +122,11 @@ struct MIGRAPHX_EXPORT shape
             return pack(f(self.min, "min"),
                         f(self.max, "max"),
                         f(self.optimals, "optimals"),
-                        f(self.sym, "sym"));
+                        f(self.sym_expr, "sym"));
         }
 
         bool is_fixed() const;
-        bool is_symbolic() const { return sym.has_value(); }
+        bool is_symbolic() const { return sym_expr.has_value(); }
         bool has_optimal() const;
 
         /**
@@ -139,10 +139,11 @@ struct MIGRAPHX_EXPORT shape
             auto right = std::min(this->max, other.max);
             if(left <= right)
             {
-                optional<symbolic_expr> s;
+                optional<sym::expr> s;
                 if(left != right)
                 {
-                    s = (this->sym.has_value() and not this->is_fixed()) ? this->sym : other.sym;
+                    s = (this->sym_expr.has_value() and not this->is_fixed()) ? this->sym_expr
+                                                                              : other.sym_expr;
                 }
                 return dynamic_dimension{left, right, {}, s};
             }
@@ -180,7 +181,7 @@ struct MIGRAPHX_EXPORT shape
         MIGRAPHX_EXPORT friend dynamic_dimension operator/(const dynamic_dimension& x,
                                                            const std::size_t& y);
 
-        // dd-to-dd arithmetic (defined in symbolic.cpp)
+        // dd-to-dd arithmetic (defined in shape.cpp)
         dynamic_dimension& operator+=(const dynamic_dimension& x);
         dynamic_dimension& operator-=(const dynamic_dimension& x);
         dynamic_dimension& operator*=(const dynamic_dimension& x);
@@ -221,7 +222,7 @@ struct MIGRAPHX_EXPORT shape
 
     shape(type_t t, std::vector<dynamic_dimension> dims);
 
-    shape(type_t t, std::vector<dynamic_dimension> dims, std::vector<symbolic_expr> dstrides);
+    shape(type_t t, std::vector<dynamic_dimension> dims, std::vector<sym::expr> dstrides);
 
     // Construct a dynamic shape from vectors of mins, maxes, and optimals.
     // optimals_list is a vector of optimals that corresponds to each min and max.
@@ -291,7 +292,7 @@ struct MIGRAPHX_EXPORT shape
     const std::vector<dynamic_dimension>& dyn_dims() const;
 
     bool symbolic() const;
-    const std::vector<symbolic_expr>& dyn_strides() const;
+    const std::vector<sym::expr>& dyn_strides() const;
 
     /*!
      * Minimum lengths for dynamic shape.
@@ -417,7 +418,7 @@ struct MIGRAPHX_EXPORT shape
 
     // convert the shape to a static one setting any non-fixed dynamic_dimensions to x
     shape to_static(std::size_t x) const;
-    shape to_static(const std::map<std::string, std::size_t>& symbol_map) const;
+    shape to_static(const std::unordered_map<sym::expr, std::size_t>& symbol_map) const;
 
     MIGRAPHX_EXPORT friend bool operator==(const shape& x, const shape& y);
     MIGRAPHX_EXPORT friend bool operator!=(const shape& x, const shape& y);

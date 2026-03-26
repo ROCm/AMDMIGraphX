@@ -23,7 +23,7 @@
  */
 
 #include <migraphx/shape.hpp>
-#include <migraphx/symbolic.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/permutation.hpp>
@@ -86,7 +86,7 @@ struct shape_impl
 
     shape_impl(shape::type_t t,
                std::vector<shape::dynamic_dimension> dims,
-               std::vector<symbolic_expr> dstrides)
+               std::vector<sym::expr> dstrides)
         : m_type(t), m_dyn_dims(std::move(dims)), m_dyn_strides(std::move(dstrides))
     {
     }
@@ -123,7 +123,7 @@ struct shape_impl
     bool m_standard                    = false;
 
     std::vector<shape::dynamic_dimension> m_dyn_dims = {};
-    std::vector<symbolic_expr> m_dyn_strides         = {};
+    std::vector<sym::expr> m_dyn_strides             = {};
 
     void calculate_dyn_strides()
     {
@@ -131,13 +131,13 @@ struct shape_impl
         if(m_dyn_dims.empty())
             return;
         m_dyn_strides.resize(m_dyn_dims.size());
-        m_dyn_strides.back() = symbolic_expr(std::size_t{1});
+        m_dyn_strides.back() = sym::lit(1);
         std::transform(m_dyn_dims.rbegin(),
                        m_dyn_dims.rend() - 1,
                        m_dyn_strides.rbegin(),
                        m_dyn_strides.rbegin() + 1,
                        [](const auto& dd, const auto& stride) {
-                           return dd.sym.value_or(symbolic_expr(dd.min)) * stride;
+                           return dd.sym_expr.value_or(sym::lit(dd.min)) * stride;
                        });
     }
 
@@ -394,7 +394,7 @@ shape::shape(type_t t, std::vector<shape::dynamic_dimension> dims)
 {
 }
 
-shape::shape(type_t t, std::vector<dynamic_dimension> dims, std::vector<symbolic_expr> dstrides)
+shape::shape(type_t t, std::vector<dynamic_dimension> dims, std::vector<sym::expr> dstrides)
     : impl(std::make_shared<shape_impl>(t, std::move(dims), std::move(dstrides)))
 {
 }
@@ -682,10 +682,10 @@ shape shape::to_dynamic() const
     dims.reserve(ndim());
     for(auto len : lens())
         dims.push_back(dynamic_dimension{len, len});
-    std::vector<symbolic_expr> dstrides;
+    std::vector<sym::expr> dstrides;
     dstrides.reserve(ndim());
     for(auto s : strides())
-        dstrides.emplace_back(s);
+        dstrides.push_back(sym::lit(s));
     return shape(type(), std::move(dims), std::move(dstrides));
 }
 
@@ -713,7 +713,7 @@ shape shape::to_static(std::size_t x) const
     return {type(), static_lens};
 }
 
-shape shape::to_static(const std::map<std::string, std::size_t>& symbol_map) const
+shape shape::to_static(const std::unordered_map<sym::expr, std::size_t>& symbol_map) const
 {
     if(not sub_shapes().empty())
     {
@@ -733,8 +733,8 @@ shape shape::to_static(const std::map<std::string, std::size_t>& symbol_map) con
                    [&](const auto& dd) -> std::size_t {
                        if(dd.is_fixed())
                            return dd.min;
-                       if(dd.sym)
-                           return dd.sym->eval(symbol_map);
+                       if(dd.sym_expr)
+                           return dd.sym_expr->eval(symbol_map);
                        MIGRAPHX_THROW("to_static: non-fixed dimension has no symbolic expression");
                    });
     const auto& ds = this->dyn_strides();
@@ -782,7 +782,7 @@ bool shape::symbolic() const
     });
 }
 
-const std::vector<symbolic_expr>& shape::dyn_strides() const { return impl->m_dyn_strides; }
+const std::vector<sym::expr>& shape::dyn_strides() const { return impl->m_dyn_strides; }
 
 std::vector<std::size_t> shape::min_lens() const
 {
@@ -803,7 +803,7 @@ bool shape::dynamic_dimension::has_optimal() const { return not optimals.empty()
 shape::dynamic_dimension& shape::dynamic_dimension::operator+=(const std::size_t& x)
 {
     if(is_symbolic())
-        sym = *sym + symbolic_expr(x);
+        sym_expr = *sym_expr + sym::lit(x);
     this->min += x;
     this->max += x;
     std::set<std::size_t> new_optimals;
@@ -818,7 +818,7 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator+=(const std::size_t
 shape::dynamic_dimension& shape::dynamic_dimension::operator-=(const std::size_t& x)
 {
     if(is_symbolic())
-        sym = *sym - symbolic_expr(x);
+        sym_expr = *sym_expr - sym::lit(x);
     assert(this->min >= x);
     assert(this->max >= x);
     this->min -= x;
@@ -838,7 +838,7 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator-=(const std::size_t
 shape::dynamic_dimension& shape::dynamic_dimension::operator*=(const std::size_t& x)
 {
     if(is_symbolic())
-        sym = *sym * symbolic_expr(x);
+        sym_expr = *sym_expr * sym::lit(x);
     this->min *= x;
     this->max *= x;
     std::set<std::size_t> new_optimals;
@@ -853,7 +853,7 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator*=(const std::size_t
 shape::dynamic_dimension& shape::dynamic_dimension::operator/=(const std::size_t& x)
 {
     if(is_symbolic())
-        sym = *sym / symbolic_expr(x);
+        sym_expr = *sym_expr / sym::lit(x);
     this->min = (x == 0) ? 0 : this->min / x;
     this->max = (x == 0) ? std::numeric_limits<std::size_t>::max() : this->max / x;
     std::set<std::size_t> new_optimals;
@@ -867,7 +867,7 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator/=(const std::size_t
 
 bool operator==(const shape::dynamic_dimension& x, const shape::dynamic_dimension& y)
 {
-    if(not(x.sym == y.sym))
+    if(not(x.sym_expr == y.sym_expr))
         return false;
     return (x.min == y.min and x.max == y.max and
             ((x.is_fixed() and y.is_fixed()) or (x.optimals == y.optimals)));
@@ -880,7 +880,7 @@ bool operator!=(const shape::dynamic_dimension& x, const shape::dynamic_dimensio
 std::ostream& operator<<(std::ostream& os, const shape::dynamic_dimension& x)
 {
     if(x.is_symbolic())
-        os << x.sym->to_string();
+        os << x.sym_expr->to_string();
     if(x.is_fixed())
     {
         if(not x.is_symbolic())
@@ -931,6 +931,130 @@ shape::dynamic_dimension operator/(const shape::dynamic_dimension& x, const std:
 {
     auto dd = x;
     return dd /= y;
+}
+
+shape::dynamic_dimension& shape::dynamic_dimension::operator+=(const shape::dynamic_dimension& x)
+{
+    auto e = sym_expr.value_or(sym::lit(min)) + x.sym_expr.value_or(sym::lit(x.min));
+    min    = min + x.min;
+    max    = (max > std::numeric_limits<std::size_t>::max() - x.max)
+                 ? std::numeric_limits<std::size_t>::max()
+                 : max + x.max;
+    if(x.is_fixed())
+    {
+        std::set<std::size_t> new_optimals;
+        std::transform(optimals.begin(),
+                       optimals.end(),
+                       std::inserter(new_optimals, new_optimals.begin()),
+                       [&](auto o) { return o + x.min; });
+        optimals = new_optimals;
+    }
+    else
+    {
+        optimals.clear();
+    }
+    sym_expr = (sym_expr or x.sym_expr) ? optional<sym::expr>(e) : nullopt;
+    return *this;
+}
+
+shape::dynamic_dimension& shape::dynamic_dimension::operator-=(const shape::dynamic_dimension& x)
+{
+    auto e = sym_expr.value_or(sym::lit(min)) - x.sym_expr.value_or(sym::lit(x.min));
+    min    = (min > x.max) ? min - x.max : 0;
+    max    = (max > x.min) ? max - x.min : 0;
+    if(x.is_fixed())
+    {
+        std::set<std::size_t> new_optimals;
+        std::transform(optimals.begin(),
+                       optimals.end(),
+                       std::inserter(new_optimals, new_optimals.begin()),
+                       [&](auto o) { return (o > x.min) ? o - x.min : 0; });
+        optimals = new_optimals;
+    }
+    else
+    {
+        optimals.clear();
+    }
+    sym_expr = (sym_expr or x.sym_expr) ? optional<sym::expr>(e) : nullopt;
+    return *this;
+}
+
+shape::dynamic_dimension& shape::dynamic_dimension::operator*=(const shape::dynamic_dimension& x)
+{
+    auto e = sym_expr.value_or(sym::lit(min)) * x.sym_expr.value_or(sym::lit(x.min));
+    min    = min * x.min;
+    max    = (max > std::numeric_limits<std::size_t>::max() / (x.max == 0 ? 1 : x.max))
+                 ? std::numeric_limits<std::size_t>::max()
+                 : max * x.max;
+    if(x.is_fixed())
+    {
+        std::set<std::size_t> new_optimals;
+        std::transform(optimals.begin(),
+                       optimals.end(),
+                       std::inserter(new_optimals, new_optimals.begin()),
+                       [&](auto o) { return o * x.min; });
+        optimals = new_optimals;
+    }
+    else
+    {
+        optimals.clear();
+    }
+    sym_expr = (sym_expr or x.sym_expr) ? optional<sym::expr>(e) : nullopt;
+    return *this;
+}
+
+shape::dynamic_dimension& shape::dynamic_dimension::operator/=(const shape::dynamic_dimension& x)
+{
+    auto e = sym_expr.value_or(sym::lit(min)) / x.sym_expr.value_or(sym::lit(x.min));
+    min    = (x.max == 0) ? 0 : min / x.max;
+    max    = (x.min == 0) ? std::numeric_limits<std::size_t>::max() : max / x.min;
+    if(x.is_fixed())
+    {
+        std::set<std::size_t> new_optimals;
+        std::transform(optimals.begin(),
+                       optimals.end(),
+                       std::inserter(new_optimals, new_optimals.begin()),
+                       [&](auto o) { return (x.min == 0) ? std::size_t{0} : o / x.min; });
+        optimals = new_optimals;
+    }
+    else
+    {
+        optimals.clear();
+    }
+    sym_expr = (sym_expr or x.sym_expr) ? optional<sym::expr>(e) : nullopt;
+    return *this;
+}
+
+shape::dynamic_dimension operator+(const shape::dynamic_dimension& x,
+                                   const shape::dynamic_dimension& y)
+{
+    auto result = x;
+    result += y;
+    return result;
+}
+
+shape::dynamic_dimension operator-(const shape::dynamic_dimension& x,
+                                   const shape::dynamic_dimension& y)
+{
+    auto result = x;
+    result -= y;
+    return result;
+}
+
+shape::dynamic_dimension operator*(const shape::dynamic_dimension& x,
+                                   const shape::dynamic_dimension& y)
+{
+    auto result = x;
+    result *= y;
+    return result;
+}
+
+shape::dynamic_dimension operator/(const shape::dynamic_dimension& x,
+                                   const shape::dynamic_dimension& y)
+{
+    auto result = x;
+    result /= y;
+    return result;
 }
 
 bool operator==(const shape& x, const shape& y)
@@ -1085,10 +1209,10 @@ void migraphx_from_value(const value& v, shape& s)
             if(v.contains("dyn_strides") and not v.at("dyn_strides").empty())
             {
                 auto v_ds = v.at("dyn_strides");
-                std::vector<symbolic_expr> dstrides;
+                std::vector<sym::expr> dstrides;
                 dstrides.reserve(v_ds.size());
                 for(const auto& x : v_ds)
-                    dstrides.emplace_back(x.get_string());
+                    dstrides.push_back(from_value<sym::expr>(x));
                 s = shape(shape::parse_type(t), std::move(dyn_dims), std::move(dstrides));
             }
             else

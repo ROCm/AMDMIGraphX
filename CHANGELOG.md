@@ -41,6 +41,7 @@ Full documentation for MIGraphX is available at
 * Implemented JIT compilation for `logsoftmax` by decomposing it into fusible operations (`log`, `exp`, `reduce_max`, `reduce_sum`), enabling kernel fusion. (#4630).
 * Improved `find_attention` to move evaluable constant inputs inside the operator, allowing rocMLIR to detect causal masks. (#4660)
 * Added early return for `find_conv_dot_horiz_fusion` matcher based on if operator output size is less than two (#4662).
+* Reduced undersized GPU partitions, tuned pointwise launch bounds, and avoided redundant GPU return copies in scheduling hot paths (#4668).
 * Add matcher to simplify_algebra to find and replace pow(x, 2) with mul(x, x) (#4681)
 
 ### Removed

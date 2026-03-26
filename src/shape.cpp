@@ -933,13 +933,23 @@ shape::dynamic_dimension operator/(const shape::dynamic_dimension& x, const std:
     return dd /= y;
 }
 
+static optional<sym::expr> get_sym(const shape::dynamic_dimension& dd)
+{
+    if(dd.sym_expr)
+        return dd.sym_expr;
+    if(dd.is_fixed())
+        return sym::lit(dd.min);
+    return nullopt;
+}
+
 shape::dynamic_dimension& shape::dynamic_dimension::operator+=(const shape::dynamic_dimension& x)
 {
-    auto e = sym_expr.value_or(sym::lit(min)) + x.sym_expr.value_or(sym::lit(x.min));
-    min    = min + x.min;
-    max    = (max > std::numeric_limits<std::size_t>::max() - x.max)
-                 ? std::numeric_limits<std::size_t>::max()
-                 : max + x.max;
+    auto lhs_sym = get_sym(*this);
+    auto rhs_sym = get_sym(x);
+    min          = min + x.min;
+    max          = (max > std::numeric_limits<std::size_t>::max() - x.max)
+                       ? std::numeric_limits<std::size_t>::max()
+                       : max + x.max;
     if(x.is_fixed())
     {
         std::set<std::size_t> new_optimals;
@@ -953,15 +963,16 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator+=(const shape::dyna
     {
         optimals.clear();
     }
-    sym_expr = (sym_expr or x.sym_expr) ? optional<sym::expr>(e) : nullopt;
+    sym_expr = (lhs_sym and rhs_sym) ? optional<sym::expr>(*lhs_sym + *rhs_sym) : nullopt;
     return *this;
 }
 
 shape::dynamic_dimension& shape::dynamic_dimension::operator-=(const shape::dynamic_dimension& x)
 {
-    auto e = sym_expr.value_or(sym::lit(min)) - x.sym_expr.value_or(sym::lit(x.min));
-    min    = (min > x.max) ? min - x.max : 0;
-    max    = (max > x.min) ? max - x.min : 0;
+    auto lhs_sym = get_sym(*this);
+    auto rhs_sym = get_sym(x);
+    min          = (min > x.max) ? min - x.max : 0;
+    max          = (max > x.min) ? max - x.min : 0;
     if(x.is_fixed())
     {
         std::set<std::size_t> new_optimals;
@@ -975,17 +986,18 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator-=(const shape::dyna
     {
         optimals.clear();
     }
-    sym_expr = (sym_expr or x.sym_expr) ? optional<sym::expr>(e) : nullopt;
+    sym_expr = (lhs_sym and rhs_sym) ? optional<sym::expr>(*lhs_sym - *rhs_sym) : nullopt;
     return *this;
 }
 
 shape::dynamic_dimension& shape::dynamic_dimension::operator*=(const shape::dynamic_dimension& x)
 {
-    auto e = sym_expr.value_or(sym::lit(min)) * x.sym_expr.value_or(sym::lit(x.min));
-    min    = min * x.min;
-    max    = (max > std::numeric_limits<std::size_t>::max() / (x.max == 0 ? 1 : x.max))
-                 ? std::numeric_limits<std::size_t>::max()
-                 : max * x.max;
+    auto lhs_sym = get_sym(*this);
+    auto rhs_sym = get_sym(x);
+    min          = min * x.min;
+    max          = (max > std::numeric_limits<std::size_t>::max() / (x.max == 0 ? 1 : x.max))
+                       ? std::numeric_limits<std::size_t>::max()
+                       : max * x.max;
     if(x.is_fixed())
     {
         std::set<std::size_t> new_optimals;
@@ -999,15 +1011,16 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator*=(const shape::dyna
     {
         optimals.clear();
     }
-    sym_expr = (sym_expr or x.sym_expr) ? optional<sym::expr>(e) : nullopt;
+    sym_expr = (lhs_sym and rhs_sym) ? optional<sym::expr>(*lhs_sym * *rhs_sym) : nullopt;
     return *this;
 }
 
 shape::dynamic_dimension& shape::dynamic_dimension::operator/=(const shape::dynamic_dimension& x)
 {
-    auto e = sym_expr.value_or(sym::lit(min)) / x.sym_expr.value_or(sym::lit(x.min));
-    min    = (x.max == 0) ? 0 : min / x.max;
-    max    = (x.min == 0) ? std::numeric_limits<std::size_t>::max() : max / x.min;
+    auto lhs_sym = get_sym(*this);
+    auto rhs_sym = get_sym(x);
+    min          = (x.max == 0) ? 0 : min / x.max;
+    max          = (x.min == 0) ? std::numeric_limits<std::size_t>::max() : max / x.min;
     if(x.is_fixed())
     {
         std::set<std::size_t> new_optimals;
@@ -1021,7 +1034,7 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator/=(const shape::dyna
     {
         optimals.clear();
     }
-    sym_expr = (sym_expr or x.sym_expr) ? optional<sym::expr>(e) : nullopt;
+    sym_expr = (lhs_sym and rhs_sym) ? optional<sym::expr>(*lhs_sym / *rhs_sym) : nullopt;
     return *this;
 }
 

@@ -449,7 +449,7 @@ static expr_ptr make_floor_div(const expr_ptr& a, const expr_ptr& b)
 // Section 6: Substitution and evaluation
 // ===================================================================
 
-using binding_map = std::map<expr_ptr, std::size_t, expr_compare>;
+using binding_map = std::map<expr_ptr, int64_t, expr_compare>;
 using subs_map    = std::map<expr_ptr, expr_ptr, expr_compare>;
 
 static expr_ptr substitute(const expr_ptr& e, const subs_map& bindings)
@@ -495,7 +495,7 @@ static int64_t eval_direct(const expr_ptr& e, const binding_map& bindings)
                                  [&](const symbol_data& d) -> int64_t {
                                      auto it = bindings.find(e);
                                      if(it != bindings.end())
-                                         return static_cast<int64_t>(it->second);
+                                         return it->second;
                                      MIGRAPHX_THROW("sym::expr::eval_dim: unbound symbol '" +
                                                     d.name + "'");
                                  },
@@ -791,7 +791,7 @@ std::size_t expr::eval_dim(const std::unordered_map<expr, std::size_t>& symbol_m
     {
         if(k.empty() or not holds<symbol_data>(k.p->node))
             MIGRAPHX_THROW("sym::expr::eval_dim: map key '" + k.to_string() + "' is not a symbol");
-        bindings[k.p->node] = v;
+        bindings[k.p->node] = static_cast<int64_t>(v);
     }
     auto v = eval_direct(p->node, bindings);
     assert(v >= 0 && "symbolic dimension evaluated to negative value");

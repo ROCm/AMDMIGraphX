@@ -114,7 +114,7 @@ static const mul_data& get_mul(const expr_ptr& e) { return std::get<mul_data>(e-
 
 static std::size_t hash_combine(std::size_t seed, std::size_t v)
 {
-    return seed ^ (v + 0x9e3779b9 + (seed << 6) + (seed >> 2));
+    return seed ^ (v + 0x9e3779b9 + (seed << 6u) + (seed >> 2u));
 }
 
 template <class Map>
@@ -338,17 +338,16 @@ static expr_ptr make_add(const expr_ptr& a, const expr_ptr& b)
 static expr_ptr make_neg(const expr_ptr& a)
 {
     return std::visit(
-        overloaded{[](const integer_data& d) -> expr_ptr { return make_integer(-d.value); },
-                   [](const add_data& d) -> expr_ptr {
-                       term_map negated;
-                       for(const auto& [term, coeff] : d.terms)
-                           negated[term] = -coeff;
-                       return build_add(-d.constant, std::move(negated));
-                   },
-                   [](const mul_data& d) -> expr_ptr {
-                       return build_mul(-d.coefficient, d.factors);
-                   },
-                   [&](const auto&) -> expr_ptr { return make_mul(make_integer(-1), a); }},
+        overloaded{
+            [](const integer_data& d) -> expr_ptr { return make_integer(-d.value); },
+            [](const add_data& d) -> expr_ptr {
+                term_map negated;
+                for(const auto& [term, coeff] : d.terms)
+                    negated[term] = -coeff;
+                return build_add(-d.constant, std::move(negated));
+            },
+            [](const mul_data& d) -> expr_ptr { return build_mul(-d.coefficient, d.factors); },
+            [&](const auto&) -> expr_ptr { return make_mul(make_integer(-1), a); }},
         a->data);
 }
 
@@ -627,7 +626,7 @@ static std::string print_expr(const expr_ptr& e, int parent_prec)
 
 static void skip_ws(const char*& p)
 {
-    while(*p and std::isspace(static_cast<unsigned char>(*p)))
+    while(*p != '\0' and std::isspace(static_cast<unsigned char>(*p)) != 0)
         ++p;
 }
 
@@ -639,20 +638,20 @@ static expr_ptr parse_primary(const char*& p);
 static expr_ptr parse_primary(const char*& p)
 {
     skip_ws(p);
-    if(std::isdigit(static_cast<unsigned char>(*p)))
+    if(std::isdigit(static_cast<unsigned char>(*p)) != 0)
     {
         int64_t n = 0;
-        while(std::isdigit(static_cast<unsigned char>(*p)))
+        while(std::isdigit(static_cast<unsigned char>(*p)) != 0)
         {
             n = n * 10 + (*p - '0');
             ++p;
         }
         return make_integer(n);
     }
-    if(std::isalpha(static_cast<unsigned char>(*p)) or *p == '_')
+    if(std::isalpha(static_cast<unsigned char>(*p)) != 0 or *p == '_')
     {
         std::string name;
-        while(std::isalnum(static_cast<unsigned char>(*p)) or *p == '_')
+        while(std::isalnum(static_cast<unsigned char>(*p)) != 0 or *p == '_')
         {
             name += *p;
             ++p;
@@ -817,7 +816,7 @@ std::size_t expr::eval_dim(const std::unordered_map<expr, std::size_t>& symbol_m
         bindings[k.p->node] = static_cast<int64_t>(v);
     }
     auto v = eval_direct(p->node, bindings);
-    assert(v >= 0 && "symbolic dimension evaluated to negative value");
+    assert(v >= 0 and "symbolic dimension evaluated to negative value");
     return static_cast<std::size_t>(v);
 }
 

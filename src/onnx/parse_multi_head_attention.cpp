@@ -286,12 +286,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
     {
         if(args.size() > 3)
         {
-            auto bias = args.at(3);
-
-            // Skip validation if bias is empty (optional input not provided)
-            if(bias->get_shape().elements() == 0)
-                return;
-
+            auto bias      = args.at(3);
             auto bias_lens = bias->get_shape().lens();
 
             if(bias_lens.size() == 1)
@@ -315,10 +310,6 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
     {
         if(args.size() > 5)
         {
-            // Skip validation if attention_bias is empty (optional input not provided)
-            if(args.at(5)->get_shape().elements() == 0)
-                return;
-
             const auto attn_bias_lens = args.at(5)->get_shape().lens();
 
             if(attn_bias_lens.size() != 4)

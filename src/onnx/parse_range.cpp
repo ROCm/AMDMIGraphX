@@ -66,7 +66,7 @@ struct parse_range : op_parser<parse_range>
             auto limit_d          = static_cast<double>(limit_val);
             auto delta_d          = static_cast<double>(delta_val);
             double num_elements_d = ceil((limit_d - start_d) / delta_d);
-            size_t num_elements = static_cast<size_t>(std::max(0.0, num_elements_d));
+            size_t num_elements   = static_cast<size_t>(std::max(0.0, num_elements_d));
 
             using type = decltype(start_val);
 

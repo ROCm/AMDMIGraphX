@@ -40,13 +40,15 @@ TEST_CASE(multi_head_attention_past_key_value_test)
     const std::vector<int64_t> permutation{0, 2, 1, 3};
 
     migraphx::program p;
-    auto* mm = p.get_main_module();
-    auto q   = mm->add_parameter("q", {migraphx::shape::float_type, input_lens});
-    auto k   = mm->add_parameter("k", {migraphx::shape::float_type, input_lens});
-    auto v   = mm->add_parameter("v", {migraphx::shape::float_type, input_lens});
+    auto* mm  = p.get_main_module();
+    auto q    = mm->add_parameter("q", {migraphx::shape::float_type, input_lens});
+    auto k    = mm->add_parameter("k", {migraphx::shape::float_type, input_lens});
+    auto v    = mm->add_parameter("v", {migraphx::shape::float_type, input_lens});
     auto bias = mm->add_parameter("bias", {migraphx::shape::float_type, {12}});
-    auto key_padding_mask = mm->add_parameter("key_padding_mask", {migraphx::shape::int32_type, {1}});
-    auto attention_bias = mm->add_parameter("attention_bias", {migraphx::shape::float_type, {1, 2, 1, 1}});
+    auto key_padding_mask =
+        mm->add_parameter("key_padding_mask", {migraphx::shape::int32_type, {1}});
+    auto attention_bias =
+        mm->add_parameter("attention_bias", {migraphx::shape::float_type, {1, 2, 1, 1}});
     auto past_key   = mm->add_parameter("past_key", {migraphx::shape::float_type, past_lens});
     auto past_value = mm->add_parameter("past_value", {migraphx::shape::float_type, past_lens});
 
@@ -84,11 +86,17 @@ TEST_CASE(multi_head_attention_past_key_value_test)
         v_bias);
 
     auto q_reshaped = mm->add_instruction(
-        migraphx::make_op("reshape", {{"dims", {batch_size, sequence_length, num_heads * head_size}}}), q);
+        migraphx::make_op("reshape",
+                          {{"dims", {batch_size, sequence_length, num_heads * head_size}}}),
+        q);
     auto k_reshaped = mm->add_instruction(
-        migraphx::make_op("reshape", {{"dims", {batch_size, sequence_length, num_heads * head_size}}}), k);
+        migraphx::make_op("reshape",
+                          {{"dims", {batch_size, sequence_length, num_heads * head_size}}}),
+        k);
     auto v_reshaped = mm->add_instruction(
-        migraphx::make_op("reshape", {{"dims", {batch_size, sequence_length, num_heads * head_size}}}), v);
+        migraphx::make_op("reshape",
+                          {{"dims", {batch_size, sequence_length, num_heads * head_size}}}),
+        v);
 
     auto biased_query = mm->add_instruction(migraphx::make_op("add"), q_bias_bc, q_reshaped);
     auto biased_key   = mm->add_instruction(migraphx::make_op("add"), k_bias_bc, k_reshaped);
@@ -103,27 +111,33 @@ TEST_CASE(multi_head_attention_past_key_value_test)
     v = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", permutation}}), v);
 
     std::vector<int32_t> zeros(batch_size, 0);
-    auto seqlens_k = mm->add_literal(
-        migraphx::literal{migraphx::shape{migraphx::shape::int32_type, {static_cast<size_t>(batch_size)}}, zeros});
+    auto seqlens_k = mm->add_literal(migraphx::literal{
+        migraphx::shape{migraphx::shape::int32_type, {static_cast<size_t>(batch_size)}}, zeros});
 
-    auto present_key = mm->add_instruction(
-        migraphx::make_op("concat_past_present", {{"kv_num_heads", num_heads}}),
-        k, seqlens_k, past_key);
-    auto present_value = mm->add_instruction(
-        migraphx::make_op("concat_past_present", {{"kv_num_heads", num_heads}}),
-        v, seqlens_k, past_value);
+    auto present_key =
+        mm->add_instruction(migraphx::make_op("concat_past_present", {{"kv_num_heads", num_heads}}),
+                            k,
+                            seqlens_k,
+                            past_key);
+    auto present_value =
+        mm->add_instruction(migraphx::make_op("concat_past_present", {{"kv_num_heads", num_heads}}),
+                            v,
+                            seqlens_k,
+                            past_value);
 
     std::vector<int32_t> indices_vec(sequence_length);
     std::iota(indices_vec.begin(), indices_vec.end(), 0);
-    auto indices = mm->add_literal(
-        migraphx::literal{migraphx::shape{migraphx::shape::int32_type, 
-                         {static_cast<size_t>(sequence_length)}}, indices_vec});
+    auto indices    = mm->add_literal(migraphx::literal{
+        migraphx::shape{migraphx::shape::int32_type, {static_cast<size_t>(sequence_length)}},
+        indices_vec});
     auto indices_bc = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, sequence_length}}}), indices);
+        migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, sequence_length}}}),
+        indices);
     auto right_mask_bc = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, sequence_length}}}), key_padding_mask);
+        migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, sequence_length}}}),
+        key_padding_mask);
     auto mask_bool = mm->add_instruction(migraphx::make_op("less"), indices_bc, right_mask_bc);
-    auto raw_mask = mm->add_instruction(
+    auto raw_mask  = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), mask_bool);
 
     auto pass_value = mm->add_literal(
@@ -132,29 +146,32 @@ TEST_CASE(multi_head_attention_past_key_value_test)
         migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}, {1}}, {-10000.0f}});
 
     auto bc_pass = mm->add_instruction(
-        migraphx::make_op("multibroadcast", 
-                         {{"out_lens", {batch_size, num_heads, sequence_length, sequence_length}}}),
+        migraphx::make_op(
+            "multibroadcast",
+            {{"out_lens", {batch_size, num_heads, sequence_length, sequence_length}}}),
         pass_value);
     auto bc_mask = mm->add_instruction(
-        migraphx::make_op("multibroadcast", 
-                         {{"out_lens", {batch_size, num_heads, sequence_length, sequence_length}}}),
+        migraphx::make_op(
+            "multibroadcast",
+            {{"out_lens", {batch_size, num_heads, sequence_length, sequence_length}}}),
         mask_value);
 
     auto raw_mask_reshaped = mm->add_instruction(
         migraphx::make_op("reshape", {{"dims", {batch_size, 1, 1, sequence_length}}}), raw_mask);
     raw_mask_reshaped = mm->add_instruction(
-        migraphx::make_op("multibroadcast", 
-                         {{"out_lens", {batch_size, num_heads, sequence_length, sequence_length}}}),
+        migraphx::make_op(
+            "multibroadcast",
+            {{"out_lens", {batch_size, num_heads, sequence_length, sequence_length}}}),
         raw_mask_reshaped);
     raw_mask_reshaped = mm->add_instruction(
-        migraphx::make_op("reshape", 
-                         {{"dims", {batch_size, num_heads, sequence_length, sequence_length}}}),
+        migraphx::make_op("reshape",
+                          {{"dims", {batch_size, num_heads, sequence_length, sequence_length}}}),
         raw_mask_reshaped);
 
     auto in_pass = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), bc_pass);
     auto eq_bool = mm->add_instruction(migraphx::make_op("equal"), raw_mask_reshaped, in_pass);
-    eq_bool = mm->add_instruction(
+    eq_bool      = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), eq_bool);
     auto attn_mask = mm->add_instruction(migraphx::make_op("where"), eq_bool, bc_mask, bc_pass);
 
@@ -173,8 +190,7 @@ TEST_CASE(multi_head_attention_past_key_value_test)
     result = mm->add_instruction(migraphx::make_op("add"), result, attn_bias_bc);
 
     auto attn_mask_bc = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", result->get_shape().lens()}}),
-        attn_mask);
+        migraphx::make_op("multibroadcast", {{"out_lens", result->get_shape().lens()}}), attn_mask);
     result = mm->add_instruction(migraphx::make_op("add"), result, attn_mask_bc);
 
     scale_literal = mm->add_instruction(
@@ -208,13 +224,15 @@ TEST_CASE(multi_head_attention_past_key_value_seq_len_test)
     const std::vector<int64_t> permutation{0, 2, 1, 3};
 
     migraphx::program p;
-    auto* mm = p.get_main_module();
-    auto q   = mm->add_parameter("q", {migraphx::shape::float_type, input_lens});
-    auto k   = mm->add_parameter("k", {migraphx::shape::float_type, input_lens});
-    auto v   = mm->add_parameter("v", {migraphx::shape::float_type, input_lens});
+    auto* mm  = p.get_main_module();
+    auto q    = mm->add_parameter("q", {migraphx::shape::float_type, input_lens});
+    auto k    = mm->add_parameter("k", {migraphx::shape::float_type, input_lens});
+    auto v    = mm->add_parameter("v", {migraphx::shape::float_type, input_lens});
     auto bias = mm->add_parameter("bias", {migraphx::shape::float_type, {12}});
-    auto key_padding_mask = mm->add_parameter("key_padding_mask", {migraphx::shape::int32_type, {1}});
-    auto attention_bias = mm->add_parameter("attention_bias", {migraphx::shape::float_type, {1, 2, 1, 1}});
+    auto key_padding_mask =
+        mm->add_parameter("key_padding_mask", {migraphx::shape::int32_type, {1}});
+    auto attention_bias =
+        mm->add_parameter("attention_bias", {migraphx::shape::float_type, {1, 2, 1, 1}});
     auto past_key   = mm->add_parameter("past_key", {migraphx::shape::float_type, past_lens});
     auto past_value = mm->add_parameter("past_value", {migraphx::shape::float_type, past_lens});
     auto seqlens_k  = mm->add_parameter(
@@ -254,11 +272,17 @@ TEST_CASE(multi_head_attention_past_key_value_seq_len_test)
         v_bias);
 
     auto q_reshaped = mm->add_instruction(
-        migraphx::make_op("reshape", {{"dims", {batch_size, sequence_length, num_heads * head_size}}}), q);
+        migraphx::make_op("reshape",
+                          {{"dims", {batch_size, sequence_length, num_heads * head_size}}}),
+        q);
     auto k_reshaped = mm->add_instruction(
-        migraphx::make_op("reshape", {{"dims", {batch_size, sequence_length, num_heads * head_size}}}), k);
+        migraphx::make_op("reshape",
+                          {{"dims", {batch_size, sequence_length, num_heads * head_size}}}),
+        k);
     auto v_reshaped = mm->add_instruction(
-        migraphx::make_op("reshape", {{"dims", {batch_size, sequence_length, num_heads * head_size}}}), v);
+        migraphx::make_op("reshape",
+                          {{"dims", {batch_size, sequence_length, num_heads * head_size}}}),
+        v);
 
     auto biased_query = mm->add_instruction(migraphx::make_op("add"), q_bias_bc, q_reshaped);
     auto biased_key   = mm->add_instruction(migraphx::make_op("add"), k_bias_bc, k_reshaped);
@@ -272,24 +296,30 @@ TEST_CASE(multi_head_attention_past_key_value_seq_len_test)
     k = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", permutation}}), k);
     v = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", permutation}}), v);
 
-    auto present_key = mm->add_instruction(
-        migraphx::make_op("concat_past_present", {{"kv_num_heads", num_heads}}),
-        k, seqlens_k, past_key);
-    auto present_value = mm->add_instruction(
-        migraphx::make_op("concat_past_present", {{"kv_num_heads", num_heads}}),
-        v, seqlens_k, past_value);
+    auto present_key =
+        mm->add_instruction(migraphx::make_op("concat_past_present", {{"kv_num_heads", num_heads}}),
+                            k,
+                            seqlens_k,
+                            past_key);
+    auto present_value =
+        mm->add_instruction(migraphx::make_op("concat_past_present", {{"kv_num_heads", num_heads}}),
+                            v,
+                            seqlens_k,
+                            past_value);
 
     std::vector<int32_t> indices_vec(sequence_length);
     std::iota(indices_vec.begin(), indices_vec.end(), 0);
-    auto indices = mm->add_literal(
-        migraphx::literal{migraphx::shape{migraphx::shape::int32_type, 
-                         {static_cast<size_t>(sequence_length)}}, indices_vec});
+    auto indices    = mm->add_literal(migraphx::literal{
+        migraphx::shape{migraphx::shape::int32_type, {static_cast<size_t>(sequence_length)}},
+        indices_vec});
     auto indices_bc = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, sequence_length}}}), indices);
+        migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, sequence_length}}}),
+        indices);
     auto right_mask_bc = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, sequence_length}}}), key_padding_mask);
+        migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, sequence_length}}}),
+        key_padding_mask);
     auto mask_bool = mm->add_instruction(migraphx::make_op("less"), indices_bc, right_mask_bc);
-    auto raw_mask = mm->add_instruction(
+    auto raw_mask  = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), mask_bool);
 
     auto pass_value = mm->add_literal(
@@ -298,29 +328,32 @@ TEST_CASE(multi_head_attention_past_key_value_seq_len_test)
         migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}, {1}}, {-10000.0f}});
 
     auto bc_pass = mm->add_instruction(
-        migraphx::make_op("multibroadcast", 
-                         {{"out_lens", {batch_size, num_heads, sequence_length, sequence_length}}}),
+        migraphx::make_op(
+            "multibroadcast",
+            {{"out_lens", {batch_size, num_heads, sequence_length, sequence_length}}}),
         pass_value);
     auto bc_mask = mm->add_instruction(
-        migraphx::make_op("multibroadcast", 
-                         {{"out_lens", {batch_size, num_heads, sequence_length, sequence_length}}}),
+        migraphx::make_op(
+            "multibroadcast",
+            {{"out_lens", {batch_size, num_heads, sequence_length, sequence_length}}}),
         mask_value);
 
     auto raw_mask_reshaped = mm->add_instruction(
         migraphx::make_op("reshape", {{"dims", {batch_size, 1, 1, sequence_length}}}), raw_mask);
     raw_mask_reshaped = mm->add_instruction(
-        migraphx::make_op("multibroadcast", 
-                         {{"out_lens", {batch_size, num_heads, sequence_length, sequence_length}}}),
+        migraphx::make_op(
+            "multibroadcast",
+            {{"out_lens", {batch_size, num_heads, sequence_length, sequence_length}}}),
         raw_mask_reshaped);
     raw_mask_reshaped = mm->add_instruction(
-        migraphx::make_op("reshape", 
-                         {{"dims", {batch_size, num_heads, sequence_length, sequence_length}}}),
+        migraphx::make_op("reshape",
+                          {{"dims", {batch_size, num_heads, sequence_length, sequence_length}}}),
         raw_mask_reshaped);
 
     auto in_pass = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), bc_pass);
     auto eq_bool = mm->add_instruction(migraphx::make_op("equal"), raw_mask_reshaped, in_pass);
-    eq_bool = mm->add_instruction(
+    eq_bool      = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), eq_bool);
     auto attn_mask = mm->add_instruction(migraphx::make_op("where"), eq_bool, bc_mask, bc_pass);
 
@@ -339,8 +372,7 @@ TEST_CASE(multi_head_attention_past_key_value_seq_len_test)
     result = mm->add_instruction(migraphx::make_op("add"), result, attn_bias_bc);
 
     auto attn_mask_bc = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", result->get_shape().lens()}}),
-        attn_mask);
+        migraphx::make_op("multibroadcast", {{"out_lens", result->get_shape().lens()}}), attn_mask);
     result = mm->add_instruction(migraphx::make_op("add"), result, attn_mask_bc);
 
     scale_literal = mm->add_instruction(
@@ -375,13 +407,15 @@ TEST_CASE(multi_head_attention_past_key_value_bias_test)
     const std::vector<int64_t> permutation{0, 2, 1, 3};
 
     migraphx::program p;
-    auto* mm    = p.get_main_module();
-    auto q      = mm->add_parameter("q", {migraphx::shape::float_type, input_lens});
-    auto k      = mm->add_parameter("k", {migraphx::shape::float_type, input_lens});
-    auto v      = mm->add_parameter("v", {migraphx::shape::float_type, input_lens});
-    auto bias   = mm->add_parameter("bias", {migraphx::shape::float_type, bias_lens});
-    auto key_padding_mask = mm->add_parameter("key_padding_mask", {migraphx::shape::int32_type, {1}});
-    auto attention_bias = mm->add_parameter("attention_bias", {migraphx::shape::float_type, {1, 2, 1, 1}});
+    auto* mm  = p.get_main_module();
+    auto q    = mm->add_parameter("q", {migraphx::shape::float_type, input_lens});
+    auto k    = mm->add_parameter("k", {migraphx::shape::float_type, input_lens});
+    auto v    = mm->add_parameter("v", {migraphx::shape::float_type, input_lens});
+    auto bias = mm->add_parameter("bias", {migraphx::shape::float_type, bias_lens});
+    auto key_padding_mask =
+        mm->add_parameter("key_padding_mask", {migraphx::shape::int32_type, {1}});
+    auto attention_bias =
+        mm->add_parameter("attention_bias", {migraphx::shape::float_type, {1, 2, 1, 1}});
     auto past_key   = mm->add_parameter("past_key", {migraphx::shape::float_type, past_lens});
     auto past_value = mm->add_parameter("past_value", {migraphx::shape::float_type, past_lens});
 
@@ -419,11 +453,17 @@ TEST_CASE(multi_head_attention_past_key_value_bias_test)
         v_bias);
 
     auto q_reshaped = mm->add_instruction(
-        migraphx::make_op("reshape", {{"dims", {batch_size, sequence_length, num_heads * head_size}}}), q);
+        migraphx::make_op("reshape",
+                          {{"dims", {batch_size, sequence_length, num_heads * head_size}}}),
+        q);
     auto k_reshaped = mm->add_instruction(
-        migraphx::make_op("reshape", {{"dims", {batch_size, sequence_length, num_heads * head_size}}}), k);
+        migraphx::make_op("reshape",
+                          {{"dims", {batch_size, sequence_length, num_heads * head_size}}}),
+        k);
     auto v_reshaped = mm->add_instruction(
-        migraphx::make_op("reshape", {{"dims", {batch_size, sequence_length, num_heads * head_size}}}), v);
+        migraphx::make_op("reshape",
+                          {{"dims", {batch_size, sequence_length, num_heads * head_size}}}),
+        v);
 
     auto biased_query = mm->add_instruction(migraphx::make_op("add"), q_bias_bc, q_reshaped);
     auto biased_key   = mm->add_instruction(migraphx::make_op("add"), k_bias_bc, k_reshaped);
@@ -438,27 +478,33 @@ TEST_CASE(multi_head_attention_past_key_value_bias_test)
     v = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", permutation}}), v);
 
     std::vector<int32_t> zeros(batch_size, 0);
-    auto seqlens_k = mm->add_literal(
-        migraphx::literal{migraphx::shape{migraphx::shape::int32_type, {static_cast<size_t>(batch_size)}}, zeros});
+    auto seqlens_k = mm->add_literal(migraphx::literal{
+        migraphx::shape{migraphx::shape::int32_type, {static_cast<size_t>(batch_size)}}, zeros});
 
-    auto present_key = mm->add_instruction(
-        migraphx::make_op("concat_past_present", {{"kv_num_heads", num_heads}}),
-        k, seqlens_k, past_key);
-    auto present_value = mm->add_instruction(
-        migraphx::make_op("concat_past_present", {{"kv_num_heads", num_heads}}),
-        v, seqlens_k, past_value);
+    auto present_key =
+        mm->add_instruction(migraphx::make_op("concat_past_present", {{"kv_num_heads", num_heads}}),
+                            k,
+                            seqlens_k,
+                            past_key);
+    auto present_value =
+        mm->add_instruction(migraphx::make_op("concat_past_present", {{"kv_num_heads", num_heads}}),
+                            v,
+                            seqlens_k,
+                            past_value);
 
     std::vector<int32_t> indices_vec(sequence_length);
     std::iota(indices_vec.begin(), indices_vec.end(), 0);
-    auto indices = mm->add_literal(
-        migraphx::literal{migraphx::shape{migraphx::shape::int32_type, 
-                         {static_cast<size_t>(sequence_length)}}, indices_vec});
+    auto indices    = mm->add_literal(migraphx::literal{
+        migraphx::shape{migraphx::shape::int32_type, {static_cast<size_t>(sequence_length)}},
+        indices_vec});
     auto indices_bc = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, sequence_length}}}), indices);
+        migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, sequence_length}}}),
+        indices);
     auto right_mask_bc = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, sequence_length}}}), key_padding_mask);
+        migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, sequence_length}}}),
+        key_padding_mask);
     auto mask_bool = mm->add_instruction(migraphx::make_op("less"), indices_bc, right_mask_bc);
-    auto raw_mask = mm->add_instruction(
+    auto raw_mask  = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), mask_bool);
 
     auto pass_value = mm->add_literal(
@@ -467,29 +513,32 @@ TEST_CASE(multi_head_attention_past_key_value_bias_test)
         migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}, {1}}, {-10000.0f}});
 
     auto bc_pass = mm->add_instruction(
-        migraphx::make_op("multibroadcast", 
-                         {{"out_lens", {batch_size, num_heads, sequence_length, sequence_length}}}),
+        migraphx::make_op(
+            "multibroadcast",
+            {{"out_lens", {batch_size, num_heads, sequence_length, sequence_length}}}),
         pass_value);
     auto bc_mask = mm->add_instruction(
-        migraphx::make_op("multibroadcast", 
-                         {{"out_lens", {batch_size, num_heads, sequence_length, sequence_length}}}),
+        migraphx::make_op(
+            "multibroadcast",
+            {{"out_lens", {batch_size, num_heads, sequence_length, sequence_length}}}),
         mask_value);
 
     auto raw_mask_reshaped = mm->add_instruction(
         migraphx::make_op("reshape", {{"dims", {batch_size, 1, 1, sequence_length}}}), raw_mask);
     raw_mask_reshaped = mm->add_instruction(
-        migraphx::make_op("multibroadcast", 
-                         {{"out_lens", {batch_size, num_heads, sequence_length, sequence_length}}}),
+        migraphx::make_op(
+            "multibroadcast",
+            {{"out_lens", {batch_size, num_heads, sequence_length, sequence_length}}}),
         raw_mask_reshaped);
     raw_mask_reshaped = mm->add_instruction(
-        migraphx::make_op("reshape", 
-                         {{"dims", {batch_size, num_heads, sequence_length, sequence_length}}}),
+        migraphx::make_op("reshape",
+                          {{"dims", {batch_size, num_heads, sequence_length, sequence_length}}}),
         raw_mask_reshaped);
 
     auto in_pass = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), bc_pass);
     auto eq_bool = mm->add_instruction(migraphx::make_op("equal"), raw_mask_reshaped, in_pass);
-    eq_bool = mm->add_instruction(
+    eq_bool      = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), eq_bool);
     auto attn_mask = mm->add_instruction(migraphx::make_op("where"), eq_bool, bc_mask, bc_pass);
 
@@ -508,8 +557,7 @@ TEST_CASE(multi_head_attention_past_key_value_bias_test)
     result = mm->add_instruction(migraphx::make_op("add"), result, attn_bias_bc);
 
     auto attn_mask_bc = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", result->get_shape().lens()}}),
-        attn_mask);
+        migraphx::make_op("multibroadcast", {{"out_lens", result->get_shape().lens()}}), attn_mask);
     result = mm->add_instruction(migraphx::make_op("add"), result, attn_mask_bc);
 
     scale_literal = mm->add_instruction(
@@ -544,13 +592,15 @@ TEST_CASE(multi_head_attention_past_key_value_bias_seq_len_test)
     const std::vector<int64_t> permutation{0, 2, 1, 3};
 
     migraphx::program p;
-    auto* mm    = p.get_main_module();
-    auto q      = mm->add_parameter("q", {migraphx::shape::float_type, input_lens});
-    auto k      = mm->add_parameter("k", {migraphx::shape::float_type, input_lens});
-    auto v      = mm->add_parameter("v", {migraphx::shape::float_type, input_lens});
-    auto bias   = mm->add_parameter("bias", {migraphx::shape::float_type, bias_lens});
-    auto key_padding_mask = mm->add_parameter("key_padding_mask", {migraphx::shape::int32_type, {1}});
-    auto attention_bias = mm->add_parameter("attention_bias", {migraphx::shape::float_type, {1, 2, 1, 1}});
+    auto* mm  = p.get_main_module();
+    auto q    = mm->add_parameter("q", {migraphx::shape::float_type, input_lens});
+    auto k    = mm->add_parameter("k", {migraphx::shape::float_type, input_lens});
+    auto v    = mm->add_parameter("v", {migraphx::shape::float_type, input_lens});
+    auto bias = mm->add_parameter("bias", {migraphx::shape::float_type, bias_lens});
+    auto key_padding_mask =
+        mm->add_parameter("key_padding_mask", {migraphx::shape::int32_type, {1}});
+    auto attention_bias =
+        mm->add_parameter("attention_bias", {migraphx::shape::float_type, {1, 2, 1, 1}});
     auto past_key   = mm->add_parameter("past_key", {migraphx::shape::float_type, past_lens});
     auto past_value = mm->add_parameter("past_value", {migraphx::shape::float_type, past_lens});
     auto seqlens_k  = mm->add_parameter(
@@ -590,11 +640,17 @@ TEST_CASE(multi_head_attention_past_key_value_bias_seq_len_test)
         v_bias);
 
     auto q_reshaped = mm->add_instruction(
-        migraphx::make_op("reshape", {{"dims", {batch_size, sequence_length, num_heads * head_size}}}), q);
+        migraphx::make_op("reshape",
+                          {{"dims", {batch_size, sequence_length, num_heads * head_size}}}),
+        q);
     auto k_reshaped = mm->add_instruction(
-        migraphx::make_op("reshape", {{"dims", {batch_size, sequence_length, num_heads * head_size}}}), k);
+        migraphx::make_op("reshape",
+                          {{"dims", {batch_size, sequence_length, num_heads * head_size}}}),
+        k);
     auto v_reshaped = mm->add_instruction(
-        migraphx::make_op("reshape", {{"dims", {batch_size, sequence_length, num_heads * head_size}}}), v);
+        migraphx::make_op("reshape",
+                          {{"dims", {batch_size, sequence_length, num_heads * head_size}}}),
+        v);
 
     auto biased_query = mm->add_instruction(migraphx::make_op("add"), q_bias_bc, q_reshaped);
     auto biased_key   = mm->add_instruction(migraphx::make_op("add"), k_bias_bc, k_reshaped);
@@ -608,24 +664,30 @@ TEST_CASE(multi_head_attention_past_key_value_bias_seq_len_test)
     k = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", permutation}}), k);
     v = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", permutation}}), v);
 
-    auto present_key = mm->add_instruction(
-        migraphx::make_op("concat_past_present", {{"kv_num_heads", num_heads}}),
-        k, seqlens_k, past_key);
-    auto present_value = mm->add_instruction(
-        migraphx::make_op("concat_past_present", {{"kv_num_heads", num_heads}}),
-        v, seqlens_k, past_value);
+    auto present_key =
+        mm->add_instruction(migraphx::make_op("concat_past_present", {{"kv_num_heads", num_heads}}),
+                            k,
+                            seqlens_k,
+                            past_key);
+    auto present_value =
+        mm->add_instruction(migraphx::make_op("concat_past_present", {{"kv_num_heads", num_heads}}),
+                            v,
+                            seqlens_k,
+                            past_value);
 
     std::vector<int32_t> indices_vec(sequence_length);
     std::iota(indices_vec.begin(), indices_vec.end(), 0);
-    auto indices = mm->add_literal(
-        migraphx::literal{migraphx::shape{migraphx::shape::int32_type, 
-                         {static_cast<size_t>(sequence_length)}}, indices_vec});
+    auto indices    = mm->add_literal(migraphx::literal{
+        migraphx::shape{migraphx::shape::int32_type, {static_cast<size_t>(sequence_length)}},
+        indices_vec});
     auto indices_bc = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, sequence_length}}}), indices);
+        migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, sequence_length}}}),
+        indices);
     auto right_mask_bc = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, sequence_length}}}), key_padding_mask);
+        migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, sequence_length}}}),
+        key_padding_mask);
     auto mask_bool = mm->add_instruction(migraphx::make_op("less"), indices_bc, right_mask_bc);
-    auto raw_mask = mm->add_instruction(
+    auto raw_mask  = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), mask_bool);
 
     auto pass_value = mm->add_literal(
@@ -634,29 +696,32 @@ TEST_CASE(multi_head_attention_past_key_value_bias_seq_len_test)
         migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}, {1}}, {-10000.0f}});
 
     auto bc_pass = mm->add_instruction(
-        migraphx::make_op("multibroadcast", 
-                         {{"out_lens", {batch_size, num_heads, sequence_length, sequence_length}}}),
+        migraphx::make_op(
+            "multibroadcast",
+            {{"out_lens", {batch_size, num_heads, sequence_length, sequence_length}}}),
         pass_value);
     auto bc_mask = mm->add_instruction(
-        migraphx::make_op("multibroadcast", 
-                         {{"out_lens", {batch_size, num_heads, sequence_length, sequence_length}}}),
+        migraphx::make_op(
+            "multibroadcast",
+            {{"out_lens", {batch_size, num_heads, sequence_length, sequence_length}}}),
         mask_value);
 
     auto raw_mask_reshaped = mm->add_instruction(
         migraphx::make_op("reshape", {{"dims", {batch_size, 1, 1, sequence_length}}}), raw_mask);
     raw_mask_reshaped = mm->add_instruction(
-        migraphx::make_op("multibroadcast", 
-                         {{"out_lens", {batch_size, num_heads, sequence_length, sequence_length}}}),
+        migraphx::make_op(
+            "multibroadcast",
+            {{"out_lens", {batch_size, num_heads, sequence_length, sequence_length}}}),
         raw_mask_reshaped);
     raw_mask_reshaped = mm->add_instruction(
-        migraphx::make_op("reshape", 
-                         {{"dims", {batch_size, num_heads, sequence_length, sequence_length}}}),
+        migraphx::make_op("reshape",
+                          {{"dims", {batch_size, num_heads, sequence_length, sequence_length}}}),
         raw_mask_reshaped);
 
     auto in_pass = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), bc_pass);
     auto eq_bool = mm->add_instruction(migraphx::make_op("equal"), raw_mask_reshaped, in_pass);
-    eq_bool = mm->add_instruction(
+    eq_bool      = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), eq_bool);
     auto attn_mask = mm->add_instruction(migraphx::make_op("where"), eq_bool, bc_mask, bc_pass);
 
@@ -675,8 +740,7 @@ TEST_CASE(multi_head_attention_past_key_value_bias_seq_len_test)
     result = mm->add_instruction(migraphx::make_op("add"), result, attn_bias_bc);
 
     auto attn_mask_bc = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", result->get_shape().lens()}}),
-        attn_mask);
+        migraphx::make_op("multibroadcast", {{"out_lens", result->get_shape().lens()}}), attn_mask);
     result = mm->add_instruction(migraphx::make_op("add"), result, attn_mask_bc);
 
     scale_literal = mm->add_instruction(

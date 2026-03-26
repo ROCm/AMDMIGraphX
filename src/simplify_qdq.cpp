@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -175,7 +175,7 @@ struct match_find_quantizable_ops
                 qop, migraphx::make_op("quant_convolution", conv_val), qop_args);
             auto out_lens = dq->get_shape().lens();
 
-            // Ensure input and weight quantization paramaters are of a proper form
+            // Ensure input and weight quantization parameters are of a proper form
             // Input is of shape [n, c, x1, ..., xn]. Only scalar quantization allowed
             // Weight is of shape [k, c, y1, ... , yn]. Valid quantization axis is k
 

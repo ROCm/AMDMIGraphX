@@ -143,8 +143,8 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
                                              rotary_qkv);
 
         std::vector<size_t> static_strides(k->get_shape().ndim(), 1);
-        slk_slice = info.add_instruction(make_op("multibroadcast", {{"out_lens", {batch_size, 4}}}), slk_slice);
-        auto slk_mask = info.add_literal(literal{shape{slk->get_shape().type(), {4}}, {0, 0, 1, 0}});
+        auto slk_slice = info.add_instruction(make_op("multibroadcast", {{"out_lens", {batch_size, 4}}}), slk);
+        auto slk_mask = info.add_literal(literal{shape{slk->get_shape().type(), {4}}, {0, 0, sequence_length > 1 ? 0 : 1, 0}});
         slk_mask = info.add_instruction(make_op("multibroadcast", {{"out_lens", {batch_size, 4}}}), slk_mask);
         slk_slice = info.add_instruction(make_op("mul"), slk_mask, slk_slice);
         if(batch_size == 1)

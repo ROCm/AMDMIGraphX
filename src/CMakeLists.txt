@@ -193,7 +193,6 @@ register_migraphx_ops(
     ceil
     clip
     concat
-    concat_past_present
     contiguous
     convert
     convolution

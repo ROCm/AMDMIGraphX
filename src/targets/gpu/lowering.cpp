@@ -123,7 +123,6 @@ struct miopen_apply
         add_convolution_backwards_op();
         add_select_module_op();
         add_reshape_lazy_op();
-        add_concat_past_present_op();
         add_insert_slice_op();
         add_scan_slice_op();
     }
@@ -551,17 +550,6 @@ struct miopen_apply
             auto after_alloc = insert_allocation(new_reshape_lazy, new_reshape_lazy->get_shape());
             after_contiguous_args.push_back(after_alloc);
             return mod->replace_instruction(ins, make_op("gpu::contiguous"), after_contiguous_args);
-        });
-    }
-
-    void add_concat_past_present_op()
-    {
-        apply_map.emplace("concat_past_present", [=](instruction_ref ins) {
-            return mod->replace_instruction(ins,
-                                            make_op("gpu::precompile_op",
-                                                    {{"op", to_value(ins->get_operator())},
-                                                     {"output_shape", to_value(ins->get_shape())}}),
-                                            ins->inputs());
         });
     }
 

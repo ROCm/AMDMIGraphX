@@ -282,15 +282,17 @@ inline migraphx::program create_gqa_program(const size_t batch_size,
                                                {"starts", {num_heads + kv_num_heads}},
                                                {"ends", {num_heads + (2 * kv_num_heads)}}}),
                             rotary_qkv);
-    std::vector<migraphx::instruction_ref> concat_k_inputs{rotary_k, slk_lit, k};
-    std::vector<migraphx::instruction_ref> concat_v_inputs{rotary_v, slk_lit, v};
-
-    k = mm->add_instruction(
-        migraphx::make_op("concat_past_present", {{"kv_num_heads", kv_num_heads}}),
-        concat_k_inputs);
-    v = mm->add_instruction(
-        migraphx::make_op("concat_past_present", {{"kv_num_heads", kv_num_heads}}),
-        concat_v_inputs);
+    std::vector<size_t> static_strides(kv_s.ndim(), 1);
+    auto slk_slice = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, 4}}}), slk_lit);
+    auto slk_mask = mm->add_literal(migraphx::literal{migraphx::shape{slk_s.type(), {4}}, {0, 0, sequence_length > 1 ? 0 : 1, 0}});
+    slk_mask = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, 4}}}), slk_mask);
+    slk_slice = mm->add_instruction(migraphx::make_op("mul"), slk_mask, slk_slice);
+    if(batch_size == 1)
+    {
+        slk_slice = mm->add_instruction(migraphx::make_op("squeeze"), slk_slice);
+    }
+    k = mm->add_instruction(migraphx::make_op("insert_slice", {{"static_strides", static_strides}, {"deref_dest", false}}), {rotary_k, k, slk_slice});
+    v = mm->add_instruction(migraphx::make_op("insert_slice", {{"static_strides", static_strides}, {"deref_dest", false}}), {rotary_v, v, slk_slice});
 
     auto kv_num_heads_factor = num_heads / kv_num_heads;
     auto max_seq_len         = kv_s.lens()[2];

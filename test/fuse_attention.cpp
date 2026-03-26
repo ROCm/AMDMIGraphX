@@ -1011,10 +1011,13 @@ TEST_CASE(kv_cache_attention)
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {4}}}), rope);
         auto slc_v = mm->add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {6}}}), rope);
-        auto cpp_k = mm->add_instruction(
-            migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), slc_k, slk, k);
-        auto cpp_v = mm->add_instruction(
-            migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), slc_v, slk, v);
+        std::vector<size_t> static_strides(k->get_shape().ndim(), 1);
+        auto slk_slice = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4}}}), slk);
+        auto slk_mask = mm->add_literal(migraphx::literal{migraphx::shape{slk->get_shape().type(), {4}}, {0, 0, 1, 0}});
+        slk_mask = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4}}}), slk_mask);
+        slk_slice = mm->add_instruction(migraphx::make_op("mul"), slk_mask, slk_slice);
+        auto cpp_k = mm->add_instruction(migraphx::make_op("insert_slice", {{"static_strides", static_strides}, {"deref_dest", false}}), {slc_k, k, slk_slice});
+        auto cpp_v = mm->add_instruction(migraphx::make_op("insert_slice", {{"static_strides", static_strides}, {"deref_dest", false}}), {slc_v, v, slk_slice});
         auto slc_q = mm->add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}}), rope);
         auto tsp_k = mm->add_instruction(
@@ -1084,10 +1087,13 @@ TEST_CASE(kv_cache_attention)
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {4}}}), rope);
         auto slc_v = mm->add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {6}}}), rope);
-        auto cpp_k = mm->add_instruction(
-            migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), slc_k, slk, k);
-        auto cpp_v = mm->add_instruction(
-            migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), slc_v, slk, v);
+        std::vector<size_t> static_strides(k->get_shape().ndim(), 1);
+        auto slk_slice = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4}}}), slk);
+        auto slk_mask = mm->add_literal(migraphx::literal{migraphx::shape{slk->get_shape().type(), {4}}, {0, 0, 1, 0}});
+        slk_mask = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4}}}), slk_mask);
+        slk_slice = mm->add_instruction(migraphx::make_op("mul"), slk_mask, slk_slice);
+        auto cpp_k = mm->add_instruction(migraphx::make_op("insert_slice", {{"static_strides", static_strides}, {"deref_dest", false}}), {slc_k, k, slk_slice});
+        auto cpp_v = mm->add_instruction(migraphx::make_op("insert_slice", {{"static_strides", static_strides}, {"deref_dest", false}}), {slc_v, v, slk_slice});
         auto group = add_group(
             p2,
             "attn0",

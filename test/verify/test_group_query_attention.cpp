@@ -112,7 +112,7 @@ static migraphx::program create_gqa_program(const size_t batch_size,
     
     std::vector<size_t> static_strides(kv_s.ndim(), 1);
     auto slk_slice = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, 4}}}), slk);
-    auto slk_mask = mm->add_literal(migraphx::literal{migraphx::shape{slk_s.type(), {4}}, {0, 0, 1, 0}});
+    auto slk_mask = mm->add_literal(migraphx::literal{migraphx::shape{slk_s.type(), {4}}, {0, 0, sequence_length > 1 ? 0 : 1, 0}});
     slk_mask = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, 4}}}), slk_mask);
     slk_slice = mm->add_instruction(migraphx::make_op("mul"), slk_mask, slk_slice);
     if(batch_size == 1)

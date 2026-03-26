@@ -22,8 +22,7 @@
  * THE SOFTWARE.
  */
 
-#include <migraphx/symbolic.hpp>
-#include <migraphx/shape.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/serialize.hpp>
 
@@ -115,7 +114,7 @@ static const mul_data& get_mul(const expr_ptr& e) { return std::get<mul_data>(e-
 
 static std::size_t hash_combine(std::size_t seed, std::size_t v)
 {
-    return seed ^ (v + 0x9e3779b9u + (seed << 6u) + (seed >> 2u));
+    return seed ^ (v + 0x9e3779b9 + (seed << 6) + (seed >> 2));
 }
 
 template <class Map>
@@ -450,15 +449,16 @@ static expr_ptr make_floor_div(const expr_ptr& a, const expr_ptr& b)
 // Section 6: Substitution and evaluation
 // ===================================================================
 
-// Partial substitution: replaces bound symbols with integers and re-canonicalizes.
-// Unbound symbols are left as-is, producing a simplified symbolic expression.
-static expr_ptr substitute(const expr_ptr& e, const std::map<std::string, int64_t>& bindings)
+using binding_map = std::map<expr_ptr, int64_t, expr_compare>;
+using subs_map    = std::map<expr_ptr, expr_ptr, expr_compare>;
+
+static expr_ptr substitute(const expr_ptr& e, const subs_map& bindings)
 {
     return std::visit(overloaded{[&](const integer_data&) -> expr_ptr { return e; },
-                                 [&](const symbol_data& d) -> expr_ptr {
-                                     auto it = bindings.find(d.name);
+                                 [&](const symbol_data&) -> expr_ptr {
+                                     auto it = bindings.find(e);
                                      if(it != bindings.end())
-                                         return make_integer(it->second);
+                                         return it->second;
                                      return e;
                                  },
                                  [&](const add_data& d) -> expr_ptr {
@@ -489,44 +489,37 @@ static expr_ptr substitute(const expr_ptr& e, const std::map<std::string, int64_
                       e->data);
 }
 
-// Full evaluation: computes integer result directly without allocations.
-// All symbols must be bound; throws if any symbol is unbound.
-static int64_t eval_direct(const expr_ptr& e, const std::map<std::string, std::size_t>& symbol_map)
+static int64_t eval_direct(const expr_ptr& e, const binding_map& bindings)
 {
     return std::visit(overloaded{[](const integer_data& d) -> int64_t { return d.value; },
                                  [&](const symbol_data& d) -> int64_t {
-                                     auto it = symbol_map.find(d.name);
-                                     if(it != symbol_map.end())
-                                         return static_cast<int64_t>(it->second);
-                                     MIGRAPHX_THROW("symbolic_expr::eval: unbound symbol '" +
+                                     auto it = bindings.find(e);
+                                     if(it != bindings.end())
+                                         return it->second;
+                                     MIGRAPHX_THROW("sym::expr::eval_dim: unbound symbol '" +
                                                     d.name + "'");
                                  },
                                  [&](const add_data& d) -> int64_t {
                                      int64_t sum = d.constant;
                                      for(const auto& [term, coeff] : d.terms)
-                                         sum += coeff * eval_direct(term, symbol_map);
+                                         sum += coeff * eval_direct(term, bindings);
                                      return sum;
                                  },
                                  [&](const mul_data& d) -> int64_t {
                                      int64_t prod = d.coefficient;
                                      for(const auto& [base, exp] : d.factors)
                                      {
-                                         int64_t val = eval_direct(base, symbol_map);
+                                         int64_t val = eval_direct(base, bindings);
                                          for(int64_t i = 0; i < exp; ++i)
                                              prod *= val;
                                      }
                                      return prod;
                                  },
                                  [&](const fdiv_data& d) -> int64_t {
-                                     return eval_direct(d.numerator, symbol_map) /
-                                            eval_direct(d.denominator, symbol_map);
+                                     return eval_direct(d.numerator, bindings) /
+                                            eval_direct(d.denominator, bindings);
                                  }},
                       e->data);
-}
-
-static int64_t evaluate(const expr_ptr& e, const std::map<std::string, std::size_t>& symbol_map)
-{
-    return eval_direct(e, symbol_map);
 }
 
 // ===================================================================
@@ -632,7 +625,7 @@ static std::string print_expr(const expr_ptr& e, int parent_prec)
 
 static void skip_ws(const char*& p)
 {
-    while(*p != 0 and std::isspace(static_cast<unsigned char>(*p)) != 0)
+    while(*p and std::isspace(static_cast<unsigned char>(*p)))
         ++p;
 }
 
@@ -644,20 +637,20 @@ static expr_ptr parse_primary(const char*& p);
 static expr_ptr parse_primary(const char*& p)
 {
     skip_ws(p);
-    if(std::isdigit(static_cast<unsigned char>(*p)) != 0)
+    if(std::isdigit(static_cast<unsigned char>(*p)))
     {
         int64_t n = 0;
-        while(std::isdigit(static_cast<unsigned char>(*p)) != 0)
+        while(std::isdigit(static_cast<unsigned char>(*p)))
         {
             n = n * 10 + (*p - '0');
             ++p;
         }
         return make_integer(n);
     }
-    if(std::isalpha(static_cast<unsigned char>(*p)) != 0 or *p == '_')
+    if(std::isalpha(static_cast<unsigned char>(*p)) or *p == '_')
     {
         std::string name;
-        while(std::isalnum(static_cast<unsigned char>(*p)) != 0 or *p == '_')
+        while(std::isalnum(static_cast<unsigned char>(*p)) or *p == '_')
         {
             name += *p;
             ++p;
@@ -756,10 +749,12 @@ static expr_ptr parse_string(const std::string& s)
 }
 
 // ===================================================================
-// Section 9: symbolic_expr public API wrapper
+// Section 9: sym::expr public API wrapper
 // ===================================================================
 
-struct symbolic_expr::impl
+namespace sym {
+
+struct expr::impl
 {
     expr_ptr node;
 
@@ -767,88 +762,93 @@ struct symbolic_expr::impl
     explicit impl(expr_ptr e) : node(std::move(e)) {}
 };
 
-symbolic_expr::symbolic_expr() = default;
+expr::expr() = default;
 
-symbolic_expr::symbolic_expr(std::shared_ptr<const impl> pi) : p(std::move(pi)) {}
+expr::expr(std::shared_ptr<const impl> pi) : p(std::move(pi)) {}
 
-symbolic_expr::symbolic_expr(std::size_t n)
-    : p(std::make_shared<impl>(make_integer(static_cast<int64_t>(n))))
+bool expr::empty() const { return p == nullptr; }
+
+std::size_t expr::hash() const
 {
+    if(empty())
+        return 0;
+    return p->node->cached_hash;
 }
 
-symbolic_expr::symbolic_expr(const std::string& s)
-{
-    if(s.empty())
-        return;
-    p = std::make_shared<impl>(parse_string(s));
-}
-
-bool symbolic_expr::empty() const { return p == nullptr; }
-
-std::string symbolic_expr::to_string() const
+std::string expr::to_string() const
 {
     if(empty())
         return {};
     return print_expr(p->node);
 }
 
-std::size_t symbolic_expr::eval(const std::map<std::string, std::size_t>& symbol_map) const
+std::size_t expr::eval_dim(const std::unordered_map<expr, std::size_t>& symbol_map) const
 {
     if(empty())
         return 0;
-    auto v = evaluate(p->node, symbol_map);
-    assert(v >= 0 and "symbolic dimension evaluated to negative value");
+    binding_map bindings;
+    for(const auto& [k, v] : symbol_map)
+    {
+        if(k.empty() or not holds<symbol_data>(k.p->node))
+            MIGRAPHX_THROW("sym::expr::eval_dim: map key '" + k.to_string() + "' is not a symbol");
+        bindings[k.p->node] = static_cast<int64_t>(v);
+    }
+    auto v = eval_direct(p->node, bindings);
+    assert(v >= 0 && "symbolic dimension evaluated to negative value");
     return static_cast<std::size_t>(v);
 }
 
-symbolic_expr symbolic_expr::subs(const std::map<std::string, std::size_t>& symbol_map) const
+expr expr::subs(const std::unordered_map<expr, expr>& symbol_map) const
 {
     if(empty())
         return {};
-    std::map<std::string, int64_t> bindings;
+    subs_map bindings;
     for(const auto& [k, v] : symbol_map)
-        bindings[k] = static_cast<int64_t>(v);
-    auto result = substitute(p->node, bindings);
-    return {std::make_shared<impl>(std::move(result))};
+    {
+        if(k.empty() or not holds<symbol_data>(k.p->node))
+            MIGRAPHX_THROW("sym::expr::subs: map key '" + k.to_string() + "' is not a symbol");
+        bindings[k.p->node] = v.p ? v.p->node : make_integer(0);
+    }
+    return {std::make_shared<impl>(substitute(p->node, bindings))};
 }
 
-symbolic_expr operator+(const symbolic_expr& a, const symbolic_expr& b)
+expr operator+(const expr& a, const expr& b)
 {
     if(a.empty() and b.empty())
         return {};
     auto ea = a.p ? a.p->node : make_integer(0);
     auto eb = b.p ? b.p->node : make_integer(0);
-    return {std::make_shared<symbolic_expr::impl>(make_add(ea, eb))};
+    return {std::make_shared<expr::impl>(make_add(ea, eb))};
 }
 
-symbolic_expr operator-(const symbolic_expr& a, const symbolic_expr& b)
+expr operator-(const expr& a, const expr& b)
 {
     if(a.empty() and b.empty())
         return {};
     auto ea = a.p ? a.p->node : make_integer(0);
     auto eb = b.p ? b.p->node : make_integer(0);
-    return {std::make_shared<symbolic_expr::impl>(make_sub(ea, eb))};
+    return {std::make_shared<expr::impl>(make_sub(ea, eb))};
 }
 
-symbolic_expr operator*(const symbolic_expr& a, const symbolic_expr& b)
+expr operator*(const expr& a, const expr& b)
 {
     if(a.empty() and b.empty())
         return {};
     auto ea = a.p ? a.p->node : make_integer(0);
     auto eb = b.p ? b.p->node : make_integer(0);
-    return {std::make_shared<symbolic_expr::impl>(make_mul(ea, eb))};
+    return {std::make_shared<expr::impl>(make_mul(ea, eb))};
 }
 
-symbolic_expr operator/(const symbolic_expr& a, const symbolic_expr& b)
+expr operator/(const expr& a, const expr& b)
 {
     if(a.empty() and b.empty())
         return {};
     auto ea = a.p ? a.p->node : make_integer(0);
     auto eb = b.p ? b.p->node : make_integer(0);
-    return {std::make_shared<symbolic_expr::impl>(make_floor_div(ea, eb))};
+    return {std::make_shared<expr::impl>(make_floor_div(ea, eb))};
 }
 
-bool operator==(const symbolic_expr& a, const symbolic_expr& b)
+bool operator==(const expr& a, const expr& b)
 {
     if(a.empty() and b.empty())
         return true;
@@ -857,164 +857,142 @@ bool operator==(const symbolic_expr& a, const symbolic_expr& b)
     return expr_equal(a.p->node, b.p->node);
 }
 
-bool operator!=(const symbolic_expr& a, const symbolic_expr& b) { return not(a == b); }
+bool operator!=(const expr& a, const expr& b) { return not(a == b); }
 
-std::ostream& operator<<(std::ostream& os, const symbolic_expr& e)
+std::ostream& operator<<(std::ostream& os, const expr& e)
 {
     if(not e.empty())
         os << print_expr(e.p->node);
     return os;
 }
 
-void migraphx_to_value(value& v, const symbolic_expr& e) { v = migraphx::to_value(e.to_string()); }
+expr var(const std::string& name) { return {std::make_shared<expr::impl>(make_symbol(name))}; }
 
-void migraphx_from_value(const value& v, symbolic_expr& e)
+expr lit(int64_t n) { return {std::make_shared<expr::impl>(make_integer(n))}; }
+
+expr parse(const std::string& s)
 {
-    const auto& s = v.get_string();
     if(s.empty())
-        e = symbolic_expr{};
-    else
-        e = symbolic_expr(s);
+        return {};
+    return {std::make_shared<expr::impl>(parse_string(s))};
 }
 
-// ===================================================================
-// Section 10: dynamic_dimension arithmetic
-// ===================================================================
-
-using dd = shape::dynamic_dimension;
-
-static optional<symbolic_expr> to_expr(const dd& d)
+static value node_to_value(const expr_ptr& e)
 {
-    if(d.sym.has_value())
-        return d.sym;
-    if(d.is_fixed())
-        return symbolic_expr(d.min);
-    return nullopt;
+    return std::visit(overloaded{[](const integer_data& d) -> value {
+                                     value r;
+                                     r["type"]  = "int";
+                                     r["value"] = d.value;
+                                     return r;
+                                 },
+                                 [](const symbol_data& d) -> value {
+                                     value r;
+                                     r["type"] = "sym";
+                                     r["name"] = d.name;
+                                     return r;
+                                 },
+                                 [](const add_data& d) -> value {
+                                     value r;
+                                     r["type"]     = "add";
+                                     r["constant"] = d.constant;
+                                     value terms   = value::array{};
+                                     for(const auto& [term, coeff] : d.terms)
+                                     {
+                                         value t;
+                                         t["expr"]  = node_to_value(term);
+                                         t["coeff"] = coeff;
+                                         terms.push_back(t);
+                                     }
+                                     r["terms"] = terms;
+                                     return r;
+                                 },
+                                 [](const mul_data& d) -> value {
+                                     value r;
+                                     r["type"]     = "mul";
+                                     r["coeff"]    = d.coefficient;
+                                     value factors = value::array{};
+                                     for(const auto& [base, exp] : d.factors)
+                                     {
+                                         value f;
+                                         f["expr"] = node_to_value(base);
+                                         f["exp"]  = exp;
+                                         factors.push_back(f);
+                                     }
+                                     r["factors"] = factors;
+                                     return r;
+                                 },
+                                 [](const fdiv_data& d) -> value {
+                                     value r;
+                                     r["type"] = "fdiv";
+                                     r["num"]  = node_to_value(d.numerator);
+                                     r["den"]  = node_to_value(d.denominator);
+                                     return r;
+                                 }},
+                      e->data);
 }
 
-dd& dd::operator+=(const dd& x)
+static expr_ptr node_from_value(const value& v)
 {
-    auto lhs = to_expr(*this);
-    auto rhs = to_expr(x);
-    min      = min + x.min;
-    max      = (max > std::numeric_limits<std::size_t>::max() - x.max)
-                   ? std::numeric_limits<std::size_t>::max()
-                   : max + x.max;
-    if(x.is_fixed())
+    const auto& type = v.at("type").get_string();
+    if(type == "int")
     {
-        std::set<std::size_t> new_optimals;
-        std::transform(optimals.begin(),
-                       optimals.end(),
-                       std::inserter(new_optimals, new_optimals.begin()),
-                       [&](auto o) { return o + x.min; });
-        optimals = new_optimals;
+        return make_integer(v.at("value").get_int64());
     }
-    else
+    else if(type == "sym")
     {
-        optimals.clear();
+        return make_symbol(v.at("name").get_string());
     }
-    sym = (lhs and rhs) ? optional<symbolic_expr>(*lhs + *rhs) : nullopt;
-    return *this;
+    else if(type == "add")
+    {
+        auto constant = v.at("constant").get_int64();
+        term_map terms;
+        for(const auto& t : v.at("terms"))
+        {
+            auto term   = node_from_value(t.at("expr"));
+            auto coeff  = t.at("coeff").get_int64();
+            terms[term] = coeff;
+        }
+        return build_add(constant, std::move(terms));
+    }
+    else if(type == "mul")
+    {
+        auto coefficient = v.at("coeff").get_int64();
+        factor_map factors;
+        for(const auto& f : v.at("factors"))
+        {
+            auto base     = node_from_value(f.at("expr"));
+            auto exp      = f.at("exp").get_int64();
+            factors[base] = exp;
+        }
+        return build_mul(coefficient, std::move(factors));
+    }
+    else if(type == "fdiv")
+    {
+        auto num = node_from_value(v.at("num"));
+        auto den = node_from_value(v.at("den"));
+        return make_floor_div(num, den);
+    }
+    MIGRAPHX_THROW("Unknown sym::expr node type: " + type);
 }
 
-dd& dd::operator-=(const dd& x)
+value expr::to_value() const
 {
-    auto lhs = to_expr(*this);
-    auto rhs = to_expr(x);
-    min      = (min > x.max) ? min - x.max : 0;
-    max      = (max > x.min) ? max - x.min : 0;
-    if(x.is_fixed())
-    {
-        std::set<std::size_t> new_optimals;
-        std::transform(optimals.begin(),
-                       optimals.end(),
-                       std::inserter(new_optimals, new_optimals.begin()),
-                       [&](auto o) { return (o > x.min) ? o - x.min : 0; });
-        optimals = new_optimals;
-    }
-    else
-    {
-        optimals.clear();
-    }
-    sym = (lhs and rhs) ? optional<symbolic_expr>(*lhs - *rhs) : nullopt;
-    return *this;
+    if(empty())
+        return {};
+    return node_to_value(p->node);
 }
 
-dd& dd::operator*=(const dd& x)
+void expr::from_value(const value& v)
 {
-    auto lhs = to_expr(*this);
-    auto rhs = to_expr(x);
-    min      = min * x.min;
-    max      = (max > std::numeric_limits<std::size_t>::max() / (x.max == 0 ? 1 : x.max))
-                   ? std::numeric_limits<std::size_t>::max()
-                   : max * x.max;
-    if(x.is_fixed())
+    if(v.is_null())
     {
-        std::set<std::size_t> new_optimals;
-        std::transform(optimals.begin(),
-                       optimals.end(),
-                       std::inserter(new_optimals, new_optimals.begin()),
-                       [&](auto o) { return o * x.min; });
-        optimals = new_optimals;
+        *this = expr{};
+        return;
     }
-    else
-    {
-        optimals.clear();
-    }
-    sym = (lhs and rhs) ? optional<symbolic_expr>(*lhs * *rhs) : nullopt;
-    return *this;
+    *this = expr{std::make_shared<impl>(node_from_value(v))};
 }
 
-dd& dd::operator/=(const dd& x)
-{
-    auto lhs = to_expr(*this);
-    auto rhs = to_expr(x);
-    min      = (x.max == 0) ? 0 : min / x.max;
-    max      = (x.min == 0) ? std::numeric_limits<std::size_t>::max() : max / x.min;
-    if(x.is_fixed())
-    {
-        std::set<std::size_t> new_optimals;
-        std::transform(optimals.begin(),
-                       optimals.end(),
-                       std::inserter(new_optimals, new_optimals.begin()),
-                       [&](auto o) { return (x.min == 0) ? std::size_t{0} : o / x.min; });
-        optimals = new_optimals;
-    }
-    else
-    {
-        optimals.clear();
-    }
-    sym = (lhs and rhs) ? optional<symbolic_expr>(*lhs / *rhs) : nullopt;
-    return *this;
-}
-
-dd operator+(const dd& x, const dd& y)
-{
-    auto result = x;
-    result += y;
-    return result;
-}
-
-dd operator-(const dd& x, const dd& y)
-{
-    auto result = x;
-    result -= y;
-    return result;
-}
-
-dd operator*(const dd& x, const dd& y)
-{
-    auto result = x;
-    result *= y;
-    return result;
-}
-
-dd operator/(const dd& x, const dd& y)
-{
-    auto result = x;
-    result /= y;
-    return result;
-}
+} // namespace sym
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

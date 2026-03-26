@@ -190,10 +190,24 @@ Stream& print_stream_impl(rank<4>, Stream& s, std::nullptr_t)
     return s;
 }
 
+template <class Stream, class Optional>
+auto print_stream_impl(rank<5>, Stream& s, const Optional& x)
+    -> decltype(bool(Optional{*x}), x.has_value(), x.value(), void())
+{
+    if(x.has_value())
+    {
+        print_stream(s, x.value());
+    }
+    else
+    {
+        s << "nullopt";
+    }
+}
+
 template <class Stream, class T>
 void print_stream(Stream& s, const T& x)
 {
-    print_stream_impl(rank<5>{}, s, x);
+    print_stream_impl(rank<6>{}, s, x);
 }
 
 template <class T>
@@ -916,6 +930,7 @@ inline void run(int argc, const char* argv[])
                  __FILE__,                  \
                  __LINE__,                  \
                  &test::fail)
+
 // NOLINTNEXTLINE
 #define STATUS(...) EXPECT((__VA_ARGS__) == 0)
 

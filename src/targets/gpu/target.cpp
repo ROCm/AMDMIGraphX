@@ -33,6 +33,7 @@
 #include <migraphx/fp8_ocp_to_fnuz.hpp>
 #include <migraphx/fuse_attention.hpp>
 #include <migraphx/fuse_concat.hpp>
+#include <migraphx/fuse_horizontal.hpp>
 #include <migraphx/fuse_pointwise_reduce.hpp>
 #include <migraphx/inline_module.hpp>
 #include <migraphx/insert_pad.hpp>
@@ -50,6 +51,7 @@
 #include <migraphx/rewrite_low_precision.hpp>
 #include <migraphx/rewrite_pooling.hpp>
 #include <migraphx/rewrite_reduce.hpp>
+#include <migraphx/rewrite_resize.hpp>
 #include <migraphx/rewrite_quantization.hpp>
 #include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/rewrite_topk.hpp>
@@ -115,8 +117,10 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         rewrite_rnn{},
         dead_code_elimination{},
-        eliminate_data_type_for_gpu{},
-        simplify_reshapes{},
+        eliminate_data_type_for_gpu{.disable_64bit = options.fast_math},
+        rewrite_resize{.affine_only = true},
+        dead_code_elimination{},
+        simplify_reshapes{.enable_gather_rewrite = true},
         eliminate_identity{},
         eliminate_pad{},
         dead_code_elimination{},
@@ -128,6 +132,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         rewrite_gelu{options.fast_math},
         optimize_module{},
         layout_convolution{.channels_last = enabled(MIGRAPHX_ENABLE_NHWC{})},
+        dead_code_elimination{},
+        fuse_horizontal{},
         dead_code_elimination{},
         prefuse_ops{},
         dead_code_elimination{},
@@ -159,6 +165,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         lowering{&ctx, options.offload_copy},
         eliminate_contiguous{"gpu::contiguous"},
+        dead_code_elimination{},
+        adjust_allocation{gpu_allocation_model{.use_hip_allocate = false}},
         dead_code_elimination{},
         eliminate_concat{concat_gpu_optimization{}},
         dead_code_elimination{},

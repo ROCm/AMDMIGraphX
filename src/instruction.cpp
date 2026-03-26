@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,6 +28,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/iterator.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <bitset>
 #include <queue>
 
@@ -260,6 +261,7 @@ void instruction::replace(instruction_ref ins,
 
 void instruction::replace(operation o, const shape& r, std::vector<instruction_ref> args)
 {
+    lit        = literal{};
     normalized = false;
     op         = std::move(o);
     replace(r);
@@ -271,6 +273,7 @@ void instruction::replace(operation o,
                           std::vector<instruction_ref> args,
                           std::vector<module_ref> mdl_args)
 {
+    lit = literal{};
     op = std::move(o);
     replace(r);
     replace(std::move(args), std::move(mdl_args));
@@ -331,7 +334,8 @@ void instruction::replace_mod_argument(module_ref old, module_ref new_mod)
 
 bool instruction::is_undefined() const
 {
-    if(op.name() == "undefined" or (op.name() == "@literal" and this->get_literal().empty()))
+    if(op.name() == "undefined" or
+       (op.name() == "@literal" and this->get_literal().get_shape().elements() == 0))
     {
         return true;
     }
@@ -342,7 +346,8 @@ bool instruction::is_undefined() const
     else
     {
         return std::all_of(this->inputs().begin(), this->inputs().end(), [](auto arg) {
-            return arg->is_undefined();
+            return all_of(instruction::get_output_alias(arg),
+                          [](auto alias) { return alias->is_undefined(); });
         });
     }
 }
@@ -470,14 +475,25 @@ void instruction::debug_print() const
     std::cout << " -> " << this->get_shape() << std::endl;
 }
 
-instruction_ref instruction::get_output_alias(instruction_ref ins, bool shallow)
+std::vector<instruction_ref> instruction::get_output_alias(instruction_ref ins, bool shallow)
 {
-    auto i = ins->get_operator().output_alias(to_shapes(ins->inputs()));
-    if(i < 0)
-        return ins;
-    if(shallow)
-        return ins->inputs().at(i);
-    return get_output_alias(ins->inputs().at(i));
+    auto alias_indices = ins->get_operator().output_alias(to_shapes(ins->inputs()));
+    if(alias_indices.empty())
+        return {ins};
+    std::vector<instruction_ref> result;
+    for(auto i : alias_indices)
+    {
+        if(shallow)
+        {
+            result.push_back(ins->inputs().at(i));
+        }
+        else
+        {
+            auto nested = get_output_alias(ins->inputs().at(i));
+            result.insert(result.end(), nested.begin(), nested.end());
+        }
+    }
+    return result;
 }
 
 void instruction::set_normalized(bool value) { normalized = value; }
@@ -576,15 +592,11 @@ static auto track_visits(instruction_ref start, instruction_ref end, F f)
     }
     else
     {
-        std::unordered_set<instruction_ref> visited;
-        visited.reserve(n);
-        auto stop = [&](auto ins) {
-            if(not visited.insert(ins).second)
-                return true;
-            if(std::distance(ins, end) > n)
-                return true;
-            return false;
-        };
+        auto instructions     = range(start, std::next(end));
+        auto instruction_refs = iterator_for(instructions);
+        std::unordered_set<instruction_ref> in_range(instruction_refs.begin(),
+                                                     instruction_refs.end());
+        auto stop = [&](auto ins) { return in_range.erase(ins) == 0; };
         return f(stop);
     }
 }

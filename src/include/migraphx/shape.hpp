@@ -162,6 +162,7 @@ struct MIGRAPHX_EXPORT shape
 
     static bool is_integral(type_t t);
     static bool is_compatible(const shape& actual, const shape& expected);
+    static bool is_compatible_lens(const shape& actual, const shape& expected);
 
     static bool is_unsigned(type_t t);
     static bool is_computable(type_t t);
@@ -289,6 +290,20 @@ struct MIGRAPHX_EXPORT shape
     /// Map element index to multi-dimensional index and put them them into location provided by
     /// pointers
     void multi_copy(std::size_t idx, std::size_t* start, const std::size_t* end) const;
+
+    /// Map element index to multi-dimensional index and return them as an
+    /// array of size N. If the rank is smaller then N, the remaining
+    /// dimensions will be set to 0. If the rank is larger than N, an
+    /// exception will be thrown.
+    template <std::size_t N>
+    std::array<std::size_t, N> multi(std::size_t idx) const
+    {
+        std::array<std::size_t, N> result{};
+        if(N < this->ndim())
+            MIGRAPHX_THROW("SHAPE: multi() called with array size less than number of dimensions");
+        this->multi_copy(idx, result.data(), result.data() + this->ndim());
+        return result;
+    }
 
     /// Check if a multi-dimensional index is within bounds for the shape.
     bool multi_within_bounds(std::vector<std::size_t> multi) const;
@@ -470,6 +485,8 @@ struct MIGRAPHX_EXPORT shape
      * Will clip to the maximum of size_t if overflows for dynamic shapes.
      */
     std::size_t element_space() const;
+
+    void debug_print() const;
 
     private:
     shape(std::shared_ptr<shape_impl> pimpl);

@@ -33,7 +33,10 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 static instruction_ref get_allocation(instruction_ref ins)
 {
-    auto alias_ins = instruction::get_output_alias(ins, true);
+    auto aliases = instruction::get_output_alias(ins, true);
+    if(aliases.size() != 1)
+        return ins;
+    auto alias_ins = aliases.front();
     if(alias_ins == ins)
         return ins;
     if(alias_ins->outputs().size() > 1)

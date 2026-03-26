@@ -130,7 +130,7 @@ struct shape_impl
     {
         if(not m_dyn_dims.empty())
         {
-            auto maxes = max_lens();
+            auto maxes          = max_lens();
             std::size_t max_val = std::numeric_limits<std::size_t>::max();
 
             return std::accumulate(
@@ -310,6 +310,22 @@ bool shape::is_compatible(const shape& actual, const shape& expected)
     });
 }
 
+bool shape::is_compatible_lens(const shape& actual, const shape& expected)
+{
+    if(actual.dynamic())
+        return expected.dynamic() and actual.dyn_dims() == expected.dyn_dims();
+    if(expected.dynamic())
+    {
+        if(actual.ndim() != expected.ndim())
+            return false;
+        return std::equal(actual.lens().begin(),
+                          actual.lens().end(),
+                          expected.dyn_dims().begin(),
+                          [&](auto a, const auto& e) { return a >= e.min and a <= e.max; });
+    }
+    return actual.lens() == expected.lens();
+}
+
 bool shape::is_unsigned(shape::type_t t)
 {
     bool result = false;
@@ -390,9 +406,9 @@ std::size_t shape::ndim() const
 {
     if(this->dynamic())
     {
-        return dyn_dims().size();
+        return impl->m_dyn_dims.size();
     }
-    return lens().size();
+    return impl->m_lens.size();
 }
 
 std::size_t shape::elements() const { return impl->elements(); }
@@ -670,7 +686,7 @@ bool shape::computable() const { return is_computable(this->type()); }
 
 const std::vector<shape::dynamic_dimension>& shape::dyn_dims() const
 {
-    if(not this->dynamic())
+    if(ndim() > 0 and not this->dynamic())
     {
         MIGRAPHX_THROW("SHAPE: dyn_dims() called on a static shape");
     }
@@ -847,6 +863,8 @@ shape::type_t shape::parse_type(const std::string& s)
 }
 
 const std::vector<shape>& shape::sub_shapes() const { return impl->m_shapes; }
+
+void shape::debug_print() const { std::cout << *this << std::endl; }
 
 std::vector<shape> flatten(const std::vector<shape>& shapes)
 {

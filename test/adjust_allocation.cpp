@@ -64,7 +64,7 @@ struct test_copy
         return args.at(1);
     }
 
-    int output_alias(const std::vector<migraphx::shape>&) const { return 1; }
+    std::vector<std::size_t> output_alias(const std::vector<migraphx::shape>&) const { return {1}; }
 };
 MIGRAPHX_REGISTER_OP(test_copy);
 
@@ -77,7 +77,7 @@ struct test_fill
         return inputs.front();
     }
 
-    std::ptrdiff_t output_alias(const std::vector<migraphx::shape>&) const { return 0; }
+    std::vector<std::size_t> output_alias(const std::vector<migraphx::shape>&) const { return {0}; }
 };
 MIGRAPHX_REGISTER_OP(test_fill);
 
@@ -126,9 +126,9 @@ struct simple_op
     }
 
     // Output aliases the last input (the output buffer)
-    int output_alias(const std::vector<migraphx::shape>& inputs) const
+    std::vector<std::size_t> output_alias(const std::vector<migraphx::shape>& inputs) const
     {
-        return static_cast<int>(inputs.size()) - 1;
+        return {inputs.size() - 1};
     }
 };
 

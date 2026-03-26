@@ -573,6 +573,18 @@ struct miopen_apply
         });
     }
 
+    void add_fill_op()
+    {
+        apply_map.emplace("fill", [=](instruction_ref ins) {
+            return mod->replace_instruction(ins,
+                                            make_op("gpu::precompile_op",
+                                                    {{"op", to_value(ins->get_operator())},
+                                                     {"output_shape", to_value(ins->get_shape())}}),
+                                            ins->inputs());
+
+        });
+    }
+
     void add_slice_op()
     {
         apply_map.emplace("slice", [=](instruction_ref ins) {
@@ -597,17 +609,7 @@ struct miopen_apply
                     ins, mod->insert_instruction(ins, ins->get_operator(), inputs));
             }
             return ins;
-
-    void add_fill_op()
-    {
-        apply_map.emplace("fill", [=](instruction_ref ins) {
-            return mod->replace_instruction(ins,
-                                            make_op("gpu::precompile_op",
-                                                    {{"op", to_value(ins->get_operator())},
-                                                     {"output_shape", to_value(ins->get_shape())}}),
-                                            ins->inputs());
-
-        });
+        }
     }
 };
 

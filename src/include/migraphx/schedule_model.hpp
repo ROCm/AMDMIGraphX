@@ -103,7 +103,6 @@ struct schedule_model
     template <class PrivateDetailTypeErasedT>
     using private_te_constraints_impl =
         decltype(std::declval<PrivateDetailTypeErasedT>().concurrency(),
-                 std::declval<PrivateDetailTypeErasedT>().split_threshold(),
                  std::declval<PrivateDetailTypeErasedT>().sched(std::declval<module&>(),
                                                                 std::declval<instruction_ref>(),
                                                                 std::declval<std::size_t>()),
@@ -119,6 +118,19 @@ struct schedule_model
     template <class PrivateDetailTypeErasedT>
     using private_te_constraints = private_te_constraints_impl<
         typename private_te_unwrap_reference<private_te_pure<PrivateDetailTypeErasedT>>::type>;
+
+    template <class PrivateDetailTypeErasedT>
+    static auto private_te_split_threshold_impl(const PrivateDetailTypeErasedT& value, int)
+        -> decltype(value.split_threshold())
+    {
+        return value.split_threshold();
+    }
+
+    template <class PrivateDetailTypeErasedT>
+    static std::size_t private_te_split_threshold_impl(const PrivateDetailTypeErasedT&, long)
+    {
+        return 2;
+    }
 
     public:
     // Constructors
@@ -280,7 +292,7 @@ struct schedule_model
 
         std::size_t split_threshold() const override
         {
-            return private_detail_te_value.split_threshold();
+            return private_te_split_threshold_impl(private_detail_te_value, 0);
         }
 
         void sched(module& m, instruction_ref ins, std::size_t n) const override

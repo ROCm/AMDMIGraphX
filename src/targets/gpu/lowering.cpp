@@ -155,9 +155,9 @@ struct miopen_apply
             for(const auto& in : inputs)
             {
                 instruction_ref p_output = in;
-                // If a CPU fallback result was already copied back to the GPU solely
-                // to satisfy the internal GPU pipeline, reuse the host value for the
-                // final return instead of bouncing it back to the CPU.
+                // If an input is already a host value wrapped in a transient
+                // copy_to_gpu, reuse the original host value for the final return
+                // instead of copying it back from the GPU.
                 if(in->name() == "hip::copy_to_gpu")
                 {
                     p_output = in->inputs().front();

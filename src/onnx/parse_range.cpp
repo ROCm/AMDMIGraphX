@@ -62,9 +62,9 @@ struct parse_range : op_parser<parse_range>
             if(not(delta_val > 0 or delta_val < 0))
                 MIGRAPHX_THROW("PARSE_RANGE: delta must be non-zero");
 
-            auto start_d          = static_cast<double>(start_val);
-            auto limit_d          = static_cast<double>(limit_val);
-            auto delta_d          = static_cast<double>(delta_val);
+            double start_d        = start_val;
+            double limit_d        = limit_val;
+            double delta_d        = delta_val;
             double num_elements_d = ceil((limit_d - start_d) / delta_d);
             size_t num_elements   = static_cast<size_t>(std::max(0.0, num_elements_d));
 

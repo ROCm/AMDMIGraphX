@@ -120,45 +120,115 @@ static void fuse_horizontal_ops(module& m, Finders&&... finders)
     each_args([&](auto&& finder) { apply_horizontal_finder(m, finder); }, finders...);
 }
 
+// Common predicate for gather fusion candidates:
+// gather(axis=0) with 2D constant embedding table and non-scalar index.
+static bool is_gather_fusion_candidate(instruction_ref ins)
+{
+    if(ins->name() != "gather")
+        return false;
+
+    if(ins->get_operator().to_value()["axis"].to<int>() != 0)
+        return false;
+
+    auto data = ins->inputs().at(0);
+    auto idx  = ins->inputs().at(1);
+
+    if(data->get_shape().lens().size() != 2)
+        return false;
+
+    if(not data->can_eval())
+        return false;
+
+    if(idx->get_shape().scalar() or idx->get_shape().lens().empty())
+        return false;
+
+    return true;
+}
+
 // ---------------------------------------------------------------------------
-// Cross-embedding gather horizontal fusion
+// Phase 1: Same-table gather deduplication
 //
-// Candidates: gather(axis=0) with 2D constant embedding table, static shapes,
-//             non-scalar index
+// When multiple gathers read from the identical constant embedding table,
+// there is no need to concatenate tables or add index offsets.  We simply
+// concat the index tensors, issue one gather on the original table, and
+// slice the results back.
+//
+// This must run BEFORE cross-table fusion so that duplicate table references
+// are collapsed first, keeping the subsequent cross-table combined table as
+// small as possible.
+// ---------------------------------------------------------------------------
+
+struct gather_same_table_fusion
+{
+    std::size_t min_group_size() const { return 2; }
+
+    bool is_candidate(instruction_ref ins) const { return is_gather_fusion_candidate(ins); }
+
+    auto group_key(instruction_ref ins) const
+    {
+        auto data        = ins->inputs().at(0);
+        auto idx         = ins->inputs().at(1);
+        auto idx_type    = idx->get_shape().type();
+        const auto& lens = idx->get_shape().lens();
+        std::vector<std::size_t> trailing(lens.begin() + 1, lens.end());
+        return std::make_tuple(data, idx_type, std::move(trailing));
+    }
+
+    std::vector<instruction_ref>
+    fuse(module& m, const std::vector<instruction_ref>& gathers, instruction_ref insert_pt) const
+    {
+        auto data = gathers.front()->inputs().at(0);
+
+        // Concat index tensors along axis 0 — no offsets needed
+        std::vector<instruction_ref> idx_inputs;
+        idx_inputs.reserve(gathers.size());
+        for(const auto& g : gathers)
+            idx_inputs.push_back(g->inputs().at(1));
+
+        auto concat_idx =
+            m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), idx_inputs);
+
+        // Single gather on the original (unmodified) table
+        auto batched_gather = m.insert_instruction(
+            insert_pt, make_op("gather", {{"axis", 0}}), data, concat_idx);
+
+        // Slice results back — one per original gather
+        std::vector<instruction_ref> results;
+        results.reserve(gathers.size());
+        std::size_t offset = 0;
+        for(const auto& g : gathers)
+        {
+            auto sz = g->inputs().at(1)->get_shape().lens().front();
+            results.push_back(m.insert_instruction(
+                insert_pt,
+                make_op("slice",
+                        {{"axes", std::vector<int64_t>{0}},
+                         {"starts", std::vector<int64_t>{static_cast<int64_t>(offset)}},
+                         {"ends", std::vector<int64_t>{static_cast<int64_t>(offset + sz)}}}),
+                batched_gather));
+            offset += sz;
+        }
+
+        return results;
+    }
+};
+
+// ---------------------------------------------------------------------------
+// Phase 2: Cross-embedding gather horizontal fusion
+//
+// After same-table dedup, the remaining gathers use distinct tables.
+// We concatenate the different tables, adjust indices with per-table offsets,
+// issue one gather on the combined table, and slice the results back.
+//
+// Candidates: gather(axis=0) with 2D constant embedding table, non-scalar index
 // Grouping:   by (embedding dimension, index type, index trailing dims)
-// Fusion:     concatenate embedding tables, adjust indices with offsets,
-//             single batched gather, slice results back
 // ---------------------------------------------------------------------------
 
 struct gather_horizontal_fusion
 {
     std::size_t min_group_size() const { return 4; }
 
-    bool is_candidate(instruction_ref ins) const
-    {
-        if(ins->name() != "gather")
-            return false;
-
-        if(ins->get_operator().to_value()["axis"].to<int>() != 0)
-            return false;
-
-        auto data = ins->inputs().at(0);
-        auto idx  = ins->inputs().at(1);
-
-        // Embedding must be 2D: {num_rows, embedding_dim}
-        if(data->get_shape().lens().size() != 2)
-            return false;
-
-        // Embedding must be constant (evaluable)
-        if(not data->can_eval())
-            return false;
-
-        // Index must not be scalar
-        if(idx->get_shape().scalar() or idx->get_shape().lens().empty())
-            return false;
-
-        return true;
-    }
+    bool is_candidate(instruction_ref ins) const { return is_gather_fusion_candidate(ins); }
 
     auto group_key(instruction_ref ins) const
     {
@@ -166,9 +236,12 @@ struct gather_horizontal_fusion
         auto idx         = ins->inputs().at(1);
         auto idx_type    = idx->get_shape().type();
         const auto& lens = idx->get_shape().lens();
-        // Trailing index dims (all except first) — must match for concat on axis 0
-        std::vector<std::size_t> trailing(lens.begin() + 1, lens.end());
-        return std::make_tuple(emb_dim, idx_type, std::move(trailing));
+        // Include full index shape (first dim + trailing dims).  After
+        // same-table dedup (phase 1) some indices have a larger first dim;
+        // mixing them with first-dim-1 indices in the adjusted-index concat
+        // triggers fused_concat GPU kernel failures (duplicate module refs
+        // instantiated with incompatible tensor shapes).
+        return std::make_tuple(emb_dim, idx_type, lens);
     }
 
     std::vector<instruction_ref>
@@ -267,23 +340,22 @@ struct gather_horizontal_fusion
 };
 
 // ---------------------------------------------------------------------------
-// Future: add more horizontal fusion finders here, e.g.
-//
-// struct pointwise_horizontal_fusion
-// {
-//     std::size_t min_group_size() const { return 2; }
-//     bool is_candidate(instruction_ref ins) const { ... }
-//     std::string group_key(instruction_ref ins) const { ... }
-//     std::vector<instruction_ref>
-//         fuse(module& m, const std::vector<instruction_ref>& ops,
-//              instruction_ref insert_pt) const { ... }
-// };
+// Additional horizontal fusion finders can be added here and passed to
+// fuse_horizontal_ops() in the apply() method below.
 // ---------------------------------------------------------------------------
 
 void fuse_horizontal::apply(module_pass_manager& mpm) const
 {
     auto& m = mpm.get_module();
 
+    // Phase 1: collapse gathers that share the same constant table.
+    // No table concatenation or index offset arithmetic — just concat indices,
+    // one gather on the original table, slice results back.
+    fuse_horizontal_ops(m, gather_same_table_fusion{});
+
+    // Phase 2: fuse gathers across different tables that share the same
+    // embedding dimension and index layout.  Runs on the reduced set of
+    // gathers left after phase 1.
     fuse_horizontal_ops(m, gather_horizontal_fusion{});
 }
 

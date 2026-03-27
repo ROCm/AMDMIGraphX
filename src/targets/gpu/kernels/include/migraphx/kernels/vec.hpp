@@ -204,7 +204,7 @@ inline __device__ half vec_dot(vec<half, 2> x, vec<half, 2> y)
     return __builtin_amdgcn_fdot2(x, y, 0.0f, false);
 }
 
-template<index_int N, MIGRAPHX_REQUIRES((N%2)== 0 and N > 2)>
+template <index_int N, MIGRAPHX_REQUIRES((N % 2) == 0 and N > 2)>
 __device__ half vec_dot(vec<half, N> x, vec<half, N> y)
 {
     float acc = 0.0f;

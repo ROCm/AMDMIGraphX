@@ -39,11 +39,10 @@ struct test_resize_nearest_nonstandard : verify_program<test_resize_nearest_nons
             migraphx::shape::float_type, {1, 8, 4, 4}, {0, 2, 3, 1});
         auto x       = mm->add_parameter("x", in_shape);
         auto resized = mm->add_instruction(
-            migraphx::make_op(
-                "resize",
-                {{"scales", {1.0f, 1.0f, 2.0f, 2.0f}},
-                 {"nearest_mode", "round_prefer_floor"},
-                 {"coordinate_transformation_mode", "half_pixel"}}),
+            migraphx::make_op("resize",
+                              {{"scales", {1.0f, 1.0f, 2.0f, 2.0f}},
+                               {"nearest_mode", "round_prefer_floor"},
+                               {"coordinate_transformation_mode", "half_pixel"}}),
             x);
         mm->add_return({resized});
         return p;

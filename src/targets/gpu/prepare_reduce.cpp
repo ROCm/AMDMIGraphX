@@ -163,7 +163,9 @@ std::vector<instruction_ref> find_reduce(module& m)
     std::vector<instruction_ref> result;
     auto im = iterator_for(m);
     std::copy_if(im.begin(), im.end(), std::back_inserter(result), [](auto ins) {
-        if(contains({"gpu::parallel_reduce", "reduce_mean", "gpu::arg_reduce", "gpu::mul_reduce_sum"}, ins->name()))
+        if(contains(
+               {"gpu::parallel_reduce", "reduce_mean", "gpu::arg_reduce", "gpu::mul_reduce_sum"},
+               ins->name()))
             return false;
         return contains(ins->name(), "reduce");
     });
@@ -188,11 +190,10 @@ std::vector<instruction_ref> find_parallel_reduce(const std::vector<instruction_
 
 bool is_only_mul(const module& m)
 {
-    return std::count_if(m.begin(), m.end(), [](const auto& ins) {
-               return not starts_with(ins.name(), "@");
-           }) == 1 and
-           std::any_of(
-               m.begin(), m.end(), [](const auto& ins) { return ins.name() == "mul"; });
+    return std::count_if(m.begin(),
+                         m.end(),
+                         [](const auto& ins) { return not starts_with(ins.name(), "@"); }) == 1 and
+           std::any_of(m.begin(), m.end(), [](const auto& ins) { return ins.name() == "mul"; });
 }
 
 void rewrite_mul_reduce_sum(module& m)
@@ -207,8 +208,7 @@ void rewrite_mul_reduce_sum(module& m)
         if(not is_only_mul(*pw->module_inputs().front()))
             continue;
         auto axes = ins->get_operator().to_value()["axes"].to_vector<std::int64_t>();
-        auto mrs  = m.insert_instruction(
-            ins, mul_reduce_sum{std::move(axes)}, pw->inputs());
+        auto mrs  = m.insert_instruction(ins, mul_reduce_sum{std::move(axes)}, pw->inputs());
         m.replace_instruction(ins, mrs);
     }
 }

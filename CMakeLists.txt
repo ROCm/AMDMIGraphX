@@ -401,12 +401,15 @@ else()
     endif()
 endif()
 
-if(NOT MIGRAPHX_PACKAGE_BACKEND STREQUAL "pre-installed")
-    rocm_package_add_deb_dependencies(SHARED_DEPENDS
-        "$<IF:$<STREQUAL:${MIGRAPHX_PACKAGE_BACKEND},therock>,amdrocm-runtimes-devel,hip-dev>")
-    rocm_package_add_rpm_dependencies(SHARED_DEPENDS
-        "$<IF:$<STREQUAL:${MIGRAPHX_PACKAGE_BACKEND},therock>,amdrocm-runtimes-devel,hip-devel>")
+if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "therock")
+    set(MIGRAPHX_HIP_DEVEL_DEB "amdrocm-runtimes-devel")
+    set(MIGRAPHX_HIP_DEVEL_RPM "amdrocm-runtimes-devel")
+else()
+    set(MIGRAPHX_HIP_DEVEL_DEB "hip-dev")
+    set(MIGRAPHX_HIP_DEVEL_RPM "hip-devel")
 endif()
+rocm_package_add_deb_dependencies(SHARED_DEPENDS ${MIGRAPHX_HIP_DEVEL_DEB})
+rocm_package_add_rpm_dependencies(SHARED_DEPENDS ${MIGRAPHX_HIP_DEVEL_RPM})
 
 rocm_create_package(
     NAME MIGraphX

@@ -199,9 +199,22 @@ constexpr auto vec_dot(T x, U y)
 }
 
 // Overload for half2 using hardware dot product builtin
-inline __device__ float vec_dot(vec<half, 2> x, vec<half, 2> y)
+inline __device__ half vec_dot(vec<half, 2> x, vec<half, 2> y)
 {
     return __builtin_amdgcn_fdot2(x, y, 0.0f, false);
+}
+
+template<index_int N, MIGRAPHX_REQUIRES((N%2)== 0 and N > 2)>
+__device__ half vec_dot(vec<half, N> x, vec<half, N> y)
+{
+    float acc = 0.0f;
+    for(int i = 0; i < N; i += 2)
+    {
+        vec<half, 2> x_pack = vec_packed_at<2>(x, i);
+        vec<half, 2> y_pack = vec_packed_at<2>(y, i);
+        acc += __builtin_amdgcn_fdot2(x_pack, y_pack, acc, false);
+    }
+    return acc;
 }
 
 template <class T>

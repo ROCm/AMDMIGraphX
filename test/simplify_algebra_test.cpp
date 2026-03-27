@@ -5303,5 +5303,4 @@ TEST_CASE(debug_symbols_simplify_div_const)
     EXPECT(m1.sort() == m2.sort());
 }
 
-
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

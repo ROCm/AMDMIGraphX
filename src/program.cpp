@@ -81,7 +81,9 @@ struct program_impl
 
 program::program() : impl(std::make_unique<program_impl>()) { this->create_module("main"); }
 program::program(module m) : impl(std::make_unique<program_impl>())
-{ this->create_module("main", std::move(m)); }
+{
+    this->create_module("main", std::move(m));
+}
 
 program::program(program&&) noexcept = default;
 program::~program() noexcept         = default;
@@ -1375,7 +1377,9 @@ program& program::sort()
 }
 
 bool operator==(const program& x, const program& y)
-{ return migraphx::to_string(x) == migraphx::to_string(y); }
+{
+    return migraphx::to_string(x) == migraphx::to_string(y);
+}
 
 std::ostream& operator<<(std::ostream& os, const program& p)
 {

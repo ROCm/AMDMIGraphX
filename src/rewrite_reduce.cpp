@@ -75,7 +75,8 @@ struct find_dot
 
         auto a_unsqueeze =
             m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {ndim - 1}}}), a_mat);
-        auto b_transpose = m.insert_instruction(ins, make_op("transpose", {{"permutation", permutation}}), b_mat);
+        auto b_transpose =
+            m.insert_instruction(ins, make_op("transpose", {{"permutation", permutation}}), b_mat);
         auto b_unsqueeze =
             m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {ndim - 2}}}), b_transpose);
         auto mul    = insert_common_op(m, ins, make_op("mul"), {a_unsqueeze, b_unsqueeze});

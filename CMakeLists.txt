@@ -380,7 +380,7 @@ foreach(py_file ${backend_files})
 endforeach(py_file)
 
 if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "pre-installed")
-    # Pre-installed: libraries exist in /opt/rocm but not registered in dpkg
+    # Pre-installed: libraries exist in /opt/rocm but are not registered with the system package manager (dpkg, rpm, etc.)
     set(DEPENDS_HIP_RUNTIME "")
     set(PACKAGE_HALF "")
 

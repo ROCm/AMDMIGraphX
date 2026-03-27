@@ -62,7 +62,7 @@ struct module_impl
     uint32_t nparams = 0;
     bool bypass      = false; // used for skipping compiler passes
     bit_signal<64> changed{};
-    std::size_t num_ins_with_debug_symbols = 0; // number of ins with debug symbols
+    std::size_t num_ins_with_debug_symbols = 0;
 
     bool contains(instruction_ref ins) const
     {
@@ -178,6 +178,7 @@ void module::add_debug_symbols(instruction_ref ins, const std::set<std::string>&
 
 void module::remove_debug_symbols(instruction_ref ins) const
 {
+    assert(ins->get_debug_symbols().empty() or impl->num_ins_with_debug_symbols > 0);
     if(not ins->get_debug_symbols().empty() and impl->num_ins_with_debug_symbols > 0)
     {
         impl->num_ins_with_debug_symbols--;
@@ -326,7 +327,7 @@ instruction_ref module::add_instruction(const operation& op, std::vector<instruc
 
 instruction_ref module::insert_instruction(instruction_ref ins,
                                            const operation& op,
-                                           std::vector<instruction_ref> args)
+                                           std::vector<instruction_ref> args) MIGRAPHX_TIDY_CONST
 {
     assert(has_instruction(ins) or is_end(ins, this->end()));
     assert(not starts_with(op.name(), "@"));
@@ -347,7 +348,7 @@ instruction_ref module::add_instruction(const operation& op,
 instruction_ref module::insert_instruction(instruction_ref ins,
                                            const operation& op,
                                            std::vector<instruction_ref> args,
-                                           std::vector<module_ref> module_args)
+                                           std::vector<module_ref> module_args) MIGRAPHX_TIDY_CONST
 {
     assert(has_instruction(ins) or is_end(ins, this->end()));
     assert(not starts_with(op.name(), "@"));
@@ -517,7 +518,7 @@ instruction_ref module::replace_instruction(instruction_ref ins,
     return ins;
 }
 
-instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref rep)
+instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref rep) MIGRAPHX_TIDY_CONST
 {
     impl->changed.notify();
     assert(has_instruction(ins));

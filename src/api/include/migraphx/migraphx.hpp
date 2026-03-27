@@ -1368,7 +1368,7 @@ struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
     }
 
     /// Enable debug symbols from ONNX node names
-    void set_use_debug_symbols(bool value)
+    void set_use_debug_symbols(bool value = true)
     {
         call(&migraphx_onnx_options_set_use_debug_symbols, this->get_handle_ptr(), value);
     }

@@ -748,8 +748,8 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         }
 
         // Handle past_key and past_value concatenation using concat_past_present
-        instruction_ref present_key;
-        instruction_ref present_value;
+        std::optional<instruction_ref> present_key;
+        std::optional<instruction_ref> present_value;
         if(args.size() > 7)
         {
             auto past_key   = args[6];
@@ -785,8 +785,8 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
                     make_op("concat_past_present", {{"kv_num_heads", params.num_heads}}),
                     concat_v_inputs);
 
-                key   = present_key;
-                value = present_value;
+                key   = present_key.value();
+                value = present_value.value();
             }
         }
 
@@ -838,11 +838,10 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         std::vector<instruction_ref> outputs = {result};
 
         // Add present_key and present_value if past states were provided and non-empty
-        if(args.size() > 7 and args[6]->get_shape().elements() > 0 and
-           args[7]->get_shape().elements() > 0)
+        if(present_key.has_value() and present_value.has_value())
         {
-            outputs.push_back(present_key);
-            outputs.push_back(present_value);
+            outputs.push_back(present_key.value());
+            outputs.push_back(present_value.value());
         }
 
         // Note: QK output could be added here if needed

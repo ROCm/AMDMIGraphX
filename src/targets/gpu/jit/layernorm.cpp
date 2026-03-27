@@ -101,7 +101,7 @@ struct layernorm_compiler : compiler<layernorm_compiler>
                                        {"axis", to_string(axis)},
                                        {"eps", to_string(eps)}});
 
-        return compile_hip_code_object(src, options);
+        return compile_hip_code_object(ctx, src, options);
     }
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const

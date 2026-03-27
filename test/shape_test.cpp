@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -49,6 +49,17 @@ TEST_CASE(test_dyn_4arg_constructor)
     EXPECT(s0.dyn_dims() == expected_dyn_dims);
     EXPECT(s1.dynamic());
     EXPECT(s1.dyn_dims() == expected_dyn_dims);
+}
+
+TEST_CASE(test_dyn_4arg_constructor_empty)
+{
+    std::vector<std::size_t> mins;
+    std::vector<std::size_t> maxes;
+    std::vector<std::set<std::size_t>> opts;
+    migraphx::shape empty_dims{migraphx::shape::int32_type, mins, maxes, opts};
+
+    std::vector<migraphx::shape::dynamic_dimension> expected_dyn_dims = {};
+    EXPECT(empty_dims.dyn_dims() == expected_dyn_dims);
 }
 
 TEST_CASE(test_shape_assign)
@@ -238,6 +249,19 @@ TEST_CASE(dynamic_dimension_add_sub_fixed)
     EXPECT((d - 2) == e);
     EXPECT((e + 2) == d);
     EXPECT((2 + e) == d);
+}
+
+TEST_CASE(dynamic_dimension_mul_fixed)
+{
+    using migraphx::shape;
+    auto a = shape::dynamic_dimension{2, 5, {2}};
+
+    a *= 3;
+    EXPECT(a == shape::dynamic_dimension{6, 15, {6}});
+
+    auto b = shape::dynamic_dimension{3, 6, {3}};
+    EXPECT((b * 1) == b);
+    EXPECT((b * 0) == shape::dynamic_dimension{0, 0, {0}});
 }
 
 TEST_CASE(dynamic_dimension_intersection)
@@ -1024,13 +1048,25 @@ TEST_CASE(test_with_type)
 TEST_CASE(test_multi_index)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 4, 6}};
-    EXPECT(migraphx::verify::verify_rms_range(s.multi(0), std::vector<size_t>{0, 0, 0}));
-    EXPECT(migraphx::verify::verify_rms_range(s.multi(4), std::vector<size_t>{0, 0, 4}));
-    EXPECT(migraphx::verify::verify_rms_range(s.multi(6), std::vector<size_t>{0, 1, 0}));
-    EXPECT(migraphx::verify::verify_rms_range(s.multi(8), std::vector<size_t>{0, 1, 2}));
-    EXPECT(migraphx::verify::verify_rms_range(s.multi(24), std::vector<size_t>{1, 0, 0}));
-    EXPECT(migraphx::verify::verify_rms_range(s.multi(30), std::vector<size_t>{1, 1, 0}));
-    EXPECT(migraphx::verify::verify_rms_range(s.multi(34), std::vector<size_t>{1, 1, 4}));
+    EXPECT(s.multi(0) == std::vector<size_t>{0, 0, 0});
+    EXPECT(s.multi(4) == std::vector<size_t>{0, 0, 4});
+    EXPECT(s.multi(6) == std::vector<size_t>{0, 1, 0});
+    EXPECT(s.multi(8) == std::vector<size_t>{0, 1, 2});
+    EXPECT(s.multi(24) == std::vector<size_t>{1, 0, 0});
+    EXPECT(s.multi(30) == std::vector<size_t>{1, 1, 0});
+    EXPECT(s.multi(34) == std::vector<size_t>{1, 1, 4});
+}
+
+TEST_CASE(test_single_index)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4, 6}};
+    EXPECT(0 == s.single({0, 0, 0}));
+    EXPECT(4 == s.single({0, 0, 4}));
+    EXPECT(6 == s.single({0, 1, 0}));
+    EXPECT(8 == s.single({0, 1, 2}));
+    EXPECT(24 == s.single({1, 0, 0}));
+    EXPECT(30 == s.single({1, 1, 0}));
+    EXPECT(34 == s.single({1, 1, 4}));
 }
 
 TEST_CASE(find_permutation_2d_standard)
@@ -1110,6 +1146,15 @@ TEST_CASE(multi_within_bounds)
     std::vector<std::size_t> multi_4 = {1, 2, 1};
     EXPECT(not in_shape.multi_within_bounds(multi_4));
 }
+
+TEST_CASE(shape_computable)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1, 1, 8}, {8, 8, 1}};
+    migraphx::shape s2{migraphx::shape::fp4x2_type, {1, 1, 8}, {8, 8, 1}};
+    EXPECT(s1.computable());
+    EXPECT(not s2.computable());
+}
+
 TEST_CASE(shape_is_compatible_diff_strides)
 {
     migraphx::shape actual{migraphx::shape::float_type, {1, 1, 8}, {8, 8, 1}};
@@ -1172,6 +1217,59 @@ TEST_CASE(shape_is_compatible_diff_lens_tuple)
     migraphx::shape expected{migraphx::shape{migraphx::shape::float_type, {1, 1, 8}}};
     EXPECT(actual != expected);
     EXPECT(not migraphx::shape::is_compatible(actual, expected));
+}
+TEST_CASE(shape_is_compatible_lens_static)
+{
+    migraphx::shape actual1{migraphx::shape{migraphx::shape::float_type, {1, 2, 8}}};
+    migraphx::shape actual2{migraphx::shape{migraphx::shape::float_type, {1, 1, 8}}};
+    migraphx::shape expected{migraphx::shape{migraphx::shape::float_type, {1, 1, 8}}};
+    EXPECT(migraphx::shape::is_compatible_lens(actual2, expected));
+    EXPECT(not migraphx::shape::is_compatible_lens(actual1, expected));
+}
+TEST_CASE(shape_is_compatible_lens_dynamic_actual)
+{
+    migraphx::shape actual{migraphx::shape::float_type, {{1, 1}, {2, 4}, {2, 4}, {2, 4}}};
+    migraphx::shape expected1{migraphx::shape::float_type, {1, 2, 2, 4}};
+    migraphx::shape expected2{migraphx::shape::float_type, {{1, 1}, {2, 4}, {2, 4}, {2, 4}}};
+
+    EXPECT(not migraphx::shape::is_compatible_lens(actual, expected1));
+    EXPECT(migraphx::shape::is_compatible_lens(actual, expected2));
+}
+TEST_CASE(shape_is_compatible_lens_dynamic_expected)
+{
+    migraphx::shape actual1{migraphx::shape::float_type, {1, 2, 4, 32}};
+    migraphx::shape actual2{migraphx::shape::float_type, {1, 6, 4, 32}};
+    migraphx::shape expected{migraphx::shape::float_type, {{1, 1}, {2, 4}, {3, 9}, {16, 32}}};
+
+    EXPECT(migraphx::shape::is_compatible_lens(actual1, expected));
+    EXPECT(not migraphx::shape::is_compatible_lens(actual2, expected));
+}
+
+TEST_CASE(shape_same_lens_static)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1, 2, 8}};
+    migraphx::shape s2{migraphx::shape::half_type, {1, 2, 8}};
+    migraphx::shape s3{migraphx::shape::float_type, {2, 2, 8}};
+    EXPECT(migraphx::shape::same_lens(s1, s2));
+    EXPECT(not migraphx::shape::same_lens(s1, s3));
+}
+
+TEST_CASE(shape_same_lens_dynamic)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {{1, 1}, {3, 4}, {1, 2}, {8, 16}}};
+    migraphx::shape s2{migraphx::shape::half_type, {{1, 1}, {3, 4}, {1, 2}, {8, 16}}};
+    migraphx::shape s3{migraphx::shape::float_type, {{1, 3}, {3, 4}, {1, 2}, {8, 16}}};
+    EXPECT(migraphx::shape::same_lens(s1, s2));
+    EXPECT(not migraphx::shape::same_lens(s1, s3));
+}
+
+TEST_CASE(shape_same_lens_static_dynamic)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1, 2, 8}};
+    migraphx::shape s2{migraphx::shape::half_type, {{1, 1}, {2, 2}, {8, 8}}};
+    migraphx::shape s3{migraphx::shape::float_type, {{1, 1}, {2, 4}, {8, 8}}};
+    EXPECT(migraphx::shape::same_lens(s1, s2));
+    EXPECT(not migraphx::shape::same_lens(s1, s3));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

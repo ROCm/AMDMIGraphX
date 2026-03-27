@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -39,6 +39,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/problem_cache.hpp>
+#include <migraphx/gpu/hsa_chiplet.hpp>
 #include <unordered_map>
 #include <memory>
 
@@ -59,7 +60,10 @@ struct hip_device
     {
         auto status = hipGetDeviceProperties(&device_props, device_id);
         if(status != hipSuccess)
-            MIGRAPHX_THROW("Failed to allocate stream");
+            MIGRAPHX_THROW("Failed to get device properties: " + hip_error(status));
+
+        // Set the device prior to Events that get created within a Context.
+        set_device(device_id);
 
         for(std::size_t i = 0; i < n; i++)
             add_stream();
@@ -80,7 +84,7 @@ struct hip_device
             hipStream_t result = nullptr;
             auto status        = hipStreamCreateWithFlags(&result, hipStreamNonBlocking);
             if(status != hipSuccess)
-                MIGRAPHX_THROW("Failed to allocate stream");
+                MIGRAPHX_THROW("Failed to allocate stream: " + hip_error(status));
             return hip_stream_ptr{result};
         }
 
@@ -147,7 +151,7 @@ struct hip_device
             setup();
             auto status = hipStreamSynchronize(s.get());
             if(status != hipSuccess)
-                MIGRAPHX_THROW("Failed to wait.");
+                MIGRAPHX_THROW("Failed to wait: " + hip_error(status));
         }
 
         void wait(hipEvent_t event)
@@ -155,7 +159,7 @@ struct hip_device
             setup();
             auto status = hipStreamWaitEvent(get(), event, 0);
             if(status != hipSuccess)
-                MIGRAPHX_THROW("Failed to wait.");
+                MIGRAPHX_THROW("Failed to wait: " + hip_error(status));
         }
 
         void record(hipEvent_t event)
@@ -163,7 +167,7 @@ struct hip_device
             setup();
             auto status = hipEventRecord(event, get());
             if(status != hipSuccess)
-                MIGRAPHX_THROW("Failed to record.");
+                MIGRAPHX_THROW("Failed to record: " + hip_error(status));
         }
 
         private:
@@ -206,6 +210,8 @@ struct hip_device
     std::size_t get_device_minor() const { return device_props.minor; }
 
     std::size_t get_cu_count() const { return device_props.multiProcessorCount; }
+
+    std::size_t get_chiplet_count() const { return get_hsa_chiplet_count(device_id); }
 
     std::size_t get_max_workitems_per_cu() const
     {
@@ -293,7 +299,7 @@ struct context
         hipEvent_t event;
         auto status = hipEventCreateWithFlags(&event, hipEventDisableTiming);
         if(status != hipSuccess)
-            MIGRAPHX_THROW("Failed to create event");
+            MIGRAPHX_THROW("Failed to create event: " + hip_error(status));
         return hip_event_ptr{event};
     }
 
@@ -302,7 +308,7 @@ struct context
         hipEvent_t event;
         auto status = hipEventCreate(&event);
         if(status != hipSuccess)
-            MIGRAPHX_THROW("Failed to create event");
+            MIGRAPHX_THROW("Failed to create event: " + hip_error(status));
         return hip_event_ptr{event};
     }
 
@@ -311,7 +317,6 @@ struct context
         value result;
         result["events"]  = events.size();
         result["streams"] = current_device->nstreams();
-        result["gfx_name"] = get_current_device().get_gfx_name();
 
         return result;
     }
@@ -333,7 +338,7 @@ struct context
     {
         auto status = hipEventRecord(begin_event.get(), queue.get<hipStream_t>());
         if(status != hipSuccess)
-            MIGRAPHX_THROW("failed to record " + hip_error(status));
+            MIGRAPHX_THROW("Failed to record: " + hip_error(status));
 
         get_stream().wait(begin_event.get());
     }
@@ -344,7 +349,7 @@ struct context
 
         auto status = hipStreamWaitEvent(queue.get<hipStream_t>(), finish_event.get(), 0);
         if(status != hipSuccess)
-            MIGRAPHX_THROW("Failed to wait on event " + hip_error(status));
+            MIGRAPHX_THROW("Failed to wait on event: " + hip_error(status));
     }
 
     any_ptr get_queue() { return get_stream().get(); }
@@ -384,9 +389,9 @@ struct context
     // for event perf timing
     shared<hip_event_ptr> start_event = nullptr;
     shared<hip_event_ptr> stop_event  = nullptr;
-    // for stream syncronization
-    shared<hip_event_ptr> begin_event  = nullptr;
-    shared<hip_event_ptr> finish_event = nullptr;
+    // for stream synchronization
+    shared<hip_event_ptr> begin_event           = nullptr;
+    shared<hip_event_ptr> finish_event          = nullptr;
     std::shared_ptr<auto_save_problem_cache> pc = nullptr;
 };
 

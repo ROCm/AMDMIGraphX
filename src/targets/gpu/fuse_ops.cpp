@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,11 +24,13 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
+#include <migraphx/gpu/compile_hipblaslt.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/gpu/miopen.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/oper.hpp>
 #include <migraphx/gpu/gemm.hpp>
+#include <migraphx/gpu/hip_gemm.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/array.hpp>
@@ -164,13 +166,12 @@ struct fusion
 };
 #endif
 
-const std::unordered_set<std::string>& get_supported_archs()
+#if MIGRAPHX_USE_MIOPEN
+static const std::unordered_set<std::string>& get_supported_archs()
 {
-    static std::unordered_set<std::string> supported_archs{
-        "gfx900", "gfx906", "gfx908", "gfx1030", "gfx940"};
+    static std::unordered_set<std::string> supported_archs{"gfx900", "gfx906", "gfx908", "gfx1030"};
     return supported_archs;
 }
-#if MIGRAPHX_USE_MIOPEN
 MIGRAPHX_PRED_MATCHER(bias_shape, instruction_ref ins)
 {
     auto&& s = ins->get_shape();
@@ -213,7 +214,7 @@ MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
 }
 #endif
 
-void move_broadcasted_back(std::vector<instruction_ref>& args)
+static void move_broadcasted_back(std::vector<instruction_ref>& args)
 {
     // Ensure the last arguments is the broadcasted one
     auto last = std::prev(args.end());
@@ -222,18 +223,6 @@ void move_broadcasted_back(std::vector<instruction_ref>& args)
     if(it != last)
         std::swap(*it, *std::prev(last));
 }
-
-void move_standard_front(std::vector<instruction_ref>& args)
-{
-    // Ensure the first arguments is the standard one
-    auto last = std::prev(args.end());
-    auto it =
-        std::find_if(args.begin(), last, [](auto arg) { return arg->get_shape().standard(); });
-    if(it != last)
-        std::swap(*it, args.front());
-}
-
-auto gpu_name(const std::string& s) { return match::name("gpu::" + s); }
 
 namespace {
 #if MIGRAPHX_USE_MIOPEN
@@ -262,9 +251,9 @@ struct miopen_fusion
         return pack(f(self.ops, "ops"));
     }
 
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
     {
-        return shapes.size() - 1;
+        return {shapes.size() - 1};
     }
 
     value compile(context& ctx, const shape&, std::vector<shape> inputs)
@@ -394,9 +383,9 @@ struct miopen_conv_bias
     }
 
     shape get_workspace(context& ctx) { return fp.get_workspace(ctx); }
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
     {
-        return shapes.size() - 1;
+        return {shapes.size() - 1};
     }
 };
 MIGRAPHX_REGISTER_OP(miopen_conv_bias)
@@ -442,9 +431,9 @@ struct miopen_conv_bias_relu
     }
 
     shape get_workspace(context& ctx) { return fp.get_workspace(ctx); }
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
     {
-        return shapes.size() - 1;
+        return {shapes.size() - 1};
     }
 };
 MIGRAPHX_REGISTER_OP(miopen_conv_bias_relu)
@@ -555,20 +544,9 @@ struct find_conv_pointwise
 };
 #endif
 
-#if MIGRAPHX_USE_ROCBLAS
-struct find_gemm_pointwise
+#if MIGRAPHX_USE_ROCBLAS or MIGRAPHX_USE_HIPBLASLT
+struct gemm_pointwise
 {
-    auto matcher() const
-    {
-        auto gemm_op   = match::name("gpu::gemm")(match::nargs(3), match::used_once()).bind("gemm");
-        auto binary_op = match::all_of(
-            match::nargs(3),
-            match::either_arg(0, 1)(
-                match::any_of(match::standard_shape(), match::is_constant()).bind("c"), gemm_op));
-        auto unary_op = match::all_of(match::nargs(2), match::arg(0)(gemm_op));
-        return precompile_name("pointwise")(match::any_of(binary_op, unary_op));
-    }
-
     // TODO: Move to matcher.hpp
     static auto match_param(const std::string& name)
     {
@@ -642,6 +620,22 @@ struct find_gemm_pointwise
             return false;
         }
     }
+};
+#endif
+
+#if MIGRAPHX_USE_ROCBLAS
+struct find_rocblas_gemm_pointwise : gemm_pointwise
+{
+    auto matcher() const
+    {
+        auto gemm_op   = match::name("gpu::gemm")(match::nargs(3), match::used_once()).bind("gemm");
+        auto binary_op = match::all_of(
+            match::nargs(3),
+            match::either_arg(0, 1)(
+                match::any_of(match::standard_shape(), match::is_constant()).bind("c"), gemm_op));
+        auto unary_op = match::all_of(match::nargs(2), match::arg(0)(gemm_op));
+        return precompile_name("pointwise")(match::any_of(binary_op, unary_op));
+    }
 
     void apply(module& m, const match::matcher_result& r) const
     {
@@ -668,8 +662,7 @@ struct find_gemm_pointwise
             auto c_ins = r.instructions["c"];
             shape s    = c_ins->get_shape();
             // const-fold input if not standard shape since rocblas can't handle it
-            // Updated for a case where "standard" shape has out-of-sequence strides
-            if(not s.standard() or s.normalize_standard() != s)
+            if(not s.standard())
             {
                 auto c = make_op("contiguous");
                 auto l = c.compute(c.compute_shape({c_ins->get_shape()}), {c_ins->eval()});
@@ -685,16 +678,70 @@ struct find_gemm_pointwise
 };
 #endif
 
-struct find_contiguous_tranpose_gemm
+#if MIGRAPHX_USE_HIPBLASLT
+struct find_hipblas_gemm_pointwise : gemm_pointwise
 {
     auto matcher() const
     {
-        return match::name("gpu::contiguous")(match::arg(0)(
-            match::name("transpose")(
-                match::arg(0)(match::name("gpu::gemm")(match::used_once()).bind("gemm")))
-                .bind("transpose")));
+        auto gemm_op =
+            match::name("gpu::hipblaslt_op")(match::nargs(3), match::used_once()).bind("hip_gemm");
+        auto binary_op = match::all_of(
+            match::nargs(3),
+            match::either_arg(0, 1)(
+                match::any_of(match::standard_shape(), match::is_constant()).bind("c"), gemm_op));
+        auto unary_op = match::all_of(match::nargs(2), match::arg(0)(gemm_op));
+        return precompile_name("pointwise")(match::any_of(binary_op, unary_op));
     }
 
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins      = r.result;
+        auto gemm_ins = r.instructions["hip_gemm"];
+
+        auto gemm_op = any_cast<hipblaslt_op>(gemm_ins->get_operator()).op;
+
+        if(gemm_op.name() != "gpu::hip_gemm")
+            return;
+
+        auto gemm = any_cast<hip_gemm<op::dot>>(gemm_op);
+
+        // Already fused gemm
+        if(not float_equal(gemm.beta, 0))
+            return;
+        if(ins->inputs().size() == 3)
+            gemm.beta = 1;
+        if(not update_gemm(
+               gemm, ins->module_inputs().front(), ins->inputs().front() == gemm_ins ? 0 : 1))
+        {
+            return;
+        }
+        auto inputs = gemm_ins->inputs();
+        inputs.pop_back();
+        if(ins->inputs().size() == 3)
+        {
+            auto c_ins = r.instructions["c"];
+            shape s    = c_ins->get_shape();
+            // const-fold input if not standard shape
+            if(not s.standard())
+            {
+                auto c = make_op("contiguous");
+                auto l = c.compute(c.compute_shape({c_ins->get_shape()}), {c_ins->eval()});
+                c_ins  = m.add_literal(l.get_shape(), l.data());
+            }
+            inputs.push_back(c_ins);
+        }
+        inputs.push_back(ins->inputs().back());
+
+        operation new_gemm_op = gemm;
+        auto new_ins          = m.insert_instruction(
+            ins, make_op("gpu::hipblaslt_op", {{"op", to_value(new_gemm_op)}}), inputs);
+        m.replace_instruction(ins, new_ins);
+    }
+};
+#endif
+
+struct contiguous_transpose_gemm
+{
     template <class Vector>
     static bool is_swapped(const Vector& perm, std::size_t i, std::size_t j)
     {
@@ -704,6 +751,17 @@ struct find_contiguous_tranpose_gemm
         std::iota(perm2.begin(), perm2.end(), 0);
         std::swap(perm2[i], perm2[j]);
         return perm2 == perm;
+    }
+};
+
+struct find_contiguous_transpose_rocblas_gemm : contiguous_transpose_gemm
+{
+    auto matcher() const
+    {
+        return match::name("gpu::contiguous")(match::arg(0)(
+            match::name("transpose")(
+                match::arg(0)(match::name("gpu::gemm")(match::used_once()).bind("gemm")))
+                .bind("transpose")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -743,6 +801,67 @@ struct find_contiguous_tranpose_gemm
     }
 };
 
+#if MIGRAPHX_USE_HIPBLASLT
+struct find_contiguous_transpose_hip_gemm : contiguous_transpose_gemm
+{
+    auto matcher() const
+    {
+        return match::name("gpu::contiguous")(match::arg(0)(
+            match::name("transpose")(
+                match::arg(0)(
+                    match::name("gpu::hipblaslt_op")(match::used_once()).bind("hip_gemm")))
+                .bind("transpose")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins      = r.result;
+        auto gemm_ins = r.instructions["hip_gemm"];
+        auto gemm_op  = any_cast<hipblaslt_op>(gemm_ins->get_operator()).op;
+
+        if(gemm_op.name() != "gpu::hip_gemm")
+            return;
+
+        auto gemm = any_cast<hip_gemm<op::dot>>(gemm_op);
+
+        auto alloc     = gemm_ins->inputs().back();
+        auto transpose = r.instructions["transpose"];
+        auto perm      = transpose->get_operator().to_value()["permutation"].to_vector<int64_t>();
+        auto iperm     = invert_permutation(perm);
+
+        if(perm.size() < 3)
+            return;
+
+        if(not is_swapped(perm, perm.size() - 3, perm.size() - 2))
+            return;
+
+        auto lens = gemm_ins->get_shape().lens();
+        if(lens.size() > 3 and
+           not std::all_of(lens.begin(), lens.end() - 3, [](auto i) { return i == 1; }))
+            return;
+
+        gemm.trans_batch = 1;
+
+        auto s = shape{alloc->get_shape().type(), reorder_dims(alloc->get_shape().lens(), iperm)};
+        auto new_alloc =
+            m.insert_instruction(gemm_ins, make_op("allocate", {{"shape", to_value(s)}}));
+
+        auto alloc_transpose = m.insert_instruction(
+            gemm_ins, make_op("transpose", {{"permutation", perm}}), new_alloc);
+
+        auto inputs           = gemm_ins->inputs();
+        inputs.back()         = alloc_transpose;
+        operation new_gemm_op = gemm;
+        auto new_gemm         = m.insert_instruction(
+            gemm_ins, make_op("gpu::hipblaslt_op", {{"op", to_value(new_gemm_op)}}), inputs);
+
+        auto gemm_transpoe = m.insert_instruction(gemm_ins, transpose->get_operator(), new_gemm);
+
+        m.replace_instruction(ins, gemm_transpoe);
+    }
+};
+#endif
+
 struct find_commutative_broadcast
 {
     auto matcher() const
@@ -761,18 +880,19 @@ struct find_commutative_broadcast
 };
 } // namespace
 
-struct find_contiguous
+struct find_contiguous_copy
 {
-    auto matcher() const { return match::name("gpu::contiguous"); }
+    auto matcher() const { return match::name("gpu::contiguous", "hip::copy"); }
 
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins = r.result;
+        const bool is_copy = ins->name() == "hip::copy";
+        operation op       = make_op("gpu::precompile_op",
+                                     {{"op", to_value(make_op(is_copy ? "hip::copy" : "contiguous"))},
+                                      {"additional_args", is_copy ? 0 : 1}});
 
-        m.replace_instruction(
-            ins,
-            make_op("gpu::precompile_op", {{"op", to_value(make_op("contiguous"))}}),
-            ins->inputs());
+        m.replace_instruction(ins, op, ins->inputs());
     }
 };
 
@@ -831,12 +951,47 @@ struct find_pointwise_layout_contiguous
     }
 };
 
+struct find_precompile_copy
+{
+    auto matcher() const
+    {
+        return match::name("hip::copy")(
+            match::arg(0)(match::used_once(), match::name("gpu::precompile_op")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins   = r.result;
+        auto pw    = ins->inputs().front();
+        auto alloc = ins->inputs().back();
+
+        // Only merge when the precompile_op's current output buffer is a plain
+        // allocation.  After eliminate_concat the buffer may be a slice of a
+        // shared super-allocation; merging a second copy on top would redirect
+        // the write and leave the first destination unwritten.
+        auto current_buf = pw->inputs().back();
+        if(current_buf->name() != "allocate" and current_buf->name() != "hip::allocate")
+            return;
+
+        auto args   = pw->inputs();
+        args.back() = alloc;
+
+        // Ensure the output shape of the precompile op retains the memory layout
+        auto pw_op_val            = pw->get_operator().to_value();
+        pw_op_val["output_shape"] = to_value(ins->get_shape());
+
+        m.replace_instruction(ins, make_op(pw->name(), pw_op_val), args, pw->module_inputs());
+    }
+};
+
 struct find_layernorm_pointwise
 {
     auto matcher() const
     {
-        return precompile_name("pointwise")(match::any_of[match::inputs()](
-            precompile_name("gpu::prelayernorm", "gpu::preadd_layernorm").bind("layernorm")));
+        return precompile_name("pointwise")(
+            match::not_tuple(),
+            match::arg(0)(
+                precompile_name("gpu::prelayernorm", "gpu::preadd_layernorm").bind("layernorm")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -867,7 +1022,7 @@ struct find_concat_pointwise
     auto matcher() const
     {
         return precompile_name("pointwise")(
-            match::arg(0)(precompile_name("concat").bind("concat")));
+            match::arg(0)(precompile_name("concat").bind("concat"), match::used_once()));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -897,21 +1052,30 @@ struct find_concat_pointwise
 
 void fuse_ops::apply(module& m) const
 {
-    match::find_matches(m, find_pointwise_layout_contiguous{}, find_contiguous_layout_pointwise{});
+    match::find_matches(m,
+                        find_pointwise_layout_contiguous{},
+                        find_contiguous_layout_pointwise{},
+                        find_precompile_copy{});
     run_passes(m, {dead_code_elimination{}});
 #if MIGRAPHX_USE_MIOPEN
     match::find_matches(m, find_conv_pointwise{ctx}, find_conv_bias_relu{ctx}, find_conv_bias{ctx});
     run_passes(m, {dead_code_elimination{}});
 #endif
-    match::find_matches(m,
 #if MIGRAPHX_USE_ROCBLAS
-                        find_gemm_pointwise{},
+    match::find_matches(m, find_rocblas_gemm_pointwise{});
 #endif
+#if MIGRAPHX_USE_HIPBLASLT
+    match::find_matches(m, find_hipblas_gemm_pointwise{});
+#endif
+    match::find_matches(m,
                         find_layernorm_pointwise{},
                         find_concat_pointwise{},
-                        find_contiguous_tranpose_gemm{},
+                        find_contiguous_transpose_rocblas_gemm{},
+#if MIGRAPHX_USE_HIPBLASLT
+                        find_contiguous_transpose_hip_gemm{},
+#endif
                         find_commutative_broadcast{});
-    match::find_matches(m, find_contiguous{});
+    match::find_matches(m, find_contiguous_copy{});
 }
 
 } // namespace gpu

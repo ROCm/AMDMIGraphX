@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -49,7 +49,7 @@ MIGRAPHX_PRED_MATCHER(without_post_ops, instruction_ref ins)
     return v.contains("post_ops") and v["post_ops"].empty();
 }
 
-bool workaround_dnnl_broken_post_ops(const operation& op, const operation& post_op)
+static bool workaround_dnnl_broken_post_ops(const operation& op, const operation& post_op)
 {
     if(contains({"dnnl::dot", "dnnl::convolution"}, op.name()))
         return true;
@@ -67,7 +67,7 @@ bool workaround_dnnl_broken_post_ops(const operation& op, const operation& post_
     return false;
 }
 
-operation merge_post_ops(const operation& op, const operation& post_op)
+static operation merge_post_ops(const operation& op, const operation& post_op)
 {
     auto pv = post_op.to_value();
     auto v  = op.to_value();

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -61,6 +61,15 @@ MIGRAPHX_GPU_EXPORT argument get_preallocation(context& ctx, const std::string& 
 
 MIGRAPHX_GPU_EXPORT void gpu_fill(context& ctx, const argument& dst, int value = 0);
 
+MIGRAPHX_GPU_EXPORT std::shared_ptr<void>
+write_to_gpu(const void* x, std::size_t sz, bool host = false);
+
+template <class T>
+std::shared_ptr<T> write_to_gpu(const T& x, bool host = false)
+{
+    return std::static_pointer_cast<T>(write_to_gpu(&x, sizeof(T), host));
+}
+
 struct hip_allocate
 {
     shape s;
@@ -104,7 +113,7 @@ struct hip_fill
         gpu_fill(ctx, args.front(), value);
         return args.front();
     }
-    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
+    std::vector<std::size_t> output_alias(const std::vector<shape>&) const { return {0}; }
 };
 
 struct hip_sync_stream
@@ -126,11 +135,11 @@ struct hip_sync_stream
         return args.front();
     }
 
-    std::ptrdiff_t output_alias(const std::vector<shape>& args) const
+    std::vector<std::size_t> output_alias(const std::vector<shape>& args) const
     {
         if(args.empty())
-            return -1;
-        return 0;
+            return {};
+        return {0};
     }
 };
 
@@ -156,11 +165,11 @@ struct hip_copy_to_gpu
         // Associate the input since it was registered with hip
         return {result.get_shape(), [input, result]() mutable { return result.data(); }};
     }
-    std::ptrdiff_t output_alias(const std::vector<shape>& args) const
+    std::vector<std::size_t> output_alias(const std::vector<shape>& args) const
     {
         if(args.size() == 1)
-            return -1;
-        return 1;
+            return {};
+        return {1};
     }
 };
 
@@ -189,11 +198,11 @@ struct hip_copy_from_gpu
         copy_from_gpu(ctx, input, args[1]);
         return args[1];
     }
-    std::ptrdiff_t output_alias(const std::vector<shape>& args) const
+    std::vector<std::size_t> output_alias(const std::vector<shape>& args) const
     {
         if(args.size() == 1)
-            return -1;
-        return 1;
+            return {};
+        return {1};
     }
 };
 
@@ -202,15 +211,20 @@ struct hip_copy
     std::string name() const { return "hip::copy"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(2).same_type();
+        check_shapes{inputs, *this, true}.has(2).same_type();
         return inputs.at(1);
     }
     argument compute(context& ctx, const shape&, std::vector<argument> args) const
     {
-        gpu_copy(ctx, args[0], args[1]);
+        argument result = args[1].share();
+        if(result.get_shape().dynamic())
+        {
+            result = result.reshape(args[0].get_shape());
+        }
+        gpu_copy(ctx, args[0], result);
         return args[1];
     }
-    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 1; }
+    std::vector<std::size_t> output_alias(const std::vector<shape>&) const { return {1}; }
 };
 
 MIGRAPHX_GPU_EXPORT void

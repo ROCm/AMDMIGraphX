@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,16 @@ def test_create_shape():
     assert s.standard()
     assert s.packed()
     assert s.lens() == [1, 64, 3, 3]
+    assert s.ndim() == 4
+
+
+def test_create_shape_transposed():
+    s = migraphx.shape(lens=[1, 64, 3, 3], permutation=[0, 2, 3, 1])
+    assert not s.standard()
+    assert s.packed()
+    assert s.transposed()
+    assert s.lens() == [1, 64, 3, 3]
+    assert s.strides() == [64 * 3 * 3, 1, 64 * 3, 64]
     assert s.ndim() == 4
 
 

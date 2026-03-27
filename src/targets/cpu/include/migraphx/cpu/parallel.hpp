@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,6 +28,7 @@
 #include <cmath>
 #include <cassert>
 #include <migraphx/config.hpp>
+#include <utility>
 #ifdef MIGRAPHX_DISABLE_OMP
 #include <migraphx/par_for.hpp>
 #else
@@ -85,7 +86,9 @@ void parallel_for_impl(std::size_t n, std::size_t threadsize, F f)
 inline std::size_t max_threads() { return omp_get_max_threads(); }
 
 template <class F>
-void parallel_for_impl(std::size_t n, std::size_t threadsize, F f)
+void parallel_for_impl(std::size_t n,
+                       std::size_t threadsize,
+                       F f) // NOLINT(performance-unnecessary-value-param)
 {
     if(threadsize <= 1)
     {
@@ -108,7 +111,7 @@ template <class F>
 void parallel_for(std::size_t n, std::size_t min_grain, F f)
 {
     const auto threadsize = std::min<std::size_t>(max_threads(), n / min_grain);
-    parallel_for_impl(n, threadsize, f);
+    parallel_for_impl(n, threadsize, std::move(f));
 }
 
 template <class F>

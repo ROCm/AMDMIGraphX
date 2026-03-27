@@ -1,3 +1,7 @@
+.. meta::
+  :description: MIGraphX internal operators
+  :keywords: MIGraphX, code base, contribution, developing, operators
+
 Operators
 =========
 

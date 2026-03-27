@@ -221,7 +221,7 @@ cpp_generator::function cpp_generator::generate_module(const module& m,
                             string_literal = "-__builtin_huge_val()";
                     }
                     else if(std::isnan(static_cast<double>(x)))
-                        string_literal = "__builtin_nan()";
+                        string_literal = "__builtin_nan(\"0\")";
                     else
                         string_literal = ins->get_literal().to_string();
                 });

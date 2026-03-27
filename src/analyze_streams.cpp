@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,7 +31,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-bool happens_before(const std::vector<std::size_t>& e1, const std::vector<std::size_t>& e2)
+static bool happens_before(const std::vector<std::size_t>& e1, const std::vector<std::size_t>& e2)
 {
     return std::equal(e1.begin(), e1.end(), e2.begin(), e2.end(), std::less_equal<>{}) and
            not std::equal(e1.begin(), e1.end(), e2.begin(), e2.end(), std::greater_equal<>{});

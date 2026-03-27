@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -25,8 +25,8 @@ function(add_api_test TEST_NAME TEST_SRC TEST_DIR)
     set(NAME test_api_${TEST_NAME})
     add_executable(${NAME} EXCLUDE_FROM_ALL ${TEST_SRC})
     rocm_clang_tidy_check(${NAME})
-    target_link_libraries(${NAME} migraphx_c migraphx migraphx_all_targets)
-    target_include_directories(${NAME} PUBLIC ../include)
+    target_link_libraries(${NAME} migraphx_c migraphx migraphx_all_targets onnx_files pb_files)
+    target_include_directories(${NAME} PUBLIC ../include include)
     add_test(NAME ${NAME} COMMAND $<TARGET_FILE:${NAME}> WORKING_DIRECTORY ${TEST_DIR}) 
     add_dependencies(tests ${NAME})
     add_dependencies(check ${NAME})
@@ -65,6 +65,7 @@ add_api_test(op test_op_construct.cpp ${TEST_ONNX_DIR})
 add_c_api_test(c_op test_c_op_construct.c ${TEST_ONNX_DIR})
 add_api_test(custom_op test_custom_op.cpp ${TEST_ONNX_DIR})
 add_api_test(tf_parser test_tf_parser.cpp ${TEST_TF_DIR})
+add_api_test(onnx_op_list test_onnx_op_list.cpp ${TEST_ONNX_DIR})
 # GPU-based tests
 if(MIGRAPHX_ENABLE_GPU)
 add_api_test(gpu test_gpu.cpp ${TEST_ONNX_DIR})

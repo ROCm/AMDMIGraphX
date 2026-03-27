@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,6 +30,8 @@
 #include "precision.hpp"
 #include "passes.hpp"
 #include "perf.hpp"
+#include "transform.hpp"
+#include "trim.hpp"
 #include "models.hpp"
 #include "marker_roctx.hpp"
 
@@ -43,6 +45,8 @@
 #include <migraphx/load_save.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/version.h>
+#include <migraphx/env.hpp>
+#include <migraphx/logger.hpp>
 
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_identity.hpp>
@@ -56,13 +60,116 @@
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/register_target.hpp>
 
+#include <migraphx/netron_output.hpp>
+
 #include <fstream>
+#include <iomanip>
+#include <optional>
+
+namespace {
+
+using dims_map = std::unordered_map<std::string, std::vector<std::size_t>>;
+
+std::vector<std::string>
+get_unrecognized_migraphx_envs(const char* envp[],
+                               const std::map<std::string, std::string>& used_env)
+{
+    std::vector<std::string> unused_migx_env;
+    for(; *envp != nullptr; ++envp)
+    {
+        std::string e(*envp);
+        if(not migraphx::starts_with(e, "MIGRAPHX"))
+            continue;
+        size_t pos = e.find('=');
+        if(pos == std::string::npos)
+            continue;
+        if(used_env.find(e.substr(0, pos)) == used_env.end())
+            unused_migx_env.push_back(e);
+    }
+    return unused_migx_env;
+}
+
+std::string get_formatted_timestamp(std::chrono::time_point<std::chrono::system_clock> time)
+{
+    auto now_in_time_t   = std::chrono::system_clock::to_time_t(time);
+    auto* now_as_tm_date = std::localtime(&now_in_time_t);
+    std::stringstream ss;
+    ss << std::put_time(now_as_tm_date, "%Y-%m-%d %H:%M:%S");
+    return ss.str();
+}
+
+struct logger_options
+{
+    std::string log_level;
+    std::vector<std::string> log_files;
+
+    void parse(migraphx::driver::argument_parser& ap)
+    {
+        ap(log_level,
+           {"--log-level"},
+           ap.help("Set log level (none/0, error/1, warn/2, info/3, debug/4, trace/5)"),
+           ap.validate([](auto&, auto&, auto& params) {
+               if(not params.empty())
+               {
+                   auto const& level_str = params.back();
+                   if(not parse_log_level_string(level_str))
+                   {
+                       throw std::runtime_error(
+                           "Invalid log level: " + level_str +
+                           ". Valid levels: none/0, error/1, warn/2, info/3, debug/4, trace/5");
+                   }
+               }
+           }));
+        ap(log_files,
+           {"--log-file"},
+           ap.help("Log to file(s) (--log-file file1.log file2.log ...)"),
+           ap.append(),
+           ap.nargs(2));
+        ap.post_action([this](auto&&) { this->apply(); });
+    }
+
+    void apply() const
+    {
+        if(not log_level.empty())
+        {
+            auto level = parse_log_level_string(log_level);
+            if(level)
+                migraphx::log::set_severity(*level);
+        }
+        for(const auto& log_file : log_files)
+        {
+            migraphx::log::add_file_logger(log_file);
+        }
+    }
+
+    private:
+    static std::optional<migraphx::log::severity>
+    parse_log_level_string(const std::string& level_str)
+    {
+        if(level_str == "trace" or level_str == "5")
+            return migraphx::log::severity::trace;
+        else if(level_str == "debug" or level_str == "4")
+            return migraphx::log::severity::debug;
+        else if(level_str == "info" or level_str == "3")
+            return migraphx::log::severity::info;
+        else if(level_str == "warn" or level_str == "2")
+            return migraphx::log::severity::warn;
+        else if(level_str == "error" or level_str == "1")
+            return migraphx::log::severity::error;
+        else if(level_str == "none" or level_str == "0")
+            return migraphx::log::severity::none;
+
+        return std::nullopt;
+    }
+};
+
+} // namespace
 
 namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
-inline std::string get_version()
+inline static std::string get_version()
 {
     return "MIGraphX Version: " + std::to_string(MIGRAPHX_VERSION_MAJOR) + "." +
            std::to_string(MIGRAPHX_VERSION_MINOR) + "." + std::to_string(MIGRAPHX_VERSION_PATCH) +
@@ -77,10 +184,13 @@ struct loader
     bool is_nhwc                = true;
     bool is_test                = false;
     unsigned trim               = 0;
+    unsigned trim_size          = 0;
     bool optimize               = false;
     bool mlir                   = false;
     bool skip_unknown_operators = false;
+    bool replace_literals       = false;
     bool brief                  = false;
+    bool verbose                = false;
     std::string output_type;
     std::string output;
     std::string default_dyn_dim;
@@ -114,6 +224,7 @@ struct loader
            ap.set_value(true));
         ap(is_nhwc, {"--nchw"}, ap.help("Treat tensorflow format as nchw"), ap.set_value(false));
         ap(trim, {"--trim", "-t"}, ap.help("Trim instructions from the end"));
+        ap(trim_size, {"--trim-size", "-s"}, ap.help("Number of instructions in the trim model"));
         ap(param_dims,
            {"--input-dim"},
            ap.help("Dim of a parameter (format: \"@name d1 d2 dn\")"),
@@ -143,6 +254,10 @@ struct loader
            ap.nargs(2));
         ap(optimize, {"--optimize", "-O"}, ap.help("Optimize when reading"), ap.set_value(true));
         ap(mlir, {"--mlir"}, ap.help("Offload everything to mlir"), ap.set_value(true));
+        ap(replace_literals,
+           {"--replace-literals"},
+           ap.help("Replace literals with parameters"),
+           ap.set_value(true));
         ap(passes, {"--apply-pass", "-p"}, ap.help("Passes to apply to model"), ap.append());
         ap(output_type,
            {"--graphviz", "-g"},
@@ -166,12 +281,16 @@ struct loader
            {"--binary"},
            ap.help("Print out program in binary format."),
            ap.set_value("binary"));
+        ap(output_type,
+           {"--netron"},
+           ap.help("Print out program as Netron readable json."),
+           ap.set_value("netron"));
         ap(output, {"--output", "-o"}, ap.help("Output to file."));
     }
 
     static auto parse_param_dims(const std::vector<std::string>& param_dims_info)
     {
-        std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
+        dims_map map_input_dims;
         std::string name = "";
         for(auto&& x : param_dims_info)
         {
@@ -193,7 +312,7 @@ struct loader
         // expecting a json string like "[{min:1,max:64,optimals:[1,2,4,8]},3,224,224]"
         auto v = from_json_string(convert_to_json(dd_json));
         std::vector<migraphx::shape::dynamic_dimension> dyn_dims;
-        std::transform(v.begin(), v.end(), std::back_inserter(dyn_dims), [&](auto x) {
+        std::transform(v.begin(), v.end(), std::back_inserter(dyn_dims), [&](const auto& x) {
             if(x.is_object())
                 return from_value<migraphx::shape::dynamic_dimension>(x);
             auto d = x.template to<std::size_t>();
@@ -242,7 +361,7 @@ struct loader
                 {
                     auto dyn_dim = parse_dyn_dims_json(x);
                     if(dyn_dim.size() != 1)
-                        MIGRAPHX_THROW("dim_param must only specifiy one dimension");
+                        MIGRAPHX_THROW("dim_param must only specify one dimension");
                     map_dim_params[name] = dyn_dim.front();
                 }
             }
@@ -257,7 +376,7 @@ struct loader
         std::transform(output_names_info.begin(),
                        output_names_info.end(),
                        std::back_inserter(output_node_names),
-                       [&](auto x) { return value_parser<std::string>::apply(x); });
+                       [&](const auto& x) { return value_parser<std::string>::apply(x); });
 
         return output_node_names;
     }
@@ -352,9 +471,11 @@ struct loader
         }
         if(trim > 0)
         {
-            auto* mm  = p.get_main_module();
-            auto last = std::prev(mm->end(), trim);
-            mm->remove_instructions(last, mm->end());
+            trim_module(*p.get_main_module(), trim, trim_size);
+        }
+        if(replace_literals)
+        {
+            replace_literals_with_params(p);
         }
         // Remove unused variable when exporting to cpp
         if(output_type == "cpp")
@@ -418,6 +539,8 @@ struct loader
             *os << to_json_string(p.to_value()) << std::endl;
         else if(type == "binary")
             write(*os, save_buffer(p));
+        else if(type == "netron")
+            *os << make_netron_output(p) << std::endl;
     }
 };
 
@@ -425,27 +548,69 @@ struct program_params
 {
     std::vector<std::string> fill0{};
     std::vector<std::string> fill1{};
+    std::vector<std::string> load_args_info;
     void parse(argument_parser& ap)
     {
         ap(fill0, {"--fill0"}, ap.help("Fill parameter with 0s"), ap.append(), ap.nargs(2));
         ap(fill1, {"--fill1"}, ap.help("Fill parameter with 1s"), ap.append(), ap.nargs(2));
+        ap(load_args_info,
+           {"--load-arg"},
+           ap.help("Load arguments for the model (format: \"@name filename\")"),
+           ap.append(),
+           ap.nargs(2));
     }
 
-    auto generate(const program& p, const target& t, bool offload, unsigned batch)
+    static auto
+    parse_load_args(const std::vector<std::string>& load_args_info, const target& t, bool offload)
+    {
+        parameter_map map_load_args;
+        std::string name = "";
+        for(auto&& x : load_args_info)
+        {
+            if(x[0] == '@')
+            {
+                name = x.substr(1);
+            }
+            else
+            {
+                argument arg = migraphx::load_argument(x);
+                if(not offload)
+                    arg = t.copy_to(arg);
+                map_load_args[name] = arg;
+            }
+        }
+
+        return map_load_args;
+    }
+
+    auto generate(const program& p,
+                  const target& t,
+                  bool offload,
+                  unsigned batch,
+                  dims_map map_input_dims = {})
     {
         parameter_map m;
         auto param_shapes = p.get_parameter_shapes();
         std::unordered_map<std::string, shape> static_param_shapes;
-        std::transform(
-            param_shapes.cbegin(),
-            param_shapes.cend(),
-            std::inserter(static_param_shapes, static_param_shapes.end()),
-            [&](const auto& x) { return std::make_pair(x.first, x.second.to_static(batch)); });
+        for(auto&& param : param_shapes)
+        {
+            if(contains(map_input_dims, param.first))
+                static_param_shapes[param.first] = {param.second.type(),
+                                                    map_input_dims[param.first]};
+            else
+                static_param_shapes[param.first] = param.second.to_static(batch);
+        }
+
         for(auto&& s : fill0)
             m[s] = fill_argument(static_param_shapes.at(s), 0);
         for(auto&& s : fill1)
             m[s] = fill_argument(static_param_shapes.at(s), 1);
         fill_param_map(m, static_param_shapes, t, offload);
+        auto load_arg_map = program_params::parse_load_args(load_args_info, t, offload);
+        for(auto&& arg : load_arg_map)
+        {
+            m[arg.first] = arg.second;
+        }
         return m;
     }
 };
@@ -482,6 +647,7 @@ struct compiler
     compiler_target ct;
     compile_options co;
     bool to_fp16 = false;
+    bool to_bf16 = false;
     bool to_fp8  = false;
     bool to_int8 = false;
     bool to_int4 = false;
@@ -506,6 +672,7 @@ struct compiler
            ap.help("Exhastively search for best tuning parameters for kernels"),
            ap.set_value(true));
         ap(to_fp16, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(true));
+        ap(to_bf16, {"--bf16"}, ap.help("Quantize for bf16"), ap.set_value(true));
         ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));
         ap(to_fp8, {"--fp8"}, ap.help("Quantize for fp8"), ap.set_value(true));
         ap(to_int4, {"--int4-weights"}, ap.help("Quantize weights for int4"), ap.set_value(true));
@@ -513,7 +680,8 @@ struct compiler
 
     auto params(const program& p)
     {
-        return parameters.generate(p, ct.get_target(), co.offload_copy, l.batch);
+        return parameters.generate(
+            p, ct.get_target(), co.offload_copy, l.batch, loader::parse_param_dims(l.param_dims));
     }
 
     auto host_params(const program& p)
@@ -532,7 +700,7 @@ struct compiler
             {
                 if(is_offload_copy_set(p) and not co.offload_copy)
                 {
-                    std::cout
+                    std::cerr
                         << "[WARNING]: MIGraphX program was likely compiled with offload_copy "
                            "set, Try "
                            "passing "
@@ -540,7 +708,7 @@ struct compiler
                 }
                 else if(not is_offload_copy_set(p) and co.offload_copy)
                 {
-                    std::cout << "[WARNING]: MIGraphX program was likely compiled without "
+                    std::cerr << "[WARNING]: MIGraphX program was likely compiled without "
                                  "offload_copy set, Try "
                                  "removing "
                                  "`--enable-offload-copy` if program run "
@@ -548,25 +716,43 @@ struct compiler
                 }
             }
 
+            std::cout << "The program is already compiled, skipping compilation ..." << std::endl;
+            if(to_fp16 or to_bf16 or to_int8 or to_fp8 or to_int4)
+            {
+                std::cerr
+                    << "[WARNING]: Quantization options are ignored as the program is already "
+                       "compiled."
+                    << std::endl;
+            }
             return p;
         }
         auto t = ct.get_target();
         if(to_fp16)
         {
+            std::cout << "Quantizing to fp16 ... " << std::endl;
             quantize_fp16(p);
+        }
+        if(to_bf16)
+        {
+            std::cout << "Quantizing to bf16 ... " << std::endl;
+            quantize_bf16(p);
         }
         if(to_int8)
         {
+            std::cout << "Quantizing to int8 ... " << std::endl;
             quantize_int8(p, t, {host_params(p)});
         }
         if(to_fp8)
         {
+            std::cout << "Quantizing to fp8 ... " << std::endl;
             quantize_fp8(p, t, {host_params(p)});
         }
         if(to_int4)
         {
+            std::cout << "Quantizing weights to int4 ... " << std::endl;
             quantize_int4_weights(p);
         }
+        std::cout << "Compiling ... " << std::endl;
         p.compile(t, co);
         l.save(p);
         return p;
@@ -622,8 +808,10 @@ struct verify : command<verify>
         ap(bisect, {"-b", "--bisect"}, ap.help("Bisect program and verify"), ap.set_value(true));
         ap(vo.ref_use_double,
            {"--ref-use-double"},
-           ap.help("Convert floating point values to double on ref"),
+           ap.help(
+               "Convert floating point values to double on ref. Also removes Q/DQ pairs on ref."),
            ap.set_value(true));
+        ap(vo.compiled_model, {"--compiled-model", "-c"}, ap.help("Compiled model to use"));
     }
 
     void run()
@@ -633,11 +821,16 @@ struct verify : command<verify>
         std::cout << p << std::endl;
 
         auto t = c.ct.get_target();
-        auto m = c.parameters.generate(p, t, true, c.l.batch);
+        auto m =
+            c.parameters.generate(p, t, true, c.l.batch, loader::parse_param_dims(c.l.param_dims));
 
         if(c.to_fp16)
         {
             vo.quantize = precision::fp16;
+        }
+        if(c.to_bf16)
+        {
+            vo.quantize = precision::bf16;
         }
         if(c.to_int8)
         {
@@ -673,11 +866,7 @@ struct compile : command<compile>
     compiler c;
     void parse(argument_parser& ap) { c.parse(ap); }
 
-    void run()
-    {
-        std::cout << "Compiling ... " << std::endl;
-        c.compile();
-    }
+    void run() { c.compile(); }
 };
 
 struct run_cmd : command<run_cmd>
@@ -687,7 +876,6 @@ struct run_cmd : command<run_cmd>
 
     void run()
     {
-        std::cout << "Compiling ... " << std::endl;
         auto p = c.compile();
         std::cout << "Allocating params ... " << std::endl;
         auto m = c.params(p);
@@ -708,7 +896,6 @@ struct time_cmd : command<time_cmd>
 
     void run()
     {
-        std::cout << "Compiling ... " << std::endl;
         auto p = c.compile();
         std::cout << "Allocating params ... " << std::endl;
         auto m = c.params(p);
@@ -735,7 +922,6 @@ struct perf : command<perf>
 
     void run()
     {
-        std::cout << "Compiling ... " << std::endl;
         auto p = c.compile();
         std::cout << "Allocating params ... " << std::endl;
         auto m = c.params(p);
@@ -751,7 +937,6 @@ struct roctx : command<roctx>
 
     void run()
     {
-        std::cout << "Compiling ... " << std::endl;
         auto p = c.compile();
         std::cout << "Allocating params ... " << std::endl;
         auto m = c.params(p);
@@ -841,9 +1026,10 @@ struct main_command
                        commands.begin(),
                        [](const auto& p) { return colorize(color::fg_green, p.first); });
         std::sort(commands.begin(), commands.end());
-        return std::accumulate(commands.begin(), commands.end(), result, [](auto r, auto&& s) {
-            return r + "    " + s + "\n";
-        });
+        return std::accumulate(commands.begin(),
+                               commands.end(),
+                               result,
+                               [](const auto& r, auto&& s) { return r + "    " + s + "\n"; });
     }
     void parse(argument_parser& ap)
     {
@@ -897,6 +1083,11 @@ using namespace migraphx::driver; // NOLINT
 int main(int argc, const char* argv[], const char* envp[])
 {
     std::vector<std::string> args(argv + 1, argv + argc);
+    // Save original args for display purposes before they get modified
+    const std::vector<std::string> original_args = args;
+
+    migraphx::driver::argument_parser ap;
+
     // no argument, print the help infomration by default
     if(args.empty())
     {
@@ -920,31 +1111,39 @@ int main(int argc, const char* argv[], const char* envp[])
     if(m.count(cmd) > 0)
     {
         std::string driver_invocation =
-            std::string(argv[0]) + " " + migraphx::to_string_range(args, " ");
+            std::string(argv[0]) + " " + migraphx::to_string_range(original_args, " ");
         std::cout << "Running [ " << get_version() << " ]: " << driver_invocation << std::endl;
 
-        for(const char** env = envp; *env != nullptr; ++env)
-        {
-            std::string env_var(*env);
-            size_t pos = env_var.find('=');
-            if(pos != std::string::npos)
-            {
-                std::string key = env_var.substr(0, pos);
-                if(key.find("MIGRAPHX") != std::string::npos)
-                {
-                    std::cout << env_var << std::endl;
-                }
-            }
-        }
+        // Print start timestamp
+        auto start_time = std::chrono::system_clock::now();
+        std::cout << "[" << get_formatted_timestamp(start_time) << "]" << std::endl;
 
-        m.at(cmd)(argv[0],
-                  {args.begin() + 1, args.end()}); // run driver command found in commands map
+        logger_options log_opts;
+        log_opts.parse(ap);
+        m.at(cmd)(ap, {args.begin() + 1, args.end()}); // run driver command found in commands map
 
-        std::cout << "[ " << get_version() << " ] Complete: " << driver_invocation << std::endl;
+        // Dump all the MIGraphX (consumed) Environment Variables:
+        const auto mgx_env_map = migraphx::get_all_envs();
+        for(auto&& [k, v] : mgx_env_map)
+            std::cout << k << "=" << v << "\\ \n"; // backslash(s) to facilitate cut-n-paste
+
+        auto unused_envs = get_unrecognized_migraphx_envs(envp, mgx_env_map);
+        for(auto&& e : unused_envs)
+            std::cout << "Unused environment variable: " << e << "\n";
+
+        // Print end timestamp
+        auto end_time = std::chrono::system_clock::now();
+        std::cout << "[" << get_formatted_timestamp(end_time) << "]" << std::endl;
+
+        // Print total duration
+        auto duration =
+            std::chrono::duration_cast<std::chrono::duration<double>>(end_time - start_time);
+        std::cout << "[ " << get_version() << " ] Complete(" << duration.count()
+                  << "s): " << driver_invocation << std::endl;
     }
     else
     {
-        run_command<main_command>(argv[0], args);
+        run_command<main_command>(ap, args);
     }
 
     return 0;

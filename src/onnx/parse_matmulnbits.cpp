@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -66,10 +66,10 @@ struct parse_matmulnbits : op_parser<parse_matmulnbits>
                            to_string_range(expected_b_lens) +
                            ". Actual dims: " + to_string_range(args[1]->get_shape().lens()));
 
-        std::vector<size_t> expected_scales_lens{n * n_blocks_per_col};
-        if(args[2]->get_shape().lens() != expected_scales_lens)
+        const size_t expected_scales_lens = n * n_blocks_per_col;
+        if(args[2]->get_shape().elements() != expected_scales_lens)
             MIGRAPHX_THROW("MatMulNBits: Input scales does not match expected dims: " +
-                           to_string_range(expected_scales_lens) +
+                           to_string(expected_scales_lens) +
                            ". Actual dims: " + to_string_range(args[2]->get_shape().lens()));
 
         if(args.size() > 3)
@@ -107,13 +107,13 @@ struct parse_matmulnbits : op_parser<parse_matmulnbits>
     {
         auto b = unpack(info, n, k, args[1]);
 
-        auto n_blocks_per_col = (k + block_size - 1) / block_size;
         auto scales = info.add_instruction(make_op("reshape", {{"dims", {n, -1}}}), args[2]);
         scales      = prepare_blockwise_dq_arg(info, n, k, block_size, scales);
 
         instruction_ref zp;
         if(args.size() == 4)
         {
+            auto n_blocks_per_col = (k + block_size - 1) / block_size;
             zp = unpack(info, n, n_blocks_per_col, args[3]);
             zp = prepare_blockwise_dq_arg(info, n, k, block_size, zp);
         }

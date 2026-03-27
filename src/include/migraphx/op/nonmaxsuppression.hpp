@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -82,7 +82,7 @@ iou_threshold (optional) : tensor(float)
 Float representing the threshold for deciding whether boxes overlap too much with respect to IOU.
 It is scalar. Value range [0, 1]. Default to 0.
 
-score_threshold (optional) : tensor(flo187Gat)
+score_threshold (optional) : tensor(float)
 Float representing the threshold for deciding when to remove boxes based on score. It is a scalar.
 ----------------------------------------------------------------------------------------------------------------------
 Outputs
@@ -241,7 +241,7 @@ struct nonmaxsuppression
         return result;
     }
 
-    inline bool suppress_by_iou(box b1, box b2, double iou_threshold) const
+    bool suppress_by_iou(box b1, box b2, double iou_threshold) const
     {
         const double area1 = b1.area();
         const double area2 = b2.area();
@@ -305,14 +305,18 @@ struct nonmaxsuppression
                                return std::make_pair(sc, box_idx - 1);
                            });
         }
-        par_sort(boxes_heap.begin(), boxes_heap.end(), std::greater<std::pair<double, int64_t>>{});
+        // Sort by the higher score; or if equal then the early (i.e. lower) index of the box
+        // The tie below compares in effect t2.second > t1.second
+        par_sort(boxes_heap.begin(), boxes_heap.end(), [](auto const& t1, auto const& t2) {
+            return std::tie(t1.first, t2.second) > std::tie(t2.first, t1.second);
+        });
         return boxes_heap;
     }
 
     template <class Output, class Boxes, class Scores>
     std::size_t compute_nms(Output output,
-                            Boxes boxes,
-                            Scores scores,
+                            const Boxes& boxes,
+                            const Scores& scores,
                             std::size_t max_output_boxes_per_class,
                             double iou_threshold,
                             double score_threshold) const
@@ -335,7 +339,7 @@ struct nonmaxsuppression
             auto batch_boxes_start = boxes.begin() + batch_idx * num_boxes * 4;
             auto boxes_heap = filter_boxes_by_score(scores_start, num_boxes, score_threshold);
             int64_t selected_boxes_inside_class = 0;
-            while(not boxes_heap.empty() &&
+            while(not boxes_heap.empty() and
                   selected_boxes_inside_class < max_output_boxes_per_class)
             {
                 // select next top scorer box and remove any boxes from boxes_heap that exceeds IOU
@@ -385,7 +389,7 @@ struct nonmaxsuppression
         std::size_t num_selected = 0;
 
         result.visit([&](auto output) {
-            visit_all(args[0], args[1])([&](auto boxes, auto scores) {
+            get_all<double>(args[0], args[1])([&](auto boxes, auto scores) {
                 num_selected = compute_nms(output,
                                            boxes,
                                            scores,

@@ -76,7 +76,7 @@ struct unpack_int4_compiler : compiler<unpack_int4_compiler>
                                 {"params", enum_params(options.inputs.size(), "void * private_p")},
                                 {"args", enum_params(options.inputs.size(), "private_p")},
                                 {"axis", std::to_string(v.at("axis").to<int>())}});
-        return compile_hip_code_object(src, options);
+        return compile_hip_code_object(ctx, src, options);
     }
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const

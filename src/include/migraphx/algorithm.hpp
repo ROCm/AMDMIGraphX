@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,6 +28,7 @@
 #include <cassert>
 #include <numeric>
 #include <string>
+#include <utility>
 #include <vector>
 #include <migraphx/config.hpp>
 
@@ -53,7 +54,7 @@ template <class Iterator, class T, class BinaryOp, class UnaryOp>
 T transform_accumulate(Iterator first, Iterator last, T init, BinaryOp binop, UnaryOp unaryop)
 {
     return std::inner_product(
-        first, last, first, init, binop, [&](auto&& x, auto&&) { return unaryop(x); });
+        first, last, first, std::move(init), binop, [&](auto&& x, auto&&) { return unaryop(x); });
 }
 
 /// Similiar to std::partial_sum but a projection can be applied to the elements first
@@ -74,6 +75,34 @@ OutputIterator transform_partial_sum(
     }
 
     return ++d_first;
+}
+
+template <class Iterator, class Predicate, class Compare>
+Iterator min_element_if(Iterator first, Iterator last, Predicate pred, Compare comp)
+{
+    auto it = std::min_element(first, last, [&](const auto& a, const auto& b) {
+        // Check if elements are valid
+        bool a_valid = pred(a);
+        bool b_valid = pred(b);
+
+        // If neither is valid, prefer a (doesn't matter)
+        if(not a_valid and not b_valid)
+            return false;
+
+        // If only b is valid, it should be selected
+        if(not a_valid)
+            return false;
+
+        // If only a is valid, it should be selected
+        if(not b_valid)
+            return true;
+
+        // Both are valid, select the smaller one using comparator
+        return comp(a, b);
+    });
+    if(it != last and pred(*it))
+        return it;
+    return last;
 }
 
 template <class Iterator, class Output, class Predicate>
@@ -145,6 +174,15 @@ Iterator adjacent_for_each(Iterator first, Iterator last, F f)
         f(*first, *next);
 
     return last;
+}
+
+/// Like std::for_each but can pass in another range like std::transform
+template <class Iterator1, class Iterator2, class F>
+F for_each(Iterator1 first1, Iterator1 last1, Iterator2 first2, F f)
+{
+    for(; first1 != last1; ++first1, ++first2)
+        f(*first1, *first2);
+    return f;
 }
 
 template <class Iterator1, class Iterator2>

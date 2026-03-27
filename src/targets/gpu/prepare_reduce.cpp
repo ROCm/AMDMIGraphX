@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,7 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/op/identity.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -36,7 +37,7 @@ namespace gpu {
 
 struct parallel_reduce
 {
-    operation op;
+    operation op = op::identity{};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -57,14 +58,88 @@ struct parallel_reduce
 };
 MIGRAPHX_REGISTER_OP(parallel_reduce);
 
+struct arg_reduce
+{
+    operation op = op::identity{};
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.op, "op"));
+    }
+
+    std::string name() const { return "gpu::arg_reduce"; }
+
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        auto index_shape = op.compute_shape({inputs.front()});
+        auto value_shape = index_shape.with_type(inputs.front().type());
+        return shape{{value_shape, index_shape}};
+    }
+};
+MIGRAPHX_REGISTER_OP(arg_reduce);
+
+struct make_indices
+{
+    std::size_t size = 0;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.size, "size"));
+    }
+
+    std::string name() const { return "gpu::make_indices"; }
+
+    shape compute_shape(const std::vector<shape>&) const
+    {
+        return shape{shape::uint32_type, {size}};
+    }
+};
+MIGRAPHX_REGISTER_OP(make_indices);
+
 namespace {
+
+// find argmin/argmax operations
+std::vector<instruction_ref> find_arg_reduce(module& m)
+{
+    std::vector<instruction_ref> result;
+    auto im = iterator_for(m);
+    std::copy_if(im.begin(), im.end(), std::back_inserter(result), [](auto ins) {
+        return ins->name() == "argmin" or ins->name() == "argmax";
+    });
+    return result;
+}
+
+// rewrite argmin/argmax to return lazy indices and values tuple
+void rewrite_arg_reduce(module& m)
+{
+    for(auto ins : find_arg_reduce(m))
+    {
+        auto input     = ins->inputs().front();
+        auto v         = ins->get_operator().to_value();
+        auto axis_val  = v["axis"].to<int64_t>();
+        auto ndim      = input->get_shape().ndim();
+        auto axis      = axis_val < 0 ? axis_val + ndim : axis_val;
+        auto axis_size = input->get_shape().lens()[axis];
+
+        // make_indices to generate lazy indices
+        auto indices = m.insert_instruction(ins, make_indices{axis_size});
+        // arg_reduce op to get values and indices tuple
+        auto arg_reduce_ins =
+            m.insert_instruction(ins, arg_reduce{ins->get_operator()}, input, indices);
+        auto result =
+            m.insert_instruction(ins, make_op("get_tuple_elem", {{"index", 1}}), arg_reduce_ins);
+        m.replace_instruction(ins, result);
+    }
+}
 
 std::vector<instruction_ref> find_reduce(module& m)
 {
     std::vector<instruction_ref> result;
     auto im = iterator_for(m);
     std::copy_if(im.begin(), im.end(), std::back_inserter(result), [](auto ins) {
-        if(contains({"gpu::parallel_reduce", "reduce_mean"}, ins->name()))
+        if(contains({"gpu::parallel_reduce", "reduce_mean", "gpu::arg_reduce"}, ins->name()))
             return false;
         return contains(ins->name(), "reduce");
     });
@@ -92,11 +167,13 @@ void fuse_reductions(module& m)
     auto rs = find_parallel_reduce(find_reduce(m));
     if(rs.size() < 2)
         return;
-    // Only handle the same reduction operator for now
-    if(std::any_of(std::next(rs.begin()), rs.end(), [&](auto r) {
-           return rs.front()->name() != r->name();
+    // Only handle the same reduction operator (and its data-type) for now
+    if(std::any_of(std::next(rs.cbegin()), rs.cend(), [&](auto r) {
+           return (*rs.cbegin())->name() != r->name() or
+                  (*rs.cbegin())->get_shape().type() != r->get_shape().type();
        }))
         return;
+
     auto last = rs.front();
     auto op   = last->get_operator();
     std::vector<instruction_ref> inputs;
@@ -115,7 +192,12 @@ void fuse_reductions(module& m)
 
 } // namespace
 
-void prepare_reduce::apply(module& m) const { fuse_reductions(m); }
+void prepare_reduce::apply(module& m) const
+{
+    // rewrite argmin/argmax to handle tuples
+    rewrite_arg_reduce(m);
+    fuse_reductions(m);
+}
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

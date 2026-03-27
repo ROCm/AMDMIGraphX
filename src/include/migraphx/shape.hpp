@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,12 +24,14 @@
 #ifndef MIGRAPHX_GUARD_MIGRAPHLIB_SHAPE_HPP
 #define MIGRAPHX_GUARD_MIGRAPHLIB_SHAPE_HPP
 
+#include <array>
 #include <vector>
 #include <cassert>
 #include <ostream>
 #include <numeric>
 #include <memory>
 #include <set>
+#include <limits>
 
 #include <migraphx/functional.hpp>
 #include <migraphx/errors.hpp>
@@ -66,13 +68,14 @@ struct MIGRAPHX_EXPORT shape
     m(fp8e4m3fnuz_type, migraphx::fp8::fp8e4m3fnuz) \
     m(fp8e4m3fn_type, migraphx::fp8::fp8e4m3fn) \
     m(fp8e5m2_type, migraphx::fp8::fp8e5m2) \
-    m(bf16_type, bf16)
-    // clang-format on
+    m(bf16_type, bf16) \
+    m(fp8e5m2fnuz_type, migraphx::fp8::fp8e5m2fnuz) // clang-format on
 
 #define MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES(x, t) x,
     enum type_t
     {
-        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES) tuple_type
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES) tuple_type,
+        fp4x2_type // packed fp4 contained in uint8
     };
 #undef MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES
 
@@ -134,15 +137,20 @@ struct MIGRAPHX_EXPORT shape
         MIGRAPHX_EXPORT friend bool operator!=(const dynamic_dimension& x, const std::size_t& y);
         MIGRAPHX_EXPORT friend bool operator!=(const std::size_t& x, const dynamic_dimension& y);
 
-        // add and subtract fixed std::size_t dimension
+        // add, subtract, multiply fixed std::size_t dimension
         dynamic_dimension& operator+=(const std::size_t& x);
         dynamic_dimension& operator-=(const std::size_t& x);
+        dynamic_dimension& operator*=(const std::size_t& x);
         MIGRAPHX_EXPORT friend dynamic_dimension operator+(const dynamic_dimension& x,
                                                            const std::size_t& y);
         MIGRAPHX_EXPORT friend dynamic_dimension operator+(const std::size_t& x,
                                                            const dynamic_dimension& y);
         MIGRAPHX_EXPORT friend dynamic_dimension operator-(const dynamic_dimension& x,
                                                            const std::size_t& y);
+        MIGRAPHX_EXPORT friend dynamic_dimension operator*(const dynamic_dimension& x,
+                                                           const std::size_t& y);
+        MIGRAPHX_EXPORT friend dynamic_dimension operator*(const std::size_t& x,
+                                                           const dynamic_dimension& y);
     };
 
     static std::string to_sizes_string(const std::vector<shape>& shapes);
@@ -154,8 +162,10 @@ struct MIGRAPHX_EXPORT shape
 
     static bool is_integral(type_t t);
     static bool is_compatible(const shape& actual, const shape& expected);
+    static bool is_compatible_lens(const shape& actual, const shape& expected);
 
     static bool is_unsigned(type_t t);
+    static bool is_computable(type_t t);
 
     shape();
     shape(type_t t);
@@ -191,23 +201,17 @@ struct MIGRAPHX_EXPORT shape
     explicit shape(const std::vector<shape>& subs);
 
     /**
-     * Creates an output shape with dimensions equal to the input lengths and strides determined
-     * by the permutation argument such that find_permutation() of the output shape returns the
-     * inputted permuation.
+     * Creates an output shape with dimensions `l` and strides computed to fulfill the given
+     * permutation.
      *
-     * 2D example:
-     *   parameters:
-     *     l = [2, 3], perm = [1, 0]
-     *   therefore:
-     *     "original" shape = {lens = [3, 2], strides = [2, 1]}
-     *     output_shape = {lens = [2, 3], strides = [1, 2]
+     * `t` = shape type
+     * `l` = output dimensions
+     * `perm` = order dimensions from slowest dimension to fastest dimension
      *
-     * 3D example:
-     *   parameters:
-     *     l = [2, 3, 4], perm = [1, 2, 0]
-     *   therefore:
-     *     "original" shape = {lens = [3, 4, 2], strides = [8, 2, 1]}
-     *     output_shape = {lens = [2, 3, 4], strides = [1, 8, 2]}
+     *  Example:
+     *      `t` = float_type, `l` = [2, 3, 4], `perm` = [1, 2, 0]
+     *      axis=1 to slowest dimension, axis=2 to second slowest, axis=0 to fastest
+     *      returns shape{type = float, lens = [2, 3, 4], strides = [1, 8 ,2]}
      */
     static shape
     from_permutation(type_t t, const std::vector<std::size_t>& l, const std::vector<int64_t>& perm);
@@ -287,8 +291,42 @@ struct MIGRAPHX_EXPORT shape
     /// pointers
     void multi_copy(std::size_t idx, std::size_t* start, const std::size_t* end) const;
 
+    /// Map element index to multi-dimensional index and return them as an
+    /// array of size N. If the rank is smaller then N, the remaining
+    /// dimensions will be set to 0. If the rank is larger than N, an
+    /// exception will be thrown.
+    template <std::size_t N>
+    std::array<std::size_t, N> multi(std::size_t idx) const
+    {
+        std::array<std::size_t, N> result{};
+        if(N < this->ndim())
+            MIGRAPHX_THROW("SHAPE: multi() called with array size less than number of dimensions");
+        this->multi_copy(idx, result.data(), result.data() + this->ndim());
+        return result;
+    }
+
     /// Check if a multi-dimensional index is within bounds for the shape.
     bool multi_within_bounds(std::vector<std::size_t> multi) const;
+
+    /// Convert multi-dimensional index into a single element index
+    template <class Iterator>
+    std::size_t single(Iterator start, Iterator last) const
+    {
+        if(start == last)
+            return 0;
+        assert(std::distance(start, last) == this->lens().size());
+        return *std::prev(last) +
+               inner_product(
+                   this->lens().begin() + 1,
+                   this->lens().end(),
+                   start,
+                   std::size_t{0},
+                   [](const auto& a, const auto& b) { return (a + b[0]) * b[1]; },
+                   [](auto len, auto i) -> std::array<std::size_t, 2> { return {i, len}; });
+    }
+
+    /// Convert multi-dimensional index into a single element index
+    std::size_t single(const std::vector<std::size_t>& idx) const;
 
     /// Returns true if the shape is packed (number of elements and buffer size the same) with
     /// no padding
@@ -314,6 +352,9 @@ struct MIGRAPHX_EXPORT shape
     /// Return true if this shape or any of the sub_shapes are dynamic
     bool any_of_dynamic() const;
 
+    /// If type is computable (can do math ops like add or divide) and has a visitor function
+    bool computable() const;
+
     shape normalize_standard() const;
 
     shape as_standard() const;
@@ -333,6 +374,8 @@ struct MIGRAPHX_EXPORT shape
     MIGRAPHX_EXPORT friend bool operator!=(const shape& x, const shape& y);
     MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const shape& x);
 
+    static bool same_lens(const shape& x, const shape& y);
+
     template <class T>
     struct as
     {
@@ -343,6 +386,8 @@ struct MIGRAPHX_EXPORT shape
         type min() const { return std::numeric_limits<type>::lowest(); }
 
         type nan() const { return std::numeric_limits<type>::quiet_NaN(); }
+
+        type epsilon() const { return std::numeric_limits<type>::epsilon(); }
 
         template <class U>
         type operator()(U u) const
@@ -366,9 +411,9 @@ struct MIGRAPHX_EXPORT shape
 
         std::size_t size(std::size_t n = 1) const { return sizeof(type) * n; }
 
-        auto is_integral() const { return std::is_integral<type>{}; }
-        auto is_signed() const { return std::is_signed<type>{}; }
-        auto is_unsigned() const { return std::is_unsigned<type>{}; }
+        bool is_integral() const { return std::is_integral<type>{}; }
+        bool is_signed() const { return std::is_signed<type>{}; }
+        bool is_unsigned() const { return std::is_unsigned<type>{}; }
 
         template <class U>
         type* from(U* buffer, std::size_t n = 0) const
@@ -393,6 +438,9 @@ struct MIGRAPHX_EXPORT shape
         case tuple_type: {
             tv();
             return;
+        }
+        case fp4x2_type: {
+            MIGRAPHX_THROW("fp4x2_type cannot be visited.");
         }
 #define MIGRAPHX_SHAPE_GENERATE_VISITOR_CASE(x, t) \
     case x: v(as<t>()); return;
@@ -419,6 +467,7 @@ struct MIGRAPHX_EXPORT shape
     {
 #define MIGRAPHX_SHAPE_GENERATE_VISITOR_ALL(x, t) v(as<t>());
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_VISITOR_ALL)
+        v(as<uint8_t>());
 #undef MIGRAPHX_SHAPE_GENERATE_VISITOR_ALL
     }
 
@@ -427,6 +476,8 @@ struct MIGRAPHX_EXPORT shape
 
     const std::vector<shape>& sub_shapes() const;
 
+    std::size_t tuple_size() const;
+
     /*!
      * Returns the number of elements in the data buffer.
      * For a dynamic shape, returns the maximum number of elements of the data buffer and assumes it
@@ -434,6 +485,8 @@ struct MIGRAPHX_EXPORT shape
      * Will clip to the maximum of size_t if overflows for dynamic shapes.
      */
     std::size_t element_space() const;
+
+    void debug_print() const;
 
     private:
     shape(std::shared_ptr<shape_impl> pimpl);

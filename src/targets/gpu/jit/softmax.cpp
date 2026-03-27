@@ -90,7 +90,7 @@ struct softmax_compiler : compiler<softmax_compiler>
             softmax_kernel,
             {{"transformers", make_transformer_args(vec)}, {"axis", to_string(axis)}});
 
-        return compile_hip_code_object(src, options);
+        return compile_hip_code_object(ctx, src, options);
     }
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,8 +34,8 @@ TEST_CASE(load_save_default)
     auto p2 = migraphx::load(filename.c_str());
     auto s2 = p2.get_output_shapes();
     EXPECT(s1.size() == s2.size());
-    EXPECT(bool{s1.front() == s2.front()});
-    EXPECT(bool{p1.sort() == p2.sort()});
+    EXPECT(s1.front() == s2.front());
+    EXPECT(p1.sort() == p2.sort());
     std::remove(filename.c_str());
 }
 
@@ -51,9 +51,20 @@ TEST_CASE(load_save_json)
     auto p2 = migraphx::load(filename.c_str(), options);
     auto s2 = p2.get_output_shapes();
     EXPECT(s1.size() == s2.size());
-    EXPECT(bool{s1.front() == s2.front()});
-    EXPECT(bool{p1.sort() == p2.sort()});
+    EXPECT(s1.front() == s2.front());
+    EXPECT(p1.sort() == p2.sort());
     std::remove(filename.c_str());
+}
+
+TEST_CASE(load_save_argument)
+{
+    migraphx::shape s1{migraphx_shape_float_type, {2, 2}};
+    std::vector<float> data{1, 2, 3, 4};
+    migraphx::argument a1{s1, data.data()};
+    migraphx::argument::save_argument(a1, "migraphx_api_load_save_argument.msgpack");
+    migraphx::argument a2 =
+        migraphx::argument::load_argument("migraphx_api_load_save_argument.msgpack");
+    EXPECT(a1 == a2);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

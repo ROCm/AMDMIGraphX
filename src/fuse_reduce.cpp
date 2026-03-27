@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -63,14 +63,18 @@ struct fused_reduce
         if(not sm->bypass())
             MIGRAPHX_THROW("fused_reduce: bypass flag is not set");
         auto names = sm->get_parameter_names();
-        check_shapes{inputs, *this}.has(names.size()).same_ndims();
+        check_shapes{inputs, *this, true}.has(names.size()).same_ndims();
         std::sort(names.begin(), names.end());
         auto shapes = sm->get_parameter_shapes();
         // Check dimension matches for each input
         if(not equal(names, inputs, [&](const auto& name, const auto& input) {
-               return shapes.at(name).lens() == input.lens();
+               auto s = shapes.at(name);
+               return shape::same_lens(input, s);
            }))
             MIGRAPHX_THROW("Input dimension does not match the submodule.");
+
+        if(sm->get_output_shapes().front().dynamic())
+            return sm->get_output_shapes().front();
 
         return shape::from_permutation(sm->get_output_shapes().front().type(),
                                        sm->get_output_shapes().front().lens(),
@@ -118,8 +122,19 @@ static void create_reduce_modules(module_pass_manager& mpm)
 
         rm->add_return(rm->fuse({ins}));
         auto v = ins->get_operator().to_value();
+
+        // handle argmin/argmax
+        std::vector<std::int64_t> axes;
+        if(v.contains("axes"))
+        {
+            axes = v["axes"].to_vector<std::int64_t>();
+        }
+        else if(v.contains("axis"))
+        {
+            axes = {v["axis"].to<std::int64_t>()};
+        }
         mpm.get_module().replace_instruction(
-            ins, make_op("fused_reduce", {{"axes", v["axes"]}}), ins->inputs(), {rm});
+            ins, make_op("fused_reduce", {{"axes", axes}}), ins->inputs(), {rm});
     }
 }
 
@@ -174,12 +189,56 @@ static auto any_input(Ms... ms)
     return match::any_of[match::inputs()](match::any(ms...).bind("input"));
 }
 
+static bool is_valid_broadcast(const instruction_ref b, std::vector<size_t> reduce_axes)
+{
+    const auto& blens    = b->get_shape().lens();
+    const auto& bstrides = b->get_shape().strides();
+    reduce_axes.erase(std::remove_if(reduce_axes.begin(),
+                                     reduce_axes.end(),
+                                     [&](size_t axis) { return blens.at(axis) == 1; }),
+                      reduce_axes.end());
+
+    std::vector<size_t> broadcast_axes;
+    copy_if(range(bstrides.size()), std::back_inserter(broadcast_axes), [&](size_t i) {
+        return bstrides.at(i) == 0 and blens.at(i) != 1;
+    });
+
+    return broadcast_axes == reduce_axes;
+}
+
+template <class M>
+static auto match_broadcast_axes(M m)
+{
+    return match::make_basic_fun_matcher(
+        [=](match::matcher_context& ctx, instruction_ref ins) -> optional<instruction_ref> {
+            optional<instruction_ref> result = m.match(ctx, ins);
+            if(contains(ctx.instructions, "broadcast"))
+            {
+                instruction_ref reduce;
+                if(ins->get_operator().name() == "fused_reduce")
+                {
+                    reduce = ins;
+                }
+                else
+                {
+                    assert(contains(ctx.instructions, "reduce"));
+                    reduce = ctx.instructions["reduce"];
+                }
+                auto axes      = reduce->get_operator().to_value().at("axes").to_vector<size_t>();
+                auto broadcast = ctx.instructions["broadcast"];
+                if(not is_valid_broadcast(broadcast, axes))
+                    return nullopt;
+            }
+            return result;
+        });
+}
+
 static auto match_broadcastable_input(const std::string& op, const std::string& name)
 {
     auto match_op                 = match::name(op)(used_once_except_broadcast()).bind(name);
     auto match_op_input           = any_input(match_op, match::used_once());
     auto broadcast_match_op_input = any_input(match_broadcast(match_op), match::used_once());
-    return match::any_of(match_op_input, broadcast_match_op_input);
+    return match::any_of(match_op_input, match_broadcast_axes(broadcast_match_op_input));
 }
 
 static void finalize_reduce_module(module_ref m)
@@ -354,6 +413,13 @@ struct reduce_reshape : rewrite_reshapes_base
         auto outs = sm->fuse(*oldm, inputs, nullptr, transform_op([&](const operation& sop) {
             if(contains(sop.name(), "reduce"))
                 return make_op(sop.name(), {{"axes", axes}});
+            // handle argmin/argmax
+            if(sop.name() == "argmin" or sop.name() == "argmax")
+            {
+                auto v    = sop.to_value();
+                v["axis"] = axes.front();
+                return make_op(sop.name(), v);
+            }
             if(sop.name() == "multibroadcast")
                 return make_op("multibroadcast", {{"out_lens", dims}});
             assert(sop.name() == "pointwise");

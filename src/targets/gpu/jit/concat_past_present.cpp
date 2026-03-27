@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -62,8 +62,7 @@ extern "C" {
 
 MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
-    transform_args(make_tensors())(${args})([](auto... xs) {
-        
+    transform_args(make_tensors(), rotate_last())(${args})([](auto... xs) {
         concat_past_present(xs..., make_gqa_parameters(${gqa_params}));
     });
 }
@@ -88,22 +87,21 @@ struct concat_past_present_compiler : compiler<concat_past_present_compiler>
         auto gqa_params_str = params.make_init_str();
 
         hip_compile_options options;
-        options.set_launch_params(v,
-                                  compute_global_for(ctx,
-                                                     2 * params.batch_size * params.kv_num_heads *
-                                                         params.sequence_length *
-                                                         params.head_size));
+        options.set_launch_params(
+            v,
+            compute_global_for(ctx,
+                               params.batch_size * params.kv_num_heads * params.sequence_length *
+                                   params.head_size));
         options.inputs      = inputs;
-        options.output      = inputs.front();
+        options.output      = inputs.back();
         options.kernel_name = v.get("kernel", "concat_past_present_kernel");
-        options.output_arg  = 0;
 
         auto src = interpolate_string(concat_past_present_kernel,
                                       {{"params", enum_params(inputs.size(), "void * private_p")},
                                        {"args", enum_params(inputs.size(), "private_p")},
                                        {"gqa_params", gqa_params_str},
                                        {"kernel", options.kernel_name}});
-        return compile_hip_code_object(src, options);
+        return compile_hip_code_object(ctx, src, options);
     }
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const

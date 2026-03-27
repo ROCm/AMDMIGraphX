@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -36,7 +36,7 @@
 #include <migraphx/verify.hpp>
 #include <test.hpp>
 
-void run_pass(migraphx::module& m)
+static void run_pass(migraphx::module& m)
 {
     migraphx::run_passes(m, {migraphx::rewrite_reduce{}, migraphx::dead_code_elimination{}});
 }
@@ -57,6 +57,52 @@ TEST_CASE(softmax)
         auto axes = ins->get_operator().to_value()["axes"].template to_vector<int64_t>();
         return axes.size() == 1 and axes[0] == 1;
     }));
+}
+
+TEST_CASE(softmax_upcast)
+{
+    migraphx::shape s{migraphx::shape::half_type, {10, 1000}};
+    migraphx::module m;
+    auto x       = m.add_parameter("x", s);
+    auto softmax = m.add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), x);
+    m.add_return({softmax});
+    run_pass(m);
+    EXPECT(none_of(migraphx::iterator_for(m), [](auto ins) { return ins->name() == "softmax"; }));
+
+    auto reduces = find_all(migraphx::iterator_for(m),
+                            [&](auto ins) { return migraphx::contains(ins->name(), "reduce"); });
+    EXPECT(all_of(reduces, [](auto ins) {
+        auto axes  = ins->get_operator().to_value()["axes"].template to_vector<int64_t>();
+        auto dtype = ins->get_shape().type();
+        return axes.size() == 1 and axes[0] == 1 and dtype == migraphx::shape::float_type;
+    }));
+}
+
+TEST_CASE(softmax_lse_upcast)
+{
+    migraphx::shape s{migraphx::shape::half_type, {10, 1000}};
+    migraphx::module m;
+    auto x    = m.add_parameter("x", s);
+    auto rmax = m.add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), x);
+    auto rmax_mb =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rmax);
+    auto sub  = m.add_instruction(migraphx::make_op("sub"), x, rmax_mb);
+    auto exp  = m.add_instruction(migraphx::make_op("exp"), sub);
+    auto rsum = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), exp);
+    auto rsum_mb =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsum);
+    auto div = m.add_instruction(migraphx::make_op("div"), exp, rsum_mb);
+    auto log = m.add_instruction(migraphx::make_op("log"), rsum);
+    auto add = m.add_instruction(migraphx::make_op("add"), log, rmax);
+    m.add_return({div, add});
+
+    run_pass(m);
+
+    auto reduces = find_all(migraphx::iterator_for(m),
+                            [&](auto ins) { return migraphx::contains(ins->name(), "reduce"); });
+    EXPECT(all_of(reduces,
+                  [](auto ins) { return ins->get_shape().type() == migraphx::shape::float_type; }));
+    EXPECT(all_of(m.get_returns(), [&](auto ins) { return ins->get_shape().type() == s.type(); }));
 }
 
 TEST_CASE(reduce_mean)
@@ -226,8 +272,7 @@ add_reduce_mean(migraphx::module& m, std::vector<std::size_t> axes, migraphx::in
     auto t      = input->get_shape().type();
     auto rl     = m.add_literal(migraphx::literal{{t, {1}}, {reduce_size}});
     auto div    = migraphx::add_common_op(m, migraphx::make_op("div"), {input, rl});
-    auto reduce = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), div);
-    return m.add_instruction(migraphx::make_op("convert", {{"target_type", t}}), reduce);
+    return m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), div);
 }
 
 TEST_CASE(reduce_mean_variance_sqdiff)
@@ -368,6 +413,34 @@ TEST_CASE(reduce_mean_variance_sqdiff_diff_axes)
         auto sqdiff   = m2.add_instruction(migraphx::make_op("sqdiff"), x, meanb);
         auto variance = add_reduce_mean(m2, {0, 2}, sqdiff);
         m2.add_return({mean, variance});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(logsoftmax)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 3, 9}};
+    migraphx::module m1;
+    {
+        auto x          = m1.add_parameter("x", s);
+        auto logsoftmax = m1.add_instruction(migraphx::make_op("logsoftmax", {{"axis", 2}}), x);
+        m1.add_return({logsoftmax});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x   = m2.add_parameter("x", s);
+        auto max = m2.add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), x);
+        auto maxb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), max);
+        auto sub = m2.add_instruction(migraphx::make_op("sub"), x, maxb);
+        auto exp = m2.add_instruction(migraphx::make_op("exp"), sub);
+        auto sum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), exp);
+        auto sumb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), sum);
+        auto div = m2.add_instruction(migraphx::make_op("div"), exp, sumb);
+        auto log = m2.add_instruction(migraphx::make_op("log"), div);
+        m2.add_return({log});
     }
     EXPECT(m1.sort() == m2.sort());
 }

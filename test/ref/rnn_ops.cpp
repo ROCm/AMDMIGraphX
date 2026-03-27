@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -111,8 +111,8 @@ TEST_CASE(rnn_forward)
         p.compile(migraphx::make_target("ref"));
 
         auto outputs = p.eval({});
-        auto res_hs  = outputs.front();
-        auto res_lho = outputs.back();
+        const auto& res_hs  = outputs.front();
+        const auto& res_lho = outputs.back();
 
         std::vector<float> hs_data;
         std::vector<float> lho_data;
@@ -184,8 +184,8 @@ TEST_CASE(rnn_forward)
 
         auto outputs = p.eval({});
 
-        auto arg_hs          = outputs.front();
-        auto arg_last_output = outputs.back();
+        const auto& arg_hs          = outputs.front();
+        const auto& arg_last_output = outputs.back();
         std::vector<float> last_output_data;
         std::vector<float> hs_data;
         arg_hs.visit([&](auto out) { hs_data.assign(out.begin(), out.end()); });
@@ -241,8 +241,8 @@ TEST_CASE(rnn_forward)
 
         auto outputs = p.eval({});
 
-        auto arg_hs          = outputs.front();
-        auto arg_last_output = outputs.back();
+        const auto& arg_hs          = outputs.front();
+        const auto& arg_last_output = outputs.back();
         std::vector<float> last_output_data;
         std::vector<float> hs_data;
         arg_hs.visit([&](auto out) { hs_data.assign(out.begin(), out.end()); });
@@ -434,8 +434,8 @@ TEST_CASE(rnn_forward_layout)
         p.compile(migraphx::make_target("ref"));
 
         auto outputs = p.eval({});
-        auto res_hs  = outputs.front();
-        auto res_lho = outputs.back();
+        const auto& res_hs  = outputs.front();
+        const auto& res_lho = outputs.back();
 
         std::vector<float> hs_data;
         std::vector<float> lho_data;
@@ -515,8 +515,8 @@ TEST_CASE(rnn_forward_layout)
         p.compile(migraphx::make_target("ref"));
 
         auto outputs         = p.eval({});
-        auto arg_hs          = outputs.front();
-        auto arg_last_output = outputs.back();
+        const auto& arg_hs          = outputs.front();
+        const auto& arg_last_output = outputs.back();
         std::vector<float> last_output_data;
         std::vector<float> hs_data;
         arg_hs.visit([&](auto out) { hs_data.assign(out.begin(), out.end()); });
@@ -580,8 +580,8 @@ TEST_CASE(rnn_forward_layout)
         p.compile(migraphx::make_target("ref"));
 
         auto outputs         = p.eval({});
-        auto arg_hs          = outputs.front();
-        auto arg_last_output = outputs.back();
+        const auto& arg_hs          = outputs.front();
+        const auto& arg_last_output = outputs.back();
         std::vector<float> last_output_data;
         std::vector<float> hs_data;
         arg_hs.visit([&](auto out) { hs_data.assign(out.begin(), out.end()); });
@@ -837,10 +837,10 @@ TEST_CASE(rnn_reverse)
         auto outputs = p.eval({});
         std::vector<float> hs_data;
         std::vector<float> last_output_data;
-        auto arg_hs = outputs.front();
+        const auto& arg_hs = outputs.front();
         arg_hs.visit([&](auto out) { hs_data.assign(out.begin(), out.end()); });
 
-        auto arg_lho = outputs.back();
+        const auto& arg_lho = outputs.back();
         arg_lho.visit([&](auto out) { last_output_data.assign(out.begin(), out.end()); });
 
         std::vector<float> hs_data_gold{
@@ -897,10 +897,10 @@ TEST_CASE(rnn_reverse)
         auto outputs = p.eval({});
         std::vector<float> hs_data;
         std::vector<float> last_output_data;
-        auto arg_hs = outputs.front();
+        const auto& arg_hs = outputs.front();
         arg_hs.visit([&](auto out) { hs_data.assign(out.begin(), out.end()); });
 
-        auto arg_lho = outputs.back();
+        const auto& arg_lho = outputs.back();
         arg_lho.visit([&](auto out) { last_output_data.assign(out.begin(), out.end()); });
         std::vector<float> hs_data_gold{-0.293853,
                                         0.167968,
@@ -1119,10 +1119,10 @@ TEST_CASE(rnn_reverse_layout)
         auto outputs = p.eval({});
         std::vector<float> hs_data;
         std::vector<float> last_output_data;
-        auto arg_hs = outputs.front();
+        const auto& arg_hs = outputs.front();
         arg_hs.visit([&](auto out) { hs_data.assign(out.begin(), out.end()); });
 
-        auto arg_lho = outputs.back();
+        const auto& arg_lho = outputs.back();
         arg_lho.visit([&](auto out) { last_output_data.assign(out.begin(), out.end()); });
 
         std::vector<float> hs_data_gold{
@@ -1187,10 +1187,10 @@ TEST_CASE(rnn_reverse_layout)
         auto outputs = p.eval({});
         std::vector<float> hs_data;
         std::vector<float> last_output_data;
-        auto arg_hs = outputs.front();
+        const auto& arg_hs = outputs.front();
         arg_hs.visit([&](auto out) { hs_data.assign(out.begin(), out.end()); });
 
-        auto arg_lho = outputs.back();
+        const auto& arg_lho = outputs.back();
         arg_lho.visit([&](auto out) { last_output_data.assign(out.begin(), out.end()); });
         std::vector<float> hs_data_gold{-0.293853,
                                         0.167968,
@@ -1290,8 +1290,8 @@ TEST_CASE(rnn_bidirectional)
         p.compile(migraphx::make_target("ref"));
 
         auto outputs = p.eval({});
-        auto arg_hs  = outputs.front();
-        auto arg_lho = outputs.back();
+        const auto& arg_hs  = outputs.front();
+        const auto& arg_lho = outputs.back();
 
         std::vector<float> hs_data;
         arg_hs.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -1359,8 +1359,8 @@ TEST_CASE(rnn_bidirectional)
         p.compile(migraphx::make_target("ref"));
 
         auto outputs = p.eval({});
-        auto arg_hs  = outputs.front();
-        auto arg_lho = outputs.back();
+        const auto& arg_hs  = outputs.front();
+        const auto& arg_lho = outputs.back();
 
         std::vector<float> hs_data;
         std::vector<float> last_output_data;
@@ -1615,8 +1615,8 @@ TEST_CASE(rnn_bidirectional_layout)
         p.compile(migraphx::make_target("ref"));
 
         auto outputs = p.eval({});
-        auto arg_hs  = outputs.front();
-        auto arg_lho = outputs.back();
+        const auto& arg_hs  = outputs.front();
+        const auto& arg_lho = outputs.back();
 
         std::vector<float> hs_data;
         arg_hs.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -1692,8 +1692,8 @@ TEST_CASE(rnn_bidirectional_layout)
         p.compile(migraphx::make_target("ref"));
 
         auto outputs = p.eval({});
-        auto arg_hs  = outputs.front();
-        auto arg_lho = outputs.back();
+        const auto& arg_hs  = outputs.front();
+        const auto& arg_lho = outputs.back();
 
         std::vector<float> hs_data;
         std::vector<float> last_output_data;
@@ -2965,8 +2965,8 @@ TEST_CASE(gru_reverse)
         p.compile(migraphx::make_target("ref"));
         auto outputs = p.eval({});
 
-        auto res_hs  = outputs.back();
-        auto res_lho = outputs.front();
+        const auto& res_hs  = outputs.back();
+        const auto& res_lho = outputs.front();
         std::vector<float> hs_data;
         std::vector<float> lho_data;
         res_hs.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -3027,8 +3027,8 @@ TEST_CASE(gru_reverse)
         p.compile(migraphx::make_target("ref"));
         auto outputs = p.eval({});
 
-        auto res_hs  = outputs.back();
-        auto res_lho = outputs.front();
+        const auto& res_hs  = outputs.back();
+        const auto& res_lho = outputs.front();
         std::vector<float> hs_data;
         std::vector<float> lho_data;
         res_hs.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -3286,8 +3286,8 @@ TEST_CASE(gru_reverse_layout)
         p.compile(migraphx::make_target("ref"));
         auto outputs = p.eval({});
 
-        auto res_hs  = outputs.back();
-        auto res_lho = outputs.front();
+        const auto& res_hs  = outputs.back();
+        const auto& res_lho = outputs.front();
         std::vector<float> hs_data;
         std::vector<float> lho_data;
         res_hs.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -3355,8 +3355,8 @@ TEST_CASE(gru_reverse_layout)
         p.compile(migraphx::make_target("ref"));
         auto outputs = p.eval({});
 
-        auto res_hs  = outputs.back();
-        auto res_lho = outputs.front();
+        const auto& res_hs  = outputs.back();
+        const auto& res_lho = outputs.front();
         std::vector<float> hs_data;
         std::vector<float> lho_data;
         res_hs.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -3600,8 +3600,8 @@ TEST_CASE(gru_bidirectional)
         mm->add_return({hs, lho});
         p.compile(migraphx::make_target("ref"));
         auto outputs   = p.eval({});
-        auto hs_concat = outputs.front();
-        auto res_lho   = outputs.back();
+        const auto& hs_concat = outputs.front();
+        const auto& res_lho   = outputs.back();
         std::vector<float> hs_data;
         std::vector<float> lho_data;
         hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -3665,8 +3665,8 @@ TEST_CASE(gru_bidirectional)
         mm->add_return({concat_hs, lho});
         p.compile(migraphx::make_target("ref"));
         auto outputs   = p.eval({});
-        auto hs_concat = outputs.front();
-        auto res_lho   = outputs.back();
+        const auto& hs_concat = outputs.front();
+        const auto& res_lho   = outputs.back();
         std::vector<float> hs_data;
         std::vector<float> lho_data;
         hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -3732,8 +3732,8 @@ TEST_CASE(gru_bidirectional)
         mm->add_return({concat_hs, lho});
         p.compile(migraphx::make_target("ref"));
         auto outputs   = p.eval({});
-        auto hs_concat = outputs.front();
-        auto res_lho   = outputs.back();
+        const auto& hs_concat = outputs.front();
+        const auto& res_lho   = outputs.back();
         std::vector<float> hs_data;
         std::vector<float> lho_data;
         hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -3916,8 +3916,8 @@ TEST_CASE(gru_bidirectional_layout)
         mm->add_return({hs, lho});
         p.compile(migraphx::make_target("ref"));
         auto outputs   = p.eval({});
-        auto hs_concat = outputs.front();
-        auto res_lho   = outputs.back();
+        const auto& hs_concat = outputs.front();
+        const auto& res_lho   = outputs.back();
         std::vector<float> hs_data;
         std::vector<float> lho_data;
         hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -3990,8 +3990,8 @@ TEST_CASE(gru_bidirectional_layout)
         mm->add_return({concat_hs, lho});
         p.compile(migraphx::make_target("ref"));
         auto outputs   = p.eval({});
-        auto hs_concat = outputs.front();
-        auto res_lho   = outputs.back();
+        const auto& hs_concat = outputs.front();
+        const auto& res_lho   = outputs.back();
         std::vector<float> hs_data;
         std::vector<float> lho_data;
         hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -4066,8 +4066,8 @@ TEST_CASE(gru_bidirectional_layout)
         mm->add_return({concat_hs, lho});
         p.compile(migraphx::make_target("ref"));
         auto outputs   = p.eval({});
-        auto hs_concat = outputs.front();
-        auto res_lho   = outputs.back();
+        const auto& hs_concat = outputs.front();
+        const auto& res_lho   = outputs.back();
         std::vector<float> hs_data;
         std::vector<float> lho_data;
         hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -7584,9 +7584,9 @@ TEST_CASE(lstm_bidirectional_var_seq_lens)
         p.compile(migraphx::make_target("ref"));
 
         auto outputs = p.eval({});
-        auto arg_hs  = outputs.front();
-        auto arg_lho = outputs.at(1);
-        auto arg_lco = outputs.at(2);
+        const auto& arg_hs  = outputs.front();
+        const auto& arg_lho = outputs.at(1);
+        const auto& arg_lco = outputs.at(2);
 
         std::vector<float> output_data;
         std::vector<float> last_output_data;
@@ -7670,9 +7670,9 @@ TEST_CASE(lstm_bidirectional_var_seq_lens)
         mm->add_return({hs, lho, lco});
         p.compile(migraphx::make_target("ref"));
         auto outputs = p.eval({});
-        auto res_hs  = outputs.at(0);
-        auto res_lho = outputs.at(1);
-        auto res_lco = outputs.at(2);
+        const auto& res_hs  = outputs.at(0);
+        const auto& res_lho = outputs.at(1);
+        const auto& res_lco = outputs.at(2);
         std::vector<float> hs_data;
         std::vector<float> lho_data;
         std::vector<float> lco_data;
@@ -7842,9 +7842,9 @@ TEST_CASE(lstm_bidirectional_var_seq_lens_layout)
         p.compile(migraphx::make_target("ref"));
 
         auto outputs = p.eval({});
-        auto arg_hs  = outputs.front();
-        auto arg_lho = outputs.at(1);
-        auto arg_lco = outputs.at(2);
+        const auto& arg_hs  = outputs.front();
+        const auto& arg_lho = outputs.at(1);
+        const auto& arg_lco = outputs.at(2);
 
         std::vector<float> output_data;
         std::vector<float> last_output_data;
@@ -7941,9 +7941,9 @@ TEST_CASE(lstm_bidirectional_var_seq_lens_layout)
         p.compile(migraphx::make_target("ref"));
 
         auto outputs = p.eval({});
-        auto res_hs  = outputs.at(0);
-        auto res_lho = outputs.at(1);
-        auto res_lco = outputs.at(2);
+        const auto& res_hs  = outputs.at(0);
+        const auto& res_lho = outputs.at(1);
+        const auto& res_lco = outputs.at(2);
         std::vector<float> hs_data;
         std::vector<float> lho_data;
         std::vector<float> lco_data;

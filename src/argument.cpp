@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,6 +23,8 @@
  */
 #include <migraphx/argument.hpp>
 #include <migraphx/functional.hpp>
+#include <migraphx/file_buffer.hpp>
+#include <migraphx/msgpack.hpp>
 #include <unordered_map>
 
 namespace migraphx {
@@ -87,6 +89,7 @@ void argument::assign_buffer(std::function<char*()> d)
         data_t result;
         if(ss.sub_shapes().empty())
         {
+            // cppcheck-suppress variableScope
             auto n = offsets[i];
             result = {[d, n]() mutable { return d() + n; }};
             i++;
@@ -151,6 +154,13 @@ argument argument::reshape(const shape& s) const
     return {s, this->m_data};
 }
 
+argument argument::convert(shape::type_t t) const
+{
+    argument result{this->get_shape().with_type(t)};
+    this->visit([&](auto x) { result.fill(x.begin(), x.end()); });
+    return result;
+}
+
 argument::data_t argument::data_t::share() const
 {
     data_t result;
@@ -204,6 +214,16 @@ argument argument::element(std::size_t i) const
     auto idx    = this->get_shape().index(i);
     auto offset = this->get_shape().type_size() * idx;
     return argument{shape{this->get_shape().type()}, this->data() + offset};
+}
+
+void save_argument(const argument& a, const std::string& filename)
+{
+    write_buffer(filename, to_msgpack(to_value(a)));
+}
+
+argument load_argument(const std::string& filename)
+{
+    return from_value<argument>(from_msgpack(read_buffer(filename)));
 }
 
 } // namespace MIGRAPHX_INLINE_NS

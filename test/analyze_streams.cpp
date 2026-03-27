@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -168,8 +168,8 @@ TEST_CASE(simple_race1)
     auto races = pm.analyze();
 
     EXPECT(races.size() == 1);
-    EXPECT(bool{races.front().ins == pass3});
-    EXPECT(bool{races.front().before == pass2});
+    EXPECT(races.front().ins == pass3);
+    EXPECT(races.front().before == pass2);
 }
 
 TEST_CASE(simple_race2)
@@ -183,8 +183,8 @@ TEST_CASE(simple_race2)
     auto races  = pm.analyze();
 
     EXPECT(races.size() == 1);
-    EXPECT(bool{races.front().ins == pass3});
-    EXPECT(bool{races.front().before == pass21});
+    EXPECT(races.front().ins == pass3);
+    EXPECT(races.front().before == pass21);
 }
 
 TEST_CASE(simple_race3)
@@ -198,8 +198,8 @@ TEST_CASE(simple_race3)
     auto races  = pm.analyze();
 
     EXPECT(races.size() == 1);
-    EXPECT(bool{races.front().ins == pass3});
-    EXPECT(bool{races.front().before == pass2});
+    EXPECT(races.front().ins == pass3);
+    EXPECT(races.front().before == pass2);
 }
 
 TEST_CASE(simple_race4)
@@ -214,8 +214,8 @@ TEST_CASE(simple_race4)
     auto races  = pm.analyze();
 
     EXPECT(races.size() == 1);
-    EXPECT(bool{races.front().ins == pass3});
-    EXPECT(bool{races.front().before == pass21});
+    EXPECT(races.front().ins == pass3);
+    EXPECT(races.front().before == pass21);
 }
 
 TEST_CASE(simple_race5)
@@ -230,8 +230,8 @@ TEST_CASE(simple_race5)
     auto races  = pm.analyze();
 
     EXPECT(races.size() == 1);
-    EXPECT(bool{races.front().ins == pass3});
-    EXPECT(bool{races.front().before == pass21});
+    EXPECT(races.front().ins == pass3);
+    EXPECT(races.front().before == pass21);
 }
 
 TEST_CASE(simple_race_record_wait_wrong_stream)
@@ -246,8 +246,8 @@ TEST_CASE(simple_race_record_wait_wrong_stream)
     auto races = pm.analyze();
 
     EXPECT(races.size() == 1);
-    EXPECT(bool{races.front().ins == pass3});
-    EXPECT(bool{races.front().before == pass2});
+    EXPECT(races.front().ins == pass3);
+    EXPECT(races.front().before == pass2);
 }
 
 TEST_CASE(simple_race_record_wait_same_stream1)
@@ -262,8 +262,8 @@ TEST_CASE(simple_race_record_wait_same_stream1)
     auto races = pm.analyze();
 
     EXPECT(races.size() == 1);
-    EXPECT(bool{races.front().ins == pass3});
-    EXPECT(bool{races.front().before == pass2});
+    EXPECT(races.front().ins == pass3);
+    EXPECT(races.front().before == pass2);
 }
 
 TEST_CASE(simple_race_record_wait_same_stream2)
@@ -278,8 +278,8 @@ TEST_CASE(simple_race_record_wait_same_stream2)
     auto races = pm.analyze();
 
     EXPECT(races.size() == 1);
-    EXPECT(bool{races.front().ins == pass3});
-    EXPECT(bool{races.front().before == pass2});
+    EXPECT(races.front().ins == pass3);
+    EXPECT(races.front().before == pass2);
 }
 
 TEST_CASE(simple_race_sync)
@@ -306,8 +306,8 @@ TEST_CASE(race_return)
     auto races = pm.analyze();
 
     EXPECT(races.size() == 1);
-    EXPECT(bool{races.front().ins == r});
-    EXPECT(bool{races.front().before == pass2});
+    EXPECT(races.front().ins == r);
+    EXPECT(races.front().before == pass2);
 }
 
 TEST_CASE(race_return_sync)
@@ -343,8 +343,8 @@ TEST_CASE(race_double_wait1)
     auto races = pm.analyze();
 
     EXPECT(races.size() == 1);
-    EXPECT(bool{races.front().ins == pass5});
-    EXPECT(bool{races.front().before == pass2});
+    EXPECT(races.front().ins == pass5);
+    EXPECT(races.front().before == pass2);
 }
 
 TEST_CASE(race_double_wait2)
@@ -366,8 +366,8 @@ TEST_CASE(race_double_wait2)
     auto races = pm.analyze();
 
     EXPECT(races.size() == 1);
-    EXPECT(bool{races.front().ins == pass4});
-    EXPECT(bool{races.front().before == pass2});
+    EXPECT(races.front().ins == pass4);
+    EXPECT(races.front().before == pass2);
 }
 
 TEST_CASE(race_double_wait3)
@@ -388,8 +388,8 @@ TEST_CASE(race_double_wait3)
     auto races = pm.analyze();
 
     EXPECT(races.size() == 1);
-    EXPECT(bool{races.front().ins == pass6});
-    EXPECT(bool{races.front().before == pass5});
+    EXPECT(races.front().ins == pass6);
+    EXPECT(races.front().before == pass5);
 }
 
 TEST_CASE(race_double_wait4)
@@ -411,8 +411,8 @@ TEST_CASE(race_double_wait4)
     auto races = pm.analyze();
 
     EXPECT(races.size() == 1);
-    EXPECT(bool{races.front().ins == pass6});
-    EXPECT(bool{races.front().before == pass4});
+    EXPECT(races.front().ins == pass6);
+    EXPECT(races.front().before == pass4);
 }
 
 TEST_CASE(race_double_wait_sync)
@@ -460,8 +460,8 @@ TEST_CASE(race_multi_wait1)
     auto races = pm.analyze();
 
     EXPECT(races.size() == 1);
-    EXPECT(bool{races.front().ins == pass6});
-    EXPECT(bool{races.front().before == pass5});
+    EXPECT(races.front().ins == pass6);
+    EXPECT(races.front().before == pass5);
 }
 
 TEST_CASE(race_multi_wait2)
@@ -487,8 +487,8 @@ TEST_CASE(race_multi_wait2)
     auto races = pm.analyze();
 
     EXPECT(races.size() == 1);
-    EXPECT(bool{races.front().ins == pass6});
-    EXPECT(bool{races.front().before == pass4});
+    EXPECT(races.front().ins == pass6);
+    EXPECT(races.front().before == pass4);
 }
 
 TEST_CASE(race_multi_wait3)
@@ -513,8 +513,8 @@ TEST_CASE(race_multi_wait3)
     auto races = pm.analyze();
 
     EXPECT(races.size() == 1);
-    EXPECT(bool{races.front().ins == pass4});
-    EXPECT(bool{races.front().before == pass1});
+    EXPECT(races.front().ins == pass4);
+    EXPECT(races.front().before == pass1);
 }
 
 TEST_CASE(race_multi_wait_sync)

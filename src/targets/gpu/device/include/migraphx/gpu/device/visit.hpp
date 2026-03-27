@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -98,6 +98,10 @@ template <>
 struct is_hip_type<std::int32_t> : std::true_type
 {
 };
+template <>
+struct is_hip_type<bf16> : std::true_type
+{
+};
 
 template <class T, class V, MIGRAPHX_REQUIRES(is_hip_type<typename T::type>{})>
 void hip_visitor_invoke(T as, V&& v)
@@ -146,7 +150,7 @@ struct hip_convert
 {
     F f;
     template <class RawData, class N, class As>
-    auto operator()(RawData x, N ndim, As as) const
+    auto operator()(const RawData& x, N ndim, As as) const
         -> decltype(make_hip_view<ndim>(x.get_shape(), f(as.from(x.data()))))
     {
         return make_hip_view<ndim>(x.get_shape(), f(as.from(x.data())));

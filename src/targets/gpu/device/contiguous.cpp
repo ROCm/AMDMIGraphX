@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,7 +30,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-void contiguous_nonstandard(hipStream_t stream, const argument& result, const argument& arg)
+static void contiguous_nonstandard(hipStream_t stream, const argument& result, const argument& arg)
 {
     shape s{result.get_shape().type(), result.get_shape().lens()};
     visit_all(result, arg)([&](auto output_v, auto input_v) {
@@ -41,7 +41,7 @@ void contiguous_nonstandard(hipStream_t stream, const argument& result, const ar
     });
 }
 
-void contiguous_packed(hipStream_t stream, const argument& result, const argument& arg)
+static void contiguous_packed(hipStream_t stream, const argument& result, const argument& arg)
 {
     index_int nelements = result.get_shape().elements();
     visit_all(result, arg)([&](auto output_v, auto input_v) {

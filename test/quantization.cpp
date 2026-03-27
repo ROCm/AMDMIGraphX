@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -38,7 +38,6 @@
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/pass_manager.hpp>
-#include <migraphx/onnx.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/argument.hpp>
@@ -1008,7 +1007,7 @@ TEST_CASE(conv_half)
 }
 
 template <class T>
-auto get_hash(const T& x)
+static auto get_hash(const T& x)
 {
     return std::hash<T>{}(x);
 }

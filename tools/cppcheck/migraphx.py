@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -223,7 +223,7 @@ def GotoStatement(cfg, data):
 
 @cppcheck.checker
 def LambdaAttribute(cfg, data):
-    for token in cfg.tokenlist:
+    for token in data.rawTokens:
         if token.str != ']':
             continue
         if not match(token, "] __device__|__host__ {|("):
@@ -253,7 +253,7 @@ def MutableVariable(cfg, data):
     for token in cfg.tokenlist:
         if token.str != 'mutable':
             continue
-        if not match(token, "mutable %var%"):
+        if not match(token, "mutable %name%"):
             continue
         cppcheck.reportError(token, "style",
                              "Do not create mutable variables.")
@@ -435,6 +435,8 @@ def MatcherNestedParentheses(cfg, data):
             continue
         for tok2 in token.tokAt(4).forward(token.linkAt(4)):
             if not simpleMatch(tok2, ") ) ) )"):
+                continue
+            if simpleMatch(tok2.link.previous, "bind"):
                 continue
             cppcheck.reportError(
                 tok2, "style",

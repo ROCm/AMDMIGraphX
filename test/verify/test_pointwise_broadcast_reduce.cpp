@@ -52,4 +52,6 @@ struct test_pointwise_broadcast_reduce : verify_program<test_pointwise_broadcast
         mm->add_return({reshape});
         return p;
     };
+
+    std::string section() const { return "reduce"; }
 };

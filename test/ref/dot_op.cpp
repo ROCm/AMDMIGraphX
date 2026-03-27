@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,7 +32,7 @@
 #include "test.hpp"
 
 template <class T>
-void dot_2d_test()
+static void dot_2d_test()
 {
     migraphx::program p;
 
@@ -85,7 +85,7 @@ TEST_CASE_REGISTER(dot_2d_test<float>)
 TEST_CASE_REGISTER(dot_2d_test<double>)
 
 template <class T>
-void dot_4d_test()
+static void dot_4d_test()
 {
     migraphx::program p;
 
@@ -137,7 +137,7 @@ void dot_4d_test()
 TEST_CASE_REGISTER(dot_4d_test<float>)
 TEST_CASE_REGISTER(dot_4d_test<double>)
 
-TEST_CASE(dot_3D_test)
+TEST_CASE(dot_3_d_test)
 {
     migraphx::program p;
 
@@ -190,7 +190,7 @@ TEST_CASE(dot_3D_test)
     EXPECT(migraphx::verify::verify_rms_range(m, gold));
 }
 
-TEST_CASE(dot_3D_C_test0)
+TEST_CASE(dot_3_d_c_test0)
 {
     migraphx::program p;
 
@@ -266,7 +266,7 @@ TEST_CASE(dot_3D_C_test0)
     EXPECT(migraphx::verify::verify_rms_range(m, gold));
 }
 
-TEST_CASE(dot_3D_C_test1)
+TEST_CASE(dot_3_d_c_test1)
 {
     migraphx::program p;
 
@@ -325,7 +325,7 @@ TEST_CASE(dot_3D_C_test1)
     EXPECT(migraphx::verify::verify_rms_range(m, gold));
 }
 
-TEST_CASE(dot_4D_test1)
+TEST_CASE(dot_4_d_test1)
 {
     migraphx::program p;
 
@@ -364,7 +364,7 @@ TEST_CASE(dot_4D_test1)
     EXPECT(migraphx::verify::verify_rms_range(m, gold));
 }
 
-TEST_CASE(dot_4D_alpha_beta_test)
+TEST_CASE(dot_4_d_alpha_beta_test)
 {
     migraphx::program p;
 
@@ -418,7 +418,7 @@ TEST_CASE(dot_4D_alpha_beta_test)
     EXPECT(migraphx::verify::verify_rms_range(m, gold));
 }
 
-TEST_CASE(dot_4D_alpha_beta_C_test)
+TEST_CASE(dot_4_d_alpha_beta_c_test)
 {
     migraphx::program p;
 
@@ -470,7 +470,7 @@ TEST_CASE(dot_4D_alpha_beta_C_test)
     EXPECT(migraphx::verify::verify_rms_range(m, gold));
 }
 
-TEST_CASE(dot_2D_C_test0)
+TEST_CASE(dot_2_d_c_test0)
 {
 
     migraphx::program p;
@@ -1169,7 +1169,7 @@ TEST_CASE(dot_mm2_4)
     EXPECT(migraphx::verify::verify_rms_range(m, gold));
 }
 
-TEST_CASE(dot_dyn_2D_test)
+TEST_CASE(dot_dyn_2_d_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -1221,7 +1221,7 @@ TEST_CASE(dot_dyn_2D_test)
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
-TEST_CASE(dot_dyn_4D_test)
+TEST_CASE(dot_dyn_4_d_test)
 {
     migraphx::program p;
 

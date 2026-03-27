@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -94,6 +94,7 @@ struct onnx_parser
     using op_func  = std::function<std::vector<instruction_ref>(
         onnx_parser&, const node_info&, std::vector<instruction_ref>)>;
     node_map nodes;
+    std::unordered_set<std::string> parent_input_nodes;
     std::unordered_map<std::string, instruction_ref> instructions;
     program prog                                   = program();
     shape::dynamic_dimension default_dyn_dim_value = {1, 1};
@@ -109,6 +110,8 @@ struct onnx_parser
     std::unordered_map<std::string, op_func> ops;
 
     onnx_parser();
+    value
+    load_to_value(const std::string& name, const node_info& info, bool use_operation = true) const;
     operation load(const std::string& name, const node_info& info) const;
 
     void parse_undefined(module* mod, const std::string& name);
@@ -123,6 +126,7 @@ struct onnx_parser
     literal parse_tensor(const onnx::TensorProto& t) const;
     shape parse_type(const onnx::TypeProto& t) const;
     shape parse_type(const onnx::TypeProto& t, const std::vector<std::size_t>& input_dims) const;
+    std::string to_string(const onnx::AttributeProto& attr) const;
 };
 
 shape::type_t get_type(int dtype);

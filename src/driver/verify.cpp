@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,16 +24,20 @@
 #include "verify.hpp"
 #include "perf.hpp"
 
-#include <migraphx/register_target.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/verify_args.hpp>
-#include <migraphx/instruction.hpp>
 #include <migraphx/compile_options.hpp>
+#include <migraphx/fp_to_double.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/load_save.hpp>
 #include <migraphx/quantization.hpp>
 #include <migraphx/ranges.hpp>
-#include <migraphx/fp_to_double.hpp>
-#include <migraphx/iterator_for.hpp>
+#include <migraphx/register_target.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/verify_args.hpp>
+#include <migraphx/simplify_qdq.hpp>
+#include <migraphx/dead_code_elimination.hpp>
+#include <utility>
 
 namespace migraphx {
 namespace driver {
@@ -41,20 +45,33 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 /**
  * Gives tolerances based on user input (`rms_tol`, `atol`, `rtol` parameters) and defaults.
- * Sets to fp16 tolerances if `quantize` input is fp16 or any fp16 instruction in found in the
+ * Sets to fp4 tolerances if any fp4x2_type is found.
+ * Else sets to fp16 tolerances if `quantize` input is fp16 or any fp16 instruction is found in the
  * model.
  */
 verify::tolerance get_tolerances(const program& p,
-                                 verify_options vo,
+                                 const verify_options& vo,
                                  std::optional<double> rms_tol,
                                  std::optional<double> atol,
                                  std::optional<double> rtol)
 {
-    bool has_fp16 = any_of(p.get_modules(), [](auto&& m) {
-        return any_of(*m, [](auto&& ins) { return (ins.get_shape().type() == shape::half_type); });
+    bool has_16bit = any_of(p.get_modules(), [](auto&& m) {
+        return any_of(*m, [](auto&& ins) {
+            return (ins.get_shape().type() == shape::half_type or
+                    ins.get_shape().type() == shape::bf16_type);
+        });
+    });
+    bool has_fp4   = any_of(p.get_modules(), [](auto&& m) {
+        return any_of(*m, [](auto&& ins) { return (ins.get_shape().type() == shape::fp4x2_type); });
     });
     migraphx::verify::tolerance result{};
-    if(has_fp16 or vo.quantize == precision::fp16)
+    if(has_fp4)
+    {
+        result.rms_tol = 8e-1;
+        result.atol    = 4e-1;
+        result.rtol    = 4e-1;
+    }
+    else if(has_16bit or vo.quantize == precision::fp16 or vo.quantize == precision::bf16)
     {
         result.rms_tol = 8e-2;
         result.atol    = 4e-2;
@@ -75,14 +92,15 @@ verify::tolerance get_tolerances(const program& p,
     return result;
 }
 
-std::vector<argument> run_ref(program p,
-                              const compile_options& options,
-                              const verify_options& vo,
-                              const parameter_map& inputs)
+static std::vector<argument> run_ref(program p,
+                                     const compile_options& options,
+                                     const verify_options& vo,
+                                     const parameter_map& inputs)
 {
     if(vo.ref_use_double)
     {
-        run_passes(p, {fp_to_double{}});
+        run_passes(
+            p, {fp_to_double{}, simplify_qdq{.remove_qdq_only = true}, dead_code_elimination{}});
     }
     p.compile(migraphx::make_target("ref"), options);
     auto out = p.eval(inputs);
@@ -90,17 +108,28 @@ std::vector<argument> run_ref(program p,
     return out;
 }
 
-std::vector<argument> run_target(program p,
-                                 const target& t,
-                                 const compile_options& options,
-                                 const verify_options& vo,
-                                 const parameter_map& inputs)
+static std::vector<argument> run_target(program p,
+                                        const target& t,
+                                        const compile_options& options,
+                                        const verify_options& vo,
+                                        const parameter_map& inputs)
 {
-    if(vo.quantize == precision::fp16)
+    if(vo.compiled_model.empty())
     {
-        quantize_fp16(p);
+        if(vo.quantize == precision::fp16)
+        {
+            quantize_fp16(p);
+        }
+        if(vo.quantize == precision::bf16)
+        {
+            quantize_bf16(p);
+        }
+        p.compile(t, options);
     }
-    p.compile(t, options);
+    else
+    {
+        p = load(vo.compiled_model);
+    }
 
     parameter_map m;
     for(auto&& x : p.get_parameter_shapes())
@@ -121,7 +150,7 @@ bool verify_program(const std::string& name,
                     const program& p,
                     const target& t,
                     compile_options options,
-                    verify_options vo,
+                    const verify_options& vo,
                     const parameter_map& inputs,
                     verify::tolerance tols)
 {
@@ -152,7 +181,7 @@ bool verify_program(const std::string& name,
 void verify_instructions(const program& prog,
                          const target& t,
                          compile_options options,
-                         verify_options vo,
+                         const verify_options& vo,
                          verify::tolerance tols)
 {
     const auto* mm_prog = prog.get_main_module();
@@ -194,13 +223,13 @@ void verify_instructions(const program& prog,
     }
 }
 
-bool verify_reduced(program p,
-                    int n,
-                    const target& t,
-                    compile_options options,
-                    verify_options vo,
-                    const parameter_map& inputs,
-                    verify::tolerance tols)
+static bool verify_reduced(program p,
+                           int n,
+                           const target& t,
+                           compile_options options,
+                           const verify_options& vo,
+                           const parameter_map& inputs,
+                           verify::tolerance tols)
 {
     auto* mm  = p.get_main_module();
     auto last = std::prev(mm->end(), n);
@@ -222,7 +251,7 @@ bool verify_reduced(program p,
 void verify_reduced_program(const program& p,
                             const target& t,
                             compile_options options,
-                            verify_options vo,
+                            const verify_options& vo,
                             const parameter_map& inputs,
                             verify::tolerance tols)
 {
@@ -295,7 +324,7 @@ static std::vector<std::size_t> find_trim_instructions(const module& m)
 void verify_bisected_program(const program& p,
                              const target& t,
                              compile_options options,
-                             verify_options vo,
+                             const verify_options& vo,
                              const parameter_map& inputs,
                              verify::tolerance tols)
 {

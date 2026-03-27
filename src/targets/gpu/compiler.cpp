@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/gpu/compiler.hpp>
+#include <migraphx/ranges.hpp>
 #include <utility>
 
 namespace migraphx {
@@ -37,7 +38,7 @@ struct compiler_handle
 };
 } // namespace
 
-auto& compiler_map()
+static auto& compiler_map()
 {
     static std::unordered_map<std::string, compiler_handle> m; // NOLINT
     return m;
@@ -55,17 +56,20 @@ bool has_compiler_for(const std::string& name) { return compiler_map().count(nam
 compiler_replace
 compile(context& ctx, instruction_ref ins, const operation& op, const value& solution)
 {
+    assert(contains(compiler_map(), op.name()));
     return compiler_map().at(op.name()).compile(ctx, ins, op, solution);
 }
 operation
 compile_op(const std::string& name, context& ctx, const std::vector<shape>& inputs, const value& v)
 {
+    assert(contains(compiler_map(), name));
     return compiler_map().at(name).compile_op(ctx, inputs, v);
 }
 
 optional<tuning_config>
 get_tuning_config(context& ctx, instruction_ref ins, const operation& op, bool exhaustive)
 {
+    assert(contains(compiler_map(), op.name()));
     return compiler_map().at(op.name()).get_tuning_config(ctx, ins, op, exhaustive);
 }
 

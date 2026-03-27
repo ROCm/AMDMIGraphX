@@ -77,7 +77,7 @@ struct gathernd_compiler : compiler<gathernd_compiler>
         auto batch_dims = v.at("batch_dims").to<int64_t>();
         options.emplace_param("-DBATCH_DIMS=" + std::to_string(batch_dims));
 
-        return compile_hip_code_object(gathernd_kernel, options);
+        return compile_hip_code_object(ctx, gathernd_kernel, options);
     }
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const

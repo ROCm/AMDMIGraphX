@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,34 +29,58 @@
 #include <migraphx/kernels/algorithm.hpp>
 #include <migraphx/kernels/ranges.hpp>
 #include <migraphx/kernels/vec.hpp>
+#include <migraphx/kernels/math.hpp>
 
 namespace migraphx {
 
-template <class Offsets, class Input, class Output, class PadVal>
+struct pad_constant
+{
+    constexpr diff_int operator()(diff_int idx, diff_int) const { return idx; }
+};
+struct pad_reflect
+{
+    constexpr diff_int operator()(diff_int idx, diff_int size) const
+    {
+        if(size <= 1)
+            return 0;
+
+        auto period = size - 1;
+
+        // Triangle wave: oscillates between 0 and period
+        // Handle negative indices by taking absolute value
+        auto mod_val = abs(idx) % (2 * period);
+        return (mod_val <= period) ? mod_val : (2 * period - mod_val);
+    }
+};
+struct pad_edge
+{
+    constexpr diff_int operator()(diff_int idx, diff_int size) const
+    {
+        return min(max(idx, 0), size - 1);
+    }
+};
+
+template <class Offsets, class Input, class Output, class PadVal, class PadMode>
 __device__ void pad(const index& idx,
                     const Offsets& offsets,
                     const Input& input,
                     Output& output,
-                    const PadVal& pad_val)
+                    const PadVal& pad_val,
+                    PadMode pad_mode)
 {
     auto output_shape = output.get_shape();
-    idx.global_stride(output_shape.elements(), [&](auto i) {
-        // 1. get current multi-index for output
-        // 2. get the size of the input to determine input boundaries
-        // 3. compute the corresponding multi-index for input by accounting for offsets
-        // 4. if current multi-index is within offsets or input's new multi-index is out of bounds,
-        //    use pad value instead of input's value
-        auto multi        = output_shape.multi(i);
-        auto input_bounds = input.get_shape().lens;
-        auto input_idx    = multi - offsets;
-        auto range_multi  = range(multi.size());
+    auto input_bounds = input.get_shape().lens.template to<diff_int>();
 
-        if(any_of(range_multi.begin(), range_multi.end(), [&](auto j) {
-               return multi[j] < offsets[j] or input_idx[j] >= input_bounds[j];
-           }))
-            output[multi] = implicit_conversion(pad_val);
+    idx.global_stride(output_shape.elements(), [&](auto gid) {
+        auto out_idx   = output_shape.multi(gid).template to<diff_int>();
+        auto input_idx = array_transform(out_idx - offsets, input_bounds)(pad_mode);
+        bool in_bounds = array_transform(input_idx, input_bounds)([&](auto i, auto bound) {
+                             return i < bound and i >= 0;
+                         }).all();
+        if(in_bounds)
+            output[out_idx] = implicit_conversion(input[input_idx]);
         else
-            output[multi] = implicit_conversion(input[input_idx]);
+            output[out_idx] = implicit_conversion(pad_val);
     });
 }
 

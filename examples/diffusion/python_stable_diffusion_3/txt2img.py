@@ -94,6 +94,14 @@ def get_args():
         help="Perform exhaustive tuning when compiling onnx models",
     )
 
+    parser.add_argument(
+        "--skip-t5",
+        action="store_true",
+        default=False,
+        help=
+        "Skip the third text encoder. Small accuracy penalty but large memory savings."
+    )
+
     # Runtime
     parser.add_argument(
         "-s",
@@ -207,8 +215,14 @@ def allocate_torch_tensors(model):
 
 
 class StableDiffusionMGX():
-    def __init__(self, onnx_model_path, compiled_model_path, fp16, batch,
-                 force_compile, exhaustive_tune):
+    def __init__(self,
+                 onnx_model_path,
+                 compiled_model_path,
+                 fp16,
+                 batch,
+                 force_compile=False,
+                 exhaustive_tune=False,
+                 skip_t5=False):
 
         self.scheduler = FlowMatchEulerDiscreteScheduler.from_pretrained(
             "stabilityai/stable-diffusion-3-medium-diffusers",
@@ -216,6 +230,7 @@ class StableDiffusionMGX():
 
         self.tokenizer = SD3Tokenizer()
         self.device = "cuda"
+        self.skip_t5 = skip_t5
 
         if fp16 is None:
             fp16 = []
@@ -254,15 +269,6 @@ class StableDiffusionMGX():
                 force_compile=force_compile,
                 exhaustive_tune=exhaustive_tune,
                 offload_copy=False),
-            "t5xxl":
-            StableDiffusionMGX.load_mgx_model(
-                "text_encoder_3", {"input_ids": [1, 77]},
-                onnx_model_path,
-                compiled_model_path=compiled_model_path,
-                use_fp16="clip" in fp16,
-                force_compile=force_compile,
-                exhaustive_tune=exhaustive_tune,
-                offload_copy=False),
             "mmdit":
             StableDiffusionMGX.load_mgx_model(
                 "transformer", {
@@ -283,7 +289,7 @@ class StableDiffusionMGX():
         self.tensors = {
             "clip-g": allocate_torch_tensors(self.models["clip-g"]),
             "clip-l": allocate_torch_tensors(self.models["clip-l"]),
-            "t5xxl": allocate_torch_tensors(self.models["t5xxl"]),
+            # "t5xxl": allocate_torch_tensors(self.models["t5xxl"]),
             "mmdit": allocate_torch_tensors(self.models["mmdit"]),
             "vae": allocate_torch_tensors(self.models["vae"]),
         }
@@ -291,10 +297,23 @@ class StableDiffusionMGX():
         self.model_args = {
             "clip-g": tensors_to_args(self.tensors['clip-g']),
             "clip-l": tensors_to_args(self.tensors['clip-l']),
-            "t5xxl": tensors_to_args(self.tensors['t5xxl']),
+            # "t5xxl": tensors_to_args(self.tensors['t5xxl']),
             "mmdit": tensors_to_args(self.tensors['mmdit']),
             "vae": tensors_to_args(self.tensors['vae']),
         }
+
+        if not self.skip_t5:
+            self.models["t5xxl"] = StableDiffusionMGX.load_mgx_model(
+                "text_encoder_3", {"input_ids": [1, 77]},
+                onnx_model_path,
+                compiled_model_path=compiled_model_path,
+                use_fp16="clip" in fp16,
+                force_compile=force_compile,
+                exhaustive_tune=exhaustive_tune,
+                offload_copy=False)
+            self.tensors["t5xxl"] = allocate_torch_tensors(
+                self.models["t5xxl"])
+            self.model_args["t5xxl"] = tensors_to_args(self.tensors['t5xxl'])
 
         self.events = {
             "warmup":
@@ -466,9 +485,17 @@ class StableDiffusionMGX():
     def get_embeddings(self, prompt_tokens):
         l_out, l_pooled = self.encode_token_weights("clip-l",
                                                     prompt_tokens["l"])
+        # stable-diffusion-3-lite-onnx has swapped outputs for clip-l text encoder
+        if l_out.shape != (1, 77, 768):
+            l_out, l_pooled = l_pooled, l_out
+
         g_out, g_pooled = self.encode_token_weights("clip-g",
                                                     prompt_tokens["g"])
-        t5_out, _ = self.encode_token_weights("t5xxl", prompt_tokens["t5xxl"])
+        if not self.skip_t5:
+            t5_out, _ = self.encode_token_weights("t5xxl",
+                                                  prompt_tokens["t5xxl"])
+        else:
+            t5_out = torch.zeros((1, 77, 4096)).cuda()
         lg_out = torch.cat([l_out, g_out], dim=-1)
         lg_out = torch.nn.functional.pad(lg_out, (0, 4096 - lg_out.shape[-1]))
 
@@ -539,8 +566,9 @@ class StableDiffusionMGX():
                          torch.ones((1, 77)).to(torch.int32))
         copy_tensor_sync(self.tensors["clip-g"]["input_ids"],
                          torch.ones((1, 77)).to(torch.int32))
-        copy_tensor_sync(self.tensors["t5xxl"]["input_ids"],
-                         torch.ones((1, 77)).to(torch.int32))
+        if not self.skip_t5:
+            copy_tensor_sync(self.tensors["t5xxl"]["input_ids"],
+                             torch.ones((1, 77)).to(torch.int32))
         copy_tensor_sync(
             self.tensors["mmdit"]["hidden_states"],
             torch.randn((2 * self.batch, 16, 128, 128)).to(torch.float))
@@ -558,7 +586,8 @@ class StableDiffusionMGX():
         for _ in range(num_runs):
             run_model_sync(self.models["clip-l"], self.model_args["clip-l"])
             run_model_sync(self.models["clip-g"], self.model_args["clip-g"])
-            run_model_sync(self.models["t5xxl"], self.model_args["t5xxl"])
+            if not self.skip_t5:
+                run_model_sync(self.models["t5xxl"], self.model_args["t5xxl"])
             run_model_sync(self.models["mmdit"], self.model_args["mmdit"])
             run_model_sync(self.models["vae"], self.model_args["vae"])
         self.profile_end("warmup")
@@ -569,7 +598,7 @@ if __name__ == "__main__":
 
     sd = StableDiffusionMGX(args.onnx_model_path, args.compiled_model_path,
                             args.fp16, args.batch, args.force_compile,
-                            args.exhaustive_tune)
+                            args.exhaustive_tune, args.skip_t5)
     print("Warmup")
     sd.warmup(5)
     print("Run")

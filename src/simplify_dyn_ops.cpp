@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,10 +24,10 @@
 #include <migraphx/simplify_dyn_ops.hpp>
 #include <migraphx/op/slice.hpp>
 #include <migraphx/op/onehot.hpp>
+#include <migraphx/op/resize.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/literal.hpp>
-#include <migraphx/op/resize.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/tensor_view.hpp>
 
@@ -39,7 +39,7 @@ inline namespace MIGRAPHX_INLINE_NS {
  *    into multibroadcast op with a static output shape attribute.
  *
  */
-struct find_broadcast_with_dims_static
+struct find_broadcast_with_dims_static : match::supports_dynamic_shapes
 {
     auto matcher() const
     {
@@ -64,25 +64,16 @@ struct find_broadcast_with_dims_static
 };
 
 /**
- * Convert a Resize op. with Nearest mode to an implementation using Gather op.
- * From:  resize[scales={...}/sizes={...},](static, constant)
- * To:
- * 0 = literal{ ... } computed_indices
- * ...
- * 2 = reshape[dims={45}](X) 1-dimensional
- * 3 = gather[axis=0](2,0)
+ * Convert a 2-input Resize op with constant scales/sizes to a 1-input Resize op
+ * with scales/sizes as attributes.
+ * From:  resize(data, constant_scales_or_sizes)
+ * To:    resize[scales={...}](data)  or  resize[sizes={...}](data)
  *
- * At the time of writing, this conversion is required for GPU targets because there
- * is not direct a GPU implementation of the Resize operation.
- * This matcher depends on a split_single_dyn_dim pass being run before it, which
- * will convert any dynamic-batch input to static inputs and make this conversion possible.
- *
- *   At time of writing, Resize allows either 1 or 2 inputs
- * but the 1-input case is never created by Onnx parsing.
+ * This enables subsequent passes (like rewrite_resize) to handle the resize
+ * with known output dimensions.
  */
-struct find_resize_static
+struct find_resize_static : match::supports_dynamic_shapes
 {
-
     auto matcher() const
     {
         return match::name("resize")(match::nargs(2),
@@ -96,66 +87,35 @@ struct find_resize_static
         auto inputs    = ins->inputs();
         auto resize_op = any_cast<op::resize>(ins->get_operator());
 
-        auto in_lens = inputs.at(0)->get_shape().lens();
-        std::vector<size_t> sizes_vec(inputs.at(0)->get_shape().ndim());
-        std::vector<float> scales_vec(inputs.at(0)->get_shape().ndim());
-        //  populate both scales and sizes for the benefit of the algorithm.
+        // Determine if input is sizes (integral) or scales (floating point)
+        // and create the appropriate 1-input resize op
+        operation new_resize;
         inputs.at(1)->eval().visit([&](auto input) {
             using type = typename decltype(input)::value_type;
             if constexpr(std::is_integral<type>{})
             {
-                // read output sizes and use them to compute scales
-                sizes_vec.assign(input.begin(), input.end());
-                std::transform(
-                    input.begin(),
-                    input.end(),
-                    in_lens.begin(),
-                    scales_vec.begin(),
-                    [](auto sz, size_t in_len) { return static_cast<float>(sz) / in_len; });
+                // Input is output sizes
+                std::vector<size_t> sizes_vec(input.begin(), input.end());
+                new_resize = make_op(
+                    "resize",
+                    {{"sizes", sizes_vec},
+                     {"nearest_mode", resize_op.nearest_mode},
+                     {"mode", resize_op.mode},
+                     {"coordinate_transformation_mode", resize_op.coordinate_transformation_mode}});
             }
             else
             {
-                // read scales and use them to compute output sizes
-                scales_vec.assign(input.begin(), input.end());
-                std::transform(
-                    input.begin(),
-                    input.end(),
-                    in_lens.begin(),
-                    sizes_vec.begin(),
-                    [](auto sz, size_t in_len) { return static_cast<size_t>(sz * in_len); });
+                // Input is scales
+                std::vector<float> scales_vec(input.begin(), input.end());
+                new_resize = make_op(
+                    "resize",
+                    {{"scales", scales_vec},
+                     {"nearest_mode", resize_op.nearest_mode},
+                     {"mode", resize_op.mode},
+                     {"coordinate_transformation_mode", resize_op.coordinate_transformation_mode}});
             }
         });
-
-        auto in_s = inputs.at(0)->get_shape();
-        shape out_s{in_s.type(), sizes_vec};
-
-        std::vector<int> ind(out_s.elements());
-
-        // map out_idx to in_idx
-        auto nearest_op = op::resize::get_nearest_op(resize_op.nearest_mode);
-        auto idx_op     = op::resize::get_original_idx_op(resize_op.coordinate_transformation_mode);
-
-        shape_for_each(out_s, [&](const auto& out_idx_v, size_t out_idx) {
-            std::vector<size_t> in_idx(out_idx_v.size());
-            for(auto ii = 0; ii < in_lens.size(); ++ii)
-            {
-                auto idx_val = idx_op(in_lens[ii], sizes_vec[ii], out_idx_v[ii], scales_vec[ii]);
-                in_idx[ii]   = nearest_op(in_lens[ii], idx_val);
-            }
-
-            ind[out_idx] = static_cast<int64_t>(in_s.index(in_idx));
-        });
-
-        // reshape input to one-dimension
-        std::vector<int64_t> rsp_lens = {static_cast<int64_t>(in_s.elements())};
-        auto reshape_op               = make_op("reshape", {{"dims", rsp_lens}});
-        auto rsp                      = m.insert_instruction(ins, reshape_op, ins->inputs().at(0));
-
-        // Add our computed indices as a literal.
-        // ins_ind is a multi dimensional index that will restore original rank
-        shape ind_s{shape::int32_type, sizes_vec};
-        auto ins_ind = m.add_literal(literal(ind_s, ind));
-        m.replace_instruction(ins, make_op("gather", {{"axis", 0}}), rsp, ins_ind);
+        m.replace_instruction(ins, new_resize, inputs.at(0));
     }
 };
 
@@ -168,7 +128,7 @@ struct find_resize_static
  * To:
  * broadcast_op(argument_with_static_shape); broadcast_op.out_lens = constant_output_dims
  */
-struct find_static_2in_broadcasts
+struct find_static_2in_broadcasts : match::supports_dynamic_shapes
 {
     auto matcher() const
     {
@@ -201,7 +161,7 @@ struct find_static_2in_broadcasts
  * To:
  * slice(data); slice.starts, slice.ends. slice.axes set
  */
-struct find_const_2in_slice
+struct find_const_2in_slice : match::supports_dynamic_shapes
 {
     auto matcher() const
     {
@@ -255,7 +215,7 @@ struct find_const_2in_slice
  * To:
  * slice(data); slice.starts, slice.ends. slice.axes set
  */
-struct find_const_3in_slice
+struct find_const_3in_slice : match::supports_dynamic_shapes
 {
     auto matcher() const
     {
@@ -266,10 +226,10 @@ struct find_const_3in_slice
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto ins            = mr.result;
-        auto inputs         = ins->inputs();
-        auto slice_op       = any_cast<op::slice>(ins->get_operator());
-        auto set_attrs      = slice_op.get_set_attributes();
+        auto ins       = mr.result;
+        auto inputs    = ins->inputs();
+        auto slice_op  = any_cast<op::slice>(ins->get_operator());
+        auto set_attrs = slice_op.get_set_attributes();
         std::vector<int64_t> starts_vec;
         std::vector<int64_t> ends_vec;
         std::vector<int64_t> axes_vec;
@@ -314,7 +274,7 @@ struct find_const_3in_slice
  * To:
  * slice(data); slice.starts, slice.ends. slice.axes set
  */
-struct find_const_4in_slice
+struct find_const_4in_slice : match::supports_dynamic_shapes
 {
     auto matcher() const
     {
@@ -351,7 +311,7 @@ struct find_const_4in_slice
  * Simplify dimensions_of to a literal when the input arugment has a static shape
  * or the dynamic dimensions from `start` to `end` are fixed.
  */
-struct find_static_dimensions_of
+struct find_static_dimensions_of : match::supports_dynamic_shapes
 {
     auto matcher() const { return match::name("dimensions_of")(); }
 
@@ -366,7 +326,7 @@ struct find_static_dimensions_of
         {
             // check if dynamic dimensions from start to end are fixed
             auto dds = input->get_shape().dyn_dims();
-            if(std::any_of(dds.begin() + start, dds.begin() + end, [](auto dd) {
+            if(std::any_of(dds.begin() + start, dds.begin() + end, [](const auto& dd) {
                    return not dd.is_fixed();
                }))
             {
@@ -396,7 +356,7 @@ struct find_static_dimensions_of
  * To:
  * reshape(data); reshape.dims = constant_output_dims
  */
-struct find_const_alloc_reshapes
+struct find_const_alloc_reshapes : match::supports_dynamic_shapes
 {
     auto matcher() const
     {
@@ -430,7 +390,7 @@ struct find_const_alloc_reshapes
  * To:
  * literal
  */
-struct find_const_alloc_fill
+struct find_const_alloc_fill : match::supports_dynamic_shapes
 {
     auto matcher() const
     {
@@ -454,7 +414,7 @@ struct find_const_alloc_fill
  * To:
  * multibroadcast(static_shape_arg); output_lens = static_broadcast_for_doted_shape
  */
-struct find_static_broadcast_for_dot
+struct find_static_broadcast_for_dot : match::supports_dynamic_shapes
 {
     auto matcher() const
     {
@@ -496,7 +456,7 @@ struct find_static_broadcast_for_dot
  * (on_value - off_value) * mask + off_value when we have `fill` working
  * on the GPU.
  */
-struct find_static_onehot
+struct find_static_onehot : match::supports_dynamic_shapes
 {
     auto matcher() const
     {
@@ -530,7 +490,7 @@ struct find_static_onehot
             depth_ins->eval().visit([&](auto d) { depth_val = d[0]; });
             values_ins = onehot_inputs[2];
         }
-        shape values_shape  = values_ins->get_shape();
+        shape values_shape                          = values_ins->get_shape();
         std::vector<std::size_t> static_output_lens = indices_shape.lens();
         auto normalized_axis =
             (onehot_op.axis < 0) ? onehot_op.axis + indices_shape.ndim() + 1 : onehot_op.axis;
@@ -574,7 +534,7 @@ struct find_static_onehot
  * This version ignores dynamic_dimension opt values.
  * Intended to be run after the other simplify_dyn_ops passes.
  */
-struct simplify_select_module_output_shape
+struct simplify_select_module_output_shape : match::supports_dynamic_shapes
 {
     auto matcher() const { return match::name("select_module"); }
 
@@ -592,7 +552,7 @@ struct simplify_select_module_output_shape
         auto shapes_ndim  = get_shapes_ndim(all_output_shapes.front());
         auto shapes_types = get_shapes_types(all_output_shapes.front());
         if(std::any_of(
-               all_output_shapes.begin() + 1, all_output_shapes.end(), [&](auto out_shapes) {
+               all_output_shapes.begin() + 1, all_output_shapes.end(), [&](const auto& out_shapes) {
                    bool same_types = get_shapes_types(out_shapes) == shapes_types;
                    bool same_ndim  = get_shapes_ndim(out_shapes) == shapes_ndim;
                    return not same_types or not same_ndim;

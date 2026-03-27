@@ -28,6 +28,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/builtin.hpp>
+#include <migraphx/stringutils.hpp>
 #include <onnx.pb.h>
 #include <algorithm>
 #include <unordered_map>
@@ -182,6 +183,14 @@ void add_node(onnx::GraphProto* graph,
         {
             node->add_output(ins_uids.at(ins) + "->" + ins_uids.at(output_ins));
         }
+    }
+
+    if(not ins->get_debug_symbols().empty())
+    {
+        auto* attr = node->add_attribute();
+        attr->set_name("debug symbols");
+        attr->set_type(onnx::AttributeProto::STRING);
+        attr->set_s(join_strings(ins->get_debug_symbols(), ", "));
     }
 }
 

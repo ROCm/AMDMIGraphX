@@ -66,6 +66,9 @@ endif()
 option(MIGRAPHX_USE_ROCBLAS "Enable MIGraphX to use rocBLAS" ON)
 option(MIGRAPHX_USE_HIPBLASLT "Enable MIGraphX to use hipBLASLt" ON)
 
+set(MIGRAPHX_PACKAGE_BACKEND "default" CACHE STRING "Package dependency naming: default, pre-installed, therock")
+set_property(CACHE MIGRAPHX_PACKAGE_BACKEND PROPERTY STRINGS default pre-installed therock)
+
 if(MIGRAPHX_USE_HIPBLASLT AND NOT MIGRAPHX_USE_ROCBLAS)
     message(FATAL_ERROR "hipBLASLt requires rocBLAS, but MIGRAPHX_USE_ROCBLAS is OFF")
 endif()
@@ -376,25 +379,48 @@ foreach(py_file ${backend_files})
     configure_file(${py_file} ${DEST_DIR}/lib/onnx_migraphx/. COPYONLY)
 endforeach(py_file)
 
-if(BUILD_ADDRESS_SANITIZER)
-    set(DEPENDS_HIP_RUNTIME "hip-runtime-amd-asan" )
+if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "pre-installed")
+    # Pre-installed: libraries exist in /opt/rocm but not registered in dpkg
+    set(DEPENDS_HIP_RUNTIME "")
+    set(PACKAGE_HALF "")
+
+elseif(MIGRAPHX_PACKAGE_BACKEND STREQUAL "therock")
+    # STILL IN RFC, TheRock with amdrocm-xxx packages based on RFC0009-OS-Packaging-Requirements
+    # WILL BE CHANGED when RFC is approved
+    set(DEPENDS_HIP_RUNTIME "amdrocm-runtimes") # In RFC, asan variant keeps the same name as the regular variant
+    set(PACKAGE_HALF "")
+    if(MIGRAPHX_USE_MIOPEN)
+        list(APPEND PACKAGE_DEPENDS amdrocm-dnn)
+    endif()
+    if(MIGRAPHX_USE_ROCBLAS OR MIGRAPHX_USE_HIPBLASLT)
+        list(APPEND PACKAGE_DEPENDS amdrocm-blas)
+    endif()
+
 else()
-    set(DEPENDS_HIP_RUNTIME "hip-runtime-amd" )
+    # Default ROCm (default for ROCM packaging)
+    if(BUILD_ADDRESS_SANITIZER)
+        set(DEPENDS_HIP_RUNTIME "hip-runtime-amd-asan")
+    else()
+        set(DEPENDS_HIP_RUNTIME "hip-runtime-amd")
+    endif()
+    set(PACKAGE_HALF "half")
+    if(MIGRAPHX_USE_MIOPEN)
+        list(APPEND PACKAGE_DEPENDS miopen-hip)
+    endif()
+    if(MIGRAPHX_USE_ROCBLAS)
+        list(APPEND PACKAGE_DEPENDS rocblas)
+    endif()
+    if(MIGRAPHX_USE_HIPBLASLT)
+        list(APPEND PACKAGE_DEPENDS hipblaslt)
+    endif()
 endif()
 
-if(MIGRAPHX_USE_MIOPEN)
-    list(APPEND PACKAGE_DEPENDS miopen-hip)
+if(NOT MIGRAPHX_PACKAGE_BACKEND STREQUAL "pre-installed")
+    rocm_package_add_deb_dependencies(SHARED_DEPENDS
+        "$<IF:$<STREQUAL:${MIGRAPHX_PACKAGE_BACKEND},therock>,amdrocm-runtimes-devel,hip-dev>")
+    rocm_package_add_rpm_dependencies(SHARED_DEPENDS
+        "$<IF:$<STREQUAL:${MIGRAPHX_PACKAGE_BACKEND},therock>,amdrocm-runtimes-devel,hip-devel>")
 endif()
-if(MIGRAPHX_USE_ROCBLAS)
-    list(APPEND PACKAGE_DEPENDS rocblas)
-endif()
-
-if(MIGRAPHX_USE_HIPBLASLT)
-    list(APPEND PACKAGE_DEPENDS hipblaslt)
-endif()
-
-rocm_package_add_deb_dependencies(SHARED_DEPENDS "hip-dev")
-rocm_package_add_rpm_dependencies(SHARED_DEPENDS "hip-devel")
 
 rocm_create_package(
     NAME MIGraphX
@@ -402,5 +428,5 @@ rocm_create_package(
     MAINTAINER "AMDMIGraphX Maintainer <migraphx-lib.support@amd.com>"
     LDCONFIG
     PTH
-    DEPENDS ${DEPENDS_HIP_RUNTIME} half ${PACKAGE_DEPENDS}
+    DEPENDS ${DEPENDS_HIP_RUNTIME} ${PACKAGE_HALF} ${PACKAGE_DEPENDS}
 )

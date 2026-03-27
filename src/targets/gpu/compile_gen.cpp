@@ -409,6 +409,11 @@ void reduce_op::set(instruction_ref ins, const operation& op)
         set(rop.name(), input, output);
         read = "compose(array_apply(" + read + "), MIGRAPHX_LIFT(make_array))";
     }
+    else if(op.name() == "gpu::mul_reduce_sum")
+    {
+        reduction = "op::sum{}";
+        read      = "MIGRAPHX_LIFT(vec_dot)";
+    }
     else if(op.name() == "gpu::arg_reduce")
     {
         // extract the inner argmin/argmax operation

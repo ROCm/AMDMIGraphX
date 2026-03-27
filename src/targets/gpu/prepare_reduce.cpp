@@ -30,6 +30,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/identity.hpp>
+#include <migraphx/stringutils.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -98,6 +99,29 @@ struct make_indices
 };
 MIGRAPHX_REGISTER_OP(make_indices);
 
+struct mul_reduce_sum
+{
+    std::vector<std::int64_t> axes{};
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.axes, "axes"));
+    }
+
+    std::string name() const { return "gpu::mul_reduce_sum"; }
+
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        auto s    = inputs.front();
+        auto lens = s.lens();
+        for(auto a : axes)
+            lens[a] = 1;
+        return s.with_lens(lens);
+    }
+};
+MIGRAPHX_REGISTER_OP(mul_reduce_sum);
+
 namespace {
 
 // find argmin/argmax operations
@@ -139,7 +163,7 @@ std::vector<instruction_ref> find_reduce(module& m)
     std::vector<instruction_ref> result;
     auto im = iterator_for(m);
     std::copy_if(im.begin(), im.end(), std::back_inserter(result), [](auto ins) {
-        if(contains({"gpu::parallel_reduce", "reduce_mean", "gpu::arg_reduce"}, ins->name()))
+        if(contains({"gpu::parallel_reduce", "reduce_mean", "gpu::arg_reduce", "gpu::mul_reduce_sum"}, ins->name()))
             return false;
         return contains(ins->name(), "reduce");
     });
@@ -160,6 +184,33 @@ std::vector<instruction_ref> find_parallel_reduce(const std::vector<instruction_
         },
         [](auto x) { return *x; });
     return result;
+}
+
+bool is_only_mul(const module& m)
+{
+    return std::count_if(m.begin(), m.end(), [](const auto& ins) {
+               return not starts_with(ins.name(), "@");
+           }) == 1 and
+           std::any_of(
+               m.begin(), m.end(), [](const auto& ins) { return ins.name() == "mul"; });
+}
+
+void rewrite_mul_reduce_sum(module& m)
+{
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() != "reduce_sum")
+            continue;
+        auto pw = ins->inputs().front();
+        if(pw->name() != "pointwise")
+            continue;
+        if(not is_only_mul(*pw->module_inputs().front()))
+            continue;
+        auto axes = ins->get_operator().to_value()["axes"].to_vector<std::int64_t>();
+        auto mrs  = m.insert_instruction(
+            ins, mul_reduce_sum{std::move(axes)}, pw->inputs());
+        m.replace_instruction(ins, mrs);
+    }
 }
 
 void fuse_reductions(module& m)
@@ -196,6 +247,7 @@ void prepare_reduce::apply(module& m) const
 {
     // rewrite argmin/argmax to handle tuples
     rewrite_arg_reduce(m);
+    rewrite_mul_reduce_sum(m);
     fuse_reductions(m);
 }
 

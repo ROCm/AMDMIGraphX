@@ -192,6 +192,18 @@ constexpr auto vec_generate(F f)
     return sequence_c<N>([&](auto... is) { return safe_vec<type, N>{f(is)...}; });
 }
 
+template <class T, class U>
+constexpr auto vec_dot(T x, U y)
+{
+    return vec_reduce(x * y, [](auto a, auto b) { return a + b; });
+}
+
+// Overload for half2 using hardware dot product builtin
+inline __device__ float vec_dot(vec<half, 2> x, vec<half, 2> y)
+{
+    return __builtin_amdgcn_fdot2(x, y, 0.0f, false);
+}
+
 template <class T>
 struct implicit_conversion_op
 {

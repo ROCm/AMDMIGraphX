@@ -421,6 +421,63 @@ static expr_ptr make_mul(const expr_ptr& a, const expr_ptr& b)
     return build_mul(coefficient, std::move(factors));
 }
 
+static expr_ptr try_cancel_single(const mul_data& da, const expr_ptr& b)
+{
+    auto it = da.factors.find(b);
+    if(it == da.factors.end())
+        return nullptr;
+    factor_map reduced = da.factors;
+    if(it->second == 1)
+        reduced.erase(it->first);
+    else
+        reduced[it->first] = it->second - 1;
+    return build_mul(da.coefficient, std::move(reduced));
+}
+
+static expr_ptr try_div_int_over_add(const add_data& d, int64_t den)
+{
+    if(d.constant % den != 0)
+        return nullptr;
+    bool all_divisible = std::all_of(
+        d.terms.begin(), d.terms.end(), [&](const auto& p) { return p.second % den == 0; });
+    if(not all_divisible)
+        return nullptr;
+    term_map divided = d.terms;
+    for(auto& [base, coeff] : divided)
+        coeff /= den;
+    return build_add(d.constant / den, std::move(divided));
+}
+
+static expr_ptr
+try_cancel_factors(const mul_data& da, const mul_data& db, const expr_ptr& a, const expr_ptr& b)
+{
+    factor_map reduced_num = da.factors;
+    factor_map reduced_den = db.factors;
+    for(auto it_den = reduced_den.begin(); it_den != reduced_den.end();)
+    {
+        auto it_num = reduced_num.find(it_den->first);
+        if(it_num == reduced_num.end())
+        {
+            ++it_den;
+            continue;
+        }
+        int64_t cancel = std::min(it_num->second, it_den->second);
+        it_num->second -= cancel;
+        it_den->second -= cancel;
+        if(it_num->second == 0)
+            reduced_num.erase(it_num);
+        if(it_den->second == 0)
+            it_den = reduced_den.erase(it_den);
+        else
+            ++it_den;
+    }
+    auto new_num = build_mul(da.coefficient, std::move(reduced_num));
+    auto new_den = build_mul(db.coefficient, std::move(reduced_den));
+    if(not expr_equal(new_num, a) or not expr_equal(new_den, b))
+        return make_trunc_div(new_num, new_den);
+    return nullptr;
+}
+
 static expr_ptr make_trunc_div(const expr_ptr& a, const expr_ptr& b)
 {
     if(holds<integer_data>(a) and get_integer(a) == 0)
@@ -446,68 +503,26 @@ static expr_ptr make_trunc_div(const expr_ptr& a, const expr_ptr& b)
         }
         if(holds<add_data>(a))
         {
-            const auto& d      = get_add(a);
-            bool all_divisible = (d.constant % den == 0);
-            if(all_divisible)
-            {
-                all_divisible = std::all_of(d.terms.begin(), d.terms.end(), [&](const auto& p) {
-                    return p.second % den == 0;
-                });
-            }
-            if(all_divisible)
-            {
-                term_map divided = d.terms;
-                for(auto& [base, coeff] : divided)
-                    coeff /= den;
-                return build_add(d.constant / den, std::move(divided));
-            }
+            auto r = try_div_int_over_add(get_add(a), den);
+            if(r != nullptr)
+                return r;
         }
     }
 
     if(holds<mul_data>(a))
     {
         const auto& da = get_mul(a);
-
         if(holds<mul_data>(b))
         {
-            const auto& db         = get_mul(b);
-            factor_map reduced_num = da.factors;
-            factor_map reduced_den = db.factors;
-            for(auto it_den = reduced_den.begin(); it_den != reduced_den.end();)
-            {
-                auto it_num = reduced_num.find(it_den->first);
-                if(it_num == reduced_num.end())
-                {
-                    ++it_den;
-                    continue;
-                }
-                int64_t cancel = std::min(it_num->second, it_den->second);
-                it_num->second -= cancel;
-                it_den->second -= cancel;
-                if(it_num->second == 0)
-                    reduced_num.erase(it_num);
-                if(it_den->second == 0)
-                    it_den = reduced_den.erase(it_den);
-                else
-                    ++it_den;
-            }
-            auto new_num = build_mul(da.coefficient, std::move(reduced_num));
-            auto new_den = build_mul(db.coefficient, std::move(reduced_den));
-            if(not expr_equal(new_num, a) or not expr_equal(new_den, b))
-                return make_trunc_div(new_num, new_den);
+            auto r = try_cancel_factors(da, get_mul(b), a, b);
+            if(r != nullptr)
+                return r;
         }
         else
         {
-            auto it = da.factors.find(b);
-            if(it != da.factors.end())
-            {
-                factor_map reduced = da.factors;
-                if(it->second == 1)
-                    reduced.erase(it->first);
-                else
-                    reduced[it->first] = it->second - 1;
-                return build_mul(da.coefficient, std::move(reduced));
-            }
+            auto r = try_cancel_single(da, b);
+            if(r != nullptr)
+                return r;
         }
     }
 

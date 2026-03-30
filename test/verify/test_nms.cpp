@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,9 +26,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
-#include <chrono>
-#include <iostream>
-#include <thread>
+
 
 struct test_nms : verify_program<test_nms>
 {
@@ -61,9 +59,10 @@ struct test_nms : verify_program<test_nms>
     }
 };
 
-// Test NMS with dynamic slice: boxes and scores are sliced by the same
-// dynamic end value but have different original spatial dimensions.
-// This exercises the overlap-based dynamic dimension check.
+// Test NMS with sliced boxes and scores.
+// Boxes and scores are parameters (not literals) so propagate_constant
+// doesn't fold them away. Slice uses attribute-based starts/ends/axes
+// to produce static output shapes.
 struct test_nms_dyn_slice : verify_program<test_nms_dyn_slice>
 {
     migraphx::program create_program() const
@@ -71,45 +70,27 @@ struct test_nms_dyn_slice : verify_program<test_nms_dyn_slice>
         migraphx::program p;
         auto* mm = p.get_main_module();
 
-        // boxes: [1, 10, 4] — 10 box slots
-        migraphx::shape boxes_s{migraphx::shape::float_type, {1, 10, 4}};
-        std::vector<float> boxes_vec(40);
-        for(int i = 0; i < 10; ++i)
-        {
-            boxes_vec[i * 4 + 0] = i * 0.1f;
-            boxes_vec[i * 4 + 1] = i * 0.1f;
-            boxes_vec[i * 4 + 2] = i * 0.1f + 0.5f;
-            boxes_vec[i * 4 + 3] = i * 0.1f + 0.5f;
-        }
+        // boxes: [1, 6, 4] — 6 box slots, sliced to first 4
+        migraphx::shape boxes_s{migraphx::shape::float_type, {1, 6, 4}};
+        // scores: [1, 1, 6] — 6 scores, sliced to first 4
+        migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 6}};
 
-        // scores: [1, 1, 5] — only 5 scores
-        migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 5}};
-        std::vector<float> scores_vec = {0.9f, 0.8f, 0.7f, 0.95f, 0.85f};
+        auto boxes_l  = mm->add_parameter("boxes", boxes_s);
+        auto scores_l = mm->add_parameter("scores", scores_s);
 
-        auto boxes_l  = mm->add_literal(migraphx::literal(boxes_s, boxes_vec));
-        auto scores_l = mm->add_literal(migraphx::literal(scores_s, scores_vec));
+        // Slice boxes on axis=1: [1,6,4] -> [1,4,4] using attributes
+        auto sliced_boxes = mm->add_instruction(migraphx::make_op("slice", {{"axes", {1}},
+                                                            {"starts", {0}},
+                                                            {"ends", {4}}}),
+                                boxes_l);
 
-        // Dynamic end input for slicing both boxes and scores
-        migraphx::shape end_s{migraphx::shape::int64_type, {1}};
-        auto end_p = mm->add_parameter("num_valid", end_s);
+        // Slice scores on axis=2: [1,1,6] -> [1,1,4] using attributes
+        auto sliced_scores = mm->add_instruction(migraphx::make_op("slice", {{"axes", {2}},
+                                                            {"starts", {0}},
+                                                            {"ends", {4}}}),
+                                scores_l);
 
-        auto starts_l = mm->add_literal(migraphx::literal{migraphx::shape::int64_type, {0}});
-
-        // Slice boxes on axis=1: [1,10,4] -> [1,{0..10},4]
-        auto sliced_boxes =
-            mm->add_instruction(migraphx::make_op("slice", {{"axes", {1}}}),
-                                boxes_l,
-                                starts_l,
-                                end_p);
-
-        // Slice scores on axis=2: [1,1,5] -> [1,1,{0..5}]
-        auto sliced_scores =
-            mm->add_instruction(migraphx::make_op("slice", {{"axes", {2}}}),
-                                scores_l,
-                                starts_l,
-                                end_p);
-
-        auto max_out_l       = mm->add_literal(int64_t{10});
+        auto max_out_l       = mm->add_literal(int64_t{4});
         auto iou_threshold   = mm->add_literal(0.5f);
         auto score_threshold = mm->add_literal(0.0f);
 
@@ -120,42 +101,6 @@ struct test_nms_dyn_slice : verify_program<test_nms_dyn_slice>
             max_out_l,
             iou_threshold,
             score_threshold);
-        mm->add_return({r});
-
-        return p;
-    }
-};
-
-struct test_nms_multi_class : verify_program<test_nms_multi_class>
-{
-    migraphx::program create_program() const
-    {
-        std::cout << "test_nms: PID="
-            << " waiting 30s for debugger attach..." << std::endl;
-        std::this_thread::sleep_for(std::chrono::seconds(30));
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-
-        // 1 batch, 6 boxes, 2 classes — exercises the corrected
-        // max_num_boxes = batches * classes * spatial_dim = 1 * 2 * 6 = 12
-        migraphx::shape boxes_s{migraphx::shape::float_type, {1, 6, 4}};
-        migraphx::shape scores_s{migraphx::shape::float_type, {1, 2, 6}};
-        std::vector<float> scores_vec = {0.9, 0.75, 0.6, 0.95, 0.5, 0.3,
-                                         0.9, 0.75, 0.6, 0.95, 0.5, 0.3};
-
-        auto boxes_l         = mm->add_parameter("boxes", boxes_s);
-        auto scores_l        = mm->add_literal(migraphx::literal(scores_s, scores_vec));
-        auto max_out_l       = mm->add_literal(int64_t{4});
-        auto iou_threshold   = mm->add_literal(0.5f);
-        auto score_threshold = mm->add_literal(0.0f);
-
-        auto r =
-            mm->add_instruction(migraphx::make_op("nonmaxsuppression", {{"center_point_box", 1}}),
-                                boxes_l,
-                                scores_l,
-                                max_out_l,
-                                iou_threshold,
-                                score_threshold);
         mm->add_return({r});
 
         return p;

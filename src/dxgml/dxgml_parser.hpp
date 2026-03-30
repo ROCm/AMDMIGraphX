@@ -29,47 +29,48 @@
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/shape.hpp>
 
-// MLIR C API — no LLVM headers needed
-#include <mlir-c/IR.h>
-
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <cstdint>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 /// Internal DxGML MLIR-to-MIGraphX parser.
-/// Uses the MLIR C API so it does not require DxGML or LLVM C++ headers.
-/// Dialect registration is performed by DxgmlIRCreateContext() from dxgml_ir.dll.
+///
+/// Implements a hand-rolled text parser for DxGML MLIR files.  No MLIR C API
+/// or dialect registration is required — all parsing is done directly from the
+/// printed text using the well-defined DxGML grammar subset.
 struct dxgml_parser
 {
     dxgml_options opts;
     program prog;
     module* mm = nullptr;
 
-    /// SSA value id → instruction_ref, populated as we walk ops.
-    std::unordered_map<intptr_t, instruction_ref> value_map;
+    /// SSA name → instruction_ref (populated as we walk ops).
+    std::unordered_map<std::string, instruction_ref> value_map;
 
     /// Parse DxGML MLIR text and populate `prog`.
     void parse_from_string(const std::string& mlir_text);
 
-    // Accessible from parse_ops.cpp helpers
-    shape mlir_type_to_shape(MlirType t) const;
-    shape::type_t mlir_element_type_to_migraphx(MlirType elem_type) const;
-    std::vector<std::size_t> get_dense_int_vec(MlirAttribute a) const;
-    int64_t get_int_scalar(MlirAttribute a) const;
+    // Helpers used by parse_ops.cpp
+    shape parse_tensor_type(const std::string& type_str) const;
+    shape::type_t parse_element_type(const std::string& elem_str) const;
+    std::vector<std::size_t> parse_dense_int_vec(const std::string& attr_str) const;
+    int64_t parse_int_scalar(const std::string& attr_str) const;
+    std::string get_attr_str(const std::string& attrs_block, const std::string& key) const;
 
     private:
-    void parse_entry_point(MlirOperation ep);
-    void parse_op(MlirOperation op);
+    void parse_entry_point(const std::string& sig_line, const std::string& body);
+    void parse_op_line(const std::string& result_name, const std::string& op_name,
+                       const std::string& operands_str, const std::string& attrs_block,
+                       const std::string& type_sig);
 
     instruction_ref parse_dxgml_op(const std::string& name,
-                                   MlirOperation op,
-                                   const std::vector<instruction_ref>& inputs);
-
-    /// Stable integer id for an SSA value (use pointer as-is: values are unique).
-    static intptr_t value_id(MlirValue v) { return reinterpret_cast<intptr_t>(v.ptr); }
+                                   const std::string& operands_str,
+                                   const std::string& attrs_block,
+                                   const std::string& type_sig);
 };
 
 } // namespace MIGRAPHX_INLINE_NS

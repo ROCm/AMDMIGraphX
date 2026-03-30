@@ -39,6 +39,26 @@ struct dxgml_options
     bool skip_unknown_operators = false;
     /// If true, print the partial program to stderr when an error occurs.
     bool print_program_on_error = false;
+
+    // ---------------------------------------------------------------------------
+    // Dump flags — each causes the program to be printed to stderr after the
+    // corresponding stage completes.  These are orthogonal and can be combined.
+    // ---------------------------------------------------------------------------
+
+    /// Dump the MIGraphX op graph immediately after DxGML parsing (before any
+    /// lowering or optimization passes).
+    bool dump_migraphx_ops = false;
+
+    /// Dump the MIGraphX MLIR-dialect representation after it has been generated
+    /// by the rocMLIR dialect lowering pass (requires the GPU target to be set).
+    bool dump_migraphx_dialect = false;
+
+    /// Dump the final GPU-lowered program (after program::compile() completes).
+    bool dump_gpu = false;
+
+    /// Dump the ISA / device assembly produced by the GPU back-end.
+    /// On AMD hardware this is the GCN/RDNA assembly embedded in the code object.
+    bool dump_isa = false;
 };
 
 /// Parse a DxGML MLIR dialect file (.mlir) and return a MIGraphX program.

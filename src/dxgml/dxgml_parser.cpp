@@ -26,121 +26,99 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/module.hpp>
 
-// MLIR C API — type/attribute access
-#include <mlir-c/IR.h>
-#include <mlir-c/BuiltinTypes.h>
-#include <mlir-c/BuiltinAttributes.h>
-
-#include <mutex>
 #include <string>
-#include <cstring>
-
-#ifdef MIGRAPHX_DXGML_HAS_IR_LIB
-// DxGML C++ dialect headers — typed attribute/type API (Option 2)
-// Unwrap MlirContext (C API opaque ptr) → mlir::MLIRContext* for C++ dialect registration
-#include <mlir/CAPI/IR.h>
-#include <mlir/IR/MLIRContext.h>
-
-// DxGML dialect registration
-#include <dxgml/dxgml_dialect.h>      // mlir::dxgml::DxGMLDialect
-#include <dxgmlOp/DxgmlOpDialect.h>   // mlir::dxgml_op::DxGMLOpDialect
-
-// DxGML typed attribute classes
-#include <dxgml/dxgml_attributes.h>   // DenseIntegerElementsAttr, IntegerAttr, ConstantResourceAttr
-
-// DxGML typed type classes
-#include <dxgml/dxgml_types.h>        // TensorType, Float16Type, Int8Type, etc.
-#endif // MIGRAPHX_DXGML_HAS_IR_LIB
+#include <sstream>
+#include <vector>
+#include <cctype>
+#include <algorithm>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 // ---------------------------------------------------------------------------
-// Helper: convert MlirStringRef to std::string
+// Text helpers
 // ---------------------------------------------------------------------------
-static std::string to_str(MlirStringRef sr)
+
+static std::string trim(const std::string& s)
 {
-    return std::string(sr.data, sr.length);
+    auto b = s.find_first_not_of(" \t\r\n");
+    if(b == std::string::npos)
+        return {};
+    auto e = s.find_last_not_of(" \t\r\n");
+    return s.substr(b, e - b + 1);
 }
 
-// ---------------------------------------------------------------------------
-// Helper: print an MlirAttribute/MlirType to a std::string (fallback path)
-// ---------------------------------------------------------------------------
-static void print_callback(MlirStringRef chunk, void* user)
+static bool starts_with(const std::string& s, const std::string& prefix)
 {
-    static_cast<std::string*>(user)->append(chunk.data, chunk.length);
+    return s.size() >= prefix.size() && s.compare(0, prefix.size(), prefix) == 0;
 }
 
-static std::string attr_to_string(MlirAttribute a)
+// Strip a line-comment (// ...) from a string (respects quoted strings minimally).
+static std::string strip_line_comment(const std::string& s)
 {
-    std::string s;
-    mlirAttributePrint(a, print_callback, &s);
+    bool in_str = false;
+    for(std::size_t i = 0; i < s.size(); ++i)
+    {
+        if(s[i] == '"')
+            in_str = !in_str;
+        if(!in_str && s[i] == '/' && i + 1 < s.size() && s[i + 1] == '/')
+            return s.substr(0, i);
+    }
     return s;
 }
 
-static std::string type_to_string(MlirType t)
+// Find the matching closing delimiter for the opening bracket at position `start`.
+// Handles nested delimiters of the same type (e.g., nested {}).
+// open_ch / close_ch: e.g., '{'/'}' or '('/')' or '<'/'>'.
+static std::size_t find_matching(const std::string& s,
+                                 std::size_t start,
+                                 char open_ch,
+                                 char close_ch)
 {
-    std::string s;
-    mlirTypePrint(t, print_callback, &s);
-    return s;
+    int depth = 0;
+    for(std::size_t i = start; i < s.size(); ++i)
+    {
+        if(s[i] == open_ch)
+            ++depth;
+        else if(s[i] == close_ch)
+        {
+            --depth;
+            if(depth == 0)
+                return i;
+        }
+    }
+    return std::string::npos;
 }
 
 // ---------------------------------------------------------------------------
-// Element type → MIGraphX shape::type_t
+// Type parsing
 // ---------------------------------------------------------------------------
 
-#ifdef MIGRAPHX_DXGML_HAS_IR_LIB
-// Typed path (Option 2): use llvm::isa<> on the mlir::Type (C++ wrapper of MlirType)
-static shape::type_t dxgml_cpp_elem_to_migraphx(mlir::Type t)
+// "!dxgml.float32" | "f32" | "!dxgml.float16" | "f16" | ...
+shape::type_t dxgml_parser::parse_element_type(const std::string& raw) const
 {
-    if(llvm::isa<mlir::dxgml::Float32Type>(t))  return shape::float_type;
-    if(llvm::isa<mlir::dxgml::Float16Type>(t))  return shape::half_type;
-    if(llvm::isa<mlir::dxgml::BFloat16Type>(t)) return shape::bf16_type;
-    if(llvm::isa<mlir::dxgml::Float64Type>(t))  return shape::double_type;
-    if(llvm::isa<mlir::dxgml::Int8Type>(t))     return shape::int8_type;
-    if(llvm::isa<mlir::dxgml::Int16Type>(t))    return shape::int16_type;
-    if(llvm::isa<mlir::dxgml::Int32Type>(t))    return shape::int32_type;
-    if(llvm::isa<mlir::dxgml::Int64Type>(t))    return shape::int64_type;
-    if(llvm::isa<mlir::dxgml::UInt8Type>(t))    return shape::uint8_type;
-    if(llvm::isa<mlir::dxgml::UInt16Type>(t))   return shape::uint16_type;
-    if(llvm::isa<mlir::dxgml::UInt32Type>(t))   return shape::uint32_type;
-    if(llvm::isa<mlir::dxgml::UInt64Type>(t))   return shape::uint64_type;
-    if(llvm::isa<mlir::dxgml::BoolType>(t))     return shape::bool_type;
-    // Quantized/narrow float types — map to nearest supported MIGraphX type
-    if(llvm::isa<mlir::dxgml::Int4Type>(t) || llvm::isa<mlir::dxgml::Int2Type>(t))
-        return shape::int8_type;   // narrower int → promote to int8
-    if(llvm::isa<mlir::dxgml::UInt4Type>(t) || llvm::isa<mlir::dxgml::UInt2Type>(t))
-        return shape::uint8_type;
-    MIGRAPHX_THROW("DxGML: unsupported element type: " + [&]{
-        std::string s;
-        mlirTypePrint({t.getImpl()}, print_callback, &s);
-        return s;
-    }());
-}
-#endif // MIGRAPHX_DXGML_HAS_IR_LIB
-
-// Fallback string-based element type mapping (Option 3, no dxgml.lib)
-static shape::type_t dxgml_elem_str_to_migraphx(const std::string& elem)
-{
-    if(elem == "!dxgml.float32" || elem == "f32")        return shape::float_type;
-    if(elem == "!dxgml.float16" || elem == "f16")        return shape::half_type;
-    if(elem == "!dxgml.bfloat16" || elem == "bf16")      return shape::bf16_type;
-    if(elem == "!dxgml.float64" || elem == "f64")        return shape::double_type;
-    if(elem == "!dxgml.int8")                            return shape::int8_type;
-    if(elem == "!dxgml.int16")                           return shape::int16_type;
-    if(elem == "!dxgml.int32")                           return shape::int32_type;
-    if(elem == "!dxgml.int64")                           return shape::int64_type;
-    if(elem == "!dxgml.uint8")                           return shape::uint8_type;
-    if(elem == "!dxgml.uint16")                          return shape::uint16_type;
-    if(elem == "!dxgml.uint32")                          return shape::uint32_type;
-    if(elem == "!dxgml.uint64")                          return shape::uint64_type;
-    if(elem == "!dxgml.bool")                            return shape::bool_type;
-    MIGRAPHX_THROW("DxGML: unsupported element type string: " + elem);
+    std::string e = trim(raw);
+    if(e == "!dxgml.float32" || e == "f32")   return shape::float_type;
+    if(e == "!dxgml.float16" || e == "f16")   return shape::half_type;
+    if(e == "!dxgml.bfloat16" || e == "bf16") return shape::bf16_type;
+    if(e == "!dxgml.float64" || e == "f64")   return shape::double_type;
+    if(e == "!dxgml.int8"  || e == "i8")      return shape::int8_type;
+    if(e == "!dxgml.int16" || e == "i16")     return shape::int16_type;
+    if(e == "!dxgml.int32" || e == "i32")     return shape::int32_type;
+    if(e == "!dxgml.int64" || e == "i64")     return shape::int64_type;
+    if(e == "!dxgml.uint8"  || e == "ui8")    return shape::uint8_type;
+    if(e == "!dxgml.uint16" || e == "ui16")   return shape::uint16_type;
+    if(e == "!dxgml.uint32" || e == "ui32")   return shape::uint32_type;
+    if(e == "!dxgml.uint64" || e == "ui64")   return shape::uint64_type;
+    if(e == "!dxgml.bool")                    return shape::bool_type;
+    MIGRAPHX_THROW("DxGML: unsupported element type: " + e);
 }
 
-// Parse "!dxgml.tensor<AxBxCx!dxgml.float16>" into a shape (string-based fallback)
-static shape parse_dxgml_tensor_type_str(const std::string& ts)
+// Parse "!dxgml.tensor<AxBx...x!dxgml.float16>" or "!dxgml.tensor<1x512x3000x!dxgml.float16>"
+// Returns the corresponding MIGraphX shape.
+shape dxgml_parser::parse_tensor_type(const std::string& ts) const
 {
+    // Find '<' ... '>'
     auto lt = ts.find('<');
     auto gt = ts.rfind('>');
     if(lt == std::string::npos || gt == std::string::npos || gt <= lt)
@@ -148,24 +126,24 @@ static shape parse_dxgml_tensor_type_str(const std::string& ts)
 
     std::string inner = ts.substr(lt + 1, gt - lt - 1);
 
+    // Tokenise by 'x', but only when the token so far doesn't start with '!'
+    // (element type tokens start with '!').
     std::vector<std::string> tokens;
+    std::string tok;
+    for(char c : inner)
     {
-        std::string tok;
-        for(char c : inner)
+        if(c == 'x' && !tok.empty() && tok.find('!') == std::string::npos)
         {
-            if(c == 'x' && !tok.empty() && tok.find('!') == std::string::npos)
-            {
-                tokens.push_back(tok);
-                tok.clear();
-            }
-            else
-            {
-                tok += c;
-            }
-        }
-        if(!tok.empty())
             tokens.push_back(tok);
+            tok.clear();
+        }
+        else
+        {
+            tok += c;
+        }
     }
+    if(!tok.empty())
+        tokens.push_back(tok);
 
     if(tokens.size() < 2)
         MIGRAPHX_THROW("DxGML: cannot parse tensor type: " + ts);
@@ -175,118 +153,81 @@ static shape parse_dxgml_tensor_type_str(const std::string& ts)
 
     std::vector<std::size_t> lens;
     for(const auto& t : tokens)
-        lens.push_back(static_cast<std::size_t>(std::stoull(t)));
+        lens.push_back(static_cast<std::size_t>(std::stoull(trim(t))));
 
-    return shape{dxgml_elem_str_to_migraphx(elem), lens};
-}
-
-// ---------------------------------------------------------------------------
-// Type conversion from MlirType → migraphx::shape
-// ---------------------------------------------------------------------------
-
-shape dxgml_parser::mlir_type_to_shape(MlirType t) const
-{
-#ifdef MIGRAPHX_DXGML_HAS_IR_LIB
-    // Option 2: typed DxGML C++ API — mlir::Type is a value-type wrapping the impl ptr
-    mlir::Type cpp_type = mlir::Type::getFromOpaquePointer(t.ptr);
-    if(auto tt = llvm::dyn_cast<mlir::dxgml::TensorType>(cpp_type))
-    {
-        llvm::ArrayRef<int64_t> sizes = tt.getSizes();
-        std::vector<std::size_t> lens(sizes.begin(), sizes.end());
-        mlir::Type dtype = tt.getDtype();
-        return shape{dxgml_cpp_elem_to_migraphx(dtype), lens};
-    }
-    // Also handle standard MLIR RankedTensorType (unlikely in DxGML but defensive)
-    if(mlirTypeIsARankedTensor(t))
-    {
-        intptr_t rank = mlirShapedTypeGetRank(t);
-        std::vector<std::size_t> lens;
-        for(intptr_t i = 0; i < rank; ++i)
-            lens.push_back(static_cast<std::size_t>(mlirShapedTypeGetDimSize(t, i)));
-        MlirType elem = mlirShapedTypeGetElementType(t);
-        return shape{mlir_element_type_to_migraphx(elem), lens};
-    }
-    MIGRAPHX_THROW("DxGML: unsupported type: " + type_to_string(t));
-#else
-    // Option 3 fallback: string-based parsing
-    if(mlirTypeIsARankedTensor(t))
-    {
-        intptr_t rank = mlirShapedTypeGetRank(t);
-        std::vector<std::size_t> lens;
-        for(intptr_t i = 0; i < rank; ++i)
-            lens.push_back(static_cast<std::size_t>(mlirShapedTypeGetDimSize(t, i)));
-        MlirType elem = mlirShapedTypeGetElementType(t);
-        return shape{mlir_element_type_to_migraphx(elem), lens};
-    }
-    return parse_dxgml_tensor_type_str(type_to_string(t));
-#endif
-}
-
-shape::type_t dxgml_parser::mlir_element_type_to_migraphx(MlirType elem_type) const
-{
-    // Standard MLIR built-in float/int types (always available via C API)
-    if(mlirTypeIsAF32(elem_type))  return shape::float_type;
-    if(mlirTypeIsAF16(elem_type))  return shape::half_type;
-    if(mlirTypeIsABF16(elem_type)) return shape::bf16_type;
-    if(mlirTypeIsAF64(elem_type))  return shape::double_type;
-    if(mlirTypeIsAInteger(elem_type))
-    {
-        unsigned w      = mlirIntegerTypeGetWidth(elem_type);
-        bool is_uns     = mlirIntegerTypeIsUnsigned(elem_type);
-        if(w == 8  && !is_uns)  return shape::int8_type;
-        if(w == 16 && !is_uns)  return shape::int16_type;
-        if(w == 32 && !is_uns)  return shape::int32_type;
-        if(w == 64 && !is_uns)  return shape::int64_type;
-        if(w == 8  && is_uns)   return shape::uint8_type;
-        if(w == 16 && is_uns)   return shape::uint16_type;
-        if(w == 32 && is_uns)   return shape::uint32_type;
-        if(w == 64 && is_uns)   return shape::uint64_type;
-    }
-#ifdef MIGRAPHX_DXGML_HAS_IR_LIB
-    // DxGML-specific scalar types
-    mlir::Type cpp_type = mlir::Type::getFromOpaquePointer(elem_type.ptr);
-    return dxgml_cpp_elem_to_migraphx(cpp_type);
-#else
-    return dxgml_elem_str_to_migraphx(type_to_string(elem_type));
-#endif
+    return shape{parse_element_type(elem), lens};
 }
 
 // ---------------------------------------------------------------------------
 // Attribute helpers
 // ---------------------------------------------------------------------------
 
-std::vector<std::size_t> dxgml_parser::get_dense_int_vec(MlirAttribute a) const
+// Extract the value string for a named key from an attribute block.
+// The block is the raw text between { } of an op's attribute section.
+// Returns empty string if key not found.
+std::string dxgml_parser::get_attr_str(const std::string& block, const std::string& key) const
 {
-#ifdef MIGRAPHX_DXGML_HAS_IR_LIB
-    // Option 2: typed DenseIntegerElementsAttr — getValue() returns ArrayRef<int64_t>
-    mlir::Attribute cpp_attr = mlir::Attribute::getFromOpaquePointer(a.ptr);
-    if(auto dia = llvm::dyn_cast<mlir::dxgml::DenseIntegerElementsAttr>(cpp_attr))
+    // Search for "key = " pattern
+    std::size_t pos = 0;
+    while(pos < block.size())
     {
-        llvm::ArrayRef<int64_t> vals = dia.getValue();
-        std::vector<std::size_t> out;
-        out.reserve(vals.size());
-        for(int64_t v : vals)
-            out.push_back(static_cast<std::size_t>(v));
-        return out;
-    }
-#endif
-    // Standard MLIR DenseIntElements (rare but defensive)
-    if(mlirAttributeIsADenseIntElements(a))
-    {
-        intptr_t n = mlirElementsAttrGetNumElements(a);
-        std::vector<std::size_t> out;
-        out.reserve(static_cast<std::size_t>(n));
-        for(intptr_t i = 0; i < n; ++i)
-            out.push_back(static_cast<std::size_t>(mlirDenseElementsAttrGetInt64Value(a, i)));
-        return out;
-    }
+        auto kp = block.find(key, pos);
+        if(kp == std::string::npos)
+            break;
 
-    // String fallback: "#dxgml.dense_integer_elements<[2, 2]> : ..."
-    std::string s = attr_to_string(a);
+        // Ensure this is a standalone key (not part of another word)
+        if(kp > 0 && (std::isalnum(static_cast<unsigned char>(block[kp - 1])) || block[kp - 1] == '_'))
+        {
+            pos = kp + 1;
+            continue;
+        }
+
+        // Find the '=' after the key
+        auto eq = block.find_first_not_of(" \t", kp + key.size());
+        if(eq == std::string::npos || block[eq] != '=')
+        {
+            pos = kp + 1;
+            continue;
+        }
+
+        // Value starts after '='
+        auto vs = block.find_first_not_of(" \t", eq + 1);
+        if(vs == std::string::npos)
+            return {};
+
+        // Determine the end of the value: stop at ',' or end of block,
+        // respecting nesting of <>, {}, ().
+        std::string val;
+        int d_angle = 0, d_brace = 0, d_paren = 0;
+        std::size_t i = vs;
+        while(i < block.size())
+        {
+            char c = block[i];
+            if(c == '<')  ++d_angle;
+            else if(c == '>') { if(d_angle > 0) --d_angle; else break; }
+            else if(c == '{')  ++d_brace;
+            else if(c == '}') { if(d_brace > 0) --d_brace; else break; }
+            else if(c == '(')  ++d_paren;
+            else if(c == ')') { if(d_paren > 0) --d_paren; else break; }
+            else if(c == ',' && d_angle == 0 && d_brace == 0 && d_paren == 0)
+                break;
+            val += c;
+            ++i;
+        }
+        return trim(val);
+    }
+    return {};
+}
+
+// Parse "#dxgml.dense_integer_elements<[2, 2]> : !dxgml.tensor<2x!dxgml.int64>"
+// or "#dxgml.dense_integer_elements<[1, 1]> : ..."
+// Returns the vector of integers.
+std::vector<std::size_t> dxgml_parser::parse_dense_int_vec(const std::string& s) const
+{
     auto lb = s.find('[');
     auto rb = s.find(']');
     if(lb == std::string::npos || rb == std::string::npos)
-        MIGRAPHX_THROW("DxGML: cannot parse dense int vec from: " + s);
+        MIGRAPHX_THROW("DxGML: cannot parse dense int vec: " + s);
 
     std::string inner = s.substr(lb + 1, rb - lb - 1);
     std::vector<std::size_t> out;
@@ -307,56 +248,421 @@ std::vector<std::size_t> dxgml_parser::get_dense_int_vec(MlirAttribute a) const
     return out;
 }
 
-int64_t dxgml_parser::get_int_scalar(MlirAttribute a) const
+// Parse "#dxgml.integer<1 : !dxgml.int64>"
+int64_t dxgml_parser::parse_int_scalar(const std::string& s) const
 {
-#ifdef MIGRAPHX_DXGML_HAS_IR_LIB
-    // Option 2: typed IntegerAttr — getValue() returns APInt
-    mlir::Attribute cpp_attr = mlir::Attribute::getFromOpaquePointer(a.ptr);
-    if(auto ia = llvm::dyn_cast<mlir::dxgml::IntegerAttr>(cpp_attr))
-        return ia.getValue().getSExtValue();
-#endif
-    // Standard MLIR IntegerAttr
-    if(mlirAttributeIsAInteger(a))
-        return mlirIntegerAttrGetValueInt(a);
-
-    // String fallback: "#dxgml.integer<1 : !dxgml.int64>"
-    std::string s = attr_to_string(a);
-    auto lt    = s.find('<');
+    auto lt = s.find('<');
     auto colon = s.find(':', lt != std::string::npos ? lt : 0);
     if(lt == std::string::npos || colon == std::string::npos)
-        MIGRAPHX_THROW("DxGML: cannot parse int scalar from: " + s);
-
-    std::string val_str = s.substr(lt + 1, colon - lt - 1);
-    auto start = val_str.find_first_not_of(" \t");
-    if(start == std::string::npos)
-        MIGRAPHX_THROW("DxGML: empty int scalar in: " + s);
-    return std::stoll(val_str.substr(start));
+        MIGRAPHX_THROW("DxGML: cannot parse int scalar: " + s);
+    std::string val = trim(s.substr(lt + 1, colon - lt - 1));
+    return std::stoll(val);
 }
 
 // ---------------------------------------------------------------------------
-// Shared context — created once per process with DxGML dialects registered
+// Operand list parser: "(%arg0, %_conv1.weight, %_conv1.bias)"
+// Returns vector of SSA names without '%'.
+// ---------------------------------------------------------------------------
+static std::vector<std::string> parse_operand_names(const std::string& ops_str)
+{
+    // ops_str is the content of parentheses (without the parens themselves)
+    std::vector<std::string> names;
+    std::size_t pos = 0;
+    while(pos < ops_str.size())
+    {
+        auto pct = ops_str.find('%', pos);
+        if(pct == std::string::npos)
+            break;
+        // Name runs until ',', ' ', ')', or end
+        auto end = pct + 1;
+        while(end < ops_str.size() &&
+              ops_str[end] != ',' && ops_str[end] != ' ' &&
+              ops_str[end] != ')' && ops_str[end] != '(')
+            ++end;
+        names.push_back(ops_str.substr(pct + 1, end - pct - 1));
+        pos = end;
+    }
+    return names;
+}
+
+// ---------------------------------------------------------------------------
+// Entry point argument list parser:
+// "(%arg0: !dxgml.tensor<1x4x2160x3840x!dxgml.float16>)"
+// ---------------------------------------------------------------------------
+struct ArgInfo
+{
+    std::string name;  // without '%'
+    std::string type;  // full type string e.g. "!dxgml.tensor<...>"
+};
+
+static std::vector<ArgInfo> parse_arg_list(const std::string& arg_list)
+{
+    // arg_list is the text between '(' and ')' of the entry_point signature
+    std::vector<ArgInfo> args;
+    std::size_t pos = 0;
+    while(pos < arg_list.size())
+    {
+        auto pct = arg_list.find('%', pos);
+        if(pct == std::string::npos)
+            break;
+
+        // Name: from '%' to ':'
+        auto colon = arg_list.find(':', pct);
+        if(colon == std::string::npos)
+            break;
+        std::string name = trim(arg_list.substr(pct + 1, colon - pct - 1));
+
+        // Type: after ':', until next ',' or end (respecting <> nesting)
+        auto ts = arg_list.find_first_not_of(" \t", colon + 1);
+        if(ts == std::string::npos)
+            break;
+
+        int depth = 0;
+        std::size_t te = ts;
+        while(te < arg_list.size())
+        {
+            char c = arg_list[te];
+            if(c == '<')  ++depth;
+            else if(c == '>') { --depth; if(depth < 0) break; }
+            else if(c == ',' && depth == 0) break;
+            ++te;
+        }
+        std::string type = trim(arg_list.substr(ts, te - ts));
+        args.push_back({name, type});
+        pos = te + 1;
+    }
+    return args;
+}
+
+// ---------------------------------------------------------------------------
+// Top-level text preprocessor: extract entry_point sig + body
 // ---------------------------------------------------------------------------
 
-static MlirContext get_dxgml_context()
+struct EntryPointData
 {
-    static std::once_flag flag;
-    static MlirContext ctx{nullptr};
-    std::call_once(flag, [] {
-        ctx = mlirContextCreateWithThreading(false);
-        if(!ctx.ptr)
-            MIGRAPHX_THROW("DxGML: mlirContextCreate() returned null");
+    std::string arg_list; // text between '(' and ')' of the signature
+    std::string ret_type; // return type string (after '->')
+    std::string body;     // body block text (between the matching braces)
+    bool found = false;
+};
 
-#ifdef MIGRAPHX_DXGML_HAS_IR_LIB
-        // Option 2: register DxGML dialects so ops/types/attrs are parsed as typed objects
-        mlir::MLIRContext* cpp_ctx = unwrap(ctx);
-        cpp_ctx->getOrLoadDialect<mlir::dxgml::DxGMLDialect>();
-        cpp_ctx->getOrLoadDialect<mlir::dxgml_op::DxGMLOpDialect>();
-#else
-        // Option 3 fallback: allow unknown dialects, parse as opaque strings
-        mlirContextSetAllowUnregisteredDialects(ctx, true);
-#endif
-    });
-    return ctx;
+static EntryPointData extract_entry_point(const std::string& src)
+{
+    EntryPointData data;
+
+    // Strip {-# dialect_resources ... #-} at the end
+    std::string text = src;
+    auto res_pos = text.find("{-#");
+    if(res_pos != std::string::npos)
+        text.resize(res_pos);
+
+    // Find "dxgml.entry_point"
+    auto ep_pos = text.find("dxgml.entry_point");
+    if(ep_pos == std::string::npos)
+        return data;
+
+    // Extract argument list between first '(' and matching ')'
+    auto paren_open = text.find('(', ep_pos);
+    if(paren_open == std::string::npos)
+        return data;
+
+    auto paren_close = find_matching(text, paren_open, '(', ')');
+    if(paren_close == std::string::npos)
+        return data;
+
+    data.arg_list = text.substr(paren_open + 1, paren_close - paren_open - 1);
+
+    // Extract return type (after '->')
+    auto arrow = text.find("->", paren_close);
+    if(arrow != std::string::npos)
+    {
+        // Return type runs from after '->' to the next '{' or 'attributes'
+        auto rt_start = text.find_first_not_of(" \t", arrow + 2);
+        if(rt_start != std::string::npos)
+        {
+            // May have 'attributes { ... }' before the body '{'
+            auto rt_end = rt_start;
+            int depth = 0;
+            while(rt_end < text.size())
+            {
+                char c = text[rt_end];
+                if(c == '<')  ++depth;
+                else if(c == '>') --depth;
+                else if(c == '{' && depth == 0) break;
+                ++rt_end;
+            }
+            // Strip optional 'attributes {...}' from the ret_type string
+            std::string rt_raw = trim(text.substr(rt_start, rt_end - rt_start));
+            auto attr_kw = rt_raw.find("attributes");
+            if(attr_kw != std::string::npos)
+                rt_raw = trim(rt_raw.substr(0, attr_kw));
+            data.ret_type = rt_raw;
+        }
+    }
+
+    // Find the body { ... } — the first '{' after paren_close
+    auto open_brace = text.find('{', paren_close);
+    if(open_brace == std::string::npos)
+        return data;
+
+    // Skip optional 'attributes { ... }' block that may precede the body
+    // by checking if 'attributes' appears between paren_close and open_brace
+    {
+        std::string between = text.substr(paren_close + 1, open_brace - paren_close - 1);
+        if(between.find("attributes") != std::string::npos)
+        {
+            // This '{' is the attributes block — find the body '{' after it
+            auto attr_close = find_matching(text, open_brace, '{', '}');
+            if(attr_close == std::string::npos)
+                return data;
+            open_brace = text.find('{', attr_close + 1);
+            if(open_brace == std::string::npos)
+                return data;
+        }
+    }
+
+    auto close_brace = find_matching(text, open_brace, '{', '}');
+    if(close_brace == std::string::npos)
+        return data;
+
+    data.body  = text.substr(open_brace + 1, close_brace - open_brace - 1);
+    data.found = true;
+    return data;
+}
+
+// ---------------------------------------------------------------------------
+// Op line parser
+//
+// Handles these forms:
+//   %name = dxgml_op.relu(%arg0) : (TYPE) -> TYPE
+//   %name = dxgml_op.convolution(%a, %b, %c) { attrs } : (TYPES) -> TYPE
+//   %name = dxgml_op.constant(#dxgml.constant_resource<...>)
+//   dxgml.return %name : TYPE
+// ---------------------------------------------------------------------------
+
+void dxgml_parser::parse_entry_point(const std::string& arg_list_str, const std::string& body)
+{
+    // Register block arguments as parameters.
+    // module::add_parameter uses insert_parameter(begin(),...) which prepends,
+    // so add args in reverse order so that arg0 ends up at position 0.
+    auto args = parse_arg_list(arg_list_str);
+    for(std::size_t i = args.size(); i-- > 0;)
+    {
+        const auto& arg = args[i];
+        shape s             = parse_tensor_type(arg.type);
+        auto param_name     = "arg" + std::to_string(i);
+        instruction_ref ir  = mm->add_parameter(param_name, s);
+        value_map[arg.name] = ir;
+    }
+
+    // Walk body lines.
+    // We need to handle multi-line ops (attribute blocks span multiple lines).
+    // Strategy: concatenate the body into one long string and scan for ops.
+    std::string flat;
+    {
+        // Strip comments, join lines
+        std::istringstream ss(body);
+        std::string line;
+        while(std::getline(ss, line))
+        {
+            line = strip_line_comment(line);
+            flat += " " + line;
+        }
+    }
+
+    // Scan for SSA assignments and dxgml.return
+    std::size_t pos = 0;
+    while(pos < flat.size())
+    {
+        // Skip whitespace
+        while(pos < flat.size() && std::isspace(static_cast<unsigned char>(flat[pos])))
+            ++pos;
+        if(pos >= flat.size())
+            break;
+
+        // Check for dxgml.return
+        const std::string ret_kw = "dxgml.return";
+        if(flat.compare(pos, ret_kw.size(), ret_kw) == 0)
+        {
+            // Collect operands from the rest of the statement
+            auto end = flat.find_first_of(";", pos);
+            std::string stmt = flat.substr(pos, end != std::string::npos ? end - pos : std::string::npos);
+            // Extract %name tokens
+            auto names = parse_operand_names(stmt);
+            std::vector<instruction_ref> rets;
+            for(const auto& n : names)
+            {
+                auto it = value_map.find(n);
+                if(it == value_map.end())
+                    MIGRAPHX_THROW("DxGML: undefined SSA value in dxgml.return: %" + n);
+                rets.push_back(it->second);
+            }
+            mm->add_return(rets);
+            break; // return terminates the function
+        }
+
+        // func.return (from preprocessing — shouldn't appear now but be safe)
+        const std::string fret_kw = "func.return";
+        if(flat.compare(pos, fret_kw.size(), fret_kw) == 0)
+        {
+            auto end = flat.find_first_of(";", pos);
+            std::string stmt = flat.substr(pos, end != std::string::npos ? end - pos : std::string::npos);
+            auto names = parse_operand_names(stmt);
+            std::vector<instruction_ref> rets;
+            for(const auto& n : names)
+            {
+                auto it = value_map.find(n);
+                if(it == value_map.end())
+                    MIGRAPHX_THROW("DxGML: undefined SSA value in return: %" + n);
+                rets.push_back(it->second);
+            }
+            mm->add_return(rets);
+            break;
+        }
+
+        // Check for SSA assignment: %name = dxgml_op.something(...)
+        if(flat[pos] == '%')
+        {
+            // Find the '='
+            auto eq = flat.find('=', pos);
+            if(eq == std::string::npos)
+                break;
+
+            // Result name (without %)
+            std::string result_name = trim(flat.substr(pos + 1, eq - pos - 1));
+
+            // Op starts after '='
+            auto op_start = flat.find_first_not_of(" \t", eq + 1);
+            if(op_start == std::string::npos)
+                break;
+
+            // Op name runs to '(' or ' '
+            auto op_end = op_start;
+            while(op_end < flat.size() && flat[op_end] != '(' && !std::isspace(static_cast<unsigned char>(flat[op_end])))
+                ++op_end;
+            std::string full_op_name = flat.substr(op_start, op_end - op_start);
+
+            // Skip non-dxgml_op ops (e.g. func.func, etc.)
+            const std::string dxgml_op_pfx = "dxgml_op.";
+            if(!starts_with(full_op_name, dxgml_op_pfx))
+            {
+                // Skip to next semicolon or next '%'
+                pos = op_end;
+                // advance to next statement
+                while(pos < flat.size() && flat[pos] != '%' && flat[pos] != ';')
+                    ++pos;
+                continue;
+            }
+            std::string op_name = full_op_name.substr(dxgml_op_pfx.size());
+
+            // After op name, find '('
+            auto paren_open = flat.find('(', op_end);
+            if(paren_open == std::string::npos)
+                break;
+
+            auto paren_close = find_matching(flat, paren_open, '(', ')');
+            if(paren_close == std::string::npos)
+                break;
+
+            std::string operands_raw = flat.substr(paren_open + 1, paren_close - paren_open - 1);
+
+            // After ')': optional attribute block { ... } and type signature
+            std::size_t after_paren = paren_close + 1;
+
+            // Skip whitespace and newlines
+            while(after_paren < flat.size() && std::isspace(static_cast<unsigned char>(flat[after_paren])))
+                ++after_paren;
+
+            std::string attrs_block;
+            std::string type_sig;
+
+            if(after_paren < flat.size() && flat[after_paren] == '{')
+            {
+                auto brace_close = find_matching(flat, after_paren, '{', '}');
+                if(brace_close != std::string::npos)
+                {
+                    attrs_block = flat.substr(after_paren + 1, brace_close - after_paren - 1);
+                    after_paren = brace_close + 1;
+                }
+            }
+
+            // Optional type signature: ": (types) -> rettype"
+            // Only present when ':' precedes the next statement's '%' at depth 0.
+            // We scan forward from after_paren, tracking bracket depth, to find
+            // whether ':' or '%' (start of next stmt) comes first.
+            pos = after_paren;
+            if(after_paren < flat.size())
+            {
+                // Find first ':' and first '%' from after_paren, at bracket depth 0
+                std::size_t first_colon = std::string::npos;
+                std::size_t first_pct   = std::string::npos;
+                int scan_depth = 0;
+                for(std::size_t si = after_paren; si < flat.size(); ++si)
+                {
+                    char c = flat[si];
+                    if(c == '(' || c == '<')  ++scan_depth;
+                    else if(c == ')' || c == '>') { if(scan_depth > 0) --scan_depth; }
+                    if(scan_depth == 0)
+                    {
+                        if(c == ':' && first_colon == std::string::npos)
+                        {
+                            first_colon = si;
+                            break; // we have what we need — stop here
+                        }
+                        if(c == '%' && first_pct == std::string::npos)
+                        {
+                            first_pct = si;
+                            break; // '%' before ':' means no type sig
+                        }
+                        if(flat.compare(si, 12, "dxgml.return") == 0 ||
+                           flat.compare(si, 11, "func.return") == 0)
+                        {
+                            first_pct = si; // treat return as end-of-stmt
+                            break;
+                        }
+                    }
+                }
+
+                if(first_colon != std::string::npos &&
+                   (first_pct == std::string::npos || first_colon < first_pct))
+                {
+                    // Type sig present: extract from colon+1 until next '%' or return kw
+                    auto ts_start = first_colon + 1;
+                    int depth = 0;
+                    std::size_t te = ts_start;
+                    while(te < flat.size())
+                    {
+                        char c = flat[te];
+                        // '->' arrow: skip both chars, don't change depth
+                        if(c == '-' && te + 1 < flat.size() && flat[te + 1] == '>')
+                        {
+                            te += 2;
+                            continue;
+                        }
+                        if(c == '(' || c == '<')  ++depth;
+                        else if(c == ')') { if(depth > 0) --depth; else break; }
+                        else if(c == '>') { if(depth > 0) --depth; }
+                        else if(depth == 0 && c == '%') break;
+                        else if(depth == 0 &&
+                                (flat.compare(te, 12, "dxgml.return") == 0 ||
+                                 flat.compare(te, 11, "func.return") == 0)) break;
+                        ++te;
+                    }
+                    type_sig = trim(flat.substr(ts_start, te - ts_start));
+                    pos = te;
+                }
+                // else: no type sig — pos stays at after_paren (already set above)
+            }
+
+            // Dispatch to op handler
+            instruction_ref result = parse_dxgml_op(op_name, operands_raw, attrs_block, type_sig);
+            value_map[result_name] = result;
+            continue;
+        }
+
+        // Not a recognized statement — advance past it
+        ++pos;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -365,125 +671,13 @@ static MlirContext get_dxgml_context()
 
 void dxgml_parser::parse_from_string(const std::string& mlir_text)
 {
-    MlirContext ctx = get_dxgml_context();
-    mm              = prog.get_main_module();
+    mm = prog.get_main_module();
 
-    MlirModule mod =
-        mlirModuleCreateParse(ctx, mlirStringRefCreate(mlir_text.data(), mlir_text.size()));
-    if(mlirModuleIsNull(mod))
-        MIGRAPHX_THROW("DxGML: failed to parse MLIR text");
+    auto ep = extract_entry_point(mlir_text);
+    if(!ep.found)
+        MIGRAPHX_THROW("DxGML: no dxgml.entry_point found in input");
 
-    // Walk top-level module body looking for dxgml.entry_point
-    MlirBlock body = mlirModuleGetBody(mod);
-    for(MlirOperation op = mlirBlockGetFirstOperation(body); !mlirOperationIsNull(op);
-        op               = mlirOperationGetNextInBlock(op))
-    {
-        MlirIdentifier id   = mlirOperationGetName(op);
-        std::string op_name = to_str(mlirIdentifierStr(id));
-        if(op_name == "dxgml.entry_point")
-        {
-            parse_entry_point(op);
-            break;
-        }
-    }
-
-    mlirModuleDestroy(mod);
-}
-
-// ---------------------------------------------------------------------------
-// Entry point: register block arguments as parameters, then walk body
-// ---------------------------------------------------------------------------
-
-void dxgml_parser::parse_entry_point(MlirOperation ep)
-{
-    if(mlirOperationGetNumRegions(ep) == 0)
-        MIGRAPHX_THROW("DxGML: entry_point has no regions");
-
-    MlirRegion region = mlirOperationGetRegion(ep, 0);
-    MlirBlock  body   = mlirRegionGetFirstBlock(region);
-    if(mlirBlockIsNull(body))
-        MIGRAPHX_THROW("DxGML: entry_point region has no blocks");
-
-    // Add input parameters from entry_point block arguments
-    intptr_t num_args = mlirBlockGetNumArguments(body);
-    for(intptr_t i = 0; i < num_args; ++i)
-    {
-        MlirValue arg          = mlirBlockGetArgument(body, i);
-        shape s                = mlir_type_to_shape(mlirValueGetType(arg));
-        auto param_name        = "arg" + std::to_string(i);
-        instruction_ref ir     = mm->add_parameter(param_name, s);
-        value_map[value_id(arg)] = ir;
-    }
-
-    // Walk ops in the body block
-    for(MlirOperation op = mlirBlockGetFirstOperation(body); !mlirOperationIsNull(op);
-        op               = mlirOperationGetNextInBlock(op))
-    {
-        parse_op(op);
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Per-op dispatch
-// ---------------------------------------------------------------------------
-
-void dxgml_parser::parse_op(MlirOperation op)
-{
-    std::string full_name = to_str(mlirIdentifierStr(mlirOperationGetName(op)));
-
-    // dxgml.return — collect operands and add @return
-    if(full_name == "dxgml.return")
-    {
-        std::vector<instruction_ref> rets;
-        intptr_t n = mlirOperationGetNumOperands(op);
-        for(intptr_t i = 0; i < n; ++i)
-        {
-            MlirValue operand = mlirOperationGetOperand(op, i);
-            auto it = value_map.find(value_id(operand));
-            if(it == value_map.end())
-                MIGRAPHX_THROW("DxGML: undefined SSA value in dxgml.return");
-            rets.push_back(it->second);
-        }
-        mm->add_return(rets);
-        return;
-    }
-
-    // Skip other dxgml.* non-op namespace ops
-    if(full_name.substr(0, 6) == "dxgml." && full_name.substr(0, 9) != "dxgml_op.")
-        return;
-
-    // dxgml_op.* ops: strip prefix and dispatch
-    const std::string prefix = "dxgml_op.";
-    if(full_name.substr(0, prefix.size()) != prefix)
-    {
-        if(!opts.skip_unknown_operators)
-            MIGRAPHX_THROW("DxGML: unsupported op: " + full_name);
-        return;
-    }
-
-    std::string op_name = full_name.substr(prefix.size());
-
-    // Collect inputs from SSA operands
-    std::vector<instruction_ref> inputs;
-    intptr_t num_operands = mlirOperationGetNumOperands(op);
-    for(intptr_t i = 0; i < num_operands; ++i)
-    {
-        MlirValue operand = mlirOperationGetOperand(op, i);
-        auto it = value_map.find(value_id(operand));
-        if(it == value_map.end())
-            MIGRAPHX_THROW("DxGML: undefined SSA value for op: " + op_name);
-        inputs.push_back(it->second);
-    }
-
-    // Dispatch to op-specific handler
-    instruction_ref result = parse_dxgml_op(op_name, op, inputs);
-
-    // Store result (assume single result — all tensor ops have exactly one)
-    if(mlirOperationGetNumResults(op) > 0)
-    {
-        MlirValue res            = mlirOperationGetResult(op, 0);
-        value_map[value_id(res)] = result;
-    }
+    parse_entry_point(ep.arg_list, ep.body);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -27,6 +27,7 @@
 #include "dxgml_parser.hpp"
 
 #include <fstream>
+#include <iostream>
 #include <sstream>
 
 namespace migraphx {
@@ -46,7 +47,31 @@ program parse_dxgml_string(const std::string& mlir_text, const dxgml_options& op
 {
     dxgml_parser parser;
     parser.opts = options;
-    parser.parse_from_string(mlir_text);
+
+    if(options.print_program_on_error)
+    {
+        try
+        {
+            parser.parse_from_string(mlir_text);
+        }
+        catch(...)
+        {
+            std::cerr << "[DxGML] Parse error — partial program:\n" << parser.prog << "\n";
+            throw;
+        }
+    }
+    else
+    {
+        parser.parse_from_string(mlir_text);
+    }
+
+    if(options.dump_migraphx_ops)
+        std::cerr << "[DxGML] MIGraphX ops after parsing:\n" << parser.prog << "\n";
+
+    // dump_migraphx_dialect, dump_gpu, and dump_isa require compilation and
+    // are applied by the caller after program::compile() — they are stored in
+    // dxgml_options so that tooling wrappers can inspect and act on them.
+
     return std::move(parser.prog);
 }
 

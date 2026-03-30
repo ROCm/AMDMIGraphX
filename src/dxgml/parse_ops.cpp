@@ -28,14 +28,9 @@
 #include <migraphx/module.hpp>
 #include <migraphx/literal.hpp>
 
-// MLIR C API — no DxGML or LLVM C++ headers needed
-#include <mlir-c/IR.h>
-#include <mlir-c/BuiltinAttributes.h>
-
 #include <unordered_map>
 #include <string>
 #include <vector>
-#include <sstream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -44,96 +39,121 @@ inline namespace MIGRAPHX_INLINE_NS {
 // Local helpers
 // ---------------------------------------------------------------------------
 
-// Print MlirAttribute to string (defined in dxgml_parser.cpp, replicated here
-// as a static to avoid exposing internal linkage across TUs).
-static void print_callback_ops(MlirStringRef chunk, void* user)
+// Collect input instruction_refs from comma-separated SSA operand names.
+// operands_raw is the content of the parentheses: "%a, %b, %c" or
+// "#dxgml.constant_resource<...>" (for constant ops).
+static std::vector<std::string> split_operands(const std::string& s)
 {
-    static_cast<std::string*>(user)->append(chunk.data, chunk.length);
-}
-
-static std::string attr_str(MlirAttribute a)
-{
-    std::string s;
-    mlirAttributePrint(a, print_callback_ops, &s);
-    return s;
-}
-
-// Get a named attribute from an op; returns null-attribute if missing.
-static MlirAttribute get_attr(MlirOperation op, const char* name)
-{
-    return mlirOperationGetAttributeByName(op, mlirStringRefCreateFromCString(name));
-}
-
-// Get a named attribute; throw if missing.
-static MlirAttribute require_attr(MlirOperation op, const char* name)
-{
-    MlirAttribute a = get_attr(op, name);
-    if(mlirAttributeIsNull(a))
+    std::vector<std::string> names;
+    std::size_t pos = 0;
+    while(pos < s.size())
     {
-        // Retrieve op name for the error message
-        std::string op_name(
-            mlirIdentifierStr(mlirOperationGetName(op)).data,
-            mlirIdentifierStr(mlirOperationGetName(op)).length);
-        MIGRAPHX_THROW("DxGML op '" + op_name + "' missing attribute '" + name + "'");
-    }
-    return a;
-}
-
-// ---------------------------------------------------------------------------
-// Constant: #dxgml.constant_resource<name : !dxgml.tensor<...>>
-//
-// Format of printed attribute:
-//   #dxgml.constant_resource<_conv1.weight : !dxgml.tensor<32x4x3x3x!dxgml.float16>>
-//
-// We expose the weight as a named parameter so callers supply data at runtime.
-// ---------------------------------------------------------------------------
-static instruction_ref parse_constant(dxgml_parser& self, MlirOperation op)
-{
-    MlirAttribute val_attr = get_attr(op, "value");
-    if(mlirAttributeIsNull(val_attr))
-        MIGRAPHX_THROW("DxGML: dxgml_op.constant missing 'value' attribute");
-
-    // Print the attribute and parse its content
-    // Format: #dxgml.constant_resource<NAME : TYPE>
-    std::string s = attr_str(val_attr);
-
-    // Find "constant_resource<"
-    const std::string prefix = "constant_resource<";
-    auto pos = s.find(prefix);
-    if(pos == std::string::npos)
-        MIGRAPHX_THROW("DxGML: unexpected constant attribute format: " + s);
-
-    // Everything inside the outermost < > (accounting for nested <>)
-    auto start = pos + prefix.size();
-    int depth  = 1;
-    auto end   = start;
-    while(end < s.size() && depth > 0)
-    {
-        if(s[end] == '<')
-            ++depth;
-        else if(s[end] == '>')
-            --depth;
-        if(depth > 0)
+        auto pct = s.find('%', pos);
+        if(pct == std::string::npos)
+            break;
+        auto end = pct + 1;
+        while(end < s.size() && s[end] != ',' && s[end] != ' ' && s[end] != ')')
             ++end;
+        names.push_back(s.substr(pct + 1, end - pct - 1));
+        pos = end;
     }
-    std::string inner = s.substr(start, end - start);
+    return names;
+}
 
-    // Split at first " : " to get name and type
+// Collect instruction_refs for SSA operands from value_map.
+// Returns only those that start with '%' (skips attribute operands like #dxgml.*).
+static std::vector<instruction_ref>
+collect_inputs(const std::string& operands_raw,
+               const std::unordered_map<std::string, instruction_ref>& value_map,
+               const std::string& op_name)
+{
+    auto names = split_operands(operands_raw);
+    std::vector<instruction_ref> inputs;
+    for(const auto& n : names)
+    {
+        auto it = value_map.find(n);
+        if(it == value_map.end())
+            MIGRAPHX_THROW("DxGML op '" + op_name + "': undefined SSA value: %" + n);
+        inputs.push_back(it->second);
+    }
+    return inputs;
+}
+
+// ---------------------------------------------------------------------------
+// Constant: dxgml_op.constant(#dxgml.constant_resource<NAME : TYPE>)
+// ---------------------------------------------------------------------------
+static instruction_ref parse_constant(dxgml_parser& self, const std::string& operands_raw)
+{
+    // operands_raw = "#dxgml.constant_resource<NAME : !dxgml.tensor<...>>"
+    // (possibly prefixed by the dialect hash)
+    const std::string pfx = "constant_resource<";
+    auto pos = operands_raw.find(pfx);
+    if(pos == std::string::npos)
+        MIGRAPHX_THROW("DxGML: constant missing constant_resource attribute: " + operands_raw);
+
+    auto start = pos + pfx.size();
+    // Find the matching '>' (may contain nested '<>')
+    int depth = 1;
+    auto end  = start;
+    while(end < operands_raw.size() && depth > 0)
+    {
+        if(operands_raw[end] == '<')      ++depth;
+        else if(operands_raw[end] == '>') --depth;
+        if(depth > 0) ++end;
+    }
+    std::string inner = operands_raw.substr(start, end - start);
+
+    // inner = "NAME : !dxgml.tensor<...>"
     const std::string sep = " : ";
     auto colon_pos = inner.find(sep);
     if(colon_pos == std::string::npos)
-        MIGRAPHX_THROW("DxGML: cannot parse constant_resource name/type in: " + s);
+        MIGRAPHX_THROW("DxGML: cannot parse constant_resource in: " + operands_raw);
 
     std::string param_name = inner.substr(0, colon_pos);
     std::string type_str   = inner.substr(colon_pos + sep.size());
 
-    // type_str is something like "!dxgml.tensor<32x4x3x3x!dxgml.float16>"
-    shape sh = self.mlir_type_to_shape(mlirValueGetType(mlirOperationGetResult(op, 0)));
+    shape sh = self.parse_tensor_type(type_str);
+    // Constants must be appended after entry-point arg parameters, not prepended.
+    // insert_parameter(end(),...) places them after all currently-existing instructions.
+    return self.mm->insert_parameter(self.mm->end(), param_name, sh);
+}
 
-    // If we couldn't derive shape from the result type (DxGML opaque type),
-    // parse the type string directly.  The result type IS the tensor type.
-    // Use the shape from the result value type — that's the authoritative source.
-    return self.mm->add_parameter(param_name, sh);
+// ---------------------------------------------------------------------------
+// Helpers for reading typed attributes from the attrs_block text
+// ---------------------------------------------------------------------------
+
+// Get a dense_integer_elements attribute value by key.
+static std::vector<std::size_t>
+get_dense_int(dxgml_parser& self, const std::string& attrs, const std::string& key)
+{
+    std::string val = self.get_attr_str(attrs, key);
+    if(val.empty())
+        MIGRAPHX_THROW("DxGML: missing attribute '" + key + "' in: " + attrs);
+    return self.parse_dense_int_vec(val);
+}
+
+// Get an integer scalar attribute value by key.
+static int64_t
+get_int(dxgml_parser& self, const std::string& attrs, const std::string& key)
+{
+    std::string val = self.get_attr_str(attrs, key);
+    if(val.empty())
+        MIGRAPHX_THROW("DxGML: missing attribute '" + key + "' in: " + attrs);
+    return self.parse_int_scalar(val);
+}
+
+// Get the result type from the type signature.
+// type_sig looks like "(TYPE, TYPE) -> RETTYPE" or "(!dxgml.tensor<...>) -> !dxgml.tensor<...>"
+// Returns the return type string.
+static std::string extract_ret_type(const std::string& type_sig)
+{
+    auto arrow = type_sig.rfind("->");
+    if(arrow == std::string::npos)
+        return type_sig; // whole thing is the type
+    auto after = type_sig.find_first_not_of(" \t", arrow + 2);
+    if(after == std::string::npos)
+        return {};
+    return type_sig.substr(after);
 }
 
 // ---------------------------------------------------------------------------
@@ -141,28 +161,32 @@ static instruction_ref parse_constant(dxgml_parser& self, MlirOperation op)
 // ---------------------------------------------------------------------------
 
 instruction_ref dxgml_parser::parse_dxgml_op(const std::string& name,
-                                               MlirOperation op,
-                                               const std::vector<instruction_ref>& inputs)
+                                               const std::string& operands_raw,
+                                               const std::string& attrs_block,
+                                               const std::string& type_sig)
 {
-    // --- Constant (weight) ---
+    // --- Constant (weight / bias) ---
     if(name == "constant")
-        return parse_constant(*this, op);
+        return parse_constant(*this, operands_raw);
+
+    // Collect tensor inputs from the SSA operand list
+    auto inputs = collect_inputs(operands_raw, value_map, name);
 
     // --- Unary elementwise ---
     static const std::unordered_map<std::string, std::string> unary_map = {
-        {"relu", "relu"},
+        {"relu",    "relu"},
         {"sigmoid", "sigmoid"},
-        {"tanh", "tanh"},
-        {"erf", "erf"},
-        {"exp", "exp"},
-        {"log", "log"},
-        {"sqrt", "sqrt"},
-        {"abs", "abs"},
-        {"ceil", "ceil"},
-        {"floor", "floor"},
-        {"neg", "neg"},
-        {"rsqrt", "rsqrt"},
-        {"recip", "recip"},
+        {"tanh",    "tanh"},
+        {"erf",     "erf"},
+        {"exp",     "exp"},
+        {"log",     "log"},
+        {"sqrt",    "sqrt"},
+        {"abs",     "abs"},
+        {"ceil",    "ceil"},
+        {"floor",   "floor"},
+        {"neg",     "neg"},
+        {"rsqrt",   "rsqrt"},
+        {"recip",   "recip"},
     };
     {
         auto it = unary_map.find(name);
@@ -172,13 +196,13 @@ instruction_ref dxgml_parser::parse_dxgml_op(const std::string& name,
 
     // --- Binary elementwise ---
     static const std::unordered_map<std::string, std::string> binary_map = {
-        {"add", "add"},
+        {"add",      "add"},
         {"subtract", "sub"},
         {"multiply", "mul"},
-        {"divide", "div"},
-        {"pow", "pow"},
-        {"max", "max"},
-        {"min", "min"},
+        {"divide",   "div"},
+        {"pow",      "pow"},
+        {"max",      "max"},
+        {"min",      "min"},
     };
     {
         auto it = binary_map.find(name);
@@ -189,11 +213,11 @@ instruction_ref dxgml_parser::parse_dxgml_op(const std::string& name,
     // --- Convolution ---
     if(name == "convolution")
     {
-        auto strides   = get_dense_int_vec(require_attr(op, "strides"));
-        auto dilations = get_dense_int_vec(require_attr(op, "dilations"));
-        auto pad_start = get_dense_int_vec(require_attr(op, "start_padding"));
-        auto pad_end   = get_dense_int_vec(require_attr(op, "end_padding"));
-        auto groups    = get_int_scalar(require_attr(op, "group_count"));
+        auto strides   = get_dense_int(*this, attrs_block, "strides");
+        auto dilations = get_dense_int(*this, attrs_block, "dilations");
+        auto pad_start = get_dense_int(*this, attrs_block, "start_padding");
+        auto pad_end   = get_dense_int(*this, attrs_block, "end_padding");
+        auto groups    = get_int(*this, attrs_block, "group_count");
 
         // MIGraphX interleaved padding: [top, bottom, left, right] for 2D
         // DxGML: start_padding=[top,left], end_padding=[bottom,right]
@@ -204,13 +228,16 @@ instruction_ref dxgml_parser::parse_dxgml_op(const std::string& name,
             padding.push_back(pad_end[i]);
         }
 
+        // MIGraphX convolution takes exactly 2 inputs (input + filter).
+        // DxGML may supply a third bias operand — use only the first two.
+        std::vector<instruction_ref> conv_inputs = {inputs[0], inputs[1]};
         return mm->add_instruction(
             make_op("convolution",
-                    {{"stride", strides},
+                    {{"stride",   strides},
                      {"dilation", dilations},
-                     {"padding", padding},
-                     {"group", static_cast<int>(groups)}}),
-            inputs);
+                     {"padding",  padding},
+                     {"group",    static_cast<int>(groups)}}),
+            conv_inputs);
     }
 
     // --- Gemm / dot ---
@@ -220,8 +247,8 @@ instruction_ref dxgml_parser::parse_dxgml_op(const std::string& name,
     // --- Reshape ---
     if(name == "reshape")
     {
-        MlirValue res       = mlirOperationGetResult(op, 0);
-        shape out_shape     = mlir_type_to_shape(mlirValueGetType(res));
+        std::string ret = extract_ret_type(type_sig);
+        shape out_shape = parse_tensor_type(ret);
         return mm->add_instruction(
             make_op("reshape", {{"dims", out_shape.lens()}}), inputs);
     }
@@ -229,7 +256,7 @@ instruction_ref dxgml_parser::parse_dxgml_op(const std::string& name,
     // --- Transpose ---
     if(name == "transpose")
     {
-        auto perm = get_dense_int_vec(require_attr(op, "perm"));
+        auto perm = get_dense_int(*this, attrs_block, "perm");
         std::vector<int64_t> permutation(perm.begin(), perm.end());
         return mm->add_instruction(
             make_op("transpose", {{"permutation", permutation}}), inputs);
@@ -238,8 +265,8 @@ instruction_ref dxgml_parser::parse_dxgml_op(const std::string& name,
     // --- Cast / convert ---
     if(name == "cast")
     {
-        MlirValue res    = mlirOperationGetResult(op, 0);
-        shape out_shape  = mlir_type_to_shape(mlirValueGetType(res));
+        std::string ret = extract_ret_type(type_sig);
+        shape out_shape = parse_tensor_type(ret);
         return mm->add_instruction(
             make_op("convert", {{"target_type", out_shape.type()}}), inputs);
     }
@@ -247,7 +274,7 @@ instruction_ref dxgml_parser::parse_dxgml_op(const std::string& name,
     // --- Softmax ---
     if(name == "softmax" || name == "log_softmax")
     {
-        int64_t axis         = get_int_scalar(require_attr(op, "axis"));
+        int64_t axis         = get_int(*this, attrs_block, "axis");
         std::string mgx_name = (name == "softmax") ? "softmax" : "logsoftmax";
         return mm->add_instruction(make_op(mgx_name, {{"axis", axis}}), inputs);
     }
@@ -255,9 +282,9 @@ instruction_ref dxgml_parser::parse_dxgml_op(const std::string& name,
     // --- Pooling ---
     if(name == "max_pooling" || name == "average_pooling")
     {
-        auto win  = get_dense_int_vec(require_attr(op, "window_size"));
-        auto strd = get_dense_int_vec(require_attr(op, "strides"));
-        auto pad  = get_dense_int_vec(require_attr(op, "padding"));
+        auto win  = get_dense_int(*this, attrs_block, "window_size");
+        auto strd = get_dense_int(*this, attrs_block, "strides");
+        auto pad  = get_dense_int(*this, attrs_block, "padding");
         std::string mode = (name == "max_pooling") ? "max" : "average";
         return mm->add_instruction(
             make_op("pooling",
@@ -276,37 +303,37 @@ instruction_ref dxgml_parser::parse_dxgml_op(const std::string& name,
     // --- Concat ---
     if(name == "concat")
     {
-        int64_t axis = get_int_scalar(require_attr(op, "axis"));
+        int64_t axis = get_int(*this, attrs_block, "axis");
         return mm->add_instruction(make_op("concat", {{"axis", axis}}), inputs);
     }
 
     // --- Slice ---
     if(name == "slice")
     {
-        auto axes   = get_dense_int_vec(require_attr(op, "axes"));
-        auto starts = get_dense_int_vec(require_attr(op, "starts"));
-        auto ends   = get_dense_int_vec(require_attr(op, "ends"));
+        auto axes   = get_dense_int(*this, attrs_block, "axes");
+        auto starts = get_dense_int(*this, attrs_block, "starts");
+        auto ends   = get_dense_int(*this, attrs_block, "ends");
         return mm->add_instruction(
             make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}), inputs);
     }
 
     // --- Reduce ops ---
     static const std::unordered_map<std::string, std::string> reduce_map = {
-        {"reduce_sum", "reduce_sum"},
+        {"reduce_sum",  "reduce_sum"},
         {"reduce_mean", "reduce_mean"},
-        {"reduce_max", "reduce_max"},
-        {"reduce_min", "reduce_min"},
+        {"reduce_max",  "reduce_max"},
+        {"reduce_min",  "reduce_min"},
         {"reduce_prod", "reduce_prod"},
     };
     {
         auto it = reduce_map.find(name);
         if(it != reduce_map.end())
         {
-            auto axes = get_dense_int_vec(require_attr(op, "axes"));
+            auto axes     = get_dense_int(*this, attrs_block, "axes");
             int keep_dims = 0;
-            MlirAttribute ka = get_attr(op, "keepdims");
-            if(!mlirAttributeIsNull(ka) && mlirAttributeIsABool(ka))
-                keep_dims = mlirBoolAttrGetValue(ka) ? 1 : 0;
+            std::string kd_str = get_attr_str(attrs_block, "keepdims");
+            if(!kd_str.empty())
+                keep_dims = (kd_str == "true" || kd_str == "1") ? 1 : 0;
             return mm->add_instruction(
                 make_op(it->second, {{"axes", axes}, {"keepdims", keep_dims}}), inputs);
         }
@@ -315,19 +342,19 @@ instruction_ref dxgml_parser::parse_dxgml_op(const std::string& name,
     // --- Squeeze / unsqueeze ---
     if(name == "squeeze")
     {
-        auto axes = get_dense_int_vec(require_attr(op, "axes"));
+        auto axes = get_dense_int(*this, attrs_block, "axes");
         return mm->add_instruction(make_op("squeeze", {{"axes", axes}}), inputs);
     }
     if(name == "unsqueeze")
     {
-        auto axes = get_dense_int_vec(require_attr(op, "axes"));
+        auto axes = get_dense_int(*this, attrs_block, "axes");
         return mm->add_instruction(make_op("unsqueeze", {{"axes", axes}}), inputs);
     }
 
     // --- Flatten ---
     if(name == "flatten")
     {
-        int64_t axis = get_int_scalar(require_attr(op, "axis"));
+        int64_t axis = get_int(*this, attrs_block, "axis");
         return mm->add_instruction(make_op("flatten", {{"axis", axis}}), inputs);
     }
 

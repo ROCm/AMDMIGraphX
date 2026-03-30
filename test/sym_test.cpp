@@ -55,6 +55,11 @@ TEST_CASE(construct_empty)
     EXPECT(e.to_string().empty());
 }
 
+TEST_CASE(construct_empty_var_name_throws)
+{
+    EXPECT(test::throws([&] { var(""); }));
+}
+
 TEST_CASE(add_identity)
 {
     auto h = var("h");
@@ -192,34 +197,34 @@ TEST_CASE(mul_distributive)
     EXPECT(r == 2 * h + 2);
 }
 
-TEST_CASE(fdiv_identity)
+TEST_CASE(tdiv_identity)
 {
     auto h = var("h");
     EXPECT(h / 1 == h);
 }
 
-TEST_CASE(fdiv_constant_folding)
+TEST_CASE(tdiv_constant_folding)
 {
     EXPECT(lit(7) / lit(2) == lit(3));
     EXPECT(lit(6) / lit(3) == lit(2));
     EXPECT(lit(0) / lit(5) == lit(0));
 }
 
-TEST_CASE(fdiv_exact_coefficient_cancel)
+TEST_CASE(tdiv_exact_coefficient_cancel)
 {
     auto n = var("n");
     auto r = (6 * n) / 3;
     EXPECT(r == 2 * n);
 }
 
-TEST_CASE(fdiv_non_simplifiable)
+TEST_CASE(tdiv_non_simplifiable)
 {
     auto h = var("h");
     auto r = (h - 1) / 2;
     EXPECT(r == (h - 1) / 2);
 }
 
-TEST_CASE(fdiv_division_by_zero)
+TEST_CASE(tdiv_division_by_zero)
 {
     EXPECT(test::throws([&] { var("h") / 0; }));
 }
@@ -328,17 +333,73 @@ TEST_CASE(add_multi_term_accumulation)
     EXPECT(r == expected);
 }
 
-TEST_CASE(fdiv_negative_constant_folding)
+TEST_CASE(tdiv_negative_constant_folding)
 {
     EXPECT(lit(-7) / lit(2) == lit(-7 / 2));
     EXPECT(lit(-6) / lit(3) == lit(-2));
     EXPECT(lit(7) / lit(-2) == lit(7 / -2));
 }
 
-TEST_CASE(fdiv_large_constants)
+TEST_CASE(tdiv_large_constants)
 {
     EXPECT(lit(1000000) / lit(1000) == lit(1000));
     EXPECT(lit(999999) / lit(1000) == lit(999));
+}
+
+TEST_CASE(tdiv_zero_numerator)
+{
+    auto h = var("h");
+    EXPECT(lit(0) / h == lit(0));
+    EXPECT(lit(0) / (h + 1) == lit(0));
+}
+
+TEST_CASE(tdiv_self)
+{
+    auto h = var("h");
+    auto w = var("w");
+    EXPECT(h / h == lit(1));
+    EXPECT((h + 1) / (h + 1) == lit(1));
+    EXPECT((h * w) / (h * w) == lit(1));
+}
+
+TEST_CASE(tdiv_cancel_symbolic_factor)
+{
+    auto h = var("h");
+    auto w = var("w");
+    EXPECT(2 * h / h == lit(2));
+    EXPECT(h * w / h == w);
+    EXPECT(h * w / w == h);
+    EXPECT(3 * h * w / h == 3 * w);
+    EXPECT(3 * h * w / (h * w) == lit(3));
+    EXPECT(h * 6 * w / (3 * w) == 2 * h);
+    EXPECT(h * h * w / (h * w) == h);
+}
+
+TEST_CASE(tdiv_cancel_partial)
+{
+    auto h = var("h");
+    auto w = var("w");
+    EXPECT(5 * h * w / (2 * h) == 5 * w / lit(2));
+    EXPECT(h * h * w / (2 * h) == h * w / lit(2));
+}
+
+TEST_CASE(tdiv_cancel_cross_factor)
+{
+    auto h = var("h");
+    auto w = var("w");
+    auto c = var("c");
+    EXPECT(h * w / (h * c) == w / c);
+    EXPECT(h * w / (h * h) == w / h);
+}
+
+TEST_CASE(tdiv_distribute_over_sum)
+{
+    auto h = var("h");
+    auto w = var("w");
+    EXPECT((2 * h + 4) / 2 == h + 2);
+    EXPECT((6 * h + 3 * w + 9) / 3 == 2 * h + w + 3);
+    EXPECT((4 * h + 2) / 2 == 2 * h + 1);
+    EXPECT((2 * h + 3) / 2 != h);
 }
 
 // ===================================================================
@@ -361,6 +422,28 @@ TEST_CASE(eq_empty)
     EXPECT(lit(0) != se{});
 }
 
+TEST_CASE(hash_consistency)
+{
+    auto h = var("h");
+    auto w = var("w");
+    auto n = var("n");
+
+    auto check = [](const se& a, const se& b) {
+        EXPECT(a == b);
+        EXPECT(a.hash() == b.hash());
+    };
+
+    check(h + w, w + h);
+    check(h * w, w * h);
+    check(2 * h + 3, 3 + 2 * h);
+    check(h * w * n, n * h * w);
+    check((h + 1) * 3, 3 * (h + 1));
+    check((h - 1) / 2, (h - 1) / 2);
+    check(h + 0, h);
+    check(h * 1, h);
+    check(lit(5), lit(5));
+}
+
 // ===================================================================
 // Tier 3: Evaluation and substitution
 // ===================================================================
@@ -368,24 +451,24 @@ TEST_CASE(eq_empty)
 TEST_CASE(eval_simple)
 {
     auto h = var("h");
-    EXPECT(h.eval_dim({{h, 26}}) == 26);
-    EXPECT(lit(42).eval_dim({}) == 42);
+    EXPECT(h.eval_uint({{h, 26}}) == 26);
+    EXPECT(lit(42).eval_uint({}) == 42);
 }
 
 TEST_CASE(eval_arithmetic)
 {
     auto h = var("h");
-    EXPECT((h - 3).eval_dim({{h, 26}}) == 23);
-    EXPECT((h + 5).eval_dim({{h, 10}}) == 15);
-    EXPECT((2 * h).eval_dim({{h, 13}}) == 26);
+    EXPECT((h - 3).eval_uint({{h, 26}}) == 23);
+    EXPECT((h + 5).eval_uint({{h, 10}}) == 15);
+    EXPECT((2 * h).eval_uint({{h, 13}}) == 26);
 }
 
 TEST_CASE(eval_compound)
 {
     auto h = var("h");
     auto e = (h - 3) / 2 + 1;
-    EXPECT(e.eval_dim({{h, 26}}) == 12);
-    EXPECT(e.eval_dim({{h, 27}}) == 13);
+    EXPECT(e.eval_uint({{h, 26}}) == 12);
+    EXPECT(e.eval_uint({{h, 27}}) == 13);
 }
 
 TEST_CASE(eval_multiple_symbols)
@@ -393,37 +476,51 @@ TEST_CASE(eval_multiple_symbols)
     auto n = var("n");
     auto h = var("h");
     auto e = n * h;
-    EXPECT(e.eval_dim({{n, 4}, {h, 26}}) == 104);
+    EXPECT(e.eval_uint({{n, 4}, {h, 26}}) == 104);
 }
 
-TEST_CASE(eval_floor_division)
+TEST_CASE(eval_trunc_division)
 {
     auto h = var("h");
     auto e = (h - 1) / 2;
-    EXPECT(e.eval_dim({{h, 7}}) == 3);
-    EXPECT(e.eval_dim({{h, 8}}) == 3);
-    EXPECT(e.eval_dim({{h, 9}}) == 4);
+    EXPECT(e.eval_uint({{h, 7}}) == 3);
+    EXPECT(e.eval_uint({{h, 8}}) == 3);
+    EXPECT(e.eval_uint({{h, 9}}) == 4);
 }
 
 TEST_CASE(eval_unbound_throws)
 {
     auto h = var("h");
     auto w = var("w");
-    EXPECT(test::throws([&] { h.eval_dim({}); }));
-    EXPECT(test::throws([&] { (h + w).eval_dim({{h, 1}}); }));
+    EXPECT(test::throws([&] { h.eval_uint({}); }));
+    EXPECT(test::throws([&] { (h + w).eval_uint({{h, 1}}); }));
 }
 
 TEST_CASE(eval_division_by_zero_throws)
 {
     auto h = var("h");
     auto d = var("d");
-    EXPECT(test::throws([&] { (h / d).eval_dim({{h, 10}, {d, 0}}); }));
+    EXPECT(test::throws([&] { (h / d).eval_uint({{h, 10}, {d, 0}}); }));
 }
 
 TEST_CASE(eval_integer_expr)
 {
-    EXPECT(lit(0).eval_dim({}) == 0);
-    EXPECT(lit(100).eval_dim({}) == 100);
+    EXPECT(lit(0).eval_uint({}) == 0);
+    EXPECT(lit(100).eval_uint({}) == 100);
+}
+
+TEST_CASE(eval_non_symbol_key_throws)
+{
+    auto h = var("h");
+    EXPECT(test::throws([&] { h.eval_uint({{lit(5), 10}}); }));
+    EXPECT(test::throws([&] { h.eval_uint({{h + 1, 10}}); }));
+}
+
+TEST_CASE(subs_non_symbol_key_throws)
+{
+    auto h = var("h");
+    EXPECT(test::throws([&] { h.subs({{h + 1, lit(5)}}); }));
+    EXPECT(test::throws([&] { h.subs({{lit(3), lit(5)}}); }));
 }
 
 TEST_CASE(subs_partial)
@@ -433,7 +530,7 @@ TEST_CASE(subs_partial)
     auto e = n * h + 1;
     auto r = e.subs({{n, lit(4)}});
     EXPECT(r == 4 * h + 1);
-    EXPECT(r.eval_dim({{h, 10}}) == 41);
+    EXPECT(r.eval_uint({{h, 10}}) == 41);
 }
 
 TEST_CASE(subs_full)
@@ -450,12 +547,20 @@ TEST_CASE(subs_none)
     EXPECT(h.subs({}) == h);
 }
 
-TEST_CASE(subs_floor_div)
+TEST_CASE(subs_trunc_div)
 {
     auto h = var("h");
     auto e = (h - 1) / 2;
     auto r = e.subs({{h, lit(7)}});
     EXPECT(r == lit(3));
+}
+
+TEST_CASE(subs_division_by_zero)
+{
+    auto h = var("h");
+    auto d = var("d");
+    auto e = h / d;
+    EXPECT(test::throws([&] { e.subs({{d, lit(0)}}); }));
 }
 
 // eval() and subs()+eval() must agree on a compound expression
@@ -466,8 +571,8 @@ TEST_CASE(subs_eval_cross_validation)
     auto e                                       = (n * h - 3) / 2 + 1;
     std::unordered_map<se, std::size_t> eval_map = {{n, 4}, {h, 26}};
     std::unordered_map<se, se> subs_map          = {{n, lit(4)}, {h, lit(26)}};
-    auto via_eval                                = e.eval_dim(eval_map);
-    auto via_subs                                = e.subs(subs_map).eval_dim({});
+    auto via_eval                                = e.eval_uint(eval_map);
+    auto via_subs                                = e.subs(subs_map).eval_uint({});
     EXPECT(via_eval == via_subs);
 }
 
@@ -515,9 +620,9 @@ TEST_CASE(subs_compound_expression)
     // N*H => (W-1)*(2*W+1) = 2*W^2 - W - 1
     // N*H + W - 3 => 2*W^2 - 2*W - 4 + W = 2*W^2 - 2
     // Verify by evaluating with W=5: (W-1)*(2*W+1) + W - 3 = 4*11 + 5 - 3 = 46, 46/2 = 23
-    EXPECT(r.eval_dim({{w, 5}}) == 23);
+    EXPECT(r.eval_uint({{w, 5}}) == 23);
     // Also verify the original expression with direct values agrees
-    EXPECT(e.eval_dim({{n, 4}, {h, 11}, {w, 5}}) == 23);
+    EXPECT(e.eval_uint({{n, 4}, {h, 11}, {w, 5}}) == 23);
 }
 
 TEST_CASE(eval_compound_product)
@@ -525,14 +630,14 @@ TEST_CASE(eval_compound_product)
     auto h = var("h");
     auto w = var("w");
     auto e = h * w + 1;
-    EXPECT(e.eval_dim({{h, 3}, {w, 4}}) == 13);
+    EXPECT(e.eval_uint({{h, 3}, {w, 4}}) == 13);
 }
 
 TEST_CASE(eval_negative_intermediate)
 {
     auto h = var("h");
     auto e = (h - 10) * 2 + 20;
-    EXPECT(e.eval_dim({{h, 3}}) == 6);
+    EXPECT(e.eval_uint({{h, 3}}) == 6);
 }
 
 // ===================================================================
@@ -561,7 +666,7 @@ TEST_CASE(print_mul)
     EXPECT(r.to_string() == "a*b");
 }
 
-TEST_CASE(print_fdiv_parens)
+TEST_CASE(print_tdiv_parens)
 {
     auto r = (var("h") - 1) / 2;
     EXPECT(r.to_string() == "(h - 1)/2");
@@ -646,6 +751,49 @@ TEST_CASE(parse_power_operator)
     EXPECT(parse("(2*h)**3 + 5") == 8 * h * h * h + 5);
 }
 
+TEST_CASE(parse_empty_string)
+{
+    EXPECT(parse("").empty());
+    EXPECT(parse("  ").empty());
+    EXPECT(parse("\t\n").empty());
+}
+
+TEST_CASE(parse_error_unexpected_char)
+{
+    EXPECT(test::throws([&] { parse(")"); }));
+    EXPECT(test::throws([&] { parse("@"); }));
+}
+
+TEST_CASE(parse_error_trailing_chars)
+{
+    EXPECT(test::throws([&] { parse("1 2"); }));
+    EXPECT(test::throws([&] { parse("h w"); }));
+}
+
+TEST_CASE(parse_error_unexpected_end)
+{
+    EXPECT(test::throws([&] { parse("h +"); }));
+    EXPECT(test::throws([&] { parse("h *"); }));
+    EXPECT(test::throws([&] { parse("-"); }));
+}
+
+TEST_CASE(parse_error_power_non_integer_exponent)
+{
+    EXPECT(test::throws([&] { parse("h**h"); }));
+}
+
+TEST_CASE(parse_error_power_negative_exponent)
+{
+    EXPECT(test::throws([&] { parse("h**-1"); }));
+}
+
+TEST_CASE(parse_double_unary_minus)
+{
+    auto h = var("h");
+    EXPECT(parse("--h") == h);
+    EXPECT(parse("--5") == lit(5));
+}
+
 TEST_CASE(print_negative_mul_coefficient)
 {
     auto r = 0 - 3 * var("h");
@@ -708,7 +856,7 @@ TEST_CASE(edge_deeply_nested)
     se e   = h;
     for(int i = 0; i < 5; ++i)
         e = (e - 1) / 2;
-    EXPECT(e.eval_dim({{h, 255}}) == 7);
+    EXPECT(e.eval_uint({{h, 255}}) == 7);
 }
 
 TEST_CASE(edge_many_symbols)
@@ -719,7 +867,7 @@ TEST_CASE(edge_many_symbols)
     auto d = var("d");
     auto e = var("e");
     auto r = a + b + c + d + e;
-    EXPECT(r.eval_dim({{a, 1}, {b, 2}, {c, 3}, {d, 4}, {e, 5}}) == 15);
+    EXPECT(r.eval_uint({{a, 1}, {b, 2}, {c, 3}, {d, 4}, {e, 5}}) == 15);
 }
 
 TEST_CASE(edge_neg_one_coefficient)
@@ -753,7 +901,7 @@ TEST_CASE(edge_large_coefficients)
 {
     auto h = var("h");
     auto r = 1000000 * h;
-    EXPECT(r.eval_dim({{h, 1000000}}) == 1000000000000ULL);
+    EXPECT(r.eval_uint({{h, 1000000}}) == 1000000000000ULL);
 }
 
 // Incrementally adding H ten times must fold to 11*H
@@ -819,11 +967,39 @@ TEST_CASE(serialize_mul)
     EXPECT(round_trip(e) == e);
 }
 
-TEST_CASE(serialize_fdiv)
+TEST_CASE(serialize_tdiv)
 {
     auto h = var("h");
     auto e = (h - 1) / 2;
     EXPECT(round_trip(e) == e);
+}
+
+TEST_CASE(serialize_negative_integer)
+{
+    EXPECT(round_trip(lit(-5)) == lit(-5));
+    EXPECT(round_trip(lit(-1)) == lit(-1));
+}
+
+TEST_CASE(serialize_power)
+{
+    auto h = var("h");
+    EXPECT(round_trip(h * h) == h * h);
+    EXPECT(round_trip(h * h * h) == h * h * h);
+}
+
+TEST_CASE(serialize_negative_coefficient)
+{
+    auto h = var("h");
+    EXPECT(round_trip(0 - 3 * h) == 0 - 3 * h);
+    EXPECT(round_trip(0 - h) == 0 - h);
+}
+
+TEST_CASE(serialize_tdiv_symbolic_denominator)
+{
+    auto h = var("h");
+    auto w = var("w");
+    EXPECT(round_trip(h / w) == h / w);
+    EXPECT(round_trip((h + 1) / w) == (h + 1) / w);
 }
 
 TEST_CASE(serialize_compound)

@@ -107,12 +107,12 @@ struct MIGRAPHX_EXPORT module
         return insert_instruction(ins, op, {args...});
     }
     instruction_ref
-    insert_instruction(instruction_ref ins, const operation& op, std::vector<instruction_ref> args);
+    insert_instruction(instruction_ref ins, const operation& op, std::vector<instruction_ref> args) MIGRAPHX_TIDY_CONST;
 
     instruction_ref insert_instruction(instruction_ref ins,
                                        const operation& op,
                                        std::vector<instruction_ref> args,
-                                       std::vector<module_ref> module_args);
+                                       std::vector<module_ref> module_args) MIGRAPHX_TIDY_CONST;
 
     template <class... Ts, MIGRAPHX_REQUIRES(std::is_same<Ts, instruction_ref>{}...)>
     instruction_ref replace_instruction(instruction_ref ins, operation op, Ts... args)
@@ -128,7 +128,7 @@ struct MIGRAPHX_EXPORT module
                                         std::vector<instruction_ref> args,
                                         std::vector<module_ref> module_args) MIGRAPHX_TIDY_CONST;
 
-    instruction_ref replace_instruction(instruction_ref ins, instruction_ref rep);
+    instruction_ref replace_instruction(instruction_ref ins, instruction_ref rep) MIGRAPHX_TIDY_CONST;
 
     struct instruction_replacement
     {

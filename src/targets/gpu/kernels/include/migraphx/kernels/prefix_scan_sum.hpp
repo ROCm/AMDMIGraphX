@@ -31,11 +31,8 @@
 namespace migraphx {
 
 template <index_int BlockSize, bool Exclusive, bool Reverse, class Input, class Output>
-__device__ void prefix_scan_sum_slice(Input input,
-                                      Output output,
-                                      index_int offset,
-                                      index_int n,
-                                      index_int axis_stride)
+__device__ void prefix_scan_sum_slice(
+    Input input, Output output, index_int offset, index_int n, index_int axis_stride)
 {
     auto idx = make_index();
 
@@ -45,7 +42,7 @@ __device__ void prefix_scan_sum_slice(Input input,
     };
 
     auto write_output = [&](index_int j, auto x) {
-        index_int pos = Reverse ? (n - 1 - j) : j;
+        index_int pos                      = Reverse ? (n - 1 - j) : j;
         output[offset + pos * axis_stride] = x;
     };
 
@@ -54,12 +51,7 @@ __device__ void prefix_scan_sum_slice(Input input,
     if constexpr(Exclusive)
     {
         block_scan<BlockSize>(
-            idx,
-            op::sum{},
-            value_type{0},
-            n,
-            read_input,
-            [&](index_int j, auto x) {
+            idx, op::sum{}, value_type{0}, n, read_input, [&](index_int j, auto x) {
                 if(j == 0)
                     write_output(j, value_type{0});
                 else
@@ -68,8 +60,7 @@ __device__ void prefix_scan_sum_slice(Input input,
     }
     else
     {
-        block_scan<BlockSize>(
-            idx, op::sum{}, value_type{0}, n, read_input, write_output);
+        block_scan<BlockSize>(idx, op::sum{}, value_type{0}, n, read_input, write_output);
     }
 }
 

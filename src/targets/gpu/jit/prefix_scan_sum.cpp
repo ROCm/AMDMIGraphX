@@ -150,15 +150,14 @@ struct prefix_scan_sum_compiler : compiler<prefix_scan_sum_compiler>
         options.global                   = nslices * block_size;
         options.local                    = block_size;
 
-        auto src =
-            interpolate_string(prefix_scan_sum_kernel,
-                               {{"block_size", std::to_string(block_size)},
-                                {"n", std::to_string(n)},
-                                {"axis_stride", std::to_string(axis_stride)},
-                                {"nslices", std::to_string(nslices)},
-                                {"offset_computation", offset_computation},
-                                {"exclusive", exclusive ? "true" : "false"},
-                                {"reverse", reverse ? "true" : "false"}});
+        auto src = interpolate_string(prefix_scan_sum_kernel,
+                                      {{"block_size", std::to_string(block_size)},
+                                       {"n", std::to_string(n)},
+                                       {"axis_stride", std::to_string(axis_stride)},
+                                       {"nslices", std::to_string(nslices)},
+                                       {"offset_computation", offset_computation},
+                                       {"exclusive", exclusive ? "true" : "false"},
+                                       {"reverse", reverse ? "true" : "false"}});
 
         return compile_hip_code_object(ctx, src, options);
     }

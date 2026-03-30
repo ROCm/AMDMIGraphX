@@ -45,15 +45,20 @@ MIGRAPHX_GLOBAL void prefix_scan_sum_kernel(void* input_p, void* output_p)
         const index_int nslices = ${nslices};
         const index_int n = ${n};
         const index_int axis_stride = ${axis_stride};
-        const index_int inner_size = ${inner_size};
-        const index_int outer_stride = ${outer_stride};
-        const index_int inner_stride = ${inner_stride};
+        const index_int num_batch_dims = ${num_batch_dims};
+        const index_int batch_flat_strides[] = {${batch_flat_strides}};
+        const index_int batch_tensor_strides[] = {${batch_tensor_strides}};
         index_int slice_idx = idx.group;
         if(slice_idx < nslices)
         {
-            index_int outer_idx = slice_idx / inner_size;
-            index_int inner_idx = slice_idx % inner_size;
-            index_int offset = outer_idx * outer_stride + inner_idx * inner_stride;
+            index_int offset = 0;
+            index_int remaining = slice_idx;
+            for(index_int b = 0; b < num_batch_dims; ++b)
+            {
+                index_int idx_b = remaining / batch_flat_strides[b];
+                remaining = remaining % batch_flat_strides[b];
+                offset += idx_b * batch_tensor_strides[b];
+            }
             prefix_scan_sum_slice<${block_size}, ${exclusive}, ${reverse}>(
                 input, output, offset, n, axis_stride);
         }
@@ -97,49 +102,62 @@ struct prefix_scan_sum_compiler : compiler<prefix_scan_sum_compiler>
                 nslices *= output_shape.lens()[i];
         }
 
-        auto ndim        = output_shape.lens().size();
-        auto& lens       = output_shape.lens();
-        auto& strides    = output_shape.strides();
+        auto ndim     = output_shape.lens().size();
+        auto& lens    = output_shape.lens();
+        auto& strides = output_shape.strides();
 
-        std::vector<std::size_t> batch_dims;
+        // Collect non-axis (batch) dimensions in order, compute flat strides and tensor strides
+        std::vector<std::size_t> batch_lens_vec;
+        std::vector<std::size_t> batch_tensor_strides_vec;
         for(std::size_t i = 0; i < ndim; ++i)
         {
             if(i != axis)
-                batch_dims.push_back(i);
-        }
-
-        std::size_t inner_size   = 1;
-        std::size_t inner_stride = 1;
-        std::size_t outer_stride = 0;
-
-        if(not batch_dims.empty())
-        {
-            std::size_t last_batch = batch_dims.back();
-            inner_size             = lens[last_batch];
-            inner_stride           = strides[last_batch];
-
-            if(batch_dims.size() > 1)
             {
-                std::size_t second_batch = batch_dims[batch_dims.size() - 2];
-                outer_stride             = strides[second_batch];
+                batch_lens_vec.push_back(lens[i]);
+                batch_tensor_strides_vec.push_back(strides[i]);
             }
         }
+        // flat_strides[b] = product of batch_lens[b+1..end], used to unflatten slice_idx.
+        // Computed in reverse order (innermost to outermost) so each entry accumulates the
+        // sizes of all more-inner batch dimensions.
+        std::size_t num_batch = batch_lens_vec.size();
+        std::vector<std::size_t> batch_flat_strides_vec(num_batch, 1);
+        for(std::size_t b = num_batch; b-- > 0;)
+        {
+            batch_flat_strides_vec[b] =
+                (b + 1 < num_batch) ? batch_flat_strides_vec[b + 1] * batch_lens_vec[b + 1] : 1;
+        }
+
+        // Build comma-separated strings; use a dummy "0" for the empty (1-D) case to avoid
+        // zero-length arrays in the generated C++ kernel. The loop in the kernel will not
+        // execute when num_batch_dims == 0, so the dummy element is never accessed.
+        auto to_csv = [](const std::vector<std::size_t>& v) -> std::string {
+            if(v.empty())
+                return "0";
+            std::string s;
+            for(std::size_t i = 0; i < v.size(); ++i)
+            {
+                if(i > 0)
+                    s += ", ";
+                s += std::to_string(v[i]);
+            }
+            return s;
+        };
 
         constexpr std::size_t block_size = 256;
         options.global                   = nslices * block_size;
         options.local                    = block_size;
 
-        auto src =
-            interpolate_string(prefix_scan_sum_kernel,
-                               {{"block_size", std::to_string(block_size)},
-                                {"n", std::to_string(n)},
-                                {"axis_stride", std::to_string(axis_stride)},
-                                {"nslices", std::to_string(nslices)},
-                                {"inner_size", std::to_string(inner_size)},
-                                {"outer_stride", std::to_string(outer_stride)},
-                                {"inner_stride", std::to_string(inner_stride)},
-                                {"exclusive", exclusive ? "true" : "false"},
-                                {"reverse", reverse ? "true" : "false"}});
+        auto src = interpolate_string(prefix_scan_sum_kernel,
+                                      {{"block_size", std::to_string(block_size)},
+                                       {"n", std::to_string(n)},
+                                       {"axis_stride", std::to_string(axis_stride)},
+                                       {"nslices", std::to_string(nslices)},
+                                       {"num_batch_dims", std::to_string(num_batch)},
+                                       {"batch_flat_strides", to_csv(batch_flat_strides_vec)},
+                                       {"batch_tensor_strides", to_csv(batch_tensor_strides_vec)},
+                                       {"exclusive", exclusive ? "true" : "false"},
+                                       {"reverse", reverse ? "true" : "false"}});
 
         return compile_hip_code_object(ctx, src, options);
     }

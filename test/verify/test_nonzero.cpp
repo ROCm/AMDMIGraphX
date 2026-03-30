@@ -50,3 +50,21 @@ template struct test_nonzero<migraphx::shape::fp8e4m3fnuz_type>;
 template struct test_nonzero<migraphx::shape::fp8e5m2fnuz_type>;
 template struct test_nonzero<migraphx::shape::fp8e4m3fn_type>;
 template struct test_nonzero<migraphx::shape::fp8e5m2_type>;
+
+
+struct test_nonzero_bool_int64_params : verify_program<test_nonzero_bool_int64_params>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s_bool{migraphx::shape::bool_type, {2, 3, 4, 5}};
+        migraphx::shape s_i64{migraphx::shape::int64_type, {3, 2}};
+        auto a = mm->add_parameter("a", s_bool);
+        auto b = mm->add_parameter("b", s_i64);
+        auto r = mm->add_instruction(migraphx::make_op("nonzero"), a);
+        mm->add_return({r, b});
+
+        return p;
+    }
+};

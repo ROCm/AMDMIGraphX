@@ -2378,21 +2378,19 @@ MIGRAPHX_PRED_MATCHER(fusable_avg_pooling, instruction_ref ins)
     if(v["mode"].to<std::size_t>() != static_cast<std::size_t>(op::pooling_mode::average))
         return false;
 
-    auto padding = v["padding"].to_vector<std::size_t>();
-    if(std::any_of(padding.begin(), padding.end(), [](auto p) { return p != 0; }))
+    if(not all_of(v["padding"], [](const value& x) { return x.to<std::size_t>() == 0; }))
         return false;
 
     if(v["ceil_mode"].to<bool>())
         return false;
 
-    auto dilations = v["dilations"].to_vector<std::size_t>();
-    if(std::any_of(dilations.begin(), dilations.end(), [](auto d) { return d != 1; }))
+    if(not all_of(v["dilations"], [](const value& x) { return x.to<std::size_t>() == 1; }))
         return false;
 
-    if(v.contains("padding_mode") and v["padding_mode"].to<std::size_t>() != 0)
+    if(v["padding_mode"].to<std::size_t>() != 0)
         return false;
 
-    if(v.contains("dyn_global") and v["dyn_global"].to<bool>())
+    if(v["dyn_global"].to<bool>())
         return false;
 
     if(ins->get_shape().dynamic())
@@ -2408,7 +2406,7 @@ MIGRAPHX_PRED_MATCHER(fusable_convolution, instruction_ref ins)
 {
     auto op = any_cast<op::convolution>(ins->get_operator());
 
-    if(std::any_of(op.dilation.begin(), op.dilation.end(), [](auto d) { return d != 1; }))
+    if(any_of(op.dilation, [](auto d) { return d != 1; }))
         return false;
 
     if(op.group != 1)
@@ -2469,29 +2467,35 @@ struct find_pooling_conv
 
         // Compute new stride: Sp * Sc
         std::vector<std::size_t> new_stride(num_spatial_dims);
-        for(std::size_t i = 0; i < num_spatial_dims; i++)
-            new_stride[i] = pool_stride[i] * conv_op.stride[i];
+        std::transform(pool_stride.begin(),
+                       pool_stride.end(),
+                       conv_op.stride.begin(),
+                       new_stride.begin(),
+                       std::multiplies<>{});
 
         // Compute new padding: Sp * Pc
         std::vector<std::size_t> new_padding(conv_op.padding.size());
-        for(std::size_t i = 0; i < conv_op.padding.size(); i++)
-        {
-            auto spatial_idx = i % num_spatial_dims;
-            new_padding[i]   = pool_stride[spatial_idx] * conv_op.padding[i];
-        }
+        std::transform(conv_op.padding.begin(),
+                       conv_op.padding.end(),
+                       new_padding.begin(),
+                       [&](auto p) {
+                           auto idx = &p - &conv_op.padding.front();
+                           return pool_stride[idx % num_spatial_dims] * p;
+                       });
 
         // Pool area for the average divisor
-        double pool_area = 1;
-        for(std::size_t i = 0; i < num_spatial_dims; i++)
-            pool_area *= pool_lengths[i];
+        auto pool_area = std::accumulate(
+            pool_lengths.begin(), pool_lengths.end(), 1.0, std::multiplies<>{});
 
         // Build new weights via ops (propagate_constant will fold later)
         //
         // Step 1: Unsqueeze to interleave size-1 dims after each spatial dim
         //   {K_out, K_in, Kc_h, Kc_w} -> {K_out, K_in, Kc_h, 1, Kc_w, 1}
         std::vector<int64_t> unsq_axes(num_spatial_dims);
-        for(std::size_t i = 0; i < num_spatial_dims; i++)
-            unsq_axes[i] = 3 + 2 * static_cast<int64_t>(i);
+        std::transform(range(num_spatial_dims).begin(),
+                       range(num_spatial_dims).end(),
+                       unsq_axes.begin(),
+                       [](auto i) { return 3 + 2 * static_cast<int64_t>(i); });
         auto current =
             m.insert_instruction(ins, make_op("unsqueeze", {{"axes", unsq_axes}}), w_ins);
 
@@ -2507,9 +2511,8 @@ struct find_pooling_conv
             ins, make_op("multibroadcast", {{"out_lens", bcast_lens}}), current);
 
         // Step 3: Pad pool kernel dims to pool stride if Kp < Sp
-        bool needs_pad = std::any_of(range(num_spatial_dims).begin(),
-                                     range(num_spatial_dims).end(),
-                                     [&](auto i) { return pool_lengths[i] < pool_stride[i]; });
+        bool needs_pad = any_of(range(num_spatial_dims),
+                                [&](auto i) { return pool_lengths[i] < pool_stride[i]; });
         if(needs_pad)
         {
             auto padded_ndims = 2 + 2 * num_spatial_dims;
@@ -2546,13 +2549,7 @@ struct find_pooling_conv
         }
 
         // Step 6: Scale weights by 1/pool_area
-        literal scale_lit;
-        w_shape.visit_type([&](auto as) {
-            using type             = typename decltype(as)::type;
-            std::vector<type> data = {type(1.0 / pool_area)};
-            scale_lit              = literal{shape{w_shape.type()}, data};
-        });
-        auto scale_ins = m.add_literal(std::move(scale_lit));
+        auto scale_ins = m.add_literal(literal{shape{w_shape.type()}, {1.0 / pool_area}});
         auto scale_bc  = m.insert_instruction(
             ins, make_op("multibroadcast", {{"out_lens", new_kernel_lens}}), scale_ins);
         auto new_w = m.insert_instruction(ins, make_op("mul"), current, scale_bc);

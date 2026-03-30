@@ -122,7 +122,7 @@ struct miopen_apply
         add_concat_past_present_op();
         add_scan_slice_op();
         add_fill_op();
-        add_slice_op();
+        add_dyn_slice_op();
     }
 
     void copy_params() const
@@ -581,11 +581,10 @@ struct miopen_apply
                                                     {{"op", to_value(ins->get_operator())},
                                                      {"output_shape", to_value(ins->get_shape())}}),
                                             ins->inputs());
-
         });
     }
 
-    void add_slice_op()
+    void add_dyn_slice_op()
     {
         apply_map.emplace("slice", [=](instruction_ref ins) {
             auto inputs = ins->inputs();

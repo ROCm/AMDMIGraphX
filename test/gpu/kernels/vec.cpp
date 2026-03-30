@@ -34,44 +34,23 @@ TEST_CASE(vec_size_scalar)
     EXPECT(migraphx::vec_size<float>() == 0);
 }
 
-TEST_CASE(vec_size_vec2)
-{
-    EXPECT(migraphx::vec_size<migraphx::vec<float, 2>>() == 2);
-}
+TEST_CASE(vec_size_vec2) { EXPECT(migraphx::vec_size<migraphx::vec<float, 2>>() == 2); }
 
-TEST_CASE(vec_size_vec4)
-{
-    EXPECT(migraphx::vec_size<migraphx::vec<int, 4>>() == 4);
-}
+TEST_CASE(vec_size_vec4) { EXPECT(migraphx::vec_size<migraphx::vec<int, 4>>() == 4); }
 
 // is_any_vec
 
-TEST_CASE(is_any_vec_empty)
-{
-    EXPECT(not migraphx::is_any_vec<>());
-}
+TEST_CASE(is_any_vec_empty) { EXPECT(not migraphx::is_any_vec<>()); }
 
-TEST_CASE(is_any_vec_scalar)
-{
-    EXPECT(not migraphx::is_any_vec<int>());
-}
+TEST_CASE(is_any_vec_scalar) { EXPECT(not migraphx::is_any_vec<int>()); }
 
-TEST_CASE(is_any_vec_vec)
-{
-    EXPECT(migraphx::is_any_vec<migraphx::vec<float, 2>>());
-}
+TEST_CASE(is_any_vec_vec) { EXPECT(migraphx::is_any_vec<migraphx::vec<float, 2>>()); }
 
-TEST_CASE(is_any_vec_mixed)
-{
-    EXPECT(migraphx::is_any_vec<int, migraphx::vec<float, 2>>());
-}
+TEST_CASE(is_any_vec_mixed) { EXPECT(migraphx::is_any_vec<int, migraphx::vec<float, 2>>()); }
 
 // vec_at
 
-TEST_CASE(vec_at_scalar)
-{
-    EXPECT(migraphx::vec_at(42, 0) == 42);
-}
+TEST_CASE(vec_at_scalar) { EXPECT(migraphx::vec_at(42, 0) == 42); }
 
 TEST_CASE(vec_at_vec)
 {
@@ -84,10 +63,7 @@ TEST_CASE(vec_at_vec)
 
 // common_vec_size
 
-TEST_CASE(common_vec_size_scalars)
-{
-    EXPECT(migraphx::common_vec_size<int, float>() == 0);
-}
+TEST_CASE(common_vec_size_scalars) { EXPECT(migraphx::common_vec_size<int, float>() == 0); }
 
 TEST_CASE(common_vec_size_mixed)
 {
@@ -111,7 +87,7 @@ TEST_CASE(vec_transform_vec)
 {
     migraphx::vec<int, 4> a = {1, 2, 3, 4};
     migraphx::vec<int, 4> b = {10, 20, 30, 40};
-    auto result = migraphx::vec_transform(a, b)([](auto x, auto y) { return x + y; });
+    auto result             = migraphx::vec_transform(a, b)([](auto x, auto y) { return x + y; });
     EXPECT(migraphx::vec_at(result, 0) == 11);
     EXPECT(migraphx::vec_at(result, 1) == 22);
     EXPECT(migraphx::vec_at(result, 2) == 33);
@@ -142,14 +118,14 @@ TEST_CASE(vec_packed_at_vec)
 TEST_CASE(vec_reduce_sum)
 {
     migraphx::vec<int, 4> v = {1, 2, 3, 4};
-    auto result = migraphx::vec_reduce(v, [](auto a, auto b) { return a + b; });
+    auto result             = migraphx::vec_reduce(v, [](auto a, auto b) { return a + b; });
     EXPECT(result == 10);
 }
 
 TEST_CASE(vec_reduce_max)
 {
     migraphx::vec<int, 4> v = {3, 1, 4, 2};
-    auto result = migraphx::vec_reduce(v, [](auto a, auto b) { return a > b ? a : b; });
+    auto result             = migraphx::vec_reduce(v, [](auto a, auto b) { return a > b ? a : b; });
     EXPECT(result == 4);
 }
 
@@ -176,7 +152,7 @@ TEST_CASE(vec_dot_float2)
 {
     migraphx::vec<float, 2> x = {1.0f, 2.0f};
     migraphx::vec<float, 2> y = {3.0f, 4.0f};
-    auto result                = migraphx::vec_dot(x, y);
+    auto result               = migraphx::vec_dot(x, y);
     EXPECT(migraphx::float_equal(result, 11.0f));
 }
 
@@ -184,7 +160,7 @@ TEST_CASE(vec_dot_float4)
 {
     migraphx::vec<float, 4> x = {1.0f, 2.0f, 3.0f, 4.0f};
     migraphx::vec<float, 4> y = {1.0f, 1.0f, 1.0f, 1.0f};
-    auto result                = migraphx::vec_dot(x, y);
+    auto result               = migraphx::vec_dot(x, y);
     EXPECT(migraphx::float_equal(result, 10.0f));
 }
 
@@ -192,7 +168,7 @@ TEST_CASE(vec_dot_int)
 {
     migraphx::vec<int, 4> x = {1, 2, 3, 4};
     migraphx::vec<int, 4> y = {5, 6, 7, 8};
-    auto result              = migraphx::vec_dot(x, y);
+    auto result             = migraphx::vec_dot(x, y);
     EXPECT(result == 70);
 }
 
@@ -202,7 +178,7 @@ TEST_CASE(vec_dot_half2)
 {
     migraphx::vec<migraphx::half, 2> x = {1, 2};
     migraphx::vec<migraphx::half, 2> y = {3, 4};
-    float result                        = migraphx::vec_dot(x, y);
+    float result                       = migraphx::vec_dot(x, y);
     EXPECT(migraphx::float_equal(result, 11.0f));
 }
 
@@ -210,7 +186,7 @@ TEST_CASE(vec_dot_half4)
 {
     migraphx::vec<migraphx::half, 4> x = {1, 2, 3, 4};
     migraphx::vec<migraphx::half, 4> y = {1, 1, 1, 1};
-    float result                        = migraphx::vec_dot(x, y);
+    float result                       = migraphx::vec_dot(x, y);
     EXPECT(migraphx::float_equal(result, 10.0f));
 }
 
@@ -218,7 +194,7 @@ TEST_CASE(vec_dot_half8)
 {
     migraphx::vec<migraphx::half, 8> x = {1, 2, 3, 4, 5, 6, 7, 8};
     migraphx::vec<migraphx::half, 8> y = {1, 1, 1, 1, 1, 1, 1, 1};
-    float result                        = migraphx::vec_dot(x, y);
+    float result                       = migraphx::vec_dot(x, y);
     EXPECT(migraphx::float_equal(result, 36.0f));
 }
 
@@ -226,7 +202,7 @@ TEST_CASE(vec_dot_half2_zeros)
 {
     migraphx::vec<migraphx::half, 2> x = {0, 0};
     migraphx::vec<migraphx::half, 2> y = {1, 2};
-    float result                        = migraphx::vec_dot(x, y);
+    float result                       = migraphx::vec_dot(x, y);
     EXPECT(migraphx::float_equal(result, 0.0f));
 }
 
@@ -236,7 +212,7 @@ TEST_CASE(vec_dot_bf16_2)
 {
     migraphx::vec<migraphx::bf16, 2> x = {1.0f, 2.0f};
     migraphx::vec<migraphx::bf16, 2> y = {3.0f, 4.0f};
-    float result                        = migraphx::vec_dot(x, y);
+    float result                       = migraphx::vec_dot(x, y);
     EXPECT(migraphx::float_equal(result, 11.0f));
 }
 
@@ -244,7 +220,7 @@ TEST_CASE(vec_dot_bf16_4)
 {
     migraphx::vec<migraphx::bf16, 4> x = {1.0f, 2.0f, 3.0f, 4.0f};
     migraphx::vec<migraphx::bf16, 4> y = {1.0f, 1.0f, 1.0f, 1.0f};
-    float result                        = migraphx::vec_dot(x, y);
+    float result                       = migraphx::vec_dot(x, y);
     EXPECT(migraphx::float_equal(result, 10.0f));
 }
 
@@ -252,7 +228,7 @@ TEST_CASE(vec_dot_bf16_8)
 {
     migraphx::vec<migraphx::bf16, 8> x = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f};
     migraphx::vec<migraphx::bf16, 8> y = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
-    float result                        = migraphx::vec_dot(x, y);
+    float result                       = migraphx::vec_dot(x, y);
     EXPECT(migraphx::float_equal(result, 36.0f));
 }
 
@@ -260,7 +236,7 @@ TEST_CASE(vec_dot_bf16_2_zeros)
 {
     migraphx::vec<migraphx::bf16, 2> x = {0.0f, 0.0f};
     migraphx::vec<migraphx::bf16, 2> y = {1.0f, 2.0f};
-    float result                        = migraphx::vec_dot(x, y);
+    float result                       = migraphx::vec_dot(x, y);
     EXPECT(migraphx::float_equal(result, 0.0f));
 }
 
@@ -270,7 +246,7 @@ TEST_CASE(vec_dot_int8_4)
 {
     migraphx::vec<migraphx::int8_t, 4> x = {1, 2, 3, 4};
     migraphx::vec<migraphx::int8_t, 4> y = {5, 6, 7, 8};
-    migraphx::int32_t result              = migraphx::vec_dot(x, y);
+    migraphx::int32_t result             = migraphx::vec_dot(x, y);
     EXPECT(result == 70);
 }
 
@@ -278,7 +254,7 @@ TEST_CASE(vec_dot_int8_8)
 {
     migraphx::vec<migraphx::int8_t, 8> x = {1, 2, 3, 4, 5, 6, 7, 8};
     migraphx::vec<migraphx::int8_t, 8> y = {1, 1, 1, 1, 1, 1, 1, 1};
-    migraphx::int32_t result              = migraphx::vec_dot(x, y);
+    migraphx::int32_t result             = migraphx::vec_dot(x, y);
     EXPECT(result == 36);
 }
 
@@ -286,7 +262,7 @@ TEST_CASE(vec_dot_int8_4_negative)
 {
     migraphx::vec<migraphx::int8_t, 4> x = {-1, 2, -3, 4};
     migraphx::vec<migraphx::int8_t, 4> y = {1, 1, 1, 1};
-    migraphx::int32_t result              = migraphx::vec_dot(x, y);
+    migraphx::int32_t result             = migraphx::vec_dot(x, y);
     EXPECT(result == 2);
 }
 
@@ -294,7 +270,7 @@ TEST_CASE(vec_dot_int8_4_zeros)
 {
     migraphx::vec<migraphx::int8_t, 4> x = {0, 0, 0, 0};
     migraphx::vec<migraphx::int8_t, 4> y = {1, 2, 3, 4};
-    migraphx::int32_t result              = migraphx::vec_dot(x, y);
+    migraphx::int32_t result             = migraphx::vec_dot(x, y);
     EXPECT(result == 0);
 }
 

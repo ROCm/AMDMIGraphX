@@ -255,8 +255,7 @@ TEST_CASE(sub_of_two_adds)
 TEST_CASE(mul_zero_propagation)
 {
     auto h = var("h");
-    auto z = h - h;
-    EXPECT(50 * z == lit(0));
+    EXPECT(50 * (h - h) == lit(0));
 }
 
 TEST_CASE(add_chain_constant_cancel)

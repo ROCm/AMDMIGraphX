@@ -220,11 +220,14 @@ __device__ float vec_dot(vec<half, N> x, vec<half, N> y)
     return acc;
 }
 
+// bf16 dot product using v_dot2_f32_bf16 (requires dot9-insts, RDNA3)
+#if defined(__GFX11__)
+
 // Overload for bf16x2 using hardware dot product builtin.
 // Returns float to keep f32 accumulation throughout the reduction.
 inline __device__ float vec_dot(vec<bf16, 2> x, vec<bf16, 2> y)
 {
-    return __builtin_amdgcn_fdot2_bf16_bf16(x, y, 0.0f, false);
+    return __builtin_amdgcn_fdot2_bf16_bf16(x, y, 0.0f);
 }
 
 // Chained hardware dot product for larger bf16 vectors.
@@ -237,10 +240,15 @@ __device__ float vec_dot(vec<bf16, N> x, vec<bf16, N> y)
     {
         vec<bf16, 2> x_pack = vec_packed_at<2>(x, i);
         vec<bf16, 2> y_pack = vec_packed_at<2>(y, i);
-        acc                 = __builtin_amdgcn_fdot2_bf16_bf16(x_pack, y_pack, acc, false);
+        acc                 = __builtin_amdgcn_fdot2_bf16_bf16(x_pack, y_pack, acc);
     }
     return acc;
 }
+
+#endif // defined(__GFX11__)
+
+// int8 dot product using v_dot4_i32_i8 (requires dot1-insts, GFX9/RDNA2)
+#if defined(__GFX9__)
 
 // Overload for int8x4 using hardware dot product builtin.
 // Returns int32_t as the accumulation type.
@@ -260,11 +268,13 @@ __device__ int32_t vec_dot(vec<int8_t, N> x, vec<int8_t, N> y)
     {
         vec<int8_t, 4> x_pack = vec_packed_at<4>(x, i);
         vec<int8_t, 4> y_pack = vec_packed_at<4>(y, i);
-        acc                    = __builtin_amdgcn_sdot4(
+        acc                   = __builtin_amdgcn_sdot4(
             __builtin_bit_cast(int32_t, x_pack), __builtin_bit_cast(int32_t, y_pack), acc, false);
     }
     return acc;
 }
+
+#endif // defined(__GFX9__)
 
 template <class T>
 struct implicit_conversion_op

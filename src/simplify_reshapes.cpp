@@ -144,20 +144,6 @@ instruction_ref insert_auto_reshape(module& m,
     return insert_auto_reshape(m, ins, std::vector<T>(dims), input);
 }
 
-const auto& reshaper_names()
-{
-    // clang-format off
-    static const std::unordered_set<std::string> names = {
-        "flatten",
-        "reshape",
-        "contiguous",
-        "squeeze",
-        "unsqueeze"
-    };
-    // clang-format on
-    return names;
-}
-
 instruction_ref
 insert_ops(module& m, instruction_ref ins, const std::vector<operation>& ops, instruction_ref input)
 {
@@ -605,22 +591,30 @@ struct find_nop_reshapes
 {
     auto matcher() const
     {
-        auto reshapes = reshaper_names();
-        reshapes.insert("as_shape");
-        reshapes.insert("broadcast");
-        reshapes.insert("concat");
-        reshapes.insert("convert");
-        reshapes.insert("multibroadcast");
-        reshapes.insert("pad");
-        reshapes.insert("slice");
-        reshapes.insert("step");
-        reshapes.insert("transpose");
-        reshapes.insert("reduce_mean");
-        reshapes.insert("reduce_max");
-        reshapes.insert("reduce_min");
-        reshapes.insert("reduce_sum");
-        reshapes.insert("reduce_prod");
-        return match::name(reshapes)(match::same_shape(match::arg(0)));
+        // clang-format off
+        static const std::unordered_set<std::string> names = {
+            "flatten",
+            "reshape",
+            "contiguous",
+            "squeeze",
+            "unsqueeze",
+            "as_shape",
+            "broadcast",
+            "concat",
+            "convert",
+            "multibroadcast",
+            "pad",
+            "slice",
+            "step",
+            "transpose",
+            "reduce_mean",
+            "reduce_max",
+            "reduce_min",
+            "reduce_sum",
+            "reduce_prod",
+        };
+
+       return match::name(names)(match::same_shape(match::arg(0)));
     }
 
     void apply(module& m, const match::matcher_result& mr) const

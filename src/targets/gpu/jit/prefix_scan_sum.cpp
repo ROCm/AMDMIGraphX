@@ -45,20 +45,10 @@ MIGRAPHX_GLOBAL void prefix_scan_sum_kernel(void* input_p, void* output_p)
         const index_int nslices = ${nslices};
         const index_int n = ${n};
         const index_int axis_stride = ${axis_stride};
-        const index_int num_batch_dims = ${num_batch_dims};
-        const index_int batch_flat_strides[] = {${batch_flat_strides}};
-        const index_int batch_tensor_strides[] = {${batch_tensor_strides}};
         index_int slice_idx = idx.group;
         if(slice_idx < nslices)
         {
-            index_int offset = 0;
-            index_int remaining = slice_idx;
-            for(index_int b = 0; b < num_batch_dims; ++b)
-            {
-                index_int idx_b = remaining / batch_flat_strides[b];
-                remaining = remaining % batch_flat_strides[b];
-                offset += idx_b * batch_tensor_strides[b];
-            }
+            index_int offset = ${offset_computation};
             prefix_scan_sum_slice<${block_size}, ${exclusive}, ${reverse}>(
                 input, output, offset, n, axis_stride);
         }
@@ -106,58 +96,69 @@ struct prefix_scan_sum_compiler : compiler<prefix_scan_sum_compiler>
         auto& lens    = output_shape.lens();
         auto& strides = output_shape.strides();
 
-        // Collect non-axis (batch) dimensions in order, compute flat strides and tensor strides
-        std::vector<std::size_t> batch_lens_vec;
-        std::vector<std::size_t> batch_tensor_strides_vec;
+        std::vector<std::size_t> batch_lens;
+        std::vector<std::size_t> batch_strides;
         for(std::size_t i = 0; i < ndim; ++i)
         {
             if(i != axis)
             {
-                batch_lens_vec.push_back(lens[i]);
-                batch_tensor_strides_vec.push_back(strides[i]);
+                batch_lens.push_back(lens[i]);
+                batch_strides.push_back(strides[i]);
             }
-        }
-        // flat_strides[b] = product of batch_lens[b+1..end], used to unflatten slice_idx.
-        // Computed in reverse order (innermost to outermost) so each entry accumulates the
-        // sizes of all more-inner batch dimensions.
-        std::size_t num_batch = batch_lens_vec.size();
-        std::vector<std::size_t> batch_flat_strides_vec(num_batch, 1);
-        for(std::size_t b = num_batch; b-- > 0;)
-        {
-            batch_flat_strides_vec[b] =
-                (b + 1 < num_batch) ? batch_flat_strides_vec[b + 1] * batch_lens_vec[b + 1] : 1;
         }
 
-        // Build comma-separated strings; use a dummy "0" for the empty (1-D) case to avoid
-        // zero-length arrays in the generated C++ kernel. The loop in the kernel will not
-        // execute when num_batch_dims == 0, so the dummy element is never accessed.
-        auto to_csv = [](const std::vector<std::size_t>& v) -> std::string {
-            if(v.empty())
-                return "0";
-            std::string s;
-            for(std::size_t i = 0; i < v.size(); ++i)
+        std::string offset_computation = "0";
+        if(not batch_lens.empty())
+        {
+            std::vector<std::size_t> divisors(batch_lens.size());
+            divisors.back() = 1;
+            for(std::size_t i = batch_lens.size() - 1; i > 0; --i)
             {
-                if(i > 0)
-                    s += ", ";
-                s += std::to_string(v[i]);
+                divisors[i - 1] = divisors[i] * batch_lens[i];
             }
-            return s;
-        };
+
+            std::vector<std::string> terms;
+            for(std::size_t i = 0; i < batch_lens.size(); ++i)
+            {
+                std::string idx_expr;
+                if(divisors[i] == 1)
+                    idx_expr = "slice_idx";
+                else
+                    idx_expr = "(slice_idx / " + std::to_string(divisors[i]) + ")";
+
+                if(batch_lens[i] > 1 && i > 0)
+                    idx_expr = "(" + idx_expr + " % " + std::to_string(batch_lens[i]) + ")";
+
+                if(batch_strides[i] != 0)
+                {
+                    if(batch_strides[i] == 1)
+                        terms.push_back(idx_expr);
+                    else
+                        terms.push_back(idx_expr + " * " + std::to_string(batch_strides[i]));
+                }
+            }
+
+            if(not terms.empty())
+            {
+                offset_computation = terms[0];
+                for(std::size_t i = 1; i < terms.size(); ++i)
+                    offset_computation += " + " + terms[i];
+            }
+        }
 
         constexpr std::size_t block_size = 256;
         options.global                   = nslices * block_size;
         options.local                    = block_size;
 
-        auto src = interpolate_string(prefix_scan_sum_kernel,
-                                      {{"block_size", std::to_string(block_size)},
-                                       {"n", std::to_string(n)},
-                                       {"axis_stride", std::to_string(axis_stride)},
-                                       {"nslices", std::to_string(nslices)},
-                                       {"num_batch_dims", std::to_string(num_batch)},
-                                       {"batch_flat_strides", to_csv(batch_flat_strides_vec)},
-                                       {"batch_tensor_strides", to_csv(batch_tensor_strides_vec)},
-                                       {"exclusive", exclusive ? "true" : "false"},
-                                       {"reverse", reverse ? "true" : "false"}});
+        auto src =
+            interpolate_string(prefix_scan_sum_kernel,
+                               {{"block_size", std::to_string(block_size)},
+                                {"n", std::to_string(n)},
+                                {"axis_stride", std::to_string(axis_stride)},
+                                {"nslices", std::to_string(nslices)},
+                                {"offset_computation", offset_computation},
+                                {"exclusive", exclusive ? "true" : "false"},
+                                {"reverse", reverse ? "true" : "false"}});
 
         return compile_hip_code_object(ctx, src, options);
     }

@@ -2475,17 +2475,15 @@ struct find_pooling_conv
 
         // Compute new padding: Sp * Pc
         std::vector<std::size_t> new_padding(conv_op.padding.size());
-        std::transform(conv_op.padding.begin(),
-                       conv_op.padding.end(),
-                       new_padding.begin(),
-                       [&](auto p) {
-                           auto idx = &p - &conv_op.padding.front();
-                           return pool_stride[idx % num_spatial_dims] * p;
-                       });
+        std::transform(
+            conv_op.padding.begin(), conv_op.padding.end(), new_padding.begin(), [&](auto p) {
+                auto idx = &p - &conv_op.padding.front();
+                return pool_stride[idx % num_spatial_dims] * p;
+            });
 
         // Pool area for the average divisor
-        auto pool_area = std::accumulate(
-            pool_lengths.begin(), pool_lengths.end(), 1.0, std::multiplies<>{});
+        auto pool_area =
+            std::accumulate(pool_lengths.begin(), pool_lengths.end(), 1.0, std::multiplies<>{});
 
         // Build new weights via ops (propagate_constant will fold later)
         //

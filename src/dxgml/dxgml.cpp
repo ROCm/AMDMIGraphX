@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,11 +21,34 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_CONFIG_H
-#define MIGRAPHX_GUARD_CONFIG_H
+#include <migraphx/dxgml.hpp>
+#include <migraphx/file_buffer.hpp>
+#include <migraphx/errors.hpp>
+#include "dxgml_parser.hpp"
 
-#cmakedefine MIGRAPHX_ENABLE_ONNX
-#cmakedefine MIGRAPHX_ENABLE_TENSORFLOW
-#cmakedefine MIGRAPHX_ENABLE_DXGML
+#include <fstream>
+#include <sstream>
 
-#endif // MIGRAPHX_GUARD_CONFIG_H
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+program parse_dxgml(const std::string& filename, const dxgml_options& options)
+{
+    std::ifstream f(filename);
+    if(!f)
+        MIGRAPHX_THROW("DxGML: cannot open file: " + filename);
+    std::ostringstream ss;
+    ss << f.rdbuf();
+    return parse_dxgml_string(ss.str(), options);
+}
+
+program parse_dxgml_string(const std::string& mlir_text, const dxgml_options& options)
+{
+    dxgml_parser parser;
+    parser.opts = options;
+    parser.parse_from_string(mlir_text);
+    return std::move(parser.prog);
+}
+
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

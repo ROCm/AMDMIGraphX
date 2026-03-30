@@ -43,6 +43,9 @@
 #ifdef MIGRAPHX_ENABLE_PYTHON
 #include <migraphx/py.hpp>
 #endif
+#ifdef MIGRAPHX_ENABLE_DXGML
+#include <migraphx/dxgml.hpp>
+#endif
 #include <migraphx/stringutils.hpp>
 #include <migraphx/convert_to_json.hpp>
 #include <migraphx/load_save.hpp>
@@ -147,6 +150,9 @@ struct loader
 #endif
 #ifdef MIGRAPHX_ENABLE_TENSORFLOW
         ap(file_type, {"--tf"}, ap.help("Load as tensorflow"), ap.set_value("tf"));
+#endif
+#ifdef MIGRAPHX_ENABLE_DXGML
+        ap(file_type, {"--dxgml"}, ap.help("Load as DxGML MLIR dialect (.mlir)"), ap.set_value("dxgml"));
 #endif
         ap(file_type, {"--migraphx"}, ap.help("Load as MIGraphX"), ap.set_value("migraphx"));
         ap(file_type, {"--migraphx-json"}, ap.help("Load as MIGraphX JSON"), ap.set_value("json"));
@@ -370,6 +376,10 @@ struct loader
         else if(ends_with(file, ".py"))
             return "py";
 #endif
+#ifdef MIGRAPHX_ENABLE_DXGML
+        else if(ends_with(file, ".mlir"))
+            return "dxgml";
+#endif
         else
             return "migraphx";
     }
@@ -404,6 +414,15 @@ struct loader
             else if(file_type == "tf")
             {
                 p = parse_tf(file, get_tf_options());
+            }
+#endif
+#ifdef MIGRAPHX_ENABLE_DXGML
+            else if(file_type == "dxgml")
+            {
+                dxgml_options options;
+                options.skip_unknown_operators = skip_unknown_operators;
+                options.print_program_on_error = true;
+                p = parse_dxgml(file, options);
             }
 #endif
 #ifdef MIGRAPHX_ENABLE_PYTHON

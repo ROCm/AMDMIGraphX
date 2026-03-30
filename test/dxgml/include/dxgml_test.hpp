@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,11 +21,26 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_CONFIG_H
-#define MIGRAPHX_GUARD_CONFIG_H
+#ifndef MIGRAPHX_GUARD_DXGML_TEST_HPP
+#define MIGRAPHX_GUARD_DXGML_TEST_HPP
 
-#cmakedefine MIGRAPHX_ENABLE_ONNX
-#cmakedefine MIGRAPHX_ENABLE_TENSORFLOW
-#cmakedefine MIGRAPHX_ENABLE_DXGML
+#include <migraphx/dxgml.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/make_op.hpp>
+#include <dxgml_files.hpp>
+#include <test.hpp>
 
-#endif // MIGRAPHX_GUARD_CONFIG_H
+/// Parse an embedded test .mlir file by short name (e.g. "ConvRelu.CompilationInput.mlir").
+inline migraphx::program read_dxgml(const std::string& name,
+                                     migraphx::dxgml_options opts = {})
+{
+    static auto files = ::dxgml_files();
+    if(files.find(name) == files.end())
+    {
+        std::cerr << "DxGML test file not found: " << name << "\n";
+        std::abort();
+    }
+    return migraphx::parse_dxgml_string(std::string{files.at(name)}, opts);
+}
+
+#endif // MIGRAPHX_GUARD_DXGML_TEST_HPP

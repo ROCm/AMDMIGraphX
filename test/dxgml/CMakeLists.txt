@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -22,41 +22,18 @@
 # THE SOFTWARE.
 #####################################################################################
 
-add_executable(driver 
-    main.cpp
-    verify.cpp
-    passes.cpp
-    mlir.cpp
-    models.cpp
-    perf.cpp
-    trim.cpp
-    marker_roctx.cpp
-)
-set_target_properties(driver PROPERTIES OUTPUT_NAME migraphx-driver)
-if(NOT WIN32)
-    # Copy driver for backwards compatibility (Linux only)
-    add_custom_command(
-        TARGET driver
-        POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy
-                $<TARGET_FILE:driver>
-                ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/driver
-        BYPRODUCTS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/driver
-    )
-    set_directory_properties(PROPERTIES ADDITIONAL_CLEAN_FILES ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/driver)
-endif()
-rocm_clang_tidy_check(driver)
+function(add_dxgml_test TEST_NAME)
+    rocm_add_test_executable(${TEST_NAME} ${ARGN})
+    rocm_clang_tidy_check(${TEST_NAME})
+    target_link_libraries(${TEST_NAME} migraphx_dxgml migraphx_ref dxgml_files)
+    target_include_directories(${TEST_NAME} PUBLIC ../include include)
+endfunction()
 
-file(STRINGS "${CMAKE_SOURCE_DIR}/test/onnx/.onnxrt-commit" String_output)
-target_compile_definitions(driver PUBLIC MIGRAPHX_ORT_SHA1="${String_output}")
+file(GLOB_RECURSE DXGML_FILES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/mlir/*.mlir)
+add_embed_library(dxgml_files ${DXGML_FILES} RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/mlir)
 
-target_link_libraries(driver migraphx_all_targets migraphx_all_frontends)
-
-if(MIGRAPHX_ENABLE_PYTHON)
-    target_link_libraries(driver migraphx_py)
-    target_compile_definitions(driver PRIVATE MIGRAPHX_ENABLE_PYTHON)
-endif()
-
-
-rocm_install_targets(
-  TARGETS driver
-)
+file(GLOB DXGML_PARSE_TESTS CONFIGURE_DEPENDS parse/*.cpp)
+foreach(TEST_SRC ${DXGML_PARSE_TESTS})
+    get_filename_component(BASE_NAME ${TEST_SRC} NAME_WE)
+    add_dxgml_test(test_dxgml_${BASE_NAME} ${TEST_SRC})
+endforeach()

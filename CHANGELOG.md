@@ -19,7 +19,8 @@ Full documentation for MIGraphX is available at
 
 ### Changed
 
-* Converted `nonzero` operator from device implementation to JIT compilation (#4653).
+* Converted `nonzero` operator from device implementation to JIT compilation (#4720).
+* Converted `prefix_scan_sum` operator from device implementation to JIT compilation (#4720).
 * Converted `reverse` operator from device implementation to JIT compilation (#4645).
 * Refactored instruction output alias to return a vector of aliases (#4540).
 * Changed parsing of ONNX ops like ConstantOfShape to insert undefined if expected shape has 0 elements (#4567).
@@ -36,6 +37,7 @@ Full documentation for MIGraphX is available at
 * Fixed an issue with `convert` output overflowing when converting inf/-inf to integral types (#4669).
 
 ### Optimized
+* Replaced Hillis-Steele scan algorithm with a wave-based hierarchical scan, reducing work complexity from O(N log N) to O(N) and synchronization from O(log N) to 2 `__syncthreads()` calls (#4720).
 * Optimized fusion for local_window mode of GQA operator (#4617).
 
 * Added a new pass to replace convolution with constant broadcast input with a reduced GEMM which improves model compilation time (#4621).

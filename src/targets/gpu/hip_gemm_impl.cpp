@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -89,9 +89,9 @@ void blas_shape_hip(const shape& in_shape)
         MIGRAPHX_THROW("GPU_GEMM: matrix dimensions can't be broadcasted");
     if(s.lens().size() < 3)
         return;
-    shape batch_shape{s.type(),
-                      {s.lens().begin(), s.lens().end() - 2},
-                      {s.strides().begin(), s.strides().end() - 2}};
+    shape batch_shape(s.type(),
+                      std::vector<std::size_t>(s.lens().begin(), s.lens().end() - 2),
+                      std::vector<std::size_t>(s.strides().begin(), s.strides().end() - 2));
     auto batch_shapes = reduce_dims({batch_shape});
     if(batch_shapes.front().lens().size() != 1)
         MIGRAPHX_THROW("GPU_GEMM: Batch dimension is not collapsible");

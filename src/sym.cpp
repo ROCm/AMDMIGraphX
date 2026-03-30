@@ -27,7 +27,6 @@
 #include <migraphx/serialize.hpp>
 
 #include <algorithm>
-#include <cassert>
 #include <cctype>
 #include <cstdint>
 #include <functional>
@@ -76,13 +75,13 @@ struct mul_data
     int64_t coefficient;
     factor_map factors;
 };
-struct fdiv_data
+struct tdiv_data
 {
     expr_ptr numerator;
     expr_ptr denominator;
 };
 
-using expr_data = std::variant<integer_data, symbol_data, add_data, mul_data, fdiv_data>;
+using expr_data = std::variant<integer_data, symbol_data, add_data, mul_data, tdiv_data>;
 
 template <class... Ts>
 struct overloaded : Ts...
@@ -114,7 +113,7 @@ static const mul_data& get_mul(const expr_ptr& e) { return std::get<mul_data>(e-
 
 static std::size_t hash_combine(std::size_t seed, std::size_t v)
 {
-    return seed ^ (v + 0x9e3779b9 + (seed << 6) + (seed >> 2));
+    return seed ^ (v + 0x9e3779b9 + (seed << 6u) + (seed >> 2u));
 }
 
 template <class Map>
@@ -144,7 +143,7 @@ static std::size_t compute_hash(const expr_data& d)
                 return hash_combine(hash_combine(h, std::hash<int64_t>{}(p.coefficient)),
                                     hash_ordered_map(p.factors));
             },
-            [&](const fdiv_data& p) {
+            [&](const tdiv_data& p) {
                 return hash_combine(hash_combine(h, p.numerator->cached_hash),
                                     p.denominator->cached_hash);
             }},
@@ -205,8 +204,8 @@ static int compare_expr(const expr_ptr& a, const expr_ptr& b)
                            return da.coefficient < db.coefficient ? -1 : 1;
                        return compare_maps(da.factors, db.factors);
                    },
-                   [&](const fdiv_data& da) {
-                       const auto& db = std::get<fdiv_data>(b->data);
+                   [&](const tdiv_data& da) {
+                       const auto& db = std::get<tdiv_data>(b->data);
                        int c          = compare_expr(da.numerator, db.numerator);
                        if(c != 0)
                            return c;
@@ -278,7 +277,7 @@ static expr_ptr make_add(const expr_ptr& a, const expr_ptr& b);
 static expr_ptr make_sub(const expr_ptr& a, const expr_ptr& b);
 static expr_ptr make_neg(const expr_ptr& a);
 static expr_ptr make_mul(const expr_ptr& a, const expr_ptr& b);
-static expr_ptr make_floor_div(const expr_ptr& a, const expr_ptr& b);
+static expr_ptr make_trunc_div(const expr_ptr& a, const expr_ptr& b);
 static expr_ptr build_mul(int64_t coefficient, factor_map factors);
 
 struct add_parts
@@ -338,17 +337,16 @@ static expr_ptr make_add(const expr_ptr& a, const expr_ptr& b)
 static expr_ptr make_neg(const expr_ptr& a)
 {
     return std::visit(
-        overloaded{[](const integer_data& d) -> expr_ptr { return make_integer(-d.value); },
-                   [](const add_data& d) -> expr_ptr {
-                       term_map negated;
-                       for(const auto& [term, coeff] : d.terms)
-                           negated[term] = -coeff;
-                       return build_add(-d.constant, std::move(negated));
-                   },
-                   [](const mul_data& d) -> expr_ptr {
-                       return make_node(mul_data{-d.coefficient, d.factors});
-                   },
-                   [&](const auto&) -> expr_ptr { return make_mul(make_integer(-1), a); }},
+        overloaded{
+            [](const integer_data& d) -> expr_ptr { return make_integer(-d.value); },
+            [](const add_data& d) -> expr_ptr {
+                term_map negated;
+                for(const auto& [term, coeff] : d.terms)
+                    negated[term] = -coeff;
+                return build_add(-d.constant, std::move(negated));
+            },
+            [](const mul_data& d) -> expr_ptr { return build_mul(-d.coefficient, d.factors); },
+            [&](const auto&) -> expr_ptr { return make_mul(make_integer(-1), a); }},
         a->data);
 }
 
@@ -423,8 +421,14 @@ static expr_ptr make_mul(const expr_ptr& a, const expr_ptr& b)
     return build_mul(coefficient, std::move(factors));
 }
 
-static expr_ptr make_floor_div(const expr_ptr& a, const expr_ptr& b)
+static expr_ptr make_trunc_div(const expr_ptr& a, const expr_ptr& b)
 {
+    if(holds<integer_data>(a) and get_integer(a) == 0)
+        return a;
+
+    if(expr_equal(a, b))
+        return make_integer(1);
+
     if(holds<integer_data>(b))
     {
         int64_t den = get_integer(b);
@@ -440,9 +444,74 @@ static expr_ptr make_floor_div(const expr_ptr& a, const expr_ptr& b)
             if(d.coefficient % den == 0)
                 return build_mul(d.coefficient / den, d.factors);
         }
+        if(holds<add_data>(a))
+        {
+            const auto& d      = get_add(a);
+            bool all_divisible = (d.constant % den == 0);
+            if(all_divisible)
+            {
+                all_divisible = std::all_of(d.terms.begin(), d.terms.end(), [&](const auto& p) {
+                    return p.second % den == 0;
+                });
+            }
+            if(all_divisible)
+            {
+                term_map divided = d.terms;
+                for(auto& [base, coeff] : divided)
+                    coeff /= den;
+                return build_add(d.constant / den, std::move(divided));
+            }
+        }
     }
 
-    return make_node(fdiv_data{a, b});
+    if(holds<mul_data>(a))
+    {
+        const auto& da = get_mul(a);
+
+        if(holds<mul_data>(b))
+        {
+            const auto& db         = get_mul(b);
+            factor_map reduced_num = da.factors;
+            factor_map reduced_den = db.factors;
+            for(auto it_den = reduced_den.begin(); it_den != reduced_den.end();)
+            {
+                auto it_num = reduced_num.find(it_den->first);
+                if(it_num == reduced_num.end())
+                {
+                    ++it_den;
+                    continue;
+                }
+                int64_t cancel = std::min(it_num->second, it_den->second);
+                it_num->second -= cancel;
+                it_den->second -= cancel;
+                if(it_num->second == 0)
+                    reduced_num.erase(it_num);
+                if(it_den->second == 0)
+                    it_den = reduced_den.erase(it_den);
+                else
+                    ++it_den;
+            }
+            auto new_num = build_mul(da.coefficient, std::move(reduced_num));
+            auto new_den = build_mul(db.coefficient, std::move(reduced_den));
+            if(not expr_equal(new_num, a) or not expr_equal(new_den, b))
+                return make_trunc_div(new_num, new_den);
+        }
+        else
+        {
+            auto it = da.factors.find(b);
+            if(it != da.factors.end())
+            {
+                factor_map reduced = da.factors;
+                if(it->second == 1)
+                    reduced.erase(it->first);
+                else
+                    reduced[it->first] = it->second - 1;
+                return build_mul(da.coefficient, std::move(reduced));
+            }
+        }
+    }
+
+    return make_node(tdiv_data{a, b});
 }
 
 // ===================================================================
@@ -481,10 +550,10 @@ static expr_ptr substitute(const expr_ptr& e, const subs_map& bindings)
                                      }
                                      return result;
                                  },
-                                 [&](const fdiv_data& d) -> expr_ptr {
+                                 [&](const tdiv_data& d) -> expr_ptr {
                                      auto sn = substitute(d.numerator, bindings);
                                      auto sd = substitute(d.denominator, bindings);
-                                     return make_floor_div(sn, sd);
+                                     return make_trunc_div(sn, sd);
                                  }},
                       e->data);
 }
@@ -496,7 +565,7 @@ static int64_t eval_direct(const expr_ptr& e, const binding_map& bindings)
                                      auto it = bindings.find(e);
                                      if(it != bindings.end())
                                          return it->second;
-                                     MIGRAPHX_THROW("sym::expr::eval_dim: unbound symbol '" +
+                                     MIGRAPHX_THROW("sym::expr::eval_uint: unbound symbol '" +
                                                     d.name + "'");
                                  },
                                  [&](const add_data& d) -> int64_t {
@@ -515,9 +584,11 @@ static int64_t eval_direct(const expr_ptr& e, const binding_map& bindings)
                                      }
                                      return prod;
                                  },
-                                 [&](const fdiv_data& d) -> int64_t {
-                                     return eval_direct(d.numerator, bindings) /
-                                            eval_direct(d.denominator, bindings);
+                                 [&](const tdiv_data& d) -> int64_t {
+                                     auto denom = eval_direct(d.denominator, bindings);
+                                     if(denom == 0)
+                                         MIGRAPHX_THROW("sym::expr::eval_uint: division by zero");
+                                     return eval_direct(d.numerator, bindings) / denom;
                                  }},
                       e->data);
 }
@@ -609,7 +680,7 @@ static std::string print_expr(const expr_ptr& e, int parent_prec)
                    [](const symbol_data& d) -> std::string { return d.name; },
                    [&](const add_data& d) -> std::string { return print_add(d, parent_prec); },
                    [&](const mul_data& d) -> std::string { return print_mul(d, parent_prec); },
-                   [&](const fdiv_data& d) -> std::string {
+                   [&](const tdiv_data& d) -> std::string {
                        std::string s = print_expr(d.numerator, prec_mul + 1) + "/" +
                                        print_expr(d.denominator, prec_mul + 1);
                        if(parent_prec > prec_mul)
@@ -625,7 +696,7 @@ static std::string print_expr(const expr_ptr& e, int parent_prec)
 
 static void skip_ws(const char*& p)
 {
-    while(*p and std::isspace(static_cast<unsigned char>(*p)))
+    while(*p != '\0' and std::isspace(static_cast<unsigned char>(*p)) != 0)
         ++p;
 }
 
@@ -637,20 +708,20 @@ static expr_ptr parse_primary(const char*& p);
 static expr_ptr parse_primary(const char*& p)
 {
     skip_ws(p);
-    if(std::isdigit(static_cast<unsigned char>(*p)))
+    if(std::isdigit(static_cast<unsigned char>(*p)) != 0)
     {
         int64_t n = 0;
-        while(std::isdigit(static_cast<unsigned char>(*p)))
+        while(std::isdigit(static_cast<unsigned char>(*p)) != 0)
         {
             n = n * 10 + (*p - '0');
             ++p;
         }
         return make_integer(n);
     }
-    if(std::isalpha(static_cast<unsigned char>(*p)) or *p == '_')
+    if(std::isalpha(static_cast<unsigned char>(*p)) != 0 or *p == '_')
     {
         std::string name;
-        while(std::isalnum(static_cast<unsigned char>(*p)) or *p == '_')
+        while(std::isalnum(static_cast<unsigned char>(*p)) != 0 or *p == '_')
         {
             name += *p;
             ++p;
@@ -694,21 +765,42 @@ static expr_ptr parse_unary(const char*& p)
     return parse_primary(p);
 }
 
+static expr_ptr parse_power(const char*& p)
+{
+    auto base = parse_unary(p);
+    skip_ws(p);
+    if(*p == '*' and *(p + 1) == '*')
+    {
+        p += 2;
+        auto exp_node = parse_unary(p);
+        if(not holds<integer_data>(exp_node))
+            MIGRAPHX_THROW("symbolic parser: ** exponent must be an integer literal");
+        auto exp = get_integer(exp_node);
+        if(exp < 0)
+            MIGRAPHX_THROW("symbolic parser: ** exponent must be non-negative");
+        expr_ptr result = make_integer(1);
+        for(int64_t i = 0; i < exp; ++i)
+            result = make_mul(result, base);
+        return result;
+    }
+    return base;
+}
+
 static expr_ptr parse_term(const char*& p)
 {
-    auto left = parse_unary(p);
+    auto left = parse_power(p);
     for(;;)
     {
         skip_ws(p);
         if(*p == '*')
         {
             ++p;
-            left = make_mul(left, parse_unary(p));
+            left = make_mul(left, parse_power(p));
         }
         else if(*p == '/')
         {
             ++p;
-            left = make_floor_div(left, parse_unary(p));
+            left = make_trunc_div(left, parse_power(p));
         }
         else
             break;
@@ -782,7 +874,7 @@ std::string expr::to_string() const
     return print_expr(p->node);
 }
 
-std::size_t expr::eval_dim(const std::unordered_map<expr, std::size_t>& symbol_map) const
+std::size_t expr::eval_uint(const std::unordered_map<expr, std::size_t>& symbol_map) const
 {
     if(empty())
         return 0;
@@ -790,11 +882,12 @@ std::size_t expr::eval_dim(const std::unordered_map<expr, std::size_t>& symbol_m
     for(const auto& [k, v] : symbol_map)
     {
         if(k.empty() or not holds<symbol_data>(k.p->node))
-            MIGRAPHX_THROW("sym::expr::eval_dim: map key '" + k.to_string() + "' is not a symbol");
+            MIGRAPHX_THROW("sym::expr::eval_uint: map key '" + k.to_string() + "' is not a symbol");
         bindings[k.p->node] = static_cast<int64_t>(v);
     }
     auto v = eval_direct(p->node, bindings);
-    assert(v >= 0 && "symbolic dimension evaluated to negative value");
+    if(v < 0)
+        MIGRAPHX_THROW("sym::expr::eval_uint: expression evaluated to negative value");
     return static_cast<std::size_t>(v);
 }
 
@@ -845,7 +938,7 @@ expr operator/(const expr& a, const expr& b)
         return {};
     auto ea = a.p ? a.p->node : make_integer(0);
     auto eb = b.p ? b.p->node : make_integer(0);
-    return {std::make_shared<expr::impl>(make_floor_div(ea, eb))};
+    return {std::make_shared<expr::impl>(make_trunc_div(ea, eb))};
 }
 
 bool operator==(const expr& a, const expr& b)
@@ -866,13 +959,18 @@ std::ostream& operator<<(std::ostream& os, const expr& e)
     return os;
 }
 
-expr var(const std::string& name) { return {std::make_shared<expr::impl>(make_symbol(name))}; }
+expr var(const std::string& name)
+{
+    if(name.empty())
+        MIGRAPHX_THROW("sym::var: variable name must not be empty");
+    return {std::make_shared<expr::impl>(make_symbol(name))};
+}
 
 expr lit(int64_t n) { return {std::make_shared<expr::impl>(make_integer(n))}; }
 
 expr parse(const std::string& s)
 {
-    if(s.empty())
+    if(s.find_first_not_of(" \t\n\r") == std::string::npos)
         return {};
     return {std::make_shared<expr::impl>(parse_string(s))};
 }
@@ -921,9 +1019,9 @@ static value node_to_value(const expr_ptr& e)
                                      r["factors"] = factors;
                                      return r;
                                  },
-                                 [](const fdiv_data& d) -> value {
+                                 [](const tdiv_data& d) -> value {
                                      value r;
-                                     r["type"] = "fdiv";
+                                     r["type"] = "tdiv";
                                      r["num"]  = node_to_value(d.numerator);
                                      r["den"]  = node_to_value(d.denominator);
                                      return r;
@@ -966,11 +1064,11 @@ static expr_ptr node_from_value(const value& v)
         }
         return build_mul(coefficient, std::move(factors));
     }
-    else if(type == "fdiv")
+    else if(type == "tdiv")
     {
         auto num = node_from_value(v.at("num"));
         auto den = node_from_value(v.at("den"));
-        return make_floor_div(num, den);
+        return make_trunc_div(num, den);
     }
     MIGRAPHX_THROW("Unknown sym::expr node type: " + type);
 }

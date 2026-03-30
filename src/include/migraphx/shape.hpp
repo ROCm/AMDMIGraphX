@@ -221,7 +221,6 @@ struct MIGRAPHX_EXPORT shape
     shape(type_t t, std::initializer_list<std::size_t> l, std::initializer_list<std::size_t> s);
 
     shape(type_t t, std::vector<dynamic_dimension> dims);
-
     shape(type_t t, std::vector<dynamic_dimension> dims, std::vector<sym::expr> dstrides);
 
     // Construct a dynamic shape from vectors of mins, maxes, and optimals.

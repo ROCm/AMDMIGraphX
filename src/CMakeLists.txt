@@ -249,6 +249,7 @@ register_migraphx_ops(
     nearbyint
     neg
     nonmaxsuppression
+    dynamic_range
     nonzero
     onehot
     outline

@@ -5080,24 +5080,23 @@ TEST_CASE(simplify_pooling_conv_basic)
     migraphx::module m1;
     {
         auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 1, 4, 4}});
-        auto w = m1.add_literal(
-            migraphx::generate_literal({migraphx::shape::float_type, {1, 1, 1, 1}}));
-        auto pool = m1.add_instruction(
-            migraphx::make_op("pooling",
-                              {{"mode", migraphx::op::pooling_mode::average},
-                               {"padding", {0, 0}},
-                               {"stride", {2, 2}},
-                               {"lengths", {2, 2}},
-                               {"dilations", {1, 1}}}),
-            x);
+        auto w =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {1, 1, 1, 1}}));
+        auto pool =
+            m1.add_instruction(migraphx::make_op("pooling",
+                                                 {{"mode", migraphx::op::pooling_mode::average},
+                                                  {"padding", {0, 0}},
+                                                  {"stride", {2, 2}},
+                                                  {"lengths", {2, 2}},
+                                                  {"dilations", {1, 1}}}),
+                               x);
         auto conv = m1.add_instruction(migraphx::make_op("convolution"), pool, w);
         m1.add_return({conv});
     }
     run_pass(m1);
 
     // Pooling should be removed
-    EXPECT(std::none_of(
-        m1.begin(), m1.end(), [](auto& ins) { return ins.name() == "pooling"; }));
+    EXPECT(std::none_of(m1.begin(), m1.end(), [](auto& ins) { return ins.name() == "pooling"; }));
 
     // Convolution should take parameter x directly with fused stride
     auto conv_it =
@@ -5118,24 +5117,23 @@ TEST_CASE(simplify_pooling_conv_with_padding)
     migraphx::module m1;
     {
         auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 1, 4, 4}});
-        auto w = m1.add_literal(
-            migraphx::generate_literal({migraphx::shape::float_type, {1, 1, 3, 3}}));
-        auto pool = m1.add_instruction(
-            migraphx::make_op("pooling",
-                              {{"mode", migraphx::op::pooling_mode::average},
-                               {"padding", {0, 0}},
-                               {"stride", {2, 2}},
-                               {"lengths", {2, 2}},
-                               {"dilations", {1, 1}}}),
-            x);
+        auto w =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {1, 1, 3, 3}}));
+        auto pool =
+            m1.add_instruction(migraphx::make_op("pooling",
+                                                 {{"mode", migraphx::op::pooling_mode::average},
+                                                  {"padding", {0, 0}},
+                                                  {"stride", {2, 2}},
+                                                  {"lengths", {2, 2}},
+                                                  {"dilations", {1, 1}}}),
+                               x);
         auto conv = m1.add_instruction(
             migraphx::make_op("convolution", {{"padding", {1, 1}}, {"stride", {1, 1}}}), pool, w);
         m1.add_return({conv});
     }
     run_pass(m1);
 
-    EXPECT(std::none_of(
-        m1.begin(), m1.end(), [](auto& ins) { return ins.name() == "pooling"; }));
+    EXPECT(std::none_of(m1.begin(), m1.end(), [](auto& ins) { return ins.name() == "pooling"; }));
 
     auto conv_it =
         std::find_if(m1.begin(), m1.end(), [](auto& ins) { return ins.name() == "convolution"; });
@@ -5158,16 +5156,15 @@ TEST_CASE(simplify_pooling_conv_skip_max)
     migraphx::module m1;
     {
         auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 1, 4, 4}});
-        auto w = m1.add_literal(
-            migraphx::generate_literal({migraphx::shape::float_type, {1, 1, 1, 1}}));
-        auto pool = m1.add_instruction(
-            migraphx::make_op("pooling",
-                              {{"mode", migraphx::op::pooling_mode::max},
-                               {"padding", {0, 0}},
-                               {"stride", {2, 2}},
-                               {"lengths", {2, 2}},
-                               {"dilations", {1, 1}}}),
-            x);
+        auto w =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {1, 1, 1, 1}}));
+        auto pool = m1.add_instruction(migraphx::make_op("pooling",
+                                                         {{"mode", migraphx::op::pooling_mode::max},
+                                                          {"padding", {0, 0}},
+                                                          {"stride", {2, 2}},
+                                                          {"lengths", {2, 2}},
+                                                          {"dilations", {1, 1}}}),
+                                       x);
         auto conv = m1.add_instruction(migraphx::make_op("convolution"), pool, w);
         m1.add_return({conv});
     }
@@ -5183,16 +5180,16 @@ TEST_CASE(simplify_pooling_conv_skip_pool_padding)
     migraphx::module m1;
     {
         auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 1, 6, 6}});
-        auto w = m1.add_literal(
-            migraphx::generate_literal({migraphx::shape::float_type, {1, 1, 1, 1}}));
-        auto pool = m1.add_instruction(
-            migraphx::make_op("pooling",
-                              {{"mode", migraphx::op::pooling_mode::average},
-                               {"padding", {1, 1}},
-                               {"stride", {2, 2}},
-                               {"lengths", {2, 2}},
-                               {"dilations", {1, 1}}}),
-            x);
+        auto w =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {1, 1, 1, 1}}));
+        auto pool =
+            m1.add_instruction(migraphx::make_op("pooling",
+                                                 {{"mode", migraphx::op::pooling_mode::average},
+                                                  {"padding", {1, 1}},
+                                                  {"stride", {2, 2}},
+                                                  {"lengths", {2, 2}},
+                                                  {"dilations", {1, 1}}}),
+                               x);
         auto conv = m1.add_instruction(migraphx::make_op("convolution"), pool, w);
         m1.add_return({conv});
     }
@@ -5208,16 +5205,16 @@ TEST_CASE(simplify_pooling_conv_skip_multi_use)
     migraphx::module m1;
     {
         auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 1, 4, 4}});
-        auto w = m1.add_literal(
-            migraphx::generate_literal({migraphx::shape::float_type, {1, 1, 1, 1}}));
-        auto pool = m1.add_instruction(
-            migraphx::make_op("pooling",
-                              {{"mode", migraphx::op::pooling_mode::average},
-                               {"padding", {0, 0}},
-                               {"stride", {2, 2}},
-                               {"lengths", {2, 2}},
-                               {"dilations", {1, 1}}}),
-            x);
+        auto w =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {1, 1, 1, 1}}));
+        auto pool =
+            m1.add_instruction(migraphx::make_op("pooling",
+                                                 {{"mode", migraphx::op::pooling_mode::average},
+                                                  {"padding", {0, 0}},
+                                                  {"stride", {2, 2}},
+                                                  {"lengths", {2, 2}},
+                                                  {"dilations", {1, 1}}}),
+                               x);
         auto conv = m1.add_instruction(migraphx::make_op("convolution"), pool, w);
         auto add  = m1.add_instruction(migraphx::make_op("add"), conv, pool);
         m1.add_return({add});

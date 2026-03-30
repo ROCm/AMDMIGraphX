@@ -2375,9 +2375,9 @@ struct find_pooling_conv
 {
     auto matcher() const
     {
-        return match::name("convolution")(match::args(
-            match::name("pooling")(match::used_once()).bind("pooling"),
-            match::is_constant().bind("w")));
+        return match::name("convolution")(
+            match::args(match::name("pooling")(match::used_once()).bind("pooling"),
+                        match::is_constant().bind("w")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -2394,14 +2394,13 @@ struct find_pooling_conv
            static_cast<std::size_t>(op::pooling_mode::average))
             return;
 
-        auto pool_padding = pool_val["padding"].to_vector<std::size_t>();
-        auto pool_lengths = pool_val["lengths"].to_vector<std::size_t>();
-        auto pool_stride  = pool_val["stride"].to_vector<std::size_t>();
+        auto pool_padding   = pool_val["padding"].to_vector<std::size_t>();
+        auto pool_lengths   = pool_val["lengths"].to_vector<std::size_t>();
+        auto pool_stride    = pool_val["stride"].to_vector<std::size_t>();
         auto pool_dilations = pool_val["dilations"].to_vector<std::size_t>();
 
         // Skip if pooling has padding (non-uniform divisor when count_include_pad=false)
-        if(std::any_of(
-               pool_padding.begin(), pool_padding.end(), [](auto p) { return p != 0; }))
+        if(std::any_of(pool_padding.begin(), pool_padding.end(), [](auto p) { return p != 0; }))
             return;
 
         // Skip ceil_mode
@@ -2409,8 +2408,7 @@ struct find_pooling_conv
             return;
 
         // Skip dilated pooling
-        if(std::any_of(
-               pool_dilations.begin(), pool_dilations.end(), [](auto d) { return d != 1; }))
+        if(std::any_of(pool_dilations.begin(), pool_dilations.end(), [](auto d) { return d != 1; }))
             return;
 
         // Skip dynamic shapes
@@ -2431,8 +2429,7 @@ struct find_pooling_conv
         // Skip auto-padding modes
         if(conv_op.padding_mode != op::padding_mode_t::default_)
             return;
-        if(pool_val.contains("padding_mode") and
-           pool_val["padding_mode"].to<std::size_t>() != 0)
+        if(pool_val.contains("padding_mode") and pool_val["padding_mode"].to<std::size_t>() != 0)
             return;
 
         // Skip global pooling
@@ -2519,8 +2516,7 @@ struct find_pooling_conv
                                              static_cast<int64_t>(w_lens[1])};
         for(std::size_t i = 0; i < num_spatial_dims; i++)
             reshape_dims.push_back(static_cast<int64_t>(w_lens[i + 2] * pool_stride[i]));
-        current =
-            m.insert_instruction(ins, make_op("reshape", {{"dims", reshape_dims}}), current);
+        current = m.insert_instruction(ins, make_op("reshape", {{"dims", reshape_dims}}), current);
 
         // Step 5: Slice off trailing zeros if Kp < Sp
         if(needs_pad)
@@ -2542,24 +2538,23 @@ struct find_pooling_conv
         // Step 6: Scale weights by 1/pool_area
         literal scale_lit;
         w_shape.visit_type([&](auto as) {
-            using type = typename decltype(as)::type;
+            using type             = typename decltype(as)::type;
             std::vector<type> data = {type(1.0 / pool_area)};
-            scale_lit = literal{shape{w_shape.type()}, data};
+            scale_lit              = literal{shape{w_shape.type()}, data};
         });
         auto scale_ins = m.add_literal(std::move(scale_lit));
         auto scale_bc  = m.insert_instruction(
             ins, make_op("multibroadcast", {{"out_lens", new_kernel_lens}}), scale_ins);
         auto new_w = m.insert_instruction(ins, make_op("mul"), current, scale_bc);
 
-        m.replace_instruction(
-            ins,
-            make_op("convolution",
-                    {{"padding", new_padding},
-                     {"stride", new_stride},
-                     {"dilation", conv_op.dilation},
-                     {"group", conv_op.group}}),
-            pool_ins->inputs().front(),
-            new_w);
+        m.replace_instruction(ins,
+                              make_op("convolution",
+                                      {{"padding", new_padding},
+                                       {"stride", new_stride},
+                                       {"dilation", conv_op.dilation},
+                                       {"group", conv_op.group}}),
+                              pool_ins->inputs().front(),
+                              new_w);
     }
 };
 

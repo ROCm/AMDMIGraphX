@@ -2371,13 +2371,64 @@ struct find_pow2
     }
 };
 
+MIGRAPHX_PRED_MATCHER(fusable_avg_pooling, instruction_ref ins)
+{
+    auto v = ins->get_operator().to_value();
+
+    if(v["mode"].to<std::size_t>() != static_cast<std::size_t>(op::pooling_mode::average))
+        return false;
+
+    auto padding = v["padding"].to_vector<std::size_t>();
+    if(std::any_of(padding.begin(), padding.end(), [](auto p) { return p != 0; }))
+        return false;
+
+    if(v["ceil_mode"].to<bool>())
+        return false;
+
+    auto dilations = v["dilations"].to_vector<std::size_t>();
+    if(std::any_of(dilations.begin(), dilations.end(), [](auto d) { return d != 1; }))
+        return false;
+
+    if(v.contains("padding_mode") and v["padding_mode"].to<std::size_t>() != 0)
+        return false;
+
+    if(v.contains("dyn_global") and v["dyn_global"].to<bool>())
+        return false;
+
+    if(ins->get_shape().dynamic())
+        return false;
+
+    if(ins->inputs().front()->get_shape().dynamic())
+        return false;
+
+    return true;
+}
+
+MIGRAPHX_PRED_MATCHER(fusable_convolution, instruction_ref ins)
+{
+    auto op = any_cast<op::convolution>(ins->get_operator());
+
+    if(std::any_of(op.dilation.begin(), op.dilation.end(), [](auto d) { return d != 1; }))
+        return false;
+
+    if(op.group != 1)
+        return false;
+
+    if(op.padding_mode != op::padding_mode_t::default_)
+        return false;
+
+    return true;
+}
+
 struct find_pooling_conv
 {
     auto matcher() const
     {
         return match::name("convolution")(
-            match::args(match::name("pooling")(match::used_once()).bind("pooling"),
-                        match::is_constant().bind("w")));
+            fusable_convolution(),
+            match::args(
+                match::name("pooling")(match::used_once(), fusable_avg_pooling()).bind("pooling"),
+                match::is_constant().bind("w")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -2389,56 +2440,15 @@ struct find_pooling_conv
         auto pool_val = pool_ins->get_operator().to_value();
         auto conv_op  = any_cast<op::convolution>(ins->get_operator());
 
-        // Only fuse average pooling
-        if(pool_val["mode"].to<std::size_t>() !=
-           static_cast<std::size_t>(op::pooling_mode::average))
-            return;
-
-        auto pool_padding   = pool_val["padding"].to_vector<std::size_t>();
-        auto pool_lengths   = pool_val["lengths"].to_vector<std::size_t>();
-        auto pool_stride    = pool_val["stride"].to_vector<std::size_t>();
-        auto pool_dilations = pool_val["dilations"].to_vector<std::size_t>();
-
-        // Skip if pooling has padding (non-uniform divisor when count_include_pad=false)
-        if(std::any_of(pool_padding.begin(), pool_padding.end(), [](auto p) { return p != 0; }))
-            return;
-
-        // Skip ceil_mode
-        if(pool_val["ceil_mode"].to<bool>())
-            return;
-
-        // Skip dilated pooling
-        if(std::any_of(pool_dilations.begin(), pool_dilations.end(), [](auto d) { return d != 1; }))
-            return;
-
-        // Skip dynamic shapes
-        if(pool_ins->get_shape().dynamic() or w_ins->get_shape().dynamic())
-            return;
-        if(pool_ins->inputs().front()->get_shape().dynamic())
-            return;
-
-        // Skip dilated convolution
-        if(std::any_of(
-               conv_op.dilation.begin(), conv_op.dilation.end(), [](auto d) { return d != 1; }))
-            return;
-
-        // Skip grouped convolution
-        if(conv_op.group != 1)
-            return;
-
-        // Skip auto-padding modes
-        if(conv_op.padding_mode != op::padding_mode_t::default_)
-            return;
-        if(pool_val.contains("padding_mode") and pool_val["padding_mode"].to<std::size_t>() != 0)
-            return;
-
-        // Skip global pooling
-        if(pool_val.contains("dyn_global") and pool_val["dyn_global"].to<bool>())
-            return;
+        auto pool_lengths = pool_val["lengths"].to_vector<std::size_t>();
+        auto pool_stride  = pool_val["stride"].to_vector<std::size_t>();
 
         // Skip integer weight types (division would truncate)
         auto w_shape = w_ins->get_shape();
         if(shape::is_integral(w_shape.type()))
+            return;
+
+        if(w_shape.dynamic())
             return;
 
         auto ndims            = w_shape.ndim();

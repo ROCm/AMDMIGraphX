@@ -27,7 +27,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-
 struct test_nms : verify_program<test_nms>
 {
     migraphx::program create_program() const
@@ -79,28 +78,24 @@ struct test_nms_dyn_slice : verify_program<test_nms_dyn_slice>
         auto scores_l = mm->add_parameter("scores", scores_s);
 
         // Slice boxes on axis=1: [1,6,4] -> [1,4,4] using attributes
-        auto sliced_boxes = mm->add_instruction(migraphx::make_op("slice", {{"axes", {1}},
-                                                            {"starts", {0}},
-                                                            {"ends", {4}}}),
-                                boxes_l);
+        auto sliced_boxes = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}), boxes_l);
 
         // Slice scores on axis=2: [1,1,6] -> [1,1,4] using attributes
-        auto sliced_scores = mm->add_instruction(migraphx::make_op("slice", {{"axes", {2}},
-                                                            {"starts", {0}},
-                                                            {"ends", {4}}}),
-                                scores_l);
+        auto sliced_scores = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {4}}}), scores_l);
 
         auto max_out_l       = mm->add_literal(int64_t{4});
         auto iou_threshold   = mm->add_literal(0.5f);
         auto score_threshold = mm->add_literal(0.0f);
 
-        auto r = mm->add_instruction(
-            migraphx::make_op("nonmaxsuppression", {{"use_dyn_output", true}}),
-            sliced_boxes,
-            sliced_scores,
-            max_out_l,
-            iou_threshold,
-            score_threshold);
+        auto r =
+            mm->add_instruction(migraphx::make_op("nonmaxsuppression", {{"use_dyn_output", true}}),
+                                sliced_boxes,
+                                sliced_scores,
+                                max_out_l,
+                                iou_threshold,
+                                score_threshold);
         mm->add_return({r});
 
         return p;

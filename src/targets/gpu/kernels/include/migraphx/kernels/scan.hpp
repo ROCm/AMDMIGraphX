@@ -86,8 +86,8 @@ __device__ T block_scan(index idx, T& value, Op op, T init)
     wave_scan<wave_size>(value, op);
 
     // last valid lane of each wave writes its result to shared memory
-    const index_int wave_id = idx.local / wave_size;
-    const index_int lane_id = idx.local % wave_size;
+    const auto wave_id = idx.wave();
+    const auto lane_id = idx.local_wave();
     const bool is_last_wave = (wave_id == num_waves - 1);
     // for partial waves, the last active lane is (BlockSize - 1) % wave_size
     const index_int last_lane = is_last_wave ? ((BlockSize - 1) % wave_size) : (wave_size - 1);

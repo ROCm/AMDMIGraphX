@@ -53,8 +53,7 @@ TEST_CASE(dyn_slice_lowering_runtime_inputs)
     auto data   = mm->add_parameter("data", data_s);
     auto starts = mm->add_parameter("starts", idx_s);
     auto ends   = mm->add_parameter("ends", idx_s);
-    auto sl     = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {2}}}), data, starts, ends);
+    auto sl = mm->add_instruction(migraphx::make_op("slice", {{"axes", {2}}}), data, starts, ends);
     mm->add_return({sl});
 
     run_lowering(*mm);

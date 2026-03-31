@@ -379,7 +379,6 @@ TEST_CASE(nms_transpose2_test)
     EXPECT(migraphx::verify::verify_rms_range(result, gold));
 }
 
-
 // Test: dynamic inputs with different compile-time spatial ranges but matching runtime values.
 // Boxes spatial range {4,20} vs scores spatial range {6,10}: different compile-time ranges,
 // but at runtime both have spatial_dimension=6 so it should succeed.

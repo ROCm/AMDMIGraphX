@@ -32,6 +32,7 @@
 #include <migraphx/common.hpp>
 #include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/eliminate_convert.hpp>
+#include <migraphx/unfold.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_FP32_SOFTMAX);
@@ -85,6 +86,38 @@ struct find_softmax_base_ops
 
     auto matcher() const { return match::softmax(); }
 
+    // Walk backwards from the softmax input through the attention chain
+    // (where, mul, broadcast, multibroadcast, convert) to find an upstream dot.
+    // Returns the dot instruction, or nullopt if not found.
+    static std::optional<instruction_ref> find_upstream_dot(instruction_ref inp)
+    {
+        auto step = [](instruction_ref current) -> std::optional<instruction_ref> {
+            auto name = current->name();
+            if(name == "dot")
+                return std::nullopt;
+            if(name == "where")
+                return current->inputs()[2];
+            if(name == "mul")
+            {
+                auto i0 = current->inputs()[0];
+                auto i1 = current->inputs()[1];
+                if(i0->name() == "dot" || i0->name() == "where" ||
+                   i0->name() == "convert" || i0->name() == "mul")
+                    return i0;
+                return i1;
+            }
+            if(name == "broadcast" || name == "multibroadcast" || name == "convert")
+                return current->inputs()[0];
+            return std::nullopt;
+        };
+        auto chain = unfold(inp, step);
+        auto it    = std::find_if(
+            chain.begin(), chain.end(), [](instruction_ref ins) { return ins->name() == "dot"; });
+        if(it != chain.end())
+            return *it;
+        return std::nullopt;
+    }
+
     void apply(module& m, const match::matcher_result& r) const
     {
         auto div             = r.result;
@@ -95,20 +128,31 @@ struct find_softmax_base_ops
         if(not requires_upcast)
             return;
 
-        auto softmax_inss = find_instructions_between(inp, div, &m);
+        // Find upstream dot to extend the FP32 upcast range.
+        // The dot stays f16; a convert(f16->f32) on its output is inserted
+        // by the upcast loop below. MFMA accumulates in f32 internally;
+        // when fused, rocMLIR sees the cast and sets softmaxType=f32.
+        auto dot_opt     = find_upstream_dot(inp);
+        auto range_start = dot_opt.value_or(inp);
+
+        auto softmax_inss = find_instructions_between(range_start, div, &m);
 
         for(const auto& ins : softmax_inss)
         {
-            if(ins == inp)
+            // Skip the range start: if dot, keep it f16; if inp, original behavior
+            if(ins == range_start)
                 continue;
 
-            // Upcast inputs
+            // Upcast inputs, preserving bool (for where condition)
             std::vector<instruction_ref> ins_inputs_up;
             std::transform(
                 ins->inputs().begin(),
                 ins->inputs().end(),
                 std::back_inserter(ins_inputs_up),
                 [&](auto i) {
+                    if(i->get_shape().type() == shape::bool_type ||
+                       i->get_shape().type() == shape::float_type)
+                        return i;
                     return m.insert_instruction(
                         ins, make_op("convert", {{"target_type", shape::float_type}}), i);
                 });
@@ -116,7 +160,10 @@ struct find_softmax_base_ops
             // Duplicate instruction to perform op in higher precision
             auto ins_up = m.insert_instruction(ins, ins->get_operator(), ins_inputs_up);
 
-            // replace original ins with downcast to preserve graph validity
+            // Replace original with downcast to preserve graph validity.
+            // Adjacent convert(f32->f16) -> convert(f16->f32) pairs between
+            // instructions are collapsed by eliminate_convert which runs after
+            // this pass, yielding a continuous f32 chain.
             m.replace_instruction(
                 ins, make_op("convert", {{"target_type", ins->get_shape().type()}}), ins_up);
         }

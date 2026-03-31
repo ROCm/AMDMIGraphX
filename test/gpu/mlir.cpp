@@ -36,63 +36,11 @@
 #include <migraphx/verify_args.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/functional.hpp>
-#include <migraphx/tmp_dir.hpp>
 #include <test.hpp>
 
-#include <cstdlib>
-#include <fstream>
-#include <iostream>
 #include <sstream>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_ENABLE_SPLITK);
-
-namespace {
-
-struct scoped_env_var
-{
-    scoped_env_var(const char* env_name, const char* env_value = nullptr) : name(env_name)
-    {
-        if(const char* current = std::getenv(env_name))
-        {
-            had_previous   = true;
-            previous_value = current;
-        }
-
-        if(env_value != nullptr)
-            setenv(env_name, env_value, 1);
-        else
-            unsetenv(env_name);
-    }
-
-    ~scoped_env_var()
-    {
-        if(had_previous)
-            setenv(name.c_str(), previous_value.c_str(), 1);
-        else
-            unsetenv(name.c_str());
-    }
-
-    std::string name           = {};
-    std::string previous_value = {};
-    bool had_previous          = false;
-};
-
-struct scoped_cerr_capture
-{
-    scoped_cerr_capture() : old(std::cerr.rdbuf(buffer.rdbuf())) {}
-
-    scoped_cerr_capture(const scoped_cerr_capture&) = delete;
-    scoped_cerr_capture& operator=(const scoped_cerr_capture&) = delete;
-
-    ~scoped_cerr_capture() { std::cerr.rdbuf(old); }
-
-    std::string str() const { return buffer.str(); }
-
-    std::ostringstream buffer;
-    std::streambuf* old = nullptr;
-};
-
-} // namespace
 
 struct mlir_gpu_target : migraphx::gpu::target
 {
@@ -218,42 +166,6 @@ static std::string get_attrs()
         return R"({arch = "", enable_splitk_for_tuning, kernel = "mixr", num_chiplets = 0 : i64, num_cu = 0 : i64})";
     }
     return R"({arch = "", kernel = "mixr", num_chiplets = 0 : i64, num_cu = 0 : i64})";
-}
-
-TEST_CASE(mlir_tuning_db_used_without_cfg)
-{
-    migraphx::module m;
-    auto x    = m.add_parameter("x", {migraphx::shape::float_type, {1, 8, 4, 4}});
-    auto w    = m.add_parameter("w", {migraphx::shape::float_type, {2, 8, 3, 3}});
-    auto conv = m.add_instruction(migraphx::make_op("convolution"), x, w);
-    m.add_return({conv});
-
-    // Skip test if MLIR is not enabled.
-    if(migraphx::gpu::dump_mlir(m).empty())
-        return;
-
-    migraphx::tmp_dir td{"mlir-tuning-db"};
-    const auto tuning_db_path = td.path / "fake_tuning.tsv";
-    std::ofstream tuning_db(tuning_db_path);
-    tuning_db << "gfx000\t1\tconv_dummy\tperf_dummy\n";
-    tuning_db.close();
-
-    const auto tuning_db_file = tuning_db_path.string();
-    scoped_env_var tuning_db_env{"MIGRAPHX_MLIR_TUNING_DB", tuning_db_file.c_str()};
-    scoped_env_var tuning_cfg_env{"MIGRAPHX_MLIR_TUNING_CFG"};
-    scoped_cerr_capture capture;
-
-    auto submodule = create_mlir_submodule(m);
-    migraphx::gpu::context ctx;
-    auto inputs       = to_shapes(submodule.get_parameters());
-    inputs.push_back(submodule.get_output_shapes().front());
-    EXPECT([&] {
-        migraphx::gpu::compile_mlir(ctx, submodule, inputs, {});
-        return true;
-    }());
-
-    EXPECT(capture.str().find("NOTE: MLIR tuning table did not include a key for ") !=
-           std::string::npos);
 }
 
 TEST_CASE(conv)

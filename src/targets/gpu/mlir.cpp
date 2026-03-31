@@ -940,7 +940,7 @@ struct mlir_program
     {
         // 1st pipeline to call
         run_high_level_pipeline();
-        std::string tuning_db_path = string_value_of(MIGRAPHX_MLIR_TUNING_DB::value());
+        std::string tuning_db_path = string_value_of(MIGRAPHX_MLIR_TUNING_DB{});
         if(not tuning_db_path.empty())
             get_module_tuned();
         if(not solution.is_null())
@@ -1060,7 +1060,7 @@ struct mlir_program
     {
         mlir_tuning_table tuning_table{mlirRockTuningTableCreate()};
         bool found_table           = false;
-        std::string tuning_db_path = string_value_of(MIGRAPHX_MLIR_TUNING_DB::value());
+        std::string tuning_db_path = string_value_of(MIGRAPHX_MLIR_TUNING_DB{});
         if(not tuning_db_path.empty())
         {
             std::ifstream tuning_db_tsv(tuning_db_path);
@@ -1416,7 +1416,7 @@ bool is_module_fusible(const module& m, const context& migraphx_ctx, const value
     use(m);
     use(migraphx_ctx);
     use(solution);
-    return false;
+    MIGRAPHX_THROW("MLIR support is not available in this build");
 }
 
 void adjust_param_shapes(module& m, const std::vector<shape>& inputs)

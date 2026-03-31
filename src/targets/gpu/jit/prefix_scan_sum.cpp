@@ -74,8 +74,8 @@ struct prefix_scan_sum_compiler : compiler<prefix_scan_sum_compiler>
         options.kernel_name    = "prefix_scan_sum_kernel";
 
         const auto& output_shape = inputs.back();
-        auto exclusive    = v.get("exclusive", false);
-        auto reverse      = v.get("reverse", false);
+        auto exclusive           = v.get("exclusive", false);
+        auto reverse             = v.get("reverse", false);
 
         int64_t axis_val = v.at("axis").to<int64_t>();
         if(axis_val < 0)
@@ -92,7 +92,7 @@ struct prefix_scan_sum_compiler : compiler<prefix_scan_sum_compiler>
                 nslices *= output_shape.lens()[i];
         }
 
-        auto ndim     = output_shape.lens().size();
+        auto ndim           = output_shape.lens().size();
         const auto& lens    = output_shape.lens();
         const auto& strides = output_shape.strides();
 

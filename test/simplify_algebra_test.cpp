@@ -1302,6 +1302,101 @@ TEST_CASE(simplify_concat_clip)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(simplify_concat_relu_multi_use)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m1;
+    {
+        auto a      = m1.add_parameter("a", s);
+        auto b      = m1.add_parameter("b", s);
+        auto ra     = m1.add_instruction(migraphx::make_op("relu"), a);
+        auto rb     = m1.add_instruction(migraphx::make_op("relu"), b);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), ra, rb);
+        auto neg    = m1.add_instruction(migraphx::make_op("neg"), ra);
+        m1.add_return({concat, neg});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto a        = m2.add_parameter("a", s);
+        auto b        = m2.add_parameter("b", s);
+        auto cat_ab   = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), a, b);
+        auto fused    = m2.add_instruction(migraphx::make_op("relu"), cat_ab);
+        auto slice_ra = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), fused);
+        auto neg = m2.add_instruction(migraphx::make_op("neg"), slice_ra);
+        m2.add_return({fused, neg});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(simplify_concat_relu_multi_use_both)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m1;
+    {
+        auto a      = m1.add_parameter("a", s);
+        auto b      = m1.add_parameter("b", s);
+        auto ra     = m1.add_instruction(migraphx::make_op("relu"), a);
+        auto rb     = m1.add_instruction(migraphx::make_op("relu"), b);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), ra, rb);
+        m1.add_return({concat, ra, rb});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto a        = m2.add_parameter("a", s);
+        auto b        = m2.add_parameter("b", s);
+        auto cat_ab   = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), a, b);
+        auto fused    = m2.add_instruction(migraphx::make_op("relu"), cat_ab);
+        auto slice_ra = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), fused);
+        auto slice_rb = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {4}}}), fused);
+        m2.add_return({fused, slice_ra, slice_rb});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(simplify_concat_add_relu_multi_use)
+{
+    auto s = migraphx::shape{migraphx::shape::int32_type, {1}};
+    migraphx::module m1;
+    {
+        auto x      = m1.add_parameter("x", s);
+        auto y      = m1.add_parameter("y", s);
+        auto one    = m1.add_literal({s, {1}});
+        auto two    = m1.add_literal({s, {2}});
+        auto sum1   = m1.add_instruction(migraphx::make_op("add"), x, one);
+        auto relu1  = m1.add_instruction(migraphx::make_op("relu"), sum1);
+        auto sum2   = m1.add_instruction(migraphx::make_op("add"), y, two);
+        auto relu2  = m1.add_instruction(migraphx::make_op("relu"), sum2);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), relu1, relu2);
+        auto neg    = m1.add_instruction(migraphx::make_op("neg"), relu1);
+        m1.add_return({concat, neg});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x        = m2.add_parameter("x", s);
+        auto y        = m2.add_parameter("y", s);
+        auto one      = m2.add_literal({s, {1}});
+        auto two      = m2.add_literal({s, {2}});
+        auto concat1  = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), x, y);
+        auto concat2  = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), one, two);
+        auto sum      = m2.add_instruction(migraphx::make_op("add"), concat1, concat2);
+        auto relu     = m2.add_instruction(migraphx::make_op("relu"), sum);
+        auto slice_r1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), relu);
+        auto neg = m2.add_instruction(migraphx::make_op("neg"), slice_r1);
+        m2.add_return({relu, neg});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(concat_convert_fusion)
 {
     auto s = migraphx::shape{migraphx::shape::float_type, {64}};

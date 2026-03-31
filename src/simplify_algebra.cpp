@@ -922,8 +922,7 @@ struct find_concat_op
     {
         return match::name("concat")(match::any_of[match::inputs()](
             match::any_of(match::pointwise(),
-                          match::name("broadcast", "multibroadcast", "unpack_int4")),
-            match::used_once()));
+                          match::name("broadcast", "multibroadcast", "unpack_int4"))));
     }
 
     template <class Iterator>
@@ -974,13 +973,14 @@ struct find_concat_op
         auto ins  = r.result;
         auto axis = any_cast<op::concat>(ins->get_operator()).axis;
 
+        std::vector<std::pair<instruction_ref, instruction_ref>> replacements;
+
         auto each = [&](auto start, auto last) -> std::vector<instruction_ref> {
             if(std::distance(start, last) < 2)
                 return {start, last};
             auto x = *start;
-            if(std::any_of(start, last, [](instruction_ref x) {
-                   return x->outputs().size() > 1 or rejected_inputs(x->inputs());
-               }))
+            if(std::any_of(
+                   start, last, [](instruction_ref x) { return rejected_inputs(x->inputs()); }))
                 return {start, last};
             auto op = x->get_operator();
             if(not is_valid_op(op))
@@ -1023,6 +1023,27 @@ struct find_concat_op
                 concats.push_back(concat);
             }
             auto y = m.insert_instruction(ins, op, concats);
+
+            // Replace multi-use inputs with slices of the fused result
+            std::size_t offset = 0;
+            for(auto it = start; it != last; ++it)
+            {
+                auto orig = *it;
+                auto len  = orig->get_shape().lens()[axis];
+                if(orig->outputs().size() > 1)
+                {
+                    auto slice_ins = m.insert_instruction(
+                        ins,
+                        make_op("slice",
+                                {{"axes", {axis}},
+                                 {"starts", {offset}},
+                                 {"ends", {offset + len}}}),
+                        y);
+                    replacements.emplace_back(orig, slice_ins);
+                }
+                offset += len;
+            }
+
             return {y};
         };
 
@@ -1033,14 +1054,18 @@ struct find_concat_op
         };
         auto pred = [](auto i, auto j) {
             return i->get_operator() == j->get_operator() and
-                   i->inputs().size() == j->inputs().size() and
-                   i->outputs().size() == j->outputs().size();
+                   i->inputs().size() == j->inputs().size();
         };
         group_unique(ins->inputs().begin(), ins->inputs().end(), update_args, pred);
         if(args.size() == 1)
             m.replace_instruction(ins, args.front());
         else
             m.replace_instruction(ins, make_op("concat", {{"axis", axis}}), args);
+
+        for(const auto& p : replacements)
+        {
+            m.replace_instruction(p.first, p.second);
+        }
     }
 };
 

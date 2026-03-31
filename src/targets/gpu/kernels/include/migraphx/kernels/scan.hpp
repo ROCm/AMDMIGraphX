@@ -34,15 +34,6 @@ namespace migraphx {
 
 namespace detail {
 
-struct id
-{
-    template <class T>
-    constexpr T operator()(T x) const
-    {
-        return x;
-    }
-};
-
 template <unsigned int Offset, unsigned int WaveSize, class T, class Op>
 __device__ void wave_scan_step(T& output, Op op, unsigned int lane_id)
 {
@@ -54,9 +45,6 @@ __device__ void wave_scan_step(T& output, Op op, unsigned int lane_id)
         wave_scan_step<Offset * 2, WaveSize>(output, op, lane_id);
     }
 }
-
-template <class ForStride>
-__device__ __host__ auto deduce_for_stride(ForStride fs) -> decltype(fs(id{}));
 
 } // namespace detail
 
@@ -86,8 +74,8 @@ __device__ T block_scan(index idx, T& value, Op op, T init)
     wave_scan<wave_size>(value, op);
 
     // last valid lane of each wave writes its result to shared memory
-    const auto wave_id = idx.wave();
-    const auto lane_id = idx.local_wave();
+    const auto wave_id      = idx.wave();
+    const auto lane_id      = idx.local_wave();
     const bool is_last_wave = (wave_id == num_waves - 1);
     // for partial waves, the last active lane is (BlockSize - 1) % wave_size
     const index_int last_lane = is_last_wave ? ((BlockSize - 1) % wave_size) : (wave_size - 1);
@@ -115,24 +103,6 @@ __device__ T block_scan(index idx, T& value, Op op, T init)
     return op(init, wave_prefixes[num_waves - 1]);
 }
 
-template <index_int N,
-          class Op,
-          class T,
-          class ForStride,
-          class Input,
-          class Output,
-          MIGRAPHX_REQUIRES(not is_integral<ForStride>{})>
-__device__ void block_scan(index idx, Op op, T init, ForStride fs, Input input, Output output)
-{
-    using type = decltype(input(detail::deduce_for_stride(fs)));
-    type x     = init;
-    fs([&](auto i) {
-        type value = input(i);
-        x          = block_scan<N>(idx, value, op, x);
-        output(i, value);
-    });
-}
-
 template <index_int N, class Op, class T, class Input, class Output>
 __device__ void block_scan(index idx, Op op, T init, index_int n, Input input, Output output)
 {
@@ -147,6 +117,37 @@ __device__ void block_scan(index idx, Op op, T init, index_int n, Input input, O
         if(i < n)
             output(i, value);
     }
+}
+
+template <class Op, class T, class Index, class F>
+__device__ auto wave_scan(index idx, Op op, T init, Index n, F f)
+{
+    using type         = remove_reference_t<decltype(f(index_int{}))>;
+    const auto lane_id = idx.local_wave();
+    type value         = (lane_id < n) ? f(lane_id) : type{};
+    value              = op(init, value);
+    wave_scan<MIGRAPHX_WAVEFRONTSIZE>(value, op);
+    if(lane_id < n)
+        f(lane_id) = value;
+    return value;
+}
+
+template <class Op, class T, class Index, class F>
+__device__ auto block_scan(index idx, Op op, T init, Index n, F f)
+{
+    using type                 = remove_reference_t<decltype(f(index_int{}))>;
+    constexpr auto N           = decltype(idx.max_nlocal()){};
+    const index_int num_chunks = (n + N - 1) / N;
+    type x                     = init;
+    for(index_int chunk = 0; chunk < num_chunks; ++chunk)
+    {
+        index_int i = chunk * N + idx.local;
+        type value  = (i < n) ? f(i) : type{};
+        x           = block_scan<N>(idx, value, op, x);
+        if(i < n)
+            f(i) = value;
+    }
+    return x;
 }
 
 template <class F>

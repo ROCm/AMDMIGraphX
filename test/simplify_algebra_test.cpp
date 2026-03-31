@@ -1397,6 +1397,96 @@ TEST_CASE(simplify_concat_add_relu_multi_use)
     EXPECT(m1.sort() == m2.sort());
 }
 
+// DenseNet-like pattern: a feeds into cat1, which feeds into b.
+// Both a and b are concat inputs. Replacing a with a slice of the fused
+// result would create a cycle since the fused result depends on b which
+// depends on cat1 which depends on a. The pass should fuse but skip the
+// slice replacement for a.
+TEST_CASE(simplify_concat_multi_use_dependency)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {1, 4, 2, 2}};
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", s);
+        auto a    = m1.add_instruction(migraphx::make_op("relu"), x);
+        auto cat1 = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, a);
+        auto b    = m1.add_instruction(
+            migraphx::make_op("relu"), cat1); // shape {1, 8, 2, 2}
+        auto cat2 = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), a, b);
+        m1.add_return({cat2});
+    }
+    run_pass(m1);
+
+    // Expected: fuse relu into concat, but do NOT replace a with a slice.
+    // a stays alive for cat1.
+    migraphx::module m2;
+    {
+        auto x     = m2.add_parameter("x", s);
+        auto a     = m2.add_instruction(migraphx::make_op("relu"), x);
+        auto cat1  = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, a);
+        auto inner = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, cat1);
+        auto fused = m2.add_instruction(migraphx::make_op("relu"), inner);
+        m2.add_return({fused});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Multi-use input has an output (neg) before the concat in instruction
+// order, but that output is independent of the other group members.
+// The pass should move neg after the fused result and replace with a slice.
+TEST_CASE(simplify_concat_multi_use_move)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m1;
+    {
+        auto a   = m1.add_parameter("a", s);
+        auto b   = m1.add_parameter("b", s);
+        auto ra  = m1.add_instruction(migraphx::make_op("relu"), a);
+        auto neg = m1.add_instruction(migraphx::make_op("neg"), ra); // before rb and concat
+        auto rb  = m1.add_instruction(migraphx::make_op("relu"), b);
+        auto cat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), ra, rb);
+        m1.add_return({cat, neg});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto a        = m2.add_parameter("a", s);
+        auto b        = m2.add_parameter("b", s);
+        auto cat_ab   = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), a, b);
+        auto fused    = m2.add_instruction(migraphx::make_op("relu"), cat_ab);
+        auto slice_ra = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), fused);
+        auto neg = m2.add_instruction(migraphx::make_op("neg"), slice_ra);
+        m2.add_return({fused, neg});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Cascading DenseNet pattern: x -> a -> cat1 -> b -> cat2 -> c -> cat3.
+// Each concat reuses earlier results. Verify no invalid module is produced.
+TEST_CASE(simplify_concat_densenet_cascade)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {1, 4, 2, 2}};
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", s);
+        auto a    = m1.add_instruction(migraphx::make_op("relu"), x);
+        auto cat1 = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, a);
+        auto b    = m1.add_instruction(migraphx::make_op("relu"), cat1);
+        auto cat2 = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, a, b);
+        auto c    = m1.add_instruction(migraphx::make_op("relu"), cat2);
+        auto cat3 = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, a, b, c);
+        m1.add_return({cat3});
+    }
+    // Verify the pass does not crash and produces a valid module.
+    // The exact optimization depends on which groups form and which slices
+    // are safe, so just check the module is valid by running the pass.
+    run_pass(m1);
+
+    EXPECT(m1.validate() == m1.end());
+}
+
 TEST_CASE(concat_convert_fusion)
 {
     auto s = migraphx::shape{migraphx::shape::float_type, {64}};

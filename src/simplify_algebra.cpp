@@ -973,6 +973,7 @@ struct find_concat_op
         auto axis = any_cast<op::concat>(ins->get_operator()).axis;
 
         std::vector<std::pair<instruction_ref, instruction_ref>> replacements;
+        std::vector<instruction_ref> needs_move;
 
         auto each = [&](auto start, auto last) -> std::vector<instruction_ref> {
             if(std::distance(start, last) < 2)
@@ -1031,12 +1032,22 @@ struct find_concat_op
                 auto len  = orig->get_shape().lens()[axis];
                 if(orig->outputs().size() > 1)
                 {
-                    auto slice_ins = m.insert_instruction(
-                        ins,
-                        make_op("slice",
-                                {{"axes", {axis}}, {"starts", {offset}}, {"ends", {offset + len}}}),
-                        y);
-                    replacements.emplace_back(orig, slice_ins);
+                    // Skip if orig feeds into another group member (interdependency)
+                    bool dominated = std::any_of(start, last, [&](instruction_ref g) {
+                        return g != orig and reaches(orig, g);
+                    });
+                    if(not dominated)
+                    {
+                        auto slice_ins = m.insert_instruction(
+                            ins,
+                            make_op("slice",
+                                    {{"axes", {axis}},
+                                     {"starts", {offset}},
+                                     {"ends", {offset + len}}}),
+                            y);
+                        replacements.emplace_back(orig, slice_ins);
+                        needs_move.push_back(orig);
+                    }
                 }
                 offset += len;
             }
@@ -1054,6 +1065,12 @@ struct find_concat_op
                    i->inputs().size() == j->inputs().size();
         };
         group_unique(ins->inputs().begin(), ins->inputs().end(), update_args, pred);
+
+        for(auto orig : needs_move)
+        {
+            m.move_output_instructions_after(orig, ins);
+        }
+
         if(args.size() == 1)
             m.replace_instruction(ins, args.front());
         else

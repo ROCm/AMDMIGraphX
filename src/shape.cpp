@@ -686,7 +686,7 @@ shape shape::to_dynamic() const
     dstrides.reserve(ndim());
     for(auto s : strides())
         dstrides.push_back(sym::lit(s));
-    return shape(type(), std::move(dims), std::move(dstrides));
+    return {type(), std::move(dims), std::move(dstrides)};
 }
 
 shape shape::to_static(std::size_t x) const

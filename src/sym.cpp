@@ -23,6 +23,7 @@
  */
 
 #include <migraphx/sym.hpp>
+#include <migraphx/functional.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/serialize.hpp>
 
@@ -83,14 +84,6 @@ struct tdiv_data
 
 using expr_data = std::variant<integer_data, symbol_data, add_data, mul_data, tdiv_data>;
 
-template <class... Ts>
-struct overloaded : Ts...
-{
-    using Ts::operator()...;
-};
-template <class... Ts>
-overloaded(Ts...) -> overloaded<Ts...>;
-
 struct expr_node
 {
     expr_data data;
@@ -130,7 +123,7 @@ static std::size_t hash_ordered_map(const Map& m)
 
 static std::size_t compute_hash(const expr_data& d)
 {
-    std::size_t h = std::hash<int>{}(static_cast<int>(d.index()));
+    std::size_t h = std::hash<std::size_t>{}(d.index());
     return std::visit(
         overloaded{
             [&](const integer_data& p) { return hash_combine(h, std::hash<int64_t>{}(p.value)); },
@@ -674,13 +667,13 @@ static std::string print_mul(const mul_data& d, int parent_prec)
     }
     for(const auto& [base, exp] : d.factors)
     {
-        if(not first)
-            os << "*";
-        if(exp == 1)
+        for(int64_t i = 0; i < exp; ++i)
+        {
+            if(not first)
+                os << "*";
             os << print_expr(base, prec_mul + 1);
-        else
-            os << print_expr(base, prec_mul + 1) << "**" << exp;
-        first = false;
+            first = false;
+        }
     }
     std::string raw = os.str();
     if(parent_prec > prec_mul)
@@ -741,19 +734,6 @@ static expr_ptr parse_primary(const char*& p)
             name += *p;
             ++p;
         }
-        if(name == "floor")
-        {
-            skip_ws(p);
-            if(*p != '(')
-                MIGRAPHX_THROW("symbolic parser: expected '(' after 'floor'");
-            ++p;
-            auto inner = parse_expr(p);
-            skip_ws(p);
-            if(*p != ')')
-                MIGRAPHX_THROW("symbolic parser: expected ')' after floor argument");
-            ++p;
-            return inner;
-        }
         return make_symbol(name);
     }
     if(*p == '(')
@@ -780,42 +760,21 @@ static expr_ptr parse_unary(const char*& p)
     return parse_primary(p);
 }
 
-static expr_ptr parse_power(const char*& p)
-{
-    auto base = parse_unary(p);
-    skip_ws(p);
-    if(*p == '*' and *(p + 1) == '*')
-    {
-        p += 2;
-        auto exp_node = parse_unary(p);
-        if(not holds<integer_data>(exp_node))
-            MIGRAPHX_THROW("symbolic parser: ** exponent must be an integer literal");
-        auto exp = get_integer(exp_node);
-        if(exp < 0)
-            MIGRAPHX_THROW("symbolic parser: ** exponent must be non-negative");
-        expr_ptr result = make_integer(1);
-        for(int64_t i = 0; i < exp; ++i)
-            result = make_mul(result, base);
-        return result;
-    }
-    return base;
-}
-
 static expr_ptr parse_term(const char*& p)
 {
-    auto left = parse_power(p);
+    auto left = parse_unary(p);
     for(;;)
     {
         skip_ws(p);
         if(*p == '*')
         {
             ++p;
-            left = make_mul(left, parse_power(p));
+            left = make_mul(left, parse_unary(p));
         }
         else if(*p == '/')
         {
             ++p;
-            left = make_trunc_div(left, parse_power(p));
+            left = make_trunc_div(left, parse_unary(p));
         }
         else
             break;
@@ -898,12 +857,12 @@ std::size_t expr::eval_uint(const std::unordered_map<expr, std::size_t>& symbol_
     {
         if(k.empty() or not holds<symbol_data>(k.p->node))
             MIGRAPHX_THROW("sym::expr::eval_uint: map key '" + k.to_string() + "' is not a symbol");
-        bindings[k.p->node] = static_cast<int64_t>(v);
+        bindings[k.p->node] = v;
     }
     auto v = eval_direct(p->node, bindings);
     if(v < 0)
         MIGRAPHX_THROW("sym::expr::eval_uint: expression evaluated to negative value");
-    return static_cast<std::size_t>(v);
+    return v;
 }
 
 expr expr::subs(const std::unordered_map<expr, expr>& symbol_map) const
@@ -915,45 +874,39 @@ expr expr::subs(const std::unordered_map<expr, expr>& symbol_map) const
     {
         if(k.empty() or not holds<symbol_data>(k.p->node))
             MIGRAPHX_THROW("sym::expr::subs: map key '" + k.to_string() + "' is not a symbol");
-        bindings[k.p->node] = v.p ? v.p->node : make_integer(0);
+        if(v.empty())
+            MIGRAPHX_THROW("sym::expr::subs: substitution value must not be empty");
+        bindings[k.p->node] = v.p->node;
     }
     return {std::make_shared<impl>(substitute(p->node, bindings))};
 }
 
 expr operator+(const expr& a, const expr& b)
 {
-    if(a.empty() and b.empty())
+    if(a.empty() or b.empty())
         return {};
-    auto ea = a.p ? a.p->node : make_integer(0);
-    auto eb = b.p ? b.p->node : make_integer(0);
-    return {std::make_shared<expr::impl>(make_add(ea, eb))};
+    return {std::make_shared<expr::impl>(make_add(a.p->node, b.p->node))};
 }
 
 expr operator-(const expr& a, const expr& b)
 {
-    if(a.empty() and b.empty())
+    if(a.empty() or b.empty())
         return {};
-    auto ea = a.p ? a.p->node : make_integer(0);
-    auto eb = b.p ? b.p->node : make_integer(0);
-    return {std::make_shared<expr::impl>(make_sub(ea, eb))};
+    return {std::make_shared<expr::impl>(make_sub(a.p->node, b.p->node))};
 }
 
 expr operator*(const expr& a, const expr& b)
 {
-    if(a.empty() and b.empty())
+    if(a.empty() or b.empty())
         return {};
-    auto ea = a.p ? a.p->node : make_integer(0);
-    auto eb = b.p ? b.p->node : make_integer(0);
-    return {std::make_shared<expr::impl>(make_mul(ea, eb))};
+    return {std::make_shared<expr::impl>(make_mul(a.p->node, b.p->node))};
 }
 
 expr operator/(const expr& a, const expr& b)
 {
-    if(a.empty() and b.empty())
+    if(a.empty() or b.empty())
         return {};
-    auto ea = a.p ? a.p->node : make_integer(0);
-    auto eb = b.p ? b.p->node : make_integer(0);
-    return {std::make_shared<expr::impl>(make_trunc_div(ea, eb))};
+    return {std::make_shared<expr::impl>(make_trunc_div(a.p->node, b.p->node))};
 }
 
 bool operator==(const expr& a, const expr& b)

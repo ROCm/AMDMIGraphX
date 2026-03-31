@@ -52,6 +52,9 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 project(migraphx LANGUAGES C CXX)
 include(CTest)
 
+include(DetectPackageBackend)
+detect_package_backend()
+
 find_package(ROCmCMakeBuildTools REQUIRED)
 find_package(Threads REQUIRED)
 
@@ -65,9 +68,6 @@ endif()
 
 option(MIGRAPHX_USE_ROCBLAS "Enable MIGraphX to use rocBLAS" ON)
 option(MIGRAPHX_USE_HIPBLASLT "Enable MIGraphX to use hipBLASLt" ON)
-
-set(MIGRAPHX_PACKAGE_BACKEND "default" CACHE STRING "Package dependency naming: default, pre-installed, therock")
-set_property(CACHE MIGRAPHX_PACKAGE_BACKEND PROPERTY STRINGS default pre-installed therock)
 
 if(MIGRAPHX_USE_HIPBLASLT AND NOT MIGRAPHX_USE_ROCBLAS)
     message(FATAL_ERROR "hipBLASLt requires rocBLAS, but MIGRAPHX_USE_ROCBLAS is OFF")
@@ -415,15 +415,19 @@ else()
     endif()
 endif()
 
-if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "therock")
-    set(MIGRAPHX_HIP_DEVEL_DEB "amdrocm-runtimes-devel")
-    set(MIGRAPHX_HIP_DEVEL_RPM "amdrocm-runtimes-devel")
-else()
-    set(MIGRAPHX_HIP_DEVEL_DEB "hip-dev")
-    set(MIGRAPHX_HIP_DEVEL_RPM "hip-devel")
+if(NOT MIGRAPHX_PACKAGE_BACKEND STREQUAL "pre-installed")
+    if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "therock")
+        rocm_package_add_deb_dependencies(SHARED_DEPENDS "amdrocm-runtimes-devel")
+        rocm_package_add_rpm_dependencies(SHARED_DEPENDS "amdrocm-runtimes-devel")
+    else()
+        rocm_package_add_deb_dependencies(SHARED_DEPENDS "hip-dev")
+        rocm_package_add_rpm_dependencies(SHARED_DEPENDS "hip-devel")
+    endif()
 endif()
-rocm_package_add_deb_dependencies(SHARED_DEPENDS ${MIGRAPHX_HIP_DEVEL_DEB})
-rocm_package_add_rpm_dependencies(SHARED_DEPENDS ${MIGRAPHX_HIP_DEVEL_RPM})
+
+if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "pre-installed")
+    set(ROCM_DEP_ROCMCORE FALSE CACHE BOOL "Disable rocm-core dependency for pre-installed environments" FORCE)
+endif()
 
 rocm_create_package(
     NAME MIGraphX

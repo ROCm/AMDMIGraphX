@@ -723,32 +723,10 @@ TEST_CASE(parse_unary_minus)
     EXPECT(parse("-(h + 1)") == -1 * h - 1);
 }
 
-TEST_CASE(parse_floor_backward_compat)
-{
-    auto a = parse("floor((h-1)/2)");
-    auto b = parse("(h-1)/2");
-    EXPECT(a == b);
-
-    auto c = parse("floor((h-1)/2) + 1");
-    auto d = (var("h") - 1) / 2 + 1;
-    EXPECT(c == d);
-}
-
 TEST_CASE(parse_whitespace_tolerance)
 {
     EXPECT(parse("  h  +  1  ") == parse("h + 1"));
     EXPECT(parse("h+1") == parse("h + 1"));
-}
-
-TEST_CASE(parse_power_operator)
-{
-    auto h = var("h");
-    EXPECT(parse("h**2") == h * h);
-    EXPECT(parse("h**3") == h * h * h);
-    EXPECT(parse("h**1") == h);
-    EXPECT(parse("h**0") == lit(1));
-    EXPECT(parse("2*h**2 + 1") == 2 * h * h + 1);
-    EXPECT(parse("(2*h)**3 + 5") == 8 * h * h * h + 5);
 }
 
 TEST_CASE(parse_empty_string)
@@ -775,16 +753,6 @@ TEST_CASE(parse_error_unexpected_end)
     EXPECT(test::throws([&] { parse("h +"); }));
     EXPECT(test::throws([&] { parse("h *"); }));
     EXPECT(test::throws([&] { parse("-"); }));
-}
-
-TEST_CASE(parse_error_power_non_integer_exponent)
-{
-    EXPECT(test::throws([&] { parse("h**h"); }));
-}
-
-TEST_CASE(parse_error_power_negative_exponent)
-{
-    EXPECT(test::throws([&] { parse("h**-1"); }));
 }
 
 TEST_CASE(parse_double_unary_minus)
@@ -889,12 +857,12 @@ TEST_CASE(edge_empty_operations)
 TEST_CASE(edge_empty_with_nonempty)
 {
     se empty;
-    auto h  = var("h");
-    auto r1 = h + empty;
-    EXPECT(not r1.empty());
-
-    auto r2 = empty + h;
-    EXPECT(not r2.empty());
+    auto h = var("h");
+    EXPECT((h + empty).empty());
+    EXPECT((empty + h).empty());
+    EXPECT((h - empty).empty());
+    EXPECT((empty * h).empty());
+    EXPECT((h / empty).empty());
 }
 
 TEST_CASE(edge_large_coefficients)

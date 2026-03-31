@@ -40,6 +40,11 @@ struct value;
 
 namespace sym {
 
+struct expr;
+MIGRAPHX_EXPORT expr var(const std::string& name);
+MIGRAPHX_EXPORT expr lit(int64_t n);
+MIGRAPHX_EXPORT expr parse(const std::string& s);
+
 struct MIGRAPHX_EXPORT expr
 {
     expr();
@@ -60,6 +65,15 @@ struct MIGRAPHX_EXPORT expr
     MIGRAPHX_EXPORT friend bool operator!=(const expr& a, const expr& b);
     MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const expr& e);
 
+    friend expr operator+(const expr& a, int64_t b) { return a + lit(b); }
+    friend expr operator+(int64_t a, const expr& b) { return lit(a) + b; }
+    friend expr operator-(const expr& a, int64_t b) { return a - lit(b); }
+    friend expr operator-(int64_t a, const expr& b) { return lit(a) - b; }
+    friend expr operator*(const expr& a, int64_t b) { return a * lit(b); }
+    friend expr operator*(int64_t a, const expr& b) { return lit(a) * b; }
+    friend expr operator/(const expr& a, int64_t b) { return a / lit(b); }
+    friend expr operator/(int64_t a, const expr& b) { return lit(a) / b; }
+
     struct impl;
 
     friend expr var(const std::string& name);
@@ -70,19 +84,6 @@ struct MIGRAPHX_EXPORT expr
     expr(std::shared_ptr<const impl> pi);
     std::shared_ptr<const impl> p;
 };
-
-MIGRAPHX_EXPORT expr var(const std::string& name);
-MIGRAPHX_EXPORT expr lit(int64_t n);
-MIGRAPHX_EXPORT expr parse(const std::string& s);
-
-inline expr operator+(const expr& a, int64_t b) { return a + lit(b); }
-inline expr operator+(int64_t a, const expr& b) { return lit(a) + b; }
-inline expr operator-(const expr& a, int64_t b) { return a - lit(b); }
-inline expr operator-(int64_t a, const expr& b) { return lit(a) - b; }
-inline expr operator*(const expr& a, int64_t b) { return a * lit(b); }
-inline expr operator*(int64_t a, const expr& b) { return lit(a) * b; }
-inline expr operator/(const expr& a, int64_t b) { return a / lit(b); }
-inline expr operator/(int64_t a, const expr& b) { return lit(a) / b; }
 
 } // namespace sym
 

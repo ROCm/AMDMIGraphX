@@ -916,11 +916,7 @@ struct mlir_program
     void run_backend_pipeline(const std::string& solution)
     {
         mlir_pass_manager pm_back{mlirPassManagerCreate(ctx.get())};
-        MlirMIGraphXBackendOptions opts{};
-        opts.arch       = target_arch.c_str();
-        opts.perfConfig = solution.c_str();
-        opts.optLevel   = 3;
-        mlirMIGraphXAddBackendPipeline(pm_back.get(), &opts);
+        mlirMIGraphXAddBackendPipeline(pm_back.get(), target_arch.c_str(), solution.c_str());
         logger.clear();
         const size_t trace = value_of(MIGRAPHX_TRACE_MLIR{});
         static std::mutex mutex;
@@ -949,11 +945,14 @@ struct mlir_program
         std::string tuning_cfg_path = string_value_of(MIGRAPHX_MLIR_TUNING_CFG{});
         if(not tuning_cfg_path.empty())
             get_module_tuned();
-        if(solution.is_null())
-            MIGRAPHX_THROW("MLIR backend pipeline requires a tuning solution");
-        set_tuning(solution);
+        std::string perf_config;
+        if(not solution.is_null())
+        {
+            set_tuning(solution);
+            perf_config = *solution.if_string();
+        }
         // 2nd pipeline to call
-        run_backend_pipeline(solution.to<std::string>());
+        run_backend_pipeline(perf_config);
 
         code_object_op op{};
         op.symbol_name = sym_name;

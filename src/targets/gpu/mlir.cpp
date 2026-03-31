@@ -47,7 +47,7 @@
 #include <mlir-c/Pass.h>
 #include <mlir-c/Support.h>
 #include <mutex>
-#if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 4
+#if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 5
 #warning "Incompatible version of rocMLIR library used, disabling"
 // Only undefine when not using cppcheck
 #ifndef CPPCHECK
@@ -638,13 +638,13 @@ struct mlir_program
         auto ops = create_operation_state("func.func");
         ops.add_attributes({{"function_type", make_function_type(input_shapes, outputs)},
                             {"sym_name", sym_name},
-                            {"kernel", std::string("mixr")},
-                            {"arch", target_arch},
-                            {"num_cu", num_cu},
-                            {"num_chiplets", num_chiplets}});
+                            {"rock.kernel", std::string("mixr")},
+                            {"rock.arch", target_arch},
+                            {"rock.num_cu", num_cu},
+                            {"rock.num_chiplets", num_chiplets}});
         if(enabled(MIGRAPHX_MLIR_ENABLE_SPLITK{}))
         {
-            ops.add_attributes({{"enable_splitk_for_tuning", mlirUnitAttrGet(ctx.get())}});
+            ops.add_attributes({{"rock.enable_splitk_for_tuning", mlirUnitAttrGet(ctx.get())}});
         }
         ops.add_region(std::move(region));
         insert(body, std::move(ops));
@@ -911,10 +911,10 @@ struct mlir_program
         }
     }
 
-    void run_backend_pipeline()
+    void run_backend_pipeline(const std::string& solution)
     {
         mlir_pass_manager pm_back{mlirPassManagerCreate(ctx.get())};
-        mlirMIGraphXAddBackendPipeline(pm_back.get(), target_arch.c_str());
+        mlirMIGraphXAddBackendPipeline(pm_back.get(), target_arch.c_str(), solution.c_str());
         logger.clear();
         const size_t trace = value_of(MIGRAPHX_TRACE_MLIR{});
         static std::mutex mutex;
@@ -943,10 +943,14 @@ struct mlir_program
         std::string tuning_cfg_path = string_value_of(MIGRAPHX_MLIR_TUNING_CFG{});
         if(not tuning_cfg_path.empty())
             get_module_tuned();
+        std::string perf_config;
         if(not solution.is_null())
+        {
             set_tuning(solution);
+            perf_config = *solution.if_string();
+        }
         // 2nd pipeline to call
-        run_backend_pipeline();
+        run_backend_pipeline(perf_config);
 
         code_object_op op{};
         op.symbol_name                = sym_name;

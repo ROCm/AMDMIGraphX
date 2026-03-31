@@ -920,9 +920,8 @@ struct find_concat_op
 {
     auto matcher() const
     {
-        return match::name("concat")(match::any_of[match::inputs()](
-            match::any_of(match::pointwise(),
-                          match::name("broadcast", "multibroadcast", "unpack_int4"))));
+        return match::name("concat")(match::any_of[match::inputs()](match::any_of(
+            match::pointwise(), match::name("broadcast", "multibroadcast", "unpack_int4"))));
     }
 
     template <class Iterator>
@@ -1035,9 +1034,7 @@ struct find_concat_op
                     auto slice_ins = m.insert_instruction(
                         ins,
                         make_op("slice",
-                                {{"axes", {axis}},
-                                 {"starts", {offset}},
-                                 {"ends", {offset + len}}}),
+                                {{"axes", {axis}}, {"starts", {offset}}, {"ends", {offset + len}}}),
                         y);
                     replacements.emplace_back(orig, slice_ins);
                 }

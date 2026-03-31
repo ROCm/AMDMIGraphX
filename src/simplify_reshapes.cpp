@@ -1384,6 +1384,11 @@ struct find_gather_slice_concat
         if(slice_axis < 0)
             return;
 
+        // Skip gathers produced by fuse_horizontal (same-table or cross-table):
+        // their indices input is a concat of original/adjusted index tensors.
+        if(gather_ins->inputs().at(1)->name() == "concat")
+            return;
+
         auto gather_op   = any_cast<op::gather>(gather_ins->get_operator());
         auto data_ins    = gather_ins->inputs().at(0);
         auto indices_ins = gather_ins->inputs().at(1);

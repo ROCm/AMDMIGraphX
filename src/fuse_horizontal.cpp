@@ -35,7 +35,6 @@
 #include <vector>
 #include <unordered_map>
 #include <tuple>
-#include <iostream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -163,16 +162,27 @@ struct gather_same_table_fusion
 {
     std::size_t min_group_size() const { return 2; }
 
-    bool is_candidate(instruction_ref ins) const { return is_gather_fusion_candidate(ins); }
+    bool is_candidate(instruction_ref ins) const
+    {
+        if(not is_gather_fusion_candidate(ins))
+            return false;
+        // Skip gathers already produced by gather_horizontal_fusion —
+        // their data input is a concat of multiple tables.
+        if(ins->inputs().at(0)->name() == "concat")
+            return false;
+
+        auto batch_dim = ins->get_shape().lens().front();
+        if(batch_dim < 4)
+            return false;
+        return true;
+    }
 
     auto group_key(instruction_ref ins) const
     {
-        auto data        = ins->inputs().at(0);
-        auto idx         = ins->inputs().at(1);
-        auto idx_type    = idx->get_shape().type();
-        const auto& lens = idx->get_shape().lens();
-        std::vector<std::size_t> trailing(lens.begin() + 1, lens.end());
-        return std::make_tuple(data, idx_type, std::move(trailing));
+        auto data     = ins->inputs().at(0);
+        auto idx      = ins->inputs().at(1);
+        auto idx_type = idx->get_shape().type();
+        return std::make_tuple(data, idx_type, idx->get_shape().lens());
     }
 
     std::vector<instruction_ref>
@@ -237,12 +247,8 @@ struct gather_horizontal_fusion
         auto idx         = ins->inputs().at(1);
         auto idx_type    = idx->get_shape().type();
         const auto& lens = idx->get_shape().lens();
-        // Include full index shape (first dim + trailing dims).  After
-        // same-table dedup (phase 1) some indices have a larger first dim;
-        // mixing them with first-dim-1 indices in the adjusted-index concat
-        // triggers fused_concat GPU kernel failures (duplicate module refs
-        // instantiated with incompatible tensor shapes).
-        return std::make_tuple(emb_dim, idx_type, lens);
+        std::vector<std::size_t> trailing(lens.begin() + 1, lens.end());
+        return std::make_tuple(emb_dim, idx_type, std::move(trailing));
     }
 
     std::vector<instruction_ref>
@@ -450,8 +456,6 @@ struct expert_head_horizontal_fusion
          instruction_ref insert_pt) const
     {
         auto n = adds.size();
-        std::cerr << "[expert_horiz] FUSING group of " << n
-                  << " expert heads, out=" << adds.front()->get_shape() << "\n";
 
         std::vector<instruction_ref> input_parts;
         std::vector<instruction_ref> weight_parts;
@@ -533,8 +537,6 @@ struct dot_horizontal_fusion
         if(not ins->inputs().at(1)->can_eval())
             return false;
 
-        // Skip dots that feed into add: MLIR fuses dot+add(+sigmoid+mul)
-        // more efficiently than horizontal batching
         for(const auto& out : ins->outputs())
         {
             if(out->name() == "add")
@@ -598,18 +600,11 @@ void fuse_horizontal::apply(module_pass_manager& mpm) const
 {
     auto& m = mpm.get_module();
 
-    // Phase 1: collapse gathers that share the same constant table.
-    // No table concatenation or index offset arithmetic — just concat indices,
-    // one gather on the original table, slice results back.
+    fuse_horizontal_ops(m, gather_horizontal_fusion{});
     fuse_horizontal_ops(m, gather_same_table_fusion{});
 
-    // Phase 2: fuse gathers across different tables that share the same
-    // embedding dimension and index layout.  Runs on the reduced set of
-    // gathers left after phase 1.
-    fuse_horizontal_ops(m, gather_horizontal_fusion{});
     fuse_horizontal_ops(
         m,
-        gather_horizontal_fusion{},
         expert_head_horizontal_fusion{},
         dot_horizontal_fusion{});
 }

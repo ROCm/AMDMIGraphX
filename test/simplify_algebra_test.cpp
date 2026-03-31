@@ -1410,8 +1410,7 @@ TEST_CASE(simplify_concat_multi_use_dependency)
         auto x    = m1.add_parameter("x", s);
         auto a    = m1.add_instruction(migraphx::make_op("relu"), x);
         auto cat1 = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, a);
-        auto b    = m1.add_instruction(
-            migraphx::make_op("relu"), cat1); // shape {1, 8, 2, 2}
+        auto b    = m1.add_instruction(migraphx::make_op("relu"), cat1); // shape {1, 8, 2, 2}
         auto cat2 = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), a, b);
         m1.add_return({cat2});
     }

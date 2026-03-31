@@ -136,14 +136,14 @@ template <class Op, class T, class Index, class F>
 __device__ auto block_scan(index idx, Op op, T init, Index n, F f)
 {
     using type                 = remove_reference_t<decltype(f(index_int{}))>;
-    constexpr auto N           = decltype(idx.max_nlocal()){};
-    const index_int num_chunks = (n + N - 1) / N;
+    constexpr auto block_size  = decltype(idx.max_nlocal()){};
+    const index_int num_chunks = (n + block_size - 1) / block_size;
     type x                     = init;
     for(index_int chunk = 0; chunk < num_chunks; ++chunk)
     {
-        index_int i = chunk * N + idx.local;
+        index_int i = chunk * block_size + idx.local;
         type value  = (i < n) ? f(i) : type{};
-        x           = block_scan<N>(idx, value, op, x);
+        x           = block_scan<block_size>(idx, value, op, x);
         if(i < n)
             f(i) = value;
     }

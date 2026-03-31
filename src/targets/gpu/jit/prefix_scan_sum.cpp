@@ -132,7 +132,7 @@ struct prefix_scan_sum_compiler : compiler<prefix_scan_sum_compiler>
                     idx_expr += ")";
                 }
 
-                if(batch_lens[i] > 1 and i > 0)
+                if(i > 0)
                 {
                     std::string wrapped = "(";
                     wrapped += idx_expr;

@@ -39,10 +39,10 @@ struct parse_array_feature_extractor : op_parser<parse_array_feature_extractor>
                             onnx_parser::node_info info,
                             std::vector<instruction_ref> args) const
     {
-        auto arg_data = info.make_contiguous(args[0]);
-        auto arg_ind  = info.make_contiguous(args[1]);
-        auto data_s = arg_data->get_shape();
-        auto ind_s  = arg_ind->get_shape();
+        auto x = info.make_contiguous(args[0]);
+        auto y  = info.make_contiguous(args[1]);
+        auto data_s = x->get_shape();
+        auto ind_s  = y->get_shape();
 
         auto ndim = data_s.ndim();
         if(ndim == 0){
@@ -50,7 +50,7 @@ struct parse_array_feature_extractor : op_parser<parse_array_feature_extractor>
         }
         auto axis = static_cast<int64_t>(ndim - 1);
         auto op = make_op("gather", {{"axis", axis}});
-        return info.add_instruction(op, arg_data, arg_ind);
+        return info.add_instruction(op, x, y);
     }
 }
 

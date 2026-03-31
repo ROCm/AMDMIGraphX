@@ -28,6 +28,7 @@
 #include <migraphx/kernels/types.hpp>
 #include <migraphx/kernels/type_traits.hpp>
 #include <migraphx/kernels/dpp.hpp>
+#include <migraphx/kernels/uninitialized_buffer.hpp>
 
 namespace migraphx {
 
@@ -79,7 +80,7 @@ __device__ T block_scan(index idx, T& value, Op op, T init)
     constexpr index_int wave_size = MIGRAPHX_WAVEFRONTSIZE;
     constexpr index_int num_waves = (BlockSize + wave_size - 1) / wave_size;
 
-    __shared__ T wave_prefixes[num_waves];
+    __shared__ uninitialized_buffer<T, num_waves> wave_prefixes;
 
     // scan within wave
     wave_scan<wave_size>(value, op);

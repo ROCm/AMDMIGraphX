@@ -43,6 +43,7 @@ struct test_nonzero : verify_program<test_nonzero<DType>>
     }
 };
 
+template struct test_nonzero<migraphx::shape::bool_type>;
 template struct test_nonzero<migraphx::shape::float_type>;
 template struct test_nonzero<migraphx::shape::half_type>;
 template struct test_nonzero<migraphx::shape::bf16_type>;

@@ -73,7 +73,7 @@ struct prefix_scan_sum_compiler : compiler<prefix_scan_sum_compiler>
         options.virtual_inputs = inputs;
         options.kernel_name    = "prefix_scan_sum_kernel";
 
-        auto output_shape = inputs.back();
+        const auto& output_shape = inputs.back();
         auto exclusive    = v.get("exclusive", false);
         auto reverse      = v.get("reverse", false);
 
@@ -93,8 +93,8 @@ struct prefix_scan_sum_compiler : compiler<prefix_scan_sum_compiler>
         }
 
         auto ndim     = output_shape.lens().size();
-        auto& lens    = output_shape.lens();
-        auto& strides = output_shape.strides();
+        const auto& lens    = output_shape.lens();
+        const auto& strides = output_shape.strides();
 
         std::vector<std::size_t> batch_lens;
         std::vector<std::size_t> batch_strides;
@@ -122,19 +122,38 @@ struct prefix_scan_sum_compiler : compiler<prefix_scan_sum_compiler>
             {
                 std::string idx_expr;
                 if(divisors[i] == 1)
+                {
                     idx_expr = "slice_idx";
+                }
                 else
-                    idx_expr = "(slice_idx / " + std::to_string(divisors[i]) + ")";
+                {
+                    idx_expr = "(slice_idx / ";
+                    idx_expr += std::to_string(divisors[i]);
+                    idx_expr += ")";
+                }
 
-                if(batch_lens[i] > 1 && i > 0)
-                    idx_expr = "(" + idx_expr + " % " + std::to_string(batch_lens[i]) + ")";
+                if(batch_lens[i] > 1 and i > 0)
+                {
+                    std::string wrapped = "(";
+                    wrapped += idx_expr;
+                    wrapped += " % ";
+                    wrapped += std::to_string(batch_lens[i]);
+                    wrapped += ")";
+                    idx_expr = std::move(wrapped);
+                }
 
                 if(batch_strides[i] != 0)
                 {
                     if(batch_strides[i] == 1)
+                    {
                         terms.push_back(idx_expr);
+                    }
                     else
-                        terms.push_back(idx_expr + " * " + std::to_string(batch_strides[i]));
+                    {
+                        idx_expr += " * ";
+                        idx_expr += std::to_string(batch_strides[i]);
+                        terms.push_back(idx_expr);
+                    }
                 }
             }
 
@@ -142,7 +161,10 @@ struct prefix_scan_sum_compiler : compiler<prefix_scan_sum_compiler>
             {
                 offset_computation = terms[0];
                 for(std::size_t i = 1; i < terms.size(); ++i)
-                    offset_computation += " + " + terms[i];
+                {
+                    offset_computation += " + ";
+                    offset_computation += terms[i];
+                }
             }
         }
 

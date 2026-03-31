@@ -187,6 +187,50 @@ struct context
         finish_on_context(private_detail_te_self, queue);
     }
 
+    template <class T>
+    static auto private_detail_te_default_start_capture(char, T&& private_detail_te_self)
+        -> decltype(private_detail_te_self.start_capture())
+    {
+        private_detail_te_self.start_capture();
+    }
+
+    template <class T>
+    static void private_detail_te_default_start_capture(float, T&& private_detail_te_self)
+    {
+        nop_context(private_detail_te_self);
+    }
+
+    template <class T>
+    static auto private_detail_te_default_end_capture(char,
+                                                      T&& private_detail_te_self,
+                                                      const std::vector<argument>& args)
+        -> decltype(private_detail_te_self.end_capture(args))
+    {
+        private_detail_te_self.end_capture(args);
+    }
+
+    template <class T>
+    static void private_detail_te_default_end_capture(float,
+                                                      T&& private_detail_te_self,
+                                                      const std::vector<argument>& args)
+    {
+        nop_context(private_detail_te_self, args);
+    }
+
+    template <class T>
+    static auto private_detail_te_default_get_capture(char, T&& private_detail_te_self)
+        -> decltype(private_detail_te_self.get_capture())
+    {
+        return private_detail_te_self.get_capture();
+    }
+
+    template <class T>
+    static std::function<std::vector<argument>()>
+    private_detail_te_default_get_capture(float, T&& private_detail_te_self)
+    {
+        return get_capture_context(private_detail_te_self);
+    }
+
     template <class PrivateDetailTypeErasedT>
     struct private_te_unwrap_reference
     {
@@ -214,6 +258,14 @@ struct context
                      char(0), std::declval<PrivateDetailTypeErasedT>(), std::declval<any_ptr>()),
                  private_detail_te_default_finish_on(
                      char(0), std::declval<PrivateDetailTypeErasedT>(), std::declval<any_ptr>()),
+                 private_detail_te_default_start_capture(char(0),
+                                                         std::declval<PrivateDetailTypeErasedT>()),
+                 private_detail_te_default_end_capture(
+                     char(0),
+                     std::declval<PrivateDetailTypeErasedT>(),
+                     std::declval<const std::vector<argument>&>()),
+                 private_detail_te_default_get_capture(char(0),
+                                                       std::declval<PrivateDetailTypeErasedT>()),
                  std::declval<PrivateDetailTypeErasedT>().finish(),
                  void());
 

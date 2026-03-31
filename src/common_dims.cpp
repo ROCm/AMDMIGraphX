@@ -62,13 +62,14 @@ struct common_dim_state
         auto dim_end = compute_end_dim(it, dims->end(), d);
         return range(it, dim_end);
     }
-    void add_axes(std::size_t naxes, std::size_t start)
+    void add_axes(std::size_t naxes, std::size_t start) // NOLINT(readability-make-member-function-const)
     {
         auto axes = compute_axes(naxes, start);
         axes_map->push_back(std::move(axes));
     }
 
-    void add_multi_axes(std::size_t naxes, std::size_t start)
+    void add_multi_axes(std::size_t naxes,
+                        std::size_t start) // NOLINT(readability-make-member-function-const)
     {
         auto axes = compute_axes(naxes, start);
         std::transform(axes.begin(),

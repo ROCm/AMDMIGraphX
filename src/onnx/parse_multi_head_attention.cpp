@@ -213,12 +213,12 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
     void check_key_padding_mask(const std::vector<instruction_ref>& args,
                                 multi_head_attention_parameters& params) const
     {
-        if(args.size() > 4)
+        if(args.size() > 4 and args.at(4)->name() != "undefined")
         {
             const auto key_pad_lens     = args.at(4)->get_shape().lens();
             const auto key_pad_len_size = key_pad_lens.size();
             const auto key_pad_type     = args.at(4)->get_shape().type();
-
+            
             if(key_pad_type != shape::int32_type)
                 MIGRAPHX_THROW("MultiHeadAttention: Key padding mask must be a int32 tensor");
 
@@ -280,7 +280,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
     void check_bias(const std::vector<instruction_ref>& args,
                     multi_head_attention_parameters& params) const
     {
-        if(args.size() > 3)
+        if(args.size() > 3 and args.at(3)->name() != "undefined")
         {
             auto bias      = args.at(3);
             auto bias_lens = bias->get_shape().lens();
@@ -304,7 +304,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
     void check_attention_bias(const std::vector<instruction_ref>& args,
                               const multi_head_attention_parameters& params) const
     {
-        if(args.size() > 5)
+        if(args.size() > 5 and args.at(5)->name() != "undefined")
         {
             const auto attn_bias_lens = args.at(5)->get_shape().lens();
 
@@ -333,7 +333,10 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
     void check_inputs(const std::vector<instruction_ref>& args,
                       multi_head_attention_parameters& params) const
     {
-        if(args.empty() or args.size() > 6)
+        auto num_undefined = std::count_if(args.begin(), args.end(), [](const auto& arg) {
+            return arg->name() == "undefined";
+        });
+        if(args.empty() or args.size() - num_undefined > 6)
             MIGRAPHX_THROW(
                 "MultiHeadAttention: Wrong number of inputs. Only 'query', 'key', "
                 "'value', bias, key_padding_mask and attention_bias inputs are supported.");

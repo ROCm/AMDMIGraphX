@@ -165,7 +165,7 @@ void module::set_bypass(bool b) { impl->bypass = b; }
 
 bool module::has_debug_symbols() const { return impl->num_ins_with_debug_symbols > 0; }
 
-void module::add_debug_symbols(instruction_ref ins, const std::set<std::string>& symbols) const
+void module::add_debug_symbols(instruction_ref ins, const std::set<std::string>& symbols)
 {
     if(symbols.empty())
         return;
@@ -176,7 +176,7 @@ void module::add_debug_symbols(instruction_ref ins, const std::set<std::string>&
     ins->add_debug_symbols(symbols);
 }
 
-void module::remove_debug_symbols(instruction_ref ins) const
+void module::remove_debug_symbols(instruction_ref ins)
 {
     assert(ins->get_debug_symbols().empty() or impl->num_ins_with_debug_symbols > 0);
     if(not ins->get_debug_symbols().empty() and impl->num_ins_with_debug_symbols > 0)
@@ -327,7 +327,7 @@ instruction_ref module::add_instruction(const operation& op, std::vector<instruc
 
 instruction_ref module::insert_instruction(instruction_ref ins,
                                            const operation& op,
-                                           std::vector<instruction_ref> args) MIGRAPHX_TIDY_CONST
+                                           std::vector<instruction_ref> args)
 {
     assert(has_instruction(ins) or is_end(ins, this->end()));
     assert(not starts_with(op.name(), "@"));
@@ -348,7 +348,7 @@ instruction_ref module::add_instruction(const operation& op,
 instruction_ref module::insert_instruction(instruction_ref ins,
                                            const operation& op,
                                            std::vector<instruction_ref> args,
-                                           std::vector<module_ref> module_args) MIGRAPHX_TIDY_CONST
+                                           std::vector<module_ref> module_args)
 {
     assert(has_instruction(ins) or is_end(ins, this->end()));
     assert(not starts_with(op.name(), "@"));
@@ -461,7 +461,7 @@ static void propagate_debug_symbols(const_module_ref m,
 
 instruction_ref module::replace_instruction(instruction_ref ins,
                                             const operation& op,
-                                            std::vector<instruction_ref> args) MIGRAPHX_TIDY_CONST
+                                            std::vector<instruction_ref> args)
 {
     impl->changed.notify();
     assert(has_instruction(ins));
@@ -493,7 +493,7 @@ instruction_ref module::replace_instruction(instruction_ref ins,
 instruction_ref module::replace_instruction(instruction_ref ins,
                                             const operation& op,
                                             std::vector<instruction_ref> args,
-                                            std::vector<module_ref> module_args) MIGRAPHX_TIDY_CONST
+                                            std::vector<module_ref> module_args)
 {
     impl->changed.notify();
     assert(has_instruction(ins));
@@ -518,7 +518,7 @@ instruction_ref module::replace_instruction(instruction_ref ins,
     return ins;
 }
 
-instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref rep) MIGRAPHX_TIDY_CONST
+instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref rep)
 {
     impl->changed.notify();
     assert(has_instruction(ins));
@@ -572,7 +572,7 @@ instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref
 // Handles debug symbol propagation by having all old splice debug symbols propagate
 // to the new splice instructions.
 std::vector<instruction_ref> module::batch_replace_instruction(
-    const std::vector<instruction_replacement>& replacers) MIGRAPHX_TIDY_CONST
+    const std::vector<instruction_replacement>& replacers)
 {
     impl->changed.notify();
     std::vector<instruction_ref> ret;

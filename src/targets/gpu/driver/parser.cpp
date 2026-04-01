@@ -23,6 +23,7 @@
  */
 #include <migraphx/gpu/driver/parser.hpp>
 #include <migraphx/gpu/driver/action.hpp>
+#include <migraphx/logger.hpp>
 #include <iostream>
 
 namespace migraphx {
@@ -32,7 +33,7 @@ namespace driver {
 
 [[noreturn]] void error(const std::string& msg)
 {
-    std::cout << msg << std::endl;
+    log::error() << msg;
     std::abort();
 }
 

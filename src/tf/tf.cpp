@@ -23,6 +23,7 @@
  */
 #include <migraphx/tf/tf_parser.hpp>
 #include <migraphx/tf/op_parser.hpp>
+#include <migraphx/logger.hpp>
 #include <iostream>
 #include <fstream>
 #include <unordered_map>
@@ -54,7 +55,7 @@ static program parse_tf_from(const tf_options& options, Ts&&... xs)
     }
     catch(...)
     {
-        std::cerr << parser.prog << std::endl;
+        log::error() << parser.prog;
         throw;
     }
 #else

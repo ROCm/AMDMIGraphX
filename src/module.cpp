@@ -39,6 +39,7 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/fp8_types.hpp>
+#include <migraphx/logger.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -882,8 +883,11 @@ void module::finalize(std::vector<context>& contexts)
     {
         if(trace)
         {
-            std::cout << "Finalize: ";
-            this->debug_print(ins);
+            std::ostringstream ss;
+            ss << "Finalize: ";
+            std::unordered_map<instruction_ref, std::string> names;
+            instruction::print(ss, ins, names);
+            log::trace() << ss.str();
         }
         ins->finalize(contexts[ins->get_target_id()]);
         for(const auto& smod : ins->module_inputs())
@@ -895,8 +899,7 @@ void module::finalize(std::vector<context>& contexts)
     // Warn when an instruction is not normalized
     auto ins = std::find_if(begin(), end(), [](auto& i) { return i.need_normalization(); });
     if(ins != end())
-        std::cerr << "WARNING: Instruction needs normalization, performance may be affected."
-                  << std::endl;
+        log::warn() << "Instruction needs normalization, performance may be affected.";
 }
 
 std::unordered_map<instruction_ref, instruction_ref>
@@ -1195,19 +1198,19 @@ void module_with_inputs::replace(const std::vector<instruction_ref>& keys,
     }
 }
 
-void module::debug_print() const { std::cout << *this << std::endl; }
+void module::debug_print() const { log::debug() << *this; }
 
 void module::debug_print(instruction_ref ins,
                          std::unordered_map<instruction_ref, std::string>& names) const
 {
     if(is_end(ins, this->end()))
     {
-        std::cout << "End instruction" << std::endl;
+        log::debug() << "End instruction";
         return;
     }
     if(not has_instruction(ins))
     {
-        std::cout << "Instruction not part of module" << std::endl;
+        log::debug() << "Instruction not part of module";
         return;
     }
 
@@ -1215,8 +1218,9 @@ void module::debug_print(instruction_ref ins,
         [&](auto x, const auto& ins_names) {
             if(x == ins)
             {
-                instruction::print(std::cout, x, ins_names);
-                std::cout << std::endl;
+                std::ostringstream ss;
+                instruction::print(ss, x, ins_names);
+                log::debug() << ss.str();
             }
         },
         names);
@@ -1232,7 +1236,6 @@ void module::debug_print(const std::vector<instruction_ref>& inss) const
 {
     for(auto ins : inss)
         this->debug_print(ins);
-    std::cout << std::endl;
 }
 
 std::unordered_map<instruction_ref, std::string> module::print(

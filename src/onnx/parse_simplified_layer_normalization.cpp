@@ -25,6 +25,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/logger.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -54,8 +55,8 @@ struct parse_simplified_layer_normalization : op_parser<parse_simplified_layer_n
         }
         if(contains(info.attributes, "stash_type"))
         {
-            std::cerr << "WARNING: SIMPLIFIED_LAYER_NORMALIZATION attribute stash_type is only "
-                         "used for training.\n";
+            log::warn() << "SIMPLIFIED_LAYER_NORMALIZATION attribute stash_type is only "
+                           "used for training.";
         }
 
         if(args.size() != 2)

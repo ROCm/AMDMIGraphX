@@ -27,6 +27,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/logger.hpp>
 #include <iostream>
 
 #include "migraphx/fpga/vitis_ai_adapter.hpp"
@@ -62,7 +63,7 @@ struct fpga_vitis_op
     argument
     compute(const context& ctx, const shape& output_shape, std::vector<argument> args) const
     {
-        std::cout << "The context is " << ctx.id << std::endl;
+        log::debug() << "The context is " << ctx.id;
         return ::vitis_ai::execute(xmodel, output_shape, args);
     }
 };

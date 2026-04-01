@@ -23,6 +23,7 @@
  */
 #include <migraphx/onnx/onnx_parser.hpp>
 #include <migraphx/onnx/op_parser.hpp>
+#include <migraphx/logger.hpp>
 #include <iostream>
 #include <fstream>
 #include <unordered_map>
@@ -81,7 +82,7 @@ static program parse_onnx_from(const onnx_options& options, Ts&&... xs)
         }
         catch(...)
         {
-            std::cerr << parser.prog << std::endl;
+            log::error() << parser.prog;
             throw;
         }
     }

@@ -699,6 +699,12 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_experimental_custom_op_set_runs_on_of
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_experimental_custom_op_register(migraphx_experimental_custom_op_t experimental_custom_op);
 
+/// Enable or disable log header (timestamp, severity, source location) in log output
+MIGRAPHX_C_EXPORT migraphx_status migraphx_set_log_header(bool show);
+
+/// Get current log header visibility state
+MIGRAPHX_C_EXPORT migraphx_status migraphx_get_log_header(bool* out);
+
 #ifdef __cplusplus
 }
 #endif

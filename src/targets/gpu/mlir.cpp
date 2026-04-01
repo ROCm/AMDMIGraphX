@@ -32,6 +32,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/gpu/mlir.hpp>
 #include <migraphx/gpu/prepare_mlir.hpp>
+#include <migraphx/logger.hpp>
 #include <mlir-c/Dialect/RockEnums.h>
 #include <numeric>
 #include <ostream>
@@ -848,7 +849,7 @@ struct mlir_program
             std::string error = "Invalid MLIR created: " + logger.str();
             if(enabled(MIGRAPHX_TRACE_MLIR{}))
             {
-                std::cout << error << std::endl;
+                log::trace() << error;
             }
             MIGRAPHX_THROW(error);
         }
@@ -865,7 +866,7 @@ struct mlir_program
         if(trace >= 2)
         {
             const std::lock_guard<std::mutex> lock(mutex);
-            std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
+            log::trace() << mlir_print(&mlirOperationPrint, mod_op);
         }
 
         if(mlirLogicalResultIsFailure(mlirPassManagerRunOnOp(pm_back.get(), mod_op)))
@@ -873,7 +874,7 @@ struct mlir_program
             std::string error = "MLIR backend compilation failed: " + logger.str();
             if(enabled(MIGRAPHX_TRACE_MLIR{}))
             {
-                std::cout << error << std::endl;
+                log::trace() << error;
             }
             MIGRAPHX_THROW(error);
         }
@@ -1029,10 +1030,8 @@ struct mlir_program
         else
         {
             found_table = false;
-            std::cerr
-                << "WARNING: MLIR tuning db not found. Please set MIGRAPHX_MLIR_TUNING_DB for "
-                   "optimal performance."
-                << std::endl;
+            log::warn() << "MLIR tuning db not found. Please set MIGRAPHX_MLIR_TUNING_DB for "
+                           "optimal performance.";
         }
         return std::make_pair(std::move(tuning_table), found_table);
     }
@@ -1047,16 +1046,16 @@ struct mlir_program
                 mlirRockTuningGetKey(mmodule.get(), prob_config.data(), prob_config.size());
             if(prob_config_bytes >= prob_config.size())
             {
-                std::cerr << "MLIR tuning key overflowed buffer, needed " << prob_config_bytes
-                          << " bytes" << std::endl;
+                log::error() << "MLIR tuning key overflowed buffer, needed " << prob_config_bytes
+                             << " bytes";
                 return false;
             }
             std::string prob_config_str(prob_config.begin(),
                                         prob_config.begin() + prob_config_bytes);
             if(tuning_table.second)
             {
-                std::cerr << "NOTE: MLIR tuning table did not include a key for " << prob_config_str
-                          << std::endl;
+                log::info() << "NOTE: MLIR tuning table did not include a key for "
+                            << prob_config_str;
             }
             dump_tuning_cfg(prob_config_str);
             return false;
@@ -1196,7 +1195,7 @@ void dump_mlir_to_file(module m, const std::vector<shape>& inputs, const fs::pat
 
     auto name = compute_dump_name(m, ".mlir");
     auto f    = location / name;
-    std::cout << "Dumping MLIR file to: " << f << std::endl;
+    log::info() << "Dumping MLIR file to: " << f;
 
     mlir_program mp;
     mp.parse(m);
@@ -1222,7 +1221,7 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     if(trace)
     {
         const std::lock_guard<std::mutex> lock(mutex);
-        std::cout << m << std::endl;
+        log::trace() << m;
     }
 
     mlir_program mp;
@@ -1233,7 +1232,7 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     if(trace)
     {
         const std::lock_guard<std::mutex> lock(mutex);
-        std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
+        log::trace() << mlir_print(&mlirOperationPrint, mod_op);
     }
 
     auto co = mp.compile(solution);
@@ -1304,16 +1303,16 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
     if(trace)
     {
         auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
-        std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
+        log::trace() << mlir_print(&mlirOperationPrint, mod_op);
     }
     auto tc = mp.get_tuning_config(exhaustive);
     static std::mutex mutex;
     if(trace)
     {
         const std::lock_guard<std::mutex> lock(mutex);
-        std::cout << "Problem: " << tc.problem << std::endl;
+        log::trace() << "Problem: " << tc.problem;
         auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
-        std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
+        log::trace() << mlir_print(&mlirOperationPrint, mod_op);
     }
     return tc;
 }
@@ -1335,7 +1334,7 @@ void dump_mlir_to_mxr(module m,
     }
     auto name = compute_dump_name(m, ".mxr");
     auto f    = location / name;
-    std::cout << "Dumping MXR file to: " << f << std::endl;
+    log::info() << "Dumping MXR file to: " << f;
     save(program{std::move(m)}, f.string());
 }
 

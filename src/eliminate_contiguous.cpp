@@ -30,6 +30,7 @@
 #include <migraphx/op/contiguous.hpp>
 #include <migraphx/op/identity.hpp>
 #include <migraphx/par_for.hpp>
+#include <migraphx/logger.hpp>
 #include <utility>
 
 namespace migraphx {
@@ -90,7 +91,7 @@ static bool try_compute_shape(instruction_ref ins,
     {
         if(enabled(MIGRAPHX_TRACE_ELIMINATE_CONTIGUOUS{}))
         {
-            std::cout << "Exception: " << e.what() << std::endl;
+            log::trace() << "Exception: " << e.what();
         }
         return false;
     }
@@ -98,7 +99,7 @@ static bool try_compute_shape(instruction_ref ins,
     {
         if(enabled(MIGRAPHX_TRACE_ELIMINATE_CONTIGUOUS{}))
         {
-            std::cout << "Unknown exception" << std::endl;
+            log::trace() << "Unknown exception";
         }
         return false;
     }
@@ -141,7 +142,7 @@ static void remove_contiguous(const std::string& op_name, module& m, F f)
                 continue;
             if(enabled(MIGRAPHX_TRACE_ELIMINATE_CONTIGUOUS{}))
             {
-                std::cout << "eliminate_contiguous: ";
+                log::trace() << "eliminate_contiguous: ";
                 m.debug_print(ins);
             }
             auto prev = arg->inputs().front();

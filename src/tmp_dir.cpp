@@ -32,6 +32,7 @@
 #include <sstream>
 #include <iostream>
 #include <string>
+#include <migraphx/logger.hpp>
 
 #ifdef _WIN32
 // cppcheck-suppress definePrefix
@@ -98,7 +99,7 @@ tmp_dir::~tmp_dir()
             fs::remove_all(path, ec);
             if(not ec)
                 break;
-            std::cerr << "Failed to remove " << path << ": " << ec.message() << std::endl;
+            log::warn() << "Failed to remove " << path << ": " << ec.message();
             std::this_thread::sleep_for(std::chrono::milliseconds(125));
         }
     }

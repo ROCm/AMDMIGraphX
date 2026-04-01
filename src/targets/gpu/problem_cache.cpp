@@ -28,6 +28,7 @@
 #include <migraphx/env.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/file_buffer.hpp>
+#include <migraphx/logger.hpp>
 #include <iostream>
 
 namespace migraphx {
@@ -43,7 +44,7 @@ void problem_cache::load()
         return;
     if(not fs::exists(pc_path))
     {
-        std::cout << "Problem cache not found. Creating new file.\n";
+        log::info() << "Problem cache not found. Creating new file.";
         save();
         return;
     }

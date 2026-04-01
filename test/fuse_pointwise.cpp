@@ -1347,13 +1347,13 @@ TEST_CASE(split_pointwise_slices)
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {6}}}), x);
         auto y2 = mm->add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {6}}}), y);
-        auto fused1 = add_pointwise(
-            p2, "main:pointwise0:split0", {x1, y1}, [](auto* pm, const auto& inputs) {
+        auto fused1 =
+            add_pointwise(p2, "main:pointwise0:split0", {x1, y1}, [](auto* pm, const auto& inputs) {
                 auto add = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
                 return pm->add_instruction(migraphx::make_op("neg"), add);
             });
-        auto fused2 = add_pointwise(
-            p2, "main:pointwise0:split1", {x2, y2}, [](auto* pm, const auto& inputs) {
+        auto fused2 =
+            add_pointwise(p2, "main:pointwise0:split1", {x2, y2}, [](auto* pm, const auto& inputs) {
                 auto add = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
                 return pm->add_instruction(migraphx::make_op("neg"), add);
             });
@@ -1400,18 +1400,18 @@ TEST_CASE(split_pointwise_slices_3way)
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {6}}, {"ends", {9}}}), x);
         auto y3 = mm->add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {6}}, {"ends", {9}}}), y);
-        auto fused1 = add_pointwise(
-            p2, "main:pointwise0:split0", {x1, y1}, [](auto* pm, const auto& inputs) {
+        auto fused1 =
+            add_pointwise(p2, "main:pointwise0:split0", {x1, y1}, [](auto* pm, const auto& inputs) {
                 auto add = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
                 return pm->add_instruction(migraphx::make_op("neg"), add);
             });
-        auto fused2 = add_pointwise(
-            p2, "main:pointwise0:split1", {x2, y2}, [](auto* pm, const auto& inputs) {
+        auto fused2 =
+            add_pointwise(p2, "main:pointwise0:split1", {x2, y2}, [](auto* pm, const auto& inputs) {
                 auto add = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
                 return pm->add_instruction(migraphx::make_op("neg"), add);
             });
-        auto fused3 = add_pointwise(
-            p2, "main:pointwise0:split2", {x3, y3}, [](auto* pm, const auto& inputs) {
+        auto fused3 =
+            add_pointwise(p2, "main:pointwise0:split2", {x3, y3}, [](auto* pm, const auto& inputs) {
                 auto add = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
                 return pm->add_instruction(migraphx::make_op("neg"), add);
             });

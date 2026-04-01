@@ -289,65 +289,62 @@ static bool split_pointwise_through_slices(module_pass_manager& mpm)
             continue;
 
         // All consumers must be slice instructions
-        if(not std::all_of(outputs.begin(), outputs.end(), [](instruction_ref output) {
-               return output->name() == "slice";
-           }))
+        if(not all_of(outputs, [](instruction_ref output) { return output->name() == "slice"; }))
             continue;
+
+        // Cache slice values to avoid repeated to_value() calls
+        std::unordered_map<instruction_ref, value> slice_vals;
+        for(auto output : outputs)
+            slice_vals[output] = output->get_operator().to_value();
 
         // All slices must be on the same single axis
-        auto get_val = [](instruction_ref s) { return s->get_operator().to_value(); };
-        auto axes    = get_val(outputs.front())["axes"].to_vector<int64_t>();
+        auto axes = slice_vals[outputs.front()]["axes"].to_vector<int64_t>();
         if(axes.size() != 1)
             continue;
-        if(not std::all_of(outputs.begin(), outputs.end(), [&](instruction_ref output) {
-               return get_val(output)["axes"].to_vector<int64_t>() == axes;
+        if(not all_of(outputs, [&](instruction_ref output) {
+               return slice_vals[output]["axes"].to_vector<int64_t>() == axes;
            }))
             continue;
 
+        auto get_starts = [&](instruction_ref s) {
+            return slice_vals[s]["starts"].to_vector<int64_t>()[0];
+        };
+        auto get_ends = [&](instruction_ref s) {
+            return slice_vals[s]["ends"].to_vector<int64_t>()[0];
+        };
+
         // Sort slices by start position and check for no overlap
-        std::sort(outputs.begin(), outputs.end(), [&](instruction_ref a, instruction_ref b) {
-            return get_val(a)["starts"].to_vector<int64_t>()[0] <
-                   get_val(b)["starts"].to_vector<int64_t>()[0];
-        });
-        bool overlapping = false;
-        for(std::size_t i = 1; i < outputs.size(); i++)
-        {
-            if(get_val(outputs[i])["starts"].to_vector<int64_t>()[0] <
-               get_val(outputs[i - 1])["ends"].to_vector<int64_t>()[0])
-            {
-                overlapping = true;
-                break;
-            }
-        }
-        if(overlapping)
+        std::sort(outputs.begin(), outputs.end(), by(std::less<>{}, get_starts));
+        if(std::adjacent_find(
+               outputs.begin(), outputs.end(), [&](instruction_ref a, instruction_ref b) {
+                   return get_starts(b) < get_ends(a);
+               }) != outputs.end())
             continue;
 
         // At least one slice consumer must feed into a pointwise op
-        if(std::none_of(outputs.begin(), outputs.end(), [&](instruction_ref s) {
-               return std::any_of(
-                   s->outputs().begin(), s->outputs().end(), [](instruction_ref consumer) {
-                       return consumer->name() == "pointwise";
-                   });
+        if(none_of(outputs, [](instruction_ref s) {
+               return any_of(s->outputs(),
+                             [](instruction_ref c) { return c->name() == "pointwise"; });
            }))
             continue;
 
         // Split: replace each slice with a pointwise on sliced inputs
+        auto* src_pm = ins->module_inputs().front();
+        auto pm_name = src_pm->name();
+        auto inputs  = ins->inputs();
         for(const auto& slice_ins : outputs)
         {
             auto slice_op = slice_ins->get_operator();
 
             std::vector<instruction_ref> sliced_inputs;
-            std::transform(ins->inputs().begin(),
-                           ins->inputs().end(),
-                           std::back_inserter(sliced_inputs),
-                           [&](instruction_ref input) {
-                               return m.insert_instruction(slice_ins, slice_op, input);
-                           });
+            sliced_inputs.reserve(inputs.size());
+            transform(inputs, std::back_inserter(sliced_inputs), [&](instruction_ref input) {
+                return m.insert_instruction(slice_ins, slice_op, input);
+            });
 
-            module pm_copy = *ins->module_inputs().front();
-            auto* new_pm   = mpm.create_module(ins->module_inputs().front()->name() + ":split" +
-                                                 std::to_string(idx++),
-                                             std::move(pm_copy));
+            module pm_copy = *src_pm;
+            auto* new_pm   = mpm.create_module(
+                pm_name + ":split" + std::to_string(idx++), std::move(pm_copy));
             new_pm->set_bypass();
 
             m.replace_instruction(slice_ins, make_op("pointwise"), sliced_inputs, {new_pm});

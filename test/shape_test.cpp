@@ -467,8 +467,9 @@ TEST_CASE(test_shape_subshapes_to_dynamic)
     migraphx::shape s1                       = s0.to_dynamic();
     std::vector<migraphx::shape> sub_shapes1 = {};
     sub_shapes1.push_back(migraphx::shape{migraphx::shape::float_type, {{1, 4}, {4, 4}}});
-    sub_shapes1.push_back(migraphx::shape{
-        migraphx::shape::float_type, {{3, 3}, {4, 4}, {5, 5}}, {lit(20), lit(5), lit(1)}});
+    sub_shapes1.push_back(migraphx::shape{migraphx::shape::float_type,
+                                         {{3, 3}, {4, 4}, {5, 5}},
+                                         {lit(20), lit(5), lit(1)}});
     migraphx::shape s2{sub_shapes1};
     EXPECT(s1 == s2);
 }
@@ -1505,7 +1506,7 @@ TEST_CASE(test_dd_intersection_symbolic)
     EXPECT(*result->sym_expr == n);
 }
 
-TEST_CASE(test_dd_intersection_fixed_drops_sym)
+TEST_CASE(test_dd_intersection_fixed_gets_lit)
 {
     auto n = var("n");
     migraphx::shape::dynamic_dimension a{1, 8, {}, n};
@@ -1514,7 +1515,8 @@ TEST_CASE(test_dd_intersection_fixed_drops_sym)
     EXPECT(result.has_value());
     EXPECT(result->min == 4);
     EXPECT(result->max == 4);
-    EXPECT(not result->sym_expr.has_value());
+    EXPECT(result->sym_expr.has_value());
+    EXPECT(*result->sym_expr == lit(4));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

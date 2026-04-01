@@ -1136,7 +1136,7 @@ struct find_concat_conv
 // When conv_b operates on concat(A, extra) and conv_a operates on A,
 // we can decompose conv_b = conv(A, w_prefix) + conv(extra, w_suffix)
 // and fuse conv_a with the prefix part into a single convolution.
-struct find_conv_horizontal_fuse
+struct find_conv_concat_split_fuse
 {
     auto matcher() const
     {
@@ -2609,7 +2609,7 @@ void simplify_algebra::apply(module& m) const
                             find_log_exp{},
                             find_log_div{},
                             find_concat_conv{},
-                            find_conv_horizontal_fuse{},
+                            find_conv_concat_split_fuse{},
                             find_concat_op{},
                             find_split_concat{},
                             find_splits{},

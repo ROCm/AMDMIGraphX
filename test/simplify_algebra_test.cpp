@@ -4895,15 +4895,15 @@ TEST_CASE(conv_horizontal_fuse)
     migraphx::shape w2s{migraphx::shape::float_type, {4, 12, 3, 3}};
     migraphx::module m1;
     {
-        auto x     = m1.add_parameter("x", xs);
-        auto w1    = m1.add_literal(migraphx::generate_literal(w1s, 1));
-        auto w2    = m1.add_literal(migraphx::generate_literal(w2s, 2));
-        auto conv1 = m1.add_instruction(
-            migraphx::make_op("convolution", {{"padding", {1, 1}}}), x, w1);
+        auto x  = m1.add_parameter("x", xs);
+        auto w1 = m1.add_literal(migraphx::generate_literal(w1s, 1));
+        auto w2 = m1.add_literal(migraphx::generate_literal(w2s, 2));
+        auto conv1 =
+            m1.add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1}}}), x, w1);
         auto act1 = m1.add_instruction(migraphx::make_op("relu"), conv1);
         auto cat  = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, act1);
-        auto conv2 = m1.add_instruction(
-            migraphx::make_op("convolution", {{"padding", {1, 1}}}), cat, w2);
+        auto conv2 =
+            m1.add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1}}}), cat, w2);
         m1.add_return({conv2});
     }
     run_pass(m1);

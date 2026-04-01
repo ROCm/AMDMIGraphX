@@ -1146,7 +1146,7 @@ struct find_conv_horizontal_fuse
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto conv_b = r.result;
+        auto conv_b     = r.result;
         auto concat_ins = conv_b->inputs()[0];
         auto weight_b   = conv_b->inputs()[1];
         auto conv_b_op  = any_cast<op::convolution>(conv_b->get_operator());
@@ -1214,10 +1214,10 @@ struct find_conv_horizontal_fuse
 
         {
             auto [conv_a, prefix_len] = *best;
-            auto input_a     = conv_a->inputs()[0];
-            auto weight_a    = conv_a->inputs()[1];
-            auto prefix_chans = input_a->get_shape().lens()[1];
-            auto total_chans  = concat_ins->get_shape().lens()[1];
+            auto input_a              = conv_a->inputs()[0];
+            auto weight_a             = conv_a->inputs()[1];
+            auto prefix_chans         = input_a->get_shape().lens()[1];
+            auto total_chans          = concat_ins->get_shape().lens()[1];
 
             if(prefix_chans >= total_chans)
                 return;
@@ -1231,8 +1231,7 @@ struct find_conv_horizontal_fuse
             // Split weight_b prefix (weight ops can go anywhere before conv_a)
             auto w_b_prefix = m.insert_instruction(
                 conv_a,
-                make_op("slice",
-                        {{"axes", {1}}, {"starts", {0}}, {"ends", {prefix_chans}}}),
+                make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {prefix_chans}}}),
                 weight_b);
 
             // Fused weight: concat(weight_a, w_b_prefix) along output channel dim
@@ -1247,22 +1246,18 @@ struct find_conv_horizontal_fuse
             // Slice out conv_a and conv_b prefix results
             auto conv_a_result = m.insert_instruction(
                 conv_a,
-                make_op("slice",
-                        {{"axes", {1}}, {"starts", {0}}, {"ends", {out_a}}}),
+                make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {out_a}}}),
                 fused_conv);
             auto conv_b_prefix_result = m.insert_instruction(
                 conv_a,
-                make_op("slice",
-                        {{"axes", {1}}, {"starts", {out_a}}, {"ends", {out_a + out_b}}}),
+                make_op("slice", {{"axes", {1}}, {"starts", {out_a}}, {"ends", {out_a + out_b}}}),
                 fused_conv);
 
             // --- Insert residual conv at conv_b's position ---
             auto w_b_suffix = m.insert_instruction(
                 conv_b,
                 make_op("slice",
-                        {{"axes", {1}},
-                         {"starts", {prefix_chans}},
-                         {"ends", {total_chans}}}),
+                        {{"axes", {1}}, {"starts", {prefix_chans}}, {"ends", {total_chans}}}),
                 weight_b);
             w_b_suffix = m.insert_instruction(conv_b, make_op("contiguous"), w_b_suffix);
 
@@ -1275,8 +1270,7 @@ struct find_conv_horizontal_fuse
             }
             else
             {
-                extra = m.insert_instruction(
-                    conv_b, make_op("concat", {{"axis", 1}}), remaining);
+                extra = m.insert_instruction(conv_b, make_op("concat", {{"axis", 1}}), remaining);
             }
 
             auto conv_b_suffix_result =

@@ -39,7 +39,7 @@ struct tracer
     explicit tracer(bool enable) : enabled_(enable)
     {
         if(enabled_ and not log::is_enabled(log::severity::trace) and
-           env("MIGRAPHX_LOG_LEVEL").empty())
+           not log::is_severity_explicit())
             log::set_severity(log::severity::trace);
     }
 

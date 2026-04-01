@@ -151,7 +151,6 @@ struct logger_options
         }
     }
 
-    private:
     static std::optional<migraphx::log::severity>
     parse_log_level_string(const std::string& level_str)
     {
@@ -1121,17 +1120,26 @@ int main(int argc, const char* argv[], const char* envp[])
 
     if(m.count(cmd) > 0)
     {
+        logger_options log_opts;
+        log_opts.parse(ap);
+
+        // Needed so that the first two lines printed follow the log level set
+        auto it = std::find(args.begin(), args.end(), "--log-level");
+        if(it != args.end() and std::next(it) != args.end())
+        {
+            auto level = logger_options::parse_log_level_string(*std::next(it));
+            if(level)
+                migraphx::log::set_severity(*level);
+        }
+
         std::string driver_invocation =
             std::string(argv[0]) + " " + migraphx::to_string_range(original_args, " ");
         migraphx::log::info() << "Running [ " << get_version() << " ]: " << driver_invocation;
 
-        // Print start timestamp
         auto start_time = std::chrono::system_clock::now();
         migraphx::log::info() << "[" << get_formatted_timestamp(start_time) << "]";
 
-        logger_options log_opts;
-        log_opts.parse(ap);
-        m.at(cmd)(ap, {args.begin() + 1, args.end()}); // run driver command found in commands map
+        m.at(cmd)(ap, {args.begin() + 1, args.end()});
 
         // Dump all the MIGraphX (consumed) Environment Variables:
         const auto mgx_env_map = migraphx::get_all_envs();

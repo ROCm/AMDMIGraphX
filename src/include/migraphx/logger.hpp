@@ -112,6 +112,8 @@ MIGRAPHX_EXPORT void set_show_header(bool show);
  */
 MIGRAPHX_EXPORT bool get_show_header();
 
+MIGRAPHX_EXPORT bool is_severity_explicit();
+
 template <severity Severity>
 struct print
 {

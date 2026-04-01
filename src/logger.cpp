@@ -107,6 +107,14 @@ void set_show_header(bool show) { show_header_flag().store(show); }
 
 bool get_show_header() { return show_header_flag().load(); }
 
+static auto& severity_explicit_flag()
+{
+    static std::atomic<bool> flag{false};
+    return flag;
+}
+
+bool is_severity_explicit() { return severity_explicit_flag().load(); }
+
 // Helper to format the log prefix
 static std::string format_prefix(severity s, source_location loc)
 {
@@ -223,11 +231,11 @@ static void access_sinks(const std::function<void(std::vector<std::optional<sink
 {
     static std::mutex m;
     static auto sinks = []() {
+        if(not env("MIGRAPHX_LOG_LEVEL").empty())
+            severity_explicit_flag().store(true);
         // cppcheck-suppress migraphx-RedundantCast
         auto level = static_cast<severity>(
             value_of(MIGRAPHX_LOG_LEVEL{}, static_cast<size_t>(default_log_level())));
-
-        // If MIGRAPHX_LOG_LEVEL is set, this will store the value into the atomic when first called
         max_enabled_level().store(level);
         return std::vector<std::optional<sink_entry>>{sink_entry{make_stderr_sink(), level}};
     }();
@@ -269,6 +277,7 @@ void remove_sink(size_t id)
 
 void set_severity(severity level, size_t id)
 {
+    severity_explicit_flag().store(true);
     access_sinks([&](std::vector<std::optional<sink_entry>>& sinks) {
         if(id < sinks.size() and sinks[id].has_value())
         {

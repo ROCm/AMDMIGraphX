@@ -292,7 +292,7 @@ struct compile_plan
         auto skipped = std::count_if(
             results.begin(), results.end(), [](const auto& cr) { return not cr.has_value(); });
         if(skipped > 0)
-            log::trace() << "Skipped " << skipped << " configs for " << preop.name();
+            log::warn() << "Skipped " << skipped << " configs for " << preop.name();
 
         return *results[i];
     }

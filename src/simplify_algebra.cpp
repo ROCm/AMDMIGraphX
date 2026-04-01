@@ -1045,9 +1045,7 @@ struct find_concat_op
                     auto slice_ins = m.insert_instruction(
                         ins,
                         make_op("slice",
-                                {{"axes", {axis}},
-                                 {"starts", {offset}},
-                                 {"ends", {offset + len}}}),
+                                {{"axes", {axis}}, {"starts", {offset}}, {"ends", {offset + len}}}),
                         y);
                     replacements.emplace_back(orig, slice_ins);
                     needs_move.push_back(orig);

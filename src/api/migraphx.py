@@ -220,7 +220,10 @@ def shapes(h):
 
 @api.handle('migraphx_instruction', 'migraphx::instruction_ref')
 def instruction(h):
-    pass
+    h.method('get_debug_symbols',
+             fname='get_debug_symbols',
+             returns='const std::set<std::string>&',
+             const=True)
 
 
 @api.handle('migraphx_instructions', 'std::vector<migraphx::instruction_ref>')
@@ -265,6 +268,16 @@ def module(h):
              api.params(s='const migraphx::shape&'),
              invoke='migraphx::add_allocation($@)',
              returns='migraphx::instruction_ref')
+    h.method('has_debug_symbols',
+             fname='has_debug_symbols',
+             returns='bool',
+             const=True)
+    h.method('add_debug_symbols',
+             api.params(ins='migraphx::instruction_ref', symbols='std::set<std::string>'),
+             fname='add_debug_symbols')
+    h.method('remove_debug_symbols',
+             api.params(ins='migraphx::instruction_ref'),
+             fname='remove_debug_symbols')
 
 
 @auto_handle()

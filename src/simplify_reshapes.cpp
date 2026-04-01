@@ -559,6 +559,17 @@ struct find_slice_shape_transforms
             return;
         new_desc.simplify();
 
+        // Optimizes shape transforms if the slice cant be optimized
+        if(std::any_of(axes.begin(), axes.end(), [&](auto axis) {
+               return new_desc.get_dst_axes_from_src(axis).size() != 1;
+           }))
+        {
+            auto opt_ops = desc.generate();
+            auto y       = insert_ops(m, ins, opt_ops, slice);
+            m.replace_instruction(ins, y);
+            return;
+        }
+
         // Map slice axes using the rebased descriptor to correctly track
         // where dimensions end up after rebase reorders them
         std::vector<std::size_t> new_axes;
@@ -566,20 +577,8 @@ struct find_slice_shape_transforms
                        axes.end(),
                        join_back_inserter(new_axes),
                        [&](auto axis) -> std::vector<std::size_t> {
-                           auto result = new_desc.get_dst_axes_from_src(axis);
-                           if(result.size() != 1)
-                               return {};
-                           return result;
+                           return new_desc.get_dst_axes_from_src(axis);
                        });
-
-        // Optimizes shape transforms if the slice cant be optimized
-        if(axes.size() != new_axes.size())
-        {
-            auto opt_ops = desc.generate();
-            auto y       = insert_ops(m, ins, opt_ops, slice);
-            m.replace_instruction(ins, y);
-            return;
-        }
         slice_op["axes"] = new_axes;
 
         auto opt_ops = new_desc.generate();

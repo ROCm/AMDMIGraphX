@@ -1197,10 +1197,10 @@ struct find_conv_horizontal_fuse
                        std::equal(out_inputs.begin(), out_inputs.end(), concat_inputs.begin());
             },
             [&](instruction_ref output) -> std::vector<conv_prefix> {
-                auto it = std::find_if(
-                    output->outputs().begin(), output->outputs().end(), [&](instruction_ref o) {
-                        return is_fusable_conv(o, output);
-                    });
+                auto it =
+                    std::find_if(output->outputs().begin(),
+                                 output->outputs().end(),
+                                 [&](instruction_ref o) { return is_fusable_conv(o, output); });
                 if(it == output->outputs().end())
                     return {};
                 return {{*it, output->inputs().size()}};

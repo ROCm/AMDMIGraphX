@@ -77,10 +77,7 @@ struct prefix_scan_sum_compiler : compiler<prefix_scan_sum_compiler>
         auto exclusive           = v.get("exclusive", false);
         auto reverse             = v.get("reverse", false);
 
-        int64_t axis_val = v.at("axis").to<int64_t>();
-        if(axis_val < 0)
-            axis_val += output_shape.ndim();
-        std::size_t axis = axis_val;
+        std::size_t axis = v.at("axis").to<std::size_t>();
 
         std::size_t n           = output_shape.lens()[axis];
         std::size_t axis_stride = output_shape.strides()[axis];

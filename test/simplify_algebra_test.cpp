@@ -4885,6 +4885,43 @@ TEST_CASE(conv_concat_group)
     EXPECT(m1.sort() == m2.sort());
 }
 
+// conv_a(X) and conv_b(concat(X, extra)) can be horizontally fused:
+// fused = conv(X, concat(w_a, slice(w_b, prefix)))
+// conv_b = slice(fused, b_part) + conv(extra, slice(w_b, suffix))
+TEST_CASE(conv_horizontal_fuse)
+{
+    migraphx::shape xs{migraphx::shape::float_type, {1, 8, 4, 4}};
+    migraphx::shape w1s{migraphx::shape::float_type, {4, 8, 3, 3}};
+    migraphx::shape w2s{migraphx::shape::float_type, {4, 12, 3, 3}};
+    migraphx::module m1;
+    {
+        auto x     = m1.add_parameter("x", xs);
+        auto w1    = m1.add_literal(migraphx::generate_literal(w1s, 1));
+        auto w2    = m1.add_literal(migraphx::generate_literal(w2s, 2));
+        auto conv1 = m1.add_instruction(
+            migraphx::make_op("convolution", {{"padding", {1, 1}}}), x, w1);
+        auto act1 = m1.add_instruction(migraphx::make_op("relu"), conv1);
+        auto cat  = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, act1);
+        auto conv2 = m1.add_instruction(
+            migraphx::make_op("convolution", {{"padding", {1, 1}}}), cat, w2);
+        m1.add_return({conv2});
+    }
+    run_pass(m1);
+    EXPECT(m1.validate() == m1.end());
+
+    // Verify the fused conv has more output channels (4+4=8)
+    bool found_fused = false;
+    for(auto ins = m1.begin(); ins != m1.end(); ++ins)
+    {
+        if(ins->name() == "convolution" and ins->get_shape().lens()[1] == 8)
+        {
+            found_fused = true;
+            break;
+        }
+    }
+    EXPECT(found_fused);
+}
+
 TEST_CASE(find_concat_different_broadcast_axes)
 {
     migraphx::shape s1{migraphx::shape::float_type, {128, 1, 1, 1, 1}};

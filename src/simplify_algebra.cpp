@@ -1133,6 +1133,166 @@ struct find_concat_conv
     }
 };
 
+// Horizontal fusion for convolutions through concat decomposition.
+// When conv_b operates on concat(A, extra) and conv_a operates on A,
+// we can decompose conv_b = conv(A, w_prefix) + conv(extra, w_suffix)
+// and fuse conv_a with the prefix part into a single convolution.
+struct find_conv_horizontal_fuse
+{
+    auto matcher() const
+    {
+        return match::name("convolution")(match::arg(0)(match::name("concat")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto conv_b = r.result;
+        auto concat_ins = conv_b->inputs()[0];
+        auto weight_b   = conv_b->inputs()[1];
+        auto conv_b_op  = any_cast<op::convolution>(conv_b->get_operator());
+
+        if(conv_b_op.group != 1)
+            return;
+
+        auto concat_axis = any_cast<op::concat>(concat_ins->get_operator()).axis;
+        if(concat_axis != 1)
+            return;
+
+        auto concat_inputs = concat_ins->inputs();
+        if(concat_inputs.size() < 2)
+            return;
+
+        // Find a convolution that operates on a prefix of the concat inputs.
+        // Search from longest prefix to shortest for the best fusion.
+        auto find_prefix_conv =
+            [&](instruction_ref prefix_input,
+                std::size_t plen) -> std::optional<std::pair<instruction_ref, std::size_t>> {
+            for(auto output : prefix_input->outputs())
+            {
+                if(output->name() != "convolution" or output == conv_b)
+                    continue;
+                auto ca_op = any_cast<op::convolution>(output->get_operator());
+                if(ca_op.padding != conv_b_op.padding or ca_op.stride != conv_b_op.stride or
+                   ca_op.dilation != conv_b_op.dilation or ca_op.group != 1)
+                    continue;
+                if(output->inputs()[0] != prefix_input)
+                    continue;
+                // Only fuse with original convolutions
+                if(not output->inputs()[1]->inputs().empty())
+                    continue;
+                // Must be adjacent: conv_a reaches conv_b
+                if(not reaches(output, conv_b))
+                    continue;
+                return std::make_pair(output, plen);
+            }
+            return std::nullopt;
+        };
+
+        // Try longest prefix first (existing concat instructions)
+        std::optional<std::pair<instruction_ref, std::size_t>> best;
+        for(auto output : concat_inputs.front()->outputs())
+        {
+            if(output->name() != "concat" or output == concat_ins)
+                continue;
+            auto out_inputs = output->inputs();
+            if(out_inputs.size() >= concat_inputs.size())
+                continue;
+            if(not std::equal(out_inputs.begin(), out_inputs.end(), concat_inputs.begin()))
+                continue;
+            auto result = find_prefix_conv(output, out_inputs.size());
+            if(result and (not best or result->second > best->second))
+                best = result;
+        }
+        // Try single-element prefix
+        if(not best)
+        {
+            best = find_prefix_conv(concat_inputs.front(), 1);
+        }
+
+        if(not best)
+            return;
+
+        {
+            auto [conv_a, prefix_len] = *best;
+            auto input_a     = conv_a->inputs()[0];
+            auto weight_a    = conv_a->inputs()[1];
+            auto prefix_chans = input_a->get_shape().lens()[1];
+            auto total_chans  = concat_ins->get_shape().lens()[1];
+
+            if(prefix_chans >= total_chans)
+                return;
+            if(not weight_b->can_eval())
+                return;
+
+            auto out_a = weight_a->get_shape().lens()[0];
+            auto out_b = weight_b->get_shape().lens()[0];
+
+            // --- Insert fused conv and slices at conv_a's position ---
+            // Split weight_b prefix (weight ops can go anywhere before conv_a)
+            auto w_b_prefix = m.insert_instruction(
+                conv_a,
+                make_op("slice",
+                        {{"axes", {1}}, {"starts", {0}}, {"ends", {prefix_chans}}}),
+                weight_b);
+
+            // Fused weight: concat(weight_a, w_b_prefix) along output channel dim
+            auto w_fused = m.insert_instruction(
+                conv_a, make_op("concat", {{"axis", 0}}), weight_a, w_b_prefix);
+            w_fused = m.insert_instruction(conv_a, make_op("contiguous"), w_fused);
+
+            // Single fused convolution on shared input
+            auto fused_conv =
+                m.insert_instruction(conv_a, conv_a->get_operator(), input_a, w_fused);
+
+            // Slice out conv_a and conv_b prefix results
+            auto conv_a_result = m.insert_instruction(
+                conv_a,
+                make_op("slice",
+                        {{"axes", {1}}, {"starts", {0}}, {"ends", {out_a}}}),
+                fused_conv);
+            auto conv_b_prefix_result = m.insert_instruction(
+                conv_a,
+                make_op("slice",
+                        {{"axes", {1}}, {"starts", {out_a}}, {"ends", {out_a + out_b}}}),
+                fused_conv);
+
+            // --- Insert residual conv at conv_b's position ---
+            auto w_b_suffix = m.insert_instruction(
+                conv_b,
+                make_op("slice",
+                        {{"axes", {1}},
+                         {"starts", {prefix_chans}},
+                         {"ends", {total_chans}}}),
+                weight_b);
+            w_b_suffix = m.insert_instruction(conv_b, make_op("contiguous"), w_b_suffix);
+
+            std::vector<instruction_ref> remaining(concat_inputs.begin() + prefix_len,
+                                                   concat_inputs.end());
+            instruction_ref extra;
+            if(remaining.size() == 1)
+            {
+                extra = remaining.front();
+            }
+            else
+            {
+                extra = m.insert_instruction(
+                    conv_b, make_op("concat", {{"axis", 1}}), remaining);
+            }
+
+            auto conv_b_suffix_result =
+                m.insert_instruction(conv_b, conv_b->get_operator(), extra, w_b_suffix);
+
+            // Sum prefix and suffix parts
+            auto conv_b_result = m.insert_instruction(
+                conv_b, make_op("add"), conv_b_prefix_result, conv_b_suffix_result);
+
+            // Replace both convolutions
+            m.replace_instruction(conv_a, conv_a_result);
+            m.replace_instruction(conv_b, conv_b_result);
+        }
+    }
+};
+
 static void
 move_instructions_back(module& m, instruction_ref pos, std::vector<instruction_ref> inss)
 {
@@ -2441,6 +2601,7 @@ void simplify_algebra::apply(module& m) const
                             find_log_exp{},
                             find_log_div{},
                             find_concat_conv{},
+                            find_conv_horizontal_fuse{},
                             find_concat_op{},
                             find_split_concat{},
                             find_splits{},

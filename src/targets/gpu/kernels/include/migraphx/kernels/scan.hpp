@@ -32,30 +32,19 @@
 
 namespace migraphx {
 
-namespace detail {
-
-template <unsigned int Offset, unsigned int WaveSize, class T, class Op>
-__device__ void wave_scan_step(T& output, Op op, unsigned int lane_id)
-{
-    if constexpr(Offset < WaveSize)
-    {
-        T value = readlane_up<Offset, WaveSize>(output);
-        if(lane_id >= Offset)
-            output = op(value, output);
-        wave_scan_step<Offset * 2, WaveSize>(output, op, lane_id);
-    }
-}
-
-} // namespace detail
-
 // Wave-level inclusive scan using shuffle operations
 // Performs an inclusive prefix scan within a wave using __shfl_up intrinsics
 // This is O(log WaveSize) with no shared memory required
 template <unsigned int WaveSize, class T, class Op>
-__device__ void wave_scan(T& output, Op op)
+__device__ void wave_scan(index idx, T& output, Op op)
 {
-    const unsigned int lane_id = __lane_id() % WaveSize;
-    detail::wave_scan_step<1, WaveSize>(output, op, lane_id);
+    const unsigned int lane_id = idx.local_subwave<WaveSize>();
+    repeat_up_by_2_c<WaveSize>([&](auto offset_ic) {
+        constexpr unsigned int offset = static_cast<unsigned int>(decltype(offset_ic)::value);
+        T value = readlane_up<offset, WaveSize>(output);
+        if(lane_id >= offset)
+            output = op(value, output);
+    });
 }
 
 // Block-level inclusive scan using hierarchical wave scans
@@ -71,7 +60,7 @@ __device__ T block_scan(index idx, T& value, Op op, T init)
     __shared__ uninitialized_buffer<T, num_waves> wave_prefixes;
 
     // scan within wave
-    wave_scan<wave_size>(value, op);
+    wave_scan<wave_size>(idx, value, op);
 
     // last valid lane of each wave writes its result to shared memory
     const auto wave_id      = idx.wave();
@@ -87,7 +76,7 @@ __device__ T block_scan(index idx, T& value, Op op, T init)
     if(idx.local < num_waves)
     {
         T prefix = wave_prefixes[idx.local];
-        wave_scan<wave_size>(prefix, op);
+        wave_scan<wave_size>(idx, prefix, op);
         wave_prefixes[idx.local] = prefix;
     }
     __syncthreads();
@@ -126,7 +115,7 @@ __device__ auto wave_scan(index idx, Op op, T init, Index n, F f)
     const auto lane_id = idx.local_wave();
     type value         = (lane_id < n) ? f(lane_id) : type{};
     value              = op(init, value);
-    wave_scan<MIGRAPHX_WAVEFRONTSIZE>(value, op);
+    wave_scan<MIGRAPHX_WAVEFRONTSIZE>(idx, value, op);
     if(lane_id < n)
         f(lane_id) = value;
     return value;

@@ -327,7 +327,7 @@ static instruction_ref skip_broadcasts(instruction_ref ins)
 //   add(dot_out, broadcast(bias)) → sigmoid → mul(sigmoid, add)
 static bool detect_silu_after(instruction_ref dot_ins, mlp_layer& layer)
 {
-    auto& dot_outs = dot_ins->outputs();
+    const auto& dot_outs = dot_ins->outputs();
     if(dot_outs.size() != 1)
         return false;
 
@@ -350,7 +350,7 @@ static bool detect_silu_after(instruction_ref dot_ins, mlp_layer& layer)
         return false;
 
     // add must have exactly 2 users: sigmoid and mul
-    auto& add_outs = maybe_add->outputs();
+    const auto& add_outs = maybe_add->outputs();
     if(add_outs.size() != 2)
         return false;
 
@@ -379,7 +379,7 @@ static bool detect_silu_after(instruction_ref dot_ins, mlp_layer& layer)
         return false;
 
     // mul must take sigmoid and add as inputs (either order)
-    auto mul_in = mul_ins->inputs();
+    const auto& mul_in = mul_ins->inputs();
     bool has_sig = (mul_in.at(0) == sig_ins or mul_in.at(1) == sig_ins);
     bool has_add = (mul_in.at(0) == maybe_add or mul_in.at(1) == maybe_add);
     if(not has_sig or not has_add)
@@ -413,11 +413,11 @@ static mlp_chain trace_chain(instruction_ref first_dot)
             break;
 
         // Check if the SiLU output feeds into exactly one next dot
-        auto& silu_outs = layer.mul->outputs();
+        const auto& silu_outs = layer.mul->outputs();
         if(silu_outs.size() != 1)
             break;
 
-        auto next = silu_outs.front();
+        const auto& next = silu_outs.front();
         if(not is_dot_with_constant_weight(next))
             break;
 
@@ -436,43 +436,27 @@ static bool is_chain_interior_dot(instruction_ref ins)
 {
     if(not is_dot_with_constant_weight(ins))
         return false;
-    auto act = ins->inputs().at(0);
+    const auto& act = ins->inputs().at(0);
     // If the activation comes from a mul whose name is "mul" and that mul
     // is part of a SiLU from a preceding dot, this is an interior dot.
     if(act->name() != "mul")
         return false;
-    auto& mul_in = act->inputs();
-    for(auto inp : mul_in)
-    {
-        if(inp->name() == "sigmoid")
-        {
-            auto& sig_in = inp->inputs();
-            if(sig_in.size() == 1 and sig_in.at(0)->name() == "add")
-            {
-                auto& add_in = sig_in.at(0)->inputs();
-                for(auto a : add_in)
-                {
-                    if(is_dot_with_constant_weight(a))
-                        return true;
-                }
-            }
-        }
-    }
-    return false;
+    const auto& mul_in = act->inputs();
+    return std::any_of(mul_in.begin(), mul_in.end(), [](auto inp) {
+        return inp->name() == "sigmoid" and inp->inputs().at(0)->name() == "add" and
+               is_dot_with_constant_weight(inp->inputs().at(0)->inputs().at(0));
+    });
 }
 
 static instruction_ref stack_along_dim0(module& m,
                                         instruction_ref insert_pt,
                                         const std::vector<instruction_ref>& items)
 {
-    std::vector<instruction_ref> unsqueezed;
-    unsqueezed.reserve(items.size());
-    for(auto& item : items)
-    {
-        unsqueezed.push_back(m.insert_instruction(
-            insert_pt, make_op("unsqueeze", {{"axes", {0}}}), item));
-    }
-    return m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), unsqueezed);
+    std::vector<instruction_ref> unsqueezed(items.size());
+    std::transform(items.begin(), items.end(), unsqueezed.begin(), [&](auto item) {
+        return m.insert_instruction(insert_pt, make_op("unsqueeze", {{"axes", {0}}}), item);
+    });
+    return m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), std::move(unsqueezed));
 }
 
 // Build unsqueeze axes to pad a bias to the same rank as the batched dot output.
@@ -526,7 +510,7 @@ static void fuse_mlp_chains(module& m)
     // 4. Build a chain signature for grouping
     auto chain_signature = [](const mlp_chain& c) {
         std::vector<std::vector<std::size_t>> layer_shapes;
-        for(auto& l : c.layers)
+        for(const auto& l : c.layers)
         {
             layer_shapes.push_back(l.dot->get_shape().lens());
             auto k = l.dot->inputs().at(0)->get_shape().lens().back();
@@ -540,23 +524,24 @@ static void fuse_mlp_chains(module& m)
     std::unordered_map<std::size_t, std::vector<std::size_t>> groups;
     for(std::size_t i = 0; i < chains.size(); ++i)
     {
-        auto sig = chain_signature(chains[i]);
+        const auto& sig = chain_signature(chains[i]);
         std::size_t hash = 0;
-        for(auto& v : sig.first)
-            for(auto d : v)
-                hash ^= std::hash<std::size_t>{}(d) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+        for(const auto& v : sig.first)
+            for(const auto& d : v)
+                hash ^= std::hash<std::size_t>{}(d) + 0x9e3779b9U + (hash << 6U) + (hash >> 2U);
         hash ^= std::hash<int>{}(static_cast<int>(sig.second));
 
         groups[hash].push_back(i);
     }
 
     // 6. For each group with >= 2 chains, verify matching and fuse
-    for(auto& [hash, indices] : groups)
+    for(const auto& [hash, indices] : groups)
     {
         // Verify all chains in the bucket actually have the same signature
-        auto ref_sig = chain_signature(chains[indices[0]]);
+        const auto& ref_sig = chain_signature(chains[indices[0]]);
         std::vector<std::size_t> matching;
-        for(auto idx : indices)
+
+        for(const auto& idx : indices)
         {
             if(chain_signature(chains[idx]) == ref_sig)
                 matching.push_back(idx);
@@ -567,10 +552,10 @@ static void fuse_mlp_chains(module& m)
 
         // Verify chains are independent (no data dependency between them)
         std::vector<std::size_t> independent;
-        for(auto idx : matching)
+        for(const auto& idx : matching)
         {
             bool depends = false;
-            for(auto prev : independent)
+            for(const auto& prev : independent)
             {
                 if(reaches(chains[prev].terminal(), chains[idx].layers.front().dot) or
                    reaches(chains[idx].terminal(), chains[prev].layers.front().dot))
@@ -599,7 +584,7 @@ static void fuse_mlp_chains(module& m)
         // Stack root activations: [N, ...]
         std::vector<instruction_ref> root_acts;
         root_acts.reserve(num);
-        for(auto idx : independent)
+        for(const auto& idx : independent)
             root_acts.push_back(chains[idx].root_input);
         auto batched_act = stack_along_dim0(m, insert_pt, root_acts);
 
@@ -610,7 +595,7 @@ static void fuse_mlp_chains(module& m)
             // Stack weights for this layer
             std::vector<instruction_ref> weights;
             weights.reserve(num);
-            for(auto idx : independent)
+            for(const auto& idx : independent)
                 weights.push_back(chains[idx].layers[l].weight);
             auto batched_wt = stack_along_dim0(m, insert_pt, weights);
 
@@ -623,13 +608,13 @@ static void fuse_mlp_chains(module& m)
                 // Stack biases and reshape for broadcasting
                 std::vector<instruction_ref> biases;
                 biases.reserve(num);
-                for(auto idx : independent)
+                for(const auto& idx : independent)
                     biases.push_back(chains[idx].layers[l].bias);
 
                 auto batched_dot_ndim = current->get_shape().lens().size();
                 std::vector<instruction_ref> bias_expanded;
                 bias_expanded.reserve(num);
-                for(auto& b : biases)
+                for(const auto& b : biases)
                 {
                     auto axes = bias_unsqueeze_axes(batched_dot_ndim,
                                                     b->get_shape().lens().size());
@@ -660,7 +645,7 @@ static void fuse_mlp_chains(module& m)
         }
 
         // Slice + squeeze the final batched output back to individual results
-        for(std::size_t i = 0; i < num; ++i)
+        for(std::size_t i = 0; i < independent.size(); ++i)
         {
             auto sliced = m.insert_instruction(
                 insert_pt,

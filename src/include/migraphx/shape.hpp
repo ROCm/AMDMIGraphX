@@ -103,10 +103,14 @@ struct MIGRAPHX_EXPORT shape
         optional<sym::expr> sym_expr;
 
         dynamic_dimension() = default;
-        dynamic_dimension(std::size_t min_v, std::size_t max_v) : min(min_v), max(max_v) {}
+        dynamic_dimension(std::size_t min_v, std::size_t max_v) : min(min_v), max(max_v)
+        {
+            normalize_sym();
+        }
         dynamic_dimension(std::size_t min_v, std::size_t max_v, std::set<std::size_t> opt)
             : min(min_v), max(max_v), optimals(std::move(opt))
         {
+            normalize_sym();
         }
         dynamic_dimension(std::size_t min_v,
                           std::size_t max_v,
@@ -114,6 +118,7 @@ struct MIGRAPHX_EXPORT shape
                           optional<sym::expr> s)
             : min(min_v), max(max_v), optimals(std::move(opt)), sym_expr(std::move(s))
         {
+            normalize_sym();
         }
 
         template <class Self, class F>
@@ -127,6 +132,11 @@ struct MIGRAPHX_EXPORT shape
 
         bool is_fixed() const;
         bool is_symbolic() const { return sym_expr.has_value(); }
+        void normalize_sym()
+        {
+            if(is_fixed() and not is_symbolic())
+                sym_expr = sym::lit(min);
+        }
         bool has_optimal() const;
 
         /**

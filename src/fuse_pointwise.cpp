@@ -343,8 +343,8 @@ static bool split_pointwise_through_slices(module_pass_manager& mpm)
             });
 
             module pm_copy = *src_pm;
-            auto* new_pm   = mpm.create_module(
-                pm_name + ":split" + std::to_string(idx++), std::move(pm_copy));
+            auto* new_pm =
+                mpm.create_module(pm_name + ":split" + std::to_string(idx++), std::move(pm_copy));
             new_pm->set_bypass();
 
             m.replace_instruction(slice_ins, make_op("pointwise"), sliced_inputs, {new_pm});

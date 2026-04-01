@@ -38,6 +38,7 @@
 #include <migraphx/instruction.hpp>
 
 #include <migraphx/algorithm.hpp>
+#include <migraphx/output_iterator.hpp>
 #include <unordered_set>
 
 namespace migraphx {
@@ -1163,58 +1164,78 @@ struct find_conv_horizontal_fuse
         if(concat_inputs.size() < 2)
             return;
 
-        // Find a convolution that operates on a prefix of the concat inputs.
-        // Search from longest prefix to shortest for the best fusion.
-        auto find_prefix_conv =
-            [&](instruction_ref prefix_input,
-                std::size_t plen) -> std::optional<std::pair<instruction_ref, std::size_t>> {
-            for(auto output : prefix_input->outputs())
-            {
-                if(output->name() != "convolution" or output == conv_b)
-                    continue;
-                auto ca_val = output->get_operator().to_value();
-                if(ca_val["padding"] != conv_b_val["padding"] or
-                   ca_val["stride"] != conv_b_val["stride"] or
-                   ca_val["dilation"] != conv_b_val["dilation"] or ca_val["group"].to<int>() != 1)
-                    continue;
-                if(output->inputs()[0] != prefix_input)
-                    continue;
-                // Only fuse with original convolutions (not derived from prior fusion)
-                if(not output->inputs()[1]->inputs().empty())
-                    continue;
-                // Must be adjacent: conv_a reaches conv_b
-                if(not reaches(output, conv_b))
-                    continue;
-                return std::make_pair(output, plen);
-            }
-            return std::nullopt;
+        // Check if a convolution on prefix_input is a valid fusion candidate
+        auto is_fusable_conv = [&](instruction_ref output, instruction_ref prefix_input) {
+            if(output->name() != "convolution" or output == conv_b)
+                return false;
+            auto ca_val = output->get_operator().to_value();
+            if(ca_val["padding"] != conv_b_val["padding"] or
+               ca_val["stride"] != conv_b_val["stride"] or
+               ca_val["dilation"] != conv_b_val["dilation"] or ca_val["group"].to<int>() != 1)
+                return false;
+            if(output->inputs()[0] != prefix_input)
+                return false;
+            // Only fuse with original convolutions (not derived from prior fusion)
+            if(not output->inputs()[1]->inputs().empty())
+                return false;
+            return reaches(output, conv_b);
         };
 
-        // Try longest prefix first (existing concat instructions)
-        std::optional<std::pair<instruction_ref, std::size_t>> best;
-        for(auto output : concat_inputs.front()->outputs())
+        // Collect (conv_a, prefix_len) pairs from prefix concats that have a fusable conv
+        auto front_outputs = concat_inputs.front()->outputs();
+        using conv_prefix  = std::pair<instruction_ref, std::size_t>;
+        std::vector<conv_prefix> candidates;
+        transform_if(
+            front_outputs.begin(),
+            front_outputs.end(),
+            join_back_inserter(candidates),
+            [&](instruction_ref output) {
+                if(output->name() != "concat" or output == concat_ins)
+                    return false;
+                auto out_inputs = output->inputs();
+                return out_inputs.size() < concat_inputs.size() and
+                       std::equal(out_inputs.begin(), out_inputs.end(), concat_inputs.begin());
+            },
+            [&](instruction_ref output) -> std::vector<conv_prefix> {
+                auto it = std::find_if(
+                    output->outputs().begin(), output->outputs().end(), [&](instruction_ref o) {
+                        return is_fusable_conv(o, output);
+                    });
+                if(it == output->outputs().end())
+                    return {};
+                return {{*it, output->inputs().size()}};
+            });
+
+        // Pick the longest prefix
+        auto it = std::min_element(
+            candidates.begin(), candidates.end(), [](const conv_prefix& a, const conv_prefix& b) {
+                return a.second > b.second;
+            });
+
+        instruction_ref conv_a = m.end();
+        std::size_t prefix_len = 0;
+        if(it != candidates.end())
         {
-            if(output->name() != "concat" or output == concat_ins)
-                continue;
-            auto out_inputs = output->inputs();
-            if(out_inputs.size() >= concat_inputs.size())
-                continue;
-            if(not std::equal(out_inputs.begin(), out_inputs.end(), concat_inputs.begin()))
-                continue;
-            auto result = find_prefix_conv(output, out_inputs.size());
-            if(result and (not best or result->second > best->second))
-                best = result;
+            conv_a     = it->first;
+            prefix_len = it->second;
         }
-        // Try single-element prefix
-        if(not best)
+        else
         {
-            best = find_prefix_conv(concat_inputs.front(), 1);
+            // Try single-element prefix as fallback
+            auto fi = std::find_if(
+                front_outputs.begin(), front_outputs.end(), [&](instruction_ref output) {
+                    return is_fusable_conv(output, concat_inputs.front());
+                });
+            if(fi != front_outputs.end())
+            {
+                conv_a     = *fi;
+                prefix_len = 1;
+            }
         }
 
-        if(not best)
+        if(conv_a == m.end())
             return;
 
-        auto [conv_a, prefix_len] = *best;
         auto input_a              = conv_a->inputs()[0];
         auto weight_a             = conv_a->inputs()[1];
         auto prefix_chans         = input_a->get_shape().lens()[1];

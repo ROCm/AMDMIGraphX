@@ -33,6 +33,10 @@
 
 function(detect_package_backend)
     if (DEFINED MIGRAPHX_PACKAGE_BACKEND)
+        set (check_backend_cache "default" "pre-installed" "therock")
+        if (NOT MIGRAPHX_PACKAGE_BACKEND IN_LIST check_backend_cache)
+            message (FATAL_ERROR "MIGraphX package backend (cached): ${MIGRAPHX_PACKAGE_BACKEND} is not a valid value")
+        endif()
         message(STATUS "MIGraphX package backend (cached): ${MIGRAPHX_PACKAGE_BACKEND}")
         return()
     endif()

@@ -38,6 +38,7 @@
 #include <migraphx/env.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/execution_environment.hpp>
+#include <migraphx/eval_callback.hpp>
 #include <algorithm>
 #include <iostream>
 
@@ -82,6 +83,10 @@ struct MIGRAPHX_EXPORT program
     std::size_t total_instructions() const;
 
     std::vector<argument> eval(const parameter_map& params,
+                               execution_environment exec_env = execution_environment{}) const;
+
+    std::vector<argument> eval(const parameter_map& params,
+                               const eval_callback& callback,
                                execution_environment exec_env = execution_environment{}) const;
 
     std::vector<argument> eval_with_context(std::vector<context>& ctx,

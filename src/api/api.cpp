@@ -27,9 +27,11 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/program.hpp>
+#include <migraphx/eval_callback.hpp>
 #include <migraphx/onnx.hpp>
 #include <migraphx/tf.hpp>
 #include <migraphx/instruction_ref.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/quantization.hpp>
@@ -327,6 +329,12 @@ static bool equal(const T& x, const T& y)
 }
 
 static std::vector<argument> run(program& p, const parameter_map& params) { return p.eval(params); }
+
+static std::vector<argument>
+run_callback(program& p, const parameter_map& params, const eval_callback& cb)
+{
+    return p.eval(params, cb);
+}
 
 static std::vector<shape> get_output_shapes(program& p) { return p.get_output_shapes(); }
 
@@ -1788,6 +1796,30 @@ extern "C" migraphx_status migraphx_program_run_async(migraphx_arguments_t* out,
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter params: Null pointer");
         *out = allocate<migraphx_arguments_t>(
             migraphx::run_async((program->object), (params->object), (s), (name)));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_program_run_callback(migraphx_arguments_t* out,
+                                                         migraphx_program_t program,
+                                                         migraphx_program_parameters_t params,
+                                                         migraphx_eval_callback_t callback,
+                                                         void* data)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(program == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter program: Null pointer");
+        if(params == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter params: Null pointer");
+        if(callback == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter callback: Null pointer");
+        migraphx::eval_callback cb(
+            [callback, data](migraphx::instruction_ref ins, const migraphx::argument& output) {
+                migraphx_argument arg_handle(output);
+                callback(ins->name().c_str(), &arg_handle, data);
+            });
+        *out = allocate<migraphx_arguments_t>(
+            migraphx::run_callback((program->object), (params->object), cb));
     });
     return api_error_result;
 }

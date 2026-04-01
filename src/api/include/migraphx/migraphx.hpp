@@ -1216,6 +1216,28 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
         return arguments(pout, own{});
     }
 
+    /// Run the program with a per-instruction callback for buffer inspection.
+    /// The callback receives the instruction name and a borrowed argument handle
+    /// whose data resides in host memory. Using a callback activates a separate
+    /// eval code path so there is zero overhead when no callback is installed.
+    template <class F>
+    arguments eval(const program_parameters& pparams, F callback) const
+    {
+        migraphx_eval_callback_t c_callback =
+            [](const char* name, const_migraphx_argument_t result, void* data) {
+                auto* fn = static_cast<F*>(data);
+                (*fn)(name, argument(result, borrow{}));
+            };
+        migraphx_arguments_t pout;
+        call(&migraphx_program_run_callback,
+             &pout,
+             this->get_handle_ptr(),
+             pparams.get_handle_ptr(),
+             c_callback,
+             &callback);
+        return arguments(pout, own{});
+    }
+
     template <class Stream>
     /// Overloaded to allow for execution_environment input
     arguments run_async(const program_parameters& pparams, Stream* s) const

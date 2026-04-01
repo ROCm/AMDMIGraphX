@@ -476,6 +476,17 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_program_run_async(migraphx_arguments_
                                                              void* s,
                                                              const char* name);
 
+typedef void (*migraphx_eval_callback_t)(const char* instruction_name,
+                                         const_migraphx_argument_t result,
+                                         void* data);
+
+MIGRAPHX_C_EXPORT migraphx_status
+migraphx_program_run_callback(migraphx_arguments_t* out,
+                              migraphx_program_t program,
+                              migraphx_program_parameters_t params,
+                              migraphx_eval_callback_t callback,
+                              void* data);
+
 MIGRAPHX_C_EXPORT migraphx_status migraphx_program_equal(bool* out,
                                                          const_migraphx_program_t program,
                                                          const_migraphx_program_t x);

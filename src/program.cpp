@@ -667,6 +667,53 @@ std::vector<argument> program::eval(const parameter_map& params,
     return ret;
 }
 
+std::vector<argument> program::eval(const parameter_map& params,
+                                    const eval_callback& callback,
+                                    execution_environment exec_env) const
+{
+    if(not callback.enabled())
+        return eval(params, exec_env);
+
+    auto& contexts = this->impl->contexts;
+    std::vector<argument> ret;
+
+    if(exec_env.async)
+    {
+        assert(contexts.size() == 1);
+        contexts.front().wait_for(exec_env.queue);
+    }
+
+    ret = generic_eval(*this, contexts, params, [&](instruction_ref ins, auto f) {
+        auto result    = f();
+        const auto& op = ins->name();
+        if(op.front() != '@' and op != "load" and not result.empty() and callback.matches(op, ins))
+        {
+            const auto& ctx = contexts[ins->get_target_id()];
+            ctx.finish();
+            migraphx::argument host_buffer;
+            try
+            {
+                const target& tgt = this->impl->targets.at(ins->get_target_id());
+                host_buffer       = tgt.copy_from(result);
+            }
+            catch(const migraphx::exception&)
+            {
+                host_buffer = result;
+            }
+            callback(ins, host_buffer);
+        }
+        return result;
+    });
+
+    if(exec_env.async)
+    {
+        assert(contexts.size() == 1);
+        contexts.front().finish_on(exec_env.queue);
+    }
+
+    return ret;
+}
+
 void program::finish() const
 {
     for(const auto& ctx : this->impl->contexts)

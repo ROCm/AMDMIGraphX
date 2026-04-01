@@ -680,12 +680,14 @@ shape shape::to_dynamic() const
     }
     std::vector<dynamic_dimension> dims;
     dims.reserve(ndim());
-    for(auto len : lens())
-        dims.push_back(dynamic_dimension{len, len});
+    std::transform(lens().begin(), lens().end(), std::back_inserter(dims), [](auto len) {
+        return dynamic_dimension{len, len};
+    });
     std::vector<sym::expr> dstrides;
     dstrides.reserve(ndim());
-    for(auto s : strides())
-        dstrides.push_back(sym::lit(s));
+    std::transform(strides().begin(), strides().end(), std::back_inserter(dstrides), [](auto s) {
+        return sym::lit(s);
+    });
     return {type(), std::move(dims), std::move(dstrides)};
 }
 
@@ -1224,8 +1226,10 @@ void migraphx_from_value(const value& v, shape& s)
                 auto v_ds = v.at("dyn_strides");
                 std::vector<sym::expr> dstrides;
                 dstrides.reserve(v_ds.size());
-                for(const auto& x : v_ds)
-                    dstrides.push_back(from_value<sym::expr>(x));
+                std::transform(v_ds.begin(),
+                               v_ds.end(),
+                               std::back_inserter(dstrides),
+                               [](const auto& x) { return from_value<sym::expr>(x); });
                 s = shape(shape::parse_type(t), std::move(dyn_dims), std::move(dstrides));
             }
             else

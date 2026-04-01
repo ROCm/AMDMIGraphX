@@ -573,12 +573,32 @@ struct find_slice_shape_transforms
             m.replace_instruction(ins, y);
             return;
         }
-        slice_op["axes"] = new_axes;
 
         auto new_desc = desc.rebase(slice->inputs().front()->get_shape().lens());
         if(new_desc.empty())
             return;
         new_desc.simplify();
+
+        // Recompute axis mapping using the rebased descriptor, since rebase
+        // may reorder dimensions differently from the pre-rebase descriptor
+        std::vector<std::size_t> rebased_axes;
+        std::transform(axes.begin(),
+                       axes.end(),
+                       join_back_inserter(rebased_axes),
+                       [&](auto axis) -> std::vector<std::size_t> {
+                           auto result = new_desc.get_dst_axes_from_src(axis);
+                           if(result.size() != 1)
+                               return {};
+                           return result;
+                       });
+        if(axes.size() != rebased_axes.size())
+        {
+            auto opt_ops = desc.generate();
+            auto y       = insert_ops(m, ins, opt_ops, slice);
+            m.replace_instruction(ins, y);
+            return;
+        }
+        slice_op["axes"] = rebased_axes;
 
         auto opt_ops = new_desc.generate();
         auto y       = insert_ops(m, ins, opt_ops, x);

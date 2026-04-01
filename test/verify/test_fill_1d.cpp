@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,27 +21,23 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_ARGMIN_HPP
-#define MIGRAPHX_GUARD_RTGLIB_DEVICE_ARGMIN_HPP
 
-#include <migraphx/argument.hpp>
-#include <migraphx/gpu/device/config.hpp>
-#include <hip/hip_runtime_api.h>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace device {
-
-void MIGRAPHX_DEVICE_EXPORT argmin(hipStream_t stream,
-                                   const argument& result,
-                                   const argument& arg,
-                                   int64_t axis,
-                                   bool select_last_index);
-
-} // namespace device
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+struct test_fill_1d : verify_program<test_fill_1d>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape scalar_shape{migraphx::shape::float_type, {1}, {0}};
+        migraphx::shape data_shape{migraphx::shape::float_type, {256}};
+        auto value = mm->add_parameter("value", scalar_shape);
+        auto data  = mm->add_parameter("data", data_shape);
+        mm->add_instruction(migraphx::make_op("fill"), value, data);
+        return p;
+    }
+};

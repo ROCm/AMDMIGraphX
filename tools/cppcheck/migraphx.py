@@ -223,7 +223,7 @@ def GotoStatement(cfg, data):
 
 @cppcheck.checker
 def LambdaAttribute(cfg, data):
-    for token in cfg.tokenlist:
+    for token in data.rawTokens:
         if token.str != ']':
             continue
         if not match(token, "] __device__|__host__ {|("):

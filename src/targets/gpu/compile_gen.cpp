@@ -324,7 +324,7 @@ static void generate_pointwise(cpp_generator& gg,
     g.add_point_op("less", "migraphx::abs(${0} < ${1})");
     g.add_point_op("greater", "migraphx::abs(${0} > ${1})");
     g.add_point_op("not", "migraphx::abs(not ${0})");
-    // Add explict conversions
+    // Add explicit conversions
     g.fresult(
         [](const shape& s) { return "migraphx::convert<" + shape::cpp_type(s.type()) + ">"; });
     gg.create_function(g.generate_module(m)

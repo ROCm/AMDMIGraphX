@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,32 +21,33 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/shape.hpp>
-#include <migraphx/argument.hpp>
-#include <migraphx/gpu/device/argmax.hpp>
-#include <migraphx/gpu/device/tensor.hpp>
-#include <migraphx/gpu/device/launch.hpp>
-#include <migraphx/gpu/device/types.hpp>
-#include <migraphx/gpu/device/arg_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace device {
+#include <onnx_test.hpp>
 
-void argmax(hipStream_t stream,
-            const argument& result,
-            const argument& arg,
-            int64_t axis,
-            bool select_last_index)
+TEST_CASE(resize_downsample_cubic_test)
 {
-    if(select_last_index)
-        arg_op(argmax_op_last_index{}, stream, result, arg, axis);
-    else
-        arg_op(argmax_op_first_index{}, stream, result, arg, axis);
-}
+    migraphx::program p;
+    auto* mm = p.get_main_module();
 
-} // namespace device
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+    migraphx::shape ss{migraphx::shape::float_type, {4}};
+    std::vector<float> ds = {1.0f, 1.0f, 0.5f, 0.5f};
+    mm->add_literal(migraphx::literal(ss, ds));
+
+    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 4, 4}};
+    auto x = mm->add_parameter("X", sx);
+
+    mm->add_instruction(migraphx::make_op("undefined"));
+
+    auto r =
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"scales", {1.0f, 1.0f, 0.5f, 0.5f}},
+                                               {"mode", "cubic"},
+                                               {"coordinate_transformation_mode", "half_pixel"},
+                                               {"cubic_coeff_a", -0.75f}}),
+                            x);
+    mm->add_return({r});
+
+    auto prog = read_onnx("resize_downsample_cubic_test.onnx");
+
+    EXPECT(p == prog);
+}

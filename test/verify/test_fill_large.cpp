@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,30 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/argmax.hpp>
-#include <migraphx/gpu/device/argmax.hpp>
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/tune_axis.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-shape hip_argmax::compute_shape(const std::vector<shape>& inputs) const
+template <migraphx::shape::type_t DType>
+struct test_fill_large : verify_program<test_fill_large<DType>>
 {
-    check_shapes{inputs, *this}.has(2);
-    return op.normalize_compute_shape({inputs.at(0)});
-}
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape scalar_shape{DType, {1}, {0}};
+        migraphx::shape data_shape{DType, {64, 128, 128}};
+        auto value = mm->add_parameter("value", scalar_shape);
+        auto data  = mm->add_parameter("data", data_shape);
+        mm->add_instruction(migraphx::make_op("fill"), value, data);
+        return p;
+    }
+};
 
-argument hip_argmax::compute(context& ctx, const shape&, const std::vector<argument>& args) const
-{
-    auto n_dim         = args.front().get_shape().lens().size();
-    int64_t tuned_axis = tune_axis(n_dim, op.axis, op.name());
-    device::argmax(
-        ctx.get_stream().get(), args.back(), args.front(), tuned_axis, op.select_last_index);
-    return args.back();
-}
-
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+template struct test_fill_large<migraphx::shape::float_type>;
+template struct test_fill_large<migraphx::shape::half_type>;
+template struct test_fill_large<migraphx::shape::bf16_type>;

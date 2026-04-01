@@ -271,6 +271,96 @@ find_output_pointwise(const module& m, instruction_ref ins, bool multi_out)
     return result;
 }
 
+static bool split_pointwise_through_slices(module_pass_manager& mpm)
+{
+    bool changed    = false;
+    auto& m         = mpm.get_module();
+    std::size_t idx = 0;
+
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() != "pointwise")
+            continue;
+        if(ins->get_shape().type() == shape::tuple_type)
+            continue;
+
+        auto outputs = ins->outputs();
+        if(outputs.size() < 2)
+            continue;
+
+        // All consumers must be slice instructions
+        if(not std::all_of(outputs.begin(), outputs.end(), [](instruction_ref output) {
+               return output->name() == "slice";
+           }))
+            continue;
+
+        // All slices must be on the same single axis
+        auto get_val = [](instruction_ref s) { return s->get_operator().to_value(); };
+        auto axes    = get_val(outputs.front())["axes"].to_vector<int64_t>();
+        if(axes.size() != 1)
+            continue;
+        if(not std::all_of(outputs.begin(), outputs.end(), [&](instruction_ref output) {
+               return get_val(output)["axes"].to_vector<int64_t>() == axes;
+           }))
+            continue;
+
+        // Sort slices by start position and check for no overlap
+        std::sort(outputs.begin(), outputs.end(), [&](instruction_ref a, instruction_ref b) {
+            return get_val(a)["starts"].to_vector<int64_t>()[0] <
+                   get_val(b)["starts"].to_vector<int64_t>()[0];
+        });
+        bool overlapping = false;
+        for(std::size_t i = 1; i < outputs.size(); i++)
+        {
+            if(get_val(outputs[i])["starts"].to_vector<int64_t>()[0] <
+               get_val(outputs[i - 1])["ends"].to_vector<int64_t>()[0])
+            {
+                overlapping = true;
+                break;
+            }
+        }
+        if(overlapping)
+            continue;
+
+        // At least one slice consumer must feed into a pointwise op
+        if(std::none_of(outputs.begin(), outputs.end(), [&](instruction_ref s) {
+               return std::any_of(
+                   s->outputs().begin(), s->outputs().end(), [](instruction_ref consumer) {
+                       return consumer->name() == "pointwise";
+                   });
+           }))
+            continue;
+
+        // Split: replace each slice with a pointwise on sliced inputs
+        for(const auto& slice_ins : outputs)
+        {
+            auto slice_op = slice_ins->get_operator();
+
+            std::vector<instruction_ref> sliced_inputs;
+            std::transform(
+                ins->inputs().begin(),
+                ins->inputs().end(),
+                std::back_inserter(sliced_inputs),
+                [&](instruction_ref input) {
+                    return m.insert_instruction(slice_ins, slice_op, input);
+                });
+
+            module pm_copy = *ins->module_inputs().front();
+            auto* new_pm   = mpm.create_module(
+                ins->module_inputs().front()->name() + ":split" + std::to_string(idx++),
+                std::move(pm_copy));
+            new_pm->set_bypass();
+
+            m.replace_instruction(
+                slice_ins, make_op("pointwise"), sliced_inputs, {new_pm});
+        }
+
+        changed = true;
+    }
+
+    return changed;
+}
+
 static bool find_pointwise_modules(module_pass_manager& mpm, bool multi_out)
 {
     bool changed = false;
@@ -376,7 +466,9 @@ void fuse_pointwise::apply(module_pass_manager& mpm) const
             mpm.run_pass(rewrite_reshapes<pointwise_reshape>{});
         if(enable_rewrite_broadcasts)
             rewrite_broadcasts(mpm);
-        if(not find_pointwise_modules(mpm, enable_multi_output))
+        auto changed = split_pointwise_through_slices(mpm);
+        changed      = find_pointwise_modules(mpm, enable_multi_output) or changed;
+        if(not changed)
             break;
         mpm.run_pass(dead_code_elimination{});
     }

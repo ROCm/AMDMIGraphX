@@ -1316,4 +1316,271 @@ TEST_CASE(if_cross_module_multi_out_find_input)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(split_pointwise_slices)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 6}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto add1 = mm->add_instruction(migraphx::make_op("add"), x, y);
+        auto s1   = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {3}}}), add1);
+        auto s2 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {6}}}), add1);
+        auto neg1 = mm->add_instruction(migraphx::make_op("neg"), s1);
+        auto neg2 = mm->add_instruction(migraphx::make_op("neg"), s2);
+        mm->add_return({neg1, neg2});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto x1  = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {3}}}), x);
+        auto y1 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {3}}}), y);
+        auto x2 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {6}}}), x);
+        auto y2 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {6}}}), y);
+        auto fused1 = add_pointwise(
+            p2, "main:pointwise0:split0", {x1, y1}, [](auto* pm, const auto& inputs) {
+                auto add = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+                return pm->add_instruction(migraphx::make_op("neg"), add);
+            });
+        auto fused2 = add_pointwise(
+            p2, "main:pointwise0:split1", {x2, y2}, [](auto* pm, const auto& inputs) {
+                auto add = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+                return pm->add_instruction(migraphx::make_op("neg"), add);
+            });
+        mm->add_return({fused1, fused2});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(split_pointwise_slices_3way)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 9}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto add1 = mm->add_instruction(migraphx::make_op("add"), x, y);
+        auto s1   = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {3}}}), add1);
+        auto s2 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {6}}}), add1);
+        auto s3 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {6}}, {"ends", {9}}}), add1);
+        auto neg1 = mm->add_instruction(migraphx::make_op("neg"), s1);
+        auto neg2 = mm->add_instruction(migraphx::make_op("neg"), s2);
+        auto neg3 = mm->add_instruction(migraphx::make_op("neg"), s3);
+        mm->add_return({neg1, neg2, neg3});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto x1  = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {3}}}), x);
+        auto y1 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {3}}}), y);
+        auto x2 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {6}}}), x);
+        auto y2 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {6}}}), y);
+        auto x3 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {6}}, {"ends", {9}}}), x);
+        auto y3 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {6}}, {"ends", {9}}}), y);
+        auto fused1 = add_pointwise(
+            p2, "main:pointwise0:split0", {x1, y1}, [](auto* pm, const auto& inputs) {
+                auto add = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+                return pm->add_instruction(migraphx::make_op("neg"), add);
+            });
+        auto fused2 = add_pointwise(
+            p2, "main:pointwise0:split1", {x2, y2}, [](auto* pm, const auto& inputs) {
+                auto add = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+                return pm->add_instruction(migraphx::make_op("neg"), add);
+            });
+        auto fused3 = add_pointwise(
+            p2, "main:pointwise0:split2", {x3, y3}, [](auto* pm, const auto& inputs) {
+                auto add = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+                return pm->add_instruction(migraphx::make_op("neg"), add);
+            });
+        mm->add_return({fused1, fused2, fused3});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(split_pointwise_slices_not_all_slices)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 6}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto add1 = mm->add_instruction(migraphx::make_op("add"), x, y);
+        auto s1   = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {3}}}), add1);
+        auto neg1 = mm->add_instruction(migraphx::make_op("neg"), s1);
+        auto neg2 = mm->add_instruction(migraphx::make_op("neg"), add1);
+        mm->add_return({neg1, neg2});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto add1 = add_pointwise(p2, "main:pointwise0", {x, y}, single_pointwise("add"));
+        auto s1   = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {3}}}), add1);
+        auto neg1 = add_pointwise(p2, "main:pointwise1", {s1}, single_pointwise("neg"));
+        auto neg2 = add_pointwise(p2, "main:pointwise2", {add1}, single_pointwise("neg"));
+        mm->add_return({neg1, neg2});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(split_pointwise_slices_overlap)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 6}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto add1 = mm->add_instruction(migraphx::make_op("add"), x, y);
+        auto s1   = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}), add1);
+        auto s2 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {6}}}), add1);
+        auto neg1 = mm->add_instruction(migraphx::make_op("neg"), s1);
+        auto neg2 = mm->add_instruction(migraphx::make_op("neg"), s2);
+        mm->add_return({neg1, neg2});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto add1 = add_pointwise(p2, "main:pointwise0", {x, y}, single_pointwise("add"));
+        auto s1   = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}), add1);
+        auto s2 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {6}}}), add1);
+        auto neg1 = add_pointwise(p2, "main:pointwise1", {s1}, single_pointwise("neg"));
+        auto neg2 = add_pointwise(p2, "main:pointwise2", {s2}, single_pointwise("neg"));
+        mm->add_return({neg1, neg2});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(split_pointwise_slices_no_downstream_pw)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 6}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto add1 = mm->add_instruction(migraphx::make_op("add"), x, y);
+        auto s1   = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {3}}}), add1);
+        auto s2 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {6}}}), add1);
+        mm->add_return({s1, s2});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto add1 = add_pointwise(p2, "main:pointwise0", {x, y}, single_pointwise("add"));
+        auto s1   = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {3}}}), add1);
+        auto s2 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {6}}}), add1);
+        mm->add_return({s1, s2});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(split_pointwise_slices_3input_add)
+{
+    // Matches the Topaz model pattern: add_add → slice → add_leaky_relu
+    migraphx::shape s{migraphx::shape::float_type, {1, 64, 128, 128}};
+    migraphx::shape s_half{migraphx::shape::float_type, {1, 32, 128, 128}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto a   = mm->add_parameter("a", s);
+        auto b   = mm->add_parameter("b", s);
+        auto c   = mm->add_parameter("c", s);
+        auto d   = mm->add_parameter("d", s_half);
+        // 3-input add (like add_add_kernel)
+        auto add1 = mm->add_instruction(migraphx::make_op("add"), a, b);
+        auto add2 = mm->add_instruction(migraphx::make_op("add"), add1, c);
+        // Two non-overlapping slices
+        auto s1 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {32}}}), add2);
+        auto s2 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {32}}, {"ends", {64}}}), add2);
+        // Downstream pointwise ops (bias + leaky_relu pattern)
+        auto relu1 = mm->add_instruction(migraphx::make_op("relu"), s1);
+        auto add3  = mm->add_instruction(migraphx::make_op("add"), s2, d);
+        mm->add_return({relu1, add3});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto a   = mm->add_parameter("a", s);
+        auto b   = mm->add_parameter("b", s);
+        auto c   = mm->add_parameter("c", s);
+        auto d   = mm->add_parameter("d", s_half);
+        // Sliced inputs for first path
+        auto a1 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {32}}}), a);
+        auto b1 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {32}}}), b);
+        auto c1 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {32}}}), c);
+        // Sliced inputs for second path
+        auto a2 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {32}}, {"ends", {64}}}), a);
+        auto b2 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {32}}, {"ends", {64}}}), b);
+        auto c2 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {32}}, {"ends", {64}}}), c);
+        // Fused: add+add+relu for first slice
+        auto fused1 = add_pointwise(
+            p2, "main:pointwise0:split0", {a1, b1, c1}, [](auto* pm, const auto& inputs) {
+                auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+                auto add2 = pm->add_instruction(migraphx::make_op("add"), add1, inputs[2]);
+                return pm->add_instruction(migraphx::make_op("relu"), add2);
+            });
+        // Fused: add+add+add for second slice
+        auto fused2 = add_pointwise(
+            p2, "main:pointwise0:split1", {a2, b2, c2, d}, [](auto* pm, const auto& inputs) {
+                auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+                auto add2 = pm->add_instruction(migraphx::make_op("add"), add1, inputs[2]);
+                return pm->add_instruction(migraphx::make_op("add"), add2, inputs[3]);
+            });
+        mm->add_return({fused1, fused2});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

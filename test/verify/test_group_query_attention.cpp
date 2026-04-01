@@ -423,3 +423,66 @@ struct test_group_query_attention_decode_local
                                   /* local_window_size=    */ 2);
     }
 };
+
+// Regression test for FP16 overflow in Q*K dot product.
+// Simulates Qwen/DeepSeek models where large k_proj.bias values (~400) cause
+// dot product results to exceed FP16 max (65504), producing NaN in softmax.
+// Large bias values are added as literals to Q and K so the dot product
+// overflows FP16 regardless of random parameter values.
+// CPU reference computes in f32 (no overflow). GPU should match with the
+// convert-after-dot fix + rocMLIR PR #2202 (RemoveRedundantCasts).
+struct test_attention_fp16_overflow : verify_program<test_attention_fp16_overflow>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm   = p.get_main_module();
+        auto dtype = migraphx::shape::half_type;
+
+        std::size_t batch     = 1;
+        std::size_t heads     = 2;
+        std::size_t seq_len   = 1;
+        std::size_t head_size = 128;
+        std::size_t kv_len    = 4;
+
+        migraphx::shape q_shape{dtype, {batch, heads, seq_len, head_size}};
+        migraphx::shape k_shape{dtype, {batch, heads, kv_len, head_size}};
+        migraphx::shape v_shape{dtype, {batch, heads, kv_len, head_size}};
+
+        auto q_param = mm->add_parameter("q", q_shape);
+        auto k_param = mm->add_parameter("k", k_shape);
+        auto v_param = mm->add_parameter("v", v_shape);
+
+        // Add large bias (~400) to Q and K to simulate Qwen's k_proj.bias.
+        // This makes dot(Q,K^T) produce values up to ~400*400*128 = ~20M,
+        // which overflows FP16 max (65504).
+        std::vector<float> q_bias_data(q_shape.elements(), 400.0f);
+        std::vector<float> k_bias_data(k_shape.elements(), 400.0f);
+        auto q_bias = mm->add_literal(migraphx::literal{q_shape, q_bias_data});
+        auto k_bias = mm->add_literal(migraphx::literal{k_shape, k_bias_data});
+        auto q      = mm->add_instruction(migraphx::make_op("add"), q_param, q_bias);
+        auto k      = mm->add_instruction(migraphx::make_op("add"), k_param, k_bias);
+
+        auto kt = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), k);
+        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), q, kt);
+
+        float scale_val = 1.0f / std::sqrt(static_cast<float>(head_size));
+        auto scale      = mm->add_literal(
+            migraphx::literal{migraphx::shape{dtype, {1}}, {scale_val}});
+        auto scale_bc = mm->add_instruction(
+            migraphx::make_op("multibroadcast",
+                              {{"out_lens", {batch, heads, seq_len, kv_len}}}),
+            scale);
+        auto scaled = mm->add_instruction(migraphx::make_op("mul"), dot1, scale_bc);
+
+        auto softmax =
+            mm->add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), scaled);
+        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), softmax, v_param);
+        mm->add_return({dot2});
+
+        return p;
+    }
+
+    std::string section() const { return "gemm"; }
+};

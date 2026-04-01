@@ -1518,4 +1518,27 @@ TEST_CASE(test_dd_intersection_fixed_gets_lit)
     EXPECT(*result->sym_expr == lit(4));
 }
 
+TEST_CASE(test_dd_intersection_sym_mismatch)
+{
+    auto k1 = var("k1");
+    auto k2 = var("k2");
+    migraphx::shape::dynamic_dimension a{1, 128, {}, k1};
+    migraphx::shape::dynamic_dimension b{1, 128, {}, k2};
+    auto result = a.intersection(b);
+    EXPECT(not result.has_value());
+}
+
+TEST_CASE(test_dd_intersection_sym_vs_range)
+{
+    auto k = var("k");
+    migraphx::shape::dynamic_dimension a{1, 128, {}, k};
+    migraphx::shape::dynamic_dimension b{1, 64};
+    auto result = a.intersection(b);
+    EXPECT(result.has_value());
+    EXPECT(result->min == 1);
+    EXPECT(result->max == 64);
+    EXPECT(result->sym_expr.has_value());
+    EXPECT(*result->sym_expr == k);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

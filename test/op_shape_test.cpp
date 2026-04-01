@@ -30,8 +30,14 @@
 #include <migraphx/make_op.hpp>
 
 #include <migraphx/serialize.hpp>
+#include <migraphx/sym.hpp>
 
 #include "test.hpp"
+
+using dd = migraphx::shape::dynamic_dimension;
+using se = migraphx::sym::expr;
+using migraphx::sym::lit;
+using migraphx::sym::var;
 
 template <class... Ts>
 static void expect_shape(const migraphx::shape& expected, const migraphx::operation& op, Ts... xs)
@@ -931,6 +937,104 @@ TEST_CASE(dot_dyn_test_outer_mismatch)
     throws_shape(migraphx::make_op("dot"), s_m1, s_m2);
 }
 
+TEST_CASE(dot_sym_batch)
+{
+    auto n = var("n");
+    migraphx::shape s_a{migraphx::shape::float_type, {dd{1, 8, {}, n}, dd{4, 4}, dd{5, 5}}};
+    migraphx::shape s_b{migraphx::shape::float_type, {dd{1, 8, {}, n}, dd{5, 5}, dd{3, 3}}};
+    migraphx::shape expected{migraphx::shape::float_type, {dd{1, 8, {}, n}, dd{4, 4}, dd{3, 3}}};
+    auto dot_op = migraphx::make_op("dot");
+    expect_shape(expected, dot_op, s_a, s_b);
+
+    std::unordered_map<se, std::size_t> sym_map = {{n, 2}};
+    migraphx::shape static_a{migraphx::shape::float_type, {2, 4, 5}};
+    migraphx::shape static_b{migraphx::shape::float_type, {2, 5, 3}};
+    migraphx::shape static_out = dot_op.compute_shape({static_a, static_b});
+    EXPECT(expected.to_static(sym_map) == static_out);
+}
+
+TEST_CASE(dot_sym_batch_4d)
+{
+    auto n = var("n");
+    auto c = var("c");
+    migraphx::shape s_a{migraphx::shape::float_type,
+                        {dd{1, 8, {}, n}, dd{1, 16, {}, c}, dd{4, 4}, dd{5, 5}}};
+    migraphx::shape s_b{migraphx::shape::float_type,
+                        {dd{1, 8, {}, n}, dd{1, 16, {}, c}, dd{5, 5}, dd{7, 7}}};
+    migraphx::shape expected{migraphx::shape::float_type,
+                             {dd{1, 8, {}, n}, dd{1, 16, {}, c}, dd{4, 4}, dd{7, 7}}};
+    auto dot_op = migraphx::make_op("dot");
+    expect_shape(expected, dot_op, s_a, s_b);
+
+    std::unordered_map<se, std::size_t> sym_map = {{n, 2}, {c, 8}};
+    migraphx::shape static_a{migraphx::shape::float_type, {2, 8, 4, 5}};
+    migraphx::shape static_b{migraphx::shape::float_type, {2, 8, 5, 7}};
+    migraphx::shape static_out = dot_op.compute_shape({static_a, static_b});
+    EXPECT(expected.to_static(sym_map) == static_out);
+}
+
+TEST_CASE(dot_sym_matdims)
+{
+    auto m = var("m");
+    auto k = var("k");
+    auto n = var("n");
+    migraphx::shape s_a{migraphx::shape::float_type, {dd{1, 64, {}, m}, dd{1, 128, {}, k}}};
+    migraphx::shape s_b{migraphx::shape::float_type, {dd{1, 128, {}, k}, dd{1, 32, {}, n}}};
+    migraphx::shape expected{migraphx::shape::float_type, {dd{1, 64, {}, m}, dd{1, 32, {}, n}}};
+    auto dot_op = migraphx::make_op("dot");
+    expect_shape(expected, dot_op, s_a, s_b);
+
+    std::unordered_map<se, std::size_t> sym_map = {{m, 16}, {k, 32}, {n, 8}};
+    migraphx::shape static_a{migraphx::shape::float_type, {16, 32}};
+    migraphx::shape static_b{migraphx::shape::float_type, {32, 8}};
+    migraphx::shape static_out = dot_op.compute_shape({static_a, static_b});
+    EXPECT(expected.to_static(sym_map) == static_out);
+}
+
+TEST_CASE(dot_sym_batch_matdims)
+{
+    auto b = var("b");
+    auto m = var("m");
+    auto k = var("k");
+    auto n = var("n");
+    migraphx::shape s_a{migraphx::shape::float_type,
+                        {dd{1, 8, {}, b}, dd{1, 64, {}, m}, dd{1, 128, {}, k}}};
+    migraphx::shape s_b{migraphx::shape::float_type,
+                        {dd{1, 8, {}, b}, dd{1, 128, {}, k}, dd{1, 32, {}, n}}};
+    migraphx::shape expected{migraphx::shape::float_type,
+                             {dd{1, 8, {}, b}, dd{1, 64, {}, m}, dd{1, 32, {}, n}}};
+    auto dot_op = migraphx::make_op("dot");
+    expect_shape(expected, dot_op, s_a, s_b);
+
+    std::unordered_map<se, std::size_t> sym_map = {{b, 2}, {m, 16}, {k, 32}, {n, 8}};
+    migraphx::shape static_a{migraphx::shape::float_type, {2, 16, 32}};
+    migraphx::shape static_b{migraphx::shape::float_type, {2, 32, 8}};
+    migraphx::shape static_out = dot_op.compute_shape({static_a, static_b});
+    EXPECT(expected.to_static(sym_map) == static_out);
+}
+
+TEST_CASE(dot_sym_k_mismatch)
+{
+    auto m  = var("m");
+    auto k1 = var("k1");
+    auto k2 = var("k2");
+    auto n  = var("n");
+    migraphx::shape s_a{migraphx::shape::float_type, {dd{1, 64, {}, m}, dd{1, 128, {}, k1}}};
+    migraphx::shape s_b{migraphx::shape::float_type, {dd{1, 128, {}, k2}, dd{1, 32, {}, n}}};
+    throws_shape(migraphx::make_op("dot"), s_a, s_b);
+}
+
+TEST_CASE(dot_sym_k_vs_range)
+{
+    auto m = var("m");
+    auto k = var("k");
+    auto n = var("n");
+    migraphx::shape s_a{migraphx::shape::float_type, {dd{1, 64, {}, m}, dd{1, 128, {}, k}}};
+    migraphx::shape s_b{migraphx::shape::float_type, {{1, 128}, {1, 32}}};
+    migraphx::shape expected{migraphx::shape::float_type, {dd{1, 64, {}, m}, dd{1, 32}}};
+    expect_shape(expected, migraphx::make_op("dot"), s_a, s_b);
+}
+
 TEST_CASE(broadcast_for_dot_static)
 {
     migraphx::shape s0{migraphx::shape::float_type, {481, 356}};
@@ -992,6 +1096,24 @@ TEST_CASE(broadcast_for_dot_dyn2)
     expect_shape(
         migraphx::shape{migraphx::shape::float_type, {{1, 4, {1, 2, 4}}, {6, 10}, {8, 8}, {4, 4}}},
         migraphx::make_op("broadcast_for_dot"),
+        s1,
+        s0);
+}
+
+TEST_CASE(broadcast_for_dot_sym)
+{
+    auto n = var("n");
+    migraphx::shape s0{migraphx::shape::float_type, {dd{4, 4}, dd{8, 8}}};
+    migraphx::shape s1{migraphx::shape::float_type, {dd{1, 8, {}, n}, dd{8, 8}, dd{6, 6}}};
+    auto bcast_op = migraphx::make_op("broadcast_for_dot");
+    expect_shape(
+        migraphx::shape{migraphx::shape::float_type, {dd{1, 8, {}, n}, dd{4, 4}, dd{8, 8}}},
+        bcast_op,
+        s0,
+        s1);
+    expect_shape(
+        migraphx::shape{migraphx::shape::float_type, {dd{1, 8, {}, n}, dd{8, 8}, dd{6, 6}}},
+        bcast_op,
         s1,
         s0);
 }
@@ -3035,6 +3157,50 @@ TEST_CASE(quant_dot_2args)
         migraphx::shape s_m2{migraphx::shape::int8_type, {8, 8}};
         throws_shape(migraphx::make_op("quant_dot"), s_m1, s_m2);
     }
+}
+
+TEST_CASE(quant_dot_dyn)
+{
+    migraphx::shape s_a{migraphx::shape::int8_type, {{1, 4}, {3, 3}}};
+    migraphx::shape s_b{migraphx::shape::int8_type, {{3, 3}, {8, 8}}};
+    expect_shape(migraphx::shape{migraphx::shape::int32_type, {{1, 4}, {8, 8}}},
+                 migraphx::make_op("quant_dot"),
+                 s_a,
+                 s_b);
+}
+
+TEST_CASE(quant_dot_sym_batch)
+{
+    auto n = var("n");
+    migraphx::shape s_a{migraphx::shape::int8_type, {dd{1, 8, {}, n}, dd{4, 4}, dd{5, 5}}};
+    migraphx::shape s_b{migraphx::shape::int8_type, {dd{1, 8, {}, n}, dd{5, 5}, dd{3, 3}}};
+    migraphx::shape expected{migraphx::shape::int32_type, {dd{1, 8, {}, n}, dd{4, 4}, dd{3, 3}}};
+    auto qdot_op = migraphx::make_op("quant_dot");
+    expect_shape(expected, qdot_op, s_a, s_b);
+
+    std::unordered_map<se, std::size_t> sym_map = {{n, 2}};
+    migraphx::shape static_a{migraphx::shape::int8_type, {2, 4, 5}};
+    migraphx::shape static_b{migraphx::shape::int8_type, {2, 5, 3}};
+    migraphx::shape static_out = qdot_op.compute_shape({static_a, static_b});
+    EXPECT(expected.to_static(sym_map) == static_out);
+}
+
+TEST_CASE(quant_dot_sym_matdims)
+{
+    auto m = var("m");
+    auto k = var("k");
+    auto n = var("n");
+    migraphx::shape s_a{migraphx::shape::int8_type, {dd{1, 64, {}, m}, dd{1, 128, {}, k}}};
+    migraphx::shape s_b{migraphx::shape::int8_type, {dd{1, 128, {}, k}, dd{1, 32, {}, n}}};
+    migraphx::shape expected{migraphx::shape::int32_type, {dd{1, 64, {}, m}, dd{1, 32, {}, n}}};
+    auto qdot_op = migraphx::make_op("quant_dot");
+    expect_shape(expected, qdot_op, s_a, s_b);
+
+    std::unordered_map<se, std::size_t> sym_map = {{m, 16}, {k, 32}, {n, 8}};
+    migraphx::shape static_a{migraphx::shape::int8_type, {16, 32}};
+    migraphx::shape static_b{migraphx::shape::int8_type, {32, 8}};
+    migraphx::shape static_out = qdot_op.compute_shape({static_a, static_b});
+    EXPECT(expected.to_static(sym_map) == static_out);
 }
 
 TEST_CASE(qlinear)

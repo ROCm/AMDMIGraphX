@@ -1201,9 +1201,7 @@ struct find_conv_horizontal_fuse
             },
             [&](instruction_ref output) -> std::vector<conv_prefix> {
                 auto fi = std::find_if(
-                    output->outputs().begin(),
-                    output->outputs().end(),
-                    [&](instruction_ref o) {
+                    output->outputs().begin(), output->outputs().end(), [&](instruction_ref o) {
                         return is_fusable_conv(o, output, conv_b, conv_b_val);
                     });
                 if(fi == output->outputs().end())

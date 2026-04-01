@@ -21,7 +21,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-onnx==1.18.0;python_version>="3.11"
+onnx==1.21.0;python_version>="3.11"
 onnx==1.14.1;python_version<"3.11"
 protobuf==5.29.6
 numpy==1.26.4;python_version>="3.11"

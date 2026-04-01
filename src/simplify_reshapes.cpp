@@ -144,20 +144,6 @@ instruction_ref insert_auto_reshape(module& m,
     return insert_auto_reshape(m, ins, std::vector<T>(dims), input);
 }
 
-const auto& reshaper_names()
-{
-    // clang-format off
-    static const std::unordered_set<std::string> names = {
-        "flatten",
-        "reshape",
-        "contiguous",
-        "squeeze",
-        "unsqueeze"
-    };
-    // clang-format on
-    return names;
-}
-
 instruction_ref
 insert_ops(module& m, instruction_ref ins, const std::vector<operation>& ops, instruction_ref input)
 {
@@ -263,10 +249,9 @@ struct find_op_shape_transform_op
 
     auto matcher() const
     {
-        auto reshapes = match::name(shape_transform_ops());
-        auto match_op = match::any_of(match::reduce(), match::pointwise());
-        auto x_op =
-            match_op(match::none_of(fusable_split()));
+        auto reshapes      = match::name(shape_transform_ops());
+        auto match_op      = match::any_of(match::reduce(), match::pointwise());
+        auto x_op          = match_op(match::none_of(fusable_split()));
         auto reshapes_x_op = reshapes(match::arg(0)(match::skip(reshapes())(x_op.bind("x"))));
         return match_op(match::any_of[match::inputs()](reshapes_x_op.bind("input")));
     }
@@ -276,7 +261,11 @@ struct find_op_shape_transform_op
         return is_reduce(ins) or ins->get_operator().attributes().contains("pointwise");
     }
 
-    static bool is_reduce(instruction_ref ins) { return starts_with(ins->name(), "reduce_"); }
+    static bool is_reduce(instruction_ref ins)
+    {
+        return starts_with(ins->name(), "reduce_") or ins->name() == "argmin" or
+               ins->name() == "argmax";
+    }
 
     template <class F>
     static instruction_ref find_input_if(instruction_ref start, instruction_ref last, F f)
@@ -306,7 +295,20 @@ struct find_op_shape_transform_op
     {
         if(is_reduce(ins))
         {
-            auto v       = ins->get_operator().to_value();
+            auto v = ins->get_operator().to_value();
+            // handle argmin/argmax
+            if(v.contains("axis"))
+            {
+                auto axis_val        = v.at("axis").to<int64_t>();
+                auto ndim            = ins->inputs().front()->get_shape().ndim();
+                auto op_axis         = axis_val < 0 ? axis_val + ndim : axis_val;
+                const auto& new_axes = am.at(op_axis);
+                // is_valid ensures single axis mapping for argmin/argmax
+                assert(new_axes.size() == 1);
+                v["axis"] = new_axes.front();
+                return m.insert_instruction(
+                    ins, make_op(ins->name(), v), inputs, ins->module_inputs());
+            }
             auto op_axes = v.at("axes").to_vector<std::size_t>();
             std::vector<int64_t> axes;
             for(auto axis : op_axes)
@@ -338,8 +340,24 @@ struct find_op_shape_transform_op
     {
         if(is_reduce(ins))
         {
-            auto v       = ins->get_operator().to_value();
-            auto op_axes = v.at("axes").to_vector<std::size_t>();
+            auto v = ins->get_operator().to_value();
+            std::vector<std::size_t> op_axes;
+            // handle argmin/argmax
+            if(v.contains("axis"))
+            {
+                auto axis_val = v.at("axis").to<int64_t>();
+                auto ndim     = ins->inputs().front()->get_shape().ndim();
+                auto axis     = axis_val < 0 ? axis_val + ndim : axis_val;
+                op_axes       = {static_cast<std::size_t>(axis)};
+                // argmin/argmax only support single axis
+                auto axes_map = desc.common_axes_map_from_src();
+                if(axis < axes_map.size() and axes_map[axis].size() != 1)
+                    return false;
+            }
+            else
+            {
+                op_axes = v.at("axes").to_vector<std::size_t>();
+            }
             std::sort(op_axes.begin(), op_axes.end());
             auto broadcasted_axes = desc.find_broadcasted_axes();
             return equal(op_axes, broadcasted_axes);
@@ -447,17 +465,16 @@ struct find_op_shape_transform_op
             return;
         }
 
-        auto reshape_input = [&](const auto& ins_to_insert,
-                                 const auto& gdesc,
-                                 bool no_broadcast = false) {
-            return [&, no_broadcast](auto input) {
-                auto gops = generate(gdesc, input->get_shape(), no_broadcast);
-                return std::accumulate(
-                    gops.begin(), gops.end(), input, [&](auto start, const auto& op) {
-                        return m.insert_instruction(ins_to_insert, op, start);
-                    });
+        auto reshape_input =
+            [&](const auto& ins_to_insert, const auto& gdesc, bool no_broadcast = false) {
+                return [&, no_broadcast](auto input) {
+                    auto gops = generate(gdesc, input->get_shape(), no_broadcast);
+                    return std::accumulate(
+                        gops.begin(), gops.end(), input, [&](auto start, const auto& op) {
+                            return m.insert_instruction(ins_to_insert, op, start);
+                        });
+                };
             };
-        };
         auto x_inputs = x_ins->inputs();
         std::transform(x_inputs.begin(),
                        x_inputs.end(),
@@ -574,22 +591,30 @@ struct find_nop_reshapes
 {
     auto matcher() const
     {
-        auto reshapes = reshaper_names();
-        reshapes.insert("as_shape");
-        reshapes.insert("broadcast");
-        reshapes.insert("concat");
-        reshapes.insert("convert");
-        reshapes.insert("multibroadcast");
-        reshapes.insert("pad");
-        reshapes.insert("slice");
-        reshapes.insert("step");
-        reshapes.insert("transpose");
-        reshapes.insert("reduce_mean");
-        reshapes.insert("reduce_max");
-        reshapes.insert("reduce_min");
-        reshapes.insert("reduce_sum");
-        reshapes.insert("reduce_prod");
-        return match::name(reshapes)(match::same_shape(match::arg(0)));
+        // clang-format off
+        static const std::unordered_set<std::string> names = {
+            "flatten",
+            "reshape",
+            "contiguous",
+            "squeeze",
+            "unsqueeze",
+            "as_shape",
+            "broadcast",
+            "concat",
+            "convert",
+            "multibroadcast",
+            "pad",
+            "slice",
+            "step",
+            "transpose",
+            "reduce_mean",
+            "reduce_max",
+            "reduce_min",
+            "reduce_sum",
+            "reduce_prod",
+        };
+
+       return match::name(names)(match::same_shape(match::arg(0)));
     }
 
     void apply(module& m, const match::matcher_result& mr) const
@@ -1016,6 +1041,8 @@ struct find_gather
         {
             for(auto it = start; it != last;)
             {
+                if(std::distance(it, last) < n)
+                    return it;
                 auto [seg, next_it] = find(it, it + n);
                 if(next_it != it + n)
                     return next_it;
@@ -1126,6 +1153,8 @@ struct find_gather
             auto isegments      = from_ints(indices.begin(), indices.end());
             std::int64_t offset = isegments.front().base;
             auto s              = make_strided_view(shift(std::move(isegments), -offset));
+            if(s.lens().empty() or s.elements() != indices.size())
+                return std::nullopt;
             auto ops = generate_shape_transforms_for(s, {start->get_shape().elements()}, offset);
             if(not ops.has_value())
                 return std::nullopt;
@@ -1137,10 +1166,10 @@ struct find_gather
                                                                const argument& indices_arg,
                                                                std::size_t axis_index)
     {
-        auto data_ins    = gather_ins->inputs()[0];
-        auto output_dims = gather_ins->get_shape().lens();
-        const auto r_in  = data_ins->get_shape().lens().size();
-        const auto r_idx = indices_arg.get_shape().lens().size();
+        auto data_ins      = gather_ins->inputs()[0];
+        auto output_dims   = gather_ins->get_shape().lens();
+        const auto r_in    = data_ins->get_shape().lens().size();
+        const auto r_idx   = indices_arg.get_shape().lens().size();
         auto data_shape    = data_ins->get_shape().as_standard();
         auto indices_shape = indices_arg.get_shape().as_standard();
         assert(axis_index < r_in);
@@ -1331,11 +1360,11 @@ struct find_reshape_cont
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins      = r.result;
+        auto ins        = r.result;
         auto cont_input = r.instructions["input"];
-        auto in_ins   = r.instructions["rsp"];
+        auto in_ins     = r.instructions["rsp"];
 
-        auto lens       = cont_input->get_shape().lens();
+        auto lens = cont_input->get_shape().lens();
         std::vector<int64_t> dims(lens.begin(), lens.end());
 
         if(in_ins->get_shape() != ins->get_shape())

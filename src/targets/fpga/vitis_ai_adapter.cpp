@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -44,7 +44,7 @@ x_model create_xmodel(migraphx::const_module_ref mod)
 
 migraphx::argument execute(const x_model& xmodel,
                            const migraphx::shape& output_shape,
-                           std::vector<migraphx::argument>& args)
+                           const std::vector<migraphx::argument>& args)
 {
     (void)xmodel;
 

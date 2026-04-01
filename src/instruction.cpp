@@ -29,6 +29,7 @@
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/iterator.hpp>
 #include <migraphx/logger.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <bitset>
 #include <queue>
 #include <sstream>
@@ -262,6 +263,7 @@ void instruction::replace(instruction_ref ins,
 
 void instruction::replace(operation o, const shape& r, std::vector<instruction_ref> args)
 {
+    lit        = literal{};
     normalized = false;
     op         = std::move(o);
     replace(r);
@@ -273,6 +275,7 @@ void instruction::replace(operation o,
                           std::vector<instruction_ref> args,
                           std::vector<module_ref> mdl_args)
 {
+    lit = literal{};
     op = std::move(o);
     replace(r);
     replace(std::move(args), std::move(mdl_args));
@@ -593,15 +596,11 @@ static auto track_visits(instruction_ref start, instruction_ref end, F f)
     }
     else
     {
-        std::unordered_set<instruction_ref> visited;
-        visited.reserve(n);
-        auto stop = [&](auto ins) {
-            if(not visited.insert(ins).second)
-                return true;
-            if(std::distance(ins, end) > n)
-                return true;
-            return false;
-        };
+        auto instructions     = range(start, std::next(end));
+        auto instruction_refs = iterator_for(instructions);
+        std::unordered_set<instruction_ref> in_range(instruction_refs.begin(),
+                                                     instruction_refs.end());
+        auto stop = [&](auto ins) { return in_range.erase(ins) == 0; };
         return f(stop);
     }
 }

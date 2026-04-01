@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -181,7 +181,7 @@ struct allocation_segment
         std::size_t n = 1 + (ins->get_shape().bytes() - 1) / alignment;
         assert(n > 0);
         std::size_t start = 0;
-        // Insert at end if it cant fit at the begining
+        // Insert at end if it can't fit at the beginning
         if(segments.empty() or segments.begin()->first <= n)
         {
             auto it = find_gap(segments, n);

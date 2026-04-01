@@ -51,76 +51,51 @@ struct dot
         {
             MIGRAPHX_THROW("DOT: dot only accepts operands with 2 or more dimensions ");
         }
+        auto s0 = a.to_dynamic();
+        auto s1 = b.to_dynamic();
+        std::vector<shape::dynamic_dimension> out_dyn_dims;
+
+        // Check outer dimensions are compatible via intersection.
+        // Must allow for intersection because of how simplify_dyn_ops
+        // simplifies each broadcast_for_dot individually.
+        bool same_outers = std::equal(s0.dyn_dims().begin(),
+                                      s0.dyn_dims().end() - 2,
+                                      s1.dyn_dims().begin(),
+                                      s1.dyn_dims().end() - 2,
+                                      [&](const auto& x, const auto& y) {
+                                          auto intersect = x.intersection(y);
+                                          if(intersect.has_value())
+                                          {
+                                              out_dyn_dims.push_back(intersect.value());
+                                              return true;
+                                          }
+                                          return false;
+                                      });
+
+        if(not same_outers)
+        {
+            MIGRAPHX_THROW("DOT: outer dimensions of A and B are not compatible: {" +
+                           to_string_range(s0.dyn_dims()) + "} x {" +
+                           to_string_range(s1.dyn_dims()) + "}");
+        }
+
+        std::size_t dim_i = s0.ndim() - 2;
+        std::size_t dim_j = s0.ndim() - 1;
+
+        if(not s0.dyn_dims()[dim_j].intersection(s1.dyn_dims()[dim_i]).has_value())
+        {
+            MIGRAPHX_THROW("DOT: inner dimensions are not compatible: {" +
+                           to_string_range(s0.dyn_dims()) + "} x {" +
+                           to_string_range(s1.dyn_dims()) + "}");
+        }
+
+        out_dyn_dims.push_back(s0.dyn_dims()[dim_i]);
+        out_dyn_dims.push_back(s1.dyn_dims()[dim_j]);
+
+        shape out{t, out_dyn_dims};
         if(a.dynamic() or b.dynamic())
-        {
-            auto s0 = a.to_dynamic();
-            auto s1 = b.to_dynamic();
-            std::vector<shape::dynamic_dimension> out_dyn_dims;
-
-            // Check outer dynamic dimensions are compatible.
-            // Must allow for intersection because of how simplify_dyn_ops
-            // simplifies each broadcast_for_dot individually.
-            bool same_outers = std::equal(s0.dyn_dims().begin(),
-                                          s0.dyn_dims().end() - 2,
-                                          s1.dyn_dims().begin(),
-                                          s1.dyn_dims().end() - 2,
-                                          [&](const auto& x, const auto& y) {
-                                              auto intersect = x.intersection(y);
-                                              if(intersect.has_value())
-                                              {
-                                                  out_dyn_dims.push_back(intersect.value());
-                                                  return true;
-                                              }
-                                              return false;
-                                          });
-
-            if(not same_outers)
-            {
-                MIGRAPHX_THROW("DOT: dynamic outer dimensions of A and B are not compatible: {" +
-                               to_string_range(s0.dyn_dims()) + "} x {" +
-                               to_string_range(s1.dyn_dims()) + "}");
-            }
-            std::size_t dim_i = s0.ndim() - 2;
-            std::size_t dim_j = s0.ndim() - 1;
-            auto x            = s0.dyn_dims()[dim_j];
-            auto y            = s1.dyn_dims()[dim_i];
-
-            // check inner dimensions are compatible
-            if(not x.intersection(y).has_value())
-            {
-                MIGRAPHX_THROW("DOT: dynamic inner dimensions are not compatible: {" +
-                               to_string_range(s0.dyn_dims()) + "} x {" +
-                               to_string_range(s1.dyn_dims()) + "}");
-            }
-
-            out_dyn_dims.push_back(s0.dyn_dims()[dim_i]);
-            out_dyn_dims.push_back(s1.dyn_dims()[dim_j]);
-            return {t, out_dyn_dims};
-        }
-        else
-        {
-            // only handle the case that all the dimensions except the last two are the same
-            if(not std::equal(
-                   a.lens().rbegin() + 2, a.lens().rend(), b.lens().rbegin() + 2, b.lens().rend()))
-            {
-                MIGRAPHX_THROW("DOT: static outer dimensions of A and B mismatch: {" +
-                               to_string_range(a.lens()) + "} x {" + to_string_range(b.lens()) +
-                               "}");
-            }
-
-            std::size_t dim_0 = a.ndim() - 2;
-            std::size_t dim_1 = a.ndim() - 1;
-            if(a.lens()[dim_1] != b.lens()[dim_0])
-            {
-                MIGRAPHX_THROW("DOT: static inner dimensions do not match: {" +
-                               to_string_range(a.lens()) + "} x {" + to_string_range(b.lens()) +
-                               "}");
-            }
-
-            auto out_lens   = a.lens();
-            out_lens[dim_1] = b.lens()[dim_1];
-            return {t, out_lens};
-        }
+            return out;
+        return out.to_static({});
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

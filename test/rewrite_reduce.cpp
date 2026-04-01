@@ -260,6 +260,50 @@ TEST_CASE(softmax_no_dot_found)
     EXPECT(m1 == m2);
 }
 
+// Verify backward walk enters mul but finds no upstream dot.
+// The walk follows mul's inputs (both are parameters/broadcasts, not dot),
+// returns nullopt, and the pass only upcasts softmax internals (develop behavior).
+TEST_CASE(softmax_mul_no_upstream_dot)
+{
+    migraphx::shape s{migraphx::shape::half_type, {1, 12, 1, 128}};
+    migraphx::shape scale_shape{migraphx::shape::half_type, {1}};
+    migraphx::shape f32_s{migraphx::shape::float_type, s.lens()};
+
+    migraphx::module m1;
+    auto x1        = m1.add_parameter("x", s);
+    auto scale1    = m1.add_parameter("scale", scale_shape);
+    auto scale_bc1 = m1.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), scale1);
+    auto mul1      = m1.add_instruction(migraphx::make_op("mul"), x1, scale_bc1);
+    auto softmax1  = m1.add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), mul1);
+    m1.add_return({softmax1});
+
+    // Expected: mul stays f16, only softmax internals upcasted
+    migraphx::module m2;
+    auto x2        = m2.add_parameter("x", s);
+    auto scale2    = m2.add_parameter("scale", scale_shape);
+    auto scale_bc2 = m2.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), scale2);
+    auto mul2      = m2.add_instruction(migraphx::make_op("mul"), x2, scale_bc2);
+    auto cvt_mul   = m2.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), mul2);
+    auto rmax      = m2.add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), cvt_mul);
+    auto rmax_bc   = m2.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", f32_s.lens()}}), rmax);
+    auto sub       = m2.add_instruction(migraphx::make_op("sub"), cvt_mul, rmax_bc);
+    auto exp       = m2.add_instruction(migraphx::make_op("exp"), sub);
+    auto rsum      = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+    auto rsum_bc   = m2.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", f32_s.lens()}}), rsum);
+    auto div       = m2.add_instruction(migraphx::make_op("div"), exp, rsum_bc);
+    auto cvt_out   = m2.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), div);
+    m2.add_return({cvt_out});
+
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 // Verify double mask: dot -> mul -> where -> where -> softmax
 TEST_CASE(softmax_dot_scale_double_where)
 {

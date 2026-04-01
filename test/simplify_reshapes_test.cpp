@@ -5040,20 +5040,19 @@ TEST_CASE(gather_strided_view_elements_mismatch)
     EXPECT(m1.get_output_shapes() == m2.get_output_shapes());
 }
 
-TEST_CASE(slice_reshape_multibroadcast_gather_rewrite)
+TEST_CASE(slice_reshape_multibroadcast_rebase_axis)
 {
     migraphx::module m1;
     {
-        auto s     = migraphx::shape{migraphx::shape::float_type, {1, 3, 8, 8}};
-        auto data  = m1.add_parameter("data", s);
-        auto other = m1.add_parameter("other", s);
-        migraphx::shape si{migraphx::shape::int32_type, {1}};
-        auto indices = m1.add_literal(migraphx::literal{si, {2}});
-        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
-        auto mb     = m1.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {1, 3, 8, 8}}}), gather);
-        auto mul = m1.add_instruction(migraphx::make_op("mul"), other, mb);
-        m1.add_return({mul});
+        auto x        = m1.add_parameter("x", {migraphx::shape::float_type, {1, 3, 8, 8}});
+        auto reshape1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 64}}}), x);
+        auto slice    = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), reshape1);
+        auto reshape2 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 8, 8}}}), slice);
+        auto mb = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 3, 8, 8}}}), reshape2);
+        m1.add_return({mb});
     }
     auto m2 = m1;
     run_pass(m1);

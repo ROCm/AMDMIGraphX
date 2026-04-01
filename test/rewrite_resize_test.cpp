@@ -257,6 +257,46 @@ TEST_CASE(rewrite_resize_nearest_upsample_pc)
                         {migraphx::shape::float_type, {1, 1, 2, 4}}));
 }
 
+// Test nearest mode with NHWC-style permuted strides (non-standard layout)
+TEST_CASE(rewrite_resize_nearest_nhwc)
+{
+    EXPECT(check_resize({{"scales", {1.0f, 1.0f, 2.0f, 2.0f}},
+                         {"nearest_mode", "round_prefer_floor"},
+                         {"coordinate_transformation_mode", "half_pixel"}},
+                        migraphx::shape::from_permutation(
+                            migraphx::shape::float_type, {1, 3, 4, 4}, {0, 2, 3, 1})));
+}
+
+// Test nearest mode with NHWC layout and floor rounding
+TEST_CASE(rewrite_resize_nearest_nhwc_floor)
+{
+    EXPECT(check_resize({{"scales", {1.0f, 1.0f, 2.0f, 2.0f}},
+                         {"nearest_mode", "floor"},
+                         {"coordinate_transformation_mode", "asymmetric"}},
+                        migraphx::shape::from_permutation(
+                            migraphx::shape::float_type, {1, 3, 2, 2}, {0, 2, 3, 1})));
+}
+
+// Test nearest mode downsample with non-standard strides
+TEST_CASE(rewrite_resize_nearest_nhwc_downsample)
+{
+    EXPECT(check_resize({{"scales", {1.0f, 1.0f, 0.5f, 0.5f}},
+                         {"nearest_mode", "floor"},
+                         {"coordinate_transformation_mode", "asymmetric"}},
+                        migraphx::shape::from_permutation(
+                            migraphx::shape::float_type, {1, 3, 4, 4}, {0, 2, 3, 1})));
+}
+
+// Test nearest mode with transposed layout (swap H and W)
+TEST_CASE(rewrite_resize_nearest_transposed)
+{
+    EXPECT(check_resize({{"scales", {1.0f, 1.0f, 2.0f, 2.0f}},
+                         {"nearest_mode", "round_prefer_floor"},
+                         {"coordinate_transformation_mode", "half_pixel"}},
+                        migraphx::shape::from_permutation(
+                            migraphx::shape::float_type, {1, 3, 4, 4}, {0, 1, 3, 2})));
+}
+
 // Test linear mode with NHWC-style scaling pattern (from resize_nhwc_test)
 TEST_CASE(rewrite_resize_linear_nhwc)
 {

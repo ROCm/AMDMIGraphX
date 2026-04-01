@@ -973,14 +973,14 @@ struct find_concat_op
         auto axis = any_cast<op::concat>(ins->get_operator()).axis;
 
         std::vector<std::pair<instruction_ref, instruction_ref>> replacements;
-        std::vector<instruction_ref> needs_move;
 
         auto each = [&](auto start, auto last) -> std::vector<instruction_ref> {
             if(std::distance(start, last) < 2)
                 return {start, last};
             auto x = *start;
-            if(std::any_of(
-                   start, last, [](instruction_ref x) { return rejected_inputs(x->inputs()); }))
+            if(std::any_of(start, last, [](instruction_ref ins) {
+                   return rejected_inputs(ins->inputs());
+               }))
                 return {start, last};
             // Skip if any multi-use input feeds into another group member,
             // since the fused result would redundantly recompute the dominated
@@ -1048,7 +1048,6 @@ struct find_concat_op
                                 {{"axes", {axis}}, {"starts", {offset}}, {"ends", {offset + len}}}),
                         y);
                     replacements.emplace_back(orig, slice_ins);
-                    needs_move.push_back(orig);
                 }
                 offset += len;
             }
@@ -1067,9 +1066,9 @@ struct find_concat_op
         };
         group_unique(ins->inputs().begin(), ins->inputs().end(), update_args, pred);
 
-        for(auto orig : needs_move)
+        for(const auto& p : replacements)
         {
-            m.move_output_instructions_after(orig, ins);
+            m.move_output_instructions_after(p.first, ins);
         }
 
         if(args.size() == 1)
@@ -1141,7 +1140,10 @@ struct find_conv_horizontal_fuse
 {
     auto matcher() const
     {
-        return match::name("convolution")(match::arg(0)(match::name("concat")));
+        return match::name("convolution")(
+            match::arg(0)(match::name("concat")(match::any_of[match::inputs()](
+                match::any_of[match::outputs()](match::name("convolution"))))),
+            match::arg(1)(match::is_constant()));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -1149,12 +1151,13 @@ struct find_conv_horizontal_fuse
         auto conv_b     = r.result;
         auto concat_ins = conv_b->inputs()[0];
         auto weight_b   = conv_b->inputs()[1];
-        auto conv_b_op  = any_cast<op::convolution>(conv_b->get_operator());
+        auto conv_b_val = conv_b->get_operator().to_value();
 
-        if(conv_b_op.group != 1)
+        if(conv_b_val["group"].to<int>() != 1)
             return;
 
-        auto concat_axis = any_cast<op::concat>(concat_ins->get_operator()).axis;
+        auto concat_axis =
+            concat_ins->get_operator().to_value()["axis"].to<std::size_t>();
         if(concat_axis != 1)
             return;
 
@@ -1171,13 +1174,15 @@ struct find_conv_horizontal_fuse
             {
                 if(output->name() != "convolution" or output == conv_b)
                     continue;
-                auto ca_op = any_cast<op::convolution>(output->get_operator());
-                if(ca_op.padding != conv_b_op.padding or ca_op.stride != conv_b_op.stride or
-                   ca_op.dilation != conv_b_op.dilation or ca_op.group != 1)
+                auto ca_val = output->get_operator().to_value();
+                if(ca_val["padding"] != conv_b_val["padding"] or
+                   ca_val["stride"] != conv_b_val["stride"] or
+                   ca_val["dilation"] != conv_b_val["dilation"] or
+                   ca_val["group"].to<int>() != 1)
                     continue;
                 if(output->inputs()[0] != prefix_input)
                     continue;
-                // Only fuse with original convolutions
+                // Only fuse with original convolutions (not derived from prior fusion)
                 if(not output->inputs()[1]->inputs().empty())
                     continue;
                 // Must be adjacent: conv_a reaches conv_b
@@ -1212,78 +1217,68 @@ struct find_conv_horizontal_fuse
         if(not best)
             return;
 
+        auto [conv_a, prefix_len] = *best;
+        auto input_a              = conv_a->inputs()[0];
+        auto weight_a             = conv_a->inputs()[1];
+        auto prefix_chans         = input_a->get_shape().lens()[1];
+        auto total_chans          = concat_ins->get_shape().lens()[1];
+
+        if(prefix_chans >= total_chans)
+            return;
+
+        auto out_a = weight_a->get_shape().lens()[0];
+        auto out_b = weight_b->get_shape().lens()[0];
+
+        // --- Insert fused conv and slices at conv_a's position ---
+        auto w_b_prefix = m.insert_instruction(
+            conv_a,
+            make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {prefix_chans}}}),
+            weight_b);
+
+        auto w_fused = m.insert_instruction(
+            conv_a, make_op("concat", {{"axis", 0}}), weight_a, w_b_prefix);
+        w_fused = m.insert_instruction(conv_a, make_op("contiguous"), w_fused);
+
+        auto fused_conv =
+            m.insert_instruction(conv_a, conv_a->get_operator(), input_a, w_fused);
+
+        auto conv_a_result = m.insert_instruction(
+            conv_a,
+            make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {out_a}}}),
+            fused_conv);
+        auto conv_b_prefix_result = m.insert_instruction(
+            conv_a,
+            make_op("slice", {{"axes", {1}}, {"starts", {out_a}}, {"ends", {out_a + out_b}}}),
+            fused_conv);
+
+        // --- Insert residual conv at conv_b's position ---
+        auto w_b_suffix = m.insert_instruction(
+            conv_b,
+            make_op("slice",
+                    {{"axes", {1}}, {"starts", {prefix_chans}}, {"ends", {total_chans}}}),
+            weight_b);
+        w_b_suffix = m.insert_instruction(conv_b, make_op("contiguous"), w_b_suffix);
+
+        std::vector<instruction_ref> remaining(concat_inputs.begin() + prefix_len,
+                                               concat_inputs.end());
+        instruction_ref extra;
+        if(remaining.size() == 1)
         {
-            auto [conv_a, prefix_len] = *best;
-            auto input_a              = conv_a->inputs()[0];
-            auto weight_a             = conv_a->inputs()[1];
-            auto prefix_chans         = input_a->get_shape().lens()[1];
-            auto total_chans          = concat_ins->get_shape().lens()[1];
-
-            if(prefix_chans >= total_chans)
-                return;
-            if(not weight_b->can_eval())
-                return;
-
-            auto out_a = weight_a->get_shape().lens()[0];
-            auto out_b = weight_b->get_shape().lens()[0];
-
-            // --- Insert fused conv and slices at conv_a's position ---
-            // Split weight_b prefix (weight ops can go anywhere before conv_a)
-            auto w_b_prefix = m.insert_instruction(
-                conv_a,
-                make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {prefix_chans}}}),
-                weight_b);
-
-            // Fused weight: concat(weight_a, w_b_prefix) along output channel dim
-            auto w_fused = m.insert_instruction(
-                conv_a, make_op("concat", {{"axis", 0}}), weight_a, w_b_prefix);
-            w_fused = m.insert_instruction(conv_a, make_op("contiguous"), w_fused);
-
-            // Single fused convolution on shared input
-            auto fused_conv =
-                m.insert_instruction(conv_a, conv_a->get_operator(), input_a, w_fused);
-
-            // Slice out conv_a and conv_b prefix results
-            auto conv_a_result = m.insert_instruction(
-                conv_a,
-                make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {out_a}}}),
-                fused_conv);
-            auto conv_b_prefix_result = m.insert_instruction(
-                conv_a,
-                make_op("slice", {{"axes", {1}}, {"starts", {out_a}}, {"ends", {out_a + out_b}}}),
-                fused_conv);
-
-            // --- Insert residual conv at conv_b's position ---
-            auto w_b_suffix = m.insert_instruction(
-                conv_b,
-                make_op("slice",
-                        {{"axes", {1}}, {"starts", {prefix_chans}}, {"ends", {total_chans}}}),
-                weight_b);
-            w_b_suffix = m.insert_instruction(conv_b, make_op("contiguous"), w_b_suffix);
-
-            std::vector<instruction_ref> remaining(concat_inputs.begin() + prefix_len,
-                                                   concat_inputs.end());
-            instruction_ref extra;
-            if(remaining.size() == 1)
-            {
-                extra = remaining.front();
-            }
-            else
-            {
-                extra = m.insert_instruction(conv_b, make_op("concat", {{"axis", 1}}), remaining);
-            }
-
-            auto conv_b_suffix_result =
-                m.insert_instruction(conv_b, conv_b->get_operator(), extra, w_b_suffix);
-
-            // Sum prefix and suffix parts
-            auto conv_b_result = m.insert_instruction(
-                conv_b, make_op("add"), conv_b_prefix_result, conv_b_suffix_result);
-
-            // Replace both convolutions
-            m.replace_instruction(conv_a, conv_a_result);
-            m.replace_instruction(conv_b, conv_b_result);
+            extra = remaining.front();
         }
+        else
+        {
+            extra = m.insert_instruction(conv_b, make_op("concat", {{"axis", 1}}), remaining);
+        }
+
+        auto conv_b_suffix_result =
+            m.insert_instruction(conv_b, conv_b->get_operator(), extra, w_b_suffix);
+
+        auto conv_b_result = m.insert_instruction(
+            conv_b, make_op("add"), conv_b_prefix_result, conv_b_suffix_result);
+
+        m.replace_instruction(conv_a, conv_a_result);
+        m.replace_instruction(conv_b, conv_b_result);
     }
 };
 

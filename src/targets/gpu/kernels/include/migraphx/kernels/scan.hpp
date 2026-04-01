@@ -101,7 +101,7 @@ __device__ void block_scan(index idx, Op op, T init, index_int n, Input input, O
     for(index_int chunk = 0; chunk < num_chunks; ++chunk)
     {
         index_int i = chunk * N + idx.local;
-        type value  = (i < n) ? input(i) : type{};
+        type value  = (i < n) ? input(i) : init;
         x           = block_scan<N>(idx, value, op, x);
         if(i < n)
             output(i, value);
@@ -113,7 +113,7 @@ __device__ auto wave_scan(index idx, Op op, T init, Index n, F f)
 {
     using type         = remove_reference_t<decltype(f(index_int{}))>;
     const auto lane_id = idx.local_wave();
-    type value         = (lane_id < n) ? f(lane_id) : type{};
+    type value         = (lane_id < n) ? f(lane_id) : init;
     value              = op(init, value);
     wave_scan<MIGRAPHX_WAVEFRONTSIZE>(idx, value, op);
     if(lane_id < n)
@@ -131,7 +131,7 @@ __device__ auto block_scan(index idx, Op op, T init, Index n, F f)
     for(index_int chunk = 0; chunk < num_chunks; ++chunk)
     {
         index_int i = chunk * block_size + idx.local;
-        type value  = (i < n) ? f(i) : type{};
+        type value  = (i < n) ? f(i) : init;
         x           = block_scan<block_size>(idx, value, op, x);
         if(i < n)
             f(i) = value;

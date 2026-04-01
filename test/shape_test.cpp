@@ -467,9 +467,8 @@ TEST_CASE(test_shape_subshapes_to_dynamic)
     migraphx::shape s1                       = s0.to_dynamic();
     std::vector<migraphx::shape> sub_shapes1 = {};
     sub_shapes1.push_back(migraphx::shape{migraphx::shape::float_type, {{1, 4}, {4, 4}}});
-    sub_shapes1.push_back(migraphx::shape{migraphx::shape::float_type,
-                                         {{3, 3}, {4, 4}, {5, 5}},
-                                         {lit(20), lit(5), lit(1)}});
+    sub_shapes1.push_back(migraphx::shape{
+        migraphx::shape::float_type, {{3, 3}, {4, 4}, {5, 5}}, {lit(20), lit(5), lit(1)}});
     migraphx::shape s2{sub_shapes1};
     EXPECT(s1 == s2);
 }

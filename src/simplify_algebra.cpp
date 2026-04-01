@@ -1146,6 +1146,26 @@ struct find_conv_horizontal_fuse
             match::arg(1)(match::is_constant()));
     }
 
+    static bool is_fusable_conv(instruction_ref output,
+                                instruction_ref prefix_input,
+                                instruction_ref conv_b,
+                                const value& conv_b_val)
+    {
+        if(output->name() != "convolution" or output == conv_b)
+            return false;
+        auto ca_val = output->get_operator().to_value();
+        if(ca_val["padding"] != conv_b_val.at("padding") or
+           ca_val["stride"] != conv_b_val.at("stride") or
+           ca_val["dilation"] != conv_b_val.at("dilation") or ca_val["group"].to<int>() != 1)
+            return false;
+        if(output->inputs()[0] != prefix_input)
+            return false;
+        // Only fuse with original convolutions (not derived from prior fusion)
+        if(not output->inputs()[1]->inputs().empty())
+            return false;
+        return reaches(output, conv_b);
+    }
+
     void apply(module& m, const match::matcher_result& r) const
     {
         auto conv_b     = r.result;
@@ -1164,23 +1184,6 @@ struct find_conv_horizontal_fuse
         if(concat_inputs.size() < 2)
             return;
 
-        // Check if a convolution on prefix_input is a valid fusion candidate
-        auto is_fusable_conv = [&](instruction_ref output, instruction_ref prefix_input) {
-            if(output->name() != "convolution" or output == conv_b)
-                return false;
-            auto ca_val = output->get_operator().to_value();
-            if(ca_val["padding"] != conv_b_val["padding"] or
-               ca_val["stride"] != conv_b_val["stride"] or
-               ca_val["dilation"] != conv_b_val["dilation"] or ca_val["group"].to<int>() != 1)
-                return false;
-            if(output->inputs()[0] != prefix_input)
-                return false;
-            // Only fuse with original convolutions (not derived from prior fusion)
-            if(not output->inputs()[1]->inputs().empty())
-                return false;
-            return reaches(output, conv_b);
-        };
-
         // Collect (conv_a, prefix_len) pairs from prefix concats that have a fusable conv
         auto front_outputs = concat_inputs.front()->outputs();
         using conv_prefix  = std::pair<instruction_ref, std::size_t>;
@@ -1197,13 +1200,15 @@ struct find_conv_horizontal_fuse
                        std::equal(out_inputs.begin(), out_inputs.end(), concat_inputs.begin());
             },
             [&](instruction_ref output) -> std::vector<conv_prefix> {
-                auto it =
-                    std::find_if(output->outputs().begin(),
-                                 output->outputs().end(),
-                                 [&](instruction_ref o) { return is_fusable_conv(o, output); });
-                if(it == output->outputs().end())
+                auto fi = std::find_if(
+                    output->outputs().begin(),
+                    output->outputs().end(),
+                    [&](instruction_ref o) {
+                        return is_fusable_conv(o, output, conv_b, conv_b_val);
+                    });
+                if(fi == output->outputs().end())
                     return {};
-                return {{*it, output->inputs().size()}};
+                return {{*fi, output->inputs().size()}};
             });
 
         // Pick the longest prefix
@@ -1224,7 +1229,7 @@ struct find_conv_horizontal_fuse
             // Try single-element prefix as fallback
             auto fi = std::find_if(
                 front_outputs.begin(), front_outputs.end(), [&](instruction_ref output) {
-                    return is_fusable_conv(output, concat_inputs.front());
+                    return is_fusable_conv(output, concat_inputs.front(), conv_b, conv_b_val);
                 });
             if(fi != front_outputs.end())
             {

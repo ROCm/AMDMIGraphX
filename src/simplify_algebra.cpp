@@ -978,9 +978,8 @@ struct find_concat_op
             if(std::distance(start, last) < 2)
                 return {start, last};
             auto x = *start;
-            if(std::any_of(start, last, [](instruction_ref ins) {
-                   return rejected_inputs(ins->inputs());
-               }))
+            if(std::any_of(
+                   start, last, [](instruction_ref ins) { return rejected_inputs(ins->inputs()); }))
                 return {start, last};
             // Skip if any multi-use input feeds into another group member,
             // since the fused result would redundantly recompute the dominated
@@ -1156,8 +1155,7 @@ struct find_conv_horizontal_fuse
         if(conv_b_val["group"].to<int>() != 1)
             return;
 
-        auto concat_axis =
-            concat_ins->get_operator().to_value()["axis"].to<std::size_t>();
+        auto concat_axis = concat_ins->get_operator().to_value()["axis"].to<std::size_t>();
         if(concat_axis != 1)
             return;
 
@@ -1177,8 +1175,7 @@ struct find_conv_horizontal_fuse
                 auto ca_val = output->get_operator().to_value();
                 if(ca_val["padding"] != conv_b_val["padding"] or
                    ca_val["stride"] != conv_b_val["stride"] or
-                   ca_val["dilation"] != conv_b_val["dilation"] or
-                   ca_val["group"].to<int>() != 1)
+                   ca_val["dilation"] != conv_b_val["dilation"] or ca_val["group"].to<int>() != 1)
                     continue;
                 if(output->inputs()[0] != prefix_input)
                     continue;
@@ -1235,12 +1232,11 @@ struct find_conv_horizontal_fuse
             make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {prefix_chans}}}),
             weight_b);
 
-        auto w_fused = m.insert_instruction(
-            conv_a, make_op("concat", {{"axis", 0}}), weight_a, w_b_prefix);
+        auto w_fused =
+            m.insert_instruction(conv_a, make_op("concat", {{"axis", 0}}), weight_a, w_b_prefix);
         w_fused = m.insert_instruction(conv_a, make_op("contiguous"), w_fused);
 
-        auto fused_conv =
-            m.insert_instruction(conv_a, conv_a->get_operator(), input_a, w_fused);
+        auto fused_conv = m.insert_instruction(conv_a, conv_a->get_operator(), input_a, w_fused);
 
         auto conv_a_result = m.insert_instruction(
             conv_a,
@@ -1254,8 +1250,7 @@ struct find_conv_horizontal_fuse
         // --- Insert residual conv at conv_b's position ---
         auto w_b_suffix = m.insert_instruction(
             conv_b,
-            make_op("slice",
-                    {{"axes", {1}}, {"starts", {prefix_chans}}, {"ends", {total_chans}}}),
+            make_op("slice", {{"axes", {1}}, {"starts", {prefix_chans}}, {"ends", {total_chans}}}),
             weight_b);
         w_b_suffix = m.insert_instruction(conv_b, make_op("contiguous"), w_b_suffix);
 

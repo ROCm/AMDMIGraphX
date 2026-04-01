@@ -1173,7 +1173,7 @@ struct find_conv_concat_split_fuse
         auto weight_b   = conv_b->inputs()[1];
         auto conv_b_val = conv_b->get_operator().to_value();
 
-        if(conv_b_val["group"].to<int>() != 1)
+        if(conv_b_val.at("group").to<int>() != 1)
             return;
 
         auto concat_axis = concat_ins->get_operator().to_value()["axis"].to<std::size_t>();
@@ -1184,7 +1184,7 @@ struct find_conv_concat_split_fuse
         if(concat_inputs.size() < 2)
             return;
 
-        // Collect (conv_a, prefix_len) pairs from prefix concats that have a fusable conv
+        // Collect (conv_a, prefix_len) candidates: prefix concats and direct single-element
         auto front_outputs = concat_inputs.front()->outputs();
         using conv_prefix  = std::pair<instruction_ref, std::size_t>;
         std::vector<conv_prefix> candidates;
@@ -1193,6 +1193,10 @@ struct find_conv_concat_split_fuse
             front_outputs.end(),
             join_back_inserter(candidates),
             [&](instruction_ref output) {
+                // Direct convolution on first input (single-element prefix)
+                if(is_fusable_conv(output, concat_inputs.front(), conv_b, conv_b_val))
+                    return true;
+                // Prefix concat whose inputs match a prefix of concat_ins
                 if(output->name() != "concat" or output == concat_ins)
                     return false;
                 auto out_inputs = output->inputs();
@@ -1200,6 +1204,8 @@ struct find_conv_concat_split_fuse
                        std::equal(out_inputs.begin(), out_inputs.end(), concat_inputs.begin());
             },
             [&](instruction_ref output) -> std::vector<conv_prefix> {
+                if(output->name() != "concat")
+                    return {{output, 1}};
                 auto fi = std::find_if(
                     output->outputs().begin(), output->outputs().end(), [&](instruction_ref o) {
                         return is_fusable_conv(o, output, conv_b, conv_b_val);
@@ -1210,35 +1216,16 @@ struct find_conv_concat_split_fuse
             });
 
         // Pick the longest prefix
-        auto it = std::min_element(
+        auto it = std::max_element(
             candidates.begin(), candidates.end(), [](const conv_prefix& a, const conv_prefix& b) {
-                return a.second > b.second;
+                return a.second < b.second;
             });
 
-        instruction_ref conv_a = m.end();
-        std::size_t prefix_len = 0;
-        if(it != candidates.end())
-        {
-            conv_a     = it->first;
-            prefix_len = it->second;
-        }
-        else
-        {
-            // Try single-element prefix as fallback
-            auto fi = std::find_if(
-                front_outputs.begin(), front_outputs.end(), [&](instruction_ref output) {
-                    return is_fusable_conv(output, concat_inputs.front(), conv_b, conv_b_val);
-                });
-            if(fi != front_outputs.end())
-            {
-                conv_a     = *fi;
-                prefix_len = 1;
-            }
-        }
-
-        if(conv_a == m.end())
+        if(it == candidates.end())
             return;
 
+        auto conv_a    = it->first;
+        auto prefix_len = it->second;
         auto input_a              = conv_a->inputs()[0];
         auto weight_a             = conv_a->inputs()[1];
         auto prefix_chans         = input_a->get_shape().lens()[1];

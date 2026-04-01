@@ -473,54 +473,61 @@ static std::vector<int64_t> bias_unsqueeze_axes(std::size_t target_ndim,
     return axes;
 }
 
-static void fuse_mlp_chains(module& m)
+// 1. Find all chain roots (first dot not preceded by SiLU from another dot)
+static std::vector<instruction_ref> find_chain_roots(module& m)
 {
-    // 1. Find all chain roots (first dot not preceded by SiLU from another dot)
     std::vector<instruction_ref> roots;
-    for(auto ins : iterator_for(m))
-    {
-        if(not is_dot_with_constant_weight(ins))
-            continue;
-        if(is_chain_interior_dot(ins))
-            continue;
-        roots.push_back(ins);
-    }
+    auto it = iterator_for(m);
+    std::copy_if(it.begin(), it.end(), std::back_inserter(roots), [&](auto ins) {
+        return is_dot_with_constant_weight(ins) and not is_chain_interior_dot(ins);
+    });
+    return roots;
+}
 
-    if(roots.empty())
-        return;
-
-    // 2. Trace chains from each root, keeping only multi-layer chains.
-    //    Single-layer chains (standalone dots) are left alone so that MLIR
-    //    can still vertically fuse them with their downstream pointwise ops.
+// 2. Trace chains from each root, keeping only multi-layer chains.
+//    Single-layer chains (standalone dots) are left alone so that MLIR
+//    can still vertically fuse them with their downstream pointwise ops.
+static std::vector<mlp_chain> trace_chains(const std::vector<instruction_ref>& roots)
+{
     std::vector<mlp_chain> chains;
-    chains.reserve(roots.size());
-    for(auto root : roots)
+    for(const auto& root : roots)
     {
-        auto c = trace_chain(root);
-        if(c.layers.size() >= 2)
-            chains.push_back(std::move(c));
+        auto chain = trace_chain(root);
+        if(chain.layers.size() >= 2)
+            chains.push_back(std::move(chain));
     }
+    return chains;
+}
 
-    // 3. Build position map for ordering and independence checks
+
+// 3. Build position map for ordering and independence checks
+static std::unordered_map<instruction_ref, std::size_t> build_position_map(module& m)
+{
     std::unordered_map<instruction_ref, std::size_t> pos;
     std::size_t p = 0;
     for(auto ins : iterator_for(m))
         pos[ins] = p++;
+    return pos;
+}
 
-    // 4. Build a chain signature for grouping
-    auto chain_signature = [](const mlp_chain& c) {
-        std::vector<std::vector<std::size_t>> layer_shapes;
-        for(const auto& l : c.layers)
-        {
-            layer_shapes.push_back(l.dot->get_shape().lens());
-            auto k = l.dot->inputs().at(0)->get_shape().lens().back();
-            layer_shapes.push_back({k, l.has_silu() ? std::size_t(1) : std::size_t(0)});
-        }
-        auto dtype = c.layers.front().dot->get_shape().type();
-        return std::make_pair(layer_shapes, dtype);
-    };
 
-    // 5. Group chains by signature
+// 4. Build a chain signature for grouping
+static std::pair<std::vector<std::vector<std::size_t>>, int> chain_signature(const mlp_chain& c)
+{
+    std::vector<std::vector<std::size_t>> layer_shapes;
+    for(const auto& l : c.layers)
+    {
+        layer_shapes.push_back(l.dot->get_shape().lens());
+        auto k = l.dot->inputs().at(0)->get_shape().lens().back();
+        layer_shapes.push_back({k, l.has_silu() ? std::size_t(1) : std::size_t(0)});
+    }
+    auto dtype = c.layers.front().dot->get_shape().type();
+    return std::make_pair(layer_shapes, dtype);
+}
+
+// 5. Group chains by signature
+static std::unordered_map<std::size_t, std::vector<std::size_t>> group_chains(const std::vector<mlp_chain>& chains)
+{
     std::unordered_map<std::size_t, std::vector<std::size_t>> groups;
     for(std::size_t i = 0; i < chains.size(); ++i)
     {
@@ -533,6 +540,20 @@ static void fuse_mlp_chains(module& m)
 
         groups[hash].push_back(i);
     }
+    return groups;
+}
+
+static void fuse_mlp_chains(module& m)
+{
+    auto roots = find_chain_roots(m);
+    if(roots.empty())
+        return;
+
+    auto chains = trace_chains(roots);
+
+    auto pos = build_position_map(m);
+
+    auto groups = group_chains(chains);
 
     // 6. For each group with >= 2 chains, verify matching and fuse
     for(const auto& [hash, indices] : groups)

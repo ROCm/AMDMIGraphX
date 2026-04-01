@@ -1398,10 +1398,8 @@ TEST_CASE(simplify_concat_add_relu_multi_use)
 }
 
 // DenseNet-like pattern: a feeds into cat1, which feeds into b.
-// Both a and b are concat inputs. Replacing a with a slice of the fused
-// result would create a cycle since the fused result depends on b which
-// depends on cat1 which depends on a. The pass should fuse but skip the
-// slice replacement for a.
+// Both a and b are concat inputs. Fusing would redundantly recompute a
+// since a can't be replaced with a slice (interdependency). Skip the group.
 TEST_CASE(simplify_concat_multi_use_dependency)
 {
     auto s = migraphx::shape{migraphx::shape::float_type, {1, 4, 2, 2}};
@@ -1414,19 +1412,10 @@ TEST_CASE(simplify_concat_multi_use_dependency)
         auto cat2 = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), a, b);
         m1.add_return({cat2});
     }
+    migraphx::module m2 = m1;
     run_pass(m1);
 
-    // Expected: fuse relu into concat, but do NOT replace a with a slice.
-    // a stays alive for cat1.
-    migraphx::module m2;
-    {
-        auto x     = m2.add_parameter("x", s);
-        auto a     = m2.add_instruction(migraphx::make_op("relu"), x);
-        auto cat1  = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, a);
-        auto inner = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, cat1);
-        auto fused = m2.add_instruction(migraphx::make_op("relu"), inner);
-        m2.add_return({fused});
-    }
+    // Module unchanged — fusion skipped due to interdependency
     EXPECT(m1.sort() == m2.sort());
 }
 

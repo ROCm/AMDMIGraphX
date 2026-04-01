@@ -982,6 +982,16 @@ struct find_concat_op
             if(std::any_of(
                    start, last, [](instruction_ref x) { return rejected_inputs(x->inputs()); }))
                 return {start, last};
+            // Skip if any multi-use input feeds into another group member,
+            // since the fused result would redundantly recompute the dominated
+            // input without being able to eliminate the original.
+            if(std::any_of(start, last, [&](instruction_ref orig) {
+                   return orig->outputs().size() > 1 and
+                          std::any_of(start, last, [&](instruction_ref g) {
+                              return g != orig and reaches(orig, g);
+                          });
+               }))
+                return {start, last};
             auto op = x->get_operator();
             if(not is_valid_op(op))
                 return {start, last};
@@ -1032,21 +1042,15 @@ struct find_concat_op
                 auto len  = orig->get_shape().lens()[axis];
                 if(orig->outputs().size() > 1)
                 {
-                    // Skip if orig feeds into another group member (interdependency)
-                    bool dominated = std::any_of(start, last, [&](instruction_ref g) {
-                        return g != orig and reaches(orig, g);
-                    });
-                    if(not dominated)
-                    {
-                        auto slice_ins = m.insert_instruction(
-                            ins,
-                            make_op(
-                                "slice",
-                                {{"axes", {axis}}, {"starts", {offset}}, {"ends", {offset + len}}}),
-                            y);
-                        replacements.emplace_back(orig, slice_ins);
-                        needs_move.push_back(orig);
-                    }
+                    auto slice_ins = m.insert_instruction(
+                        ins,
+                        make_op("slice",
+                                {{"axes", {axis}},
+                                 {"starts", {offset}},
+                                 {"ends", {offset + len}}}),
+                        y);
+                    replacements.emplace_back(orig, slice_ins);
+                    needs_move.push_back(orig);
                 }
                 offset += len;
             }

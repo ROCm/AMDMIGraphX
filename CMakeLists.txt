@@ -87,13 +87,6 @@ else()
 option(MIGRAPHX_USE_COMPOSABLEKERNEL "Enable MIGraphX to use composable kernel JIT library" ON)
 endif()
 
-include(CheckTypeSize)
-set(CMAKE_REQUIRED_INCLUDES ${HALF_INCLUDE_DIR})
-set(CMAKE_EXTRA_INCLUDE_FILES half.hpp)
-check_type_size("half_float::detail::expr" HALF_EXPR LANGUAGE CXX)
-set(CMAKE_REQUIRED_INCLUDES)
-set(CMAKE_EXTRA_INCLUDE_FILES)
-
 include(ROCMSetupVersion)
 
 option(BUILD_DEV "Build for development purpose only" OFF)

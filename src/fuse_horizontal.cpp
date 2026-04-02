@@ -266,7 +266,6 @@ struct gather_horizontal_fusion
     }
 };
 
-
 // ---------------------------------------------------------------------------
 // Generic dot horizontal fusion
 //
@@ -306,9 +305,7 @@ struct dot_horizontal_fusion
     }
 
     std::vector<instruction_ref>
-    fuse(module& m,
-         const std::vector<instruction_ref>& dots,
-         instruction_ref insert_pt) const
+    fuse(module& m, const std::vector<instruction_ref>& dots, instruction_ref insert_pt) const
     {
         auto num = dots.size();
 
@@ -317,16 +314,14 @@ struct dot_horizontal_fusion
             return m.insert_instruction(
                 insert_pt, make_op("unsqueeze", {{"axes", {0}}}), d->inputs().at(0));
         });
-        auto batched_act =
-            m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), acts);
+        auto batched_act = m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), acts);
 
         std::vector<instruction_ref> wts(num);
         std::transform(dots.begin(), dots.end(), wts.begin(), [&](auto d) {
             return m.insert_instruction(
                 insert_pt, make_op("unsqueeze", {{"axes", {0}}}), d->inputs().at(1));
         });
-        auto batched_wt =
-            m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), wts);
+        auto batched_wt = m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), wts);
 
         auto bd = m.insert_instruction(insert_pt, make_op("dot"), batched_act, batched_wt);
 
@@ -341,8 +336,8 @@ struct dot_horizontal_fusion
                          {"starts", std::vector<int64_t>{static_cast<int64_t>(i)}},
                          {"ends", std::vector<int64_t>{static_cast<int64_t>(i + 1)}}}),
                 bd);
-            results.push_back(m.insert_instruction(
-                insert_pt, make_op("squeeze", {{"axes", {0}}}), sliced));
+            results.push_back(
+                m.insert_instruction(insert_pt, make_op("squeeze", {{"axes", {0}}}), sliced));
         }
         return results;
     }

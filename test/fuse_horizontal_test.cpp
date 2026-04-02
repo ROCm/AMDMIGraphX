@@ -553,17 +553,15 @@ TEST_CASE(dot_horiz_fusion_basic)
         auto x1 = m2.add_parameter("x1", {migraphx::shape::float_type, {4, 8}});
         auto x2 = m2.add_parameter("x2", {migraphx::shape::float_type, {4, 8}});
 
-        auto ux1 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), x1);
-        auto ux2 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), x2);
-        auto bat_act = m2.add_instruction(
-            migraphx::make_op("concat", {{"axis", 0}}),
-            std::vector<migraphx::instruction_ref>{ux1, ux2});
+        auto ux1     = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), x1);
+        auto ux2     = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), x2);
+        auto bat_act = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                                          std::vector<migraphx::instruction_ref>{ux1, ux2});
 
-        auto uw1 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w1);
-        auto uw2 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w2);
-        auto bat_wt = m2.add_instruction(
-            migraphx::make_op("concat", {{"axis", 0}}),
-            std::vector<migraphx::instruction_ref>{uw1, uw2});
+        auto uw1    = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w1);
+        auto uw2    = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w2);
+        auto bat_wt = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                                         std::vector<migraphx::instruction_ref>{uw1, uw2});
 
         auto bd = m2.add_instruction(migraphx::make_op("dot"), bat_act, bat_wt);
 
@@ -586,10 +584,10 @@ TEST_CASE(dot_horiz_fusion_3d)
 {
     migraphx::module m1;
     {
-        auto w1 = m1.add_literal(
-            migraphx::generate_literal({migraphx::shape::float_type, {2, 8, 4}}, 0));
-        auto w2 = m1.add_literal(
-            migraphx::generate_literal({migraphx::shape::float_type, {2, 8, 4}}, 1));
+        auto w1 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 8, 4}}, 0));
+        auto w2 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 8, 4}}, 1));
 
         auto x1 = m1.add_parameter("x1", {migraphx::shape::float_type, {2, 4, 8}});
         auto x2 = m1.add_parameter("x2", {migraphx::shape::float_type, {2, 4, 8}});
@@ -604,25 +602,23 @@ TEST_CASE(dot_horiz_fusion_3d)
 
     migraphx::module m2;
     {
-        auto w1 = m2.add_literal(
-            migraphx::generate_literal({migraphx::shape::float_type, {2, 8, 4}}, 0));
-        auto w2 = m2.add_literal(
-            migraphx::generate_literal({migraphx::shape::float_type, {2, 8, 4}}, 1));
+        auto w1 =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 8, 4}}, 0));
+        auto w2 =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 8, 4}}, 1));
 
         auto x1 = m2.add_parameter("x1", {migraphx::shape::float_type, {2, 4, 8}});
         auto x2 = m2.add_parameter("x2", {migraphx::shape::float_type, {2, 4, 8}});
 
-        auto ux1 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), x1);
-        auto ux2 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), x2);
-        auto bat_act = m2.add_instruction(
-            migraphx::make_op("concat", {{"axis", 0}}),
-            std::vector<migraphx::instruction_ref>{ux1, ux2});
+        auto ux1     = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), x1);
+        auto ux2     = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), x2);
+        auto bat_act = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                                          std::vector<migraphx::instruction_ref>{ux1, ux2});
 
-        auto uw1 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w1);
-        auto uw2 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w2);
-        auto bat_wt = m2.add_instruction(
-            migraphx::make_op("concat", {{"axis", 0}}),
-            std::vector<migraphx::instruction_ref>{uw1, uw2});
+        auto uw1    = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w1);
+        auto uw2    = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w2);
+        auto bat_wt = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                                         std::vector<migraphx::instruction_ref>{uw1, uw2});
 
         auto bd = m2.add_instruction(migraphx::make_op("dot"), bat_act, bat_wt);
 
@@ -668,8 +664,8 @@ TEST_CASE(dot_horiz_no_fusion_different_k)
     {
         auto w1 =
             m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {8, 4}}, 0));
-        auto w2 = m1.add_literal(
-            migraphx::generate_literal({migraphx::shape::float_type, {16, 4}}, 1));
+        auto w2 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {16, 4}}, 1));
 
         auto x1 = m1.add_parameter("x1", {migraphx::shape::float_type, {4, 8}});
         auto x2 = m1.add_parameter("x2", {migraphx::shape::float_type, {4, 16}});
@@ -690,10 +686,10 @@ TEST_CASE(dot_horiz_no_fusion_different_batch)
 {
     migraphx::module m1;
     {
-        auto w1 = m1.add_literal(
-            migraphx::generate_literal({migraphx::shape::float_type, {1, 8, 4}}, 0));
-        auto w2 = m1.add_literal(
-            migraphx::generate_literal({migraphx::shape::float_type, {2, 8, 4}}, 1));
+        auto w1 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {1, 8, 4}}, 0));
+        auto w2 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 8, 4}}, 1));
 
         auto x1 = m1.add_parameter("x1", {migraphx::shape::float_type, {1, 4, 8}});
         auto x2 = m1.add_parameter("x2", {migraphx::shape::float_type, {2, 4, 8}});
@@ -738,18 +734,17 @@ TEST_CASE(dot_horiz_no_fusion_single_tower)
 {
     migraphx::module m1;
     {
-        auto w1 = m1.add_literal(
-            migraphx::generate_literal({migraphx::shape::float_type, {8, 4}}, 0));
-        auto b1 = m1.add_literal(
-            migraphx::generate_literal({migraphx::shape::float_type, {4}}, 1));
-        auto w2 = m1.add_literal(
-            migraphx::generate_literal({migraphx::shape::float_type, {4, 2}}, 2));
+        auto w1 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {8, 4}}, 0));
+        auto b1 = m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4}}, 1));
+        auto w2 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 2}}, 2));
 
         auto x = m1.add_parameter("x", {migraphx::shape::float_type, {4, 8}});
 
-        auto d1  = m1.add_instruction(migraphx::make_op("dot"), x, w1);
-        auto bc  = m1.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {4, 4}}}), b1);
+        auto d1 = m1.add_instruction(migraphx::make_op("dot"), x, w1);
+        auto bc =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 4}}}), b1);
         auto add = m1.add_instruction(migraphx::make_op("add"), d1, bc);
         auto sig = m1.add_instruction(migraphx::make_op("sigmoid"), add);
         auto mul = m1.add_instruction(migraphx::make_op("mul"), sig, add);

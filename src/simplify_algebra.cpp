@@ -2379,15 +2379,14 @@ struct find_squeeze_splits
 {
     auto matcher() const
     {
-        auto one_arg = match::nargs(1);
-        auto two_args = match::nargs(2);
-        auto pw_or_pointwise = match::any_of(
-            match::name("pointwise"),
-            match::pointwise(match::any_of(one_arg, two_args)));
-        auto squeeze_to_pw = match::name("squeeze")(
-            match::any_of[match::outputs()](pw_or_pointwise));
-        auto slice_to_squeeze = match::name("slice")(
-            match::any_of[match::outputs()](squeeze_to_pw));
+        auto one_arg         = match::nargs(1);
+        auto two_args        = match::nargs(2);
+        auto pw_or_pointwise = match::any_of(match::name("pointwise"),
+                                             match::pointwise(match::any_of(one_arg, two_args)));
+        auto squeeze_to_pw =
+            match::name("squeeze")(match::any_of[match::outputs()](pw_or_pointwise));
+        auto slice_to_squeeze =
+            match::name("slice")(match::any_of[match::outputs()](squeeze_to_pw));
         return match::any(match::any_of[match::outputs()](slice_to_squeeze));
     }
 
@@ -2404,16 +2403,14 @@ struct find_squeeze_splits
         {
             if(out->name() != "slice")
                 continue;
-            auto slice_axes =
-                out->get_operator().to_value()["axes"].to_vector<int64_t>();
+            auto slice_axes = out->get_operator().to_value()["axes"].to_vector<int64_t>();
             if(slice_axes.size() != 1 or slice_axes.front() != 0)
                 continue;
             for(auto sq : out->outputs())
             {
                 if(sq->name() != "squeeze")
                     continue;
-                auto sq_axes =
-                    sq->get_operator().to_value()["axes"].to_vector<int64_t>();
+                auto sq_axes = sq->get_operator().to_value()["axes"].to_vector<int64_t>();
                 if(sq_axes.size() == 1 and sq_axes.front() == 0)
                 {
                     result.push_back({out, sq});
@@ -2425,9 +2422,7 @@ struct find_squeeze_splits
             return {};
 
         auto get_start = [](const compound_split& cs) {
-            return cs.slice->get_operator().to_value()["starts"]
-                .to_vector<int64_t>()
-                .front();
+            return cs.slice->get_operator().to_value()["starts"].to_vector<int64_t>().front();
         };
         std::sort(result.begin(), result.end(), [&](auto& a, auto& b) {
             return get_start(a) < get_start(b);
@@ -2438,20 +2433,14 @@ struct find_squeeze_splits
 
         for(std::size_t i = 1; i < result.size(); ++i)
         {
-            auto prev_end = result[i - 1]
-                                .slice->get_operator()
-                                .to_value()["ends"]
-                                .to_vector<int64_t>()
-                                .front();
+            auto prev_end =
+                result[i - 1].slice->get_operator().to_value()["ends"].to_vector<int64_t>().front();
             if(prev_end != get_start(result[i]))
                 return {};
         }
 
-        auto last_end = result.back()
-                            .slice->get_operator()
-                            .to_value()["ends"]
-                            .to_vector<int64_t>()
-                            .front();
+        auto last_end =
+            result.back().slice->get_operator().to_value()["ends"].to_vector<int64_t>().front();
         if(static_cast<std::size_t>(last_end) != root->get_shape().lens().front())
             return {};
 
@@ -2462,10 +2451,9 @@ struct find_squeeze_splits
     get_squeeze_groups(const std::vector<compound_split>& splits)
     {
         std::vector<std::vector<instruction_ref>> groups;
-        const auto& least = *std::min_element(
-            splits.begin(), splits.end(), [](auto& a, auto& b) {
-                return a.squeeze->outputs().size() < b.squeeze->outputs().size();
-            });
+        const auto& least = *std::min_element(splits.begin(), splits.end(), [](auto& a, auto& b) {
+            return a.squeeze->outputs().size() < b.squeeze->outputs().size();
+        });
 
         for(auto out : least.squeeze->outputs())
         {
@@ -2483,14 +2471,11 @@ struct find_squeeze_splits
                     continue;
                 }
                 auto it = std::find_if(
-                    cs.squeeze->outputs().begin(),
-                    cs.squeeze->outputs().end(),
-                    [&](auto o) {
+                    cs.squeeze->outputs().begin(), cs.squeeze->outputs().end(), [&](auto o) {
                         if(o->get_operator() != op)
                             return false;
                         if(o->name() == "pointwise")
-                            return *(o->module_inputs().front()) ==
-                                   *(out->module_inputs().front());
+                            return *(o->module_inputs().front()) == *(out->module_inputs().front());
                         return true;
                     });
                 if(it == cs.squeeze->outputs().end())
@@ -2517,24 +2502,22 @@ struct find_squeeze_splits
         auto nargs = group.front()->inputs().size();
         for(auto idx = 0; idx < nargs; ++idx)
         {
-            if(all_of(range(group.size()), [&](auto g) {
-                   return group[g]->inputs().at(idx) == splits[g].squeeze;
-               }))
+            if(all_of(range(group.size()),
+                      [&](auto g) { return group[g]->inputs().at(idx) == splits[g].squeeze; }))
                 return idx;
         }
         return -1;
     }
 
-    static std::optional<instruction_ref> find_other_batched_root(
-        const std::vector<instruction_ref>& group,
-        const std::vector<compound_split>& splits,
-        int split_idx)
+    static std::optional<instruction_ref>
+    find_other_batched_root(const std::vector<instruction_ref>& group,
+                            const std::vector<compound_split>& splits,
+                            int split_idx)
     {
         int other_idx = (split_idx == 0) ? 1 : 0;
         std::optional<instruction_ref> found_root;
 
-        auto valid_arg = [](auto op_name, auto& op_arg) 
-        {
+        auto valid_arg = [](auto op_name, auto& op_arg) {
             if(op_arg->name() != op_name)
                 return false;
 
@@ -2572,7 +2555,7 @@ struct find_squeeze_splits
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto root  = r.result;
+        auto root    = r.result;
         auto csplits = get_compound_splits(root);
         if(csplits.empty())
             return;
@@ -2608,10 +2591,9 @@ struct find_squeeze_splits
             int data_idx = (split_idx == 0) ? 1 : 0;
 
             std::vector<instruction_ref> data_args;
-            std::transform(group.begin(),
-                           group.end(),
-                           std::back_inserter(data_args),
-                           [&](auto g) { return g->inputs()[data_idx]; });
+            std::transform(group.begin(), group.end(), std::back_inserter(data_args), [&](auto g) {
+                return g->inputs()[data_idx];
+            });
 
             bool all_evaluable = std::all_of(
                 data_args.begin(), data_args.end(), [](auto d) { return d->can_eval(); });
@@ -2619,20 +2601,22 @@ struct find_squeeze_splits
             if(all_evaluable)
             {
                 std::vector<instruction_ref> unsqueezed;
-                std::transform(data_args.begin(), data_args.end(), std::back_inserter(unsqueezed), [&](auto d) {
-                    return m.insert_instruction(root, make_op("unsqueeze", {{"axes", {0}}}), d);
-                });
+                std::transform(data_args.begin(),
+                               data_args.end(),
+                               std::back_inserter(unsqueezed),
+                               [&](auto d) {
+                                   return m.insert_instruction(
+                                       root, make_op("unsqueeze", {{"axes", {0}}}), d);
+                               });
 
-                auto stacked = m.insert_instruction(
-                    root, make_op("concat", {{"axis", 0}}), unsqueezed);
+                auto stacked =
+                    m.insert_instruction(root, make_op("concat", {{"axis", 0}}), unsqueezed);
 
                 auto root_lens = root->get_shape().lens();
                 if(stacked->get_shape().lens() != root_lens)
                 {
                     stacked = m.insert_instruction(
-                        root,
-                        make_op("multibroadcast", {{"out_lens", root_lens}}),
-                        stacked);
+                        root, make_op("multibroadcast", {{"out_lens", root_lens}}), stacked);
                 }
 
                 std::vector<instruction_ref> args(2);
@@ -2652,16 +2636,14 @@ struct find_squeeze_splits
                 return;
             }
 
-            auto maybe_other_root =
-                find_other_batched_root(group, csplits, split_idx);
+            auto maybe_other_root = find_other_batched_root(group, csplits, split_idx);
             if(not maybe_other_root)
                 continue;
 
             std::vector<instruction_ref> args(2);
             args[split_idx] = root;
             args[data_idx]  = *maybe_other_root;
-            auto lifted =
-                m.insert_instruction(std::next(root), op, {args}, start->module_inputs());
+            auto lifted = m.insert_instruction(std::next(root), op, {args}, start->module_inputs());
 
             for(std::size_t i = 0; i < group.size(); ++i)
             {

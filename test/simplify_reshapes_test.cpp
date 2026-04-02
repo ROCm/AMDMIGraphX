@@ -39,7 +39,8 @@ static void run_pass(migraphx::module& m)
     migraphx::run_passes(m,
                          {
                              migraphx::simplify_reshapes{.enable_op_shape_transform_op = true,
-                                                         .enable_gather_rewrite        = true},
+                                                         .enable_gather_rewrite        = true,
+                                                         .enable_gather_add_fusion     = true},
                              migraphx::eliminate_common_subexpression{},
                              migraphx::dead_code_elimination{},
                          });
@@ -5034,6 +5035,189 @@ TEST_CASE(gather_strided_view_elements_mismatch)
         auto li                      = m1.add_literal(migraphx::literal{si, indices});
         auto g = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), x, li);
         m1.add_return({g});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.get_output_shapes() == m2.get_output_shapes());
+}
+
+TEST_CASE(gather_add_pairwise_basic)
+{
+    migraphx::module m1;
+    {
+        auto data = m1.add_parameter("data", {migraphx::shape::float_type, {4, 32}});
+        migraphx::shape si{migraphx::shape::int32_type, {4}};
+        auto indices = m1.add_literal(migraphx::literal{si, {0, 1, 2, 3}});
+        auto gather =
+            m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+        auto s0 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), gather);
+        auto s1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), gather);
+        auto add = m1.add_instruction(migraphx::make_op("add"), s0, s1);
+        m1.add_return({add});
+    }
+    run_pass(m1);
+
+    EXPECT(std::none_of(m1.begin(), m1.end(), [](const migraphx::instruction& ins) {
+        return ins.name() == "slice" and not ins.inputs().empty() and
+               ins.inputs().at(0)->name() == "gather" and
+               ins.inputs().at(0)->get_shape().lens().front() == 4;
+    }));
+    EXPECT(m1.get_output_shapes().front() == migraphx::shape{migraphx::shape::float_type, {1, 32}});
+}
+
+TEST_CASE(gather_add_pairwise_expected)
+{
+    migraphx::module m1;
+    {
+        auto data = m1.add_parameter("data", {migraphx::shape::float_type, {4, 32}});
+        migraphx::shape si{migraphx::shape::int32_type, {4}};
+        auto indices = m1.add_literal(migraphx::literal{si, {0, 1, 2, 3}});
+        auto gather =
+            m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+        auto s0 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), gather);
+        auto s1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), gather);
+        auto add = m1.add_instruction(migraphx::make_op("add"), s0, s1);
+        m1.add_return({add});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto data = m2.add_parameter("data", {migraphx::shape::float_type, {4, 32}});
+        migraphx::shape si{migraphx::shape::int32_type, {4}};
+        auto indices = m2.add_literal(migraphx::literal{si, {0, 1, 2, 3}});
+        auto idx_a   = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), indices);
+        auto idx_b = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), indices);
+        auto gather_a =
+            m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, idx_a);
+        auto gather_b =
+            m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, idx_b);
+        auto add = m2.add_instruction(migraphx::make_op("add"), gather_a, gather_b);
+        m2.add_return({add});
+    }
+    run_pass(m2);
+
+    EXPECT(m1.get_output_shapes() == m2.get_output_shapes());
+}
+
+TEST_CASE(gather_add_multiple_pairs)
+{
+    migraphx::module m1;
+    {
+        auto data = m1.add_parameter("data", {migraphx::shape::float_type, {8, 16}});
+        migraphx::shape si{migraphx::shape::int32_type, {8}};
+        auto indices = m1.add_literal(migraphx::literal{si, {0, 1, 2, 3, 4, 5, 6, 7}});
+        auto gather =
+            m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+
+        auto s0 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), gather);
+        auto s1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), gather);
+        auto add0 = m1.add_instruction(migraphx::make_op("add"), s0, s1);
+
+        auto s2 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), gather);
+        auto s3 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {3}}, {"ends", {4}}}), gather);
+        auto add1 = m1.add_instruction(migraphx::make_op("add"), s2, s3);
+
+        auto s4 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {5}}}), gather);
+        auto s5 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {5}}, {"ends", {6}}}), gather);
+        auto add2 = m1.add_instruction(migraphx::make_op("add"), s4, s5);
+
+        auto concat = m1.add_instruction(
+            migraphx::make_op("concat", {{"axis", 0}}), add0, add1, add2);
+        m1.add_return({concat});
+    }
+    auto out_shapes_before = m1.get_output_shapes();
+    run_pass(m1);
+
+    EXPECT(m1.get_output_shapes() == out_shapes_before);
+
+    int add_of_large_gather_slices = 0;
+    for(auto& ins : m1)
+    {
+        if(ins.name() == "add" and not ins.inputs().empty() and
+           ins.inputs().at(0)->name() == "slice" and
+           ins.inputs().at(0)->inputs().at(0)->name() == "gather" and
+           ins.inputs().at(0)->inputs().at(0)->get_shape().lens().front() == 8)
+        {
+            add_of_large_gather_slices++;
+        }
+    }
+    EXPECT(add_of_large_gather_slices == 0);
+}
+
+TEST_CASE(gather_add_skip_different_gathers)
+{
+    migraphx::module m1;
+    {
+        auto data_a = m1.add_parameter("data_a", {migraphx::shape::float_type, {4, 32}});
+        auto data_b = m1.add_parameter("data_b", {migraphx::shape::float_type, {4, 32}});
+        migraphx::shape si{migraphx::shape::int32_type, {4}};
+        auto indices_a = m1.add_literal(migraphx::literal{si, {0, 1, 2, 3}});
+        auto indices_b = m1.add_literal(migraphx::literal{si, {3, 2, 1, 0}});
+        auto gather_a =
+            m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data_a, indices_a);
+        auto gather_b =
+            m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data_b, indices_b);
+        auto sa = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), gather_a);
+        auto sb = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), gather_b);
+        auto add = m1.add_instruction(migraphx::make_op("add"), sa, sb);
+        m1.add_return({add});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.get_output_shapes() == m2.get_output_shapes());
+}
+
+TEST_CASE(gather_add_skip_multi_row_slice)
+{
+    migraphx::module m1;
+    {
+        auto data = m1.add_parameter("data", {migraphx::shape::float_type, {4, 32}});
+        migraphx::shape si{migraphx::shape::int32_type, {4}};
+        auto indices = m1.add_literal(migraphx::literal{si, {0, 1, 2, 3}});
+        auto gather =
+            m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+        auto s0 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), gather);
+        auto s1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {4}}}), gather);
+        auto add = m1.add_instruction(migraphx::make_op("add"), s0, s1);
+        m1.add_return({add});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.get_output_shapes() == m2.get_output_shapes());
+}
+
+TEST_CASE(gather_add_skip_different_axes)
+{
+    migraphx::module m1;
+    {
+        auto data = m1.add_parameter("data", {migraphx::shape::float_type, {4, 32}});
+        migraphx::shape si{migraphx::shape::int32_type, {4}};
+        auto indices = m1.add_literal(migraphx::literal{si, {0, 1, 2, 3}});
+        auto gather =
+            m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data, indices);
+        auto s0 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), gather);
+        auto s1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), gather);
+        auto add = m1.add_instruction(migraphx::make_op("add"), s0, s1);
+        m1.add_return({add});
     }
     auto m2 = m1;
     run_pass(m1);

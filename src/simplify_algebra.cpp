@@ -2533,28 +2533,27 @@ struct find_squeeze_splits
         int other_idx = (split_idx == 0) ? 1 : 0;
         std::optional<instruction_ref> found_root;
 
-        for(std::size_t g = 0; g < group.size(); ++g)
+        auto valid_arg = [](auto op_name, auto& op_arg) 
         {
-            auto other_arg = group[g]->inputs().at(other_idx);
-            if(other_arg->name() != "squeeze")
-                return std::nullopt;
-            auto sq_axes =
-                other_arg->get_operator().to_value()["axes"].to_vector<int64_t>();
-            if(sq_axes.size() != 1 or sq_axes.front() != 0)
-                return std::nullopt;
-            if(other_arg->inputs().empty())
-                return std::nullopt;
-            auto other_slice = other_arg->inputs().front();
-            if(other_slice->name() != "slice")
-                return std::nullopt;
-            auto slice_axes =
-                other_slice->get_operator().to_value()["axes"].to_vector<int64_t>();
-            if(slice_axes.size() != 1 or slice_axes.front() != 0)
-                return std::nullopt;
-            if(other_slice->inputs().empty())
-                return std::nullopt;
-            auto root = other_slice->inputs().front();
+            if(op_arg->name() != op_name)
+                return false;
 
+            auto axes = op_arg->get_operator().to_value()["axes"].template to_vector<int64_t>();
+            return (axes.size() == 1) and (axes.front() == 0);
+        };
+
+        for(auto g : group)
+        {
+            auto other_arg = g->inputs().at(other_idx);
+
+            if(not valid_arg("squeeze", other_arg))
+                return std::nullopt;
+
+            auto other_slice = other_arg->inputs().front();
+            if(not valid_arg("slice", other_slice))
+                return std::nullopt;
+
+            auto root = other_slice->inputs().front();
             if(not found_root)
                 found_root = root;
             else if(*found_root != root)

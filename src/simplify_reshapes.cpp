@@ -1816,19 +1816,20 @@ struct find_squeeze_unsqueeze_roundtrip
 {
     auto matcher() const
     {
-        auto squeeze = match::name("squeeze");
+        auto squeeze   = match::name("squeeze");
         auto unsqueeze = match::name("unsqueeze");
-        return match::any_of(unsqueeze(match::arg(0)(squeeze)), squeeze(match::arg(0)(unsqueeze)));
+        auto same_shape_as_grandparent =
+            match::make_basic_pred_matcher([](instruction_ref ins) {
+                return ins->get_shape() == ins->inputs().front()->inputs().front()->get_shape();
+            });
+        return match::any_of(unsqueeze(match::arg(0)(squeeze), same_shape_as_grandparent),
+                             squeeze(match::arg(0)(unsqueeze), same_shape_as_grandparent));
     }
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto ins   = mr.result;
-        auto input = ins->inputs().front()->inputs().front();
-        if(ins->get_shape() == input->get_shape())
-        {
-            m.replace_instruction(ins, input);
-        }
+        auto ins = mr.result;
+        m.replace_instruction(ins, ins->inputs().front()->inputs().front());
     }
 };
 

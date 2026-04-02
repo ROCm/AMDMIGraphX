@@ -331,9 +331,9 @@ static std::vector<argument> run(program& p, const parameter_map& params) { retu
 
 static std::vector<shape> get_output_shapes(program& p) { return p.get_output_shapes(); }
 
-static void print_program(const program& p) { log::info() << p; }
+static void print_program(const program& p) { std::cout << p << std::endl; }
 
-static void print_module(const module& m) { log::info() << m; }
+static void print_module(const module& m) { std::cout << m << std::endl; }
 
 static migraphx::instruction_ref add_allocation(module& m, const migraphx::shape& s)
 {

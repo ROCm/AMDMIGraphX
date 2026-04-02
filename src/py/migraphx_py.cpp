@@ -450,7 +450,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .def(py::self != py::self);
 
     py::class_<migraphx::module, std::unique_ptr<migraphx::module, py::nodelete>>(m, "module")
-        .def("print", [](const migraphx::module& mm) { migraphx::log::info() << mm; })
+        .def("print",
+             [](const migraphx::module& mm) { py::print(py::str(migraphx::to_string(mm))); })
         .def("debug_print", [](const migraphx::module& mm) { migraphx::log::debug() << mm; })
         .def(
             "add_instruction",
@@ -569,7 +570,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                  return ss.str();
              })
         .def("sort", &migraphx::program::sort)
-        .def("print", [](const migraphx::program& p) { migraphx::log::info() << p; })
+        .def("print",
+             [](const migraphx::program& p) { py::print(py::str(migraphx::to_string(p))); })
         .def("debug_print", [](const migraphx::program& p) { migraphx::log::debug() << p; })
         .def("__eq__", std::equal_to<migraphx::program>{})
         .def("__ne__", std::not_equal_to<migraphx::program>{})

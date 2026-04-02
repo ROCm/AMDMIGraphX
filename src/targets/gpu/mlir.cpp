@@ -983,7 +983,8 @@ struct mlir_program
         MIGRAPHX_THROW("Failed to compile mlir program");
     }
 
-    void set_tuning(const value& v) // NOLINT(readability-make-member-function-const)
+    // NOLINTNEXTLINE(readability-make-member-function-const)
+    void set_tuning(const value& v)
     {
         const auto* str = v.if_string();
         if(str == nullptr)

@@ -28,7 +28,7 @@ TEST_CASE(array_feature_extractor_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto x = mm.add_parameter("X", migraphx::shape{migraphx::shape::float_type, {3, 4}});
+    auto x = mm->add_parameter("X", migraphx::shape{migraphx::shape::float_type, {3, 4}});
     auto y = mm->add_parameter("Y", migraphx::shape{migraphx::shape::int64_type, {2}});
     mm->add_instruction(migraphx::make_op("gather", {{"axis", 1}}), x, y);
 

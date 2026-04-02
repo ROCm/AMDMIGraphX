@@ -52,7 +52,7 @@ struct parse_array_feature_extractor : op_parser<parse_array_feature_extractor>
         auto op = make_op("gather", {{"axis", axis}});
         return info.add_instruction(op, x, y);
     }
-}
+};
 
 } // namespace onnx
 } // namespace MIGRAPHX_INLINE_NS

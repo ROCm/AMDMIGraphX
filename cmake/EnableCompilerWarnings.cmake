@@ -87,6 +87,7 @@ else()
                 -Weverything
                 -Wno-c++98-compat
                 -Wno-c++98-compat-pedantic
+                -Wno-c2y-extensions
                 -Wno-conversion
                 -Wno-double-promotion
                 -Wno-exit-time-destructors
@@ -95,6 +96,7 @@ else()
                 -Wno-float-conversion
                 -Wno-gnu-anonymous-struct
                 -Wno-gnu-zero-variadic-macro-arguments
+                -Wno-lifetime-safety-intra-tu-suggestions
                 -Wno-missing-noreturn
                 -Wno-missing-prototypes
                 -Wno-nested-anon-types

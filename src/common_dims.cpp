@@ -63,8 +63,7 @@ struct common_dim_state
         return range(it, dim_end);
     }
     // NOLINTBEGIN(readability-make-member-function-const)
-    void add_axes(std::size_t naxes,
-                  std::size_t start)
+    void add_axes(std::size_t naxes, std::size_t start)
     // NOLINTEND(readability-make-member-function-const)
     {
         auto axes = compute_axes(naxes, start);

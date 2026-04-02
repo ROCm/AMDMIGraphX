@@ -37,6 +37,10 @@
 #include <sstream>
 #include <vector>
 
+#ifndef _WIN32
+#include <unistd.h>
+#endif
+
 #ifdef _WIN32
 // cppcheck-suppress [definePrefix, defineUpperCase]
 #define localtime_r(time_t, tm) localtime_s(tm, time_t)
@@ -217,11 +221,17 @@ static void update_enabled_level(const std::vector<std::optional<sink_entry>>& s
 
 static severity default_log_level()
 {
-    auto envs      = get_all_envs();
-    bool trace_set = std::any_of(envs.begin(), envs.end(), [](const auto& p) {
-        return p.first.compare(0, 15, "MIGRAPHX_TRACE_") == 0;
-    });
-    if(trace_set)
+#ifdef _WIN32
+    char** envp = _environ;
+#else
+    char** envp = environ;
+#endif
+    char** end = envp;
+    while(*end != nullptr)
+        ++end;
+    if(std::any_of(envp, end, [](const char* e) {
+           return std::string_view(e).compare(0, 15, "MIGRAPHX_TRACE_") == 0;
+       }))
         return severity::trace;
     return severity::info;
 }

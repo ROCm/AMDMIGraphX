@@ -2460,7 +2460,7 @@ struct find_squeeze_splits
     get_squeeze_groups(const std::vector<compound_split>& splits)
     {
         std::vector<std::vector<instruction_ref>> groups;
-        auto& least = *std::min_element(
+        const auto& least = *std::min_element(
             splits.begin(), splits.end(), [](auto& a, auto& b) {
                 return a.squeeze->outputs().size() < b.squeeze->outputs().size();
             });
@@ -2473,7 +2473,7 @@ struct find_squeeze_splits
             std::vector<instruction_ref> group;
             bool valid = true;
 
-            for(auto& cs : splits)
+            for(const auto& cs : splits)
             {
                 if(&cs == &least)
                 {
@@ -2512,8 +2512,8 @@ struct find_squeeze_splits
     static int get_split_arg_idx(const std::vector<instruction_ref>& group,
                                  const std::vector<compound_split>& splits)
     {
-        auto& first      = group.front();
-        auto& first_args = first->inputs();
+        const auto& first      = group.front();
+        const auto& first_args = first->inputs();
 
         for(int idx = 0; idx < static_cast<int>(first_args.size()); ++idx)
         {

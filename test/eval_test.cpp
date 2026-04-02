@@ -504,6 +504,7 @@ template <class F>
 static std::string capture_output(F f)
 {
     std::string captured;
+    bool prev_header = migraphx::log::get_show_header();
     migraphx::log::set_show_header(false);
     auto sink_id = migraphx::log::add_sink(
         [&](migraphx::log::severity, std::string_view msg, migraphx::source_location) {
@@ -511,9 +512,17 @@ static std::string capture_output(F f)
             captured += '\n';
         },
         migraphx::log::severity::debug);
+    struct scope_guard
+    {
+        size_t id;
+        bool header;
+        ~scope_guard()
+        {
+            migraphx::log::remove_sink(id);
+            migraphx::log::set_show_header(header);
+        }
+    } guard{sink_id, prev_header};
     f();
-    migraphx::log::remove_sink(sink_id);
-    migraphx::log::set_show_header(true);
     return captured;
 }
 

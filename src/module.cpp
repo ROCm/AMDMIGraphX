@@ -884,11 +884,15 @@ void module::finalize(std::vector<context>& contexts)
     {
         if(trace)
         {
-            std::ostringstream ss;
-            ss << "Finalize: ";
-            std::unordered_map<instruction_ref, std::string> names;
-            instruction::print(ss, ins, names);
-            log::trace() << ss.str();
+            this->print([&](auto x, const auto& ins_names) {
+                if(x == ins)
+                {
+                    std::ostringstream ss;
+                    ss << "Finalize: ";
+                    instruction::print(ss, x, ins_names);
+                    log::trace() << ss.str();
+                }
+            });
         }
         ins->finalize(contexts[ins->get_target_id()]);
         for(const auto& smod : ins->module_inputs())

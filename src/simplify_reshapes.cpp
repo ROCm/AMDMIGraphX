@@ -1811,6 +1811,26 @@ struct find_flatten
                               flatten->inputs());
     }
 };
+struct find_squeeze_unsqueeze_roundtrip
+{
+    auto matcher() const
+    {
+        return match::any_of(
+            match::name("unsqueeze")(match::arg(0)(match::name("squeeze"))),
+            match::name("squeeze")(match::arg(0)(match::name("unsqueeze"))));
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins   = mr.result;
+        auto input = ins->inputs().front()->inputs().front();
+        if(ins->get_shape() == input->get_shape())
+        {
+            m.replace_instruction(ins, input);
+        }
+    }
+};
+
 } // namespace
 
 void simplify_reshapes::apply(module& m) const
@@ -1822,6 +1842,7 @@ void simplify_reshapes::apply(module& m) const
     m.repeat_while_changes(depth, [&] {
         match::find_matches(m,
                             find_nop_reshapes{},
+                            find_squeeze_unsqueeze_roundtrip{},
                             find_flatten{},
                             find_reshape_cont{},
                             find_slice_shape_transforms{},

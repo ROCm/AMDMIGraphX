@@ -266,407 +266,73 @@ struct gather_horizontal_fusion
     }
 };
 
+
 // ---------------------------------------------------------------------------
-// Chain-aware MLP tower horizontal fusion
+// Generic dot horizontal fusion
 //
-// Batches structurally-identical MLP chains end-to-end, keeping the batch
-// dimension through all layers including pointwise activations.
+// Batches structurally-identical dot operations into a single batched GEMM
+// by stacking activations and weights along a new leading dimension (axis 0).
+// The batched dot output is sliced and squeezed back to individual results.
 //
-// Chain pattern:  dot → add(bias) → sigmoid → mul (SiLU)  → dot → ... → dot
-// Each layer is:  dot(x, W) then optionally add(_, bias) → sigmoid → mul
-// The chain ends at the last dot (or last SiLU if present on the final layer).
-//
-// The batch dimension is introduced once at the chain start (unsqueeze+concat
-// activations and weights), carried through every layer (stacking biases and
-// applying pointwise ops on the batched tensor), and split only at the chain
-// end (slice+squeeze).  This avoids breaking MLIR vertical fusion.
+// Downstream pointwise ops (SiLU, GeLU, LayerNorm, etc.) are NOT handled
+// here — they are generically lifted above the slice/squeeze boundaries by
+// find_squeeze_splits in simplify_algebra, which runs after this pass in
+// the pipeline.  This separation keeps fuse_horizontal pattern-agnostic
+// while simplify_algebra's iterative framework handles arbitrary activation
+// patterns via repeated pointwise lifting.
 // ---------------------------------------------------------------------------
 
-struct mlp_layer
+struct dot_horizontal_fusion
 {
-    instruction_ref dot;
-    instruction_ref weight;
-    bool silu_present = false;
-    instruction_ref bias;
-    instruction_ref add;
-    instruction_ref sigmoid;
-    instruction_ref mul;
+    std::size_t min_group_size() const { return 2; }
 
-    bool has_silu() const { return silu_present; }
-    instruction_ref output() const { return silu_present ? mul : dot; }
-};
-
-struct mlp_chain
-{
-    instruction_ref root_input;
-    std::vector<mlp_layer> layers;
-    instruction_ref terminal() const { return layers.back().output(); }
-};
-
-static bool is_dot_with_constant_weight(instruction_ref ins)
-{
-    if(ins->name() != "dot")
-        return false;
-    if(ins->get_shape().dynamic())
-        return false;
-    if(ins->get_shape().lens().size() < 2)
-        return false;
-    auto weight = ins->inputs().at(1);
-    return weight->can_eval() and weight->get_shape().lens().size() >= 2;
-}
-
-// Skip through multibroadcast/broadcast to find the source
-static instruction_ref skip_broadcasts(instruction_ref ins)
-{
-    while(ins->name() == "multibroadcast" or ins->name() == "broadcast")
-        ins = ins->inputs().at(0);
-    return ins;
-}
-
-// Try to detect SiLU activation pattern after a dot:
-//   add(dot_out, broadcast(bias)) → sigmoid → mul(sigmoid, add)
-static bool detect_silu_after(instruction_ref dot_ins, mlp_layer& layer)
-{
-    const auto& dot_outs = dot_ins->outputs();
-    if(dot_outs.size() != 1)
-        return false;
-
-    auto maybe_add = dot_outs.front();
-    if(maybe_add->name() != "add")
-        return false;
-
-    // Identify bias vs dot input in the add
-    auto add_in = maybe_add->inputs();
-    instruction_ref bias_input;
-    if(add_in.at(0) == dot_ins)
-        bias_input = add_in.at(1);
-    else if(add_in.at(1) == dot_ins)
-        bias_input = add_in.at(0);
-    else
-        return false;
-
-    auto bias_source = skip_broadcasts(bias_input);
-    if(not bias_source->can_eval())
-        return false;
-
-    // add must have exactly 2 users: sigmoid and mul
-    const auto& add_outs = maybe_add->outputs();
-    if(add_outs.size() != 2)
-        return false;
-
-    instruction_ref sig_ins = add_outs.front();
-    instruction_ref mul_ins = add_outs.back();
-    bool found_sig          = false;
-    bool found_mul          = false;
-    for(auto out : add_outs)
+    bool is_candidate(instruction_ref ins) const
     {
-        if(out->name() == "sigmoid")
-        {
-            sig_ins   = out;
-            found_sig = true;
-        }
-        else if(out->name() == "mul")
-        {
-            mul_ins   = out;
-            found_mul = true;
-        }
-    }
-    if(not found_sig or not found_mul)
-        return false;
-
-    // sigmoid's sole user must be the mul
-    if(sig_ins->outputs().size() != 1 or sig_ins->outputs().front() != mul_ins)
-        return false;
-
-    // mul must take sigmoid and add as inputs (either order)
-    const auto& mul_in = mul_ins->inputs();
-    bool has_sig = (mul_in.at(0) == sig_ins or mul_in.at(1) == sig_ins);
-    bool has_add = (mul_in.at(0) == maybe_add or mul_in.at(1) == maybe_add);
-    if(not has_sig or not has_add)
-        return false;
-
-    layer.silu_present = true;
-    layer.bias         = bias_source;
-    layer.add          = maybe_add;
-    layer.sigmoid      = sig_ins;
-    layer.mul          = mul_ins;
-    return true;
-}
-
-// Trace an MLP chain forward from a root dot
-static mlp_chain trace_chain(instruction_ref first_dot)
-{
-    mlp_chain chain;
-    chain.root_input = first_dot->inputs().at(0);
-
-    auto current_dot = first_dot;
-    while(true)
-    {
-        mlp_layer layer{};
-        layer.dot    = current_dot;
-        layer.weight = current_dot->inputs().at(1);
-
-        detect_silu_after(current_dot, layer);
-        chain.layers.push_back(layer);
-
-        if(not layer.has_silu())
-            break;
-
-        // Check if the SiLU output feeds into exactly one next dot
-        const auto& silu_outs = layer.mul->outputs();
-        if(silu_outs.size() != 1)
-            break;
-
-        const auto& next = silu_outs.front();
-        if(not is_dot_with_constant_weight(next))
-            break;
-
-        // Verify next dot takes the SiLU output as its activation (input 0)
-        if(next->inputs().at(0) != layer.mul)
-            break;
-
-        current_dot = next;
+        if(ins->name() != "dot")
+            return false;
+        if(ins->get_shape().dynamic())
+            return false;
+        if(ins->get_shape().lens().size() < 2)
+            return false;
+        auto weight = ins->inputs().at(1);
+        return weight->can_eval() and weight->get_shape().lens().size() >= 2;
     }
 
-    return chain;
-}
-
-// Check whether an instruction is an interior dot of some chain (not a root)
-static bool is_chain_interior_dot(instruction_ref ins)
-{
-    if(not is_dot_with_constant_weight(ins))
-        return false;
-    const auto& act = ins->inputs().at(0);
-    // If the activation comes from a mul whose name is "mul" and that mul
-    // is part of a SiLU from a preceding dot, this is an interior dot.
-    if(act->name() != "mul")
-        return false;
-    const auto& mul_in = act->inputs();
-    return std::any_of(mul_in.begin(), mul_in.end(), [](auto inp) {
-        return inp->name() == "sigmoid" and inp->inputs().at(0)->name() == "add" and
-               is_dot_with_constant_weight(inp->inputs().at(0)->inputs().at(0));
-    });
-}
-
-static instruction_ref stack_along_dim0(module& m,
-                                        instruction_ref insert_pt,
-                                        const std::vector<instruction_ref>& items)
-{
-    std::vector<instruction_ref> unsqueezed(items.size());
-    std::transform(items.begin(), items.end(), unsqueezed.begin(), [&](auto item) {
-        return m.insert_instruction(insert_pt, make_op("unsqueeze", {{"axes", {0}}}), item);
-    });
-    return m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), std::move(unsqueezed));
-}
-
-// Build unsqueeze axes to pad a bias to the same rank as the batched dot output.
-// The leading axes {0, 1, ..., n-1} are inserted so that the bias's original
-// trailing dims stay right-aligned and the stacking dim ends up at axis 0.
-//   e.g. bias {K} + target_ndim 4 → axes {0,1,2} → {1,1,1,K}
-//        bias {1,1,K} + target_ndim 4 → axes {0} → {1,1,1,K}
-static std::vector<int64_t> bias_unsqueeze_axes(std::size_t target_ndim,
-                                                std::size_t bias_ndim)
-{
-    auto n = target_ndim - bias_ndim;
-    std::vector<int64_t> axes(n);
-    std::iota(axes.begin(), axes.end(), 0);
-    return axes;
-}
-
-// 1. Find all chain roots (first dot not preceded by SiLU from another dot)
-static std::vector<instruction_ref> find_chain_roots(module& m)
-{
-    std::vector<instruction_ref> roots;
-    auto it = iterator_for(m);
-    std::copy_if(it.begin(), it.end(), std::back_inserter(roots), [&](auto ins) {
-        return is_dot_with_constant_weight(ins) and not is_chain_interior_dot(ins);
-    });
-    return roots;
-}
-
-// 2. Trace chains from each root, keeping only multi-layer chains.
-//    Single-layer chains (standalone dots) are left alone so that MLIR
-//    can still vertically fuse them with their downstream pointwise ops.
-static std::vector<mlp_chain> trace_chains(const std::vector<instruction_ref>& roots)
-{
-    std::vector<mlp_chain> chains;
-    for(const auto& root : roots)
+    auto group_key(instruction_ref ins) const
     {
-        auto chain = trace_chain(root);
-        if(chain.layers.size() >= 2)
-            chains.push_back(std::move(chain));
+        return std::make_tuple(ins->inputs().at(0)->get_shape().lens(),
+                               ins->inputs().at(1)->get_shape().lens(),
+                               static_cast<int>(ins->get_shape().type()));
     }
-    return chains;
-}
 
-
-// 3. Build position map for ordering and independence checks
-static std::unordered_map<instruction_ref, std::size_t> build_position_map(module& m)
-{
-    std::unordered_map<instruction_ref, std::size_t> pos;
-    std::size_t p = 0;
-    for(auto ins : iterator_for(m))
-        pos[ins] = p++;
-    return pos;
-}
-
-
-// 4. Build a chain signature for grouping
-static std::pair<std::vector<std::vector<std::size_t>>, int> chain_signature(const mlp_chain& c)
-{
-    std::vector<std::vector<std::size_t>> layer_shapes;
-    for(const auto& l : c.layers)
+    std::vector<instruction_ref>
+    fuse(module& m,
+         const std::vector<instruction_ref>& dots,
+         instruction_ref insert_pt) const
     {
-        layer_shapes.push_back(l.dot->get_shape().lens());
-        auto k = l.dot->inputs().at(0)->get_shape().lens().back();
-        layer_shapes.push_back({k, l.has_silu() ? std::size_t(1) : std::size_t(0)});
-    }
-    auto dtype = c.layers.front().dot->get_shape().type();
-    return std::make_pair(layer_shapes, dtype);
-}
+        auto num = dots.size();
 
-// 5. Group chains by signature
-static std::unordered_map<std::size_t, std::vector<std::size_t>> group_chains(const std::vector<mlp_chain>& chains)
-{
-    std::unordered_map<std::size_t, std::vector<std::size_t>> groups;
-    for(std::size_t i = 0; i < chains.size(); ++i)
-    {
-        const auto& sig = chain_signature(chains[i]);
-        std::size_t hash = 0;
-        for(const auto& v : sig.first)
-            for(const auto& d : v)
-                hash ^= std::hash<std::size_t>{}(d) + 0x9e3779b9U + (hash << 6U) + (hash >> 2U);
-        hash ^= std::hash<int>{}(static_cast<int>(sig.second));
-
-        groups[hash].push_back(i);
-    }
-    return groups;
-}
-
-static void fuse_mlp_chains(module& m)
-{
-    auto roots = find_chain_roots(m);
-    if(roots.empty())
-        return;
-
-    auto chains = trace_chains(roots);
-
-    auto pos = build_position_map(m);
-
-    auto groups = group_chains(chains);
-
-    // 6. For each group with >= 2 chains, verify matching and fuse
-    for(const auto& [hash, indices] : groups)
-    {
-        // Verify all chains in the bucket actually have the same signature
-        const auto& ref_sig = chain_signature(chains[indices[0]]);
-        std::vector<std::size_t> matching;
-
-        for(const auto& idx : indices)
-        {
-            if(chain_signature(chains[idx]) == ref_sig)
-                matching.push_back(idx);
-        }
-
-        if(matching.size() < 2)
-            continue;
-
-        // Verify chains are independent (no data dependency between them)
-        std::vector<std::size_t> independent;
-        for(const auto& idx : matching)
-        {
-            bool depends = false;
-            for(const auto& prev : independent)
-            {
-                if(reaches(chains[prev].terminal(), chains[idx].layers.front().dot) or
-                   reaches(chains[idx].terminal(), chains[prev].layers.front().dot))
-                {
-                    depends = true;
-                    break;
-                }
-            }
-            if(not depends)
-                independent.push_back(idx);
-        }
-
-        if(independent.size() < 2)
-            continue;
-
-        // Sort by position for consistent ordering
-        std::sort(independent.begin(), independent.end(), [&](auto a, auto b) {
-            return pos.at(chains[a].layers.front().dot) < pos.at(chains[b].layers.front().dot);
+        std::vector<instruction_ref> acts(num);
+        std::transform(dots.begin(), dots.end(), acts.begin(), [&](auto d) {
+            return m.insert_instruction(
+                insert_pt, make_op("unsqueeze", {{"axes", {0}}}), d->inputs().at(0));
         });
+        auto batched_act =
+            m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), acts);
 
-        auto num        = independent.size();
-        auto& ref_chain = chains[independent[0]];
-        auto num_layers = ref_chain.layers.size();
-        auto insert_pt  = std::next(chains[independent.back()].terminal());
+        std::vector<instruction_ref> wts(num);
+        std::transform(dots.begin(), dots.end(), wts.begin(), [&](auto d) {
+            return m.insert_instruction(
+                insert_pt, make_op("unsqueeze", {{"axes", {0}}}), d->inputs().at(1));
+        });
+        auto batched_wt =
+            m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), wts);
 
-        // Stack root activations: [N, ...]
-        std::vector<instruction_ref> root_acts;
-        root_acts.reserve(num);
-        for(const auto& idx : independent)
-            root_acts.push_back(chains[idx].root_input);
-        auto batched_act = stack_along_dim0(m, insert_pt, root_acts);
+        auto bd = m.insert_instruction(insert_pt, make_op("dot"), batched_act, batched_wt);
 
-        auto current = batched_act;
-
-        for(std::size_t l = 0; l < num_layers; ++l)
-        {
-            // Stack weights for this layer
-            std::vector<instruction_ref> weights;
-            weights.reserve(num);
-            for(const auto& idx : independent)
-                weights.push_back(chains[idx].layers[l].weight);
-            auto batched_wt = stack_along_dim0(m, insert_pt, weights);
-
-            // Batched dot
-            current = m.insert_instruction(insert_pt, make_op("dot"), current, batched_wt);
-
-            // Apply SiLU activation on the batched tensor (if this layer has it)
-            if(ref_chain.layers[l].has_silu())
-            {
-                // Stack biases and reshape for broadcasting
-                std::vector<instruction_ref> biases;
-                biases.reserve(num);
-                for(const auto& idx : independent)
-                    biases.push_back(chains[idx].layers[l].bias);
-
-                auto batched_dot_ndim = current->get_shape().lens().size();
-                std::vector<instruction_ref> bias_expanded;
-                bias_expanded.reserve(num);
-                for(const auto& b : biases)
-                {
-                    auto axes = bias_unsqueeze_axes(batched_dot_ndim,
-                                                    b->get_shape().lens().size());
-                    if(axes.empty())
-                    {
-                        bias_expanded.push_back(b);
-                    }
-                    else
-                    {
-                        bias_expanded.push_back(m.insert_instruction(
-                            insert_pt, make_op("unsqueeze", {{"axes", axes}}), b));
-                    }
-                }
-                auto batched_bias = m.insert_instruction(
-                    insert_pt, make_op("concat", {{"axis", 0}}), bias_expanded);
-
-                auto bc_bias = m.insert_instruction(
-                    insert_pt,
-                    make_op("multibroadcast",
-                            {{"out_lens", current->get_shape().lens()}}),
-                    batched_bias);
-
-                // add + sigmoid + mul (SiLU)
-                auto added = m.insert_instruction(insert_pt, make_op("add"), current, bc_bias);
-                auto sig   = m.insert_instruction(insert_pt, make_op("sigmoid"), added);
-                current    = m.insert_instruction(insert_pt, make_op("mul"), sig, added);
-            }
-        }
-
-        // Slice + squeeze the final batched output back to individual results
-        for(std::size_t i = 0; i < independent.size(); ++i)
+        std::vector<instruction_ref> results;
+        results.reserve(num);
+        for(std::size_t i = 0; i < num; ++i)
         {
             auto sliced = m.insert_instruction(
                 insert_pt,
@@ -674,23 +340,19 @@ static void fuse_mlp_chains(module& m)
                         {{"axes", std::vector<int64_t>{0}},
                          {"starts", std::vector<int64_t>{static_cast<int64_t>(i)}},
                          {"ends", std::vector<int64_t>{static_cast<int64_t>(i + 1)}}}),
-                current);
-            auto squeezed = m.insert_instruction(
-                insert_pt, make_op("squeeze", {{"axes", {0}}}), sliced);
-
-            auto chain_terminal = chains[independent[i]].terminal();
-            m.move_output_instructions_after(chain_terminal, squeezed);
-            m.replace_instruction(chain_terminal, squeezed);
+                bd);
+            results.push_back(m.insert_instruction(
+                insert_pt, make_op("squeeze", {{"axes", {0}}}), sliced));
         }
+        return results;
     }
-}
+};
 
 void fuse_horizontal::apply(module_pass_manager& mpm) const
 {
     auto& m = mpm.get_module();
 
-    fuse_horizontal_ops(m, gather_horizontal_fusion{});
-    fuse_mlp_chains(m);
+    fuse_horizontal_ops(m, gather_horizontal_fusion{}, dot_horizontal_fusion{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -113,6 +113,10 @@ struct shape_impl
                 m_dyn_dims.push_back(shape::dynamic_dimension{mins[i], maxes[i], optimals_list[i]});
             }
         }
+        if(not m_dyn_dims.empty() and std::all_of(m_dyn_dims.begin(),
+                                                  m_dyn_dims.end(),
+                                                  [](const auto& d) { return d.is_symbolic(); }))
+            calculate_dyn_strides();
     }
 
     shape_impl(const std::vector<shape>& subs) : m_type(shape::tuple_type), m_shapes(subs) {}

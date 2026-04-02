@@ -28,6 +28,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/logger.hpp>
 #include <sstream>
 #include "test.hpp"
 #include <basic_ops.hpp>
@@ -499,27 +500,21 @@ TEST_CASE(eval_context3)
     EXPECT(not is_shared(t.ctx, p.get_context()));
 }
 
-struct cout_redirect
-{
-    cout_redirect()                     = delete;
-    cout_redirect(const cout_redirect&) = delete;
-    template <class T>
-    cout_redirect(T& stream) : old(std::cout.rdbuf(stream.rdbuf()))
-    {
-    }
-    ~cout_redirect() { std::cout.rdbuf(old); }
-
-    private:
-    std::streambuf* old;
-};
-
 template <class F>
 static std::string capture_output(F f)
 {
-    std::stringstream ss;
-    cout_redirect cr{ss};
+    std::string captured;
+    migraphx::log::set_show_header(false);
+    auto sink_id = migraphx::log::add_sink(
+        [&](migraphx::log::severity, std::string_view msg, migraphx::source_location) {
+            captured += msg;
+            captured += '\n';
+        },
+        migraphx::log::severity::debug);
     f();
-    return ss.str();
+    migraphx::log::remove_sink(sink_id);
+    migraphx::log::set_show_header(true);
+    return captured;
 }
 
 TEST_CASE(debug_print_test)

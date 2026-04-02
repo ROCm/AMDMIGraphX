@@ -15,6 +15,7 @@ Full documentation for MIGraphX is available at
 * Added environment variable `MIGRAPHX_SKIP_BENCHMARKING` which when enabled, skips tuning of MIGraphX and rocMLIR kernels (#4628).
 * Added Cubic resize jit kernel (#4652).
 * Added JIT compiler for `fill` operation (#4666).
+* Added JIT compiler for `multinomial` operation (#4721).
 
 ### Changed
 

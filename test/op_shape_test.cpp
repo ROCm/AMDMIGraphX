@@ -36,7 +36,6 @@
 
 using dd = migraphx::shape::dynamic_dimension;
 using se = migraphx::sym::expr;
-using migraphx::sym::lit;
 using migraphx::sym::var;
 
 template <class... Ts>

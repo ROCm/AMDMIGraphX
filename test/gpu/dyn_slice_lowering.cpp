@@ -23,10 +23,8 @@
  */
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/lowering.hpp>
-#include <migraphx/auto_contiguous.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/iterator_for.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/make_op.hpp>
@@ -35,68 +33,67 @@
 static void run_lowering(migraphx::module& m, bool offload_copy = false)
 {
     auto ctx = migraphx::gpu::context{};
-    migraphx::run_passes(m,
-                         {migraphx::auto_contiguous{},
-                          migraphx::gpu::lowering{&ctx, offload_copy},
-                          migraphx::dead_code_elimination{}});
+    migraphx::run_passes(
+        m, {migraphx::gpu::lowering{&ctx, offload_copy}, migraphx::dead_code_elimination{}});
 }
 
 // After lowering, a slice with runtime inputs should have hip::copy_from_gpu
 // and hip::sync_stream inserted for the metadata inputs.
 TEST_CASE(dyn_slice_lowering_runtime_inputs)
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
     migraphx::shape data_s{migraphx::shape::float_type, {{2, 4}, {2, 4}, {3, 8}}};
     migraphx::shape idx_s{migraphx::shape::int32_type, {1}};
 
-    auto data   = mm->add_parameter("data", data_s);
-    auto starts = mm->add_parameter("starts", idx_s);
-    auto ends   = mm->add_parameter("ends", idx_s);
-    auto sl = mm->add_instruction(migraphx::make_op("slice", {{"axes", {2}}}), data, starts, ends);
-    mm->add_return({sl});
-
-    run_lowering(*mm);
-
-    bool has_copy_from_gpu = false;
-    bool has_sync_stream   = false;
-    for(auto ins : migraphx::iterator_for(*mm))
+    migraphx::module m1;
     {
-        if(ins->name() == "hip::copy_from_gpu")
-            has_copy_from_gpu = true;
-        if(ins->name() == "hip::sync_stream")
-            has_sync_stream = true;
+        auto data   = m1.add_parameter("data", data_s);
+        auto starts = m1.add_parameter("starts", idx_s);
+        auto ends   = m1.add_parameter("ends", idx_s);
+        auto sl =
+            m1.add_instruction(migraphx::make_op("slice", {{"axes", {2}}}), data, starts, ends);
+        m1.add_return({sl});
     }
-    EXPECT(has_copy_from_gpu);
-    EXPECT(has_sync_stream);
+    run_lowering(m1);
+
+    migraphx::module m2;
+    {
+        auto data        = m2.add_parameter("data", data_s);
+        auto starts      = m2.add_parameter("starts", idx_s);
+        auto ends        = m2.add_parameter("ends", idx_s);
+        auto copy_starts = m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), starts);
+        auto copy_ends   = m2.add_instruction(migraphx::make_op("hip::copy_from_gpu"), ends);
+        auto sync =
+            m2.add_instruction(migraphx::make_op("hip::sync_stream"), copy_starts, copy_ends);
+        auto sl =
+            m2.add_instruction(migraphx::make_op("slice", {{"axes", {2}}}), data, sync, copy_ends);
+        m2.add_return({sl});
+    }
+    EXPECT(m1 == m2);
 }
 
 // A slice with only 1 input (all attributes inline) should not be modified
 // by the dynamic slice lowering.
 TEST_CASE(dyn_slice_lowering_single_input)
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
     migraphx::shape data_s{migraphx::shape::float_type, {2, 2, 4}};
 
-    auto data = mm->add_parameter("data", data_s);
-    auto sl   = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {2}}}), data);
-    mm->add_return({sl});
-
-    run_lowering(*mm);
-
-    bool has_copy_from_gpu = false;
-    bool has_sync_stream   = false;
-    for(auto ins : migraphx::iterator_for(*mm))
+    migraphx::module m1;
     {
-        if(ins->name() == "hip::copy_from_gpu")
-            has_copy_from_gpu = true;
-        if(ins->name() == "hip::sync_stream")
-            has_sync_stream = true;
+        auto data = m1.add_parameter("data", data_s);
+        auto sl   = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {2}}}), data);
+        m1.add_return({sl});
     }
-    EXPECT(not has_copy_from_gpu);
-    EXPECT(not has_sync_stream);
+    run_lowering(m1);
+
+    migraphx::module m2;
+    {
+        auto data = m2.add_parameter("data", data_s);
+        auto sl   = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {2}}}), data);
+        m2.add_return({sl});
+    }
+    EXPECT(m1 == m2);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

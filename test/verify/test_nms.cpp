@@ -58,10 +58,12 @@ struct test_nms : verify_program<test_nms>
     }
 };
 
-// Test NMS with sliced boxes and scores.
-// Boxes and scores are parameters (not literals) so propagate_constant
-// doesn't fold them away. Slice uses attribute-based starts/ends/axes
-// to produce static output shapes.
+// Test NMS with dynamic inputs that have different compile-time spatial ranges.
+// This reproduces the scenario from nms_repro_minidimmismatch.py where
+// boxes has 10 spatial entries and scores has 5, but at runtime both are
+// sliced/provided with spatial_dimension=5. The compile-time ranges differ:
+//   boxes spatial: {4, 10}, scores spatial: {4, 5}
+// but runtime spatial dimensions match so NMS should succeed.
 struct test_nms_dyn_slice : verify_program<test_nms_dyn_slice>
 {
     migraphx::program create_program() const
@@ -69,21 +71,13 @@ struct test_nms_dyn_slice : verify_program<test_nms_dyn_slice>
         migraphx::program p;
         auto* mm = p.get_main_module();
 
-        // boxes: [1, 6, 4] — 6 box slots, sliced to first 4
-        migraphx::shape boxes_s{migraphx::shape::float_type, {1, 6, 4}};
-        // scores: [1, 1, 6] — 6 scores, sliced to first 4
-        migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 6}};
+        // boxes: [1, {4..10}, 4] — up to 10 spatial entries
+        migraphx::shape boxes_s{migraphx::shape::float_type, {{1, 1}, {4, 10}, {4, 4}}};
+        // scores: [1, 1, {4..5}] — up to 5 spatial entries (different range!)
+        migraphx::shape scores_s{migraphx::shape::float_type, {{1, 1}, {1, 1}, {4, 5}}};
 
         auto boxes_l  = mm->add_parameter("boxes", boxes_s);
         auto scores_l = mm->add_parameter("scores", scores_s);
-
-        // Slice boxes on axis=1: [1,6,4] -> [1,4,4] using attributes
-        auto sliced_boxes = mm->add_instruction(
-            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}), boxes_l);
-
-        // Slice scores on axis=2: [1,1,6] -> [1,1,4] using attributes
-        auto sliced_scores = mm->add_instruction(
-            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {4}}}), scores_l);
 
         auto max_out_l       = mm->add_literal(int64_t{4});
         auto iou_threshold   = mm->add_literal(0.5f);
@@ -91,14 +85,21 @@ struct test_nms_dyn_slice : verify_program<test_nms_dyn_slice>
 
         auto r =
             mm->add_instruction(migraphx::make_op("nonmaxsuppression", {{"use_dyn_output", true}}),
-                                sliced_boxes,
-                                sliced_scores,
+                                boxes_l,
+                                scores_l,
                                 max_out_l,
                                 iou_threshold,
                                 score_threshold);
         mm->add_return({r});
 
         return p;
+    }
+
+    // At runtime, both have spatial_dimension=5 (matching)
+    std::unordered_map<std::string, migraphx::shape> get_test_dims() const
+    {
+        return {{"boxes", migraphx::shape{migraphx::shape::float_type, {1, 5, 4}}},
+                {"scores", migraphx::shape{migraphx::shape::float_type, {1, 1, 5}}}};
     }
 };
 

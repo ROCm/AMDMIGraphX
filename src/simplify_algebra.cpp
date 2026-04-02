@@ -2379,9 +2379,11 @@ struct find_squeeze_splits
 {
     auto matcher() const
     {
+        auto one_arg = match::nargs(1);
+        auto two_args = match::nargs(2);
         auto pw_or_pointwise = match::any_of(
             match::name("pointwise"),
-            match::pointwise(match::any_of(match::nargs(1), match::nargs(2))));
+            match::pointwise(match::any_of(one_arg, two_args)));
         auto squeeze_to_pw = match::name("squeeze")(
             match::any_of[match::outputs()](pw_or_pointwise));
         auto slice_to_squeeze = match::name("slice")(
@@ -2512,21 +2514,12 @@ struct find_squeeze_splits
     static int get_split_arg_idx(const std::vector<instruction_ref>& group,
                                  const std::vector<compound_split>& splits)
     {
-        const auto& first      = group.front();
-        const auto& first_args = first->inputs();
-
-        for(int idx = 0; idx < static_cast<int>(first_args.size()); ++idx)
+        auto nargs = group.front()->inputs().size();
+        for(auto idx = 0; idx < nargs; ++idx)
         {
-            bool all_match = true;
-            for(std::size_t g = 0; g < group.size(); ++g)
-            {
-                if(group[g]->inputs().at(idx) != splits[g].squeeze)
-                {
-                    all_match = false;
-                    break;
-                }
-            }
-            if(all_match)
+            if(all_of(range(group.size()), [&](auto g) {
+                   return group[g]->inputs().at(idx) == splits[g].squeeze;
+               }))
                 return idx;
         }
         return -1;
@@ -2627,12 +2620,10 @@ struct find_squeeze_splits
             if(all_evaluable)
             {
                 std::vector<instruction_ref> unsqueezed;
-                unsqueezed.reserve(data_args.size());
-                for(auto& d : data_args)
-                {
-                    unsqueezed.push_back(m.insert_instruction(
-                        root, make_op("unsqueeze", {{"axes", {0}}}), d));
-                }
+                std::transform(data_args.begin(), data_args.end(), std::back_inserter(unsqueezed), [&](auto d) {
+                    return m.insert_instruction(root, make_op("unsqueeze", {{"axes", {0}}}), d);
+                });
+
                 auto stacked = m.insert_instruction(
                     root, make_op("concat", {{"axis", 0}}), unsqueezed);
 

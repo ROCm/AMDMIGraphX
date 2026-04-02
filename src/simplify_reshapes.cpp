@@ -1811,13 +1811,14 @@ struct find_flatten
                               flatten->inputs());
     }
 };
+
 struct find_squeeze_unsqueeze_roundtrip
 {
     auto matcher() const
     {
-        return match::any_of(
-            match::name("unsqueeze")(match::arg(0)(match::name("squeeze"))),
-            match::name("squeeze")(match::arg(0)(match::name("unsqueeze"))));
+        auto squeeze = match::name("squeeze");
+        auto unsqueeze = match::name("unsqueeze");
+        return match::any_of(unsqueeze(match::arg(0)(squeeze)), squeeze(match::arg(0)(unsqueeze)));
     }
 
     void apply(module& m, const match::matcher_result& mr) const

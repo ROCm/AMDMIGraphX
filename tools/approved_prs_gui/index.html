@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AMDMIGraphX — PRs with approval</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="header">
+    <div class="header-inner">
+      <h1>Pull requests with at least one approval</h1>
+      <p class="subtitle">
+        <a href="https://github.com/ROCm/AMDMIGraphX" target="_blank" rel="noopener">ROCm/AMDMIGraphX</a>
+        — data from GitHub Search (<code>review:approved</code>). Run the local server to avoid CORS limits.
+      </p>
+      <div class="toolbar">
+        <label class="field">
+          <span class="field-label">State</span>
+          <select id="stateFilter" aria-label="PR state filter">
+            <option value="open" selected>Open</option>
+            <option value="closed">Closed</option>
+            <option value="all">All</option>
+          </select>
+        </label>
+        <button type="button" id="refreshBtn" class="btn primary">Refresh</button>
+        <span id="status" class="status" role="status"></span>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+    <div id="errorBanner" class="banner error hidden" role="alert"></div>
+    <div id="rateBanner" class="banner muted hidden"></div>
+    <div class="table-wrap">
+      <table class="pr-table" aria-label="Pull requests">
+        <thead>
+          <tr>
+            <th scope="col">#</th>
+            <th scope="col">Title</th>
+            <th scope="col">Author</th>
+            <th scope="col">State</th>
+            <th scope="col">Updated</th>
+          </tr>
+        </thead>
+        <tbody id="tbody">
+        </tbody>
+      </table>
+      <p id="empty" class="empty hidden">No matching pull requests.</p>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <p>
+      Start server: <code>python3 tools/approved_prs_gui/server.py</code>
+      — optional <code>GITHUB_TOKEN</code> for higher rate limits (GitHub REST search: 30 req/hr unauthenticated).
+    </p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

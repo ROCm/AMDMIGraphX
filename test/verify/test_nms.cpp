@@ -102,4 +102,3 @@ struct test_nms_dyn_slice : verify_program<test_nms_dyn_slice>
                 {"scores", migraphx::shape{migraphx::shape::float_type, {1, 1, 5}}}};
     }
 };
-

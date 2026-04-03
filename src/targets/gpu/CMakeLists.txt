@@ -188,7 +188,6 @@ add_library(migraphx_gpu
     loop.cpp
     lrn.cpp
     mlir.cpp
-    multinomial.cpp
     no_device.cpp
     nonzero.cpp
     pack_args.cpp
@@ -222,7 +221,6 @@ endfunction()
 register_migraphx_gpu_ops(hip_
     fixed_pad
     loop
-    multinomial
     nonzero
     prefix_scan_sum
     topk

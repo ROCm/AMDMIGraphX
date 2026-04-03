@@ -457,13 +457,13 @@ Operator Support Matrix
 +--------------------------+-----------+-----------------+------------------------------+
 | MaxPool                  | ✅        | FP32, FP16,     | ``storage_order``            |
 |                          |           | FP8, INT8       | not supported,               |
-|                          |           |                 | ``dialtion`` is              |
+|                          |           |                 | ``dilation`` is              |
 |                          |           |                 | partially                    |
 |                          |           |                 | supported on                 |
 |                          |           |                 | GPU (MIOpen                  |
 |                          |           |                 | limitation),                 |
 |                          |           |                 | ``indices`` 2nd              |
-|                          |           |                 | ouput not                    |
+|                          |           |                 | output not                   |
 |                          |           |                 | supported                    |
 +--------------------------+-----------+-----------------+------------------------------+
 | MaxRoiPool               | ❌        |                 |                              |

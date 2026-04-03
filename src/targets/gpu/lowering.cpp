@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -92,13 +92,10 @@ struct miopen_apply
 #endif
         offload_copy = (mod == mpm->get_root_module()) ? pass->offload_copy : false;
 
-        add_extend_op("argmax");
-        add_extend_op("argmin");
-        add_extend_op("logsoftmax");
+        add_extend_op("fixed_pad");
         add_extend_op("multinomial");
         add_extend_op("nonzero");
         add_extend_op("prefix_scan_sum");
-        add_extend_op("reverse");
         add_extend_op("rnn_var_sl_last_output");
         add_extend_op("rnn_var_sl_shift_output");
         add_extend_op("rnn_var_sl_shift_sequence");
@@ -122,8 +119,9 @@ struct miopen_apply
         add_convolution_backwards_op();
         add_select_module_op();
         add_reshape_lazy_op();
-        add_group_query_attention_op();
+        add_concat_past_present_op();
         add_scan_slice_op();
+        add_fill_op();
     }
 
     void copy_params() const
@@ -181,6 +179,7 @@ struct miopen_apply
             else if(has_compiler_for(it->name()))
             {
                 check_shape(s, insert_precompile_op(it));
+                check_shape(s, insert_dynamic_code_object_op(it));
             }
             else if(attrs.contains("target"))
             {
@@ -196,11 +195,14 @@ struct miopen_apply
 
     void insert_fill(instruction_ref ins, value v) const
     {
-        instruction_ref alloc = instruction::get_output_alias(ins, true);
-        if(alloc == ins)
+        auto aliases = instruction::get_output_alias(ins, true);
+        if(aliases.size() == 1 and aliases.front() == ins)
             return;
-        auto fill = mod->insert_instruction(ins, make_op("hip::fill", {{"value", v}}), alloc);
-        instruction::replace_argument(ins, alloc, fill);
+        for(instruction_ref alloc : aliases)
+        {
+            auto fill = mod->insert_instruction(ins, make_op("hip::fill", {{"value", v}}), alloc);
+            instruction::replace_argument(ins, alloc, fill);
+        }
     }
 
     instruction_ref insert_custom_op(instruction_ref ins, const value& attrs) const
@@ -236,6 +238,20 @@ struct miopen_apply
             ins,
             make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
             refs,
+            ins->module_inputs());
+    }
+
+    instruction_ref insert_dynamic_code_object_op(instruction_ref ins) const
+    {
+        assert(ins->get_operator().name() == "gpu::precompile_op");
+
+        if(not ins->get_shape().dynamic())
+            return ins;
+
+        return mod->replace_instruction(
+            ins,
+            make_op("gpu::dynamic_code_object_op", {{"pre_op", to_value(ins->get_operator())}}),
+            ins->inputs(),
             ins->module_inputs());
     }
 
@@ -333,7 +349,8 @@ struct miopen_apply
     static bool use_miopen_pooling(instruction_ref ins)
     {
         if(enabled(MIGRAPHX_DISABLE_MIOPEN_POOLING{}) or
-           not contains({shape::float_type, shape::half_type}, ins->get_shape().type()))
+           not contains({shape::float_type, shape::half_type}, ins->get_shape().type()) or
+           ins->get_shape().dynamic())
             return false;
         auto&& op   = ins->get_operator();
         auto op_val = op.to_value();
@@ -354,15 +371,19 @@ struct miopen_apply
     {
         apply_map.emplace("pooling", [=](instruction_ref ins) {
             if(not use_miopen_pooling(ins))
-                return insert_precompile_op(ins);
+            {
+                auto preop = insert_precompile_op(ins);
+                return insert_dynamic_code_object_op(preop);
+            }
 #if MIGRAPHX_USE_MIOPEN
             auto output                       = insert_allocation(ins, ins->get_shape());
             std::vector<instruction_ref> refs = ins->inputs();
             auto&& op                         = ins->get_operator();
             refs.push_back(output);
             return mod->replace_instruction(ins, make_op("gpu::pooling", op.to_value()), refs);
-#else 
-            return insert_precompile_op(ins);
+#else
+            auto preop = insert_precompile_op(ins);
+            return insert_dynamic_code_object_op(preop);
 #endif
         });
     }
@@ -529,20 +550,9 @@ struct miopen_apply
         });
     }
 
-    void add_group_query_attention_op()
+    void add_concat_past_present_op()
     {
-        apply_map.emplace("gpu::gqa_rotary_embedding", [=](instruction_ref ins) {
-            auto s          = ins->get_shape();
-            auto output     = insert_allocation(ins, s);
-            auto new_inputs = ins->inputs();
-            new_inputs.push_back(output);
-            return mod->replace_instruction(
-                ins,
-                make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
-                new_inputs);
-        });
-
-        apply_map.emplace("gpu::concat_past_present", [=](instruction_ref ins) {
+        apply_map.emplace("concat_past_present", [=](instruction_ref ins) {
             return mod->replace_instruction(ins,
                                             make_op("gpu::precompile_op",
                                                     {{"op", to_value(ins->get_operator())},
@@ -559,6 +569,17 @@ struct miopen_apply
             inputs[1]    = mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_idx);
             return mod->replace_instruction(
                 ins, mod->insert_instruction(ins, ins->get_operator(), inputs));
+        });
+    }
+
+    void add_fill_op()
+    {
+        apply_map.emplace("fill", [=](instruction_ref ins) {
+            return mod->replace_instruction(ins,
+                                            make_op("gpu::precompile_op",
+                                                    {{"op", to_value(ins->get_operator())},
+                                                     {"output_shape", to_value(ins->get_shape())}}),
+                                            ins->inputs());
         });
     }
 };

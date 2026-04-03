@@ -35,7 +35,6 @@
 #include <migraphx/op/logsoftmax.hpp>
 #include <migraphx/op/loop.hpp>
 #include <migraphx/op/lrn.hpp>
-#include <migraphx/op/pad.hpp>
 #include <migraphx/op/softmax.hpp>
 #include <migraphx/op/argmax.hpp>
 #include <migraphx/op/argmin.hpp>
@@ -77,18 +76,19 @@ struct ref_lrn
             int channels        = output_shape.lens()[1];
             int height          = output_shape.lens()[2];
             int width           = output_shape.lens()[3];
-            float alphaoverarea = op.alpha / float(op.size);
+            double alphaoverarea = op.alpha / double(op.size);
             int radius_lower    = (op.size - 1) / 2;
             int radius_upper    = op.size / 2 + 1;
 
             par_dfor(n_batch, height, width)([&](int b, int h, int w) {
-                float scale = 0;
                 dfor(channels)([&](int c) {
+                    double scale = 0;
                     auto start = (c - radius_lower) < 0 ? 0 : (c - radius_lower);
                     auto end   = (c + radius_upper) > channels ? channels : (c + radius_upper);
                     for(auto k = start; k < end; ++k)
                     {
-                        scale += std::pow(input(b, k, h, w), 2);
+                        double x = input(b, k, h, w);
+                        scale += (x * x);
                     }
                     scale *= alphaoverarea;
                     scale += op.bias;
@@ -201,43 +201,6 @@ struct ref_op
     }
 };
 MIGRAPHX_REGISTER_OP(ref_op)
-
-struct ref_pad
-{
-    op::pad op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op, f);
-    }
-
-    std::string name() const { return "ref::pad"; }
-    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
-    argument compute(context&, const dyn_output& dyn_out, std::vector<argument> args) const
-    {
-        assert(dyn_out.computed_shape.standard());
-        argument result{dyn_out.computed_shape};
-        result.visit([&](auto output) {
-            using type = typename decltype(output)::value_type;
-            std::fill(output.begin(), output.end(), pad_clamp<type>(op.value));
-        });
-
-        visit_all(result, args[0])([&](auto output, auto input) {
-            shape_for_each(input.get_shape(), [&](const auto& idx) {
-                std::vector<std::size_t> new_idx(idx.size());
-                std::transform(
-                    idx.begin(), idx.end(), op.pads.begin(), new_idx.begin(), [](auto i, auto j) {
-                        return i + j;
-                    });
-                output(new_idx.begin(), new_idx.end()) = input(idx.begin(), idx.end());
-            });
-        });
-
-        return result;
-    }
-};
-MIGRAPHX_REGISTER_OP(ref_pad)
 
 struct ref_gemm
 {
@@ -427,7 +390,6 @@ struct ref_apply
         apply_map["im2col"]     = extend_op<ref_im2col, op::im2col>();
         apply_map["logsoftmax"] = extend_op<ref_softmax<op::logsoftmax>, op::logsoftmax>();
         apply_map["lrn"]        = extend_op<ref_lrn, op::lrn>();
-        apply_map["pad"]        = extend_op<ref_pad, op::pad>();
         apply_map["softmax"]    = extend_op<ref_softmax<op::softmax>, op::softmax>();
         apply_map["rnn_var_sl_last_output"] =
             extend_op<ref_rnn_var_sl_last_output, op::rnn_var_sl_last_output>();

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -89,6 +89,7 @@ void argument::assign_buffer(std::function<char*()> d)
         data_t result;
         if(ss.sub_shapes().empty())
         {
+            // cppcheck-suppress variableScope
             auto n = offsets[i];
             result = {[d, n]() mutable { return d() + n; }};
             i++;
@@ -151,6 +152,13 @@ argument argument::reshape(const shape& s) const
 {
     assert(s.element_space() <= this->get_shape().element_space());
     return {s, this->m_data};
+}
+
+argument argument::convert(shape::type_t t) const
+{
+    argument result{this->get_shape().with_type(t)};
+    this->visit([&](auto x) { result.fill(x.begin(), x.end()); });
+    return result;
 }
 
 argument::data_t argument::data_t::share() const

@@ -1,0 +1,20 @@
+mxqdq_even_test:Ï
+y
+inputoutput"MXQuantizeDequantize*
+axis *
+
+block_size  *
+element_dtype"fp4_e2m1 *
+rounding_mode mxqdq_even_testZ
+input
+
+
+@
+
+b 
+output
+
+
+@
+
+B

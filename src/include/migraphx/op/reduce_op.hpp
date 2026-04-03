@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -91,7 +91,9 @@ struct reduce_op : op_name<Derived>
     {
         value normalize;
         normalize["axes"] = value::array{normalize_attribute::include_min};
-        return {{"normalize_axes", normalize}, {"reduce", true}};
+        return {{"normalize_axes", normalize},
+                {"reduce", true},
+                {"fillcolor", "#8470FF" /* lightslateblue */}};
     }
 
     shape collapse_reduced_axes(const shape& original_shape,
@@ -117,10 +119,9 @@ struct reduce_op : op_name<Derived>
         auto dims              = data_shape.dyn_dims();
         if(axes.empty())
         {
-            for(auto& dim : dims)
-            {
-                dim = {1, dim.max};
-            }
+            std::transform(dims.begin(), dims.end(), dims.begin(), [](const auto& dim) {
+                return shape::dynamic_dimension{1, dim.max};
+            });
         }
         else
         {

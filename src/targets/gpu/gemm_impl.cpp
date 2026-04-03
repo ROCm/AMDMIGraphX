@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,14 +22,17 @@
  * THE SOFTWARE.
  */
 
-#include <rocblas/internal/rocblas-types.h>
-#include <rocblas/rocblas.h>
-#include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/gpu/gemm_impl.hpp>
+#if MIGRAPHX_USE_ROCBLAS
+#include <rocblas/rocblas.h>
+#include <rocblas/internal/rocblas-types.h>
+#include <migraphx/gpu/rocblas.hpp>
+#endif
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/time.hpp>
 #include <type_traits>
+#include <thread>
 
 using microseconds = std::chrono::duration<double, std::micro>;
 
@@ -66,6 +69,7 @@ static rocblas_datatype get_type(shape::type_t type)
     case shape::fp8e5m2fnuz_type:
     case shape::fp8e4m3fn_type:
     case shape::fp8e5m2_type:
+    case shape::fp4x2_type:
     case shape::tuple_type:
     case shape::bool_type:
     case shape::uint16_type:

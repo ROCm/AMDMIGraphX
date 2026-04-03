@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -325,7 +325,7 @@ def disabled_tests_onnx_1_8_0(backend_test):
 def disabled_tests_onnx_1_9_0(backend_test):
     # fails
     # from OnnxBackendPyTorchConvertedModelTest
-    # MaxPool dialtion is partially supported on GPU by a workaround
+    # MaxPool dilation is partially supported on GPU by a workaround
     # But these tests require too large allocations to work properly
     backend_test.exclude(r'test_MaxPool1d_stride_padding_dilation_cpu')
     backend_test.exclude(r'test_MaxPool2d_stride_padding_dilation_cpu')
@@ -627,6 +627,25 @@ def disabled_tests_onnx_1_17_0(backend_test):
         r'test_resize_tf_crop_and_resize_extrapolation_value_cpu')
     # keep_aspect_ratio_policy not supported
     backend_test.exclude(r'test_resize_upsample_sizes_nearest_not_smaller_cpu')
+
+
+def disabled_tests_onnx_1_18_0(backend_test):
+    # src/onnx/onnx_parser.cpp:841: get_type: Prototensor data type 23 not supported
+    backend_test.exclude(r'test_cast_FLOAT16_to_FLOAT4E2M1_cpu')
+    backend_test.exclude(r'test_cast_FLOAT4E2M1_to_FLOAT16_cpu')
+    backend_test.exclude(r'test_cast_FLOAT4E2M1_to_FLOAT_cpu')
+    backend_test.exclude(r'test_cast_FLOAT_to_FLOAT4E2M1_cpu')
+    backend_test.exclude(r'test_dequantizelinear_float4e2m1_cpu')
+    backend_test.exclude(r'test_quantizelinear_float4e2m1_cpu')
+    # src/onnx/checks.cpp:35: check_arg_empty: PARSE_TopK: k input must be constant
+    backend_test.exclude(r'test_top_k_same_values_2d_cpu')
+    backend_test.exclude(r'test_top_k_same_values_cpu')
+    backend_test.exclude(r'test_top_k_same_values_largest_cpu')
+    backend_test.exclude(r'test_top_k_uint64_cpu')
+    #src/shape.cpp:367: lens: SHAPE: lens() called on a dynamic shape
+    backend_test.exclude(r'test_unique_length_1_cpu')
+    # 
+    backend_test.exclude(r'test_averagepool_2d_ceil_last_window_starts_on_pad_cpu')
 
 
 def disabled_tests_int4(backend_test):
@@ -1208,6 +1227,9 @@ def create_backend_test(testname=None, target_device=None):
 
         if version.parse(onnx.__version__) >= version.parse("1.17.0"):
             disabled_tests_onnx_1_17_0(backend_test)
+
+        if version.parse(onnx.__version__) >= version.parse("1.18.0"):
+            disabled_tests_onnx_1_18_0(backend_test)
 
 
 # import all test cases at global scope to make

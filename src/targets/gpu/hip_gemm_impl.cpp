@@ -32,6 +32,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/gpu/time_op.hpp>
 #include <migraphx/permutation.hpp>
+#include <chrono>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -64,6 +65,7 @@ static hipDataType get_type_hipblas(shape::type_t type)
     case shape::fp8e5m2fnuz_type: return HIP_R_8F_E5M2_FNUZ;
     case shape::fp8e4m3fn_type: return HIP_R_8F_E4M3;
     case shape::fp8e5m2_type: return HIP_R_8F_E5M2;
+    case shape::fp4x2_type:
     case shape::tuple_type:
     case shape::bool_type:
     case shape::uint16_type:
@@ -577,17 +579,23 @@ struct hip_gemm_impl
         {
             auto algo                 = result[i].algo;
             size_t ret_workspace_size = 0;
-            auto supporting_args =
-                create_hipblaslt_supporting_args_common(ctx, input_args, algo, ret_workspace_size);
-            try
+
+            if(hipblaslt_ext::matmulIsAlgoSupported(ctx.get_stream().get_hipblaslt(),
+                                                    hipblaslt_desc,
+                                                    get_alpha(),
+                                                    mat_b,
+                                                    mat_a,
+                                                    get_beta(),
+                                                    mat_c,
+                                                    is_3inputs ? mat_d : mat_c,
+                                                    algo,
+                                                    ret_workspace_size) == HIPBLAS_STATUS_SUCCESS)
             {
-                hipblaslt_invoke(&hipblaslt_ext::matmulIsAlgoSupported, supporting_args);
-                solution_indices.push_back(hipblaslt_ext::getIndexFromAlgo(algo));
-            }
-            catch(...)
-            {
-                // algo is not supported, continue in that case
-                continue;
+                // To balance performance and memory usage, solutions for exhaustive tuning
+                // are only considered if their workspace size is less than or equal to 128MB.
+                // This avoids using excessive memory for potentially minor speed improvements.
+                if(ret_workspace_size <= hipblaslt_workspace_size / 2)
+                    solution_indices.push_back(hipblaslt_ext::getIndexFromAlgo(algo));
             }
         }
 

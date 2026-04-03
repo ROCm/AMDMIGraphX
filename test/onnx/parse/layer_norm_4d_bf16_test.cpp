@@ -28,7 +28,7 @@
 TEST_CASE(layer_norm_4d_bf16_test)
 {
     migraphx::program p =
-        make_layer_norm({3, 3, 3, 3}, {3}, {3}, 3, false, 1e-5f, migraphx::shape::bf16_type);
+        make_layer_norm({3, 3, 3, 3}, {3}, {3}, 3, false, true, 1e-5f, migraphx::shape::bf16_type);
 
     auto prog = optimize_onnx("layer_norm_4d_bf16_test.onnx");
     EXPECT(p == prog);

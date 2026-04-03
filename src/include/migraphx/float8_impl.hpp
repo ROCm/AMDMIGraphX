@@ -1,24 +1,26 @@
-/* ************************************************************************
- * Copyright (C) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell cop-
- * ies of the Software, and to permit persons to whom the Software is furnished
- * to do so, subject to the following conditions:
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
  *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IM-
- * PLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
- * FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
- * COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
- * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNE-
- * CTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- *
- * ************************************************************************ */
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 
 #ifndef MIGRAPHX_GUARD_RTGLIB_FLOAT8_IMPL_HPP
 #define MIGRAPHX_GUARD_RTGLIB_FLOAT8_IMPL_HPP
@@ -43,7 +45,7 @@ constexpr uint8_t cast_to_f8(T f_x, bool stoch = false, uint32_t rng = 0)
     static_assert(is_float or is_half, "Only float can be cast to f8");
 
     const uint32_t mfmt = (sizeof(T) == 4) ? 23 : 10;
-    typename std::conditional<sizeof(T) == 2, uint16_t, uint32_t>::type x;
+    typename std::conditional<sizeof(T) == 2, uint16_t, uint32_t>::type x = 0;
 
     if constexpr(sizeof(T) == 4)
         x = migraphx::bit_cast<uint32_t>(f_x);
@@ -119,7 +121,7 @@ constexpr uint8_t cast_to_f8(T f_x, bool stoch = false, uint32_t rng = 0)
         return NegativeZeroNan ? 0 : 0x80; // For FNUZ types neg zero is just positive zero
     }
 
-    /* First need to check if it is normal or denorm as there is a difference of implict 1
+    /* First need to check if it is normal or denorm as there is a difference of implicit 1
     Then need to adjust the exponent to align with the F8 exponent, in the meanwhile, shift
     The mantissa. Then for stochastic rounding, add rng to mantissa and truncate. And for
     RNE, no need to add rng. Then probably need to check whether there is carry and adjust
@@ -155,7 +157,7 @@ constexpr uint8_t cast_to_f8(T f_x, bool stoch = false, uint32_t rng = 0)
         {
             /* This is the case where fp32/fp16 is normal but it is in f8 denormal range.
             For example fp8 FNUZ mode, denormal exponent is -7, but if the fp32/fp16
-            actual exponent is -7, it is actually larger due to the implict 1,
+            actual exponent is -7, it is actually larger due to the implicit 1,
             Therefore it needs to be adjust to -6 and mantissa shift right by 1.
             So for fp32/fp16, exponent -8 is the cut point to convert to fp8 FNUZ */
             exponent_diff = f8_denormal_act_exponent - act_exponent;
@@ -184,7 +186,7 @@ constexpr uint8_t cast_to_f8(T f_x, bool stoch = false, uint32_t rng = 0)
     else if(exponent_diff == -1)
         mantissa <<= -exponent_diff;
     bool implicit_one = mantissa & (1 << mfmt);
-    // if there is no implict 1, it  means the f8 is denormal and need to adjust to denorm exponent
+    // if there is no implicit 1, it means the f8 is denormal and need to adjust to denorm exponent
     f8_exponent =
         (act_exponent + exponent_diff) /*actual f8 exponent*/ + f8_bias - (implicit_one ? 0 : 1);
 

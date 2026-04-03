@@ -389,7 +389,7 @@ struct nonmaxsuppression
         std::size_t num_selected = 0;
 
         result.visit([&](auto output) {
-            visit_all(args[0], args[1])([&](auto boxes, auto scores) {
+            get_all<double>(args[0], args[1])([&](auto boxes, auto scores) {
                 num_selected = compute_nms(output,
                                            boxes,
                                            scores,

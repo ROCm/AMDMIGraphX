@@ -103,6 +103,8 @@ struct MIGRAPHX_EXPORT argument : raw_data<argument>
         });
     }
 
+    argument convert(shape::type_t t) const;
+
     private:
     void assign_buffer(std::function<char*()> d);
     struct data_t
@@ -125,6 +127,17 @@ MIGRAPHX_EXPORT void migraphx_from_value(const value& v, argument& a);
 
 MIGRAPHX_EXPORT void save_argument(const argument& a, const std::string& filename);
 MIGRAPHX_EXPORT argument load_argument(const std::string& filename);
+
+// Visit-like function but just converts argument to double
+template<class T, class... Ts>
+auto get_all(Ts&&... xs)
+{
+    return [&](auto v) {
+        [&](auto&&... xs) {
+            v(xs.template get<T>()...);
+        }(xs.convert(shape::get_type<T>{})...);
+    };
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

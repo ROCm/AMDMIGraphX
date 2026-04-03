@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -107,7 +107,7 @@ struct slice
                                               normalize_attribute::include_max,
                                               normalize_attribute::use_len,
                                               normalize_attribute::include_min};
-        return {{"normalize_axes", normalize_axes}};
+        return {{"normalize_axes", normalize_axes}, {"fillcolor", "#FFA500" /* orange */}};
     }
 
     std::string name() const { return "slice"; }
@@ -502,7 +502,7 @@ struct slice
         }
     }
 
-    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
+    std::vector<std::size_t> output_alias(const std::vector<shape>&) const { return {0}; }
 };
 
 } // namespace op

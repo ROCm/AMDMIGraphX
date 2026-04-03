@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -232,16 +232,20 @@ TEST_CASE(compile_target)
 TEST_CASE(compile_errors)
 {
     EXPECT(test::throws([&] {
-        migraphx::gpu::compile_hip_src(
-            {make_src_file("main.cpp", incorrect_program)}, {}, migraphx::gpu::get_device_name());
+        migraphx::gpu::compile_hip_src({make_src_file("main.cpp", incorrect_program)},
+                                       {},
+                                       migraphx::gpu::get_device_name(),
+                                       true);
     }));
 }
 
 TEST_CASE(compile_warnings)
 {
     auto compile = [](const std::vector<std::string>& params) {
-        return migraphx::gpu::compile_hip_src(
-            {make_src_file("main.cpp", unused_param)}, params, migraphx::gpu::get_device_name());
+        return migraphx::gpu::compile_hip_src({make_src_file("main.cpp", unused_param)},
+                                              params,
+                                              migraphx::gpu::get_device_name(),
+                                              true);
     };
 
     EXPECT(not compile({}).empty());
@@ -440,7 +444,6 @@ int main() {}
 
 TEST_CASE(assert_type_min_max)
 {
-    std::vector<std::string> data_types;
     migraphx::gpu::hip_compile_options options;
     migraphx::gpu::context ctx;
     for(auto&& t : migraphx::shape::types())

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,6 +25,7 @@
 #include <migraphx/algorithm.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/bit_signal.hpp>
+#include <migraphx/shape.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/target.hpp>
@@ -64,7 +65,7 @@ struct module_impl
 
     bool contains(instruction_ref ins) const
     {
-        if(is_end(ins, instructions.end()))
+        if(ins == instructions.end())
             return false;
         auto r = instruction_set.count(std::addressof(*ins)) > 0;
         assert(r == std::any_of(instructions.begin(), instructions.end(), [&](auto&& x) {
@@ -434,6 +435,61 @@ instruction_ref module::move_instructions(instruction_ref src, instruction_ref d
     return src;
 }
 
+void module::move_output_instructions_after(instruction_ref src, instruction_ref dst)
+{
+    auto d = std::distance(src, dst);
+    std::vector<std::pair<std::size_t, instruction_ref>> instructions;
+    // When an output is in a submodule (cross-module reference), resolve it to
+    // the instruction in this module that owns the submodule containing the output.
+    // The map is lazily built on the first cross-module output encountered.
+    std::optional<std::unordered_map<const_module_ref, instruction_ref>> mod_owner_map;
+    auto resolve_output = [&](instruction_ref output) -> instruction_ref {
+        if(this->has_instruction(output))
+            return output;
+        if(not mod_owner_map)
+        {
+            mod_owner_map.emplace();
+            auto r = range(std::next(src), dst);
+            for(auto ins : iterator_for(r))
+            {
+                for(auto* mod : ins->module_inputs())
+                {
+                    (*mod_owner_map)[mod] = ins;
+                    for(auto* smod : mod->get_sub_modules())
+                        (*mod_owner_map)[smod] = ins;
+                }
+            }
+        }
+        auto it = std::find_if(mod_owner_map->begin(), mod_owner_map->end(), [&](const auto& p) {
+            return p.first->has_instruction(output);
+        });
+        if(it != mod_owner_map->end())
+            return it->second;
+        return this->end();
+    };
+    fix([&](auto self, instruction_ref ins) {
+        for(auto output : ins->outputs())
+        {
+            output = resolve_output(output);
+            if(is_end(output, this->end()))
+                continue;
+            if(any_of(instructions, [&](const auto& p) { return p.second == output; }))
+                continue;
+            auto i = std::distance(src, output);
+            if(i >= d)
+                continue;
+            instructions.emplace_back(i, output);
+            self(output);
+        }
+    })(src);
+    std::sort(instructions.begin(), instructions.end(), by(std::less<>{}, [](auto&& p) {
+                  return p.first;
+              }));
+    auto loc = std::next(dst);
+    for(auto [i, ins] : instructions)
+        this->move_instruction(ins, loc);
+}
+
 std::vector<instruction_ref>
 module::add_instructions(const std::vector<instruction_ref>& instructions,
                          std::unordered_map<instruction_ref, instruction_ref>* map_ins,
@@ -717,11 +773,12 @@ std::vector<shape> module::compute_shapes(const std::vector<shape>& inputs,
                                ins->get_shape().type_string() + " but passed " +
                                ins_shapes[ins].type_string());
             }
-            if(options.strict_lens and ins->get_shape().lens() != ins_shapes[ins].lens())
+            if(options.strict_lens and
+               not shape::is_compatible_lens(ins_shapes[ins], ins->get_shape()))
             {
-                MIGRAPHX_THROW(options.name + ": Mismatched lens: expected {" +
-                               to_string_range(ins->get_shape().lens()) + "} but passed {" +
-                               to_string_range(ins_shapes[ins].lens()) + "}");
+                MIGRAPHX_THROW(options.name + ": Mismatched dims: expected " +
+                               to_string(ins->get_shape()) + " but passed " +
+                               to_string(ins_shapes[ins]));
             }
         }
         else if(ins->name() == "@literal")
@@ -779,19 +836,24 @@ instruction_ref module::validate() const
 
 static bool is_borrowed(instruction_ref ins)
 {
-    auto alias = instruction::get_output_alias(ins, true);
-    if(alias == ins)
+    auto aliases = instruction::get_output_alias(ins, true);
+    if(aliases.size() == 1 and aliases.front() == ins)
         return false;
-    lifetime l = alias->get_operator().get_lifetime();
-    if(l == lifetime::borrow)
-        return true;
-    return is_borrowed(alias);
+    return std::any_of(aliases.begin(), aliases.end(), [](instruction_ref alias) {
+        lifetime l = alias->get_operator().get_lifetime();
+        if(l == lifetime::borrow)
+            return true;
+        return is_borrowed(alias);
+    });
 }
 
 static bool is_global(instruction_ref ins)
 {
-    const auto& op = instruction::get_output_alias(ins)->get_operator();
-    return op.name() == "@param" or op.get_lifetime() == lifetime::global;
+    auto aliases = instruction::get_output_alias(ins);
+    return std::any_of(aliases.begin(), aliases.end(), [](instruction_ref alias) {
+        const auto& op = alias->get_operator();
+        return op.name() == "@param" or op.get_lifetime() == lifetime::global;
+    });
 }
 
 static bool is_dangling(instruction_ref ins) { return not is_global(ins) and is_borrowed(ins); }
@@ -1219,6 +1281,7 @@ void module::print_graph(std::ostream& os, bool brief) const
 {
     os << "digraph {" << std::endl;
     os << "\trankdir=LR;" << std::endl;
+
     this->print([&](auto ins, auto ins_names) {
         std::string label;
         if(brief)
@@ -1319,7 +1382,7 @@ module::print_py(std::ostream& os,
             if(ins->name() == "@literal")
             {
                 os << mname << ".add_literal(";
-                if(ins->get_shape().elements() < 10)
+                if(ins->get_shape().elements() < 1024)
                 {
                     os << "migraphx.create_argument(";
                     print_py_shape(os, ins->get_shape());
@@ -1465,28 +1528,103 @@ std::vector<module_ref> module::get_sub_modules(bool shallow) const
     return vec_modules;
 }
 
+module module::with_static_shapes(const std::unordered_map<std::string, shape>& input_shapes)
+{
+    // This routine creates a new module with the same instructions but with different input shapes.
+    // The sequence of instructions (operators and interconnectivity) is copied, but all input
+    // parameter shapes are replaced with new "input_shapes".
+
+    // ensure input_shapes is the same length as the parameters.
+    auto param_names = this->get_parameter_names();
+    assert(param_names.size() == input_shapes.size());
+
+    module new_mod;
+    std::unordered_map<instruction_ref, instruction_ref> ins_map;
+
+    // create parameters with new shapes in new_mod and fill ins_map for params
+    for(auto ins : iterator_for(*this))
+    {
+        if(ins->name() == "@param")
+        {
+            auto pname = any_cast<builtin::param>(ins->get_operator()).parameter;
+            assert(input_shapes.count(pname) > 0);
+            ins_map[ins] = new_mod.add_parameter(pname, input_shapes.at(pname));
+        }
+    }
+
+    // Copy remaining instructions in order
+    auto ret = new_mod.insert_instructions(new_mod.end(), this, &ins_map);
+    new_mod.add_return(ret);
+
+    return new_mod;
+}
+
 module& module::sort()
 {
+    if(this->begin() == this->end())
+        return *this;
+    std::unordered_set<instruction_ref> visited;
     auto implicit_deps = calc_implicit_deps();
-    fix([&](auto self, auto ins) {
-        this->move_instruction(ins, this->begin());
-        auto ins_inputs = ins->inputs();
-        if(implicit_deps.find(ins) != implicit_deps.end())
-        {
-            auto ins_implict_inputs = implicit_deps.at(ins);
-            ins_inputs.insert(
-                ins_inputs.end(), ins_implict_inputs.begin(), ins_implict_inputs.end());
-        }
-        for(auto child : ins_inputs)
-        {
-            if(not contains(this->impl->instructions, child))
+    std::vector<instruction_ref> lasts;
+    copy_if(iterator_for(*this), std::back_inserter(lasts), [&](auto last) {
+        return last->outputs().empty();
+    });
+    for(auto last : lasts)
+    {
+        fix([&](auto self, auto ins) {
+            if(visited.insert(ins).second == false)
+                return;
+            auto ins_inputs = ins->inputs();
+            if(implicit_deps.find(ins) != implicit_deps.end())
             {
-                continue;
+                auto ins_implict_inputs = implicit_deps.at(ins);
+                ins_inputs.insert(
+                    ins_inputs.end(), ins_implict_inputs.begin(), ins_implict_inputs.end());
             }
-            self(child);
-        }
-    })(std::prev(this->end()));
+            for(auto child : ins_inputs)
+            {
+                if(not contains(this->impl->instructions, child))
+                    continue;
+                self(child);
+            }
+            this->move_instruction(ins, this->end());
+        })(last);
+    }
     assert(this->validate() == this->end());
+    return *this;
+}
+
+module& module::shuffle(std::vector<std::size_t> permutation)
+{
+    if(permutation.empty())
+        return *this;
+    const std::size_t n = this->impl->instructions.size();
+    assert(permutation.size() == n and "permutation size must match list size");
+
+    auto it_dest = this->impl->instructions.begin();
+
+    for(std::size_t i = 0; i < n; ++i)
+    {
+        // find j >= i such that permutation[j] == i
+        auto itp = std::find(permutation.begin() + i, permutation.end(), i);
+        assert(itp != permutation.end());
+        std::size_t j = std::distance(permutation.begin(), itp);
+
+        std::size_t dist = j - i;
+        auto it_src      = it_dest;
+        std::advance(it_src, dist);
+
+        if(dist > 0)
+            this->impl->instructions.splice(it_dest, this->impl->instructions, it_src);
+
+        // Rotate permutation[i..j] right by 1 so that permutation[i] == i
+        std::rotate(permutation.begin() + i, permutation.begin() + j, permutation.begin() + j + 1);
+
+        // if nothing moved (dist==0), advance it_dest manually;
+        //    otherwise, splice has already pushed the old it_dest forward
+        if(dist == 0)
+            ++it_dest;
+    }
     return *this;
 }
 
@@ -1553,6 +1691,49 @@ void module::repeat_while_changes(std::size_t n, const std::function<void()>& f)
             break;
         (void)i;
     }
+}
+
+// Hoists external inputs (instructions not in the dependency chain between start_ins and end_ins)
+// to before start_ins, while preserving topological order
+void module::hoist_external_inputs(instruction_ref start_ins, instruction_ref end_ins)
+{
+    // get the chain of instructions between start_ins and end_ins, inclusive
+    auto fusion_ins = find_instructions_between(start_ins, end_ins, this);
+
+    // move all instructions between start_ins & end_ins that are not in the fusion chain
+    // to the start_ins. In order, moving to the same destination, this will naturally preserve
+    // the preexisting topological order of the module
+    for(auto it = std::next(start_ins); it != end_ins;)
+    {
+        if(fusion_ins.count(it) == 0)
+        {
+            // only move if none of its inputs are after start_ins
+            bool has_input_in_range =
+                std::any_of(it->inputs().begin(), it->inputs().end(), [&](instruction_ref input) {
+                    if(not has_instruction(input))
+                        return false;
+                    // verify: start_ins < input < it
+                    return std::find(std::next(start_ins), it, input) != it;
+                });
+
+            if(has_input_in_range)
+            {
+                // input is after start_ins, meaning can't move this instruction
+                ++it;
+            }
+            else
+            {
+                auto next = std::next(it);
+                this->move_instruction(it, start_ins);
+                it = next;
+            }
+        }
+        else
+        {
+            ++it;
+        }
+    }
+    assert(this->validate() == this->end());
 }
 
 bool operator==(const module& x, const module& y) { return to_string(x) == to_string(y); }

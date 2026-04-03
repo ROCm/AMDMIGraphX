@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,16 +27,15 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_convolution_backwards_2d_alt : verify_program<test_convolution_backwards_2d_alt>
+template <migraphx::shape::type_t DType>
+struct test_convolution_backwards_2d_alt : verify_program<test_convolution_backwards_2d_alt<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto* mm = p.get_main_module();
-        auto input =
-            mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 10, 10}});
-        auto weights =
-            mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3}});
+        auto* mm     = p.get_main_module();
+        auto input   = mm->add_parameter("x", migraphx::shape{DType, {1, 1, 10, 10}});
+        auto weights = mm->add_parameter("w", migraphx::shape{DType, {1, 1, 3, 3}});
         mm->add_instruction(
             migraphx::make_op("convolution_backwards",
                               {{"padding", {2, 2}}, {"stride", {2, 2}}, {"dilation", {2, 2}}}),
@@ -45,3 +44,7 @@ struct test_convolution_backwards_2d_alt : verify_program<test_convolution_backw
         return p;
     }
 };
+
+template struct test_convolution_backwards_2d_alt<migraphx::shape::float_type>;
+template struct test_convolution_backwards_2d_alt<migraphx::shape::half_type>;
+template struct test_convolution_backwards_2d_alt<migraphx::shape::bf16_type>;

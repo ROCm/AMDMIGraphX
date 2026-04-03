@@ -49,7 +49,7 @@ migraphx::instruction_ref add_group(migraphx::program& p,
     }
     auto r = f(pm, params);
 
-    pm->add_return({r});
+    pm->add_return(r);
     return mm->add_instruction(migraphx::make_op("group", {{"tag", group_tag}}), inputs, {pm});
 }
 

@@ -37,7 +37,7 @@ jobs:
     - name: Install LLVM/Clang
       uses: KyleMayes/install-llvm-action@v2
       with:
-        version: "17"
+        version: "20"
         directory: ${{ runner.temp }}/llvm
 
     - name: Install rbuild

@@ -1969,37 +1969,37 @@ struct find_split_reshape
 
     struct linear_map
     {
-        std::size_t x = 0;
-        std::size_t y = 0;
+        std::size_t src = 0;
+        std::size_t dst = 0;
 
         bool is_valid() const
         {
-            if(x == y)
+            if(src == dst)
                 return true;
-            if(y > x)
-                return (y % x) == 0;
-            return (x % y) == 0;
+            if(dst > src)
+                return (dst % src) == 0;
+            return (src % dst) == 0;
         }
 
         bool is_valid_index(std::size_t i) const
         {
-            if(x > y)
-                return i % (x / y) == 0;
+            if(src > dst)
+                return i % (src / dst) == 0;
             return true;
         }
 
         std::size_t operator()(std::size_t i) const
         {
-            if(x == y)
+            if(src == dst)
                 return i;
-            if(y > x)
-                return i * (y / x);
-            return i / (x / y);
+            if(dst > src)
+                return i * (dst / src);
+            return i / (src / dst);
         };
 
         friend std::ostream& operator<<(std::ostream& s, const linear_map& lm)
         {
-            s << "x: " << lm.x << ", y: " << lm.y;
+            s << "src: " << lm.src << ", dst: " << lm.dst;
             return s;
         }
     };
@@ -2096,7 +2096,7 @@ struct find_split_reshape
                 return;
             auto per_axis_nslices = input_lens.at(op_axis) / slc_lens.at(op_axis);
             dims[axis] *= per_axis_nslices;
-            linear_map linear{input_lens.at(op_axis), dims[axis]};
+            linear_map linear{.src = input_lens.at(op_axis), .dst = dims[axis]};
             if(not linear.is_valid())
                 return;
             axes.push_back(axis);

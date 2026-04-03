@@ -3592,18 +3592,14 @@ TEST_CASE(reorder_reshape_slice_multi_axes)
         migraphx::shape s{migraphx::shape::float_type, {6, 8, 5}};
         auto input = m1.add_parameter("input", s);
         auto slc0  = m1.add_instruction(
-            migraphx::make_op("slice",
-                              {{"axes", {0, 1}}, {"starts", {0, 0}}, {"ends", {3, 4}}}),
+            migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {0, 0}}, {"ends", {3, 4}}}),
             input);
         auto slc1 = m1.add_instruction(
-            migraphx::make_op("slice",
-                              {{"axes", {0, 1}}, {"starts", {3, 4}}, {"ends", {6, 8}}}),
+            migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {3, 4}}, {"ends", {6, 8}}}),
             input);
 
-        auto r0 =
-            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 2, 2, 5}}}), slc0);
-        auto r1 =
-            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 2, 2, 5}}}), slc1);
+        auto r0 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 2, 2, 5}}}), slc0);
+        auto r1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 2, 2, 5}}}), slc1);
 
         auto sum = m1.add_instruction(migraphx::make_op("add"), r0, r1);
         m1.add_return({sum});
@@ -3614,15 +3610,13 @@ TEST_CASE(reorder_reshape_slice_multi_axes)
     {
         migraphx::shape s{migraphx::shape::float_type, {6, 8, 5}};
         auto input = m2.add_parameter("input", s);
-        auto rsp   = m2.add_instruction(
-            migraphx::make_op("reshape", {{"dims", {6, 4, 2, 5}}}), input);
+        auto rsp =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {6, 4, 2, 5}}}), input);
         auto slc0 = m2.add_instruction(
-            migraphx::make_op("slice",
-                              {{"axes", {0, 1}}, {"starts", {0, 0}}, {"ends", {3, 2}}}),
+            migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {0, 0}}, {"ends", {3, 2}}}),
             rsp);
         auto slc1 = m2.add_instruction(
-            migraphx::make_op("slice",
-                              {{"axes", {0, 1}}, {"starts", {3, 2}}, {"ends", {6, 4}}}),
+            migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {3, 2}}, {"ends", {6, 4}}}),
             rsp);
 
         auto sum = m2.add_instruction(migraphx::make_op("add"), slc0, slc1);
@@ -3639,12 +3633,10 @@ TEST_CASE(reorder_reshape_slice_multi_axes_not_apply)
         migraphx::shape s{migraphx::shape::float_type, {4, 6}};
         auto input = m1.add_parameter("input", s);
         auto slc0  = m1.add_instruction(
-            migraphx::make_op("slice",
-                              {{"axes", {0, 1}}, {"starts", {0, 0}}, {"ends", {2, 3}}}),
+            migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {0, 0}}, {"ends", {2, 3}}}),
             input);
         auto slc1 = m1.add_instruction(
-            migraphx::make_op("slice",
-                              {{"axes", {0, 1}}, {"starts", {2, 3}}, {"ends", {4, 6}}}),
+            migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {2, 3}}, {"ends", {4, 6}}}),
             input);
 
         auto r0 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {6}}}), slc0);

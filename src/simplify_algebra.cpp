@@ -2079,13 +2079,13 @@ struct find_split_reshape
 
         auto am = desc.axes_map_from_src(true);
 
-        auto slc_val  = slc->get_operator().to_value();
-        auto op_axes  = slc_val.at("axes").to_vector<std::size_t>();
+        auto slc_val = slc->get_operator().to_value();
+        auto op_axes = slc_val.at("axes").to_vector<std::size_t>();
         std::vector<std::size_t> axes;
         std::vector<linear_map> linears;
-        auto dims           = desc.lens();
-        auto input_lens     = input->get_shape().lens();
-        auto slc_lens       = slc->get_shape().lens();
+        auto dims       = desc.lens();
+        auto input_lens = input->get_shape().lens();
+        auto slc_lens   = slc->get_shape().lens();
         for(auto op_axis : op_axes)
         {
             auto mapped = am[op_axis];
@@ -2118,9 +2118,15 @@ struct find_split_reshape
                 return;
             std::vector<std::size_t> new_starts(linears.size());
             std::vector<std::size_t> new_ends(linears.size());
-            std::transform(linears.begin(), linears.end(), op_starts.begin(), new_starts.begin(),
+            std::transform(linears.begin(),
+                           linears.end(),
+                           op_starts.begin(),
+                           new_starts.begin(),
                            [](const auto& lm, auto s) { return lm(s); });
-            std::transform(linears.begin(), linears.end(), op_ends.begin(), new_ends.begin(),
+            std::transform(linears.begin(),
+                           linears.end(),
+                           op_ends.begin(),
+                           new_ends.begin(),
                            [](const auto& lm, auto e) { return lm(e); });
 
             new_slices.push_back(

@@ -95,10 +95,17 @@ __device__ T readlane(T& x)
     return dpp_op(x, [](auto i) { return __shfl(i, SrcLane, Width); });
 }
 
+template <index_int Width, class T>
+__device__ T readlane(T& x, unsigned int src_lane)
+{
+    static_assert(is_power_of_2(Width), "Width must be a power of 2");
+    return dpp_op(x, [&](auto i) { return __shfl(i, src_lane, Width); });
+}
+
 template <class T>
 __device__ T readlane(T& x, unsigned int src_lane)
 {
-    return dpp_op(x, [&](auto i) { return __shfl(i, src_lane, MIGRAPHX_WAVEFRONTSIZE); });
+    return readlane<MIGRAPHX_WAVEFRONTSIZE>(x, src_lane);
 }
 
 template <unsigned int XorMask, class T>

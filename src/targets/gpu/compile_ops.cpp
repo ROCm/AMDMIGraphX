@@ -216,6 +216,11 @@ struct compile_plan
             if(not results.front().has_value())
                 MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
                                problem_string() + "\n\n" + print_modules());
+            if(config and config->solutions.size() == 1)
+            {
+                ctx->get_problem_cache().insert(
+                    preop.name(), config->problem, config->solutions.front());
+            }
             return *results.front();
         }
         if(not config)

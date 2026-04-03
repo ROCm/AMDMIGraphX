@@ -977,6 +977,38 @@ struct mlir_program
         return {global, local};
     }
 
+    std::size_t get_num_kernel_args() const
+    {
+        std::size_t num_args = 0;
+        auto body = mlirModuleGetBody(mmodule.get());
+        auto op   = mlirBlockGetFirstOperation(body);
+        while(!mlirOperationIsNull(op))
+        {
+            auto id      = mlirOperationGetName(op);
+            auto nameref = mlirIdentifierStr(id);
+            std::string op_name(nameref.data, nameref.length);
+            if(op_name == "llvm.func" or op_name == "func.func")
+            {
+                auto region = mlirOperationGetRegion(op, 0);
+                auto block  = mlirRegionGetFirstBlock(region);
+                num_args    = mlirBlockGetNumArguments(block);
+                break;
+            }
+            op = mlirOperationGetNextInBlock(op);
+        }
+        return num_args;
+    }
+
+    std::size_t get_shared_mem_size() const
+    {
+        auto mod_op = mlirModuleGetOperation(mmodule.get());
+        auto attr   = mlirOperationGetAttributeByName(
+            mod_op, mlirStringRefCreateFromCString("ttg.shared"));
+        if(!mlirAttributeIsNull(attr))
+            return mlirIntegerAttrGetValueInt(attr);
+        return 0;
+    }
+
     value::binary get_binary() const
     {
         size_t size = 0;
@@ -1300,6 +1332,10 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     auto co            = mp.compile(solution);
     co.expected_inputs = in_shapes;
     co.output          = in_shapes.back();
+    auto total_kernel_args = mp.get_num_kernel_args();
+    if(total_kernel_args > in_shapes.size())
+        co.extra_kernel_args = total_kernel_args - in_shapes.size();
+    co.shared_mem_bytes = mp.get_shared_mem_size();
 
     mlir_code_object mco;
     mco.cop                 = co;

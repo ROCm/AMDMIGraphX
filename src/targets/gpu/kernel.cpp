@@ -87,6 +87,7 @@ static void launch_kernel(hipFunction_t fun,
                           std::size_t local,
                           void* kernargs,
                           std::size_t size,
+                          std::size_t shared_mem,
                           hipEvent_t start,
                           hipEvent_t stop)
 {
@@ -112,7 +113,7 @@ static void launch_kernel(hipFunction_t fun,
                                            local,
                                            1,
                                            1,
-                                           0,
+                                           shared_mem,
                                            stream,
                                            nullptr,
                                            reinterpret_cast<void**>(&config),
@@ -132,6 +133,7 @@ void kernel::launch(hipStream_t stream,
                     std::size_t global,
                     std::size_t local,
                     pointers args,
+                    std::size_t shared_mem,
                     hipEvent_t start,
                     hipEvent_t stop) const
 {
@@ -139,7 +141,7 @@ void kernel::launch(hipStream_t stream,
     void* kernargs   = reinterpret_cast<void*>(args.data());
     std::size_t size = args.bytes();
 
-    launch_kernel(impl->fun, stream, global, local, kernargs, size, start, stop);
+    launch_kernel(impl->fun, stream, global, local, kernargs, size, shared_mem, start, stop);
 }
 
 void kernel::launch(hipStream_t stream,
@@ -153,7 +155,7 @@ void kernel::launch(hipStream_t stream,
     std::vector<char> kernargs = pack_args(args);
     std::size_t size           = kernargs.size();
 
-    launch_kernel(impl->fun, stream, global, local, kernargs.data(), size, start, stop);
+    launch_kernel(impl->fun, stream, global, local, kernargs.data(), size, 0, start, stop);
 }
 
 } // namespace gpu

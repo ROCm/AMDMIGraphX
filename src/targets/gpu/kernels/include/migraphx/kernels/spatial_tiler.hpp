@@ -90,18 +90,19 @@ struct spatial_tiler
     template <class InputShape>
     static constexpr auto halo_lens_for()
     {
-        constexpr auto input_spatial = make_slice(InputShape{}, keep_spatial()).lens;
-        constexpr auto halo_extra =
-            transform(input_spatial, out_spatial_lens(), [](auto is, auto os) { return is - os; });
         if constexpr(has_conv_padding())
         {
-            constexpr auto corrected = transform(
-                halo_extra, full_padding(), [](auto h, auto p) -> index_int { return h + p; });
-            return transform(
-                output_lens(), corrected, [](auto o, auto h) -> index_int { return o + h; });
+            constexpr auto halo_extra = return_array_c([] {
+                return make_slice(InputShape{}, keep_spatial()).lens - out_spatial_lens() +
+                       full_padding();
+            });
+            return transform(output_lens(), halo_extra, [](auto o, auto h) { return o + h; });
         }
         else
         {
+            constexpr auto input_spatial = make_slice(InputShape{}, keep_spatial()).lens;
+            constexpr auto halo_extra    = transform(
+                input_spatial, out_spatial_lens(), [](auto is, auto os) { return is - os; });
             return transform(output_lens(), halo_extra, [](auto o, auto h) { return o + h; });
         }
     }

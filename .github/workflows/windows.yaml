@@ -53,7 +53,10 @@ jobs:
         restore-keys: windows-cget-clang-
 
     - name: Install dependencies
-      run: rbuild prepare -d cget -s gh-win -G Ninja
+      run: |
+        rbuild prepare -d cget -s gh-win -G Ninja \
+          -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL \
+          -DBUILD_SHARED_LIBS=On \
 
     - name: Build and test
       env:

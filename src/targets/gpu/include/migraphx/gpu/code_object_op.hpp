@@ -44,7 +44,9 @@ struct code_object_op
     std::size_t local       = 0;
     std::vector<shape> expected_inputs{};
     shape output{};
-    std::int64_t output_arg = -1;
+    std::int64_t output_arg       = -1;
+    std::size_t extra_kernel_args = 0;
+    std::size_t shared_mem_bytes  = 0;
     kernel k{};
 
     template <class Self, class F>
@@ -56,7 +58,9 @@ struct code_object_op
                     f(self.local, "local"),
                     f(self.expected_inputs, "expected_inputs"),
                     f(self.output, "output"),
-                    f(self.output_arg, "output_arg"));
+                    f(self.output_arg, "output_arg"),
+                    f(self.extra_kernel_args, "extra_kernel_args"),
+                    f(self.shared_mem_bytes, "shared_mem_bytes"));
     }
 
     value attributes() const { return {{"group", group()}}; }

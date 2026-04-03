@@ -61,6 +61,7 @@ jobs:
     - name: Install dependencies
       run: |
         rbuild prepare -d cget -s gh-win -G Ninja \
+          -Dprotobuf_MSVC_STATIC_RUNTIME=Off \
           -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL
 
     - name: Build and test

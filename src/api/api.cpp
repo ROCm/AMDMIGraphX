@@ -74,7 +74,7 @@ try_(F f, bool output = true, source_location llc = source_location::current()) 
         catch(const migraphx::exception& ex)
         {
             if(output)
-                log::error() << llc.function_name() << ": Error: " << ex.what();
+                std::cerr << llc.function_name() << ": Error: " << ex.what() << std::endl;
             if(ex.error > 0)
                 return migraphx_status(ex.error);
             else
@@ -83,7 +83,7 @@ try_(F f, bool output = true, source_location llc = source_location::current()) 
         catch(const std::exception& ex)
         {
             if(output)
-                log::error() << llc.function_name() << ": Error: " << ex.what();
+                std::cerr << llc.function_name() << ": Error: " << ex.what() << std::endl;
             return migraphx_status_unknown_error;
         }
         catch(...)
@@ -393,6 +393,8 @@ static void register_custom_op(const CustomOp& op)
 }
 
 static migraphx::context get_context(const program& p) { return p.get_context(); }
+
+static void set_log_header(bool show) { log::set_show_header(show); }
 
 } // namespace migraphx
 
@@ -2427,6 +2429,12 @@ extern "C" migraphx_status migraphx_get_onnx_operators_size(size_t* out)
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_set_log_header(bool show)
+{
+    auto api_error_result = migraphx::try_([&] { migraphx::set_log_header((show)); });
+    return api_error_result;
+}
+
 extern "C" migraphx_status migraphx_context_finish(const_migraphx_context_t context)
 {
     auto api_error_result = migraphx::try_([&] {
@@ -2516,22 +2524,6 @@ migraphx_experimental_custom_op_register(migraphx_experimental_custom_op_t exper
             MIGRAPHX_THROW(migraphx_status_bad_param,
                            "Bad parameter experimental_custom_op: Null pointer");
         migraphx::register_custom_op((*experimental_custom_op));
-    });
-    return api_error_result;
-}
-
-extern "C" migraphx_status migraphx_set_log_header(bool show)
-{
-    auto api_error_result = migraphx::try_([&] { migraphx::log::set_show_header(show); });
-    return api_error_result;
-}
-
-extern "C" migraphx_status migraphx_get_log_header(bool* out)
-{
-    auto api_error_result = migraphx::try_([&] {
-        if(out == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter out: Null pointer");
-        *out = migraphx::log::get_show_header();
     });
     return api_error_result;
 }

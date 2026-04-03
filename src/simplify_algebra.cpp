@@ -2044,7 +2044,7 @@ struct find_split_reshape
                 if(not is_reshape(out))
                     return false;
                 auto last = find_last(get_reshapes(out));
-                if((*last)->outputs().size() == 0)
+                if((*last)->outputs().empty())
                     return false;
                 return (*last)->get_shape().lens() == rsp->get_shape().lens();
             });

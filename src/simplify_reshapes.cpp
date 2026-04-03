@@ -1348,24 +1348,36 @@ struct find_gather_scalar
     }
 };
 
+MIGRAPHX_PRED_MATCHER(gather_slice_concat, instruction_ref ins)
+{
+    static constexpr std::size_t min_run = 4;
+
+    if(ins->name() != "concat" or ins->inputs().size() < min_run)
+        return false;
+
+    // checking for slices in the inputs 
+    const auto find_slice_from_gather = []() {
+        return [=](auto i) {
+            return i->name() == "slice" and i->inputs().front()->name() == "gather"; 
+        };
+    };
+  
+    auto valid_seq = std::count_if(ins->inputs().begin(), ins->inputs().end(), find_slice_from_gather());
+    // Don't even match if we have anything less than min_run of the slice-gather feeding concat
+    return (valid_seq >= min_run);
+};
+
 struct find_gather_slice_concat
 {
     static constexpr std::size_t min_run = 4;
 
-    auto matcher() const
-    {
-        return match::name("concat")(
-            match::any_of[match::inputs()](match::name("slice")));
-    }
+    auto matcher() const { return gather_slice_concat(); }
 
     void apply(module& m, const match::matcher_result& mr) const
     {
         auto concat_ins = mr.result;
         int concat_axis = any_cast<op::concat>(concat_ins->get_operator()).axis;
         const auto& all_inputs = concat_ins->inputs();
-
-        if(all_inputs.size() < min_run)
-            return;
 
         instruction_ref gather_ins;
         int slice_axis = -1;

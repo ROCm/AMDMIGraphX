@@ -53,14 +53,14 @@ jobs:
         restore-keys: windows-cget-clang-
 
     - name: Install dependencies
-      run: rbuild prepare -d cget -s gh-win
+      run: rbuild prepare -d cget -s gh-win -G Ninja
 
     - name: Build and test
       env:
         CMAKE_PREFIX_PATH: ${{ github.workspace }}/cget
         CXXFLAGS: -DMIGRAPHX_USE_TYPE_ERASED_MATCHERS=1
       run: |
-        rbuild build -d cget -s gh-win -T check \
+        rbuild build -d cget -s gh-win -G Ninja -T check \
           -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} \
           -DMIGRAPHX_DISABLE_LARGE_BUFFER_TESTS=On \
           -DCTEST_TIMEOUT=5000

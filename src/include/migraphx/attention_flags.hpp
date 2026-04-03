@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,47 +21,32 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_GROUP_HPP
-#define MIGRAPHX_GUARD_OPERATORS_GROUP_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_ATTENTION_FLAGS_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_ATTENTION_FLAGS_HPP
 
-#include <migraphx/argument.hpp>
-#include <migraphx/module.hpp>
-#include <migraphx/check_shapes.hpp>
+#include <migraphx/config.hpp>
+#include <migraphx/bit_flag.hpp>
 #include <cstdint>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace op {
 
-struct group
+enum class attention_flags : std::uint32_t
 {
-    std::string tag = "";
-    // Bit flags
-    std::uint32_t flags = 0;
-
-    std::string name() const { return "group"; }
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.tag, "tag"), f(self.flags, "flags"));
-    }
-
-    shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>& mods) const
-    {
-        if(mods.size() != 1)
-            MIGRAPHX_THROW("should have one submodule.");
-        module_ref mod = mods[0];
-        check_shapes{inputs, *this}.has_at_least(1);
-
-        auto result =
-            mod->compute_shapes(inputs, {.name = name(), .strict_type = true, .strict_lens = true});
-        if(result.size() == 1)
-            return result.front();
-        return shape{result};
-    }
+    none           = 0,
+    causal_mask    = 1 << 0,
+    scale          = 1 << 1,
+    bias           = 1 << 2,
+    flash_decoding = 1 << 3,
+    lse_output     = 1 << 4,
+    kv_cache       = 1 << 5,
 };
 
-} // namespace op
+template <>
+struct bit_flag<attention_flags> : std::true_type
+{
+};
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

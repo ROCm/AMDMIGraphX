@@ -36,19 +36,17 @@ struct tracer
 {
     tracer() {}
 
-    explicit tracer(bool enable) : enabled_(enable)
+    explicit tracer(bool enable) : enabled(enable)
     {
-        if(enabled_ and not log::is_enabled(log::severity::trace) and
+        if(enabled and not log::is_enabled(log::severity::trace) and
            not log::is_severity_explicit())
             log::set_severity(log::severity::trace);
     }
 
-    bool enabled() const { return enabled_; }
-
     template <class... Ts>
     void operator()(const Ts&... xs) const
     {
-        if(enabled_)
+        if(enabled)
         {
             std::ostringstream ss;
             swallow{ss << xs...};
@@ -57,7 +55,7 @@ struct tracer
     }
 
     private:
-    bool enabled_ = false;
+    bool enabled = false;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

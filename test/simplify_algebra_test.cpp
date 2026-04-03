@@ -3541,7 +3541,7 @@ TEST_CASE(reorder_reshape_slice_len_1)
     EXPECT(m1.sort() == m2.sort());
 }
 
-TEST_CASE(reorder_reshape_slice_not_apply)
+TEST_CASE(reorder_reshape_slice_move_axis3)
 {
     migraphx::module m1;
     {

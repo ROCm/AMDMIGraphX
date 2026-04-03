@@ -11,6 +11,9 @@ on:
 jobs:
   windows-cpu:
     runs-on: windows-2025
+    defaults:
+      run:
+        shell: bash
 
     strategy:
       matrix:
@@ -56,7 +59,7 @@ jobs:
       run: |
         rbuild prepare -d cget -s gh-win -G Ninja \
           -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL \
-          -DBUILD_SHARED_LIBS=On \
+          -DBUILD_SHARED_LIBS=On
 
     - name: Build and test
       env:

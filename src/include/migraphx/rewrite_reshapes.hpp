@@ -169,7 +169,7 @@ struct rewrite_reshapes
             auto cdims         = desc.common_dims();
             auto reshape_input = [&](const auto& ins_to_insert, const auto& gdesc) {
                 return [&](auto input) {
-                    auto gops  = gdesc.generate(input->get_shape().lens());
+                    auto gops = gdesc.generate(input->get_shape().lens());
                     return std::accumulate(
                         gops.begin(), gops.end(), input, [&](auto start, const auto& op) {
                             return mpm.get_module().insert_instruction(ins_to_insert, op, start);

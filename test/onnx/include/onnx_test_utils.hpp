@@ -369,9 +369,9 @@ inline migraphx::program create_gqa_program(const size_t batch_size,
     auto scores  = mm->add_instruction(migraphx::make_op("dot"), softmax, v);
     auto out = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}),
                                    scores);
-    out          = mm->add_instruction(
+    out      = mm->add_instruction(
         migraphx::make_op("reshape",
-                                   {{"dims", {batch_size, sequence_length, head_size * num_heads}}}),
+                               {{"dims", {batch_size, sequence_length, head_size * num_heads}}}),
         out);
 
     return p;

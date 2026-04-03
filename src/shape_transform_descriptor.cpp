@@ -78,8 +78,8 @@ shape_transform_descriptor::shape_transform_descriptor(const std::vector<std::si
 }
 
 template <class Dimensions, class F>
-static auto for_each_subdimension(Dimensions&& dimensions,
-                                  F f) -> decltype(dimensions.begin()->subdimensions, void())
+static auto for_each_subdimension(Dimensions&& dimensions, F f)
+    -> decltype(dimensions.begin()->subdimensions, void())
 {
     for(auto& dim : dimensions)
     {
@@ -91,8 +91,8 @@ static auto for_each_subdimension(Dimensions&& dimensions,
 }
 
 template <class SubDimensions, class F>
-static auto for_each_subdimension(SubDimensions&& subdimensions,
-                                  F f) -> decltype(subdimensions.begin()->axis, void())
+static auto for_each_subdimension(SubDimensions&& subdimensions, F f)
+    -> decltype(subdimensions.begin()->axis, void())
 {
     for(auto& s : subdimensions)
     {

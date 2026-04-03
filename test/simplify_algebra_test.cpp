@@ -3543,32 +3543,45 @@ TEST_CASE(reorder_reshape_slice_len_1)
 
 TEST_CASE(reorder_reshape_slice_not_apply)
 {
-    auto create_p = [] {
-        migraphx::module m;
+    migraphx::module m1;
+    {
         migraphx::shape s{migraphx::shape::float_type, {128, 96}};
-        auto input = m.add_parameter("input", s);
-        auto slc0  = m.add_instruction(
+        auto input = m1.add_parameter("input", s);
+        auto slc0  = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {32}}}), input);
-        auto slc1 = m.add_instruction(
+        auto slc1 = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {32}}, {"ends", {64}}}), input);
-        auto slc2 = m.add_instruction(
+        auto slc2 = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {64}}, {"ends", {96}}}), input);
 
         std::vector<int64_t> lens = {1, 16, 16, 16};
-        auto r0 = m.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), slc0);
-        auto r1 = m.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), slc1);
-        auto r2 = m.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), slc2);
+        auto r0 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), slc0);
+        auto r1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), slc1);
+        auto r2 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), slc2);
 
-        auto sum = m.add_instruction(migraphx::make_op("add"), r0, r1);
-        auto ret = m.add_instruction(migraphx::make_op("mul"), sum, r2);
-        m.add_return({ret});
-
-        return m;
-    };
-
-    auto m1 = create_p();
-    auto m2 = m1;
+        auto sum = m1.add_instruction(migraphx::make_op("add"), r0, r1);
+        auto ret = m1.add_instruction(migraphx::make_op("mul"), sum, r2);
+        m1.add_return({ret});
+    }
     run_pass(m1);
+
+    migraphx::module m2;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {128, 96}};
+        auto input = m2.add_parameter("input", s);
+        auto rsp   = m2.add_instruction(
+            migraphx::make_op("reshape", {{"dims", {1, 16, 48, 16}}}), input);
+        auto slc0 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {16}}}), rsp);
+        auto slc1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {16}}, {"ends", {32}}}), rsp);
+        auto slc2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {32}}, {"ends", {48}}}), rsp);
+
+        auto sum = m2.add_instruction(migraphx::make_op("add"), slc0, slc1);
+        auto ret = m2.add_instruction(migraphx::make_op("mul"), sum, slc2);
+        m2.add_return({ret});
+    }
     EXPECT(m1.sort() == m2.sort());
 }
 

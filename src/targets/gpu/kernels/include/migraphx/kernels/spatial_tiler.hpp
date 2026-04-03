@@ -146,13 +146,11 @@ struct spatial_tiler
             {
                 constexpr auto pad = full_padding();
                 auto input_pos     = src_pos - pad;
-                smem[i] =
-                    in_bounds(input_pos, input_spatial) ? type{input_ch[input_pos]} : type{0};
+                smem[i] = in_bounds(input_pos, input_spatial) ? type{input_ch[input_pos]} : type{0};
             }
             else if constexpr(is_padded())
             {
-                smem[i] =
-                    in_bounds(src_pos, input_spatial) ? type{input_ch[src_pos]} : type{0};
+                smem[i] = in_bounds(src_pos, input_spatial) ? type{input_ch[src_pos]} : type{0};
             }
             else
             {

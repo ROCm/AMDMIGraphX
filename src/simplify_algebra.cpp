@@ -2553,6 +2553,16 @@ struct find_squeeze_splits
         return found_root;
     }
 
+    static instruction_ref later_of(const module& m, instruction_ref a, instruction_ref b)
+    {
+        for(auto it = std::next(a); it != m.end(); ++it)
+        {
+            if(it == b)
+                return b;
+        }
+        return a;
+    }
+
     void apply(module& m, const match::matcher_result& r) const
     {
         auto root    = r.result;
@@ -2640,10 +2650,11 @@ struct find_squeeze_splits
             if(not maybe_other_root)
                 continue;
 
+            auto last = later_of(m, root, *maybe_other_root);
             std::vector<instruction_ref> args(2);
             args[split_idx] = root;
             args[data_idx]  = *maybe_other_root;
-            auto lifted = m.insert_instruction(std::next(root), op, {args}, start->module_inputs());
+            auto lifted = m.insert_instruction(std::next(last), op, {args}, start->module_inputs());
 
             for(std::size_t i = 0; i < group.size(); ++i)
             {

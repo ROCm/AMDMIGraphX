@@ -50,7 +50,7 @@ extern "C" {
 MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_last())(${args})([](auto output, auto x, auto w, auto... inputs) {
-        channelwise_conv<index_ints<${tile}>, ${ntiles}>(index_ints<${tile}>{}, ${post}, output, x, w, inputs...);
+        channelwise_conv<index_ints<${tile}>, ${ntiles}>(index_ints<${tile}>{}, index_ints<${padding}>{}, ${post}, output, x, w, inputs...);
     });
 }
 
@@ -109,9 +109,15 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
 
         options.set_launch_params(v, num_blocks * block_size, block_size);
 
+        auto full_padding = v.get("padding", std::vector<std::size_t>{});
+        std::vector<std::size_t> padding(num_spatial, 0);
+        for(std::size_t i = 0; i < num_spatial and i < full_padding.size(); i++)
+            padding[i] = full_padding[i];
+
         auto src = interpolate_string(channelwise_conv_kernel,
                                       {{"tile", to_string_range(tile_sizes)},
                                        {"ntiles", std::to_string(noutputs)},
+                                       {"padding", to_string_range(padding)},
                                        {"kernel", options.kernel_name},
                                        {"params", enum_params(inputs.size(), "void * private_p")},
                                        {"args", enum_params(inputs.size(), "private_p")},

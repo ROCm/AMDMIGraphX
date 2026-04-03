@@ -240,13 +240,14 @@ struct find_gemm_softmax_gemm
 struct channelwise_conv
 {
     std::size_t num_spatial = 2;
+    std::vector<std::size_t> padding;
 
     std::string name() const { return "gpu::channelwise_conv"; }
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.num_spatial, "num_spatial"));
+        return pack(f(self.num_spatial, "num_spatial"), f(self.padding, "padding"));
     }
 
     shape compute_shape(std::vector<shape> inputs) const
@@ -257,11 +258,15 @@ struct channelwise_conv
         std::vector<std::size_t> out_lens;
         out_lens.push_back(x_lens[0]);
         out_lens.push_back(w_lens[0]);
-        std::transform(x_lens.begin() + 2,
-                       x_lens.begin() + 2 + num_spatial,
-                       w_lens.begin() + 2,
-                       std::back_inserter(out_lens),
-                       [](std::ptrdiff_t x, std::ptrdiff_t w) { return x - w + 1; });
+        for(std::size_t i = 0; i < num_spatial; i++)
+        {
+            std::size_t total_pad = 0;
+            if(i < padding.size())
+                total_pad += padding[i];
+            if(i + num_spatial < padding.size())
+                total_pad += padding[i + num_spatial];
+            out_lens.push_back(x_lens[i + 2] + total_pad - w_lens[i + 2] + 1);
+        }
         return inputs[0].with_lens(out_lens);
     }
 };
@@ -273,8 +278,6 @@ MIGRAPHX_PRED_MATCHER(conv_channelwise, instruction_ref ins)
         return false;
     auto v = ins->get_operator().to_value();
     if(not all_of(v.at("stride"), [](const value& x) { return x.to<std::size_t>() == 1; }))
-        return false;
-    if(not all_of(v.at("padding"), [](const value& x) { return x.to<std::size_t>() == 0; }))
         return false;
     if(not all_of(v.at("dilation"), [](const value& x) { return x.to<std::size_t>() == 1; }))
         return false;
@@ -301,7 +304,16 @@ struct find_channelwise_convolution
         if(input->get_shape().type() != shape::float_type)
             return;
 
-        m.replace_instruction(ins, channelwise_conv{num_spatial}, input, weights);
+        auto v        = ins->get_operator().to_value();
+        auto pad_vals = v.at("padding");
+        std::vector<std::size_t> padding;
+        std::transform(pad_vals.begin(),
+                       pad_vals.end(),
+                       std::back_inserter(padding),
+                       [](const value& x) { return x.to<std::size_t>(); });
+
+        m.replace_instruction(
+            ins, channelwise_conv{num_spatial, std::move(padding)}, input, weights);
     }
 };
 

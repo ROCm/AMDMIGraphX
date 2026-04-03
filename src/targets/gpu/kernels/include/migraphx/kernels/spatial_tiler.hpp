@@ -33,7 +33,13 @@
 
 namespace migraphx {
 
-template <index_int NTiles, class TileLens, class OutputShape>
+template <index_int... Ps>
+constexpr bool has_nonzero(index_ints<Ps...>)
+{
+    return ((Ps != 0) or ...);
+}
+
+template <index_int NTiles, class TileLens, class OutputShape, class Padding = index_ints<>>
 struct spatial_tiler
 {
     static constexpr auto keep_spatial()
@@ -71,17 +77,33 @@ struct spatial_tiler
         return (out_spatial_lens() != tiles_per_dim() * output_lens());
     }
 
+    // Full-dimensional padding: (0, 0, p_h, p_w, ...)
+    static constexpr auto full_padding() { return join(index_ints<0, 0>{}, Padding{}); }
+
+    static constexpr bool has_conv_padding() { return has_nonzero(Padding{}); }
+
     index idx;
     array<index_int, ndim()> tile_origin;
 
     // Compute halo lens for a given input shape: output_lens + (input_spatial - output_spatial)
+    // With padding, the output is larger so the raw difference is too small; add padding back.
     template <class InputShape>
     static constexpr auto halo_lens_for()
     {
         constexpr auto input_spatial = make_slice(InputShape{}, keep_spatial()).lens;
         constexpr auto halo_extra =
             transform(input_spatial, out_spatial_lens(), [](auto is, auto os) { return is - os; });
-        return transform(output_lens(), halo_extra, [](auto o, auto h) { return o + h; });
+        if constexpr(has_conv_padding())
+        {
+            constexpr auto corrected = transform(
+                halo_extra, full_padding(), [](auto h, auto p) -> index_int { return h + p; });
+            return transform(
+                output_lens(), corrected, [](auto o, auto h) -> index_int { return o + h; });
+        }
+        else
+        {
+            return transform(output_lens(), halo_extra, [](auto o, auto h) { return o + h; });
+        }
     }
 
     // Type for shared memory allocation
@@ -120,10 +142,22 @@ struct spatial_tiler
         idx.local_stride(_c<hl.product()>, [&](auto i) {
             auto halo_multi = halo_shape.multi(i);
             auto src_pos    = tile_origin + halo_multi;
-            if constexpr(is_padded())
-                smem[i] = in_bounds(src_pos, input_spatial) ? type{input_ch[src_pos]} : type{0};
+            if constexpr(has_conv_padding())
+            {
+                constexpr auto pad = full_padding();
+                auto input_pos     = src_pos - pad;
+                smem[i] =
+                    in_bounds(input_pos, input_spatial) ? type{input_ch[input_pos]} : type{0};
+            }
+            else if constexpr(is_padded())
+            {
+                smem[i] =
+                    in_bounds(src_pos, input_spatial) ? type{input_ch[src_pos]} : type{0};
+            }
             else
+            {
                 smem[i] = input_ch[src_pos];
+            }
         });
 
         return make_tensor_view(smem.data(), halo_shape);
@@ -150,6 +184,29 @@ template <index_int NTiles, class TileLens, class OutputShape>
 __device__ auto make_spatial_tiler(index idx, TileLens, OutputShape)
 {
     using tiler_type = spatial_tiler<NTiles, TileLens, OutputShape>;
+
+    constexpr auto block_shape = make_shape(return_array_c([] {
+        auto result = tiler_type::tiles_per_dim().base();
+        auto olens  = OutputShape{}.lens;
+        result[0]   = olens[0];
+        result[1]   = olens[1];
+        return result;
+    }));
+    auto block_multi           = block_shape.multi(idx.group);
+    auto tile_origin = generate_array<index_int>(tiler_type::ndim(), [&](auto d) -> index_int {
+        if constexpr(d < 2)
+            return 0;
+        else
+            return block_multi[d] * tiler_type::output_lens()[d];
+    });
+
+    return tiler_type{idx, tile_origin};
+}
+
+template <index_int NTiles, class TileLens, class OutputShape, class Padding>
+__device__ auto make_spatial_tiler(index idx, TileLens, OutputShape, Padding)
+{
+    using tiler_type = spatial_tiler<NTiles, TileLens, OutputShape, Padding>;
 
     constexpr auto block_shape = make_shape(return_array_c([] {
         auto result = tiler_type::tiles_per_dim().base();

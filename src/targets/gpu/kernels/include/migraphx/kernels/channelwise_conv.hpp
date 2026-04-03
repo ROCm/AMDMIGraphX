@@ -33,15 +33,17 @@ namespace migraphx {
 
 template <class TileLens,
           index_int NTiles,
+          class Padding,
           class F,
           class Output,
           class Input,
           class Weights,
           class... Inputs>
-__device__ void channelwise_conv(TileLens, F f, Output output, Input x, Weights w, Inputs... inputs)
+__device__ void channelwise_conv(
+    TileLens, Padding, F f, Output output, Input x, Weights w, Inputs... inputs)
 {
     auto idx   = make_index();
-    auto tiler = make_spatial_tiler<NTiles>(idx, TileLens{}, get_shape_c<Output>{});
+    auto tiler = make_spatial_tiler<NTiles>(idx, TileLens{}, get_shape_c<Output>{}, Padding{});
 
     __shared__ decltype(tiler.template shared_allocate<Input>()) smem;
 
@@ -50,15 +52,15 @@ __device__ void channelwise_conv(TileLens, F f, Output output, Input x, Weights 
     auto out_ch  = tiler.slice(output);
     auto xs_pack = pack(tiler.slice(inputs)...);
 
-    using t = typename Output::type;
-    array<t, decltype(w_ch.get_shape().elements()){}> wregs_arr;
+    using type = typename Output::type;
+    array<type, decltype(w_ch.get_shape().elements()){}> wregs_arr;
     auto wregs = make_tensor_view(wregs_arr.begin(), make_packed_shape(w_ch.get_shape()));
     copy(w_ch.begin(), w_ch.end(), wregs.begin());
 
     __syncthreads();
 
     tiler.for_each([&](auto out_pos, auto out_multi) {
-        t acc = 0;
+        type acc = 0;
         repeat(wregs.get_shape().elements(), [&](auto ki) {
             auto k_multi = wregs.get_shape().multi(ki);
             acc += x_ch[out_multi + k_multi] * wregs[k_multi];

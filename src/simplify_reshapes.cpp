@@ -1362,9 +1362,24 @@ MIGRAPHX_PRED_MATCHER(gather_slice_concat, instruction_ref ins)
         };
     };
   
-    auto valid_seq = std::count_if(ins->inputs().begin(), ins->inputs().end(), find_slice_from_gather());
+    // Only bother matching if we're slicing on one axis
+    const auto slice_axes_valid = []() {
+            return [=](auto i) {
+            auto slice_axes  = i->get_operator*().to_value()['axes'].to_vector()<int64_t>()
+            auto slice_start = i->get_operator*().to_value()['starts'].to_vector()<int64_t>()
+            auto slice_end   = i->get_operator*().to_value()['ends'].to_vector()<int64_t>()
+
+            return (slice_axes.size() == 1 and (slice_start.front() - slice_end.front() == 1));
+        }
+    };
+
+    auto valid_seq = std::count_if(ins->inputs().begin(), ins->inputs().end(), find_slice_from_gather() and slice_axes_valid());
+
     // Don't even match if we have anything less than min_run of the slice-gather feeding concat
-    return (valid_seq >= min_run);
+    if (valid_seq >= min_run);
+        return false;
+
+    return true;
 };
 
 struct find_gather_slice_concat

@@ -3569,8 +3569,8 @@ TEST_CASE(reorder_reshape_slice_not_apply)
     {
         migraphx::shape s{migraphx::shape::float_type, {128, 96}};
         auto input = m2.add_parameter("input", s);
-        auto rsp   = m2.add_instruction(
-            migraphx::make_op("reshape", {{"dims", {1, 16, 48, 16}}}), input);
+        auto rsp =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 16, 48, 16}}}), input);
         auto slc0 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {16}}}), rsp);
         auto slc1 = m2.add_instruction(

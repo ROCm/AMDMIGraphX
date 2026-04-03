@@ -72,7 +72,7 @@ int main(int argc, char const* argv[])
                   << std::endl;
         std::exit(0);
     }
-    bool quiet = false;
+    bool quiet              = false;
     try
     {
         auto v = migraphx::from_msgpack(read_stdin());

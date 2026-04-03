@@ -1846,7 +1846,7 @@ TEST_CASE(fp4x2_quant_dot_trans_b)
 
         auto unpack_a = m2.add_instruction(migraphx::make_op("unpack_fp4"), packed_a);
         auto unpack_b = m2.add_instruction(migraphx::make_op("unpack_fp4"), packed_b);
-        auto trans_b  = m2.add_instruction(
+        auto trans_b = m2.add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), unpack_b);
         auto trans_scale_b = m2.add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), scale_b);

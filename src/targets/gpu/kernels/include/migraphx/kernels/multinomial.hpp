@@ -21,39 +21,32 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_MULTINOMIAL_HPP
-#define MIGRAPHX_GUARD_RTGLIB_MULTINOMIAL_HPP
+#ifndef MIGRAPHX_GUARD_KERNELS_MULTINOMIAL_HPP
+#define MIGRAPHX_GUARD_KERNELS_MULTINOMIAL_HPP
 
-#include <migraphx/op/multinomial.hpp>
+#include <migraphx/kernels/algorithm.hpp>
+#include <migraphx/kernels/index.hpp>
+#include <migraphx/kernels/tensor_view.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
 
-struct context;
-
-struct hip_multinomial
+template <class CDF, class Dist, class Output>
+__device__ void multinomial(CDF cdf, Dist dist, Output output)
 {
-    op::multinomial op;
+    const index_int class_size = cdf.get_shape().lens[1];
 
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op, f);
-    }
+    auto ind = make_index();
+    ind.global_stride(output.get_shape().elements(), [&](auto i) {
+        auto idx        = output.get_shape().multi(i);
+        auto cdf_begin  = cdf.begin() + (idx[0] * class_size);
+        auto cdf_end    = cdf_begin + class_size;
+        auto last_total = *(cdf_end - 1);
+        auto threshold  = dist[i] * last_total;
+        auto it         = upper_bound(cdf_begin, cdf_end, threshold, less{});
+        output[i]       = it - cdf_begin;
+    });
+}
 
-    std::string name() const { return "gpu::multinomial"; }
-    shape compute_shape(std::vector<shape> inputs) const;
-    argument
-    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
-    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
-    {
-        return {shapes.size() - 1};
-    }
-};
-
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

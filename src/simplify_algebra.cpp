@@ -2027,9 +2027,6 @@ struct find_split_reshape
         auto rsp   = r.instructions["reshape"];
         auto input = slc->inputs().front();
 
-        if(input->get_shape().elements() % slc->get_shape().elements())
-            return;
-        auto nslices = input->get_shape().elements() / slc->get_shape().elements();
         auto splits = get_splits(input);
         if(splits.size() <= 1)
         {
@@ -2082,25 +2079,29 @@ struct find_split_reshape
 
         auto am = desc.axes_map_from_src(true);
 
-        auto op_axes = slc->get_operator().to_value().at("axes").to_vector<std::size_t>();
+        auto slc_val  = slc->get_operator().to_value();
+        auto op_axes  = slc_val.at("axes").to_vector<std::size_t>();
         std::vector<std::size_t> axes;
-        auto dims = desc.lens();
-        // TODO: Handle multiple axes
-        if(op_axes.size() > 1)
+        std::vector<linear_map> linears;
+        auto dims           = desc.lens();
+        auto input_lens     = input->get_shape().lens();
+        auto slc_lens       = slc->get_shape().lens();
+        for(auto op_axis : op_axes)
         {
-            return;
+            auto mapped = am[op_axis];
+            if(mapped.empty())
+                return;
+            auto axis = *std::min_element(mapped.begin(), mapped.end());
+            if(contains(axes, axis))
+                return;
+            auto per_axis_nslices = input_lens.at(op_axis) / slc_lens.at(op_axis);
+            dims[axis] *= per_axis_nslices;
+            linear_map linear{input_lens.at(op_axis), dims[axis]};
+            if(not linear.is_valid())
+                return;
+            axes.push_back(axis);
+            linears.push_back(linear);
         }
-        auto op_axis = op_axes.front();
-
-        auto new_axes = am[op_axis];
-        if(new_axes.empty())
-            return;
-        auto axis = *std::min_element(new_axes.begin(), new_axes.end());
-        dims[axis] *= nslices;
-        linear_map linear{input->get_shape().lens().at(op_axis), dims[axis]};
-        if(not linear.is_valid())
-            return;
-        axes.push_back(axis);
 
         std::vector<operation> new_slices;
         for(auto slice : slices)
@@ -2109,13 +2110,18 @@ struct find_split_reshape
             auto op_starts = v.at("starts").to_vector<std::size_t>();
             auto op_ends   = v.at("ends").to_vector<std::size_t>();
 
-            auto is_invalid_index = [&](auto i) { return not linear.is_valid_index(i); };
-            if(any_of(op_starts, is_invalid_index) or any_of(op_ends, is_invalid_index))
+            auto is_invalid_index = [&](auto i) {
+                return not linears[i].is_valid_index(op_starts[i]) or
+                       not linears[i].is_valid_index(op_ends[i]);
+            };
+            if(any_of(range(linears.size()), is_invalid_index))
                 return;
-            std::vector<std::size_t> new_starts;
-            std::vector<std::size_t> new_ends;
-            transform(op_starts, std::back_inserter(new_starts), linear);
-            transform(op_ends, std::back_inserter(new_ends), linear);
+            std::vector<std::size_t> new_starts(linears.size());
+            std::vector<std::size_t> new_ends(linears.size());
+            std::transform(linears.begin(), linears.end(), op_starts.begin(), new_starts.begin(),
+                           [](const auto& lm, auto s) { return lm(s); });
+            std::transform(linears.begin(), linears.end(), op_ends.begin(), new_ends.begin(),
+                           [](const auto& lm, auto e) { return lm(e); });
 
             new_slices.push_back(
                 make_op("slice", {{"axes", axes}, {"starts", new_starts}, {"ends", new_ends}}));

@@ -1355,28 +1355,51 @@ MIGRAPHX_PRED_MATCHER(gather_slice_concat, instruction_ref ins)
     if(ins->name() != "concat" or ins->inputs().size() < min_run)
         return false;
 
-    // checking for slices in the inputs 
+    // checking for slices fed by gather in the inputs 
     const auto find_slice_from_gather = []() {
-        return [=](auto i) {
-            return i->name() == "slice" and i->inputs().front()->name() == "gather"; 
+        return [=](const auto& i) {
+            return (i->name() == "slice" and i->inputs().front()->name() == "gather"); 
         };
     };
-  
-    // Only bother matching if we're slicing on one axis
-    const auto slice_axes_valid = []() {
-            return [=](auto i) {
-            auto slice_axes  = i->get_operator*().to_value()['axes'].to_vector()<int64_t>()
-            auto slice_start = i->get_operator*().to_value()['starts'].to_vector()<int64_t>()
-            auto slice_end   = i->get_operator*().to_value()['ends'].to_vector()<int64_t>()
+ 
+    auto valid_seq = std::count_if(ins->inputs().begin(), ins->inputs().end(), find_slice_from_gather());
 
-            return (slice_axes.size() == 1 and (slice_start.front() - slice_end.front() == 1));
-        }
+    if (valid_seq < min_run)
+        return false;
+
+    // Only bother matching if we're slicing on one axis
+    const auto slice_axes_valid = [&]() {
+            return [=](auto& i) {
+            if (i->name() != "slice")
+                return false;
+
+            auto slice       = i->get_operator().to_value();
+            auto slice_axes  = slice.at("axes").template to_vector<int64_t>();
+            auto slice_start = slice.at("starts").template to_vector<int64_t>();
+            auto slice_end   = slice.at("ends").template to_vector<int64_t>();
+
+            return ((slice_axes.size() == 1) and (slice_start.front() - slice_end.front() == 1));
+        };
     };
 
-    auto valid_seq = std::count_if(ins->inputs().begin(), ins->inputs().end(), find_slice_from_gather() and slice_axes_valid());
+    // Filter out list of slices that are valid needed for a match before we start 
+    // comparing axes and other data to gather
+    std::vector<instruction_ref> gather_from_slice;
+    std::copy_if(ins->inputs().begin(), 
+                 ins->inputs().end(),
+                 std::back_inserter(gather_from_slice),
+                 (find_slice_from_gather()));
+
+    std::vector<instruction_ref> valid_slices_into_concat;
+    std::copy_if(gather_from_slice.begin(), 
+                 gather_from_slice.end(),
+                 std::back_inserter(valid_slices_into_concat),
+                 (slice_axes_valid()));
+
+
 
     // Don't even match if we have anything less than min_run of the slice-gather feeding concat
-    if (valid_seq >= min_run);
+    if (valid_slices_into_concat.size() < min_run)
         return false;
 
     return true;

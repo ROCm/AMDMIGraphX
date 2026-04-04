@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -81,6 +81,109 @@ TEST_CASE(rewrite_pooling_test)
                  migraphx::make_op("reduce_mean", {{"axes", {2, 3, 4}}}));
     test_rewrite(migraphx::op::pooling_mode::max,
                  migraphx::make_op("reduce_max", {{"axes", {2, 3, 4}}}));
+}
+
+TEST_CASE(rewrite_pooling_stride_equals_lengths_test)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 2, 3, 4, 5}};
+    auto pooling_program = [&](const migraphx::op::pooling_mode mode) {
+        migraphx::module m;
+        auto input = m.add_parameter("x", s);
+        auto ret   = m.add_instruction(migraphx::make_op("pooling",
+                                                         {{"mode", mode},
+                                                          {"padding", {0, 0, 0}},
+                                                          {"stride", {3, 4, 5}},
+                                                          {"lengths", {3, 4, 5}},
+                                                          {"dilations", {1, 1, 1}}}),
+                                     input);
+        m.add_return({ret});
+        return m;
+    };
+
+    auto opt_program = [&](const migraphx::operation& reduce_op) {
+        migraphx::module m;
+        auto input = m.add_parameter("x", s);
+        auto rdm   = m.add_instruction(reduce_op, input);
+        m.add_return({rdm});
+        return m;
+    };
+
+    auto test_rewrite = [&](const migraphx::op::pooling_mode mode, const migraphx::operation& op) {
+        migraphx::module m1 = pooling_program(mode);
+        migraphx::module m2 = opt_program(op);
+        opt_pooling(m1);
+        EXPECT(m1 == m2);
+    };
+
+    test_rewrite(migraphx::op::pooling_mode::average,
+                 migraphx::make_op("reduce_mean", {{"axes", {2, 3, 4}}}));
+    test_rewrite(migraphx::op::pooling_mode::max,
+                 migraphx::make_op("reduce_max", {{"axes", {2, 3, 4}}}));
+}
+
+TEST_CASE(rewrite_pooling_stride_equals_lengths_rank4_test)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 3, 4, 4}};
+    auto pooling_program = [&](const migraphx::op::pooling_mode mode) {
+        migraphx::module m;
+        auto input = m.add_parameter("x", s);
+        auto ret   = m.add_instruction(migraphx::make_op("pooling",
+                                                         {{"mode", mode},
+                                                          {"padding", {0, 0}},
+                                                          {"stride", {4, 4}},
+                                                          {"lengths", {4, 4}},
+                                                          {"dilations", {1, 1}}}),
+                                     input);
+        m.add_return({ret});
+        return m;
+    };
+
+    auto opt_program = [&](const migraphx::operation& reduce_op) {
+        migraphx::module m;
+        auto input = m.add_parameter("x", s);
+        auto rdm   = m.add_instruction(reduce_op, input);
+        m.add_return({rdm});
+        return m;
+    };
+
+    auto test_rewrite = [&](const migraphx::op::pooling_mode mode, const migraphx::operation& op) {
+        migraphx::module m1 = pooling_program(mode);
+        migraphx::module m2 = opt_program(op);
+        opt_pooling(m1);
+        EXPECT(m1 == m2);
+    };
+
+    test_rewrite(migraphx::op::pooling_mode::average,
+                 migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}));
+    test_rewrite(migraphx::op::pooling_mode::max,
+                 migraphx::make_op("reduce_max", {{"axes", {2, 3}}}));
+}
+
+TEST_CASE(rewrite_pooling_stride_equals_lengths_na_test)
+{
+    // strides == lengths but kernel != spatial dims, should NOT rewrite
+    migraphx::shape s{migraphx::shape::float_type, {2, 2, 6, 8}};
+    auto pooling_program = [&]() {
+        migraphx::module m;
+
+        auto input = m.add_parameter("x", s);
+        auto ret =
+            m.add_instruction(migraphx::make_op("pooling",
+                                                {{"mode", migraphx::op::pooling_mode::average},
+                                                 {"padding", {0, 0}},
+                                                 {"stride", {3, 4}},
+                                                 {"lengths", {3, 4}},
+                                                 {"dilations", {1, 1}}}),
+                              input);
+        m.add_return({ret});
+        return m;
+    };
+
+    migraphx::module m1 = pooling_program();
+    migraphx::module m2 = m1;
+
+    opt_pooling(m1);
+    EXPECT(m1 == m2);
 }
 
 TEST_CASE(rewrite_pooling_dialtions_test)

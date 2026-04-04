@@ -1812,6 +1812,74 @@ struct find_flatten
     }
 };
 
+// Match slice->squeeze->pw/reduce where the squeeze and slice share the same
+// single axis, then rewrite to slice->pw/reduce->squeeze (unsqueezing the
+// other inputs).  find_op_shape_transform_op propagates the squeeze through
+// any downstream op chain, and find_splits in simplify_algebra merges parallel
+// branches back together.
+struct find_slice_squeeze
+{
+    auto matcher() const
+    {
+        auto match_op = match::any_of(match::name("pointwise"), match::pointwise(), match::reduce());
+        auto squeeze_slice = match::name("squeeze")(
+            match::arg(0)(match::name("slice").bind("slice")))
+            .bind("squeeze");
+        return match_op(match::any_of[match::inputs()](squeeze_slice));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto op_ins    = r.result;
+        auto squeeze   = r.instructions["squeeze"];
+        auto slice_ins = r.instructions["slice"];
+
+        auto sq_axes = squeeze->get_operator().to_value()["axes"].to_vector<int64_t>();
+        auto sl_axes = slice_ins->get_operator().to_value()["axes"].to_vector<int64_t>();
+        if(sq_axes.size() != 1 or sl_axes.size() != 1 or sq_axes.front() != sl_axes.front())
+            return;
+
+        auto axis = sq_axes.front();
+
+        auto inputs = op_ins->inputs();
+        for(auto& input : inputs)
+        {
+            if(input == squeeze)
+                input = slice_ins;
+            else
+                input = m.insert_instruction(
+                    op_ins, make_op("unsqueeze", {{"axes", {axis}}}), input);
+        }
+
+        auto op = op_ins->get_operator();
+        if(not op.attributes().contains("pointwise") and op_ins->name() != "pointwise")
+        {
+            auto v = op.to_value();
+            if(v.contains("axes"))
+            {
+                auto op_axes = v["axes"].to_vector<int64_t>();
+                for(auto& a : op_axes)
+                    if(a >= axis)
+                        a++;
+                v["axes"] = op_axes;
+                op = make_op(op_ins->name(), v);
+            }
+            else if(v.contains("axis"))
+            {
+                auto a = v["axis"].to<int64_t>();
+                if(a >= axis)
+                    a++;
+                v["axis"] = a;
+                op = make_op(op_ins->name(), v);
+            }
+        }
+
+        auto new_op = m.insert_instruction(op_ins, op, inputs, op_ins->module_inputs());
+        auto new_sq = m.insert_instruction(op_ins, squeeze->get_operator(), new_op);
+        m.replace_instruction(op_ins, new_sq);
+    }
+};
+
 } // namespace
 
 void simplify_reshapes::apply(module& m) const
@@ -1835,6 +1903,7 @@ void simplify_reshapes::apply(module& m) const
                             find_nested_concat{},
                             find_transpose_slice{},
                             find_slice_transpose{},
+                            find_slice_squeeze{},
                             find_unary_shape_transforms{},
                             find_reshape_dot{},
                             find_mul_add_shape_op_dot{},

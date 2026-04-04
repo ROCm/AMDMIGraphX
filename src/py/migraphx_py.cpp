@@ -42,6 +42,7 @@
 #include <migraphx/json.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/common.hpp>
+#include <migraphx/op/builder/insert.hpp>
 #include <migraphx/float8.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/version.h>
@@ -348,6 +349,14 @@ migraphx::shape to_shape(const py::buffer_info& info)
     }
 }
 
+namespace {
+struct py_macro
+{
+    std::string op_name;
+    migraphx::value options;
+};
+} // namespace
+
 MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 {
     py::class_<migraphx::shape> shape_cls(m, "shape");
@@ -494,6 +503,32 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                 return mm.replace_return(args);
             },
             py::arg("args"))
+        .def(
+            "add_instructions",
+            [](migraphx::module& mm,
+               const py_macro& mac,
+               std::vector<migraphx::instruction_ref>& args,
+               std::vector<migraphx::module*>& mod_args) {
+                return migraphx::op::builder::add(
+                    mac.op_name, mm, args, mod_args, mac.options);
+            },
+            py::arg("macro"),
+            py::arg("args"),
+            py::arg("mod_args") = std::vector<migraphx::module*>{})
+        .def(
+            "insert_instructions",
+            [](migraphx::module& mm,
+               migraphx::instruction_ref ins,
+               const py_macro& mac,
+               std::vector<migraphx::instruction_ref>& args,
+               std::vector<migraphx::module*>& mod_args) {
+                return migraphx::op::builder::insert(
+                    mac.op_name, mm, ins, args, mod_args, mac.options);
+            },
+            py::arg("ins"),
+            py::arg("macro"),
+            py::arg("args"),
+            py::arg("mod_args") = std::vector<migraphx::module*>{})
         .def("__repr__", [](const migraphx::module& mm) { return migraphx::to_string(mm); })
         .def(
             "__iter__",
@@ -595,6 +630,20 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .value("forward", migraphx::op::rnn_direction::forward)
         .value("reverse", migraphx::op::rnn_direction::reverse)
         .value("bidirectional", migraphx::op::rnn_direction::bidirectional);
+
+    py::class_<py_macro>(m, "macro")
+        .def(py::init([](const std::string& name, py::kwargs kwargs) {
+            migraphx::value v = migraphx::value::object{};
+            if(kwargs)
+            {
+                v = migraphx::to_value(kwargs);
+            }
+            return py_macro{name, v};
+        }))
+        .def("name", [](const py_macro& mac) { return mac.op_name; })
+        .def("options", [](const py_macro& mac) -> py::object {
+            return to_py_object(mac.options);
+        });
 
     m.def(
         "argument_from_pointer",

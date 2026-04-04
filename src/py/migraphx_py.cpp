@@ -509,8 +509,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                const py_macro& mac,
                std::vector<migraphx::instruction_ref>& args,
                std::vector<migraphx::module*>& mod_args) {
-                return migraphx::op::builder::add(
-                    mac.op_name, mm, args, mod_args, mac.options);
+                return migraphx::op::builder::add(mac.op_name, mm, args, mod_args, mac.options);
             },
             py::arg("macro"),
             py::arg("args"),
@@ -641,9 +640,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             return py_macro{name, v};
         }))
         .def("name", [](const py_macro& mac) { return mac.op_name; })
-        .def("options", [](const py_macro& mac) -> py::object {
-            return to_py_object(mac.options);
-        });
+        .def("options",
+             [](const py_macro& mac) -> py::object { return to_py_object(mac.options); });
 
     m.def(
         "argument_from_pointer",

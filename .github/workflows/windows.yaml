@@ -20,9 +20,6 @@ jobs:
         configuration:
           - Release
 
-    env:
-      CC: clang
-      CXX: clang++
 
     steps:
     - uses: actions/checkout@v4.2.2
@@ -59,6 +56,9 @@ jobs:
       uses: mxschmitt/action-tmate@v3
 
     - name: Install dependencies
+      env:
+        CC: clang-cl
+        CXX: clang-cl
       run: |
         rbuild prepare -d cget -s gh-win -G Ninja \
           -Dprotobuf_MSVC_STATIC_RUNTIME=Off \
@@ -68,6 +68,8 @@ jobs:
       env:
         CMAKE_PREFIX_PATH: ${{ github.workspace }}/cget
         CXXFLAGS: -DMIGRAPHX_USE_TYPE_ERASED_MATCHERS=1
+        CC: clang
+        CXX: clang++
       run: |
         rbuild build -d cget -s gh-win -G Ninja -T check \
           -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} \

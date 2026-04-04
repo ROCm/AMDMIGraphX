@@ -38,6 +38,7 @@
 #include <migraphx/instruction.hpp>
 
 #include <migraphx/algorithm.hpp>
+#include <migraphx/output_iterator.hpp>
 #include <unordered_set>
 
 namespace migraphx {
@@ -920,10 +921,8 @@ struct find_concat_op
 {
     auto matcher() const
     {
-        return match::name("concat")(match::any_of[match::inputs()](
-            match::any_of(match::pointwise(),
-                          match::name("broadcast", "multibroadcast", "unpack_int4")),
-            match::used_once()));
+        return match::name("concat")(match::any_of[match::inputs()](match::any_of(
+            match::pointwise(), match::name("broadcast", "multibroadcast", "unpack_int4"))));
     }
 
     template <class Iterator>
@@ -974,12 +973,23 @@ struct find_concat_op
         auto ins  = r.result;
         auto axis = any_cast<op::concat>(ins->get_operator()).axis;
 
+        std::vector<std::pair<instruction_ref, instruction_ref>> replacements;
+
         auto each = [&](auto start, auto last) -> std::vector<instruction_ref> {
             if(std::distance(start, last) < 2)
                 return {start, last};
             auto x = *start;
-            if(std::any_of(start, last, [](instruction_ref x) {
-                   return x->outputs().size() > 1 or rejected_inputs(x->inputs());
+            if(std::any_of(
+                   start, last, [](instruction_ref ins) { return rejected_inputs(ins->inputs()); }))
+                return {start, last};
+            // Skip if any multi-use input feeds into another group member,
+            // since the fused result would redundantly recompute the dominated
+            // input without being able to eliminate the original.
+            if(std::any_of(start, last, [&](instruction_ref orig) {
+                   return orig->outputs().size() > 1 and
+                          std::any_of(start, last, [&](instruction_ref g) {
+                              return g != orig and reaches(orig, g);
+                          });
                }))
                 return {start, last};
             auto op = x->get_operator();
@@ -1023,6 +1033,25 @@ struct find_concat_op
                 concats.push_back(concat);
             }
             auto y = m.insert_instruction(ins, op, concats);
+
+            // Replace multi-use inputs with slices of the fused result
+            std::size_t offset = 0;
+            for(auto it = start; it != last; ++it)
+            {
+                auto orig = *it;
+                auto len  = orig->get_shape().lens()[axis];
+                if(orig->outputs().size() > 1)
+                {
+                    auto slice_ins = m.insert_instruction(
+                        ins,
+                        make_op("slice",
+                                {{"axes", {axis}}, {"starts", {offset}}, {"ends", {offset + len}}}),
+                        y);
+                    replacements.emplace_back(orig, slice_ins);
+                }
+                offset += len;
+            }
+
             return {y};
         };
 
@@ -1033,14 +1062,24 @@ struct find_concat_op
         };
         auto pred = [](auto i, auto j) {
             return i->get_operator() == j->get_operator() and
-                   i->inputs().size() == j->inputs().size() and
-                   i->outputs().size() == j->outputs().size();
+                   i->inputs().size() == j->inputs().size();
         };
         group_unique(ins->inputs().begin(), ins->inputs().end(), update_args, pred);
+
+        for(const auto& p : replacements)
+        {
+            m.move_output_instructions_after(p.first, ins);
+        }
+
         if(args.size() == 1)
             m.replace_instruction(ins, args.front());
         else
             m.replace_instruction(ins, make_op("concat", {{"axis", axis}}), args);
+
+        for(const auto& p : replacements)
+        {
+            m.replace_instruction(p.first, p.second);
+        }
     }
 };
 
@@ -1090,6 +1129,162 @@ struct find_concat_conv
         auto w              = m.insert_instruction(ins, make_op("concat", {{"axis", 0}}), weights);
         conv.from_value({{"group", original_group * inputs.size()}});
         m.replace_instruction(ins, conv, x, w);
+    }
+};
+
+// Horizontal fusion for convolutions through concat decomposition.
+// When conv_b operates on concat(A, extra) and conv_a operates on A,
+// we can decompose conv_b = conv(A, w_prefix) + conv(extra, w_suffix)
+// and fuse conv_a with the prefix part into a single convolution.
+struct find_conv_concat_split_fuse
+{
+    auto matcher() const
+    {
+        return match::name("convolution")(
+            match::arg(0)(match::name("concat")(match::any_of[match::inputs()](
+                match::any_of[match::outputs()](match::name("convolution"))))),
+            match::arg(1)(match::is_constant()));
+    }
+
+    static bool is_fusable_conv(instruction_ref output,
+                                instruction_ref prefix_input,
+                                instruction_ref conv_b,
+                                const value& conv_b_val)
+    {
+        if(output->name() != "convolution" or output == conv_b)
+            return false;
+        auto ca_val = output->get_operator().to_value();
+        if(ca_val["padding"] != conv_b_val.at("padding") or
+           ca_val["stride"] != conv_b_val.at("stride") or
+           ca_val["dilation"] != conv_b_val.at("dilation") or ca_val["group"].to<int>() != 1)
+            return false;
+        if(output->inputs()[0] != prefix_input)
+            return false;
+        // Only fuse with original convolutions (not derived from prior fusion)
+        if(not output->inputs()[1]->inputs().empty())
+            return false;
+        return reaches(output, conv_b);
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto conv_b     = r.result;
+        auto concat_ins = conv_b->inputs()[0];
+        auto weight_b   = conv_b->inputs()[1];
+        auto conv_b_val = conv_b->get_operator().to_value();
+
+        if(conv_b_val.at("group").to<int>() != 1)
+            return;
+
+        auto concat_axis = concat_ins->get_operator().to_value()["axis"].to<std::size_t>();
+        if(concat_axis != 1)
+            return;
+
+        auto concat_inputs = concat_ins->inputs();
+        if(concat_inputs.size() < 2)
+            return;
+
+        // Collect (conv_a, prefix_len) candidates: prefix concats and direct single-element
+        auto front_outputs = concat_inputs.front()->outputs();
+        using conv_prefix  = std::pair<instruction_ref, std::size_t>;
+        std::vector<conv_prefix> candidates;
+        transform_if(
+            front_outputs.begin(),
+            front_outputs.end(),
+            join_back_inserter(candidates),
+            [&](instruction_ref output) {
+                // Direct convolution on first input (single-element prefix)
+                if(is_fusable_conv(output, concat_inputs.front(), conv_b, conv_b_val))
+                    return true;
+                // Prefix concat whose inputs match a prefix of concat_ins
+                if(output->name() != "concat" or output == concat_ins)
+                    return false;
+                auto out_inputs = output->inputs();
+                return out_inputs.size() < concat_inputs.size() and
+                       std::equal(out_inputs.begin(), out_inputs.end(), concat_inputs.begin());
+            },
+            [&](instruction_ref output) -> std::vector<conv_prefix> {
+                if(output->name() != "concat")
+                    return {{output, 1}};
+                auto fi = std::find_if(
+                    output->outputs().begin(), output->outputs().end(), [&](instruction_ref o) {
+                        return is_fusable_conv(o, output, conv_b, conv_b_val);
+                    });
+                if(fi == output->outputs().end())
+                    return {};
+                return {{*fi, output->inputs().size()}};
+            });
+
+        // Pick the longest prefix
+        auto it = std::max_element(
+            candidates.begin(), candidates.end(), [](const conv_prefix& a, const conv_prefix& b) {
+                return a.second < b.second;
+            });
+
+        if(it == candidates.end())
+            return;
+
+        auto conv_a               = it->first;
+        auto prefix_len           = it->second;
+        auto input_a              = conv_a->inputs()[0];
+        auto weight_a             = conv_a->inputs()[1];
+        auto prefix_chans         = input_a->get_shape().lens()[1];
+        auto total_chans          = concat_ins->get_shape().lens()[1];
+
+        if(prefix_chans >= total_chans)
+            return;
+
+        auto out_a = weight_a->get_shape().lens()[0];
+        auto out_b = weight_b->get_shape().lens()[0];
+
+        // --- Insert fused conv and slices at conv_a's position ---
+        auto w_b_prefix = m.insert_instruction(
+            conv_a,
+            make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {prefix_chans}}}),
+            weight_b);
+
+        auto w_fused =
+            m.insert_instruction(conv_a, make_op("concat", {{"axis", 0}}), weight_a, w_b_prefix);
+        w_fused = m.insert_instruction(conv_a, make_op("contiguous"), w_fused);
+
+        auto fused_conv = m.insert_instruction(conv_a, conv_a->get_operator(), input_a, w_fused);
+
+        auto conv_a_result = m.insert_instruction(
+            conv_a,
+            make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {out_a}}}),
+            fused_conv);
+        auto conv_b_prefix_result = m.insert_instruction(
+            conv_a,
+            make_op("slice", {{"axes", {1}}, {"starts", {out_a}}, {"ends", {out_a + out_b}}}),
+            fused_conv);
+
+        // --- Insert residual conv at conv_b's position ---
+        auto w_b_suffix = m.insert_instruction(
+            conv_b,
+            make_op("slice", {{"axes", {1}}, {"starts", {prefix_chans}}, {"ends", {total_chans}}}),
+            weight_b);
+        w_b_suffix = m.insert_instruction(conv_b, make_op("contiguous"), w_b_suffix);
+
+        std::vector<instruction_ref> remaining(concat_inputs.begin() + prefix_len,
+                                               concat_inputs.end());
+        instruction_ref extra;
+        if(remaining.size() == 1)
+        {
+            extra = remaining.front();
+        }
+        else
+        {
+            extra = m.insert_instruction(conv_b, make_op("concat", {{"axis", 1}}), remaining);
+        }
+
+        auto conv_b_suffix_result =
+            m.insert_instruction(conv_b, conv_b->get_operator(), extra, w_b_suffix);
+
+        auto conv_b_result = m.insert_instruction(
+            conv_b, make_op("add"), conv_b_prefix_result, conv_b_suffix_result);
+
+        m.replace_instruction(conv_a, conv_a_result);
+        m.replace_instruction(conv_b, conv_b_result);
     }
 };
 
@@ -2401,6 +2596,7 @@ void simplify_algebra::apply(module& m) const
                             find_log_exp{},
                             find_log_div{},
                             find_concat_conv{},
+                            find_conv_concat_split_fuse{},
                             find_concat_op{},
                             find_split_concat{},
                             find_splits{},

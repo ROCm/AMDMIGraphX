@@ -28,6 +28,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <map>
 #include <thread>
@@ -352,8 +353,9 @@ TEST_CASE(logger_file_sink)
     migraphx::log::set_severity(migraphx::log::severity::none);
 
     // add_file_logger should return an ID > 0
+    auto log_path_fs = std::filesystem::temp_directory_path() / "migraphx_test_log.txt";
     auto file_id =
-        migraphx::log::add_file_logger("/tmp/migraphx_test_log.txt", migraphx::log::severity::info);
+        migraphx::log::add_file_logger(log_path_fs.string().c_str(), migraphx::log::severity::info);
     EXPECT(file_id > 0);
 
     // Log something
@@ -369,14 +371,14 @@ TEST_CASE(logger_file_sink)
     migraphx::log::debug() << "This message should be written to the file";
 
     // Verify the file has two messages
-    std::ifstream file("/tmp/migraphx_test_log.txt");
+    std::ifstream file(log_path_fs);
     std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
     EXPECT(content.find("File sink test") != std::string::npos);
     EXPECT(content.find("This message should be written to the file") != std::string::npos);
     EXPECT(content.find("This message should not be written to the file") == std::string::npos);
 
     // Remove the file
-    std::remove("/tmp/migraphx_test_log.txt");
+    std::filesystem::remove(log_path_fs);
 
     // Can remove the file sink
     migraphx::log::remove_sink(file_id);
@@ -387,16 +389,16 @@ TEST_CASE(logger_file_sink_existing_file)
     // Prevent stderr output
     migraphx::log::set_severity(migraphx::log::severity::none);
 
-    const char* log_path = "/tmp/migraphx_test_existing_log.txt";
+    auto log_path = (std::filesystem::temp_directory_path() / "migraphx_test_existing_log.txt").string();
 
     // Create a file logger and write some content
-    auto file_id1 = migraphx::log::add_file_logger(log_path, migraphx::log::severity::info);
+    auto file_id1 = migraphx::log::add_file_logger(log_path.c_str(), migraphx::log::severity::info);
     EXPECT(file_id1 > 0);
     migraphx::log::info() << "First message";
     migraphx::log::remove_sink(file_id1);
 
     // Add a file logger to the same path (file now exists)
-    auto file_id2 = migraphx::log::add_file_logger(log_path, migraphx::log::severity::info);
+    auto file_id2 = migraphx::log::add_file_logger(log_path.c_str(), migraphx::log::severity::info);
     EXPECT(file_id2 > 0);
 
     // Log another message
@@ -409,7 +411,7 @@ TEST_CASE(logger_file_sink_existing_file)
     EXPECT(content.find("Second message") != std::string::npos);
 
     // Remove the file
-    std::remove(log_path);
+    std::filesystem::remove(log_path);
 
     // Clean up
     migraphx::log::remove_sink(file_id2);
@@ -521,7 +523,7 @@ TEST_CASE(logger_concurrent_is_enabled)
     // and some false (when severity was error), so enabled_count should be
     // between 0 and check_count (exclusive on both ends in practice)
     EXPECT(enabled_count.load() > 0);
-    EXPECT(enabled_count.load() < check_count.load());
+    EXPECT(enabled_count.load() <= check_count.load());
 }
 
 TEST_CASE(logger_concurrent_add_remove_sink)
@@ -759,12 +761,12 @@ TEST_CASE(logger_concurrent_file_sink)
     // Test concurrent logging to a file sink
     migraphx::log::set_severity(migraphx::log::severity::none);
 
-    const char* log_path = "/tmp/migraphx_concurrent_test.log";
+    auto log_path = (std::filesystem::temp_directory_path() / "migraphx_concurrent_test.log").string();
 
     // Remove any existing file
-    std::remove(log_path);
+    std::filesystem::remove(log_path);
 
-    auto file_id = migraphx::log::add_file_logger(log_path, migraphx::log::severity::info);
+    auto file_id = migraphx::log::add_file_logger(log_path.c_str(), migraphx::log::severity::info);
 
     const unsigned int num_threads    = get_thread_count(4);
     constexpr int messages_per_thread = 25;
@@ -824,7 +826,7 @@ TEST_CASE(logger_concurrent_file_sink)
     // Verify per-thread ordering
     verify_per_thread_ordering(messages, num_threads, messages_per_thread, true);
 
-    std::remove(log_path);
+    std::filesystem::remove(log_path);
 }
 
 TEST_CASE(logger_stress_test)

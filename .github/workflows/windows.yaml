@@ -59,9 +59,11 @@ jobs:
       env:
         CC: clang-cl
         CXX: clang-cl
+        CXXFLAGS: "/std:c++17"
       run: |
         rbuild prepare -d cget -s gh-win -G Ninja \
           -Dprotobuf_MSVC_STATIC_RUNTIME=Off \
+          -DCMAKE_POLICY_DEFAULT_CMP0091=NEW \
           -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL
 
     - name: Build and test

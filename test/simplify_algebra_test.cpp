@@ -3650,6 +3650,32 @@ TEST_CASE(reorder_reshape_slice_multi_axes_not_apply)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(reorder_reshape_slice_squeeze_inner_axis)
+{
+    // Slice on innermost axis followed by squeeze (gridsample-like pattern).
+    // The sliced axis is an inner subdimension in the merged destination
+    // dimension so the transformation must not apply.
+    migraphx::module m1;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {1, 2, 4, 2}};
+        auto input = m1.add_parameter("input", s);
+        auto slc0  = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {1}}}), input);
+        auto slc1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {3}}, {"starts", {1}}, {"ends", {2}}}), input);
+
+        auto sq0 = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), slc0);
+        auto sq1 = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), slc1);
+
+        auto sum = m1.add_instruction(migraphx::make_op("add"), sq0, sq1);
+        auto ret = m1.add_instruction(migraphx::make_op("mul"), sum, sq0);
+        m1.add_return({ret});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(reorder_reshape_slice_multi_rsp)
 {
     migraphx::module m1;

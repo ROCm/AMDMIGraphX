@@ -77,16 +77,39 @@ struct spatial_tiler
         return (out_spatial_lens() != tiles_per_dim() * output_lens());
     }
 
-    // Full-dimensional padding: (0, 0, p_h, p_w, ...)
-    static constexpr auto full_padding() { return join(index_ints<0, 0>{}, Padding{}); }
-
     static constexpr bool has_conv_padding() { return has_nonzero(Padding{}); }
+
+    // Left (begin) padding per dim: (0, 0, left_h, left_w)
+    static constexpr auto left_padding()
+    {
+        return return_array_c([] {
+            constexpr auto p  = Padding{};
+            constexpr auto ns = p.size() / 2;
+            auto result       = array<index_int, ns + 2>(index_int{0});
+            for(index_int i = 0; i < ns; i++)
+                result[i + 2] = p[i];
+            return result;
+        });
+    }
+
+    // Total (left+right) padding per dim: (0, 0, left_h+right_h, left_w+right_w)
+    static constexpr auto total_padding()
+    {
+        return return_array_c([] {
+            constexpr auto p  = Padding{};
+            constexpr auto ns = p.size() / 2;
+            auto result       = array<index_int, ns + 2>(index_int{0});
+            for(index_int i = 0; i < ns; i++)
+                result[i + 2] = p[i] + p[i + ns];
+            return result;
+        });
+    }
 
     index idx;
     array<index_int, ndim()> tile_origin;
 
     // Compute halo lens for a given input shape: output_lens + (input_spatial - output_spatial)
-    // With padding, the output is larger so the raw difference is too small; add padding back.
+    // With padding, the output is larger so the raw difference is too small; add total padding.
     template <class InputShape>
     static constexpr auto halo_lens_for()
     {
@@ -94,7 +117,7 @@ struct spatial_tiler
         {
             constexpr auto halo_extra = return_array_c([] {
                 return make_slice(InputShape{}, keep_spatial()).lens - out_spatial_lens() +
-                       full_padding();
+                       total_padding();
             });
             return transform(output_lens(), halo_extra, [](auto o, auto h) { return o + h; });
         }
@@ -145,7 +168,7 @@ struct spatial_tiler
             auto src_pos    = tile_origin + halo_multi;
             if constexpr(has_conv_padding())
             {
-                constexpr auto pad = full_padding();
+                constexpr auto pad = left_padding();
                 auto input_pos     = src_pos - pad;
                 smem[i] = in_bounds(input_pos, input_spatial) ? type{input_ch[input_pos]} : type{0};
             }

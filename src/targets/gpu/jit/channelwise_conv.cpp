@@ -109,10 +109,9 @@ struct channelwise_conv_compiler : compiler<channelwise_conv_compiler>
 
         options.set_launch_params(v, num_blocks * block_size, block_size);
 
-        auto full_padding = v.get("padding", std::vector<std::size_t>{});
-        std::vector<std::size_t> padding(num_spatial, 0);
-        for(std::size_t i = 0; i < num_spatial and i < full_padding.size(); i++)
-            padding[i] = full_padding[i];
+        auto padding = v.get("padding", std::vector<std::size_t>{});
+        if(padding.size() < 2 * num_spatial)
+            padding.resize(2 * num_spatial, 0);
 
         auto src = interpolate_string(channelwise_conv_kernel,
                                       {{"tile", to_string_range(tile_sizes)},

@@ -291,10 +291,10 @@ struct dot_horizontal_fusion
             return false;
         if(ins->get_shape().dynamic())
             return false;
-        if(ins->get_shape().lens().size() < 2)
+        if(ins->get_shape().ndim() < 2)
             return false;
         auto weight = ins->inputs().at(1);
-        return weight->can_eval() and weight->get_shape().lens().size() >= 2;
+        return weight->can_eval();
     }
 
     auto group_key(instruction_ref ins) const
@@ -327,14 +327,14 @@ struct dot_horizontal_fusion
 
         std::vector<instruction_ref> results;
         results.reserve(num);
-        for(std::size_t i = 0; i < num; ++i)
+        for(int64_t i = 0; i < num; ++i)
         {
             auto sliced = m.insert_instruction(
                 insert_pt,
                 make_op("slice",
                         {{"axes", std::vector<int64_t>{0}},
-                         {"starts", std::vector<int64_t>{static_cast<int64_t>(i)}},
-                         {"ends", std::vector<int64_t>{static_cast<int64_t>(i + 1)}}}),
+                         {"starts", std::vector<int64_t>{i}},
+                         {"ends", std::vector<int64_t>{i + 1}}}),
                 bd);
             results.push_back(
                 m.insert_instruction(insert_pt, make_op("squeeze", {{"axes", {0}}}), sliced));

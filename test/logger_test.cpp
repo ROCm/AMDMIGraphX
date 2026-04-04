@@ -389,7 +389,8 @@ TEST_CASE(logger_file_sink_existing_file)
     // Prevent stderr output
     migraphx::log::set_severity(migraphx::log::severity::none);
 
-    auto log_path = (std::filesystem::temp_directory_path() / "migraphx_test_existing_log.txt").string();
+    auto log_path =
+        (std::filesystem::temp_directory_path() / "migraphx_test_existing_log.txt").string();
 
     // Create a file logger and write some content
     auto file_id1 = migraphx::log::add_file_logger(log_path.c_str(), migraphx::log::severity::info);
@@ -761,7 +762,8 @@ TEST_CASE(logger_concurrent_file_sink)
     // Test concurrent logging to a file sink
     migraphx::log::set_severity(migraphx::log::severity::none);
 
-    auto log_path = (std::filesystem::temp_directory_path() / "migraphx_concurrent_test.log").string();
+    auto log_path =
+        (std::filesystem::temp_directory_path() / "migraphx_concurrent_test.log").string();
 
     // Remove any existing file
     std::filesystem::remove(log_path);

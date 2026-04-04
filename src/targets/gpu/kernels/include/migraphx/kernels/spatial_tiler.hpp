@@ -113,21 +113,22 @@ struct spatial_tiler
     template <class InputShape>
     static constexpr auto halo_lens_for()
     {
-        if constexpr(has_conv_padding())
-        {
-            constexpr auto halo_extra = return_array_c([] {
-                return make_slice(InputShape{}, keep_spatial()).lens - out_spatial_lens() +
-                       total_padding();
-            });
-            return transform(output_lens(), halo_extra, [](auto o, auto h) { return o + h; });
-        }
-        else
-        {
-            constexpr auto input_spatial = make_slice(InputShape{}, keep_spatial()).lens;
-            constexpr auto halo_extra    = transform(
-                input_spatial, out_spatial_lens(), [](auto is, auto os) { return is - os; });
-            return transform(output_lens(), halo_extra, [](auto o, auto h) { return o + h; });
-        }
+        constexpr auto halo_extra = [] {
+            if constexpr(has_conv_padding())
+            {
+                return return_array_c([] {
+                    return make_slice(InputShape{}, keep_spatial()).lens - out_spatial_lens() +
+                           total_padding();
+                });
+            }
+            else
+            {
+                constexpr auto input_spatial = make_slice(InputShape{}, keep_spatial()).lens;
+                return transform(
+                    input_spatial, out_spatial_lens(), [](auto is, auto os) { return is - os; });
+            }
+        }();
+        return transform(output_lens(), halo_extra, [](auto o, auto h) { return o + h; });
     }
 
     // Type for shared memory allocation
@@ -202,31 +203,8 @@ struct spatial_tiler
     }
 };
 
-template <index_int NTiles, class TileLens, class OutputShape>
-__device__ auto make_spatial_tiler(index idx, TileLens, OutputShape)
-{
-    using tiler_type = spatial_tiler<NTiles, TileLens, OutputShape>;
-
-    constexpr auto block_shape = make_shape(return_array_c([] {
-        auto result = tiler_type::tiles_per_dim().base();
-        auto olens  = OutputShape{}.lens;
-        result[0]   = olens[0];
-        result[1]   = olens[1];
-        return result;
-    }));
-    auto block_multi           = block_shape.multi(idx.group);
-    auto tile_origin = generate_array<index_int>(tiler_type::ndim(), [&](auto d) -> index_int {
-        if constexpr(d < 2)
-            return 0;
-        else
-            return block_multi[d] * tiler_type::output_lens()[d];
-    });
-
-    return tiler_type{idx, tile_origin};
-}
-
-template <index_int NTiles, class TileLens, class OutputShape, class Padding>
-__device__ auto make_spatial_tiler(index idx, TileLens, OutputShape, Padding)
+template <index_int NTiles, class TileLens, class OutputShape, class Padding = index_ints<>>
+__device__ auto make_spatial_tiler(index idx, TileLens, OutputShape, Padding = {})
 {
     using tiler_type = spatial_tiler<NTiles, TileLens, OutputShape, Padding>;
 

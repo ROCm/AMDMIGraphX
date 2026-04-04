@@ -29,8 +29,7 @@
 
 // Slice on the innermost axis followed by squeeze, similar to the
 // coordinate extraction pattern in gridsample.
-struct test_reorder_reshape_slice_squeeze
-    : verify_program<test_reorder_reshape_slice_squeeze>
+struct test_reorder_reshape_slice_squeeze : verify_program<test_reorder_reshape_slice_squeeze>
 {
     migraphx::program create_program() const
     {

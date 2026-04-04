@@ -27,8 +27,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_reorder_reshape_slice_move_axis3
-    : verify_program<test_reorder_reshape_slice_move_axis3>
+struct test_reorder_reshape_slice_move_axis3 : verify_program<test_reorder_reshape_slice_move_axis3>
 {
     migraphx::program create_program() const
     {

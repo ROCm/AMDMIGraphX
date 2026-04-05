@@ -1923,9 +1923,8 @@ struct find_slice_pw_subgraph
             if(is_pw_op(ins))
             {
                 subgraph.insert(ins);
-                for(auto& input : ins->inputs())
-                    if(not contains(subgraph, input))
-                        worklist.push_back(input);
+                auto inputs = ins->inputs();
+                std::copy_if(inputs.begin(), inputs.end(), std::back_inserter(worklist), [&](auto i){return not contains(subgraph, i);});
             }
             else if(ins->name() == "slice")
             {

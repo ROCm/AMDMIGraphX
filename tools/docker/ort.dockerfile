@@ -51,4 +51,4 @@ ADD tools/build_and_test_onnxrt.sh /onnxruntime/build_and_test_onnxrt.sh
 ADD tools/pai_test_launcher.sh /onnxruntime/tools/ci_build/github/pai/pai_test_launcher.sh
 ADD tools/pai_provider_test_launcher.sh /onnxruntime/tools/ci_build/github/pai/pai_provider_test_launcher.sh
 
-RUN pip install cmake==3.28
+RUN pip install cmake

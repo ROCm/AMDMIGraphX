@@ -275,8 +275,8 @@ struct gather_horizontal_fusion
 //
 // Downstream pointwise ops (SiLU, GeLU, LayerNorm, etc.) are NOT handled
 // here — they are generically lifted above the slice/squeeze boundaries by
-// find_slice_squeeze in simplify_reshapes (which moves the squeeze past
-// the op) together with find_splits in simplify_algebra (which merges the
+// find_slice_squeeze and find_slice_pw_subgraph in simplify_reshapes
+// together with find_splits in simplify_algebra (which merges the
 // parallel branches).  This separation keeps fuse_horizontal
 // pattern-agnostic while the iterative framework handles arbitrary
 // activation patterns.

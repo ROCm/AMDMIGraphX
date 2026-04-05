@@ -1883,6 +1883,115 @@ struct find_slice_squeeze
     }
 };
 
+// Match squeeze(pw_dag(slice)) where every non-constant leaf of the pointwise
+// DAG is the same slice instruction and squeeze/slice share the same single
+// axis.  Lifts the entire DAG above the slice:
+//   slice -> pw_dag -> squeeze   =>   pw_dag(root) -> slice -> squeeze
+// Each branch produces its own copy; CSE merges duplicates later.
+struct find_slice_pw_subgraph
+{
+    static bool is_pw_op(instruction_ref ins)
+    {
+        return ins->get_operator().attributes().contains("pointwise") or
+               ins->name() == "pointwise";
+    }
+
+    auto matcher() const
+    {
+        auto pw_op = match::any_of(match::name("pointwise"), match::pointwise());
+        return match::name("squeeze")(match::used_once(), match::arg(0)(pw_op));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto squeeze_ins = r.result;
+        auto pw_root     = squeeze_ins->inputs().front();
+
+        instruction_ref common_slice = m.end();
+        std::unordered_set<instruction_ref> subgraph;
+        std::vector<instruction_ref> worklist;
+        worklist.push_back(pw_root);
+
+        while(not worklist.empty())
+        {
+            auto ins = worklist.back();
+            worklist.pop_back();
+
+            if(contains(subgraph, ins))
+                continue;
+
+            if(is_pw_op(ins))
+            {
+                subgraph.insert(ins);
+                for(auto& input : ins->inputs())
+                    if(not contains(subgraph, input))
+                        worklist.push_back(input);
+            }
+            else if(ins->name() == "slice")
+            {
+                if(common_slice == m.end())
+                    common_slice = ins;
+                else if(common_slice != ins)
+                    return;
+            }
+            else
+            {
+                return;
+            }
+        }
+
+        if(common_slice == m.end())
+            return;
+        if(subgraph.size() < 2)
+            return;
+
+        for(auto ins : subgraph)
+            for(auto user : ins->outputs())
+                if(user != squeeze_ins and not contains(subgraph, user))
+                    return;
+
+        auto sq_axes = squeeze_ins->get_operator().to_value()["axes"].to_vector<int64_t>();
+        auto sl_axes =
+            common_slice->get_operator().to_value()["axes"].to_vector<int64_t>();
+        if(sq_axes.size() != 1 or sl_axes.size() != 1 or sq_axes.front() != sl_axes.front())
+            return;
+
+        auto root = common_slice->inputs().front();
+
+        std::vector<instruction_ref> topo_order;
+        std::unordered_set<instruction_ref> visited;
+        std::function<void(instruction_ref)> topo_dfs = [&](instruction_ref ins) {
+            if(contains(visited, ins) or not contains(subgraph, ins))
+                return;
+            visited.insert(ins);
+            for(auto& input : ins->inputs())
+                topo_dfs(input);
+            topo_order.push_back(ins);
+        };
+        topo_dfs(pw_root);
+
+        std::unordered_map<instruction_ref, instruction_ref> remap;
+        remap[common_slice] = root;
+        for(auto& old_ins : topo_order)
+        {
+            auto new_inputs = old_ins->inputs();
+            for(auto& inp : new_inputs)
+            {
+                auto it = remap.find(inp);
+                if(it != remap.end())
+                    inp = it->second;
+            }
+            remap[old_ins] = m.insert_instruction(
+                squeeze_ins, old_ins->get_operator(), new_inputs, old_ins->module_inputs());
+        }
+
+        auto new_pw_root = remap.at(pw_root);
+        auto new_slice =
+            m.insert_instruction(squeeze_ins, common_slice->get_operator(), new_pw_root);
+        m.replace_instruction(squeeze_ins, squeeze_ins->get_operator(), new_slice);
+    }
+};
+
 } // namespace
 
 void simplify_reshapes::apply(module& m) const
@@ -1907,6 +2016,7 @@ void simplify_reshapes::apply(module& m) const
                             find_transpose_slice{},
                             find_slice_transpose{},
                             find_slice_squeeze{},
+                            find_slice_pw_subgraph{},
                             find_unary_shape_transforms{},
                             find_reshape_dot{},
                             find_mul_add_shape_op_dot{},

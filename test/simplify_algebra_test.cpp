@@ -2445,6 +2445,7 @@ TEST_CASE(simplify_split_mul_broadcast_diff_size)
 }
 
 // Fuse inter split group dependency via per-group processing and two-root merging
+// Do not fuse with inter split group dependency
 TEST_CASE(find_splits_inter_group_dependency)
 {
     auto s = migraphx::shape{migraphx::shape::int32_type, {3, 2, 4}};
@@ -2466,13 +2467,15 @@ TEST_CASE(find_splits_inter_group_dependency)
     migraphx::module m2;
     {
         auto input = m2.add_parameter("input", s);
-        auto relu  = m2.add_instruction(migraphx::make_op("relu"), input);
-        auto sum   = m2.add_instruction(migraphx::make_op("add"), input, relu);
         auto x     = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), sum);
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
         auto y = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), sum);
-        m2.add_return({x, y});
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), input);
+        auto relu1 = m2.add_instruction(migraphx::make_op("relu"), x);
+        auto sum1  = m2.add_instruction(migraphx::make_op("add"), relu1, x);
+        auto relu2 = m2.add_instruction(migraphx::make_op("relu"), y);
+        auto sum2  = m2.add_instruction(migraphx::make_op("add"), y, relu2);
+        m2.add_return({sum1, sum2});
     }
     EXPECT(m1.sort() == m2.sort());
 }

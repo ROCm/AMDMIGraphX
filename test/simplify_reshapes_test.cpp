@@ -56,6 +56,9 @@ static void run_opt_pass(migraphx::module& m)
                               migraphx::simplify_algebra{},
                               migraphx::dead_code_elimination{}});
     }
+    migraphx::run_passes(m,
+                         {migraphx::eliminate_common_subexpression{},
+                          migraphx::dead_code_elimination{}});
 }
 
 inline static std::vector<std::vector<std::size_t>>

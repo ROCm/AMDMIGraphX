@@ -1896,20 +1896,22 @@ struct find_slice_pw_subgraph
                ins->name() == "pointwise";
     }
 
-    auto matcher() const
+    static bool is_common_slice_axes_compatabile(instruction_ref common_slice, instruction_ref squeeze_ins)
     {
-        auto pw_op = match::any_of(match::name("pointwise"), match::pointwise());
-        return match::name("squeeze")(match::used_once(), match::arg(0)(pw_op));
+        auto sq_axes = squeeze_ins->get_operator().to_value()["axes"].to_vector<int64_t>();
+        auto sl_axes =
+            common_slice->get_operator().to_value()["axes"].to_vector<int64_t>();
+
+        if(sq_axes.size() != 1 or sl_axes.size() != 1 or sq_axes.front() != sl_axes.front())  
+            return false;
+
+        return true;
     }
 
-    void apply(module& m, const match::matcher_result& r) const
+    static bool is_subgraph_valid(const module& m, const instruction_ref squeeze_ins, instruction_ref common_slice, std::unordered_set<instruction_ref>& subgraph)
     {
-        auto squeeze_ins = r.result;
-        auto pw_root     = squeeze_ins->inputs().front();
-
-        instruction_ref common_slice = m.end();
-        std::unordered_set<instruction_ref> subgraph;
         std::vector<instruction_ref> worklist;
+        auto pw_root     = squeeze_ins->inputs().front();
         worklist.push_back(pw_root);
 
         while(not worklist.empty())
@@ -1925,34 +1927,53 @@ struct find_slice_pw_subgraph
                 subgraph.insert(ins);
                 auto inputs = ins->inputs();
                 std::copy_if(inputs.begin(), inputs.end(), std::back_inserter(worklist), [&](auto i){return not contains(subgraph, i);});
-            }
+           }
             else if(ins->name() == "slice")
             {
                 if(common_slice == m.end())
                     common_slice = ins;
                 else if(common_slice != ins)
-                    return;
+                    return false;
             }
             else
             {
-                return;
+                return false;
             }
         }
+        return (common_slice != m.end() and (subgraph.size() > 1));
+    }
 
-        if(common_slice == m.end())
-            return;
-        if(subgraph.size() < 2)
-            return;
-
+    static bool all_outputs_in_subgraph(std::unordered_set<instruction_ref>& subgraph, instruction_ref squeeze_ins)
+    {
         for(auto ins : subgraph)
             for(auto user : ins->outputs())
                 if(user != squeeze_ins and not contains(subgraph, user))
-                    return;
+                    return false;
+        return true;
+    }
 
-        auto sq_axes = squeeze_ins->get_operator().to_value()["axes"].to_vector<int64_t>();
-        auto sl_axes =
-            common_slice->get_operator().to_value()["axes"].to_vector<int64_t>();
-        if(sq_axes.size() != 1 or sl_axes.size() != 1 or sq_axes.front() != sl_axes.front())
+    auto matcher() const
+    {
+        auto pw_op = match::any_of(match::name("pointwise"), match::pointwise());
+        return match::name("squeeze")(match::used_once(), match::arg(0)(pw_op));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto squeeze_ins = r.result;
+        auto pw_root     = squeeze_ins->inputs().front();
+
+        instruction_ref common_slice = m.end();
+        std::unordered_set<instruction_ref> subgraph;
+
+        // pass back subgraph and commond slice if both are valid
+        if(not is_subgraph_valid(m, squeeze_ins, common_slice, subgraph))
+            return;
+
+        if(not is_common_slice_axes_compatabile(common_slice, squeeze_ins))
+            return;
+
+        if(not all_outputs_in_subgraph(subgraph, squeeze_ins))
             return;
 
         auto root = common_slice->inputs().front();
@@ -1963,7 +1984,7 @@ struct find_slice_pw_subgraph
             if(contains(visited, ins) or not contains(subgraph, ins))
                 return;
             visited.insert(ins);
-            for(auto& input : ins->inputs())
+            for(const auto& input : ins->inputs())
                 topo_dfs(input);
             topo_order.push_back(ins);
         };

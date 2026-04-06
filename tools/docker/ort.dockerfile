@@ -21,7 +21,6 @@ COPY test/onnx/.onnxrt-commit /.onnxrt-commit
 
 # Install half package and gdb required by the test stage
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
-    cmake \
     gdb \
     git \
     half \

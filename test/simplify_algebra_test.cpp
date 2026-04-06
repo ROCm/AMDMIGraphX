@@ -3690,10 +3690,8 @@ TEST_CASE(reorder_reshape_slice_inner_axis_non_unit)
         auto slc1 = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {3}}, {"starts", {2}}, {"ends", {4}}}), input);
 
-        auto r0 =
-            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 8}}}), slc0);
-        auto r1 =
-            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 8}}}), slc1);
+        auto r0 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 8}}}), slc0);
+        auto r1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 8}}}), slc1);
 
         auto sum = m1.add_instruction(migraphx::make_op("add"), r0, r1);
         auto ret = m1.add_instruction(migraphx::make_op("mul"), sum, r0);

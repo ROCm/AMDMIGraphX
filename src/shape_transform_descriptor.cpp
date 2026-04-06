@@ -1922,20 +1922,11 @@ shape_transform_descriptor::axes_map_from_src(bool keep_partial_axes) const
                          non_1_axis,
                          [&](const dimension::sub& s) { return s.origin_axis().front(); });
         }
-        bool has_prior_non_1 = false;
         for(const auto& s : dim.subdimensions)
         {
             if(s.origin_axis().empty())
                 continue;
-            // A len==1 subdim behind another axis's len>1 subdim is not
-            // contiguously sliceable: expanding it would interleave with
-            // the outer subdim.
-            if(s.len == 1 and has_prior_non_1)
-                invalid_axes.insert(s.origin_axis().front());
-            else
-                result[s.origin_axis().front()].push_back(i);
-            if(s.len > 1)
-                has_prior_non_1 = true;
+            result[s.origin_axis().front()].push_back(i);
         }
     }
     // split axis cannot be mapped

@@ -3676,6 +3676,34 @@ TEST_CASE(reorder_reshape_slice_squeeze_inner_axis)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(reorder_reshape_slice_inner_axis_non_unit)
+{
+    // Slice on innermost axis (len > 1) followed by reshape that merges it
+    // with an outer axis.  The sliced axis is still an inner subdimension
+    // so the transformation must not apply.
+    migraphx::module m1;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {1, 2, 4, 4}};
+        auto input = m1.add_parameter("input", s);
+        auto slc0  = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {2}}}), input);
+        auto slc1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {3}}, {"starts", {2}}, {"ends", {4}}}), input);
+
+        auto r0 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 8}}}), slc0);
+        auto r1 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 8}}}), slc1);
+
+        auto sum = m1.add_instruction(migraphx::make_op("add"), r0, r1);
+        auto ret = m1.add_instruction(migraphx::make_op("mul"), sum, r0);
+        m1.add_return({ret});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(reorder_reshape_slice_multi_rsp)
 {
     migraphx::module m1;

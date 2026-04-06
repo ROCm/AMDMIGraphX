@@ -2094,6 +2094,21 @@ struct find_split_reshape
             auto axis = *std::min_element(mapped.begin(), mapped.end());
             if(contains(axes, axis))
                 return;
+            // The sliced axis must be the outermost subdimension in the
+            // destination dimension. If a subdimension from a different
+            // axis with len > 1 precedes it, slicing would produce a
+            // strided (non-contiguous) access pattern in the merged
+            // dimension.
+            const auto& subs = desc.dimensions[axis].subdimensions;
+            for(const auto& s : subs)
+            {
+                if(s.origin_axis().empty())
+                    continue;
+                if(s.origin_axis().front() == op_axis)
+                    break;
+                if(s.len > 1)
+                    return;
+            }
             auto per_axis_nslices = input_lens.at(op_axis) / slc_lens.at(op_axis);
             dims[axis] *= per_axis_nslices;
             linear_map linear{.src = input_lens.at(op_axis), .dst = dims[axis]};

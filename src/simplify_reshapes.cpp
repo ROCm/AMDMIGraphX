@@ -1902,13 +1902,10 @@ struct find_slice_pw_subgraph
         auto sl_axes =
             common_slice->get_operator().to_value()["axes"].to_vector<int64_t>();
 
-        if(sq_axes.size() != 1 or sl_axes.size() != 1 or sq_axes.front() != sl_axes.front())  
-            return false;
-
-        return true;
+        return (sq_axes.size() == 1 and sl_axes.size() == 1 and sq_axes.front() == sl_axes.front()); 
     }
 
-    static bool is_subgraph_valid(const module& m, const instruction_ref squeeze_ins, instruction_ref common_slice, std::unordered_set<instruction_ref>& subgraph)
+    static bool is_subgraph_valid(const module& m, const instruction_ref squeeze_ins, instruction_ref& common_slice, std::unordered_set<instruction_ref>& subgraph)
     {
         std::vector<instruction_ref> worklist;
         auto pw_root     = squeeze_ins->inputs().front();
@@ -1940,7 +1937,7 @@ struct find_slice_pw_subgraph
                 return false;
             }
         }
-        return (common_slice != m.end() and (subgraph.size() > 1));
+        return ((common_slice != m.end()) and (subgraph.size() > 1));
     }
 
     static bool all_outputs_in_subgraph(std::unordered_set<instruction_ref>& subgraph, instruction_ref squeeze_ins)

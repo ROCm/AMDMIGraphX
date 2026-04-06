@@ -1,0 +1,47 @@
+FROM ubuntu:24.04
+
+ARG PREFIX=/usr/local
+ARG ROCM_PACKAGE=gfx120X-all
+ARG ROCM_VENV_DIR=/opt/rocm-7.13
+ARG RBUILD_REF=master
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+ENV ROCM_PATH=/opt/rocm \
+    VIRTUAL_ENV="${ROCM_VENV_DIR}" \
+    PATH="${ROCM_VENV_DIR}/bin:${PATH}" \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1
+
+# Support multiarch
+RUN dpkg --add-architecture i386 \
+    && apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        ca-certificates \
+        cmake \
+        curl \
+        gnupg2 \
+        libatomic1 \
+        libquadmath0 \
+        locales \
+        python3-pip \
+        python3.12-venv \
+        software-properties-common \
+        wget \
+    && rm -rf /var/lib/apt/lists/* \
+    && locale-gen en_US.UTF-8 \
+    && update-locale LANG=en_US.UTF-8
+
+ENV LANG=en_US.UTF-8 \
+    LC_ALL=en_US.UTF-8
+
+RUN python3 -m venv "${ROCM_VENV_DIR}" \
+    && "${ROCM_VENV_DIR}/bin/python" -m pip install --upgrade pip setuptools wheel \
+    && "${ROCM_VENV_DIR}/bin/python" -m pip install --index-url "https://rocm.nightlies.amd.com/v2/${ROCM_PACKAGE}/" "rocm[libraries,devel]" \
+    && "${ROCM_VENV_DIR}/bin/rocm-sdk" init \
+    && if [[ -e "${ROCM_PATH}" && ! -L "${ROCM_PATH}" ]]; then echo "Refusing to overwrite existing ${ROCM_PATH}"; exit 2; fi \
+    && ln -sfn "${ROCM_VENV_DIR}/lib/python3.12/site-packages/_rocm_sdk_devel" "${ROCM_PATH}" \
+    && "${ROCM_VENV_DIR}/bin/python" -m pip install "https://github.com/RadeonOpenCompute/rbuild/archive/${RBUILD_REF}.tar.gz"
+
+WORKDIR /work
+

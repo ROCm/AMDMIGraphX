@@ -2,6 +2,8 @@
 
 This document describes how to build MIGraphX in a [TheRock](https://github.com/ROCm/TheRock)-style environment using the `therock` package backend. That backend is intended for ROCm layouts where dependency package names differ from the default ROCm stack (see [PR #4714](https://github.com/ROCm/AMDMIGraphX/pull/4714) for background and CMake details, including `MIGRAPHX_PACKAGE_BACKEND`).
 
+The workflow below (and [`tools/docker/dockerfile.therock`](../../tools/docker/dockerfile.therock)) is derived from TheRock’s ROCm Python packaging guidance in [“Using ROCm Python packages”](https://github.com/ROCm/TheRock/blob/main/RELEASES.md#using-rocm-python-packages).
+
 ## Prerequisites
 
 - A machine with AMD GPU access (`/dev/kfd`, `/dev/dri`) if you intend to run on hardware.

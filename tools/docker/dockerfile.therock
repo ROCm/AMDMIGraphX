@@ -3,7 +3,7 @@ FROM ubuntu:24.04
 ARG PREFIX=/usr/local
 ARG ROCM_PACKAGE=gfx120X-all
 ARG ROCM_VENV_DIR=/opt/rocm-7.13
-ARG RBUILD_REF=master
+
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -41,7 +41,7 @@ RUN python3 -m venv "${ROCM_VENV_DIR}" \
     && "${ROCM_VENV_DIR}/bin/rocm-sdk" init \
     && if [[ -e "${ROCM_PATH}" && ! -L "${ROCM_PATH}" ]]; then echo "Refusing to overwrite existing ${ROCM_PATH}"; exit 2; fi \
     && ln -sfn "${ROCM_VENV_DIR}/lib/python3.12/site-packages/_rocm_sdk_devel" "${ROCM_PATH}" \
-    && "${ROCM_VENV_DIR}/bin/python" -m pip install "https://github.com/RadeonOpenCompute/rbuild/archive/${RBUILD_REF}.tar.gz"
+    && "${ROCM_VENV_DIR}/bin/python" -m pip install "https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz"
 
 WORKDIR /work
 

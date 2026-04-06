@@ -5041,4 +5041,23 @@ TEST_CASE(gather_strided_view_elements_mismatch)
     EXPECT(m1.get_output_shapes() == m2.get_output_shapes());
 }
 
+TEST_CASE(slice_reshape_multibroadcast_rebase_axis)
+{
+    migraphx::module m1;
+    {
+        auto x        = m1.add_parameter("x", {migraphx::shape::float_type, {1, 3, 8, 8}});
+        auto reshape1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 64}}}), x);
+        auto slice    = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), reshape1);
+        auto reshape2 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 8, 8}}}), slice);
+        auto mb = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 3, 8, 8}}}), reshape2);
+        m1.add_return({mb});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.get_output_shapes() == m2.get_output_shapes());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

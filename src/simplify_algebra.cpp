@@ -950,11 +950,12 @@ struct find_concat_op
     {
         auto concat_lens = ins.front()->get_shape().lens();
         concat_lens.erase(concat_lens.begin() + axis);
+        auto front_type = ins.front()->get_shape().type();
 
         return std::all_of(ins.begin(), ins.end(), [&](auto i) {
             auto lens = i->get_shape().lens();
             lens.erase(lens.begin() + axis);
-            return lens == concat_lens;
+            return lens == concat_lens and i->get_shape().type() == front_type;
         });
     }
 

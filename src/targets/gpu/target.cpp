@@ -120,7 +120,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         eliminate_data_type_for_gpu{.disable_64bit = options.fast_math},
         rewrite_resize{.affine_only = true},
         dead_code_elimination{},
-        simplify_reshapes{.enable_gather_rewrite = true},
+        simplify_reshapes{.enable_gather_rewrite = true, .enable_gather_add_fusion = true},
         eliminate_identity{},
         eliminate_pad{},
         dead_code_elimination{},

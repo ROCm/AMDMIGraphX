@@ -1347,6 +1347,84 @@ struct find_gather_scalar
     }
 };
 
+struct find_gather_add
+{
+    auto matcher() const
+    {
+        auto gather_with_const_indices = match::name("gather")(
+            match::args(match::any().bind("data"), match::is_constant().bind("indices")));
+        auto slice_of_gather =
+            match::name("slice")(match::args(gather_with_const_indices.bind("gather")));
+        return match::name("add")(
+            match::either_arg(0, 1)(slice_of_gather.bind("slice_a"),
+                                    match::name("slice")(match::args(match::name("gather")))
+                                        .bind("slice_b")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto add_ins    = r.result;
+        auto gather_ins = r.instructions["gather"];
+        auto slice_a    = r.instructions["slice_a"];
+        auto slice_b    = r.instructions["slice_b"];
+        auto data_ins   = r.instructions["data"];
+        auto indices_ins = r.instructions["indices"];
+
+        if(slice_b->inputs().at(0) != gather_ins)
+            return;
+
+        auto sop_a = any_cast<op::slice>(slice_a->get_operator());
+        auto sop_b = any_cast<op::slice>(slice_b->get_operator());
+
+        if(sop_a.axes != sop_b.axes)
+            return;
+        if(sop_a.axes.size() != 1)
+            return;
+        if(sop_a.ends.front() - sop_a.starts.front() != 1)
+            return;
+        if(sop_b.ends.front() - sop_b.starts.front() != 1)
+            return;
+
+        auto row_a      = sop_a.starts.front();
+        auto row_b      = sop_b.starts.front();
+        auto slice_axis = sop_a.axes.front();
+
+        auto gather_op   = any_cast<op::gather>(gather_ins->get_operator());
+        auto gather_axis = gather_op.axis;
+
+        if(slice_axis != gather_axis)
+            return;
+
+        auto idx_a = m.insert_instruction(
+            add_ins,
+            make_op("slice",
+                    {{"axes", {0}}, {"starts", {row_a}}, {"ends", {row_a + 1}}}),
+            indices_ins);
+        auto idx_b = m.insert_instruction(
+            add_ins,
+            make_op("slice",
+                    {{"axes", {0}}, {"starts", {row_b}}, {"ends", {row_b + 1}}}),
+            indices_ins);
+
+        auto gather_a = m.insert_instruction(
+            add_ins, make_op("gather", {{"axis", gather_axis}}), data_ins, idx_a);
+        auto gather_b = m.insert_instruction(
+            add_ins, make_op("gather", {{"axis", gather_axis}}), data_ins, idx_b);
+
+        auto new_add = m.insert_instruction(add_ins, make_op("add"), gather_a, gather_b);
+
+        if(new_add->get_shape().lens() != add_ins->get_shape().lens())
+        {
+            new_add = m.insert_instruction(
+                add_ins,
+                make_op("reshape", {{"dims", add_ins->get_shape().lens()}}),
+                new_add);
+        }
+
+        m.replace_instruction(add_ins, new_add);
+    }
+};
+
 struct find_reshape_cont
 {
     auto matcher() const
@@ -1819,6 +1897,11 @@ void simplify_reshapes::apply(module& m) const
     dead_code_elimination{}.apply(m);
     if(enable_gather_rewrite)
         match::find_matches(m, find_gather{});
+    if(enable_gather_add_fusion)
+    {
+        match::find_matches(m, find_gather_add{});
+        dead_code_elimination{}.apply(m);
+    }
     m.repeat_while_changes(depth, [&] {
         match::find_matches(m,
                             find_nop_reshapes{},

@@ -28,12 +28,39 @@
 #include <migraphx/errors.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/reflect.hpp>
+#include <migraphx/value.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 namespace builtin {
+
+struct comment
+{
+    std::string op_name;
+    value problem;
+    value solution;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(
+            f(self.op_name, "op_name"), f(self.problem, "problem"), f(self.solution, "solution"));
+    }
+
+    std::string name() const { return "@comment"; }
+    // This shape is dummy so dead code elimination does not remove @comment instruction.
+    shape compute_shape(const std::vector<shape>&) const { return {shape::bool_type, {0}}; }
+    argument compute(context&, const shape&, const std::vector<argument>&) const { return {}; }
+
+    friend std::ostream& operator<<(std::ostream& os, const comment& op)
+    {
+        os << op.name() << ":" << op.op_name << " problem=" << op.problem
+           << " solution=" << op.solution;
+        return os;
+    }
+};
 
 struct literal
 {

@@ -34,6 +34,9 @@
 #include <migraphx/memory_coloring.hpp>
 #include <migraphx/logger.hpp>
 #include <migraphx/op/identity.hpp>
+#include <migraphx/builtin.hpp>
+#include <migraphx/load_save.hpp>
+#include <migraphx/filesystem.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -46,6 +49,7 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_COMPILE_PARALLEL);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_BENCHMARKING);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SKIP_BENCHMARKING);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR);
 
 struct precompile_op
 {
@@ -249,6 +253,36 @@ struct compiled_result
         cr.replace.trace(os, cr.ins);
         return os;
     }
+
+    program make_program(const std::string& op_name,
+                         const value& problem,
+                         const value& solution) const
+    {
+        program bench_prog;
+        auto* mm = bench_prog.get_main_module();
+
+        mm->add_instruction(builtin::comment{op_name, problem, solution}, {});
+
+        std::vector<instruction_ref> bench_ins_inputs;
+        std::transform(ins->inputs().begin(),
+                       ins->inputs().end(),
+                       std::back_inserter(bench_ins_inputs),
+                       [&](const auto& arg) {
+                           return mm->add_parameter(std::to_string(bench_ins_inputs.size()),
+                                                    arg->get_shape());
+                       });
+        auto bench_ins =
+            mm->add_instruction(ins->get_operator(), bench_ins_inputs, ins->module_inputs());
+        mm->add_return({bench_ins});
+        replace.replace(*mm, bench_ins);
+        run_passes(*mm,
+                   {
+                       eliminate_identity{},
+                       dead_code_elimination{},
+                       memory_coloring{"hip::allocate"},
+                   });
+        return bench_prog;
+    }
 };
 
 struct compile_plan
@@ -387,6 +421,8 @@ struct compile_plan
             MIGRAPHX_THROW("Multiple kernels without config for " + preop.name());
         if(trace_level > 1)
             std::cout << "Problem: " << config->problem << std::endl;
+        std::vector<optional<program>> bench_progs;
+        bench_progs.reserve(results.size());
         std::vector<double> times;
         times.reserve(results.size());
         std::transform(results.begin(),
@@ -400,38 +436,13 @@ struct compile_plan
                            {
                                if(trace_level > 1)
                                    std::cout << "No binary" << std::endl;
+                               bench_progs.push_back(nullopt);
                                return std::numeric_limits<double>::max();
                            }
                            if(trace_level > 2)
                                std::cout << *cr << std::endl;
-                           /*
-                           create a small program with insturction being compiled and call "replace"
-                           on that which would insert all the compiled code objects, prefills etc.
-                           necessary to run candidate code object
-                           */
-                           program bench_prog;
-                           auto* bench_mm = bench_prog.get_main_module();
-                           std::vector<instruction_ref> bench_ins_inputs;
-
-                           std::transform(cr->ins->inputs().begin(),
-                                          cr->ins->inputs().end(),
-                                          std::back_inserter(bench_ins_inputs),
-                                          [&](const auto& arg) {
-                                              return bench_mm->add_parameter(
-                                                  std::to_string(bench_ins_inputs.size()),
-                                                  arg->get_shape());
-                                          });
-                           auto bench_ins = bench_mm->add_instruction(
-                               cr->ins->get_operator(), bench_ins_inputs, cr->ins->module_inputs());
-                           bench_mm->add_return({bench_ins});
-                           cr->replace.replace(*bench_mm, bench_ins);
-                           // do dead code elimination
-                           run_passes(*bench_mm,
-                                      {
-                                          eliminate_identity{},
-                                          dead_code_elimination{},
-                                          memory_coloring{"hip::allocate"},
-                                      });
+                           auto bench_prog =
+                               cr->make_program(preop.name(), config->problem, solution);
                            if(trace_level > 2)
                                std::cout << bench_prog << std::endl;
                            auto t = time_program(*ctx,
@@ -441,6 +452,7 @@ struct compile_plan
                                                  /* nrun */ 20);
                            if(trace_level > 1)
                                std::cout << t << "ms" << std::endl;
+                           bench_progs.push_back(std::move(bench_prog));
                            return t;
                        });
         std::this_thread::sleep_for(std::chrono::milliseconds{50});
@@ -466,6 +478,27 @@ struct compile_plan
     {
         const auto& cr = benchmark();
         cr.replace.replace(m, cr.ins);
+    }
+
+    void save_binaries(program& bench_mxr) const
+    {
+        if(not config.has_value())
+            return;
+        const auto trace_level = value_of(MIGRAPHX_TRACE_BENCHMARKING{});
+        for(auto i : range(results.size()))
+        {
+            if(not results[i].has_value())
+                continue;
+            const auto& solution = config->solutions[i];
+            if(trace_level > 0)
+                std::cout << "Saving benchmark binary: " << preop.name()
+                          << " problem=" << config->problem << " solution=" << solution
+                          << std::endl;
+            auto bench_prog = results[i]->make_program(preop.name(), config->problem, solution);
+            std::string mod_name =
+                preop.name() + "_" + std::to_string(i) + "_" + to_string(config->problem);
+            bench_mxr.create_module(mod_name, std::move(*bench_prog.get_main_module()));
+        }
     }
 };
 
@@ -505,12 +538,35 @@ struct compile_manager
         }
         par_compile(compiles.size(), [&](auto i) { compiles[i](); });
 
-        // Replace and/or benchmark
+        static const auto mxr_path = string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{});
+        bool dump_mxr              = not mxr_path.empty();
+        program bench_mxr;
+
         for(const auto& cp : cps)
         {
             if(cp.results.empty())
                 continue;
-            cp.replace(m);
+            if(dump_mxr and cp.results.size() > 1)
+            {
+                cp.save_binaries(bench_mxr);
+            }
+            else
+            {
+                cp.replace(m);
+            }
+        }
+
+        if(dump_mxr and bench_mxr.get_modules().size() > 1)
+        {
+            fs::path mxr_dir(mxr_path);
+            fs::create_directories(mxr_dir);
+            auto clk      = std::chrono::steady_clock::now().time_since_epoch().count();
+            auto mxr_file = mxr_dir / ("benchmark_" + std::to_string(clk) + ".mxr");
+            save(bench_mxr, mxr_file.string());
+            std::cout << "Saved benchmark MXR to: " << mxr_file << std::endl;
+            MIGRAPHX_THROW(
+                "Benchmark MXR dumped to " + mxr_file.string() +
+                ". Run the MXR to create a problem cache, then recompile with the cache.");
         }
 
         // Remove compile_plan already executed

@@ -48,7 +48,8 @@ struct test_reorder_reshape_slice_move_axis3 : verify_program<test_reorder_resha
         auto r2 = mm->add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), slc2);
 
         auto sum = mm->add_instruction(migraphx::make_op("add"), r0, r1);
-        mm->add_instruction(migraphx::make_op("mul"), sum, r2);
+        auto ret = mm->add_instruction(migraphx::make_op("mul"), sum, r2);
+        mm->add_return({ret});
         return p;
     }
 };

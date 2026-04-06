@@ -46,7 +46,8 @@ struct test_reorder_reshape_slice_squeeze : verify_program<test_reorder_reshape_
         auto sq1 = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), slc1);
 
         auto sum = mm->add_instruction(migraphx::make_op("add"), sq0, sq1);
-        mm->add_instruction(migraphx::make_op("mul"), sum, sq0);
+        auto ret = mm->add_instruction(migraphx::make_op("mul"), sum, sq0);
+        mm->add_return({ret});
         return p;
     }
 };

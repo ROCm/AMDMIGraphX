@@ -2444,7 +2444,6 @@ TEST_CASE(simplify_split_mul_broadcast_diff_size)
     EXPECT(m1 == m2);
 }
 
-// Fuse inter split group dependency via per-group processing and two-root merging
 // Do not fuse with inter split group dependency
 TEST_CASE(find_splits_inter_group_dependency)
 {

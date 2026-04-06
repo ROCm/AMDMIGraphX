@@ -5228,4 +5228,154 @@ TEST_CASE(slice_squeeze_pw_silu_chain)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(slice_squeeze_reduce_sum)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4, 8}};
+    migraphx::module m1;
+    {
+        auto input = m1.add_parameter("input", s);
+        auto sl    = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), input);
+        auto sq  = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), sl);
+        auto red = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), sq);
+        m1.add_return({red});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto input = m2.add_parameter("input", s);
+        auto sl    = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), input);
+        auto red = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), sl);
+        auto sq  = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), red);
+        m2.add_return({sq});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(slice_squeeze_argmin)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4, 8}};
+    migraphx::module m1;
+    {
+        auto input = m1.add_parameter("input", s);
+        auto sl    = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), input);
+        auto sq     = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), sl);
+        auto argmin = m1.add_instruction(migraphx::make_op("argmin", {{"axis", 1}}), sq);
+        m1.add_return({argmin});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto input = m2.add_parameter("input", s);
+        auto sl    = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), input);
+        auto argmin = m2.add_instruction(migraphx::make_op("argmin", {{"axis", 2}}), sl);
+        auto sq     = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), argmin);
+        m2.add_return({sq});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(slice_squeeze_axis_mismatch)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 2, 4}};
+    migraphx::shape bs{migraphx::shape::float_type, {1, 4}};
+    migraphx::module m1;
+    {
+        auto input = m1.add_parameter("input", s);
+        auto bias  = m1.add_parameter("bias", bs);
+        auto sl    = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
+        auto sq  = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), sl);
+        auto add = m1.add_instruction(migraphx::make_op("add"), sq, bias);
+        m1.add_return({add});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(slice_squeeze_multi_axis)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3, 1}};
+    migraphx::shape bs{migraphx::shape::float_type, {3}};
+    migraphx::module m1;
+    {
+        auto input = m1.add_parameter("input", s);
+        auto bias  = m1.add_parameter("bias", bs);
+        auto sl    = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), input);
+        auto sq  = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {0, 2}}}), sl);
+        auto add = m1.add_instruction(migraphx::make_op("add"), sq, bias);
+        m1.add_return({add});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(slice_squeeze_non_zero_axis)
+{
+    migraphx::shape s{migraphx::shape::float_type, {3, 2, 4}};
+    migraphx::module m1;
+    {
+        auto input = m1.add_parameter("input", s);
+        auto s0    = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
+        auto sq0  = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), s0);
+        auto rel0 = m1.add_instruction(migraphx::make_op("relu"), sq0);
+        auto s1   = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), input);
+        auto sq1  = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), s1);
+        auto rel1 = m1.add_instruction(migraphx::make_op("relu"), sq1);
+        m1.add_return({rel0, rel1});
+    }
+    run_opt_pass(m1);
+    migraphx::module m2;
+    {
+        auto input = m2.add_parameter("input", s);
+        auto relu  = m2.add_instruction(migraphx::make_op("relu"), input);
+        auto s0    = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), relu);
+        auto sq0 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), s0);
+        auto s1  = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), relu);
+        auto sq1 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), s1);
+        m2.add_return({sq0, sq1});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(slice_squeeze_binary_two_inputs)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4}};
+    migraphx::module m1;
+    {
+        auto input = m1.add_parameter("input", s);
+        auto s0    = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), input);
+        auto sq0 = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s0);
+        auto s1  = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), input);
+        auto sq1 = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s1);
+        auto add = m1.add_instruction(migraphx::make_op("add"), sq0, sq1);
+        m1.add_return({add});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto input = m2.add_parameter("input", s);
+        auto s0    = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), input);
+        auto s1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), input);
+        auto add = m2.add_instruction(migraphx::make_op("add"), s0, s1);
+        auto sq  = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), add);
+        m2.add_return({sq});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

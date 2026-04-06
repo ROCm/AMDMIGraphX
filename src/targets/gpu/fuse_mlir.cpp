@@ -51,6 +51,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_ENABLED);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_GEG_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MLIR);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_ENABLE_WINOGRAD);
 /**
  * @brief Declares a new MIGraphX environment variable which forces to generate
  * only specific MLIR operations.
@@ -378,6 +379,10 @@ auto is_mlir_conv(mlir_mode mode)
         if(w.lens().size() != 4)
             return true;
         if(w.lens()[2] != w.lens()[3])
+            return true;
+        // When MIGRAPHX_MLIR_ENABLE_WINOGRAD is set, route 3x3 convolutions
+        // to MLIR so rocMLIR's Winograd solver can handle them
+        if(enabled(MIGRAPHX_MLIR_ENABLE_WINOGRAD{}) and w.lens()[3] == 3)
             return true;
         return (w.lens()[3] % 3) != 0;
     });

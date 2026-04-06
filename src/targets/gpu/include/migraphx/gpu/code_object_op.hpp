@@ -46,6 +46,11 @@ struct code_object_op
     shape output{};
     std::int64_t output_arg = -1;
     kernel k{};
+    // Pre-built 232-byte V2 ABI argument buffer for Winograd assembly kernels.
+    // Empty for standard GEMM kernels. When non-empty, compute() fills in the
+    // 3 runtime GPU pointers (data/filter/output) and launches with this buffer
+    // instead of the bare-pointer array.
+    std::vector<char> winograd_args{};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -56,7 +61,8 @@ struct code_object_op
                     f(self.local, "local"),
                     f(self.expected_inputs, "expected_inputs"),
                     f(self.output, "output"),
-                    f(self.output_arg, "output_arg"));
+                    f(self.output_arg, "output_arg"),
+                    f(self.winograd_args, "winograd_args"));
     }
 
     value attributes() const { return {{"group", group()}}; }

@@ -24,6 +24,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cstdint>
+#include <cstring>
 #include <migraphx/shape.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/make_op.hpp>
@@ -1267,6 +1268,134 @@ void dump_mlir_to_file(module m, const std::vector<shape>& inputs, const fs::pat
 
 std::string dump_mlir(module m) { return dump_mlir(std::move(m), {}); }
 
+// Build the 232-byte V2 ABI argument buffer for a Winograd assembly kernel.
+// Fills all scalar fields from the convolution problem dimensions in the module.
+// GPU pointer fields (data/filter/output at offsets 32/40/48) are left as zero
+// and filled at launch time by code_object_op::compute().
+static std::vector<char> build_winograd_args(const module& m,
+                                             const std::vector<shape>& /*in_shapes*/)
+{
+    constexpr std::size_t kBufSize = 232;
+    std::vector<char> buf(kBufSize, 0);
+
+    auto write_u32 = [&](std::size_t off, uint32_t v) {
+        std::memcpy(buf.data() + off, &v, sizeof(v));
+    };
+    auto write_i32 = [&](std::size_t off, int32_t v) {
+        std::memcpy(buf.data() + off, &v, sizeof(v));
+    };
+    auto write_u64 = [&](std::size_t off, uint64_t v) {
+        std::memcpy(buf.data() + off, &v, sizeof(v));
+    };
+    auto write_f32 = [&](std::size_t off, float v) {
+        std::memcpy(buf.data() + off, &v, sizeof(v));
+    };
+
+    // Find the convolution instruction in the module to extract parameters
+    instruction_ref conv_ins = m.end();
+    for(auto ins : iterator_for(m))
+    {
+        if(contains({"convolution", "quant_convolution", "convolution_backwards"}, ins->name()))
+        {
+            conv_ins = ins;
+            break;
+        }
+    }
+
+    if(conv_ins == m.end())
+        return buf; // no conv found, return zeroed buffer
+
+    auto v     = conv_ins->get_operator().to_value();
+    auto group = v.at("group").to<int>();
+
+    // Padding may be symmetric (2 values) or full (4 values)
+    auto padding  = v.at("padding").to_vector<int>();
+    auto stride   = v.at("stride").to_vector<int>();
+    auto dilation = v.at("dilation").to_vector<int>();
+
+    int pad_h = padding.size() > 0 ? padding[0] : 0;
+    int pad_w = padding.size() > 1 ? padding[1] : 0;
+
+    // Input shape: [N, C, H, W] for 4D conv
+    // For code_object_op, args order is [filter, input, output]
+    // in_shapes matches expected_inputs = [filter_shape, input_shape]
+    // But the MIGraphX module's conv instruction has:
+    //   inputs()[0] = input (data), inputs()[1] = filter (weights)
+    auto input_shape  = conv_ins->inputs().at(0)->get_shape();
+    auto filter_shape = conv_ins->inputs().at(1)->get_shape();
+    auto output_shape = conv_ins->get_shape();
+
+    auto in_lens  = input_shape.lens();
+    auto fil_lens = filter_shape.lens();
+    auto out_lens = output_shape.lens();
+
+    uint32_t N    = in_lens.size() >= 4 ? static_cast<uint32_t>(in_lens[0]) : 1;
+    uint32_t C    = in_lens.size() >= 4 ? static_cast<uint32_t>(in_lens[1]) : 1;
+    uint32_t H    = in_lens.size() >= 4 ? static_cast<uint32_t>(in_lens[2]) : 1;
+    uint32_t W    = in_lens.size() >= 4 ? static_cast<uint32_t>(in_lens[3]) : 1;
+    uint32_t K    = fil_lens.size() >= 4 ? static_cast<uint32_t>(fil_lens[0]) : 1;
+    uint32_t R    = fil_lens.size() >= 4 ? static_cast<uint32_t>(fil_lens[2]) : 1;
+    uint32_t S    = fil_lens.size() >= 4 ? static_cast<uint32_t>(fil_lens[3]) : 1;
+    uint32_t outH = out_lens.size() >= 4 ? static_cast<uint32_t>(out_lens[2]) : 1;
+    uint32_t outW = out_lens.size() >= 4 ? static_cast<uint32_t>(out_lens[3]) : 1;
+
+    // For grouped conv, C and K in the V2 ABI are per-group
+    uint32_t C_per_group = C / static_cast<uint32_t>(group);
+    uint32_t K_per_group = K / static_cast<uint32_t>(group);
+
+    // Compute n_groups from grid_size (not available here, use numCU as default)
+    // The grid_size is set by rocMLIR in mlirGetKernelAttrs; for now use K/32 minimum
+    uint32_t n_groups = std::max(K_per_group / 32, 1u);
+
+    // V2 ABI flags for forward convolution
+    uint64_t flags64 = (1ULL << 3)  | // F_DENORMS_RND_ENABLE
+                        (1ULL << 9)  | // F_NKCHR_STRIDES
+                        (1ULL << 13) | // F_TENSOR_OFFSETS
+                        (1ULL << 14) | // F_USE_ACTIVATION_MODE
+                        (1ULL << 15);  // F_USE_EXTENDED_FLAGS_64
+    if(conv_ins->name() == "convolution_backwards")
+        flags64 |= (1ULL << 0) | (1ULL << 1); // F_REVERSE_R | F_REVERSE_S
+
+    // Write scalar fields
+    write_u32(0, N);
+    write_u32(4, C_per_group);
+    write_u32(8, H);
+    write_u32(12, W);
+    write_u32(16, K_per_group);
+    write_u32(20, n_groups);
+    write_u64(24, flags64);
+    // offsets 32-48: GPU pointers filled at launch time
+    write_u32(64, R);
+    write_u32(68, S);
+    write_i32(72, static_cast<int32_t>(pad_h));
+    write_i32(76, static_cast<int32_t>(pad_w));
+    write_u32(80, outH);
+    write_u32(84, outW);
+    write_f32(96, 1.0f);  // alpha
+    write_f32(100, 0.0f); // beta
+
+    // NCHW strides in elements
+    write_u32(136, C * H * W);     // d_N_stride
+    write_u32(140, H * W);         // d_C_stride
+    write_u32(144, W);             // d_H_stride
+
+    write_u32(152, C_per_group * R * S); // f_K_stride
+    write_u32(156, R * S);               // f_C_stride
+    write_u32(160, S);                   // f_R_stride
+
+    write_u32(168, K * outH * outW); // o_N_stride
+    write_u32(172, outH * outW);     // o_K_stride
+    write_u32(176, outW);            // o_H_stride
+
+    // Group info
+    write_u32(184, static_cast<uint32_t>(group));
+    write_u32(188, C * H * W);          // d_G_stride
+    write_u32(192, K * C_per_group * R * S); // f_G_stride
+    write_u32(196, K * outH * outW);     // o_G_stride
+
+    return buf;
+}
+
 mlir_code_object compile_mlir(const context& migraphx_ctx,
                               module m,
                               const std::vector<shape>& in_shapes,
@@ -1297,6 +1426,13 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     auto co            = mp.compile(solution);
     co.expected_inputs = in_shapes;
     co.output          = in_shapes.back();
+
+    // Detect Winograd assembly kernel and build the V2 ABI argument buffer.
+    // rocMLIR's lowerWinogradToBinary produces kernels named "miopenSp3Asm*".
+    if(co.symbol_name.find("miopenSp3Asm") != std::string::npos)
+    {
+        co.winograd_args = build_winograd_args(m, in_shapes);
+    }
 
     mlir_code_object mco;
     mco.cop                 = co;

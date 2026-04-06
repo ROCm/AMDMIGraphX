@@ -25,6 +25,7 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/pmr/vector.hpp>
+#include <cstring>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -71,6 +72,34 @@ static void visit_flatten_args(const std::vector<argument>& args, F f)
 argument
 code_object_op::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
+    auto [start, stop] = ctx.get_perf_events();
+
+    if(not winograd_args.empty())
+    {
+        // Winograd assembly kernel: pack the 232-byte V2 ABI buffer with
+        // runtime GPU pointers. The scalar fields were filled at compile time.
+        std::vector<char> wargs(winograd_args);
+
+        // For a conv code_object, args are [filter, input, output] matching
+        // the MLIR func.func signature. Map to V2 ABI pointer slots:
+        //   offset 32 = data_addr (input)  -> args[1]
+        //   offset 40 = filter_addr        -> args[0]
+        //   offset 48 = output_addr        -> args[output_arg]
+        void* input_ptr  = args.at(1).data();
+        void* filter_ptr = args.at(0).data();
+        void* output_ptr = args.at(get_output_arg(args.size())).data();
+
+        std::memcpy(wargs.data() + 32, &input_ptr, sizeof(void*));
+        std::memcpy(wargs.data() + 40, &filter_ptr, sizeof(void*));
+        std::memcpy(wargs.data() + 48, &output_ptr, sizeof(void*));
+
+        kernel::pointers kp(reinterpret_cast<void**>(wargs.data()),
+                            wargs.size() / sizeof(void*));
+        k.launch(ctx.get_stream().get(), global, local, kp, start, stop);
+        return args[get_output_arg(args.size())];
+    }
+
+    // Standard GEMM kernel: bare pointer args
 #if MIGRAPHX_HAS_PMR
     std::array<char, 256> storage;
     std::pmr::monotonic_buffer_resource resource{storage.data(), storage.size()};
@@ -85,7 +114,6 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
                        std::back_inserter(kargs),
                        [](const argument& a) { return a.data(); });
     });
-    auto [start, stop] = ctx.get_perf_events();
     k.launch(ctx.get_stream().get(), global, local, kargs, start, stop);
     return args[get_output_arg(args.size())];
 }

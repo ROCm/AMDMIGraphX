@@ -27,6 +27,8 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
+#include <numeric>
+
 // Slice on the innermost axis followed by squeeze, similar to the
 // coordinate extraction pattern in gridsample.
 struct test_reorder_reshape_slice_squeeze : verify_program<test_reorder_reshape_slice_squeeze>
@@ -36,11 +38,15 @@ struct test_reorder_reshape_slice_squeeze : verify_program<test_reorder_reshape_
         migraphx::program p;
         auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::float_type, {1, 2, 4, 2}};
+        std::vector<float> data(s.elements());
+        std::iota(data.begin(), data.end(), 0);
+        auto lit   = mm->add_literal(migraphx::literal{s, data});
         auto input = mm->add_parameter("input", s);
+        auto x     = mm->add_instruction(migraphx::make_op("add"), input, lit);
         auto slc0  = mm->add_instruction(
-            migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {1}}}), input);
+            migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {1}}}), x);
         auto slc1 = mm->add_instruction(
-            migraphx::make_op("slice", {{"axes", {3}}, {"starts", {1}}, {"ends", {2}}}), input);
+            migraphx::make_op("slice", {{"axes", {3}}, {"starts", {1}}, {"ends", {2}}}), x);
 
         auto sq0 = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), slc0);
         auto sq1 = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), slc1);

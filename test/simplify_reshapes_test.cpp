@@ -5292,8 +5292,18 @@ TEST_CASE(slice_squeeze_axis_mismatch)
         auto add = m1.add_instruction(migraphx::make_op("add"), sq, bias);
         m1.add_return({add});
     }
-    migraphx::module m2 = m1;
     run_pass(m1);
+    migraphx::module m2;
+    {
+        auto input   = m2.add_parameter("input", s);
+        auto bias    = m2.add_parameter("bias", bs);
+        auto sl      = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
+        auto unsq = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), bias);
+        auto add  = m2.add_instruction(migraphx::make_op("add"), sl, unsq);
+        auto sq   = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), add);
+        m2.add_return({sq});
+    }
     EXPECT(m1.sort() == m2.sort());
 }
 

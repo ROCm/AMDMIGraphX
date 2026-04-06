@@ -1859,10 +1859,10 @@ struct find_slice_squeeze
             {
                 auto op_axes = v["axes"].to_vector<int64_t>();
 
-                std::transform(op_axes.begin(), 
-                               op_axes.end(), 
+                std::transform(op_axes.begin(),
+                               op_axes.end(),
                                op_axes.begin(),
-                               [&](auto& i){ return ((i >= axis) ? i++ : i);});
+                               [&](auto i) { return (i >= axis) ? i + 1 : i; });
 
                 v["axes"] = op_axes;
                 op = make_op(op_ins->name(), v);

@@ -305,10 +305,59 @@ struct dot_horizontal_fusion
                                static_cast<int>(ins->get_shape().type()));
     }
 
+    struct bias_detect_result
+    {
+        std::vector<instruction_ref> add_insts;
+        std::vector<instruction_ref> bias_bcasts;
+    };
+
+    // Check if every dot feeds into add(dot, broadcast(...)). If so, return
+    // the add instructions and bias broadcast instructions.
+    static bool detect_downstream_biases(const std::vector<instruction_ref>& dots,
+                                         bias_detect_result& result)
+    {
+        for(const auto& d : dots)
+        {
+            auto outputs = d->outputs();
+            if(outputs.size() != 1)
+                return false;
+            auto add_ins = outputs.front();
+            if(add_ins->name() != "add")
+                return false;
+            const auto& add_inputs = add_ins->inputs();
+            auto other = (add_inputs[0] == d) ? add_inputs[1] : add_inputs[0];
+            if(other->name() != "broadcast" and other->name() != "multibroadcast")
+                return false;
+            result.add_insts.push_back(add_ins);
+            result.bias_bcasts.push_back(other);
+        }
+        return true;
+    }
+
     std::vector<instruction_ref>
     fuse(module& m, const std::vector<instruction_ref>& dots, instruction_ref insert_pt) const
     {
         auto num = dots.size();
+
+        // Detect bias absorption before inserting anything — we may need to
+        // advance insert_pt past the add (and broadcast) instructions that
+        // sit between the dots and the natural insertion point.
+        bias_detect_result bias_info;
+        bool absorb = detect_downstream_biases(dots, bias_info);
+        if(absorb)
+        {
+            for(auto add : bias_info.add_insts)
+            {
+                for(auto it = insert_pt; it != m.end(); ++it)
+                {
+                    if(it == add)
+                    {
+                        insert_pt = std::next(add);
+                        break;
+                    }
+                }
+            }
+        }
 
         std::vector<instruction_ref> acts(num);
         std::transform(dots.begin(), dots.end(), acts.begin(), [&](auto d) {
@@ -326,19 +375,39 @@ struct dot_horizontal_fusion
 
         auto bd = m.insert_instruction(insert_pt, make_op("dot"), batched_act, batched_wt);
 
+        if(absorb)
+        {
+            std::vector<instruction_ref> unsqueezed_biases(num);
+            for(std::size_t i = 0; i < num; ++i)
+            {
+                unsqueezed_biases[i] = m.insert_instruction(
+                    insert_pt,
+                    make_op("unsqueeze", {{"axes", {0}}}),
+                    bias_info.bias_bcasts[i]);
+            }
+            auto stacked_bias = m.insert_instruction(
+                insert_pt, make_op("concat", {{"axis", 0}}), unsqueezed_biases);
+            bd = m.insert_instruction(insert_pt, make_op("add"), bd, stacked_bias);
+        }
+
         std::vector<instruction_ref> results;
         results.reserve(num);
-        for(int64_t i = 0; i < num; ++i)
+        for(std::size_t i = 0; i < num; ++i)
         {
-            auto sliced = m.insert_instruction(insert_pt,
-                                               make_op("slice",
-                                                       {{"axes", std::vector<int64_t>{0}},
-                                                        {"starts", std::vector<int64_t>{i}},
-                                                        {"ends", std::vector<int64_t>{i + 1}}}),
-                                               bd);
+            auto sliced = m.insert_instruction(
+                insert_pt,
+                make_op("slice",
+                        {{"axes", std::vector<int64_t>{0}},
+                         {"starts", std::vector<int64_t>{static_cast<int64_t>(i)}},
+                         {"ends", std::vector<int64_t>{static_cast<int64_t>(i + 1)}}}),
+                bd);
             results.push_back(
                 m.insert_instruction(insert_pt, make_op("squeeze", {{"axes", {0}}}), sliced));
         }
+
+        for(std::size_t i = 0; i < bias_info.add_insts.size(); ++i)
+            m.replace_instruction(bias_info.add_insts[i], results[i]);
+
         return results;
     }
 };

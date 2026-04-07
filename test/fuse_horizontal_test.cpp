@@ -755,4 +755,88 @@ TEST_CASE(dot_horiz_no_fusion_single_tower)
     EXPECT(m1 == m2);
 }
 
+// Dots followed by add(dot, broadcast(const)) → batched dot + batched add
+TEST_CASE(dot_horiz_fusion_absorb_bias)
+{
+    migraphx::module m1;
+    {
+        auto w1 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {8, 4}}, 0));
+        auto w2 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {8, 4}}, 1));
+        auto b1 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4}}, 2));
+        auto b2 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4}}, 3));
+
+        auto x1 = m1.add_parameter("x1", {migraphx::shape::float_type, {4, 8}});
+        auto x2 = m1.add_parameter("x2", {migraphx::shape::float_type, {4, 8}});
+
+        auto d1  = m1.add_instruction(migraphx::make_op("dot"), x1, w1);
+        auto bc1 = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {4, 4}}}), b1);
+        auto a1 = m1.add_instruction(migraphx::make_op("add"), d1, bc1);
+
+        auto d2  = m1.add_instruction(migraphx::make_op("dot"), x2, w2);
+        auto bc2 = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {4, 4}}}), b2);
+        auto a2 = m1.add_instruction(migraphx::make_op("add"), d2, bc2);
+
+        m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                           std::vector<migraphx::instruction_ref>{a1, a2});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto w1 =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {8, 4}}, 0));
+        auto w2 =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {8, 4}}, 1));
+        auto b1 =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4}}, 2));
+        auto b2 =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4}}, 3));
+
+        auto x1 = m2.add_parameter("x1", {migraphx::shape::float_type, {4, 8}});
+        auto x2 = m2.add_parameter("x2", {migraphx::shape::float_type, {4, 8}});
+
+        // Broadcasts stay at their original positions (before the new instructions)
+        auto bc1 = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {4, 4}}}), b1);
+        auto bc2 = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {4, 4}}}), b2);
+
+        auto ux1     = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), x1);
+        auto ux2     = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), x2);
+        auto bat_act = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                                          std::vector<migraphx::instruction_ref>{ux1, ux2});
+
+        auto uw1    = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w1);
+        auto uw2    = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w2);
+        auto bat_wt = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                                         std::vector<migraphx::instruction_ref>{uw1, uw2});
+
+        auto bd = m2.add_instruction(migraphx::make_op("dot"), bat_act, bat_wt);
+
+        auto ubc1       = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), bc1);
+        auto ubc2       = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), bc2);
+        auto stacked_b  = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                                             std::vector<migraphx::instruction_ref>{ubc1, ubc2});
+        auto bd_add     = m2.add_instruction(migraphx::make_op("add"), bd, stacked_b);
+
+        auto s1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), bd_add);
+        auto sq1 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s1);
+
+        auto s2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), bd_add);
+        auto sq2 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s2);
+
+        m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                           std::vector<migraphx::instruction_ref>{sq1, sq2});
+    }
+    EXPECT(m1 == m2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

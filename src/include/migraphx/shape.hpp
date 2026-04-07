@@ -270,6 +270,9 @@ struct MIGRAPHX_EXPORT shape
      */
     static shape
     from_permutation(type_t t, const std::vector<std::size_t>& l, const std::vector<int64_t>& perm);
+    static shape from_permutation(type_t t,
+                                  const std::vector<dynamic_dimension>& dds,
+                                  const std::vector<int64_t>& perm);
 
     type_t type() const;
     const std::vector<std::size_t>& lens() const;
@@ -419,6 +422,8 @@ struct MIGRAPHX_EXPORT shape
 
     shape with_lens(type_t t, const std::vector<std::size_t>& l) const;
     shape with_lens(const std::vector<std::size_t>& l) const;
+    shape with_lens(type_t t, const std::vector<dynamic_dimension>& dds) const;
+    shape with_lens(const std::vector<dynamic_dimension>& dds) const;
 
     shape with_type(type_t t) const;
 

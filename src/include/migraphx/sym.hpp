@@ -41,7 +41,7 @@ struct value;
 namespace sym {
 
 struct expr;
-MIGRAPHX_EXPORT expr var(const std::string& name);
+MIGRAPHX_EXPORT expr var(const std::string& name, int64_t min = 1, int64_t max = 1);
 MIGRAPHX_EXPORT expr lit(int64_t n);
 MIGRAPHX_EXPORT expr parse(const std::string& s);
 
@@ -63,6 +63,10 @@ struct MIGRAPHX_EXPORT expr
     MIGRAPHX_EXPORT friend expr operator/(const expr& a, const expr& b);
     MIGRAPHX_EXPORT friend bool operator==(const expr& a, const expr& b);
     MIGRAPHX_EXPORT friend bool operator!=(const expr& a, const expr& b);
+    MIGRAPHX_EXPORT friend bool operator<(const expr& a, const expr& b);
+    friend bool operator>(const expr& a, const expr& b) { return b < a; }
+    friend bool operator<=(const expr& a, const expr& b) { return not(b < a); }
+    friend bool operator>=(const expr& a, const expr& b) { return not(a < b); }
     MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const expr& e);
 
     friend expr operator+(const expr& a, int64_t b) { return a + lit(b); }
@@ -76,7 +80,7 @@ struct MIGRAPHX_EXPORT expr
 
     struct impl;
 
-    friend expr var(const std::string& name);
+    friend expr var(const std::string& name, int64_t min, int64_t max);
     friend expr lit(int64_t n);
     friend expr parse(const std::string& s);
 

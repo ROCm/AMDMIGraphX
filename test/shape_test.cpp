@@ -123,8 +123,8 @@ TEST_CASE(test_shape_min_max_opt)
 TEST_CASE(test_shape_dynamic_fixed)
 {
     migraphx::shape s{migraphx::shape::float_type, {{2, 2}, {2, 2}, {3, 3}}};
-    EXPECT(not s.standard());
-    EXPECT(not s.packed());
+    EXPECT(s.standard());
+    EXPECT(s.packed());
     EXPECT(not s.transposed());
     EXPECT(not s.broadcasted());
     EXPECT(s.dynamic());

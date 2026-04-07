@@ -422,6 +422,26 @@ TEST_CASE(eq_empty)
     EXPECT(lit(0) != se{});
 }
 
+TEST_CASE(eq_same_name_different_intervals)
+{
+    auto h1 = var("h", 1, 128);
+    auto h2 = var("h", 1, 256);
+    auto h3 = var("h", 2, 128);
+    auto h4 = var("h", 1, 128);
+    EXPECT(h1 != h2);
+    EXPECT(h1 != h3);
+    EXPECT(h1 == h4);
+}
+
+TEST_CASE(hash_same_name_different_intervals)
+{
+    auto h1 = var("h", 1, 128);
+    auto h2 = var("h", 1, 256);
+    auto h3 = var("h", 1, 128);
+    EXPECT(h1.hash() != h2.hash());
+    EXPECT(h1.hash() == h3.hash());
+}
+
 TEST_CASE(hash_consistency)
 {
     auto h = var("h");
@@ -977,6 +997,215 @@ TEST_CASE(serialize_compound)
     auto w = var("w");
     auto e = (n * h * w + 3) / 2 - 1;
     EXPECT(round_trip(e) == e);
+}
+
+// ===================================================================
+// Tier 7: Semantic comparison operators
+// ===================================================================
+
+// --- Basic ordering ---
+
+TEST_CASE(cmp_lit_constants)
+{
+    EXPECT(lit(1) < lit(2));
+    EXPECT(not(lit(2) < lit(1)));
+    EXPECT(not(lit(3) < lit(3)));
+    EXPECT(lit(2) > lit(1));
+    EXPECT(lit(3) <= lit(3));
+    EXPECT(lit(3) >= lit(3));
+    EXPECT(lit(1) <= lit(2));
+    EXPECT(lit(2) >= lit(1));
+}
+
+TEST_CASE(cmp_equal_expr_not_less)
+{
+    auto n = var("n");
+    EXPECT(not(n < n));
+    EXPECT(not(n > n));
+    EXPECT(n <= n);
+    EXPECT(n >= n);
+}
+
+TEST_CASE(cmp_empty_not_less)
+{
+    se a;
+    se b;
+    EXPECT(not(a < b));
+}
+
+TEST_CASE(cmp_empty_with_nonempty_throws)
+{
+    EXPECT(test::throws([&] { se{} < var("n"); }));
+    EXPECT(test::throws([&] { var("n") < se{}; }));
+}
+
+// --- Stride ordering: standard layout [N, C, H, W] ---
+// Strides are [C*H*W, H*W, W, 1]; each must be > the next.
+
+TEST_CASE(cmp_stride_ordering_4d)
+{
+    auto c  = var("c", 1, 512);
+    auto h  = var("h", 1, 256);
+    auto w  = var("w", 1, 256);
+    auto s0 = c * h * w;
+    auto s1 = h * w;
+    auto s2 = w;
+    auto s3 = lit(1);
+
+    EXPECT(s1 < s0);
+    EXPECT(s2 < s1);
+    EXPECT(s3 < s2);
+    EXPECT(s3 < s0);
+}
+
+// With default [1,1] bounds, n*c*h*w vs c*h*w is not strictly ordered
+// because c could be 1 — this correctly returns false
+TEST_CASE(cmp_stride_ordering_default_bounds_not_strict)
+{
+    auto c = var("c");
+    auto h = var("h");
+    auto w = var("w");
+    EXPECT(not(h * w < c * h * w));
+}
+
+// --- Scaling: n < k*n for k >= 2 ---
+
+TEST_CASE(cmp_scaled_symbol)
+{
+    auto n = var("n");
+    EXPECT(n < 2 * n);
+    EXPECT(n < 3 * n);
+    EXPECT(not(2 * n < n));
+}
+
+// k < m*k with default [1,1] intervals: diff = k(m-1), lo=0, hi=0 => false
+TEST_CASE(cmp_product_default_bounds)
+{
+    auto k = var("k");
+    auto m = var("m");
+    EXPECT(not(k < m * k));
+}
+
+// With explicit bounds where m >= 2, k < m*k should be true
+TEST_CASE(cmp_product_explicit_bounds)
+{
+    auto k = var("k", 1, 8);
+    auto m = var("m", 2, 4);
+    EXPECT(k < m * k);
+}
+
+// --- Conv/pooling output dimension: out = (in - kernel) / stride + 1 ---
+// For kernel >= 2 and stride >= 1, out < in
+
+TEST_CASE(cmp_conv_output_smaller_than_input)
+{
+    auto h   = var("h", 3, 256);
+    auto out = (h - 3) / 2 + 1;
+    EXPECT(out < h);
+    EXPECT(not(h < out));
+}
+
+// Two successive pooling layers: out2 < out1 < h
+TEST_CASE(cmp_repeated_pooling)
+{
+    auto h    = var("h", 7, 256);
+    auto out1 = (h - 3) / 2 + 1;
+    auto out2 = (out1 - 3) / 2 + 1;
+    EXPECT(out1 < h);
+    EXPECT(out2 < out1);
+    EXPECT(out2 < h);
+}
+
+// --- Stride comparison after conv dimension reduction ---
+// After conv with stride 2 on H: new_h = (H-3)/2+1
+// Strides [new_h * W, W, 1] must be ordered
+
+TEST_CASE(cmp_strides_after_conv)
+{
+    auto h     = var("h", 7, 128);
+    auto w     = var("w", 1, 128);
+    auto new_h = (h - 3) / 2 + 1;
+    auto s0    = new_h * w;
+    auto s1    = w;
+    auto s2    = lit(1);
+
+    EXPECT(s1 < s0);
+    EXPECT(s2 < s1);
+}
+
+// --- Broadcast: comparing a dimension against 1 ---
+
+TEST_CASE(cmp_broadcast_dim_vs_one)
+{
+    auto n = var("n", 1, 1024);
+    EXPECT(not(n < lit(1)));
+    EXPECT(lit(1) <= n);
+}
+
+// Broadcast stride 0 < any positive stride
+TEST_CASE(cmp_broadcast_stride_zero)
+{
+    auto w = var("w");
+    EXPECT(lit(0) < w);
+    EXPECT(not(w < lit(0)));
+}
+
+// --- Constant offset comparisons (padding, kernel adjustments) ---
+
+TEST_CASE(cmp_offset_expressions)
+{
+    auto h = var("h", 2, 256);
+    EXPECT(h - 1 < h);
+    EXPECT(h < h + 1);
+    EXPECT(not(h + 1 < h));
+}
+
+// --- Undetermined comparison should throw ---
+
+TEST_CASE(cmp_undetermined_throws)
+{
+    auto n = var("n", 2, 10);
+    EXPECT(test::throws([&] { n < lit(5); }));
+}
+
+// --- Element count comparisons ---
+// n*c*h*w vs n*c*h (slice along w removes a dimension)
+
+TEST_CASE(cmp_element_count_slice)
+{
+    auto n = var("n", 1, 32);
+    auto c = var("c", 1, 512);
+    auto h = var("h", 1, 256);
+    auto w = var("w", 2, 256);
+    EXPECT(n * c * h < n * c * h * w);
+}
+
+// --- Long chain: 5 successive stride-2 pooling layers ---
+// h=255 -> 127 -> 63 -> 31 -> 15 -> 7, each stage < previous
+
+TEST_CASE(cmp_deep_pooling_chain)
+{
+    auto h   = var("h", 31, 512);
+    se stage = h;
+    se prev;
+    for(int i = 0; i < 5; ++i)
+    {
+        prev  = stage;
+        stage = (stage - 1) / 2;
+    }
+    EXPECT(stage < prev);
+    EXPECT(stage < h);
+}
+
+// --- Associativity / commutativity shouldn't affect comparison ---
+
+TEST_CASE(cmp_commuted_product)
+{
+    auto a = var("a");
+    auto b = var("b");
+    EXPECT(not(a * b < b * a));
+    EXPECT(a * b <= b * a);
+    EXPECT(a * b >= b * a);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

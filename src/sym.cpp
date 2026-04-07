@@ -65,6 +65,8 @@ struct integer_data
 struct symbol_data
 {
     std::string name;
+    int64_t min;
+    int64_t max;
 };
 struct add_data
 {
@@ -127,7 +129,11 @@ static std::size_t compute_hash(const expr_data& d)
     return std::visit(
         overloaded{
             [&](const integer_data& p) { return hash_combine(h, std::hash<int64_t>{}(p.value)); },
-            [&](const symbol_data& p) { return hash_combine(h, std::hash<std::string>{}(p.name)); },
+            [&](const symbol_data& p) {
+                auto h2 = hash_combine(h, std::hash<std::string>{}(p.name));
+                h2      = hash_combine(h2, std::hash<int64_t>{}(p.min));
+                return hash_combine(h2, std::hash<int64_t>{}(p.max));
+            },
             [&](const add_data& p) {
                 return hash_combine(hash_combine(h, std::hash<int64_t>{}(p.constant)),
                                     hash_ordered_map(p.terms));
@@ -183,7 +189,14 @@ static int compare_expr(const expr_ptr& a, const expr_ptr& b)
                    },
                    [&](const symbol_data& da) {
                        const auto& db = std::get<symbol_data>(b->data);
-                       return da.name.compare(db.name);
+                       int c          = da.name.compare(db.name);
+                       if(c != 0)
+                           return c;
+                       if(da.min != db.min)
+                           return da.min < db.min ? -1 : 1;
+                       if(da.max != db.max)
+                           return da.max < db.max ? -1 : 1;
+                       return 0;
                    },
                    [&](const add_data& da) {
                        const auto& db = std::get<add_data>(b->data);
@@ -264,7 +277,10 @@ static expr_ptr make_integer(int64_t n)
     return make_node(integer_data{n});
 }
 
-static expr_ptr make_symbol(const std::string& name) { return make_node(symbol_data{name}); }
+static expr_ptr make_symbol(const std::string& name, int64_t min, int64_t max)
+{
+    return make_node(symbol_data{name, min, max});
+}
 
 static expr_ptr make_add(const expr_ptr& a, const expr_ptr& b);
 static expr_ptr make_sub(const expr_ptr& a, const expr_ptr& b);
@@ -566,39 +582,54 @@ static expr_ptr substitute(const expr_ptr& e, const subs_map& bindings)
                       e->data);
 }
 
-static int64_t eval_direct(const expr_ptr& e, const binding_map& bindings)
+template <class SymbolResolver>
+static int64_t eval_impl(const expr_ptr& e, const SymbolResolver& resolve_sym)
 {
     return std::visit(overloaded{[](const integer_data& d) -> int64_t { return d.value; },
-                                 [&](const symbol_data& d) -> int64_t {
-                                     auto it = bindings.find(e);
-                                     if(it != bindings.end())
-                                         return it->second;
-                                     MIGRAPHX_THROW("sym::expr::eval_uint: unbound symbol '" +
-                                                    d.name + "'");
-                                 },
+                                 [&](const symbol_data& d) -> int64_t { return resolve_sym(e, d); },
                                  [&](const add_data& d) -> int64_t {
                                      int64_t sum = d.constant;
                                      for(const auto& [term, coeff] : d.terms)
-                                         sum += coeff * eval_direct(term, bindings);
+                                         sum += coeff * eval_impl(term, resolve_sym);
                                      return sum;
                                  },
                                  [&](const mul_data& d) -> int64_t {
                                      int64_t prod = d.coefficient;
                                      for(const auto& [base, exp] : d.factors)
                                      {
-                                         int64_t val = eval_direct(base, bindings);
+                                         int64_t val = eval_impl(base, resolve_sym);
                                          for(int64_t i = 0; i < exp; ++i)
                                              prod *= val;
                                      }
                                      return prod;
                                  },
                                  [&](const tdiv_data& d) -> int64_t {
-                                     auto denom = eval_direct(d.denominator, bindings);
+                                     auto denom = eval_impl(d.denominator, resolve_sym);
                                      if(denom == 0)
-                                         MIGRAPHX_THROW("sym::expr::eval_uint: division by zero");
-                                     return eval_direct(d.numerator, bindings) / denom;
+                                         MIGRAPHX_THROW("sym::expr: division by zero during eval");
+                                     return eval_impl(d.numerator, resolve_sym) / denom;
                                  }},
                       e->data);
+}
+
+static int64_t eval_direct(const expr_ptr& e, const binding_map& bindings)
+{
+    return eval_impl(e, [&](const expr_ptr& node, const symbol_data& d) -> int64_t {
+        auto it = bindings.find(node);
+        if(it != bindings.end())
+            return it->second;
+        MIGRAPHX_THROW("sym::expr::eval_uint: unbound symbol '" + d.name + "'");
+    });
+}
+
+static int64_t eval_at_min(const expr_ptr& e)
+{
+    return eval_impl(e, [](const expr_ptr&, const symbol_data& d) -> int64_t { return d.min; });
+}
+
+static int64_t eval_at_max(const expr_ptr& e)
+{
+    return eval_impl(e, [](const expr_ptr&, const symbol_data& d) -> int64_t { return d.max; });
 }
 
 // ===================================================================
@@ -734,7 +765,7 @@ static expr_ptr parse_primary(const char*& p)
             name += *p;
             ++p;
         }
-        return make_symbol(name);
+        return make_symbol(name, 1, 1);
     }
     if(*p == '(')
     {
@@ -920,6 +951,49 @@ bool operator==(const expr& a, const expr& b)
 
 bool operator!=(const expr& a, const expr& b) { return not(a == b); }
 
+// Semantic less-than for symbolic expressions using interval arithmetic.
+//
+// Assumptions:
+//   - All symbols have positive intervals [min, max] where 1 <= min <= max.
+//   - Expressions are monotonically non-decreasing in each variable, which
+//     holds for dimension/stride arithmetic (sums and products of positive
+//     terms). This lets us bound the range of (b - a) by evaluating at the
+//     interval endpoints.
+//
+// Algorithm:
+//   Compute diff = b - a, then evaluate diff at the lower and upper bounds
+//   of every symbol to obtain [lo, hi].  If the entire interval is positive
+//   (lo >= 0 and hi > 0) then a < b.  If the interval is non-positive
+//   (hi <= 0) then a >= b.  Otherwise the comparison is undetermined and we
+//   throw — this indicates a case outside the monotonic/positive assumption.
+//
+// Examples (all symbols default to [1, 1]):
+//   n < 2*n  =>  diff = 2n - n = n,  lo = 1, hi = 1  =>  true
+//   2*n < n  =>  diff = n - 2n = -n, lo = -1, hi = -1 => false
+//   k < m*k  =>  diff = mk - k = k(m-1), lo = 0, hi = 0 => false (not strictly positive)
+//
+// With explicit bounds, e.g. n in [2, 10]:
+//   n < 3    =>  diff = 3 - n,  lo = 3-10 = -7, hi = 3-2 = 1 => undetermined (throws)
+//   n < 11   =>  diff = 11 - n, lo = 11-10 = 1, hi = 11-2 = 9 => true
+bool operator<(const expr& a, const expr& b)
+{
+    if(a.empty() and b.empty())
+        return false;
+    if(a.empty() or b.empty())
+        MIGRAPHX_THROW("sym::expr: cannot compare empty expression");
+    auto diff   = make_sub(b.p->node, a.p->node);
+    auto val_lo = eval_at_min(diff);
+    auto val_hi = eval_at_max(diff);
+    auto lo     = std::min(val_lo, val_hi);
+    auto hi     = std::max(val_lo, val_hi);
+    if(lo >= 0 and hi > 0)
+        return true;
+    if(hi <= 0)
+        return false;
+    MIGRAPHX_THROW("sym::expr: comparison undetermined for: " + print_expr(a.p->node) + " < " +
+                   print_expr(b.p->node));
+}
+
 std::ostream& operator<<(std::ostream& os, const expr& e)
 {
     if(not e.empty())
@@ -927,11 +1001,11 @@ std::ostream& operator<<(std::ostream& os, const expr& e)
     return os;
 }
 
-expr var(const std::string& name)
+expr var(const std::string& name, int64_t min, int64_t max)
 {
     if(name.empty())
         MIGRAPHX_THROW("sym::var: variable name must not be empty");
-    return {std::make_shared<expr::impl>(make_symbol(name))};
+    return {std::make_shared<expr::impl>(make_symbol(name, min, max))};
 }
 
 expr lit(int64_t n) { return {std::make_shared<expr::impl>(make_integer(n))}; }
@@ -955,6 +1029,8 @@ static value node_to_value(const expr_ptr& e)
                                      value r;
                                      r["type"] = "sym";
                                      r["name"] = d.name;
+                                     r["min"]  = d.min;
+                                     r["max"]  = d.max;
                                      return r;
                                  },
                                  [](const add_data& d) -> value {
@@ -1006,7 +1082,9 @@ static expr_ptr node_from_value(const value& v)
     }
     else if(type == "sym")
     {
-        return make_symbol(v.at("name").get_string());
+        auto sym_min = v.contains("min") ? v.at("min").to<int64_t>() : int64_t{1};
+        auto sym_max = v.contains("max") ? v.at("max").to<int64_t>() : int64_t{1};
+        return make_symbol(v.at("name").get_string(), sym_min, sym_max);
     }
     else if(type == "add")
     {

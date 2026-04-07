@@ -25,6 +25,7 @@
 #include <migraphx/permutation.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/sym.hpp>
 #include <map>
 #include <functional>
 
@@ -33,6 +34,10 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 shape reorder_shape(const shape& s, const std::vector<int64_t>& permutation)
 {
+    if(s.symbolic())
+        return {s.type(),
+                reorder_dims(s.dyn_dims(), permutation),
+                reorder_dims(s.dyn_strides(), permutation)};
     return {s.type(), reorder_dims(s.lens(), permutation), reorder_dims(s.strides(), permutation)};
 }
 
@@ -43,11 +48,25 @@ std::vector<int64_t> invert_permutation(const std::vector<int64_t>& permutation)
 
 std::vector<int64_t> find_permutation(const shape& s)
 {
-    std::vector<std::int64_t> result(s.lens().size());
+    if(s.dynamic() and not s.symbolic())
+        MIGRAPHX_THROW("FIND_PERMUTATION: non-symbolic dynamic shapes not supported");
+    std::vector<std::int64_t> result(s.ndim());
     std::iota(result.begin(), result.end(), 0);
-    std::stable_sort(result.begin(), result.end(), by(std::greater<>{}, [&](auto x) {
-                         return std::make_tuple(s.strides()[x], s.lens()[x]);
-                     }));
+    if(s.symbolic())
+    {
+        const auto& strides = s.dyn_strides();
+        const auto& dds     = s.dyn_dims();
+        std::stable_sort(result.begin(), result.end(), by(std::greater<>{}, [&](auto x) {
+                             return std::make_tuple(strides[x],
+                                                    dds[x].sym_expr.value_or(sym::lit(dds[x].min)));
+                         }));
+    }
+    else
+    {
+        std::stable_sort(result.begin(), result.end(), by(std::greater<>{}, [&](auto x) {
+                             return std::make_tuple(s.strides()[x], s.lens()[x]);
+                         }));
+    }
     return result;
 }
 
@@ -64,7 +83,7 @@ std::vector<int64_t> find_permutation(const std::vector<shape>& shapes)
     }
     if(count.empty())
     {
-        std::vector<int64_t> r(shapes.front().lens().size());
+        std::vector<int64_t> r(shapes.front().ndim());
         std::iota(r.begin(), r.end(), 0);
         return r;
     }

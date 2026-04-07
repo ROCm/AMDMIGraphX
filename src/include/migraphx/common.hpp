@@ -153,6 +153,10 @@ instruction_ref add_common_op(module& m,
 MIGRAPHX_EXPORT
 shape make_bcast_shape(const shape& input_shape, const std::vector<std::size_t>& bcast_lens);
 
+MIGRAPHX_EXPORT
+shape make_bcast_shape(const shape& input_shape,
+                       const std::vector<shape::dynamic_dimension>& bcast_dds);
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_MIGRAPHX_COMMON_HPP

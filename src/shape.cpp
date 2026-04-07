@@ -82,7 +82,10 @@ struct shape_impl
         if(not m_dyn_dims.empty() and std::all_of(m_dyn_dims.begin(),
                                                   m_dyn_dims.end(),
                                                   [](const auto& d) { return d.is_symbolic(); }))
+        {
             calculate_dyn_strides();
+            m_standard = true;
+        }
     }
 
     shape_impl(shape::type_t t,
@@ -116,7 +119,10 @@ struct shape_impl
         if(not m_dyn_dims.empty() and std::all_of(m_dyn_dims.begin(),
                                                   m_dyn_dims.end(),
                                                   [](const auto& d) { return d.is_symbolic(); }))
+        {
             calculate_dyn_strides();
+            m_standard = true;
+        }
     }
 
     shape_impl(const std::vector<shape>& subs) : m_type(shape::tuple_type), m_shapes(subs) {}
@@ -178,15 +184,7 @@ struct shape_impl
         }
 
         assert(m_lens.size() == m_strides.size());
-        if(m_lens.empty())
-            return 0;
-        return std::inner_product(m_lens.begin(),
-                                  m_lens.end(),
-                                  m_strides.begin(),
-                                  std::size_t{0},
-                                  std::plus<std::size_t>{},
-                                  [](std::size_t l, std::size_t s) { return (l - 1) * s; }) +
-               1;
+        return compute_element_space<std::size_t>(m_lens, m_strides);
     }
 
     std::size_t elements() const
@@ -197,10 +195,7 @@ struct shape_impl
         }
 
         assert(m_lens.size() == m_strides.size());
-        if(m_lens.empty())
-            return 0;
-        return std::accumulate(
-            m_lens.begin(), m_lens.end(), std::size_t{1}, std::multiplies<std::size_t>());
+        return compute_elements<std::size_t>(m_lens);
     }
 
     std::size_t get_index(size_t i) const
@@ -253,9 +248,140 @@ struct shape_impl
     bool skips() const
     {
         assert(m_lens.size() == m_strides.size());
-        if(elements() == 1)
+        return compute_skips<std::size_t>(m_lens, m_strides);
+    }
+
+    template <class T>
+    static T make_identity(int64_t n)
+    {
+        if constexpr(std::is_same_v<T, sym::expr>)
+            return sym::lit(n);
+        else
+            return T(n);
+    }
+
+    std::vector<sym::expr> sym_dim_exprs() const
+    {
+        std::vector<sym::expr> result(m_dyn_dims.size());
+        std::transform(m_dyn_dims.cbegin(), m_dyn_dims.cend(), result.begin(), [](const auto& dd) {
+            return dd.sym_expr.value_or(sym::lit(dd.min));
+        });
+        return result;
+    }
+
+    template <class T>
+    static T compute_elements(const std::vector<T>& dims)
+    {
+        if(dims.empty())
+            return make_identity<T>(0);
+        return std::accumulate(dims.begin(), dims.end(), make_identity<T>(1), std::multiplies<>{});
+    }
+
+    template <class T>
+    static T compute_element_space(const std::vector<T>& dims, const std::vector<T>& strides)
+    {
+        if(dims.empty())
+            return make_identity<T>(0);
+        auto one = make_identity<T>(1);
+        return std::inner_product(dims.begin(),
+                                  dims.end(),
+                                  strides.begin(),
+                                  make_identity<T>(0),
+                                  std::plus<>{},
+                                  [&](const T& l, const T& s) { return (l - one) * s; }) +
+               one;
+    }
+
+    template <class T>
+    static bool compute_skips(const std::vector<T>& dims, const std::vector<T>& strides)
+    {
+        if(compute_elements<T>(dims) == make_identity<T>(1))
             return false;
-        return std::none_of(m_strides.begin(), m_strides.end(), [](auto x) { return x == 1; });
+        auto one = make_identity<T>(1);
+        return std::none_of(
+            strides.begin(), strides.end(), [&](const auto& x) { return x == one; });
+    }
+
+    template <class T>
+    static bool compute_packed(const std::vector<T>& dims, const std::vector<T>& strides)
+    {
+        return not compute_skips<T>(dims, strides) and
+               compute_elements<T>(dims) == compute_element_space<T>(dims, strides);
+    }
+
+    template <class T>
+    static bool compute_broadcasted(const std::vector<T>& strides)
+    {
+        auto zero = make_identity<T>(0);
+        return std::any_of(
+            strides.begin(), strides.end(), [&](const auto& x) { return x == zero; });
+    }
+
+    template <class T>
+    static bool compute_scalar(const std::vector<T>& strides)
+    {
+        auto zero = make_identity<T>(0);
+        return std::accumulate(strides.begin(), strides.end(), zero) == zero;
+    }
+
+    template <class T>
+    static bool compute_transposed(const std::vector<T>& strides)
+    {
+        if(compute_broadcasted<T>(strides))
+        {
+            std::vector<T> s;
+            s.reserve(strides.size());
+            auto zero = make_identity<T>(0);
+            std::copy_if(strides.begin(), strides.end(), std::back_inserter(s), [&](const auto& x) {
+                return x != zero;
+            });
+            return not std::is_sorted(s.rbegin(), s.rend());
+        }
+        return not std::is_sorted(strides.rbegin(), strides.rend());
+    }
+
+    bool is_packed() const
+    {
+        if(not m_dyn_dims.empty())
+        {
+            if(m_dyn_strides.empty())
+                return false;
+            return compute_packed<sym::expr>(sym_dim_exprs(), m_dyn_strides);
+        }
+        return compute_packed<std::size_t>(m_lens, m_strides);
+    }
+
+    bool is_broadcasted() const
+    {
+        if(not m_dyn_dims.empty())
+        {
+            if(m_dyn_strides.empty())
+                return false;
+            return compute_broadcasted<sym::expr>(m_dyn_strides);
+        }
+        return compute_broadcasted<std::size_t>(m_strides);
+    }
+
+    bool is_transposed() const
+    {
+        if(not m_dyn_dims.empty())
+        {
+            if(m_dyn_strides.empty())
+                return false;
+            return compute_transposed<sym::expr>(m_dyn_strides);
+        }
+        return compute_transposed<std::size_t>(m_strides);
+    }
+
+    bool is_scalar() const
+    {
+        if(not m_dyn_dims.empty())
+        {
+            if(m_dyn_strides.empty())
+                return false;
+            return compute_scalar<sym::expr>(m_dyn_strides);
+        }
+        return compute_scalar<std::size_t>(m_strides);
     }
 
     std::shared_ptr<shape_impl> copy() const { return std::make_shared<shape_impl>(*this); }
@@ -417,13 +543,29 @@ shape::shape(const std::vector<shape>& subs) : impl(std::make_shared<shape_impl>
 
 shape::shape(std::shared_ptr<shape_impl> pimpl) : impl(std::move(pimpl)) {}
 
+template <class Dims>
+static shape
+from_permutation_impl(shape::type_t t, const Dims& dims, const std::vector<int64_t>& perm)
+{
+    auto reordered = reorder_dims(dims, perm);
+    return reorder_shape({t, reordered}, invert_permutation(perm));
+}
+
 shape shape::from_permutation(type_t t,
                               const std::vector<std::size_t>& l,
                               const std::vector<int64_t>& perm)
 {
-    auto new_lens = reorder_dims(l, perm);
-    shape result  = reorder_shape({t, new_lens}, invert_permutation(perm));
+    shape result = from_permutation_impl(t, l, perm);
     assert(result.lens() == l);
+    return result;
+}
+
+shape shape::from_permutation(type_t t,
+                              const std::vector<dynamic_dimension>& dds,
+                              const std::vector<int64_t>& perm)
+{
+    shape result = from_permutation_impl(t, dds, perm);
+    assert(result.dyn_dims() == dds);
     return result;
 }
 
@@ -569,58 +711,30 @@ std::size_t shape::single(const std::vector<std::size_t>& idx) const
 
 bool shape::packed() const
 {
-    if(this->dynamic())
-    {
+    if(this->dynamic() and not this->symbolic())
         return false;
-    }
-    return this->sub_shapes().empty() and not impl->skips() and
-           this->elements() == this->element_space();
+    return this->sub_shapes().empty() and impl->is_packed();
 }
 
 bool shape::transposed() const
 {
-    if(this->dynamic())
-    {
+    if(this->dynamic() and not this->symbolic())
         return false;
-    }
-    if(this->broadcasted())
-    {
-        // TODO: Use a filter_iterator instead
-        std::vector<std::size_t> s;
-        s.reserve(this->strides().size());
-        std::copy_if(this->strides().begin(),
-                     this->strides().end(),
-                     std::back_inserter(s),
-                     [](std::size_t x) { return x != 0; });
-        return not std::is_sorted(s.rbegin(), s.rend());
-    }
-    else
-    {
-        return not std::is_sorted(this->strides().rbegin(), this->strides().rend());
-    }
+    return impl->is_transposed();
 }
 
 bool shape::broadcasted() const
 {
-    if(this->dynamic())
-    {
+    if(this->dynamic() and not this->symbolic())
         return false;
-    }
-    assert(this->lens().size() == this->strides().size());
-    return std::any_of(
-        this->strides().begin(), this->strides().end(), [](auto x) { return x == 0; });
+    return impl->is_broadcasted();
 }
 
 bool shape::scalar() const
 {
-    if(this->dynamic())
-    {
+    if(this->dynamic() and not this->symbolic())
         return false;
-    }
-    assert(this->lens().size() == this->strides().size());
-    // if any stride > 0, then accumulate will return false
-    return this->sub_shapes().empty() and
-           std::accumulate(this->strides().begin(), this->strides().end(), std::size_t(0)) == 0;
+    return this->sub_shapes().empty() and impl->is_scalar();
 }
 
 bool shape::standard() const { return impl->m_standard; }
@@ -659,6 +773,17 @@ shape shape::with_lens(const std::vector<std::size_t>& l) const
         MIGRAPHX_THROW("SHAPE: with_lens() called on dynamic shape");
     }
     return this->with_lens(this->type(), l);
+}
+
+shape shape::with_lens(type_t t, const std::vector<dynamic_dimension>& dds) const
+{
+    auto perm = find_permutation(*this);
+    return shape::from_permutation(t, dds, perm);
+}
+
+shape shape::with_lens(const std::vector<dynamic_dimension>& dds) const
+{
+    return this->with_lens(this->type(), dds);
 }
 
 shape shape::with_type(type_t t) const

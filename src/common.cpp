@@ -28,6 +28,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/sym.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -235,19 +236,36 @@ instruction_ref add_common_op(module& m,
     return insert_common_op(m, m.end(), op, std::move(inputs), options);
 }
 
+template <class Dim, class Stride>
+static std::vector<Stride> compute_bcast_strides(const std::vector<Dim>& input_dims,
+                                                 const std::vector<Stride>& input_strides,
+                                                 const std::vector<Dim>& bcast_dims,
+                                                 Stride zero)
+{
+    auto offset = bcast_dims.size() - input_dims.size();
+    std::vector<Stride> bcast_strides(bcast_dims.size(), zero);
+    for(std::ptrdiff_t i : reverse(range(input_dims.size())))
+    {
+        if(bcast_dims.at(i + offset) == input_dims[i])
+            bcast_strides.at(i + offset) = input_strides[i];
+    }
+    return bcast_strides;
+}
+
 shape make_bcast_shape(const shape& input_shape, const std::vector<std::size_t>& bcast_lens)
 {
     assert(not input_shape.dynamic());
-    auto offset = bcast_lens.size() - input_shape.ndim();
-    std::vector<size_t> bcast_strides(bcast_lens.size(), 0);
-    for(std::ptrdiff_t i : reverse(range(input_shape.ndim())))
-    {
-        if(bcast_lens.at(i + offset) == input_shape.lens()[i])
-        {
-            bcast_strides.at(i + offset) = input_shape.strides()[i];
-        }
-    }
-    return shape{input_shape.type(), bcast_lens, bcast_strides};
+    auto bcast_strides = compute_bcast_strides(
+        input_shape.lens(), input_shape.strides(), bcast_lens, std::size_t{0});
+    return {input_shape.type(), bcast_lens, bcast_strides};
+}
+
+shape make_bcast_shape(const shape& input_shape,
+                       const std::vector<shape::dynamic_dimension>& bcast_dds)
+{
+    auto bcast_strides = compute_bcast_strides(
+        input_shape.dyn_dims(), input_shape.dyn_strides(), bcast_dds, sym::lit(0));
+    return {input_shape.type(), bcast_dds, bcast_strides};
 }
 
 } // namespace MIGRAPHX_INLINE_NS

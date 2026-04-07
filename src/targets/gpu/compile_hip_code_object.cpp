@@ -99,7 +99,7 @@ static std::vector<std::string> get_compiler_warnings()
         "-Wno-float-conversion",
         "-Wno-gnu-anonymous-struct",
         "-Wno-gnu-zero-variadic-macro-arguments",
-        "-Wno-lifetime-safety-intra-tu-suggestions",
+        "-Wno-experimental-lifetime-safety-intra-tu-suggestions",
         "-Wno-missing-prototypes",
         "-Wno-nested-anon-types",
         "-Wno-padded",

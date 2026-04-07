@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_AMDMIGRAPHX_KERNELS_ALGORITHM_HPP
 
 #include <migraphx/kernels/debug.hpp>
+#include <migraphx/kernels/types.hpp>
 
 namespace migraphx {
 
@@ -101,6 +102,16 @@ constexpr OutputIt copy_if(InputIt first, InputIt last, OutputIt d_first, UnaryP
         }
     }
     return d_first;
+}
+
+template <class Iterator, class Predicate>
+constexpr diff_int count_if(Iterator first, Iterator last, Predicate p)
+{
+    diff_int ret = 0;
+    for(; first != last; ++first)
+        if(p(*first))
+            ++ret;
+    return ret;
 }
 
 template <class Iterator, class OutputIterator, class UnaryOp>

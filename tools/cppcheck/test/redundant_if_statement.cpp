@@ -23,6 +23,7 @@
  *
  */
 // Test for RedundantIfStatement check
+// cppcheck-suppress-file knownConditionTrueFalse
 
 bool test_redundant_if_return_boolean_1()
 {

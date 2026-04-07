@@ -176,7 +176,10 @@ static std::vector<shape> split_reduce(const std::vector<shape>& inputs,
     assert(faxis < reduce_shape.lens().size());
 
     std::size_t r = input_shape.lens()[faxis];
-    std::size_t n = split_dim(r, min_size, max_splits);
+    // r0 is the size of the reduction along the other axes(that is not faxis)
+    std::size_t r0 = reduce_shape.elements() / r;
+    // Scale the min_size by r0 to account for the reduction from other axes.
+    std::size_t n = split_dim(r, std::min<std::size_t>(min_size / r0, 1), max_splits);
     assert(n != 1);
     std::transform(
         inputs.begin(), inputs.end(), std::back_inserter(result), [&](const shape& s) -> shape {
@@ -341,16 +344,18 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         auto nelements = reduce_output_shape.elements();
         auto algo =
             v.get("algo", get_reduce_algo(ctx, options.virtual_inputs, reduction_shape.lens()));
+        bool no_vectorize = v.get("no_vectorize", false);
         if(algo == "block" or algo == "wave")
         {
-            // Vectorize if the axis is a reduction axis
-            if(reduce_output_shape.lens()[faxis] == 1)
+            // Vectorize if the axis is a reduction axis (but not for argmin/argmax)
+            if(reduce_output_shape.lens()[faxis] == 1 and not no_vectorize)
                 vec = vectorize::elements(ctx, faxis, options.virtual_inputs);
             auto relements  = reduction_shape.elements() / vec.size;
             if(algo == "block")
             {
                 auto block_size = v.get("block_size", compute_block_size(ctx, relements, 256));
-                if(relements >= block_size * 256)
+                assert(block_size > 0);
+                if(relements >= (block_size - 1) * 256)
                     algo = "block_large";
                 options.set_launch_params(
                     v, compute_global_for(ctx, nelements * block_size, 256), block_size);
@@ -397,6 +402,12 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         for(const auto& x : solution)
             v.insert(x);
         auto* rm      = ins->module_inputs().front();
+        // disable vectorization for argmin/argmax since comparisons don't work with vector types
+        bool has_arg_reduce = std::any_of(rm->begin(), rm->end(), [](const auto& i) {
+            return i.name() == "argmin" or i.name() == "argmax";
+        });
+        if(has_arg_reduce)
+            v["no_vectorize"] = true;
         v["preamble"] = generate_reduce(*rm, "fused_reduce_op");
         v["lambda"]   = "MIGRAPHX_LIFT(fused_reduce_op)";
         v["kernel"]   = generate_name_from_ops(*rm) + "_kernel";

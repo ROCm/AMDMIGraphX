@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_KERNELS_OPS_HPP
 
 #include <migraphx/kernels/math.hpp>
+#include <migraphx/kernels/tuple.hpp>
 
 namespace migraphx {
 namespace op {
@@ -122,6 +123,52 @@ struct logical_or
         if(static_cast<bool>(x) or static_cast<bool>(y))
             return static_cast<T>(1);
         return static_cast<T>(0);
+    }
+};
+
+template <class Compare1, class Compare2>
+constexpr auto compare_pair(Compare1 compare1, Compare2 compare2)
+{
+    return [=](const auto& x, const auto& y) {
+        if(compare1(x[_c<0>], y[_c<0>]))
+            return true;
+        if(compare1(y[_c<0>], x[_c<0>]))
+            return false;
+        return compare2(x[_c<1>], y[_c<1>]);
+    };
+}
+
+// argmin op
+// SelectLast:
+//  true -> return larger index on tie
+//  false -> return smaller index on tie
+template <bool SelectLast = false>
+struct argmin
+{
+    template <class T, class U>
+    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
+    {
+        if constexpr(SelectLast)
+            return migraphx::min(x, y, compare_pair(less{}, greater{}));
+        else
+            return migraphx::min(x, y, compare_pair(less{}, less{}));
+    }
+};
+
+// argmax op
+// SelectLast:
+//  true -> return larger index on tie
+//  false -> return smaller index on tie
+template <bool SelectLast = false>
+struct argmax
+{
+    template <class T, class U>
+    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
+    {
+        if constexpr(SelectLast)
+            return migraphx::max(x, y, compare_pair(less{}, less{}));
+        else
+            return migraphx::max(x, y, compare_pair(less{}, greater{}));
     }
 };
 } // namespace op

@@ -30,6 +30,7 @@
 #include "precision.hpp"
 #include "passes.hpp"
 #include "perf.hpp"
+#include "transform.hpp"
 #include "trim.hpp"
 #include "models.hpp"
 #include "marker_roctx.hpp"
@@ -187,6 +188,7 @@ struct loader
     bool optimize               = false;
     bool mlir                   = false;
     bool skip_unknown_operators = false;
+    bool replace_literals       = false;
     bool brief                  = false;
     bool verbose                = false;
     std::string output_type;
@@ -252,6 +254,10 @@ struct loader
            ap.nargs(2));
         ap(optimize, {"--optimize", "-O"}, ap.help("Optimize when reading"), ap.set_value(true));
         ap(mlir, {"--mlir"}, ap.help("Offload everything to mlir"), ap.set_value(true));
+        ap(replace_literals,
+           {"--replace-literals"},
+           ap.help("Replace literals with parameters"),
+           ap.set_value(true));
         ap(passes, {"--apply-pass", "-p"}, ap.help("Passes to apply to model"), ap.append());
         ap(output_type,
            {"--graphviz", "-g"},
@@ -355,7 +361,7 @@ struct loader
                 {
                     auto dyn_dim = parse_dyn_dims_json(x);
                     if(dyn_dim.size() != 1)
-                        MIGRAPHX_THROW("dim_param must only specifiy one dimension");
+                        MIGRAPHX_THROW("dim_param must only specify one dimension");
                     map_dim_params[name] = dyn_dim.front();
                 }
             }
@@ -466,6 +472,10 @@ struct loader
         if(trim > 0)
         {
             trim_module(*p.get_main_module(), trim, trim_size);
+        }
+        if(replace_literals)
+        {
+            replace_literals_with_params(p);
         }
         // Remove unused variable when exporting to cpp
         if(output_type == "cpp")

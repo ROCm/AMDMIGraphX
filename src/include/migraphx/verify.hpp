@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -194,6 +194,14 @@ double get_rms_tol(const R&, std::size_t tolerance = 80)
     return std::numeric_limits<range_value<R>>::epsilon() * tolerance;
 }
 
+#ifdef CPPCHECK
+// Workaround unused variables from deduction guideline in cppcheck
+struct expected
+{
+    template <class T>
+    expected(const T&);
+};
+#else
 /*
 C++ doesn't support named arguments, this is just wrapper that helps distinguish between actual
 results v/s expected results arguments.
@@ -216,6 +224,7 @@ struct expected
 // deduction guide for templated expected class
 template <class T>
 expected(const T&) -> expected<T>;
+#endif
 
 struct tolerance
 {

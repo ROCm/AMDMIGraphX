@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -36,16 +36,17 @@ TEST_CASE(resize_nonstd_input_test)
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 4, 2}};
     auto inx = mm->add_parameter("X", sx);
 
-    migraphx::shape si{migraphx::shape::int32_type, {1, 1, 1, 2}};
-    std::vector<int> ind = {0, 4};
-    auto li              = mm->add_literal(migraphx::literal(si, ind));
-
     auto tx =
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), inx);
+
     mm->add_instruction(migraphx::make_op("undefined"));
 
-    auto lrsp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), tx);
-    auto r    = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
+    auto r =
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"scales", {1.0f, 1.0f, 0.6f, 0.6f}},
+                                               {"nearest_mode", "ceil"},
+                                               {"coordinate_transformation_mode", "asymmetric"}}),
+                            tx);
     mm->add_return({r});
 
     auto prog = read_onnx("resize_nonstd_input_test.onnx");

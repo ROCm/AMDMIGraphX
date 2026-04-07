@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -221,6 +221,15 @@ inline auto to_string(const T& x)
 {
     std::stringstream ss;
     ss << x;
+    return ss.str();
+}
+
+template <class T>
+inline auto to_hex_float(const T& x)
+    -> decltype((std::declval<std::stringstream>() << x), std::string{})
+{
+    std::stringstream ss;
+    ss << std::hexfloat << x;
     return ss.str();
 }
 

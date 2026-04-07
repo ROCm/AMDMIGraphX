@@ -1,7 +1,7 @@
 // /*
 //  * The MIT License (MIT)
 //  *
-//  * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+//  * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 //  *
 //  * Permission is hereby granted, free of charge, to any person obtaining a copy
 //  * of this software and associated documentation files (the "Software"), to deal
@@ -57,7 +57,7 @@ struct test_gemm_softmax_gemm_relu_bf16 : verify_program<test_gemm_softmax_gemm_
         if constexpr(Config == bias::with or Config == bias::with_standard_shape)
         {
             auto bias_shape = m1_shape;
-            if(Config != bias::with_standard_shape)
+            if constexpr(Config != bias::with_standard_shape)
             {
                 bias_shape = migraphx::shape::from_permutation(
                     bias_shape.type(), bias_shape.lens(), {0, 1, 3, 2});
@@ -67,6 +67,7 @@ struct test_gemm_softmax_gemm_relu_bf16 : verify_program<test_gemm_softmax_gemm_
         }
 
         auto softmax = mm->add_instruction(migraphx::make_op("softmax", {{"axis", 3}}),
+                                           // cppcheck-suppress knownConditionTrueFalse
                                            Config == bias::without ? scale : add_bias.value());
         auto gemm2   = mm->add_instruction(migraphx::make_op("dot"), softmax, b1);
         mm->add_instruction(migraphx::make_op("relu"), gemm2);

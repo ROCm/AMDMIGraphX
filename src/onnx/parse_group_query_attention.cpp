@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/float_equal.hpp>
+#include <migraphx/op/builder/insert.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -34,6 +35,20 @@ namespace onnx {
 struct parse_group_query_attention : op_parser<parse_group_query_attention>
 {
     std::vector<op_desc> operators() const { return {{"GroupQueryAttention"}}; }
+
+    static instruction_ref insert_rotary(module& m,
+                                         bool interleaved,
+                                         std::size_t sequence_length,
+                                         std::vector<instruction_ref> args)
+    {
+        // GQA position semantics: prefill starts from 0, decode uses seqlens_k
+        auto& pos_ids = args.at(1);
+        if(sequence_length > 1)
+        {
+            pos_ids = m.add_literal(literal{shape{pos_ids->get_shape().type(), {1}}, {0}});
+        }
+        return op::builder::add("rotary_embedding", m, args, {{"interleaved", interleaved}}).at(0);
+    }
 
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,
                                        const onnx_parser& parser,
@@ -117,32 +132,36 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         transposed_qkv = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}),
                                               transposed_qkv);
 
-        auto rotary_qkv = transposed_qkv;
+        auto qk = info.add_instruction(
+            make_op("slice",
+                    {{"axes", {1}}, {"starts", {0}}, {"ends", {num_heads + kv_num_heads}}}),
+            transposed_qkv);
+        auto cur_v = info.add_instruction(make_op("slice",
+                                                  {{"axes", {1}},
+                                                   {"starts", {num_heads + kv_num_heads}},
+                                                   {"ends", {num_heads + (2 * kv_num_heads)}}}),
+                                          transposed_qkv);
+
         if(do_rotary)
         {
-            std::vector<instruction_ref> rotary_inputs{
-                transposed_qkv, args.at(5), args.at(7), args.at(8)};
-            rotary_qkv = info.add_instruction(make_op("gqa_rotary_embedding",
-                                                      {{"kv_num_heads", kv_num_heads},
-                                                       {"num_heads", num_heads},
-                                                       {"interleaved", rotary_interleaved}}),
-                                              rotary_inputs);
+            qk = insert_rotary(*info.mod,
+                               rotary_interleaved,
+                               sequence_length,
+                               {qk, args.at(5), args.at(7), args.at(8)});
         }
 
-        auto k        = args.at(3);
-        auto v        = args.at(4);
-        auto slk      = args.at(5);
-        auto rotary_k = info.add_instruction(
+        auto q = info.add_instruction(
+            make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {num_heads}}}), qk);
+        auto cur_k = info.add_instruction(
             make_op("slice",
                     {{"axes", {1}}, {"starts", {num_heads}}, {"ends", {num_heads + kv_num_heads}}}),
-            rotary_qkv);
-        auto rotary_v = info.add_instruction(make_op("slice",
-                                                     {{"axes", {1}},
-                                                      {"starts", {num_heads + kv_num_heads}},
-                                                      {"ends", {num_heads + (2 * kv_num_heads)}}}),
-                                             rotary_qkv);
-        std::vector<instruction_ref> concat_k_inputs{rotary_k, slk, k};
-        std::vector<instruction_ref> concat_v_inputs{rotary_v, slk, v};
+            qk);
+
+        auto k   = args.at(3);
+        auto v   = args.at(4);
+        auto slk = args.at(5);
+        std::vector<instruction_ref> concat_k_inputs{cur_k, slk, k};
+        std::vector<instruction_ref> concat_v_inputs{cur_v, slk, v};
 
         k = info.add_instruction(make_op("concat_past_present", {{"kv_num_heads", kv_num_heads}}),
                                  concat_k_inputs);
@@ -156,9 +175,6 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         auto max_seq_len         = k->get_shape().lens()[2];
         auto past_sl             = info.add_instruction(
             make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), slk);
-
-        auto q = info.add_instruction(
-            make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {num_heads}}}), rotary_qkv);
 
         if(kv_num_heads_factor != 1)
         {
@@ -186,7 +202,7 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         auto bc_range =
             info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), range);
 
-        auto scalar_s = shape{rotary_qkv->get_shape().type(), {1}};
+        auto scalar_s = shape{transposed_qkv->get_shape().type(), {1}};
         auto ninf = info.add_literal(literal{scalar_s, {-std::numeric_limits<float>::infinity()}});
         ninf      = info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), ninf);
 

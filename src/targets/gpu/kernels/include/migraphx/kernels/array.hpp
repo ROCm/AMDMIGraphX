@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -298,8 +298,10 @@ struct array
             // Reset overflow
             overflow = 0;
             // Compute overflow using while loop instead of mod
+            // cppcheck-suppress arrayIndexOutOfBounds
             while(z >= d[i])
             {
+                // cppcheck-suppress arrayIndexOutOfBounds
                 z -= d[i];
                 overflow += 1;
             }
@@ -316,7 +318,9 @@ struct array
         index_int tidx = idx;
         for(diff_int is = result.size() - 1; is > 0; is--)
         {
+            // cppcheck-suppress arrayIndexOutOfBounds
             result[is] = tidx % d[is];
+            // cppcheck-suppress arrayIndexOutOfBounds
             tidx       = tidx / d[is];
         }
         result[0] = tidx;
@@ -450,6 +454,18 @@ template <class T, T... Xs, class U, U... Ys, class F>
 constexpr auto transform(integral_const_array<T, Xs...>, integral_const_array<U, Ys...>, F f)
 {
     return integral_const_array<T, f(Xs, Ys)...>{};
+}
+
+template <class T, T... Xs, class U, U... Ys>
+constexpr auto join(integral_const_array<T, Xs...>, integral_const_array<U, Ys...>)
+{
+    return integral_const_array<T, Xs..., Ys...>{};
+}
+
+template <class T, T... Xs, class U, U... Ys, class... Arrays>
+constexpr auto join(integral_const_array<T, Xs...>, integral_const_array<U, Ys...>, Arrays...)
+{
+    return join(integral_const_array<T, Xs..., Ys...>{}, Arrays{}...);
 }
 
 template <class F>

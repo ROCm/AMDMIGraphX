@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2025-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -92,7 +92,7 @@ struct nop
 {
     static constexpr const char* as_string() { return ""; }
     template <class T>
-    static constexpr auto call(T&& x)
+    static constexpr T call(T&& x)
     {
         return static_cast<T&&>(x);
     }
@@ -144,20 +144,26 @@ template <class T, class Operator>
 constexpr lhs_expression<T, Operator> make_lhs_expression(T&& lhs, Operator);
 
 // NOLINTNEXTLINE
-#define TEST_EXPR_BINARY_OPERATOR(op, name)                                         \
-    template <class V>                                                              \
-    constexpr auto operator op(V&& rhs2) const                                      \
-    {                                                                               \
-        return make_expression(*this, static_cast<V&&>(rhs2), name{}); /* NOLINT */ \
+#define TEST_EXPR_BINARY_OPERATOR(op, name)                                            \
+    template <class V>                                                                 \
+    friend constexpr auto operator op(self_t lhs2, V&& rhs2) /* NOLINT */              \
+    {                                                                                  \
+        return make_expression(                                                        \
+            static_cast<self_t&&>(lhs2), static_cast<V&&>(rhs2), name{}); /* NOLINT */ \
     }
 
 // NOLINTNEXTLINE
-#define TEST_EXPR_UNARY_OPERATOR(op, name) \
-    constexpr auto operator op() const { return make_lhs_expression(lhs, name{}); /* NOLINT */ }
+#define TEST_EXPR_UNARY_OPERATOR(op, name)                                      \
+    friend constexpr auto operator op(self_t self) /* NOLINT */                 \
+    {                                                                           \
+        return make_lhs_expression(static_cast<decltype(self.lhs)&&>(self.lhs), \
+                                   name{}); /* NOLINT */                        \
+    }
 
 template <class T, class U, class Operator>
 struct expression
 {
+    using self_t = expression;
     T lhs;
     U rhs;
 
@@ -204,6 +210,7 @@ constexpr lhs_expression<T, Operator> make_lhs_expression(T&& lhs, Operator)
 template <class T, class Operator>
 struct lhs_expression
 {
+    using self_t = lhs_expression;
     T lhs;
     constexpr explicit lhs_expression(T e) : lhs(static_cast<T&&>(e)) {}
 
@@ -244,15 +251,9 @@ struct lhs_expression
 struct capture
 {
     template <class T>
-    constexpr auto operator->*(const T& x) const
+    constexpr auto operator->*(T&& x) const
     {
-        return make_lhs_expression(x);
-    }
-
-    template <class T, class Operator>
-    constexpr auto operator->*(const lhs_expression<T, Operator>& x) const
-    {
-        return x;
+        return make_lhs_expression(static_cast<T&&>(x));
     }
 };
 

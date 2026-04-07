@@ -1210,7 +1210,11 @@ auto pointwise(Ms... ms)
     return match::has_attribute("pointwise")(ms...);
 }
 
-MIGRAPHX_PRED_MATCHER(reduce, instruction_ref ins) { return starts_with(ins->name(), "reduce_"); }
+MIGRAPHX_PRED_MATCHER(reduce, instruction_ref ins)
+{
+    return starts_with(ins->name(), "reduce_") or ins->name() == "argmin" or
+           ins->name() == "argmax";
+}
 
 } // namespace match
 } // namespace MIGRAPHX_INLINE_NS

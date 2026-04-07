@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -325,7 +325,7 @@ def disabled_tests_onnx_1_8_0(backend_test):
 def disabled_tests_onnx_1_9_0(backend_test):
     # fails
     # from OnnxBackendPyTorchConvertedModelTest
-    # MaxPool dialtion is partially supported on GPU by a workaround
+    # MaxPool dilation is partially supported on GPU by a workaround
     # But these tests require too large allocations to work properly
     backend_test.exclude(r'test_MaxPool1d_stride_padding_dilation_cpu')
     backend_test.exclude(r'test_MaxPool2d_stride_padding_dilation_cpu')

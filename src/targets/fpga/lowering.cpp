@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -60,7 +60,7 @@ struct fpga_vitis_op
     }
 
     argument
-    compute(const context& ctx, const shape& output_shape, std::vector<argument> args) const
+    compute(const context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
         std::cout << "The context is " << ctx.id << std::endl;
         return ::vitis_ai::execute(xmodel, output_shape, args);

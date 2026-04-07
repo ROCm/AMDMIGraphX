@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -270,6 +270,7 @@ def main():
 
     if use_onnx:
         sess_op = ort.SessionOptions()
+        sess_op.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_BASIC
 
         if args.ort_logging:
             sess_op.log_verbosity_level = 0

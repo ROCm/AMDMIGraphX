@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -41,11 +41,13 @@ struct parse_range : op_parser<parse_range>
                           std::vector<instruction_ref> args) const
     {
         auto start_arg = args[0]->eval();
-        check_arg_empty(start_arg, "PARSE_RANGE: start arg dynamic shape is not supported");
         auto limit_arg = args[1]->eval();
-        check_arg_empty(limit_arg, "PARSE_RANGE: limit arg dynamic shape is not supported");
         auto delta_arg = args[2]->eval();
-        check_arg_empty(delta_arg, "PARSE_RANGE: delta arg dynamic shape is not supported");
+
+        if(start_arg.empty() or limit_arg.empty() or delta_arg.empty())
+        {
+            return info.add_instruction(make_op("dynamic_range"), args);
+        }
 
         assert(args[0]->get_shape().elements() == 1 and args[1]->get_shape().elements() == 1 and
                args[2]->get_shape().elements() == 1);
@@ -57,10 +59,14 @@ struct parse_range : op_parser<parse_range>
             auto limit_val = limit.front();
             auto delta_val = delta.front();
 
-            size_t num_elements =
-                ceil(static_cast<double>(limit_val - start_val) / static_cast<double>(delta_val));
+            if(not(delta_val > 0 or delta_val < 0))
+                MIGRAPHX_THROW("PARSE_RANGE: delta must be non-zero");
 
-            assert(num_elements > 0);
+            double start_d        = start_val;
+            double limit_d        = limit_val;
+            double delta_d        = delta_val;
+            double num_elements_d = ceil((limit_d - start_d) / delta_d);
+            size_t num_elements   = std::max(0.0, num_elements_d);
 
             using type = decltype(start_val);
 

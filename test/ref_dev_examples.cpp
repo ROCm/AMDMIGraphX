@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -55,7 +55,7 @@ TEST_CASE(add_two_literals)
     // compile the program on the reference device
     p.compile(migraphx::make_target("ref"));
 
-    // evaulate the program and retreive the result
+    // evaluate the program and retrieve the result
     auto result = p.eval({}).back();
     std::cout << "add_two_literals: 1 + 2 = " << result << "\n";
     EXPECT(result.at<int>() == 3);

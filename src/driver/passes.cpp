@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -33,6 +33,7 @@
 #include <migraphx/eliminate_data_type.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
+#include <migraphx/fuse_attention.hpp>
 #include <migraphx/fuse_pointwise.hpp>
 #include <migraphx/fuse_reduce.hpp>
 #include <migraphx/inline_module.hpp>
@@ -45,6 +46,7 @@
 #include <migraphx/rewrite_gelu.hpp>
 #include <migraphx/rewrite_pooling.hpp>
 #include <migraphx/rewrite_quantization.hpp>
+#include <migraphx/rewrite_reduce.hpp>
 #include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/simplify_algebra.hpp>
 #include <migraphx/simplify_dyn_ops.hpp>
@@ -72,6 +74,7 @@ static std::unordered_map<std::string, pass> create_passes_lookup()
         eliminate_data_type{},
         eliminate_identity{},
         eliminate_pad{},
+        fuse_attention{},
         fuse_pointwise{},
         fuse_reduce{},
         inline_module{},
@@ -84,6 +87,7 @@ static std::unordered_map<std::string, pass> create_passes_lookup()
         rewrite_gelu{},
         rewrite_pooling{},
         rewrite_quantization{},
+        rewrite_reduce{},
         rewrite_rnn{},
         simplify_algebra{},
         simplify_dyn_ops{},

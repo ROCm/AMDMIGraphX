@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,6 +30,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/env.hpp>
+#include <migraphx/op/builder/insert.hpp>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK_WORKAROUNDS);
 
@@ -259,29 +260,34 @@ inline migraphx::program create_gqa_program(const size_t batch_size,
     transposed_qkv = mm->add_instruction(
         migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), transposed_qkv);
 
-    auto rotary_qkv = transposed_qkv;
-    if(do_rotary)
-    {
-        std::vector<migraphx::instruction_ref> rotary_inputs{
-            transposed_qkv, slk_lit, cos_cache, sin_cache};
-        rotary_qkv = mm->add_instruction(
-            migraphx::make_op(
-                "gqa_rotary_embedding",
-                {{"kv_num_heads", kv_num_heads}, {"num_heads", num_heads}, {"interleaved", false}}),
-            rotary_inputs);
-    }
-
-    auto rotary_k = mm->add_instruction(
-        migraphx::make_op(
-            "slice",
-            {{"axes", {1}}, {"starts", {num_heads}}, {"ends", {num_heads + kv_num_heads}}}),
-        rotary_qkv);
-    auto rotary_v =
+    auto qk = mm->add_instruction(
+        migraphx::make_op("slice",
+                          {{"axes", {1}}, {"starts", {0}}, {"ends", {num_heads + kv_num_heads}}}),
+        transposed_qkv);
+    auto cur_v =
         mm->add_instruction(migraphx::make_op("slice",
                                               {{"axes", {1}},
                                                {"starts", {num_heads + kv_num_heads}},
                                                {"ends", {num_heads + (2 * kv_num_heads)}}}),
-                            rotary_qkv);
+                            transposed_qkv);
+
+    if(do_rotary)
+    {
+        qk = migraphx::op::builder::add("rotary_embedding",
+                                        *mm,
+                                        {qk, slk_lit, cos_cache, sin_cache},
+                                        {{"interleaved", false}})
+                 .at(0);
+    }
+
+    auto q = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {num_heads}}}), qk);
+    auto cur_k = mm->add_instruction(
+        migraphx::make_op(
+            "slice",
+            {{"axes", {1}}, {"starts", {num_heads}}, {"ends", {num_heads + kv_num_heads}}}),
+        qk);
+
     std::vector<size_t> static_strides(kv_s.ndim(), 1);
     auto slk_slice = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, 4}}}), slk_lit);
     auto slk_mask = mm->add_literal(migraphx::literal{migraphx::shape{slk_s.type(), {4}}, {0, 0, sequence_length > 1 ? 0 : 1, 0}});
@@ -291,17 +297,13 @@ inline migraphx::program create_gqa_program(const size_t batch_size,
     {
         slk_slice = mm->add_instruction(migraphx::make_op("squeeze"), slk_slice);
     }
-    k = mm->add_instruction(migraphx::make_op("insert_slice", {{"static_strides", static_strides}, {"deref_dest", false}}), {rotary_k, k, slk_slice});
-    v = mm->add_instruction(migraphx::make_op("insert_slice", {{"static_strides", static_strides}, {"deref_dest", false}}), {rotary_v, v, slk_slice});
+    k = mm->add_instruction(migraphx::make_op("insert_slice", {{"static_strides", static_strides}, {"deref_dest", false}}), {cur_k, k, slk_slice});
+    v = mm->add_instruction(migraphx::make_op("insert_slice", {{"static_strides", static_strides}, {"deref_dest", false}}), {cur_v, v, slk_slice});
 
     auto kv_num_heads_factor = num_heads / kv_num_heads;
     auto max_seq_len         = kv_s.lens()[2];
     auto past_sl             = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), slk_lit);
-
-    auto q = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {num_heads}}}),
-        rotary_qkv);
 
     if(kv_num_heads_factor != 1)
     {
@@ -369,9 +371,9 @@ inline migraphx::program create_gqa_program(const size_t batch_size,
     auto scores  = mm->add_instruction(migraphx::make_op("dot"), softmax, v);
     auto out = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}),
                                    scores);
-    out      = mm->add_instruction(
+    out          = mm->add_instruction(
         migraphx::make_op("reshape",
-                               {{"dims", {batch_size, sequence_length, head_size * num_heads}}}),
+                                   {{"dims", {batch_size, sequence_length, head_size * num_heads}}}),
         out);
 
     return p;
@@ -415,15 +417,19 @@ inline migraphx::program make_dequantizelinear_axis_prog()
 {
     migraphx::program p;
     std::vector<size_t> input_lens{1, 1, 5, 1};
-    int axis      = 2;
-    auto* mm      = p.get_main_module();
-    auto l0       = mm->add_parameter("0", {migraphx::shape::int8_type, input_lens});
-    auto l1       = mm->add_parameter("1", {migraphx::shape::float_type, {5}});
-    auto l2       = mm->add_parameter("2", {migraphx::shape::int8_type, {5}});
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("0", {migraphx::shape::int8_type, input_lens});
+    auto l1  = mm->add_parameter("1", {migraphx::shape::float_type, {5}});
+    auto l2  = mm->add_parameter("2", {migraphx::shape::int8_type, {5}});
+
+    auto unsq_scale =
+        mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 1, 3}}}), l1);
     auto l1_bcast = mm->add_instruction(
-        migraphx::make_op("broadcast", {{"axis", axis}, {"out_lens", input_lens}}), l1);
+        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), unsq_scale);
+    auto unsq_zp  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 1, 3}}}), l2);
     auto l2_bcast = mm->add_instruction(
-        migraphx::make_op("broadcast", {{"axis", axis}, {"out_lens", input_lens}}), l2);
+        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), unsq_zp);
+
     l2_bcast = mm->add_instruction(
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
@@ -730,19 +736,23 @@ inline migraphx::program make_quantizelinear_axis_prog()
 {
     migraphx::program p;
     std::vector<size_t> input_lens{1, 1, 5, 1};
-    int axis = 2;
     auto* mm = p.get_main_module();
 
-    auto l0       = mm->add_parameter("0", {migraphx::shape::float_type, input_lens});
-    auto l1       = mm->add_parameter("1", {migraphx::shape::float_type, {5}});
-    auto l2       = mm->add_parameter("2", {migraphx::shape::int8_type, {5}});
-    auto l1_bcast = mm->add_instruction(
-        migraphx::make_op("broadcast", {{"axis", axis}, {"out_lens", input_lens}}), l1);
+    auto l0 = mm->add_parameter("0", {migraphx::shape::float_type, input_lens});
+    auto l1 = mm->add_parameter("1", {migraphx::shape::float_type, {5}});
+    auto l2 = mm->add_parameter("2", {migraphx::shape::int8_type, {5}});
 
-    auto div      = mm->add_instruction(migraphx::make_op("div"), l0, l1_bcast);
-    auto round    = mm->add_instruction(migraphx::make_op("nearbyint"), div);
+    auto unsq_l1  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 1, 3}}}), l1);
+    auto l1_bcast = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), unsq_l1);
+
+    auto div   = mm->add_instruction(migraphx::make_op("div"), l0, l1_bcast);
+    auto round = mm->add_instruction(migraphx::make_op("nearbyint"), div);
+
+    auto unsq_l2  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 1, 3}}}), l2);
     auto l2_bcast = mm->add_instruction(
-        migraphx::make_op("broadcast", {{"axis", axis}, {"out_lens", input_lens}}), l2);
+        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), unsq_l2);
+
     l2_bcast = mm->add_instruction(
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),

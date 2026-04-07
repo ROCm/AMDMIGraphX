@@ -44,6 +44,7 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_COMPILE_PARALLEL);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_BENCHMARKING);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SKIP_BENCHMARKING);
 
 struct precompile_op
 {
@@ -305,16 +306,24 @@ struct compile_plan
             }
             else
             {
-                ctx->get_problem_cache().mark(preop.name(), problem);
                 const auto& solutions = config->solutions;
                 if(solutions.empty())
                     MIGRAPHX_THROW("No solutions provided for " + preop.name() + " with " +
                                    problem_string() + "\n\n" + print_modules());
-                results.resize(solutions.size());
-                for(auto i : range(solutions.size()))
+                if(enabled(MIGRAPHX_SKIP_BENCHMARKING{}))
                 {
-                    auto solution = solutions[i];
-                    insert_compiles(compiles, solution, i);
+                    ctx->get_problem_cache().insert(preop.name(), problem, solutions.front());
+                    results.resize(1);
+                    insert_compiles(compiles, solutions.front(), 0);
+                }
+                else
+                {
+                    ctx->get_problem_cache().mark(preop.name(), problem);
+                    results.resize(solutions.size());
+                    for(auto i : range(solutions.size()))
+                    {
+                        insert_compiles(compiles, solutions[i], i);
+                    }
                 }
             }
         }

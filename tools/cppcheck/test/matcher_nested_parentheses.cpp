@@ -25,6 +25,7 @@
 // Test for MatcherNestedParentheses check
 // This check finds deeply nested match:: patterns in matcher() functions.
 // Deep nesting affects readability; consider extracting intermediate matchers.
+// cppcheck-suppress-file functionStatic
 
 // Mock types to simulate MiGraphX matcher infrastructure
 namespace match {

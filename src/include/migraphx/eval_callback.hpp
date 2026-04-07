@@ -28,6 +28,8 @@
 #include <string>
 #include <unordered_set>
 #include <migraphx/instruction_ref.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/operation.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
 
@@ -43,7 +45,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 /// the callback fires (OR semantics). Non-matching instructions skip the
 /// device-sync and host-copy entirely.
 ///
-///   Name filter   – matches all instructions with that operator name
+///   Name filter   – matches the operator name (e.g. "gpu::code_object")
+///                   or the kernel symbol name (e.g. "concat_kernel")
 ///   Instruction filter – matches one specific instruction in the graph
 struct eval_callback
 {
@@ -72,17 +75,29 @@ struct eval_callback
 
     bool enabled() const { return cb != nullptr; }
 
-    bool matches(const std::string& name, instruction_ref ins) const
+    bool matches(instruction_ref ins) const
     {
         if(name_filter.empty() and ins_filter.empty())
             return true;
-        return name_filter.count(name) > 0 or ins_filter.count(ins) > 0;
+        if(ins_filter.count(ins) > 0)
+            return true;
+        if(name_filter.empty())
+            return false;
+        if(name_filter.count(ins->name()) > 0)
+            return true;
+        auto sym = get_symbol_name(ins->get_operator());
+        return not sym.empty() and name_filter.count(sym) > 0;
     }
 
     void operator()(instruction_ref ins, const argument& output) const
     {
         if(cb)
             cb(ins, output);
+    }
+
+    static std::string get_symbol_name(const operation& op)
+    {
+        return op.to_value().get("symbol_name", std::string{});
     }
 
     private:

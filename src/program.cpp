@@ -686,7 +686,7 @@ std::vector<argument> program::eval(const parameter_map& params,
     ret = generic_eval(*this, contexts, params, [&](instruction_ref ins, auto f) {
         auto result    = f();
         const auto& op = ins->name();
-        if(op.front() != '@' and op != "load" and not result.empty() and callback.matches(op, ins))
+        if(op.front() != '@' and op != "load" and not result.empty() and callback.matches(ins))
         {
             const auto& ctx = contexts[ins->get_target_id()];
             ctx.finish();

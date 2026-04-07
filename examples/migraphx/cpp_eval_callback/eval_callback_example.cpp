@@ -22,78 +22,58 @@
  * THE SOFTWARE.
  */
 
-// Demonstrates using eval_callback to inspect operator output buffers during
-// GPU program evaluation.  Build with cmake (see CMakeLists.txt).
-
-#include <cmath>
-#include <iomanip>
-#include <iostream>
-#include <sstream>
 #include <algorithm>
+#include <iostream>
+#include <iterator>
 #include <migraphx/program.hpp>
-#include <migraphx/literal.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/eval_callback.hpp>
-#include <migraphx/iterator_for.hpp>
 
-using ins_name_map = std::unordered_map<migraphx::instruction_ref, std::string>;
-
-static std::string extract_symbol_name(const migraphx::operation& op)
+static std::string get_label(migraphx::instruction_ref ins)
 {
-    std::stringstream ss;
-    ss << op;
-    auto full = ss.str();
-    auto pos  = full.find("symbol_name=");
-    if(pos == std::string::npos)
-        return "";
-    pos += 12;
-    auto end = full.find_first_of(",]", pos);
-    return full.substr(pos, end - pos);
+    auto sym = migraphx::eval_callback::get_symbol_name(ins->get_operator());
+    return sym.empty() ? ins->name() : sym;
 }
 
-static ins_name_map build_instruction_names(const migraphx::program& p)
+static void print_flat(const migraphx::argument& arg, std::size_t max_elems = 8)
 {
-    ins_name_map result;
-    p.print([&](auto ins, const auto& names) {
-        auto sym    = extract_symbol_name(ins->get_operator());
-        result[ins] = names.at(ins) + " = " + (sym.empty() ? ins->name() : sym);
-    });
-    return result;
-}
-
-static void print_values(const migraphx::argument& output, std::size_t max_elems = 8)
-{
-    if(output.get_shape().type() == migraphx::shape::tuple_type)
-    {
-        std::cout << "(tuple with " << output.get_sub_objects().size() << " elements)";
-        return;
-    }
-    output.visit([&](auto v) {
+    arg.visit([&](auto v) {
         auto n = std::min<std::size_t>(v.size(), max_elems);
         std::cout << "[";
-        for(std::size_t i = 0; i < n; ++i)
-        {
-            if(i > 0)
-                std::cout << ", ";
-            std::cout << v[i];
-        }
+        const char* sep = "";
+        std::for_each(v.begin(), v.begin() + n, [&](auto x) {
+            std::cout << sep << x;
+            sep = ", ";
+        });
         if(v.size() > max_elems)
             std::cout << ", ...";
         std::cout << "]";
     });
 }
 
+static void print_values(const migraphx::argument& output, std::size_t max_elems = 8)
+{
+    if(output.get_shape().type() != migraphx::shape::tuple_type)
+        return print_flat(output, max_elems);
+
+    auto subs = output.get_sub_objects();
+    std::cout << "(";
+    const char* sep = "";
+    std::for_each(subs.begin(), subs.end(), [&](const auto& sub) {
+        std::cout << sep;
+        print_flat(sub, max_elems);
+        sep = ", ";
+    });
+    std::cout << ")";
+}
+
 int main()
 {
     // ---------------------------------------------------------------
-    // Two independent branches joined by concat -- the compiler
-    // cannot fuse across a concat boundary, producing separate
-    // gpu::code_object kernels:
-    //
     //   branch_a = relu(x + y)
     //   branch_b = sigmoid(x * y)
     //   out      = concat(a, b)
@@ -117,71 +97,28 @@ int main()
     options.offload_copy = true;
     p.compile(migraphx::make_target("gpu"), options);
 
-    // Build a map of instruction_ref -> readable label using the same
-    // mechanism as program::print() / MIGRAPHX_TRACE_EVAL.  Each entry
-    // looks like: "@9 =
-    // gpu::code_object[...,symbol_name=add_relu_mul_sigmoid_kernel,...](@7,@4,@8)"
-    auto names = build_instruction_names(p);
-
     std::vector<float> x_data = {1, 2, 3, 4, 5, 6};
     std::vector<float> y_data = {10, 20, 30, 40, 50, 60};
     migraphx::parameter_map params;
     params["x"] = migraphx::argument(s, x_data.data());
     params["y"] = migraphx::argument(s, y_data.data());
 
-    // ---------------------------------------------------------------
-    // 1.  Inspect every operator with readable labels
-    // ---------------------------------------------------------------
+    auto print_cb = [](migraphx::instruction_ref ins, const migraphx::argument& output) {
+        std::cout << "  " << get_label(ins) << "\n    -> ";
+        print_values(output);
+        std::cout << "\n\n";
+    };
+
+    // 1. Inspect every operator
     std::cout << "=== All operators ===\n";
-    migraphx::eval_callback cb_all(
-        [&](migraphx::instruction_ref ins, const migraphx::argument& output) {
-            std::cout << "  " << names.at(ins) << "\n";
-            std::cout << "    -> ";
-            print_values(output);
-            std::cout << "\n\n";
-        });
-    p.eval(params, cb_all);
+    p.eval(params, migraphx::eval_callback(print_cb));
 
-    // ---------------------------------------------------------------
-    // 2.  Filter by operator name -- only gpu::code_object kernels
-    // ---------------------------------------------------------------
-    std::cout << "=== Only gpu::code_object (by name) ===\n";
-    migraphx::eval_callback cb_name(
-        [&](migraphx::instruction_ref ins, const migraphx::argument& output) {
-            std::cout << "  " << names.at(ins) << "\n";
-            std::cout << "    -> ";
-            print_values(output);
-            std::cout << "\n\n";
-        },
-        {"gpu::code_object"});
-    p.eval(params, cb_name);
+    // 2. Filter by symbol name
+    std::cout << "=== concat_kernel (by name) ===\n";
+    p.eval(params, migraphx::eval_callback(print_cb, {"concat_kernel"}));
 
-    // ---------------------------------------------------------------
-    // 3.  Filter by instruction_ref -- find the concat kernel in the
-    //     compiled graph and target it specifically.
-    // ---------------------------------------------------------------
-    std::cout << "=== Only the concat kernel (by ref, post-compile) ===\n";
-    const auto* compiled_mm              = p.get_main_module();
-    migraphx::instruction_ref concat_ins = compiled_mm->end();
-    for(auto ins : migraphx::iterator_for(*compiled_mm))
-    {
-        if(ins->name() == "gpu::code_object" and
-           ins->get_shape().type() != migraphx::shape::tuple_type)
-        {
-            concat_ins = ins;
-        }
-    }
-
-    if(concat_ins != compiled_mm->end())
-    {
-        migraphx::eval_callback cb_ref(
-            [&](migraphx::instruction_ref ins, const migraphx::argument& output) {
-                std::cout << "  " << names.at(ins) << "\n";
-                std::cout << "    -> ";
-                print_values(output);
-                std::cout << "\n\n";
-            },
-            std::unordered_set<migraphx::instruction_ref>{concat_ins});
-        p.eval(params, cb_ref);
-    }
+    // 3. Filter by instruction index (@13 from the compiled graph printout)
+    std::cout << "=== concat_kernel (by index) ===\n";
+    auto ins_13 = std::next(p.get_main_module()->begin(), 13);
+    p.eval(params, migraphx::eval_callback(print_cb, {}, {ins_13}));
 }

@@ -38,7 +38,6 @@
 #include <migraphx/instruction.hpp>
 
 #include <migraphx/algorithm.hpp>
-#include <optional>
 #include <unordered_set>
 
 namespace migraphx {

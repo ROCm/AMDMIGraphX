@@ -1822,7 +1822,7 @@ struct find_slice_squeeze
 {
     auto matcher() const
     {
-        auto match_op = match::any_of(match::name("pointwise"), match::pointwise(), match::reduce());
+        auto match_op = match::any_of(match::pointwise(), match::reduce());
         auto squeeze_slice = match::name("squeeze")(
             match::arg(0)(match::name("slice").bind("slice")))
             .bind("squeeze");
@@ -1853,7 +1853,7 @@ struct find_slice_squeeze
         }
 
         auto op = op_ins->get_operator();
-        if(not op.attributes().contains("pointwise") and op_ins->name() != "pointwise")
+        if(not op.attributes().contains("pointwise"))
         {
             auto v = op.to_value();
             if(v.contains("axes"))
@@ -1871,9 +1871,7 @@ struct find_slice_squeeze
             else if(v.contains("axis"))
             {
                 auto a = v["axis"].to<int64_t>();
-                if(a >= axis)
-                    a++;
-                v["axis"] = a;
+                v["axis"] = a >= axis ? a + 1 : a;
                 op = make_op(op_ins->name(), v);
             }
         }

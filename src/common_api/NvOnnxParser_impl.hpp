@@ -1,7 +1,11 @@
 #ifndef NV_ONNX_PARSER_IMPL_H
 #define NV_ONNX_PARSER_IMPL_H
 
+// #include <migraphx/program.hpp>
+#include <memory>
+
 #include "migraphx/common_api/NvOnnxParser.h"
+#include "NetworkDefinition_impl.hpp"
 
 namespace nvonnxparser
 {
@@ -35,6 +39,9 @@ namespace nvonnxparser
         bool loadModelProto(void const* serializedOnnxModel, size_t serializedOnnxModelSize, char const* modelPath = nullptr) noexcept override;
         bool loadInitializer(char const* name, void const* data, size_t size) noexcept override;
         bool parseModelProto() noexcept override;
+
+    private:
+        std::shared_ptr<nvinfer1::NvNetworkDefinition_impl> mNetworkDefinition;
     };
 
 }   // ns:nvonnxparser

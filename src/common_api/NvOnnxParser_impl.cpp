@@ -6,6 +6,8 @@ namespace nvonnxparser
 {
 
 NvOnnxParser_impl::NvOnnxParser_impl(void* network, void* logger, int version)
+    :   mNetworkDefinition(std::make_shared<nvinfer1::NvNetworkDefinition_impl>(
+            static_cast<nvinfer1::INetworkDefinition*>(network)))
 {
     // TODO! implement
 }

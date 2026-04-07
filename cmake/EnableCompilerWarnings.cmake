@@ -97,6 +97,8 @@ else()
                 -Wno-gnu-anonymous-struct
                 -Wno-gnu-zero-variadic-macro-arguments
                 -Wno-experimental-lifetime-safety-intra-tu-suggestions
+                -Wno-lifetime-safety-intra-tu-suggestions
+                -Wno-lifetime-safety-cross-tu-suggestions
                 -Wno-missing-noreturn
                 -Wno-missing-prototypes
                 -Wno-nested-anon-types

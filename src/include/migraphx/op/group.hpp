@@ -42,9 +42,7 @@ struct group
     std::string name() const { return "group"; }
     template <class Self, class F>
     static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.tag, "tag"), f(self.flags, "flags"));
-    }
+    { return pack(f(self.tag, "tag"), f(self.flags, "flags")); }
 
     shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>& mods) const
     {

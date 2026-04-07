@@ -84,22 +84,16 @@ constexpr E operator~(E val)
 }
 
 template <class E, MIGRAPHX_REQUIRES(bit_flag<E>{})>
-constexpr E& operator|=(E& lhs, E rhs)
-{
-    return lhs = lhs | rhs;
-}
+constexpr E& operator|=(E & lhs, E rhs)
+{ return lhs = lhs | rhs; }
 
 template <class E, MIGRAPHX_REQUIRES(bit_flag<E>{})>
-constexpr E& operator&=(E& lhs, E rhs)
-{
-    return lhs = lhs & rhs;
-}
+constexpr E& operator&=(E & lhs, E rhs)
+{ return lhs = lhs & rhs; }
 
 template <class E, MIGRAPHX_REQUIRES(bit_flag<E>{})>
-constexpr E& operator^=(E& lhs, E rhs)
-{
-    return lhs = lhs ^ rhs;
-}
+constexpr E& operator^=(E & lhs, E rhs)
+{ return lhs = lhs ^ rhs; }
 
 template <class E, MIGRAPHX_REQUIRES(bit_flag<E>{})>
 constexpr bool has_flag(E val, E flag)

@@ -31,6 +31,7 @@
 #include <migraphx/generic_float.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/split_factor.hpp>
+#include <migraphx/attention_flags.hpp>
 #include <optional>
 
 namespace migraphx {
@@ -139,6 +140,7 @@ inline auto pointwise_inputs()
 struct find_attention
 {
     std::size_t* counter;
+    attention_flags flags = attention_flags::none;
 
     auto matcher() const
     {
@@ -229,7 +231,7 @@ struct find_attention
         return outputs;
     }
 
-    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    void apply(module_pass_manager& mpm, const match::matcher_result& r)
     {
         auto gemm2         = r.result;
         auto gemm1         = r.instructions["dot1"];
@@ -268,6 +270,7 @@ struct find_attention
             // (shift lse to adjust for subtracting max during stable softmax computation)
             if(required_outputs.size() != 2)
                 return;
+            flags = flags | attention_flags::lse_output;
         }
         else if(required_outputs.size() > 1)
         {
@@ -291,7 +294,7 @@ struct find_attention
         mpm_attn->set_bypass();
 
         auto group_ins = mpm.get_module().insert_instruction(
-            softmax_input, make_op("group", {{"tag", "attention"}}), new_inputs, {mpm_attn});
+            softmax_input, make_op("group", {{"tag", "attention"}, {"flags", static_cast<uint32_t>(flags)}}), new_inputs, {mpm_attn});
 
         if(m_attn_outputs.size() == 1)
         {

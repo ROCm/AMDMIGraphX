@@ -40,6 +40,8 @@ enum class attention_flags : std::uint32_t
     flash_decoding = 1 << 3,
     lse_output     = 1 << 4,
     kv_cache       = 1 << 5,
+    local_window   = 1 << 6,
+    padding_mask   = 1 << 7,
 };
 
 template <>

@@ -63,13 +63,14 @@ jobs:
       run: |
         rbuild prepare -d cget -s gh-win -G Ninja \
           -Dprotobuf_MSVC_STATIC_RUNTIME=Off \
+          -DABSL_MSVC_STATIC_RUNTIME=Off \
           -DCMAKE_POLICY_DEFAULT_CMP0091=NEW \
           -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL
 
     - name: Build and test
       env:
         CMAKE_PREFIX_PATH: ${{ github.workspace }}/cget
-        CXXFLAGS: -DMIGRAPHX_USE_TYPE_ERASED_MATCHERS=1
+        CXXFLAGS: -DMIGRAPHX_USE_TYPE_ERASED_MATCHERS=1 -ftrivial-auto-var-init=zero
         CC: clang
         CXX: clang++
       run: |

@@ -21,31 +21,26 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_PREFUSE_OPS_HPP
-#define MIGRAPHX_GUARD_GPU_PREFUSE_OPS_HPP
 
-#include <migraphx/gpu/config.hpp>
-#include <string>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module_pass_manager;
-
-namespace gpu {
-
-struct context;
-
-struct MIGRAPHX_GPU_EXPORT prefuse_ops
+template <migraphx::shape::type_t DType>
+struct test_channelwise_conv_depthwise_5x5
+    : verify_program<test_channelwise_conv_depthwise_5x5<DType>>
 {
-    context* ctx          = nullptr;
-    bool enable_attention = false;
-    std::string name() const { return "gpu::prefuse_ops"; }
-    void apply(module_pass_manager& mpm) const;
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm     = p.get_main_module();
+        auto input   = mm->add_parameter("x", migraphx::shape{DType, {1, 8, 12, 12}});
+        auto weights = mm->add_parameter("w", migraphx::shape{DType, {8, 1, 5, 5}});
+        mm->add_instruction(migraphx::make_op("convolution", {{"group", 8}}), input, weights);
+        return p;
+    }
+    std::string section() const { return "conv"; }
 };
-
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif // MIGRAPHX_GUARD_GPU_PREFUSE_OPS_HPP
+template struct test_channelwise_conv_depthwise_5x5<migraphx::shape::float_type>;
+template struct test_channelwise_conv_depthwise_5x5<migraphx::shape::half_type>;

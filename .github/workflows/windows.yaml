@@ -74,10 +74,10 @@ jobs:
         CC: clang
         CXX: clang++
       run: |
-        rbuild build -d cget -s gh-win -G Ninja -T tests \
+        rbuild build -d cget -s gh-win -G Ninja -T check \
           -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} \
           -DMIGRAPHX_DISABLE_LARGE_BUFFER_TESTS=On \
           -DCTEST_TIMEOUT=5000
 
-    - name: Setup tmate session
-      uses: mxschmitt/action-tmate@v3
+    # - name: Setup tmate session
+    #   uses: mxschmitt/action-tmate@v3

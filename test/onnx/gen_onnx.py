@@ -13966,6 +13966,23 @@ def reversesequence_time_test():
 
 
 @onnx_test()
+def reverse_test():
+    """ReverseSequence with full-length sequences (uses reverse op per batch)."""
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 4])
+
+    node = onnx.helper.make_node(
+        'ReverseSequence',
+        inputs=['x'],
+        outputs=['y'],
+        time_axis=1,
+        batch_axis=0,
+        sequence_lens=[4, 4],
+    )
+    return ([node], [x], [y])
+
+
+@onnx_test()
 def rnn_bi_layout_test():
     seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [3, 5, 10])
     w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [2, 20, 10])

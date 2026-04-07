@@ -951,7 +951,7 @@ bool operator==(const expr& a, const expr& b)
 
 bool operator!=(const expr& a, const expr& b) { return not(a == b); }
 
-// Semantic less-than for symbolic expressions using interval arithmetic.
+// Semantic strict less-than for symbolic expressions using interval arithmetic.
 //
 // Assumptions:
 //   - All symbols have positive intervals [min, max] where 1 <= min <= max.
@@ -962,19 +962,19 @@ bool operator!=(const expr& a, const expr& b) { return not(a == b); }
 //
 // Algorithm:
 //   Compute diff = b - a, then evaluate diff at the lower and upper bounds
-//   of every symbol to obtain [lo, hi].  If the entire interval is positive
-//   (lo >= 0 and hi > 0) then a < b.  If the interval is non-positive
-//   (hi <= 0) then a >= b.  Otherwise the comparison is undetermined and we
-//   throw — this indicates a case outside the monotonic/positive assumption.
+//   of every symbol to obtain [lo, hi].  If the entire interval is strictly
+//   positive (lo > 0) then a < b for all possible symbol values.  If the
+//   interval is non-positive (hi <= 0) then a >= b.  Otherwise the comparison
+//   is undetermined and we throw.
 //
 // Examples (all symbols default to [1, 1]):
-//   n < 2*n  =>  diff = 2n - n = n,  lo = 1, hi = 1  =>  true
-//   2*n < n  =>  diff = n - 2n = -n, lo = -1, hi = -1 => false
-//   k < m*k  =>  diff = mk - k = k(m-1), lo = 0, hi = 0 => false (not strictly positive)
+//   n < 2*n  =>  diff = n,      lo = 1, hi = 1  =>  true  (strictly positive)
+//   2*n < n  =>  diff = -n,     lo = -1, hi = -1 => false (non-positive)
+//   k < m*k  =>  diff = k(m-1), lo = 0, hi = 0  => false (not strictly positive)
 //
 // With explicit bounds, e.g. n in [2, 10]:
-//   n < 3    =>  diff = 3 - n,  lo = 3-10 = -7, hi = 3-2 = 1 => undetermined (throws)
-//   n < 11   =>  diff = 11 - n, lo = 11-10 = 1, hi = 11-2 = 9 => true
+//   n < 3    =>  diff = 3 - n,  lo = -7, hi = 1 => undetermined (throws)
+//   n < 11   =>  diff = 11 - n, lo = 1,  hi = 9 => true
 bool operator<(const expr& a, const expr& b)
 {
     if(a.empty() and b.empty())
@@ -986,7 +986,7 @@ bool operator<(const expr& a, const expr& b)
     auto val_hi = eval_at_max(diff);
     auto lo     = std::min(val_lo, val_hi);
     auto hi     = std::max(val_lo, val_hi);
-    if(lo >= 0 and hi > 0)
+    if(lo > 0)
         return true;
     if(hi <= 0)
         return false;

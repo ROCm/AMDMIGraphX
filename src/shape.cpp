@@ -260,24 +260,6 @@ struct shape_impl
     }
 
     template <class T>
-    static T make_identity(int64_t n)
-    {
-        if constexpr(std::is_same_v<T, sym::expr>)
-            return sym::lit(n);
-        else
-            return T(n);
-    }
-
-    std::vector<sym::expr> sym_dim_exprs() const
-    {
-        std::vector<sym::expr> result(m_dyn_dims.size());
-        std::transform(m_dyn_dims.cbegin(), m_dyn_dims.cend(), result.begin(), [](const auto& dd) {
-            return dd.sym_expr.value_or(sym::lit(dd.min));
-        });
-        return result;
-    }
-
-    template <class T>
     static T compute_elements(const std::vector<T>& dims)
     {
         if(dims.empty())

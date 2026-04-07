@@ -1492,7 +1492,7 @@ TEST_CASE(test_symbolic_shape_print)
     EXPECT(to_str(s1) != to_str(s3));
 }
 
-TEST_CASE(test_dd_intersection_symbolic)
+TEST_CASE(test_dd_intersection_symbolic_with_range)
 {
     auto n = var("n");
     migraphx::shape::dynamic_dimension a{1, 8, {}, n};
@@ -1501,21 +1501,27 @@ TEST_CASE(test_dd_intersection_symbolic)
     EXPECT(result.has_value());
     EXPECT(result->min == 2);
     EXPECT(result->max == 6);
-    EXPECT(result->sym_expr.has_value());
-    EXPECT(*result->sym_expr == n);
+    EXPECT(not result->sym_expr.has_value());
 }
 
-TEST_CASE(test_dd_intersection_fixed_gets_lit)
+TEST_CASE(test_dd_intersection_symbolic_same_symbol)
 {
-    auto n = var("n");
-    migraphx::shape::dynamic_dimension a{1, 8, {}, n};
-    migraphx::shape::dynamic_dimension b{4, 4};
+    auto n = var("n", 1, 32);
+    migraphx::shape::dynamic_dimension a{1, 32, {}, n};
+    migraphx::shape::dynamic_dimension b{1, 32, {}, n};
     auto result = a.intersection(b);
     EXPECT(result.has_value());
-    EXPECT(result->min == 4);
-    EXPECT(result->max == 4);
-    EXPECT(result->sym_expr.has_value());
-    EXPECT(*result->sym_expr == lit(4));
+    EXPECT(*result == a);
+}
+
+TEST_CASE(test_dd_intersection_symbolic_different_symbol)
+{
+    auto n = var("n", 1, 32);
+    auto m = var("m", 1, 16);
+    migraphx::shape::dynamic_dimension a{1, 32, {}, n};
+    migraphx::shape::dynamic_dimension b{1, 16, {}, m};
+    auto result = a.intersection(b);
+    EXPECT(not result.has_value());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

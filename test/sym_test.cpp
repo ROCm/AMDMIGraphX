@@ -999,6 +999,43 @@ TEST_CASE(serialize_compound)
     EXPECT(round_trip(e) == e);
 }
 
+TEST_CASE(serialize_bounded_var)
+{
+    auto h = var("h", 1, 128);
+    auto r = round_trip(h);
+    EXPECT(r == h);
+    EXPECT(r != var("h", 1, 256));
+    EXPECT(r != var("h"));
+}
+
+TEST_CASE(serialize_bounded_var_in_expr)
+{
+    auto h = var("h", 1, 128);
+    auto w = var("w", 1, 256);
+    auto e = 2 * h + w - 3;
+    auto r = round_trip(e);
+    EXPECT(r == e);
+    EXPECT(r.eval_uint({{h, 64}, {w, 32}}) == 157);
+}
+
+TEST_CASE(serialize_conv_output_with_bounds)
+{
+    auto h   = var("h", 3, 256);
+    auto out = (h - 3) / 2 + 1;
+    auto r   = round_trip(out);
+    EXPECT(r == out);
+    EXPECT(r.eval_uint({{h, 255}}) == 127);
+}
+
+TEST_CASE(serialize_comparison_survives_round_trip)
+{
+    auto h    = var("h", 3, 256);
+    auto out  = (h - 3) / 2 + 1;
+    auto h2   = round_trip(h);
+    auto out2 = round_trip(out);
+    EXPECT(out2 < h2);
+}
+
 // ===================================================================
 // Tier 7: Semantic comparison operators
 // ===================================================================
@@ -1052,10 +1089,10 @@ TEST_CASE(cmp_stride_ordering_4d)
     auto s2 = w;
     auto s3 = lit(1);
 
-    EXPECT(s1 < s0);
-    EXPECT(s2 < s1);
-    EXPECT(s3 < s2);
-    EXPECT(s3 < s0);
+    EXPECT(s1 <= s0);
+    EXPECT(s2 <= s1);
+    EXPECT(s3 <= s2);
+    EXPECT(s3 <= s0);
 }
 
 // With default [1,1] bounds, n*c*h*w vs c*h*w is not strictly ordered
@@ -1123,7 +1160,7 @@ TEST_CASE(cmp_repeated_pooling)
 TEST_CASE(cmp_strides_after_conv)
 {
     auto h     = var("h", 7, 128);
-    auto w     = var("w", 1, 128);
+    auto w     = var("w", 2, 128);
     auto new_h = (h - 3) / 2 + 1;
     auto s0    = new_h * w;
     auto s1    = w;
@@ -1206,6 +1243,203 @@ TEST_CASE(cmp_commuted_product)
     EXPECT(not(a * b < b * a));
     EXPECT(a * b <= b * a);
     EXPECT(a * b >= b * a);
+}
+
+// --- Strict semantics: diff=0 at any point means not strictly less ---
+
+TEST_CASE(cmp_strict_dim_one_undetermined)
+{
+    auto w = var("w", 1, 128);
+    EXPECT(test::throws([&] { lit(1) < w; }));
+    EXPECT(lit(1) <= w);
+}
+
+TEST_CASE(cmp_strict_stride_ordering_with_possible_dim_one)
+{
+    auto c = var("c", 1, 512);
+    auto h = var("h", 2, 256);
+    auto w = var("w", 2, 256);
+    EXPECT(test::throws([&] { h* w < c* h* w; }));
+}
+
+// --- Zero and negative literal edge cases ---
+
+TEST_CASE(cmp_zero_not_less_than_zero)
+{
+    EXPECT(not(lit(0) < lit(0)));
+    EXPECT(lit(0) <= lit(0));
+    EXPECT(lit(0) >= lit(0));
+}
+
+TEST_CASE(cmp_negative_literals)
+{
+    EXPECT(lit(-5) < lit(-1));
+    EXPECT(lit(-1) < lit(0));
+    EXPECT(lit(-10) < lit(10));
+    EXPECT(not(lit(0) < lit(-1)));
+}
+
+// --- Operator symmetry: a < b iff b > a, a <= b iff b >= a ---
+
+TEST_CASE(cmp_symmetry_lt_gt)
+{
+    auto h   = var("h", 3, 256);
+    auto out = (h - 3) / 2 + 1;
+    EXPECT(out < h);
+    EXPECT(h > out);
+    EXPECT(not(h < out));
+    EXPECT(not(out > h));
+}
+
+TEST_CASE(cmp_symmetry_le_ge)
+{
+    auto n = var("n", 1, 32);
+    EXPECT(n <= n);
+    EXPECT(n >= n);
+    EXPECT(n <= 2 * n);
+    EXPECT(2 * n >= n);
+}
+
+// --- Transitivity: if a < b and b < c then a < c ---
+
+TEST_CASE(cmp_transitivity_strides)
+{
+    auto c  = var("c", 2, 512);
+    auto h  = var("h", 2, 256);
+    auto w  = var("w", 2, 256);
+    auto s0 = c * h * w;
+    auto s1 = h * w;
+    auto s2 = w;
+    auto s3 = lit(1);
+    EXPECT(s1 < s0);
+    EXPECT(s2 < s1);
+    EXPECT(s3 < s2);
+    EXPECT(s3 < s0);
+    EXPECT(s2 < s0);
+    EXPECT(s3 < s1);
+}
+
+// --- Division ordering: different divisors produce ordered outputs ---
+// Larger stride divisor => smaller output, so (h-1)/4 < (h-1)/2
+
+TEST_CASE(cmp_division_ordering)
+{
+    auto h     = var("h", 5, 256);
+    auto pool2 = (h - 1) / 2;
+    auto pool4 = (h - 1) / 4;
+    EXPECT(pool4 < pool2);
+    EXPECT(pool2 < h);
+    EXPECT(pool4 < h);
+}
+
+// --- Sum vs product: n + c < n * c when both >= 2 ---
+// diff = n*c - n - c = n(c-1) - c; with n,c >= 2: lo = 2*(2-1) - 2 = 0, hi > 0
+
+TEST_CASE(cmp_sum_less_than_product)
+{
+    auto n = var("n", 2, 32);
+    auto c = var("c", 3, 512);
+    EXPECT(n + c < n * c);
+}
+
+// At n=2, c=2: n+c=4, n*c=4, so sum is NOT strictly less than product
+TEST_CASE(cmp_sum_not_less_than_product_degenerate)
+{
+    auto n = var("n", 2, 32);
+    auto c = var("c", 2, 512);
+    EXPECT(test::throws([&] { n + c < n* c; }));
+}
+
+// --- Comparison after substitution ---
+
+TEST_CASE(cmp_after_partial_subs)
+{
+    auto n  = var("n", 1, 32);
+    auto c  = var("c", 2, 512);
+    auto h  = var("h", 2, 256);
+    auto s0 = c * h;
+    auto s1 = h;
+    EXPECT(s1 < s0);
+    auto s0_sub = s0.subs({{c, lit(64)}});
+    auto s1_sub = s1;
+    EXPECT(s1_sub < s0_sub);
+}
+
+TEST_CASE(cmp_after_full_subs_becomes_literal)
+{
+    auto h       = var("h", 3, 256);
+    auto out     = (h - 3) / 2 + 1;
+    auto h_val   = out.subs({{h, lit(255)}});
+    auto inp_val = h.subs({{h, lit(255)}});
+    EXPECT(h_val < inp_val);
+    EXPECT(h_val == lit(127));
+    EXPECT(inp_val == lit(255));
+}
+
+// --- Multi-layer conv network strides ---
+// Simulates Conv(k=3,s=2) -> Pool(k=3,s=2) -> Conv(k=3,s=1)
+// Each stage reduces spatial dims; strides at each layer must be ordered.
+
+TEST_CASE(cmp_multi_layer_conv_strides)
+{
+    auto c = var("c", 2, 512);
+    auto h = var("h", 15, 256);
+    auto w = var("w", 15, 256);
+
+    auto h1 = (h - 3) / 2 + 1;
+    auto w1 = (w - 3) / 2 + 1;
+
+    auto h2 = (h1 - 3) / 2 + 1;
+    auto w2 = (w1 - 3) / 2 + 1;
+
+    EXPECT(h1 < h);
+    EXPECT(w1 < w);
+    EXPECT(h2 < h1);
+    EXPECT(w2 < w1);
+
+    auto stride_c1 = h1 * w1;
+    auto stride_h1 = w1;
+    EXPECT(stride_h1 < stride_c1);
+    EXPECT(lit(1) < stride_h1);
+
+    auto stride_c2 = h2 * w2;
+    auto stride_h2 = w2;
+    EXPECT(stride_h2 < stride_c2);
+    EXPECT(lit(1) < stride_h2);
+}
+
+// --- Structurally different but algebraically equal expressions ---
+
+TEST_CASE(cmp_algebraically_equal_expressions)
+{
+    auto h = var("h");
+    auto a = h + h;
+    auto b = 2 * h;
+    EXPECT(a == b);
+    EXPECT(not(a < b));
+    EXPECT(not(b < a));
+    EXPECT(a <= b);
+    EXPECT(a >= b);
+}
+
+// --- Broadcast-style: comparing 1 vs dim and 0 vs stride ---
+
+TEST_CASE(cmp_lit_one_le_any_positive_dim)
+{
+    auto n = var("n");
+    auto c = var("c", 1, 512);
+    EXPECT(lit(1) <= n);
+    EXPECT(lit(1) <= c);
+    EXPECT(not(n < lit(1)));
+}
+
+TEST_CASE(cmp_zero_stride_less_than_symbolic_stride)
+{
+    auto h = var("h");
+    auto w = var("w");
+    EXPECT(lit(0) < h);
+    EXPECT(lit(0) < h * w);
+    EXPECT(lit(0) < h + w);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

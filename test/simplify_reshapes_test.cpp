@@ -5055,7 +5055,6 @@ TEST_CASE(gather_strided_view_elements_mismatch)
     EXPECT(m1.get_output_shapes() == m2.get_output_shapes());
 }
 
-<<<<<<< MLP_prediction_towers
 TEST_CASE(slice_squeeze_pw_unary)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 4}};
@@ -5387,7 +5386,8 @@ TEST_CASE(slice_squeeze_binary_two_inputs)
         m2.add_return({sq});
     }
     EXPECT(m1.sort() == m2.sort());
-=======
+}
+
 TEST_CASE(slice_reshape_multibroadcast_rebase_axis)
 {
     migraphx::module m1;
@@ -5405,7 +5405,6 @@ TEST_CASE(slice_reshape_multibroadcast_rebase_axis)
     auto m2 = m1;
     run_pass(m1);
     EXPECT(m1.get_output_shapes() == m2.get_output_shapes());
->>>>>>> develop
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

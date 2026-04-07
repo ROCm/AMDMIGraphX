@@ -426,7 +426,7 @@ deduce_min_splice(std::vector<instruction_ref> ends,
 
 // ins: instruction that was/will be replaced
 // rep: replacing instruction
-static void propagate_debug_symbols(const_module_ref m,
+static void propagate_debug_symbols(module_ref m,
                                     instruction_ref ins,
                                     instruction_ref rep,
                                     const std::unordered_set<instruction_ref>& new_max_splice,

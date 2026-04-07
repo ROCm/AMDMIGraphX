@@ -30,6 +30,12 @@
 #include <migraphx/kernels/type_traits.hpp>
 #include <migraphx/kernels/debug.hpp>
 
+#if defined(__clang__)
+#define MIGRAPHX_KERNEL_PARAM_LIFETIME_BOUND [[clang::lifetimebound]]
+#else
+#define MIGRAPHX_KERNEL_PARAM_LIFETIME_BOUND
+#endif
+
 namespace migraphx {
 
 template <class T, index_int N>
@@ -87,15 +93,18 @@ constexpr auto common_vec_size()
 
 // Bools can not be used as a vector type so convert it to uint8
 template <class T>
-__device__ __host__ T* remove_bool(T* x)
+__device__ __host__ T* remove_bool(T* x MIGRAPHX_KERNEL_PARAM_LIFETIME_BOUND)
 {
     return x;
 }
 
-inline __device__ __host__ uint8_t* remove_bool(bool* x) { return reinterpret_cast<uint8_t*>(x); }
+inline __device__ __host__ uint8_t* remove_bool(bool* x MIGRAPHX_KERNEL_PARAM_LIFETIME_BOUND)
+{
+    return reinterpret_cast<uint8_t*>(x);
+}
 
 template <index_int N, class T>
-__device__ __host__ auto as_vec(T* x)
+__device__ __host__ auto as_vec(T* x MIGRAPHX_KERNEL_PARAM_LIFETIME_BOUND)
 {
     if constexpr(N < 2)
         return x;

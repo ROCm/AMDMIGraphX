@@ -3498,6 +3498,8 @@ TEST_CASE(reorder_reshape_slice_move_axis2)
 
 TEST_CASE(reorder_reshape_slice_len_1)
 {
+    // Sliced axis (2) is an inner subdimension in the merged destination
+    // dimension so the transformation must not apply.
     migraphx::module m1;
     {
         migraphx::shape s{migraphx::shape::float_type, {1, 128, 3}};
@@ -3519,30 +3521,16 @@ TEST_CASE(reorder_reshape_slice_len_1)
         m1.add_return({ret});
     };
 
-    migraphx::module m2;
-    {
-        auto s                    = migraphx::shape{migraphx::shape::float_type, {1, 128, 3}};
-        auto input                = m2.add_parameter("input", s);
-        std::vector<int64_t> lens = {1, 384};
-        auto rsp  = m2.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), input);
-        auto slc0 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {128}}}), rsp);
-        auto slc1 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {128}}, {"ends", {256}}}), rsp);
-        auto slc2 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {256}}, {"ends", {384}}}), rsp);
-
-        auto sum = m2.add_instruction(migraphx::make_op("add"), slc0, slc1);
-        auto ret = m2.add_instruction(migraphx::make_op("mul"), sum, slc2);
-        m2.add_return({ret});
-    };
-
+    migraphx::module m2 = m1;
     run_pass(m1);
     EXPECT(m1.sort() == m2.sort());
 }
 
 TEST_CASE(reorder_reshape_slice_move_axis3)
 {
+    // Sliced axis (1) maps to a destination dimension where another axis's
+    // subdimension with len > 1 precedes it, so the transformation must
+    // not apply.
     migraphx::module m1;
     {
         migraphx::shape s{migraphx::shape::float_type, {128, 96}};
@@ -3563,25 +3551,8 @@ TEST_CASE(reorder_reshape_slice_move_axis3)
         auto ret = m1.add_instruction(migraphx::make_op("mul"), sum, r2);
         m1.add_return({ret});
     }
+    migraphx::module m2 = m1;
     run_pass(m1);
-
-    migraphx::module m2;
-    {
-        migraphx::shape s{migraphx::shape::float_type, {128, 96}};
-        auto input = m2.add_parameter("input", s);
-        auto rsp =
-            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 16, 48, 16}}}), input);
-        auto slc0 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {16}}}), rsp);
-        auto slc1 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {16}}, {"ends", {32}}}), rsp);
-        auto slc2 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {32}}, {"ends", {48}}}), rsp);
-
-        auto sum = m2.add_instruction(migraphx::make_op("add"), slc0, slc1);
-        auto ret = m2.add_instruction(migraphx::make_op("mul"), sum, slc2);
-        m2.add_return({ret});
-    }
     EXPECT(m1.sort() == m2.sort());
 }
 

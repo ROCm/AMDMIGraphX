@@ -1345,13 +1345,9 @@ TEST_CASE(concat_convert_mismatched_input_types)
         auto x  = m1.add_parameter("x", sx);
         auto y  = m1.add_parameter("y", sy);
         auto xc = m1.add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::shape::bf16_type}}),
-            x);
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bf16_type}}), x);
         auto yc = m1.add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::shape::bf16_type}}),
-            y);
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bf16_type}}), y);
         auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), xc, yc);
         m1.add_instruction(pass_op{}, concat);
     }

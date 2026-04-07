@@ -90,6 +90,7 @@ struct shape_impl
                std::vector<sym::expr> dstrides)
         : m_type(t), m_dyn_dims(std::move(dims)), m_dyn_strides(std::move(dstrides))
     {
+        assert(m_dyn_strides.size() == m_dyn_dims.size());
     }
 
     shape_impl(shape::type_t t,
@@ -130,34 +131,41 @@ struct shape_impl
     std::vector<shape::dynamic_dimension> m_dyn_dims = {};
     std::vector<sym::expr> m_dyn_strides             = {};
 
-    void calculate_dyn_strides()
+    std::vector<sym::expr> sym_dim_exprs() const
     {
-        m_dyn_strides.clear();
-        if(m_dyn_dims.empty())
-            return;
-        m_dyn_strides.resize(m_dyn_dims.size());
-        m_dyn_strides.back() = sym::lit(1);
-        std::transform(m_dyn_dims.rbegin(),
-                       m_dyn_dims.rend() - 1,
-                       m_dyn_strides.rbegin(),
-                       m_dyn_strides.rbegin() + 1,
-                       [](const auto& dd, const auto& stride) {
-                           return dd.sym_expr.value_or(sym::lit(dd.min)) * stride;
-                       });
+        std::vector<sym::expr> result(m_dyn_dims.size());
+        std::transform(m_dyn_dims.begin(), m_dyn_dims.end(), result.begin(), [](const auto& dd) {
+            return dd.sym_expr.value_or(sym::expr{});
+        });
+        return result;
     }
 
-    void calculate_strides()
+    template <class T>
+    static T make_identity(int64_t n)
     {
-        m_strides.clear();
-        m_strides.resize(m_lens.size(), 0);
-        if(m_strides.empty())
-            return;
-        m_strides.back() = 1;
-        std::partial_sum(m_lens.rbegin(),
-                         m_lens.rend() - 1,
-                         m_strides.rbegin() + 1,
-                         std::multiplies<std::size_t>());
+        if constexpr(std::is_same_v<T, sym::expr>)
+            return sym::lit(n);
+        else
+            return T(n);
     }
+
+    template <class T>
+    static std::vector<T> compute_strides(const std::vector<T>& dims)
+    {
+        std::vector<T> strides(dims.size());
+        if(strides.empty())
+            return strides;
+        strides.back() = make_identity<T>(1);
+        std::partial_sum(dims.rbegin(),
+                         dims.rend() - 1,
+                         strides.rbegin() + 1,
+                         [](const auto& a, const auto& b) { return b * a; });
+        return strides;
+    }
+
+    void calculate_dyn_strides() { m_dyn_strides = compute_strides(sym_dim_exprs()); }
+
+    void calculate_strides() { m_strides = compute_strides(m_lens); }
 
     std::size_t element_space() const
     {
@@ -782,7 +790,13 @@ const std::vector<shape::dynamic_dimension>& shape::dyn_dims() const
     return impl->m_dyn_dims;
 }
 
-bool shape::symbolic() const { return not impl->m_dyn_strides.empty(); }
+bool shape::symbolic() const
+{
+    return not impl->m_dyn_dims.empty() and
+           std::all_of(impl->m_dyn_dims.begin(), impl->m_dyn_dims.end(), [](const auto& dd) {
+               return dd.is_symbolic();
+           });
+}
 
 const std::vector<sym::expr>& shape::dyn_strides() const { return impl->m_dyn_strides; }
 
@@ -819,6 +833,7 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator*=(const std::size_t
 
 shape::dynamic_dimension& shape::dynamic_dimension::operator/=(const std::size_t& x)
 {
+    assert(x != 0);
     return *this /= dynamic_dimension{x, x};
 }
 
@@ -942,12 +957,17 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator-=(const shape::dyna
 
 shape::dynamic_dimension& shape::dynamic_dimension::operator*=(const shape::dynamic_dimension& x)
 {
-    auto lhs_sym = sym_expr;
-    auto rhs_sym = x.sym_expr;
-    min          = min * x.min;
-    max          = (max > std::numeric_limits<std::size_t>::max() / (x.max == 0 ? 1 : x.max))
-                       ? std::numeric_limits<std::size_t>::max()
-                       : max * x.max;
+    auto lhs_sym  = sym_expr;
+    auto rhs_sym  = x.sym_expr;
+    min           = min * x.min;
+    auto safe_mul = [](std::size_t a, std::size_t b) -> std::size_t {
+        if(b == 0)
+            return 0;
+        if(a > std::numeric_limits<std::size_t>::max() / b)
+            return std::numeric_limits<std::size_t>::max();
+        return a * b;
+    };
+    max = safe_mul(max, x.max);
     if(x.is_fixed())
     {
         std::set<std::size_t> new_optimals;

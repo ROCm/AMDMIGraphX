@@ -141,22 +141,21 @@ struct MIGRAPHX_EXPORT shape
 
         /**
          * Return a dynamic_dimension with the intersection of two dynamic_dimension ranges if
-         * possible. Preserves the symbolic expression only when the result is still dynamic.
+         * possible. When both dimensions are symbolic, they are compatible only if they
+         * share the same symbolic expression.
          */
         std::optional<dynamic_dimension> intersection(const dynamic_dimension& other) const
         {
+            if(this->is_symbolic() and other.is_symbolic())
+            {
+                if(this->sym_expr == other.sym_expr)
+                    return *this;
+                return nullopt;
+            }
             auto left  = std::max(this->min, other.min);
             auto right = std::min(this->max, other.max);
             if(left <= right)
-            {
-                optional<sym::expr> s;
-                if(left != right)
-                {
-                    s = (this->sym_expr.has_value() and not this->is_fixed()) ? this->sym_expr
-                                                                              : other.sym_expr;
-                }
-                return dynamic_dimension{left, right, {}, s};
-            }
+                return dynamic_dimension{left, right};
             return nullopt;
         }
 

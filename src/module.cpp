@@ -329,7 +329,7 @@ instruction_ref module::insert_instruction(instruction_ref ins,
 
 instruction_ref module::replace_instruction(instruction_ref ins,
                                             const operation& op,
-                                            std::vector<instruction_ref> args) MIGRAPHX_TIDY_CONST
+                                            std::vector<instruction_ref> args)
 {
     impl->changed.notify();
     assert(has_instruction(ins));
@@ -344,7 +344,7 @@ instruction_ref module::replace_instruction(instruction_ref ins,
 instruction_ref module::replace_instruction(instruction_ref ins,
                                             const operation& op,
                                             std::vector<instruction_ref> args,
-                                            std::vector<module_ref> module_args) MIGRAPHX_TIDY_CONST
+                                            std::vector<module_ref> module_args)
 {
     impl->changed.notify();
     assert(has_instruction(ins));

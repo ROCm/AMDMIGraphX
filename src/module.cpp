@@ -571,8 +571,8 @@ instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref
 // For replacing multiple instructions within a single matcher.
 // Handles debug symbol propagation by having all old splice debug symbols propagate
 // to the new splice instructions.
-std::vector<instruction_ref> module::batch_replace_instruction(
-    const std::vector<instruction_replacement>& replacers)
+std::vector<instruction_ref>
+module::batch_replace_instruction(const std::vector<instruction_replacement>& replacers)
 {
     impl->changed.notify();
     std::vector<instruction_ref> ret;

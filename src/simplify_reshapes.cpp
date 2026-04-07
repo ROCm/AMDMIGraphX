@@ -976,6 +976,65 @@ struct find_concat_reshape
     }
 };
 
+// find_concat_reshape cannot handle the case where unsqueeze inserts a new
+// dimension at the concat axis (the axis-mapping logic fails because the
+// pre- and post-reshape element products don't match).  This dedicated
+// matcher handles: concat(unsqueeze(x_0, A), unsqueeze(x_1, A), ..., axis=A)
+// and rewrites to: reshape(concat(x_0, x_1, ..., axis=A), target_shape).
+struct find_concat_unsqueeze
+{
+    auto matcher() const
+    {
+        return match::name("concat")(
+            match::all_of[match::inputs()](match::name("unsqueeze")));
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins    = mr.result;
+        auto inputs = ins->inputs();
+        if(inputs.empty())
+            return;
+
+        auto first_op  = inputs.front()->get_operator();
+        auto unsq_axes = first_op.to_value()["axes"].to_vector<int64_t>();
+        if(unsq_axes.size() != 1)
+            return;
+        auto unsq_axis = unsq_axes.front();
+
+        if(not std::all_of(inputs.begin(), inputs.end(), [&](auto inp) {
+               return inp->get_operator() == first_op;
+           }))
+            return;
+
+        auto concat_op = any_cast<op::concat>(ins->get_operator());
+        auto concat_axis =
+            tune_axis(inputs.front()->get_shape().ndim(), concat_op.axis, concat_op.name());
+        if(static_cast<int64_t>(concat_axis) != unsq_axis)
+            return;
+
+        auto pre_shape = inputs.front()->inputs().front()->get_shape().lens();
+        if(unsq_axis < 0 or unsq_axis >= static_cast<int64_t>(pre_shape.size()))
+            return;
+
+        if(not std::all_of(inputs.begin(), inputs.end(), [&](auto inp) {
+               return inp->inputs().front()->get_shape().lens() == pre_shape;
+           }))
+            return;
+
+        std::vector<instruction_ref> pre_inputs;
+        pre_inputs.reserve(inputs.size());
+        std::transform(inputs.begin(), inputs.end(), std::back_inserter(pre_inputs), [](auto inp) {
+            return inp->inputs().front();
+        });
+
+        auto new_concat =
+            m.insert_instruction(ins, make_op("concat", {{"axis", unsq_axis}}), pre_inputs);
+        m.replace_instruction(
+            ins, make_op("reshape", {{"dims", ins->get_shape().lens()}}), new_concat);
+    }
+};
+
 struct find_nested_concat
 {
     auto matcher() const
@@ -2026,6 +2085,7 @@ void simplify_reshapes::apply(module& m) const
                             find_concat_slice{},
                             find_concat_transpose{},
                             find_concat_reshape{},
+                            find_concat_unsqueeze{},
                             find_concat_multibroadcasts{},
                             find_nested_slice{},
                             find_nested_concat{},

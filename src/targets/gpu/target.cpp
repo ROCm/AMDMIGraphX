@@ -135,7 +135,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         fuse_horizontal{},
         dead_code_elimination{},
-        prefuse_ops{},
+        prefuse_ops{&ctx},
         dead_code_elimination{},
         dead_code_elimination{},
         rewrite_reduce{},

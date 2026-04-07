@@ -2239,6 +2239,11 @@ struct find_conv_broadcast_input
                 padding = std::move(asym);
             }
 
+            if(std::any_of(range(num_spatial).begin(), range(num_spatial).end(), [&](auto i) {
+                   return out_lens[i + 2] <= (padding[i] + padding[i + num_spatial]);
+               }))
+                return;
+
             apply_small_conv(
                 m, ins, x_ins, w_ins, bcast_ins, out_lens, w_shape, padding, num_spatial);
         }
@@ -2307,13 +2312,10 @@ struct find_conv_broadcast_input
         instruction_ref current = small_conv;
         for(std::size_t i = 0; i < num_spatial; i++)
         {
-            auto p_start  = padding[i];
-            auto p_end    = padding[i + num_spatial];
-            auto full_dim = out_lens[i + 2];
-            auto axis     = i + 2;
-
-            if(full_dim <= p_start + p_end)
-                continue;
+            auto p_start      = padding[i];
+            auto p_end        = padding[i + num_spatial];
+            auto full_dim     = out_lens[i + 2];
+            auto axis         = i + 2;
             auto interior_len = full_dim - p_start - p_end;
             if(interior_len == 1)
                 continue;

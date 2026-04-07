@@ -87,20 +87,6 @@ else()
 option(MIGRAPHX_USE_COMPOSABLEKERNEL "Enable MIGraphX to use composable kernel JIT library" ON)
 endif()
 
-find_path(HALF_INCLUDE_DIR half.hpp PATH_SUFFIXES half)
-if (NOT HALF_INCLUDE_DIR)
-    message(FATAL_ERROR "Could not find half.hpp - Please check that the install path of half.hpp has been added to CMAKE_PREFIX_PATH")
-else()
-    message(STATUS "half.hpp is at ${HALF_INCLUDE_DIR}")
-endif()
-
-include(CheckTypeSize)
-set(CMAKE_REQUIRED_INCLUDES ${HALF_INCLUDE_DIR})
-set(CMAKE_EXTRA_INCLUDE_FILES half.hpp)
-check_type_size("half_float::detail::expr" HALF_EXPR LANGUAGE CXX)
-set(CMAKE_REQUIRED_INCLUDES)
-set(CMAKE_EXTRA_INCLUDE_FILES)
-
 include(ROCMSetupVersion)
 
 option(BUILD_DEV "Build for development purpose only" OFF)
@@ -402,5 +388,5 @@ rocm_create_package(
     MAINTAINER "AMDMIGraphX Maintainer <migraphx-lib.support@amd.com>"
     LDCONFIG
     PTH
-    DEPENDS ${DEPENDS_HIP_RUNTIME} half ${PACKAGE_DEPENDS}
+    DEPENDS ${DEPENDS_HIP_RUNTIME} ${PACKAGE_DEPENDS}
 )

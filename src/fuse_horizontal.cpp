@@ -467,14 +467,14 @@ struct dot_horizontal_fusion
 
         std::vector<instruction_ref> results;
         results.reserve(num);
-        for(std::size_t i = 0; i < num; ++i)
+        for(int64_t i = 0; i < num; ++i)
         {
             auto sliced = m.insert_instruction(
                 insert_pt,
                 make_op("slice",
                         {{"axes", std::vector<int64_t>{0}},
-                         {"starts", std::vector<int64_t>{static_cast<int64_t>(i)}},
-                         {"ends", std::vector<int64_t>{static_cast<int64_t>(i + 1)}}}),
+                         {"starts", std::vector<int64_t>{i}},
+                         {"ends", std::vector<int64_t>{i + 1}}}),
                 bd);
             results.push_back(
                 m.insert_instruction(insert_pt, make_op("squeeze", {{"axes", {0}}}), sliced));

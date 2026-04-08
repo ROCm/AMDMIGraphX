@@ -79,29 +79,37 @@ struct spatial_tiler
 
     static constexpr bool has_conv_padding() { return has_nonzero(Padding{}); }
 
+    static constexpr auto get_padding()
+    {
+        if constexpr(Padding{}.empty())
+            return transform(TileLens{}, [](auto) { return index_int{0}; });
+        else
+            return Padding{};
+    }
+
     // Left (begin) padding per dim: (0, 0, left_h, left_w)
     static constexpr auto left_padding()
     {
-        return return_array_c([] {
-            constexpr auto p  = Padding{};
-            constexpr auto ns = p.size() / 2;
-            auto result       = array<index_int, ns + 2>(index_int{0});
-            for(index_int i = 0; i < ns; i++)
-                result[i + 2] = p[i];
-            return result;
+        constexpr auto p  = get_padding();
+        constexpr auto ns = p.size() / 2;
+        return generate_const_array<index_int>(_c<ns + 2>, [&](auto i) {
+            if constexpr(i < 2)
+                return index_c<0>;
+            else
+                return index_c<p[i - 2]>;
         });
     }
 
     // Total (left+right) padding per dim: (0, 0, left_h+right_h, left_w+right_w)
     static constexpr auto total_padding()
     {
-        return return_array_c([] {
-            constexpr auto p  = Padding{};
-            constexpr auto ns = p.size() / 2;
-            auto result       = array<index_int, ns + 2>(index_int{0});
-            for(index_int i = 0; i < ns; i++)
-                result[i + 2] = p[i] + p[i + ns];
-            return result;
+        constexpr auto p  = get_padding();
+        constexpr auto ns = p.size() / 2;
+        return generate_const_array<index_int>(_c<ns + 2>, [&](auto i) {
+            if constexpr(i < 2)
+                return index_c<0>;
+            else
+                return index_c<p[i - 2] + p[i - 2 + ns]>;
         });
     }
 
@@ -113,21 +121,23 @@ struct spatial_tiler
     template <class InputShape>
     static constexpr auto halo_lens_for()
     {
-        constexpr auto halo_extra = [] {
-            if constexpr(has_conv_padding())
-            {
+        constexpr auto halo_extra =
+            [] {
+                // if constexpr(has_conv_padding())
+                // {
                 return return_array_c([] {
                     return make_slice(InputShape{}, keep_spatial()).lens - out_spatial_lens() +
                            total_padding();
                 });
-            }
-            else
-            {
-                constexpr auto input_spatial = make_slice(InputShape{}, keep_spatial()).lens;
-                return transform(
-                    input_spatial, out_spatial_lens(), [](auto is, auto os) { return is - os; });
-            }
-        }();
+                // }
+                // else
+                // {
+                //     constexpr auto input_spatial = make_slice(InputShape{}, keep_spatial()).lens;
+                //     return transform(
+                //         input_spatial, out_spatial_lens(), [](auto is, auto os) { return is - os;
+                //         });
+                // }
+            }();
         return transform(output_lens(), halo_extra, [](auto o, auto h) { return o + h; });
     }
 

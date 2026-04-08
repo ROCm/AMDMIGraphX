@@ -298,8 +298,10 @@ struct array
             // Reset overflow
             overflow = 0;
             // Compute overflow using while loop instead of mod
+            // cppcheck-suppress arrayIndexOutOfBounds
             while(z >= d[i])
             {
+                // cppcheck-suppress arrayIndexOutOfBounds
                 z -= d[i];
                 overflow += 1;
             }
@@ -316,7 +318,9 @@ struct array
         index_int tidx = idx;
         for(diff_int is = result.size() - 1; is > 0; is--)
         {
+            // cppcheck-suppress arrayIndexOutOfBounds
             result[is] = tidx % d[is];
+            // cppcheck-suppress arrayIndexOutOfBounds
             tidx       = tidx / d[is];
         }
         result[0] = tidx;
@@ -354,6 +358,12 @@ template <class T, class... Ts>
 constexpr auto make_const_array(T x, Ts... xs)
 {
     return integral_const_array<typename T::value_type, x, xs...>{};
+}
+
+template <class T, class N, class F>
+constexpr auto generate_const_array(N n, F f)
+{
+    return sequence_c<n>([=](auto... is) { return make_const_array(f(is)...); });
 }
 
 template <class T, class N, class F>

@@ -36,7 +36,7 @@ struct parse_array_feature_extractor : op_parser<parse_array_feature_extractor>
 
     instruction_ref parse(const op_desc& /*opd*/,
                             const onnx_parser& /*parser*/,
-                            onnx_parser::node_info info,
+                            onnx_parser::node_info& info,
                             std::vector<instruction_ref> args) const
     {
         auto x = info.make_contiguous(args[0]);
@@ -48,7 +48,7 @@ struct parse_array_feature_extractor : op_parser<parse_array_feature_extractor>
         if(ndim == 0){
             MIGRAPHX_THROW("PARSE_ARRAY_FEATURE_EXTRACTOR: input data must have at least 1 dimension");
         }
-        auto axis = static_cast<int64_t>(ndim - 1);
+        auto axis = ndim - 1;
         auto op = make_op("gather", {{"axis", axis}});
         return info.add_instruction(op, x, y);
     }

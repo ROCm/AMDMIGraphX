@@ -28,11 +28,9 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/iterator.hpp>
-#include <migraphx/logger.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <bitset>
 #include <queue>
-#include <sstream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -464,19 +462,17 @@ static void debug_name(std::ostream& os, const instruction& ins)
 
 void instruction::debug_print() const
 {
-    std::ostringstream ss;
-    debug_name(ss, *this);
+    debug_name(std::cout, *this);
     std::string delim = "(";
     for(auto arg : this->inputs())
     {
-        ss << delim;
-        debug_name(ss, *arg);
+        std::cout << delim;
+        debug_name(std::cout, *arg);
         delim = ", ";
     }
     if(not this->inputs().empty())
-        ss << ")";
-    ss << " -> " << this->get_shape();
-    log::debug() << ss.str();
+        std::cout << ")";
+    std::cout << " -> " << this->get_shape() << std::endl;
 }
 
 std::vector<instruction_ref> instruction::get_output_alias(instruction_ref ins, bool shallow)

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,7 +27,6 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/fileutils.hpp>
-#include <migraphx/logger.hpp>
 #include <cassert>
 #include <iostream>
 #include <deque>
@@ -162,7 +161,7 @@ struct hiprtc_program
     void compile(const std::vector<std::string>& options, bool quiet = false) const
     {
         if(enabled(MIGRAPHX_TRACE_HIPRTC{}))
-            log::trace() << "hiprtc " << join_strings(options, " ") << " " << cpp_name;
+            std::cout << "hiprtc " << join_strings(options, " ") << " " << cpp_name << std::endl;
         std::vector<const char*> c_options;
         std::transform(options.begin(),
                        options.end(),
@@ -172,7 +171,7 @@ struct hiprtc_program
         auto prog_log = log();
         if(not prog_log.empty() and not quiet)
         {
-            log::warn() << prog_log;
+            std::cerr << prog_log << std::endl;
         }
         if(result != HIPRTC_SUCCESS)
             MIGRAPHX_HIPRTC_THROW(result, "Compilation failed.");
@@ -239,7 +238,7 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         {
             if(src.path.extension() != ".cpp")
                 continue;
-            log::trace() << std::string(src.content);
+            std::cout << std::string(src.content) << std::endl;
         }
     }
 
@@ -355,13 +354,14 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         {
             if(src.path.extension() != ".cpp")
                 continue;
-            log::trace() << std::string(src.content);
+            std::cout << std::string(src.content) << std::endl;
         }
     }
 
     if(enabled(MIGRAPHX_GPU_DUMP_ASM{}))
     {
-        log::trace() << assemble(compiler).compile(srcs).data();
+
+        std::cout << assemble(compiler).compile(srcs).data() << std::endl;
     }
 
     return {compiler.compile(srcs)};

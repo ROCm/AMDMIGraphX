@@ -33,7 +33,6 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <iostream>
-#include <migraphx/logger.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -865,7 +864,7 @@ shape::type_t shape::parse_type(const std::string& s)
 
 const std::vector<shape>& shape::sub_shapes() const { return impl->m_shapes; }
 
-void shape::debug_print() const { log::debug() << *this; }
+void shape::debug_print() const { std::cout << *this << std::endl; }
 
 std::vector<shape> flatten(const std::vector<shape>& shapes)
 {

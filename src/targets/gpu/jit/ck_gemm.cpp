@@ -37,7 +37,6 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/stringutils.hpp>
-#include <migraphx/logger.hpp>
 #include <ck/host/utils.hpp>
 
 namespace migraphx {
@@ -212,7 +211,8 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
                     {
                         std::vector<shape> gemm_shapes{
                             shapes[0], shapes[1], shapes.back().with_type(shapes[0].type())};
-                        log::trace() << "gpu::ck_gemm: " << to_json_string(to_value(gemm_shapes));
+                        std::cout << "gpu::ck_gemm: " << to_json_string(to_value(gemm_shapes))
+                                  << std::endl;
                     }
                     m.replace_instruction(ins2, code_object, ins2->inputs());
                 }};

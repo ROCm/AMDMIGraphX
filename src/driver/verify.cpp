@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -37,7 +37,6 @@
 #include <migraphx/verify_args.hpp>
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/logger.hpp>
 #include <utility>
 
 namespace migraphx {
@@ -105,7 +104,7 @@ static std::vector<argument> run_ref(program p,
     }
     p.compile(migraphx::make_target("ref"), options);
     auto out = p.eval(inputs);
-    log::info() << p;
+    std::cout << p << std::endl;
     return out;
 }
 
@@ -140,7 +139,7 @@ static std::vector<argument> run_target(program p,
     }
     auto gpu_out = p.eval(m);
     std::vector<argument> output(gpu_out.size());
-    log::info() << p;
+    std::cout << p << std::endl;
     std::transform(gpu_out.begin(), gpu_out.end(), output.begin(), [&](auto& argu) {
         return options.offload_copy ? argu : t.copy_from(argu);
     });
@@ -165,9 +164,9 @@ bool verify_program(const std::string& name,
         if(ref_outs[i].get_shape().type() != target_outs[i].get_shape().type() or
            ref_outs[i].get_shape().lens() != target_outs[i].get_shape().lens())
         {
-            log::error() << "FAILED: " << name;
-            log::error() << "Shape mismatch {" << ref_outs[i].get_shape() << "} != {"
-                         << target_outs[i].get_shape() << "}";
+            std::cout << "FAILED: " << name << std::endl;
+            std::cout << "Shape mismatch {" << ref_outs[i].get_shape() << "} != {"
+                      << target_outs[i].get_shape() << "}" << std::endl;
         }
         else
         {
@@ -175,7 +174,7 @@ bool verify_program(const std::string& name,
         }
     }
     if(passed)
-        log::info() << "MIGraphX verification passed successfully.";
+        std::cout << "MIGraphX verification passed successfully." << std::endl;
     return passed;
 }
 
@@ -212,13 +211,13 @@ void verify_instructions(const program& prog,
         mm_p->add_instruction(ins.get_operator(), inputs);
         try
         {
-            log::info() << "Verify: " << ins.name();
-            log::info() << p;
+            std::cout << "Verify: " << ins.name() << std::endl;
+            std::cout << p << std::endl;
             verify_program(ins.name(), p, t, options, vo, create_param_map(p, false), tols);
         }
         catch(...)
         {
-            log::error() << "Instruction " << ins.name() << " threw an exception.";
+            std::cout << "Instruction " << ins.name() << " threw an exception." << std::endl;
             throw;
         }
     }
@@ -235,16 +234,16 @@ static bool verify_reduced(program p,
     auto* mm  = p.get_main_module();
     auto last = std::prev(mm->end(), n);
     mm->remove_instructions(last, mm->end());
-    log::info() << "Verify: " << n;
-    log::info() << p;
+    std::cout << "Verify: " << n << std::endl;
+    std::cout << p << std::endl;
     try
     {
         return verify_program(std::to_string(n), p, t, options, vo, inputs, tols);
     }
     catch(const std::exception& e)
     {
-        log::error() << "FAILED: " << n;
-        log::error() << "Exception: " << e.what();
+        std::cout << "FAILED: " << n << std::endl;
+        std::cout << "Exception: " << e.what() << std::endl;
         return false;
     }
 }
@@ -258,13 +257,13 @@ void verify_reduced_program(const program& p,
 {
     const auto* mm = p.get_main_module();
     auto n         = std::distance(mm->begin(), mm->end());
-    log::info() << "Verify steps: " << n;
+    std::cout << "Verify steps: " << n << std::endl;
     for(std::size_t i = 1; i < n; i++)
     {
         auto last = std::prev(mm->end(), i + 1);
         if(contains({"@literal", "@param"}, last->name()))
         {
-            log::info() << "Skip: " << i;
+            std::cout << "Skip: " << i << std::endl;
             continue;
         }
         verify_reduced(p, i, t, options, vo, inputs, tols);
@@ -354,7 +353,7 @@ void verify_bisected_program(const program& p,
     }
     if(failed > 0)
     {
-        log::error() << "Failure starts at: " << failed;
+        std::cout << "Failure starts at: " << failed << std::endl;
     }
 }
 

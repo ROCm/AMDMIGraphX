@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,7 +23,6 @@
  */
 
 #include <migraphx/verify_args.hpp>
-#include <migraphx/logger.hpp>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_VERIFY_DUMP_DIFF);
 
@@ -53,52 +52,54 @@ bool verify_args(const std::string& name,
         if(not passed)
         {
             // TODO: Check for nans
-            log::error() << "FAILED: " << name;
-            log::error() << "RMS Error: " << rms_error;
+            std::cout << "FAILED: " << name << std::endl;
+            std::cout << "RMS Error: " << rms_error << std::endl;
             if(ref.size() < 32 or enabled(MIGRAPHX_VERIFY_DUMP_DIFF{}))
-                log::error() << "ref:" << ref;
+                std::cout << "ref:" << ref << std::endl;
             if(target.size() < 32 or enabled(MIGRAPHX_VERIFY_DUMP_DIFF{}))
-                log::error() << "target:" << target;
+                std::cout << "target:" << target << std::endl;
             if(verify::range_zero(ref))
-                log::error() << "Ref data is all zeros";
+                std::cout << "Ref data is all zeros" << std::endl;
             if(verify::range_zero(target))
-                log::error() << "Target data is all zeros";
+                std::cout << "Target data is all zeros" << std::endl;
 
             auto mxdiff = verify::max_diff(ref, target);
-            log::error() << "Max diff: " << mxdiff;
+            std::cout << "Max diff: " << mxdiff << std::endl;
 
             auto idx = verify::mismatch_idx(ref, target, float_equal);
             if(idx < verify::range_distance(ref))
             {
-                log::error() << "Mismatch at " << idx << ": " << ref[idx] << " != " << target[idx];
+                std::cout << "Mismatch at " << idx << ": " << ref[idx] << " != " << target[idx]
+                          << std::endl;
             }
 
             auto ref_nan_idx = find_idx(ref, verify::not_finite);
             if(ref_nan_idx >= 0)
-                log::error() << "Non finite number found in ref at " << ref_nan_idx << ": "
-                             << ref[ref_nan_idx];
+                std::cout << "Non finite number found in ref at " << ref_nan_idx << ": "
+                          << ref[ref_nan_idx] << std::endl;
 
             auto target_nan_idx = find_idx(target, verify::not_finite);
             if(target_nan_idx >= 0)
-                log::error() << "Non finite number found in target at " << target_nan_idx << ": "
-                             << target[target_nan_idx];
+                std::cout << "Non finite number found in target at " << target_nan_idx << ": "
+                          << target[target_nan_idx] << std::endl;
+            std::cout << std::endl;
         }
         else
         {
             if(verify::range_zero(ref))
-                log::warn() << "Ref data is all zeros";
+                std::cout << "Ref data is all zeros" << std::endl;
             if(verify::range_zero(target))
-                log::warn() << "Target data is all zeros";
+                std::cout << "Target data is all zeros" << std::endl;
 
             auto ref_nan_idx = find_idx(ref, verify::not_finite);
             if(ref_nan_idx >= 0)
-                log::warn() << "Non finite number found in ref at " << ref_nan_idx << ": "
-                            << ref[ref_nan_idx];
+                std::cout << "Non finite number found in ref at " << ref_nan_idx << ": "
+                          << ref[ref_nan_idx] << std::endl;
 
             auto target_nan_idx = find_idx(target, verify::not_finite);
             if(target_nan_idx >= 0)
-                log::warn() << "Non finite number found in target at " << target_nan_idx << ": "
-                            << target[target_nan_idx];
+                std::cout << "Non finite number found in target at " << target_nan_idx << ": "
+                          << target[target_nan_idx] << std::endl;
         }
     });
     return passed;

@@ -31,7 +31,6 @@
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/time.hpp>
-#include <migraphx/logger.hpp>
 #include <type_traits>
 #include <thread>
 
@@ -129,7 +128,7 @@ static auto rocblas_invoke(F f, Pack p, Ts... xs)
         {
             if(status == rocblas_status_perf_degraded)
             {
-                log::warn() << "degraded perf. in rocBLAS call";
+                std::cerr << "WARNING: degraded perf. in rocBLAS call" << std::endl;
             }
             else
                 MIGRAPHX_THROW("rocblas_invoke: rocBLAS call failed with status " +
@@ -333,7 +332,7 @@ struct gemm_impl
 
         if(check_valid == rocblas_status_invalid_value)
         {
-            log::warn() << "tuned solution is invalid; reverting to default";
+            std::cerr << "WARNING: tuned solution is invalid; reverting to default" << std::endl;
             return 0;
         }
         return solution_idx;
@@ -511,8 +510,8 @@ struct gemm_impl
                 best_time = host_time;
             }
         }
-        log::info() << "Winning GEMM solution: " << best_sol << " in " << best_time << " ms, beats "
-                    << first_time << "ms";
+        std::cout << "Winning GEMM solution: " << best_sol << " in " << best_time << " ms, beats "
+                  << first_time << "ms" << std::endl;
         std::this_thread::sleep_for(std::chrono::milliseconds{50});
         return best_sol;
     }

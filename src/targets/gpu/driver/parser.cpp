@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,7 +23,6 @@
  */
 #include <migraphx/gpu/driver/parser.hpp>
 #include <migraphx/gpu/driver/action.hpp>
-#include <migraphx/logger.hpp>
 #include <iostream>
 
 namespace migraphx {
@@ -33,7 +32,7 @@ namespace driver {
 
 [[noreturn]] void error(const std::string& msg)
 {
-    log::error() << msg;
+    std::cout << msg << std::endl;
     std::abort();
 }
 

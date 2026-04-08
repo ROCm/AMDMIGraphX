@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,7 +25,6 @@
 #include <migraphx/json.hpp>
 #include <migraphx/convert_to_json.hpp>
 #include <migraphx/file_buffer.hpp>
-#include <migraphx/logger.hpp>
 #include <iostream>
 
 using namespace migraphx;              // NOLINT
@@ -37,7 +36,7 @@ int main(int argc, char const* argv[])
     std::vector<std::string> args(argv, argv + argc);
     if(args.size() < 2)
     {
-        log::info() << "Usage: gpu-driver <input-file>";
+        std::cout << "Usage: gpu-driver <input-file>" << std::endl;
         std::abort();
     }
     auto v = from_json_string(convert_to_json(read_string(args[1])));

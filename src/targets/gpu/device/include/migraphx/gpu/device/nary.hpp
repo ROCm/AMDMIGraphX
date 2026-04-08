@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -33,7 +33,7 @@
 #include <migraphx/env.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/logger.hpp>
+#include <iostream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -45,7 +45,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_NARY);
 // NOLINTNEXTLINE
 #define MIGRAPHX_TRACE_NARY_FUNCTION   \
     if(enabled(MIGRAPHX_TRACE_NARY{})) \
-        log::trace() << "nary device function: " << __PRETTY_FUNCTION__;
+        std::cout << "nary device function: " << __PRETTY_FUNCTION__ << std::endl;
 
 template <class... Ts>
 constexpr auto pack(Ts... xs)

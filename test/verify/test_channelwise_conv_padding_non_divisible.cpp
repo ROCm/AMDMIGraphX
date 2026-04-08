@@ -28,8 +28,8 @@
 #include <migraphx/make_op.hpp>
 
 template <migraphx::shape::type_t DType>
-struct test_channelwise_conv_padding_non_divisible :
-    verify_program<test_channelwise_conv_padding_non_divisible<DType>>
+struct test_channelwise_conv_padding_non_divisible
+    : verify_program<test_channelwise_conv_padding_non_divisible<DType>>
 {
     migraphx::program create_program() const
     {

@@ -1002,7 +1002,7 @@ void program::perf_report(
 
     std::unordered_map<instruction_ref, std::string> names;
     this->print(names, [&](auto ins, const auto& ins_names) {
-        instruction::print(std::cout, ins, ins_names);
+        instruction::print(os, ins, ins_names);
 
         // skip return instruction
         if(ins->name() == "@return")
@@ -1192,7 +1192,7 @@ void program::annotate(std::ostream& os, const std::function<void(instruction_re
 {
     for(auto& pp : this->impl->modules)
     {
-        std::cout << pp.first << ":" << std::endl;
+        os << pp.first << ":" << std::endl;
         pp.second.annotate(os, a);
     }
 }

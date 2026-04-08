@@ -299,11 +299,49 @@ struct dot_horizontal_fusion
         return weight->can_eval();
     }
 
+    // Check whether a single dot's output (possibly through a bias add)
+    // feeds into a SiLU pattern: target → sigmoid → mul(target, sigmoid).
+    static bool has_downstream_silu(instruction_ref dot)
+    {
+        auto target = dot;
+        auto outputs = target->outputs();
+        if(outputs.size() == 1 and outputs.front()->name() == "add")
+        {
+            auto add_ins       = outputs.front();
+            const auto& inputs = add_ins->inputs();
+            auto other         = (inputs[0] == target) ? inputs[1] : inputs[0];
+            if(other->name() == "broadcast" or other->name() == "multibroadcast")
+                target = add_ins;
+        }
+
+        outputs = target->outputs();
+        if(outputs.size() != 2)
+            return false;
+        instruction_ref sig{};
+        instruction_ref mul{};
+        for(auto out : outputs)
+        {
+            if(out->name() == "sigmoid" and out->inputs().size() == 1 and
+               out->inputs().front() == target)
+                sig = out;
+            else if(out->name() == "mul")
+                mul = out;
+        }
+        if(sig == instruction_ref{} or mul == instruction_ref{})
+            return false;
+        if(sig->outputs().size() != 1 or sig->outputs().front() != mul)
+            return false;
+        const auto& mul_inputs = mul->inputs();
+        return (mul_inputs[0] == target and mul_inputs[1] == sig) or
+               (mul_inputs[0] == sig and mul_inputs[1] == target);
+    }
+
     auto group_key(instruction_ref ins) const
     {
         return std::make_tuple(ins->inputs().at(0)->get_shape().lens(),
                                ins->inputs().at(1)->get_shape().lens(),
-                               ins->get_shape().type());
+                               ins->get_shape().type(),
+                               has_downstream_silu(ins));
     }
 
     struct bias_detect_result

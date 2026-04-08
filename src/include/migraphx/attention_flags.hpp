@@ -34,14 +34,11 @@ inline namespace MIGRAPHX_INLINE_NS {
 enum class attention_flags : std::uint32_t
 {
     none           = 0,
-    causal_mask    = 1 << 0,
-    scale          = 1 << 1,
-    bias           = 1 << 2,
-    flash_decoding = 1 << 3,
-    lse_output     = 1 << 4,
-    kv_cache       = 1 << 5,
-    local_window   = 1 << 6,
-    padding_mask   = 1 << 7,
+    kv_cache       = 1 << 0,
+    causal         = 1 << 1,
+    prefix_offset  = 1 << 2,
+    sliding_window = 1 << 3,
+    split_kv       = 1 << 4
 };
 
 template <>

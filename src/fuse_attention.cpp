@@ -32,6 +32,7 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/split_factor.hpp>
 #include <migraphx/attention_flags.hpp>
+#include <migraphx/op/group.hpp>
 #include <optional>
 
 namespace migraphx {
@@ -294,7 +295,10 @@ struct find_attention
         mpm_attn->set_bypass();
 
         auto group_ins = mpm.get_module().insert_instruction(
-            softmax_input, make_op("group", {{"tag", "attention"}, {"flags", static_cast<uint32_t>(flags)}}), new_inputs, {mpm_attn});
+            softmax_input,
+            make_op("group", {{"tag", "attention"}, {"flags", static_cast<uint32_t>(flags)}}),
+            new_inputs,
+            {mpm_attn});
 
         if(m_attn_outputs.size() == 1)
         {
@@ -530,6 +534,8 @@ struct find_flash_decoding
     {
         auto& mm            = mpm.get_module();
         auto attn_group_ins = r.instructions["group"];
+        auto flags =
+            static_cast<attention_flags>(any_cast<op::group>(attn_group_ins->get_operator()).flags);
         auto* submod        = attn_group_ins->module_inputs().front();
 
         // TODO: for this pass of flash decoding, if LSE attn, do not do flash decoding
@@ -693,11 +699,13 @@ struct find_flash_decoding
         module_ref mpm_flash_mod = mpm.create_module(new_mod_name, std::move(m_flash_decode));
         mpm_flash_mod->set_bypass();
 
+        flags = flags | attention_flags::lse_output | attention_flags::flash_decoding;
         // insert the new group op, which returns a tuple of O' and LSE
-        auto new_group_ins = mm.insert_instruction(attn_group_ins,
-                                                   make_op("group", {{"tag", "attention"}}),
-                                                   new_group_inputs,
-                                                   {mpm_flash_mod});
+        auto new_group_ins = mm.insert_instruction(
+            attn_group_ins,
+            make_op("group", {{"tag", "attention"}, {"flags", static_cast<uint32_t>(flags)}}),
+            new_group_inputs,
+            {mpm_flash_mod});
 
         // unpack O' and LSE
         auto partial_output_o_prime = mm.insert_instruction(
@@ -954,12 +962,14 @@ struct find_kv_cache_attention
         module_ref mpm_attn = mpm.create_module("attn" + get_count(), std::move(m_attn));
         mpm_attn->set_bypass();
 
+        auto flags = attention_flags::kv_cache;
         // Construct group op with the attention module
-        auto group_ins =
-            mpm.get_module().insert_instruction(required_outputs.back(),
-                                                make_op("group", {{"tag", "kv_cache_attention"}}),
-                                                new_inputs,
-                                                {mpm_attn});
+        auto group_ins = mpm.get_module().insert_instruction(
+            required_outputs.back(),
+            make_op("group",
+                    {{"tag", "kv_cache_attention"}, {"flags", static_cast<uint32_t>(kv_cache)}}),
+            new_inputs,
+            {mpm_attn});
 
         mpm.get_module().replace_instruction(required_outputs.back(), group_ins);
     }

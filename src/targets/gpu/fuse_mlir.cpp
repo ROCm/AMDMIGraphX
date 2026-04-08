@@ -36,6 +36,7 @@
 #include <migraphx/param_utils.hpp>
 #include <migraphx/match/softmax.hpp>
 #include <migraphx/fp8_types.hpp>
+#include <migraphx/op/group.hpp>
 #include <optional>
 
 namespace migraphx {
@@ -167,12 +168,12 @@ struct mlir_op
 {
     std::string name() const { return "gpu::mlir_op"; }
     operation op = make_op("convolution");
+    // Bit flags
+    std::uint32_t flags = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.op, "op"));
-    }
+    { return pack(f(self.op, "op"), f(self.flags, "flags")); }
 
     // Check if the shape can be created from a transpose/broadcast/slice
     static bool is_mlir_compatible(const shape& s)
@@ -1042,7 +1043,10 @@ struct find_mlir_kv_cache_attention_op
         auto group   = r.result;
         auto* m_attn = group->module_inputs()[0];
         mpm.get_module().replace_instruction(
-            group, mlir_op{group->get_operator()}, mlir_contiguous(mpm, group->inputs()), {m_attn});
+            group,
+            mlir_op{group->get_operator(), any_cast<op::group>(group->get_operator()).flags},
+            mlir_contiguous(mpm, group->inputs()),
+            {m_attn});
     }
 };
 
@@ -1131,7 +1135,10 @@ struct find_mlir_attention_op
         auto new_inputs            = mlir_attn->get_inputs(map_mlir_attn_to_main);
 
         auto mlir_ins = mpm.get_module().insert_instruction(
-            group, mlir_op{make_op("dot")}, mlir_contiguous(mpm, new_inputs), {mlir_attn});
+            group,
+            mlir_op{make_op("dot"), any_cast<op::group>(group->get_operator()).flags},
+            mlir_contiguous(mpm, new_inputs),
+            {mlir_attn});
 
         if(inss_to_replace.empty())
         {

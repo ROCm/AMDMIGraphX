@@ -129,6 +129,8 @@ struct find_where
     }
 };
 
+// TODO: add matchers for setting attention flags
+
 } // namespace
 
 void prepare_mlir::apply(module& m) const

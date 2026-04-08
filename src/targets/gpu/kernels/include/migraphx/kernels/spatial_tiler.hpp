@@ -72,13 +72,6 @@ struct spatial_tiler
     static constexpr index_int tiles_total() { return tiles_per_dim().product(); }
     static constexpr auto ndim() { return out_spatial_lens().size(); }
 
-    static constexpr bool is_padded()
-    {
-        return (out_spatial_lens() != tiles_per_dim() * output_lens());
-    }
-
-    static constexpr bool has_conv_padding() { return has_nonzero(Padding{}); }
-
     static constexpr auto get_padding()
     {
         if constexpr(Padding{}.empty())
@@ -113,6 +106,11 @@ struct spatial_tiler
         });
     }
 
+    static constexpr bool is_padded()
+    {
+        return (out_spatial_lens() != (tiles_per_dim() * output_lens() + total_padding()));
+    }
+
     index idx;
     array<index_int, ndim()> tile_origin;
 
@@ -123,20 +121,10 @@ struct spatial_tiler
     {
         constexpr auto halo_extra =
             [] {
-                // if constexpr(has_conv_padding())
-                // {
                 return return_array_c([] {
                     return make_slice(InputShape{}, keep_spatial()).lens - out_spatial_lens() +
                            total_padding();
                 });
-                // }
-                // else
-                // {
-                //     constexpr auto input_spatial = make_slice(InputShape{}, keep_spatial()).lens;
-                //     return transform(
-                //         input_spatial, out_spatial_lens(), [](auto is, auto os) { return is - os;
-                //         });
-                // }
             }();
         return transform(output_lens(), halo_extra, [](auto o, auto h) { return o + h; });
     }
@@ -177,19 +165,14 @@ struct spatial_tiler
         idx.local_stride(_c<hl.product()>, [&](auto i) {
             auto halo_multi = halo_shape.multi(i);
             auto src_pos    = tile_origin + halo_multi;
-            if constexpr(has_conv_padding())
+            auto input_pos     = src_pos - left_padding();
+            if constexpr(is_padded())
             {
-                constexpr auto pad = left_padding();
-                auto input_pos     = src_pos - pad;
                 smem[i] = in_bounds(input_pos, input_spatial) ? type{input_ch[input_pos]} : type{0};
-            }
-            else if constexpr(is_padded())
-            {
-                smem[i] = in_bounds(src_pos, input_spatial) ? type{input_ch[src_pos]} : type{0};
             }
             else
             {
-                smem[i] = input_ch[src_pos];
+                smem[i] = input_ch[input_pos];
             }
         });
 

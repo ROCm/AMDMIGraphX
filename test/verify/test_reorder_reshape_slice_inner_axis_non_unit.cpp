@@ -49,10 +49,8 @@ struct test_reorder_reshape_slice_inner_axis_non_unit
         auto slc1 = mm->add_instruction(
             migraphx::make_op("slice", {{"axes", {3}}, {"starts", {2}}, {"ends", {4}}}), x);
 
-        auto r0 =
-            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 8}}}), slc0);
-        auto r1 =
-            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 8}}}), slc1);
+        auto r0 = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 8}}}), slc0);
+        auto r1 = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 8}}}), slc1);
 
         auto sum = mm->add_instruction(migraphx::make_op("add"), r0, r1);
         auto ret = mm->add_instruction(migraphx::make_op("mul"), sum, r0);

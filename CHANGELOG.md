@@ -15,7 +15,6 @@ Full documentation for MIGraphX is available at
 * Added environment variable `MIGRAPHX_SKIP_BENCHMARKING` which when enabled, skips tuning of MIGraphX and rocMLIR kernels (#4628).
 * Added Cubic resize jit kernel (#4652).
 * Added JIT compiler for `fill` operation (#4666).
-* Added JIT compiler for `multinomial` operation (#4721).
 
 ### Changed
 
@@ -24,17 +23,16 @@ Full documentation for MIGraphX is available at
 * Changed parsing of ONNX ops like ConstantOfShape to insert undefined if expected shape has 0 elements (#4567).
 * Updated the ONNX clip operator to support opset 13 (#4518).
 * Updated `argmin` and `argmax` ops to be implemented as reduction ops, so they now have JIT support and can fuse (#4620).
+* Replaced usages of `std::cout` and `std::cerr` with the logger (#4732)
 
 ### Resolved issues
 
-* Fixed a regression in `simplify_algebra` where `find_conv_broadcast_input` could trigger `Dimensions do not match` for padded broadcast-convolution rewrites in no-interior spatial cases (#4738).
 * Fixed a bug with operators `pack_fp4`, `unpack_fp4`, and the `fuse_mlir` pass handling non-standard input shapes (#4560).
 * Fixed an issue in `propagate_precision` pass where precision could be incorrectly propagated across type boundaries (e.g., from integral to floating-point) (#4603).
 * Fixed an issue with clip operator when using fp16 input type on opset 6 (#4518).
 * Fixed an issue with `reshape_lazy`'s shape computation that was leading to invalid reshapes (#4594).
 * Fixed `eliminate_pad` pass bug that was removing nonzero `pad` instructions (#4600).
 * Fixed an issue with `convert` output overflowing when converting inf/-inf to integral types (#4669).
-* Fixed issue with `find_concat_op` matcher merging converted int32 inputs after bf16/fp16 quant during compilation (#4745)
 
 ### Optimized
 * Optimized fusion for local_window mode of GQA operator (#4617).

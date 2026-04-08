@@ -32,6 +32,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/gpu/mlir.hpp>
 #include <migraphx/gpu/prepare_mlir.hpp>
+#include <migraphx/attention_flags.hpp>
 #include <mlir-c/Dialect/RockEnums.h>
 #include <numeric>
 #include <ostream>
@@ -47,7 +48,8 @@
 #include <mlir-c/Pass.h>
 #include <mlir-c/Support.h>
 #include <mutex>
-#if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 4
+// Version 5 adds migraphx.attention op support (rocMLIR PR #2316)
+#if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 5
 #warning "Incompatible version of rocMLIR library used, disabling"
 // Only undefine when not using cppcheck
 #ifndef CPPCHECK
@@ -76,6 +78,7 @@
 #include <migraphx/permutation.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <deque>
+#include <queue>
 #include <variant>
 #include <fstream>
 #include <sstream>
@@ -819,6 +822,16 @@ struct mlir_program
         };
     }
 
+    void add_literal_attribute(mlir_operation_state& ops, instruction_ref ins)
+    {
+        literal r            = ins->get_literal();
+        MlirType shaped_type = make_mlir_shaped(ins->get_shape());
+        MlirType tensor_type = rocmlirMIXRShapedTypeAsTensor(shaped_type);
+        MlirAttribute mlir_value_attr =
+            mlirDenseElementsAttrRawBufferGet(tensor_type, r.get_shape().bytes(), r.data());
+        ops.add_attributes({{"value", mlir_value_attr}});
+    }
+
     void parse(const module& m, const std::vector<shape>& input_shapes = {})
     {
         validate(m);
@@ -843,19 +856,12 @@ struct mlir_program
             auto ops  = create_operation_state(name);
             ops.add_attribute_value(get_operator_value(ins));
 
-            // handles single output
             if(ins->name() != "@return")
                 ops.add_results({get_shape_for_mlir(ins)});
 
             if(ins->name() == "@literal")
             {
-                literal r = ins->get_literal();
-
-                MlirType shaped_type = make_mlir_shaped(ins->get_shape());
-                MlirType tensor_type = rocmlirMIXRShapedTypeAsTensor(shaped_type);
-                MlirAttribute mlir_value_attr =
-                    mlirDenseElementsAttrRawBufferGet(tensor_type, r.get_shape().bytes(), r.data());
-                ops.add_attributes({{"value", mlir_value_attr}});
+                add_literal_attribute(ops, ins);
             }
 
             if(ins->name() == "convolution" or ins->name() == "dot")
@@ -871,8 +877,6 @@ struct mlir_program
             {
                 if(ins->inputs().size() == 4)
                 {
-                    // Specify operand segment sizes BEFORE creating the operation so MLIR sees it.
-                    // Use the canonical MLIR attribute name 'operandSegmentSizes'.
                     const std::vector<int> seg_sizes = {1, 1, 1, 1};
                     ops.set_operand_segment_sizes(seg_sizes);
                 }
@@ -882,6 +886,136 @@ struct mlir_program
                     ops.set_operand_segment_sizes(seg_sizes);
                 }
             }
+            ops.add_operands(inputs);
+
+            auto outputs = insert(fbody, std::move(ops));
+
+            if(ins->name() != "@return")
+            {
+                assert(outputs.size() == 1);
+                ins_map[ins] = outputs.front();
+            }
+        }
+    }
+
+    static std::string attention_flags_to_features(std::uint32_t flags)
+    {
+        std::vector<std::string> parts;
+        if(flags & static_cast<std::uint32_t>(attention_flags::kv_cache))
+            parts.push_back("kvcache");
+        if(flags & static_cast<std::uint32_t>(attention_flags::causal))
+            parts.push_back("causal");
+        if(flags & static_cast<std::uint32_t>(attention_flags::prefix_offset))
+            parts.push_back("prefix_offset");
+        if(flags & static_cast<std::uint32_t>(attention_flags::sliding_window))
+            parts.push_back("sliding_window");
+        if(flags & static_cast<std::uint32_t>(attention_flags::split_kv))
+            parts.push_back("splitkv");
+        return join_strings(parts, "|");
+    }
+
+    static std::pair<instruction_ref, instruction_ref> find_attention_dots(const module& m)
+    {
+        std::vector<instruction_ref> dots;
+        for(auto ins : iterator_for(m))
+        {
+            if(ins->name() == "dot")
+                dots.push_back(ins);
+        }
+        if(dots.size() < 2)
+            MIGRAPHX_THROW("Attention submodule must contain at least 2 dot instructions");
+        return {dots[0], dots[1]};
+    }
+
+    static std::unordered_set<instruction_ref> find_attention_core(instruction_ref dot1,
+                                                                   instruction_ref dot2)
+    {
+        std::unordered_set<instruction_ref> core;
+        core.insert(dot1);
+        core.insert(dot2);
+        std::queue<instruction_ref> worklist;
+        worklist.push(dot2->inputs()[0]);
+        while(not worklist.empty())
+        {
+            auto ins = worklist.front();
+            worklist.pop();
+            if(contains(core, ins) or ins->name() == "@param" or ins->name() == "@literal")
+                continue;
+            if(ins->can_eval())
+                continue;
+            core.insert(ins);
+            for(auto input : ins->inputs())
+                worklist.push(input);
+        }
+        return core;
+    }
+
+    void
+    parse_attention(const module& m, const std::vector<shape>& input_shapes, std::uint32_t flags)
+    {
+        validate(m);
+        sym_name   = get_symbol_name(m);
+        auto mbody = mlirModuleGetBody(mmodule.get());
+        std::unordered_map<instruction_ref, MlirValue> ins_map;
+        auto output_shapes = get_output_shapes(m, input_shapes);
+        auto fbody         = insert(mbody, m, output_shapes, ins_map);
+        auto get_shape     = make_get_shape_for_mlir(m, output_shapes);
+
+        auto [dot1, dot2]   = find_attention_dots(m);
+        auto attention_core = find_attention_core(dot1, dot2);
+
+        for(auto ins : iterator_for(m))
+        {
+            if(ins->name() == "@param")
+                continue;
+            if(is_skipped(ins))
+            {
+                ins_map[ins] = ins_map[ins->inputs().at(0)];
+                continue;
+            }
+
+            if(contains(attention_core, ins) and ins != dot2)
+                continue;
+
+            if(ins == dot2)
+            {
+                auto q_val = ins_map.at(dot1->inputs()[0]);
+                auto k_val = ins_map.at(dot1->inputs()[1]);
+                auto v_val = ins_map.at(dot2->inputs()[1]);
+
+                auto attn_ops = create_operation_state("migraphx.attention");
+                attn_ops.add_operands({q_val, k_val, v_val});
+                attn_ops.add_results({get_shape(dot2)});
+
+                auto features = attention_flags_to_features(flags);
+                attn_ops.add_attributes({{"features", features}});
+
+                mlir_region region = mlirRegionCreate();
+                mlir_block block   = mlirBlockCreate(0, nullptr, nullptr);
+                mlirRegionAppendOwnedBlock(region.get(), block.release());
+                attn_ops.add_region(std::move(region));
+
+                auto results = insert(fbody, std::move(attn_ops));
+                assert(results.size() == 1);
+                ins_map[dot2] = results.front();
+                continue;
+            }
+
+            auto name = get_name(ins);
+            auto ops  = create_operation_state(name);
+            ops.add_attribute_value(get_operator_value(ins));
+
+            if(ins->name() != "@return")
+                ops.add_results({get_shape(ins)});
+
+            if(ins->name() == "@literal")
+            {
+                add_literal_attribute(ops, ins);
+            }
+
+            std::vector<MlirValue> inputs;
+            transform(
+                ins->inputs(), std::back_inserter(inputs), [&](auto i) { return ins_map.at(i); });
             ops.add_operands(inputs);
 
             auto outputs = insert(fbody, std::move(ops));
@@ -1266,10 +1400,12 @@ void dump_mlir_to_file(module m, const std::vector<shape>& inputs, const fs::pat
 
 std::string dump_mlir(module m) { return dump_mlir(std::move(m), {}); }
 
-mlir_code_object compile_mlir(const context& migraphx_ctx,
-                              module m,
-                              const std::vector<shape>& in_shapes,
-                              const value& solution)
+template <class ParseFn>
+static mlir_code_object compile_mlir_common(const context& migraphx_ctx,
+                                            module m,
+                                            const std::vector<shape>& in_shapes,
+                                            const value& solution,
+                                            ParseFn parse_fn)
 {
     adjust_param_shapes(m, in_shapes);
     prepare(m);
@@ -1283,9 +1419,8 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     }
 
     mlir_program mp;
-
     mp.set_gpu_properties(migraphx_ctx);
-    mp.parse(m, in_shapes);
+    parse_fn(mp, m, in_shapes);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     if(trace)
     {
@@ -1323,60 +1458,34 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     return mco;
 }
 
+mlir_code_object compile_mlir(const context& migraphx_ctx,
+                              module m,
+                              const std::vector<shape>& in_shapes,
+                              const value& solution)
+{
+    return compile_mlir_common(migraphx_ctx,
+                               std::move(m),
+                               in_shapes,
+                               solution,
+                               [](mlir_program& mp,
+                                  const module& mod,
+                                  const std::vector<shape>& shapes) { mp.parse(mod, shapes); });
+}
+
 mlir_code_object compile_attention(const context& migraphx_ctx,
                                    module m,
                                    const std::vector<shape>& in_shapes,
                                    const value& solution,
                                    std::uint32_t flags)
 {
-    adjust_param_shapes(m, in_shapes);
-    prepare(m);
-    const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
-
-    static std::mutex mutex;
-    if(trace)
-    {
-        const std::lock_guard<std::mutex> lock(mutex);
-        std::cout << m << std::endl;
-    }
-
-    mlir_program mp;
-    mp.set_gpu_properties(migraphx_ctx);
-    // TODO: call mp.parse_attention(m, in_shapes, flags) once implemented
-    mp.parse(m, in_shapes);
-    auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
-    if(trace)
-    {
-        const std::lock_guard<std::mutex> lock(mutex);
-        std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
-    }
-
-    (void)flags;
-    auto co            = mp.compile(solution);
-    co.expected_inputs = in_shapes;
-    co.output          = in_shapes.back();
-
-    mlir_code_object mco;
-    mco.cop                 = co;
-    size_t num_prefill_args = mlirGetNumPrefillArgs(mp.mmodule.get());
-    if(num_prefill_args > 0)
-    {
-        std::vector<size_t> prefill_indices(num_prefill_args);
-        std::vector<MlirAttribute> prefill_mlir_values(num_prefill_args);
-        mlirGetPrefillArgsInfo(
-            mp.mmodule.get(), prefill_indices.data(), prefill_mlir_values.data(), num_prefill_args);
-        std::vector<value> prefill_values(prefill_mlir_values.size());
-        std::transform(prefill_mlir_values.begin(),
-                       prefill_mlir_values.end(),
-                       prefill_values.begin(),
-                       [](const auto& v) {
-                           double dv = mlirFloatAttrGetValueDouble(v);
-                           return static_cast<int>(dv);
-                       });
-        mco.prefill_indices = prefill_indices;
-        mco.prefill_values  = prefill_values;
-    }
-    return mco;
+    return compile_mlir_common(
+        migraphx_ctx,
+        std::move(m),
+        in_shapes,
+        solution,
+        [flags](mlir_program& mp, const module& mod, const std::vector<shape>& shapes) {
+            mp.parse_attention(mod, shapes, flags);
+        });
 }
 
 instruction_ref insert_mlir(module& m,

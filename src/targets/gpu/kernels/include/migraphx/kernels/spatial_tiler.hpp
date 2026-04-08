@@ -79,7 +79,7 @@ struct spatial_tiler
 
     static constexpr bool has_conv_padding() { return has_nonzero(Padding{}); }
 
-    static constexpr auto get_padding() 
+    static constexpr auto get_padding()
     {
         if constexpr(Padding{}.empty())
             return transform(TileLens{}, [](auto) { return index_int{0}; });
@@ -121,21 +121,23 @@ struct spatial_tiler
     template <class InputShape>
     static constexpr auto halo_lens_for()
     {
-        constexpr auto halo_extra = [] {
-            // if constexpr(has_conv_padding())
-            // {
+        constexpr auto halo_extra =
+            [] {
+                // if constexpr(has_conv_padding())
+                // {
                 return return_array_c([] {
                     return make_slice(InputShape{}, keep_spatial()).lens - out_spatial_lens() +
                            total_padding();
                 });
-            // }
-            // else
-            // {
-            //     constexpr auto input_spatial = make_slice(InputShape{}, keep_spatial()).lens;
-            //     return transform(
-            //         input_spatial, out_spatial_lens(), [](auto is, auto os) { return is - os; });
-            // }
-        }();
+                // }
+                // else
+                // {
+                //     constexpr auto input_spatial = make_slice(InputShape{}, keep_spatial()).lens;
+                //     return transform(
+                //         input_spatial, out_spatial_lens(), [](auto is, auto os) { return is - os;
+                //         });
+                // }
+            }();
         return transform(output_lens(), halo_extra, [](auto o, auto h) { return o + h; });
     }
 

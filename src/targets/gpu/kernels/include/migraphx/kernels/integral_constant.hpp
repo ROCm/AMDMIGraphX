@@ -131,7 +131,7 @@ struct is_integral_constant<integral_constant<T, V>> : true_type
 template <index_int N>
 using index_constant = integral_constant<index_int, N>;
 
-template<index_int N>
+template <index_int N>
 static constexpr auto index_c = index_constant<N>{};
 
 template <auto V>

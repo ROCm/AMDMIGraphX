@@ -171,7 +171,7 @@ struct hiprtc_program
         auto prog_log = log();
         if(not prog_log.empty() and not quiet)
         {
-            std::cerr << prog_log << std::endl;
+            log::warn() << prog_log;
         }
         if(result != HIPRTC_SUCCESS)
             MIGRAPHX_HIPRTC_THROW(result, "Compilation failed.");

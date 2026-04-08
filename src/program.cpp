@@ -42,6 +42,7 @@
 #include <migraphx/supported_segments.hpp>
 #include <migraphx/pmr/unordered_map.hpp>
 #include <migraphx/graphviz.hpp>
+#include <migraphx/logger.hpp>
 
 #include <iostream>
 #include <queue>
@@ -828,9 +829,9 @@ void program::from_value(const value& v)
     auto migx_version = v.at("migraphx_version").to<std::string>();
     if(migx_version != get_migraphx_version())
     {
-        std::cerr << "[WARNING]: MXR File was created using MIGraphX version: " << migx_version
-                  << ", while installed MIGraphX is at version: " << get_migraphx_version()
-                  << ", operators implementation could be mismatched.\n";
+        log::warn() << "MXR File was created using MIGraphX version: " << migx_version
+                    << ", while installed MIGraphX is at version: " << get_migraphx_version()
+                    << ", operators implementation could be mismatched.";
     }
 
     migraphx::from_value(v.at("targets"), this->impl->targets);

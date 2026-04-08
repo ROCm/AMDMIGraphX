@@ -32,6 +32,7 @@
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/memory_coloring.hpp>
+#include <migraphx/logger.hpp>
 #include <migraphx/op/identity.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
@@ -454,7 +455,7 @@ struct compile_plan
         auto skipped = std::count_if(
             results.begin(), results.end(), [](const auto& cr) { return not cr.has_value(); });
         if(skipped > 0)
-            std::cout << "Skipped " << skipped << " configs for " << preop.name() << std::endl;
+            log::info() << "Skipped " << skipped << " configs for " << preop.name();
 
         return *results[i];
     }

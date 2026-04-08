@@ -75,6 +75,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/file_buffer.hpp>
+#include <migraphx/logger.hpp>
 #include <deque>
 #include <variant>
 #include <fstream>
@@ -1087,10 +1088,8 @@ struct mlir_program
         else
         {
             found_table = false;
-            std::cerr
-                << "WARNING: MLIR tuning db not found. Please set MIGRAPHX_MLIR_TUNING_DB for "
-                   "optimal performance."
-                << std::endl;
+            log::warn() << "MLIR tuning db not found. Please set MIGRAPHX_MLIR_TUNING_DB for "
+                           "optimal performance.";
         }
         return std::make_pair(std::move(tuning_table), found_table);
     }
@@ -1105,16 +1104,16 @@ struct mlir_program
                 mlirRockTuningGetKey(mmodule.get(), prob_config.data(), prob_config.size());
             if(prob_config_bytes >= prob_config.size())
             {
-                std::cerr << "MLIR tuning key overflowed buffer, needed " << prob_config_bytes
-                          << " bytes" << std::endl;
+                log::error() << "MLIR tuning key overflowed buffer, needed " << prob_config_bytes
+                             << " bytes";
                 return false;
             }
             std::string prob_config_str(prob_config.begin(),
                                         prob_config.begin() + prob_config_bytes);
             if(tuning_table.second)
             {
-                std::cerr << "NOTE: MLIR tuning table did not include a key for " << prob_config_str
-                          << std::endl;
+                log::info() << "MLIR tuning table did not include a key for "
+                            << prob_config_str;
             }
             dump_tuning_cfg(prob_config_str);
             return false;
@@ -1254,7 +1253,7 @@ void dump_mlir_to_file(module m, const std::vector<shape>& inputs, const fs::pat
 
     auto name = compute_dump_name(m, ".mlir");
     auto f    = location / name;
-    std::cout << "Dumping MLIR file to: " << f << std::endl;
+    log::info() << "Dumping MLIR file to: " << f;
 
     mlir_program mp;
     mp.parse(m, inputs);
@@ -1385,7 +1384,7 @@ void dump_mlir_to_mxr(module m,
     }
     auto name = compute_dump_name(m, ".mxr");
     auto f    = location / name;
-    std::cout << "Dumping MXR file to: " << f << std::endl;
+    log::info() << "Dumping MXR file to: " << f;
     save(program{std::move(m)}, f.string());
 }
 

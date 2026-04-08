@@ -86,7 +86,7 @@ __device__ void rnn_var_sl_last_output(Input input, SeqLens seq_lens, Output out
 {
     auto ind = make_index();
 
-    constexpr auto in_shape      = get_shape_c<Input>{};
+    constexpr auto in_shape = get_shape_c<Input>{};
     // output is 3D [directions, batch, hidden] but input is 4D [seq_len, directions, batch, hidden]
     // create a 4D computational shape with seq_len=1 to map output indices to input indices
     constexpr auto out_comp_lens = [&] {

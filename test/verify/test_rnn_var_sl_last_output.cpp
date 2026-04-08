@@ -22,35 +22,35 @@
  * THE SOFTWARE.
  */
 
- #include "verify_program.hpp"
- #include <migraphx/program.hpp>
- #include <migraphx/generate.hpp>
- #include <migraphx/make_op.hpp>
- 
- #include <migraphx/serialize.hpp>
- 
- #include <migraphx/op/common.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
- template <migraphx::op::rnn_direction Direction>
- struct test_rnn_var_sl_last_output : verify_program<test_rnn_var_sl_last_output<Direction>>
- {
-     migraphx::program create_program() const
-     {
-         migraphx::program p;
-         auto* mm = p.get_main_module();
-         migraphx::shape hs_shape{migraphx::shape::float_type, {4, 2, 3, 8}};
-         migraphx::shape sl_shape{migraphx::shape::int32_type, {3}};
-         
-         auto hs = mm->add_parameter("hidden_states", hs_shape);
-         auto sl = mm->add_literal(migraphx::literal{sl_shape, {4, 2, 3}});
-         mm->add_instruction(
-             migraphx::make_op("rnn_var_sl_last_output",
-                 {{"direction", migraphx::to_value(Direction)}}),
-             hs, sl);
-         return p;
-     }
-     std::string section() const { return "rnn"; }
- };
- 
- template struct test_rnn_var_sl_last_output<migraphx::op::rnn_direction::forward>;
- template struct test_rnn_var_sl_last_output<migraphx::op::rnn_direction::reverse>;
+#include <migraphx/serialize.hpp>
+
+#include <migraphx/op/common.hpp>
+
+template <migraphx::op::rnn_direction Direction>
+struct test_rnn_var_sl_last_output : verify_program<test_rnn_var_sl_last_output<Direction>>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape hs_shape{migraphx::shape::float_type, {4, 2, 3, 8}};
+        migraphx::shape sl_shape{migraphx::shape::int32_type, {3}};
+
+        auto hs = mm->add_parameter("hidden_states", hs_shape);
+        auto sl = mm->add_literal(migraphx::literal{sl_shape, {4, 2, 3}});
+        mm->add_instruction(migraphx::make_op("rnn_var_sl_last_output",
+                                              {{"direction", migraphx::to_value(Direction)}}),
+                            hs,
+                            sl);
+        return p;
+    }
+    std::string section() const { return "rnn"; }
+};
+
+template struct test_rnn_var_sl_last_output<migraphx::op::rnn_direction::forward>;
+template struct test_rnn_var_sl_last_output<migraphx::op::rnn_direction::reverse>;

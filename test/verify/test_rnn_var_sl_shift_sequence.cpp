@@ -22,16 +22,16 @@
  * THE SOFTWARE.
  */
 
- #include "verify_program.hpp"
- #include <migraphx/program.hpp>
- #include <migraphx/generate.hpp>
- #include <migraphx/make_op.hpp>
- 
- #include <migraphx/serialize.hpp>
- 
- #include <migraphx/op/common.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
- struct test_rnn_var_sl_shift_sequence : verify_program<test_rnn_var_sl_shift_sequence>
+#include <migraphx/serialize.hpp>
+
+#include <migraphx/op/common.hpp>
+
+struct test_rnn_var_sl_shift_sequence : verify_program<test_rnn_var_sl_shift_sequence>
 {
     migraphx::program create_program() const
     {
@@ -39,7 +39,7 @@
         auto* mm = p.get_main_module();
         migraphx::shape hs_shape{migraphx::shape::float_type, {4, 3, 8}};
         migraphx::shape sl_shape{migraphx::shape::int32_type, {3}};
-        
+
         auto hs = mm->add_parameter("hidden_states", hs_shape);
         auto sl = mm->add_literal(migraphx::literal{sl_shape, {4, 2, 3}});
         mm->add_instruction(migraphx::make_op("rnn_var_sl_shift_sequence"), hs, sl);

@@ -105,7 +105,7 @@ struct rnn_var_sl_shift_sequence_compiler : compiler<rnn_var_sl_shift_sequence_c
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
-        const auto& out_s      = inputs.back();
+        const auto& out_s = inputs.back();
         options.set_launch_params(v, compute_global_for(ctx, out_s.elements()));
         options.inputs         = inputs;
         options.output         = out_s;
@@ -130,7 +130,7 @@ struct rnn_var_sl_shift_output_compiler : compiler<rnn_var_sl_shift_output_compi
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
-        const auto& out_s      = inputs.back();
+        const auto& out_s = inputs.back();
         options.set_launch_params(v, compute_global_for(ctx, out_s.elements()));
         options.inputs         = inputs;
         options.output         = out_s;
@@ -159,7 +159,7 @@ struct rnn_var_sl_last_output_compiler : compiler<rnn_var_sl_last_output_compile
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
-        const auto& out_s      = inputs.back();
+        const auto& out_s = inputs.back();
         options.set_launch_params(v, compute_global_for(ctx, out_s.elements()));
         options.inputs         = inputs;
         options.output         = out_s;

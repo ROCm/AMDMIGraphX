@@ -32,6 +32,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/load_save.hpp>
+#include <migraphx/logger.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -147,7 +148,7 @@ struct module_pm : module_pass_manager
             {
                 using milliseconds = std::chrono::duration<double, std::milli>;
                 auto ms            = time<milliseconds>([&] { p.apply(*this); });
-                std::cout << p.name() << ": " << ms << "ms\n";
+                log::trace() << p.name() << ": " << ms << "ms";
             }
             else
             {
@@ -181,7 +182,7 @@ struct module_pm : module_pass_manager
         }
         catch(const std::exception& e)
         {
-            std::cerr << "Error " << p.name() << ": " << e.what() << std::endl;
+            log::error() << "Error " << p.name() << ": " << e.what();
             auto clk         = std::chrono::steady_clock::now().time_since_epoch().count();
             fs::path dirname = fs::temp_directory_path() / "migraphx";
             fs::create_directories(dirname);
@@ -191,7 +192,7 @@ struct module_pm : module_pass_manager
             sanitize(base);
 #endif
             fs::path fname = dirname / base;
-            std::cerr << "Dump: " << fname << std::endl;
+            log::error() << "Dump: " << fname;
             save(*prog, fname.string());
             throw;
         }
@@ -203,7 +204,7 @@ module& get_module(module_pass_manager& mpm) { return mpm.get_module(); }
 void run_passes(program& prog, module_ref root_mod, const std::vector<pass>& passes, tracer trace)
 {
     if(enabled(MIGRAPHX_TRACE_PASSES{}))
-        trace = tracer{std::cout};
+        trace = tracer{true};
     std::unordered_set<module_ref> visited;
     for(const auto& p : passes)
     {
@@ -238,7 +239,7 @@ void run_passes(program& prog, module_ref root_mod, const std::vector<pass>& pas
 void run_passes(module& mod, const std::vector<pass>& passes, tracer trace)
 {
     if(enabled(MIGRAPHX_TRACE_PASSES{}))
-        trace = tracer{std::cout};
+        trace = tracer{true};
     for(const auto& p : passes)
     {
         module_pm{&mod, &mod, &trace}.run_pass(p);

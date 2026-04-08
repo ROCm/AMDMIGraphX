@@ -5253,6 +5253,31 @@ TEST_CASE(slice_squeeze_reduce_sum)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(slice_squeeze_reduce_sum_all_axes)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4, 8}};
+    migraphx::module m1;
+    {
+        auto input = m1.add_parameter("input", s);
+        auto sl    = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), input);
+        auto sq  = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), sl);
+        auto red = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 1}}}), sq);
+        m1.add_return({red});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto input = m2.add_parameter("input", s);
+        auto sl    = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), input);
+        auto red = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1, 2}}}), sl);
+        auto sq  = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), red);
+        m2.add_return({sq});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(slice_squeeze_argmin)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 4, 8}};

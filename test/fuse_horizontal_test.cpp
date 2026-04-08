@@ -985,4 +985,82 @@ TEST_CASE(dot_horiz_fusion_absorb_bias_silu)
     EXPECT(m1 == m2);
 }
 
+// When some dots in a potential batch have SiLU and others don't,
+// they must be placed in separate groups so that SiLU absorption
+// succeeds for the SiLU dots.
+TEST_CASE(dot_horiz_fusion_partial_silu_split)
+{
+    migraphx::module m1;
+    {
+        auto w1 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {8, 4}}, 0));
+        auto w2 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {8, 4}}, 1));
+        auto w3 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {8, 4}}, 2));
+
+        auto x1 = m1.add_parameter("x1", {migraphx::shape::float_type, {4, 8}});
+        auto x2 = m1.add_parameter("x2", {migraphx::shape::float_type, {4, 8}});
+        auto x3 = m1.add_parameter("x3", {migraphx::shape::float_type, {4, 8}});
+
+        // d1 and d2 have SiLU
+        auto d1   = m1.add_instruction(migraphx::make_op("dot"), x1, w1);
+        auto sig1 = m1.add_instruction(migraphx::make_op("sigmoid"), d1);
+        auto mul1 = m1.add_instruction(migraphx::make_op("mul"), d1, sig1);
+
+        auto d2   = m1.add_instruction(migraphx::make_op("dot"), x2, w2);
+        auto sig2 = m1.add_instruction(migraphx::make_op("sigmoid"), d2);
+        auto mul2 = m1.add_instruction(migraphx::make_op("mul"), d2, sig2);
+
+        // d3 has NO SiLU — just a plain relu
+        auto d3 = m1.add_instruction(migraphx::make_op("dot"), x3, w3);
+        auto r3 = m1.add_instruction(migraphx::make_op("relu"), d3);
+
+        m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                           std::vector<migraphx::instruction_ref>{mul1, mul2, r3});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto w1 =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {8, 4}}, 0));
+        auto w2 =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {8, 4}}, 1));
+        auto w3 =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {8, 4}}, 2));
+
+        auto x1 = m2.add_parameter("x1", {migraphx::shape::float_type, {4, 8}});
+        auto x2 = m2.add_parameter("x2", {migraphx::shape::float_type, {4, 8}});
+        auto x3 = m2.add_parameter("x3", {migraphx::shape::float_type, {4, 8}});
+
+        // SiLU group: d1, d2 → batched dot + batched SiLU
+        auto ux1     = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), x1);
+        auto ux2     = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), x2);
+        auto bat_act = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                                          std::vector<migraphx::instruction_ref>{ux1, ux2});
+        auto uw1    = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w1);
+        auto uw2    = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w2);
+        auto bat_wt = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                                         std::vector<migraphx::instruction_ref>{uw1, uw2});
+        auto bd      = m2.add_instruction(migraphx::make_op("dot"), bat_act, bat_wt);
+        auto sig_all = m2.add_instruction(migraphx::make_op("sigmoid"), bd);
+        auto silu    = m2.add_instruction(migraphx::make_op("mul"), bd, sig_all);
+        auto s1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), silu);
+        auto sq1 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s1);
+        auto s2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), silu);
+        auto sq2 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s2);
+
+        // Non-SiLU d3 stays alone (below min_group_size threshold)
+        auto d3 = m2.add_instruction(migraphx::make_op("dot"), x3, w3);
+        auto r3 = m2.add_instruction(migraphx::make_op("relu"), d3);
+
+        m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                           std::vector<migraphx::instruction_ref>{sq1, sq2, r3});
+    }
+    EXPECT(m1 == m2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

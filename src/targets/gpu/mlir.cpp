@@ -1323,6 +1323,62 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     return mco;
 }
 
+mlir_code_object compile_attention(const context& migraphx_ctx,
+                                   module m,
+                                   const std::vector<shape>& in_shapes,
+                                   const value& solution,
+                                   std::uint32_t flags)
+{
+    adjust_param_shapes(m, in_shapes);
+    prepare(m);
+    const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
+
+    static std::mutex mutex;
+    if(trace)
+    {
+        const std::lock_guard<std::mutex> lock(mutex);
+        std::cout << m << std::endl;
+    }
+
+    mlir_program mp;
+    mp.set_gpu_properties(migraphx_ctx);
+    // TODO: call mp.parse_attention(m, in_shapes, flags) once implemented
+    mp.parse(m, in_shapes);
+    auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
+    if(trace)
+    {
+        const std::lock_guard<std::mutex> lock(mutex);
+        std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
+    }
+
+    (void)flags;
+    auto co            = mp.compile(solution);
+    co.expected_inputs = in_shapes;
+    co.output          = in_shapes.back();
+
+    mlir_code_object mco;
+    mco.cop                 = co;
+    size_t num_prefill_args = mlirGetNumPrefillArgs(mp.mmodule.get());
+    if(num_prefill_args > 0)
+    {
+        std::vector<size_t> prefill_indices(num_prefill_args);
+        std::vector<MlirAttribute> prefill_mlir_values(num_prefill_args);
+        mlirGetPrefillArgsInfo(
+            mp.mmodule.get(), prefill_indices.data(), prefill_mlir_values.data(), num_prefill_args);
+        std::vector<value> prefill_values(prefill_mlir_values.size());
+        std::transform(prefill_mlir_values.begin(),
+                       prefill_mlir_values.end(),
+                       prefill_values.begin(),
+                       [](const auto& v) {
+                           double dv = mlirFloatAttrGetValueDouble(v);
+                           return static_cast<int>(dv);
+                       });
+        mco.prefill_indices = prefill_indices;
+        mco.prefill_values  = prefill_values;
+    }
+    return mco;
+}
+
 instruction_ref insert_mlir(module& m,
                             instruction_ref ins,
                             code_object_op co,
@@ -1410,6 +1466,10 @@ mlir_code_object compile_mlir(const context&, module, const std::vector<shape>&,
 {
     return {};
 }
+
+mlir_code_object
+compile_attention(const context&, module, const std::vector<shape>&, const value&, std::uint32_t)
+{ return {}; }
 
 instruction_ref
 // cppcheck-suppress funcArgNamesDifferent

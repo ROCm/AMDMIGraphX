@@ -37,6 +37,7 @@
 #include <migraphx/match/softmax.hpp>
 #include <migraphx/fp8_types.hpp>
 #include <migraphx/op/group.hpp>
+#include <migraphx/attention_flags.hpp>
 #include <optional>
 
 namespace migraphx {
@@ -168,12 +169,12 @@ struct mlir_op
 {
     std::string name() const { return "gpu::mlir_op"; }
     operation op = make_op("convolution");
-    // Bit flags
+    std::string tag     = "";
     std::uint32_t flags = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
-    { return pack(f(self.op, "op"), f(self.flags, "flags")); }
+    { return pack(f(self.op, "op"), f(self.tag, "tag"), f(self.flags, "flags")); }
 
     // Check if the shape can be created from a transpose/broadcast/slice
     static bool is_mlir_compatible(const shape& s)
@@ -1035,18 +1036,22 @@ struct find_mlir_kv_cache_attention_op
 
     auto matcher() const
     {
-        return match::name("group")(match::has_op_value("tag", "kv_cache_attention"));
+        auto has_kv_cache_flag = match::make_basic_pred_matcher([](instruction_ref ins) {
+            auto f = any_cast<op::group>(ins->get_operator()).flags;
+            return (f & static_cast<std::uint32_t>(attention_flags::kv_cache)) != 0;
+        });
+        return match::name("group")(match::has_op_value("tag", "attention"), has_kv_cache_flag);
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto group   = r.result;
         auto* m_attn = group->module_inputs()[0];
-        mpm.get_module().replace_instruction(
-            group,
-            mlir_op{group->get_operator(), any_cast<op::group>(group->get_operator()).flags},
-            mlir_contiguous(mpm, group->inputs()),
-            {m_attn});
+        auto flags   = any_cast<op::group>(group->get_operator()).flags;
+        mpm.get_module().replace_instruction(group,
+                                             mlir_op{group->get_operator(), "attention", flags},
+                                             mlir_contiguous(mpm, group->inputs()),
+                                             {m_attn});
     }
 };
 
@@ -1134,11 +1139,12 @@ struct find_mlir_attention_op
         auto map_mlir_attn_to_main = invert_map_ins(map_main_to_mlir_attn);
         auto new_inputs            = mlir_attn->get_inputs(map_mlir_attn_to_main);
 
-        auto mlir_ins = mpm.get_module().insert_instruction(
-            group,
-            mlir_op{make_op("dot"), any_cast<op::group>(group->get_operator()).flags},
-            mlir_contiguous(mpm, new_inputs),
-            {mlir_attn});
+        auto attn_flags = any_cast<op::group>(group->get_operator()).flags;
+        auto mlir_ins =
+            mpm.get_module().insert_instruction(group,
+                                                mlir_op{make_op("dot"), "attention", attn_flags},
+                                                mlir_contiguous(mpm, new_inputs),
+                                                {mlir_attn});
 
         if(inss_to_replace.empty())
         {

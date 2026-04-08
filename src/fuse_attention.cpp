@@ -962,12 +962,10 @@ struct find_kv_cache_attention
         module_ref mpm_attn = mpm.create_module("attn" + get_count(), std::move(m_attn));
         mpm_attn->set_bypass();
 
-        auto flags = attention_flags::kv_cache;
-        // Construct group op with the attention module
+        auto flags     = attention_flags::kv_cache;
         auto group_ins = mpm.get_module().insert_instruction(
             required_outputs.back(),
-            make_op("group",
-                    {{"tag", "kv_cache_attention"}, {"flags", static_cast<uint32_t>(kv_cache)}}),
+            make_op("group", {{"tag", "attention"}, {"flags", static_cast<uint32_t>(flags)}}),
             new_inputs,
             {mpm_attn});
 

@@ -60,6 +60,12 @@ MIGRAPHX_GPU_EXPORT mlir_code_object compile_mlir(const context& migraphx_ctx,
                                                   const std::vector<shape>& in_shapes,
                                                   const value& solution);
 
+MIGRAPHX_GPU_EXPORT mlir_code_object compile_attention(const context& migraphx_ctx,
+                                                       module m,
+                                                       const std::vector<shape>& in_shapes,
+                                                       const value& solution,
+                                                       std::uint32_t flags);
+
 MIGRAPHX_GPU_EXPORT instruction_ref insert_mlir(module& m,
                                                 instruction_ref ins,
                                                 code_object_op co,

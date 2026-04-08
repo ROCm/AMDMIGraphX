@@ -21,31 +21,32 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_PREFUSE_OPS_HPP
-#define MIGRAPHX_GUARD_GPU_PREFUSE_OPS_HPP
+#ifndef MIGRAPHX_GUARD_KERNELS_MULTINOMIAL_HPP
+#define MIGRAPHX_GUARD_KERNELS_MULTINOMIAL_HPP
 
-#include <migraphx/gpu/config.hpp>
-#include <string>
+#include <migraphx/kernels/algorithm.hpp>
+#include <migraphx/kernels/index.hpp>
+#include <migraphx/kernels/tensor_view.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
 
-struct module_pass_manager;
-
-namespace gpu {
-
-struct context;
-
-struct MIGRAPHX_GPU_EXPORT prefuse_ops
+template <class CDF, class Dist, class Output>
+__device__ void multinomial(CDF cdf, Dist dist, Output output)
 {
-    context* ctx          = nullptr;
-    bool enable_attention = false;
-    std::string name() const { return "gpu::prefuse_ops"; }
-    void apply(module_pass_manager& mpm) const;
-};
+    const index_int class_size = cdf.get_shape().lens[1];
 
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
+    auto ind = make_index();
+    ind.global_stride(output.get_shape().elements(), [&](auto i) {
+        auto idx        = output.get_shape().multi(i);
+        auto cdf_begin  = cdf.begin() + (idx[0] * class_size);
+        auto cdf_end    = cdf_begin + class_size;
+        auto last_total = *(cdf_end - 1);
+        auto threshold  = dist[i] * last_total;
+        auto it         = upper_bound(cdf_begin, cdf_end, threshold, less{});
+        output[i]       = it - cdf_begin;
+    });
+}
+
 } // namespace migraphx
 
-#endif // MIGRAPHX_GUARD_GPU_PREFUSE_OPS_HPP
+#endif

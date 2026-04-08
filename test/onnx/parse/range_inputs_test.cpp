@@ -21,31 +21,20 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_PREFUSE_OPS_HPP
-#define MIGRAPHX_GUARD_GPU_PREFUSE_OPS_HPP
 
-#include <migraphx/gpu/config.hpp>
-#include <string>
+#include <onnx_test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module_pass_manager;
-
-namespace gpu {
-
-struct context;
-
-struct MIGRAPHX_GPU_EXPORT prefuse_ops
+TEST_CASE(range_inputs_test)
 {
-    context* ctx          = nullptr;
-    bool enable_attention = false;
-    std::string name() const { return "gpu::prefuse_ops"; }
-    void apply(module_pass_manager& mpm) const;
-};
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto start = mm->add_parameter("start", migraphx::shape{migraphx::shape::float_type, {1}, {0}});
+    auto limit = mm->add_parameter("limit", migraphx::shape{migraphx::shape::float_type, {1}, {0}});
+    auto delta = mm->add_parameter("delta", migraphx::shape{migraphx::shape::float_type, {1}, {0}});
 
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+    mm->add_instruction(migraphx::make_op("dynamic_range"), start, limit, delta);
 
-#endif // MIGRAPHX_GUARD_GPU_PREFUSE_OPS_HPP
+    auto prog = optimize_onnx("range_inputs_test.onnx");
+
+    EXPECT(p == prog);
+}

@@ -259,7 +259,7 @@ static void add_op_name(quantize_int8_options& options, const char* name)
     options.op_names.insert(name);
 }
 
-static void add_calibration_data(quantize_int8_options& options, parameter_map& data)
+static void add_calibration_data(quantize_int8_options& options, const parameter_map& data)
 {
     options.calibration.push_back(data);
 }
@@ -279,7 +279,7 @@ struct quantize_fp8_options
     std::vector<parameter_map> calibration = {};
 };
 
-static void add_calibration_data(quantize_fp8_options& options, parameter_map& data)
+static void add_calibration_data(quantize_fp8_options& options, const parameter_map& data)
 {
     options.calibration.push_back(data);
 }

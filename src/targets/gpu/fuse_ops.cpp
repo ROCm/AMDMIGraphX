@@ -880,18 +880,19 @@ struct find_commutative_broadcast
 };
 } // namespace
 
-struct find_contiguous
+struct find_contiguous_copy
 {
-    auto matcher() const { return match::name("gpu::contiguous"); }
+    auto matcher() const { return match::name("gpu::contiguous", "hip::copy"); }
 
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins = r.result;
+        const bool is_copy = ins->name() == "hip::copy";
+        operation op       = make_op("gpu::precompile_op",
+                                     {{"op", to_value(make_op(is_copy ? "hip::copy" : "contiguous"))},
+                                      {"additional_args", is_copy ? 0 : 1}});
 
-        m.replace_instruction(
-            ins,
-            make_op("gpu::precompile_op", {{"op", to_value(make_op("contiguous"))}}),
-            ins->inputs());
+        m.replace_instruction(ins, op, ins->inputs());
     }
 };
 
@@ -950,6 +951,39 @@ struct find_pointwise_layout_contiguous
     }
 };
 
+struct find_precompile_copy
+{
+    auto matcher() const
+    {
+        return match::name("hip::copy")(
+            match::arg(0)(match::used_once(), match::name("gpu::precompile_op")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins   = r.result;
+        auto pw    = ins->inputs().front();
+        auto alloc = ins->inputs().back();
+
+        // Only merge when the precompile_op's current output buffer is a plain
+        // allocation.  After eliminate_concat the buffer may be a slice of a
+        // shared super-allocation; merging a second copy on top would redirect
+        // the write and leave the first destination unwritten.
+        auto current_buf = pw->inputs().back();
+        if(current_buf->name() != "allocate" and current_buf->name() != "hip::allocate")
+            return;
+
+        auto args   = pw->inputs();
+        args.back() = alloc;
+
+        // Ensure the output shape of the precompile op retains the memory layout
+        auto pw_op_val            = pw->get_operator().to_value();
+        pw_op_val["output_shape"] = to_value(ins->get_shape());
+
+        m.replace_instruction(ins, make_op(pw->name(), pw_op_val), args, pw->module_inputs());
+    }
+};
+
 struct find_layernorm_pointwise
 {
     auto matcher() const
@@ -980,6 +1014,37 @@ struct find_layernorm_pointwise
         layernorm_op_val["output_shape"] = to_value(pw_ins->get_shape());
 
         m.replace_instruction(pw_ins, make_op(layernorm->name(), layernorm_op_val), inputs, {pm});
+    }
+};
+
+struct find_channelwise_conv_pointwise
+{
+    auto matcher() const
+    {
+        return precompile_name("pointwise")(
+            match::not_tuple(),
+            match::arg(0)(precompile_name("gpu::channelwise_conv").bind("channelwise_conv")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto pw_ins          = r.result;
+        auto channelwise_ins = r.instructions["channelwise_conv"];
+        if(not channelwise_ins->module_inputs().empty())
+            return;
+        auto* pm       = pw_ins->module_inputs().front();
+        auto pw_inputs = pw_ins->inputs();
+        auto cw_pos    = std::find(pw_inputs.begin(), pw_inputs.end(), channelwise_ins);
+        assert(cw_pos != pw_inputs.end());
+        pw_inputs.erase(cw_pos);
+        auto inputs = channelwise_ins->inputs();
+        inputs.pop_back();
+        inputs.insert(inputs.end(), pw_inputs.begin(), pw_inputs.end());
+
+        auto cw_op_val            = channelwise_ins->get_operator().to_value();
+        cw_op_val["output_shape"] = to_value(pw_ins->get_shape());
+
+        m.replace_instruction(pw_ins, make_op(channelwise_ins->name(), cw_op_val), inputs, {pm});
     }
 };
 
@@ -1018,7 +1083,10 @@ struct find_concat_pointwise
 
 void fuse_ops::apply(module& m) const
 {
-    match::find_matches(m, find_pointwise_layout_contiguous{}, find_contiguous_layout_pointwise{});
+    match::find_matches(m,
+                        find_pointwise_layout_contiguous{},
+                        find_contiguous_layout_pointwise{},
+                        find_precompile_copy{});
     run_passes(m, {dead_code_elimination{}});
 #if MIGRAPHX_USE_MIOPEN
     match::find_matches(m, find_conv_pointwise{ctx}, find_conv_bias_relu{ctx}, find_conv_bias{ctx});
@@ -1032,13 +1100,14 @@ void fuse_ops::apply(module& m) const
 #endif
     match::find_matches(m,
                         find_layernorm_pointwise{},
+                        find_channelwise_conv_pointwise{},
                         find_concat_pointwise{},
                         find_contiguous_transpose_rocblas_gemm{},
 #if MIGRAPHX_USE_HIPBLASLT
                         find_contiguous_transpose_hip_gemm{},
 #endif
                         find_commutative_broadcast{});
-    match::find_matches(m, find_contiguous{});
+    match::find_matches(m, find_contiguous_copy{});
 }
 
 } // namespace gpu

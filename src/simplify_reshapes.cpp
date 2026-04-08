@@ -144,20 +144,6 @@ instruction_ref insert_auto_reshape(module& m,
     return insert_auto_reshape(m, ins, std::vector<T>(dims), input);
 }
 
-const auto& reshaper_names()
-{
-    // clang-format off
-    static const std::unordered_set<std::string> names = {
-        "flatten",
-        "reshape",
-        "contiguous",
-        "squeeze",
-        "unsqueeze"
-    };
-    // clang-format on
-    return names;
-}
-
 instruction_ref
 insert_ops(module& m, instruction_ref ins, const std::vector<operation>& ops, instruction_ref input)
 {
@@ -263,10 +249,9 @@ struct find_op_shape_transform_op
 
     auto matcher() const
     {
-        auto reshapes = match::name(shape_transform_ops());
-        auto match_op = match::any_of(match::reduce(), match::pointwise());
-        auto x_op =
-            match_op(match::none_of(fusable_split()));
+        auto reshapes      = match::name(shape_transform_ops());
+        auto match_op      = match::any_of(match::reduce(), match::pointwise());
+        auto x_op          = match_op(match::none_of(fusable_split()));
         auto reshapes_x_op = reshapes(match::arg(0)(match::skip(reshapes())(x_op.bind("x"))));
         return match_op(match::any_of[match::inputs()](reshapes_x_op.bind("input")));
     }
@@ -480,17 +465,16 @@ struct find_op_shape_transform_op
             return;
         }
 
-        auto reshape_input = [&](const auto& ins_to_insert,
-                                 const auto& gdesc,
-                                 bool no_broadcast = false) {
-            return [&, no_broadcast](auto input) {
-                auto gops = generate(gdesc, input->get_shape(), no_broadcast);
-                return std::accumulate(
-                    gops.begin(), gops.end(), input, [&](auto start, const auto& op) {
-                        return m.insert_instruction(ins_to_insert, op, start);
-                    });
+        auto reshape_input =
+            [&](const auto& ins_to_insert, const auto& gdesc, bool no_broadcast = false) {
+                return [&, no_broadcast](auto input) {
+                    auto gops = generate(gdesc, input->get_shape(), no_broadcast);
+                    return std::accumulate(
+                        gops.begin(), gops.end(), input, [&](auto start, const auto& op) {
+                            return m.insert_instruction(ins_to_insert, op, start);
+                        });
+                };
             };
-        };
         auto x_inputs = x_ins->inputs();
         std::transform(x_inputs.begin(),
                        x_inputs.end(),
@@ -570,31 +554,32 @@ struct find_slice_shape_transforms
         std::reverse(ops.begin(), ops.end());
         auto desc = shape_transform_descriptor::create(slice->get_shape().lens(), ops);
 
-        std::vector<std::size_t> new_axes;
-        std::transform(axes.begin(),
-                       axes.end(),
-                       join_back_inserter(new_axes),
-                       [&](auto axis) -> std::vector<std::size_t> {
-                           auto result = desc.get_dst_axes_from_src(axis);
-                           if(result.size() != 1)
-                               return {};
-                           return result;
-                       });
+        auto new_desc = desc.rebase(slice->inputs().front()->get_shape().lens());
+        if(new_desc.empty())
+            return;
+        new_desc.simplify();
 
         // Optimizes shape transforms if the slice cant be optimized
-        if(axes.size() != new_axes.size())
+        if(std::any_of(axes.begin(), axes.end(), [&](auto axis) {
+               return new_desc.get_dst_axes_from_src(axis).size() != 1;
+           }))
         {
             auto opt_ops = desc.generate();
             auto y       = insert_ops(m, ins, opt_ops, slice);
             m.replace_instruction(ins, y);
             return;
         }
-        slice_op["axes"] = new_axes;
 
-        auto new_desc = desc.rebase(slice->inputs().front()->get_shape().lens());
-        if(new_desc.empty())
-            return;
-        new_desc.simplify();
+        // Map slice axes using the rebased descriptor to correctly track
+        // where dimensions end up after rebase reorders them
+        std::vector<std::size_t> new_axes;
+        std::transform(axes.begin(),
+                       axes.end(),
+                       join_back_inserter(new_axes),
+                       [&](auto axis) -> std::vector<std::size_t> {
+                           return new_desc.get_dst_axes_from_src(axis);
+                       });
+        slice_op["axes"] = new_axes;
 
         auto opt_ops = new_desc.generate();
         auto y       = insert_ops(m, ins, opt_ops, x);
@@ -607,22 +592,30 @@ struct find_nop_reshapes
 {
     auto matcher() const
     {
-        auto reshapes = reshaper_names();
-        reshapes.insert("as_shape");
-        reshapes.insert("broadcast");
-        reshapes.insert("concat");
-        reshapes.insert("convert");
-        reshapes.insert("multibroadcast");
-        reshapes.insert("pad");
-        reshapes.insert("slice");
-        reshapes.insert("step");
-        reshapes.insert("transpose");
-        reshapes.insert("reduce_mean");
-        reshapes.insert("reduce_max");
-        reshapes.insert("reduce_min");
-        reshapes.insert("reduce_sum");
-        reshapes.insert("reduce_prod");
-        return match::name(reshapes)(match::same_shape(match::arg(0)));
+        // clang-format off
+        static const std::unordered_set<std::string> names = {
+            "flatten",
+            "reshape",
+            "contiguous",
+            "squeeze",
+            "unsqueeze",
+            "as_shape",
+            "broadcast",
+            "concat",
+            "convert",
+            "multibroadcast",
+            "pad",
+            "slice",
+            "step",
+            "transpose",
+            "reduce_mean",
+            "reduce_max",
+            "reduce_min",
+            "reduce_sum",
+            "reduce_prod",
+        };
+
+       return match::name(names)(match::same_shape(match::arg(0)));
     }
 
     void apply(module& m, const match::matcher_result& mr) const
@@ -1049,6 +1042,8 @@ struct find_gather
         {
             for(auto it = start; it != last;)
             {
+                if(std::distance(it, last) < n)
+                    return it;
                 auto [seg, next_it] = find(it, it + n);
                 if(next_it != it + n)
                     return next_it;
@@ -1159,6 +1154,8 @@ struct find_gather
             auto isegments      = from_ints(indices.begin(), indices.end());
             std::int64_t offset = isegments.front().base;
             auto s              = make_strided_view(shift(std::move(isegments), -offset));
+            if(s.lens().empty() or s.elements() != indices.size())
+                return std::nullopt;
             auto ops = generate_shape_transforms_for(s, {start->get_shape().elements()}, offset);
             if(not ops.has_value())
                 return std::nullopt;
@@ -1170,10 +1167,10 @@ struct find_gather
                                                                const argument& indices_arg,
                                                                std::size_t axis_index)
     {
-        auto data_ins    = gather_ins->inputs()[0];
-        auto output_dims = gather_ins->get_shape().lens();
-        const auto r_in  = data_ins->get_shape().lens().size();
-        const auto r_idx = indices_arg.get_shape().lens().size();
+        auto data_ins      = gather_ins->inputs()[0];
+        auto output_dims   = gather_ins->get_shape().lens();
+        const auto r_in    = data_ins->get_shape().lens().size();
+        const auto r_idx   = indices_arg.get_shape().lens().size();
         auto data_shape    = data_ins->get_shape().as_standard();
         auto indices_shape = indices_arg.get_shape().as_standard();
         assert(axis_index < r_in);
@@ -1364,11 +1361,11 @@ struct find_reshape_cont
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins      = r.result;
+        auto ins        = r.result;
         auto cont_input = r.instructions["input"];
-        auto in_ins   = r.instructions["rsp"];
+        auto in_ins     = r.instructions["rsp"];
 
-        auto lens       = cont_input->get_shape().lens();
+        auto lens = cont_input->get_shape().lens();
         std::vector<int64_t> dims(lens.begin(), lens.end());
 
         if(in_ins->get_shape() != ins->get_shape())

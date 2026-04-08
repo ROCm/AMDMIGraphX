@@ -107,6 +107,24 @@ struct find_leaky_relu
     }
 };
 
+struct find_prelu
+{
+    auto matcher() const { return match::name("prelu"); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins      = r.result;
+        auto x_ins    = ins->inputs().front();
+        auto slope_in = ins->inputs().back();
+        auto zero     = m.add_literal(literal{{x_ins->get_shape().type(), {1}}, {0.0}});
+
+        auto greater = insert_common_op(m, ins, make_op("greater"), {x_ins, zero});
+        auto mul     = insert_common_op(m, ins, make_op("mul"), {x_ins, slope_in});
+
+        m.replace_instruction(ins, make_op("where"), {greater, x_ins, mul});
+    }
+};
+
 // mlir has issues sometime when the condition to `where` is not a bool. So this will convert the
 // condition to a bool.
 struct find_where
@@ -133,7 +151,7 @@ struct find_where
 
 void prepare_mlir::apply(module& m) const
 {
-    match::find_matches(m, find_reduce{}, find_leaky_relu{});
+    match::find_matches(m, find_reduce{}, find_leaky_relu{}, find_prelu{});
     match::find_matches(m, find_where{});
     run_passes(m, {dead_code_elimination{}});
 }

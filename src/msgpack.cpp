@@ -23,6 +23,7 @@
  */
 #include <migraphx/msgpack.hpp>
 #include <migraphx/serialize.hpp>
+#include <limits>
 #include <msgpack.hpp>
 
 namespace migraphx {

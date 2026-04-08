@@ -495,6 +495,7 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
         "leaky_relu",
         "mul",
         "neg",
+        "prelu",
         "pow",
         "quant_convolution",
         "quant_dot",
@@ -503,6 +504,7 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
         "sub",
         "where",
     };
+    const std::initializer_list<std::string> bool_ops = {"greater"};
     const std::initializer_list<std::string> fp_only_ops = {
         "ceil",
         "erf",
@@ -527,6 +529,8 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
     if(contains(any_type_ops, name))
         return true;
     if(result_type != type_t::bool_type and contains(no_bool_ops, name))
+        return true;
+    if(result_type == type_t::bool_type and contains(bool_ops, name))
         return true;
     if(is_float and contains(fp_only_ops, name))
         return true;

@@ -38,6 +38,8 @@
 #include <migraphx/functional.hpp>
 #include <test.hpp>
 
+#include <sstream>
+
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_ENABLE_SPLITK);
 
 struct mlir_gpu_target : migraphx::gpu::target
@@ -281,6 +283,26 @@ module {
     auto mlir_output_with_attrs =
         migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
     CHECK(encode(s) == encode(mlir_output_with_attrs));
+
+    EXPECT(verify_mlir(m));
+}
+
+TEST_CASE(conv_prelu)
+{
+    migraphx::module m;
+    auto x     = m.add_parameter("x", {migraphx::shape::float_type, {1, 8, 4, 4}});
+    auto w     = m.add_parameter("w", {migraphx::shape::float_type, {2, 8, 3, 3}});
+    auto slope = m.add_parameter("slope", {migraphx::shape::float_type, {1, 2, 2, 2}});
+    auto conv  = m.add_instruction(migraphx::make_op("convolution"), x, w);
+    auto act   = m.add_instruction(migraphx::make_op("prelu"), conv, slope);
+    m.add_return({act});
+    auto s = migraphx::gpu::dump_mlir(m);
+    if(s.empty())
+        return;
+    CHECK(s.find("migraphx.prelu") == std::string::npos);
+    CHECK(s.find("migraphx.greater") != std::string::npos);
+    CHECK(s.find("migraphx.mul") != std::string::npos);
+    CHECK(s.find("migraphx.where") != std::string::npos);
 
     EXPECT(verify_mlir(m));
 }

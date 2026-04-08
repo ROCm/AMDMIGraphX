@@ -361,18 +361,16 @@ TEST_CASE(slice_squeeze_pw_silu_chain)
         auto input   = m2.add_parameter("input", s);
         auto stacked = m2.add_literal(stacked_lit);
         auto add     = m2.add_instruction(migraphx::make_op("add"), input, stacked);
+        auto sig     = m2.add_instruction(migraphx::make_op("sigmoid"), add);
+        auto mul     = m2.add_instruction(migraphx::make_op("mul"), sig, add);
 
         auto s0 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), add);
-        auto sig0 = m2.add_instruction(migraphx::make_op("sigmoid"), s0);
-        auto mul0 = m2.add_instruction(migraphx::make_op("mul"), sig0, s0);
-        auto sq0  = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), mul0);
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), mul);
+        auto sq0 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s0);
 
         auto s1 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), add);
-        auto sig1 = m2.add_instruction(migraphx::make_op("sigmoid"), s1);
-        auto mul1 = m2.add_instruction(migraphx::make_op("mul"), sig1, s1);
-        auto sq1  = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), mul1);
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), mul);
+        auto sq1 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s1);
 
         m2.add_return({sq0, sq1});
     }
@@ -446,9 +444,17 @@ TEST_CASE(hoist_silu_above_slices_with_unsqueeze_concat)
         auto input = m2.add_parameter("input", s);
         auto sig   = m2.add_instruction(migraphx::make_op("sigmoid"), input);
         auto mul   = m2.add_instruction(migraphx::make_op("mul"), input, sig);
-        auto rs    = m2.add_instruction(
-            migraphx::make_op("reshape", {{"dims", {3, 1, 64, 128}}}), mul);
-        m2.add_return({rs});
+        auto r0    = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {128}}}), mul);
+        auto u0 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), r0);
+        auto r1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {128}}, {"ends", {256}}}), mul);
+        auto u1 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), r1);
+        auto r2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {256}}, {"ends", {384}}}), mul);
+        auto u2  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), r2);
+        auto cat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), u0, u1, u2);
+        m2.add_return({cat});
     }
     EXPECT(m1.sort() == m2.sort());
 }

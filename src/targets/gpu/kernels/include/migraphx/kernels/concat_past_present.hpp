@@ -77,9 +77,11 @@ update_cache(const Present present, SeqLensK seqlens_k, Cache cache, Params para
     {
         const index_int batch_index       = i / kv_num_heads;
         const index_int head_index        = i % kv_num_heads;
-        const index_int past_seqlen       = sequence_length == 1
-                                                ? static_cast<index_int>(seqlens_k[batch_index])
-                                                : past_buffer_sequence_length;
+        const index_int past_seqlen       = is_prompt
+                                                ? 0
+                                                : static_cast<index_int>(seqlens_k[batch_index]);
+        if(past_seqlen >= past_buffer_sequence_length)
+            return;
         const index_int past_chunk_length = is_prompt ? 0 : past_seqlen * head_size;
 
         auto current =

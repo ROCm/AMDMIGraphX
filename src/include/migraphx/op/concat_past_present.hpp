@@ -105,7 +105,9 @@ struct concat_past_present
             const std::size_t batch_index = i / kv_num_heads;
             const std::size_t head_index  = i % kv_num_heads;
             const std::size_t past_seqlen =
-                sequence_length == 1 ? seqlens_k[batch_index] : past_buffer_sequence_length;
+                is_prompt ? 0 : seqlens_k[batch_index];
+            if(past_seqlen >= past_buffer_sequence_length)
+                return;
             const std::size_t past_chunk_length = is_prompt ? 0 : past_seqlen * head_size;
             auto current                        = present_key + packed_batch_stride * batch_index +
                            kv_input_chunk_length * head_index;

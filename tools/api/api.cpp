@@ -39,6 +39,7 @@
 #include <migraphx/json.hpp>
 #include <migraphx/convert_to_json.hpp>
 #include <migraphx/source_location.hpp>
+#include <migraphx/logger.hpp>
 #include <array>
 #include <algorithm>
 #include <cstdarg>
@@ -392,6 +393,8 @@ static void register_custom_op(const CustomOp& op)
 }
 
 static migraphx::context get_context(const program& p) { return p.get_context(); }
+
+static void set_log_header(bool show) { log::set_show_header(show); }
 
 } // namespace migraphx
 

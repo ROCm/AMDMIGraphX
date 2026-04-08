@@ -31,6 +31,7 @@
 #include <numeric>
 #include <functional>
 #include <iostream>
+#include <migraphx/logger.hpp>
 
 #ifdef _WIN32
 // cppcheck-suppress definePrefix
@@ -58,7 +59,7 @@ static int exec(const std::string& cmd, const char* type, F f)
 {
     int ec = 0;
     if(enabled(MIGRAPHX_TRACE_CMD_EXECUTE{}))
-        std::cout << cmd << std::endl;
+        log::trace() << cmd;
     auto closer = [&](FILE* stream) {
         auto status = pclose(stream);
         ec          = WIFEXITED(status) ? WEXITSTATUS(status) : 0; // NOLINT
@@ -199,8 +200,8 @@ int exec(const std::string& cmd, const std::string& cwd, const std::string& args
 {
     if(enabled(MIGRAPHX_TRACE_CMD_EXECUTE{}))
     {
-        std::cout << "[cwd=" << cwd << "];  cmd='" << cmd << "\'; args='" << args << "'; envs='"
-                  << envs << "'\n";
+        log::trace() << "[cwd=" << cwd << "];  cmd='" << cmd << "'; args='" << args << "'; envs='"
+                     << envs << "'";
     }
 
     // See CreateProcess() WIN32 documentation for details.

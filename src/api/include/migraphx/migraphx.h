@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -663,6 +663,8 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_get_onnx_operator_name_at_index(char*
                                                                            size_t index);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_get_onnx_operators_size(size_t* out);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_set_log_header(bool show);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_context_finish(const_migraphx_context_t context);
 

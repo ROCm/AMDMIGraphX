@@ -137,6 +137,7 @@ add_library(migraphx
     serialize.cpp
     shape.cpp
     shape_transform_descriptor.cpp
+    sym.cpp
     simplify_algebra.cpp
     simplify_dyn_ops.cpp
     simplify_reshapes.cpp
@@ -249,6 +250,7 @@ register_migraphx_ops(
     nearbyint
     neg
     nonmaxsuppression
+    dynamic_range
     nonzero
     onehot
     outline
@@ -343,7 +345,6 @@ if(NOT WIN32)
     target_link_libraries(migraphx PRIVATE -ldl)
 endif()
 
-target_include_directories(migraphx SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
 target_link_libraries(migraphx PUBLIC Threads::Threads)
 
 if(MIGRAPHX_USE_EIGEN)
@@ -434,10 +435,6 @@ if(MIGRAPHX_USE_MIOPEN)
     target_compile_definitions(migraphx_all_targets INTERFACE MIGRAPHX_USE_MIOPEN=1)
 else()
     target_compile_definitions(migraphx_all_targets INTERFACE MIGRAPHX_USE_MIOPEN=0)
-endif()
-
-if(HAVE_HALF_EXPR)
-    target_compile_definitions(migraphx PUBLIC -DHAS_HALF_V1)
 endif()
 
 if(BUILD_DEV)

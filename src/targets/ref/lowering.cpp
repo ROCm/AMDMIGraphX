@@ -47,6 +47,7 @@
 #include <migraphx/tune_axis.hpp>
 #include <migraphx/pad_calc.hpp>
 
+#include <algorithm>
 #include <unordered_map>
 #include <utility>
 #include <iostream>
@@ -217,7 +218,42 @@ struct ref_quant_gemm
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        gemm(result, args[0], args[1]);
+        if(args.size() == 4)
+        {
+            auto a_std_shape = shape{shape::float_type, args[0].get_shape().lens()};
+            auto b_std_shape = shape{shape::float_type, args[1].get_shape().lens()};
+
+            std::vector<float> a_dq(a_std_shape.elements());
+            std::vector<float> b_dq(b_std_shape.elements());
+
+            // Nested visits because matrix and scale types may differ (e.g. int8 + float),
+            // so visit_all's same-type requirement cannot be used here.
+            args[0].visit([&](auto amat) {
+                args[2].visit([&](auto scale_a) {
+                    std::transform(
+                        amat.begin(), amat.end(), scale_a.begin(), a_dq.begin(), [](auto a, auto s) {
+                            return static_cast<float>(a) * s;
+                        });
+                });
+            });
+
+            args[1].visit([&](auto bmat) {
+                args[3].visit([&](auto scale_b) {
+                    std::transform(
+                        bmat.begin(), bmat.end(), scale_b.begin(), b_dq.begin(), [](auto b, auto s) {
+                            return static_cast<float>(b) * s;
+                        });
+                });
+            });
+
+            argument a_arg{a_std_shape, a_dq.data()};
+            argument b_arg{b_std_shape, b_dq.data()};
+            gemm(result, a_arg, b_arg);
+        }
+        else
+        {
+            gemm(result, args[0], args[1]);
+        }
         return result;
     }
 };

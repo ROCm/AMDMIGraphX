@@ -1719,3 +1719,34 @@ TEST_CASE(quant_dot_3args_batch_2)
     result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify::verify_rms_range(m, gold));
 }
+
+TEST_CASE(quant_dot_4args_scales)
+{
+    migraphx::program p;
+
+    auto* mm = p.get_main_module();
+    migraphx::shape a_shape{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape b_shape{migraphx::shape::float_type, {3, 2}};
+
+    std::vector<float> a_data       = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+    std::vector<float> b_data       = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+    std::vector<float> scale_a_data = {0.5f, 1.0f, 0.5f, 1.0f, 0.5f, 1.0f};
+    std::vector<float> scale_b_data = {1.0f, 0.5f, 1.0f, 0.5f, 1.0f, 0.5f};
+
+    auto l1 = mm->add_literal(migraphx::literal{a_shape, a_data});
+    auto l2 = mm->add_literal(migraphx::literal{b_shape, b_data});
+    auto l3 = mm->add_literal(migraphx::literal{a_shape, scale_a_data});
+    auto l4 = mm->add_literal(migraphx::literal{b_shape, scale_b_data});
+    mm->add_instruction(migraphx::make_op("quant_dot"), l1, l2, l3, l4);
+
+    // A_dq = A * scale_A = {0.5, 2.0, 1.5, 4.0, 2.5, 6.0}
+    // B_dq = B * scale_B = {1.0, 1.0, 3.0, 2.0, 5.0, 3.0}
+    // result = A_dq @ B_dq
+    std::vector<float> gold = {14.0f, 9.0f, 41.5f, 27.0f};
+
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<float> m;
+    result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_rms_range(m, gold));
+}

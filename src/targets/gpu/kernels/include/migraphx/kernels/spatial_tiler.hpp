@@ -74,7 +74,7 @@ struct spatial_tiler
 
     static constexpr auto get_padding()
     {
-        if constexpr(Padding{}.size() < 2) 
+        if constexpr(Padding{}.size() < 2)
         {
             auto pre = transform(TileLens{}, [](auto) { return index_c<0>; });
             return join(pre, pre);
@@ -124,13 +124,12 @@ struct spatial_tiler
     template <class InputShape>
     static constexpr auto halo_lens_for()
     {
-        constexpr auto halo_extra =
-            [] {
-                return return_array_c([] {
-                    return make_slice(InputShape{}, keep_spatial()).lens - out_spatial_lens() +
-                           total_padding();
-                });
-            }();
+        constexpr auto halo_extra = [] {
+            return return_array_c([] {
+                return make_slice(InputShape{}, keep_spatial()).lens - out_spatial_lens() +
+                       total_padding();
+            });
+        }();
         return transform(output_lens(), halo_extra, [](auto o, auto h) { return o + h; });
     }
 
@@ -170,7 +169,7 @@ struct spatial_tiler
         idx.local_stride(_c<hl.product()>, [&](auto i) {
             auto halo_multi = halo_shape.multi(i);
             auto src_pos    = tile_origin + halo_multi;
-            auto input_pos     = src_pos - left_padding();
+            auto input_pos  = src_pos - left_padding();
             if constexpr(is_padded())
             {
                 smem[i] = in_bounds(input_pos, input_spatial) ? type{input_ch[input_pos]} : type{0};

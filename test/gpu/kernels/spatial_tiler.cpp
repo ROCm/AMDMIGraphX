@@ -26,7 +26,10 @@
 #include <migraphx/kernels/test.hpp>
 
 // Helper: create a standard 4D shape from lens
-template <migraphx::index_int N, migraphx::index_int C, migraphx::index_int H, migraphx::index_int W>
+template <migraphx::index_int N,
+          migraphx::index_int C,
+          migraphx::index_int H,
+          migraphx::index_int W>
 constexpr auto make_4d_shape()
 {
     constexpr auto lens = migraphx::index_ints<N, C, H, W>{};
@@ -38,9 +41,8 @@ constexpr auto make_4d_shape()
 // Tile {4, 4} with NTiles=1 → output_lens = {1, 1, 4, 4}
 TEST_CASE(output_lens_ntiles_1)
 {
-    using tiler = migraphx::spatial_tiler<1,
-                                          migraphx::index_ints<4, 4>,
-                                          decltype(make_4d_shape<1, 1, 8, 8>())>;
+    using tiler = migraphx::
+        spatial_tiler<1, migraphx::index_ints<4, 4>, decltype(make_4d_shape<1, 1, 8, 8>())>;
     constexpr auto ol = tiler::output_lens();
     EXPECT(ol.size() == 4);
     EXPECT(ol[0] == 1);
@@ -52,9 +54,8 @@ TEST_CASE(output_lens_ntiles_1)
 // Tile {4, 4} with NTiles=2 → last dim doubled: {1, 1, 4, 8}
 TEST_CASE(output_lens_ntiles_2)
 {
-    using tiler = migraphx::spatial_tiler<2,
-                                          migraphx::index_ints<4, 4>,
-                                          decltype(make_4d_shape<1, 1, 8, 8>())>;
+    using tiler = migraphx::
+        spatial_tiler<2, migraphx::index_ints<4, 4>, decltype(make_4d_shape<1, 1, 8, 8>())>;
     constexpr auto ol = tiler::output_lens();
     EXPECT(ol[2] == 4);
     EXPECT(ol[3] == 8);
@@ -64,9 +65,8 @@ TEST_CASE(output_lens_ntiles_2)
 
 TEST_CASE(out_spatial_lens_basic)
 {
-    using tiler = migraphx::spatial_tiler<1,
-                                          migraphx::index_ints<4, 4>,
-                                          decltype(make_4d_shape<2, 3, 16, 16>())>;
+    using tiler = migraphx::
+        spatial_tiler<1, migraphx::index_ints<4, 4>, decltype(make_4d_shape<2, 3, 16, 16>())>;
     constexpr auto sl = tiler::out_spatial_lens();
     // keep_spatial sets dims 0,1 to 1; keeps H,W
     EXPECT(sl[0] == 1);
@@ -80,9 +80,8 @@ TEST_CASE(out_spatial_lens_basic)
 // 8x8 output, 4x4 tile, NTiles=1 → ceil(8/4)=2 per spatial dim
 TEST_CASE(tiles_per_dim_exact)
 {
-    using tiler = migraphx::spatial_tiler<1,
-                                          migraphx::index_ints<4, 4>,
-                                          decltype(make_4d_shape<1, 1, 8, 8>())>;
+    using tiler = migraphx::
+        spatial_tiler<1, migraphx::index_ints<4, 4>, decltype(make_4d_shape<1, 1, 8, 8>())>;
     constexpr auto tpd = tiler::tiles_per_dim();
     EXPECT(tpd[2] == 2);
     EXPECT(tpd[3] == 2);
@@ -91,9 +90,8 @@ TEST_CASE(tiles_per_dim_exact)
 // 10x10 output, 4x4 tile → ceil(10/4)=3 per spatial dim
 TEST_CASE(tiles_per_dim_inexact)
 {
-    using tiler = migraphx::spatial_tiler<1,
-                                          migraphx::index_ints<4, 4>,
-                                          decltype(make_4d_shape<1, 1, 10, 10>())>;
+    using tiler = migraphx::
+        spatial_tiler<1, migraphx::index_ints<4, 4>, decltype(make_4d_shape<1, 1, 10, 10>())>;
     constexpr auto tpd = tiler::tiles_per_dim();
     EXPECT(tpd[2] == 3);
     EXPECT(tpd[3] == 3);
@@ -102,9 +100,8 @@ TEST_CASE(tiles_per_dim_inexact)
 // NTiles=2 scales last dim: tile output is {4, 8} → ceil(16/4)=4, ceil(16/8)=2
 TEST_CASE(tiles_per_dim_ntiles)
 {
-    using tiler = migraphx::spatial_tiler<2,
-                                          migraphx::index_ints<4, 4>,
-                                          decltype(make_4d_shape<1, 1, 16, 16>())>;
+    using tiler = migraphx::
+        spatial_tiler<2, migraphx::index_ints<4, 4>, decltype(make_4d_shape<1, 1, 16, 16>())>;
     constexpr auto tpd = tiler::tiles_per_dim();
     EXPECT(tpd[2] == 4);
     EXPECT(tpd[3] == 2);
@@ -114,9 +111,8 @@ TEST_CASE(tiles_per_dim_ntiles)
 
 TEST_CASE(tiles_total_exact)
 {
-    using tiler = migraphx::spatial_tiler<1,
-                                          migraphx::index_ints<4, 4>,
-                                          decltype(make_4d_shape<1, 1, 8, 8>())>;
+    using tiler = migraphx::
+        spatial_tiler<1, migraphx::index_ints<4, 4>, decltype(make_4d_shape<1, 1, 8, 8>())>;
     // tiles_per_dim = {1, 1, 2, 2}, product = 4
     EXPECT(tiler::tiles_total() == 4);
 }
@@ -126,9 +122,8 @@ TEST_CASE(tiles_total_exact)
 // No Padding arg → get_padding returns zeros matching TileLens size
 TEST_CASE(get_padding_default)
 {
-    using tiler = migraphx::spatial_tiler<1,
-                                          migraphx::index_ints<4, 4>,
-                                          decltype(make_4d_shape<1, 1, 8, 8>())>;
+    using tiler = migraphx::
+        spatial_tiler<1, migraphx::index_ints<4, 4>, decltype(make_4d_shape<1, 1, 8, 8>())>;
     constexpr auto gp = tiler::get_padding();
     EXPECT(gp.size() == 4);
     EXPECT(gp[0] == 0);
@@ -140,9 +135,8 @@ TEST_CASE(get_padding_default)
 // No padding template arg → all zeros
 TEST_CASE(padding_default_no_padding)
 {
-    using tiler = migraphx::spatial_tiler<1,
-                                          migraphx::index_ints<4, 4>,
-                                          decltype(make_4d_shape<1, 1, 8, 8>())>;
+    using tiler = migraphx::
+        spatial_tiler<1, migraphx::index_ints<4, 4>, decltype(make_4d_shape<1, 1, 8, 8>())>;
     constexpr auto lp = tiler::left_padding();
     constexpr auto tp = tiler::total_padding();
     EXPECT(lp[0] == 0);
@@ -158,10 +152,10 @@ TEST_CASE(padding_default_no_padding)
 // Symmetric padding {1, 1, 1, 1} → left={0,0,1,1}, total={0,0,2,2}
 TEST_CASE(padding_symmetric)
 {
-    using tiler = migraphx::spatial_tiler<1,
-                                          migraphx::index_ints<4, 4>,
-                                          decltype(make_4d_shape<1, 1, 8, 8>()),
-                                          migraphx::index_ints<1, 1, 1, 1>>;
+    using tiler       = migraphx::spatial_tiler<1,
+                                                migraphx::index_ints<4, 4>,
+                                                decltype(make_4d_shape<1, 1, 8, 8>()),
+                                                migraphx::index_ints<1, 1, 1, 1>>;
     constexpr auto lp = tiler::left_padding();
     EXPECT(lp[0] == 0);
     EXPECT(lp[1] == 0);
@@ -178,10 +172,10 @@ TEST_CASE(padding_symmetric)
 // Asymmetric padding {1, 2, 3, 4} → left={0,0,1,2}, total={0,0,1+3,2+4}={0,0,4,6}
 TEST_CASE(padding_asymmetric)
 {
-    using tiler = migraphx::spatial_tiler<1,
-                                          migraphx::index_ints<4, 4>,
-                                          decltype(make_4d_shape<1, 1, 8, 8>()),
-                                          migraphx::index_ints<1, 2, 3, 4>>;
+    using tiler       = migraphx::spatial_tiler<1,
+                                                migraphx::index_ints<4, 4>,
+                                                decltype(make_4d_shape<1, 1, 8, 8>()),
+                                                migraphx::index_ints<1, 2, 3, 4>>;
     constexpr auto lp = tiler::left_padding();
     EXPECT(lp[2] == 1);
     EXPECT(lp[3] == 2);
@@ -196,18 +190,16 @@ TEST_CASE(padding_asymmetric)
 // Tiles exactly cover output, no conv padding → not padded
 TEST_CASE(is_padded_exact_no_padding)
 {
-    using tiler = migraphx::spatial_tiler<1,
-                                          migraphx::index_ints<4, 4>,
-                                          decltype(make_4d_shape<1, 1, 8, 8>())>;
+    using tiler = migraphx::
+        spatial_tiler<1, migraphx::index_ints<4, 4>, decltype(make_4d_shape<1, 1, 8, 8>())>;
     EXPECT(not tiler::is_padded());
 }
 
 // Tiles don't exactly cover output (10 not divisible by 4) → padded
 TEST_CASE(is_padded_overhang)
 {
-    using tiler = migraphx::spatial_tiler<1,
-                                          migraphx::index_ints<4, 4>,
-                                          decltype(make_4d_shape<1, 1, 10, 10>())>;
+    using tiler = migraphx::
+        spatial_tiler<1, migraphx::index_ints<4, 4>, decltype(make_4d_shape<1, 1, 10, 10>())>;
     EXPECT(tiler::is_padded());
 }
 
@@ -249,9 +241,8 @@ TEST_CASE(is_padded_overhang_equals_padding)
 TEST_CASE(is_padded_partial_overhang)
 {
     // H=8 exactly tiled by tile_h=4. W=10 not divisible by tile_w=4.
-    using tiler = migraphx::spatial_tiler<1,
-                                          migraphx::index_ints<4, 4>,
-                                          decltype(make_4d_shape<1, 1, 8, 10>())>;
+    using tiler = migraphx::
+        spatial_tiler<1, migraphx::index_ints<4, 4>, decltype(make_4d_shape<1, 1, 8, 10>())>;
     EXPECT(tiler::is_padded());
 }
 
@@ -309,9 +300,9 @@ TEST_CASE(halo_lens_with_padding)
     using output_shape = decltype(make_4d_shape<1, 1, 8, 8>());
     using input_shape  = decltype(make_4d_shape<1, 1, 8, 8>());
     using tiler        = migraphx::spatial_tiler<1,
-                                          migraphx::index_ints<4, 4>,
-                                          output_shape,
-                                          migraphx::index_ints<1, 1, 1, 1>>;
+                                                 migraphx::index_ints<4, 4>,
+                                                 output_shape,
+                                                 migraphx::index_ints<1, 1, 1, 1>>;
 
     constexpr auto hl = tiler::template halo_lens_for<input_shape>();
     EXPECT(hl[2] == 6);
@@ -322,8 +313,7 @@ TEST_CASE(halo_lens_with_padding)
 
 TEST_CASE(ndim_4d)
 {
-    using tiler = migraphx::spatial_tiler<1,
-                                          migraphx::index_ints<4, 4>,
-                                          decltype(make_4d_shape<1, 1, 8, 8>())>;
+    using tiler = migraphx::
+        spatial_tiler<1, migraphx::index_ints<4, 4>, decltype(make_4d_shape<1, 1, 8, 8>())>;
     EXPECT(tiler::ndim() == 4);
 }

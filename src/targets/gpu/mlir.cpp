@@ -1112,8 +1112,7 @@ struct mlir_program
                                         prob_config.begin() + prob_config_bytes);
             if(tuning_table.second)
             {
-                log::info() << "MLIR tuning table did not include a key for "
-                            << prob_config_str;
+                log::info() << "MLIR tuning table did not include a key for " << prob_config_str;
             }
             dump_tuning_cfg(prob_config_str);
             return false;

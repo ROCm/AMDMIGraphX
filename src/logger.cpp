@@ -102,7 +102,7 @@ static color severity_color(severity s)
 static sink make_stderr_sink()
 {
     return [](severity s, std::string_view msg, source_location loc) {
-        for(auto&& line:split_string(std::string{msg}, '\n'))
+        for(auto&& line : split_string(std::string{msg}, '\n'))
         {
             std::cerr << severity_color(s) << format_timestamp() << " [" << to_string(s) << "] ["
                       << loc.file_name() << ":" << loc.line() << "] " << line << color::reset
@@ -122,10 +122,10 @@ static sink make_file_sink(const std::string& filename)
     return [file](severity s, std::string_view msg, source_location loc) {
         if(file->is_open())
         {
-            for(auto&& line:split_string(std::string{msg}, '\n'))
+            for(auto&& line : split_string(std::string{msg}, '\n'))
             {
-                *file << format_timestamp() << " [" << to_string(s) << "] [" << loc.file_name() << ":"
-                      << loc.line() << "] " << line << std::endl;
+                *file << format_timestamp() << " [" << to_string(s) << "] [" << loc.file_name()
+                      << ":" << loc.line() << "] " << line << std::endl;
             }
         }
     };

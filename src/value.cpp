@@ -23,7 +23,9 @@
  */
 #include <cassert>
 #include <iostream>
+#include <sstream>
 #include <migraphx/cloneable.hpp>
+#include <migraphx/logger.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/value.hpp>
@@ -590,19 +592,21 @@ std::size_t value::hash() const
 
 void value::debug_print(bool show_type) const
 {
+    std::ostringstream ss;
     if(show_type)
     {
         switch(get_type())
         {
 #define MIGRAPHX_VALUE_GENERATE_TYPE_STRING_CASE(vt, cpp_type) \
-    case vt##_type: std::cout << #vt << ": "; break;
+    case vt##_type: ss << #vt << ": "; break;
             MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_TYPE_STRING_CASE)
             MIGRAPHX_VALUE_GENERATE_TYPE_STRING_CASE(null, )
             MIGRAPHX_VALUE_GENERATE_TYPE_STRING_CASE(array, )
             MIGRAPHX_VALUE_GENERATE_TYPE_STRING_CASE(object, )
         }
     }
-    std::cout << *this << std::endl;
+    ss << *this;
+    log::debug() << ss.str();
 }
 
 } // namespace MIGRAPHX_INLINE_NS

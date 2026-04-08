@@ -31,6 +31,7 @@
 #include <migraphx/algorithm.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/logger.hpp>
 #include <unordered_set>
 #include <unordered_map>
 #include <map>
@@ -323,14 +324,14 @@ void memory_coloring::apply(module& m) const
     {
         for(auto&& pp : conflict_table)
         {
-            std::cout << "------- conflict -------" << std::endl;
+            log::debug() << "------- conflict -------";
             auto s1 = as.ins2segment.at(pp.first);
-            std::cout << s1.first << ", " << s1.second << ": ";
+            log::debug() << s1.first << ", " << s1.second << ": ";
             m.debug_print(pp.first);
             for(auto ins : pp.second)
             {
                 auto s2 = as.ins2segment.at(ins);
-                std::cout << s2.first << ", " << s2.second << ": ";
+                log::debug() << s2.first << ", " << s2.second << ": ";
                 m.debug_print(ins);
             }
         }

@@ -64,7 +64,6 @@
 #include <migraphx/op/gather.hpp>
 #include <migraphx/op/gathernd.hpp>
 #include <migraphx/op/get_tuple_elem.hpp>
-#include <migraphx/op/gqa_rotary_embedding.hpp>
 #include <migraphx/op/greater.hpp>
 #include <migraphx/op/group.hpp>
 #include <migraphx/op/gru.hpp>

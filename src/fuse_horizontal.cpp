@@ -303,7 +303,7 @@ struct dot_horizontal_fusion
     {
         return std::make_tuple(ins->inputs().at(0)->get_shape().lens(),
                                ins->inputs().at(1)->get_shape().lens(),
-                               static_cast<int>(ins->get_shape().type()));
+                               ins->get_shape().type());
     }
 
     struct bias_detect_result

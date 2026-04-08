@@ -84,15 +84,8 @@ TEST_CASE(dyn_slice_lowering_single_input)
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {2}}}), data);
         m1.add_return({sl});
     }
+    auto m2 = m1;
     run_lowering(m1);
-
-    migraphx::module m2;
-    {
-        auto data = m2.add_parameter("data", data_s);
-        auto sl   = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {2}}}), data);
-        m2.add_return({sl});
-    }
     EXPECT(m1 == m2);
 }
 

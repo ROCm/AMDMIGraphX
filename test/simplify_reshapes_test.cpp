@@ -5245,4 +5245,133 @@ TEST_CASE(slice_reshape_multibroadcast_rebase_axis)
     EXPECT(m1.get_output_shapes() == m2.get_output_shapes());
 }
 
+TEST_CASE(hoist_unary_above_slices)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 64, 512}};
+    migraphx::module m1;
+    {
+        auto input = m1.add_parameter("input", s);
+        auto s0    = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {128}}}), input);
+        auto r0 = m1.add_instruction(migraphx::make_op("relu"), s0);
+        auto s1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {128}}, {"ends", {256}}}), input);
+        auto r1 = m1.add_instruction(migraphx::make_op("relu"), s1);
+        auto s2 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {256}}, {"ends", {384}}}), input);
+        auto r2 = m1.add_instruction(migraphx::make_op("relu"), s2);
+        m1.add_return({r0, r1, r2});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto input = m2.add_parameter("input", s);
+        auto big_s = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {384}}}), input);
+        auto relu = m2.add_instruction(migraphx::make_op("relu"), big_s);
+        auto r0   = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {128}}}), relu);
+        auto r1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {128}}, {"ends", {256}}}), relu);
+        auto r2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {256}}, {"ends", {384}}}), relu);
+        m2.add_return({r0, r1, r2});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(hoist_silu_above_slices)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 64, 384}};
+    migraphx::module m1;
+    {
+        auto input = m1.add_parameter("input", s);
+        auto s0    = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {128}}}), input);
+        auto sig0 = m1.add_instruction(migraphx::make_op("sigmoid"), s0);
+        auto mul0 = m1.add_instruction(migraphx::make_op("mul"), s0, sig0);
+        auto s1   = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {128}}, {"ends", {256}}}),
+            input);
+        auto sig1 = m1.add_instruction(migraphx::make_op("sigmoid"), s1);
+        auto mul1 = m1.add_instruction(migraphx::make_op("mul"), s1, sig1);
+        auto s2   = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {256}}, {"ends", {384}}}),
+            input);
+        auto sig2 = m1.add_instruction(migraphx::make_op("sigmoid"), s2);
+        auto mul2 = m1.add_instruction(migraphx::make_op("mul"), s2, sig2);
+        m1.add_return({mul0, mul1, mul2});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto input = m2.add_parameter("input", s);
+        auto sig   = m2.add_instruction(migraphx::make_op("sigmoid"), input);
+        auto mul   = m2.add_instruction(migraphx::make_op("mul"), input, sig);
+        auto r0    = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {128}}}), mul);
+        auto r1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {128}}, {"ends", {256}}}), mul);
+        auto r2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {256}}, {"ends", {384}}}), mul);
+        m2.add_return({r0, r1, r2});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(hoist_above_slices_partial_range)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 64, 512}};
+    migraphx::module m1;
+    {
+        auto input = m1.add_parameter("input", s);
+        auto s0    = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {128}}}), input);
+        auto r0 = m1.add_instruction(migraphx::make_op("relu"), s0);
+        auto s1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {128}}, {"ends", {256}}}), input);
+        auto r1 = m1.add_instruction(migraphx::make_op("relu"), s1);
+        auto s_other = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {256}}, {"ends", {512}}}), input);
+        auto tanh_out = m1.add_instruction(migraphx::make_op("tanh"), s_other);
+        m1.add_return({r0, r1, tanh_out});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto input = m2.add_parameter("input", s);
+        auto big_s = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {256}}}), input);
+        auto relu = m2.add_instruction(migraphx::make_op("relu"), big_s);
+        auto r0   = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {128}}}), relu);
+        auto r1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {128}}, {"ends", {256}}}), relu);
+        auto s_other = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {256}}, {"ends", {512}}}), input);
+        auto tanh_out = m2.add_instruction(migraphx::make_op("tanh"), s_other);
+        m2.add_return({r0, r1, tanh_out});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(hoist_above_slices_no_match_different_ops)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 64, 256}};
+    migraphx::module m1;
+    {
+        auto input = m1.add_parameter("input", s);
+        auto s0    = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {128}}}), input);
+        auto r0 = m1.add_instruction(migraphx::make_op("relu"), s0);
+        auto s1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {128}}, {"ends", {256}}}), input);
+        auto t1 = m1.add_instruction(migraphx::make_op("tanh"), s1);
+        m1.add_return({r0, t1});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

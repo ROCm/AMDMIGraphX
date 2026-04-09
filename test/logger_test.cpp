@@ -23,12 +23,12 @@
  */
 
 #include <migraphx/logger.hpp>
+#include <migraphx/filesystem.hpp>
 #include "test.hpp"
 #include <atomic>
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
-#include <filesystem>
 #include <fstream>
 #include <map>
 #include <thread>
@@ -353,7 +353,7 @@ TEST_CASE(logger_file_sink)
     migraphx::log::set_severity(migraphx::log::severity::none);
 
     // add_file_logger should return an ID > 0
-    auto log_path_fs = std::filesystem::temp_directory_path() / "migraphx_test_log.txt";
+    auto log_path_fs = migraphx::fs::temp_directory_path() / "migraphx_test_log.txt";
     auto file_id =
         migraphx::log::add_file_logger(log_path_fs.string().c_str(), migraphx::log::severity::info);
     EXPECT(file_id > 0);
@@ -378,7 +378,7 @@ TEST_CASE(logger_file_sink)
     EXPECT(content.find("This message should not be written to the file") == std::string::npos);
 
     // Remove the file
-    std::filesystem::remove(log_path_fs);
+    migraphx::fs::remove(log_path_fs);
 
     // Can remove the file sink
     migraphx::log::remove_sink(file_id);
@@ -390,7 +390,7 @@ TEST_CASE(logger_file_sink_existing_file)
     migraphx::log::set_severity(migraphx::log::severity::none);
 
     auto log_path =
-        (std::filesystem::temp_directory_path() / "migraphx_test_existing_log.txt").string();
+        (migraphx::fs::temp_directory_path() / "migraphx_test_existing_log.txt").string();
 
     // Create a file logger and write some content
     auto file_id1 = migraphx::log::add_file_logger(log_path.c_str(), migraphx::log::severity::info);
@@ -412,7 +412,7 @@ TEST_CASE(logger_file_sink_existing_file)
     EXPECT(content.find("Second message") != std::string::npos);
 
     // Remove the file
-    std::filesystem::remove(log_path);
+    migraphx::fs::remove(log_path);
 
     // Clean up
     migraphx::log::remove_sink(file_id2);
@@ -763,10 +763,10 @@ TEST_CASE(logger_concurrent_file_sink)
     migraphx::log::set_severity(migraphx::log::severity::none);
 
     auto log_path =
-        (std::filesystem::temp_directory_path() / "migraphx_concurrent_test.log").string();
+        (migraphx::fs::temp_directory_path() / "migraphx_concurrent_test.log").string();
 
     // Remove any existing file
-    std::filesystem::remove(log_path);
+    migraphx::fs::remove(log_path);
 
     auto file_id = migraphx::log::add_file_logger(log_path.c_str(), migraphx::log::severity::info);
 
@@ -828,7 +828,7 @@ TEST_CASE(logger_concurrent_file_sink)
     // Verify per-thread ordering
     verify_per_thread_ordering(messages, num_threads, messages_per_thread, true);
 
-    std::filesystem::remove(log_path);
+    migraphx::fs::remove(log_path);
 }
 
 TEST_CASE(logger_stress_test)

@@ -113,8 +113,7 @@ bool hipblaslt_supported(const std::string& device_name)
     return false;
 #else
     const auto gfx_name = get_gfx_name(device_name);
-    return (gfx_name == "gfx90a" or
-            (starts_with(gfx_name, "gfx94") and gfx_name >= "gfx942") or
+    return (gfx_name == "gfx90a" or (starts_with(gfx_name, "gfx94") and gfx_name >= "gfx942") or
             (starts_with(gfx_name, "gfx95") and gfx_name >= "gfx950") or
             starts_with(gfx_name, "gfx110") or starts_with(gfx_name, "gfx120"));
 #endif

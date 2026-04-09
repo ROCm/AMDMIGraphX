@@ -113,12 +113,12 @@ struct MIGRAPHX_EXPORT module
     }
     instruction_ref replace_instruction(instruction_ref ins,
                                         const operation& op,
-                                        std::vector<instruction_ref> args) MIGRAPHX_TIDY_CONST;
+                                        std::vector<instruction_ref> args);
 
     instruction_ref replace_instruction(instruction_ref ins,
                                         const operation& op,
                                         std::vector<instruction_ref> args,
-                                        std::vector<module_ref> module_args) MIGRAPHX_TIDY_CONST;
+                                        std::vector<module_ref> module_args);
 
     instruction_ref replace_instruction(instruction_ref ins, instruction_ref rep);
 
@@ -214,7 +214,7 @@ struct MIGRAPHX_EXPORT module
         std::vector<std::size_t> scalar_const_out_lens = {};
     };
 
-    /// Compute a new ouput shape by replacing each parameter with input
+    /// Compute a new output shape by replacing each parameter with input
     /// shapes passed in.
     std::vector<shape> compute_shapes(const std::vector<shape>& inputs,
                                       compute_shapes_options options) const;
@@ -325,6 +325,12 @@ struct MIGRAPHX_EXPORT module
     void annotate(std::ostream& os, std::function<void(instruction_ref)> a) const;
 
     std::vector<module_ref> get_sub_modules(bool shallow = false) const;
+
+    /* Creates a new module with the same instructions but with different input parameter shapes.
+     Returns the new module by value without modifying the original.
+    */
+    module with_static_shapes(const std::unordered_map<std::string, shape>& input_shapes);
+
     /* sorts the module in topological order aka reverse-post order (RPO) DFS order
        it takes last instruction or @return as the root and walks back the graph and moves inputs
        of the each instruction such that it appears before the instruction itself.

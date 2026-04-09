@@ -78,6 +78,7 @@ add_library(migraphx
     fp8_ocp_to_fnuz.cpp
     fuse_attention.cpp
     fuse_concat.cpp
+    fuse_horizontal.cpp
     fuse_pointwise.cpp
     fuse_pointwise_reduce.cpp
     fuse_reduce.cpp
@@ -120,6 +121,7 @@ add_library(migraphx
     register_target.cpp
     replace_allocate.cpp
     rewrite_reduce.cpp
+    rewrite_resize.cpp
     rewrite_dot.cpp
     simplify_qdq.cpp
     split_reduce.cpp
@@ -134,6 +136,7 @@ add_library(migraphx
     serialize.cpp
     shape.cpp
     shape_transform_descriptor.cpp
+    sym.cpp
     simplify_algebra.cpp
     simplify_dyn_ops.cpp
     simplify_reshapes.cpp
@@ -252,6 +255,7 @@ register_migraphx_ops(
     nearbyint
     neg
     nonmaxsuppression
+    dynamic_range
     nonzero
     onehot
     outline

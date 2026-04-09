@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,7 +30,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
 #include <migraphx/literal.hpp>
-#include <migraphx/shape_for_each.hpp>
+#include <migraphx/par_for.hpp>
 #include <migraphx/config.hpp>
 #include <cmath>
 #include <utility>
@@ -128,11 +128,12 @@ struct resize
     std::vector<size_t> sizes;
     // what integer rounding rule to use with Nearest mode.
     std::string nearest_mode{"floor"};
-    // Resizing modes.  1: nearest 2: bilinear/linear 3: cubic
-    // Only "nearest" currently supported.
+    // Resizing modes: "nearest", "linear", "cubic"
     std::string mode{"nearest"};
     // What floating-point conversion rule to use (any resizing mode)
     std::string coordinate_transformation_mode;
+    // Cubic interpolation coefficient (typically -0.5 or -0.75)
+    float cubic_coeff_a{-0.75f};
 
     std::string name() const { return "resize"; }
 
@@ -144,6 +145,60 @@ struct resize
         std::size_t i1; // upper index
         double weight;  // interpolation weight (0.0 to 1.0)
     };
+
+    // Cubic interpolation kernel function (Keys bicubic)
+    static double cubic_kernel(double s, double a)
+    {
+        double abs_s  = std::abs(s);
+        double abs_s2 = abs_s * abs_s;
+        double abs_s3 = abs_s2 * abs_s;
+        if(abs_s < 1.0)
+            return (a + 2.0) * abs_s3 - (a + 3.0) * abs_s2 + 1.0;
+        if(abs_s < 2.0)
+            return a * abs_s3 - 5.0 * a * abs_s2 + 8.0 * a * abs_s - 4.0 * a;
+        return 0.0;
+    }
+
+    // Cubic interpolation parameters for one dimension (4 neighbors)
+    struct cubic_params
+    {
+        std::array<std::size_t, 4> indices;
+        std::array<double, 4> weights;
+    };
+
+    // Compute cubic interpolation parameters for a single dimension
+    template <class IdxOp>
+    static cubic_params compute_cubic_params_1d(std::size_t in_len,
+                                                std::size_t out_len,
+                                                std::size_t out_idx,
+                                                float scale,
+                                                double cubic_a,
+                                                const IdxOp& idx_op)
+    {
+        cubic_params result{};
+
+        if(in_len == 0)
+        {
+            result.indices = {0, 0, 0, 0};
+            result.weights = {0.0, 0.0, 0.0, 0.0};
+            return result;
+        }
+
+        double coord = idx_op(in_len, out_len, out_idx, scale);
+        auto base    = std::floor(coord);
+
+        for(std::ptrdiff_t i = 0; i < 4; ++i)
+        {
+            std::ptrdiff_t pos = base - 1 + i;
+            double t           = coord - pos;
+            result.weights[i]  = cubic_kernel(t, cubic_a);
+            // Clamp to valid range
+            result.indices[i] =
+                std::max(std::ptrdiff_t{0}, std::min(pos, static_cast<std::ptrdiff_t>(in_len - 1)));
+        }
+
+        return result;
+    }
 
     // Compute interpolation parameters for a single dimension
     template <class IdxOp>
@@ -237,6 +292,53 @@ struct resize
         return acc;
     }
 
+    // Perform N-D cubic interpolation for a single output point
+    // Uses separable bicubic kernel with 4 neighbors per dimension
+    template <class Data, class IdxOp>
+    static double compute_cubic_interp_point(const Data& data,
+                                             const std::vector<std::size_t>& in_lens,
+                                             const std::vector<std::size_t>& out_lens,
+                                             const std::vector<std::size_t>& out_idx_v,
+                                             const std::vector<float>& vec_scale,
+                                             double cubic_a,
+                                             const IdxOp& idx_op)
+    {
+        const std::size_t ndim = out_idx_v.size();
+
+        // Precompute cubic interpolation parameters for each dimension
+        std::vector<cubic_params> params(ndim);
+        for(std::size_t d = 0; d < ndim; d++)
+        {
+            params[d] = compute_cubic_params_1d(
+                in_lens[d], out_lens[d], out_idx_v[d], vec_scale[d], cubic_a, idx_op);
+        }
+
+        // Accumulate over 4^ndim neighbors (4 per dimension for cubic)
+        double acc = 0.0;
+        shape combo_shape{shape::uint32_type, std::vector<std::size_t>(ndim, 4)};
+        std::vector<std::size_t> in_idx(ndim);
+
+        for(std::size_t combo = 0; combo < combo_shape.elements(); ++combo)
+        {
+            double w         = 1.0;
+            auto combo_multi = combo_shape.multi(combo);
+            for(std::size_t d = 0; d < ndim; ++d)
+            {
+                std::size_t neighbor_idx = combo_multi[d];
+                w *= params[d].weights[neighbor_idx];
+                in_idx[d] = params[d].indices[neighbor_idx];
+            }
+
+            if(std::abs(w) < 1e-10)
+                continue;
+
+            auto v = data(in_idx.begin(), in_idx.end());
+            acc += w * v;
+        }
+
+        return acc;
+    }
+
     public:
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -245,16 +347,17 @@ struct resize
                     f(self.sizes, "sizes"),
                     f(self.nearest_mode, "nearest_mode"),
                     f(self.mode, "mode"),
-                    f(self.coordinate_transformation_mode, "coordinate_transformation_mode"));
+                    f(self.coordinate_transformation_mode, "coordinate_transformation_mode"),
+                    f(self.cubic_coeff_a, "cubic_coeff_a"));
     }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1, 2);
 
-        // Allow nearest and linear; still reject others
-        if(mode != "nearest" and mode != "linear")
-            MIGRAPHX_THROW("RESIZE: Only 'nearest' and 'linear' modes are supported");
+        // Allow nearest, linear, and cubic modes
+        if(mode != "nearest" and mode != "linear" and mode != "cubic")
+            MIGRAPHX_THROW("RESIZE: Only 'nearest', 'linear', and 'cubic' modes are supported");
 
         // Inputs are X, sizes or scale, ROI and axes not supported.
         if(inputs.size() == 1)
@@ -287,7 +390,7 @@ struct resize
                                [](auto scale_i, size_t in_len) {
                                    return static_cast<size_t>(scale_i * in_len);
                                });
-                return shape{input_s.type(), lens};
+                return input_s.with_lens(lens);
             }
         }
         else
@@ -325,46 +428,33 @@ struct resize
         }
     }
 
-    argument compute(const migraphx::shape&, std::vector<argument> args) const
+    argument compute(shape output_shape, std::vector<argument> args) const
     {
         auto in_lens = args[0].get_shape().lens();
-        std::vector<size_t> out_lens(in_lens.size());
 
         // Scales are either given, or calculated from output shape
-        std::vector<float> vec_scale(in_lens.size(), 1.0f);
+        std::vector<float> vec_scale = this->scales;
 
         if(args.size() == 1)
         {
             // single input argument; sizes or scales is constant.
             // In practice, the input is never a dynamic shape.
-            if(not sizes.empty())
+            if(scales.empty())
             {
-                out_lens = sizes;
-                // compute scales
-                std::transform(out_lens.begin(),
-                               out_lens.end(),
+                std::transform(output_shape.lens().begin(),
+                               output_shape.lens().end(),
                                in_lens.begin(),
-                               vec_scale.begin(),
-                               [](size_t out_len, size_t in_len) {
-                                   return (in_len == 0 ? 1.0f
-                                                       : static_cast<float>(out_len) / in_len);
-                               });
-            }
-            else
-            {
-                vec_scale = this->scales;
-                // compute output sizes
-                std::transform(in_lens.begin(),
-                               in_lens.end(),
-                               scales.begin(),
-                               out_lens.begin(),
-                               [](size_t in_len, auto scale_i) {
-                                   return static_cast<size_t>(scale_i * in_len);
+                               std::back_inserter(vec_scale),
+                               [](float out_len, size_t in_len) {
+                                   return (in_len == 0 ? 1.0f : out_len / in_len);
                                });
             }
         }
         else
         {
+            std::vector<size_t> out_lens(in_lens.size());
+            // TODO: Throw exception in compute_shape if scales are set
+            vec_scale.clear();
             // 2 inputs; 2nd input is either sizes or scales.
             // First input may be dynamic.
             args[1].visit([&](auto input) {
@@ -374,17 +464,16 @@ struct resize
                     // Copy the output size from args[1].
                     std::copy(input.begin(), input.end(), out_lens.begin());
                     // Deduce the scales for each axis
-                    std::transform(
-                        input.begin(),
-                        input.end(),
-                        in_lens.begin(),
-                        vec_scale.begin(),
-                        [](auto sz, size_t in_len) { return static_cast<float>(sz) / in_len; });
+                    std::transform(input.begin(),
+                                   input.end(),
+                                   in_lens.begin(),
+                                   std::back_inserter(vec_scale),
+                                   [](float sz, size_t in_len) { return sz / in_len; });
                 }
                 else
                 {
                     // read the scale from args[1]
-                    std::copy(input.begin(), input.end(), vec_scale.begin());
+                    std::copy(input.begin(), input.end(), std::back_inserter(vec_scale));
                     // compute the output dimensions from the given scales.  This computation
                     // always rounds down, unlike the internal computation in Nearest mode
                     // which has several options as given in nearest_mode.
@@ -392,14 +481,14 @@ struct resize
                                    input.end(),
                                    in_lens.begin(),
                                    out_lens.begin(),
-                                   [](auto scale_i, size_t in_len) {
-                                       return static_cast<size_t>(scale_i * in_len);
+                                   [](auto scale_i, size_t in_len) -> std::size_t {
+                                       return scale_i * in_len;
                                    });
                 }
             });
+            output_shape = {args[0].get_shape().type(), out_lens};
         }
 
-        shape output_shape = {args[0].get_shape().type(), out_lens};
         argument result{output_shape};
 
         auto idx_op = get_original_idx_op(coordinate_transformation_mode);
@@ -409,10 +498,13 @@ struct resize
             auto nearest_op = get_nearest_op(nearest_mode);
             // Populate each element in output by selecting "nearest" item in input.
             visit_all(result, args[0])([&](auto output, auto data) {
-                migraphx::shape out_comp_shape{data.get_shape().type(), out_lens};
-                shape_for_each(out_comp_shape, [&](const auto& out_idx_v, size_t out_idx) {
-                    auto in_idx = compute_nearest_indices(
-                        in_lens, out_lens, out_idx_v, vec_scale, nearest_op, idx_op);
+                par_for(output_shape.elements(), [&](auto out_idx) {
+                    auto in_idx     = compute_nearest_indices(in_lens,
+                                                          output_shape.lens(),
+                                                          output_shape.multi(out_idx),
+                                                          vec_scale,
+                                                          nearest_op,
+                                                          idx_op);
                     output[out_idx] = data(in_idx.begin(), in_idx.end());
                 });
             });
@@ -421,13 +513,32 @@ struct resize
         {
             // N-D multilinear interpolation
             visit_all(result, args[0])([&](auto output, auto data) {
-                migraphx::shape out_comp_shape{data.get_shape().type(), out_lens};
-                shape_for_each(out_comp_shape, [&](const auto& out_idx_v, std::size_t out_idx) {
-                    double acc = compute_linear_interp_point(
-                        data, in_lens, out_lens, out_idx_v, vec_scale, idx_op);
+                par_for(output_shape.elements(), [&](auto out_idx) {
+                    double acc = compute_linear_interp_point(data,
+                                                             in_lens,
+                                                             output_shape.lens(),
+                                                             output_shape.multi(out_idx),
+                                                             vec_scale,
+                                                             idx_op);
 
-                    using out_value_t = typename decltype(output)::value_type;
-                    output[out_idx]   = static_cast<out_value_t>(acc);
+                    output[out_idx] = acc;
+                });
+            });
+        }
+        else if(mode == "cubic")
+        {
+            // N-D cubic interpolation
+            visit_all(result, args[0])([&](auto output, auto data) {
+                par_for(output_shape.elements(), [&](auto out_idx) {
+                    double acc = compute_cubic_interp_point(data,
+                                                            in_lens,
+                                                            output_shape.lens(),
+                                                            output_shape.multi(out_idx),
+                                                            vec_scale,
+                                                            cubic_coeff_a,
+                                                            idx_op);
+
+                    output[out_idx] = acc;
                 });
             });
         }

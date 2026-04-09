@@ -164,7 +164,7 @@ struct hip_device
             if(external_stream_ == nullptr)
                 return;
             external_stream_ = nullptr;
-            auto internal     = get();
+            auto internal    = get();
 #if MIGRAPHX_USE_MIOPEN
             if(mihandle != nullptr)
                 miopenSetStream(mihandle.get(), internal);
@@ -401,8 +401,7 @@ struct context
         else
         {
             get_stream().record(finish_event.get());
-            auto status =
-                hipStreamWaitEvent(queue.get<hipStream_t>(), finish_event.get(), 0);
+            auto status = hipStreamWaitEvent(queue.get<hipStream_t>(), finish_event.get(), 0);
             if(status != hipSuccess)
                 MIGRAPHX_THROW("Failed to wait on event: " + hip_error(status));
         }

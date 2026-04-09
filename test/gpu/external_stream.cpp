@@ -124,8 +124,7 @@ TEST_CASE(test_external_stream_eval_uses_caller_stream)
 
     auto ext = create_external_stream();
 
-    auto results =
-        p.eval({{"x", ginput}, {"main:#output_0", goutput}}, {ext.get(), true});
+    auto results = p.eval({{"x", ginput}, {"main:#output_0", goutput}}, {ext.get(), true});
 
     EXPECT(not results.empty());
 
@@ -161,8 +160,7 @@ TEST_CASE(test_external_stream_serialized_on_caller_stream)
 
     auto ext = create_external_stream();
 
-    auto results =
-        p.eval({{"x", gx}, {"y", gy}, {"main:#output_0", gout}}, {ext.get(), true});
+    auto results = p.eval({{"x", gx}, {"y", gy}, {"main:#output_0", gout}}, {ext.get(), true});
 
     EXPECT(not results.empty());
 
@@ -258,7 +256,7 @@ TEST_CASE(test_external_stream_cleared_after_eval)
     auto ext = create_external_stream();
 
     migraphx::context& ctx_ref = p.get_context();
-    auto* gpu_ctx = ctx_ref.any_cast<migraphx::gpu::context>();
+    auto* gpu_ctx              = ctx_ref.any_cast<migraphx::gpu::context>();
     EXPECT(gpu_ctx != nullptr);
 
     hipStream_t internal_stream = gpu_ctx->get_queue().get<hipStream_t>();
@@ -315,8 +313,7 @@ TEST_CASE(test_fallback_event_path_produces_correct_results)
     auto gout = migraphx::gpu::to_gpu(out);
 
     hipStream_t null_stream = nullptr;
-    auto results =
-        p.eval({{"x", gx}, {"y", gy}, {"main:#output_0", gout}}, {null_stream, true});
+    auto results = p.eval({{"x", gx}, {"y", gy}, {"main:#output_0", gout}}, {null_stream, true});
 
     EXPECT(not results.empty());
 
@@ -362,7 +359,7 @@ TEST_CASE(test_non_async_eval_uses_internal_stream)
     auto gout = migraphx::gpu::to_gpu(out);
 
     migraphx::context& ctx_ref = p.get_context();
-    auto* gpu_ctx = ctx_ref.any_cast<migraphx::gpu::context>();
+    auto* gpu_ctx              = ctx_ref.any_cast<migraphx::gpu::context>();
     EXPECT(gpu_ctx != nullptr);
 
     auto results = p.eval({{"x", gx}, {"y", gy}, {"main:#output_0", gout}});
@@ -412,7 +409,7 @@ TEST_CASE(test_mixed_async_and_sync_evals)
     auto gout = migraphx::gpu::to_gpu(out);
 
     migraphx::context& ctx_ref = p.get_context();
-    auto* gpu_ctx = ctx_ref.any_cast<migraphx::gpu::context>();
+    auto* gpu_ctx              = ctx_ref.any_cast<migraphx::gpu::context>();
     EXPECT(gpu_ctx != nullptr);
 
     auto ext = create_external_stream();
@@ -422,7 +419,7 @@ TEST_CASE(test_mixed_async_and_sync_evals)
     EXPECT(not gpu_ctx->get_stream().has_external_stream());
     EXPECT(hipStreamSynchronize(ext.get()) == hipSuccess);
 
-    auto host_result = migraphx::gpu::from_gpu(gout);
+    auto host_result  = migraphx::gpu::from_gpu(gout);
     auto* result_data = reinterpret_cast<const float*>(host_result.data());
     for(unsigned int i = 0; i < n; ++i)
     {
@@ -435,7 +432,7 @@ TEST_CASE(test_mixed_async_and_sync_evals)
     EXPECT(not gpu_ctx->get_stream().has_external_stream());
     p.finish();
 
-    auto host_result2 = migraphx::gpu::from_gpu(gout2);
+    auto host_result2  = migraphx::gpu::from_gpu(gout2);
     auto* result_data2 = reinterpret_cast<const float*>(host_result2.data());
     for(unsigned int i = 0; i < n; ++i)
     {
@@ -448,7 +445,7 @@ TEST_CASE(test_mixed_async_and_sync_evals)
     EXPECT(not gpu_ctx->get_stream().has_external_stream());
     EXPECT(hipStreamSynchronize(ext.get()) == hipSuccess);
 
-    auto host_result3 = migraphx::gpu::from_gpu(gout3);
+    auto host_result3  = migraphx::gpu::from_gpu(gout3);
     auto* result_data3 = reinterpret_cast<const float*>(host_result3.data());
     for(unsigned int i = 0; i < n; ++i)
     {

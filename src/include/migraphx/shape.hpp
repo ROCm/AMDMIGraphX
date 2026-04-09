@@ -117,10 +117,11 @@ struct MIGRAPHX_EXPORT shape
             if(s.empty())
                 MIGRAPHX_THROW(
                     "dynamic_dimension: cannot construct from an empty symbolic expression");
-            min      = s.eval_min_uint();
-            max      = s.eval_max_uint();
-            optimals = s.eval_optimals();
-            sym_expr = std::move(s);
+            auto bounds = s.compute_bounds_uint();
+            min         = bounds.first;
+            max         = bounds.second;
+            optimals    = s.eval_optimals();
+            sym_expr    = std::move(s);
         }
 
         template <class Self, class F>

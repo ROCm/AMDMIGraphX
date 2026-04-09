@@ -59,6 +59,8 @@ struct MIGRAPHX_EXPORT expr
     value to_value() const;
     void from_value(const value& v);
     std::size_t eval_uint(const std::unordered_map<expr, std::size_t>& symbol_map) const;
+    std::pair<int64_t, int64_t> compute_bounds() const;
+    std::pair<std::size_t, std::size_t> compute_bounds_uint() const;
     int64_t eval_min() const;
     int64_t eval_max() const;
     std::size_t eval_min_uint() const;

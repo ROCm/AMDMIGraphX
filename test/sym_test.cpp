@@ -560,6 +560,32 @@ TEST_CASE(eval_min_max_stride_diff)
     EXPECT(diff.eval_max() == 120);
 }
 
+TEST_CASE(eval_min_max_division)
+{
+    auto n = var("n", 2, 10);
+    auto d = var("d", 1, 5);
+    auto e = n / d;
+    EXPECT(e.eval_min() == 0);
+    EXPECT(e.eval_max() == 10);
+}
+
+TEST_CASE(eval_min_max_div_literal_denom)
+{
+    auto n = var("n", 4, 16);
+    auto e = n / lit(4);
+    EXPECT(e.eval_min() == 1);
+    EXPECT(e.eval_max() == 4);
+}
+
+TEST_CASE(eval_min_max_subtraction_independent)
+{
+    auto a = var("a", 1, 10);
+    auto b = var("b", 1, 5);
+    auto e = a - b;
+    EXPECT(e.eval_min() == -4);
+    EXPECT(e.eval_max() == 9);
+}
+
 TEST_CASE(eval_min_max_empty_throws)
 {
     se empty;

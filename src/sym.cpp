@@ -619,14 +619,52 @@ static int64_t eval_direct(const expr_ptr& e, const binding_map& bindings)
     });
 }
 
-static int64_t eval_at_min(const expr_ptr& e)
+// Walk the expression tree and collect each unique symbol node and its data.
+static void collect_symbols(const expr_ptr& e,
+                            std::vector<std::pair<expr_ptr, symbol_data>>& result,
+                            std::set<std::string>& seen)
 {
-    return eval_impl(e, [](const expr_ptr&, const symbol_data& d) -> int64_t { return d.min; });
+    std::visit(overloaded{[](const integer_data&) {},
+                          [&](const symbol_data& d) {
+                              if(seen.insert(d.name).second)
+                                  result.push_back({e, d});
+                          },
+                          [&](const add_data& d) {
+                              for(const auto& [term, coeff] : d.terms)
+                                  collect_symbols(term, result, seen);
+                          },
+                          [&](const mul_data& d) {
+                              for(const auto& [base, exp] : d.factors)
+                                  collect_symbols(base, result, seen);
+                          },
+                          [&](const tdiv_data& d) {
+                              collect_symbols(d.numerator, result, seen);
+                              collect_symbols(d.denominator, result, seen);
+                          }},
+               e->data);
 }
 
-static int64_t eval_at_max(const expr_ptr& e)
+// Recursively enumerate all 2^k combinations of symbol {min, max} values,
+// evaluating the expression at each and tracking the global min and max.
+static void eval_bounds_impl(const expr_ptr& node,
+                             const std::vector<std::pair<expr_ptr, symbol_data>>& syms,
+                             std::size_t idx,
+                             binding_map& bindings,
+                             int64_t& lo,
+                             int64_t& hi)
 {
-    return eval_impl(e, [](const expr_ptr&, const symbol_data& d) -> int64_t { return d.max; });
+    if(idx == syms.size())
+    {
+        auto v = eval_direct(node, bindings);
+        lo     = std::min(lo, v);
+        hi     = std::max(hi, v);
+        return;
+    }
+    const auto& [sym_node, sd] = syms[idx];
+    bindings[sym_node]         = sd.min;
+    eval_bounds_impl(node, syms, idx + 1, bindings, lo, hi);
+    bindings[sym_node] = sd.max;
+    eval_bounds_impl(node, syms, idx + 1, bindings, lo, hi);
 }
 
 // ===================================================================
@@ -742,8 +780,6 @@ static std::string to_string(const binding_map& bindings)
     os << "}";
     return os.str();
 }
-
-
 
 // Section 8: Recursive descent parser
 // ===================================================================
@@ -911,87 +947,81 @@ std::size_t expr::eval_uint(const std::unordered_map<expr, std::size_t>& symbol_
     return v;
 }
 
-int64_t expr::eval_min() const
+// Compute both the minimum and maximum value of an expression by
+// evaluating at all 2^k vertices of the symbol bound ranges.
+//
+// Assumptions:
+// 1. Expressions are monotonic in each variable independently, so the
+//    global extrema always occur at vertices of the variable ranges.
+// 2. Expressions represent dimension sizes or strides: sums, products,
+//    and integer divisions of positive-valued symbols. Non-monotonic
+//    expressions (e.g. polynomials with interior extrema) are not
+//    expected.
+// 3. The number of unique symbols per expression is small (typically
+//    1-3), making the 2^k evaluation cost negligible.
+std::pair<int64_t, int64_t> expr::compute_bounds() const
 {
     if(empty())
-        MIGRAPHX_THROW("sym::expr::eval_min: empty expression");
-    return eval_at_min(p->node);
+        MIGRAPHX_THROW("sym::expr::compute_bounds: empty expression");
+    std::vector<std::pair<expr_ptr, symbol_data>> syms;
+    std::set<std::string> seen;
+    collect_symbols(p->node, syms, seen);
+    if(syms.empty())
+    {
+        auto v = eval_direct(p->node, {});
+        return {v, v};
+    }
+    int64_t lo = INT64_MAX;
+    int64_t hi = INT64_MIN;
+    binding_map bindings;
+    eval_bounds_impl(p->node, syms, 0, bindings, lo, hi);
+    return {lo, hi};
 }
 
-int64_t expr::eval_max() const
+std::pair<std::size_t, std::size_t> expr::compute_bounds_uint() const
 {
-    if(empty())
-        MIGRAPHX_THROW("sym::expr::eval_max: empty expression");
-    return eval_at_max(p->node);
+    auto [lo, hi] = compute_bounds();
+    if(lo < 0)
+        MIGRAPHX_THROW("sym::expr::compute_bounds_uint: lower bound is negative (" +
+                       std::to_string(lo) + ")");
+    if(hi < 0)
+        MIGRAPHX_THROW("sym::expr::compute_bounds_uint: upper bound is negative (" +
+                       std::to_string(hi) + ")");
+    return {static_cast<std::size_t>(lo), static_cast<std::size_t>(hi)};
 }
 
-std::size_t expr::eval_min_uint() const
-{
-    auto v = eval_min();
-    if(v < 0)
-        MIGRAPHX_THROW("sym::expr::eval_min_uint: result is negative (" + std::to_string(v) + ")");
-    return static_cast<std::size_t>(v);
-}
+int64_t expr::eval_min() const { return compute_bounds().first; }
 
-std::size_t expr::eval_max_uint() const
-{
-    auto v = eval_max();
-    if(v < 0)
-        MIGRAPHX_THROW("sym::expr::eval_max_uint: result is negative (" + std::to_string(v) + ")");
-    return static_cast<std::size_t>(v);
-}
+int64_t expr::eval_max() const { return compute_bounds().second; }
 
-// Walk the expression tree and collect each unique symbol's optimals.
-// Deduplicates by name so a symbol appearing multiple times in an
-// expression (e.g. n*n) only contributes one set of optimal values.
-static void collect_symbol_optimals(const expr_ptr& e,
-                                    std::vector<std::pair<expr_ptr, std::set<int64_t>>>& result,
-                                    std::set<std::string>& seen)
-{
-    std::visit(overloaded{[](const integer_data&) {},
-                          [&](const symbol_data& d) {
-                              if(seen.insert(d.name).second and not d.optimals.empty())
-                                  result.push_back({e, d.optimals});
-                          },
-                          [&](const add_data& d) {
-                              for(const auto& [term, coeff] : d.terms)
-                                  collect_symbol_optimals(term, result, seen);
-                          },
-                          [&](const mul_data& d) {
-                              for(const auto& [base, exp] : d.factors)
-                                  collect_symbol_optimals(base, result, seen);
-                          },
-                          [&](const tdiv_data& d) {
-                              collect_symbol_optimals(d.numerator, result, seen);
-                              collect_symbol_optimals(d.denominator, result, seen);
-                          }},
-               e->data);
-}
+std::size_t expr::eval_min_uint() const { return compute_bounds_uint().first; }
+
+std::size_t expr::eval_max_uint() const { return compute_bounds_uint().second; }
 
 // Recursively enumerate the Cartesian product of symbol optimals,
 // evaluating the expression at each combination without materializing
 // intermediate binding maps.
 static void eval_optimals_impl(const expr_ptr& node,
-                                const std::vector<std::pair<expr_ptr, std::set<int64_t>>>& sym_opts,
-                                std::size_t idx,
-                                binding_map& bindings,
-                                std::set<std::size_t>& result)
+                               const std::vector<std::pair<expr_ptr, symbol_data>>& syms,
+                               std::size_t idx,
+                               binding_map& bindings,
+                               std::set<std::size_t>& result)
 {
-    if(idx == sym_opts.size())
+    if(idx == syms.size())
     {
         auto v = eval_direct(node, bindings);
         if(v < 0)
             MIGRAPHX_THROW("sym::expr::eval_optimals: negative result (" + std::to_string(v) +
-                            ") for expr '" + print_expr(node) + "' with bindings " +
-                            to_string(bindings));
+                           ") for expr '" + print_expr(node) + "' with bindings " +
+                           to_string(bindings));
         result.insert(static_cast<std::size_t>(v));
         return;
     }
-    const auto& [sym_node, opts] = sym_opts[idx];
-    for(auto oval : opts)
+    const auto& [sym_node, sd] = syms[idx];
+    for(auto oval : sd.optimals)
     {
         bindings[sym_node] = oval;
-        eval_optimals_impl(node, sym_opts, idx + 1, bindings, result);
+        eval_optimals_impl(node, syms, idx + 1, bindings, result);
     }
 }
 
@@ -1007,15 +1037,17 @@ std::set<std::size_t> expr::eval_optimals() const
 {
     if(empty())
         return {};
-    std::vector<std::pair<expr_ptr, std::set<int64_t>>> sym_opts;
+    std::vector<std::pair<expr_ptr, symbol_data>> syms;
     std::set<std::string> seen;
-    collect_symbol_optimals(p->node, sym_opts, seen);
-    if(sym_opts.empty())
+    collect_symbols(p->node, syms, seen);
+    auto has_optimals = std::all_of(
+        syms.begin(), syms.end(), [](const auto& p) { return not p.second.optimals.empty(); });
+    if(syms.empty() or not has_optimals)
         return {};
 
     std::set<std::size_t> result;
     binding_map bindings;
-    eval_optimals_impl(p->node, sym_opts, 0, bindings, result);
+    eval_optimals_impl(p->node, syms, 0, bindings, result);
     return result;
 }
 
@@ -1104,11 +1136,7 @@ bool operator<(const expr& a, const expr& b)
         return false;
     if(a.empty() or b.empty())
         MIGRAPHX_THROW("sym::expr: cannot compare empty expression");
-    auto diff   = make_sub(b.p->node, a.p->node);
-    auto val_lo = eval_at_min(diff);
-    auto val_hi = eval_at_max(diff);
-    auto lo     = std::min(val_lo, val_hi);
-    auto hi     = std::max(val_lo, val_hi);
+    auto [lo, hi] = (b - a).compute_bounds();
     if(lo > 0)
         return true;
     if(hi <= 0)

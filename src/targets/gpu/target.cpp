@@ -96,21 +96,16 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_FULL_DYNAMIC)
 
 
 
-std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
+// Returns all passes that run before lowering, varying by compile mode.
+// BALANCED/MAX: full normalization, rewrite, and fusion pipeline.
+// EAGER: minimal normalization and fusion only.
+static std::vector<pass>
+get_gpu_independent_passes(context& ctx, const compile_options& options, bool is_eager)
 {
-    auto& ctx = any_cast<context>(gctx);
-    ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
-    ctx.load_problem_cache();
-    compile_modes compile_mode = convert_to_compile_mode(options.compile_mode);
-
-    if (compile_mode == compile_modes::MAX)
-        ctx.set_exhaustive_tune_flag(true);
-
-    if (compile_mode == compile_modes::MAX || compile_mode == compile_modes::BALANCED)
+    if(not is_eager)
     {
         // clang-format off
-        return
-        {
+        return {
                 enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), split_single_dyn_dim{}),
                 dead_code_elimination{},
                 simplify_dyn_ops{},
@@ -168,47 +163,13 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
                 dead_code_elimination{},
                 auto_contiguous{},
                 dead_code_elimination{},
-                lowering{&ctx, options.offload_copy},
-                eliminate_contiguous{"gpu::contiguous"},
-                dead_code_elimination{},
-                eliminate_concat{concat_gpu_optimization{}},
-                dead_code_elimination{},
-        #if MIGRAPHX_USE_MIOPEN
-                compile_miopen{&gctx},
-                dead_code_elimination{},
-        #endif
-                fuse_ops{&ctx, options.fast_math},
-                dead_code_elimination{},
-        #if MIGRAPHX_USE_HIPBLASLT
-                compile_hipblaslt{&gctx},
-                dead_code_elimination{},
-        #endif
-                replace_allocate{gpu_allocation_model{}, options.offload_copy},
-                dead_code_elimination{},
-                adjust_allocation{gpu_allocation_model{}},
-                dead_code_elimination{},
-                compile_ops{&ctx, options.exhaustive_tune, false},
-                dead_code_elimination{},
-                promote_literals{},
-                dead_code_elimination{},
-                write_literals{},
-                schedule{gpu::schedule_model{ctx.get_current_device().nstreams()}, not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{})},
-                memory_coloring{"hip::allocate"},
-                sync_device{},
-                preallocate_param{"scratch", gpu_allocation_model{}},
-                dead_code_elimination{},
-                eliminate_allocation{"hip::allocate"},
-                check_context<context>{},
-                normalize_ops{},
-                dead_code_elimination{},
-                eliminate_identity{}
         };
         // clang-format on
     }
     else
     {
-        return
-        {
+        // clang-format off
+        return {
                 normalize_ops{},
                 dead_code_elimination{},
                 prefuse_ops{},
@@ -226,42 +187,74 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
                 dead_code_elimination{},
                 fuse_concat{},
                 dead_code_elimination{},
-                lowering{&ctx, options.offload_copy},
-                eliminate_contiguous{"gpu::contiguous"},
-                dead_code_elimination{},
-                eliminate_concat{concat_gpu_optimization{}},
-                dead_code_elimination{},
-        #if MIGRAPHX_USE_MIOPEN
-                compile_miopen{&gctx},
-                dead_code_elimination{},
-        #endif
-                fuse_ops{&ctx, options.fast_math},
-                dead_code_elimination{},
-        #if MIGRAPHX_USE_HIPBLASLT
-                compile_hipblaslt{&gctx},
-                dead_code_elimination{},
-        #endif
-                replace_allocate{gpu_allocation_model{}, options.offload_copy},
-                dead_code_elimination{},
-                adjust_allocation{gpu_allocation_model{}},
-                dead_code_elimination{},
-                compile_ops{&ctx, options.exhaustive_tune, true},
-                dead_code_elimination{},
-                promote_literals{},
-                dead_code_elimination{},
-                write_literals{},
-                schedule{gpu::schedule_model{ctx.get_current_device().nstreams()}, not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{})},
-                memory_coloring{"hip::allocate"},
-                sync_device{},
-                preallocate_param{"scratch", gpu_allocation_model{}},
-                dead_code_elimination{},
-                eliminate_allocation{"hip::allocate"},
-                check_context<context>{},
-                normalize_ops{},
-                dead_code_elimination{},
-                eliminate_identity{}
         };
+        // clang-format on
     }
+}
+
+// Returns lowering and all subsequent passes. List is identical across all modes;
+// is_eager controls the fast-compile flag passed to compile_ops.
+static std::vector<pass>
+get_gpu_passes(context& ctx, const compile_options& options, bool is_eager)
+{
+    // clang-format off
+    return {
+            lowering{&ctx, options.offload_copy},
+            eliminate_contiguous{"gpu::contiguous"},
+            dead_code_elimination{},
+            adjust_allocation{gpu_allocation_model{.use_hip_allocate = false}},
+            dead_code_elimination{},
+            eliminate_concat{concat_gpu_optimization{}},
+            dead_code_elimination{},
+    #if MIGRAPHX_USE_MIOPEN
+            compile_miopen{&gctx},
+            dead_code_elimination{},
+    #endif
+            fuse_ops{&ctx, options.fast_math},
+            dead_code_elimination{},
+    #if MIGRAPHX_USE_HIPBLASLT
+            compile_hipblaslt{&gctx},
+            dead_code_elimination{},
+    #endif
+            replace_allocate{gpu_allocation_model{}, options.offload_copy},
+            dead_code_elimination{},
+            adjust_allocation{gpu_allocation_model{}},
+            dead_code_elimination{},
+            compile_ops{&ctx, options.exhaustive_tune, is_eager},
+            dead_code_elimination{},
+            promote_literals{},
+            dead_code_elimination{},
+            write_literals{},
+            schedule{gpu::schedule_model{ctx.get_current_device().nstreams()}, not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{})},
+            memory_coloring{"hip::allocate"},
+            sync_device{},
+            preallocate_param{"scratch", gpu_allocation_model{}},
+            dead_code_elimination{},
+            eliminate_allocation{"hip::allocate"},
+            check_context<context>{},
+            normalize_ops{},
+            dead_code_elimination{},
+            eliminate_identity{}
+    };
+    // clang-format on
+}
+
+std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
+{
+    auto& ctx = any_cast<context>(gctx);
+    ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
+    ctx.load_problem_cache();
+    compile_modes compile_mode = convert_to_compile_mode(options.compile_mode);
+
+    if(compile_mode == compile_modes::MAX)
+        ctx.set_exhaustive_tune_flag(true);
+
+    const bool is_eager = (compile_mode == compile_modes::EAGER);
+
+    auto passes = get_gpu_independent_passes(ctx, options, is_eager);
+    auto gpu_passes = get_gpu_passes(ctx, options, is_eager);
+    passes.insert(passes.end(), std::make_move_iterator(gpu_passes.begin()), std::make_move_iterator(gpu_passes.end()));
+    return passes;
 }
 
 std::string target::name() const { return "gpu"; }

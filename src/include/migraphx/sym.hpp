@@ -236,6 +236,8 @@ auto call(std::string name, Eval eval)
 
 std::string to_string(const expr& e);
 
+expr parse(const std::string& str);
+
 expr sin(expr e);
 expr cos(expr e);
 expr tan(expr e);

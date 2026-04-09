@@ -45,6 +45,7 @@ using migraphx::sym::sin;
 using migraphx::sym::sqrt;
 using migraphx::sym::tan;
 using migraphx::sym::to_string;
+using migraphx::sym::parse;
 using migraphx::sym::value;
 using migraphx::sym::var;
 
@@ -1659,6 +1660,198 @@ TEST_CASE(builtin_pvar_is_raw)
     // Expressions built from pvars are raw
     EXPECT((_1 * pvar(2)).is_raw());
     EXPECT(sqrt(_1).is_raw());
+}
+
+// ---- Parse tests ----
+
+TEST_CASE(parse_integer)
+{
+    auto e = parse("42");
+    EXPECT(e == lit(42));
+}
+
+TEST_CASE(parse_double)
+{
+    auto e = parse("3.14");
+    EXPECT(e == lit(3.14));
+}
+
+TEST_CASE(parse_variable)
+{
+    auto e = parse("x");
+    EXPECT(e == var("x"));
+}
+
+TEST_CASE(parse_add)
+{
+    auto e = parse("x + y");
+    EXPECT(e == var("x") + var("y"));
+}
+
+TEST_CASE(parse_sub)
+{
+    auto e = parse("x - y");
+    EXPECT(e == var("x") - var("y"));
+}
+
+TEST_CASE(parse_mul)
+{
+    auto e = parse("x * y");
+    EXPECT(e == var("x") * var("y"));
+}
+
+TEST_CASE(parse_div)
+{
+    auto e = parse("x / y");
+    EXPECT(e == var("x") / var("y"));
+}
+
+TEST_CASE(parse_precedence)
+{
+    auto e = parse("x + y * z");
+    EXPECT(e == var("x") + var("y") * var("z"));
+}
+
+TEST_CASE(parse_precedence_left)
+{
+    auto e = parse("x * y + z");
+    EXPECT(e == var("x") * var("y") + var("z"));
+}
+
+TEST_CASE(parse_parens)
+{
+    auto e = parse("(x + y) * z");
+    EXPECT(e == (var("x") + var("y")) * var("z"));
+}
+
+TEST_CASE(parse_nested_parens)
+{
+    auto e = parse("((x))");
+    EXPECT(e == var("x"));
+}
+
+TEST_CASE(parse_unary_neg)
+{
+    auto e = parse("-x");
+    EXPECT(e == -var("x"));
+}
+
+TEST_CASE(parse_neg_in_expr)
+{
+    auto e = parse("x + -y");
+    EXPECT(e == var("x") + (-var("y")));
+}
+
+TEST_CASE(parse_function_sin)
+{
+    auto e = parse("sin(x)");
+    EXPECT(e == sin(var("x")));
+}
+
+TEST_CASE(parse_function_cos)
+{
+    auto e = parse("cos(x)");
+    EXPECT(e == cos(var("x")));
+}
+
+TEST_CASE(parse_function_sqrt)
+{
+    auto e = parse("sqrt(x)");
+    EXPECT(e == sqrt(var("x")));
+}
+
+TEST_CASE(parse_function_exp)
+{
+    auto e = parse("exp(x)");
+    EXPECT(e == exp(var("x")));
+}
+
+TEST_CASE(parse_function_log)
+{
+    auto e = parse("log(x)");
+    EXPECT(e == log(var("x")));
+}
+
+TEST_CASE(parse_function_abs)
+{
+    auto e = parse("abs(x)");
+    EXPECT(e == abs(var("x")));
+}
+
+TEST_CASE(parse_function_floor)
+{
+    auto e = parse("floor(x)");
+    EXPECT(e == floor(var("x")));
+}
+
+TEST_CASE(parse_function_ceil)
+{
+    auto e = parse("ceil(x)");
+    EXPECT(e == ceil(var("x")));
+}
+
+TEST_CASE(parse_function_tan)
+{
+    auto e = parse("tan(x)");
+    EXPECT(e == tan(var("x")));
+}
+
+TEST_CASE(parse_function_pow)
+{
+    auto e = parse("pow(x, y)");
+    EXPECT(e == pow(var("x"), var("y")));
+}
+
+TEST_CASE(parse_function_min)
+{
+    auto e = parse("min(x, y)");
+    EXPECT(e == min(var("x"), var("y")));
+}
+
+TEST_CASE(parse_function_max)
+{
+    auto e = parse("max(x, y)");
+    EXPECT(e == max(var("x"), var("y")));
+}
+
+TEST_CASE(parse_nested_functions)
+{
+    auto e = parse("sqrt(x * x + y * y)");
+    EXPECT(e == sqrt(var("x") * var("x") + var("y") * var("y")));
+}
+
+TEST_CASE(parse_complex_expr)
+{
+    auto e = parse("sin(x) * cos(y) + 1");
+    EXPECT(e == sin(var("x")) * cos(var("y")) + lit(1));
+}
+
+TEST_CASE(parse_whitespace_handling)
+{
+    auto e = parse("  x  +  y  ");
+    EXPECT(e == var("x") + var("y"));
+}
+
+TEST_CASE(parse_no_whitespace)
+{
+    auto e = parse("x+y*z");
+    EXPECT(e == var("x") + var("y") * var("z"));
+}
+
+TEST_CASE(parse_literal_arithmetic)
+{
+    auto e = parse("2 + 3");
+    EXPECT(e == lit(5));
+}
+
+TEST_CASE(parse_roundtrip)
+{
+    auto x = var("x");
+    auto y = var("y");
+    auto original = sin(x) + cos(y) * lit(2);
+    auto str      = to_string(original);
+    auto parsed   = parse(str);
+    EXPECT(parsed == original);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

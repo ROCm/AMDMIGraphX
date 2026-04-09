@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/sym.hpp>
+#include <migraphx/simple_parser.hpp>
 #include <algorithm>
 #include <iterator>
 #include <numeric>
@@ -818,6 +819,163 @@ expr simplify_impl(const expr& e, const std::vector<rewrite_rule>& rules)
 } // namespace
 
 expr simplify(expr e, std::vector<rewrite_rule> rules) { return simplify_impl(e, rules); }
+
+namespace {
+
+using sym_parser = parser::simple_string_view_skip_parser;
+
+expr parse_expr(sym_parser& p);
+
+expr call_function(const std::string& name, std::vector<expr> args)
+{
+    if(args.size() == 1)
+    {
+        auto& a = args[0];
+        if(name == "sin")
+            return sin(std::move(a));
+        if(name == "cos")
+            return cos(std::move(a));
+        if(name == "tan")
+            return tan(std::move(a));
+        if(name == "exp")
+            return exp(std::move(a));
+        if(name == "log")
+            return log(std::move(a));
+        if(name == "sqrt")
+            return sqrt(std::move(a));
+        if(name == "abs")
+            return abs(std::move(a));
+        if(name == "floor")
+            return floor(std::move(a));
+        if(name == "ceil")
+            return ceil(std::move(a));
+    }
+    if(args.size() == 2)
+    {
+        if(name == "pow")
+            return pow(std::move(args[0]), std::move(args[1]));
+        if(name == "min")
+            return min(std::move(args[0]), std::move(args[1]));
+        if(name == "max")
+            return max(std::move(args[0]), std::move(args[1]));
+    }
+    MIGRAPHX_THROW("Unknown function: " + name);
+}
+
+expr parse_number(sym_parser& p)
+{
+    if(not std::isdigit(p.peek_char()) and p.peek_char() != '.')
+        return {};
+    auto token    = p.parse_while([](char c) { return std::isdigit(c) or c == '.'; });
+    bool is_float = token.find('.') != std::string_view::npos;
+    if(is_float)
+        return lit(std::stod(std::string(token)));
+    return lit(std::stoll(std::string(token)));
+}
+
+expr parse_func_or_var(sym_parser& p)
+{
+    char c = p.peek_char();
+    if(not std::isalpha(c) and c != '_')
+        return {};
+    auto name = p.parse_while([](char ch) { return std::isalnum(ch) or ch == '_'; });
+    std::string sname(name);
+    if(p.peek_char() != '(')
+        return var(sname);
+    p.advance(1);
+    std::vector<expr> args;
+    if(p.peek_char() != ')')
+    {
+        args.push_back(parse_expr(p));
+        while(p.match(std::string_view(",")))
+            args.push_back(parse_expr(p));
+    }
+    p.expect(std::string_view(")"));
+    return call_function(sname, std::move(args));
+}
+
+expr parse_paren_expr(sym_parser& p)
+{
+    if(p.peek_char() != '(')
+        return {};
+    p.advance(1);
+    auto e = parse_expr(p);
+    p.expect(std::string_view(")"));
+    return e;
+}
+
+expr parse_primary(sym_parser& p)
+{
+    return p.parse_first_of(
+        &parse_paren_expr,
+        &parse_func_or_var,
+        &parse_number,
+        [](sym_parser& q) -> expr { MIGRAPHX_THROW(q.error_message("expression")); });
+}
+
+expr parse_unary(sym_parser& p)
+{
+    if(p.peek_char() == '-')
+    {
+        p.advance(1);
+        return -parse_unary(p);
+    }
+    return parse_primary(p);
+}
+
+expr parse_mul_expr(sym_parser& p)
+{
+    auto left = parse_unary(p);
+    auto ops  = p.parse_repeat([](sym_parser& q) -> std::pair<char, expr> {
+        char c = q.peek_char();
+        if(c != '*' and c != '/')
+            return {};
+        q.advance(1);
+        return {c, parse_unary(q)};
+    });
+    for(auto& [op, rhs] : ops)
+    {
+        if(op == '*')
+            left = left * std::move(rhs);
+        else
+            left = left / std::move(rhs);
+    }
+    return left;
+}
+
+expr parse_expr(sym_parser& p)
+{
+    auto left = parse_mul_expr(p);
+    auto ops  = p.parse_repeat([](sym_parser& q) -> std::pair<char, expr> {
+        char c = q.peek_char();
+        if(c != '+' and c != '-')
+            return {};
+        q.advance(1);
+        return {c, parse_mul_expr(q)};
+    });
+    for(auto& [op, rhs] : ops)
+    {
+        if(op == '+')
+            left = left + std::move(rhs);
+        else
+            left = left - std::move(rhs);
+    }
+    return left;
+}
+
+} // namespace
+
+expr parse(const std::string& str)
+{
+    std::string_view sv(str);
+    sym_parser p{sv};
+    // skip leading whitespace
+    p.advance(0);
+    auto result = parse_expr(p);
+    if(not p.done())
+        MIGRAPHX_THROW(p.error_message("end of input"));
+    return result;
+}
 
 } // namespace sym
 } // namespace MIGRAPHX_INLINE_NS

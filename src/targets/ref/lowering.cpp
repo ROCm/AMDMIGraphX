@@ -226,24 +226,14 @@ struct ref_quant_gemm
             std::vector<float> a_dq(a_std_shape.elements());
             std::vector<float> b_dq(b_std_shape.elements());
 
-            // Nested visits because matrix and scale types may differ (e.g. int8 + float),
-            // so visit_all's same-type requirement cannot be used here.
-            args[0].visit([&](auto amat) {
-                args[2].visit([&](auto scale_a) {
-                    std::transform(
-                        amat.begin(), amat.end(), scale_a.begin(), a_dq.begin(), [](auto a, auto s) {
-                            return static_cast<float>(a) * s;
-                        });
-                });
+            get_all<float>(args[0], args[2])([&](auto amat, auto scale_a) {
+                std::transform(
+                    amat.begin(), amat.end(), scale_a.begin(), a_dq.begin(), std::multiplies<>{});
             });
 
-            args[1].visit([&](auto bmat) {
-                args[3].visit([&](auto scale_b) {
-                    std::transform(
-                        bmat.begin(), bmat.end(), scale_b.begin(), b_dq.begin(), [](auto b, auto s) {
-                            return static_cast<float>(b) * s;
-                        });
-                });
+            get_all<float>(args[1], args[3])([&](auto bmat, auto scale_b) {
+                std::transform(
+                    bmat.begin(), bmat.end(), scale_b.begin(), b_dq.begin(), std::multiplies<>{});
             });
 
             argument a_arg{a_std_shape, a_dq.data()};

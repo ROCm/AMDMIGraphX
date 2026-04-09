@@ -169,7 +169,7 @@ void gemm_eigen(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat)
     }
     else if constexpr(std::is_integral<U>{})
     {
-        gemm_eigen_with_copy<int32_t>(cmat, amat, bmat);
+        gemm_eigen_with_copy<int64_t>(cmat, amat, bmat);
     }
     else
     {

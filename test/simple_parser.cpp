@@ -24,8 +24,8 @@
 #include <migraphx/simple_parser.hpp>
 #include <test.hpp>
 
-using migraphx::parser::simple_string_view_skip_parser;
 using migraphx::parser::action;
+using migraphx::parser::simple_string_view_skip_parser;
 
 TEST_CASE(parser_peek_and_advance)
 {
@@ -147,7 +147,7 @@ TEST_CASE(parser_parse_repeat_empty)
 
 TEST_CASE(parser_action_pipe)
 {
-    auto parse_alpha = action([](auto& q) -> std::string {
+    auto parse_alpha  = action([](auto& q) -> std::string {
         if(not std::isalpha(q.peek_char()))
             return {};
         return std::string(q.parse_while([](char c) { return std::isalpha(c); }));
@@ -157,7 +157,7 @@ TEST_CASE(parser_action_pipe)
             return {};
         return std::string(q.parse_while([](char c) { return std::isdigit(c); }));
     });
-    auto parse_token = parse_alpha | parse_digits;
+    auto parse_token  = parse_alpha | parse_digits;
 
     std::string_view sv("123");
     simple_string_view_skip_parser p{sv};
@@ -172,7 +172,7 @@ TEST_CASE(parser_action_pipe)
 
 TEST_CASE(parser_action_star)
 {
-    auto parse_word = action([](auto& q) -> std::string {
+    auto parse_word  = action([](auto& q) -> std::string {
         if(not std::isalpha(q.peek_char()))
             return {};
         return std::string(q.parse_while([](char c) { return std::isalpha(c); }));
@@ -190,7 +190,7 @@ TEST_CASE(parser_action_star)
 
 TEST_CASE(parser_action_star_pipe)
 {
-    auto parse_ident = action([](auto& q) -> std::string {
+    auto parse_ident  = action([](auto& q) -> std::string {
         if(not std::isalpha(q.peek_char()))
             return {};
         return std::string(q.parse_while([](char c) { return std::isalnum(c); }));

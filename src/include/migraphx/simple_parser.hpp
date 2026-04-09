@@ -12,7 +12,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace parser {
 
-template<class Iterator, bool AutoSkipWhitespace = true, class View = iterator_range<Iterator>>
+template <class Iterator, bool AutoSkipWhitespace = true, class View = iterator_range<Iterator>>
 struct simple_parser
 {
     View buffer;
@@ -47,8 +47,7 @@ struct simple_parser
             MIGRAPHX_THROW("Parser advanced past end of buffer");
         if constexpr(AutoSkipWhitespace)
         {
-            pos = std::find_if(
-                pos, buffer.end(), [](auto c) { return !std::isspace(c); });
+            pos = std::find_if(pos, buffer.end(), [](auto c) { return !std::isspace(c); });
         }
     }
 
@@ -98,8 +97,8 @@ struct simple_parser
     std::string error_message(std::string_view expected) const
     {
         auto offset = std::distance(buffer.begin(), pos);
-        return "Expected " + std::string(expected) + " at position " +
-               std::to_string(offset) + " in '" + std::string(buffer) + "'";
+        return "Expected " + std::string(expected) + " at position " + std::to_string(offset) +
+               " in '" + std::string(buffer) + "'";
     }
 
     template <class F>
@@ -181,7 +180,8 @@ auto operator*(parser_action<F> a)
     return action([a = std::move(a)](auto& p) { return p.parse_repeat(a); });
 }
 
-using simple_string_view_skip_parser = simple_parser<std::string_view::const_iterator, true, std::string_view>;
+using simple_string_view_skip_parser =
+    simple_parser<std::string_view::const_iterator, true, std::string_view>;
 
 } // namespace parser
 } // namespace MIGRAPHX_INLINE_NS

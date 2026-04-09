@@ -907,10 +907,9 @@ expr parse_paren_expr(sym_parser& p)
 expr parse_primary(sym_parser& p)
 {
     return p.parse_first_of(
-        &parse_paren_expr,
-        &parse_func_or_var,
-        &parse_number,
-        [](sym_parser& q) -> expr { MIGRAPHX_THROW(q.error_message("expression")); });
+        &parse_paren_expr, &parse_func_or_var, &parse_number, [](sym_parser& q) -> expr {
+            MIGRAPHX_THROW(q.error_message("expression"));
+        });
 }
 
 expr parse_unary(sym_parser& p)

@@ -37,6 +37,7 @@ using migraphx::sym::lit;
 using migraphx::sym::log;
 using migraphx::sym::max;
 using migraphx::sym::min;
+using migraphx::sym::parse;
 using migraphx::sym::pow;
 using migraphx::sym::pvar;
 using migraphx::sym::rewrite_rule;
@@ -45,7 +46,6 @@ using migraphx::sym::sin;
 using migraphx::sym::sqrt;
 using migraphx::sym::tan;
 using migraphx::sym::to_string;
-using migraphx::sym::parse;
 using migraphx::sym::value;
 using migraphx::sym::var;
 
@@ -1846,8 +1846,8 @@ TEST_CASE(parse_literal_arithmetic)
 
 TEST_CASE(parse_roundtrip)
 {
-    auto x = var("x");
-    auto y = var("y");
+    auto x        = var("x");
+    auto y        = var("y");
     auto original = sin(x) + cos(y) * lit(2);
     auto str      = to_string(original);
     auto parsed   = parse(str);

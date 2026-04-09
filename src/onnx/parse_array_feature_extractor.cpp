@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -35,20 +35,22 @@ struct parse_array_feature_extractor : op_parser<parse_array_feature_extractor>
     std::vector<op_desc> operators() const { return {{"ArrayFeatureExtractor"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
-                            const onnx_parser& /*parser*/,
-                            const onnx_parser::node_info& info,
-                            std::vector<instruction_ref> args) const
+                          const onnx_parser& /*parser*/,
+                          const onnx_parser::node_info& info,
+                          std::vector<instruction_ref> args) const
     {
-        auto x = info.make_contiguous(args[0]);
-        auto y  = info.make_contiguous(args[1]);
+        auto x      = info.make_contiguous(args[0]);
+        auto y      = info.make_contiguous(args[1]);
         auto data_s = x->get_shape();
 
         auto ndim = data_s.ndim();
-        if(ndim == 0){
-            MIGRAPHX_THROW("PARSE_ARRAY_FEATURE_EXTRACTOR: input data must have at least 1 dimension");
+        if(ndim == 0)
+        {
+            MIGRAPHX_THROW(
+                "PARSE_ARRAY_FEATURE_EXTRACTOR: input data must have at least 1 dimension");
         }
         auto axis = ndim - 1;
-        auto op = make_op("gather", {{"axis", axis}});
+        auto op   = make_op("gather", {{"axis", axis}});
         return info.add_instruction(op, x, y);
     }
 };

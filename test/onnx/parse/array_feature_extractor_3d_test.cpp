@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,8 +28,8 @@ TEST_CASE(array_feature_extractor_3d_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto x = mm->add_parameter("X", migraphx::shape{migraphx::shape::float_type, {2, 3, 4}});
-    auto y = mm->add_parameter("Y", migraphx::shape{migraphx::shape::int64_type, {2}});
+    auto x   = mm->add_parameter("X", migraphx::shape{migraphx::shape::float_type, {2, 3, 4}});
+    auto y   = mm->add_parameter("Y", migraphx::shape{migraphx::shape::int64_type, {2}});
     mm->add_instruction(migraphx::make_op("gather", {{"axis", 2}}), x, y);
 
     auto prog = optimize_onnx("array_feature_extractor_3d_test.onnx");

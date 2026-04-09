@@ -98,6 +98,22 @@ MIGRAPHX_EXPORT void set_severity(severity level, size_t id = 0);
  */
 MIGRAPHX_EXPORT size_t add_file_logger(std::string_view filename, severity level = severity::info);
 
+/**
+ * @brief Enables or disables the log header (timestamp, severity, source location).
+ *
+ * @param show If true, show the header; if false, hide it
+ */
+MIGRAPHX_EXPORT void set_show_header(bool show);
+
+/**
+ * @brief Returns whether the log header is currently shown.
+ *
+ * @return true if the header is shown, false otherwise
+ */
+MIGRAPHX_EXPORT bool get_show_header();
+
+MIGRAPHX_EXPORT bool is_severity_explicit();
+
 template <severity Severity>
 struct print
 {

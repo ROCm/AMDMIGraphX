@@ -400,20 +400,15 @@ static expr_ptr build_mul(int64_t coefficient, factor_map factors)
 
 static expr_ptr make_mul(const expr_ptr& a, const expr_ptr& b)
 {
-    if(holds<integer_data>(a) and holds<add_data>(b))
+    if(holds<add_data>(b))
     {
-        int64_t n = get_integer(a);
-        if(n == 0)
-            return make_integer(0);
-        if(n == 1)
-            return b;
-        const auto& d = get_add(b);
-        term_map scaled;
+        const auto& d   = get_add(b);
+        expr_ptr result = make_mul(a, make_integer(d.constant));
         for(const auto& [term, coeff] : d.terms)
-            scaled[term] = coeff * n;
-        return build_add(d.constant * n, std::move(scaled));
+            result = make_add(result, make_mul(a, make_mul(make_integer(coeff), term)));
+        return result;
     }
-    if(holds<integer_data>(b) and holds<add_data>(a))
+    if(holds<add_data>(a))
         return make_mul(b, a);
 
     auto pa = extract_mul(a);
@@ -894,6 +889,20 @@ std::size_t expr::eval_uint(const std::unordered_map<expr, std::size_t>& symbol_
     if(v < 0)
         MIGRAPHX_THROW("sym::expr::eval_uint: expression evaluated to negative value");
     return v;
+}
+
+int64_t expr::eval_min() const
+{
+    if(empty())
+        MIGRAPHX_THROW("sym::expr::eval_min: empty expression");
+    return eval_at_min(p->node);
+}
+
+int64_t expr::eval_max() const
+{
+    if(empty())
+        MIGRAPHX_THROW("sym::expr::eval_max: empty expression");
+    return eval_at_max(p->node);
 }
 
 expr expr::subs(const std::unordered_map<expr, expr>& symbol_map) const

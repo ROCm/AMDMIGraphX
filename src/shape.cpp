@@ -94,6 +94,13 @@ struct shape_impl
         : m_type(t), m_dyn_dims(std::move(dims)), m_dyn_strides(std::move(dstrides))
     {
         assert(m_dyn_strides.size() == m_dyn_dims.size());
+        auto dim_exprs = sym_dim_exprs();
+        std::vector<sym::expr> filtered_strides;
+        for(std::size_t i = 0; i < m_dyn_strides.size(); i++)
+            if(not(m_dyn_dims[i].is_fixed() and m_dyn_dims[i].min == 1))
+                filtered_strides.push_back(m_dyn_strides[i]);
+        m_standard = compute_packed<sym::expr>(dim_exprs, m_dyn_strides) and
+                     is_sorted_strides(filtered_strides);
     }
 
     shape_impl(shape::type_t t,
@@ -314,6 +321,41 @@ struct shape_impl
         return std::accumulate(strides.begin(), strides.end(), zero) == zero;
     }
 
+    // Check if strides are in descending order, which is a
+    // requirement for a shape to be considered standard layout.
+    //
+    // For symbolic strides (sym::expr), std::is_sorted cannot be used directly
+    // because sym::expr::operator< performs interval-based comparison: it
+    // evaluates the difference at the min and max of all variables' ranges. When
+    // a symbolic dimension variable has min=1, it can take unit value, collapsing
+    // stride products and making the comparison undetermined or wrong.
+    //
+    // Example: strides {1, n, n*c} with n in [1,8], c in [1,16].
+    //   Comparing n vs n*c: diff = n*c - n = n*(c-1).
+    //   At all-min (n=1,c=1): diff=0.  At all-max (n=8,c=16): diff=120.
+    //   operator< sees range [0,120] -- neither strictly positive nor
+    //   non-positive -- and throws "undetermined". But the shape is clearly
+    //   transposed for all non-degenerate dimension values.
+    //
+    // To avoid these issues, symbolic strides are evaluated at their max variable
+    // values where no dimension is degenerate (unit), then sorted concretely.
+    template <class T>
+    static bool is_sorted_strides(const std::vector<T>& strides)
+    {
+        if constexpr(std::is_same_v<T, sym::expr>)
+        {
+            std::vector<std::size_t> concrete(strides.size());
+            std::transform(strides.begin(), strides.end(), concrete.begin(), [](const auto& s) {
+                return static_cast<std::size_t>(s.eval_max());
+            });
+            return std::is_sorted(concrete.rbegin(), concrete.rend());
+        }
+        else
+        {
+            return std::is_sorted(strides.rbegin(), strides.rend());
+        }
+    }
+
     template <class T>
     static bool compute_transposed(const std::vector<T>& strides)
     {
@@ -325,9 +367,9 @@ struct shape_impl
             std::copy_if(strides.begin(), strides.end(), std::back_inserter(s), [&](const auto& x) {
                 return x != zero;
             });
-            return not std::is_sorted(s.rbegin(), s.rend());
+            return not is_sorted_strides(s);
         }
-        return not std::is_sorted(strides.rbegin(), strides.rend());
+        return not is_sorted_strides(strides);
     }
 
     bool is_packed() const
@@ -444,6 +486,25 @@ bool shape::is_compatible(const shape& actual, const shape& expected)
         return true;
     if(actual.type() != expected.type())
         return false;
+    auto strides_compatible = [](const auto& dims,
+                                 const auto& actual_strides,
+                                 const auto& expected_strides,
+                                 auto is_unit_dim) {
+        return all_of(range(dims.size()), [&](auto i) {
+            if(is_unit_dim(dims[i]))
+                return true;
+            return actual_strides[i] == expected_strides[i];
+        });
+    };
+    if(actual.symbolic() and expected.symbolic())
+    {
+        if(actual.dyn_dims() != expected.dyn_dims())
+            return false;
+        return strides_compatible(actual.dyn_dims(),
+                                  actual.dyn_strides(),
+                                  expected.dyn_strides(),
+                                  [](const auto& d) { return d.is_fixed() and d.min == 1; });
+    }
     // Only the expected can be dynamic
     if(expected.dynamic())
         return actual.ndim() == expected.ndim();
@@ -451,16 +512,14 @@ bool shape::is_compatible(const shape& actual, const shape& expected)
         return false;
     if(actual.lens() != expected.lens())
         return false;
-    // Check strides from dimensions that are not 1
-    return all_of(range(actual.lens().size()), [&](auto i) {
-        if(actual.lens()[i] == 1)
-            return true;
-        return actual.strides()[i] == expected.strides()[i];
-    });
+    return strides_compatible(
+        actual.lens(), actual.strides(), expected.strides(), [](auto l) { return l == 1; });
 }
 
 bool shape::is_compatible_lens(const shape& actual, const shape& expected)
 {
+    if(actual.symbolic() and expected.symbolic())
+        return actual.dyn_dims() == expected.dyn_dims();
     if(actual.dynamic())
         return expected.dynamic() and actual.dyn_dims() == expected.dyn_dims();
     if(expected.dynamic())
@@ -731,18 +790,20 @@ bool shape::standard() const { return impl->m_standard; }
 
 shape shape::normalize_standard() const
 {
-    if(this->standard())
-        return {this->type(), this->lens()};
-    else
+    if(not this->standard())
         return *this;
+    if(this->symbolic())
+        return {this->type(), this->dyn_dims()};
+    return {this->type(), this->lens()};
 }
 
 shape shape::as_standard() const
 {
+    if(this->symbolic())
+        return {this->type(), this->dyn_dims()};
     if(not this->dynamic())
         return {this->type(), this->lens()};
-    else
-        return *this;
+    return *this;
 }
 
 shape shape::with_lens(type_t t, const std::vector<std::size_t>& l) const

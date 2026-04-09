@@ -529,6 +529,44 @@ TEST_CASE(eval_integer_expr)
     EXPECT(lit(100).eval_uint({}) == 100);
 }
 
+TEST_CASE(eval_min_single_var)
+{
+    auto n = var("n", 2, 16);
+    EXPECT(n.eval_min() == 2);
+    EXPECT(n.eval_max() == 16);
+}
+
+TEST_CASE(eval_min_max_literal)
+{
+    EXPECT(lit(42).eval_min() == 42);
+    EXPECT(lit(42).eval_max() == 42);
+}
+
+TEST_CASE(eval_min_max_compound)
+{
+    auto n = var("n", 1, 8);
+    auto c = var("c", 1, 16);
+    auto e = n * c * 4;
+    EXPECT(e.eval_min() == 4);
+    EXPECT(e.eval_max() == 512);
+}
+
+TEST_CASE(eval_min_max_stride_diff)
+{
+    auto n    = var("n", 1, 8);
+    auto c    = var("c", 1, 16);
+    auto diff = n * c - n;
+    EXPECT(diff.eval_min() == 0);
+    EXPECT(diff.eval_max() == 120);
+}
+
+TEST_CASE(eval_min_max_empty_throws)
+{
+    se empty;
+    EXPECT(test::throws([&] { empty.eval_min(); }));
+    EXPECT(test::throws([&] { empty.eval_max(); }));
+}
+
 TEST_CASE(eval_non_symbol_key_throws)
 {
     auto h = var("h");

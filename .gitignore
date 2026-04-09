@@ -20,6 +20,9 @@
 .vs
 /.vscode/*
 
+# Cursor 
+.cursor
+
 # Sublime Text settings
 *.sublime-workspace
 *.sublime-project

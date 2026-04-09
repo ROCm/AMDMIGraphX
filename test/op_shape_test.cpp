@@ -5276,11 +5276,11 @@ TEST_CASE(where_broadcast_input)
 
 TEST_CASE(where_dyn_input0)
 {
-    // dynamic shapes not the same
+    // dynamic x/y broadcast like multibroadcast: intersect non-1 differing axes
     migraphx::shape s1{migraphx::shape::float_type, {{2, 3}, {3, 3}}};
     migraphx::shape s2{migraphx::shape::float_type, {{2, 3}, {2, 3}}};
     migraphx::shape s3{migraphx::shape::bool_type, {2, 2}};
-    throws_shape(migraphx::make_op("where"), s3, s1, s2);
+    expect_shape(s1, migraphx::make_op("where"), s3, s1, s2);
 }
 
 TEST_CASE(where_dyn_input1)
@@ -5303,11 +5303,29 @@ TEST_CASE(where_dyn_input2)
 
 TEST_CASE(where_dyn_input3)
 {
-    // dynamic shapes, predicate shape is different
+    // predicate last dim is a wider range; broadcast narrows to x/y (intersection)
     migraphx::shape s1{migraphx::shape::float_type, {{2, 3}, {3, 3}}};
     migraphx::shape s2{migraphx::shape::float_type, {{2, 3}, {3, 3}}};
     migraphx::shape s3{migraphx::shape::bool_type, {{2, 3}, {3, 4}}};
-    throws_shape(migraphx::make_op("where"), s3, s1, s2);
+    expect_shape(s2, migraphx::make_op("where"), s3, s1, s2);
+}
+
+TEST_CASE(test_symbolic_where_shapes)
+{
+    using migraphx::sym::var;
+    auto n = var("n");
+    using dd = migraphx::shape::dynamic_dimension;
+    migraphx::shape sb{migraphx::shape::bool_type, {dd{1, 4, {}, n}, dd{2, 8}}};
+    migraphx::shape sx{migraphx::shape::float_type, {dd{1, 4, {}, n}, dd{2, 8}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{1, 4, {}, n}, dd{2, 8}}};
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto b   = mm->add_outline(sb);
+    auto x   = mm->add_outline(sx);
+    auto y   = mm->add_outline(sy);
+    mm->add_instruction(migraphx::make_op("where"), b, x, y);
+    EXPECT(p.get_output_shapes().back() == sx);
 }
 
 TEST_CASE(roialign_test)

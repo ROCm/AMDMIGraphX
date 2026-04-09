@@ -26,7 +26,9 @@
 
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
+#include <migraphx/common.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/dyn_output.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/par_for.hpp>
 
@@ -42,21 +44,31 @@ struct where
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes shape_checker{inputs, *this, true};
-        shape_checker.has(3);
-        if(auto s = inputs[0]; not s.dynamic() and s.elements() == 1)
-            check_shapes{std::next(inputs.begin()), inputs.end(), *this, true}.same_dims();
-        else
-            shape_checker.same_dims();
+        check_shapes{inputs, *this, true}.has(3);
+        const auto& scond = inputs[0];
+        const auto& s1    = inputs[1];
+        const auto& s2    = inputs[2];
 
-        auto s1 = inputs.at(1);
-        auto s2 = inputs.at(2);
-        if(s1.dynamic() or s2.dynamic())
+        const bool scalar_cond = not scond.dynamic() and scond.elements() == 1;
+        if(scalar_cond)
         {
-            if(s1 == s2)
-                return s1;
-            MIGRAPHX_THROW("WHERE: dynamic input shapes must be the same");
+            if(s1.dynamic() != s2.dynamic())
+                MIGRAPHX_THROW("WHERE: mixed static and dynamic shapes not supported");
+            if(s1.dynamic())
+                return {s1.type(), compute_broadcasted_dyn_dims(s1, s2)};
+            check_shapes{std::next(inputs.begin()), inputs.end(), *this, true}.same_dims();
         }
+        else if(scond.dynamic() or s1.dynamic() or s2.dynamic())
+        {
+            if(s1.dynamic() != s2.dynamic())
+                MIGRAPHX_THROW("WHERE: mixed static and dynamic shapes not supported");
+            const auto xy_dims = compute_broadcasted_dyn_dims(s1, s2);
+            const shape s_xy{s1.type(), xy_dims};
+            auto out_dims = compute_broadcasted_dyn_dims(scond.to_dynamic(), s_xy);
+            return {s1.type(), out_dims};
+        }
+        else
+            check_shapes{inputs, *this, true}.same_dims();
 
         // Compare two static shapes, returning a standard shape
         if(s1 == s2 and s1.packed())
@@ -77,18 +89,16 @@ struct where
         }
     }
 
-    argument compute(shape output_shape, std::vector<argument> args) const
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
         if(auto s = args[0].get_shape(); not s.dynamic() and s.elements() == 1)
             return args[args[0].at<bool>() ? 1 : 2].copy();
 
-        if(output_shape.dynamic())
-            output_shape = compute_shape(to_shapes(args));
-        argument result{output_shape};
+        argument result{dyn_out.computed_shape};
 
         visit_all(result, args[1], args[2])([&](auto output, const auto x, const auto y) {
             args[0].visit([&](const auto condition) {
-                par_for(output_shape.elements(),
+                par_for(dyn_out.computed_shape.elements(),
                         [&](auto i) { output[i] = condition[i] ? x[i] : y[i]; });
             });
         });

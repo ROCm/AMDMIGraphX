@@ -21,7 +21,9 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <algorithm>
 #include <migraphx/reduce_dims.hpp>
+#include <migraphx/permutation.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
@@ -76,17 +78,33 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         hip_compile_options options;
         options.inputs         = flatten(inputs);
         options.output         = inputs.back();
-        options.virtual_inputs = reduce_dims(normalize_permutation(options.inputs));
+        const bool any_dynamic = std::any_of(
+            options.inputs.begin(), options.inputs.end(), [](const shape& s) { return s.dynamic(); });
+        if(any_dynamic)
+            options.virtual_inputs = reduce_dims(options.inputs);
+        else
+            options.virtual_inputs = reduce_dims(normalize_permutation(options.inputs));
         options.emplace_param("-Wno-float-equal");
-        auto axis              = find_fast_axis(options.virtual_inputs);
-        auto vec               = vectorize::elements(ctx, axis, options.virtual_inputs);
-        options.kernel_name    = v.get("kernel", "kernel");
-        auto noutputs = options.inputs.size() - inputs.size() + 1;
-        auto t                 = tile::elements(options.virtual_inputs, noutputs);
-        // auto t = tile{};
+        const std::size_t axis =
+            any_dynamic ? (options.virtual_inputs.empty() or options.virtual_inputs.front().ndim() == 0
+                               ? 0
+                               : options.virtual_inputs.front().ndim() - 1)
+                        : find_fast_axis(options.virtual_inputs);
+        vectorize vec{};
+        if(not any_dynamic)
+            vec = vectorize::elements(ctx, axis, options.virtual_inputs);
+        else
+            vec = {1, axis};
+        options.kernel_name = v.get("kernel", "kernel");
+        auto noutputs       = options.inputs.size() - inputs.size() + 1;
+        tile t{};
+        if(not any_dynamic)
+            t = tile::elements(options.virtual_inputs, noutputs);
+        const std::size_t nspace = options.inputs.front().element_space();
         if(t.ntiles == 0)
             options.set_launch_params(
-                v, compute_global_for(ctx, options.inputs.front().elements() / vec.size, 256));
+                v,
+                compute_global_for(ctx, nspace / std::max<std::size_t>(vec.size, std::size_t{1}), 256));
         else
             options.set_launch_params(
                 v, compute_global_for(ctx, t.ntiles * t.block_size, 256), t.block_size);

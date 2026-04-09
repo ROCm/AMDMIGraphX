@@ -82,9 +82,9 @@ struct MIGRAPHX_EXPORT expr
 
     struct impl;
 
-    friend expr var(const std::string& name, int64_t min, int64_t max);
-    friend expr lit(int64_t n);
-    friend expr parse(const std::string& s);
+    MIGRAPHX_EXPORT friend expr var(const std::string& name);
+    MIGRAPHX_EXPORT friend expr lit(int64_t n);
+    MIGRAPHX_EXPORT friend expr parse(const std::string& s);
 
     private:
     expr(std::shared_ptr<const impl> pi);

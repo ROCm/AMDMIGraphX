@@ -57,6 +57,8 @@ add_version_resource(
     DESCRIPTION "MIGraphX Driver - Command-line Interface and Testing Tool"
 )
 
+rocm_add_version_resource(driver "AMD MIGraphX" "MIGraphX Driver - Command-line Interface and Testing Tool")
+
 if(MIGRAPHX_ENABLE_PYTHON)
     target_link_libraries(driver migraphx_py)
     target_compile_definitions(driver PRIVATE MIGRAPHX_ENABLE_PYTHON)

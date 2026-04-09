@@ -177,10 +177,8 @@ function(register_migraphx_ops)
     endforeach()
 endfunction()
 
-add_version_resource(
-    TARGET migraphx
-    DESCRIPTION "MIGraphX Core Library - AMD Graph Optimization Engine"
-)
+rocm_add_version_resource(migraphx "AMD MIGraphX" "MIGraphX Core Library - AMD Graph Optimization Engine")
+
 register_migraphx_ops(
     abs
     acosh

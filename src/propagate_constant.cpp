@@ -28,6 +28,7 @@
 #include <migraphx/functional.hpp>
 #include <migraphx/simple_par_for.hpp>
 #include <migraphx/env.hpp>
+#include <migraphx/logger.hpp>
 #include <thread>
 #include <unordered_set>
 
@@ -120,7 +121,7 @@ void propagate_constant::apply(module& m) const
         {
             if(enabled(MIGRAPHX_TRACE_PROPAGATE_CONSTANT{}))
             {
-                std::cout << "Constant replace: " << std::endl;
+                log::trace() << "Constant replace: ";
                 std::vector<instruction_ref> inss;
                 fix([&](auto self, auto ins) {
                     if(contains(inss, ins))

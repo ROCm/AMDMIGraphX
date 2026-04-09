@@ -79,7 +79,7 @@ RUN pip3 install https://repo.radeon.com/rocm/manylinux/rocm-rel-7.1.1/torch-2.8
                  https://repo.radeon.com/rocm/manylinux/rocm-rel-7.1.1/torchvision-0.24.0%2Brocm7.1.1.gitb919bd0c-cp312-cp312-linux_x86_64.whl\
                  https://repo.radeon.com/rocm/manylinux/rocm-rel-7.1.1/triton-3.4.0%2Brocm7.1.1.git0cace8d2-cp312-cp312-linux_x86_64.whl
 
-# add this for roctracer dependancies
+# add this for roctracer dependencies
 RUN pip3 install CppHeaderParser
 
 # Workaround broken rocm packages

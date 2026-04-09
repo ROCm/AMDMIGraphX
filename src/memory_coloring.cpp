@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,6 +31,7 @@
 #include <migraphx/algorithm.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/logger.hpp>
 #include <unordered_set>
 #include <unordered_map>
 #include <map>
@@ -180,7 +181,7 @@ struct allocation_segment
         std::size_t n = 1 + (ins->get_shape().bytes() - 1) / alignment;
         assert(n > 0);
         std::size_t start = 0;
-        // Insert at end if it cant fit at the begining
+        // Insert at end if it can't fit at the beginning
         if(segments.empty() or segments.begin()->first <= n)
         {
             auto it = find_gap(segments, n);
@@ -323,14 +324,14 @@ void memory_coloring::apply(module& m) const
     {
         for(auto&& pp : conflict_table)
         {
-            std::cout << "------- conflict -------" << std::endl;
+            log::debug() << "------- conflict -------";
             auto s1 = as.ins2segment.at(pp.first);
-            std::cout << s1.first << ", " << s1.second << ": ";
+            log::debug() << s1.first << ", " << s1.second << ": ";
             m.debug_print(pp.first);
             for(auto ins : pp.second)
             {
                 auto s2 = as.ins2segment.at(ins);
-                std::cout << s2.first << ", " << s2.second << ": ";
+                log::debug() << s2.first << ", " << s2.second << ": ";
                 m.debug_print(ins);
             }
         }

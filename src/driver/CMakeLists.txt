@@ -52,7 +52,7 @@ target_compile_definitions(driver PUBLIC MIGRAPHX_ORT_SHA1="${String_output}")
 
 target_link_libraries(driver migraphx_all_targets migraphx_onnx migraphx_tf)
 
-add_version_resource(
+rocm_add_version_resource(
     TARGET driver
     DESCRIPTION "MIGraphX Driver - Command-line Interface and Testing Tool"
 )

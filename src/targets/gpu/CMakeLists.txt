@@ -101,7 +101,7 @@ endif()
 
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
 rocm_set_soversion(migraphx_device ${MIGRAPHX_SO_VERSION})
-add_version_resource(
+rocm_add_version_resource(
     TARGET migraphx_device
     DESCRIPTION "MIGraphX Device Library - GPU Device Operations"
 )
@@ -254,7 +254,7 @@ if (MIGRAPHX_USE_MIOPEN)
         INCLUDES migraphx/gpu/context.hpp)
 endif()
 rocm_set_soversion(migraphx_gpu ${MIGRAPHX_SO_VERSION})
-add_version_resource(
+rocm_add_version_resource(
     TARGET migraphx_gpu
     DESCRIPTION "MIGraphX GPU Target - AMD GPU Acceleration"
 )

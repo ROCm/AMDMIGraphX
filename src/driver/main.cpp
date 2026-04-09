@@ -104,7 +104,6 @@ struct logger_options
 {
     std::string log_level;
     std::vector<std::string> log_files;
-    bool disable_log_header = false;
 
     void parse(migraphx::driver::argument_parser& ap)
     {
@@ -128,10 +127,6 @@ struct logger_options
            ap.help("Log to file(s) (--log-file file1.log file2.log ...)"),
            ap.append(),
            ap.nargs(2));
-        ap(disable_log_header,
-           {"--disable-log-header"},
-           ap.help("Disable log header (timestamp, severity, location)"),
-           ap.set_value(true));
         ap.post_action([this](auto&&) { this->apply(); });
     }
 
@@ -146,10 +141,6 @@ struct logger_options
         for(const auto& log_file : log_files)
         {
             migraphx::log::add_file_logger(log_file);
-        }
-        if(disable_log_header)
-        {
-            migraphx::log::set_show_header(false);
         }
     }
 
@@ -1100,12 +1091,6 @@ int main(int argc, const char* argv[], const char* envp[])
     std::vector<std::string> args(argv + 1, argv + argc);
     // Save original args for display purposes before they get modified
     const std::vector<std::string> original_args = args;
-
-    // Check for --disable-log-header early, before any logging
-    if(std::find(args.begin(), args.end(), "--disable-log-header") != args.end())
-    {
-        migraphx::log::set_show_header(false);
-    }
 
     migraphx::driver::argument_parser ap;
 

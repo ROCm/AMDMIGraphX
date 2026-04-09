@@ -36,13 +36,12 @@ struct parse_array_feature_extractor : op_parser<parse_array_feature_extractor>
 
     instruction_ref parse(const op_desc& /*opd*/,
                             const onnx_parser& /*parser*/,
-                            onnx_parser::node_info& info,
+                            const onnx_parser::node_info& info,
                             std::vector<instruction_ref> args) const
     {
         auto x = info.make_contiguous(args[0]);
         auto y  = info.make_contiguous(args[1]);
         auto data_s = x->get_shape();
-        auto ind_s  = y->get_shape();
 
         auto ndim = data_s.ndim();
         if(ndim == 0){

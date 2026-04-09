@@ -89,6 +89,8 @@ struct hip_device
 
         hipStream_t get()
         {
+            if(external_stream != nullptr)
+                return external_stream;
             if(not enabled(MIGRAPHX_ENABLE_NULL_STREAM{}))
             {
                 setup();
@@ -143,8 +145,33 @@ struct hip_device
         }
 #endif
 
+        void set_external_stream(hipStream_t ext_stream)
+        {
+            if(external_stream == ext_stream)
+                return;
+            external_stream = ext_stream;
+#if MIGRAPHX_USE_MIOPEN
+            if(mihandle != nullptr)
+                miopenSetStream(mihandle.get(), ext_stream);
+#endif
+#if MIGRAPHX_USE_ROCBLAS
+            if(rbhandle != nullptr)
+                rocblas_set_stream(rbhandle.get(), ext_stream);
+#endif
+        }
+
+        bool has_external_stream() const { return external_stream != nullptr; }
+
         void wait() const
         {
+            if(external_stream != nullptr)
+            {
+                setup();
+                auto status = hipStreamSynchronize(external_stream);
+                if(status != hipSuccess)
+                    MIGRAPHX_THROW("Failed to wait: " + hip_error(status));
+                return;
+            }
             if(s == nullptr)
                 return;
             setup();
@@ -172,6 +199,7 @@ struct hip_device
         private:
         std::size_t id           = 0;
         shared<hip_stream_ptr> s = nullptr;
+        hipStream_t external_stream = nullptr;
 #if MIGRAPHX_USE_MIOPEN
         shared<miopen_handle> mihandle = nullptr;
 #endif
@@ -333,17 +361,34 @@ struct context
 
     void wait_for(any_ptr queue)
     {
-        auto status = hipEventRecord(begin_event.get(), queue.get<hipStream_t>());
-        if(status != hipSuccess)
-            MIGRAPHX_THROW("Failed to record: " + hip_error(status));
-
-        get_stream().wait(begin_event.get());
+        if(get_stream().has_external_stream())
+            return;
+        if(queue.unsafe_get() == nullptr)
+            return;
+        auto* ext = queue.get<hipStream_t>();
+        if(ext == nullptr)
+        {
+            auto status = hipEventRecord(begin_event.get(), ext);
+            if(status != hipSuccess)
+                MIGRAPHX_THROW("Failed to record: " + hip_error(status));
+            get_stream().wait(begin_event.get());
+        }
+        else
+        {
+            get_stream().set_external_stream(ext);
+        }
     }
 
     void finish_on(any_ptr queue)
     {
+        if(get_stream().has_external_stream())
+        {
+            get_stream().set_external_stream(nullptr);
+            return;
+        }
+        if(queue.unsafe_get() == nullptr)
+            return;
         get_stream().record(finish_event.get());
-
         auto status = hipStreamWaitEvent(queue.get<hipStream_t>(), finish_event.get(), 0);
         if(status != hipSuccess)
             MIGRAPHX_THROW("Failed to wait on event: " + hip_error(status));

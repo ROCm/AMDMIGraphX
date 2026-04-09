@@ -106,8 +106,8 @@ struct topk
         visit_all(res_val, args.front())([&](auto output, auto input) {
             res_ind.visit([&](auto out_ind) {
                 using type = typename decltype(input)::value_type;
-                std::vector<std::pair<type, int64_t>> data(relements);
                 par_for(outer_shape.elements(), [&](auto i) {
+                    std::vector<std::pair<type, int64_t>> data(relements);
                     auto outer_idx = outer_shape.multi(i);
                     auto x         = input.slice_at({axis}, outer_idx);
                     auto y         = output.slice_at({axis}, outer_idx);

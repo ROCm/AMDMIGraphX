@@ -619,6 +619,8 @@ shape shape::from_permutation(type_t t,
                               const std::vector<dynamic_dimension>& dds,
                               const std::vector<int64_t>& perm)
 {
+    if(std::any_of(dds.begin(), dds.end(), [](const auto& dd) { return not dd.is_symbolic(); }))
+        MIGRAPHX_THROW("FROM_PERMUTATION: non-symbolic dynamic dimensions not supported");
     shape result = from_permutation_impl(t, dds, perm);
     assert(result.dyn_dims() == dds);
     return result;
@@ -834,6 +836,9 @@ shape shape::with_lens(const std::vector<std::size_t>& l) const
 
 shape shape::with_lens(type_t t, const std::vector<dynamic_dimension>& dds) const
 {
+    if(this->dynamic() and not this->symbolic())
+        MIGRAPHX_THROW("SHAPE: with_lens() called on non-symbolic dynamic shape");
+    assert(dds.size() == this->ndim());
     auto perm = find_permutation(*this);
     return shape::from_permutation(t, dds, perm);
 }

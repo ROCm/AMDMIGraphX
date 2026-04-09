@@ -1156,6 +1156,10 @@ expr var(const std::string& name, int64_t min, int64_t max, std::set<int64_t> op
 {
     if(name.empty())
         MIGRAPHX_THROW("sym::var: variable name must not be empty");
+    if(min > max)
+        MIGRAPHX_THROW("sym::var: variable interval must satisfy min <= max");
+    if(min < 1)
+        MIGRAPHX_THROW("sym::var: variable interval must satisfy min >= 1");
     return {std::make_shared<expr::impl>(make_symbol(name, min, max, std::move(optimals)))};
 }
 

@@ -60,6 +60,17 @@ TEST_CASE(construct_empty_var_name_throws)
     EXPECT(test::throws([&] { var(""); }));
 }
 
+TEST_CASE(construct_var_min_greater_than_max_throws)
+{
+    EXPECT(test::throws([&] { var("n", 10, 5); }));
+}
+
+TEST_CASE(construct_var_min_less_than_one_throws)
+{
+    EXPECT(test::throws([&] { var("n", 0, 5); }));
+    EXPECT(test::throws([&] { var("n", -1, 5); }));
+}
+
 TEST_CASE(add_identity)
 {
     auto h = var("h");

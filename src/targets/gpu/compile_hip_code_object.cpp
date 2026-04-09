@@ -116,6 +116,9 @@ static std::vector<std::string> get_compiler_warnings()
     if(hip_has_flags({"-Werror", "-Wnrvo"}))
         warnings.push_back("-Wno-nrvo");
 
+    if(hip_has_flags({"-Werror", "-Wlifetime-safety-intra-tu-suggestions"}))
+        warnings.push_back("-Wno-lifetime-safety-intra-tu-suggestions");
+
     return warnings;
 }
 
@@ -141,6 +144,30 @@ static bool hip_accept_non_uniform_wg()
 {
     static bool non_uniform_wg = hip_has_flags({"-fno-offload-uniform-block"});
     return non_uniform_wg;
+}
+
+static bool hip_workaround_broken_deduction_guide()
+{
+    static const char* const test = R"__migraphx__(
+template<class T>
+struct S
+{
+    T x;
+};
+
+template<class T>
+S(T) -> S<T>;
+
+__attribute__((device)) auto f()
+{
+    return S{1};
+}
+
+
+)__migraphx__";
+
+    static bool can_compile = hip_can_compile(test, {"-std=c++17"});
+    return not can_compile;
 }
 
 std::function<std::size_t(std::size_t local)>
@@ -187,6 +214,9 @@ compile_hip_raw(context& ctx, const std::string& content, hip_compile_options op
         options.emplace_param("-fno-offload-uniform-block");
     else
         assert(options.global % options.local == 0);
+    if(hip_workaround_broken_deduction_guide())
+        options.emplace_param("-DMIGRAPHX_WORKAROUND_BROKEN_DEDUCTION_GUIDE");
+
 
     options.emplace_param("-DMIGRAPHX_NGLOBAL=" + std::to_string(options.global));
     options.emplace_param("-DMIGRAPHX_NLOCAL=" + std::to_string(options.local));

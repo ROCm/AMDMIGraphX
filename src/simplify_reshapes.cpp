@@ -2122,6 +2122,20 @@ static void hoist_pointwise_above_slices(module& m)
                 if(entries.size() < 2)
                     continue;
 
+                // Skip hoisting when any terminal feeds into a dot —
+                // MLIR can fuse slice→pw→dot into a single kernel which
+                // is more profitable than hoisting the pointwise above
+                // the slices.
+                bool feeds_dot = std::any_of(
+                    entries.begin(), entries.end(), [](const slice_entry& e) {
+                        return std::any_of(
+                            e.terminal->outputs().begin(),
+                            e.terminal->outputs().end(),
+                            [](instruction_ref o) { return o->name() == "dot"; });
+                    });
+                if(feeds_dot)
+                    continue;
+
                 // Compute bounding range
                 int64_t lo = entries.front().start;
                 int64_t hi = entries.front().end;

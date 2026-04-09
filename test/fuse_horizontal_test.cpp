@@ -1063,4 +1063,96 @@ TEST_CASE(dot_horiz_fusion_partial_silu_split)
     EXPECT(m1 == m2);
 }
 
+// Dots whose activations come from slice→SiLU of the same source should NOT
+// be batched — MLIR can fuse slice→pw→dot into one kernel per dot.
+TEST_CASE(dot_horiz_no_fusion_upstream_slice_silu)
+{
+    migraphx::shape in_s{migraphx::shape::float_type, {1, 64, 384}};
+    migraphx::shape w_s{migraphx::shape::float_type, {128, 16}};
+    migraphx::module m1;
+    {
+        auto input = m1.add_parameter("input", in_s);
+        auto w0    = m1.add_parameter("w0", w_s);
+        auto w1    = m1.add_parameter("w1", w_s);
+        auto w2    = m1.add_parameter("w2", w_s);
+
+        auto s0 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {128}}}), input);
+        auto sig0 = m1.add_instruction(migraphx::make_op("sigmoid"), s0);
+        auto mul0 = m1.add_instruction(migraphx::make_op("mul"), s0, sig0);
+        auto d0   = m1.add_instruction(migraphx::make_op("dot"), mul0, w0);
+
+        auto s1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {128}}, {"ends", {256}}}), input);
+        auto sig1 = m1.add_instruction(migraphx::make_op("sigmoid"), s1);
+        auto mul1 = m1.add_instruction(migraphx::make_op("mul"), s1, sig1);
+        auto d1   = m1.add_instruction(migraphx::make_op("dot"), mul1, w1);
+
+        auto s2 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {256}}, {"ends", {384}}}), input);
+        auto sig2 = m1.add_instruction(migraphx::make_op("sigmoid"), s2);
+        auto mul2 = m1.add_instruction(migraphx::make_op("mul"), s2, sig2);
+        auto d2   = m1.add_instruction(migraphx::make_op("dot"), mul2, w2);
+
+        m1.add_return({d0, d1, d2});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+// Same pattern but with a bias add between SiLU and dot — still from same
+// source, so should NOT be batched.
+TEST_CASE(dot_horiz_no_fusion_upstream_slice_silu_bias)
+{
+    migraphx::shape in_s{migraphx::shape::float_type, {1, 64, 256}};
+    migraphx::shape w_s{migraphx::shape::float_type, {128, 16}};
+    migraphx::shape b_s{migraphx::shape::float_type, {16}};
+    migraphx::module m1;
+    {
+        auto input = m1.add_parameter("input", in_s);
+        auto w0    = m1.add_parameter("w0", w_s);
+        auto w1    = m1.add_parameter("w1", w_s);
+
+        auto s0 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {128}}}), input);
+        auto sig0 = m1.add_instruction(migraphx::make_op("sigmoid"), s0);
+        auto mul0 = m1.add_instruction(migraphx::make_op("mul"), s0, sig0);
+        auto d0   = m1.add_instruction(migraphx::make_op("dot"), mul0, w0);
+
+        auto s1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {128}}, {"ends", {256}}}), input);
+        auto sig1 = m1.add_instruction(migraphx::make_op("sigmoid"), s1);
+        auto mul1 = m1.add_instruction(migraphx::make_op("mul"), s1, sig1);
+        auto d1   = m1.add_instruction(migraphx::make_op("dot"), mul1, w1);
+
+        m1.add_return({d0, d1});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+// Dots from different sources should still be batched normally.
+TEST_CASE(dot_horiz_fusion_different_sources)
+{
+    migraphx::module m1;
+    {
+        auto x1 = m1.add_parameter("x1", {migraphx::shape::float_type, {4, 8}});
+        auto x2 = m1.add_parameter("x2", {migraphx::shape::float_type, {4, 8}});
+        auto w1 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {8, 4}}, 0));
+        auto w2 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {8, 4}}, 1));
+
+        auto d1 = m1.add_instruction(migraphx::make_op("dot"), x1, w1);
+        auto d2 = m1.add_instruction(migraphx::make_op("dot"), x2, w2);
+        m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                           std::vector<migraphx::instruction_ref>{d1, d2});
+    }
+    auto m_before = m1;
+    run_pass(m1);
+    EXPECT(not(m1 == m_before));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

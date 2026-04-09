@@ -5319,6 +5319,42 @@ TEST_CASE(hoist_silu_above_slices)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(no_hoist_silu_when_dot_consumer)
+{
+    migraphx::shape in_s{migraphx::shape::float_type, {1, 64, 384}};
+    migraphx::shape w_s{migraphx::shape::float_type, {128, 16}};
+    migraphx::module m1;
+    {
+        auto input = m1.add_parameter("input", in_s);
+        auto w0    = m1.add_parameter("w0", w_s);
+        auto w1    = m1.add_parameter("w1", w_s);
+        auto w2    = m1.add_parameter("w2", w_s);
+
+        auto s0 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {128}}}), input);
+        auto sig0 = m1.add_instruction(migraphx::make_op("sigmoid"), s0);
+        auto mul0 = m1.add_instruction(migraphx::make_op("mul"), s0, sig0);
+        auto d0   = m1.add_instruction(migraphx::make_op("dot"), mul0, w0);
+
+        auto s1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {128}}, {"ends", {256}}}), input);
+        auto sig1 = m1.add_instruction(migraphx::make_op("sigmoid"), s1);
+        auto mul1 = m1.add_instruction(migraphx::make_op("mul"), s1, sig1);
+        auto d1   = m1.add_instruction(migraphx::make_op("dot"), mul1, w1);
+
+        auto s2 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {256}}, {"ends", {384}}}), input);
+        auto sig2 = m1.add_instruction(migraphx::make_op("sigmoid"), s2);
+        auto mul2 = m1.add_instruction(migraphx::make_op("mul"), s2, sig2);
+        auto d2   = m1.add_instruction(migraphx::make_op("dot"), mul2, w2);
+
+        m1.add_return({d0, d1, d2});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(hoist_above_slices_partial_range)
 {
     migraphx::shape s{migraphx::shape::float_type, {1, 64, 512}};

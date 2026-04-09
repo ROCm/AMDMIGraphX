@@ -283,6 +283,26 @@ struct gather_horizontal_fusion
 // plus CSE to reconstruct the batched computation.
 // ---------------------------------------------------------------------------
 
+// Trace backward from an instruction through pointwise ops to find a
+// slice.  Returns the slice instruction if found within a bounded
+// depth, or instruction_ref{} otherwise.
+static instruction_ref find_upstream_slice(instruction_ref ins, int depth = 4)
+{
+    if(ins->name() == "slice")
+        return ins;
+    if(depth <= 0)
+        return {};
+    if(not ins->get_operator().attributes().contains("pointwise"))
+        return {};
+    for(auto inp : ins->inputs())
+    {
+        auto result = find_upstream_slice(inp, depth - 1);
+        if(result != instruction_ref{})
+            return result;
+    }
+    return {};
+}
+
 struct dot_horizontal_fusion
 {
     std::size_t min_group_size() const { return 2; }
@@ -434,6 +454,35 @@ struct dot_horizontal_fusion
     std::vector<instruction_ref>
     fuse(module& m, const std::vector<instruction_ref>& dots, instruction_ref insert_pt) const
     {
+        // Skip batching when every dot's activation traces back through
+        // pointwise ops to a slice of the same source tensor.  MLIR can
+        // fuse slice→pw→dot→post-ops into one kernel per dot, which is
+        // more profitable than a batched GEMM with separate pre/post
+        // kernels.
+        {
+            instruction_ref common_source{};
+            bool all_share = true;
+            for(const auto& d : dots)
+            {
+                auto s = find_upstream_slice(d->inputs().at(0));
+                if(s == instruction_ref{})
+                {
+                    all_share = false;
+                    break;
+                }
+                auto src = s->inputs().at(0);
+                if(common_source == instruction_ref{})
+                    common_source = src;
+                else if(src != common_source)
+                {
+                    all_share = false;
+                    break;
+                }
+            }
+            if(all_share and common_source != instruction_ref{})
+                return {};
+        }
+
         auto num = dots.size();
 
         // Detect bias absorption before inserting anything — we may need to

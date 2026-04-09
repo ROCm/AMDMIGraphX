@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,7 @@
 #include <migraphx/load_save.hpp>
 #include "test.hpp"
 #include <migraphx/make_op.hpp>
+#include <migraphx/sym.hpp>
 
 #include <cstdio>
 
@@ -136,6 +137,26 @@ TEST_CASE(program_with_module)
     migraphx::program p2;
     p2.from_value(v);
     EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(symbolic_shape_msgpack_roundtrip)
+{
+    using migraphx::shape;
+    using dd = shape::dynamic_dimension;
+    auto n   = migraphx::sym::var("n");
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    shape s{shape::float_type, {dd{1, 8, {}, n}, {3, 3}, {4, 4}}};
+    auto x = mm->add_parameter("x", s);
+    auto r = mm->add_instruction(migraphx::make_op("relu"), x);
+    mm->add_return({r});
+
+    migraphx::file_options options;
+    options.format           = "msgpack";
+    std::vector<char> buffer = migraphx::save_buffer(p, options);
+    migraphx::program p2     = migraphx::load_buffer(buffer, options);
+    EXPECT(p.sort() == p2.sort());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

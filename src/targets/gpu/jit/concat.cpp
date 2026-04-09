@@ -67,6 +67,8 @@ struct concat_compiler : compiler<concat_compiler>
 
     static std::vector<shape> normalize(std::vector<shape> inputs, std::size_t& axis)
     {
+        if(std::any_of(inputs.begin(), inputs.end(), [](const shape& x) { return x.dynamic(); }))
+            return inputs;
         auto s = inputs.back();
         std::vector<std::size_t> strides(s.lens().size());
         strides[axis] = 1;
@@ -89,13 +91,19 @@ struct concat_compiler : compiler<concat_compiler>
         auto concat_axis       = v.at("axis").to<std::size_t>();
         options.virtual_inputs = normalize(inputs, concat_axis);
         options.kernel_name = v.get("kernel", "concat_kernel");
-        auto axis              = find_fast_axis(options.virtual_inputs);
+        const bool any_dynamic =
+            std::any_of(options.virtual_inputs.begin(),
+                        options.virtual_inputs.end(),
+                        [](const shape& x) { return x.dynamic(); });
+        auto axis = any_dynamic ? concat_axis : find_fast_axis(options.virtual_inputs);
         auto op_names       = v.at("ops").to_vector<std::string>();
         auto args           = v.at("args");
         vectorize vec{};
-        if(axis != concat_axis)
+        if(not any_dynamic and axis != concat_axis)
             vec = vectorize::elements(ctx, axis, options.virtual_inputs);
-        auto nelements_per_op = options.virtual_inputs.back().elements() / op_names.size();
+        const auto& out_vs        = options.virtual_inputs.back();
+        const std::size_t nelem   = out_vs.dynamic() ? out_vs.element_space() : out_vs.elements();
+        auto nelements_per_op     = nelem / op_names.size();
         options.set_launch_params(v, compute_global_for(ctx, nelements_per_op / vec.size, 256));
         options.emplace_param("-Wno-float-equal");
         std::vector<std::string> concat_params;

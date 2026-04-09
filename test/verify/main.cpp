@@ -148,7 +148,9 @@ int main(int argc, const char* argv[])
          "test_dynamic_pointwise<3, 10, 13>",
          "test_dynamic_gemm_pointwise<4, 4>",
          "test_dynamic_gemm_pointwise<3, 24>",
-         "test_dynamic_gemm_pointwise<2, 16>"});
+         "test_dynamic_gemm_pointwise<2, 16>",
+         "test_dynamic_concat_axis0",
+         "test_symbolic_concat_axis0_gpu"});
     rv.disable_test_for("gpu",
                         {
                             // These passes on MI300 but fails on others, same issue as CPU.

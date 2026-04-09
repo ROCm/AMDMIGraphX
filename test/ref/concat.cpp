@@ -26,6 +26,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/verify.hpp>
 
 #include <test.hpp>
@@ -172,4 +173,51 @@ TEST_CASE(concat_dyn_test)
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
     EXPECT(migraphx::verify::verify_rms_range(result.get_shape().lens(),
                                               std::vector<std::size_t>({6, 2})));
+}
+
+TEST_CASE(concat_symbolic_dyn_test)
+{
+    using migraphx::sym::var;
+    auto n  = var("n");
+    auto d0 = var("d0");
+    auto d1 = var("d1");
+    auto d2 = var("d2");
+    using dd = migraphx::shape::dynamic_dimension;
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    int axis = 0;
+    migraphx::shape s0{migraphx::shape::int32_type, {dd{2, 4, {}, d0}, dd{2, 3, {}, n}}};
+    migraphx::shape s1{migraphx::shape::int32_type, {dd{3, 4, {}, d1}, dd{2, 3, {}, n}}};
+    migraphx::shape s2{migraphx::shape::int32_type, {dd{1, 5, {}, d2}, dd{2, 3, {}, n}}};
+
+    auto input0 = mm->add_parameter("X", s0);
+    auto input1 = mm->add_parameter("Y", s1);
+    auto input2 = mm->add_parameter("Z", s2);
+    mm->add_instruction(migraphx::make_op("concat", {{"axis", axis}}), input0, input1, input2);
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape static_shape0{migraphx::shape::int32_type, {2, 2}};
+    migraphx::shape static_shape1{migraphx::shape::int32_type, {3, 2}};
+    migraphx::shape static_shape2{migraphx::shape::int32_type, {1, 2}};
+    std::vector<int> data0 = {0, 1, 2, 3};
+    std::vector<int> data1 = {4, 5, 6, 7, 8, 9};
+    std::vector<int> data2 = {10, 11};
+    migraphx::parameter_map params;
+    params["X"] = migraphx::argument(static_shape0, data0.data());
+    params["Y"] = migraphx::argument(static_shape1, data1.data());
+    params["Z"] = migraphx::argument(static_shape2, data2.data());
+    auto result = p.eval(params).back();
+
+    std::vector<int> results_vector(12);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result.get_shape().lens(),
+                                              std::vector<std::size_t>({6, 2})));
+
+    migraphx::shape expected_out{
+        migraphx::shape::int32_type, {dd{6, 13, {}, d0 + d1 + d2}, dd{2, 3, {}, n}}};
+    EXPECT(p.get_output_shapes().back() == expected_out);
 }

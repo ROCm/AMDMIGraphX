@@ -124,17 +124,12 @@ struct concat
                                        std::to_string(index));
                 }
             }
-            std::size_t new_min = 0;
-            std::size_t new_max = 0;
-            for(const auto& input : inputs)
-            {
-                auto ddim = input.dyn_dims()[axis];
-                new_min += ddim.min;
-                new_max += ddim.max;
-            }
+            shape::dynamic_dimension axis_dim = inputs.front().dyn_dims()[axis];
+            for(std::size_t i = 1; i < inputs.size(); ++i)
+                axis_dim = axis_dim + inputs[i].dyn_dims()[axis];
 
             auto new_dims  = inputs[0].dyn_dims();
-            new_dims[axis] = migraphx::shape::dynamic_dimension{new_min, new_max};
+            new_dims[axis] = axis_dim;
             return {inputs[0].type(), new_dims};
         }
         else

@@ -28,6 +28,7 @@
 #include <migraphx/op/common.hpp>
 #include <sstream>
 #include <migraphx/make_op.hpp>
+#include <migraphx/sym.hpp>
 
 #include <migraphx/serialize.hpp>
 
@@ -5377,6 +5378,25 @@ TEST_CASE(test_dyn_concat)
     // static and dynamic shapes together
     migraphx::shape sstat{migraphx::shape::float_type, {3, 4, 1, 6}};
     throws_shape(migraphx::make_op("concat", {{"axis", 2}}), sx, sstat);
+}
+
+TEST_CASE(test_symbolic_concat_shapes)
+{
+    using migraphx::sym::var;
+    auto n = var("n");
+    auto a = var("a");
+    auto b = var("b");
+    using dd = migraphx::shape::dynamic_dimension;
+    migraphx::shape sx{migraphx::shape::float_type, {dd{1, 4, {}, n}, dd{1, 5, {}, a}, dd{4, 4}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{1, 4, {}, n}, dd{1, 3, {}, b}, dd{4, 4}}};
+    migraphx::shape sout{migraphx::shape::float_type, {dd{1, 4, {}, n}, dd{2, 8, {}, a + b}, dd{4, 4}}};
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_outline(sx);
+    auto y   = mm->add_outline(sy);
+    mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, y);
+    EXPECT(p.get_output_shapes().back() == sout);
 }
 
 TEST_CASE(test_binary_nonpacked)

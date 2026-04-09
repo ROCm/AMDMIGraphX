@@ -29,6 +29,7 @@
 #include <migraphx/operation.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/module.hpp>
+#include <migraphx/sym.hpp>
 #include <test.hpp>
 #include <pointwise.hpp>
 
@@ -60,6 +61,65 @@ TEST_CASE(dynamic_code_object_op)
         {
             found = true;
             EXPECT(ins->module_inputs() == pw_module_inputs);
+        }
+    }
+    EXPECT(found);
+}
+
+TEST_CASE(dynamic_concat_gpu_lowering)
+{
+    migraphx::shape s0{migraphx::shape::float_type, {{2, 4, {2}}, {2, 3, {2}}}};
+    migraphx::shape s1{migraphx::shape::float_type, {{3, 4, {4}}, {2, 3, {2}}}};
+    migraphx::shape s2{migraphx::shape::float_type, {{1, 5, {3}}, {2, 3, {2}}}};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("X", s0);
+    auto y   = mm->add_parameter("Y", s1);
+    auto z   = mm->add_parameter("Z", s2);
+    mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), x, y, z);
+
+    run_lowering(p);
+
+    bool found = false;
+    for(auto ins : iterator_for(*p.get_main_module()))
+    {
+        if(ins->name() == "gpu::dynamic_code_object_op")
+        {
+            found = true;
+            break;
+        }
+    }
+    EXPECT(found);
+}
+
+TEST_CASE(symbolic_concat_gpu_lowering)
+{
+    using migraphx::sym::var;
+    auto n  = var("n");
+    auto d0 = var("d0");
+    auto d1 = var("d1");
+    auto d2 = var("d2");
+    using dd = migraphx::shape::dynamic_dimension;
+
+    migraphx::shape s0{migraphx::shape::float_type, {dd{2, 4, {}, d0}, dd{2, 3, {}, n}}};
+    migraphx::shape s1{migraphx::shape::float_type, {dd{3, 4, {}, d1}, dd{2, 3, {}, n}}};
+    migraphx::shape s2{migraphx::shape::float_type, {dd{1, 5, {}, d2}, dd{2, 3, {}, n}}};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("X", s0);
+    auto y   = mm->add_parameter("Y", s1);
+    auto z   = mm->add_parameter("Z", s2);
+    mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), x, y, z);
+
+    run_lowering(p);
+
+    bool found = false;
+    for(auto ins : iterator_for(*p.get_main_module()))
+    {
+        if(ins->name() == "gpu::dynamic_code_object_op")
+        {
+            found = true;
+            break;
         }
     }
     EXPECT(found);

@@ -99,8 +99,6 @@ static std::vector<std::string> get_compiler_warnings()
         "-Wno-float-conversion",
         "-Wno-gnu-anonymous-struct",
         "-Wno-gnu-zero-variadic-macro-arguments",
-        "-Wno-lifetime-safety-intra-tu-suggestions",
-        "-Wno-lifetime-safety-cross-tu-suggestions",
         "-Wno-missing-prototypes",
         "-Wno-nested-anon-types",
         "-Wno-padded",
@@ -111,6 +109,12 @@ static std::vector<std::string> get_compiler_warnings()
         "-Wno-weak-vtables",
         "-Wno-c99-extensions",
     };
+
+    if(hip_has_flags({"-Werror", "-Wlifetime-safety-intra-tu-suggestions"}))
+        warnings.push_back("-Wno-lifetime-safety-intra-tu-suggestions");
+
+    if(hip_has_flags({"-Werror", "-Wlifetime-safety-cross-tu-suggestions"}))
+        warnings.push_back("-Wno-lifetime-safety-cross-tu-suggestions");
 
     if(hip_has_flags({"-Werror", "-Wunsafe-buffer-usage"}))
         warnings.push_back("-Wno-unsafe-buffer-usage");

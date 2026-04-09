@@ -195,7 +195,7 @@ get_gpu_independent_passes(context& ctx, const compile_options& options, bool is
 // Returns lowering and all subsequent passes. List is identical across all modes;
 // is_eager controls the fast-compile flag passed to compile_ops.
 static std::vector<pass>
-get_gpu_passes(context& ctx, const compile_options& options, bool is_eager)
+get_gpu_passes(context& ctx, migraphx::context& gctx, const compile_options& options, bool is_eager)
 {
     // clang-format off
     return {
@@ -252,7 +252,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     const bool is_eager = (compile_mode == compile_modes::EAGER);
 
     auto passes = get_gpu_independent_passes(ctx, options, is_eager);
-    auto gpu_passes = get_gpu_passes(ctx, options, is_eager);
+    auto gpu_passes = get_gpu_passes(ctx, gctx, options, is_eager);
     passes.insert(passes.end(), std::make_move_iterator(gpu_passes.begin()), std::make_move_iterator(gpu_passes.end()));
     return passes;
 }

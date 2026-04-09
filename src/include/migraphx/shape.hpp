@@ -112,13 +112,15 @@ struct MIGRAPHX_EXPORT shape
         {
             normalize_sym();
         }
-        dynamic_dimension(std::size_t min_v,
-                          std::size_t max_v,
-                          std::set<std::size_t> opt,
-                          optional<sym::expr> s)
-            : min(min_v), max(max_v), optimals(std::move(opt)), sym_expr(std::move(s))
+        dynamic_dimension(sym::expr s)
         {
-            normalize_sym();
+            if(s.empty())
+                MIGRAPHX_THROW(
+                    "dynamic_dimension: cannot construct from an empty symbolic expression");
+            min      = s.eval_min_uint();
+            max      = s.eval_max_uint();
+            optimals = s.eval_optimals();
+            sym_expr = std::move(s);
         }
 
         template <class Self, class F>

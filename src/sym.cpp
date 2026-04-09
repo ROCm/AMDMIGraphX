@@ -67,6 +67,7 @@ struct symbol_data
     std::string name;
     int64_t min;
     int64_t max;
+    std::set<int64_t> optimals;
 };
 struct add_data
 {
@@ -277,9 +278,10 @@ static expr_ptr make_integer(int64_t n)
     return make_node(integer_data{n});
 }
 
-static expr_ptr make_symbol(const std::string& name, int64_t min, int64_t max)
+static expr_ptr
+make_symbol(const std::string& name, int64_t min, int64_t max, std::set<int64_t> optimals = {})
 {
-    return make_node(symbol_data{name, min, max});
+    return make_node(symbol_data{name, min, max, std::move(optimals)});
 }
 
 static expr_ptr make_add(const expr_ptr& a, const expr_ptr& b);
@@ -725,6 +727,24 @@ static std::string print_expr(const expr_ptr& e, int parent_prec)
 }
 
 // ===================================================================
+static std::string to_string(const binding_map& bindings)
+{
+    std::ostringstream os;
+    os << "{";
+    bool first = true;
+    for(const auto& [node, val] : bindings)
+    {
+        if(not first)
+            os << ", ";
+        os << print_expr(node) << "=" << val;
+        first = false;
+    }
+    os << "}";
+    return os.str();
+}
+
+
+
 // Section 8: Recursive descent parser
 // ===================================================================
 
@@ -905,6 +925,100 @@ int64_t expr::eval_max() const
     return eval_at_max(p->node);
 }
 
+std::size_t expr::eval_min_uint() const
+{
+    auto v = eval_min();
+    if(v < 0)
+        MIGRAPHX_THROW("sym::expr::eval_min_uint: result is negative (" + std::to_string(v) + ")");
+    return static_cast<std::size_t>(v);
+}
+
+std::size_t expr::eval_max_uint() const
+{
+    auto v = eval_max();
+    if(v < 0)
+        MIGRAPHX_THROW("sym::expr::eval_max_uint: result is negative (" + std::to_string(v) + ")");
+    return static_cast<std::size_t>(v);
+}
+
+// Walk the expression tree and collect each unique symbol's optimals.
+// Deduplicates by name so a symbol appearing multiple times in an
+// expression (e.g. n*n) only contributes one set of optimal values.
+static void collect_symbol_optimals(const expr_ptr& e,
+                                    std::vector<std::pair<expr_ptr, std::set<int64_t>>>& result,
+                                    std::set<std::string>& seen)
+{
+    std::visit(overloaded{[](const integer_data&) {},
+                          [&](const symbol_data& d) {
+                              if(seen.insert(d.name).second and not d.optimals.empty())
+                                  result.push_back({e, d.optimals});
+                          },
+                          [&](const add_data& d) {
+                              for(const auto& [term, coeff] : d.terms)
+                                  collect_symbol_optimals(term, result, seen);
+                          },
+                          [&](const mul_data& d) {
+                              for(const auto& [base, exp] : d.factors)
+                                  collect_symbol_optimals(base, result, seen);
+                          },
+                          [&](const tdiv_data& d) {
+                              collect_symbol_optimals(d.numerator, result, seen);
+                              collect_symbol_optimals(d.denominator, result, seen);
+                          }},
+               e->data);
+}
+
+// Recursively enumerate the Cartesian product of symbol optimals,
+// evaluating the expression at each combination without materializing
+// intermediate binding maps.
+static void eval_optimals_impl(const expr_ptr& node,
+                                const std::vector<std::pair<expr_ptr, std::set<int64_t>>>& sym_opts,
+                                std::size_t idx,
+                                binding_map& bindings,
+                                std::set<std::size_t>& result)
+{
+    if(idx == sym_opts.size())
+    {
+        auto v = eval_direct(node, bindings);
+        if(v < 0)
+            MIGRAPHX_THROW("sym::expr::eval_optimals: negative result (" + std::to_string(v) +
+                            ") for expr '" + print_expr(node) + "' with bindings " +
+                            to_string(bindings));
+        result.insert(static_cast<std::size_t>(v));
+        return;
+    }
+    const auto& [sym_node, opts] = sym_opts[idx];
+    for(auto oval : opts)
+    {
+        bindings[sym_node] = oval;
+        eval_optimals_impl(node, sym_opts, idx + 1, bindings, result);
+    }
+}
+
+// Compute the set of optimal values for the expression by evaluating it
+// at every combination of each symbol's optimal values (Cartesian product).
+//
+// For a single variable:  var("n", 1, 8, {2, 4})  =>  optimals = {2, 4}
+// For a compound expr:    2*n + 1 where n has optimals {2, 4}  =>  {5, 9}
+// For multiple variables: n + m where n={2,4}, m={3,6}  =>  {5, 8, 7, 10}
+//
+// Returns empty if any symbol in the expression has no optimals.
+std::set<std::size_t> expr::eval_optimals() const
+{
+    if(empty())
+        return {};
+    std::vector<std::pair<expr_ptr, std::set<int64_t>>> sym_opts;
+    std::set<std::string> seen;
+    collect_symbol_optimals(p->node, sym_opts, seen);
+    if(sym_opts.empty())
+        return {};
+
+    std::set<std::size_t> result;
+    binding_map bindings;
+    eval_optimals_impl(p->node, sym_opts, 0, bindings, result);
+    return result;
+}
+
 expr expr::subs(const std::unordered_map<expr, expr>& symbol_map) const
 {
     if(empty())
@@ -1010,11 +1124,11 @@ std::ostream& operator<<(std::ostream& os, const expr& e)
     return os;
 }
 
-expr var(const std::string& name, int64_t min, int64_t max)
+expr var(const std::string& name, int64_t min, int64_t max, std::set<int64_t> optimals)
 {
     if(name.empty())
         MIGRAPHX_THROW("sym::var: variable name must not be empty");
-    return {std::make_shared<expr::impl>(make_symbol(name, min, max))};
+    return {std::make_shared<expr::impl>(make_symbol(name, min, max, std::move(optimals)))};
 }
 
 expr lit(int64_t n) { return {std::make_shared<expr::impl>(make_integer(n))}; }
@@ -1040,6 +1154,15 @@ static value node_to_value(const expr_ptr& e)
                                      r["name"] = d.name;
                                      r["min"]  = d.min;
                                      r["max"]  = d.max;
+                                     if(not d.optimals.empty())
+                                     {
+                                         value opts = value::array{};
+                                         std::transform(d.optimals.begin(),
+                                                        d.optimals.end(),
+                                                        std::back_inserter(opts),
+                                                        [](auto o) -> value { return o; });
+                                         r["optimals"] = opts;
+                                     }
                                      return r;
                                  },
                                  [](const add_data& d) -> value {
@@ -1093,7 +1216,13 @@ static expr_ptr node_from_value(const value& v)
     {
         auto sym_min = v.contains("min") ? v.at("min").to<int64_t>() : int64_t{1};
         auto sym_max = v.contains("max") ? v.at("max").to<int64_t>() : int64_t{1};
-        return make_symbol(v.at("name").get_string(), sym_min, sym_max);
+        std::set<int64_t> sym_opts;
+        if(v.contains("optimals"))
+            std::transform(v.at("optimals").begin(),
+                           v.at("optimals").end(),
+                           std::inserter(sym_opts, sym_opts.end()),
+                           [](const auto& o) { return o.template to<int64_t>(); });
+        return make_symbol(v.at("name").get_string(), sym_min, sym_max, std::move(sym_opts));
     }
     else if(type == "add")
     {

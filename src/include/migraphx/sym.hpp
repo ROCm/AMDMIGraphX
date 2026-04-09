@@ -28,6 +28,7 @@
 #include <cstdint>
 #include <memory>
 #include <ostream>
+#include <set>
 #include <string>
 #include <unordered_map>
 
@@ -41,7 +42,10 @@ struct value;
 namespace sym {
 
 struct expr;
-MIGRAPHX_EXPORT expr var(const std::string& name, int64_t min = 1, int64_t max = 1);
+MIGRAPHX_EXPORT expr var(const std::string& name,
+                         int64_t min                = 1,
+                         int64_t max                = 1,
+                         std::set<int64_t> optimals = {});
 MIGRAPHX_EXPORT expr lit(int64_t n);
 MIGRAPHX_EXPORT expr parse(const std::string& s);
 
@@ -57,6 +61,9 @@ struct MIGRAPHX_EXPORT expr
     std::size_t eval_uint(const std::unordered_map<expr, std::size_t>& symbol_map) const;
     int64_t eval_min() const;
     int64_t eval_max() const;
+    std::size_t eval_min_uint() const;
+    std::size_t eval_max_uint() const;
+    std::set<std::size_t> eval_optimals() const;
     expr subs(const std::unordered_map<expr, expr>& symbol_map) const;
 
     MIGRAPHX_EXPORT friend expr operator+(const expr& a, const expr& b);
@@ -82,7 +89,8 @@ struct MIGRAPHX_EXPORT expr
 
     struct impl;
 
-    MIGRAPHX_EXPORT friend expr var(const std::string& name);
+    MIGRAPHX_EXPORT friend expr
+    var(const std::string& name, int64_t min, int64_t max, std::set<int64_t> optimals);
     MIGRAPHX_EXPORT friend expr lit(int64_t n);
     MIGRAPHX_EXPORT friend expr parse(const std::string& s);
 

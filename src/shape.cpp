@@ -95,7 +95,7 @@ struct shape_impl
         : m_type(t), m_dyn_dims(std::move(dims)), m_dyn_strides(std::move(dstrides))
     {
         assert(m_dyn_strides.size() == m_dyn_dims.size());
-        auto dim_exprs = sym_dim_exprs();
+        auto dim_exprs = sym_dims();
         std::vector<sym::expr> filtered_strides;
         for(std::size_t i = 0; i < m_dyn_strides.size(); i++)
             if(not(m_dyn_dims[i].is_fixed() and m_dyn_dims[i].min == 1))
@@ -348,7 +348,7 @@ struct shape_impl
     template <class T>
     static bool is_sorted_strides(const std::vector<T>& strides)
     {
-        if constexpr(std::is_same_v<T, sym::expr>)
+        if constexpr(std::is_same<T, sym::expr>{})
         {
             std::vector<std::size_t> concrete(strides.size());
             std::transform(strides.begin(), strides.end(), concrete.begin(), [](const auto& s) {
@@ -384,7 +384,7 @@ struct shape_impl
         {
             if(m_dyn_strides.empty())
                 return false;
-            return compute_packed<sym::expr>(sym_dim_exprs(), m_dyn_strides);
+            return compute_packed<sym::expr>(sym_dims(), m_dyn_strides);
         }
         return compute_packed<std::size_t>(m_lens, m_strides);
     }

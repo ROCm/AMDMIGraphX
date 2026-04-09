@@ -1480,4 +1480,45 @@ TEST_CASE(cmp_zero_stride_less_than_symbolic_stride)
     EXPECT(lit(0) < h + w);
 }
 
+TEST_CASE(eval_optimals_single_var)
+{
+    auto n = var("n", 1, 8, {2, 4});
+    EXPECT(n.eval_optimals() == std::set<std::size_t>{2, 4});
+}
+
+TEST_CASE(eval_optimals_compound_expr)
+{
+    auto n = var("n", 1, 8, {2, 4});
+    auto e = 2 * n + 1;
+    EXPECT(e.eval_optimals() == std::set<std::size_t>{5, 9});
+}
+
+TEST_CASE(eval_optimals_multi_var)
+{
+    auto n = var("n", 1, 8, {2, 4});
+    auto m = var("m", 1, 8, {3, 6});
+    auto e = n + m;
+    EXPECT(e.eval_optimals() == std::set<std::size_t>{5, 8, 7, 10});
+}
+
+TEST_CASE(eval_optimals_no_optimals)
+{
+    auto n = var("n", 1, 8);
+    EXPECT(n.eval_optimals().empty());
+}
+
+TEST_CASE(eval_optimals_empty_expr)
+{
+    migraphx::sym::expr e;
+    EXPECT(e.eval_optimals().empty());
+}
+
+TEST_CASE(eval_min_max_uint)
+{
+    auto n = var("n", 2, 16);
+    auto e = 3 * n + 1;
+    EXPECT(e.eval_min_uint() == 7);
+    EXPECT(e.eval_max_uint() == 49);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

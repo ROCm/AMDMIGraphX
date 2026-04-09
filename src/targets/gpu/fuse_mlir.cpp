@@ -135,9 +135,15 @@ bool mlir_attention_enabled(context* ctx)
         return false;
     if(specific_op<rejected>("attention"))
         return false;
-    // Enable attention by default for mi300
-    if(ctx != nullptr and starts_with(ctx->get_current_device().get_gfx_name(), "gfx94"))
-        return true;
+
+    // Enable attention by default for mi300 and rdna
+    if(ctx != nullptr)
+    {
+        const auto& gfx = ctx->get_current_device().get_gfx_name();
+        if(starts_with(gfx, "gfx94") or starts_with(gfx, "gfx10") or
+           starts_with(gfx, "gfx11"))
+            return true;
+    }
     return specific_op<requested>("attention");
 #else
     return false;

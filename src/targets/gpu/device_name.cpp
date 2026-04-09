@@ -39,8 +39,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 
 static std::string get_gfx_name(const std::string& device_name)
 {
-    const auto& name = device_name.empty() ? get_device_name() : device_name;
-    return trim(split_string(name, ':').front());
+    return trim(split_string(device_name, ':').front());
 }
 
 int get_device_id()
@@ -67,6 +66,8 @@ bool gfx_has_fp8fnuz_intrinsics(const std::string& device_name)
     return (starts_with(gfx_name, "gfx94"));
 }
 
+bool gfx_has_fp8fnuz_intrinsics() { return gfx_has_fp8fnuz_intrinsics(get_device_name()); }
+
 bool gfx_has_fp8ocp_intrinsics(const std::string& device_name)
 {
     const auto gfx_name      = get_gfx_name(device_name);
@@ -75,17 +76,23 @@ bool gfx_has_fp8ocp_intrinsics(const std::string& device_name)
     return (is_navi_with_fp8ocp or is_mi_with_fp8ocp);
 }
 
+bool gfx_has_fp8ocp_intrinsics() { return gfx_has_fp8ocp_intrinsics(get_device_name()); }
+
 bool gfx_has_bf16_intrinsics(const std::string& device_name)
 {
     const auto gfx_name = get_gfx_name(device_name);
     return not(starts_with(gfx_name, "gfx1030"));
 }
 
+bool gfx_has_bf16_intrinsics() { return gfx_has_bf16_intrinsics(get_device_name()); }
+
 bool gfx_has_mx_intrinsics(const std::string& device_name)
 {
     const auto gfx_name = get_gfx_name(device_name);
     return starts_with(gfx_name, "gfx9") and gfx_name >= "gfx950";
 }
+
+bool gfx_has_mx_intrinsics() { return gfx_has_mx_intrinsics(get_device_name()); }
 
 #if MIGRAPHX_USE_HIPBLASLT
 bool gfx_default_rocblas(const std::string& device_name)
@@ -95,6 +102,8 @@ bool gfx_default_rocblas(const std::string& device_name)
                 ? false
                 : (gfx_name == "gfx90a"));
 }
+
+bool gfx_default_rocblas() { return gfx_default_rocblas(get_device_name()); }
 #endif
 
 bool hipblaslt_supported(const std::string& device_name)
@@ -110,6 +119,8 @@ bool hipblaslt_supported(const std::string& device_name)
             starts_with(gfx_name, "gfx110") or starts_with(gfx_name, "gfx120"));
 #endif
 }
+
+bool hipblaslt_supported() { return hipblaslt_supported(get_device_name()); }
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

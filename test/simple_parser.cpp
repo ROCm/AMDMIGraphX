@@ -80,11 +80,11 @@ TEST_CASE(parser_try_parse)
     EXPECT(p.peek_char() == 'w');
 }
 
-TEST_CASE(parser_parse_first_of)
+TEST_CASE(parser_first_of)
 {
     std::string_view sv("42");
     simple_string_view_skip_parser p{sv};
-    auto result = p.parse_first_of(
+    auto result = p.first_of(
         [](auto& q) -> std::string {
             if(not std::isalpha(q.peek_char()))
                 return {};
@@ -98,11 +98,11 @@ TEST_CASE(parser_parse_first_of)
     EXPECT(result == "42");
 }
 
-TEST_CASE(parser_parse_first_of_first_match)
+TEST_CASE(parser_first_of_first_match)
 {
     std::string_view sv("abc");
     simple_string_view_skip_parser p{sv};
-    auto result = p.parse_first_of(
+    auto result = p.first_of(
         [](auto& q) -> std::string {
             if(not std::isalpha(q.peek_char()))
                 return {};
@@ -116,11 +116,11 @@ TEST_CASE(parser_parse_first_of_first_match)
     EXPECT(result == "abc");
 }
 
-TEST_CASE(parser_parse_repeat)
+TEST_CASE(parser_repeat)
 {
     std::string_view sv("a b c .");
     simple_string_view_skip_parser p{sv};
-    auto results = p.parse_repeat([](auto& q) -> std::string {
+    auto results = p.repeat([](auto& q) -> std::string {
         if(not std::isalpha(q.peek_char()))
             return {};
         return std::string(q.parse_while([](char c) { return std::isalpha(c); }));
@@ -132,17 +132,43 @@ TEST_CASE(parser_parse_repeat)
     EXPECT(p.peek_char() == '.');
 }
 
-TEST_CASE(parser_parse_repeat_empty)
+TEST_CASE(parser_repeat_empty)
 {
     std::string_view sv("123");
     simple_string_view_skip_parser p{sv};
-    auto results = p.parse_repeat([](auto& q) -> std::string {
+    auto results = p.repeat([](auto& q) -> std::string {
         if(not std::isalpha(q.peek_char()))
             return {};
         return std::string(q.parse_while([](char c) { return std::isalpha(c); }));
     });
     EXPECT(results.empty());
     EXPECT(p.peek_char() == '1');
+}
+
+TEST_CASE(first_of_views)
+{
+    std::string_view sv("+ rest");
+    simple_string_view_skip_parser p{sv};
+    auto result = p.first_of(std::string_view("*"), std::string_view("+"), std::string_view("/"));
+    EXPECT(result == "+");
+    EXPECT(p.peek_char() == 'r');
+}
+
+TEST_CASE(first_of_views_no_match)
+{
+    std::string_view sv("xyz");
+    simple_string_view_skip_parser p{sv};
+    auto result = p.first_of(std::string_view("+"), std::string_view("-"));
+    EXPECT(result.empty());
+    EXPECT(p.peek_char() == 'x');
+}
+
+TEST_CASE(first_of_views_multichar)
+{
+    std::string_view sv("== rest");
+    simple_string_view_skip_parser p{sv};
+    auto result = p.first_of(std::string_view("!="), std::string_view("=="));
+    EXPECT(result == "==");
 }
 
 TEST_CASE(parser_action_pipe)

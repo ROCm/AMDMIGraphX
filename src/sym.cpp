@@ -896,9 +896,8 @@ expr parse_func_or_var(sym_parser& p)
 
 expr parse_paren_expr(sym_parser& p)
 {
-    if(p.peek_char() != '(')
+    if(not p.match(std::string_view("(")))
         return {};
-    p.advance(1);
     auto e = parse_expr(p);
     p.expect(std::string_view(")"));
     return e;
@@ -906,7 +905,7 @@ expr parse_paren_expr(sym_parser& p)
 
 expr parse_primary(sym_parser& p)
 {
-    return p.parse_first_of(
+    return p.first_of(
         &parse_paren_expr, &parse_func_or_var, &parse_number, [](sym_parser& q) -> expr {
             MIGRAPHX_THROW(q.error_message("expression"));
         });
@@ -914,27 +913,23 @@ expr parse_primary(sym_parser& p)
 
 expr parse_unary(sym_parser& p)
 {
-    if(p.peek_char() == '-')
-    {
-        p.advance(1);
+    if(p.match(std::string_view("-")))
         return -parse_unary(p);
-    }
     return parse_primary(p);
 }
 
 expr parse_mul_expr(sym_parser& p)
 {
     auto left = parse_unary(p);
-    auto ops  = p.parse_repeat([](sym_parser& q) -> std::pair<char, expr> {
-        char c = q.peek_char();
-        if(c != '*' and c != '/')
+    auto ops  = p.repeat([](sym_parser& q) -> std::pair<std::string_view, expr> {
+        auto op = q.first_of(std::string_view("*"), std::string_view("/"));
+        if(op.empty())
             return {};
-        q.advance(1);
-        return {c, parse_unary(q)};
+        return {op, parse_unary(q)};
     });
     for(auto& [op, rhs] : ops)
     {
-        if(op == '*')
+        if(op == "*")
             left = left * std::move(rhs);
         else
             left = left / std::move(rhs);
@@ -945,16 +940,15 @@ expr parse_mul_expr(sym_parser& p)
 expr parse_expr(sym_parser& p)
 {
     auto left = parse_mul_expr(p);
-    auto ops  = p.parse_repeat([](sym_parser& q) -> std::pair<char, expr> {
-        char c = q.peek_char();
-        if(c != '+' and c != '-')
+    auto ops  = p.repeat([](sym_parser& q) -> std::pair<std::string_view, expr> {
+        auto op = q.first_of(std::string_view("+"), std::string_view("-"));
+        if(op.empty())
             return {};
-        q.advance(1);
-        return {c, parse_mul_expr(q)};
+        return {op, parse_mul_expr(q)};
     });
     for(auto& [op, rhs] : ops)
     {
-        if(op == '+')
+        if(op == "+")
             left = left + std::move(rhs);
         else
             left = left - std::move(rhs);

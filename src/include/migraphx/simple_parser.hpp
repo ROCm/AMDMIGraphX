@@ -112,25 +112,40 @@ struct simple_parser
         return false;
     }
 
+    View first_of(View view)
+    {
+        if(match(view))
+            return view;
+        return {};
+    }
+
+    template <class... Views>
+    View first_of(View view, Views... views)
+    {
+        if(match(view))
+            return view;
+        return first_of(views...);
+    }
+
     template <class F>
-    auto parse_first_of(F f) -> decltype(f(*this))
+    auto first_of(F f) -> decltype(f(*this))
     {
         return f(*this);
     }
 
     template <class F, class G, class... Fs>
-    auto parse_first_of(F f, G g, Fs... fs) -> decltype(f(*this))
+    auto first_of(F f, G g, Fs... fs) -> decltype(f(*this))
     {
         auto copy   = *this;
         auto result = f(*this);
         if(copy.pos != pos)
             return result;
         *this = copy;
-        return parse_first_of(g, fs...);
+        return first_of(g, fs...);
     }
 
     template <class F>
-    auto parse_repeat(F f)
+    auto repeat(F f)
     {
         using result_type = decltype(f(*this));
         std::vector<result_type> results;
@@ -170,14 +185,14 @@ template <class F1, class F2>
 auto operator|(parser_action<F1> a, parser_action<F2> b)
 {
     return action([a = std::move(a), b = std::move(b)](auto& p) -> decltype(a(p)) {
-        return p.parse_first_of(a, b);
+        return p.first_of(a, b);
     });
 }
 
 template <class F>
 auto operator*(parser_action<F> a)
 {
-    return action([a = std::move(a)](auto& p) { return p.parse_repeat(a); });
+    return action([a = std::move(a)](auto& p) { return p.repeat(a); });
 }
 
 using simple_string_view_skip_parser =

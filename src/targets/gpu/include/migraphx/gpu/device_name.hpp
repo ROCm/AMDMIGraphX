@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -37,21 +37,21 @@ MIGRAPHX_GPU_EXPORT std::string get_device_name();
 
 MIGRAPHX_GPU_EXPORT int get_device_id();
 
-MIGRAPHX_GPU_EXPORT bool gfx_has_fp8fnuz_intrinsics();
+MIGRAPHX_GPU_EXPORT bool gfx_has_fp8fnuz_intrinsics(const std::string& device_name = "");
 
-MIGRAPHX_GPU_EXPORT bool gfx_has_fp8ocp_intrinsics();
+MIGRAPHX_GPU_EXPORT bool gfx_has_fp8ocp_intrinsics(const std::string& device_name = "");
 
-MIGRAPHX_GPU_EXPORT bool gfx_has_bf16_intrinsics();
+MIGRAPHX_GPU_EXPORT bool gfx_has_bf16_intrinsics(const std::string& device_name = "");
 
-MIGRAPHX_GPU_EXPORT bool gfx_has_mx_intrinsics();
+MIGRAPHX_GPU_EXPORT bool gfx_has_mx_intrinsics(const std::string& device_name = "");
 
 MIGRAPHX_GPU_EXPORT bool gfx_has_fp8fnuz_support();
 
 #if MIGRAPHX_USE_HIPBLASLT
-MIGRAPHX_GPU_EXPORT bool gfx_default_rocblas();
+MIGRAPHX_GPU_EXPORT bool gfx_default_rocblas(const std::string& device_name = "");
 #endif
 
-MIGRAPHX_GPU_EXPORT bool hipblaslt_supported();
+MIGRAPHX_GPU_EXPORT bool hipblaslt_supported(const std::string& device_name = "");
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

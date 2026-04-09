@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -37,6 +37,12 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 
+static std::string get_gfx_name(const std::string& device_name)
+{
+    const auto& name = device_name.empty() ? get_device_name() : device_name;
+    return trim(split_string(name, ':').front());
+}
+
 int get_device_id()
 {
     int device;
@@ -55,55 +61,53 @@ std::string get_device_name()
     return props.gcnArchName;
 }
 
-bool gfx_has_fp8fnuz_intrinsics()
+bool gfx_has_fp8fnuz_intrinsics(const std::string& device_name)
 {
-    const auto device_name = trim(split_string(get_device_name(), ':').front());
-    return (starts_with(device_name, "gfx94"));
+    const auto gfx_name = get_gfx_name(device_name);
+    return (starts_with(gfx_name, "gfx94"));
 }
 
-bool gfx_has_fp8ocp_intrinsics()
+bool gfx_has_fp8ocp_intrinsics(const std::string& device_name)
 {
-    const auto device_name = trim(split_string(get_device_name(), ':').front());
-    bool is_navi_with_fp8ocp = starts_with(device_name, "gfx12") and device_name >= "gfx1200";
-    bool is_mi_with_fp8ocp   = starts_with(device_name, "gfx9") and device_name >= "gfx950";
+    const auto gfx_name      = get_gfx_name(device_name);
+    bool is_navi_with_fp8ocp = starts_with(gfx_name, "gfx12") and gfx_name >= "gfx1200";
+    bool is_mi_with_fp8ocp   = starts_with(gfx_name, "gfx9") and gfx_name >= "gfx950";
     return (is_navi_with_fp8ocp or is_mi_with_fp8ocp);
 }
 
-bool gfx_has_bf16_intrinsics()
+bool gfx_has_bf16_intrinsics(const std::string& device_name)
 {
-    const auto device_name = trim(split_string(get_device_name(), ':').front());
-    return not(starts_with(device_name, "gfx1030"));
+    const auto gfx_name = get_gfx_name(device_name);
+    return not(starts_with(gfx_name, "gfx1030"));
 }
 
-bool gfx_has_mx_intrinsics()
+bool gfx_has_mx_intrinsics(const std::string& device_name)
 {
-    const auto device_name = trim(split_string(get_device_name(), ':').front());
-    return starts_with(device_name, "gfx9") and device_name >= "gfx950";
+    const auto gfx_name = get_gfx_name(device_name);
+    return starts_with(gfx_name, "gfx9") and gfx_name >= "gfx950";
 }
 
 #if MIGRAPHX_USE_HIPBLASLT
-// Archs that support hipBLASLt but are defaulted to use rocBLAS.
-bool gfx_default_rocblas()
+bool gfx_default_rocblas(const std::string& device_name)
 {
-    const auto device_name = trim(split_string(get_device_name(), ':').front());
-    // Default to rocBLAS for gfx90a.
+    const auto gfx_name = get_gfx_name(device_name);
     return ((string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "hipblaslt")
                 ? false
-                : (device_name == "gfx90a"));
+                : (gfx_name == "gfx90a"));
 }
 #endif
 
-bool hipblaslt_supported()
+bool hipblaslt_supported(const std::string& device_name)
 {
 #if !MIGRAPHX_USE_HIPBLASLT
+    (void)device_name;
     return false;
 #else
-    const auto device_name = trim(split_string(get_device_name(), ':').front());
-    // hipblaslt is supported for MI200 and above, and Navi3x and above.
-    return (device_name == "gfx90a" or
-            (starts_with(device_name, "gfx94") and device_name >= "gfx942") or
-            (starts_with(device_name, "gfx95") and device_name >= "gfx950") or
-            starts_with(device_name, "gfx110") or starts_with(device_name, "gfx120"));
+    const auto gfx_name = get_gfx_name(device_name);
+    return (gfx_name == "gfx90a" or
+            (starts_with(gfx_name, "gfx94") and gfx_name >= "gfx942") or
+            (starts_with(gfx_name, "gfx95") and gfx_name >= "gfx950") or
+            starts_with(gfx_name, "gfx110") or starts_with(gfx_name, "gfx120"));
 #endif
 }
 

@@ -107,7 +107,7 @@ jobs:
           cp -r ${{ env.REPORTS_PATH }}/results-* ${{ env.REPORTS_DIR }}/nightly_reports/ || true
 
       - name: Copy performance results to repo - PRs
-        if: steps.dl_art.outcome == 'success' && github.event.workflow_run.event == 'schedule' && env.PR_NUMBER && env.PR_NUMBER != ''
+        if: steps.dl_art.outcome == 'success' && github.event.workflow_run.event != 'schedule' && env.PR_NUMBER && env.PR_NUMBER != ''
         run: |
           mkdir -p ${{ env.REPORTS_DIR }}/performance_results/PRs/PR-${{ env.PR_NUMBER }}/${{ env.GIT_SHA }}
           cp -r test-results/perf-*/. ${{ env.REPORTS_DIR }}/performance_results/PRs/PR-${{ env.PR_NUMBER }}/${{ env.GIT_SHA }} || true

@@ -386,10 +386,7 @@ bool hip_can_compile(const std::string& src, const std::vector<std::string>& fla
     }
 }
 
-bool hip_has_flags(const std::vector<std::string>& flags)
-{
-    return hip_can_compile(" ", flags);
-}
+bool hip_has_flags(const std::vector<std::string>& flags) { return hip_can_compile(" ", flags); }
 
 std::string enum_params(std::size_t count, std::string param)
 {

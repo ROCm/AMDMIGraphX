@@ -54,7 +54,8 @@ struct hiprtc_src_file
     }
 };
 
-MIGRAPHX_GPU_EXPORT bool hip_can_compile(const std::string& src, const std::vector<std::string>& flags);
+MIGRAPHX_GPU_EXPORT bool hip_can_compile(const std::string& src,
+                                         const std::vector<std::string>& flags);
 
 MIGRAPHX_GPU_EXPORT bool hip_has_flags(const std::vector<std::string>& flags);
 

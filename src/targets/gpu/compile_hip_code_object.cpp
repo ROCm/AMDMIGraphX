@@ -217,7 +217,6 @@ compile_hip_raw(context& ctx, const std::string& content, hip_compile_options op
     if(hip_workaround_broken_deduction_guide())
         options.emplace_param("-DMIGRAPHX_WORKAROUND_BROKEN_DEDUCTION_GUIDE");
 
-
     options.emplace_param("-DMIGRAPHX_NGLOBAL=" + std::to_string(options.global));
     options.emplace_param("-DMIGRAPHX_NLOCAL=" + std::to_string(options.local));
     options.emplace_param("-DMIGRAPHX_WAVEFRONTSIZE=" +

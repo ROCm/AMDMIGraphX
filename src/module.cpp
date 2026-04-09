@@ -390,10 +390,8 @@ static std::unordered_set<instruction_ref> gather_max_splice(
     return result;
 }
 
-/**
- * Figure out the instructions actually being spliced (min splice).
- * end: instruction at end of splice
- */
+// Figure out the instructions actually being spliced (min splice).
+// end: instruction at end of splice
 static std::unordered_set<instruction_ref>
 deduce_min_splice(std::vector<instruction_ref> ends,
                   const std::unordered_set<instruction_ref>& max_splice,
@@ -459,35 +457,25 @@ static void propagate_debug_symbols(module_ref m,
     }
 }
 
+// Adds a placeholder identity instruction for when replacing an instruction in place.
+static void propagate_debug_symbols_with_placeholder(module_ref m,
+                                                     instruction_ref ins,
+                                                     const std::vector<instruction_ref>& prev_args)
+{
+    auto id_ins = m->insert_instruction(ins, make_op("identity"), prev_args);
+    // Get old_max_splice after replacement to get smallest dependent splice
+    std::unordered_set<instruction_ref> old_max_splice = gather_max_splice(m, id_ins);
+    // TODO: if there are no common ancestors, this may traverse the majority of the graph
+    std::unordered_set<instruction_ref> new_max_splice = gather_max_splice(m, ins, old_max_splice);
+    propagate_debug_symbols(m, ins, id_ins, new_max_splice, old_max_splice);
+    m->remove_instruction(id_ins);
+}
+
 instruction_ref module::replace_instruction(instruction_ref ins,
                                             const operation& op,
                                             std::vector<instruction_ref> args)
 {
-    impl->changed.notify();
-    assert(has_instruction(ins));
-    assert(not starts_with(op.name(), "@"));
-
-    shape r = compute_shape(op, args);
-    std::vector<instruction_ref> prev_args;
-    if(has_debug_symbols())
-    {
-        prev_args = ins->inputs();
-    }
-    instruction::replace(ins, op, r, std::move(args));
-    if(has_debug_symbols() and not prev_args.empty())
-    {
-        // placeholder identity instruction
-        auto id_ins = insert_instruction(ins, make_op("identity"), prev_args);
-        // Get old_max_splice after replacement to get smallest dependent splice
-        std::unordered_set<instruction_ref> old_max_splice = gather_max_splice(this, id_ins);
-        // TODO: if there are no common ancestors, this may traverse the majority of the graph
-        std::unordered_set<instruction_ref> new_max_splice =
-            gather_max_splice(this, ins, old_max_splice);
-        propagate_debug_symbols(this, ins, id_ins, new_max_splice, old_max_splice);
-        remove_instruction(id_ins);
-    }
-    assert(ins->valid(begin()));
-    return ins;
+    return replace_instruction(ins, op, std::move(args), {});
 }
 
 instruction_ref module::replace_instruction(instruction_ref ins,
@@ -507,12 +495,7 @@ instruction_ref module::replace_instruction(instruction_ref ins,
     instruction::replace(ins, op, out_shape, std::move(args), std::move(module_args));
     if(has_debug_symbols() and not prev_args.empty())
     {
-        auto id_ins = insert_instruction(ins, make_op("identity"), prev_args);
-        std::unordered_set<instruction_ref> old_max_splice = gather_max_splice(this, id_ins);
-        std::unordered_set<instruction_ref> new_max_splice =
-            gather_max_splice(this, ins, old_max_splice);
-        propagate_debug_symbols(this, ins, id_ins, new_max_splice, old_max_splice);
-        remove_instruction(id_ins);
+        propagate_debug_symbols_with_placeholder(this, ins, prev_args);
     }
     assert(ins->valid(begin()));
     return ins;

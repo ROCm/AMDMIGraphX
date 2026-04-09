@@ -69,11 +69,12 @@ inline bool ends_with(const std::string& value, const std::string& suffix)
     else
         return std::equal(suffix.rbegin(), suffix.rend(), value.rbegin());
 }
-
+// NOLINTBEGIN(performance-unnecessary-value-param)
 template <class Strings>
 inline std::string
 join_strings(Strings strings,
-             const std::string& delim) // NOLINT(performance-unnecessary-value-param)
+             const std::string& delim) 
+// NOLINTEND(performance-unnecessary-value-param)
 {
     auto it = strings.begin();
     if(it == strings.end())

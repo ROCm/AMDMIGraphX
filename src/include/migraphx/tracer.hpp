@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,9 +24,10 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_TRACER_HPP
 #define MIGRAPHX_GUARD_RTGLIB_TRACER_HPP
 
-#include <ostream>
+#include <sstream>
 #include <migraphx/functional.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/logger.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -35,22 +36,26 @@ struct tracer
 {
     tracer() {}
 
-    tracer(std::ostream& s) : os(&s) {}
-
-    bool enabled() const { return os != nullptr; }
+    explicit tracer(bool enable) : enabled(enable)
+    {
+        if(enabled and not log::is_enabled(log::severity::trace) and
+           not log::is_severity_explicit())
+            log::set_severity(log::severity::trace);
+    }
 
     template <class... Ts>
     void operator()(const Ts&... xs) const
     {
-        if(os != nullptr)
+        if(enabled)
         {
-            swallow{*os << xs...};
-            *os << std::endl;
+            std::ostringstream ss;
+            swallow{ss << xs...};
+            log::trace() << ss.str();
         }
     }
 
     private:
-    std::ostream* os = nullptr;
+    bool enabled = false;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

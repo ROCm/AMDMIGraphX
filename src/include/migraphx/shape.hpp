@@ -172,37 +172,23 @@ struct MIGRAPHX_EXPORT shape
         MIGRAPHX_EXPORT friend bool operator!=(const dynamic_dimension& x, const std::size_t& y);
         MIGRAPHX_EXPORT friend bool operator!=(const std::size_t& x, const dynamic_dimension& y);
 
-        // add, subtract, multiply, divide fixed std::size_t dimension
-        dynamic_dimension& operator+=(const std::size_t& x);
-        dynamic_dimension& operator-=(const std::size_t& x);
-        dynamic_dimension& operator*=(const std::size_t& x);
-        dynamic_dimension& operator/=(const std::size_t& x);
-        MIGRAPHX_EXPORT friend dynamic_dimension operator+(const dynamic_dimension& x,
-                                                           const std::size_t& y);
-        MIGRAPHX_EXPORT friend dynamic_dimension operator+(const std::size_t& x,
-                                                           const dynamic_dimension& y);
-        MIGRAPHX_EXPORT friend dynamic_dimension operator-(const dynamic_dimension& x,
-                                                           const std::size_t& y);
-        MIGRAPHX_EXPORT friend dynamic_dimension operator*(const dynamic_dimension& x,
-                                                           const std::size_t& y);
-        MIGRAPHX_EXPORT friend dynamic_dimension operator*(const std::size_t& x,
-                                                           const dynamic_dimension& y);
-        MIGRAPHX_EXPORT friend dynamic_dimension operator/(const dynamic_dimension& x,
-                                                           const std::size_t& y);
+        // clang-format off
+#define MIGRAPHX_SHAPE_DYN_DIM_DEFINE_OP(binary_op, assign_op)                                  \
+        dynamic_dimension& operator assign_op(const dynamic_dimension& x);                      \
+        dynamic_dimension& operator assign_op(const std::size_t& x);                            \
+        MIGRAPHX_EXPORT friend dynamic_dimension operator binary_op(                            \
+            const dynamic_dimension& x, const dynamic_dimension& y);                            \
+        MIGRAPHX_EXPORT friend dynamic_dimension operator binary_op(                            \
+            const dynamic_dimension& x, const std::size_t& y);                                  \
+        MIGRAPHX_EXPORT friend dynamic_dimension operator binary_op(                            \
+            const std::size_t& x, const dynamic_dimension& y);
 
-        // dd-to-dd arithmetic (defined in shape.cpp)
-        dynamic_dimension& operator+=(const dynamic_dimension& x);
-        dynamic_dimension& operator-=(const dynamic_dimension& x);
-        dynamic_dimension& operator*=(const dynamic_dimension& x);
-        dynamic_dimension& operator/=(const dynamic_dimension& x);
-        MIGRAPHX_EXPORT friend dynamic_dimension operator+(const dynamic_dimension& x,
-                                                           const dynamic_dimension& y);
-        MIGRAPHX_EXPORT friend dynamic_dimension operator-(const dynamic_dimension& x,
-                                                           const dynamic_dimension& y);
-        MIGRAPHX_EXPORT friend dynamic_dimension operator*(const dynamic_dimension& x,
-                                                           const dynamic_dimension& y);
-        MIGRAPHX_EXPORT friend dynamic_dimension operator/(const dynamic_dimension& x,
-                                                           const dynamic_dimension& y);
+        MIGRAPHX_SHAPE_DYN_DIM_DEFINE_OP(+, +=)
+        MIGRAPHX_SHAPE_DYN_DIM_DEFINE_OP(-, -=)
+        MIGRAPHX_SHAPE_DYN_DIM_DEFINE_OP(*, *=)
+        MIGRAPHX_SHAPE_DYN_DIM_DEFINE_OP(/, /=)
+#undef MIGRAPHX_SHAPE_DYN_DIM_DEFINE_OP
+        // clang-format on
     };
 
     static std::string to_sizes_string(const std::vector<shape>& shapes);

@@ -24,7 +24,7 @@ jobs:
         with:
           name: performance-run-data
           path: test-results
-          github-token: ${{ github.token }}
+          github-token: ${{ secrets.MIGRAPHX_BOT_TOKEN }}
           run-id: ${{ github.event.workflow_run.id }}
 
       - name: Extract context safely
@@ -146,7 +146,7 @@ jobs:
       - name: Execute comment script
         if: steps.dl_art.outcome == 'success' && env.PR_NUMBER && env.PR_NUMBER != ''
         run: |
-          if [ ${{ env.FLAGS }} == "-r" ]; then
+          if [ "${{ env.FLAGS }}" == "-r" ]; then
             flagoptions="-r benchmark-utils/scripts/"
           else
             flagoptions="${{ env.FLAGS }}"

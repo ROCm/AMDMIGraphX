@@ -762,8 +762,7 @@ TEST_CASE(logger_concurrent_file_sink)
     // Test concurrent logging to a file sink
     migraphx::log::set_severity(migraphx::log::severity::none);
 
-    auto log_path =
-        (migraphx::fs::temp_directory_path() / "migraphx_concurrent_test.log").string();
+    auto log_path = (migraphx::fs::temp_directory_path() / "migraphx_concurrent_test.log").string();
 
     // Remove any existing file
     migraphx::fs::remove(log_path);

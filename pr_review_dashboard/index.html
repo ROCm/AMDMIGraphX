@@ -225,7 +225,7 @@
 const BUCKET_META = [
   { key: 'needs_reviews',  dot: 'red',    title: 'Needs Reviews',      cardClass: 'needs_reviews'  },
   { key: 'in_review',      dot: 'yellow', title: 'Has 2+ Reviewers',   cardClass: 'in_review'      },
-  { key: 'approved',       dot: 'purple', title: 'Approved',           cardClass: 'approved'       },
+  { key: 'approved',       dot: 'purple', title: 'Has 2+ Approvals',   cardClass: 'approved'       },
   { key: 'ready_to_merge', dot: 'green',  title: 'Ready to Merge',    cardClass: 'ready_to_merge' },
 ];
 
@@ -286,7 +286,7 @@ async function init() {
       <div class="summary-card total"><div class="count">${data.total_prs}</div><div class="label">Total PRs</div></div>
       <div class="summary-card needs_reviews"><div class="count">${data.counts.needs_reviews}</div><div class="label">Needs Reviews</div></div>
       <div class="summary-card in_review"><div class="count">${data.counts.in_review}</div><div class="label">Has 2+ Reviewers</div></div>
-      <div class="summary-card approved"><div class="count">${data.counts.approved}</div><div class="label">Approved</div></div>
+      <div class="summary-card approved"><div class="count">${data.counts.approved}</div><div class="label">Has 2+ Approvals</div></div>
       <div class="summary-card ready_to_merge"><div class="count">${data.counts.ready_to_merge}</div><div class="label">Ready to Merge</div></div>
     `;
     document.getElementById('summary').innerHTML = summaryHTML;

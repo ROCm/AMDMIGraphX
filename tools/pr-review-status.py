@@ -306,7 +306,7 @@ def print_terminal(data: dict):
     labels = {
         "needs_reviews":  "🔴  Needs Reviews",
         "in_review":      "🟡  Has 2+ Reviewers",
-        "approved":       "🟣  Approved",
+        "approved":       "🟣  Has 2+ Approvals",
         "ready_to_merge": "🟢  Ready to Merge",
     }
     for key in ("needs_reviews", "in_review", "approved", "ready_to_merge"):

@@ -21,39 +21,25 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_MULTINOMIAL_HPP
-#define MIGRAPHX_GUARD_RTGLIB_MULTINOMIAL_HPP
 
-#include <migraphx/op/multinomial.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-
-struct context;
-
-struct hip_multinomial
+template <migraphx::shape::type_t DType>
+struct test_channelwise_conv_depthwise : verify_program<test_channelwise_conv_depthwise<DType>>
 {
-    op::multinomial op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
+    migraphx::program create_program() const
     {
-        return migraphx::reflect(self.op, f);
+        migraphx::program p;
+        auto* mm     = p.get_main_module();
+        auto input   = mm->add_parameter("x", migraphx::shape{DType, {2, 4, 8, 8}});
+        auto weights = mm->add_parameter("w", migraphx::shape{DType, {4, 1, 3, 3}});
+        mm->add_instruction(migraphx::make_op("convolution", {{"group", 4}}), input, weights);
+        return p;
     }
-
-    std::string name() const { return "gpu::multinomial"; }
-    shape compute_shape(std::vector<shape> inputs) const;
-    argument
-    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
-    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
-    {
-        return {shapes.size() - 1};
-    }
+    std::string section() const { return "conv"; }
 };
-
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+template struct test_channelwise_conv_depthwise<migraphx::shape::float_type>;
+template struct test_channelwise_conv_depthwise<migraphx::shape::half_type>;

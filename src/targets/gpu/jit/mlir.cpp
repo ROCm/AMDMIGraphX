@@ -206,11 +206,11 @@ struct mlir_compiler : compiler<mlir_compiler>
 
         auto op_val = op.to_value();
         auto tag    = op_val["tag"].to<std::string>();
+        auto flags  = op_val["flags"].to<std::uint32_t>();
         if(tag == "attention")
         {
-            auto flags = op_val["flags"].to<std::uint32_t>();
             auto cr =
-                insert(compile_attention(ctx, *smod, to_shapes(ins->inputs()), solution, flags));
+                insert(compile_mlir(ctx, *smod, to_shapes(ins->inputs()), solution, tag, flags));
             set_fill_map(cr, *smod);
             return cr;
         }

@@ -38,7 +38,9 @@ enum class attention_flags : std::uint32_t
     causal         = 1 << 1,
     prefix_offset  = 1 << 2,
     sliding_window = 1 << 3,
-    split_kv       = 1 << 4
+    split_kv       = 1 << 4,
+    lse_output     = 1 << 5,
+    flash_decoding = 1 << 6
 };
 
 template <>

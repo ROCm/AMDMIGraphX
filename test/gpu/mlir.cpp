@@ -36,6 +36,7 @@
 #include <migraphx/verify_args.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/functional.hpp>
+#include <migraphx/attention_flags.hpp>
 #include <test.hpp>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_ENABLE_SPLITK);
@@ -712,6 +713,183 @@ module {
         migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
     CHECK(encode(s) == encode(mlir_output_with_attrs));
     EXPECT(verify_mlir(m));
+}
+
+static migraphx::instruction_ref add_softmax(migraphx::module& m,
+                                             migraphx::instruction_ref input,
+                                             const std::vector<std::size_t>& lens)
+{
+    auto rmax  = m.add_instruction(migraphx::make_op("reduce_max", {{"axes", {-1}}}), input);
+    auto bmax  = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), rmax);
+    auto x_sub = m.add_instruction(migraphx::make_op("sub"), input, bmax);
+    auto x_exp = m.add_instruction(migraphx::make_op("exp"), x_sub);
+    auto rsum  = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {-1}}}), x_exp);
+    auto bsum  = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), rsum);
+    return m.add_instruction(migraphx::make_op("div"), x_exp, bsum);
+}
+
+// Based on rocMLIR mixr-attention-basic.mlir
+TEST_CASE(attention_basic)
+{
+    std::string mlir_output = R"__migraphx__(
+module {
+  func.func @mlir_dot_reduce_max_sub_exp_reduce_sum_div_dot(%arg0: !migraphx.shaped<1x64x64xf16, 4096x64x1>, %arg1: !migraphx.shaped<1x64x64xf16, 4096x64x1>, %arg2: !migraphx.shaped<1x64x64xf16, 4096x64x1>) -> !migraphx.shaped<1x64x64xf16, 4096x64x1> attributes ${attrs} {
+    %0 = migraphx.attention %arg0, %arg1, %arg2 {
+    } : <1x64x64xf16, 4096x64x1>, <1x64x64xf16, 4096x64x1>, <1x64x64xf16, 4096x64x1> -> <1x64x64xf16, 4096x64x1>
+    return %0 : !migraphx.shaped<1x64x64xf16, 4096x64x1>
+  }
+}
+)__migraphx__";
+    migraphx::module m;
+    auto q           = m.add_parameter("x0", {migraphx::shape::half_type, {1, 64, 64}});
+    auto k           = m.add_parameter("x1", {migraphx::shape::half_type, {1, 64, 64}});
+    auto v           = m.add_parameter("x2", {migraphx::shape::half_type, {1, 64, 64}});
+    auto dot1        = m.add_instruction(migraphx::make_op("dot"), q, k);
+    auto softmax_out = add_softmax(m, dot1, {1, 64, 64});
+    auto dot2        = m.add_instruction(migraphx::make_op("dot"), softmax_out, v);
+    m.add_return({dot2});
+
+    auto s = migraphx::gpu::dump_mlir(m, {}, "attention", 0);
+    if(s.empty())
+        return;
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
+}
+
+// Based on rocMLIR mixr-attention-scale.mlir (scale + bias pre-softmax body)
+TEST_CASE(attention_scale_bias)
+{
+    std::string mlir_output = R"__migraphx__(
+module {
+  func.func @mlir_dot_mul_add_reduce_max_sub_exp_reduce_sum_div_dot(%arg0: !migraphx.shaped<1x7x3xf16, 21x3x1>, %arg1: !migraphx.shaped<1x3x7xf16, 21x7x1>, %arg2: !migraphx.shaped<1x7x3xf16, 21x3x1>, %arg3: !migraphx.shaped<1x7x7xf16, 49x7x1>, %arg4: !migraphx.shaped<1x7x7xf16, 49x7x1>) -> !migraphx.shaped<1x7x3xf16, 21x3x1> attributes ${attrs} {
+    %0 = migraphx.attention %arg0, %arg1, %arg2 pre_softmax_inputs(%arg3, %arg4 : !migraphx.shaped<1x7x7xf16, 49x7x1>, !migraphx.shaped<1x7x7xf16, 49x7x1>) {
+    ^bb0(%arg5: !migraphx.shaped<1x7x7xf16, 49x7x1>, %arg6: !migraphx.shaped<1x7x7xf16, 49x7x1>, %arg7: !migraphx.shaped<1x7x7xf16, 49x7x1>):
+      %1 = migraphx.mul %arg5, %arg6 : <1x7x7xf16, 49x7x1>, <1x7x7xf16, 49x7x1> -> <1x7x7xf16, 49x7x1>
+      %2 = migraphx.add %1, %arg7 : <1x7x7xf16, 49x7x1>, <1x7x7xf16, 49x7x1> -> <1x7x7xf16, 49x7x1>
+      migraphx.yield %2 : !migraphx.shaped<1x7x7xf16, 49x7x1>
+    } : <1x7x3xf16, 21x3x1>, <1x3x7xf16, 21x7x1>, <1x7x3xf16, 21x3x1> -> <1x7x3xf16, 21x3x1>
+    return %0 : !migraphx.shaped<1x7x3xf16, 21x3x1>
+  }
+}
+)__migraphx__";
+    migraphx::module m;
+    auto q           = m.add_parameter("x0", {migraphx::shape::half_type, {1, 7, 3}});
+    auto k           = m.add_parameter("x1", {migraphx::shape::half_type, {1, 3, 7}});
+    auto v           = m.add_parameter("x2", {migraphx::shape::half_type, {1, 7, 3}});
+    auto scale       = m.add_parameter("x3", {migraphx::shape::half_type, {1, 7, 7}});
+    auto bias        = m.add_parameter("x4", {migraphx::shape::half_type, {1, 7, 7}});
+    auto dot1        = m.add_instruction(migraphx::make_op("dot"), q, k);
+    auto scaled      = m.add_instruction(migraphx::make_op("mul"), dot1, scale);
+    auto biased      = m.add_instruction(migraphx::make_op("add"), scaled, bias);
+    auto softmax_out = add_softmax(m, biased, {1, 7, 7});
+    auto dot2        = m.add_instruction(migraphx::make_op("dot"), softmax_out, v);
+    m.add_return({dot2});
+
+    auto s = migraphx::gpu::dump_mlir(m, {}, "attention", 0);
+    if(s.empty())
+        return;
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
+}
+
+// Based on rocMLIR mixr-attention-causal.mlir (asymmetric causal: seqQ=4 < seqK=16)
+TEST_CASE(attention_causal)
+{
+    std::string mlir_output = R"__migraphx__(
+module {
+  func.func @mlir_dot_reduce_max_sub_exp_reduce_sum_div_dot(%arg0: !migraphx.shaped<1x2x4x8xf16, 64x32x8x1>, %arg1: !migraphx.shaped<1x2x8x16xf16, 256x128x16x1>, %arg2: !migraphx.shaped<1x2x16x8xf16, 256x128x8x1>) -> !migraphx.shaped<1x2x4x8xf16, 64x32x8x1> attributes ${attrs} {
+    %0 = migraphx.attention %arg0, %arg1, %arg2 {
+    } features = causal : <1x2x4x8xf16, 64x32x8x1>, <1x2x8x16xf16, 256x128x16x1>, <1x2x16x8xf16, 256x128x8x1> -> <1x2x4x8xf16, 64x32x8x1>
+    return %0 : !migraphx.shaped<1x2x4x8xf16, 64x32x8x1>
+  }
+}
+)__migraphx__";
+    migraphx::module m;
+    auto q           = m.add_parameter("x0", {migraphx::shape::half_type, {1, 2, 4, 8}});
+    auto k           = m.add_parameter("x1", {migraphx::shape::half_type, {1, 2, 8, 16}});
+    auto v           = m.add_parameter("x2", {migraphx::shape::half_type, {1, 2, 16, 8}});
+    auto dot1        = m.add_instruction(migraphx::make_op("dot"), q, k);
+    auto softmax_out = add_softmax(m, dot1, {1, 2, 4, 16});
+    auto dot2        = m.add_instruction(migraphx::make_op("dot"), softmax_out, v);
+    m.add_return({dot2});
+
+    auto flags = static_cast<std::uint32_t>(migraphx::attention_flags::causal);
+    auto s     = migraphx::gpu::dump_mlir(m, {}, "attention", flags);
+    if(s.empty())
+        return;
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
+}
+
+// Based on rocMLIR mixr-attention-causal-scale.mlir (causal + scale + bias pre-softmax body)
+TEST_CASE(attention_causal_scale)
+{
+    std::string mlir_output = R"__migraphx__(
+module {
+  func.func @mlir_dot_mul_add_reduce_max_sub_exp_reduce_sum_div_dot(%arg0: !migraphx.shaped<1x7x3xf16, 21x3x1>, %arg1: !migraphx.shaped<1x3x7xf16, 21x7x1>, %arg2: !migraphx.shaped<1x7x3xf16, 21x3x1>, %arg3: !migraphx.shaped<1x7x7xf16, 49x7x1>, %arg4: !migraphx.shaped<1x7x7xf16, 49x7x1>) -> !migraphx.shaped<1x7x3xf16, 21x3x1> attributes ${attrs} {
+    %0 = migraphx.attention %arg0, %arg1, %arg2 pre_softmax_inputs(%arg3, %arg4 : !migraphx.shaped<1x7x7xf16, 49x7x1>, !migraphx.shaped<1x7x7xf16, 49x7x1>) {
+    ^bb0(%arg5: !migraphx.shaped<1x7x7xf16, 49x7x1>, %arg6: !migraphx.shaped<1x7x7xf16, 49x7x1>, %arg7: !migraphx.shaped<1x7x7xf16, 49x7x1>):
+      %1 = migraphx.mul %arg5, %arg6 : <1x7x7xf16, 49x7x1>, <1x7x7xf16, 49x7x1> -> <1x7x7xf16, 49x7x1>
+      %2 = migraphx.add %1, %arg7 : <1x7x7xf16, 49x7x1>, <1x7x7xf16, 49x7x1> -> <1x7x7xf16, 49x7x1>
+      migraphx.yield %2 : !migraphx.shaped<1x7x7xf16, 49x7x1>
+    } features = causal : <1x7x3xf16, 21x3x1>, <1x3x7xf16, 21x7x1>, <1x7x3xf16, 21x3x1> -> <1x7x3xf16, 21x3x1>
+    return %0 : !migraphx.shaped<1x7x3xf16, 21x3x1>
+  }
+}
+)__migraphx__";
+    migraphx::module m;
+    auto q           = m.add_parameter("x0", {migraphx::shape::half_type, {1, 7, 3}});
+    auto k           = m.add_parameter("x1", {migraphx::shape::half_type, {1, 3, 7}});
+    auto v           = m.add_parameter("x2", {migraphx::shape::half_type, {1, 7, 3}});
+    auto scale       = m.add_parameter("x3", {migraphx::shape::half_type, {1, 7, 7}});
+    auto bias        = m.add_parameter("x4", {migraphx::shape::half_type, {1, 7, 7}});
+    auto dot1        = m.add_instruction(migraphx::make_op("dot"), q, k);
+    auto scaled      = m.add_instruction(migraphx::make_op("mul"), dot1, scale);
+    auto biased      = m.add_instruction(migraphx::make_op("add"), scaled, bias);
+    auto softmax_out = add_softmax(m, biased, {1, 7, 7});
+    auto dot2        = m.add_instruction(migraphx::make_op("dot"), softmax_out, v);
+    m.add_return({dot2});
+
+    auto flags = static_cast<std::uint32_t>(migraphx::attention_flags::causal);
+    auto s     = migraphx::gpu::dump_mlir(m, {}, "attention", flags);
+    if(s.empty())
+        return;
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
+}
+
+TEST_CASE(attention_multi_flags)
+{
+    std::string mlir_output = R"__migraphx__(
+module {
+  func.func @mlir_dot_reduce_max_sub_exp_reduce_sum_div_dot(%arg0: !migraphx.shaped<1x2x4x8xf16, 64x32x8x1>, %arg1: !migraphx.shaped<1x2x8x16xf16, 256x128x16x1>, %arg2: !migraphx.shaped<1x2x16x8xf16, 256x128x8x1>) -> !migraphx.shaped<1x2x4x8xf16, 64x32x8x1> attributes ${attrs} {
+    %0 = migraphx.attention %arg0, %arg1, %arg2 {
+    } features = "causal|splitkv" : <1x2x4x8xf16, 64x32x8x1>, <1x2x8x16xf16, 256x128x16x1>, <1x2x16x8xf16, 256x128x8x1> -> <1x2x4x8xf16, 64x32x8x1>
+    return %0 : !migraphx.shaped<1x2x4x8xf16, 64x32x8x1>
+  }
+}
+)__migraphx__";
+    migraphx::module m;
+    auto q           = m.add_parameter("x0", {migraphx::shape::half_type, {1, 2, 4, 8}});
+    auto k           = m.add_parameter("x1", {migraphx::shape::half_type, {1, 2, 8, 16}});
+    auto v           = m.add_parameter("x2", {migraphx::shape::half_type, {1, 2, 16, 8}});
+    auto dot1        = m.add_instruction(migraphx::make_op("dot"), q, k);
+    auto softmax_out = add_softmax(m, dot1, {1, 2, 4, 16});
+    auto dot2        = m.add_instruction(migraphx::make_op("dot"), softmax_out, v);
+    m.add_return({dot2});
+
+    auto flags = static_cast<std::uint32_t>(migraphx::attention_flags::causal) |
+                 static_cast<std::uint32_t>(migraphx::attention_flags::split_kv);
+    auto s = migraphx::gpu::dump_mlir(m, {}, "attention", flags);
+    if(s.empty())
+        return;
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

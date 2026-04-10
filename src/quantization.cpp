@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -43,6 +43,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/normalize_ops.hpp>
 #include <migraphx/rewrite_rnn.hpp>
+#include <migraphx/logger.hpp>
 #include <set>
 #include <map>
 
@@ -55,7 +56,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_QUANTIZATION)
 static tracer quant_tracer()
 {
     if(enabled(MIGRAPHX_TRACE_QUANTIZATION{}))
-        return tracer{std::cout};
+        return tracer{true};
 
     return tracer{};
 };
@@ -162,10 +163,9 @@ static void quantize_8bits(program& prog,
         for(std::size_t i = 0; i < quant_8bit_params->size(); ++i)
         {
             auto param = quant_8bit_params->at(i);
-            std::cout << "ins_index = " << i << ", scale = " << param.first
-                      << ", shift = " << param.second << std::endl;
+            log::trace() << "ins_index = " << i << ", scale = " << param.first
+                         << ", shift = " << param.second;
         }
-        std::cout << std::endl;
     }
 
     run_passes(prog,

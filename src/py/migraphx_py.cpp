@@ -678,7 +678,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                map_dyn_input_dims,
            bool skip_unknown_operators,
            bool print_program_on_error,
-           const std::string& external_data_path) {
+           const std::string& external_data_path,
+           bool use_dyn_output) {
             migraphx::onnx_options options;
             options.default_dim_value      = default_dim_value;
             options.default_dyn_dim_value  = default_dyn_dim_value;
@@ -687,6 +688,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             options.skip_unknown_operators = skip_unknown_operators;
             options.print_program_on_error = print_program_on_error;
             options.external_data_path     = external_data_path;
+            options.use_dyn_output         = use_dyn_output;
             return migraphx::parse_onnx_buffer(onnx_buffer, options);
         },
         "Parse onnx file",
@@ -698,7 +700,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             std::unordered_map<std::string, std::vector<migraphx::shape::dynamic_dimension>>(),
         py::arg("skip_unknown_operators") = false,
         py::arg("print_program_on_error") = false,
-        py::arg("external_data_path")     = "");
+        py::arg("external_data_path")     = "",
+        py::arg("use_dyn_output")         = false);
 
     m.def(
         "load",

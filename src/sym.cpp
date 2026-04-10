@@ -658,8 +658,7 @@ static std::size_t hash_combine(std::size_t seed, std::size_t h)
 
 static std::size_t hash_value(const value& v)
 {
-    return std::visit(
-        [](auto x) -> std::size_t { return std::hash<decltype(x)>{}(x); }, v);
+    return std::visit([](auto x) -> std::size_t { return std::hash<decltype(x)>{}(x); }, v);
 }
 
 static std::size_t hash_node(const node_variant& nv)

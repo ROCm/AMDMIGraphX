@@ -586,15 +586,9 @@ TEST_CASE(hash_literal)
     EXPECT(a.hash() == b.hash());
 }
 
-TEST_CASE(hash_different_literals)
-{
-    EXPECT(lit(1).hash() != lit(2).hash());
-}
+TEST_CASE(hash_different_literals) { EXPECT(lit(1).hash() != lit(2).hash()); }
 
-TEST_CASE(hash_different_variables)
-{
-    EXPECT(var("x").hash() != var("y").hash());
-}
+TEST_CASE(hash_different_variables) { EXPECT(var("x").hash() != var("y").hash()); }
 
 TEST_CASE(hash_unordered_map_key)
 {

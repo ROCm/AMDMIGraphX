@@ -78,8 +78,8 @@ interval operator/(interval a, interval b)
 
 interval operator%(interval a, interval b)
 {
-    auto f  = [](auto x, auto y) { return x % y; };
-    auto fd = [](auto x, auto y) { return std::fmod(x, y); };
+    auto f       = [](auto x, auto y) { return x % y; };
+    auto fd      = [](auto x, auto y) { return std::fmod(x, y); };
     auto compute = [&](const value& x, const value& y) -> value {
         if(std::holds_alternative<int64_t>(x) and std::holds_alternative<int64_t>(y))
             return f(std::get<int64_t>(x), std::get<int64_t>(y));

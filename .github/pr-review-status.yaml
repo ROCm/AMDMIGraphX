@@ -1,31 +1,44 @@
-name: PR Review Status (Issue)
+name: PR Review Dashboard
 
 on:
   schedule:
-    - cron: '0 */6 * * *'
+    - cron: '0 * * * *'
   workflow_dispatch:
 
 permissions:
-  issues: write
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
 
 jobs:
-  report:
+  deploy:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+
       - run: pip install requests
 
-      - name: Generate report
+      - name: Generate data.json
         env:
           GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
-        run: python migraphx_pr_review_status.py --markdown > report.md
+        run: python tools/pr-review-status.py --json > pr_review_dashboard/data.json
 
-      - name: Update pinned issue
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Replace 1234 with your pinned issue number
-          gh issue edit 1234 --repo ROCm/AMDMIGraphX --body-file report.md
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: pr_review_dashboard
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

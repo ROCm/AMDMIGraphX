@@ -916,32 +916,66 @@ std::string value_to_string(const value& v)
         v);
 }
 
-bool is_infix_op(const std::string& name)
+struct string_prec
 {
-    return name == "+" or name == "-" or name == "*" or name == "/" or name == "%";
+    std::string str;
+    int prec = 0;
+};
+
+int op_precedence(const std::string& name)
+{
+    if(name == "+" or name == "-")
+        return 1;
+    if(name == "*" or name == "/" or name == "%")
+        return 2;
+    return 0;
+}
+
+bool is_infix_op(const std::string& name) { return op_precedence(name) > 0; }
+
+std::string wrap_if(const string_prec& sp, int parent_prec)
+{
+    if(sp.prec > 0 and sp.prec < parent_prec)
+        return "(" + sp.str + ")";
+    return sp.str;
 }
 } // namespace
 
 std::string expr::to_string() const
 {
-    return generic_eval<std::string>(
-        *this,
-        [](const expr& e) -> std::optional<std::string> {
-            if(e.empty())
-                return std::string{};
-            if(auto* n = std::get_if<literal_node>(&e.node()))
-                return value_to_string(n->val);
-            if(auto* n = std::get_if<variable_node>(&e.node()))
-                return n->name;
-            return std::nullopt;
-        },
-        [](const op_node& op, std::vector<std::string> args) -> std::string {
-            if(op.op->name == "neg" and args.size() == 1)
-                return "(-" + args[0] + ")";
-            if(is_infix_op(op.op->name) and args.size() >= 2)
-                return "(" + join_strings(args, " " + op.op->name + " ") + ")";
-            return op.op->name + "(" + join_strings(args, ", ") + ")";
-        });
+    return generic_eval<string_prec>(
+               *this,
+               [](const expr& e) -> std::optional<string_prec> {
+                   if(e.empty())
+                       return string_prec{};
+                   if(auto* n = std::get_if<literal_node>(&e.node()))
+                       return string_prec{value_to_string(n->val)};
+                   if(auto* n = std::get_if<variable_node>(&e.node()))
+                       return string_prec{n->name};
+                   return std::nullopt;
+               },
+               [](const op_node& op, std::vector<string_prec> args) -> string_prec {
+                   int prec = op_precedence(op.op->name);
+                   if(is_infix_op(op.op->name) and args.size() >= 2)
+                   {
+                       std::string delim = prec >= 2 ? op.op->name : " " + op.op->name + " ";
+                       std::vector<std::string> strs;
+                       strs.reserve(args.size());
+                       std::transform(args.begin(),
+                                      args.end(),
+                                      std::back_inserter(strs),
+                                      [&](const string_prec& sp) { return wrap_if(sp, prec); });
+                       return {join_strings(strs, delim), prec};
+                   }
+                   std::vector<std::string> strs;
+                   strs.reserve(args.size());
+                   std::transform(args.begin(),
+                                  args.end(),
+                                  std::back_inserter(strs),
+                                  [](const string_prec& sp) { return sp.str; });
+                   return {op.op->name + "(" + join_strings(strs, ", ") + ")"};
+               })
+        .str;
 }
 
 std::string to_string(const expr& e) { return e.to_string(); }

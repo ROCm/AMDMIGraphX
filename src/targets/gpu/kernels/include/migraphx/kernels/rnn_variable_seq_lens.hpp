@@ -89,10 +89,10 @@ __device__ void rnn_var_sl_last_output(Input input, SeqLens seq_lens, Output out
     ind.global_stride(output.get_shape().elements(), [&](auto i) {
         // decompose the linear index using the output layout (same convention as
         // rnn_var_sl_shift_output); then index the 4D input explicitly.
-        auto out_idx                   = output.get_shape().multi(i);
-        auto d                         = out_idx[0];
-        auto b                         = out_idx[1];
-        auto l                         = seq_lens[b];
+        auto out_idx = output.get_shape().multi(i);
+        auto d       = out_idx[0];
+        auto b       = out_idx[1];
+        auto l       = seq_lens[b];
         typename get_shape_c<Input>::index_array in_idx{};
         in_idx[0] = (IsReverse or d == 1) ? 0 : (l - 1);
         in_idx[1] = d;

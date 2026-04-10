@@ -74,11 +74,12 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
         endif()
     elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
         if(MIGRAPHX_USE_BINSKIM_COMPLIANT_COMPILE_FLAGS)
+            message(STATUS "Control Flow Guard enabled")
             add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:SHELL:-Xclang -cfguard>")
             add_link_options(-Wl,-guard:cf)
         endif()
         if(MIGRAPHX_USE_SPECTRE_MITIGATED_LIBRARIES)
-            message(WARNING "Spectre mitigated libraries are not yet available for Clang in this project.")
+            message(WARNING "Spectre-mitigated libraries are not yet available for Clang in this project.")
         endif()
     endif()
 endif()
@@ -93,7 +94,6 @@ endif()
 
 # By default build shared libraries
 option(BUILD_SHARED_LIBS "Create shared libraries" ON)
-
 option(MIGRAPHX_STRIP_SYMBOLS "Strip symbols in release mode" OFF)
 
 # Strip symbols for release
@@ -115,7 +115,6 @@ option(BUILD_DEV "Build for development purpose only" OFF)
 rocm_setup_version(VERSION 2.16.0)
 math(EXPR MIGRAPHX_SO_MAJOR_VERSION "(${PROJECT_VERSION_MAJOR} * 1000 * 1000) + (${PROJECT_VERSION_MINOR} * 1000) + ${PROJECT_VERSION_PATCH}")
 set(MIGRAPHX_SO_VERSION ${MIGRAPHX_SO_MAJOR_VERSION}.0)
-include(AddVersionResource)
 
 option( BUILD_SHARED_LIBS "Build as a shared library" ON )
 

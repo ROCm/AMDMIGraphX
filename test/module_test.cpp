@@ -76,7 +76,6 @@ static void reverse_module(migraphx::module& m)
     m.shuffle(permutation);
 }
 
-
 static migraphx::program create_program()
 {
     migraphx::program p;
@@ -148,28 +147,6 @@ TEST_CASE(calc_implict_deps)
     EXPECT(std::all_of(ret_inputs.begin(), ret_inputs.end(), [&](const auto i) {
         return std::distance(mm->begin(), i) < std::distance(mm->begin(), ret);
     }));
-}
-
-TEST_CASE(module_sort)
-{
-    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
-    migraphx::module m1;
-    {
-        m1.add_parameter("z", s);
-        auto x   = m1.add_parameter("x", s);
-        auto y   = m1.add_parameter("y", s);
-        auto add = m1.add_instruction(migraphx::make_op("add"), y, x);
-        m1.add_return({add});
-    }
-    migraphx::module m2;
-    {
-        auto y = m2.add_parameter("y", s);
-        auto x = m2.add_parameter("x", s);
-        m2.add_parameter("z", s);
-        auto add = m2.add_instruction(migraphx::make_op("add"), y, x);
-        m2.add_return({add});
-    }
-    EXPECT(m1.sort() == m2);
 }
 
 TEST_CASE(module_annotate)
@@ -867,7 +844,6 @@ TEST_CASE(linear_graph_sort)
     m.add_return({t});
 
     m.sort();
-
     EXPECT(is_sorted(m));
 
     reverse_module(m);

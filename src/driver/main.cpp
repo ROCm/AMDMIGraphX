@@ -698,9 +698,9 @@ struct timer
 
     void report_duration() const
     {
-        std::cout << "Compilation time: "
-                  << std::chrono::duration_cast<std::chrono::milliseconds>(e - s).count()
-                  << "ms\n";
+        log::info() << "Compilation time: "
+                    << std::chrono::duration_cast<std::chrono::milliseconds>(e - s).count()
+                    << "ms";
     }
 };
 
@@ -1043,7 +1043,7 @@ struct op : command<op>
     }
 };
 
-#ifdef MIGRAPHX_ONNX
+#ifdef MIGRAPHX_ENABLE_ONNX
 
 struct onnx : command<onnx>
 {

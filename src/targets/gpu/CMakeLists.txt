@@ -275,7 +275,7 @@ if(MIGRAPHX_ENABLE_MLIR)
 endif()
 
 if(MIGRAPHX_USE_HIPRTC)
-    # HIPRTC workaround for CMake versin 4.0+
+    # HIPRTC workaround for CMake version 4.0+
     if(CMAKE_VERSION VERSION_GREATER_EQUAL 4)
         set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE INTERNAL "" FORCE)
     endif()

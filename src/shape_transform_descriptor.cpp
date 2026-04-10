@@ -738,7 +738,6 @@ struct rebase_ambiguity_resolver
         }
     }
 
-    private:
     shape_transform_descriptor* desc;
     const std::vector<std::size_t>* dims;
     std::multimap<std::size_t, std::size_t> shortage_axes;

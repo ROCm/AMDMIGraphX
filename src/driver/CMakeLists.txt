@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 #####################################################################################
 
-add_executable(driver 
+add_executable(driver
     main.cpp
     verify.cpp
     passes.cpp
@@ -51,11 +51,6 @@ file(STRINGS "${CMAKE_SOURCE_DIR}/test/onnx/.onnxrt-commit" String_output)
 target_compile_definitions(driver PUBLIC MIGRAPHX_ORT_SHA1="${String_output}")
 
 target_link_libraries(driver migraphx_all_targets migraphx_all_frontends)
-
-add_version_resource(
-    TARGET driver
-    DESCRIPTION "MIGraphX Driver - Command-line Interface and Testing Tool"
-)
 
 rocm_add_version_resource(driver "AMD MIGraphX" "MIGraphX Driver - Command-line Interface and Testing Tool")
 

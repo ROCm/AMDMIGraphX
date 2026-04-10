@@ -169,7 +169,6 @@ rocm_install_targets(
     ${CMAKE_CURRENT_BINARY_DIR}/include
 )
 
-
 rocm_set_soversion(migraphx ${MIGRAPHX_SO_VERSION})
 function(register_migraphx_ops)
     foreach(OP ${ARGN})

@@ -455,8 +455,8 @@ struct compile_plan
                            problem_string() + "\n\n" + print_modules());
         auto skipped = std::count_if(
             results.begin(), results.end(), [](const auto& cr) { return not cr.has_value(); });
-        if(trace_level > 1 and skipped > 0)
-            log::warn() << "Skipped " << skipped << " configs for " << preop.name();
+        if(trace_level > 0 && skipped > 0)
+            log::trace() << "Skipped " << skipped << " configs for " << preop.name();
 
         return *results[i];
     }

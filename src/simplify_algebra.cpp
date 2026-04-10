@@ -2374,6 +2374,198 @@ struct find_pow2
     }
 };
 
+MIGRAPHX_PRED_MATCHER(fusable_avg_pooling, instruction_ref ins)
+{
+    auto v = ins->get_operator().to_value();
+
+    if(v["mode"].to<std::size_t>() != static_cast<std::size_t>(op::pooling_mode::average))
+        return false;
+
+    if(not all_of(v["padding"], [](const value& x) { return x.to<std::size_t>() == 0; }))
+        return false;
+
+    if(v["ceil_mode"].to<bool>())
+        return false;
+
+    if(not all_of(v["dilations"], [](const value& x) { return x.to<std::size_t>() == 1; }))
+        return false;
+
+    if(v["padding_mode"].to<std::size_t>() != 0)
+        return false;
+
+    if(v["dyn_global"].to<bool>())
+        return false;
+
+    if(ins->get_shape().dynamic())
+        return false;
+
+    if(ins->inputs().front()->get_shape().dynamic())
+        return false;
+
+    return true;
+}
+
+MIGRAPHX_PRED_MATCHER(fusable_convolution, instruction_ref ins)
+{
+    auto op = any_cast<op::convolution>(ins->get_operator());
+
+    if(any_of(op.dilation, [](auto d) { return d != 1; }))
+        return false;
+
+    if(op.group != 1)
+        return false;
+
+    if(op.padding_mode != op::padding_mode_t::default_)
+        return false;
+
+    return true;
+}
+
+struct find_pooling_conv
+{
+    auto matcher() const
+    {
+        return match::name("convolution")(
+            fusable_convolution(),
+            match::args(
+                match::name("pooling")(match::used_once(), fusable_avg_pooling()).bind("pooling"),
+                match::is_constant().bind("w")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins      = r.result;
+        auto pool_ins = r.instructions["pooling"];
+        auto w_ins    = r.instructions["w"];
+
+        auto pool_val = pool_ins->get_operator().to_value();
+        auto conv_op  = any_cast<op::convolution>(ins->get_operator());
+
+        auto pool_lengths = pool_val["lengths"].to_vector<std::size_t>();
+        auto pool_stride  = pool_val["stride"].to_vector<std::size_t>();
+
+        // Skip integer weight types (division would truncate)
+        auto w_shape = w_ins->get_shape();
+        if(shape::is_integral(w_shape.type()))
+            return;
+
+        if(w_shape.dynamic())
+            return;
+
+        auto ndims            = w_shape.ndim();
+        auto num_spatial_dims = ndims - 2;
+        const auto& w_lens    = w_shape.lens();
+
+        // Only handle non-overlapping pooling (Kp <= Sp)
+        for(std::size_t i = 0; i < num_spatial_dims; i++)
+        {
+            if(pool_lengths[i] > pool_stride[i])
+                return;
+        }
+
+        // Compute new kernel size: Sp*(Kc-1) + Kp
+        std::vector<std::size_t> new_kernel_lens = {w_lens[0], w_lens[1]};
+        for(std::size_t i = 0; i < num_spatial_dims; i++)
+            new_kernel_lens.push_back(pool_stride[i] * (w_lens[i + 2] - 1) + pool_lengths[i]);
+
+        // Compute new stride: Sp * Sc
+        std::vector<std::size_t> new_stride(num_spatial_dims);
+        std::transform(pool_stride.begin(),
+                       pool_stride.end(),
+                       conv_op.stride.begin(),
+                       new_stride.begin(),
+                       std::multiplies<>{});
+
+        // Compute new padding: Sp * Pc
+        std::vector<std::size_t> new_padding(conv_op.padding.size());
+        std::transform(
+            conv_op.padding.begin(), conv_op.padding.end(), new_padding.begin(), [&](auto p) {
+                auto idx = &p - &conv_op.padding.front();
+                return pool_stride[idx % num_spatial_dims] * p;
+            });
+
+        // Pool area for the average divisor
+        auto pool_area =
+            std::accumulate(pool_lengths.begin(), pool_lengths.end(), 1.0, std::multiplies<>{});
+
+        // Build new weights via ops (propagate_constant will fold later)
+        //
+        // Step 1: Unsqueeze to interleave size-1 dims after each spatial dim
+        //   {K_out, K_in, Kc_h, Kc_w} -> {K_out, K_in, Kc_h, 1, Kc_w, 1}
+        std::vector<int64_t> unsq_axes(num_spatial_dims);
+        std::transform(range(num_spatial_dims).begin(),
+                       range(num_spatial_dims).end(),
+                       unsq_axes.begin(),
+                       [](auto i) { return 3 + 2 * static_cast<int64_t>(i); });
+        auto current =
+            m.insert_instruction(ins, make_op("unsqueeze", {{"axes", unsq_axes}}), w_ins);
+
+        // Step 2: Broadcast the new dims to pool kernel size
+        //   {K_out, K_in, Kc_h, 1, Kc_w, 1} -> {K_out, K_in, Kc_h, Kp_h, Kc_w, Kp_w}
+        std::vector<std::size_t> bcast_lens = {w_lens[0], w_lens[1]};
+        for(std::size_t i = 0; i < num_spatial_dims; i++)
+        {
+            bcast_lens.push_back(w_lens[i + 2]);
+            bcast_lens.push_back(pool_lengths[i]);
+        }
+        current = m.insert_instruction(
+            ins, make_op("multibroadcast", {{"out_lens", bcast_lens}}), current);
+
+        // Step 3: Pad pool kernel dims to pool stride if Kp < Sp
+        bool needs_pad = any_of(range(num_spatial_dims),
+                                [&](auto i) { return pool_lengths[i] < pool_stride[i]; });
+        if(needs_pad)
+        {
+            auto padded_ndims = 2 + 2 * num_spatial_dims;
+            std::vector<int64_t> pads(2 * padded_ndims, 0);
+            for(std::size_t i = 0; i < num_spatial_dims; i++)
+                pads[padded_ndims + 3 + 2 * i] =
+                    static_cast<int64_t>(pool_stride[i] - pool_lengths[i]);
+            current = m.insert_instruction(ins, make_op("pad", {{"pads", pads}}), current);
+        }
+
+        // Step 4: Reshape to merge spatial dim pairs
+        //   {K_out, K_in, Kc_h, Sp_h, Kc_w, Sp_w} -> {K_out, K_in, Kc_h*Sp_h, Kc_w*Sp_w}
+        std::vector<int64_t> reshape_dims = {static_cast<int64_t>(w_lens[0]),
+                                             static_cast<int64_t>(w_lens[1])};
+        for(std::size_t i = 0; i < num_spatial_dims; i++)
+            reshape_dims.push_back(static_cast<int64_t>(w_lens[i + 2] * pool_stride[i]));
+        current = m.insert_instruction(ins, make_op("reshape", {{"dims", reshape_dims}}), current);
+
+        // Step 5: Slice off trailing zeros if Kp < Sp
+        if(needs_pad)
+        {
+            std::vector<int64_t> axes(num_spatial_dims);
+            std::vector<int64_t> starts(num_spatial_dims, 0);
+            std::vector<int64_t> ends(num_spatial_dims);
+            for(std::size_t i = 0; i < num_spatial_dims; i++)
+            {
+                axes[i] = static_cast<int64_t>(i + 2);
+                ends[i] = static_cast<int64_t>(new_kernel_lens[i + 2]);
+            }
+            current = m.insert_instruction(
+                ins,
+                make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}),
+                current);
+        }
+
+        // Step 6: Scale weights by 1/pool_area
+        auto scale_ins = m.add_literal(literal{shape{w_shape.type()}, {1.0 / pool_area}});
+        auto scale_bc  = m.insert_instruction(
+            ins, make_op("multibroadcast", {{"out_lens", new_kernel_lens}}), scale_ins);
+        auto new_w = m.insert_instruction(ins, make_op("mul"), current, scale_bc);
+
+        m.replace_instruction(ins,
+                              make_op("convolution",
+                                      {{"padding", new_padding},
+                                       {"stride", new_stride},
+                                       {"dilation", conv_op.dilation},
+                                       {"group", conv_op.group}}),
+                              pool_ins->inputs().front(),
+                              new_w);
+    }
+};
+
 void simplify_algebra::apply(module& m) const
 {
     // Run simplifications multiple times
@@ -2409,7 +2601,8 @@ void simplify_algebra::apply(module& m) const
                             find_splits{},
                             find_split_reshape{},
                             find_split_transpose{},
-                            find_pow2{});
+                            find_pow2{},
+                            find_pooling_conv{});
 
         dead_code_elimination{}.apply(m);
     });

@@ -34,7 +34,6 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <iostream>
-#include <migraphx/logger.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -996,6 +995,7 @@ bool shape::dynamic_dimension::is_fixed() const { return this->min == this->max;
 bool shape::dynamic_dimension::has_optimal() const { return not optimals.empty(); }
 
 // clang-format off
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
 #define MIGRAPHX_SHAPE_DYN_DIM_IMPLEMENT_OP(binary_op, assign_op)                                \
     shape::dynamic_dimension& shape::dynamic_dimension::operator assign_op(const std::size_t& x) \
     {                                                                                            \
@@ -1262,7 +1262,7 @@ shape::type_t shape::parse_type(const std::string& s)
 
 const std::vector<shape>& shape::sub_shapes() const { return impl->m_shapes; }
 
-void shape::debug_print() const { log::debug() << *this; }
+void shape::debug_print() const { std::cout << *this << std::endl; }
 
 std::vector<shape> flatten(const std::vector<shape>& shapes)
 {

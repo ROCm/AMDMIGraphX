@@ -23,6 +23,7 @@
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
 
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
@@ -52,16 +53,19 @@
   }
 
   .summary-card {
+    display: block;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 6px;
     padding: 0.6rem 0.75rem;
     text-align: center;
-    cursor: pointer;
+    text-decoration: none;
+    color: inherit;
     transition: border-color 0.15s;
   }
   .summary-card:hover {
     border-color: var(--text-muted);
+    text-decoration: none;
   }
   .summary-card .count {
     font-size: 1.6rem;
@@ -245,7 +249,9 @@ function esc(str) {
 }
 
 function relativeTime(dateStr) {
+  if (!dateStr) return '—';
   const diff = Date.now() - new Date(dateStr).getTime();
+  if (isNaN(diff)) return '—';
   const mins  = Math.floor(diff / 60000);
   const hours = Math.floor(diff / 3600000);
   const days  = Math.floor(diff / 86400000);
@@ -269,7 +275,7 @@ function buildTable(prs) {
     const ci = esc(pr.ci_status || 'none');
     return `<tr>
       <td><a href="${esc(pr.url)}">#${pr.number}</a></td>
-      <td><div class="author-cell"><img class="avatar" src="${esc(pr.author_avatar)}&amp;s=40" alt="">${esc(pr.author)}</div></td>
+      <td><div class="author-cell">${pr.author_avatar ? `<img class="avatar" src="${esc(pr.author_avatar)}${pr.author_avatar.includes('?') ? '&amp;s=40' : '?s=40'}" alt="">` : ''}${esc(pr.author)}</div></td>
       <td>${esc(pr.title)} ${labels}</td>
       <td class="approvals-cell">${approvals}/2</td>
       <td class="ci-cell"><span class="ci-dot ${ci}" title="${ci}"></span></td>
@@ -299,11 +305,11 @@ async function init() {
     // Summary cards
     const summaryHTML = `
       <div class="summary-card total"><div class="count">${data.total_prs}</div><div class="label">Total PRs</div></div>
-      <div class="summary-card needs_reviews" onclick="document.getElementById('bucket-needs_reviews').scrollIntoView({behavior:'smooth'})"><div class="count">${data.counts.needs_reviews}</div><div class="label">Needs Reviews</div></div>
-      <div class="summary-card in_review" onclick="document.getElementById('bucket-in_review').scrollIntoView({behavior:'smooth'})"><div class="count">${data.counts.in_review}</div><div class="label">Has 2+ Reviewers</div></div>
-      <div class="summary-card changes_requested" onclick="document.getElementById('bucket-changes_requested').scrollIntoView({behavior:'smooth'})"><div class="count">${data.counts.changes_requested}</div><div class="label">Changes Requested</div></div>
-      <div class="summary-card approved" onclick="document.getElementById('bucket-approved').scrollIntoView({behavior:'smooth'})"><div class="count">${data.counts.approved}</div><div class="label">Has 2+ Approvals</div></div>
-      <div class="summary-card ready_to_merge" onclick="document.getElementById('bucket-ready_to_merge').scrollIntoView({behavior:'smooth'})"><div class="count">${data.counts.ready_to_merge}</div><div class="label">Ready to Merge</div></div>
+      <a class="summary-card needs_reviews" href="#bucket-needs_reviews"><div class="count">${data.counts.needs_reviews}</div><div class="label">Needs Reviews</div></a>
+      <a class="summary-card in_review" href="#bucket-in_review"><div class="count">${data.counts.in_review}</div><div class="label">Has 2+ Reviewers</div></a>
+      <a class="summary-card changes_requested" href="#bucket-changes_requested"><div class="count">${data.counts.changes_requested}</div><div class="label">Changes Requested</div></a>
+      <a class="summary-card approved" href="#bucket-approved"><div class="count">${data.counts.approved}</div><div class="label">Has 2+ Approvals</div></a>
+      <a class="summary-card ready_to_merge" href="#bucket-ready_to_merge"><div class="count">${data.counts.ready_to_merge}</div><div class="label">Ready to Merge</div></a>
     `;
     document.getElementById('summary').innerHTML = summaryHTML;
 

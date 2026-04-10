@@ -36,7 +36,6 @@ Usage:
 """
 
 import argparse
-import html
 import json
 import os
 import re
@@ -160,15 +159,53 @@ def fetch_all_prs(session: requests.Session) -> list[dict]:
     return all_prs
 
 
-# ── processing helpers ────────────────────────────────────────────────
+# ── sanitization ──────────────────────────────────────────────────────
+_CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+_USERNAME_RE = re.compile(r"^[a-zA-Z0-9\-]+$")
+_GITHUB_URL_RE = re.compile(r"^https://github\.com/")
+
+
+def sanitize_text(raw: str, max_len: int = 300) -> str:
+    """Strip control characters, collapse whitespace, and truncate."""
+    text = _CONTROL_CHARS.sub("", raw)
+    text = re.sub(r"\s+", " ", text.strip())
+    return text[:max_len]
+
+
+def sanitize_username(raw: str) -> str:
+    """Return the username if it matches GitHub's format, else empty string."""
+    name = raw.strip()[:39]
+    return name if _USERNAME_RE.match(name) else ""
+
+
+def sanitize_url(raw: str) -> str:
+    """Only allow https://github.com/ URLs; return empty string otherwise."""
+    url = raw.strip()[:500]
+    return url if _GITHUB_URL_RE.match(url) else ""
+
+
+def sanitize_avatar_url(raw: str) -> str:
+    """Only allow https://avatars.githubusercontent.com/ URLs."""
+    url = raw.strip()[:500]
+    if url.startswith("https://avatars.githubusercontent.com/"):
+        return url
+    return ""
+
+
+def sanitize_iso_date(raw: str) -> str:
+    """Pass through ISO 8601 date strings, reject anything else."""
+    text = raw.strip()[:30]
+    if re.match(r"^\d{4}-\d{2}-\d{2}T[\d:.Z+\-]+$", text):
+        return text
+    return ""
+
+
 DASH_NOTE_RE = re.compile(r"^#dash_note\s+(.*)", re.DOTALL)
 
 
 def sanitize_note(raw: str) -> str:
-    """Escape HTML, collapse whitespace, and truncate."""
-    text = html.escape(raw.strip())
-    text = re.sub(r"\s+", " ", text)
-    return text[:500]
+    """Collapse whitespace and truncate."""
+    return sanitize_text(raw, max_len=500)
 
 
 def extract_reviews(
@@ -179,7 +216,7 @@ def extract_reviews(
     """Process GraphQL review nodes into (review_count, reviewers, approval_count, approvers)."""
     latest: dict[str, str] = {}
     for review in review_nodes:
-        author = (review.get("author") or {}).get("login", "")
+        author = sanitize_username((review.get("author") or {}).get("login", ""))
         state = review.get("state", "")
         if author and state in ("APPROVED", "CHANGES_REQUESTED", "COMMENTED", "DISMISSED"):
             latest[author] = state
@@ -227,7 +264,7 @@ def extract_dash_note(
     """Find the most recent #dash_note from a member (comments are in chronological order)."""
     best: Optional[dict] = None
     for comment in comment_nodes:
-        user = (comment.get("author") or {}).get("login", "")
+        user = sanitize_username((comment.get("author") or {}).get("login", ""))
         if user not in members:
             continue
         body = (comment.get("body") or "").strip()
@@ -237,7 +274,7 @@ def extract_dash_note(
         best = {
             "author": user,
             "body": sanitize_note(m.group(1)),
-            "updated_at": comment.get("updatedAt", ""),
+            "updated_at": sanitize_iso_date(comment.get("updatedAt", "")),
         }
     return best
 
@@ -261,9 +298,11 @@ def gather_data(session: requests.Session) -> dict:
     }
 
     for i, pr in enumerate(prs, 1):
-        number = pr["number"]
-        author = (pr.get("author") or {}).get("login", "")
-        author_avatar = (pr.get("author") or {}).get("avatarUrl", "")
+        number = int(pr["number"])
+        author = sanitize_username((pr.get("author") or {}).get("login", ""))
+        author_avatar = sanitize_avatar_url(
+            (pr.get("author") or {}).get("avatarUrl", "")
+        )
 
         review_nodes = pr.get("reviews", {}).get("nodes", [])
         member_review_count, reviewers, approval_count, approvers = (
@@ -280,13 +319,16 @@ def gather_data(session: requests.Session) -> dict:
 
         entry = {
             "number": number,
-            "title": pr["title"],
+            "title": sanitize_text(pr.get("title", "")),
             "author": author,
             "author_avatar": author_avatar,
-            "url": pr["url"],
-            "created_at": pr.get("createdAt", ""),
-            "updated_at": pr.get("updatedAt", ""),
-            "labels": [n["name"] for n in pr.get("labels", {}).get("nodes", [])],
+            "url": sanitize_url(pr.get("url", "")),
+            "created_at": sanitize_iso_date(pr.get("createdAt", "")),
+            "updated_at": sanitize_iso_date(pr.get("updatedAt", "")),
+            "labels": [
+                sanitize_text(n.get("name", ""), max_len=50)
+                for n in pr.get("labels", {}).get("nodes", [])
+            ],
             "member_reviews": member_review_count,
             "reviewers": reviewers,
             "member_approvals": approval_count,

@@ -229,6 +229,12 @@ const BUCKET_META = [
   { key: 'ready_to_merge', dot: 'green',  title: 'Ready to Merge',    cardClass: 'ready_to_merge' },
 ];
 
+function esc(str) {
+  const el = document.createElement('span');
+  el.textContent = str;
+  return el.innerHTML;
+}
+
 function relativeTime(dateStr) {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins  = Math.floor(diff / 60000);
@@ -243,24 +249,24 @@ function buildTable(prs) {
   if (!prs.length) return '<div class="empty-msg">No pull requests in this category 🎉</div>';
 
   let rows = prs.map(pr => {
-    const labels = pr.labels.map(l => `<span class="label-badge">${l}</span>`).join(' ');
+    const labels = pr.labels.map(l => `<span class="label-badge">${esc(l)}</span>`).join(' ');
     const reviewers = pr.reviewers.length
-      ? pr.reviewers.map(r => `<a href="https://github.com/${r}">@${r}</a>`).join(', ')
+      ? pr.reviewers.map(r => `<a href="https://github.com/${encodeURIComponent(r)}">@${esc(r)}</a>`).join(', ')
       : '—';
     const note = pr.dash_note
-      ? `<div>${pr.dash_note.body}</div><div class="note-author">— ${pr.dash_note.author}</div>`
+      ? `<div>${esc(pr.dash_note.body)}</div><div class="note-author">— ${esc(pr.dash_note.author)}</div>`
       : '';
     const approvals = pr.member_approvals || 0;
-    const ci = pr.ci_status || 'none';
+    const ci = esc(pr.ci_status || 'none');
     return `<tr>
-      <td><a href="${pr.url}">#${pr.number}</a></td>
-      <td><div class="author-cell"><img class="avatar" src="${pr.author_avatar}&s=40" alt="">${pr.author}</div></td>
-      <td>${pr.title} ${labels}</td>
+      <td><a href="${esc(pr.url)}">#${pr.number}</a></td>
+      <td><div class="author-cell"><img class="avatar" src="${esc(pr.author_avatar)}&amp;s=40" alt="">${esc(pr.author)}</div></td>
+      <td>${esc(pr.title)} ${labels}</td>
       <td class="approvals-cell">${approvals}/2</td>
       <td class="ci-cell"><span class="ci-dot ${ci}" title="${ci}"></span></td>
       <td class="note-cell">${note}</td>
       <td class="reviewers">${reviewers}</td>
-      <td title="${pr.updated_at}">${relativeTime(pr.updated_at)}</td>
+      <td title="${esc(pr.updated_at)}">${relativeTime(pr.updated_at)}</td>
     </tr>`;
   }).join('');
 

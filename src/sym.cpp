@@ -714,6 +714,32 @@ std::size_t expr::hash() const
     return result;
 }
 
+value generic_eval_auto_apply(const op_node& op, const std::vector<value>& args)
+{
+    return op.op->eval(args);
+}
+
+interval generic_eval_auto_apply(const op_node& op, const std::vector<interval>& args)
+{
+    return op.op->eval_interval(args);
+}
+
+expr generic_eval_auto_apply(const op_node& op, const std::vector<expr>& args)
+{
+    return call_op(op.op, args);
+}
+
+template<class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>
+std::size_t generic_eval_auto_apply(const op_node& op, const std::vector<T>& args)
+{
+    std::vector<value> vargs;
+    vargs.reserve(args.size());
+    std::transform(args.begin(), args.end(), std::back_inserter(vargs), [](T x) {
+        return make_value(x);
+    });
+    return to<T>(op.op->eval(vargs));
+}
+
 template <class R, class Replace, class Apply>
 R generic_eval(const expr& e, Replace replace, Apply apply)
 {
@@ -730,6 +756,12 @@ R generic_eval(const expr& e, Replace replace, Apply apply)
     return apply(std::get<op_node>(e.node()), std::move(args));
 }
 
+template <class R, class Replace>
+R generic_eval(const expr& e, Replace replace)
+{
+    return generic_eval<R>(e, replace, MIGRAPHX_LIFT(generic_eval_auto_apply));
+}
+
 std::size_t expr::eval_uint(const std::unordered_map<expr, std::size_t>& symbol_map) const
 {
     return generic_eval<std::size_t>(
@@ -744,15 +776,6 @@ std::size_t expr::eval_uint(const std::unordered_map<expr, std::size_t>& symbol_
                 MIGRAPHX_THROW("eval_uint: unbound variable '" +
                                std::get<variable_node>(e.node()).name + "'");
             return std::nullopt;
-        },
-        [](const op_node& op, std::vector<std::size_t> args) {
-            std::vector<value> vargs;
-            vargs.reserve(args.size());
-            std::transform(args.begin(),
-                           args.end(),
-                           std::back_inserter(vargs),
-                           [](std::size_t x) -> value { return int64_t(x); });
-            return to<std::size_t>(op.op->eval(vargs));
         });
 }
 
@@ -770,8 +793,7 @@ expr expr::subs(const std::unordered_map<expr, expr>& symbol_map) const
                std::holds_alternative<variable_node>(e.node()))
                 return e;
             return std::nullopt;
-        },
-        [](const op_node& op, std::vector<expr> args) { return call_op(op.op, std::move(args)); });
+        });
 }
 
 expr sin(expr e)
@@ -883,8 +905,7 @@ interval expr::eval_interval(const std::unordered_map<std::string, interval>& va
                 MIGRAPHX_THROW("Variable '" + n->name + "' not found in interval map");
             }
             return std::nullopt;
-        },
-        [](const op_node& op, std::vector<interval> args) { return op.op->eval_interval(args); });
+        });
 }
 
 namespace {

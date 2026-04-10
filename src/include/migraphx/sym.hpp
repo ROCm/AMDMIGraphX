@@ -44,6 +44,15 @@ namespace sym {
 
 using value = std::variant<int64_t, double>;
 
+template<class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>
+value make_value(T v)
+{
+    if constexpr(std::is_integral<T>{})
+        return int64_t(v);
+    else
+        return double(v);
+}
+
 template <class To>
 To to(const value& v)
 {
@@ -219,10 +228,7 @@ expr lit(value v);
 template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>
 expr lit(T v)
 {
-    if constexpr(std::is_integral<T>{})
-        return lit(value{int64_t{v}});
-    else
-        return lit(value{double{v}});
+    return lit(make_value(v));
 }
 
 expr var(std::string name);

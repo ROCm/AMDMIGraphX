@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/sym.hpp>
+#include <migraphx/serialize.hpp>
 #include <migraphx/simple_parser.hpp>
 #include <algorithm>
 #include <iterator>
@@ -1105,5 +1106,125 @@ expr parse(const std::string& str)
 }
 
 } // namespace sym
+
+namespace {
+
+migraphx::value sym_value_to_value(const sym::value& sv)
+{
+    return std::visit(
+        [](auto x) -> migraphx::value { return migraphx::to_value(x); }, sv);
+}
+
+sym::value value_to_sym_value(const migraphx::value& v)
+{
+    if(v.is_float())
+        return sym::value{v.get_float()};
+    return sym::value{v.get_int64()};
+}
+
+} // namespace
+
+void migraphx_to_value(migraphx::value& v, const sym::interval& i)
+{
+    migraphx::value result;
+    result["min"] = sym_value_to_value(i.min);
+    result["max"] = sym_value_to_value(i.max);
+    v             = result;
+}
+
+void migraphx_from_value(const migraphx::value& v, sym::interval& i)
+{
+    i.min = value_to_sym_value(v.at("min"));
+    i.max = value_to_sym_value(v.at("max"));
+}
+
+static migraphx::value expr_to_value(const sym::expr& e)
+{
+    if(e.empty())
+        return {};
+    migraphx::value result;
+    std::visit(
+        [&](const auto& n) {
+            using T = std::decay_t<decltype(n)>;
+            if constexpr(std::is_same<T, sym::literal_node>{})
+            {
+                result["type"]  = "literal";
+                result["value"] = sym_value_to_value(n.val);
+            }
+            else if constexpr(std::is_same<T, sym::variable_node>{})
+            {
+                result["type"] = "variable";
+                result["name"] = n.name;
+                if(not n.constraints.empty())
+                    result["constraints"] = migraphx::to_value(n.constraints);
+            }
+            else
+            {
+                result["type"] = "op";
+                result["name"] = n.op->name;
+            }
+        },
+        e.node());
+    auto& children = e.children();
+    if(not children.empty())
+    {
+        std::vector<migraphx::value> child_vals;
+        child_vals.reserve(children.size());
+        std::transform(children.begin(),
+                       children.end(),
+                       std::back_inserter(child_vals),
+                       [](const sym::expr& c) { return expr_to_value(c); });
+        result["children"] = child_vals;
+    }
+    return result;
+}
+
+void migraphx_to_value(migraphx::value& v, const sym::expr& e) { v = expr_to_value(e); }
+
+void migraphx_from_value(const migraphx::value& v, sym::expr& e)
+{
+    if(v.is_null())
+    {
+        e = sym::expr{};
+        return;
+    }
+    auto type = v.at("type").get_string();
+    if(type == "literal")
+    {
+        e = sym::lit(value_to_sym_value(v.at("value")));
+    }
+    else if(type == "variable")
+    {
+        auto name = v.at("name").get_string();
+        if(v.contains("constraints"))
+        {
+            auto constraints = migraphx::from_value<std::vector<sym::interval>>(v.at("constraints"));
+            for(auto& c : constraints)
+                e = sym::var(name, c);
+        }
+        else
+        {
+            e = sym::var(name);
+        }
+    }
+    else
+    {
+        auto name = v.at("name").get_string();
+        std::vector<sym::expr> children;
+        if(v.contains("children"))
+        {
+            auto& cv = v.at("children");
+            children.reserve(cv.size());
+            std::transform(cv.begin(),
+                           cv.end(),
+                           std::back_inserter(children),
+                           [](const migraphx::value& c) {
+                               return migraphx::from_value<sym::expr>(c);
+                           });
+        }
+        e = sym::call_function(name, std::move(children));
+    }
+}
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

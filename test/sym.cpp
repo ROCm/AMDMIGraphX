@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/sym.hpp>
+#include <migraphx/serialize.hpp>
 #include <sstream>
 #include <test.hpp>
 
@@ -2332,6 +2333,120 @@ TEST_CASE(parse_roundtrip)
     auto str      = to_string(original);
     auto parsed   = parse(str);
     EXPECT(parsed == original);
+}
+
+// ---- Serialization tests (to_value / from_value) ----
+
+TEST_CASE(serialize_interval_int)
+{
+    interval i{int64_t{3}, int64_t{10}};
+    auto v    = migraphx::to_value(i);
+    auto i2   = migraphx::from_value<interval>(v);
+    EXPECT(i == i2);
+}
+
+TEST_CASE(serialize_interval_double)
+{
+    interval i{1.5, 3.5};
+    auto v    = migraphx::to_value(i);
+    auto i2   = migraphx::from_value<interval>(v);
+    EXPECT(i == i2);
+}
+
+TEST_CASE(serialize_interval_mixed)
+{
+    interval i{int64_t{0}, 5.5};
+    auto v    = migraphx::to_value(i);
+    auto i2   = migraphx::from_value<interval>(v);
+    EXPECT(i == i2);
+}
+
+TEST_CASE(serialize_expr_literal_int)
+{
+    auto e  = lit(42);
+    auto v  = migraphx::to_value(e);
+    auto e2 = migraphx::from_value<expr>(v);
+    EXPECT(e == e2);
+}
+
+TEST_CASE(serialize_expr_literal_double)
+{
+    auto e  = lit(3.14);
+    auto v  = migraphx::to_value(e);
+    auto e2 = migraphx::from_value<expr>(v);
+    EXPECT(e == e2);
+}
+
+TEST_CASE(serialize_expr_variable)
+{
+    auto e  = var("x");
+    auto v  = migraphx::to_value(e);
+    auto e2 = migraphx::from_value<expr>(v);
+    EXPECT(e == e2);
+}
+
+TEST_CASE(serialize_expr_add)
+{
+    auto e  = var("x") + lit(1);
+    auto v  = migraphx::to_value(e);
+    auto e2 = migraphx::from_value<expr>(v);
+    EXPECT(e == e2);
+}
+
+TEST_CASE(serialize_expr_compound)
+{
+    auto e  = (var("x") + lit(1)) * var("y");
+    auto v  = migraphx::to_value(e);
+    auto e2 = migraphx::from_value<expr>(v);
+    EXPECT(e == e2);
+}
+
+TEST_CASE(serialize_expr_function)
+{
+    auto e  = sin(var("x"));
+    auto v  = migraphx::to_value(e);
+    auto e2 = migraphx::from_value<expr>(v);
+    EXPECT(e == e2);
+}
+
+TEST_CASE(serialize_expr_nested_function)
+{
+    auto e  = sqrt(var("x") + lit(1));
+    auto v  = migraphx::to_value(e);
+    auto e2 = migraphx::from_value<expr>(v);
+    EXPECT(e == e2);
+}
+
+TEST_CASE(serialize_expr_empty)
+{
+    expr e;
+    auto v  = migraphx::to_value(e);
+    auto e2 = migraphx::from_value<expr>(v);
+    EXPECT(e2.empty());
+}
+
+TEST_CASE(serialize_expr_eval_preserved)
+{
+    auto e  = var("x") * lit(2) + lit(3);
+    auto v  = migraphx::to_value(e);
+    auto e2 = migraphx::from_value<expr>(v);
+    EXPECT(e2.eval({{"x", int64_t{5}}}) == value{int64_t{13}});
+}
+
+TEST_CASE(serialize_expr_mod)
+{
+    auto e  = var("x") % lit(3);
+    auto v  = migraphx::to_value(e);
+    auto e2 = migraphx::from_value<expr>(v);
+    EXPECT(e == e2);
+}
+
+TEST_CASE(serialize_expr_variable_constraint)
+{
+    auto e  = var("x", interval{int64_t{0}, int64_t{10}});
+    auto v  = migraphx::to_value(e);
+    auto e2 = migraphx::from_value<expr>(v);
+    EXPECT(e == e2);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

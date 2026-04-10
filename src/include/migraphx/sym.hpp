@@ -310,6 +310,14 @@ struct simplifier
 inline simplifier simplify(expr e) { return {std::move(e)}; }
 
 } // namespace sym
+
+struct value;
+
+MIGRAPHX_EXPORT void migraphx_to_value(value& v, const sym::interval& i);
+MIGRAPHX_EXPORT void migraphx_from_value(const value& v, sym::interval& i);
+MIGRAPHX_EXPORT void migraphx_to_value(value& v, const sym::expr& e);
+MIGRAPHX_EXPORT void migraphx_from_value(const value& v, sym::expr& e);
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
